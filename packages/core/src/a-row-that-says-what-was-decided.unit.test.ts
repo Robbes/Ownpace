@@ -111,18 +111,24 @@ describe('a decided row says what was decided (MemoryLedger)', () => {
     expect(await moveOf('kr')).toMatchObject({ decided: 'applied' });
   });
 
-  it('a renamed file removed through Deletions says applied there, and its move stays open', async () => {
+  it('a renamed file removed through Deletions says applied there, and its move is closed as applied (workplan 0164)', async () => {
     // The other write that removes a copy, on a row that also carries a
     // relocation. It was the deletion that was carried out, so Deletions says
-    // applied, not relocated, and the move still waits on a person.
+    // applied, not relocated. The old copy is gone, so the move has nothing
+    // left to remove: it is closed, as the removal's own time, and listed
+    // after an open move.
     await renamed('both');
     await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', 'both');
     expect(await ledger.applyDeletion(TENANT, MAPPING, 'file', 'both')).toBe(true);
 
     expect(await deletionOf('both')).toMatchObject({ decided: 'applied' });
-    const move = await moveOf('both');
-    expect(move?.acknowledgedAt).toBeUndefined();
-    expect(move?.decided).toBeUndefined();
+    await renamed('waiting');
+    const moves = await ledger.listMoves(TENANT, MAPPING);
+    expect(moves.map((m) => m.naturalKeyHash)).toEqual(['waiting', 'both']);
+    expect(moves[1]).toMatchObject({ decided: 'applied', acknowledgedAt: expect.any(String) });
+    // A keep pressed from a page read before the removal answers nothing.
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'both', 'keep')).toBe(false);
+    expect(await deletionOf('both')).toMatchObject({ decided: 'applied' });
   });
 
   it('a move left where it is says kept', async () => {

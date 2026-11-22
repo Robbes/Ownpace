@@ -20,7 +20,8 @@
  *  - the old path's row is on both queues after the rename, `trashed`;
  *  - the run removes the OLD path's copy only, the one applying the move would
  *    remove; the new path's copy, made by the pass that saw the rename, stays;
- *  - the move stays on Moves, and applying it afterwards removes nothing more
+ *  - the move is closed on Moves as decided, its old copy removed (workplan 0164),
+ *    and applying it afterwards removes nothing more
  *    (`already_applied`);
  *  - the new path keeps syncing: a later pass leaves it as it is;
  *  - nothing is left that is never copied again: the tombstone is on the old
@@ -194,9 +195,10 @@ describe('a Dropbox rename, reached by a delete-all run before its move is appli
     expect((await ledger.find(TENANT, MAPPING, 'file', OLD))?.status).toBe('tombstoned');
     expect((await ledger.find(TENANT, MAPPING, 'file', NEW))?.status).toBe('copied');
 
-    // The move is still listed, and applying it now removes nothing more.
+    // The move is listed as decided, its old copy removed (workplan 0164), and
+    // applying it now removes nothing more.
     const move = (await ledger.listMoves(TENANT, MAPPING)).find((m) => m.naturalKeyHash === OLD);
-    expect(move?.acknowledgedAt).toBeUndefined();
+    expect(move).toMatchObject({ decided: 'applied', acknowledgedAt: expect.any(String) });
     const moved = await applyRelocation(
       {
         tenantId: TENANT,
