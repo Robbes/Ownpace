@@ -4,6 +4,10 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22: all ten decisions answered.** D7, reworded, answered: *"ok, now I understand. I
+agree."* That is (a): Support shows counts only. Every decision in §9 is now the recommended
+option. ADR-0055 stays proposed until the owner accepts it; it is the only thing left in T0.
+
 **2026-11-22: the owner answered §9.** D1, D2, D3, D4, D5, D6, D8, D9 and D10: *"ok"*, each as
 recommended. D7 drew a question: *"then how can he/she manage the family? Or is the admin not the
 one managing the migrations?"* D7 is about the **operator**, the Ownpace team's Support pages, not
@@ -29,7 +33,7 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The owner's decisions and ADR-0055 | owner | 🟡 **Nine of ten answered** | §9: D1–D6 and D8–D10 answered as recommended on 2026-11-22; D7 reworded, waiting. ADR-0055 is proposed; nothing below starts before it is accepted or changed. |
+| T0 The owner's decisions and ADR-0055 | owner | 🟡 **Decisions answered** | §9: D1–D10 answered as recommended on 2026-11-22 (D7 after rewording). ADR-0055 is proposed; nothing below starts before it is accepted or changed. |
 | T1 Address forms and the list of addresses nobody can take along | builder | 📋 **Proposed** | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moves there. No behaviour change. |
 | T2 The table of address changes | builder | 📋 **Proposed** | §4, §5. `address_change` in the shared chain, its routes in both editions, `PURGED_TABLES`. |
 | T3 The change itself, as a pure function | builder | 📋 **Proposed** | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests. |
