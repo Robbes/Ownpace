@@ -1687,3 +1687,60 @@ if (argv[0] === 'network' && argv[1] === 'ls') {
     expect(r.out).toContain('listed no networks');
   });
 });
+
+// ---------------------------------------------------------------------------
+describe('ensure-env-secrets.sh --only, which load_env runs for the jobs role (ADR-0054)', () => {
+  /** A checkout's deploy/compose with the script and what it sources, and an .env. */
+  function checkout(env: string): { compose: string; envFile: string } {
+    const compose = join(dir, 'deploy', 'compose');
+    mkdirSync(join(compose, 'pgbouncer'), { recursive: true });
+    for (const f of ['ensure-env-secrets.sh', 'env-read.sh', 'env-upsert.sh', 'shipped-passwords.sh', 'stack-kind.sh', 'managed.yml']) {
+      cpSync(join(REPO_ROOT, 'deploy/compose', f), join(compose, f));
+    }
+    const envFile = join(compose, '.env');
+    writeFileSync(envFile, env, { mode: 0o600 });
+    return { compose, envFile };
+  }
+  /** Docker that would fail any question: --only must not ask it anything. */
+  function noDocker(): string {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'docker'), '#!/bin/sh\necho "docker was called: $*" >&2\nexit 99\n', { mode: 0o755 });
+    return `${bin}:${process.env.PATH ?? ''}`;
+  }
+
+  it('fills in a missing JOBS_DB_PASSWORD, and nothing else: no other secret, no date, no group, no userlist', () => {
+    const { compose, envFile } = checkout('COMPOSE_PROJECT_NAME=ownpace-managed\nPOSTGRES_PASSWORD=\n');
+    const r = run(join(compose, 'ensure-env-secrets.sh'), ['--only', 'JOBS_DB_PASSWORD'], { PATH: noDocker() });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toBe('[ensure-env-secrets] generated JOBS_DB_PASSWORD\n');
+    const after = readFileSync(envFile, 'utf8');
+    const value = /^JOBS_DB_PASSWORD=([0-9a-f]{48})$/m.exec(after)?.[1];
+    expect(value, after).toBeDefined();
+    expect(after.replace(/^JOBS_DB_PASSWORD=.*\n/m, '')).toBe('COMPOSE_PROJECT_NAME=ownpace-managed\nPOSTGRES_PASSWORD=\n');
+    expect(existsSync(join(compose, 'pgbouncer', 'userlist.txt')), 'the userlist was written').toBe(false);
+    expect(`${r.stdout}${r.stderr}`).not.toContain(value!);
+  });
+
+  it('keeps one that is set, and writes nothing', () => {
+    const before = 'COMPOSE_PROJECT_NAME=ownpace-managed\nJOBS_DB_PASSWORD=' + 'ab'.repeat(24) + '\n';
+    const { compose, envFile } = checkout(before);
+    const r = run(join(compose, 'ensure-env-secrets.sh'), ['--only', 'JOBS_DB_PASSWORD'], { PATH: noDocker() });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toBe('');
+    expect(readFileSync(envFile, 'utf8')).toBe(before);
+  });
+
+  it.each([
+    ['a key it does not seed alone', ['--only', 'POSTGRES_PASSWORD']],
+    ['no key', ['--only']],
+    ['another argument', ['--all']],
+  ])('refuses %s, and writes nothing', (_what, args) => {
+    const before = 'COMPOSE_PROJECT_NAME=ownpace-managed\n';
+    const { compose, envFile } = checkout(before);
+    const r = run(join(compose, 'ensure-env-secrets.sh'), args, { PATH: noDocker() });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('usage: ensure-env-secrets.sh [--only <KEY>], KEY one of: JOBS_DB_PASSWORD. Nothing was written.');
+    expect(readFileSync(envFile, 'utf8')).toBe(before);
+  });
+});
