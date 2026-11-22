@@ -17,6 +17,9 @@
  *  - the breaker stops the whole run, every data type, whether it trips on
  *    the first row or in the middle, even when the share has dropped by the
  *    time the next row is reached;
+ *  - a row somebody kept in another tab before its turn is refused as
+ *    already kept, and the run goes on; a keep during that row's own
+ *    removal cannot stop it (ADR-0024, amended 2026-11-22);
  *  - a press that throws stops the run, and nothing after it is asked;
  *  - nothing is removed that a gate refused: each target is asked only about
  *    the items the gates before the removal let through.
@@ -313,6 +316,66 @@ describe('the breaker stops the whole run', () => {
     expect(await press({ domain: 'calendar', naturalKeyHash: 'c-2' })).toEqual({ ok: true, kind: 'deleted' });
     expect(await press({ domain: 'contact', naturalKeyHash: 'k-1' })).toEqual({ ok: true, kind: 'deleted' });
     expect(await statusOf(ledger, 'calendar', 'c-2')).toBe('tombstoned');
+  });
+});
+
+/**
+ * A keep pressed in another tab while a run is under way (ADR-0024, amended
+ * 2026-11-22). The run's rows were read before its first press, so a row kept
+ * after that is still in it: `applyDeletion` refuses it when its turn comes,
+ * before anything is sent to the target, and the run goes on. A keep that
+ * lands while that row's own removal is at the target is too late for it.
+ */
+describe('a keep in another tab during a run', () => {
+  const decidedOf = async (ledger: MemoryLedger, hash: string) =>
+    (await ledger.listDeletions(TENANT, MAPPING)).find((d) => d.naturalKeyHash === hash)?.decided;
+
+  it('refuses the row kept before its turn as already kept, asks the target nothing for it, and goes on', async () => {
+    const ledger = new MemoryLedger();
+    for (const hash of ['a', 'b']) await ledger.recordIfAbsent(row('calendar', hash, reported));
+    await ledger.recordIfAbsent(row('contact', 'k', reported));
+    // While a is being removed, somebody keeps b.
+    const calendar = remover(
+      {},
+      { 't-a': async () => void expect(await ledger.resolveDeletion(TENANT, MAPPING, 'b', 'keep')).toBe(true) },
+    );
+    const contact = remover();
+
+    const results = await applyEachInTurn(
+      [
+        { domain: 'calendar', naturalKeyHash: 'a' },
+        { domain: 'calendar', naturalKeyHash: 'b' },
+        { domain: 'contact', naturalKeyHash: 'k' },
+      ],
+      pressWith(ledger, { calendar, contact }),
+    );
+
+    expect(said(results)).toEqual(['removed', 'already_kept', 'removed']);
+    expect((results[1] as { answered: { reason: string } }).answered.reason).toMatch(/chose to keep the target's copy/);
+    expect(calendar.asked).toEqual(['t-a']);
+    expect(contact.asked).toEqual(['t-k']);
+    expect(await statusOf(ledger, 'calendar', 'b')).toBe('copied');
+    expect(await decidedOf(ledger, 'b')).toBe('kept');
+  });
+
+  it('cannot stop a removal already under way: that row is removed, and recorded as removed', async () => {
+    const ledger = new MemoryLedger();
+    for (const hash of ['a', 'b']) await ledger.recordIfAbsent(row('calendar', hash, reported));
+    // The keep lands while b's own removal is at the target.
+    const calendar = remover(
+      {},
+      { 't-b': async () => void expect(await ledger.resolveDeletion(TENANT, MAPPING, 'b', 'keep')).toBe(true) },
+    );
+
+    const results = await applyEachInTurn(
+      ['a', 'b'].map((h) => ({ domain: 'calendar' as const, naturalKeyHash: h })),
+      pressWith(ledger, { calendar }),
+    );
+
+    expect(said(results)).toEqual(['removed', 'removed']);
+    expect(calendar.asked).toEqual(['t-a', 't-b']);
+    expect(await statusOf(ledger, 'calendar', 'b')).toBe('tombstoned');
+    expect(await decidedOf(ledger, 'b')).toBe('applied');
   });
 });
 

@@ -2136,7 +2136,8 @@ every row passes everything below by itself. A `mass_deletion_suspected` or
 `not_enabled` refusal stops the whole run, and so does a call that did not
 answer (a fault, a time-out, a receipt that failed or did not land), whose row
 the page calls not known. Any other refusal is that row's answer, and the next
-row is called. Two pages can still each run one at the same time.
+row is called: `already_kept` among them, for a row somebody kept during the
+run (item 7 below). Two pages can still each run one at the same time.
 
 It has to be turned on per mapping first:
 

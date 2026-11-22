@@ -127,6 +127,7 @@ const REFUSED: Readonly<Record<string, StringKey>> = {
   weak_evidence: 'deletions.refused.weakEvidence',
   not_ours: 'deletions.refused.notOurs',
   already_applied: 'deletions.refused.alreadyApplied',
+  already_kept: 'deletions.refused.alreadyKept',
   after_cutover: 'deletions.refused.afterCutover',
   edited_on_target: 'deletions.refused.editedOnTarget',
   version_unknown: 'deletions.refused.versionUnknown',

@@ -15,8 +15,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   server, have changed by the time it is confirmed. It then presses each row's own *Delete it
   here too*, through the same request and every check a single press passes, the next only once
   the one before has answered (on managed, each with its own receipt, audit row and job). A
-  refusal of one row is said and the next is pressed; the safeguard against mass deletion,
-  deleting by hand turned off, or a delete that did not answer stops the rest. *Stop* presses
+  refusal of one row is said and the next is pressed: a row somebody kept in another tab before
+  its turn is not deleted, and the run goes on. The safeguard against mass deletion, deleting
+  by hand turned off, or a delete that did not answer stops the rest. *Stop* presses
   nothing more. Afterwards the page lists what was deleted, what was not and what is not known,
   with each reason, in English and Dutch, the server's own words beside it. Nothing is deleted by
   itself: no route was added, and the server cannot tell a row of a run from one pressed by hand.

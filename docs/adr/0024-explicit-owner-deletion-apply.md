@@ -177,7 +177,9 @@ single presses, one after another. As built after the pull request's review (202
   it is reached. Deleting by hand turned off (`not_enabled`) stops it the same way. A press made
   afterwards, by hand or in a new run, is decided afresh.
 - **Every other refusal is that item's answer**, said with its reason, and the next item is
-  ordered.
+  ordered. That includes `already_kept`: a row somebody kept during the run, in another tab or
+  by another person, is refused if the keep was recorded before its removal began (*Amendment,
+  2026-11-22*).
 - **Afterwards** the page says what was deleted, what was not, and what is not known, with each
   reason, in English and Dutch: a sentence per refusal code in the reader's language, the
   server's own words and code beside it, verbatim.

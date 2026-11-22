@@ -4,7 +4,30 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-22, latest: a deletion the owner kept is never applied, fixed on its own; T3 is held
+**2026-11-22, 01:50 UTC, latest: T3 takes the keep fix from `main` and says `already_kept` in
+both languages; it is still held for alpha.15.** On
+`claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`:
+- **Merged:** `main` with #2027 (the entry below) and the third alpha.14 fold (#2028). ADR-0024
+  keeps both amendments, 2026-11-21 and then 2026-11-22. Its operative rules are within their
+  300 words again: the first rule's "per item" now says only what it reads as, "each item decided
+  by itself", and the 2026-11-21 rule is cut to the rule itself, its reasons left in its
+  amendment.
+- **A row somebody kept during a run** is refused `already_kept` when its turn comes, if the keep
+  was recorded before its removal began: on the request, or on managed on its receipt, when the
+  job asks again. That refusal is the row's own, and the run goes on. The page lists the row
+  under *Not deleted*, with a sentence of its own in English and Dutch and the server's words
+  under *Technical details*. A keep that lands while that row's removal is under way cannot stop
+  it, and the page lists the row as deleted, as the ledger records it.
+- **Tests:** a keep in another tab mid-run, on the page, on the request and on a receipt
+  (`apps/web/src/pages/a-delete-all-each-decided-by-itself.unit.test.tsx`), and in core over the
+  real `applyDeletion` and `MemoryLedger`, before the row's turn and during its removal
+  (`packages/core/src/a-delete-all-through-every-gate.unit.test.ts`). Four more mutants, each
+  undone byte for byte: a kept row said as any refusal, one that stops the run, one counted as
+  deleted, and `keptCheck` taken out of `applyDeletion`. Each made a test fail, and the 23 before
+  them still do.
+- **Next:** a second review, then E2E (managed).
+
+**2026-11-22, earlier: a deletion the owner kept is never applied, fixed on its own; T3 is held
 for alpha.15.** Found in the review of T3 (*Delete all of these here too*, on
 `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`): a keep pressed in another tab during
 a run was removed when the run reached it. It held for a single press too, since neither
@@ -70,9 +93,9 @@ found one blocker and three majors. The blocker is fixed from `main` in a pull r
   that went on polling. One test runs the page over the real operating service, with only axios's
   transport replaced (`apps/web/src/pages/a-delete-all-answered-over-http.unit.test.tsx`).
 - **The blocker (F1) is not this branch's.** A *Keep* did not stop a later apply of the same row,
-  by hand or in a run. It is fixed from `main` in its own pull request: `applyDeletion` refuses
-  `already_kept`, and the ledger's conditional UPDATE requires `deletion_acknowledged_at IS NULL`.
-  Once that is on `main`, this branch takes it and says `already_kept` in both languages.
+  by hand or in a run. It is fixed from `main` in its own pull request (#2027, the entry above):
+  core refuses `already_kept` before anything is sent to the target. Once that is on `main`, this
+  branch takes it and says `already_kept` in both languages.
 - **Follow-up, not built** (F13): two pages can run at once. On managed, a press joins a queued
   receipt by reading first and inserting after, and `apply_receipt` has no partial unique index
   on `state = 'queued'`. So two presses of one row in the same moment can queue two jobs, and gate
@@ -258,7 +281,7 @@ Read for this plan, on `main` at `8b8fac07`:
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
 | T1 What Google answers | builder | ✅ **Done 2026-11-21**: built as #2008, run by the owner; A is the reader | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
 | T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
-| T3 Apply in bulk | builder | 🟡 **Review**, held for alpha.15: built 2026-11-21, review findings fixed 2026-11-22, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply` | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled` or an unanswered press stops the run. ADR-0024 amended |
+| T3 Apply in bulk | builder | 🟡 **Review**, held for alpha.15: built 2026-11-21, review findings fixed and the keep fix (#2027) taken 2026-11-22, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply` | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled` or an unanswered press stops the run. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
 

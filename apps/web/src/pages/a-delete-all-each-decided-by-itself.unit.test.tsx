@@ -17,6 +17,8 @@
  *    before the next; a refusal of one row is that row's answer, while the
  *    breaker's refusal, deleting by hand turned off, and a press that did not
  *    answer each stop the run;
+ *  - a row kept in another tab during a run is refused as already kept when
+ *    its turn comes, on the request or on its receipt, and the run goes on;
  *  - a fault is never shown as a refusal: it is not known;
  *  - afterwards, what was deleted, not deleted and not known, with each
  *    reason, in English and in Dutch, the server's own words beside it;
@@ -444,6 +446,63 @@ describe('each row decided by itself, and what the page says afterwards', () => 
     expect(within(status).queryByText('Event a')).not.toBeInTheDocument();
     // The summary takes the focus when the run ends.
     expect(status).toHaveFocus();
+  });
+});
+
+/**
+ * A keep pressed in another tab while a run is under way (ADR-0024, amended
+ * 2026-11-22). The run read the list before its first press, so the row is in
+ * it; the server refuses it when its turn comes, as it refuses a single press
+ * on a page read before the keep. That refusal is the row's own: the run goes
+ * on.
+ */
+describe('a keep in another tab during a run', () => {
+  /** What the server says for a deletion somebody kept (core's `keptCheck`). */
+  const KEPT =
+    "Somebody already looked at this deletion and chose to keep the target's copy, so it will not be removed now. If that was the wrong call, delete it in the target system yourself — this decision is not re-opened here.";
+
+  it('refuses the row kept after the run began as already kept, says so, and goes on to the next', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b'), deletion('c')] }));
+    // The server's side: b is kept in another tab while a is being deleted.
+    const kept = new Set<string>();
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => {
+      if (kept.has(hash)) throw refusal('already_kept', KEPT);
+      if (hash === 'a') kept.add('b');
+      return removed(hash);
+    });
+    renderScreen();
+    await pressAll(3);
+
+    expect(await screen.findByText(done(2, 1, 0))).toBeInTheDocument();
+    // Nothing stopped the run: the summary is the count alone, and c was ordered after b.
+    expect(screen.getByRole('status').textContent?.trim()).toBe(done(2, 1, 0));
+    expect(orderedHashes()).toEqual(['a', 'b', 'c']);
+    const notDeleted = group(en['deletions.all.notRemoved']);
+    expect(within(notDeleted).getByText('Event b')).toBeInTheDocument();
+    expect(within(notDeleted).getByText(en['deletions.refused.alreadyKept'])).toBeInTheDocument();
+    // The server's own words and code, verbatim, under Technical details.
+    expect(within(notDeleted).getByText(`${KEPT} (already_kept)`)).not.toHaveAttribute('lang');
+    expect(within(group(en['deletions.all.removed'])).getByText('Event c')).toBeInTheDocument();
+  });
+
+  it('on managed, is refused on its receipt when the keep landed while its removal waited, said in Dutch', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b'), deletion('c')] }));
+    applyDeletion.mockResolvedValue({ mode: 'queued', receipt: QUEUED });
+    // The route queued b; the job, which asks every gate again, found the keep.
+    fetchApplyReceipt.mockImplementation(
+      async (_m: string, hash: string): Promise<ApplyReceipt> =>
+        hash === 'b'
+          ? { state: 'refused', requestedAt: QUEUED.requestedAt, finishedAt: '2026-11-22T00:00:05Z', code: 'already_kept', reason: KEPT }
+          : { state: 'applied', requestedAt: QUEUED.requestedAt, finishedAt: '2026-11-22T00:00:05Z', kind: 'deleted' },
+    );
+    renderScreen({ locale: 'nl' });
+    await pressAll(3, nl);
+
+    expect(await screen.findByText(done(2, 1, 0, nl))).toBeInTheDocument();
+    expect(orderedHashes()).toEqual(['a', 'b', 'c']);
+    const notDeleted = group(nl['deletions.all.notRemoved']);
+    expect(within(notDeleted).getByText(nl['deletions.refused.alreadyKept'])).toBeInTheDocument();
+    expect(within(notDeleted).getByText(`${KEPT} (already_kept)`)).toHaveAttribute('lang', 'en');
   });
 });
 

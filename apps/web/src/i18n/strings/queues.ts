@@ -161,6 +161,8 @@ export const en = {
     'It is only assumed to be deleted: the old system never said so. Ownpace does not delete it on the new system.',
   'deletions.refused.notOurs': "This copy is not one Ownpace made, so it is not Ownpace's to delete.",
   'deletions.refused.alreadyApplied': 'It had already been deleted on the new system.',
+  'deletions.refused.alreadyKept':
+    'Somebody chose to keep this copy, so it was not deleted. If that was a mistake, delete it on the new system yourself.',
   'deletions.refused.afterCutover':
     'Past the cutover of this kind, the old system no longer decides what exists, so it was not deleted.',
   'deletions.refused.editedOnTarget':
@@ -318,6 +320,8 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.refused.notOurs':
     'Deze kopie heeft Ownpace niet gemaakt, dus het is niet aan Ownpace om die te verwijderen.',
   'deletions.refused.alreadyApplied': 'Het was op het nieuwe systeem al verwijderd.',
+  'deletions.refused.alreadyKept':
+    'Iemand heeft ervoor gekozen deze kopie te behouden, dus die is niet verwijderd. Was dat een vergissing, verwijder die dan zelf op het nieuwe systeem.',
   'deletions.refused.afterCutover':
     'Na de overstap van deze soort bepaalt het oude systeem niet meer wat er bestaat, dus het is niet verwijderd.',
   'deletions.refused.editedOnTarget':
