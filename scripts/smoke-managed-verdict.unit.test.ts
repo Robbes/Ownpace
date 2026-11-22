@@ -1181,14 +1181,16 @@ describe('nothing temporary is still living in the gate', () => {
   it('takes no dispatch input that exists to switch the gate off', () => {
     // An input that gates the gate is how a run can look green having done
     // nothing. ONE input is the gate's own since workplan 0167 T7: `job_runner`,
-    // which runner works the stack's jobs in that run, `trigger` or `pg-boss`.
+    // which runner works the stack's jobs in that run, `trigger` or `pg-boss`,
+    // or empty for the stack's own (its .env, else managed.yml's default):
+    // a string, so that empty can be given, and refused by its step otherwise.
     // It chooses what the gate drives, never whether it runs: every step but
     // the Trigger.dev plane's own drill runs in both, and the smoke judges both
     // (the pg-boss sections below). Nothing else.
     const on = (parse(workflow) as { on: { workflow_dispatch?: { inputs?: Record<string, { type?: string; options?: string[]; default?: string }> } | null } }).on;
     const inputs = on.workflow_dispatch?.inputs ?? {};
     expect(Object.keys(inputs), 'a dispatch input beside job_runner').toEqual(['job_runner']);
-    expect(inputs.job_runner).toMatchObject({ type: 'choice', options: ['trigger', 'pg-boss'], default: 'trigger' });
+    expect(inputs.job_runner).toMatchObject({ type: 'string', default: '' });
     // And nothing in the job reads an input but the steps that set the mode.
     const reads = [...workflow.matchAll(/\$\{\{\s*inputs\.([a-z_]+)/g)].map((m) => m[1]);
     expect(new Set(reads)).toEqual(new Set(['job_runner']));

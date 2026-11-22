@@ -100,19 +100,22 @@ on:
   workflow_dispatch:
     inputs:
       # WHICH RUNNER WORKS THE JOBS, FOR THIS RUN ONLY (ADR-0054, workplan
-      # 0167 T7). `trigger`, self-hosted Trigger.dev, is what managed.yml runs
-      # until the switch-on; `pg-boss` is the rehearsal of that switch. Written
+      # 0167 T7). Empty, the default, runs what the stack says: the persisted
+      # .env's OWNPACE_JOB_RUNNER, else managed.yml's default, `pg-boss` since
+      # the switch is on. `trigger`, self-hosted Trigger.dev, is the fallback,
+      # its plane kept installed and stopped; `pg-boss` names the default. Any
+      # other value is refused by the step that reads it. A string and not a
+      # choice, so that empty can be given: a choice always sends one of its
+      # options. Non-empty, it is written
       # into this checkout's .env after the persisted copy is saved, so it
       # reaches the bring-up and the smoke and never the next run: a scheduled
       # run has no input and runs what the persisted .env says. Passed to the
       # steps through `env:`, never into a `run:` script.
       job_runner:
-        description: Which runner works the stack's jobs in this run (not persisted)
-        type: choice
-        options:
-          - trigger
-          - pg-boss
-        default: trigger
+        description: "Which runner works the stack's jobs in this run, not persisted: pg-boss or trigger; empty runs the stack's own (its .env, else managed.yml's default, pg-boss)"
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: ${{ github.workflow }}
