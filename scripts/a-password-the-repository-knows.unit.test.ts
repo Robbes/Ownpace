@@ -438,7 +438,7 @@ if (sql.indexOf('CREATE SCHEMA IF NOT EXISTS pgboss AUTHORIZATION ownpace_jobs')
 }
 if (p.v.jobs_role !== undefined && sql.indexOf('r.rolinherit') >= 0) {
   log({ kind: 'jobs-fit', stdin: sql, user: p.U, v: p.v, env: e.env, inline: e.inline });
-  if (state.roles[p.v.jobs_role]) out((state.jobsFit || 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f') + NL);
+  if (state.roles[p.v.jobs_role]) out((state.jobsFit || 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f|0') + NL);
   done(0);
 }
 if (p.v.jobs_role !== undefined && sql.indexOf('ALTER ROLE :"jobs_role" PASSWORD') >= 0) {
@@ -1337,18 +1337,19 @@ describe("(f) the data phase makes the jobs role and its schema, judges the role
   });
 
   it.each([
-    ['a superuser', 't|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f', /it is a superuser/],
-    ['one with BYPASSRLS', 'f|f|f|f|t|t|f|0|0|t|0|0|0|0|f|f', /it has BYPASSRLS/],
-    ['one that inherits', 'f|f|f|f|f|t|t|0|0|t|0|0|0|0|f|f', /it inherits/],
-    ['a member of a role', 'f|f|f|f|f|t|f|1|0|t|0|0|0|0|f|f', /it belongs to 1 role/],
-    ['one a role belongs to', 'f|f|f|f|f|t|f|0|1|t|0|0|0|0|f|f', /1 role\(s\) belong to it/],
-    ["one whose schema is another role's", 'f|f|f|f|f|t|f|0|0|f|0|0|0|0|f|f', /the schema pgboss belongs to another role/],
-    ['one that owns things outside its schema', 'f|f|f|f|f|t|f|0|0|t|3|0|0|0|f|f', /it owns 3 object\(s\) outside pgboss/],
-    ['one that may read the ledger', 'f|f|f|f|f|t|f|0|0|t|0|2|0|0|f|f', /it holds a privilege on 2 relation\(s\) of public/],
-    ['one whose queue is granted to another role', 'f|f|f|f|f|t|f|0|0|t|0|0|1|0|f|f', /1 privilege\(s\) on pgboss or in it are granted/],
-    ['one a grant names', 'f|f|f|f|f|t|f|0|0|t|0|0|0|2|f|f', /2 grant\(s\) name it/],
-    ['one that may create a schema', 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|t|f', /it may create a schema in this database/],
-    ['one that may create in public', 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|t', /it may create in the schema public/],
+    ['a superuser', 't|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f|0', /it is a superuser/],
+    ['one with BYPASSRLS', 'f|f|f|f|t|t|f|0|0|t|0|0|0|0|f|f|0', /it has BYPASSRLS/],
+    ['one that inherits', 'f|f|f|f|f|t|t|0|0|t|0|0|0|0|f|f|0', /it inherits/],
+    ['a member of a role', 'f|f|f|f|f|t|f|1|0|t|0|0|0|0|f|f|0', /it belongs to 1 role/],
+    ['one a role belongs to', 'f|f|f|f|f|t|f|0|1|t|0|0|0|0|f|f|0', /1 role\(s\) belong to it/],
+    ["one whose schema is another role's", 'f|f|f|f|f|t|f|0|0|f|0|0|0|0|f|f|0', /the schema pgboss belongs to another role/],
+    ['one that owns things outside its schema', 'f|f|f|f|f|t|f|0|0|t|3|0|0|0|f|f|0', /it owns 3 object\(s\) outside pgboss/],
+    ['one that may read the ledger', 'f|f|f|f|f|t|f|0|0|t|0|2|0|0|f|f|0', /it holds a privilege on 2 relation\(s\) of public/],
+    ['one whose queue is granted to another role', 'f|f|f|f|f|t|f|0|0|t|0|0|1|0|f|f|0', /1 privilege\(s\) on pgboss or in it are granted/],
+    ['one a grant names', 'f|f|f|f|f|t|f|0|0|t|0|0|0|2|f|f|0', /2 grant\(s\) name it/],
+    ['one that may create a schema', 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|t|f|0', /it may create a schema in this database/],
+    ['one that may create in public', 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|t|0', /it may create in the schema public/],
+    ["one that may call the pooler's lookup", 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f|1', /it may call 1 function\(s\) of pgbouncer_auth/],
   ])('refuses %s before its password is set, naming why, and repairs nothing', (_what, line, why) => {
     const s = aStack(envText(realEnv()), { jobsFit: line });
     const r = bootstrap(s, ['--only', 'data']);

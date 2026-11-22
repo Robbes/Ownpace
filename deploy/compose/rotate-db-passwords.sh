@@ -141,9 +141,15 @@
 #   --check   0 every control opens and no shipped value opens anything asked;
 #             1 a shipped value opens (the lines above say which);
 #             2 nothing established: a control did not open, or a question
-#               could not be asked (zitadel-db-password.sh's convention).
+#               could not be asked (zitadel-db-password.sh's convention). A
+#               jobs role the bring-up's question refuses (NOLOGIN among
+#               them) is a control that cannot open.
 #   --sync    0 set and proven; 1 refused, the set failed, or a role refuses
 #             the value it was just given; 2 set, or not, and not proven.
+#             A jobs role left as it is (unfit, NOLOGIN, or no usable value
+#             in .env) is 1, and 2 when its question could not be asked, by
+#             the same rule: a refusal anywhere is 1, otherwise a question
+#             not asked anywhere is 2. The two are set either way.
 #   --rotate  0 changed and checked; 1 refused before anything changed, or
 #             failed and put back (it says which, and if the putting back did
 #             not complete, what to do).
@@ -275,6 +281,8 @@ CONTROLS_OPEN=1
 TRIGGER_DISAGREES=''
 # The jobs role's control refused: --sync sets it to .env's value.
 JOBS_DISAGREES=''
+# The jobs role is there and the bring-up's question refuses it.
+JOBS_UNFIT=''
 # Of OPENED, those on a Postgres role --rotate does not change, and their names.
 OPENED_OTHER=0
 OTHER_ROLES=''
@@ -346,9 +354,22 @@ check_controls() {
 # The jobs role's control: .env's JOBS_DB_PASSWORD, asked the way the worker
 # will connect. Nothing when the role is not a login role here yet.
 check_jobs() {
-  local rc channel where
+  local rc=0 channel where
+  # Not a login role: asked of the catalog, not taken for "not made yet". The
+  # list holds login roles only, and a NOLOGIN ownpace_jobs is one the
+  # bring-up refuses ("it cannot log in"), so it is no RESULT of 0.
   if ! db_roles_has "$DB_ROLES_JOBS"; then
-    say "jobs role ${DB_ROLES_JOBS}: not a login role in this database yet, so there is nothing to ask; the bring-up's data phase makes it (jobs-role.sql)"
+    db_roles_jobs_fit || rc=$?
+    if [ "$rc" -eq 1 ] && [ -n "$DB_ROLES_JOBS_MISSING" ]; then
+      say "jobs role ${DB_ROLES_JOBS}: not a role in this database yet, so there is nothing to ask; the bring-up's data phase makes it (jobs-role.sql)"
+    elif [ "$rc" -eq 2 ]; then
+      say "jobs role ${DB_ROLES_JOBS}: what it may do could not be asked (${DB_ROLES_WHY})"
+      UNASKED=1
+    else
+      say "jobs role: REFUSED by the bring-up's question, so its control cannot open: ${DB_ROLES_WHY}"
+      CONTROLS_OPEN=''
+      JOBS_UNFIT=1
+    fi
     return 0
   fi
   if [ -z "$DB_ROLES_JOBS_PASSWORD" ]; then
@@ -545,6 +566,8 @@ do_check() {
       say "  It is trigger-db's control that is refused: ./deploy/compose/rotate-db-passwords.sh --sync --with-trigger-stores sets its role too."
     [ -z "$JOBS_DISAGREES" ] ||
       say "  It is the jobs role's control that is refused: ./deploy/compose/rotate-db-passwords.sh --sync sets ${DB_ROLES_JOBS} too."
+    [ -z "$JOBS_UNFIT" ] ||
+      say "  The jobs role is not as jobs-role.sql makes it, which --sync does not repair: docs/managed-bring-up.md, \"The jobs role\"."
     say "  (read zitadel-db-password.sh's header first if a second .env exists on this machine)."
     exit 2
   fi
@@ -612,7 +635,19 @@ JOBS_SKIP=''
 JOBS_SKIP_RC=0
 require_jobs() {
   local rc=0
-  db_roles_has "$DB_ROLES_JOBS" || return 0
+  # Not a login role: asked, not taken for "not made yet" (check_jobs says why).
+  if ! db_roles_has "$DB_ROLES_JOBS"; then
+    db_roles_jobs_fit || rc=$?
+    if [ "$rc" -eq 1 ] && [ -n "$DB_ROLES_JOBS_MISSING" ]; then return 0; fi
+    if [ "$rc" -eq 2 ]; then
+      JOBS_SKIP="could not ask Postgres what ${DB_ROLES_JOBS} may do: ${DB_ROLES_WHY}"
+      JOBS_SKIP_RC=2
+    else
+      JOBS_SKIP="REFUSED: ${DB_ROLES_WHY}. Nothing here repairs the role: docs/managed-bring-up.md, 'The jobs role', says how to put it back as jobs-role.sql makes it."
+      JOBS_SKIP_RC=1
+    fi
+    return 0
+  fi
   if [ -z "$DB_ROLES_JOBS_PASSWORD" ]; then
     JOBS_SKIP="${DB_ROLES_JOBS} is a login role here, and JOBS_DB_PASSWORD is empty in .env, so it cannot be set to it. ./deploy/compose/ensure-env-secrets.sh --only JOBS_DB_PASSWORD fills it in; then run this again."
     JOBS_SKIP_RC=1
@@ -680,11 +715,20 @@ do_sync() {
     # A refusal anywhere is 1; otherwise a question not asked anywhere is 2.
     if [ "$trigger_rc" -eq 1 ] || { [ "$trigger_rc" -ne 0 ] && [ "$rc" -eq 0 ]; }; then rc="$trigger_rc"; fi
   fi
-  if [ "$rc" -eq 0 ] && [ "$JOBS_SKIP_RC" -ne 0 ]; then
-    local stores=''
+  # A jobs role left as it is: said whatever the two's proof found, and merged
+  # into the exit by the rule above: a refusal anywhere is 1, otherwise a
+  # question not asked anywhere is 2.
+  if [ -n "$JOBS_SKIP" ]; then
+    local stores='' proven='accept'
     [ -z "$WITH_STORES" ] || stores=", and trigger-db's,"
-    say "NOT DONE: ${DB_ROLES_APP} and ${DB_ROLES_OWNER}${stores} accept .env's values, and ${DB_ROLES_JOBS} was left as it is: ${JOBS_SKIP}" >&2
-    exit "$JOBS_SKIP_RC"
+    [ "$rc" -eq 0 ] || proven='were set; their proof is above, and'
+    if [ "$JOBS_SKIP_RC" -eq 1 ] || { [ "$JOBS_SKIP_RC" -ne 0 ] && [ "$rc" -eq 0 ]; }; then rc="$JOBS_SKIP_RC"; fi
+    if [ "$proven" = accept ]; then
+      say "NOT DONE: ${DB_ROLES_APP} and ${DB_ROLES_OWNER}${stores} accept .env's values, and ${DB_ROLES_JOBS} was left as it is: ${JOBS_SKIP}" >&2
+    else
+      say "NOT DONE: ${DB_ROLES_APP} and ${DB_ROLES_OWNER}${stores} ${proven} ${DB_ROLES_JOBS} was left as it is: ${JOBS_SKIP}" >&2
+    fi
+    exit "$rc"
   fi
   case "$rc" in
     0)

@@ -43,6 +43,49 @@ service is another pull request's, and these scripts are written against the con
   already says a stopped `trigger-db` is not running here; a test now holds that.
 - **Evidence.** In the PR body (unit counts, the guards, and each break-and-restore).
 
+**2026-11-22, later still, after the second review: a NOLOGIN jobs role is not "not made yet", and four smaller holes.**
+The coordinator's second review of #2041 confirmed the first five fixes, and E2E (managed) run
+45044295985 passed at `3fc7556b`, with the role made, fit, set and proven on the OTA stack. `main`
+(#2043, T6's first step) is merged in, with both Status entries kept, main's T5 and T6 rows and this
+branch's T7 row.
+
+- **`rotate-db-passwords.sh` and a NOLOGIN `ownpace_jobs`.** `db_roles_list` lists login roles only,
+  so `--check` and `--sync` took a NOLOGIN role for one not made yet: exit 0 and "done". Both now ask
+  the fit question whenever the role is not a login role. They skip only on its empty answer
+  (`DB_ROLES_JOBS_MISSING`). `--check` then names the refusal and exits 2; `--sync` sets the two,
+  leaves the jobs role and exits 1. Taking the old shortcut in either fails the NOLOGIN test.
+- **`--sync`'s exit merges the skip** by the script's own rule (a refusal anywhere is 1, otherwise
+  a question not asked is 2). The NOT DONE line is printed whatever the two's proof found, and the
+  Exit codes block names the skip. Saying it only when the two passed fails its test.
+- **A temporary table no longer counts as owned elsewhere** (`pg_temp_N`, `pg_toast_temp_N`). In
+  transaction pooling, a temporary table can outlive its client on a server connection. A test holds a
+  fit role with a temporary table; without the clause it fails.
+- **Two more privileges are counted:**
+  - **A `public` relation whose ACL names the role or PUBLIC** (`aclexplode`, grantee 0 or the
+    role), on every version. This counts PostgreSQL 17's MAINTAIN, which the privilege functions'
+    list does not name. Its test grants MAINTAIN through PUBLIC on 17 and later, so it runs on CI's
+    18; here, on 16, it checks that 16 has no MAINTAIN.
+  - **EXECUTE on `pgbouncer_auth`'s functions**, through PUBLIC as well, as a new last field. The
+    bring-up revokes PUBLIC's EXECUTE just before the question; `--sync` does not. Not counting it
+    fails its test.
+- **`a-system-role-that-is-not-the-owner`** failed 1 of 41 while `pg_stat_statements` existed in the
+  shared database. Its relations query now leaves extension-owned relations out, and it passes 41 of
+  41 with the extension and without it.
+- **`docs/managed-bring-up.md`'s grants query** filters by database (run here against a database
+  grant and a column grant), and names the lookup function's remedy.
+- **Evidence.** On a `scripts/local-pg.sh` cluster (PostgreSQL 16.15):
+  - **The integration file:** `Tests 40 passed (40)`.
+  - **`a-system-role-that-is-not-the-owner`:** `41 passed (41)`, with the extension and without it
+    (1 failed with it before).
+  - **`rotate-db-passwords`:** `68 passed (68)`.
+  - **Every unit file under `scripts/` and `deploy/`:** 7,644 tests, 7,610 passed. The one failure is
+    `every-release-is-a-starting-point`, for this checkout's 12 tags.
+  - **Broken once each, then restored byte for byte:**
+    - the temporary-schema clause: 1 failed;
+    - the lookup count: 1 failed;
+    - `--check`'s and `--sync`'s NOLOGIN shortcut: 1 each;
+    - the skip said only at rc 0: 1.
+  - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
 
 **2026-11-22, later still, after review: the fit question no longer refuses every real stack.**
 The coordinator's review of #2041 found the question refused every stack that has
@@ -154,6 +197,94 @@ from alpha.14 stays reversible by `deploy-live.sh`'s own rule.
   - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
 - **Next:** T6 and the rest of T7 (the worker service, `JOBS_DATABASE_URL`, the switch).
 
+**2026-11-22, later still: T6's first step, the job catalog and the jobs made runner-neutral.**
+On branch `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`, from `main` with T5 merged
+(#2038). Nothing that runs changes: Trigger.dev runs every job under the same ids, queues, machines
+and retries, nothing runs on pg-boss, and nothing reads a switch. No migration in either chain, and
+`deploy/compose` is untouched.
+
+- **The job catalog**, `packages/scheduler/src/pg-boss/catalog.ts`, exported from
+  `@openmig/scheduler/pg-boss`. Seventeen queues named by the tasks' ids: nine schedules on their
+  crons, `stately`; eight on demand, `singleton` by the migration for the pass and the count, by
+  `confirm:` and the migration for a confirmation, `standard` for the rest. Every queue: three
+  attempts, from 5 s doubling to at most 60 s, an hour, a beat every 30 s and a 410 MB heap. One run
+  at a time on a worker, but the pass: `MAX_PASSES_IN_FLIGHT` and one more (`concurrencyOf`). Polling
+  every 2 s for a job asked for, 10 s for the tick and 30 s for the other schedules. Data: it
+  imports nothing, and each entry is a `QueueSpec`. No subpath of its own, since nothing reads it at
+  run time yet; the leakage guard's pattern for the subpath covers one.
+- **The run context**, `apps/worker/src/jobs/run-context.ts`. `RunContext` carries `runId`,
+  `attempt` and `runner`; `JobRunnerPort` offers `enqueue`, `enqueueAndWait`, `verdict` and `cancel`,
+  and names its runner. The Trigger.dev half, `onTriggerDev`, holds the SDK calls the jobs made, with
+  the arguments they had: the tick's `runDeltaSync.trigger(…)` with its `concurrencyKey` and tags,
+  the cutover's `configure` and `triggerAndWait`, the purge's `runs.retrieve` and `runs.cancel`, and
+  the pass's `ctx.run.id`, read as defensively as before.
+  - The tick's `configure` now comes right before each enqueue, as the cutover's always did. Nothing
+    else in the tick calls the SDK, and a tick that enqueues nothing no longer calls it.
+  - Every job imports the module, so it loads only the SDK's two calls and does nothing when it is
+    imported (rule 9 of `a-pass-that-opened-the-owners-pool`).
+  - A pass's task reaches it from the job that enqueues one, as a loader, so each process loads the
+    pass's module when it did before.
+- **The seventeen jobs.** Each exports its run, `<job>Run`, wrapped in `leavesAReference` and taking a
+  `RunContext`, and its zod schema: the eight on demand their own, each schedule an empty strict one.
+  Each Trigger.dev definition is `run: onTriggerDev(<job>Run)` under the same id, queue and machine.
+  Every run's body is as it was, at its own indentation, but for the calls above.
+- **"Fails once" by name**, `failsOnceByName` and `FAILS_ONCE_NAMES` (`AbortTaskRunError`,
+  `RunNotRetried`) in `what-a-run-leaves.ts`, for a runner that hears only an error's name. A task's
+  own `RunNotRetried` is a verdict too; `AbortTaskRunError` is still the class the plane is handed.
+- **The tick's interlock across runners, its Trigger.dev half.** Each runner's tick has a beat of
+  its own, `managed-sync-tick-trigger` and `managed-sync-tick-pg-boss` (`SYNC_TICK_BEAT_ON` in
+  `@openmig/managed`). Before the operator's hold, the tick reads the other runner's beat
+  (`readTickBeat`, which takes a window now: 90 s). While that is fresh it starts no pass, says so,
+  and beats as its runner alone. Otherwise it writes the shared beat and its runner's, at one time.
+  The rule is written once for either runner; the pg-boss half's second rule, the shared beat newer
+  than its own, is the worker's. No migration: 0030's CHECK admits both names, and 0033 grants the
+  system role INSERT, SELECT and UPDATE (beat_at) on the whole table. A test reads both migrations
+  and writes both beats as `ownpace_system` on PGlite.
+- **Not taken: loading the pass lazily in the tick**, which would end the idle tenant pool the tick
+  opens at import. The pass's module points the process's sinks at its own pools when it is
+  imported, so loaded during the tick's run it would take them from the system pool. A throwaway
+  test set a sink, imported the module, and the sink heard nothing after. The tick loads it at its
+  top, as before.
+- **Tests.**
+  - New: `the-catalog-is-the-tasks` (17), `a-tick-that-holds-for-the-other-runner` (10) and
+    `run-context` (12).
+  - Changed: `a-run-that-kept-a-testers-words` and the five tests that read a run's body as text;
+    `a-machine-every-task-names` (the catalog's heap); `a-deliberate-stop-that-was-retried` (the
+    decision by name); `a-tick-that-says-it-ran` (five beats).
+  - `a-failed-type-ends-no-pass` calls `runDeltaSyncRun` with a context, without mocking the SDK,
+    and sees the context's id on the run row.
+  - Guards: `scripts/a-pass-that-outlives-its-runner` (the catalog's hour), and the owners-pool
+    guard's rule 9. `apps/selfhost/src/no-managed-leakage` now holds that no file under
+    `packages/scheduler/src/pg-boss/` is reached: the catalog imports nothing, so a relative import
+    of it passed the specifier check.
+  - `a-system-role-that-is-not-the-owner`: the tick, as the system role, holds while the pg-boss
+    runner's beat is fresh, and starts passes again once it is gone.
+- **Mutated**, each once, and restored byte for byte (`cmp`), each failing the test meant for it, 17
+  in all:
+  - the catalog: a cron, a key, the attempts, the hour, the heap;
+  - the tick: its hold beating the shared beat, its last beat of its runner, a window of 0 ms
+    (integration, 1 of 41 failed);
+  - the beats: a key the CHECK refuses, the window ignored;
+  - the run context: `configure` dropped, the verdict's order swapped, a job module imported;
+  - the rest: `RunNotRetried` dropped from the names, the pass's id lost, the appliance importing
+    the catalog by a relative path, a definition that does not call `onTriggerDev`.
+- **Gates.**
+  - `tsc --noEmit` 0, and ESLint 0 on the 40 changed TypeScript files.
+  - Unit, every file of `apps/worker` and `packages/scheduler`: 54 files, 656 tests.
+    `packages/managed`, the appliance's leakage guard and the API's two beat tests: 69 files, 868.
+  - Every guard under `scripts/`: 307 of 310 files, 7,570 tests, 37 skipped. Two failed because
+    they run pnpm, which could not run here: `ui-build-output` and
+    `a-measurement-that-could-not-reach-the-deployments-client`. `lessons` failed until
+    `docs/LESSONS.md` was regenerated. The 58 that read the jobs, the catalog, `trigger.config.ts`,
+    the workplans or the CHANGELOG all passed, 2,162 tests.
+  - The worker's integration files on a throwaway cluster from `scripts/local-pg.sh` (PostgreSQL
+    16.15 here; CI's Testcontainers run is the one to trust for 18): 8 files, 107 tests. The two that
+    need a Stalwart server skip.
+  - The six docs checks pass.
+- **CHANGELOG:** one line under *Unreleased*, *Changed*.
+- **Next:** T6's other steps: the worker that runs the jobs on pg-boss, the API's doors and the
+  operator's commands.
+
 **2026-11-22, later: the owner's yes, and the runner as production code (T4, T5).**
 The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* Earlier the same
 day they had approved the spike. [ADR-0054](../adr/0054-the-managed-editions-jobs-run-on-pg-boss.md)
@@ -239,8 +370,8 @@ so CI's Testcontainers run is the one to trust for the version):
 | T2 Through PgBouncer and a plain role | builder | ✅ **Done 2026-11-22** | Run B above; point 7. |
 | T3 Gates | builder | ✅ **Done 2026-11-22** | Typecheck and lint 0; unit 22,282 passed, 1 failed for missing tags in this checkout (Status entry). CI not dispatched, by instruction. |
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
-| T5 This runner, merged | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-public-readiness-y7orc6-pgboss-runner` | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). Done when its pull request merges. |
-| T6 The jobs on the runner, behind a switch | builder | ⬜ **Not started** | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. |
+| T5 This runner, merged | builder | ✅ **Done 2026-11-22**, #2038 | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
+| T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, built on `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. Still to come: the worker, the API's doors and the operator's commands. |
 | T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the role and schema, built on `claude/ownpace-public-readiness-y7orc6-jobs-role`; the bring-up and the deploy scripts in either runner (default still Trigger.dev), built on `claude/ownpace-pgboss-bringup-deploy` | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |
