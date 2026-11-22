@@ -2144,3 +2144,97 @@ describe("a pass that never ran points at the section that explains it, in each 
     expect(smoke).toMatch(/if \[ "\$JOB_RUNNER" = pg-boss \]; then\n\s+echo "sync \(\$label\): the enqueue was accepted and never ran — see the jobs on pg-boss/);
   });
 });
+
+describe("the stack's memory, sampled from the start in both runners, is read out and never judged", () => {
+  /** What `docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}'` prints: the used part, then the limit. */
+  const STATS = [
+    'ownpace-managed-api\t212.4MiB / 7.627GiB',
+    'ownpace-managed-worker\t96.25MiB / 512MiB',
+    'ownpace-managed-db\t1.104GiB / 7.627GiB',
+    'runner-cm9x\t180MiB / 7.627GiB',
+    'ownpace-live-api\t300MiB / 7.627GiB',
+  ].join('\n');
+  const LIMITS = ['7.627GiB', '512MiB'];
+
+  function readout(samples: string, runners = '', err = '') {
+    const dir = mkdtempSync(join(tmpdir(), 'smoke-mem-'));
+    try {
+      const file = join(dir, 'mem');
+      writeFileSync(file, samples);
+      if (err) writeFileSync(`${file}.err`, err);
+      return smokeRun(['memory_readout'], `memory_readout '${file}' "$RUNNERS"`, { RUNNERS: runners });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  /** The sampler's own cut, on the fixture, as it runs: this stack's names and the runners only. */
+  function strip(stats: string, at: string) {
+    const r = smokeRun(['mem_strip_limit'], `grep -E "^(\${COMPOSE_PROJECT}-|runner-)" <<<"$STATS" | mem_strip_limit '${at}'`, { STATS: stats, COMPOSE_PROJECT: 'ownpace-managed' });
+    return r.out.replace(/FAIL=\d\n?$/, '');
+  }
+
+  it('keeps the used part of each line, never the limit after " / ", and no other stack', () => {
+    const kept = strip(STATS, '2026-11-22T19:00:00Z');
+    for (const limit of LIMITS) expect(kept, limit).not.toContain(limit);
+    expect(kept).not.toContain('/');
+    expect(kept).not.toContain('ownpace-live-api');
+    expect(kept.trim().split('\n')).toEqual([
+      '2026-11-22T19:00:00Z\townpace-managed-api\t212.4MiB',
+      '2026-11-22T19:00:00Z\townpace-managed-worker\t96.25MiB',
+      '2026-11-22T19:00:00Z\townpace-managed-db\t1.104GiB',
+      '2026-11-22T19:00:00Z\trunner-cm9x\t180MiB',
+    ]);
+  });
+
+  it("prints each container's highest and when, this stack's runs as one line, and the sum, with no limit in it", () => {
+    const samples =
+      strip(STATS, '2026-11-22T19:00:00Z') +
+      strip(STATS.replace('212.4MiB', '250MiB').replace('runner-cm9x\t180MiB', 'runner-cm9x\t120MiB\nrunner-zz11\t20MiB'), '2026-11-22T19:00:15Z');
+    const r = readout(samples, 'runner-cm9x\nrunner-zz11');
+    expect(r.fail).toBe('0');
+    const lines = r.out.split('\n').filter((l) => l.startsWith('memory:'));
+    expect(lines).toEqual([
+      `memory: ${'ownpace-managed-api'.padEnd(40)} highest ${'250.0 MiB'.padStart(12)} at 2026-11-22T19:00:15Z`,
+      `memory: ${'ownpace-managed-db'.padEnd(40)} highest ${'1130.5 MiB'.padStart(12)} at 2026-11-22T19:00:00Z`,
+      `memory: ${'ownpace-managed-worker'.padEnd(40)} highest ${'96.2 MiB'.padStart(12)} at 2026-11-22T19:00:00Z`,
+      `memory: ${'Trigger.dev runs'.padEnd(40)} highest ${'200.0 MiB'.padStart(12)}, the sum of 2 run(s)' highest`,
+      'memory: the sum of the highest values: 1676.7 MiB',
+    ]);
+    for (const limit of LIMITS) expect(r.out, limit).not.toContain(limit);
+  });
+
+  it("leaves out a runner this stack did not start, and a pg-boss stack names no runs", () => {
+    const r = readout(strip(STATS, '2026-11-22T19:00:00Z'));
+    expect(r.out).not.toContain('Trigger.dev runs');
+    expect(r.out).not.toContain('runner-cm9x');
+    expect(r.out).toContain('memory: the sum of the highest values: 1439.1 MiB');
+  });
+
+  it('a sampler that failed says so in one line, and the verdict is not touched', () => {
+    for (const [samples, err] of [['', ''], ['', 'Cannot connect to the Docker daemon'], ['x\ty\t1MiB\n', 'permission denied']]) {
+      const r = readout(samples, '', err);
+      expect(r.fail).toBe('0');
+      const said = r.out.split('\n').filter((l) => l.startsWith('memory:'));
+      expect(said).toHaveLength(1);
+      expect(said[0]).toContain('the sampler read nothing');
+    }
+  });
+
+  it('runs from the start in both modes, ends in every trap, and is read before the verdict without a fail_at', () => {
+    const sampler = smoke.indexOf("if stats=\"$(docker stats --no-stream --format '{{.Name}}{{\"\\t\"}}{{.MemUsage}}' 2>&1)\"; then");
+    expect(sampler).toBeGreaterThan(0);
+    expect(sampler).toBeLessThan(smoke.indexOf('note "preflights"'));
+    // Not inside a mode: the line before the sampler's subshell is no `if [ "$JOB_RUNNER"`.
+    const start = smoke.lastIndexOf('\n(\n', sampler);
+    expect(smoke.slice(smoke.lastIndexOf('\nMEM_PID=""', start), start)).not.toContain('JOB_RUNNER');
+    expect(smoke.slice(start, sampler)).toContain('while kill -0 $$ 2>/dev/null; do');
+    expect(smoke.slice(sampler, smoke.indexOf('\nMEM_PID=$!', sampler))).toContain('| mem_strip_limit "$now" >>"$MEM_FILE"');
+    const traps = smoke.slice(sampler).split('\n').filter((l) => /^\s*trap\s+.*\bEXIT\b/.test(l));
+    expect(traps).toHaveLength(3);
+    for (const trap of traps) expect(trap).toContain('kill "$MEM_PID" 2>/dev/null || true');
+    const read = smoke.indexOf('\nmemory_readout "$MEM_FILE"');
+    expect(read).toBeGreaterThan(smoke.indexOf('\npgboss_jobs\n'));
+    expect(read).toBeLessThan(smoke.indexOf('note "verdict"'));
+    expect(smokeFunction('memory_readout')).not.toContain('fail_at');
+  });
+});

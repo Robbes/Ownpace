@@ -414,6 +414,67 @@ keep_worker_log() {
 # `no_runner_started` reads before the verdict. Its PID is WATCHER_PID, the
 # name the runner-log watcher has on Trigger.dev, so every EXIT trap below ends
 # it the same way.
+# HOW MUCH MEMORY THIS STACK USES, READ AND NEVER JUDGED (in both runners).
+# The owner asked how much the jobs really use. A background sampler asks
+# `docker stats --no-stream` every SMOKE_MEM_EVERY seconds (15) from here to
+# the end, for this stack's containers (named ${COMPOSE_PROJECT}-*) and the
+# runner-* containers, and keeps, per sample, the time, the name and the USED
+# part of MemUsage only. Never the limit after " / ": for a container with no
+# cap that is the host's whole memory, which stays out of a public log.
+# mem_strip_limit does that cut before anything is written. memory_readout,
+# before the verdict, prints each container's highest value and when it was
+# sampled, Trigger.dev's runs of this stack as one line, and the sum. Nothing
+# here touches `fail`: a sampler that fails says so in one line, and that is all.
+MEM_PID=""
+MEM_FILE="$(mktemp /tmp/openmig-smoke-mem.XXXXXX)"
+MEM_EVERY="${SMOKE_MEM_EVERY:-15}"
+mem_strip_limit() { # mem_strip_limit <time> — `name<TAB>used / limit` lines in, `time<TAB>name<TAB>used` out
+  awk -F'\t' -v t="$1" '{ used = $2; sub(/ *\/.*$/, "", used); if ($1 != "" && used != "") printf "%s\t%s\t%s\n", t, $1, used }'
+}
+(
+  while kill -0 $$ 2>/dev/null; do
+    now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    if stats="$(docker stats --no-stream --format '{{.Name}}{{"\t"}}{{.MemUsage}}' 2>&1)"; then
+      grep -E "^(${COMPOSE_PROJECT}-|runner-)" <<<"$stats" | mem_strip_limit "$now" >>"$MEM_FILE"
+    else
+      [ -s "${MEM_FILE}.err" ] || printf '%s\n' "${stats%%$'\n'*}" >"${MEM_FILE}.err"
+    fi
+    sleep "$MEM_EVERY"
+  done
+) >/dev/null 2>&1 &
+MEM_PID=$!
+# memory_readout <samples> [runner names, one a line] — one line per container
+# (its highest used and when), the runners named as "Trigger.dev runs", the sum.
+memory_readout() {
+  local samples="$1" runners="${2:-}"
+  if [ -s "${samples}.err" ] || [ ! -s "$samples" ]; then
+    echo "memory: the sampler read nothing ($(head -c 200 "${samples}.err" 2>/dev/null || true)); no readout, and the verdict is not touched"
+    return 0
+  fi
+  awk -F'\t' -v runners="$runners" '
+    function bytes(v,   n, u) {
+      n = v; sub(/[A-Za-z]+$/, "", n); u = v; sub(/^[0-9.]+/, "", u)
+      if (u == "KiB") return n * 1024; if (u == "MiB") return n * 1048576; if (u == "GiB") return n * 1073741824; if (u == "TiB") return n * 1099511627776
+      if (u == "kB" || u == "KB") return n * 1000; if (u == "MB") return n * 1000000; if (u == "GB") return n * 1000000000
+      return n + 0
+    }
+    function mib(b) { return sprintf("%.1f MiB", b / 1048576) }
+    BEGIN { nr = split(runners, rs, "\n"); for (i = 1; i <= nr; i++) if (rs[i] != "") ours[rs[i]] = 1 }
+    {
+      name = $2; b = bytes($3)
+      if (name ~ /^runner-/) { if (!(name in ours)) next; if (!(name in rmax) || b > rmax[name]) rmax[name] = b; next }
+      if (!(name in max) || b > max[name]) { max[name] = b; at[name] = $1 }
+    }
+    END {
+      total = 0; n = 0
+      for (c in max) names[++n] = c
+      for (i = 2; i <= n; i++) { k = names[i]; for (j = i - 1; j >= 1 && names[j] > k; j--) names[j + 1] = names[j]; names[j + 1] = k }
+      for (i = 1; i <= n; i++) { printf "memory: %-40s highest %12s at %s\n", names[i], mib(max[names[i]]), at[names[i]]; total += max[names[i]] }
+      rn = 0; rsum = 0; for (r in rmax) { rn++; rsum += rmax[r] }
+      if (rn > 0) { printf "memory: %-40s highest %12s, the sum of %d run(s)\x27 highest\n", "Trigger.dev runs", mib(rsum), rn; total += rsum }
+      printf "memory: the sum of the highest values: %s\n", mib(total)
+    }' "$samples"
+}
 WATCHER_PID=""
 EVENTS_FILE=""
 if [ "$JOB_RUNNER" = pg-boss ]; then
@@ -424,7 +485,7 @@ if [ "$JOB_RUNNER" = pg-boss ]; then
     >"$EVENTS_FILE" 2>"${EVENTS_FILE}.err" &
   WATCHER_PID=$!
 fi
-trap 'kill "$WATCHER_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
+trap 'kill "$WATCHER_PID" 2>/dev/null || true; kill "$MEM_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
 
 # WHO ELSE IS ON THIS STACK (E2E (managed) #195, 2026-09-23).
 #
@@ -1330,7 +1391,7 @@ RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
 ) >/dev/null 2>&1 &
 WATCHER_PID=$!
 fi # trigger_only "the runner-log capture"
-trap 'kill "$WATCHER_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
+trap 'kill "$WATCHER_PID" 2>/dev/null || true; kill "$MEM_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
 
 # ---------- the last two services nothing speaks for (0084 T7.1) ----------
 #
@@ -1927,7 +1988,7 @@ else
   # watcher, and `trap … EXIT` REPLACES the handler rather than adding to it —
   # so a second one here silently leaks that process for the rest of the run.
   # Caught by looking, not by it going wrong, which is the cheaper way round.
-  trap 'idp_take_back; kill "$WATCHER_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
+  trap 'idp_take_back; kill "$WATCHER_PID" 2>/dev/null || true; kill "$MEM_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
 
   # ---- the client this gate signs in with ----
   #
@@ -7376,6 +7437,10 @@ supervisor_stopped "at the end"
 jobs_role_fit
 keep_worker_log || fail_at "the worker's log could not be read, so the evidence holds no account of the jobs"
 fi
+
+# ---------- what this stack's memory came to, said and not judged ----------
+note "memory, as sampled from the start: each container's highest, and the sum (says nothing to the verdict)"
+memory_readout "$MEM_FILE" "$( [ -n "$RUNNER_LOG_DIR" ] && for f in "$RUNNER_LOG_DIR"/*.log; do [ -e "$f" ] && basename "$f" .log; done )"
 
 # ---------- verdict ----------
 note "verdict"

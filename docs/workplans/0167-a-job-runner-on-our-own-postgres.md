@@ -62,6 +62,13 @@ only against stubs. Their first real stack is the switch-on's E2E (managed) run.
 
   `smoke-managed-verdict` now has 219 tests. One mutation per fix, eight in all, each failed a
   test, and the file was restored byte for byte (`cmp`).
+- **The stack's memory, read out in both runners and never judged** (the owner asked how much
+  the jobs really use). `docker stats --no-stream` is sampled every 15 s from the start, for the
+  containers named after the project and this stack's runners, and the used part of each reading
+  is kept, never the limit. Before the verdict the smoke prints each container's highest value,
+  with its time, the Trigger.dev runs as one line, and the sum. 224 tests. Three mutations each
+  failed a test: the limit kept, a failed sampler failing the run, and another stack's runner
+  counted.
 **2026-11-22, latest: the second review of #2040, fixed (T5a).** On the same branch, after `main`
 (#2043, the job catalog) was merged in. The coordinator's second review, at `5fe0d0b6`, confirmed
 the first round's fixes 3, 4, 5, 7 and 8. It found two blocking bugs and three more fixes, and

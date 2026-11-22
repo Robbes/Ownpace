@@ -457,6 +457,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   The worker's log from the start is kept as `smoke-managed-<run>-worker.log` and redacted with
   the rest of the evidence. `scripts/smoke-managed-verdict.unit.test.ts` runs each of these
   branches against stubs, and the switch-on's E2E (managed) run is the first on a real stack.
+  **In both runners, the stack's memory** is sampled from the smoke's start with
+  `docker stats --no-stream`, every 15 s (`SMOKE_MEM_EVERY`), for the containers named after
+  the compose project and this stack's `runner-*` containers. Before the verdict the smoke prints
+  each container's highest value and when it was sampled, the Trigger.dev runs as one line, and
+  the sum. Only the used part of each reading is kept, never the limit, which for a container with
+  no cap is the host's memory. The readout never decides the verdict.
 - **Before a release tag, and so before a deploy to live** (workplan 0141 T14): the newest
   two *scheduled* runs of `e2e-managed.yml` on `main` both ran the commit being tagged and are green on every attempt,
   with no night missing, and the four scheduled `e2e.yml` runs of those nights ran it and are
