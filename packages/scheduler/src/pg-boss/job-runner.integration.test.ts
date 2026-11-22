@@ -32,7 +32,7 @@ import {
   type QueueSpec,
   type RunStatus,
 } from './job-runner.ts';
-import { ChildRunDied, runInChild } from './run-in-child.ts';
+import { RunOutOfMemory, runInChild } from './run-in-child.ts';
 import { copyPass, prepareCopyTables, type CopyPassPayload } from './__testing__/copy-pass.ts';
 import { prepareKeyHolderTable, type KeyHolderPayload } from './__testing__/key-holder-table.ts';
 
@@ -81,6 +81,7 @@ function newRunner(): PgBossJobRunner {
     monitorIntervalSeconds: 1,
     superviseIntervalSeconds: 1,
     cronWorkerIntervalSeconds: 1,
+    cronMonitorIntervalSeconds: 1,
   });
   runners.push(r);
   return r;
@@ -457,7 +458,7 @@ describe('point 6: the every-minute tick never overlaps itself', () => {
 });
 
 describe('point 8: a runaway pass dies alone, and the worker goes on', () => {
-  it('fails the runaway run after its attempts, then completes the next run on the same worker', async () => {
+  it('fails the runaway run at once, as out of memory, then completes the next run on the same worker', async () => {
     const queue = 'p8-pass';
     const fixture = new URL('./__testing__/forked-passes.ts', import.meta.url).href;
     const r = newRunner();
@@ -468,8 +469,9 @@ describe('point 8: a runaway pass dies alone, and the worker goes on', () => {
     const bad = await r.enqueue(queue, { call: 'runaway' });
     const badDone = await settled(r, queue, bad.runId!, 90_000);
     expect(badDone.state).toBe('failed');
-    expect(badDone.attempt).toBe(2);
-    expect(badDone.output).toMatchObject({ name: ChildRunDied.name });
+    // Not retried, as Trigger.dev does not retry an out-of-memory run (review 2): 1 attempt of the 2 allowed.
+    expect(badDone.attempt).toBe(1);
+    expect(badDone.output).toMatchObject({ name: RunOutOfMemory.name });
     expect((badDone.output as { message: string }).message).toMatch(/heap/i);
 
     const good = await r.enqueue(queue, { call: 'behaves', items: 3 });
@@ -553,7 +555,9 @@ describe('the jobs schema is the version the runner was proved on', () => {
       await later.stop();
       // A producer refuses it too, and never migrates it either way.
       const producer = newProducer([{ name: queue, policy: 'standard' }]);
-      await expect(producer.start()).rejects.toThrow(`is not at pg-boss schema version ${proved}`);
+      await expect(producer.start()).rejects.toThrow(
+        `is at pg-boss schema version ${proved + 1}, and this runner was proved on version ${proved} only`,
+      );
       expect(Number((await jobsPool.query(`SELECT version FROM ${SCHEMA}.version`)).rows[0].version)).toBe(proved + 1);
       await producer.stop();
     } finally {
@@ -580,9 +584,19 @@ describe('E2: a producer enqueues, and never migrates, supervises, schedules or 
     const bare = `${SCHEMA}_bare`;
     await admin.query(`CREATE SCHEMA ${bare} AUTHORIZATION ${ROLE}`);
     try {
+      const connections = async (): Promise<number> =>
+        (
+          await admin.query(
+            `SELECT count(*)::int AS n FROM pg_stat_activity WHERE usename = $1 AND application_name = 'ownpace-jobs-producer'`,
+            [ROLE],
+          )
+        ).rows[0].n;
+      const before = await connections();
       const p = newProducer([{ name: 'e2-bare', policy: 'standard' }], bare);
       await expect(p.start()).rejects.toThrow(`The jobs schema "${bare}" is not at pg-boss schema version`);
+      // pg-boss opened its pool before it refused; stop() closes it (review 8).
       await p.stop();
+      expect(await connections()).toBe(before);
       const { rows } = await admin.query(`SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = $1`, [bare]);
       expect(rows[0].n).toBe(0);
     } finally {
@@ -648,6 +662,8 @@ describe('E2: a producer enqueues, and never migrates, supervises, schedules or 
     await until('the worker to fire the schedule', async () => (await jobCount(queue)) > 0, 20_000);
     await worker.stop();
     await jobsPool.query(`DELETE FROM ${SCHEMA}.job WHERE name = $1`, [queue]);
+    // As if no cron pass had run for a long time: an instance that schedules claims one the moment it starts.
+    await jobsPool.query(`UPDATE ${SCHEMA}.version SET cron_on = NULL`);
     const p = newProducer([spec]);
     await p.start();
     await sleep(8_000); // more than the cron worker's interval, many times over the schedule's
@@ -703,31 +719,76 @@ describe("E5: a run's process is killed at its time limit and on a lost claim, b
     }
   };
 
-  it('kills a run that outlives its limit, then lets the retry start, never both at once on one key', async () => {
+  it('kills a run that outlives its limit, fails it once, and only then lets the next run of its key start', async () => {
     const queue = 'e5-limit';
     // 8 s: pg-boss's own limit. The worker's comes a margin earlier (killMarginSeconds: 1 s at this length).
     const r = newRunner();
     await r.start([{ name: queue, policy: 'singleton', maxDurationSeconds: 8, heartbeatSeconds: 10, attempts: 2, retryDelaySeconds: 0 }]);
     await r.workInChild(queue, KEY_HOLDER, { maxOldSpaceMb: 64, concurrency: 2 });
-    const { runId } = await r.enqueue(queue, payload, { serializeBy: 'mapping-e5' });
-    const done = await settled(r, queue, runId!, 60_000);
-    expect(done.state).toBe('failed');
-    expect(done.attempt).toBe(2);
-    expect(done.output).toEqual({ name: 'RunTimedOut', message: `The run reached its time limit of 8 s on "${queue}" and was stopped.` });
-    const [first, second] = await held(runId!);
-    expect([first?.attempt, second?.attempt]).toEqual([1, 2]);
-    expect(first!.pid).not.toBe(second!.pid);
-    for (const h of [first!, second!]) {
+    // Two runs of one key: the second waits behind the first, as the next tick's pass would.
+    const one = await r.enqueue(queue, payload, { serializeBy: 'mapping-e5' });
+    const two = await r.enqueue(queue, payload, { serializeBy: 'mapping-e5' });
+    const sentence = `The run reached its time limit of 8 s on "${queue}" and was stopped.`;
+    const done = [await settled(r, queue, one.runId!, 60_000), await settled(r, queue, two.runId!, 60_000)];
+    for (const d of done) {
+      // Not retried, as Trigger.dev does not retry MAX_DURATION_EXCEEDED (review 2): 1 attempt of the 2 allowed.
+      expect({ state: d.state, attempt: d.attempt, output: d.output }).toEqual({
+        state: 'failed',
+        attempt: 1,
+        output: { name: 'RunTimedOut', message: sentence },
+      });
+    }
+    const runs = [...(await held(one.runId!)), ...(await held(two.runId!))].sort(
+      (x, y) => x.started_at.getTime() - y.started_at.getTime(),
+    );
+    expect(runs).toHaveLength(2);
+    const [first, second] = runs as [Held, Held];
+    expect(first.pid).not.toBe(second.pid);
+    for (const h of runs) {
       const ran = h.last_beat.getTime() - h.started_at.getTime();
       // Stopped by the worker, before pg-boss's 8 s: about 7 s less the child's start.
       expect(ran).toBeLessThan(8_000);
       expect(ran).toBeGreaterThan(5_000);
       expect(alive(h.pid)).toBe(false);
     }
-    // The retry's process began only after the first one's last word.
-    expect(second!.started_at.getTime()).toBeGreaterThan(first!.last_beat.getTime());
+    // The key's next run began only after the first one's last word.
+    expect(second.started_at.getTime()).toBeGreaterThan(first.last_beat.getTime());
     await r.stop();
   }, 90_000);
+
+  it("kills at the limit the run was sent with, not the one the queue's spec says now (review 5)", async () => {
+    const queue = 'e5-row-limit';
+    const before = newRunner();
+    await before.start([{ name: queue, policy: 'singleton', maxDurationSeconds: 8, heartbeatSeconds: 10, attempts: 1 }]);
+    const { runId } = await before.enqueue(queue, payload, { serializeBy: 'mapping-e5c' });
+    await before.stop();
+    // The spec moved on: an hour now. The row keeps the 8 s it was sent with, and pg-boss goes by the row.
+    const after = newRunner();
+    await after.start([{ name: queue, policy: 'singleton', maxDurationSeconds: 3600, heartbeatSeconds: 10, attempts: 1 }]);
+    await after.workInChild(queue, KEY_HOLDER, { maxOldSpaceMb: 64 });
+    const done = await settled(after, queue, runId!, 30_000);
+    expect(done.output).toEqual({ name: 'RunTimedOut', message: `The run reached its time limit of 8 s on "${queue}" and was stopped.` });
+    const [h] = await held(runId!);
+    expect(h!.last_beat.getTime() - h!.started_at.getTime()).toBeLessThan(8_000);
+    await after.stop();
+  }, 60_000);
+
+  it('tries again a run whose process was killed from outside, as a worker restart would (review 2)', async () => {
+    const queue = 'e5-killed';
+    const r = newRunner();
+    await r.start([{ name: queue, policy: 'singleton', heartbeatSeconds: 10, attempts: 2, retryDelaySeconds: 1 }]);
+    await r.workInChild(queue, KEY_HOLDER, { maxOldSpaceMb: 64 });
+    const { runId } = await r.enqueue(queue, payload, { serializeBy: 'mapping-e5d' });
+    const [h] = await until('the run to be holding its key', async () => {
+      const rows = await held(runId!);
+      return rows.length ? rows : null;
+    }, 20_000);
+    process.kill(h!.pid, 'SIGKILL');
+    await until('the second attempt to be holding the key', async () => (await held(runId!)).length === 2, 30_000);
+    expect((await r.status(runId!))?.attempt).toBe(2);
+    await r.cancel(runId!);
+    await r.stop();
+  }, 60_000);
 
   it('kills the run when its claim is lost to a cancel from the producer', async () => {
     const queue = 'e5-claim';
@@ -829,5 +890,93 @@ describe('E8: recentFailures reads only as many rows as it hands back', () => {
       client.release();
     }
     await r.stop();
+  }, 60_000);
+});
+
+describe('the review of #2040: what a client asks of pg-boss, and what it never starts', () => {
+  it('finds a live run on a queue the asking client never declared, rather than reading it as gone (review 3)', async () => {
+    const worker = newRunner();
+    await worker.start([{ name: 'r3-elsewhere', policy: 'standard' }, { name: 'r3-mine', policy: 'standard' }]);
+    const { runId } = await worker.enqueue('r3-elsewhere', {});
+    const p = newProducer([{ name: 'r3-mine', policy: 'standard' }]);
+    await p.start();
+    expect(await p.status(runId!)).toMatchObject({ runId, queue: 'r3-elsewhere', state: 'queued' });
+    expect(await p.cancel(runId!)).toBe(true);
+    await p.stop();
+    await worker.stop();
+  }, 30_000);
+
+  it('registers the producer with pg-boss as neither supervising, scheduling nor migrating (review 4)', async () => {
+    const p = newProducer([{ name: 'r4-any', policy: 'standard' }]);
+    await p.start();
+    const { rows } = await jobsPool.query<{ supervise: boolean; schedule: boolean; migrate: boolean }>(
+      `SELECT supervise, schedule, migrate FROM ${SCHEMA}.instance WHERE application_name = 'ownpace-jobs-producer' AND pid = $1`,
+      [process.pid],
+    );
+    // Every producer this file started is listed (pg-boss keeps a stopped instance's row a while); none does any of the three.
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.filter((row) => row.supervise || row.schedule || row.migrate)).toEqual([]);
+    await p.stop();
+  }, 30_000);
+
+  it("keeps a run's own answer given just before its limit, rather than calling it a timeout (review 6)", async () => {
+    const queue = 'r6-answer';
+    const r = newRunner();
+    await r.start([{ name: queue, policy: 'standard', maxDurationSeconds: 4, heartbeatSeconds: 10, attempts: 2 }]);
+    await r.work(queue, async (_p, ctx) => {
+      await new Promise<void>((resolve) => ctx.signal.addEventListener('abort', () => resolve(), { once: true }));
+      throw new RunNotRetried('The cutover was refused: the mapping is not caught up.');
+    });
+    const { runId } = await r.enqueue(queue, {});
+    const done = await settled(r, queue, runId!, 30_000);
+    expect({ attempt: done.attempt, output: done.output }).toEqual({
+      attempt: 1,
+      output: { name: 'RunNotRetried', message: 'The cutover was refused: the mapping is not caught up.' },
+    });
+    await r.stop();
+  }, 60_000);
+
+  it('refuses a newer schema before pg-boss writes a row of it, and a refused client leaves no connection (review 8)', async () => {
+    const queue = 'r8-probe';
+    const first = newRunner();
+    await first.start([{ name: queue, policy: 'standard' }]);
+    await first.stop();
+    const proved = Number((await jobsPool.query(`SELECT version FROM ${SCHEMA}.version`)).rows[0].version);
+    // Every write pg-boss makes as it starts (registering itself, its first cron pass) is logged here.
+    await admin.query(`CREATE TABLE ${SCHEMA}.r8_seen (tbl text NOT NULL, op text NOT NULL)`);
+    await admin.query(
+      `CREATE FUNCTION ${SCHEMA}.r8_note() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN INSERT INTO ${SCHEMA}.r8_seen VALUES (TG_TABLE_NAME, TG_OP); RETURN NULL; END $$`,
+    );
+    for (const t of ['instance', 'version']) {
+      await admin.query(`CREATE TRIGGER r8_${t} AFTER INSERT OR UPDATE OR DELETE ON ${SCHEMA}.${t} FOR EACH ROW EXECUTE FUNCTION ${SCHEMA}.r8_note()`);
+    }
+    await jobsPool.query(`UPDATE ${SCHEMA}.version SET version = $1`, [proved + 1]);
+    await admin.query(`DELETE FROM ${SCHEMA}.r8_seen`);
+    const jobsConnections = async (): Promise<number> =>
+      (
+        await admin.query(
+          `SELECT count(*)::int AS n FROM pg_stat_activity WHERE usename = $1 AND application_name LIKE 'ownpace-jobs%'`,
+          [ROLE],
+        )
+      ).rows[0].n;
+    const openBefore = await jobsConnections();
+    try {
+      const later = newRunner();
+      await expect(later.start([{ name: queue, policy: 'standard' }])).rejects.toThrow(
+        `is at pg-boss schema version ${proved + 1}, and this runner was proved on version ${proved} only`,
+      );
+      await later.stop();
+      expect((await admin.query(`SELECT tbl, op FROM ${SCHEMA}.r8_seen`)).rows).toEqual([]);
+
+      const producer = newProducer([{ name: queue, policy: 'standard' }]);
+      await expect(producer.start()).rejects.toThrow('schema version');
+      await producer.stop();
+      expect(await jobsConnections()).toBe(openBefore);
+    } finally {
+      await jobsPool.query(`UPDATE ${SCHEMA}.version SET version = $1`, [proved]);
+      for (const t of ['instance', 'version']) await admin.query(`DROP TRIGGER r8_${t} ON ${SCHEMA}.${t}`);
+      await admin.query(`DROP FUNCTION ${SCHEMA}.r8_note()`);
+      await admin.query(`DROP TABLE ${SCHEMA}.r8_seen`);
+    }
   }, 60_000);
 });

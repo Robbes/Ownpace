@@ -50,6 +50,12 @@ export function throws(payload: { name: string; message: string }): never {
   throw err;
 }
 
+/** Warns at length on stderr, as a pass's `log.warn` does, then runs away: V8's verdict comes after 20 kB. */
+export function warnsThenRunsAway(): number {
+  for (let i = 0; i < 200; i++) process.stderr.write(`warn: folder ${i} answered 429, waiting before the next page\n`.padEnd(100, '.') + '\n');
+  return runaway();
+}
+
 /** Says its pid, then never ends. */
 export async function holds(): Promise<never> {
   process.stdout.write(`pid ${process.pid}\n`);
@@ -69,4 +75,5 @@ serveRuns({
   throws: (p) => throws(p as { name: string; message: string }),
   whoAmI,
   holds,
+  warnsThenRunsAway,
 });

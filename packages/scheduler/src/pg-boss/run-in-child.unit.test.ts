@@ -11,8 +11,8 @@ import { describe, it, expect, onTestFinished } from 'vitest';
 import { fork } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { Writable } from 'node:stream';
-import { ChildRunDied, runInChild } from './run-in-child.ts';
-import { settlementFor } from './job-runner.ts';
+import { ChildRunDied, RunOutOfMemory, runInChild, serveRuns } from './run-in-child.ts';
+import { RunTimedOut, settlementFor } from './job-runner.ts';
 
 const FIXTURE = new URL('./__testing__/forked-passes.ts', import.meta.url).href;
 const PARENT = new URL('./__testing__/parent-of-a-run.ts', import.meta.url).pathname;
@@ -54,7 +54,7 @@ describe('runInChild', () => {
       () => null,
       (e: unknown) => e,
     );
-    expect(err).toBeInstanceOf(ChildRunDied);
+    expect(err).toBeInstanceOf(RunOutOfMemory);
     expect((err as ChildRunDied).verdict).toBe('out-of-memory');
     expect((err as ChildRunDied).message).toMatch(/heap/i);
     // V8's own words went to the output, not into the error.
@@ -64,6 +64,17 @@ describe('runInChild', () => {
     await expect(runInChild(FIXTURE, { items: 1 }, { maxOldSpaceMb: 64, call: 'behaves', output: collect() })).resolves.toEqual({
       copied: 1,
     });
+  }, 60_000);
+
+  it('knows a heap death after the run has said 20 kB on stderr, where V8 says it last', async () => {
+    const output = collect();
+    const err = await runInChild(FIXTURE, null, { maxOldSpaceMb: 64, call: 'warnsThenRunsAway', output }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(output.stderr.text.indexOf('FATAL ERROR')).toBeGreaterThan(20_000);
+    expect(err).toBeInstanceOf(RunOutOfMemory);
+    expect((err as ChildRunDied).verdict).toBe('out-of-memory');
   }, 60_000);
 
   it('kills the run outright when it is cancelled', async () => {
@@ -146,9 +157,33 @@ describe("an error's name survives the process boundary, and decides the retry (
     });
   }
 
+  it('does not retry a run that reached its time limit or ran out of its heap, and retries one killed from outside', () => {
+    // As Trigger.dev 4.8.8 settles them today: MAX_DURATION_EXCEEDED and out-of-memory are not retried.
+    expect(settlementFor(new RunTimedOut('limit'))).toBe('deadletter');
+    expect(settlementFor(new RunOutOfMemory(null, 'SIGABRT', 410))).toBe('deadletter');
+    // A worker restart or a crash (point 2): the pass converges, so it is tried again.
+    expect(settlementFor(new ChildRunDied(null, 'SIGKILL', 'killed', 410))).toBe('failed');
+    expect(settlementFor(new ChildRunDied(1, null, 'exited', 410))).toBe('failed');
+  });
+
   it('retries what is not an Error at all', () => {
     expect(settlementFor('RunNotRetried')).toBe('failed');
     expect(settlementFor({ name: 'RunNotRetried' })).toBe('failed');
+  });
+});
+
+describe('serveRuns answers only in a process runInChild forked (review 7)', () => {
+  it('does nothing in another process, even one with an IPC channel', () => {
+    const before = [process.listenerCount('disconnect'), process.listenerCount('message')];
+    const hadSend = typeof process.send === 'function';
+    // A stand-in channel, so the check is the marker and not the missing channel.
+    if (!hadSend) (process as { send?: unknown }).send = () => true;
+    try {
+      serveRuns({ run: () => 'served' });
+    } finally {
+      if (!hadSend) delete (process as { send?: unknown }).send;
+    }
+    expect([process.listenerCount('disconnect'), process.listenerCount('message')]).toEqual(before);
   });
 });
 

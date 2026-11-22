@@ -68,7 +68,7 @@
 import { PgBoss } from 'pg-boss';
 import type { ConstructorOptions, Db, JobWithMetadata, QueueResult, SendOptions } from 'pg-boss';
 import pg from 'pg';
-import { runInChild } from './run-in-child.ts';
+import { ChildRunDied, runInChild } from './run-in-child.ts';
 
 /**
  * The schema version of the pg-boss release `packages/scheduler/package.json`
@@ -84,17 +84,33 @@ export class RunNotRetried extends Error {
   override name = 'RunNotRetried';
 }
 
-/** What a run that reached its queue's time limit is failed with. Retried, as pg-boss retries an expired run. */
+/**
+ * What a run that reached its queue's time limit is failed with. Not retried,
+ * as Trigger.dev does not retry `MAX_DURATION_EXCEEDED`: a pass that hung once
+ * would otherwise hold its mapping's key for every attempt's hour.
+ */
 export class RunTimedOut extends Error {
   override name = 'RunTimedOut';
 }
 
 /**
- * The error names that fail a run with no further attempts: ours, Trigger.dev's
- * (the jobs throw it today, `apps/worker/src/jobs/what-a-run-leaves.ts`), and a
- * payload that failed its schema, which no retry can mend.
+ * The error names that fail a run with no further attempts, so that a run
+ * settles as Trigger.dev 4.8.8 settles it today (ADR-0054 §2):
+ *  - ours, and Trigger.dev's (the jobs throw it today,
+ *    `apps/worker/src/jobs/what-a-run-leaves.ts`);
+ *  - a payload that failed its schema, which no retry can mend;
+ *  - a run that reached its time limit (`MAX_DURATION_EXCEEDED`);
+ *  - a run whose process ran out of its heap, which the retry would meet again.
+ * A run's process killed from outside, or a claim lost to a worker that died,
+ * is retried: the passes converge (0167 point 2).
  */
-export const NOT_RETRIED_ERROR_NAMES: ReadonlySet<string> = new Set(['RunNotRetried', 'AbortTaskRunError', 'ZodError']);
+export const NOT_RETRIED_ERROR_NAMES: ReadonlySet<string> = new Set([
+  'RunNotRetried',
+  'AbortTaskRunError',
+  'ZodError',
+  'RunTimedOut',
+  'RunOutOfMemory',
+]);
 
 /** How pg-boss is to settle a run that threw `err`. */
 export function settlementFor(err: unknown): 'deadletter' | 'failed' {
@@ -232,6 +248,12 @@ export interface PgBossJobRunnerOptions extends PgBossClientOptions {
   readonly superviseIntervalSeconds?: number;
   /** How often due cron schedules are sent. Default 5. */
   readonly cronWorkerIntervalSeconds?: number;
+  /**
+   * How often one instance may run a cron pass, claimed across every instance
+   * on the schema. pg-boss's default, 30, is what production uses; a schedule
+   * is sent within its due window of 60 s either way.
+   */
+  readonly cronMonitorIntervalSeconds?: number;
 }
 
 /** What a job row's `data` holds: the caller's payload, plus what the runner itself reads. */
@@ -323,6 +345,8 @@ abstract class PgBossClient {
   protected readonly schema: string;
   protected readonly specs = new Map<string, QueueSpec>();
   protected started = false;
+  /** pg-boss was asked to start, and so may hold connections, whether or not it started. */
+  #opened = false;
 
   protected constructor(opts: PgBossClientOptions, boss: Partial<ConstructorOptions>, poolName: string) {
     this.schema = identifier('schema', opts.schema);
@@ -356,6 +380,11 @@ abstract class PgBossClient {
    * it was, and is refused here rather than run on.
    */
   protected async startBoss(refusal: (err: unknown) => Error | null): Promise<void> {
+    // Read before pg-boss starts: a started pg-boss has already registered
+    // itself on the schema and run its first cron pass.
+    const found = await this.#schemaVersionNow();
+    if (found !== null && found > PG_BOSS_SCHEMA_VERSION) throw this.#refusal(found);
+    this.#opened = true;
     try {
       await this.boss.start();
     } catch (err) {
@@ -367,11 +396,7 @@ abstract class PgBossClient {
     const version = await this.#boss.schemaVersion();
     if (version !== PG_BOSS_SCHEMA_VERSION) {
       this.started = false;
-      const refused = new Error(
-        `The jobs schema "${this.schema}" is at pg-boss schema version ${String(version)}, and this runner was ` +
-          `proved on version ${PG_BOSS_SCHEMA_VERSION} only (ADR-0054). A later pg-boss migrated it: run the release ` +
-          'that did, or move the pin and PG_BOSS_SCHEMA_VERSION together.',
-      );
+      const refused = this.#refusal(version);
       await this.boss.stop({ graceful: false }).catch((err: unknown) => {
         // The refusal is the answer; a stop that failed is said beside it, never instead of it.
         console.error('[jobs] pg-boss did not stop after refusing the schema:', err);
@@ -380,11 +405,31 @@ abstract class PgBossClient {
     }
   }
 
+  /** pg-boss's own version row, or null before pg-boss has installed the schema. */
+  async #schemaVersionNow(): Promise<number | null> {
+    const installed = await this.pool.query<{ t: string | null }>('SELECT to_regclass($1)::text AS t', [
+      `${this.schema}.version`,
+    ]);
+    if (installed.rows[0]?.t == null) return null;
+    const { rows } = await this.pool.query<{ version: number }>(`SELECT version FROM ${this.schema}.version LIMIT 1`);
+    return rows[0] === undefined ? null : Number(rows[0].version);
+  }
+
+  #refusal(version: number | null): Error {
+    return new Error(
+      `The jobs schema "${this.schema}" is at pg-boss schema version ${String(version)}, and this runner was ` +
+        `proved on version ${PG_BOSS_SCHEMA_VERSION} only (ADR-0054). A later pg-boss migrated it: run the release ` +
+        'that did, or move the pin and PG_BOSS_SCHEMA_VERSION together.',
+    );
+  }
+
   /** Stop polling; `graceful` waits for running handlers to settle first. */
   async stop(opts: { graceful?: boolean; timeoutMs?: number } = {}): Promise<void> {
-    if (this.started) {
+    // Also after a start() that threw: pg-boss may have opened its pool, and stop() closes it.
+    if (this.started || this.#opened) {
       await this.boss.stop({ graceful: opts.graceful ?? true, timeout: opts.timeoutMs ?? 30_000 });
       this.started = false;
+      this.#opened = false;
     }
     await this.pool.end();
   }
@@ -510,13 +555,14 @@ abstract class PgBossClient {
   }
 
   /**
-   * Which declared queue holds `runId`, in at most one statement per job
-   * table (every queue shares one unless partitioned), each on the table's
-   * `(name, id)` key. A queue that does not exist yet holds no run.
+   * Which queue holds `runId`: every queue in the schema, not only those this
+   * client declared, so a live run is never read as gone because this client
+   * does not know its queue. At most one statement per job table (every queue
+   * shares one unless partitioned), each on the table's `(name, id)` key.
    */
   async #queueOf(runId: string): Promise<string | null> {
     assertRunId(runId);
-    const queues = await this.boss.getQueues([...this.specs.keys()]);
+    const queues = await this.boss.getQueues();
     const byTable = new Map<string, string[]>();
     for (const q of queues) {
       const table = identifier('table', q.table);
@@ -552,8 +598,10 @@ abstract class PgBossClient {
 
   /**
    * The most recent failed runs on `queue`, newest first, with their errors as
-   * stored. Reads at most `limit` rows, in the order of pg-boss's own
-   * `(name, completed_on)` index.
+   * stored. Returns at most `limit` (1,000 at most), read in the order of
+   * pg-boss's own `(name, completed_on)` index and stopped there; the read
+   * passes the completed runs newer than the oldest failure it returns, which
+   * pg-boss's retention bounds (7 days by default), never the whole queue.
    */
   async recentFailures(queue: string, limit = 20): Promise<FailedRun[]> {
     this.spec(queue);
@@ -648,6 +696,7 @@ export class PgBossJobRunner extends PgBossClient {
         monitorIntervalSeconds: opts.monitorIntervalSeconds ?? 15,
         superviseIntervalSeconds: opts.superviseIntervalSeconds ?? 15,
         cronWorkerIntervalSeconds: opts.cronWorkerIntervalSeconds ?? 5,
+        ...(opts.cronMonitorIntervalSeconds !== undefined ? { cronMonitorIntervalSeconds: opts.cronMonitorIntervalSeconds } : {}),
         application_name: 'ownpace-jobs',
       },
       'ownpace-jobs-enqueue',
@@ -676,9 +725,7 @@ export class PgBossJobRunner extends PgBossClient {
    * a pass belongs in `workInChild`, which cannot.
    */
   async work<P, R>(queue: string, handler: RunHandler<P, R>, opts: { concurrency?: number } = {}): Promise<void> {
-    const spec = this.spec(queue);
-    const limitSeconds = spec.maxDurationSeconds ?? DEFAULT_MAX_DURATION_SECONDS;
-    const stopAfterMs = (limitSeconds - killMarginSeconds(limitSeconds)) * 1000;
+    this.spec(queue);
     await this.boss.work<JobData<P>>(
       queue,
       {
@@ -690,6 +737,10 @@ export class PgBossJobRunner extends PgBossClient {
       async (jobs) => {
         const results = [];
         for (const job of jobs) {
+          // The row's own limit, which pg-boss and its supervisor go by, not the spec's: a run sent
+          // before the spec's limit changed keeps the limit it was sent with.
+          const limitSeconds = job.expireInSeconds;
+          const stopAfterMs = (limitSeconds - killMarginSeconds(limitSeconds)) * 1000;
           const deadline = new AbortController();
           const timer = setTimeout(() => {
             deadline.abort(
@@ -705,8 +756,10 @@ export class PgBossJobRunner extends PgBossClient {
             });
             results.push({ id: job.id, status: 'completed' as const, output: { value: output ?? null } });
           } catch (err) {
-            // A run stopped at its limit is failed as having reached it, whatever the stop made it throw.
-            const said: unknown = deadline.signal.aborted && !job.signal.aborted ? deadline.signal.reason : err;
+            // A run's process killed at its limit is failed as having reached it. An answer the run
+            // gave before it was killed (a RunNotRetried, say) stands as it was given.
+            const stoppedAtLimit = deadline.signal.aborted && !job.signal.aborted && err instanceof ChildRunDied;
+            const said: unknown = stoppedAtLimit ? deadline.signal.reason : err;
             results.push({ id: job.id, status: settlementFor(said), output: errorRecord(said) });
           } finally {
             clearTimeout(timer);

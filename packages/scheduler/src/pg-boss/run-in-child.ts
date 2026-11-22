@@ -18,7 +18,7 @@
  * `log.error`/`log.warn` is the operator's only copy of those words
  * (`apps/worker/src/jobs/what-a-run-leaves.ts`). None of it is put into what
  * the run hands back: a child that dies is reported by a fixed sentence and a
- * `verdict`, read from the head of its stderr, never by the text itself. What
+ * `verdict`, read from its stderr line by line, never by the text itself. What
  * a run that fails on its own stores is the `{ name, message }` of the error it
  * threw, and the jobs' own wrapper already makes that a category and a
  * reference, without a tester's words.
@@ -61,6 +61,32 @@ export class ChildRunDied extends Error {
   }
 }
 
+/**
+ * A run whose process ran out of its heap. Not retried: the retry meets the
+ * same heap, and Trigger.dev, whose behaviour the managed jobs keep, does not
+ * retry an out-of-memory run unless a task asks it to, and none does.
+ */
+export class RunOutOfMemory extends ChildRunDied {
+  override name = 'RunOutOfMemory';
+  constructor(code: number | null, signal: NodeJS.Signals | null, maxOldSpaceMb: number) {
+    super(code, signal, 'out-of-memory', maxOldSpaceMb);
+  }
+}
+
+/**
+ * The argument `runInChild` forks with, and the one `serveRuns` waits for. A
+ * process with an IPC channel that was not forked by `runInChild` (a test
+ * runner's worker, say) is never served, nor killed when its channel closes.
+ */
+const RUN_IN_CHILD_MARKER = '--ownpace-run-in-child';
+
+/**
+ * V8's line when the heap is exhausted. Matched on every line, because V8
+ * writes it as the process dies, after everything the run already said on the
+ * same stream.
+ */
+const HEAP_DEATH = /^FATAL ERROR:.*heap/i;
+
 /** What the forked run is told about itself, beside its payload. */
 export interface ChildRunInfo {
   readonly queue: string;
@@ -95,16 +121,13 @@ type Answer =
   | { readonly ok: true; readonly value: unknown }
   | { readonly ok: false; readonly error: { readonly name: string; readonly message: string } };
 
-/** The bytes of the child's stderr kept for the death verdict. V8's own line comes first. */
-const STDERR_HEAD_BYTES = 16_000;
-
 /**
  * Call this at the bottom of a module `runInChild` forks: it answers the one
  * order the parent sends, with the handler the order names, then exits. The
  * module is the process's entry, so nothing here imports a computed name.
  */
 export function serveRuns(handlers: Readonly<Record<string, RunFn>>): void {
-  if (typeof process.send !== 'function') return;
+  if (typeof process.send !== 'function' || !process.argv.includes(RUN_IN_CHILD_MARKER)) return;
   // The parent is gone (killed, or crashed): so is the claim on this run.
   process.once('disconnect', () => process.kill(process.pid, 'SIGKILL'));
   process.once('message', (order: Order) => {
@@ -125,11 +148,17 @@ export function serveRuns(handlers: Readonly<Record<string, RunFn>>): void {
   });
 }
 
-function forwardLines(from: Readable | null, to: Writable, prefix: string): Promise<void> {
+function forwardLines(
+  from: Readable | null,
+  to: Writable,
+  prefix: string,
+  onLine: (line: string) => void = () => undefined,
+): Promise<void> {
   if (!from) return Promise.resolve();
   const lines = createInterface({ input: from, crlfDelay: Infinity });
   lines.on('line', (line) => {
     to.write(`${prefix}${line}\n`);
+    onLine(line);
   });
   return new Promise((resolve) => lines.once('close', resolve));
 }
@@ -142,7 +171,7 @@ function forwardLines(from: Readable | null, to: Writable, prefix: string): Prom
  */
 export function runInChild(entryUrl: string, payload: unknown, opts: RunInChildOptions): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const child = fork(fileURLToPath(entryUrl), [], {
+    const child = fork(fileURLToPath(entryUrl), [RUN_IN_CHILD_MARKER], {
       execArgv: [`--max-old-space-size=${opts.maxOldSpaceMb}`],
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
       serialization: 'advanced',
@@ -150,17 +179,15 @@ export function runInChild(entryUrl: string, payload: unknown, opts: RunInChildO
     const label = opts.label ?? (opts.run ? `${opts.run.queue} ${opts.run.runId}` : undefined);
     const prefix = label === undefined ? '' : `[${label}] `;
     const out = opts.output ?? { stdout: process.stdout, stderr: process.stderr };
+    // V8's verdict ("FATAL ERROR: … heap limit …") is read from the lines as
+    // they pass, for the verdict below, and never handed on.
+    let heapDeath = false;
     const forwarded = Promise.all([
       forwardLines(child.stdout, out.stdout, prefix),
-      forwardLines(child.stderr, out.stderr, prefix),
+      forwardLines(child.stderr, out.stderr, prefix, (line) => {
+        if (HEAP_DEATH.test(line)) heapDeath = true;
+      }),
     ]);
-    // V8's own verdict ("FATAL ERROR: … heap limit …") comes first and the
-    // native stack after it, so keep the start, and only so much of it. It is
-    // read for the verdict below, and never handed on.
-    let stderrHead = '';
-    child.stderr?.on('data', (chunk: Buffer) => {
-      if (stderrHead.length < STDERR_HEAD_BYTES) stderrHead += chunk.toString();
-    });
 
     let answer: Answer | null = null;
     let spawnError: Error | null = null;
@@ -185,12 +212,8 @@ export function runInChild(entryUrl: string, payload: unknown, opts: RunInChildO
           return reject(err);
         }
         if (spawnError) return reject(spawnError);
-        const verdict: ChildDeath = /FATAL ERROR:.*heap/i.test(stderrHead)
-          ? 'out-of-memory'
-          : signal !== null
-            ? 'killed'
-            : 'exited';
-        reject(new ChildRunDied(code, signal, verdict, opts.maxOldSpaceMb));
+        if (heapDeath) return reject(new RunOutOfMemory(code, signal, opts.maxOldSpaceMb));
+        reject(new ChildRunDied(code, signal, signal !== null ? 'killed' : 'exited', opts.maxOldSpaceMb));
       });
     });
     const order: Order = { call: opts.call ?? 'run', payload, ...(opts.run ? { run: opts.run } : {}) };

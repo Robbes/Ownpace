@@ -24,8 +24,8 @@ against T5's code, and closed:
   (`out-of-memory`, `killed`, `exited`), read from the first 16 kB of stderr and never quoted.
   T5's `ChildRunDied` had put stderr's first line into the stored error.
 - **E5, the time limit and the claim.** `work` aborts the run's signal itself,
-  `killMarginSeconds` before the queue's `expireInSeconds` and fails it as `RunTimedOut`, which is
-  retried. The margin is 30 s, a tenth of a test's short limit, and at least 1 s, and the code
+  `killMarginSeconds` before the queue's `expireInSeconds` and fails it as `RunTimedOut` (retried
+  here; not retried since the review, below). The margin is 30 s, a tenth of a test's short limit, and at least 1 s, and the code
   says why. A lost claim (a cancel, another supervisor) aborts the same signal. `workInChild`
   kills the run's process on it and settles only after the process has exited. A run's process
   exits when its IPC channel closes, so a worker killed outright leaves no run writing behind it.
@@ -35,8 +35,10 @@ against T5's code, and closed:
 - **E7.** Already met for the worker: T5's schema refusal and pin guard. The producer now refuses
   in the same way.
 - **E8.** `overview` already read only pg-boss's queue table, whose counters the monitor keeps.
-  `recentFailures` read up to 100,000 rows and sorted them in memory. It now reads at most its
-  limit (1,000 at most), backwards on pg-boss's `<table>_i16` index, `(name, completed_on)`.
+  `recentFailures` read up to 100,000 rows and sorted them in memory. It now returns at most its
+  limit (1,000 at most), read backwards on pg-boss's `<table>_i16` index, `(name, completed_on)`,
+  and stopped there. The read passes the completed runs newer than the oldest failure it returns,
+  which pg-boss's retention bounds (7 days by default), never the whole queue.
 
 **The evidence**, on a throwaway cluster from `scripts/local-pg.sh` (PostgreSQL 16 here; CI's
 Testcontainers run is the one to trust for 18):
@@ -48,7 +50,10 @@ Testcontainers run is the one to trust for 18):
     first one's last write.
   - E5: a cancel from the producer killed the run's process within one heartbeat.
   - E2: a schedule due every second fired from a worker and never from a producer alone in 8 s.
-  - E8: the read is a `Limit` over `Index Scan Backward using job_common_i16`, with no sort.
+  - E8: the read is a `Limit` over `Index Scan Backward using job_common_i16`, with no sort. That
+    plan was taken with `enable_seqscan` and `enable_sort` off, because on a handful of rows the
+    planner scans; it shows the index can serve the order, not what the planner picks on a small
+    table.
 - `run-in-child.unit.test.ts`: 15 passed, 11 of them new: forwarding, the death in its own words,
   six error names across the IPC, and the child that dies with its parent.
 - **Mutations**, each restored byte for byte. Each of these failed its test:
@@ -151,7 +156,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T2 Through PgBouncer and a plain role | builder | ✅ **Done 2026-11-22** | Run B above; point 7. |
 | T3 Gates | builder | ✅ **Done 2026-11-22** | Typecheck and lint 0; unit 22,282 passed, 1 failed for missing tags in this checkout (Status entry). CI not dispatched, by instruction. |
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
-| T5 This runner, merged | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-public-readiness-y7orc6-pgboss-runner` | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). Done when its pull request merges. |
+| T5 This runner, merged | builder | ✅ **Merged 2026-11-22**, as #2038 (`98e9bc34`) | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
 | T5a The runner's production gaps | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-pgboss-runner-gaps` | E2–E8 from the coordinator's plan: `PgBossProducer`, status and cancel by id, the child's lines forwarded and never stored, the worker's own time limit and kill on a lost claim, "not retried" by name, a bounded `recentFailures` (the Status entry "later still"). Done when its pull request merges. |
 | T6 The jobs on the runner, behind a switch | builder | ⬜ **Not started** | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. |
 | T7 The worker service, and the switch on | builder, owner | ⬜ **Not started** | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
