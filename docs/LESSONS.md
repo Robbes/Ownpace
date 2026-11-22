@@ -971,7 +971,6 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/src/jobs/run-discovery.ts`
 
-- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts) — A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
 
@@ -982,7 +981,6 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/src/jobs/run-verification.ts`
 
-- [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 
 ### `apps/worker/src/jobs/stopping-a-pass.ts`
@@ -993,6 +991,23 @@ reading a file drops off its entry by itself.
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
+
+### `apps/worker/src/runner/__testing__/a-pass-stand-in.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+
+### `apps/worker/src/runner/main.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+- [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
+
+### `apps/worker/src/runner/pg-boss-context.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+
+### `apps/worker/src/runner/worker.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 
 ### `apps/worker/task-image/Dockerfile`
 
@@ -4380,7 +4395,6 @@ Every place that asks "is this domain switched on?" asks it about EVERY domain (
 
 Reads:
 
-- `apps/worker/src/jobs/run-verification.ts`
 - `packages/orchestration/src/build-confirmation-readers.ts`
 - `packages/orchestration/src/build-reindexers.ts`
 - `packages/orchestration/src/orchestration.ts`
@@ -4417,7 +4431,6 @@ Reads:
 - `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
 - `apps/api/src/routes/provider-accounts.unit.test.ts`
 - `apps/web/src/services/mapping-service.ts`
-- `apps/worker/src/jobs/run-discovery.ts`
 - `packages/orchestration/src/domain-lanes.unit.test.ts`
 - `packages/shared/src/discovery.ts`
 - `packages/shared/src/provider-accounts.ts`
@@ -5109,6 +5122,10 @@ Reads:
 - `apps/worker/src/jobs/run-verification.ts`
 - `apps/worker/src/jobs/stopping-a-pass.ts`
 - `apps/worker/src/jobs/task-pools.ts`
+- `apps/worker/src/runner/__testing__/a-pass-stand-in.ts`
+- `apps/worker/src/runner/main.ts`
+- `apps/worker/src/runner/pg-boss-context.ts`
+- `apps/worker/src/runner/worker.ts`
 - `deploy/compose/set-task-env.sh`
 - `docs/rls-guide.md`
 - `packages/ledger/src/direct-url.ts`
@@ -6660,6 +6677,7 @@ Reads:
 
 - `apps/api/Dockerfile`
 - `apps/api/src/index.ts`
+- `apps/worker/src/runner/main.ts`
 - `deploy/compose/operator.sh`
 - `deploy/compose/seed-managed.sh`
 - `scripts/workspace-deps.unit.test.ts`

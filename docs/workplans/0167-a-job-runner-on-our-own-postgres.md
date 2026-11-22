@@ -4,6 +4,40 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still: the worker on pg-boss, inert until started (T6's second step).** On
+branch `claude/ownpace-pgboss-worker-process`, from the catalog's branch with the runner's gaps
+merged (#2043, #2040). Nothing starts it: no compose service, no script and no workflow changes,
+and Trigger.dev runs every job. No migration in either chain.
+
+- **Built.** `apps/worker/src/runner/`: `main.ts`, the process (refuses, exit 1 and one line,
+  unless `OWNPACE_JOB_RUNNER=pg-boss` and `JOBS_DATABASE_URL`); `worker.ts`, the runner started on
+  `pgboss` (supervise 15 s), the catalog declared, each queue worked with its concurrency, one
+  forked process per run (410 MB heap, killed on a cancel, a lost claim or 30 s before its hour),
+  the nine schedules in UTC sent `{}`, `/health` on `127.0.0.1:3002`, and the stop (no fetch, 45 s
+  for the runs going, then killed to be retried, exit 0); `runs/<queue>.ts` × 17, static imports
+  ending in `serveRuns`; `serve-job.ts`, the payload parsed with the job's schema before the run
+  (a refusal is `ZodError`, not retried, as Trigger.dev 4.8.8's `TaskPayloadParsedError` is
+  `skipped`), and `oom_score_adj` raised; `pg-boss-context.ts`, the pg-boss half of the run
+  context, which only the entries import. The tick's pg-boss half of the interlock: it also holds
+  while the shared beat is fresh and newer than its own. `apps/worker/package.json` declares `pg`
+  and `drizzle-orm`.
+- **Proved, on a throwaway cluster from `scripts/local-pg.sh`** (PostgreSQL 16; CI's
+  Testcontainers run is the one for 18, on amd64 and arm64): `worker.integration.test.ts`
+  **16 passed, 1 skipped** (the harness's Nextcloud case; no Nextcloud here), 59 s. The tick's
+  schedule fired on the minute and enqueued `run-delta-sync` keyed by the migration with its tags;
+  a refused payload failed once as `ZodError`; a real `run-discovery` completed and wrote its row
+  as `app_user`; a cutover's wait ran behind a pass already running on its migration; the purge's
+  verdicts (live, finished, gone, `run_…`); SIGKILL retried and converged; a run past its limit
+  killed before the next on its key started (`RunTimedOut`, not retried); a cancel killed within a
+  heartbeat; a stop killed at its grace and retried; the interlock's two rules, its own beat, and
+  two runners left running; `main.ts` healthy and exiting 0 on SIGTERM.
+- **Unit**: `worker.unit.test.ts` 53 passed; the guards: `a-pass-that-opened-the-owners-pool`
+  (rule 10: the runner reads `JOBS_DATABASE_URL` alone, its parent loads no job, no Trigger.dev task
+  loads pg-boss) 194, `an-image-that-shipped-what-it-never-runs` (the worker's closure) 25,
+  `runs-without-a-transpiler` (the fork paths) 5, the tick's two anchor tests 14.
+- **Mutations**, each restored (sha256 checked): 17, every one failing its test.
+- **Next:** the API's doors, the operator's commands, the worker's service, then the switch (T7).
+
 **2026-11-22, later still: T6's first step, the job catalog and the jobs made runner-neutral.**
 On branch `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`, from `main` with T5 merged
 (#2038). Nothing that runs changes: Trigger.dev runs every job under the same ids, queues, machines
@@ -91,6 +125,7 @@ and retries, nothing runs on pg-boss, and nothing reads a switch. No migration i
 - **CHANGELOG:** one line under *Unreleased*, *Changed*.
 - **Next:** T6's other steps: the worker that runs the jobs on pg-boss, the API's doors and the
   operator's commands.
+
 **2026-11-22, later still: the runner's production gaps (T5a).** On branch
 `claude/ownpace-pgboss-runner-gaps`, from T5's branch at `6d6e299d`. Only
 `packages/scheduler/src/pg-boss/` and this plan changed; nothing imports the runner yet. The
@@ -245,7 +280,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
 | T5 This runner, merged | builder | ✅ **Merged 2026-11-22**, as #2038 (`98e9bc34`) | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
 | T5a The runner's production gaps | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-pgboss-runner-gaps` | E2–E8 from the coordinator's plan: `PgBossProducer`, status and cancel by id, the child's lines forwarded and never stored, the worker's own time limit and kill on a lost claim, "not retried" by name, a bounded `recentFailures` (the Status entry "later still"). Done when its pull request merges. |
-| T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, built on `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. Still to come: the worker, the API's doors and the operator's commands. |
+| T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, built on `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. Still to come: the worker, the API's doors and the operator's commands. Its second step, the worker (the Status entry "the worker on pg-boss, inert until started"), built on `claude/ownpace-pgboss-worker-process`: `apps/worker/src/runner/`, the seventeen jobs worked one process per run, the pg-boss half of the run context and of the tick's interlock; nothing starts it yet. |
 | T7 The worker service, and the switch on | builder, owner | ⬜ **Not started** | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |

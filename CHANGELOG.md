@@ -8,6 +8,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 - **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
   (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
+- **The managed edition's worker for its jobs on pg-boss, which nothing starts yet** (workplan 0167
+  T6; ADR-0054). `apps/worker/src/runner/main.ts` works the seventeen jobs, each run in a process of
+  its own, with Trigger.dev's retries, time limit and memory, and refuses to start unless
+  `OWNPACE_JOB_RUNNER=pg-boss` and `JOBS_DATABASE_URL` are set. The sync tick on pg-boss also holds
+  while a Trigger.dev tick from an earlier release still writes the shared beat. The worker's
+  package now declares `pg` and `drizzle-orm`, which its jobs import. No migration, no compose
+  change.
 
 ### Changed
 

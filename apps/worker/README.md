@@ -49,7 +49,7 @@ TRIGGER_SECRET_KEY=tr_prod_...
   makes the SDK calls the jobs made, `configure` before each enqueue. The
   task definitions call the run through `onTriggerDev`, under the same ids,
   queues and machines. The pg-boss runner's queues for the same jobs are
-  `@openmig/scheduler/pg-boss`'s job catalog; nothing runs on it yet.
+  `@openmig/scheduler/pg-boss`'s job catalog, worked by the process below.
 - Task-runtime env (`SYSTEM_DATABASE_URL`, `APP_DATABASE_URL`,
   `SECRET_ENCRYPTION_KEY`) is uploaded once per environment with
   `deploy/compose/set-task-env.sh` — runners do not read the compose `.env`.
@@ -70,6 +70,50 @@ TRIGGER_SECRET_KEY=tr_prod_...
   holds the grants its statements need and no others, a grant to PUBLIC
   counted among them (managed migration 0033, and 0035 for `person_link`;
   workplan 0138, `docs/rls-guide.md`).
+
+## The jobs on pg-boss (`src/runner/`, workplan 0167 T6)
+
+The same seventeen jobs, worked by a process of this package's own instead of
+Trigger.dev's runners (ADR-0054), behind the switch `OWNPACE_JOB_RUNNER`
+(`trigger` or `pg-boss`; unset or empty is `trigger`). **Inert until started**:
+nothing in the stacks starts it yet, and Trigger.dev runs every job until the
+switch is turned on.
+
+- `node apps/worker/src/runner/main.ts`, run by Node directly, as the API runs
+  its entry. It refuses to start, exit 1 and one line on stderr, unless
+  `OWNPACE_JOB_RUNNER=pg-boss` and `JOBS_DATABASE_URL` (the `ownpace_jobs`
+  role, through PgBouncer) are set.
+- `worker.ts`: starts the runner in the schema `pgboss` (made by the bring-up;
+  `createSchema: false`, `useListenNotify: false`), refuses a schema at another
+  pg-boss version, declares the catalog's queues, works each with its
+  concurrency (the pass `MAX_PASSES_IN_FLIGHT` and one more), registers the
+  nine schedules in UTC, each sent `{}`, and answers
+  `GET http://127.0.0.1:3002/health`: 200 once all that is done, 503 while it
+  starts or stops. On SIGTERM it fetches nothing more, gives the runs going
+  45 s, kills what is left (to be retried) and exits 0, inside the compose
+  service's grace of 60 s.
+- **One process per run.** Each queue's run is forked from its entry,
+  `runs/<queue>.ts`, with a 410 MB heap: the entry imports that job's module,
+  parses the payload with the job's schema (a payload it refuses fails once,
+  as on Trigger.dev), and calls `<job>Run` with a pg-boss context
+  (`pg-boss-context.ts`). The worker kills a run's process on a cancel, a lost
+  claim, or 30 s before its hour, before pg-boss could start another run on
+  its key. A run raises its own `oom_score_adj`, so the kernel takes a run
+  before the worker.
+- **What a run asks of its runner**: enqueue a pass (`serializeBy` = the
+  migration, its tags), wait for one (polling every second), ask after a run
+  by its id (a `run_…` ref, Trigger.dev's, reads `unknown`; a job that is gone
+  reads `finished`, said in a line) and cancel one, all through a producer the
+  run opens only when it asks, on `JOBS_DATABASE_URL`, and closes when it ends.
+- **Retries** as Trigger.dev 4.8.8's: three attempts, 5 s doubling to 60 s; a
+  deliberate stop, a refused payload, the time limit and the heap are not
+  retried; a process killed from outside or a lost claim is.
+- **Logs**: stdout and stderr only; every line a run writes is forwarded with
+  its queue and run id in front.
+- The parent process loads no job module and opens one pool, the jobs
+  schema's; only a run's own process loads its job and opens its pools
+  (`scripts/a-pass-that-opened-the-owners-pool`, rule 10). No Trigger.dev task
+  loads pg-boss.
 
 ## Deploy
 
@@ -140,7 +184,8 @@ The task **logic** is tested through extracted seams: `sync-due.unit.test.ts`
 `@openmig/core`, and the connector/target integration suites in this package
 (`imap-dav-target`, `jmap-reindex`, `shared-mailbox`). The `schemaTask`
 wrappers themselves run only in the live smoke — an honest gap recorded in
-`docs/testing.md`'s untested-seams appendix.
+`docs/testing.md`'s untested-seams appendix. The pg-boss worker's wrapper is
+not: `src/runner/worker.integration.test.ts` runs it against a real Postgres.
 
 ```bash
 pnpm test               # workspace unit gate (repo root)

@@ -709,7 +709,15 @@ each entry is a candidate for a workplan, not a promise.
   apply/verify logic lives in `@openmig/core` with its own suites — but the
   `schemaTask` wrappers themselves (payload schemas, `configure()` wiring,
   error paths) execute only in live smokes (`deploy/compose/smoke-managed.sh`,
-  which `e2e-managed.yml` runs nightly).
+  which `e2e-managed.yml` runs nightly). On the pg-boss runner (workplan 0167
+  T6) the same runs are wrapped by `apps/worker/src/runner/`, and that wrapper
+  is tested: `worker.integration.test.ts` runs the worker against a real
+  Postgres, each job in its own process, and holds the payload schemas (a
+  refused payload fails once), the run context (a pass enqueued by the tick's
+  schedule, a cutover's wait, the purge's verdicts), the error paths (a killed
+  process retried, a time limit, a cancel, a stop) and a real `run-discovery`;
+  `worker.unit.test.ts` holds that every queue has its entry. What stays live
+  only is the Trigger.dev half, `onTriggerDev`, until Trigger.dev goes.
 - **Web pages with no jsdom suite of their own**: `Invitations`, `NotFound`,
   `RedirectUris`. (`ReportProblem` is covered by
   `a-report-that-reaches-a-person.unit.test.tsx`; every other page has a
