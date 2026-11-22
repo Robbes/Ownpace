@@ -71,6 +71,7 @@ import {
   implicitPeople,
   ONE_PERSON_HERE,
   withGranteesNewAddress,
+  ADDRESS_CHANGES_FILE,
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
@@ -94,6 +95,7 @@ import type {
   PersonMigration,
 } from '@openmig/shared';
 import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
+import { handleAddressChanges, readAddressDoor, seedAddressChangesFromFile } from './address-changes.ts';
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition, updateTransition } from './lifecycle.ts';
 import { serveUi, UI_MOUNT } from './static-ui.ts';
@@ -464,6 +466,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // the shared target, reporting success. Refused at boot, with the fix.
   for (const m of mappings) assertMappingPattern(m.config);
   log.info(`[selfhost] loaded ${mappings.length} mapping(s) from ${configDir}`);
+  // The table of address changes' door (workplan 0168 §7): its file, read and
+  // checked now, so a malformed one stops the start before anything runs; or,
+  // without the file, the appliance's own page.
+  const addressDoor = readAddressDoor(configDir);
+  log.info(
+    addressDoor.door === 'file'
+      ? `[selfhost] address changes: ${addressDoor.rows.length} from ${addressDoor.file} (the page shows them read-only)`
+      : '[selfhost] address changes: written on this appliance\'s own page',
+  );
 
   // 3. Wire the status store + scheduler.
   const db = persistenceBackend.db;
@@ -1179,8 +1190,21 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // Startup: ensure records, fire read-only discovery in the background, and schedule
   // only mappings that are already 'active'. Paused (draft) mappings wait for the operator
   // to confirm on the page (0013 T7).
+  const addressTablesSeeded = new Set<string>();
   for (const m of mappings) {
     await ensureRecordsFor(m);
+    // The file's address changes become the tenant's table once its row
+    // exists, and before any of its passes is scheduled (0168 §7).
+    if (!addressTablesSeeded.has(m.config.tenantId)) {
+      addressTablesSeeded.add(m.config.tenantId);
+      const seeded = await seedAddressChangesFromFile(persistenceBackend.driver, m.config.tenantId, addressDoor);
+      if (seeded && seeded.added + seeded.changed + seeded.removed > 0) {
+        log.info(
+          `[selfhost] address changes from ${ADDRESS_CHANGES_FILE}: ${seeded.added} added, ` +
+            `${seeded.changed} changed, ${seeded.removed} removed, ${seeded.kept} as they were`,
+        );
+      }
+    }
     // 0125 T2, and before anything is discovered or scheduled: the row has to
     // exist first (this writes to it), and a mapping whose scope or provider
     // changed under a ledger full of items must not reach a pass at all.
@@ -1789,6 +1813,20 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // migrations are every one its config directory holds, in the order it
       // lists them. `/people` and not `/moves`: `/moves` below is the queue of
       // items a source put somewhere else.
+      // The table of address changes (ADR-0055; workplan 0168 T2): the same
+      // shapes as `/api/address-changes`, through this appliance's door.
+      if (
+        await handleAddressChanges(req, res, {
+          driver: persistenceBackend.driver,
+          door: addressDoor,
+          tenantIds: () => [...new Set(mappings.map((m) => m.config.tenantId as string))],
+          sendJson,
+          readJson,
+          drain,
+        })
+      ) {
+        return;
+      }
       if (req.method === 'GET' && req.url === '/people') {
         const migrations: PersonMigration[] = [];
         for (const m of mappings) {
