@@ -453,12 +453,6 @@ describe('what the worker loads is declared where it is loaded', () => {
     expect(Object.keys(worker.manifest.dependencies ?? {})).toEqual(expect.arrayContaining(['pg', 'drizzle-orm']));
   });
 
-  for (const { dir, manifest } of closure) {
-    it(`${manifest.name} declares in "dependencies" every package its runtime source loads (the worker's closure)`, () => {
-      expect(
-        undeclaredLoads(dir, manifest),
-        `${dir}/package.json: a --prod worker image resolves these only through another package's tree, or not at all`,
-      ).toEqual([]);
-    });
-  }
+  // Each package of the worker's closure is held to its own "dependencies" by
+  // the describe.each above, over apps/worker/Dockerfile's filter.
 });
