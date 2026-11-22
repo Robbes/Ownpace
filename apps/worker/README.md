@@ -1,9 +1,16 @@
-# Worker Package — the Trigger.dev tasks (and the cutover CLI)
+# Worker Package — the job worker on pg-boss, the Trigger.dev tasks, and the cutover CLI
 
-This package is **not a running service**. Since workplan 0022 there is no
-worker container and no polling scheduler — everything in `src/jobs/` deploys
-as **Trigger.dev tasks** and executes in the platform's runners. The managed
-edition runs on one execution plane (ADR-0004).
+This package **is a running service** in the managed edition: the compose
+service `worker` (`deploy/compose/managed.yml`, built from `Dockerfile` here on
+the API's two images) runs the seventeen jobs in `src/jobs/` on pg-boss, on the
+ledger's own Postgres (ADR-0054, workplan 0167). That is `managed.yml`'s
+default, `OWNPACE_JOB_RUNNER=pg-boss`. The same jobs still deploy as
+**Trigger.dev tasks** for trigger mode, the fallback: `OWNPACE_JOB_RUNNER=trigger`,
+with Trigger.dev's plane, kept installed and stopped in the compose profile
+`trigger`, started again by the bring-up. One execution plane runs the jobs at
+a time: the bring-up in either mode stops the other's first. From workplan 0022
+until the switch there was no worker container, and every job ran in the
+platform's runners.
 
 > Corrected 2026-08-02 (workplan 0021 T4): the previous version named a
 > `src/trigger-client.ts` that lives in `packages/scheduler`, listed four of
@@ -77,9 +84,13 @@ TRIGGER_SECRET_KEY=tr_prod_...
 
 The same seventeen jobs, worked by a process of this package's own instead of
 Trigger.dev's runners (ADR-0054), behind the switch `OWNPACE_JOB_RUNNER`
-(`trigger` or `pg-boss`; unset or empty is `trigger`). **Inert until started**:
-nothing in the stacks starts it yet, and Trigger.dev runs every job until the
-switch is turned on.
+(`trigger` or `pg-boss`; unset or empty in code is `trigger`, and
+`managed.yml` gives the api and the worker `pg-boss` by default). **The
+service that runs the jobs**: the bring-up builds its image with the api's and
+the web app's from the release's commit, starts it once the api is healthy,
+and replaces it whenever it replaces the api, so its output goes at each update
+of the service. Its CPUs and memory follow `MAX_PASSES_IN_FLIGHT`
+(`WORKER_CPUS`, `WORKER_MEMORY`; the rule is in `managed.yml`).
 
 - `node apps/worker/src/runner/main.ts`, run by Node directly, as the API runs
   its entry. It refuses to start, exit 1 and one line on stderr, unless
@@ -121,7 +132,14 @@ switch is turned on.
 
 ## Deploy
 
-Every code change to `src/jobs/*` or its dependencies needs a task deploy:
+**On pg-boss, the default**, there is no task deploy: a code change to
+`src/jobs/*` or its dependencies reaches the jobs when the bring-up's `app`
+phase builds the worker's image from the checkout and replaces its container,
+as it does the api's (`docs/managed-bring-up.md`, "Updating a running
+deployment").
+
+**In trigger mode** (`OWNPACE_JOB_RUNNER=trigger`), every such change needs a
+task deploy, which refuses on a stack whose jobs run on pg-boss:
 
 ```bash
 ./deploy/compose/deploy-tasks.sh
@@ -175,7 +193,11 @@ in either edition, by design.
 
 - **`run` / `run_event` tables** — the ledger's own record of every pass
   (status, counts, verbatim errors).
-- **Trigger.dev dashboard** — through the compose stack's TLS front
+- **`./deploy/compose/operator.sh jobs`** — on pg-boss, the queues' runs
+  queued, active and failed, the newest failures, one run shown or cancelled
+  by its id, and a run queued by hand (`docs/operator-runbook.md`); the
+  worker's own lines with `docker compose -f deploy/compose/managed.yml logs worker`.
+- **Trigger.dev dashboard**, in trigger mode — through the compose stack's TLS front
   (`https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT`); the Runs page may be
   empty when ClickHouse analytics lag (accepted, 0020 T7) — the `run` table
   is ground truth.
@@ -200,7 +222,8 @@ pnpm test:integration   # testcontainers (Postgres + Stalwart + Nextcloud)
 
 - [`docs/operator-runbook.md`](../../docs/operator-runbook.md) — deploy, env upload, smoke
 - [`docs/cutover-runbook.md`](../../docs/cutover-runbook.md) — the CLI procedure
-- [Workplan 0022](../../docs/workplans/0022-syncs-on-trigger-tasks.md) — why there is no worker container
+- [Workplan 0022](../../docs/workplans/0022-syncs-on-trigger-tasks.md) — why there was no worker container until workplan 0167
+- [Workplan 0167](../../docs/workplans/0167-a-job-runner-on-our-own-postgres.md) and [ADR-0054](../../docs/adr/0054-the-managed-editions-jobs-run-on-pg-boss.md) — the jobs on pg-boss
 - [ADR-0004](../../docs/adr/0004-orchestration-triggerdev-and-inprocess.md) — orchestration
 - [Trigger.dev docs](https://trigger.dev/docs)
 

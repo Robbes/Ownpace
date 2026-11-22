@@ -356,7 +356,8 @@ If issues are detected during cutover or the grace period:
    `execute --yes`.
 
    The managed preparation job (`POST /api/migrations/{id}/cutover`, the
-   Trigger.dev task `run-cutover`) converges on its own: on `FAILED`,
+   job `run-cutover`, on pg-boss's queue of that name, or the Trigger.dev
+   task of that id in trigger mode) converges on its own: on `FAILED`,
    `ROLLED_BACK` or `READY_FOR_CUTOVER` it records the way back to `PREPARING`
    (`retriedBy`, attempt number) and runs the final sync and the gate again;
    on a cutover under way or a completed ledger it refuses and writes nothing.

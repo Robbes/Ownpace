@@ -20,7 +20,7 @@ resumes.
 | Entry point | Where | Who uses it |
 |---|---|---|
 | `rollback` CLI subcommand | `apps/worker/src/cli/cutover-commands.ts` | an operator at a terminal — self-host, or managed |
-| `run-rollback` job | `apps/worker/src/jobs/run-rollback.ts` | managed: on Trigger.dev from its dashboard, on pg-boss with `operator.sh jobs run`; it is the door that can also notify |
+| `run-rollback` job | `apps/worker/src/jobs/run-rollback.ts` | managed: on pg-boss with `operator.sh jobs run`, in trigger mode from Trigger.dev's dashboard; it is the door that can also notify |
 
 Neither is reachable from the API or the web UI, on purpose: the API is prepare-only for cutovers
 (`POST …/cutover` verifies and stops at `READY_FOR_CUTOVER`), and nothing there executes one either.
@@ -124,14 +124,10 @@ does not perform a restore. `notifyUsers: true` sends the rollback notice (EN or
 Nothing in the repository enqueues it: the operator starts it by hand, in one of two ways,
 depending on which runner the stack's jobs run on (`OWNPACE_JOB_RUNNER`).
 
-#### Managed (Trigger.dev)
-
-`OWNPACE_JOB_RUNNER` unset, empty or `trigger`, the default: start `run-rollback` from the
-Trigger.dev dashboard's Test runs, with the payload above.
-
 #### Managed (pg-boss)
 
-`OWNPACE_JOB_RUNNER=pg-boss` (ADR-0054): there is no dashboard. From the stack's checkout:
+`OWNPACE_JOB_RUNNER=pg-boss`, `managed.yml`'s default (ADR-0054): there is no dashboard. From the
+stack's checkout:
 
 ```sh
 ./deploy/compose/operator.sh jobs run run-rollback \
@@ -143,6 +139,12 @@ refusal with `jobs failures run-rollback`. While the operator's hold is open it 
 unless given `--despite-hold`. The payload is checked only for being a JSON object here; the job's
 own schema refuses a wrong one, and that run fails once, not retried. The commands are in
 [operator-runbook.md](./operator-runbook.md#the-jobs-on-pg-boss-seeing-and-steering-them-pg-boss-mode-only).
+
+#### Managed (Trigger.dev, the fallback)
+
+`OWNPACE_JOB_RUNNER=trigger` in the stack's `.env`, the way back (Trigger.dev's plane is kept
+installed and stopped otherwise): start `run-rollback` from the Trigger.dev dashboard's Test runs,
+with the payload above.
 
 ## Audit trail
 

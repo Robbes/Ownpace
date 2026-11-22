@@ -6,13 +6,16 @@ as distinct from a self-host owner running the single-tenant appliance (see
 [`deploy/compose/managed.yml`](../deploy/compose/managed.yml).
 
 > **Scope.** The managed half describes the real bring-up, verified live: the full compose
-> stack including the Trigger.dev execution plane (registry, supervisor, ClickHouse, MinIO, the
-> TLS front), the scripted task deploy, and `smoke-managed.sh` as the acceptance test. There is
-> **one execution plane**: syncs are started by the `managed-sync-tick` scheduled task, and
-> every job — sync, verify, apply, discovery — executes as a deployed Trigger.dev task. There is
-> no worker/poller container. The ledger-semantics sections further down ("Items that would not
-> migrate" onward) apply to BOTH editions and illustrate with the appliance's local URLs — see
-> the scope banner there.
+> stack, the scripted bring-up, and `smoke-managed.sh` as the acceptance test. The seventeen
+> background jobs (sync, verify, apply, discovery, the `managed-sync-tick` schedule that starts
+> the syncs, and the rest) run on one runner at a time, chosen by `OWNPACE_JOB_RUNNER` in
+> `.env`. Its default in `managed.yml` is `pg-boss`: the jobs run in the `worker` service, on the
+> ledger's own Postgres (ADR-0054, workplan 0167). `trigger` is the way back: the jobs run as
+> deployed Trigger.dev tasks on its execution plane (registry, supervisor, ClickHouse, MinIO, the
+> TLS front), which stays installed and stopped in compose profile `trigger` otherwise. The
+> sections on Trigger.dev's plane and its task deploy are for trigger mode. The ledger-semantics
+> sections further down ("Items that would not migrate" onward) apply to BOTH editions and
+> illustrate with the appliance's local URLs — see the scope banner there.
 
 ## What the operator can and cannot see
 
@@ -145,10 +148,21 @@ starts.
 
 ## Start / stop
 
-Bring up the WHOLE stack — the trigger execution plane (registry, docker-proxy, supervisor,
-ClickHouse, MinIO, the TLS front) is not optional garnish: a stack without the supervisor
-accepts every enqueue and executes none of them, and the dashboard queries ClickHouse (without
-it the webapp process dies, not a page).
+Bring up the WHOLE stack with the bring-up, which starts the services the job runner's switch
+asks for. **In pg-boss mode** (`OWNPACE_JOB_RUNNER=pg-boss`, `managed.yml`'s default) the job
+worker, `worker`, is an ordinary service of the stack: the app phase starts it after the api and
+waits for its healthcheck, which asks its own `GET http://127.0.0.1:3002/health` inside the
+container. It connects as `ownpace_jobs` through PgBouncer (`JOBS_DATABASE_URL`), to pg-boss's
+schema `pgboss` in the ledger's database. A stack without it accepts every enqueue and runs none
+of them. Trigger.dev's eleven services stay in profile `trigger`, so a plain `up` starts none of
+them; the bring-up stops any that still run, the supervisor first, and never removes their
+volumes.
+
+**In trigger mode** (`OWNPACE_JOB_RUNNER=trigger` in `.env`, then the bring-up) the bring-up
+stops and removes the worker first, then starts the plane by name from its kept volumes. The
+plane (registry, docker-proxy, supervisor, ClickHouse, MinIO, the TLS front) is then not
+optional garnish: a stack without the supervisor accepts every enqueue and executes none of
+them, and the dashboard queries ClickHouse (without it the webapp process dies, not a page).
 
 ```bash
 cd deploy/compose
@@ -170,6 +184,7 @@ cd deploy/compose
 # Status / logs (status only — no content is ever logged):
 docker compose -f managed.yml ps
 docker compose -f managed.yml logs -f api
+docker compose -f managed.yml logs -f worker    # pg-boss mode: the jobs' lines
 
 # Stop (keep data):
 docker compose -f managed.yml stop
@@ -178,6 +193,11 @@ docker compose -f managed.yml down
 # Tear down and DELETE all data (destructive):
 docker compose -f managed.yml down -v
 ```
+
+These commands reach the services of the active profiles: the stack's own, the worker among
+them. In trigger mode the plane runs in profile `trigger`, so add `--profile trigger` after
+`docker compose` for a stop or a tear-down to reach it too. A `down -v` can take the plane's
+volumes with the rest, and in pg-boss mode they are the way back to trigger mode.
 
 **Env changes need a recreate, not a restart.** `docker compose up -d` recreates only
 services whose configuration changed *as compose sees it*; a container that shows
@@ -210,12 +230,15 @@ line's last field with `<client-ip>` as it replaces mesh addresses with
 
 **How long they stay.** Every container writes with Docker's default log driver,
 `json-file`, which keeps its output until the container is removed: at each
-deploy for the app and the site, when its image or settings change for the
-sign-in service, and when its run ends for a task. The job worker (`worker`,
-defined and not started until the job runner's switch is turned on, workplan
-0167 T7) goes at each deploy as the app does: its image carries the commit it
-was built from (`GIT_SHA`), as the API's does, so every release is a new image
-and Compose replaces its container. That is privacy §9's *"until
+deploy for the app and the site, and when its image or settings change for the
+sign-in service. The jobs, in pg-boss mode, write only to the job worker's
+(`worker`) output: a job's run is a child process of the worker, so its lines
+are the worker's container output and go with the worker's container. That
+goes at each deploy as the app does: its image carries the commit it was built
+from (`GIT_SHA`), as the API's does, and the bring-up recreates the worker
+whenever it replaced the api's container, so each update of the service
+replaces it. In trigger mode a task's run is a container of Trigger.dev's own,
+and its output goes when that run ends. That is privacy §9's *"until
 the part of the service that wrote them is replaced"*. The stack's own services
 (`managed.yml`, the app and the sign-in service among them) also rotate it by
 size, five files of 20 MB: one that writes a lot keeps only about its last
@@ -254,6 +277,10 @@ with an empty log.
 
 ### The trigger dashboard's TLS front (`trigger-tls`)
 
+**Trigger mode only.** In pg-boss mode `trigger-tls` is stopped with the rest of the plane, in
+profile `trigger`, and there is no dashboard to reach; nothing here applies until
+`OWNPACE_JOB_RUNNER=trigger` and the bring-up start it again.
+
 The dashboard runs production-mode Secure cookies, so login is unusable over plain http
 from anything but localhost. The `trigger-tls` service (Caddy, `tls internal`) serves
 `https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` for browsers. The origin split is
@@ -286,8 +313,8 @@ export APP_DATABASE_URL="postgres://app_user:<APP_DB_PASSWORD>@localhost:5432/op
 export JWT_SECRET="<same value as in .env>"
 pnpm --filter @openmig/api dev       # API on :3001
 pnpm --filter @openmig/web dev       # Web (Vite) dev server
-# (There is no worker process to run — jobs execute as deployed Trigger.dev
-# tasks; iterate on them with deploy-tasks.sh below.)
+# The jobs: in pg-boss mode they run in the worker service (apps/worker/src/runner/main.ts);
+# in trigger mode as deployed Trigger.dev tasks, iterated on with deploy-tasks.sh below.
 ```
 
 ## Seed a demo (two-tenant DoD journey)
@@ -391,8 +418,8 @@ smoke does. Its evidence file is **secret-bearing** (runner logs print the task 
 ## The jobs on pg-boss: seeing and steering them (pg-boss mode only)
 
 **For a stack whose jobs run on pg-boss** (`OWNPACE_JOB_RUNNER=pg-boss`, ADR-0054, workplan
-0167). On Trigger.dev, the default until the switch is turned on, the dashboard's Runs page and
-Test runs are where this is done, and each command below says so in one sentence and exits 1.
+0167), which is `managed.yml`'s default. In trigger mode the dashboard's Runs page and Test runs
+are where this is done, and each command below says so in one sentence and exits 1.
 pg-boss has no dashboard; these take the place of both:
 
 ```bash

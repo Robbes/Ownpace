@@ -1,9 +1,9 @@
 # ADR-0054: The managed edition's jobs run on pg-boss, on our own Postgres
 
 - **Status:** **Accepted 2026-11-22** by the owner (workplan 0167 T4), in place of self-hosted
-  Trigger.dev; supersedes ADR-0004's managed half. Not in force until 0167 T7 turns the switch
-  on (*Pending*); until then Trigger.dev runs the jobs. The runner and its pin guard are built
-  (0167 T5).
+  Trigger.dev; supersedes ADR-0004's managed half. **In force since workplan 0167 T7**, which
+  turns the switch on (`managed.yml`'s default for `OWNPACE_JOB_RUNNER` is `pg-boss`); Trigger.dev
+  is kept installed and stopped as the fallback.
 - **Date:** 2026-11-22
 - **Deciders:** owner. The spike was approved earlier that day; after it: *"Put in the successful
   spike (replace triggerdev)."*
@@ -22,21 +22,23 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **Pending (accepted 2026-11-22, not in force):** the managed edition's jobs run on pg-boss, on
-  its own Postgres, worked by a worker container, in place of self-hosted Trigger.dev. In force
-  when workplan 0167 T7 turns the switch on; until then Trigger.dev runs them (ADR-0004). The
-  rules it brings: this ADR's *Pending* section.
-- **The runner is `PgBossJobRunner`, behind its own subpath, `@openmig/scheduler/pg-boss`**
-  (`packages/scheduler/src/pg-boss/`), so nothing that imports `@openmig/scheduler` or
-  `/in-process` loads pg-boss, and the appliance may not reach it
-  (`apps/selfhost/src/no-managed-leakage.unit.test.ts`).
-- **pg-boss is pinned exactly, and the runner runs only on its release's schema version**:
-  `start()` refuses any other. The pin and `PG_BOSS_SCHEMA_VERSION` move together, once the new
-  release's migration is read (`scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts`,
-  `job-runner.integration.test.ts`).
-- **A job carries ids only** (ADR-0004): content moves inside the run's process, never in a job
-  row.
-- **Self-host is unchanged**: the appliance keeps its in-process scheduler (ADR-0004).
+- **The managed edition's jobs run on pg-boss** (in force since workplan 0167 T7), each on a
+  queue named by its Trigger.dev task id, through `PgBossJobRunner` at
+  `@openmig/scheduler/pg-boss`, which the appliance may not reach. The switch is
+  `OWNPACE_JOB_RUNNER`, `pg-boss` by `managed.yml`'s default.
+- **pg-boss is pinned exactly, and the runner runs only on its release's schema version**
+  (`scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts`).
+- **Its schema `pgboss` is owned by `ownpace_jobs`**, no superuser and no grant on the ledger,
+  made by the bring-up and by neither chain; reached through PgBouncer, polling, never LISTEN.
+- **The `worker` container works the jobs**: a process per run, its heap capped, the container's
+  CPUs and memory capped. One pass per mapping; discovery joins its run; a cutover waits.
+- **A run settles as Trigger.dev 4.8.8 settles it**, decided by the error's name: an hour,
+  three for a cutover (§2's table).
+- **The operator sees the work through `operator.sh jobs`**; there is no dashboard.
+- **Trigger.dev's plane is kept installed and stopped**, in profile `trigger`, its volumes the
+  way back (`OWNPACE_JOB_RUNNER=trigger`); removed only on the owner's word.
+- **A job carries ids only** (ADR-0004). Self-host keeps its in-process scheduler. The rules in
+  full: *In force from workplan 0167 T7*, below.
 
 ## Context
 
@@ -149,14 +151,11 @@ Its status entry and its amendment log say so; its Context, Decision, Consequenc
 Alternatives are left as they were written, since a record is never edited (ADR-0051). At T7 its
 first rule names pg-boss.
 
-## Pending — the managed edition's jobs on pg-boss (accepted 2026-11-22; in force at workplan 0167 T7)
+## In force from workplan 0167 T7 — the managed edition's jobs on pg-boss (accepted 2026-11-22; was *Pending*)
 
-<!-- At T7 (ADR-0051): fold these bullets into the operative rules above, remove the Pending
-     bullet and this section, add a line to the amendment log here and in ADR-0004, and amend
-     ADR-0004's first operative rule to name pg-boss on managed. -->
-
-Accepted by the owner on 2026-11-22: *"Put in the successful spike (replace triggerdev)."* Not in
-force: nothing runs on the runner yet. From workplan 0167 T7 these are rules:
+Accepted by the owner on 2026-11-22: *"Put in the successful spike (replace triggerdev)."* In
+force since workplan 0167 T7 turned the switch on (`managed.yml`'s default, `pg-boss`). The
+operative rules above say them in short; these are the rules in full:
 
 - **The managed edition's jobs run on pg-boss**, each schedule and each on-demand task on a queue
   of its own, through `PgBossJobRunner`.
@@ -188,8 +187,10 @@ force: nothing runs on the runner yet. From workplan 0167 T7 these are rules:
   confirmation, the applies, the cutover and the rollback; and the worker may run
   `MAX_PASSES_IN_FLIGHT` + 17 runs at once, where the plane admits `MAX_PASSES_IN_FLIGHT` + 2. A
   worker-wide cap of `MAX_PASSES_IN_FLIGHT` + 2 is the recorded follow-up (workplan 0167).
-- **Trigger.dev's services stop at T8, their volumes kept as the way back**; its code, images,
-  scripts, pins and volumes go at T9, on the owner's word only.
+- **Trigger.dev's services are stopped on a stack whose jobs run on pg-boss, their volumes kept
+  as the way back** (T8): in the compose profile `trigger`, started again only by
+  `OWNPACE_JOB_RUNNER=trigger` and the bring-up. Its code, images, scripts, pins and volumes go at
+  T9, on the owner's word only.
 
 ## Consequences
 
@@ -268,3 +269,8 @@ force: nothing runs on the runner yet. From workplan 0167 T7 these are rules:
 - **2026-11-22 (workplan 0167 T6, the worker's pull request):** the *Pending* rules gain two
   bullets: a cutover's limit of three hours, and the two known differences from Trigger.dev's
   concurrency, kept for alpha.16 with a worker-wide cap as the follow-up.
+- **2026-11-22 (workplan 0167 T7, the switch on):** in force. The *Pending* bullet is gone and the
+  operative rules state the rules in short; the *Pending* section is kept, word for word but its
+  heading and opening line, as *In force from workplan 0167 T7*, since the operative budget
+  (ADR-0051) cannot hold its eleven bullets. Its T8 bullet says the plane is stopped in the
+  profile `trigger`. ADR-0004's first rule names pg-boss.

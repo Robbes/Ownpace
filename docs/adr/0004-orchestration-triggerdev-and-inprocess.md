@@ -1,9 +1,9 @@
 # ADR-0004: Orchestration via Trigger.dev (managed) + in-process scheduler (self-host)
 
 - **Status:** Accepted; **its managed half superseded by
-  [ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md)**, accepted 2026-11-22 and not
-  in force until workplan 0167 T7: until then Trigger.dev runs the managed edition's jobs. The
-  self-host half stands. Amended once (2026-11-22).
+  [ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md)**, accepted 2026-11-22 and in
+  force since workplan 0167 T7: pg-boss runs the managed edition's jobs, and Trigger.dev is kept
+  installed and stopped as the fallback. The self-host half stands. Amended twice (2026-11-22).
 - **Date:** 2026-06-20
 
 ## Operative rules
@@ -12,7 +12,7 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance; on managed **Trigger.dev**, which [ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md) replaces with pg-boss on our own Postgres (accepted 2026-11-22, *Pending* there until workplan 0167 T7).
+- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance; on managed **pg-boss** on our own Postgres ([ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md), in force since workplan 0167 T7), with self-hosted Trigger.dev kept installed and stopped as the fallback.
 - The orchestrator never sees content: task payloads carry ids only; bytes move inside the task process (SAD §17).
 
 > **Update 2026-08-02:** "imapsync/rclone move data directly source->target"
@@ -52,3 +52,6 @@ Workers run on our/the user's infra; because imapsync/rclone move data directly 
   then Trigger.dev runs them, and the first operative rule says so and points there. The
   self-host half, the seam and the rule that the orchestrator never sees content stand; the
   sections above are left as they were written. Record: ADR-0054, decision 6.
+- **2026-11-22** — ADR-0054 is in force (workplan 0167 T7, the switch on): the first operative
+  rule names pg-boss on managed, with Trigger.dev kept installed and stopped as the fallback. The
+  sections above are left as they were written.

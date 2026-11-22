@@ -437,8 +437,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the machine: the managed-edition
   gate, run against a long-lived configured stack, so it does not prove bring-up from scratch.
   **In both job runners** (ADR-0054; workplan 0167 T7). Which one is read as the bring-up reads
-  it: `.env`'s `OWNPACE_JOB_RUNNER`, else `managed.yml`'s default for it, else `trigger`. A
-  dispatch's `job_runner` input (`trigger` by default, or `pg-boss`) sets it for that run only:
+  it: `.env`'s `OWNPACE_JOB_RUNNER`, else `managed.yml`'s default for it, `pg-boss` since the
+  switch is on, else `trigger`. So a scheduled run, or a dispatch whose `job_runner` input is
+  empty (its default), runs pg-boss on a stack whose `.env` does not say otherwise; the input
+  set to `trigger` runs Trigger.dev's plane, the fallback, and `pg-boss` names the default. A
+  value it is given sets the mode for that run only:
   it is written into the checkout's `.env` after the persisted copy is saved. On `pg-boss`, the
   workflow skips the Trigger.dev plane's drill and its two keys. `smoke-managed.sh` then skips
   each section that asks the plane, printing one line that names the section and the mode:
@@ -721,7 +724,7 @@ than a rediscovery. This list is the honest complement to the coverage above;
 each entry is a candidate for a workplan, not a promise.
 
 - **The Trigger.dev task wrappers** (`apps/worker/src/jobs/*.ts`, fourteen
-  task files when checked).
+  task files when checked), which run the jobs in trigger mode only.
   The logic inside them is tested through extracted seams —
   `packages/orchestration/src/sync-due.unit.test.ts` proves the tick's
   due-evaluation, `cutover-preparation.integration.test.ts` drives
@@ -738,7 +741,7 @@ each entry is a candidate for a workplan, not a promise.
   schedule, a cutover's wait, the purge's verdicts), the error paths (a killed
   process retried, a time limit, a cancel, a stop) and a real `run-discovery`;
   `worker.unit.test.ts` holds that every queue has its entry. What stays live
-  only is the Trigger.dev half, `onTriggerDev`, until Trigger.dev goes.
+  only is the Trigger.dev half, `onTriggerDev`, which runs in trigger mode, the fallback.
 - **Web pages with no jsdom suite of their own**: `Invitations`, `NotFound`,
   `RedirectUris`. (`ReportProblem` is covered by
   `a-report-that-reaches-a-person.unit.test.tsx`; every other page has a

@@ -35,7 +35,7 @@ first.
 | [0001](./0001-license-apache-2.0.md) | License is Apache-2.0 | Accepted |
 | [0002](./0002-language-typescript.md) | Implementation language is TypeScript | Accepted |
 | [0003](./0003-two-editions-one-core.md) | Two editions from one core (self-host + managed) | Accepted |
-| [0004](./0004-orchestration-triggerdev-and-inprocess.md) | Orchestration via Trigger.dev (managed) + in-process scheduler (self-host) | Accepted — managed half superseded by 0054 (accepted 2026-11-22, not in force until workplan 0167 T7; Trigger.dev runs managed's jobs until then); the in-process scheduler for self-host stands |
+| [0004](./0004-orchestration-triggerdev-and-inprocess.md) | Orchestration via Trigger.dev (managed) + in-process scheduler (self-host) | Accepted — managed half superseded by 0054 (accepted 2026-11-22, in force since workplan 0167 T7; Trigger.dev kept installed and stopped as the fallback); the in-process scheduler for self-host stands |
 | [0005](./0005-idempotency-ledger-nondestructive.md) | Idempotency via a ledger; non-destructive by default | Accepted |
 | [0006](./0006-o365-access-model.md) | O365 access model | Accepted — amended twice; multi-tenant app retired 2026-08-09 |
 | [0007](./0007-reuse-engines-graph-extractor.md) | Reuse proven engines + a Graph rich extractor; no commercial SharePoint tools | Accepted 2026-06-20 — both halves since moved; only "no commercial SharePoint tools" survives |
@@ -85,7 +85,7 @@ first.
 | [0051](./0051-an-adr-reads-as-it-stands.md) | An ADR reads as it stands — a budget for the operative layer, and consolidation in place | Accepted 2026-10-03; amends 0038 |
 | [0052](./0052-a-rotating-refresh-token-is-written-back.md) | A rotating refresh token is written back, one refresh at a time | **Accepted 2026-11-19** by the owner, for Cirrux Drive in alpha.12 (0160 T5); amends 0037 and 0041; built, not yet run against a live Cirrux client (0160 T2b) |
 | [0053](./0053-a-test-organisation-copies-only-what-is-marked.md) | A test organisation copies only what is marked | **Accepted 2026-11-20** by the owner, as workplan 0162 §2 proposed it; built in 0162 (T2 the marker at the source, T3 never finished or switched over, T1 the organisation and its marker); not yet run on live (0162 T4) |
-| [0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md) | The managed edition's jobs run on pg-boss, on our own Postgres | **Accepted 2026-11-22** by the owner (workplan 0167 T4), in place of self-hosted Trigger.dev; supersedes 0004's managed half. The runner and its pin guard are built (0167 T5); not in force until 0167 T7 turns the switch on |
+| [0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md) | The managed edition's jobs run on pg-boss, on our own Postgres | **Accepted 2026-11-22** by the owner (workplan 0167 T4), in place of self-hosted Trigger.dev; supersedes 0004's managed half. In force since 0167 T7 turned the switch on (`pg-boss` by `managed.yml`'s default); Trigger.dev kept installed and stopped as the fallback |
 
 ## Reading the statuses
 

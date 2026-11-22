@@ -36,6 +36,22 @@
  *     two tables the history is known to be in (TaskRun, metrics_v1).
  * Point trigger-api at a new store and this fails until the step empties it.
  *
+ * AND, ON PG-BOSS, IN THE JOBS' OWN SCHEMA (workplan 0167 T7, ADR-0054). Since
+ * managed.yml's switch defaults to `pg-boss`, the jobs run in the `worker`
+ * service and their history is in pg-boss's tables, in the ledger's database:
+ * the store the worker's JOBS_DATABASE_URL names (its role, `ownpace_jobs`,
+ * and its database), in the schema deploy/compose/jobs-role.sql gives that
+ * role (`pgboss`). Trigger.dev's plane is then stopped with its volumes kept,
+ * so its stores still hold the alpha's history, and reset-trigger.sh refuses
+ * to run. So the step has a second block, for pg-boss mode: the worker
+ * stopped, pg-boss's job tables emptied as their owner, and the same four
+ * stores removed by name. The job tables are read from the pg-boss release
+ * the scheduler resolves (its install plan, dist/plans.js), not listed from
+ * memory: every table it creates is either emptied, a partition of one that
+ * is, or kept on purpose with a reason here (KEPT), so a pg-boss that adds a
+ * table fails this until it is one or the other. The role and the schema
+ * stay, and the step says so.
+ *
  * THE ORDER MATTERS. The reset comes after the drain, under the hold, once the
  * hold is DEPLOY_LIVE_QUIET_MINUTES old, as deploy-live.sh asks before it
  * replaces the task containers: a pass queued just before the hold is in no
@@ -65,14 +81,23 @@
  *   - *Checks*, before the hold lifts, read every one of those volumes' dates,
  *     triggerdb's oldest run and ClickHouse's oldest metrics row, with the
  *     client taking the container's own credentials and no password on any
- *     command line.
+ *     command line;
+ *   - in pg-boss mode, after the trigger-mode lines and before the stage
+ *     change: the worker stopped, then one TRUNCATE, as the role the worker's
+ *     JOBS_DATABASE_URL names and in its database, of exactly the tables that
+ *     hold jobs, then every store's container and every store's volume
+ *     triggerdb's included, the old project's ref and key cleared, and the
+ *     bring-up; the step names pgboss.job_common, where every queue's rows
+ *     are, and says the role and the schema stay; and *Checks* read pg-boss's
+ *     oldest job.
  *
  * ROOT-LEVEL, SO VITEST AND NODE BUILTINS ONLY (AGENTS.md).
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
 const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
@@ -82,6 +107,16 @@ const RUNBOOK = read(RUNBOOK_PATH);
 const RESET = read('deploy/compose/reset-trigger.sh');
 const COMPOSE = read('deploy/compose/managed.yml');
 const BOOTSTRAP = read('deploy/compose/bootstrap-managed.sh');
+
+/**
+ * pg-boss's install plan, from the release the scheduler resolves: the tables
+ * it creates, read where it creates them.
+ */
+const PGBOSS_PLANS = readFileSync(
+  join(dirname(createRequire(join(ROOT, 'packages/scheduler/package.json')).resolve('pg-boss/package.json')), 'dist/plans.js'),
+  'utf8',
+);
+const JOBS_ROLE_SQL = read('deploy/compose/jobs-role.sql');
 
 /** Live's compose project: the step and the checks name its volumes. */
 const LIVE = 'ownpace-live';
@@ -332,5 +367,128 @@ describe('the checks prove it, before the hold lifts', () => {
     const ch = code(service('clickhouse'));
     expect(ch).toMatch(/\n\s+CLICKHOUSE_USER: /);
     expect(ch).toMatch(/\n\s+CLICKHOUSE_PASSWORD: /);
+  });
+});
+
+/** The worker's store: the role and the database its JOBS_DATABASE_URL names. */
+const JOBS_URL = /\n\s+JOBS_DATABASE_URL: postgresql:\/\/([a-z_]+):\$\{JOBS_DB_PASSWORD:-\}@[^/\s]+\/\$\{POSTGRES_DB:-([a-z_]+)\}\n/.exec(
+  code(service('worker')),
+);
+const JOBS_ROLE = JOBS_URL?.[1];
+const JOBS_DB = JOBS_URL?.[2];
+/** The schema jobs-role.sql makes for that role. */
+const JOBS_SCHEMA = new RegExp(`\\nCREATE SCHEMA IF NOT EXISTS ([a-z_]+) AUTHORIZATION ${JOBS_ROLE};\\n`).exec(JOBS_ROLE_SQL)?.[1];
+
+/** The tables pg-boss creates under a name of its own. */
+const COMMON = /export const COMMON_JOB_TABLE = '([a-z_]+)';/.exec(PGBOSS_PLANS)?.[1];
+const PGBOSS_TABLES = [
+  ...new Set(
+    [...PGBOSS_PLANS.matchAll(/CREATE TABLE \$\{schema\}\.([a-z_]+|\$\{COMMON_JOB_TABLE\})[\s(]/g)].map((m) =>
+      m[1] === '${COMMON_JOB_TABLE}' ? COMMON! : m[1]!,
+    ),
+  ),
+].sort();
+
+/** The tables that hold the jobs' history: each job, its links, the queues' counts over time, the warnings. */
+const EMPTIED = ['job', 'job_dependency', 'queue_stats', 'warning'];
+
+/**
+ * The tables the step keeps, and why each holds no run: the worker starts on
+ * them as it left them.
+ */
+const KEPT: Readonly<Record<string, string>> = {
+  version: "the schema's version, one row",
+  queue: 'each queue as the worker declares it, with counts the monitor rewrites',
+  schedule: 'the cron schedules the worker declares',
+  subscription: 'pub/sub events, which nothing here uses',
+  bam: "pg-boss's own migration commands",
+  instance: 'the worker instances and their heartbeats',
+};
+
+describe('the jobs on pg-boss: their history is emptied too, in pg-boss mode', () => {
+  const sw = section('The switch');
+  const at = sw.indexOf('\n   docker compose -f deploy/compose/managed.yml stop worker\n');
+  const block = sw.slice(at, sw.indexOf('\n   ```\n', at) + 1);
+
+  it("are in the store the worker's JOBS_DATABASE_URL names, in the schema jobs-role.sql gives its role", () => {
+    expect(JOBS_ROLE, "managed.yml's worker no longer has a JOBS_DATABASE_URL this guard reads").toBe('ownpace_jobs');
+    expect(JOBS_DB).toBe('openmigrate');
+    expect(JOBS_SCHEMA, 'jobs-role.sql no longer makes the schema for the role').toBe('pgboss');
+    expect(read('apps/worker/src/runner/pg-boss-context.ts')).toContain(`export const JOBS_SCHEMA = '${JOBS_SCHEMA}';`);
+    expect(code(service('postgres')), "the ledger's container is no longer <project>-db").toMatch(
+      /\n\s+container_name: \$\{COMPOSE_PROJECT_NAME\}-db\n/,
+    );
+  });
+
+  it('every table pg-boss creates is emptied, a partition of one that is, or kept with a reason', () => {
+    expect(PGBOSS_TABLES, "pg-boss's install plan no longer reads as this guard reads it").toEqual(
+      expect.arrayContaining(['job', 'queue', 'version']),
+    );
+    expect(COMMON).toBe('job_common');
+    for (const table of PGBOSS_TABLES) {
+      const emptied = EMPTIED.includes(table) || table === COMMON;
+      expect(emptied || table in KEPT, `pg-boss creates ${JOBS_SCHEMA}.${table}: empty it in step 3, or say in KEPT why it holds no run`).toBe(true);
+    }
+    for (const table of [...EMPTIED, ...Object.keys(KEPT)]) {
+      expect(PGBOSS_TABLES, `pg-boss no longer creates ${table}`).toContain(table);
+    }
+    // job_common, and any table made under a name it is given, is a partition
+    // of a table the step empties, so the TRUNCATE of its parent empties it.
+    expect(PGBOSS_PLANS).toContain('ALTER TABLE ${schema}.job ATTACH PARTITION ${schema}.${COMMON_JOB_TABLE} DEFAULT;');
+    const named = PGBOSS_PLANS.match(/CREATE TABLE \$\{schema\}\.%I/g) ?? [];
+    const parents = [
+      ...PGBOSS_PLANS.matchAll(/ALTER TABLE \$\{schema\}\.([a-z_]+) ATTACH PARTITION \$\{schema\}\.%I/g),
+      ...PGBOSS_PLANS.matchAll(/CREATE TABLE \$\{schema\}\.%I PARTITION OF \$\{schema\}\.([a-z_]+)/g),
+    ].map((m) => m[1]!);
+    expect(parents, 'a table pg-boss makes under a given name is not a partition').toHaveLength(named.length);
+    for (const parent of parents) expect(EMPTIED).toContain(parent);
+  });
+
+  it('stops the worker, then empties exactly those tables as their owner, in the ledger database', () => {
+    expect(at, 'the switch has no pg-boss block that stops the worker').toBeGreaterThan(-1);
+    expect(at, 'the pg-boss block does not come after the trigger-mode lines').toBeGreaterThan(
+      sw.indexOf('./deploy/compose/bootstrap-managed.sh --from login\n'),
+    );
+    expect(at, 'the pg-boss block does not come before the stage leaves .env').toBeLessThan(sw.indexOf('.env OWNPACE_STAGE=\n'));
+    expect(block).toContain(
+      `docker exec -i ${LIVE}-db sh -c 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d ${JOBS_DB}' <<'SQL'\n   SET ROLE ${JOBS_ROLE};\n`,
+    );
+    const truncate = line(block, 'TRUNCATE ');
+    expect(truncate.words.map((w) => w.replace(/[,;]$/, '')), 'the TRUNCATE does not name exactly the job tables').toEqual(
+      EMPTIED.map((t) => `${JOBS_SCHEMA}.${t}`).sort(),
+    );
+    expect(truncate.at).toBeGreaterThan(block.indexOf(`SET ROLE ${JOBS_ROLE};`));
+  });
+
+  it("removes every store's container and volume, triggerdb's too, clears the old project, and runs the bring-up", () => {
+    const containers = line(block, 'docker compose -f deploy/compose/managed.yml --profile trigger rm -s -f ');
+    const volumes = line(block, 'docker volume rm ');
+    expect(containers.words).toEqual([...STORES].sort());
+    expect(volumes.words).toEqual([RESET_VOLUME!, ...OTHER_VOLUMES].map((v) => `${LIVE}_${v}`).sort());
+    expect(containers.at).toBeGreaterThan(line(block, 'TRUNCATE ').at);
+    expect(volumes.at).toBeGreaterThan(containers.at);
+    // What reset-trigger.sh clears in trigger mode, so the way back asks for a new project.
+    expect(RESET).toContain('"$ENV_FILE" TRIGGER_PROJECT_REF= TRIGGER_SECRET_KEY=');
+    const clear = block.indexOf('/.env TRIGGER_PROJECT_REF= TRIGGER_SECRET_KEY=\n');
+    const secrets = block.indexOf('./deploy/compose/ensure-env-secrets.sh\n');
+    const bringUp = block.indexOf('./deploy/compose/bootstrap-managed.sh --from trigger\n');
+    expect(clear, 'the pg-boss block does not clear the old project from .env').toBeGreaterThan(volumes.at);
+    expect(secrets).toBeGreaterThan(clear);
+    expect(bringUp).toBeGreaterThan(secrets);
+  });
+
+  it('names where the rows are, and says the role and the schema stay', () => {
+    const folded = section('The switch').replace(/\s+/g, ' ');
+    expect(folded, 'step 3 does not name the partition every queue shares').toContain(`\`${JOBS_SCHEMA}.${COMMON}\``);
+    for (const t of EMPTIED) expect(folded, `step 3 does not name ${JOBS_SCHEMA}.${t}`).toContain(`\`${JOBS_SCHEMA}.${t}\``);
+    expect(folded, 'step 3 does not say the role and the schema stay').toMatch(
+      new RegExp(`the role \`${JOBS_ROLE}\`, the schema \`${JOBS_SCHEMA}\`,[^.]*\\bstay\\b`),
+    );
+  });
+
+  it("is proved by the checks, before the hold lifts: pg-boss's oldest job", () => {
+    const checks = section('Checks');
+    const before = checks.slice(0, checks.indexOf('After lifting the hold'));
+    expect(before).toContain(`SELECT count(*), min(created_on) FROM ${JOBS_SCHEMA}.job;`);
   });
 });

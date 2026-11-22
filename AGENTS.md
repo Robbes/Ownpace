@@ -75,8 +75,11 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
   container name. Any command you hand somebody to run against the OTA stack
   starts there — see
   [docs/managed-bring-up.md](docs/managed-bring-up.md#updating-a-running-deployment)
-  for the after-a-pull sequence, including when the Trigger.dev tasks need
-  re-deploying and when they do not.
+  for the after-a-pull sequence. Its jobs run on pg-boss in the `worker`
+  service (`OWNPACE_JOB_RUNNER`, `pg-boss` by `managed.yml`'s default,
+  ADR-0054), which the bring-up rebuilds and replaces with the api; Trigger.dev's
+  plane is kept installed and stopped in the compose profile `trigger`, and
+  its tasks need re-deploying only in trigger mode, the fallback.
 
 ## What we are building
 Sovereign migration/sync: families and SMBs move off US cloud (O365/Google/Dropbox) to EU targets. **JMAP is the primary target protocol** (Stalwart reference; mosa.cloud / La Suite / MijnBureau); **IMAP/CalDAV/CardDAV/WebDAV is the parallel second family** (Soverin, openDesk,
@@ -91,7 +94,7 @@ operative bullets points into it; never bulk-read `docs/adr/`, and never `docs/a
 (`docs/adr/README.md`). After amending an operative section, regenerate:
 `node scripts/adr-operative.mjs --write` — it refuses a section over budget (ADR-0051).**
 - TypeScript, Node 26, pnpm workspaces monorepo (ADR-0002); Apache-2.0 (ADR-0001).
-- `Scheduler` interface: in-process croner (self-host) / Trigger.dev (managed) (ADR-0004).
+- `Scheduler` interface: in-process croner (self-host) / pg-boss on the ledger's Postgres (managed, the `worker` service; self-hosted Trigger.dev kept installed and stopped as the fallback) (ADR-0004, ADR-0054).
 - Ledger: **Postgres everywhere** — managed Postgres+RLS (managed) / bundled small Postgres (self-host), one schema (ADR-0016, **ADR-0023** supersedes the SQLite option in ADR-0010); self-host may run embedded PGlite instead of a Postgres server (ADR-0028); migrations are hand-written numbered SQL applied at startup by `runMigrations` (ADR-0045) and linted by Atlas in CI (ADR-0017). **No SQLite** — do not reintroduce a second dialect.
 - Engines: **JS-native, all of them. No Perl, no Python, no external binaries.** JMAP writer (jmap-jam) for JMAP; `imapflow` for IMAP; DAV (CalDAV/CardDAV/WebDAV) is this repository's own client over `fetch` (`packages/connectors`, `packages/engines`) — no `webdav` or `ical.js` package is installed. There are no shell-out engines left: imapsync, vdirsyncer and rclone are **gone** (ADR-0007/0018/0019).
 - O365: per-customer single-tenant Entra app, no multi-tenant app (ADR-0006's second update); IMAP+OAuth2 primary, Graph fallback.
