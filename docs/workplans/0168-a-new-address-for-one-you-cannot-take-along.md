@@ -18,6 +18,22 @@ view payloads, `PUT /api/{grant|view}/{link}/address-changes/{oldKey}`). The Dut
 draft in the dictionary's register (*u*, `GLOSSARY.md`) and without the retired word for a move
 (`a-word-the-owner-retired`); the owner reads it in the PR.
 
+**2026-11-22: T2 built, on `claude/ownpace-0168-table`; nothing applies a row yet.** The table,
+its routes in both editions and every migration file of this plan:
+
+- ledger 0071 `address_change`, under forced row security;
+- ledger 0072 `item.address_digest`, which nothing writes until T4;
+- managed 0063 `address_change_person` and Support's counts (D7).
+
+Both tables are in `PURGED_TABLES`. The engine reads the confirmed rows through
+`Ledger.listConfirmedAddressChanges`. The appliance's file door is `address-changes.json`, and
+without it the page door writes rows `confirmed` by `operator`. Proven in the unit tier, on the real
+migrations in PGlite: another organisation never sees, changes or deletes a row; the four refusals,
+in English and Dutch; the purge's grants; the file read and refused when malformed. The migration
+lint (Atlas) and the lock report (squawk) run in CI only. ADR-0034's explicit deployment mode does
+not exist in the appliance yet, so the file's presence decides the door. The step on `GET /` is
+T7's screen; T2 gives it its routes.
+
 **2026-11-22: ADR-0055 accepted.** The owner: *"I accept"*. T0 is done; T1 can start.
 
 **2026-11-22: all ten decisions answered.** D7, reworded, answered: *"ok, now I understand. I
@@ -51,7 +67,7 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 |---|---|---|---|
 | T0 The owner's decisions and ADR-0055 | owner | ✅ **Done 2026-11-22** | §9: D1–D10 answered as recommended on 2026-11-22 (D7 after rewording). ADR-0055 accepted the same day. |
 | T1 Address forms and the list of addresses nobody can take along | builder | 📋 **Proposed** | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moves there. No behaviour change. |
-| T2 The table of address changes | builder | 📋 **Proposed** | §4, §5. `address_change` in the shared chain, its routes in both editions, `PURGED_TABLES`. |
+| T2 The table of address changes | builder | 🟡 **Built, in review** | §4, §5. `address_change` (ledger 0071), `item.address_digest` (0072), `address_change_person` (managed 0063), routes in both editions, `PURGED_TABLES`, Support's counts. Status 2026-11-22. |
 | T3 The change itself, as a pure function | builder | 📋 **Proposed** | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests. |
 | T4 The writers apply it, and a changed table converges | builder | 📋 **Proposed** | §3. CardDAV, JMAP contacts and CalDAV writers; `item.address_digest`; `classifyKnownItem`. |
 | T5 Verification and the confirmed list say what was changed | builder | 📋 **Proposed** | §3.1. A declared change, never a silent difference. |
