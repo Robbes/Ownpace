@@ -688,6 +688,67 @@ describe('what a run asks of its runner, on pg-boss', () => {
   }, 120_000);
 });
 
+describe("the worker's limit on runs at once (0167, the T9 row's alpha.17 part)", () => {
+  // MAX_PASSES_IN_FLIGHT 1: the limit is 3 runs at once. The passes' queue is given room for 4, so
+  // the worker's limit, not the queue's, is what holds the fourth back.
+  const ROOMY = { 'run-delta-sync': { concurrency: { passesInFlightPlus: 3 } } } as const;
+
+  async function passes(n: number, holdMs: number): Promise<Array<{ key: string; runId: string }>> {
+    const sent: Array<{ key: string; runId: string }> = [];
+    for (let i = 0; i < n; i += 1) {
+      const key = randomUUID();
+      const { runId } = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: key, holdMs }, { serializeBy: key });
+      sent.push({ key, runId: runId! });
+    }
+    return sent;
+  }
+
+  async function startedOf(sent: ReadonlyArray<{ key: string }>): Promise<number> {
+    let n = 0;
+    for (const { key } of sent) n += (await attemptsOf(key)).length;
+    return n;
+  }
+
+  it('with the limit reached the next run waits in its queue, starts when one ends, and none fails or is tried again', async () => {
+    const worker = await startWorker({ passesInFlight: 1, catalog: catalogOf(['run-delta-sync'], ROOMY) });
+    expect(worker.runner.runsNow.limit).toBe(3);
+    const sent = await passes(4, 4000);
+    await until('three runs to start', async () => (await startedOf(sent)) === 3, 30_000);
+    // Two polling intervals and more: the fourth is still not fetched.
+    await sleep(2000);
+    expect(await startedOf(sent)).toBe(3);
+    const statuses = await Promise.all(sent.map((r) => producer.status(r.runId)));
+    const waiting = statuses.filter((s) => s?.state === 'queued');
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0]).toMatchObject({ attempt: 1, startedAt: null });
+    expect(worker.runner.runsNow.inUse).toBe(3);
+
+    const all = await Promise.all(sent.map((r) => settled(r.runId, 60_000)));
+    for (const s of all) expect(s).toMatchObject({ state: 'completed', attempt: 1 });
+    // The fourth started only once one of the first three had finished.
+    const attempts = (await Promise.all(sent.map((r) => attemptsOf(r.key)))).map((a) => a[0]!);
+    const last = attempts.reduce((a, b) => (a.started_at > b.started_at ? a : b));
+    const firstEnd = Math.min(...attempts.filter((a) => a !== last).map((a) => a.finished_at!.getTime()));
+    expect(last.started_at.getTime()).toBeGreaterThanOrEqual(firstEnd);
+    for (const a of attempts) expect(a.attempt).toBe(1);
+  }, 120_000);
+
+  it('a stop leaves a run waiting for a slot in its queue, unclaimed and at its first attempt, for the next worker', async () => {
+    const worker = await startWorker({ passesInFlight: 1, catalog: catalogOf(['run-delta-sync'], ROOMY) });
+    const sent = await passes(4, 1500);
+    await until('three runs to start', async () => (await startedOf(sent)) === 3, 30_000);
+    await worker.stop();
+    const statuses = await Promise.all(sent.map((r) => producer.status(r.runId)));
+    expect(statuses.filter((s) => s?.state === 'completed')).toHaveLength(3);
+    const left = statuses.filter((s) => s?.state !== 'completed');
+    expect(left).toHaveLength(1);
+    expect(left[0]).toMatchObject({ state: 'queued', attempt: 1, startedAt: null });
+
+    await startWorker({ passesInFlight: 1, catalog: catalogOf(['run-delta-sync'], ROOMY) });
+    expect(await settled(left[0]!.runId, 60_000)).toMatchObject({ state: 'completed', attempt: 1 });
+  }, 120_000);
+});
+
 describe("a run's process", () => {
   it('killed by a SIGKILL the worker did not send: failed on its first attempt, not retried, as on Trigger.dev', async () => {
     // Trigger.dev 4.8.8 reads a task process killed by SIGKILL or SIGABRT as

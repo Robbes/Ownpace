@@ -9,6 +9,11 @@
  *  - a QUEUE per task, whose runs are retried as a whole (three attempts,
  *    exponential, 5 s to 60 s), capped in time, and kept alive by a heartbeat
  *    so a worker that dies has its run picked up again;
+ *  - NO MORE RUNS AT ONCE THAN THE WORKER'S LIMIT (`runsAtOnce`, Trigger.dev's
+ *    environment limit), every queue together: a run past it is not fetched
+ *    and waits in its queue, unclaimed and at its attempt (`./run-slots.ts`).
+ *    So the queues are worked on pg-boss's `fetch`, `touch`, `complete` and
+ *    `fail`, not its `work()`, whose loops fetch whenever they are idle;
  *  - ONE RUN AT A TIME PER KEY (`serializeBy`, Trigger.dev's `concurrencyKey`):
  *    a `singleton` queue lets one job per key be active and any number wait;
  *  - JOINING A RUN ALREADY ASKED FOR (`idempotency`, Trigger.dev's
@@ -45,9 +50,9 @@
  * the run's process on that signal and settles only after the process has
  * exited. A run in this process must stop on `ctx.signal` itself.
  *
- * NOTHING CALLS THIS YET. The managed edition still enqueues through
- * `trigger-client.ts` and its tasks are still Trigger.dev tasks, until workplan
- * 0167 T6 puts them on this runner behind a switch. This module is reachable
+ * THE WORKER (`apps/worker/src/runner/worker.ts`) works the managed edition's
+ * jobs on it, in pg-boss mode, `managed.yml`'s default since workplan 0167 T7;
+ * the API enqueues through `PgBossProducer`. This module is reachable
  * only through the `@openmig/scheduler/pg-boss` subpath, so neither edition
  * loads pg-boss unless something imports that path on purpose, and the
  * appliance may not (`apps/selfhost/src/no-managed-leakage.unit.test.ts`). The
@@ -69,6 +74,7 @@ import { PgBoss } from 'pg-boss';
 import type { ConstructorOptions, Db, JobWithMetadata, QueueResult, SendOptions } from 'pg-boss';
 import pg from 'pg';
 import { runInChild } from './run-in-child.ts';
+import { RunSlots, workQueue, type ClaimedRun, type QueueSource, type Settlement } from './run-slots.ts';
 
 /**
  * The schema version of the pg-boss release `packages/scheduler/package.json`
@@ -244,6 +250,13 @@ export interface PgBossClientOptions {
 export interface PgBossJobRunnerOptions extends PgBossClientOptions {
   /** How often an idle worker asks for work. Default 2. */
   readonly pollingIntervalSeconds?: number;
+  /**
+   * The most runs this worker runs at once, across every queue it works:
+   * Trigger.dev's environment limit, `MAX_PASSES_IN_FLIGHT` + 2 on the
+   * managed stack. A run past it is not fetched, and waits in its queue
+   * (`./run-slots.ts`). Default: no limit but each queue's own.
+   */
+  readonly runsAtOnce?: number;
   /** How often queue counters are refreshed for `overview()`. Default 15. */
   readonly monitorIntervalSeconds?: number;
   /**
@@ -338,6 +351,19 @@ function queueOptions(spec: QueueSpec): {
     expireInSeconds: spec.maxDurationSeconds ?? DEFAULT_MAX_DURATION_SECONDS,
     heartbeatSeconds: spec.heartbeatSeconds ?? 30,
   };
+}
+
+/** Resolves once every one of `runs` has settled, or after `ms`, whichever is first. */
+async function settledWithin(runs: readonly Promise<void>[], ms: number): Promise<void> {
+  if (runs.length === 0) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.allSettled(runs),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, ms);
+    }),
+  ]);
+  clearTimeout(timer);
 }
 
 function hasCode(err: unknown, code: string): boolean {
@@ -694,6 +720,16 @@ export class PgBossProducer extends PgBossClient {
 /** THE WORKER: migrates, declares the queues, supervises, fires the schedules, works the runs. */
 export class PgBossJobRunner extends PgBossClient {
   readonly #pollingIntervalSeconds: number;
+  /** The worker's count of runs at once, which every queue's loop takes a slot of before it fetches. */
+  readonly #slots: RunSlots;
+  /** Aborted at the stop: no loop fetches again. */
+  readonly #stop = new AbortController();
+  /** Aborted once the stop's wait is spent: every run still going is told its claim is gone. */
+  readonly #abandon = new AbortController();
+  /** Each queue's loop, which resolves once it has stopped fetching. */
+  readonly #loops: Promise<void>[] = [];
+  /** The runs going, each until it has settled. */
+  readonly #going = new Set<Promise<void>>();
 
   constructor(opts: PgBossJobRunnerOptions) {
     super(
@@ -709,6 +745,12 @@ export class PgBossJobRunner extends PgBossClient {
       'ownpace-jobs-enqueue',
     );
     this.#pollingIntervalSeconds = opts.pollingIntervalSeconds ?? 2;
+    this.#slots = new RunSlots(opts.runsAtOnce ?? Number.POSITIVE_INFINITY);
+  }
+
+  /** The slots of the worker's limit taken now, and the queues in line for one: for a test, and the stop's line. */
+  get runsNow(): { readonly limit: number; readonly inUse: number; readonly waiting: number } {
+    return { limit: this.#slots.limit, inUse: this.#slots.inUse, waiting: this.#slots.waiting };
   }
 
   async start(queues: readonly QueueSpec[]): Promise<void> {
@@ -726,56 +768,152 @@ export class PgBossJobRunner extends PgBossClient {
   }
 
   /**
-   * Work `queue` in this process, `concurrency` runs at a time. The handler's
-   * `signal` aborts on a cancel, a lost claim, or `killMarginSeconds` before
-   * the queue's time limit; a handler that ignores it can outlive its run, so
-   * a pass belongs in `workInChild`, which cannot.
+   * Work `queue` in this process, `concurrency` runs at a time, and never more
+   * runs at once across every queue than the worker's `runsAtOnce`: a run past
+   * either is not fetched, and waits in its queue (`./run-slots.ts`). The
+   * handler's `signal` aborts on a cancel, a lost claim, or
+   * `killMarginSeconds` before the queue's time limit; a handler that ignores
+   * it can outlive its run, so a pass belongs in `workInChild`, which cannot.
    */
   async work<P, R>(queue: string, handler: RunHandler<P, R>, opts: { concurrency?: number } = {}): Promise<void> {
     this.spec(queue);
-    await this.boss.work<JobData<P>>(
-      queue,
-      {
-        batchSize: 1,
-        localConcurrency: opts.concurrency ?? 1,
-        pollingIntervalSeconds: this.#pollingIntervalSeconds,
-        perJobResults: true,
+    if (this.#stop.signal.aborted || !this.started) throw new Error(`The jobs runner is not running; "${queue}" is not worked.`);
+    const table = identifier('table', (await this.boss.getQueue(queue))?.table ?? '');
+    const boss = this.boss;
+    const source: QueueSource<JobData<P>> = {
+      fetch: async () => {
+        const [job] = await boss.fetch<JobData<P>>(queue, { batchSize: 1 });
+        return job ?? null;
       },
-      async (jobs) => {
-        const results = [];
-        for (const job of jobs) {
-          // The row's own limit, which pg-boss and its supervisor go by, not the spec's: a run sent
-          // before the spec's limit changed keeps the limit it was sent with.
-          const limitSeconds = job.expireInSeconds;
-          const stopAfterMs = (limitSeconds - killMarginSeconds(limitSeconds)) * 1000;
-          const deadline = new AbortController();
-          const timer = setTimeout(() => {
-            deadline.abort(
-              new RunTimedOut(`The run reached its time limit of ${limitSeconds} s on "${queue}" and was stopped.`),
-            );
-          }, stopAfterMs);
-          try {
-            const output = await handler(job.data.payload, {
-              queue,
-              runId: job.id,
-              attempt: job.retryCount + 1,
-              signal: AbortSignal.any([job.signal, deadline.signal]),
-            });
-            results.push({ id: job.id, status: 'completed' as const, output: { value: output ?? null } });
-          } catch (err) {
-            // A run stopped at its limit is failed as having reached it, whatever the stop made it
-            // throw (a killed process, a pass's own "stopped", an AbortError). An answer that is
-            // itself not retried (a RunNotRetried the run gave first, say) stands as it was given.
-            const stoppedAtLimit = deadline.signal.aborted && !job.signal.aborted && settlementFor(err) === 'failed';
-            const said: unknown = stoppedAtLimit ? deadline.signal.reason : err;
-            results.push({ id: job.id, status: settlementFor(said), output: errorRecord(said) });
-          } finally {
-            clearTimeout(timer);
-          }
-        }
-        return results;
+      touch: async (run) => {
+        const touched = await boss.touch(queue, [{ id: run.id, retryCount: run.retryCount }]);
+        return touched.affected > 0;
       },
+      settle: (run, settlement) => this.#settle(queue, table, run, settlement),
+      giveBack: (run) => this.#giveBack(queue, table, run),
+    };
+    this.#loops.push(
+      workQueue<JobData<P>>({
+        queue,
+        source,
+        slots: this.#slots,
+        concurrency: opts.concurrency ?? 1,
+        pollingIntervalMs: this.#pollingIntervalSeconds * 1000,
+        stop: this.#stop.signal,
+        run: (job, claim) => this.#runOne(queue, job, claim, handler),
+        started: (settled) => {
+          this.#going.add(settled);
+          void settled.finally(() => this.#going.delete(settled));
+        },
+        onError: (err: unknown) => {
+          console.error(`[jobs] working "${queue}":`, err);
+        },
+      }),
     );
+  }
+
+  /** One run, to the answer it settles with: what it returned, or what it threw, by name. */
+  async #runOne<P, R>(
+    queue: string,
+    job: ClaimedRun<JobData<P>>,
+    claim: AbortSignal,
+    handler: RunHandler<P, R>,
+  ): Promise<Settlement> {
+    // The row's own limit, which pg-boss and its supervisor go by, not the spec's: a run sent
+    // before the spec's limit changed keeps the limit it was sent with.
+    const limitSeconds = job.expireInSeconds;
+    const stopAfterMs = (limitSeconds - killMarginSeconds(limitSeconds)) * 1000;
+    const deadline = new AbortController();
+    const timer = setTimeout(() => {
+      deadline.abort(new RunTimedOut(`The run reached its time limit of ${limitSeconds} s on "${queue}" and was stopped.`));
+    }, stopAfterMs);
+    // A claim this runner no longer holds: lost to a cancel or a lapse, or the runner stopped.
+    const lost = AbortSignal.any([claim, this.#abandon.signal]);
+    try {
+      const output = await handler(job.data.payload, {
+        queue,
+        runId: job.id,
+        attempt: job.retryCount + 1,
+        signal: AbortSignal.any([lost, deadline.signal]),
+      });
+      return { status: 'completed', output: { value: output ?? null } };
+    } catch (err) {
+      // A run stopped at its limit is failed as having reached it, whatever the stop made it
+      // throw (a killed process, a pass's own "stopped", an AbortError). An answer that is
+      // itself not retried (a RunNotRetried the run gave first, say) stands as it was given.
+      const stoppedAtLimit = deadline.signal.aborted && !lost.aborted && settlementFor(err) === 'failed';
+      const said: unknown = stoppedAtLimit ? deadline.signal.reason : err;
+      return { status: settlementFor(said), output: errorRecord(said) };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Settle a claim, fenced on its attempt as pg-boss's own worker settles one:
+   * a claim that lapsed lands on nothing. `deadletter` fails the run with no
+   * attempt left, as pg-boss's `work()` does for a per-job `deadletter`: its
+   * `fail()` keeps a run whose attempt is its last failed, so the attempt
+   * limit is brought down to the attempt the claim holds first, in the same
+   * transaction and under the same fence.
+   */
+  async #settle(queue: string, table: string, run: ClaimedRun<unknown>, settlement: Settlement): Promise<void> {
+    const claim = [{ id: run.id, retryCount: run.retryCount }];
+    if (settlement.status === 'completed') {
+      await this.boss.complete(queue, claim, settlement.output);
+      return;
+    }
+    if (settlement.status === 'failed') {
+      await this.boss.fail(queue, claim, settlement.output);
+      return;
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE ${this.schema}.${table} SET retry_limit = retry_count ` +
+          "WHERE name = $1 AND id = $2::uuid AND state = 'active' AND retry_count = $3",
+        [queue, run.id, run.retryCount],
+      );
+      const db: Db = { executeSql: (text, values) => client.query(text, values) };
+      await this.boss.fail(queue, claim, settlement.output, { db });
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Put back a claim that landed after the stop, before its run started: what
+   * pg-boss's own `restore()` writes (it is not on the client's surface), at
+   * the attempt it had, so its next claim is the same attempt. Fenced on the
+   * claim. Nothing else in this worker fetches the queue by then.
+   */
+  async #giveBack(queue: string, table: string, run: ClaimedRun<unknown>): Promise<void> {
+    await this.pool.query(
+      `UPDATE ${this.schema}.${table} SET state = 'created', started_on = NULL, heartbeat_on = NULL, upsert_by_key = NULL ` +
+        "WHERE name = $1 AND id = $2::uuid AND state = 'active' AND retry_count = $3",
+      [queue, run.id, run.retryCount],
+    );
+  }
+
+  /**
+   * Stop fetching, at once and on every queue; then, when `graceful`, wait up
+   * to `timeoutMs` for the runs going to settle. A run still going after that
+   * has its signal aborted and is given a second to settle; whatever has not
+   * is failed by pg-boss's supervisor once its beat stops, and retried. A run
+   * that waited for a slot was never fetched, and is still in its queue.
+   */
+  override async stop(opts: { graceful?: boolean; timeoutMs?: number } = {}): Promise<void> {
+    this.#stop.abort();
+    await Promise.all(this.#loops);
+    if (opts.graceful ?? true) await settledWithin([...this.#going], opts.timeoutMs ?? 30_000);
+    this.#abandon.abort(new Error('The jobs runner stopped.'));
+    await settledWithin([...this.#going], 1000);
+    await super.stop(opts);
   }
 
   /**
