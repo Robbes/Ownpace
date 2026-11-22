@@ -15,14 +15,16 @@
  *   accepted only when it ran that commit, on that ref, of that workflow.
  * - **A dispatch is sent once.** After an error or a timeout the run is
  *   looked for; when none appears the job stops and says the outcome is
- *   unknown. Two `images.yml` runs on one tag race for the version tag, and
- *   two Security Scan runs append the release body twice.
+ *   unknown. Two `images.yml` runs on one tag race for the version tag;
+ *   a second Security Scan run attaches nothing twice (since 2026-11-22: its
+ *   attach adds only what is missing), but it is still a run nobody asked for.
  * - **On a tag, an existing run comes first.** A run of that workflow on
  *   that tag at that commit is reused when it passed, waited for when it is
  *   running, and has its failed jobs re-run once when it failed
  *   (`rerun-failed-jobs`); the same run is then waited for. A fresh dispatch
  *   would rebuild every image and move the digests that legs which had
- *   succeeded had already signed.
+ *   succeeded had already signed. For Security Scan only the runs Release
+ *   dispatched count (`chooseRun`): a person's on the tag is not Release's.
  * - **Only success is green.** `cancelled` and `skipped` are not, and a run
  *   is read again until it reports the attempt asked for.
  * - **A run just named can answer 404.** The id a dispatch gives back can
@@ -94,9 +96,21 @@ export function rehearsalTagName(runNumber) {
   return name;
 }
 
-/** Reuse, wait, re-run or dispatch, from the runs already on the ref. */
-export function chooseRun(runs, sha) {
-  const mine = newestFirst(runs.filter((r) => r.head_sha === sha));
+/** The actor of every run Release dispatches or re-runs: its workflow token's. */
+export const RELEASE_ACTOR = 'github-actions[bot]';
+
+/**
+ * Reuse, wait, re-run or dispatch, from the runs already on the ref. For
+ * Security Scan, only the runs Release itself dispatched count (2026-11-22,
+ * the review of #2039): a person's dispatch on the tag with the image scans is
+ * refused at its first step, and a re-run that chose it would be refused
+ * again every time while Release's own failed run was never re-run. A
+ * person's run on the tag is ignored either way; a dispatch after it attaches
+ * nothing twice, since the attach adds only what is missing.
+ */
+export function chooseRun(runs, sha, { workflow } = {}) {
+  const ours = workflow === 'security-scan.yml' ? runs.filter((r) => r.actor?.login === RELEASE_ACTOR) : runs;
+  const mine = newestFirst(ours.filter((r) => r.head_sha === sha));
   const green = mine.find((r) => r.status === 'completed' && r.conclusion === 'success');
   if (green) return { action: 'reuse', run: green };
   const going = mine.find((r) => r.status !== 'completed');
@@ -239,7 +253,7 @@ export async function publish(
   if (tag.kind === 'refuse') return [tag];
   const lines = [tag];
   const listed = await client.get(`actions/workflows/${workflow}/runs?event=workflow_dispatch&branch=${enc(ref)}&head_sha=${sha}&per_page=20`);
-  const choice = chooseRun(listed?.workflow_runs ?? [], sha);
+  const choice = chooseRun(listed?.workflow_runs ?? [], sha, { workflow });
   let run;
   if (choice.action === 'reuse') {
     return [...lines, judgeRun(choice.run, want)];
@@ -254,8 +268,8 @@ export async function publish(
         lines.push(
           note(
             check,
-            `half-published: the release for ${ref} already holds the body Security Scan generated, so re-running it appends ` +
-              'a second generated block. The verify job refuses two until one is deleted from the release body by hand (docs/release.md §3)',
+            `half-published: the release for ${ref} already holds the body Security Scan generated. Re-running it, its attach ` +
+              'adds only what is missing (docs/release.md §3): a bom.json already there and the generated block stay as they are',
           ),
         );
       }

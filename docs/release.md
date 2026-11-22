@@ -191,7 +191,9 @@ carries on without reading the nights, while a fresh dispatch refuses that
 tag (its run's tag job did not succeed). A fresh dispatch days later is
 refused at the preflight if newer nights ran another commit; use
 `mode=verify` then, and dispatch a single publisher on the tag by hand from
-the Actions tab if one is missing. A run you cancel stops: only the gate
+the Actions tab if one is missing; Security Scan with `image_scans` off, which
+the Actions tab leaves on: a dispatch on a tag that asks for the image scans is
+refused (§4). A run you cancel stops: only the gate
 branch and the rehearsal tag are cleaned up after it.
 
 **The other modes:** `rehearse` is the preflight plus the gate scan, and no
@@ -341,9 +343,12 @@ before its last step, which fails the run when Trivy or the SARIF upload
 failed. So a scan on the tag can end red with the release page already made,
 listing pull lines for images that are not published yet: Release stops there
 and publishes nothing else. Read why the scan failed. When it was an outage,
-re-run Release: it re-runs the scan's failed jobs, which appends the body a
-second time, and says so; verify then refuses two generated blocks until you
-delete one from the release body by hand. When it was an advisory, the way out
+re-run Release: it re-runs the scan's failed jobs, and the attach adds only
+what is missing. A `bom.json` already on the release is left, never replaced,
+and a body that already holds the generated block (its `cosign verify` line)
+is not appended again; the log says which (since 2026-11-22). A release whose
+body holds two blocks from before then is refused by verify until you delete
+one by hand. When it was an advisory, the way out
 is a new version: the tag's lockfile will fail the same way every time.
 
 **A payload that fails on Windows on the tag.** `windows-payload.yml`'s
@@ -367,7 +372,18 @@ releases. `v0.1.0-rc.1` refuses: no generated body and no Windows zip.
 ## 4. After
 
 - [ ] Edit prose into the release body if the generated pointers need
-      context (the workflow appends, never overwrites, an existing body).
+      context (the workflow appends to an existing body once, never
+      overwrites it, and keeps the `cosign verify` line it uses to tell it is
+      there).
+- [ ] **The image scan after the tag:** dispatch Security Scan **on `main`
+      at the release commit**, with `image_scans` left on: on `main` while
+      its head is still C, which a dispatch names by branch, never on the
+      tag. A run on a tag ref is a release run, whose release steps run
+      (they add only what the release is missing), and an image report
+      keeps issues on `main` only. Since 2026-11-22 a dispatch on a tag that
+      asks for the image scans is refused at its first step with that
+      sentence, and its image jobs skip (alpha.15's ran on the tag, replaced
+      the `bom.json` verify had read and appended its body a second time).
 - [ ] Announce; the changelog section is the text.
 
 `GET /version` on a pulled image is checked by Release's verify job.
