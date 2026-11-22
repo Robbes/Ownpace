@@ -3282,7 +3282,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         if (!applied) {
           return sendJson(res, 404, {
             error: 'no open move under that natural key',
-            hint: 'It may have been moved back on the source, or already been acknowledged.',
+            hint: 'It may have been moved back on the source, or already been decided: kept, or its old copy removed.',
           });
         }
 
