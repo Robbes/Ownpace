@@ -6308,6 +6308,66 @@ two refuse to connect for those seconds. `rotate-db-passwords.sh` rotates the
 owner and `app_user`, not this role. A run can change the role's password
 itself, as any role can; the next bring-up sets `.env`'s again.
 
+### The jobs role
+
+`ownpace_jobs` (ADR-0054) owns the schema `pgboss`, where pg-boss will keep the
+managed edition's jobs, and nothing else. Nothing connects as it yet; the
+worker will, through the pooler. It is made by the bring-up's `data` phase from
+`deploy/compose/jobs-role.sql`, not by a migration, and the phase asks Postgres
+what it may do on every run, before it sets `.env`'s `JOBS_DB_PASSWORD` on it.
+The file creates the role and the schema when they are missing and changes
+neither when they exist, so a role somebody changed is refused, never put
+right without a word. What can stop the phase:
+
+- **`REFUSED, before its password is set: ownpace_jobs: …`** names every way
+  the role is no longer what the file makes. Nothing has been changed. Look at
+  what it names before you undo it: nothing of ours grants this role anything.
+  Then, over the database's socket, for each reason:
+
+  ```bash
+  # The attributes (superuser, CREATEROLE, CREATEDB, REPLICATION, BYPASSRLS, INHERIT, no LOGIN):
+  docker compose -f deploy/compose/managed.yml exec -T postgres sh -c \
+    'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "ALTER ROLE ownpace_jobs LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS"'
+  # Every grant that names it, and the memberships both ways (what to REVOKE):
+  docker compose -f deploy/compose/managed.yml exec -T postgres sh -c \
+    'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT pg_describe_object(classid, objid, objsubid) FROM pg_shdepend WHERE refobjid = '"'"'ownpace_jobs'"'"'::regrole AND deptype = '"'"'a'"'"' AND dbid IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))" -c "SELECT m.roleid::regrole || '"'"' is lent to '"'"' || m.member::regrole FROM pg_auth_members m WHERE '"'"'ownpace_jobs'"'"'::regrole IN (m.roleid, m.member)"'
+  ```
+
+  - *"it belongs to N role(s)"* / *"N role(s) belong to it"*:
+    `REVOKE <that role> FROM ownpace_jobs`, or `REVOKE ownpace_jobs FROM <that role>`.
+  - *"N grant(s) name it"*: `REVOKE … FROM ownpace_jobs` for each line the
+    second command printed; a default privilege is taken back with
+    `ALTER DEFAULT PRIVILEGES … REVOKE … FROM ownpace_jobs`.
+  - *"it holds a privilege on N relation(s) of public"*, *"it may create a
+    schema in this database"* or *"it may create in the schema public"*, with
+    no grant naming it: the grant is to PUBLIC, and so to every role.
+    `REVOKE … FROM PUBLIC` it; an extension's own views (pg_stat_statements')
+    are not counted.
+  - *"it may call N function(s) of pgbouncer_auth"*: `REVOKE ALL ON FUNCTION
+    pgbouncer_auth.user_lookup(text) FROM PUBLIC` (and `FROM ownpace_jobs`);
+    the data phase's `setup-auth.sql` revokes PUBLIC's every run, `--sync` does not.
+  - *"N privilege(s) on pgboss or in it are granted to another role or
+    PUBLIC"*: `REVOKE ALL ON SCHEMA pgboss FROM <that role>` and, for a table,
+    `REVOKE ALL ON pgboss.<table> FROM <that role>`. pg-boss's tables carry no
+    row security, so nobody else may be granted them.
+  - *"the schema pgboss belongs to another role"* or *"it owns N object(s)
+    outside pgboss"*: `ALTER SCHEMA pgboss OWNER TO ownpace_jobs`, or move
+    each object to its proper owner, after asking who made it.
+
+  Then run the phase again: `./deploy/compose/bootstrap-managed.sh --only data`.
+- **`ownpace_jobs over the pooler: REFUSED`** after the password was set: the
+  pooler has not seen the role yet. It looks verifiers up in Postgres on every
+  login (`auth_query`), so this is not a cached value; read PgBouncer's log.
+- **`JOBS_DB_PASSWORD holds a character a URL does not carry`**: the worker
+  will put it in `JOBS_DATABASE_URL` as it is. Use `openssl rand -hex 24`.
+
+**Changing its password.** Put a new value in `.env`, then
+`./deploy/compose/bootstrap-managed.sh --only data`, or
+`./deploy/compose/rotate-db-passwords.sh --sync`, which sets the owner's and
+`app_user`'s as well and leaves an unfit jobs role as it is, naming it.
+`--rotate` does not change it. A missing value is filled in by the bring-up
+itself (`ensure-env-secrets.sh --only JOBS_DB_PASSWORD`).
+
 ### Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`
 
 *`set-task-env.sh --forget-owner-names`, which the bring-up runs after every

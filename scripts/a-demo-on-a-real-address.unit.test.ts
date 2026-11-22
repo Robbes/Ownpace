@@ -159,7 +159,9 @@ const LIVE = 'COMPOSE_PROJECT_NAME=ownpace-live\nSTACK_KIND=production\nWEB_URL=
 const OTA_PASSWORDS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD', 'TRIGGER_DB_PASSWORD']
   .map((k, i) => `${k}=${`0f${i}e0f`.repeat(8)}\n`)
   .join('');
-const OTA = `WEB_URL=https://app.example.test\n${OTA_PASSWORDS}`;
+// And the jobs role's (ADR-0054), which load_env would otherwise fill in with
+// ensure-env-secrets.sh, a script this checkout leaves out.
+const OTA = `WEB_URL=https://app.example.test\n${OTA_PASSWORDS}JOBS_DB_PASSWORD=${'0f5e0f'.repeat(8)}\n`;
 
 describe('--with-demo on a .env that is, or could be, live\'s is refused before anything runs', () => {
   const LIVE_LIKE: Array<[string, string]> = [

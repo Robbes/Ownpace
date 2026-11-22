@@ -15,15 +15,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   schedule's run now, refused while the operator's hold is open unless `--despite-hold`. As the
   jobs role, never the owner. On Trigger.dev, still the default, each says so and exits 1.
 
-### Changed
-
-- **The managed edition's jobs no longer call Trigger.dev from their runs** (workplan 0167 T6;
-  ADR-0054). Each job's run takes a context that names the runner it is on, and the Trigger.dev
-  calls it made (enqueueing a pass, waiting for one, asking after a run and cancelling it) are made
-  there, as they were. Trigger.dev still runs every job under the same names, queues, machines and
-  retries; a catalog of the same seventeen jobs for the pg-boss runner is added, which nothing reads
-  yet. The sync tick also writes a beat of its own runner each minute, and starts no pass while
-  another runner's tick has beaten within the last 90 seconds; no migration.
+- **The jobs' own database role and schema, made by the managed bring-up; nothing connects as it
+  yet** (workplan 0167 T7, its first part; ADR-0054). `ownpace_jobs` owns the schema `pgboss` and
+  nothing else, is no superuser, has no `BYPASSRLS`, belongs to no role and may read no table of the
+  ledger. The data phase makes both from `jobs-role.sql`, not a migration, refuses a role that is
+  otherwise, sets `.env`'s new `JOBS_DB_PASSWORD` on it (filled in when missing) and proves it over the
+  network and through the pooler. `rotate-db-passwords.sh --check` asks it and `--sync` sets it.
 
 ### Changed
 
