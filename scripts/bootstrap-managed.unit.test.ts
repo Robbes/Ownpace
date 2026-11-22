@@ -1796,7 +1796,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
             '    profiles: ["jobs"]',
             ...(opts.cpus ? [`    cpus: \${WORKER_CPUS:-${opts.cpus}}`] : []),
             // managed.yml's default size, for the default cap of 3 (#2046).
-            '    mem_limit: ${WORKER_MEMORY:-2560m}',
+            '    mem_limit: ${WORKER_MEMORY:-2816m}',
             // Keys the worker receives, as #2046's service hands them on.
             '    environment:',
             '      LEDGER_RETENTION_DAYS: ${LEDGER_RETENTION_DAYS:-}',
@@ -1970,22 +1970,22 @@ describe('the bring-up in either runner (0167 T7)', () => {
       const r = phase(['app'], { env, answers: { NCPU: '8' } });
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/WORKER_CPUS 4: 0\.5 x \(MAX_PASSES_IN_FLIGHT 6 \+ 2\), for this run's compose calls \(not written to \.env\)/);
-      expect(r.out).toMatch(/WORKER_MEMORY 4096m: \(MAX_PASSES_IN_FLIGHT 6 \+ 2\) x 512 MB/);
+      expect(r.out).toMatch(/WORKER_MEMORY 4352m: \(MAX_PASSES_IN_FLIGHT 6 \+ 2\) x 512 MB \+ 256 MB, for this run's compose calls/);
       expect(r.out).toMatch(/the worker's CPU cap: 4, within this host's CPUs/);
     });
 
-    it('app: the default cap of 3 gives 2.5 CPUs and 2560m, a half CPU and 512 MB for each of the 5 runs at once', () => {
+    it('app: the default cap of 3 gives 2.5 CPUs and 2816m, a half CPU and 512 MB for each of the 5 runs at once, and 256 MB for the worker itself', () => {
       const r = phase(['app'], { env: PG });
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/WORKER_CPUS 2\.5: /);
-      expect(r.out).toMatch(/WORKER_MEMORY 2560m: /);
-      expect(r.out).toMatch(/the worker's memory limit: 2560m, within this host's memory/);
+      expect(r.out).toMatch(/WORKER_MEMORY 2816m: /);
+      expect(r.out).toMatch(/the worker's memory limit: 2816m, within this host's memory/);
     });
 
     it.each([
-      ['the rule\'s limit above a 2 GB host', `${'OWNPACE_JOB_RUNNER=pg-boss\n'}`, String(2 * 1024 ** 3), /WORKER_MEMORY is 2560m, above this host's 2048 MB of memory\./],
+      ['the rule\'s limit above a 2 GB host', `${'OWNPACE_JOB_RUNNER=pg-boss\n'}`, String(2 * 1024 ** 3), /WORKER_MEMORY is 2816m, above this host's 2048 MB of memory\. Set it to at most that \(the rule: \(MAX_PASSES_IN_FLIGHT \+ 2\) x 512 MB \+ 256 MB = 2816m\)/],
       ['a .env limit above the host', 'OWNPACE_JOB_RUNNER=pg-boss\nWORKER_MEMORY=20g\n', String(16 * 1024 ** 3), /WORKER_MEMORY is 20g, above this host's 16384 MB of memory\./],
-      ['a limit Compose does not read', 'OWNPACE_JOB_RUNNER=pg-boss\nWORKER_MEMORY=lots\n', String(16 * 1024 ** 3), /WORKER_MEMORY is 'lots', not an amount of memory Compose reads/],
+      ['a limit Compose does not read', 'OWNPACE_JOB_RUNNER=pg-boss\nWORKER_MEMORY=lots\n', String(16 * 1024 ** 3), /WORKER_MEMORY is 'lots', not an amount of memory Compose reads \(a number with b, k, m or g\)\. The rule: \(MAX_PASSES_IN_FLIGHT \+ 2\) x 512 MB \+ 256 MB = 2816m\./],
     ])('%s: refused in one sentence, before the plane stops and before the worker starts', (_l, env, memtotal, why) => {
       for (const p of ['trigger', 'app']) {
         const r = phase([p], { env, answers: { MEMTOTAL: memtotal, PLANE_RUNNING: ALL_PLANE } });
@@ -2013,7 +2013,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
       const r = phase(['app'], { env: `${PG}MAX_PASSES_IN_FLIGHT=6\n`, answers: { NCPU: '8' } });
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(
-        /managed\.yml's defaults are WORKER_CPUS 2\.5 and WORKER_MEMORY 2560m, so a compose call outside the bring-up \(a hand docker compose up -d\) would recreate the worker at those\. To keep this size there too, set both in \.env: \.\/deploy\/compose\/env-upsert\.sh \S+\/\.env WORKER_CPUS=4 WORKER_MEMORY=4096m/,
+        /managed\.yml's defaults are WORKER_CPUS 2\.5 and WORKER_MEMORY 2816m, so a compose call outside the bring-up \(a hand docker compose up -d\) would recreate the worker at those\. To keep this size there too, set both in \.env: \.\/deploy\/compose\/env-upsert\.sh \S+\/\.env WORKER_CPUS=4 WORKER_MEMORY=4352m/,
       );
       // At the default cap it is managed.yml's own size: nothing to say.
       const same = phase(['app'], { env: PG });
@@ -2029,7 +2029,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/WORKER_CPUS 4, from \.env \(the rule for MAX_PASSES_IN_FLIGHT 6: 4\)/);
       expect(r.out).toMatch(
-        /WORKER_MEMORY 6400m, from \.env, is above the rule's 4096m for MAX_PASSES_IN_FLIGHT 6 \(the worker runs at most 8 runs at once\), and is kept as set\. To take the rule: \.\/deploy\/compose\/env-upsert\.sh \S+\/\.env WORKER_MEMORY=4096m$/m,
+        /WORKER_MEMORY 6400m, from \.env, is above the rule's 4352m for MAX_PASSES_IN_FLIGHT 6 \(the worker runs at most 8 runs at once\), and is kept as set\. To take the rule: \.\/deploy\/compose\/env-upsert\.sh \S+\/\.env WORKER_MEMORY=4352m$/m,
       );
       expect(r.out.match(/is above the rule's/g)).toHaveLength(1);
       expect(r.out).toMatch(/the worker's memory limit: 6400m, within this host's memory/);
@@ -2039,7 +2039,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
     it('app: a size .env sets below the rule is kept, and said as a warning', () => {
       const r = phase(['app'], { env: `${PG}WORKER_MEMORY=2g\n` });
       expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/warning: WORKER_MEMORY 2g, from \.env, is below the rule's 2560m for MAX_PASSES_IN_FLIGHT 3/);
+      expect(r.out).toMatch(/warning: WORKER_MEMORY 2g, from \.env, is below the rule's 2816m for MAX_PASSES_IN_FLIGHT 3/);
     });
 
     it('a limit in g or bytes is read as Compose reads it: 4g on a 4 GiB host fits', () => {

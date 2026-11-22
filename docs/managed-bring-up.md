@@ -153,8 +153,9 @@ are **not** product-named and keep their names; nothing above touches them.
   containers are stopped and every run is a process of the worker, which runs
   at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once across all its queues, as the
   plane admits; a run past that waits in its queue. Its memory limit is
-  (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB, the same half GB a run: 2,560 MB at 3
-  and 4,096 MB at 6 (*The worker's size*, below). It is a ceiling, not a
+  (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 256 MB, the same half GB a run and
+  256 MB for the worker itself: 2,816 MB at 3 and 4,352 MB at 6 (*The
+  worker's size*, below). It is a ceiling, not a
   reservation (about 120 MB idle). The 4 GB of resident services above
   includes the plane's, which pg-boss mode stops; the figure without them has
   not been measured, so the sizing above errs high there.
@@ -884,18 +885,19 @@ picked up again by its heartbeat.
 them; otherwise the bring-up works them out from this stack's
 `MAX_PASSES_IN_FLIGHT` and hands them to Compose for that run, without writing
 `.env`: 0.5 × (`MAX_PASSES_IN_FLIGHT` + 2) CPUs and
-(`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB, half a CPU and 512 MB for each of the
-runs the worker runs at once, at most `MAX_PASSES_IN_FLIGHT` + 2. At that
-limit, with every run at its budget, the memory holds: at most
-`MAX_PASSES_IN_FLIGHT` + 1 passes at 512 MB (307 MB measured), one other run at
-256 MB (203 MB measured) and the worker's own process (120 MB measured), with
-136 MB to spare. That is 2.5 and `2560m` at the default cap of 3, and 4 and
-`4096m` at live's 6. A value `.env` sets is the one used, as in Compose. One
-above the rule (alpha.16's rule was (`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB +
+(`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 256 MB: half a CPU and 512 MB for each
+of the runs the worker runs at once, at most `MAX_PASSES_IN_FLIGHT` + 2, and
+256 MB for the worker itself. At that limit, with every run at its budget, the
+memory holds: every run at the 512 MB budget `small-1x` gives every queue
+alike, a pass or not (V8's heap is capped at 410 MB of it on every queue; a pass
+measured 307 MB, another run 203 MB), and the worker's own process (120 MB
+measured), with 136 MB to spare. That is 2.5 and `2816m` at the default cap of
+3, and 4 and `4352m` at 6. A value `.env` sets is the one used, as in Compose.
+One above the rule (alpha.16's rule was (`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB +
 2,816 MB, `6400m` at 6) is kept, and the bring-up says so in one line:
 
 ```text
-WORKER_MEMORY 6400m, from .env, is above the rule's 4096m for MAX_PASSES_IN_FLIGHT 6 (the worker runs at most 8 runs at once), and is kept as set. To take the rule: ./deploy/compose/env-upsert.sh <the .env> WORKER_MEMORY=4096m
+WORKER_MEMORY 6400m, from .env, is above the rule's 4352m for MAX_PASSES_IN_FLIGHT 6 (the worker runs at most 8 runs at once), and is kept as set. To take the rule: ./deploy/compose/env-upsert.sh <the .env> WORKER_MEMORY=4352m
 ```
 
 One below the rule is kept too, and said as a warning: a run at its budget
@@ -912,10 +914,10 @@ the one `env-upsert.sh … WORKER_CPUS=… WORKER_MEMORY=…` that keeps the siz
 **A stack whose `MAX_PASSES_IN_FLIGHT` is not 3 sets `WORKER_CPUS` and
 `WORKER_MEMORY` in its `.env`**, from the rule above, so that every compose call
 agrees, the bring-up's and a hand `docker compose` alike: the values the
-bring-up works out hold only for its own calls. Live, at 6, sets
-`WORKER_CPUS=4` and `WORKER_MEMORY=4096m`; a live `.env` that still holds
-alpha.16's `6400m` works as it is, and takes the rule with
-`./deploy/compose/env-upsert.sh deploy/compose/.env WORKER_MEMORY=4096m`.
+bring-up works out hold only for its own calls. A stack at 6 sets
+`WORKER_CPUS=4` and `WORKER_MEMORY=4352m`; one whose `.env` still holds
+alpha.16's `6400m` at 6 works as it is, and takes the rule with
+`./deploy/compose/env-upsert.sh deploy/compose/.env WORKER_MEMORY=4352m`.
 
 **A comment where the worker reads a value.** A `.env` line such as
 `LEDGER_RETENTION_DAYS=  # days` (spaces or a tab, then `#`) is empty to bash,
@@ -4510,8 +4512,8 @@ No script can do these. The script checks each one before it changes anything.
    the script*, step 6, settles it.
 
    **`MAX_PASSES_IN_FLIGHT=6`** is live's cap on passes running at once. In
-   pg-boss mode the worker is sized from it (*The two runners*): live sets
-   `WORKER_CPUS=4` and `WORKER_MEMORY=4096m` in its `.env` beside it. In trigger
+   pg-boss mode the worker is sized from it (*The two runners*): a stack at 6
+   sets `WORKER_CPUS=4` and `WORKER_MEMORY=4352m` in its `.env` beside it. In trigger
    mode the bring-up sets live's task plane to it plus two, 8. The OTA stack
    runs with 6 as well while it is the only stack on the machine. Once live is
    stood up, put the OTA stack back to 3, from its own checkout, in a shell with

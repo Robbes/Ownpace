@@ -2290,20 +2290,21 @@ services:
     #   cpus      = 0.5 x (MAX_PASSES_IN_FLIGHT + 2), half a CPU a run, and
     #               never more than the host's CPU count, since Docker refuses
     #               a container more CPUs than the machine has;
-    #   mem_limit = (MAX_PASSES_IN_FLIGHT + 2) x 512 MB: at the limit, at most
-    #               MAX_PASSES_IN_FLIGHT + 1 passes at their 512 MB budget (307
-    #               MB measured), one other run at its 256 MB (203 measured) and
-    #               the parent (120 MB measured), 136 MB to spare, since a run
-    #               the kernel kills for memory is not retried.
-    # The defaults are the OTA stack's, at 3: 2.5 CPUs and 2,560 MB. Live, at
-    # 6, takes 4 CPUs and 4,096 MB; a .env that sets more (alpha.16's 6400m) is
-    # kept, and the bring-up says so. Compose cannot
+    #   mem_limit = (MAX_PASSES_IN_FLIGHT + 2) x 512 MB + 256 MB: at the limit,
+    #               every run at its 512 MB budget, which small-1x gives every
+    #               queue alike (V8's heap capped at 410 MB of it, the
+    #               catalog's maxOldSpaceMb; a pass measured 307 MB, another run
+    #               203 MB), and the parent (120 MB measured), 136 MB to spare,
+    #               since a run the kernel kills for memory is not retried.
+    # The defaults are the OTA stack's, at 3: 2.5 CPUs and 2,816 MB. At 6 the
+    # rule is 4 CPUs and 4,352 MB; a .env that sets more (alpha.16's 6400m at
+    # 6) is kept, and the bring-up says so. Compose cannot
     # compare a value with the host's CPUs, so the bring-up checks
     # WORKER_CPUS against them before it starts this service. Each run's child
     # raises its own /proc/self/oom_score_adj, so at the limit the kernel takes
     # a run, not the worker that settles it.
     cpus: ${WORKER_CPUS:-2.5}
-    mem_limit: ${WORKER_MEMORY:-2560m}
+    mem_limit: ${WORKER_MEMORY:-2816m}
     # A stop gives the running passes a minute to settle (the runner stops its
     # workers and lets pg-boss mark what was active) before Docker kills it; a
     # run cut off is picked up again by its heartbeat and converges.
