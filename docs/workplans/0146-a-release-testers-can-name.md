@@ -4,6 +4,16 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, night, later: alpha.17's counted nights are waived, in the owner's words, before its
+fold.** The owner, on 2026-11-22: *"Continue working on alpha 17, I waive the waitings for that one,
+so I can roll that one out possibly also tomorrow."* So `v0.2.0-alpha.17` joins `WAIVER_VERSIONS` in
+`scripts/release-nights.mjs`, beside alpha.3 to alpha.16, with those words. The two guards that read
+the list name it, with `v0.2.0-alpha.18` now the version a waiver is refused for, and
+`docs/release.md` lists it. With the new line taken out, both list guards fail (2 of 119); with it,
+119 of 119 pass. It lands before alpha.17's fold, so C carries the list: Release reads
+`WAIVER_VERSIONS` from `main`'s own scripts. The words also cover alpha.17's other waits: a release
+taken inside its three-day floor for alpha.17 says so in its own pull request.
+
 **2026-11-22, night: the fold for `v0.2.0-alpha.16` (T2).** `package.json` and the API contract say
 `0.2.0-alpha.16`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
 its section, dated 2026-11-22, under a summary; [Unreleased] stays, empty. alpha.16 carries what
