@@ -81,6 +81,38 @@
 #       the role opens with it over the network AND through the pooler,
 #       where the tasks connect: 0, 1 (refused) or 2 (could not be asked).
 #
+# THE JOBS ROLE (ADR-0054, workplan 0167 T7's first part). `ownpace_jobs`,
+# owning the schema `pgboss` and nothing else, which the managed edition's
+# worker will connect as through the pooler (JOBS_DATABASE_URL, a later
+# change; nothing connects as it yet). Made by the bring-up's data phase from
+# jobs-role.sql, not by a migration, as pgbouncer_auth is from setup-auth.sql:
+# a migration would make live's deploy one-way. Its name and its schema's are
+# jobs-role.sql's, never .env's.
+#
+#   db_roles_jobs_ensure
+#       runs jobs-role.sql over the socket as the owner: the role made, with
+#       its attributes and no password, when it does not exist, and the schema
+#       made for it when that does not. Neither is changed when it exists, so
+#       nothing here repairs a role: db_roles_jobs_fit judges it. 0 ran, 1 not.
+#   db_roles_jobs_fit
+#       asks the catalog, over the socket as the owner: 0 fit (a login role,
+#       NOINHERIT, no superuser, may create no role or database, does not
+#       replicate, no BYPASSRLS, a member of no role and no role a member of
+#       it, the owner of `pgboss`, owning nothing outside it but its tables'
+#       TOAST, with no privilege on any relation of `public` but an
+#       extension's own, through itself or PUBLIC, no grant made to it by name
+#       anywhere, unable to create a schema or to create in `public`, and
+#       nothing on `pgboss` or in it granted to another role),
+#       1 unfit or missing (DB_ROLES_WHY names every reason), 2 could not ask.
+#   db_roles_jobs_set <password>
+#       ALTER ROLE with .env's JOBS_DB_PASSWORD over the socket as the owner,
+#       and every setting on the role cleared in the same transaction, as
+#       db_roles_system_set does and for the same reason: the role may change
+#       its own settings, and the worker will hold its URL.
+#   db_roles_jobs_prove <password>
+#       the role opens with it over the network AND through the pooler, where
+#       the worker will connect: 0, 1 (refused) or 2 (could not be asked).
+#
 # TRIGGER.DEV'S OWN DATABASE (workplan 0132 T2, step A). `trigger-db` is a
 # Postgres of its own, and its one role, `trigger`, is the image's bootstrap
 # superuser: managed.yml writes POSTGRES_USER and POSTGRES_DB there, not from
@@ -216,6 +248,107 @@ ALTER ROLE :"system_role" IN DATABASE :"DBNAME" RESET ALL;
 COMMIT;
 SQL
 
+# The jobs role and its schema: jobs-role.sql's, never .env's.
+# scripts/a-jobs-role-that-owns-only-its-queue.integration.test.ts holds them to it.
+DB_ROLES_JOBS='ownpace_jobs'
+DB_ROLES_JOBS_SCHEMA='pgboss'
+
+# The question db_roles_jobs_fit asks: one line, `|`-separated, in this order:
+# superuser, create role, create database, replication, BYPASSRLS, login,
+# inherit; how many roles it is a member of, and how many are members of it;
+# whether it owns the schema (empty when there is no such schema); how many
+# objects it owns outside the schema, its tables' TOAST apart (relations,
+# functions, types, schemas and databases by their catalogs, anything else
+# by pg_shdepend); how many relations of `public` it holds any privilege on,
+# a column's or a sequence's USAGE included, through itself or PUBLIC, an
+# extension's own relations apart; how many privileges on the schema or on a
+# relation in it are granted to another role or PUBLIC; how many grants name
+# it, anywhere in this database or on a shared object (pg_shdepend's `a`:
+# a table, a column, a schema, a function, a default privilege, the database
+# itself); whether it may create a schema in this database; whether it may
+# create in the schema `public`, through PUBLIC as well; and how many functions
+# of `pgbouncer_auth` (setup-auth.sql's lookup, which returns any role's
+# password verifier) it may call, through PUBLIC as well: the bring-up revokes
+# PUBLIC's EXECUTE just before this question, rotate-db-passwords.sh --sync
+# does not.
+#
+# A relation of `public` counts when any privilege-asking function says so, or
+# when its ACL holds an entry for the role or for PUBLIC (grantee 0): that is
+# true on every version, and catches what the functions' list does not name,
+# PostgreSQL 17's MAINTAIN among them. Objects in a temporary schema
+# (pg_temp_N, pg_toast_temp_N) are not counted as owned: in transaction
+# pooling a temporary table may outlive its client on a server connection.
+#
+# AN EXTENSION'S OWN RELATIONS ARE NOT THE LEDGER. pg_stat_statements, which
+# the data phase creates in the app's database just before this question,
+# grants PUBLIC SELECT on its two views in `public` from its own install
+# script. Counted, they refused every real stack: E2E (managed), and live's
+# deploy after its copy and checkout. They are left out by pg_depend's `e`
+# (an object that belongs to an extension), and a grant by name on one is
+# still counted by the grants that name the role.
+# No line: no such role. The two names go by psql variables, never into the
+# text. a-jobs-role-that-owns-only-its-queue (integration) asks it of a real
+# database, before pg-boss installs and after.
+read -r -d '' DB_ROLES_JOBS_FIT_SQL <<'SQL' || true
+SELECT r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolreplication, r.rolbypassrls, r.rolcanlogin, r.rolinherit,
+       (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid),
+       (SELECT count(*) FROM pg_auth_members m WHERE m.roleid = r.oid),
+       (SELECT n.nspowner = r.oid FROM pg_namespace n WHERE n.nspname = :'jobs_schema'),
+       (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE c.relowner = r.oid AND n.nspname NOT IN (:'jobs_schema', 'pg_toast')
+           AND n.nspname !~ '^pg_(toast_)?temp_')
+     + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE p.proowner = r.oid AND n.nspname <> :'jobs_schema')
+     + (SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+         WHERE t.typowner = r.oid AND n.nspname NOT IN (:'jobs_schema', 'pg_toast')
+           AND n.nspname !~ '^pg_(toast_)?temp_')
+     + (SELECT count(*) FROM pg_namespace n WHERE n.nspowner = r.oid AND n.nspname <> :'jobs_schema')
+     + (SELECT count(*) FROM pg_database d WHERE d.datdba = r.oid)
+     + (SELECT count(*) FROM pg_shdepend d
+         WHERE d.refclassid = 'pg_authid'::regclass AND d.refobjid = r.oid AND d.deptype = 'o'
+           AND d.dbid IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))
+           AND d.classid NOT IN ('pg_class'::regclass, 'pg_proc'::regclass, 'pg_type'::regclass,
+                                 'pg_namespace'::regclass, 'pg_database'::regclass)),
+       (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+           AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                            WHERE e.classid = 'pg_class'::regclass AND e.objid = c.oid AND e.deptype = 'e')
+           AND (has_table_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+                OR has_any_column_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
+                OR (c.relkind = 'S' AND has_sequence_privilege(r.oid, c.oid, 'USAGE'))
+                OR EXISTS (SELECT 1 FROM aclexplode(c.relacl) a WHERE a.grantee IN (0, r.oid)))),
+       (SELECT count(*) FROM pg_namespace n CROSS JOIN LATERAL aclexplode(n.nspacl) a
+         WHERE n.nspname = :'jobs_schema' AND a.grantee <> r.oid)
+     + (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+              CROSS JOIN LATERAL aclexplode(c.relacl) a
+         WHERE n.nspname = :'jobs_schema' AND a.grantee <> r.oid),
+       (SELECT count(*) FROM pg_shdepend d
+         WHERE d.refclassid = 'pg_authid'::regclass AND d.refobjid = r.oid AND d.deptype = 'a'
+           AND d.dbid IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))),
+       has_database_privilege(r.oid, current_database(), 'CREATE'),
+       has_schema_privilege(r.oid, 'public', 'CREATE'),
+       (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'pgbouncer_auth' AND has_function_privilege(r.oid, p.oid, 'EXECUTE'))
+  FROM pg_roles r
+ WHERE r.rolname = :'jobs_role';
+SQL
+
+# The statements db_roles_jobs_set sends: the value by a psql variable, kept
+# out of the database's log, with every setting on the role cleared in the
+# same transaction, as DB_ROLES_SYSTEM_SET_SQL does.
+read -r -d '' DB_ROLES_JOBS_SET_SQL <<'SQL' || true
+SET log_statement = 'none';
+SET log_min_duration_statement = -1;
+SET log_min_error_statement = panic;
+SET pg_stat_statements.track_utility = off;
+BEGIN;
+\set jobs_pw `printf '%s' "$DB_ROLES_NEW_JOBS_PASSWORD"`
+ALTER ROLE :"jobs_role" PASSWORD :'jobs_pw';
+ALTER ROLE :"jobs_role" RESET ALL;
+ALTER ROLE :"jobs_role" IN DATABASE :"DBNAME" RESET ALL;
+COMMIT;
+SQL
+
 # trigger-db's role and database: managed.yml's, never .env's.
 # scripts/rotate-db-passwords.unit.test.ts holds them to managed.yml.
 DB_ROLES_TRIGGER_ROLE='trigger'
@@ -267,6 +400,8 @@ db_roles_init() { # db_roles_init <env-file>
   DB_ROLES_DB="$(db_roles_env POSTGRES_DB openmigrate)"
   DB_ROLES_APP="$(db_roles_env APP_DB_USER app_user)"
   DB_ROLES_APP_PASSWORD="$(db_roles_env APP_DB_PASSWORD app_password)"
+  # No default: managed.yml has none to give, and the bring-up seeds it.
+  DB_ROLES_JOBS_PASSWORD="$(db_roles_env JOBS_DB_PASSWORD '')"
   DB_ROLES_NETWORK="${COMPOSE_PROJECT}_ownpace-network"
   DB_ROLES_LIST=''
   DB_ROLES_WHY=''
@@ -447,18 +582,107 @@ db_roles_system_set() { # db_roles_system_set <password>
 # the two ways a task reaches Postgres (DB_HOST=postgres is the pooler's
 # rollback).
 db_roles_system_prove() { # db_roles_system_prove <password>
+  db_roles_one_prove "$DB_ROLES_SYSTEM" "${1:-}"
+}
+
+# One role with its value, over the network and through the pooler, its four
+# fields per question in DB_ROLES_PROOF as db_roles_prove writes them.
+db_roles_one_prove() { # db_roles_one_prove <role> <password>
   local refused=0 unasked=0 rc channel
   DB_ROLES_PROOF=''
   for channel in network pooler; do
     rc=0
-    db_roles_ask "$channel" "$DB_ROLES_SYSTEM" "${1:-}" || rc=$?
-    DB_ROLES_PROOF+="${DB_ROLES_SYSTEM}|${channel}|${rc}|${DB_ROLES_WHY}"$'\n'
+    db_roles_ask "$channel" "${1:-}" "${2:-}" || rc=$?
+    DB_ROLES_PROOF+="${1:-}|${channel}|${rc}|${DB_ROLES_WHY}"$'\n'
     [ "$rc" -ne 1 ] || refused=1
     [ "$rc" -ne 2 ] || unasked=1
   done
   [ "$refused" -eq 0 ] || return 1
   [ "$unasked" -eq 0 ] || return 2
   return 0
+}
+
+# jobs-role.sql, as the owner over the socket. It carries no value.
+db_roles_jobs_ensure() { # 0 ran, 1 did not (DB_ROLES_WHY says why)
+  local out rc
+  DB_ROLES_WHY=''
+  out=$("${COMPOSE[@]}" exec -T postgres psql -X -q -U "$DB_ROLES_OWNER" -d "$DB_ROLES_DB" -v ON_ERROR_STOP=1 \
+    2>&1 <"${SCRIPT_DIR}/jobs-role.sql") && rc=0 || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  DB_ROLES_WHY="$(db_roles_masked "$out")"
+  return 1
+}
+
+# The jobs role, asked of the catalog after jobs-role.sql and before its
+# password is set: every reason it is unfit, at once, in DB_ROLES_WHY.
+db_roles_jobs_fit() { # 0 fit, 1 unfit or missing (DB_ROLES_JOBS_MISSING=1 when missing), 2 could not ask
+  local out rc super createrole createdb replication bypass login inherit members held owns elsewhere public granted named dbcreate pubcreate lookup reason joined
+  local -a unfit=()
+  DB_ROLES_WHY=''
+  DB_ROLES_JOBS_MISSING=''
+  out=$("${COMPOSE[@]}" exec -T postgres psql -X -q -At -F '|' -U "$DB_ROLES_OWNER" -d "$DB_ROLES_DB" \
+    -v ON_ERROR_STOP=1 -v jobs_role="$DB_ROLES_JOBS" -v jobs_schema="$DB_ROLES_JOBS_SCHEMA" 2>&1 <<<"$DB_ROLES_JOBS_FIT_SQL") && rc=0 || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    DB_ROLES_WHY="$(db_roles_masked "$out")"
+    return 2
+  fi
+  if [ -z "$out" ]; then
+    DB_ROLES_JOBS_MISSING=1
+    DB_ROLES_WHY="${DB_ROLES_JOBS} is not a role in this database: jobs-role.sql makes it, and the bring-up's data phase runs that"
+    return 1
+  fi
+  IFS='|' read -r super createrole createdb replication bypass login inherit members held owns elsewhere public granted named dbcreate pubcreate lookup <<<"$out"
+  [ "$super" = f ] || unfit+=('it is a superuser, whom row security never binds and who may run programs on the database server')
+  [ "$createrole" = f ] || unfit+=('it may create roles, and so change its own')
+  [ "$createdb" = f ] || unfit+=('it may create databases')
+  [ "$replication" = f ] || unfit+=('it may replicate the whole cluster')
+  [ "$bypass" = f ] || unfit+=("it has BYPASSRLS, so row security would never bind it on a table it were ever granted")
+  [ "$login" = t ] || unfit+=('it cannot log in')
+  [ "$inherit" = f ] || unfit+=("it inherits, so a role it were ever made a member of would lend it that role's rights without SET ROLE")
+  [ "$members" = 0 ] || unfit+=("it belongs to ${members} role(s), whose rights it takes with SET ROLE")
+  [ "$held" = 0 ] || unfit+=("${held:-an unknown number of} role(s) belong to it, and take what it owns with SET ROLE")
+  case "$owns" in
+    t) ;;
+    f) unfit+=("the schema ${DB_ROLES_JOBS_SCHEMA} belongs to another role, so pg-boss would install where it may not") ;;
+    *) unfit+=("there is no schema ${DB_ROLES_JOBS_SCHEMA}: jobs-role.sql makes it") ;;
+  esac
+  [ "$elsewhere" = 0 ] || unfit+=("it owns ${elsewhere:-an unknown number of} object(s) outside ${DB_ROLES_JOBS_SCHEMA}")
+  [ "$public" = 0 ] || unfit+=("it holds a privilege on ${public:-an unknown number of} relation(s) of public, through itself or PUBLIC, where the ledger is")
+  [ "$granted" = 0 ] || unfit+=("${granted:-an unknown number of} privilege(s) on ${DB_ROLES_JOBS_SCHEMA} or in it are granted to another role or PUBLIC, and its tables carry no row security")
+  [ "$named" = 0 ] || unfit+=("${named:-an unknown number of} grant(s) name it (on a table, a column, a schema, a function, a default privilege or the database), and it is given nothing")
+  [ "$dbcreate" = f ] || unfit+=('it may create a schema in this database')
+  [ "$pubcreate" = f ] || unfit+=('it may create in the schema public, where the ledger is')
+  [ "$lookup" = 0 ] || unfit+=("it may call ${lookup:-an unknown number of} function(s) of pgbouncer_auth, which return any role's password verifier")
+  [ "${#unfit[@]}" -eq 0 ] && return 0
+  joined=''
+  for reason in "${unfit[@]}"; do joined+="${joined:+; }${reason}"; done
+  DB_ROLES_WHY="${DB_ROLES_JOBS}: ${joined}"
+  return 1
+}
+
+# The jobs role's password, set the way db_roles_system_set sets the system
+# role's, and every setting on the role cleared with it.
+db_roles_jobs_set() { # db_roles_jobs_set <password>
+  local out rc
+  DB_ROLES_WHY=''
+  if [ -z "${1:-}" ]; then
+    # An empty value would CLEAR the password: Postgres takes '' as none.
+    DB_ROLES_WHY='an empty password was given; nothing was set'
+    return 1
+  fi
+  out=$(DB_ROLES_NEW_JOBS_PASSWORD="$1" \
+    "${COMPOSE[@]}" exec -T -e DB_ROLES_NEW_JOBS_PASSWORD postgres \
+    psql -X -q -U "$DB_ROLES_OWNER" -d "$DB_ROLES_DB" -v ON_ERROR_STOP=1 \
+    -v jobs_role="$DB_ROLES_JOBS" 2>&1 <<<"$DB_ROLES_JOBS_SET_SQL") && rc=0 || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  DB_ROLES_WHY="$(db_roles_masked "$out")"
+  return 1
+}
+
+# The jobs role with its value, over the network and through the pooler: the
+# pooler is where the worker will connect, and the network is its rollback.
+db_roles_jobs_prove() { # db_roles_jobs_prove <password>
+  db_roles_one_prove "$DB_ROLES_JOBS" "${1:-}"
 }
 
 # trigger-db's role, set the way db_roles_set sets the other two, over

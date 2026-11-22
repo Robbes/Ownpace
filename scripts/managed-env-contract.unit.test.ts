@@ -183,6 +183,26 @@ describe('managed.yml cannot demand a variable nothing can supply', () => {
     expect(fn).toContain('socket=/var/run/docker.sock');
   });
 
+  it('seeds the jobs role\'s password before every compose call of a bring-up, `--from` runs too, that key alone (ADR-0054)', () => {
+    // No service reads JOBS_DB_PASSWORD yet; the data phase sets it on ownpace_jobs every run, and
+    // the worker that will put it in JOBS_DATABASE_URL is a later change. So it is in the generator
+    // and in the example, empty, and load_env fills it in when a deploy (`--from data`) finds it missing.
+    expect(generated.has('JOBS_DB_PASSWORD'), 'ensure-env-secrets.sh does not generate JOBS_DB_PASSWORD').toBe(true);
+    expect(/^JOBS_DB_PASSWORD=$/m.test(read('managed.env.example')), 'managed.env.example does not ship JOBS_DB_PASSWORD empty').toBe(true);
+    const boot = read('bootstrap-managed.sh');
+    const loadEnv = /^load_env\(\) \{[\s\S]*?\n\}/m.exec(boot)?.[0] ?? '';
+    const seed = loadEnv.indexOf('  seed_jobs_db_password\n');
+    expect(seed, 'load_env no longer seeds JOBS_DB_PASSWORD').toBeGreaterThan(-1);
+    expect(seed, 'load_env sources the .env before it seeds the key').toBeLessThan(loadEnv.indexOf('. "$ENV_FILE"'));
+    expect(seed, 'load_env asks Compose before it seeds the key').toBeLessThan(loadEnv.indexOf('"${COMPOSE[@]}" config'));
+    const fn = /^seed_jobs_db_password\(\) \{[\s\S]*?\n\}/m.exec(boot)?.[0] ?? '';
+    // Only when it is missing, and only that key: a whole run there would generate the database
+    // passwords that load_env refuses as missing on a real address a few lines further on.
+    expect(fn).toContain('[ -z "$(env_get JOBS_DB_PASSWORD)" ] || return 0');
+    expect(fn).toContain('"${SCRIPT_DIR}/ensure-env-secrets.sh" --only JOBS_DB_PASSWORD');
+    expect(read('ensure-env-secrets.sh')).toMatch(/^ONLY_KEYS=' JOBS_DB_PASSWORD '$/m);
+  });
+
   it('keeps ZITADEL_MASTERKEY on the never-replace list', () => {
     // Not plumbing either. It is the key the identity provider encrypts its own
     // data with, so regenerating it on an instance that holds users strands

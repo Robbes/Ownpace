@@ -13,6 +13,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   one run. On pg-boss the Trigger.dev checks are skipped, each with a line that says so. In their
   place the run fails unless every job it saw completed in pg-boss and no Trigger.dev runner
   started. The worker's log is redacted into the evidence. Trigger.dev runs are checked as before.
+- **The jobs' own database role and schema, made by the managed bring-up; nothing connects as it
+  yet** (workplan 0167 T7, its first part; ADR-0054). `ownpace_jobs` owns the schema `pgboss` and
+  nothing else, is no superuser, has no `BYPASSRLS`, belongs to no role and may read no table of the
+  ledger. The data phase makes both from `jobs-role.sql`, not a migration, refuses a role that is
+  otherwise, sets `.env`'s new `JOBS_DB_PASSWORD` on it (filled in when missing) and proves it over the
+  network and through the pooler. `rotate-db-passwords.sh --check` asks it and `--sync` sets it.
 
 ### Changed
 
