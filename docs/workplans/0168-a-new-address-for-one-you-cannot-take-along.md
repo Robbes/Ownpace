@@ -9,7 +9,8 @@
 table (`claude/ownpace-0168-table`). *Start a migration* gains the step `address` between `to`
 and `check` in §6.2's three cases, and otherwise keeps six steps; the person's page, the team
 screen, the migration page, the confirmed list, the Sharing checklist and the grant and progress
-pages say §6.3's lines, in English and Dutch. Proven: the web unit tests of every page touched and
+pages say §6.3's lines, in English and Dutch. The appliance's confirm page (`GET /`) holds its
+one table through §7's doors: rows added there on its page door, read-only and named on its file door. Proven: the web unit tests of every page touched and
 the UI smoke through the new step at phone width in Dutch (the PR quotes both). Not proven: any of
 it against a running API. Three things are written against shapes no route serves yet, and the PR
 names them: the pass's `lastPass.addressChanged`, the confirmed list's row `address`
