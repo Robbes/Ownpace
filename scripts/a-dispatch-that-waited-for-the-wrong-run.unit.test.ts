@@ -13,8 +13,13 @@
  * - **Never twice.** A dispatch is sent once. On an error or a timeout it
  *   looks for the run before anything else, and when it finds none it stops
  *   and says the outcome is unknown, rather than send it again: two
- *   `images.yml` runs on one tag race for the same version tag, and two
- *   Security Scan runs append the release body twice.
+ *   `images.yml` runs on one tag race for the same version tag. Two Security
+ *   Scan runs no longer attach twice (2026-11-22, a-release-attached-twice:
+ *   the attach adds only what is missing), and the note before re-running a
+ *   half-published scan says so instead of sending anyone to delete a block.
+ *   For Security Scan, only runs Release dispatched (its token's actor,
+ *   `github-actions[bot]`) are reused, waited for or re-run: a person's
+ *   dispatch on the tag is not Release's.
  * - **A failed publisher is re-run, not re-dispatched.** On a tag, a run that
  *   already exists for that commit is reused when it passed, waited for when
  *   it is running, and has its failed jobs re-run when it failed
@@ -111,7 +116,10 @@ function fake(handle: (call: Call, calls: Call[]) => Answer): Client & { calls: 
   };
 }
 
-const run = (over: Partial<Run> = {}): Run => ({
+/** The actor of a run Release dispatched or re-ran: its workflow token's. */
+const RELEASE_BOT = { login: 'github-actions[bot]' };
+type ActedRun = Run & { actor?: { login: string } };
+const run = (over: Partial<ActedRun> = {}): ActedRun => ({
   id: 100,
   run_number: 4800,
   event: 'workflow_dispatch',
@@ -170,6 +178,23 @@ describe('choosing what to do about a publisher on a tag', () => {
     expect(chooseRun([run({ status: 'in_progress', conclusion: null })], C).action).toBe('wait');
     expect(chooseRun([run({ conclusion: 'failure' })], C).action).toBe('rerun');
     expect(chooseRun([run({ conclusion: 'cancelled' })], C).action).toBe('rerun');
+  });
+
+  // 2026-11-22 (the review of #2039): a person's dispatch of Security Scan on
+  // the tag with the image scans is refused at its first step. Were Release's
+  // re-run to choose the newest failed run, it would re-run that refused run,
+  // refused again every time, and never the run Release made. Shaped as
+  // alpha.15's: Release's publish run, then a person's image scan, newer.
+  it("for Security Scan, takes only the runs Release itself dispatched, never a person's", () => {
+    const released = run({ id: 201, path: '.github/workflows/security-scan.yml', conclusion: 'failure', created_at: '2026-11-22T13:40:00Z', actor: RELEASE_BOT });
+    const person = run({ id: 202, path: '.github/workflows/security-scan.yml', conclusion: 'failure', created_at: '2026-11-22T13:47:00Z', actor: { login: 'someone' } });
+    expect(chooseRun([person, released], C, { workflow: 'security-scan.yml' })).toMatchObject({ action: 'rerun', run: { id: 201 } });
+    const greenByPerson = run({ ...person, conclusion: 'success' });
+    expect(chooseRun([greenByPerson, released], C, { workflow: 'security-scan.yml' })).toMatchObject({ action: 'rerun', run: { id: 201 } });
+    expect(chooseRun([person], C, { workflow: 'security-scan.yml' }).action).toBe('dispatch');
+    expect(chooseRun([run({ ...person, status: 'in_progress', conclusion: null })], C, { workflow: 'security-scan.yml' }).action).toBe('dispatch');
+    // The other publishers are as before: a run is a run.
+    expect(chooseRun([person, released], C, { workflow: 'images.yml' })).toMatchObject({ action: 'rerun', run: { id: 202 } });
   });
 });
 
@@ -398,7 +423,7 @@ describe('publishing on the tag', () => {
         return { status: 201 };
       }
       if (call.path.startsWith('actions/workflows/')) {
-        return { status: 200, json: { workflow_runs: [run({ conclusion: 'failure', path: '.github/workflows/security-scan.yml' })] } };
+        return { status: 200, json: { workflow_runs: [run({ conclusion: 'failure', path: '.github/workflows/security-scan.yml', actor: RELEASE_BOT })] } };
       }
       if (call.path === `releases/tags/${V}`) return { status: 200, json: { tag_name: V, body, assets: [] } };
       return {
@@ -409,7 +434,10 @@ describe('publishing on the tag', () => {
     const lines = await publish(api, { ...opts, workflow: 'security-scan.yml', inputs: { image_scans: 'false' } });
     const notes = lines.filter((l) => l.kind === 'note').map((l) => l.sentence).join('\n');
     expect(notes).toMatch(/half-published/);
-    expect(notes).toMatch(/a second generated block/);
+    // Since 2026-11-22 the attach adds only what is missing (a-release-attached-twice):
+    // the note must not send anyone to delete the only block verify counts.
+    expect(notes).toMatch(/adds only what is missing \(docs\/release\.md §3\)/);
+    expect(notes).not.toMatch(/a second generated block|deleted from the release body by hand/);
   });
 });
 

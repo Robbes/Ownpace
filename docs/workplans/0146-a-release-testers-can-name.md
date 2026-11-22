@@ -4,6 +4,20 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, evening: a second Security Scan on a release tag can no longer attach twice.**
+alpha.15's duplicate `bom.json` and doubled body (the entry below) cannot happen again, because
+`security-scan.yml`'s attach now leaves a `bom.json` already on the release (no intended path puts
+one there first: `windows-payload.yml` attaches the zip alone) and leaves a body that already holds
+the generated block, known by the `cosign verify` line verify counts, each saying so in the log; and
+a dispatch with `image_scans` on a tag ref is refused at its first step, its image jobs skipped,
+saying to dispatch it on `main` at the release commit, as `docs/release.md` §4 now says.
+`scripts/a-release-attached-twice.unit.test.ts` runs the attach against a stand-in `gh` and holds
+all three. After review: a `bom.json` verify would refuse is still replaced, the refusal also says
+to make or finish a release with `image_scans` off (as §2 now says), Release re-runs only Security
+Scan runs its own token dispatched (`chooseRun`, so a refused hand dispatch is never the one
+re-run), and its re-run note no longer says a second block is appended. alpha.15's own release is
+left as it is.
+
 **2026-11-22, afternoon: `v0.2.0-alpha.15` is released, its nights waived (T2, T4).** Read from
 GitHub on 2026-11-22. Times are UTC.
 
