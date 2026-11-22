@@ -11,7 +11,7 @@ import { describe, it, expect, onTestFinished } from 'vitest';
 import { fork } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { Writable } from 'node:stream';
-import { ChildRunDied, RunOutOfMemory, runInChild, serveRuns } from './run-in-child.ts';
+import { ChildRunDied, RunOutOfMemory, RunPossiblyOutOfMemory, runInChild, serveRuns } from './run-in-child.ts';
 import { RunTimedOut, settlementFor } from './job-runner.ts';
 
 const FIXTURE = new URL('./__testing__/forked-passes.ts', import.meta.url).href;
@@ -72,7 +72,8 @@ describe('runInChild', () => {
       () => null,
       (e: unknown) => e,
     );
-    // Past the 16 kB head T5's verdict read, which is where this bug hid.
+    // Every warning arrived first, and V8's line past the 16 kB head T5's verdict read.
+    expect(output.stderr.text.match(/^warn: folder \d+ /gm)).toHaveLength(400);
     expect(output.stderr.text.indexOf('FATAL ERROR')).toBeGreaterThan(16_000);
     expect(err).toBeInstanceOf(RunOutOfMemory);
     expect((err as ChildRunDied).verdict).toBe('out-of-memory');
@@ -170,6 +171,61 @@ describe("an error's name survives the process boundary, and decides the retry (
   it('retries what is not an Error at all', () => {
     expect(settlementFor('RunNotRetried')).toBe('failed');
     expect(settlementFor({ name: 'RunNotRetried' })).toBe('failed');
+  });
+});
+
+describe("a run's last words all reach the parent (second review 1)", () => {
+  it('forwards all of 5,000 lines a run wrote just before it answered', async () => {
+    const output = collect();
+    await expect(runInChild(FIXTURE, null, { maxOldSpaceMb: 64, call: 'saysAThousandLines', output })).resolves.toBe('answered');
+    const lines = output.stderr.text.split('\n').filter(Boolean);
+    expect(lines).toHaveLength(5000);
+    expect(lines[4999]).toMatch(/^warn: folder 4999 /);
+  });
+
+  it('forwards a line of 100,000 bytes in prefixed pieces of at most 16 KiB, not held whole (second review 5)', async () => {
+    const output = collect();
+    const run = { queue: 'q-long', runId: '3d2c1b0a-0000-4000-8000-000000000001', attempt: 1 };
+    await runInChild(FIXTURE, null, { maxOldSpaceMb: 64, call: 'writesOneLongLine', run, output });
+    const prefix = `[${run.queue} ${run.runId}] `;
+    const pieces = output.stderr.text.split('\n').filter(Boolean);
+    expect(pieces.length).toBeGreaterThanOrEqual(Math.ceil(100_000 / 16_384));
+    for (const piece of pieces) {
+      expect(piece.startsWith(prefix)).toBe(true);
+      expect(piece.length - prefix.length).toBeLessThanOrEqual(16_384);
+    }
+    expect(pieces.map((piece) => piece.slice(prefix.length)).join('')).toBe('x'.repeat(100_000));
+  });
+});
+
+describe('a run killed from outside is read as a possible out-of-memory kill (second review 3)', () => {
+  const named = { SIGKILL: RunPossiblyOutOfMemory, SIGABRT: RunOutOfMemory } as const;
+  for (const signal of ['SIGKILL', 'SIGABRT'] as const) {
+    it(`by ${signal}: ${named[signal].name}, not retried, as Trigger.dev reads it`, async () => {
+      const output = collect();
+      const pending = runInChild(FIXTURE, null, { maxOldSpaceMb: 64, call: 'holds', output }).then(
+        () => null,
+        (e: unknown) => e,
+      );
+      const deadline = Date.now() + 10_000;
+      const pidOf = (): RegExpExecArray | null => /pid (\d+)/.exec(output.stdout.text);
+      while (!pidOf() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+      process.kill(Number(pidOf()![1]), signal);
+      const err = await pending;
+      expect(err).toBeInstanceOf(named[signal]);
+      expect({ signal: (err as ChildRunDied).signal, settled: settlementFor(err) }).toEqual({ signal, settled: 'deadletter' });
+    });
+  }
+
+  it('one it killed itself (a cancel, or its limit) is not', async () => {
+    const ac = new AbortController();
+    const pending = runInChild(FIXTURE, null, { maxOldSpaceMb: 64, call: 'forever', signal: ac.signal, output: collect() });
+    setTimeout(() => ac.abort(), 200);
+    const err = await pending.then(() => null, (e: unknown) => e);
+    expect(err).not.toBeInstanceOf(RunOutOfMemory);
+    expect(err).not.toBeInstanceOf(RunPossiblyOutOfMemory);
+    expect((err as ChildRunDied).verdict).toBe('killed');
+    expect(settlementFor(err)).toBe('failed');
   });
 });
 

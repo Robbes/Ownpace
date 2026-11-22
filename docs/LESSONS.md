@@ -996,6 +996,10 @@ reading a file drops off its entry by itself.
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 
+### `apps/worker/src/runner/__testing__/a-worker-to-kill.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+
 ### `apps/worker/src/runner/main.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -5123,6 +5127,7 @@ Reads:
 - `apps/worker/src/jobs/stopping-a-pass.ts`
 - `apps/worker/src/jobs/task-pools.ts`
 - `apps/worker/src/runner/__testing__/a-pass-stand-in.ts`
+- `apps/worker/src/runner/__testing__/a-worker-to-kill.ts`
 - `apps/worker/src/runner/main.ts`
 - `apps/worker/src/runner/pg-boss-context.ts`
 - `apps/worker/src/runner/worker.ts`

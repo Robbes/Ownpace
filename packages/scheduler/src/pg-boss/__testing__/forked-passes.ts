@@ -55,9 +55,32 @@ export function throws(payload: { name: string; message: string }): never {
  * verdict comes after it. A heap abort can drop the tail of what the run wrote, so the test asks
  * only that V8's line comes past the 16 kB the parent once kept.
  */
-export function warnsThenRunsAway(): number {
-  for (let i = 0; i < 400; i++) process.stderr.write(`warn: folder ${i} answered 429, waiting before the next page\n`.padEnd(100, '.') + '\n');
+export async function warnsThenRunsAway(): Promise<number> {
+  for (let i = 0; i < 400; i++) process.stderr.write(warning(i));
+  // Out before the runaway, which holds the event loop until V8 gives up.
+  await drained(process.stderr);
   return runaway();
+}
+
+/** One line of 100 bytes, numbered. */
+function warning(i: number): string {
+  return `warn: folder ${i} answered 429, waiting before the next page`.padEnd(99, '.') + '\n';
+}
+
+function drained(stream: NodeJS.WriteStream): Promise<void> {
+  return new Promise((resolve) => stream.write('', () => resolve()));
+}
+
+/** Its last words, 5,000 lines of 100 bytes (far past a pipe's buffer), then an answer: every line must reach the parent. */
+export function saysAThousandLines(): string {
+  for (let i = 0; i < 5000; i++) process.stderr.write(warning(i));
+  return 'answered';
+}
+
+/** One line of 100,000 bytes and no newline, as a run that dumps a document might write. */
+export function writesOneLongLine(): string {
+  process.stderr.write('x'.repeat(100_000));
+  return 'answered';
 }
 
 /** Says its pid, then never ends. */
@@ -80,4 +103,6 @@ serveRuns({
   whoAmI,
   holds,
   warnsThenRunsAway,
+  saysAThousandLines,
+  writesOneLongLine,
 });

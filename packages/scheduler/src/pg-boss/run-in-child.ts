@@ -10,7 +10,8 @@
  *
  * This forks one Node process per run instead, with V8's heap capped. A pass
  * that outgrows the cap dies alone; the worker sees the child's exit, fails
- * that run (to be retried), and carries on. A cancel kills the child outright.
+ * that run as out of memory (not retried, as on Trigger.dev), and carries on.
+ * A cancel kills the child outright.
  *
  * WHAT THE CHILD SAYS GOES TO THE CONTAINER'S OUTPUT, AND NOWHERE ELSE. Every
  * line the child writes to stdout or stderr is forwarded to the parent's own,
@@ -35,7 +36,6 @@
  */
 
 import { fork } from 'node:child_process';
-import { createInterface } from 'node:readline';
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
@@ -74,11 +74,29 @@ export class RunOutOfMemory extends ChildRunDied {
 }
 
 /**
+ * A run whose process was killed by a SIGKILL the runner did not send. Once
+ * the worker's container has a memory limit, the usual sender is the kernel's
+ * out-of-memory killer, so it is not retried: Trigger.dev 4.8.8 reads the same
+ * death as `TASK_PROCESS_MAYBE_OOM_KILLED` and does not retry it
+ * (`shouldRetryError`). A run the runner killed itself (its time limit, a
+ * cancel) is a plain `ChildRunDied`.
+ */
+export class RunPossiblyOutOfMemory extends ChildRunDied {
+  override name = 'RunPossiblyOutOfMemory';
+  constructor(code: number | null, signal: NodeJS.Signals | null, maxOldSpaceMb: number) {
+    super(code, signal, 'killed', maxOldSpaceMb);
+  }
+}
+
+/** The longest piece of one line forwarded at once: a longer line goes in pieces, never held whole. */
+export const FORWARDED_PIECE_CHARS = 16_384;
+
+/**
  * The argument `runInChild` forks with, and the one `serveRuns` waits for. A
  * process with an IPC channel that was not forked by `runInChild` (a test
  * runner's worker, say) is never served, nor killed when its channel closes.
  */
-const RUN_IN_CHILD_MARKER = '--ownpace-run-in-child';
+export const RUN_IN_CHILD_MARKER = '--ownpace-run-in-child';
 
 /**
  * V8's line when the heap is exhausted. Matched on every line, because V8
@@ -143,11 +161,26 @@ export function serveRuns(handlers: Readonly<Record<string, RunFn>>): void {
           err instanceof Error ? { name: err.name, message: err.message } : { name: 'NonError', message: String(err) };
         answer = { ok: false, error };
       }
-      process.send?.(answer, () => process.exit(answer.ok ? 0 : 1));
+      // Exit only once what the run wrote has left this process: the pipes to the
+      // parent do not block, and an exit drops whatever is still waiting in them.
+      process.send?.(answer, () => {
+        void Promise.all([drained(process.stdout), drained(process.stderr)]).finally(() =>
+          process.exit(answer.ok ? 0 : 1),
+        );
+      });
     })();
   });
 }
 
+function drained(stream: NodeJS.WriteStream): Promise<void> {
+  return new Promise((resolve) => stream.write('', () => resolve()));
+}
+
+/**
+ * Forward `from` to `to` a line at a time, each prefixed. A line longer than
+ * `FORWARDED_PIECE_CHARS` goes in pieces of that size, each prefixed too, so a
+ * run that writes one endless line cannot fill the worker's memory with it.
+ */
 function forwardLines(
   from: Readable | null,
   to: Writable,
@@ -155,12 +188,38 @@ function forwardLines(
   onLine: (line: string) => void = () => undefined,
 ): Promise<void> {
   if (!from) return Promise.resolve();
-  const lines = createInterface({ input: from, crlfDelay: Infinity });
-  lines.on('line', (line) => {
-    to.write(`${prefix}${line}\n`);
-    onLine(line);
+  from.setEncoding('utf8');
+  let pending = '';
+  const emit = (line: string): void => {
+    const text = line.endsWith('\r') ? line.slice(0, -1) : line;
+    to.write(`${prefix}${text}\n`);
+    onLine(text);
+  };
+  from.on('data', (chunk: string) => {
+    pending += chunk;
+    for (;;) {
+      const nl = pending.indexOf('\n');
+      if (nl >= 0 && nl <= FORWARDED_PIECE_CHARS) {
+        emit(pending.slice(0, nl));
+        pending = pending.slice(nl + 1);
+      } else if (pending.length > FORWARDED_PIECE_CHARS) {
+        emit(pending.slice(0, FORWARDED_PIECE_CHARS));
+        pending = pending.slice(FORWARDED_PIECE_CHARS);
+      } else break;
+    }
   });
-  return new Promise((resolve) => lines.once('close', resolve));
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      if (pending.length > 0) emit(pending);
+      pending = '';
+      resolve();
+    };
+    from.once('end', finish);
+    from.once('close', finish);
+  });
 }
 
 /**
@@ -191,7 +250,10 @@ export function runInChild(entryUrl: string, payload: unknown, opts: RunInChildO
 
     let answer: Answer | null = null;
     let spawnError: Error | null = null;
+    // Whether the SIGKILL that ends the child was ours (a cancel, the limit) or came from outside.
+    let killedByUs = false;
     const onAbort = (): void => {
+      killedByUs = true;
       child.kill('SIGKILL');
     };
     opts.signal?.addEventListener('abort', onAbort, { once: true });
@@ -212,7 +274,12 @@ export function runInChild(entryUrl: string, payload: unknown, opts: RunInChildO
           return reject(err);
         }
         if (spawnError) return reject(spawnError);
-        if (heapDeath) return reject(new RunOutOfMemory(code, signal, opts.maxOldSpaceMb));
+        // V8 aborts on a heap it cannot grow; its FATAL line can be lost when the pipe was not
+        // drained in time, so SIGABRT alone is read the same way.
+        if (heapDeath || signal === 'SIGABRT') return reject(new RunOutOfMemory(code, signal, opts.maxOldSpaceMb));
+        if (signal === 'SIGKILL' && !killedByUs) {
+          return reject(new RunPossiblyOutOfMemory(code, signal, opts.maxOldSpaceMb));
+        }
         reject(new ChildRunDied(code, signal, signal !== null ? 'killed' : 'exited', opts.maxOldSpaceMb));
       });
     });
