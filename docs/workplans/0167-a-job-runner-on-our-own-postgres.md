@@ -119,6 +119,11 @@ decided one retry question:
   - a run in the worker's own process, stopped with its own error and with an `AbortError`, was
     `RunTimedOut` on attempt 1.
 - `run-in-child.unit.test.ts`: 23 passed, 3 runs in a row; 5 tests are new.
+- **Gates at `61394c9`:**
+  - `pnpm lint` 0 and `pnpm typecheck` 0.
+  - `pnpm test`: 22,375 passed, 40 skipped, and 1 failed. The failure is
+    `every-release-is-a-starting-point`, for this checkout's 5 tags.
+  - The integration file passed 29 of 29 again, in 152.1 s, beside that unit run.
 - **Mutations**, each restored byte for byte. Each of these failed its test:
   - the drain before exit removed;
   - the 16 KiB split removed;
