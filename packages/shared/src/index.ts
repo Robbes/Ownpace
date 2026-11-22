@@ -135,3 +135,6 @@ export * from './calendar-scheduling.ts';
 // Not here: the rule for a host a tenant gives us (0136 T1) builds a BlockList
 // and loads undici as it is imported, and the browser bundle loads this index.
 // Node code imports it as `@openmig/shared/reachable-host`.
+
+// The forms an address takes, and the domains nobody can take along (workplan 0168 T1).
+export * from './address-forms.ts';
