@@ -142,6 +142,42 @@ const Question: React.FC<{
   );
 };
 
+/**
+ * WHERE A NEW ADDRESS GOES, AND WHERE IT DOES NOT (0168 §6.2), in the words
+ * of the step: on *Start a migration*, and on the appliance's confirm page.
+ */
+export const WhereItGoes: React.FC<{ oldAddress: string; newAddress: string }> = ({ oldAddress, newAddress }) => {
+  const t = useT();
+  const shownOld = oldAddress;
+  const shownNew = newAddress;
+  return (
+    <>
+      <div>
+        <h3 className="text-base font-semibold text-gray-900">{t('start.address.goes')}</h3>
+        <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-gray-700 break-words">
+          <Item
+            label={t('start.address.goes.contacts.label')}
+            text={t('start.address.goes.contacts', { old: shownOld, new: shownNew })}
+          />
+          <Item
+            label={t('start.address.goes.calendars.label')}
+            text={t('start.address.goes.calendars', { new: shownNew })}
+          />
+          <Item label={t('start.address.goes.shares.label')} text={t('start.address.goes.shares', { new: shownNew })} />
+        </ul>
+      </div>
+      <div>
+        <h3 className="text-base font-semibold text-gray-900">{t('start.address.not')}</h3>
+        <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-gray-700 break-words">
+          <Item label={t('start.address.not.mail.label')} text={t('start.address.not.mail', { new: shownNew })} />
+          <Item label={t('start.address.not.invitations.label')} text={t('start.address.not.invitations')} />
+          <Item label={t('start.address.not.text.label')} text={t('start.address.not.text')} />
+        </ul>
+      </div>
+    </>
+  );
+};
+
 export const AddressStep: React.FC<{
   proposals: AddressProposals;
   newLogin: string;
@@ -189,28 +225,7 @@ export const AddressStep: React.FC<{
           </ul>
         </div>
       )}
-      <div>
-        <h3 className="text-base font-semibold text-gray-900">{t('start.address.goes')}</h3>
-        <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-gray-700 break-words">
-          <Item
-            label={t('start.address.goes.contacts.label')}
-            text={t('start.address.goes.contacts', { old: shownOld, new: shownNew })}
-          />
-          <Item
-            label={t('start.address.goes.calendars.label')}
-            text={t('start.address.goes.calendars', { new: shownNew })}
-          />
-          <Item label={t('start.address.goes.shares.label')} text={t('start.address.goes.shares', { new: shownNew })} />
-        </ul>
-      </div>
-      <div>
-        <h3 className="text-base font-semibold text-gray-900">{t('start.address.not')}</h3>
-        <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-gray-700 break-words">
-          <Item label={t('start.address.not.mail.label')} text={t('start.address.not.mail', { new: shownNew })} />
-          <Item label={t('start.address.not.invitations.label')} text={t('start.address.not.invitations')} />
-          <Item label={t('start.address.not.text.label')} text={t('start.address.not.text')} />
-        </ul>
-      </div>
+      <WhereItGoes oldAddress={shownOld} newAddress={shownNew} />
       <div>
         <h3 className="text-base font-semibold text-gray-900">{t('start.address.others')}</h3>
         <p className="mt-1 text-sm text-gray-700">{t('start.address.others.line')}</p>
