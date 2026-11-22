@@ -41,8 +41,10 @@
  * `main` and, a YAML rule without taint mode, never reaches the taint
  * analysis's time limit, so it blocks. Semgrep's other limits still hold
  * for it: its per-file time limit (`--timeout`, 5 seconds by default) and a
- * file it could not parse land in its errors, and a note on a file the rule
- * that blocks reads is a scan that did not finish. A spot of it fails this
+ * file it could not parse land in its errors, and a note on a workflow or
+ * action file (`isHome`), or on no file naming the rule that blocks, is a
+ * scan that did not finish. A note on other YAML, the lock file or a compose
+ * file GitHub never runs, is a note. A spot of it fails this
  * job, on a pull request, a push and a dispatch alike, and is marked on its
  * line as an error. No entry excuses it: `KNOWN_FINDINGS` holds none for a
  * rule that blocks, and none is read for one (NOTHING IN THE TREE SWITCHES A
@@ -104,9 +106,12 @@
  * workflow sends to code scanning from a push to `main`. That directory is the
  * runner's own temporary one, opened to that user. It has the network, which
  * the rules' fetch needs, and runs with `--metrics=off` and
- * `--disable-version-check`, so it sends nothing else. With no `.semgrepignore` here, Semgrep's own default
- * leaves out `test/`, `tests/`, `node_modules/`, `dist/` and `build/`; this
- * adds no exclusion of its own.
+ * `--disable-version-check`, so it sends nothing else. With no `.semgrepignore`
+ * here, Semgrep's own built-in ignore list leaves directories out at any
+ * depth, `test/`, `tests/`, `testsuite/`, `node_modules/`, `dist/`, `build/`
+ * and `vendor/` among them (its `Semgrepignore.ml`); it also skips a file
+ * over its size limit, a link, and an extension in a case its languages do
+ * not name. This adds no exclusion of its own.
  *
  * NOTHING IN THE TREE SWITCHES A RULE OFF. Semgrep runs with
  * `--disable-nosem`, so an inline `nosemgrep` comment silences no spot:
@@ -117,7 +122,10 @@
  * (`trackedIgnores`, read with `git ls-files` before anything runs), is a
  * scan that did not finish: one at `.github/` would leave every workflow out,
  * the YAML rule would read nothing, and the rest would still count more than
- * `MIN_FILES`.
+ * `MIN_FILES`. And every workflow and action file the checkout tracks
+ * (`isWorkflowFile`, from the same `git ls-files`) must be among the files
+ * Semgrep scanned (`paths.scanned`): one it left out for any reason above,
+ * which it says nothing of, is a scan that did not finish, said by name.
  *
  * `.mjs` for the reason `audit-advisories.mjs` gives: it runs in a CI step on
  * a bare checkout, with no `node_modules`, and needs no type stripping. Its
@@ -388,12 +396,16 @@ export function readScan(ran, out) {
     level: String(e?.level ?? ''),
     type: Array.isArray(e?.type) ? String(e.type[0]) : String(e?.type ?? ''),
     path: typeof e?.path === 'string' ? e.path : '',
+    // The rule a note is about, when Semgrep names one: a note on no file is still that rule's.
+    rule: typeof e?.rule_id === 'string' ? e.rule_id : '',
     message: firstLine(e?.message),
   }));
   const timing = report.time?.fixpoint_timeouts;
   return {
     version: typeof report.version === 'string' ? report.version : '',
     scanned: report.paths.scanned.length,
+    // Each file Semgrep scanned, by its path from the checkout's root, as git names it.
+    scannedPaths: report.paths.scanned.map((f) => String(f).replace(/^\.\//, '')),
     findings,
     notes,
     timeouts: Array.isArray(timing) ? timing.map(readTimeout) : null,
@@ -450,16 +462,41 @@ export const EXCLUDED = {
 };
 
 /**
- * The language of a file by its extension (EXTENSIONS, less EXCLUDED), or
- * null for a file no language here reads, or no file. A null reads as any
- * rule, wherever it is read.
+ * The language of a file by its extension (EXTENSIONS, less EXCLUDED), as
+ * written: Semgrep matches an extension by its case, so `a.YML` is no YAML
+ * it reads. Null for a file no language here reads, or no file. A null reads
+ * as any rule where a place is read (`timedOut`).
  */
 export function languageOf(path) {
-  const name = (String(path ?? '').split('/').at(-1) ?? '').toLowerCase();
+  const name = String(path ?? '').split('/').at(-1) ?? '';
   const dot = name.lastIndexOf('.');
   if (dot <= 0) return null;
   const ext = name.slice(dot);
   return Object.keys(EXTENSIONS).find((lang) => own(EXTENSIONS, lang).includes(ext) && !own(EXCLUDED, lang).some((x) => name.endsWith(x))) ?? null;
+}
+
+/**
+ * A workflow GitHub runs (`.github/workflows/<name>.yml` or `.yaml`) or a
+ * composite action's `action.yml` or `action.yaml`, anywhere: the files
+ * `run-shell-injection` is there for, since it reads any YAML with `steps:`.
+ * In any case, since a file Semgrep would not read by its extension's case is
+ * still one GitHub may run.
+ */
+export function isWorkflowFile(path) {
+  const p = String(path ?? '');
+  return /^\.github\/workflows\/[^/]+\.ya?ml$/i.test(p) || /(^|\/)action\.ya?ml$/i.test(p);
+}
+
+/**
+ * The files a rule that blocks is there for: a YAML rule's, the workflow and
+ * action files (`isWorkflowFile`), not every YAML file GitHub never runs; any
+ * other rule's, the files of its languages.
+ */
+export function isHome(rule, path) {
+  const languages = Array.isArray(rule.languages) ? rule.languages : [];
+  if (languages.includes('yaml')) return isWorkflowFile(path);
+  const language = languageOf(path);
+  return language !== null && languages.includes(language);
 }
 
 /**
@@ -518,7 +555,7 @@ const namesOf = (list) => {
  * report's path when the scan finished. `stopped` says why there is no reading at all; `timeouts` is null
  * when Semgrep's report has no timing section (READ ONLY IN PART, above).
  */
-export function report({ image, event, stopped = null, version = '', scanned = 0, findings = [], notes = [], timeouts = [], ran = [], sarif = '', uploaded = null, rules = RULES, known = KNOWN_FINDINGS }) {
+export function report({ image, event, stopped = null, version = '', scanned = 0, scannedPaths = null, mustScan = [], findings = [], notes = [], timeouts = [], ran = [], sarif = '', uploaded = null, rules = RULES, known = KNOWN_FINDINGS }) {
   const pr = event === 'pull_request';
   const tag = IMAGE.exec(image)?.[1] ?? '';
   // Each place read only in part, with the rules that can have timed out there.
@@ -546,14 +583,31 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
     for (const id of strays) problems.push(`Semgrep reported ${id}, which RULES does not name`);
     if (scanned < MIN_FILES) problems.push(`Semgrep scanned ${plural(scanned, 'file')}, fewer than the ${plural(MIN_FILES, 'file')} a scan of this tree reads`);
     if (timeouts === null) problems.push("Semgrep's JSON report has no time.fixpoint_timeouts, which --time writes, so what it read only in part is not known");
-    // A note on a file a rule that blocks reads: Semgrep's per-file time limit, or a file it could not
-    // parse, which it reads around. A spot that rule would fail on can be missing there.
+    const blockingRules = rules.filter((r) => r.blocks === true);
+    // A note on a file a rule that blocks is there for (`isHome`): Semgrep's per-file time limit, or a
+    // file it could not parse, which it reads around. A spot that rule would fail on can be missing
+    // there. A note on no file that names a rule that blocks can have been on any of its files.
     for (const n of notes) {
-      const language = n.path ? languageOf(n.path) : null;
-      const readers = language === null ? [] : rules.filter((r) => r.blocks === true && Array.isArray(r.languages) && r.languages.includes(language));
+      const readers = n.path ? blockingRules.filter((r) => isHome(r, n.path)) : blockingRules.filter((r) => n.rule && ruleOf(n.rule, [r]));
       if (readers.length === 0) continue;
       const one = readers.length === 1;
-      problems.push(`Semgrep could not read ${oneLine(n.path)} in full (${oneLine(n.type || n.level || 'a note')}), and ${namesOf(readers)}, which ${one ? 'blocks' : 'block'}, ${one ? 'reads' : 'read'} it: a spot ${one ? 'it' : 'they'} would fail on can be missing there`);
+      const what = `${oneLine(n.type || n.level || 'a note')}`;
+      problems.push(
+        n.path
+          ? `Semgrep could not read ${oneLine(n.path)} in full (${what}), and ${namesOf(readers)}, which ${one ? 'blocks' : 'block'}, ${one ? 'reads' : 'read'} it: a spot ${one ? 'it' : 'they'} would fail on can be missing there`
+          : `Semgrep could not read a file it did not name in full (${what}), and ${namesOf(readers)}, which ${one ? 'blocks' : 'block'}, wrote it: a spot ${one ? 'it' : 'they'} would fail on can be missing`,
+      );
+    }
+    // A workflow or action file the checkout tracks that Semgrep did not scan: a directory its own
+    // ignore list leaves out (build/, vendor/, test/ …), a file over its size limit, a link, an
+    // extension in another case. Semgrep says nothing of any of them.
+    const scannedSet = new Set(scannedPaths ?? []);
+    for (const f of mustScan) {
+      if (scannedSet.has(f)) continue;
+      const readers = blockingRules.filter((r) => isHome(r, f));
+      if (readers.length === 0) continue;
+      const one = readers.length === 1;
+      problems.push(`Semgrep did not scan ${oneLine(f)}, a workflow or action file the checkout tracks, which ${namesOf(readers)}, which ${one ? 'blocks' : 'block'}, ${one ? 'is' : 'are'} there for`);
     }
     for (const t of places) {
       if (t.blocking.length === 0) continue;
@@ -645,7 +699,14 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
       md.push('');
     }
     if (notes.length) {
-      md.push('### Notes', '', 'What Semgrep could not read in full, which it reads around; none stops the scan.', '', '| level | kind | file | what it says |', '| --- | --- | --- | --- |');
+      md.push(
+        '### Notes',
+        '',
+        'What Semgrep could not read in full, which it reads around. A note on a workflow or action file, or on no file naming a rule that blocks, is a scan that did not finish.',
+        '',
+        '| level | kind | file | what it says |',
+        '| --- | --- | --- | --- |',
+      );
       for (const n of notes) md.push(`| ${cell(n.level)} | ${cell(n.type)} | ${n.path ? `\`${cell(n.path)}\`` : ''} | ${cell(n.message)} |`);
       md.push('');
     }
@@ -726,7 +787,8 @@ export function trackedIgnores(root, git = realGit) {
     const why = ran.error ? `git could not be run (${ran.error.code ?? ran.error.message})` : `git exited ${ran.status}${firstLine(ran.stderr) ? `: ${firstLine(ran.stderr)}` : ''}`;
     return { error: `git could not list the files the checkout tracks (${why}), so whether one leaves files out of the scan is not known` };
   }
-  return { ignores: String(ran.stdout ?? '').split('\0').filter((f) => f === '.semgrepignore' || f.endsWith('/.semgrepignore')) };
+  const tracked = String(ran.stdout ?? '').split('\0').filter(Boolean);
+  return { tracked, ignores: tracked.filter((f) => f === '.semgrepignore' || f.endsWith('/.semgrepignore')) };
 }
 
 /** Pulls the image, in `PULL_DELAYS.length + 1` attempts. Null once pulled, or why it was not. */
@@ -773,7 +835,9 @@ export async function run({
   for (const file of [JSON_REPORT, SARIF_REPORT, CODE_SCANNING_REPORT]) rmSync(join(out, file), { force: true });
   const pulled = await pull(image, docker, wait);
   if (pulled) return report({ ...base, stopped: pulled });
-  return report({ ...base, ...readScan(docker(scanArgs(image, { root, out })), out) });
+  // Every workflow and action file the checkout tracks must be among what Semgrep scanned.
+  const mustScan = tracked.tracked.filter((f) => isWorkflowFile(f));
+  return report({ ...base, mustScan, ...readScan(docker(scanArgs(image, { root, out })), out) });
 }
 
 async function main() {

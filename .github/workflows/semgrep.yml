@@ -22,9 +22,13 @@
 # limit, so a spot of it fails this job, on every event, as an error on its
 # line. Nothing in the tree can excuse or hide one: no KNOWN_FINDINGS entry,
 # no inline nosemgrep comment (Semgrep runs with --disable-nosem), and no
-# .semgrepignore, which the checkout may not track. Semgrep's own per-file
-# time limit and a file it could not parse are notes in its report, and a
-# note on a file the rule that blocks reads is a scan that did not finish.
+# .semgrepignore, which the checkout may not track. Every workflow and action
+# file the checkout tracks must be among what Semgrep scanned, so one its own
+# ignore list leaves out (build/, vendor/, test/ and the rest), one over its
+# size limit, a link or an upper-case extension is a scan that did not
+# finish. Semgrep's per-file time limit and a file it could not parse are
+# notes in its report, and a note on a workflow or action file, or on no file
+# naming the rule that blocks, is a scan that did not finish.
 # The other seven report only: their spots are listed and fail nothing.
 # react-href-var reports nothing on main either, but it is a taint rule over
 # JavaScript and TypeScript, and main's run at 0683eb04 (45025731298) read ten

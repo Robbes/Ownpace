@@ -552,8 +552,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   Held by `scripts/a-dockerfile-that-ends-as-root.unit.test.ts`, which runs the report against a
   stubbed docker.
 - `semgrep.yml` — on every pull request, on a push to `main` and on dispatch, on a GitHub-hosted
-  runner, to be a required check by its job's name, `Semgrep`, once the owner adds it to branch
-  protection (workplan 0163 T3 and T5, the owner's decision D3 of 2026-11-20):
+  runner, to be a required check by its job's name, `Semgrep`, once the owner adds it to the
+  repository ruleset that holds `main`'s required checks (workplan 0163 T3 and T5, the owner's
+  decision D3 of 2026-11-20):
   Semgrep 1.186.0, by the tag and index digest `SEMGREP_IMAGE` names, over the checkout, mounted
   read-only, with eight rules fetched from Semgrep's registry by id (`RULES` in
   `scripts/semgrep-report.mjs`; no copy of a rule is kept here) for the classes an outside,
@@ -565,9 +566,13 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   on `main` and, a YAML rule without taint mode, never reaches the taint analysis's time limit,
   fails it on every event, marked as an error on its line. Nothing in the tree can excuse or hide
   one: no `KNOWN_FINDINGS` entry, no inline `nosemgrep` comment (Semgrep runs with
-  `--disable-nosem`), and no `.semgrepignore`, which the checkout may not track at any depth.
+  `--disable-nosem`), and no `.semgrepignore`, which the checkout may not track at any depth. Every
+  workflow and action file the checkout tracks must be among what Semgrep scanned, so one its
+  built-in ignore list leaves out (`build/`, `vendor/`, `test/` and the rest, at any depth), one
+  over its size limit, a link or an upper-case extension is a scan that did not finish, by name.
   Semgrep's per-file time limit and a file it could not parse are notes in its report; a note on a
-  file the rule that blocks reads is a scan that did not finish. The other rules report
+  workflow or action file, or on no file naming the rule that blocks, is a scan that did not
+  finish, and a note on other YAML (the lock file, compose files) is a note. The other rules report
   only: a spot of one that may block, which no entry explains, is a warning on its line and fails
   nothing. `react-href-var` reports nothing on `main` either and does not block yet: it is a taint
   rule over JavaScript and TypeScript, and `main`'s runs read places only in part where it timed

@@ -113,6 +113,8 @@ export interface Note {
   readonly level: string;
   readonly type: string;
   readonly path: string;
+  /** The rule the note names, or empty. */
+  readonly rule?: string;
   readonly message: string;
 }
 
@@ -141,7 +143,13 @@ export declare const EXCLUDED: Readonly<Record<Language, ReadonlyArray<string>>>
 export type Git = (args: string[]) => Ran;
 
 /** Each `.semgrepignore` the checkout tracks, at any depth, or why git could not say. */
-export declare function trackedIgnores(root: string, git?: Git): { ignores: string[]; error?: undefined } | { error: string; ignores?: undefined };
+export declare function trackedIgnores(root: string, git?: Git): { tracked: string[]; ignores: string[]; error?: undefined } | { error: string; tracked?: undefined; ignores?: undefined };
+
+/** A workflow GitHub runs or a composite action's file, in any case: what `run-shell-injection` is there for. */
+export declare function isWorkflowFile(path: string): boolean;
+
+/** The files a rule that blocks is there for: a YAML rule's workflow and action files, else its languages' files. */
+export declare function isHome(rule: Rule, path: string): boolean;
 
 /** A file's language by its extension, or null. */
 export declare function languageOf(path: string): Language | null;
@@ -158,6 +166,10 @@ export interface Scan {
   readonly stopped?: string;
   readonly version?: string;
   readonly scanned?: number;
+  /** Each file Semgrep scanned, by its path from the checkout's root. */
+  readonly scannedPaths?: ReadonlyArray<string> | null;
+  /** The workflow and action files the checkout tracks, each of which a finished scan scanned. */
+  readonly mustScan?: ReadonlyArray<string>;
   readonly findings?: ReadonlyArray<Finding>;
   readonly notes?: ReadonlyArray<Note>;
   /** The places read only in part, or null when the report has no timing section. */
