@@ -2211,7 +2211,8 @@ describe("the stack's memory, sampled from the start in both runners, is read ou
   });
 
   it('a sampler that failed says so in one line, and the verdict is not touched', () => {
-    for (const [samples, err] of [['', ''], ['', 'Cannot connect to the Docker daemon'], ['x\ty\t1MiB\n', 'permission denied']]) {
+    const cases: Array<[string, string]> = [['', ''], ['', 'Cannot connect to the Docker daemon'], ['x\ty\t1MiB\n', 'permission denied']];
+    for (const [samples, err] of cases) {
       const r = readout(samples, '', err);
       expect(r.fail).toBe('0');
       const said = r.out.split('\n').filter((l) => l.startsWith('memory:'));
