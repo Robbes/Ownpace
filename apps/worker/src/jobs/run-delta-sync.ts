@@ -28,6 +28,7 @@ import {
 import { budgetPauseToReason, HALT_IN_WORDS } from '@openmig/shared';
 import { passStepBefore, whyThisDataTypeStops, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
 import { leavesAReference, planeErrorFor, planeErrorForEach, type RecordedFailure } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { announceFirstCopy } from './the-first-copy-email.ts';
 import type {
   TenantId,
@@ -153,7 +154,7 @@ async function autoApplyOpenRelocations(
 // Job input schema
 const SYNC_DOMAINS = ['file', 'email', 'calendar', 'contact', 'task'] as const;
 
-const DeltaSyncJobSchema = z.object({
+export const DeltaSyncJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
   domains: z.array(z.enum(SYNC_DOMAINS)).optional(),
@@ -194,7 +195,7 @@ const DeltaSyncJobSchema = z.object({
   forceFullScan: z.union([z.boolean(), z.array(z.enum(SYNC_DOMAINS))]).optional(),
 });
 
-type DeltaSyncJobPayload = z.infer<typeof DeltaSyncJobSchema>;
+export type DeltaSyncJobPayload = z.infer<typeof DeltaSyncJobSchema>;
 
 // Its pools, from the one module that builds a per-tenant task's (0138 T1):
 // the tenant pool on APP_DATABASE_URL, app_user, under row security, and the
@@ -221,21 +222,14 @@ const { tenant: pool } = openTaskPools();
 // pass serializes the next one instead of overlapping it (0022 T2).
 const deltaSyncQueue = queue({ name: 'delta-sync', concurrencyLimit: 1 });
 
-// Register the job with Trigger.dev
-export const runDeltaSync = schemaTask({
-  id: 'run-delta-sync',
-  description: 'Delta Sync',
-  schema: DeltaSyncJobSchema,
-  queue: deltaSyncQueue,
-  // THE MACHINE A COPY PASS RUNS ON (workplan 0143 T1 step 2): half a CPU and
-  // 512 MB, of which V8 gets 410. Named here because this task copies, for
-  // the tick, *Sync now*, `/start` and a cutover's final sync alike.
-  // Measured 2026-09-28 on the owner's Dropbox pass, the first after #1328:
-  // 307 MiB at its peak, copying a 409 MB file, and 120 to 160 MiB while it
-  // was not copying (0150, Status). Mail's worst case (0143 §3: four bodies
-  // held whole) is not measured yet; that is 0143 T9.
-  machine: 'small-1x',
-  run: leavesAReference('run-delta-sync', async (payload: unknown, context) => {
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const runDeltaSyncRun = leavesAReference(
+  'run-delta-sync',
+  async (payload: unknown, context: RunContext) => {
     // Type assertion since schemaTask validates the payload
     const typedPayload = payload as DeltaSyncJobPayload;
     
@@ -297,12 +291,11 @@ export const runDeltaSync = schemaTask({
 
     // Open the run-ledger row up front so an in-flight run is visible in the UI
     // and a crash leaves a `running` row rather than no trace at all.
-    // Absent rather than wrong if the shape ever changes again: an absent
-    // handle degrades to the age-based path, a wrong one points the quiesce at
-    // somebody else's run.
-    const contextRunId = (context as { ctx?: { run?: { id?: unknown } } } | undefined)?.ctx?.run
-      ?.id;
-    const orchestratorRef = typeof contextRunId === 'string' ? contextRunId : undefined;
+    // The runner's own id for this run, as the runner handed it
+    // (run-context.ts). Absent rather than wrong if the shape ever changes
+    // again: an absent handle degrades to the age-based path, a wrong one
+    // points the quiesce at somebody else's run.
+    const orchestratorRef = context.runId;
     const runId = await withTenant(pool, tenantId, async (db) =>
       new RunStore(db).startRun({
         tenantId,
@@ -312,7 +305,7 @@ export const runDeltaSync = schemaTask({
         // The orchestrator's own id for this run. It used to be left unset —
         // "wire it when the v4 task model lands" — and v4 is what we run now
         // (`ctx.run.id`, read from @trigger.dev/core's TaskRunContext rather
-        // than guessed).
+        // than guessed, in run-context.ts; on pg-boss, the job's id).
         //
         // It is not bookkeeping. Without a handle, a row that says `running`
         // is an unfalsifiable claim: the erasure quiesce (0085 T8) cannot ask
@@ -1188,5 +1181,22 @@ export const runDeltaSync = schemaTask({
       // wrongly called successful costs the truth.
       await closeRun('failed', 1);
     }
-  }),
+  },
+);
+
+// Register the job with Trigger.dev
+export const runDeltaSync = schemaTask({
+  id: 'run-delta-sync',
+  description: 'Delta Sync',
+  schema: DeltaSyncJobSchema,
+  queue: deltaSyncQueue,
+  // THE MACHINE A COPY PASS RUNS ON (workplan 0143 T1 step 2): half a CPU and
+  // 512 MB, of which V8 gets 410. Named here because this task copies, for
+  // the tick, *Sync now*, `/start` and a cutover's final sync alike.
+  // Measured 2026-09-28 on the owner's Dropbox pass, the first after #1328:
+  // 307 MiB at its peak, copying a 409 MB file, and 120 to 160 MiB while it
+  // was not copying (0150, Status). Mail's worst case (0143 §3: four bodies
+  // held whole) is not measured yet; that is 0143 T9.
+  machine: 'small-1x',
+  run: onTriggerDev(runDeltaSyncRun),
 });

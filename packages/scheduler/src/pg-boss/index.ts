@@ -5,3 +5,5 @@
 // `/in-process` loads pg-boss.
 export * from './job-runner.ts';
 export * from './run-in-child.ts';
+// The jobs' queues (0167 T6): data, which imports nothing.
+export * from './catalog.ts';
