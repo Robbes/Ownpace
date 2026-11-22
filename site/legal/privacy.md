@@ -1079,6 +1079,10 @@ A migration touches people who never signed up with us. This is what we hold abo
   joined. Each gets an email from support@ownpace.eu that says who invited them to which
   organisation and where to sign in, and again only if you choose to send it again. A copy of
   each such email stays in our support mailbox for as long as §9 says (§4.5).
+- **The addresses that change.** When you tell us that an address moves to a new one, for you or
+  someone moving with you, we keep both addresses and who confirmed it, and use them only to
+  correct those addresses in the contacts, calendars and shares we copy for your organisation.
+  Your mail is never changed.
 - **People who report a link** they were sent: see §4.5.
 - **Correspondents, and everyone else in your mail, contacts and calendars**: only what §4.2
   keeps about each item. Their name or address can appear there in a subject, as a contact's
@@ -1392,6 +1396,7 @@ target. We show you the target before anything is written.
 | The migration ledger (§4.2), and what each migration keeps beside it, such as the list of what was shared (§4.6) | Until you delete the migration; then deleted with it. Otherwise until your data is erased. |
 | The count when you review your migration (§4.3) | With the migration it was made for: until you delete that migration, or your data is erased. |
 | What belongs to your organisation rather than to one migration: its members and invitations, the distribution lists a migration found, and the audit log of who did what, and when | Until your data is erased, also after you delete the migration that found them. |
+| The addresses that change, for you and the people moving with you, and who confirmed each change (§4.6) | Until you delete that change, or your data is erased. Deleting a person does not delete it. |
 | Which versions of the Alpha conditions, the terms and this policy each member accepted, in which language, and when (§4.4) | Until your data is erased, also after that member has left your organisation, so that it stays on record who agreed to what. |
 | The people you migrate for: each one's name, and an email address if you gave one (§4.6) | Until you delete that person, or your data is erased. Deleting a migration does not delete the person. |
 | The record of each pass: when it ran, and what it counted | During the Alpha: until your data is erased. |

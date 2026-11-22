@@ -4,6 +4,18 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22: T9 drafted by a builder, for the owner's check.** The privacy policy gains the §4.6
+item of §5, word for word in English, and a §9 row beside *"What belongs to your organisation
+rather than to one migration"*: until that change is deleted, or the organisation's data is
+erased; deleting a person does not delete it. The Dutch policy says the same with *u*. The Google
+and Microsoft guides, in both languages, gain a section *A new address, when yours cannot come with
+you* (`#new-address`), and Finish step 4 a line on the automatic reply at the old provider
+(`finish.step4.autoreply`, both locales, with a test). **The policy's version (1.0) and its
+*Last updated* line are unchanged, for the owner to decide**, and so are the pins in
+`scripts/a-version-the-tester-accepted.unit.test.ts`: that guard fails on these words until the
+owner says whether they stay 1.0, edited in place, or become 1.1. The guides describe the step of
+T7, which is not built, so they should not reach customers before it.
+
 **2026-11-22: ADR-0055 accepted.** The owner: *"I accept"*. T0 is done; T1 can start.
 
 **2026-11-22: all ten decisions answered.** D7, reworded, answered: *"ok, now I understand. I
@@ -44,7 +56,7 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 | T6 The Sharing checklist reads the table | builder | 📋 **Proposed** | §2.4. Pre-fills the grantee; each press still sends its address. |
 | T7 The screens | builder | 📋 **Proposed** | §6. *Start a migration*'s step, the person's page, the organisation's table, the migration page. |
 | T8 The E2E lane proves it | builder | 📋 **Proposed** | §8. The managed gate and the appliance's e2e: bytes changed where declared, mail byte-identical, no mail sent. |
-| T9 Words outside the app | owner | ⏳ **Waiting** | §5, §7. The privacy policy (D8), the customer guides. |
+| T9 Words outside the app | owner | ⏳ **Drafted by a builder, waiting for the owner's check** | §5, §7. The privacy policy (D8), the customer guides, Finish step 4. Drafted 2026-11-22; the policy's version is the owner's to decide. |
 
 ## 1. The situations
 

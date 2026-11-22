@@ -116,6 +116,10 @@ A Workspace admin can authorise a **service account** to impersonate users, once
 
 **What happens to labels.** Gmail's IMAP surface presents each label as a folder, and those migrate as folders. It also presents three views that contain other folders' messages again — All Mail, Starred and Important. Copying those would duplicate every message once per view it appears in, so Ownpace drops the three views (recognised by Google's own `\All`/`\Flagged`/`\Important` attributes, which survive localisation) and migrates everything real: INBOX, your labels, Sent, Drafts. Trash and Spam are excluded from the copy by default like every other IMAP source, while the bin is still read for deletion evidence. A message carrying several labels appears in several folders, but mail is recognised by its Message-ID, so it is **copied once** — into the folder where a pass first sees it. A later sighting under another label is never re-copied; it can surface in the **Moves** queue as a source-side placement report, which is information, not action. If your labelling is heavy, expect that queue to describe Gmail's labels rather than anything you did.
 
+### A new address, when yours cannot come with you {#new-address}
+
+An address ending in `@gmail.com` or `@googlemail.com` belongs to Google, so it cannot come with you. When the old account has one, **Start a migration** shows a step, **Your new address**, where you say which address replaces it. Contacts that list the old address get the new one first and keep the old one, so old mail still finds the person. Events you organised list you at the new address, so you can still change them. The **Sharing checklist** suggests the new address for you. Your mail is never changed: every message stays exactly as it was sent. Nobody is sent anything. You can change the new address afterwards, on your page.
+
 ### What a Drive migration does not do yet {#drive-not-yet}
 
 Stated here rather than discovered:

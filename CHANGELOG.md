@@ -60,6 +60,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The words outside the app for a new address, drafted for the owner's check** (workplan 0168
+  T9; ADR-0055). The privacy policy's §4.6 names the addresses that change and §9 says how long they
+  are kept, in both languages; its version and date are unchanged, for the owner to decide. The
+  Google and Microsoft guides say what *Start a migration* will do with an address that cannot come
+  along, and Finish step 4 says to turn on an automatic reply at the old provider. Nothing changes
+  an address yet (0168 T1 to T8).
 - **The managed edition's jobs run on pg-boss, on its own Postgres; Trigger.dev is kept installed
   and stopped as the way back** (workplan 0167 T7; ADR-0054, now in force). `managed.yml` gives
   `OWNPACE_JOB_RUNNER` the default `pg-boss` for the API and the worker, and the worker starts with
