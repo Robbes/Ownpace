@@ -63,7 +63,8 @@
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -89,6 +90,8 @@ import {
   timedOut,
   languageOf,
   EXTENSIONS,
+  EXCLUDED,
+  trackedIgnores,
   type Ran,
 } from './semgrep-report.mjs';
 
@@ -99,7 +102,7 @@ const WORKFLOW = '.github/workflows/semgrep.yml';
 const JOB = 'semgrep';
 /** The job's name, which docs/testing.md's required checks name: the check a merge is to wait for (3). */
 const NAME = 'Semgrep';
-/** The rules that block, by their own names: the one that reports nothing on main and cannot time out (3). */
+/** The rules that block, by their own names: the one that reports nothing on main and never reaches the taint analysis's time limit (3). */
 const BLOCKING = ['run-shell-injection'];
 /** The scan step's id, whose output names the SARIF report. */
 const STEP_ID = 'semgrep';
@@ -300,7 +303,9 @@ describe('Semgrep in CI, one rule blocking (workplan 0163 T3 and T5, the owner�
     expect(mutate(UPLOAD_IF, "github.event_name != 'workflow_dispatch'")).toMatch(/from a push to main only, never from a pull request/);
     expect(mutate(UPLOAD_IF, "github.event_name == 'push' && steps.semgrep.outputs.sarif != ''")).toMatch(/from a push to main only, never from a pull request/);
     expect(mutate('    name: Semgrep\n', '    name: Semgrep (report only)\n')).toMatch(/the job's name is "Semgrep \(report only\)", not `Semgrep`, the required check's name/);
-    expect(mutate('# ONE RULE BLOCKS (0163 T5). run-shell-injection reports', '# ONE RULE BLOCKS (0163 T5). The YAML rule reports')).toMatch(/does not name run-shell-injection, which blocks/);
+    const header = text.slice(0, text.search(/^name:/m));
+    expect(header.split('run-shell-injection').length - 1, 'the header names the rule that blocks').toBeGreaterThan(0);
+    expect(jobProblems(text.replace(header, header.replaceAll('run-shell-injection', 'the YAML rule'))).join('\n')).toMatch(/does not name run-shell-injection, which blocks/);
     expect(mutate('sarif_file: ${{ steps.semgrep.outputs.sarif }}', 'sarif_file: semgrep.sarif')).toMatch(/not the report the scan step names/);
     expect(mutate('IT BECOMES BLOCKING rule by rule', 'IT TURNS')).toMatch(/does not say when the other rules become blocking/);
     expect(mutate('detect-non-literal-regexp and detect-redos, never do', 'the ReDoS ones, never do')).toMatch(/does not name detect-non-literal-regexp/);
@@ -501,7 +506,10 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exits)'
       expect(said).toContain(flag);
     }
     expect(SEMGREP_USER).toBe('1000:1000');
-    expect(args.slice(args.indexOf(image), args.indexOf(image) + 7)).toEqual([image, 'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet', '--time']);
+    expect(args.slice(args.indexOf(image), args.indexOf(image) + 8)).toEqual([image, 'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet', '--time', '--disable-nosem']);
+    // No inline `nosemgrep` comment silences a spot: without --disable-nosem Semgrep drops it from the JSON report this reads.
+    expect(args).toContain('--disable-nosem');
+    expect(said).not.toContain('--enable-nosem');
     expect(args.slice(-2)).toEqual([`--json-output=/out/${JSON_REPORT}`, `--sarif-output=/out/${SARIF_REPORT}`]);
     // This decides what blocks, and Semgrep excludes nothing of its own: no --error, no --exclude, no baseline.
     for (const flag of ['--error', '--exclude', '--include', '--baseline-commit', '--severity']) expect(said).not.toContain(flag);
@@ -722,6 +730,117 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exits)'
     expect(out.markdown).toContain('| warn | PartialParsing | `apps/web/src/a.tsx` | Syntax error at line apps/web/src/a.tsx:3: |');
   });
 
+  it('reads a note on a file a rule that blocks reads as a scan that did not finish, on every event, and a note elsewhere as a note', async () => {
+    // Semgrep's per-file time limit and a file it could not parse land in its errors, never as a time-out of the taint analysis.
+    const cases = [
+      { code: 3, level: 'warn', type: ['Timeout', []], path: '.github/workflows/ci.yml', rule_id: 'yaml.github-actions.security.run-shell-injection.run-shell-injection', message: 'Timeout when running run-shell-injection on .github/workflows/ci.yml' },
+      { code: 3, level: 'warn', type: ['Syntax error', []], path: '.github/workflows/a-broken.yaml', message: 'Syntax error at line .github/workflows/a-broken.yaml:3' },
+    ];
+    for (const note of cases) {
+      for (const event of ['pull_request', 'push']) {
+        const out = await at(event, stub(reports(reportOnly, { notes: [note] })));
+        expect(out.code, `${note.path}, ${event}`).toBe(1);
+        expect(out.sarif, note.path).toBe('');
+        expect(out.markdown.split('### The scan did not finish')[1] ?? '', note.path).toMatch(
+          new RegExp(`Semgrep could not read ${note.path.replace(/\./g, '\\.')} in full \\(${note.type[0]}\\), and run-shell-injection, which blocks, reads it`),
+        );
+        expect(out.markdown, note.path).toContain(`| ${note.type[0]} | \`${note.path}\` |`);
+      }
+    }
+    // A note with no file, or on a file only rules that report read: listed, and the scan finished.
+    for (const note of [
+      { code: 3, level: 'warn', type: ['Timeout', []], path: 'apps/web/src/a.tsx', message: 'Timeout' },
+      { code: 3, level: 'warn', type: ['Other', []], message: 'A note on no file' },
+    ]) {
+      const out = await at('push', stub(reports(reportOnly, { notes: [note] })));
+      expect(out.code, JSON.stringify(note)).toBe(0);
+      expect(out.markdown).not.toContain('### The scan did not finish');
+    }
+  });
+
+  it('runs nothing, and fails every event, when the checkout tracks a .semgrepignore at any depth, or git cannot list what it tracks', async () => {
+    for (const tracked of [['.semgrepignore'], ['apps/api/src/x.ts', '.github/.semgrepignore'], ['deploy/compose/a/.semgrepignore']]) {
+      for (const event of ['pull_request', 'push']) {
+        const s = stub(reports(reportOnly));
+        const out = reportsDir();
+        const r = await run({ root: REPO_ROOT, env: { SEMGREP_IMAGE: image, GITHUB_EVENT_NAME: event }, docker: s.docker, wait: s.wait, out, git: () => ({ status: 0, stdout: `${tracked.join('\0')}\0`, stderr: '' }) });
+        expect(s.calls, tracked.join(' ')).toEqual([]);
+        expect(r.code, `${tracked.join(' ')}, ${event}`).toBe(1);
+        const ignore = tracked.find((t) => t.endsWith('.semgrepignore'))!;
+        expect(r.markdown.split('### The scan did not finish')[1] ?? '').toContain(`the checkout tracks ${ignore}, which would leave out of the scan files Semgrep reads, the rule that blocks among them`);
+      }
+    }
+    const s = stub(reports(reportOnly));
+    const r = await run({ root: REPO_ROOT, env: { SEMGREP_IMAGE: image, GITHUB_EVENT_NAME: 'pull_request' }, docker: s.docker, wait: s.wait, out: reportsDir(), git: () => ({ status: 128, stdout: '', stderr: 'fatal: not a git repository' }) });
+    expect(s.calls).toEqual([]);
+    expect(r.code).toBe(1);
+    expect(r.markdown).toContain('git could not list the files the checkout tracks (git exited 128: fatal: not a git repository)');
+  });
+
+  it('exits as its report says when run as the workflow runs it, a docker on PATH standing in for the real one, and 1 when it faults', () => {
+    const dir = reportsDir();
+    const bin = join(dir, 'bin');
+    mkdirSync(bin);
+    // A docker that pulls, and whose run copies the reports in STUB_REPORTS into the directory mounted at /out.
+    writeFileSync(
+      join(bin, 'docker'),
+      [
+        '#!/usr/bin/env node',
+        "const { copyFileSync } = require('node:fs');",
+        "const { join } = require('node:path');",
+        'const args = process.argv.slice(2);',
+        "if (args[0] === 'run') {",
+        "  const mount = args.filter((a, i) => args[i - 1] === '--volume').find((v) => v.endsWith(':/out'));",
+        "  const out = mount.slice(0, mount.lastIndexOf(':/out'));",
+        `  for (const f of ['${JSON_REPORT}', '${SARIF_REPORT}']) copyFileSync(join(process.env.STUB_REPORTS, f), join(out, f));`,
+        '}',
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    const reportsOf = (spots: ReadonlyArray<Spot>) => {
+      const at = mkdtempSync(join(dir, 'reports-'));
+      const written = reports(spots);
+      writeFileSync(join(at, JSON_REPORT), JSON.stringify(written.json));
+      writeFileSync(join(at, SARIF_REPORT), JSON.stringify(written.sarif));
+      return at;
+    };
+    const asTheWorkflowRunsIt = (env: Record<string, string | undefined>) => {
+      const temp = mkdtempSync(join(dir, 'runner-'));
+      const summary = join(temp, 'summary.md');
+      const output = join(temp, 'output');
+      const ran = spawnSync(process.execPath, [join(REPO_ROOT, 'scripts/semgrep-report.mjs')], {
+        encoding: 'utf8',
+        env: { PATH: `${bin}:${process.env.PATH ?? ''}`, HOME: process.env.HOME, RUNNER_TEMP: temp, GITHUB_STEP_SUMMARY: summary, GITHUB_OUTPUT: output, GITHUB_EVENT_NAME: 'pull_request', SEMGREP_IMAGE: image, ...env },
+      });
+      return { ...ran, summary: existsSync(summary) ? readFileSync(summary, 'utf8') : '', output: existsSync(output) ? readFileSync(output, 'utf8') : '' };
+    };
+    // A spot of the rule that blocks: 1, on a pull request, with the summary and the SARIF for the upload written.
+    const blocked = asTheWorkflowRunsIt({ STUB_REPORTS: reportsOf(everyRule) });
+    expect(blocked.status, blocked.stdout + blocked.stderr).toBe(1);
+    expect(blocked.stdout).toContain('::error::Semgrep: 1 spot of run-shell-injection, which blocks (workplan 0163 T5); each is marked on its line.');
+    expect(blocked.summary).toContain('**1 spot of a rule that blocks: this job fails.**');
+    expect(blocked.output).toMatch(new RegExp(`^sarif=.*${CODE_SCANNING_REPORT.replace(/\./g, '\\.')}\n$`));
+    // Only the rules that report found spots: 0.
+    const clean = asTheWorkflowRunsIt({ STUB_REPORTS: reportsOf(reportOnly), GITHUB_EVENT_NAME: 'push' });
+    expect(clean.status, clean.stdout + clean.stderr).toBe(0);
+    expect(clean.stdout).toContain('No rule that blocks found a spot.');
+    // No image to run: 1, on a pull request too, and docker never asked.
+    const none = asTheWorkflowRunsIt({ SEMGREP_IMAGE: undefined });
+    expect(none.status).toBe(1);
+    expect(none.stdout).toContain('::error::Semgrep: the scan did not finish');
+    // A fault (the runner's temporary directory is a file, so the reports' directory cannot be made): 1, on a pull request too.
+    const file = join(dir, 'a-file');
+    writeFileSync(file, '');
+    const fault = asTheWorkflowRunsIt({ STUB_REPORTS: reportsOf(reportOnly), RUNNER_TEMP: file });
+    expect(fault.status).toBe(1);
+    expect(fault.stdout).toMatch(/^::error::semgrep-report stopped: /m);
+  });
+
+  it('reads this checkout as tracking no .semgrepignore', () => {
+    expect(trackedIgnores(REPO_ROOT)).toEqual({ ignores: [] });
+  });
+
   it('lists each place Semgrep read only in part, marks one where a rule that may block can have timed out, and fails nothing when no rule that blocks can have (7)', async () => {
     const [regexp] = RULES;
     const redirect = RULES.find((r) => nameOf(r.id) === 'js-open-redirect-from-function')!;
@@ -813,11 +932,16 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exits)'
   });
 
   it('reads a file by its extension as Semgrep does, and a place as read by the rules whose languages include its file (7)', () => {
-    expect(EXTENSIONS).toEqual({ javascript: ['.js', '.jsx', '.cjs', '.mjs'], typescript: ['.ts', '.tsx', '.cts', '.mts'], yaml: ['.yml', '.yaml'] });
+    // Semgrep 1.186.0's lang.json (its semgrep_interfaces at a5844e7c): each language's extensions, and the ones it leaves out.
+    expect(EXTENSIONS).toEqual({ javascript: ['.cjs', '.js', '.jsx', '.mjs'], typescript: ['.ts', '.tsx'], yaml: ['.yml', '.yaml'] });
+    expect(EXCLUDED).toEqual({ javascript: ['.min.js'], typescript: ['.d.ts'], yaml: [] });
     const said: Array<[string, string | null]> = [
       ['apps/web/src/pages/Docs.tsx', 'typescript'],
       ['scripts/a-guard.unit.test.ts', 'typescript'],
-      ['scripts/semgrep-report.d.mts', 'typescript'],
+      ['scripts/semgrep-report.d.mts', null],
+      ['scripts/a.cts', null],
+      ['apps/web/src/vite-env.d.ts', null],
+      ['site/vendor/a.min.js', null],
       ['scripts/semgrep-report.mjs', 'javascript'],
       ['site/a.JS', 'javascript'],
       ['.github/workflows/ci.yml', 'yaml'],

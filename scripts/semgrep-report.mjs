@@ -38,11 +38,15 @@
  * blocking once it reports nothing on `main` and none of its time-outs can
  * leave a scan unfinished there, one at a time, each in a pull request that
  * says so (`blocks` in `RULES`). `run-shell-injection` reports nothing on
- * `main` and, a YAML rule without taint mode, cannot time out, so it
- * blocks. A spot of it fails this job, on a pull request, a push and a
- * dispatch alike, and is marked on its line as an error. No entry excuses
- * it: `KNOWN_FINDINGS` holds none for a rule that blocks, and none is read
- * for one. Every other rule reports only: its spots are listed, the ones no
+ * `main` and, a YAML rule without taint mode, never reaches the taint
+ * analysis's time limit, so it blocks. Semgrep's other limits still hold
+ * for it: its per-file time limit (`--timeout`, 5 seconds by default) and a
+ * file it could not parse land in its errors, and a note on a file the rule
+ * that blocks reads is a scan that did not finish. A spot of it fails this
+ * job, on a pull request, a push and a dispatch alike, and is marked on its
+ * line as an error. No entry excuses it: `KNOWN_FINDINGS` holds none for a
+ * rule that blocks, and none is read for one (NOTHING IN THE TREE SWITCHES A
+ * RULE OFF, below). Every other rule reports only: its spots are listed, the ones no
  * entry explains marked on their lines as warnings, and they fail nothing.
  * Semgrep itself runs without `--error`; this decides.
  *
@@ -62,8 +66,13 @@
  * the pinned release, a named rule it did not run, a rule it ran that is not
  * named, fewer than `MIN_FILES` files scanned, or a place it read only in
  * part where a rule that blocks can have timed out (READ ONLY IN PART,
- * below). The rules are fetched from Semgrep's registry as the job runs, so
- * a registry that does not answer fails a pull request until a re-run.
+ * below), a note on a file a rule that blocks reads, a `.semgrepignore` the
+ * checkout tracks, or git not listing what it tracks. The rules are fetched
+ * from Semgrep's registry by id as the job runs, not pinned: a registry that
+ * does not answer fails a pull request until a re-run; a rule renamed or
+ * withdrawn upstream fails every pull request, and a re-run does not help;
+ * and an upstream edit to the rule that blocks changes what blocks with no
+ * change here.
  *
  * READ ONLY IN PART. Semgrep's taint analysis gives each function, and each
  * file's top level, a time limit of its own. A rule that reaches it there
@@ -98,6 +107,17 @@
  * `--disable-version-check`, so it sends nothing else. With no `.semgrepignore` here, Semgrep's own default
  * leaves out `test/`, `tests/`, `node_modules/`, `dist/` and `build/`; this
  * adds no exclusion of its own.
+ *
+ * NOTHING IN THE TREE SWITCHES A RULE OFF. Semgrep runs with
+ * `--disable-nosem`, so an inline `nosemgrep` comment silences no spot:
+ * without it, Semgrep leaves such a spot out of the JSON report this reads
+ * (its SARIF keeps it, marked suppressed), and a pull request could switch
+ * the rule that blocks off in the line it adds, as `zizmor.yml` refuses with
+ * `--no-ignores`. And a `.semgrepignore` the checkout tracks, at any depth
+ * (`trackedIgnores`, read with `git ls-files` before anything runs), is a
+ * scan that did not finish: one at `.github/` would leave every workflow out,
+ * the YAML rule would read nothing, and the rest would still count more than
+ * `MIN_FILES`.
  *
  * `.mjs` for the reason `audit-advisories.mjs` gives: it runs in a CI step on
  * a bare checkout, with no `node_modules`, and needs no type stripping. Its
@@ -311,7 +331,7 @@ export function scanArgs(image, { root, out }, rules = RULES) {
     '--user', SEMGREP_USER,
     '--volume', `${root}:/src:ro`, '--volume', `${out}:/out`, '--workdir', '/src',
     image,
-    'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet', '--time',
+    'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet', '--time', '--disable-nosem',
     ...rules.flatMap((r) => ['--config', `r/${r.id}`]),
     `--json-output=/out/${JSON_REPORT}`,
     `--sarif-output=/out/${SARIF_REPORT}`,
@@ -412,22 +432,34 @@ function readTimeout(entry) {
 }
 
 /**
- * The file extensions of each language a rule names, as Semgrep reads them
- * (its `lang.json`): the extension of a place's file says which rules read it.
+ * The file extensions of each language a rule names, and the ones Semgrep
+ * leaves out of it, as Semgrep 1.186.0's `lang.json` gives them (`exts` and
+ * `excluded_exts`, in its `semgrep_interfaces` at the release's commit
+ * `a5844e7c`, read on 2026-11-22): the extension of a file says which rules
+ * read it.
  */
 export const EXTENSIONS = {
-  javascript: ['.js', '.jsx', '.cjs', '.mjs'],
-  typescript: ['.ts', '.tsx', '.cts', '.mts'],
+  javascript: ['.cjs', '.js', '.jsx', '.mjs'],
+  typescript: ['.ts', '.tsx'],
   yaml: ['.yml', '.yaml'],
 };
+export const EXCLUDED = {
+  javascript: ['.min.js'],
+  typescript: ['.d.ts'],
+  yaml: [],
+};
 
-/** The language of a file by its extension (EXTENSIONS), or null for one none names, or no file. */
+/**
+ * The language of a file by its extension (EXTENSIONS, less EXCLUDED), or
+ * null for a file no language here reads, or no file. A null reads as any
+ * rule, wherever it is read.
+ */
 export function languageOf(path) {
-  const name = String(path ?? '').split('/').at(-1) ?? '';
+  const name = (String(path ?? '').split('/').at(-1) ?? '').toLowerCase();
   const dot = name.lastIndexOf('.');
   if (dot <= 0) return null;
-  const ext = name.slice(dot).toLowerCase();
-  return Object.keys(EXTENSIONS).find((lang) => own(EXTENSIONS, lang).includes(ext)) ?? null;
+  const ext = name.slice(dot);
+  return Object.keys(EXTENSIONS).find((lang) => own(EXTENSIONS, lang).includes(ext) && !own(EXCLUDED, lang).some((x) => name.endsWith(x))) ?? null;
 }
 
 /**
@@ -514,6 +546,15 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
     for (const id of strays) problems.push(`Semgrep reported ${id}, which RULES does not name`);
     if (scanned < MIN_FILES) problems.push(`Semgrep scanned ${plural(scanned, 'file')}, fewer than the ${plural(MIN_FILES, 'file')} a scan of this tree reads`);
     if (timeouts === null) problems.push("Semgrep's JSON report has no time.fixpoint_timeouts, which --time writes, so what it read only in part is not known");
+    // A note on a file a rule that blocks reads: Semgrep's per-file time limit, or a file it could not
+    // parse, which it reads around. A spot that rule would fail on can be missing there.
+    for (const n of notes) {
+      const language = n.path ? languageOf(n.path) : null;
+      const readers = language === null ? [] : rules.filter((r) => r.blocks === true && Array.isArray(r.languages) && r.languages.includes(language));
+      if (readers.length === 0) continue;
+      const one = readers.length === 1;
+      problems.push(`Semgrep could not read ${oneLine(n.path)} in full (${oneLine(n.type || n.level || 'a note')}), and ${namesOf(readers)}, which ${one ? 'blocks' : 'block'}, ${one ? 'reads' : 'read'} it: a spot ${one ? 'it' : 'they'} would fail on can be missing there`);
+    }
     for (const t of places) {
       if (t.blocking.length === 0) continue;
       const one = t.blocking.length === 1;
@@ -671,6 +712,23 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
 const realDocker = (args) =>
   spawnSync('docker', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: args[0] === 'pull' ? 300_000 : 600_000 });
 
+/** The real `git`, as `docker` is run. */
+const realGit = (args) => spawnSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60_000 });
+
+/**
+ * Each `.semgrepignore` the checkout at `root` tracks, at any depth (NOTHING
+ * IN THE TREE SWITCHES A RULE OFF, above): `{ ignores }`, or `{ error }` when
+ * git could not say, which is a scan that did not finish as well.
+ */
+export function trackedIgnores(root, git = realGit) {
+  const ran = git(['-C', root, 'ls-files', '-z']);
+  if (ran.error || ran.status !== 0) {
+    const why = ran.error ? `git could not be run (${ran.error.code ?? ran.error.message})` : `git exited ${ran.status}${firstLine(ran.stderr) ? `: ${firstLine(ran.stderr)}` : ''}`;
+    return { error: `git could not list the files the checkout tracks (${why}), so whether one leaves files out of the scan is not known` };
+  }
+  return { ignores: String(ran.stdout ?? '').split('\0').filter((f) => f === '.semgrepignore' || f.endsWith('/.semgrepignore')) };
+}
+
 /** Pulls the image, in `PULL_DELAYS.length + 1` attempts. Null once pulled, or why it was not. */
 async function pull(image, docker, wait) {
   let why = '';
@@ -696,6 +754,7 @@ export async function run({
   env = process.env,
   docker = realDocker,
   wait = sleep,
+  git = realGit,
   out = join(env.RUNNER_TEMP || tmpdir(), 'semgrep-report'),
 } = {}) {
   const event = env.GITHUB_EVENT_NAME ?? '';
@@ -703,6 +762,11 @@ export async function run({
   const base = { image, event };
   if (!IMAGE.test(image)) {
     return report({ ...base, stopped: `SEMGREP_IMAGE is ${image ? `\`${image}\`` : 'not set'}, not semgrep/semgrep:<x.y.z>@sha256:<index digest>` });
+  }
+  const tracked = trackedIgnores(root, git);
+  if (tracked.error) return report({ ...base, stopped: tracked.error });
+  if (tracked.ignores.length) {
+    return report({ ...base, stopped: tracked.ignores.map((f) => `the checkout tracks ${f}, which would leave out of the scan files Semgrep reads, the rule that blocks among them`).join('; ') });
   }
   mkdirSync(out, { recursive: true });
   chmodSync(out, 0o777);

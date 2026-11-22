@@ -134,6 +134,15 @@ export type Language = 'javascript' | 'typescript' | 'yaml';
 /** Each language's file extensions, as Semgrep reads them. */
 export declare const EXTENSIONS: Readonly<Record<Language, ReadonlyArray<string>>>;
 
+/** Each language's file endings Semgrep leaves out of it (`.d.ts`, `.min.js`). */
+export declare const EXCLUDED: Readonly<Record<Language, ReadonlyArray<string>>>;
+
+/** `git`, as the report runs it: its status, its output and its error, never a throw. */
+export type Git = (args: string[]) => Ran;
+
+/** Each `.semgrepignore` the checkout tracks, at any depth, or why git could not say. */
+export declare function trackedIgnores(root: string, git?: Git): { ignores: string[]; error?: undefined } | { error: string; ignores?: undefined };
+
 /** A file's language by its extension, or null. */
 export declare function languageOf(path: string): Language | null;
 
@@ -183,11 +192,12 @@ export declare function report(
   },
 ): Report;
 
-/** One run, with `docker` and `wait` the guard's to stub. */
+/** One run, with `docker`, `wait` and `git` the guard's to stub. */
 export declare function run(options?: {
   root?: string;
   env?: Readonly<Record<string, string | undefined>>;
   docker?: Docker;
   wait?: (ms: number) => Promise<unknown>;
+  git?: Git;
   out?: string;
 }): Promise<Report>;

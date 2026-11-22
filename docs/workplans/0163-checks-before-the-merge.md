@@ -9,7 +9,9 @@ its time-outs.** On `claude/ownpace-alpha16-semgrep-blocking`, from `main` at `0
 takes over #1997, a draft from `45a758af`, which stopped on the two problems below; its blocking
 logic is carried over onto #1993's and #2006's report.
 - **What blocks.** A spot of `run-shell-injection` fails the `Semgrep` check on a pull request, a
-  push and a dispatch, as an error on its line, and no `KNOWN_FINDINGS` entry excuses it. The other
+  push and a dispatch, as an error on its line. No `KNOWN_FINDINGS` entry excuses it, no inline
+  `nosemgrep` hides it (`--disable-nosem`), and a `.semgrepignore` the checkout tracks, at any
+  depth, is a scan that did not finish. The other
   seven rules report only. A scan that did not finish now fails a pull request too (it was a
   warning there), since the check vouches for the rule that blocks. The job is renamed from
   `Semgrep (report only)` to `Semgrep`. Code scanning still gets the upload from `main` when the
@@ -20,28 +22,36 @@ logic is carried over onto #1993's and #2006's report.
   seven JavaScript and TypeScript. A place where more than one rule timed out now counts only
   against the rules whose languages include its file (`timedOut`, by `languageOf` its
   extension); a place with no file, a file of no language here, or a first rule that does not
-  read the file still counts against every rule. `run-shell-injection` has no `mode: taint`, so it
-  cannot reach a fixpoint time-out at all.
+  read the file still counts against every rule. The extensions are Semgrep 1.186.0's own
+  `lang.json` (`a5844e7c`): `.cjs .js .jsx .mjs` less `.min.js`, `.ts .tsx` less `.d.ts`, `.yml
+  .yaml`. `run-shell-injection` has no `mode: taint`, so it never reaches the taint analysis's time
+  limit. Semgrep's per-file time limit (`--timeout`, 5 s) and a file it could not parse still apply
+  to it: they land in its errors, and a note on a file the rule that blocks reads is now a scan
+  that did not finish (none on `main`'s YAML files today).
 - **Why `react-href-var` does not block yet.** It does use taint mode (`mode: taint`, over
   TypeScript and JavaScript), so it can time out, and it did: `main`'s Semgrep run 45025731298
   at `0683eb04` read 13 places only in part, and names `react-href-var` first at
   `scripts/a-deploy-from-a-named-tag.unit.test.ts:1` (3 rules). Ten of the 13 are a JavaScript or
-  TypeScript file where more than one rule timed out, each of which can hide a spot of it. Two
-  of those timed out 4 rules, which is all four taint rules here
-  (`detect-non-literal-regexp`, `path-join-resolve-traversal`, `js-open-redirect-from-function`,
-  `react-href-var`). Blocking it would make such a run a scan that did not finish, so it waits
+  TypeScript file where more than one rule timed out, each of which can hide a spot of it.
+  Blocking it would make such a run a scan that did not finish, so it waits
   for a reading of its own time-outs: for example a scan of it alone, whose time-outs Semgrep
   would name exactly.
 - **The check's class.** `every-pr-check-is-classified` lists `Semgrep` among the checks required
   outside `ci.yml`, and `docs/testing.md`'s required-checks paragraph names it as the fifth
-  intended one, saying that branch protection holds four today. Both state the intent; neither
-  can read branch protection. **The owner's step:** add `Semgrep` to `main`'s required status
-  checks. From then on a Semgrep registry outage, or anything else that leaves the scan
-  unfinished, fails a pull request until a re-run.
-- **Tests:** `a-finding-only-an-outside-check-saw` has 31 tests (26 before), among them `main`'s
+  intended one, saying that a repository ruleset on `main` holds four today (classic branch
+  protection has required checks off). Both state the intent; neither can read the ruleset.
+  **The owner's step:** add `Semgrep` to that ruleset's required status checks, with GitHub
+  Actions as its source. From then on a Semgrep registry outage, or anything else that leaves the
+  scan unfinished, fails a pull request until a re-run. The rules are fetched by id and not
+  pinned, so a rule renamed or withdrawn upstream fails every pull request and a re-run does not
+  help, and an upstream edit to `run-shell-injection` changes what blocks with no change here.
+- **Tests:** `a-finding-only-an-outside-check-saw` has 35 tests (26 before), among them `main`'s
   own 13 places, read as a scan that finished with `run-shell-injection` blocking, and as one that
-  did not, in 10 places, with `react-href-var` blocking. Eight mutations of the report each fail
-  it, the old reading (any rule where several timed out) among them, with 6 tests.
+  did not, in 10 places, with `react-href-var` blocking, and one that runs the script as the
+  workflow does, a `docker` on `PATH`, for its exit. Seventeen mutations of the report each fail
+  it: the old reading (any rule where several timed out) with 7 tests, and each of the review's
+  fixes (`--disable-nosem`, a tracked `.semgrepignore` at any depth, git that cannot list, a note
+  on a workflow, the exit code in three places, the excluded extensions).
 
 **2026-11-21, after #2007 merged: T1 and T6 are on `main`, D8 and the six rules' upload too, and
 the secrets are in their environments.** In merge order (times UTC):

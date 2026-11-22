@@ -562,8 +562,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   value, and three more that found a spot each when workplan 0163 measured Semgrep on this tree.
   `Semgrep` writes each rule's spots to its summary, a spot `KNOWN_FINDINGS` explains marked known
   with its reason. **One rule blocks** (T5): a spot of `run-shell-injection`, which reports nothing
-  on `main` and, a YAML rule without taint mode, cannot time out, fails it on every event, marked
-  as an error on its line, and no `KNOWN_FINDINGS` entry can excuse one. The other rules report
+  on `main` and, a YAML rule without taint mode, never reaches the taint analysis's time limit,
+  fails it on every event, marked as an error on its line. Nothing in the tree can excuse or hide
+  one: no `KNOWN_FINDINGS` entry, no inline `nosemgrep` comment (Semgrep runs with
+  `--disable-nosem`), and no `.semgrepignore`, which the checkout may not track at any depth.
+  Semgrep's per-file time limit and a file it could not parse are notes in its report; a note on a
+  file the rule that blocks reads is a scan that did not finish. The other rules report
   only: a spot of one that may block, which no entry explains, is a warning on its line and fails
   nothing. `react-href-var` reports nothing on `main` either and does not block yet: it is a taint
   rule over JavaScript and TypeScript, and `main`'s runs read places only in part where it timed
@@ -573,7 +577,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   rule whose languages include the file there. A scan that did not finish fails it on every event,
   since on a pull request it vouches for the rule that blocks: so does a place where a rule that
   blocks can have timed out, a report without the timing section, and a registry that does not
-  answer when the rules are fetched, which fails a pull request until a re-run. On a push to `main`
+  answer when the rules are fetched, which fails a pull request until a re-run. The rules are
+  fetched by id and not pinned, so a rule renamed or withdrawn upstream fails every pull request
+  and a re-run does not help, and an upstream edit to `run-shell-injection` changes what blocks
+  with no change in this repository. On a push to `main`
   the spots of the six rules that may block go to code scanning, also when the rule that blocks
   failed the job, and the two ReDoS rules' spots stay in the summary only; never from a pull
   request. Each other rule becomes blocking, one at a time, once it reports nothing on `main` and
@@ -620,9 +627,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   DBs, and `.env`.
 
 **Required status checks** on `main`, as this repository intends them, are five: `ci-complete`,
-`security-scan`, `Trivy`, `Check for committed artifacts`, and `Semgrep`. Branch protection holds
-the first four today. `Semgrep` joins them when the owner adds it there (workplan 0163 T5); until
-then a red `Semgrep` shows on a pull request and does not stop its merge. `ci-complete` aggregates
+`security-scan`, `Trivy`, `Check for committed artifacts`, and `Semgrep`. A repository ruleset on
+`main` holds the first four today, not classic branch protection, whose required checks are off:
+`ci-complete`, `security-scan` and `Check for committed artifacts` from GitHub Actions, `Trivy`
+from GitHub Advanced Security, with branches up to date before merging. `Semgrep` joins them when
+the owner adds it to that ruleset, with GitHub Actions as its source (workplan 0163 T5); until then
+a red `Semgrep` shows on a pull request and does not stop its merge. `ci-complete` aggregates
 every job in `ci.yml`, so require it rather than the individual jobs — but it can only `needs:`
 jobs in its own file, which is why the other four (from `security-scan.yml`,
 `no-committed-artifacts.yml` and `semgrep.yml`) have to be required separately. Requiring

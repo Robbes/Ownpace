@@ -13,7 +13,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 - **A Semgrep rule now fails a pull request** (workplan 0163 T5). `run-shell-injection`, a workflow
   expression written into a `run:` script, reports nothing on `main`, so a spot of it now fails the
-  *Semgrep* check, marked as an error on its line, and no recorded spot can excuse one. The other
+  *Semgrep* check, marked as an error on its line. No recorded spot, inline `nosemgrep` comment or
+  committed `.semgrepignore` can excuse or hide one. The other
   seven rules still report only. `react-href-var` reports nothing on `main` either, but Semgrep's
   taint analysis times out where it reads, so it waits. A place Semgrep read only in part now
   counts only against the rules whose languages include the file there, so a time-out in a

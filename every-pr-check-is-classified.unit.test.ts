@@ -53,7 +53,8 @@ const REQUIRED_OUTSIDE_CI = new Set([
   // semgrep.yml (workplan 0163 T5): one of its rules, run-shell-injection,
   // blocks, and the workflow has no `paths:` filter, so it reports on every
   // pull request. This set is the INTENT (WHAT THIS CANNOT DO, above): the
-  // owner adds `Semgrep` to branch protection, and until then a red Semgrep
+  // owner adds `Semgrep` to the repository ruleset that holds main's required
+  // checks (GitHub Actions as its source), and until then a red Semgrep
   // shows on a pull request without stopping its merge. docs/testing.md's
   // required-checks paragraph says so.
   'Semgrep',

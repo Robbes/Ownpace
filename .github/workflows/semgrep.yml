@@ -18,23 +18,34 @@
 # marked known with its reason and still listed.
 #
 # ONE RULE BLOCKS (0163 T5). run-shell-injection reports nothing on main, and
-# as a YAML rule without taint mode it cannot time out, so a spot of it fails
-# this job, on every event, as an error on its line, and no KNOWN_FINDINGS
-# entry can excuse it. The other seven report only: their spots are listed
-# and fail nothing. react-href-var reports nothing on main either, but it is
-# a taint rule over JavaScript and TypeScript, and main's run at 0683eb04
-# (45025731298) read ten places only in part where it can have timed out, one
-# naming it first, so blocking it would make such a run a scan that did not
-# finish (scripts/semgrep-report.mjs, READ ONLY IN PART). A scan that did not finish fails the job too, on a pull request as
-# well, since there the job vouches for the rule that blocks: that includes a
+# as a YAML rule without taint mode it never reaches the taint analysis's time
+# limit, so a spot of it fails this job, on every event, as an error on its
+# line. Nothing in the tree can excuse or hide one: no KNOWN_FINDINGS entry,
+# no inline nosemgrep comment (Semgrep runs with --disable-nosem), and no
+# .semgrepignore, which the checkout may not track. Semgrep's own per-file
+# time limit and a file it could not parse are notes in its report, and a
+# note on a file the rule that blocks reads is a scan that did not finish.
+# The other seven report only: their spots are listed and fail nothing.
+# react-href-var reports nothing on main either, but it is a taint rule over
+# JavaScript and TypeScript, and main's run at 0683eb04 (45025731298) read ten
+# places only in part where it can have timed out, one naming it first, so
+# blocking it would make such a run a scan that did not finish
+# (scripts/semgrep-report.mjs, READ ONLY IN PART).
+#
+# A scan that did not finish fails the job too, on a pull request as well,
+# since there the job vouches for the rule that blocks: that includes a
 # registry that does not answer when the rules are fetched, which fails the
-# pull request until a re-run. On a push to main or a dispatch the run is the
+# pull request until a re-run. The rules are fetched by id and not pinned, so
+# a rule renamed or withdrawn upstream fails every pull request, and a re-run
+# does not help; and an upstream edit to run-shell-injection changes what
+# blocks with no change here. On a push to main or a dispatch the run is the
 # record (security-scan.yml's rule: a scan that skipped itself is not green).
 # It is not in ci.yml, whose ci-complete cannot wait for another file's job.
 # It is to be a required check by its job's name, `Semgrep`
 # (every-pr-check-is-classified.unit.test.ts, docs/testing.md's required
-# checks), once the owner adds it to branch protection, so that name is
-# load-bearing: renamed, the merge would wait for a check that never reports.
+# checks), once the owner adds it to the repository ruleset that holds main's
+# required checks, so that name is load-bearing: renamed, the merge would wait
+# for a check that never reports.
 #
 # IT BECOMES BLOCKING rule by rule (0163 §5, step 5): each other rule fails the
 # build once it reports nothing on main and its time-outs leave every run on
