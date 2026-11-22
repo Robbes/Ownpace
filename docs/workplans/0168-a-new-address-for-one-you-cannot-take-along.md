@@ -4,6 +4,13 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22: the owner answered §9.** D1, D2, D3, D4, D5, D6, D8, D9 and D10: *"ok"*, each as
+recommended. D7 drew a question: *"then how can he/she manage the family? Or is the admin not the
+one managing the migrations?"* D7 is about the **operator**, the Ownpace team's Support pages, not
+the organisation's owner or admin. The admin manages the family and sees every address in the
+organisation's table on the team screen (§6.3). D7 is reworded to say so and waits for the owner's
+answer. ADR-0055 stays proposed until the owner accepts it.
+
 **2026-11-22: designed, nothing built.** The owner asked, on 2026-11-22:
 
 > *"As an important function I want users to be able to 'overwrite' what they migrate into their
@@ -22,7 +29,7 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The owner's decisions and ADR-0055 | owner | ⏳ **Waiting** | §9: D1 to D10. ADR-0055 is proposed; nothing below starts before it is accepted or changed. |
+| T0 The owner's decisions and ADR-0055 | owner | 🟡 **Nine of ten answered** | §9: D1–D6 and D8–D10 answered as recommended on 2026-11-22; D7 reworded, waiting. ADR-0055 is proposed; nothing below starts before it is accepted or changed. |
 | T1 Address forms and the list of addresses nobody can take along | builder | 📋 **Proposed** | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moves there. No behaviour change. |
 | T2 The table of address changes | builder | 📋 **Proposed** | §4, §5. `address_change` in the shared chain, its routes in both editions, `PURGED_TABLES`. |
 | T3 The change itself, as a pure function | builder | 📋 **Proposed** | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests. |
@@ -385,7 +392,9 @@ and D8 are the owner's:
   page offers their deletion. Closing an organisation purges both tables: `address_change` and
   `address_change_person` join `PURGED_TABLES` (`packages/managed/src/offboarding.ts`), and the
   guard that lists every tenant table refuses a table left out.
-- **The operator's view.** Support's pages show names, states and categories, never content
+- **The operator's view.** This is the Ownpace team's view, not the organisation's. The
+  organisation's owners and admins see and manage every row on the team screen (§6.3). Support's
+  pages show names, states and categories, never content
   (`apps/api/src/routes/support.ts`, every read logged in `support_read`). The proposal (D7) is that
   Support shows the number of rows and how many are confirmed, never an address. The audit log
   records who confirmed which row by reference, and the digest and reports narrate counts, as
@@ -614,8 +623,11 @@ address in the table.
   and an admin may confirm for them, with attribution. (b) Only the person may confirm. (c) An
   admin's word is enough, with no confirmation step. **Recommended: (a).** A child or a person
   without a link must not block the family, and the person can still undo it.
-- **D7 — What the operator sees.** (a) The number of rows and how many are confirmed, no addresses.
-  (b) The addresses, as members are shown today. **Recommended: (a).** Support needs none of them.
+- **D7 — What the Ownpace team's Support pages show.** This is not about the family's admin, who
+  sees and manages every address on the team screen in every option. (a) The number of rows and
+  how many are confirmed, no addresses. (b) The addresses, as Support shows members' addresses
+  today. **Recommended: (a).** Helping a family needs only the counts; any read would be logged in
+  `support_read` either way.
 - **D8 — The privacy policy.** (a) Add the §4.6 item and the §9 row before the step is shown to
   anyone. (b) Add them at the next policy revision. **Recommended: (a).** The table holds other
   people's addresses from the first row.
