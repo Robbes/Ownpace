@@ -1936,8 +1936,17 @@ plane_stop_in_order() {
 # (alpha.16's 6400m at 6, the rule before the limit), one below it is said
 # as a warning. Read after load_env, from the environment, as Compose reads
 # them (bash has taken the quotes off).
+#
+# SAID ONCE PER BRING-UP. A pg-boss bring-up sizes the worker twice
+# (worker_ready_to_start): in the trigger phase, before the plane stops, and
+# in the app phase, before the worker starts. Both work the size out, since
+# the app phase reads .env again and an empty `WORKER_MEMORY=` line takes
+# away what the first exported; only the first says it, where the second
+# would repeat each line and call a size the first exported "from .env".
 WORKER_CPUS_RULE=''
 WORKER_MEMORY_RULE=''
+WORKER_SIZE_SAID=''
+worker_size_note() { [ -n "${WORKER_SIZE_SAID:-}" ] || note "$@"; }
 worker_sized() {
   local cap="${MAX_PASSES_IN_FLIGHT:-}"
   cap="${cap:-3}"
@@ -1952,7 +1961,7 @@ worker_sized() {
       "$(awk -v a="$WORKER_CPUS" -v b="$WORKER_CPUS_RULE" 'BEGIN { if (a + 0 > b + 0) print "above"; else if (a + 0 < b + 0) print "below"; else print "at" }')"
   else
     export WORKER_CPUS="$WORKER_CPUS_RULE"
-    note "WORKER_CPUS ${WORKER_CPUS}: 0.5 x (MAX_PASSES_IN_FLIGHT ${cap} + 2), for this run's compose calls (not written to .env)"
+    worker_size_note "WORKER_CPUS ${WORKER_CPUS}: 0.5 x (MAX_PASSES_IN_FLIGHT ${cap} + 2), for this run's compose calls (not written to .env)"
   fi
   if [ -n "${WORKER_MEMORY:-}" ]; then
     local set_bytes rule_bytes where=at
@@ -1964,9 +1973,10 @@ worker_sized() {
     worker_set_against_rule WORKER_MEMORY "$WORKER_MEMORY" "$WORKER_MEMORY_RULE" "$cap" "$where"
   else
     export WORKER_MEMORY="$WORKER_MEMORY_RULE"
-    note "WORKER_MEMORY ${WORKER_MEMORY}: (MAX_PASSES_IN_FLIGHT ${cap} + 2) x 512 MB + 256 MB, for this run's compose calls (not written to .env)"
+    worker_size_note "WORKER_MEMORY ${WORKER_MEMORY}: (MAX_PASSES_IN_FLIGHT ${cap} + 2) x 512 MB + 256 MB, for this run's compose calls (not written to .env)"
   fi
   worker_size_drift "$cpus_from_rule" "$memory_from_rule"
+  WORKER_SIZE_SAID=1
 }
 
 # worker_set_against_rule <key> <value> <rule> <cap> <above|at|below> — the
@@ -1979,9 +1989,9 @@ worker_sized() {
 worker_set_against_rule() {
   local key="$1" value="$2" rule="$3" cap="$4" where="$5"
   case "$where" in
-    above) note "${key} ${value}, from .env, is above the rule's ${rule} for MAX_PASSES_IN_FLIGHT ${cap} (the worker runs at most $((cap + 2)) runs at once), and is kept as set. To take the rule: ./deploy/compose/env-upsert.sh ${ENV_FILE} ${key}=${rule}" ;;
-    below) note "warning: ${key} ${value}, from .env, is below the rule's ${rule} for MAX_PASSES_IN_FLIGHT ${cap} (the worker runs at most $((cap + 2)) runs at once); kept as set, but runs at their budget may not fit. To take the rule: ./deploy/compose/env-upsert.sh ${ENV_FILE} ${key}=${rule}" ;;
-    *) note "${key} ${value}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${rule})" ;;
+    above) worker_size_note "${key} ${value}, from .env, is above the rule's ${rule} for MAX_PASSES_IN_FLIGHT ${cap} (the worker runs at most $((cap + 2)) runs at once), and is kept as set. To take the rule: ./deploy/compose/env-upsert.sh ${ENV_FILE} ${key}=${rule}" ;;
+    below) worker_size_note "warning: ${key} ${value}, from .env, is below the rule's ${rule} for MAX_PASSES_IN_FLIGHT ${cap} (the worker runs at most $((cap + 2)) runs at once); kept as set, but runs at their budget may not fit. To take the rule: ./deploy/compose/env-upsert.sh ${ENV_FILE} ${key}=${rule}" ;;
+    *) worker_size_note "${key} ${value}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${rule})" ;;
   esac
 }
 
@@ -2003,7 +2013,7 @@ worker_size_drift() {
     drift=1
   fi
   [ -n "$drift" ] || return 0
-  note "managed.yml's defaults are WORKER_CPUS ${dc:-none} and WORKER_MEMORY ${dm:-none}, so a compose call outside the bring-up (a hand docker compose up -d) would recreate the worker at those. To keep this size there too, set both in .env: ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_CPUS=${WORKER_CPUS} WORKER_MEMORY=${WORKER_MEMORY}"
+  worker_size_note "managed.yml's defaults are WORKER_CPUS ${dc:-none} and WORKER_MEMORY ${dm:-none}, so a compose call outside the bring-up (a hand docker compose up -d) would recreate the worker at those. To keep this size there too, set both in .env: ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_CPUS=${WORKER_CPUS} WORKER_MEMORY=${WORKER_MEMORY}"
 }
 
 # worker_cpus_fit — the worker's CPU cap, the value Compose will use

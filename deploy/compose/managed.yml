@@ -2305,9 +2305,10 @@ services:
     # a run, not the worker that settles it.
     cpus: ${WORKER_CPUS:-2.5}
     mem_limit: ${WORKER_MEMORY:-2816m}
-    # A stop gives the running passes a minute to settle (the runner stops its
-    # workers and lets pg-boss mark what was active) before Docker kills it; a
-    # run cut off is picked up again by its heartbeat and converges.
+    # A stop gives the runs going this minute: the worker fetches nothing more,
+    # lets them finish for 45 s, then kills each run's process still alive and
+    # fails its run to be retried, and stops. A run Docker cuts off past the
+    # minute is failed by pg-boss's heartbeat sweep and retried, and converges.
     stop_grace_period: 60s
     environment:
       # THE SWITCH, read by the api, this worker, the scripts and the E2E

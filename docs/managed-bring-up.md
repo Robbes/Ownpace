@@ -878,8 +878,9 @@ api applies the migrations the jobs read); when the run replaced the api's
 container, it recreates the worker too. Its health is `GET
 http://127.0.0.1:3002/health` inside its container, which answers 200 once the
 runner runs; `managed.yml`'s healthcheck asks it every 30 s, and the app phase
-waits on it. A stop gives the running passes 60 s to settle; a run cut off is
-picked up again by its heartbeat.
+waits on it. A stop gives the runs going 45 s to finish, then kills what is
+left and fails it to be retried, all inside the service's 60 s; a run cut off
+past that is picked up again by its heartbeat.
 
 **The worker's size.** `.env`'s `WORKER_CPUS` and `WORKER_MEMORY` when it sets
 them; otherwise the bring-up works them out from this stack's
@@ -894,7 +895,8 @@ measured 307 MB, another run 203 MB), and the worker's own process (120 MB
 measured), with 136 MB to spare. That is 2.5 and `2816m` at the default cap of
 3, and 4 and `4352m` at 6. A value `.env` sets is the one used, as in Compose.
 One above the rule (alpha.16's rule was (`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB +
-2,816 MB, `6400m` at 6) is kept, and the bring-up says so in one line:
+2,816 MB, `6400m` at 6) is kept, and the bring-up says so in one line, once a
+bring-up:
 
 ```text
 WORKER_MEMORY 6400m, from .env, is above the rule's 4352m for MAX_PASSES_IN_FLIGHT 6 (the worker runs at most 8 runs at once), and is kept as set. To take the rule: ./deploy/compose/env-upsert.sh <the .env> WORKER_MEMORY=4352m

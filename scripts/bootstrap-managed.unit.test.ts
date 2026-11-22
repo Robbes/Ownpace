@@ -1872,8 +1872,8 @@ describe('the bring-up in either runner (0167 T7)', () => {
       'PLANE_RUNNERS_INTERVAL=0',
       "JOB_RUNNER_MODE=''",
       ...['say', 'note', 'die', 'env_get', 'env_or', 'runner_mode', 'worker_stop_and_remove', 'plane_runners'].map(definition),
-      "WORKER_CPUS_RULE=''; WORKER_MEMORY_RULE=''",
-      ...['plane_stop_in_order', 'worker_sized', 'worker_set_against_rule', 'worker_size_drift', 'worker_cpus_fit', 'worker_memory_bytes'].map(definition),
+      "WORKER_CPUS_RULE=''; WORKER_MEMORY_RULE=''; WORKER_SIZE_SAID=''",
+      ...['plane_stop_in_order', 'worker_size_note', 'worker_sized', 'worker_set_against_rule', 'worker_size_drift', 'worker_cpus_fit', 'worker_memory_bytes'].map(definition),
       definition('worker_memory_fit'),
       ...['worker_env_fit', 'worker_ready_to_start'].map(definition),
       ...['worker_up', 'up_wait', 'phase_trigger', 'phase_account'].map(definition),
@@ -2034,6 +2034,31 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.out.match(/is above the rule's/g)).toHaveLength(1);
       expect(r.out).toMatch(/the worker's memory limit: 6400m, within this host's memory/);
       expect(r.calls.some((c) => / up -d --wait( --force-recreate)? worker/.test(c))).toBe(true);
+    });
+
+    it("a whole pg-boss bring-up, the trigger phase then the app phase, says the worker's size once", () => {
+      // Both phases size the worker (worker_ready_to_start): the trigger phase before the plane
+      // stops, the app phase before the worker starts. Only the first says it.
+      const pinned = phase(['trigger', 'app'], {
+        env: `${PG}MAX_PASSES_IN_FLIGHT=6\nWORKER_CPUS=4\nWORKER_MEMORY=6400m\n`,
+        answers: { NCPU: '8' },
+      });
+      expect(pinned.status, pinned.out).toBe(0);
+      expect(pinned.out.match(/is above the rule's/g), pinned.out).toHaveLength(1);
+      expect(pinned.out.match(/WORKER_CPUS 4, from \.env/g), pinned.out).toHaveLength(1);
+      expect(pinned.calls.some((c) => / up -d --wait( --force-recreate)? worker/.test(c))).toBe(true);
+      // Worked out, from a .env with no line for either and from the example's empty lines (which
+      // the app phase reads again): said once, and never as from .env, though the first phase
+      // exported it; and the app phase still starts the worker at it.
+      for (const env of [PG, `${PG}WORKER_CPUS=\nWORKER_MEMORY=\n`]) {
+        const r = phase(['trigger', 'app'], { env });
+        expect(r.status, r.out).toBe(0);
+        expect(r.out.match(/WORKER_CPUS [\d.]+: 0\.5 x /g), r.out).toHaveLength(1);
+        expect(r.out.match(/WORKER_MEMORY \d+m: \(MAX_PASSES_IN_FLIGHT /g), r.out).toHaveLength(1);
+        expect(r.out, r.out).not.toMatch(/from \.env/);
+        expect(r.out.match(/the worker's memory limit: \d+m, within this host's memory/g), r.out).toHaveLength(2);
+        expect(r.calls.some((c) => / up -d --wait( --force-recreate)? worker/.test(c))).toBe(true);
+      }
     });
 
     it('app: a size .env sets below the rule is kept, and said as a warning', () => {
