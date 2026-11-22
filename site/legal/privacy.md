@@ -19,6 +19,8 @@
     background task, when its run ends" reads "for the app, its background tasks and this
     website, at each update of the service; ..." / NL "voor de app, haar achtergrondtaken en
     deze website bij elke update van de dienst; ...". The Last updated line moved to 2026-11-22.
+    The owner checked the Dutch row and approved it, 2026-11-22 at about 18:03 UTC, verbatim:
+    "This is the new Dutch wording: ok".
   - Read again and unchanged, as true while Trigger.dev is stopped with its database kept on
     disk (alpha.16) and once it and its database are removed (alpha.17): §4.1 and §11 (the key
     is in the service's configuration and the settings of the background tasks, both on this

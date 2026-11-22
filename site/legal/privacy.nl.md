@@ -8,7 +8,8 @@
   accepted the terms so far, so keep them on version 1.0").
   Still 1.0, edited in place on 2026-11-22 (the owner: "Option A, but keep the policy on 1.0,
   since no tester has yet accepted it"): §9's Serverlogs row has the background tasks follow
-  the app's rule. privacy.md's briefing has what changed, why, and what was read again.
+  the app's rule. privacy.md's briefing has what changed, why, and what was read again. The
+  owner approved this Dutch row, 2026-11-22 at about 18:03 UTC, verbatim: "This is the new Dutch wording: ok".
 -->
 <!-- Dutch translation of privacy.md. Keep the SECTION NUMBERING identical, so
      the two can be diffed against each other when either changes. The site
