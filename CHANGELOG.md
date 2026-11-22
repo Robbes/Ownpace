@@ -20,12 +20,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   nothing more. Afterwards the page lists what was deleted, what was not and what is not known,
   with each reason, in English and Dutch, the server's own words beside it. Nothing is deleted by
   itself: no route was added, and the server cannot tell a row of a run from one pressed by hand.
-### Changed
-
-- **`GET /version` no longer reads a file on every request** (workplan 0006 L). On both editions
-  the build's version came from the root `package.json`, read again for every answer, every
-  problem report and every unreadable-answer line, and each read held up the requests behind it.
-  It is now read once per process; a version stamped in the environment still wins on every call.
 
 ### Fixed
 
@@ -33,24 +27,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   line that says so. A failed refresh on Deletions, Moves or Failures used to replace the whole
   page with the error, a *Delete all of these here too* under way and its report included.
 
-## [0.2.0-alpha.14] - 2026-11-21
+## [0.2.0-alpha.14] - 2026-11-22
 
 An appointed operator can mark an organisation as a test from Support, and every migration made
 there then copies only the items whose own title carries its marker. Such a test migration is never
 finished or switched over, its sharing lists only its marked items, and a Dropbox file renamed out
-of its marker is not read as deleted. *Pay* opens Mollie's checkout, the app follows a checkout,
-consent or grant address only to its provider's own host, a migration whose grant was withdrawn
-reads nothing, and a migration waits at most five seconds for a table lock. An event deleted in a
-Google calendar now reaches *Deleted on the old system*: the CalDAV source reads Google's
-`sync-collection` answer, which an operator can also measure, read only. Underneath, Trigger.dev
-moves to v4.8.8, its webapp's image runs effect 3.22.4 and, like Redis's, carries no PAM, both
-Postgres builds take Alpine's fixed libxml2, and pnpm moves to 11.28.13. In CI, a pull request that
-adds a secret fails, squawk reports the locks each migration takes, the two secrets left are each
-read by one job in its own GitHub environment, Dependabot waits three days, zizmor moves to 1.32.0
-and lists each secret a job reads outside an environment, and the outside probe fails when a port
-the front answers by itself presents the Trigger.dev dashboard's certificate. Live's deploy from
-alpha.12 is one-way: ledger migration 0070 and managed migration 0062 move, and so does the
-Trigger.dev pin.
+of its marker is not read as deleted. A close and a test mark of one organisation are decided one
+after the other, so a mark never lands on a closed organisation. *Pay* opens Mollie's checkout, the
+app follows a checkout, consent or grant address only to its provider's own host, a migration whose
+grant was withdrawn reads nothing, and a migration waits at most five seconds for a table lock. An
+event deleted in a Google calendar now reaches *Deleted on the old system*: the CalDAV source reads
+Google's `sync-collection` answer, which an operator can also measure, read only. Underneath,
+Trigger.dev moves to v4.8.8, its webapp's image runs effect 3.22.4 and, like Redis's, carries no
+PAM, both Postgres builds take Alpine's fixed libxml2, and pnpm moves to 11.28.13. In CI, a pull
+request that adds a secret fails, squawk reports the locks each migration takes, the two secrets
+left are each read by one job in its own GitHub environment, Dependabot waits three days, zizmor
+moves to 1.32.0 and lists each secret a job reads outside an environment, and the outside probe
+fails when a port the front answers by itself presents the Trigger.dev dashboard's certificate.
+Live's deploy from alpha.12 is one-way: ledger migration 0070 and managed migration 0062 move, and
+so does the Trigger.dev pin.
 
 ### Added
 
@@ -218,6 +213,10 @@ Trigger.dev pin.
   purge takes the same two dpkg flags as before, and the build still fails if a file of a removed
   library is left, or any ELF file needs or names one. Both images have a new name, which the
   managed stack builds at its next `up`, restarting Redis and the webapp once.
+- **`GET /version` no longer reads a file on every request** (workplan 0006 L). On both editions
+  the build's version came from the root `package.json`, read again for every answer, every
+  problem report and every unreadable-answer line, and each read held up the requests behind it.
+  It is now read once per process; a version stamped in the environment still wins on every call.
 - **The npm minor-and-patch group, 3 updates** (workplan 0119; Dependabot, #2004): lucide-react
   1.75.0 in the web bundle, and vitest 5.1.1 with its V8 coverage plugin for the tests. All three
   are past the three-day floor; taken after CI and E2E (managed) were green on its head.
@@ -265,6 +264,24 @@ Trigger.dev pin.
   as one organisation, but the lock took two, so two creates, one of each spelling, could pass the
   cap together, and a create could pass a test mark. The lock is now keyed on the id as the
   database spells it, and the API reads a named id in lower case.
+- **A close and a test mark are decided one after the other** (workplan 0162 T1's re-review).
+  Support's *Test organisation* section marks an organisation, or clears its marker, only while it
+  is open, and the two doors read that status before their own transaction began. A close that
+  committed in between let a mark land on a closed organisation. Each door now reads the status in
+  its own transaction and holds it until it commits (`FOR SHARE`): a close made first is read, and
+  the door answers 409 `not_open` and writes nothing; a close that arrives while a door is open
+  waits for it. Support's Close and Reopen keep their own reading: the close's update refuses an
+  organisation being erased, and the reopen asks its whole condition in its own transaction.
+- **`GET /api/me` names the organisation an id in capitals asks for** (workplan 0162 T1's
+  re-review). Every other route reads the `X-Ownpace-Tenant` header in lower case, the spelling the
+  database gives an id, so an id sent in capitals acts on its organisation there; `/api/me` compared
+  the header as sent, found none of its ids, and named no current organisation. It now reads it the
+  same way.
+- **A close made from Support's page stays on that organisation's page** (workplan 0162 T1's
+  re-review). The page stays mounted from one organisation to the next, and the close section kept
+  what the last close answered: going back to an organisation read before showed the other
+  organisation's close, its dates and what to tell them, on its page. The close section and the
+  *Test organisation* section are now keyed by the organisation together.
 - **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the
   billing page and never reached Mollie: the API answered the page Mollie sends the customer back
   to after paying, the app's own billing page, as the address to pay at. It now answers the

@@ -26,6 +26,20 @@
 // lock and the row as the door takes and writes them; the side that arrives is
 // the real route.
 //
+// A CLOSE AND A MARK, ONE AFTER THE OTHER TOO (0162 T1's re-review). Both doors
+// refuse an organisation that is not open, and they used to read its status
+// before their own transaction: a close that committed in between let a mark
+// land on a closed organisation. They now read it in that transaction, held
+// until it commits (`statusHeldUntilCommit`, `FOR SHARE`), so:
+//
+//  - a close held open, its UPDATE written and not yet committed, makes a mark
+//    or a clear that arrives wait for it, and then read `closed` and refuse;
+//    read without the lock, the status is the one committed before the close,
+//    `active`, and the mark commits under it;
+//  - a mark held open, its status read and its row written, makes a close that
+//    arrives wait for it; without the lock the close commits first, and the
+//    mark then commits on a closed organisation.
+//
 // The routes are proved in `routes/a-test-organisation-and-its-marker.unit.test.ts`.
 //
 // UUID Family: 0162e100-e29b-41d4-a716-4466554400xx
@@ -39,8 +53,9 @@ import request from 'supertest';
 import { sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { withTenant, mailboxMapping } from '@openmig/ledger';
-import { markTestOrganisation, migrationsHeldBy } from '@openmig/managed';
+import { closeTenant, markTestOrganisation, migrationsHeldBy, tenantRef } from '@openmig/managed';
 import { holdTheOrganisationsMigrations } from './routes/migrations/migration-cap.ts';
+import { statusHeldUntilCommit } from './test-organisation.ts';
 
 const PG = process.env.TEST_DATABASE_URL;
 if (!PG) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
@@ -96,6 +111,10 @@ function create() {
 }
 
 async function clean(): Promise<void> {
+  // A close a case made: undone as a reopen undoes it, and its record taken out.
+  await pool.query(`UPDATE tenant SET status = 'active' WHERE id = $1`, [TENANT]);
+  await pool.query('DELETE FROM tenant_closure WHERE tenant_id = $1', [TENANT]);
+  await pool.query('DELETE FROM erasure_record WHERE tenant_ref = $1', [tenantRef(TENANT)]);
   await pool.query('DELETE FROM test_organisation WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM scope_selection WHERE tenant_id = $1', [TENANT]);
@@ -226,5 +245,119 @@ describe('a mark held open, and a create that arrives', () => {
     expect((await pool.query('SELECT test_marker FROM mailbox_mapping WHERE tenant_id = $1', [TENANT])).rows).toEqual([
       { test_marker: '[Ownpace-test]' },
     ]);
+  });
+});
+
+/** The organisation's status, its marker and its marker's audit rows, read outside any door. */
+async function standing(): Promise<{ status: string; marker: string | null; recorded: string[] }> {
+  const [{ status }] = (await pool.query('SELECT status FROM tenant WHERE id = $1', [TENANT])).rows as [{ status: string }];
+  const marked = (await pool.query('SELECT marker FROM test_organisation WHERE tenant_id = $1', [TENANT])).rows as Array<{
+    marker: string;
+  }>;
+  const recorded = (
+    await pool.query(
+      `SELECT action FROM audit_log WHERE tenant_id = $1 AND action LIKE 'tenant.test_marker_%' ORDER BY at, id`,
+      [TENANT],
+    )
+  ).rows as Array<{ action: string }>;
+  return { status, marker: marked[0]?.marker ?? null, recorded: recorded.map((r) => r.action) };
+}
+
+/**
+ * The close's transaction, as the close door holds it (`closeAccount`): the
+ * organisation closed, not yet committed, until `release` opens.
+ */
+function aCloseHeldOpen(release: Promise<void>, written: () => void): Promise<void> {
+  return withTenant(pool, TENANT, async (db) => {
+    await closeTenant(db, TENANT, 30, OPERATOR, new Date(), 7);
+    written();
+    await release;
+  });
+}
+
+describe('a close held open, and a mark or a clear that arrives', () => {
+  it('the mark waits for the close, reads it, and marks nothing', async () => {
+    const written = gate();
+    const release = gate();
+    const held = aCloseHeldOpen(release.opened, written.open);
+    await written.opened;
+
+    // The real route. The operator's view, read before the door's
+    // transaction, still says the organisation is open.
+    const mark = request(app)
+      .post(`/api/support/tenants/${TENANT}/test`)
+      .send({ marker: '[Ownpace-test]' })
+      .then((res) => res);
+    try {
+      expect(await stillWaiting(mark), 'the mark was decided while the close was still open').toBe(true);
+    } finally {
+      release.open();
+    }
+    await held;
+    const res = await mark;
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: 'not_open',
+      message: 'It is closed: an organisation is marked as a test, or no longer, only while it is open',
+    });
+    expect(await standing()).toEqual({ status: 'closed', marker: null, recorded: [] });
+  });
+
+  it('the clear waits for the close too, reads it, and clears nothing', async () => {
+    await withTenant(pool, TENANT, async (db) => {
+      await db.execute(sql`SELECT set_config('app.current_user', ${OPERATOR}, true)`);
+      await markTestOrganisation(db, TENANT, '[Ownpace-test]', OPERATOR);
+    });
+    const written = gate();
+    const release = gate();
+    const held = aCloseHeldOpen(release.opened, written.open);
+    await written.opened;
+
+    const unmark = request(app)
+      .delete(`/api/support/tenants/${TENANT}/test`)
+      .then((res) => res);
+    try {
+      expect(await stillWaiting(unmark), 'the clear was decided while the close was still open').toBe(true);
+    } finally {
+      release.open();
+    }
+    await held;
+    const res = await unmark;
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('not_open');
+    expect(await standing()).toEqual({ status: 'closed', marker: '[Ownpace-test]', recorded: [] });
+  });
+});
+
+describe('a mark held open, and a close that arrives', () => {
+  it('waits for the mark, which was made while the organisation was open, and then closes it', async () => {
+    const written = gate();
+    const release = gate();
+    // The mark's transaction, as the door holds it: acting as the operator,
+    // its status read and held, its row written.
+    const held = withTenant(pool, TENANT, async (db) => {
+      await db.execute(sql`SELECT set_config('app.current_user', ${OPERATOR}, true)`);
+      expect(await statusHeldUntilCommit(db, TENANT)).toBe('active');
+      await markTestOrganisation(db, TENANT, '[Ownpace-test]', OPERATOR);
+      written.open();
+      await release.opened;
+    });
+    await written.opened;
+
+    // The real close, the support page's.
+    const closing = request(app)
+      .post(`/api/support/tenants/${TENANT}/close`)
+      .send({ windowDays: 30, reference: 'the race, 0162 T1' })
+      .then((res) => res);
+    try {
+      expect(await stillWaiting(closing), 'the close committed while the mark was still open').toBe(true);
+    } finally {
+      release.open();
+    }
+    await held;
+    const res = await closing;
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('closed');
+    expect((await standing()).status).toBe('closed');
   });
 });

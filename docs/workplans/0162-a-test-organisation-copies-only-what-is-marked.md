@@ -4,12 +4,81 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after T1 merged: T1's re-review follow-ups, on
+`claude/ownpace-public-readiness-y7orc6-0162-t1-followups`, from `main` at `7d13ab33`; not
+merged.** T1 merged as #2013 (`4a510a43`). A re-review of #2013 found four things, each fixed here
+with a case that fails without it.
+
+1. **The two doors read the organisation's status in their own transaction, held until they
+   commit.** The mark and the clear refused an organisation that is not open from the operator's
+   view (`statusAsServed`), read before their transaction began: a close that committed in between
+   let a mark land on a closed organisation. Each door now reads `tenant.status` in its own
+   transaction, after the operator check and before the migrations lock, `FOR SHARE`
+   (`statusHeldUntilCommit`, `apps/api/src/test-organisation.ts`), and answers `notOpen` with
+   it: 409 `not_open` as before, or the route's 404 for an organisation no longer there. The
+   close, the reopen and the purge change the status with an UPDATE of that row, and its lock
+   conflicts with this one: a close written first and not yet committed makes the door wait, then
+   read `closed`; a close that arrives while a door is open waits for it. The view is still asked
+   first, for the 404 alone.
+   - **Support's Close and Reopen are left as they are.** They read the status the same way,
+     before their transaction, and the same fix does not apply cleanly to either. The close: the
+     guard that matters is in its own UPDATE (`status <> 'deleting'`), so a purge that begins in
+     between is refused there (409 `not_open`). What the read alone decides is that a closed
+     organisation keeps its window, and asking that in the transaction means asking it in
+     `closeAccount`, which the owner's Close and `operator.sh close` share, and which close a
+     closed organisation again on purpose, moving its window: a close that commits between the
+     support page's read and its transaction ends as one of those does. The reopen:
+     `reopenTenant` asks its whole condition in its own transaction (a closure row whose window
+     is open, then the status from `closed`), so a status changed in between is refused there
+     (409 `cannot_reopen`), and the read before it only chooses the sentence.
+2. **`GET /api/me` reads `X-Ownpace-Tenant` as `resolveTenant` reads it**, trimmed and in lower
+   case. Compared as sent, an id in capitals matched none of the ids the database gives, so `/me`
+   named no current organisation while every other route acted on it.
+3. **The permission report's 400 is in `openapi.yaml`.** `GET /api/permissions/report` answers 400
+   `Bad Request` with the `Error` body when neither `mailbox` nor `mappingId` names a mailbox
+   (both absent, or blank once trimmed), before anything is read.
+4. **The close section is keyed by its organisation** (`Support.tsx`), as the test section is
+   since `93ad5c71`: one key, the organisation's, over both sections (a keyed `React.Fragment`).
+   The route keeps the page mounted from one organisation to the next, and the close section kept
+   what the last close answered: going back to an organisation read before showed the other's
+   close, its dates and what to tell them. The same key on each of the two siblings is not the
+   fix: React reads two siblings under one key as one child, and kept the old test section on the
+   page beside the new one, which `93ad5c71`'s case caught.
+
+What is proven, and how. 13 new cases in five test files. On Postgres 16.15 (`local-pg.sh`),
+through the real routes in `a-test-organisation-and-its-marker.integration.test.ts` (3): a close
+held open makes a mark and a clear that arrive wait, then refuse with `not_open` and write
+nothing, and a mark held open, its status read and its row written, makes the support page's
+Close wait for it. On PGlite, beneath the route (3): each door refuses a `closed` and a `deleting`
+organisation, and answers `notOpen: null` for one not there. `/api/me` with an id in capitals
+names it, on Postgres (1). The report asked about no mailbox, five ways, answers the 400 the spec
+now documents, its body checked against the spec's schema (5). Going back to an organisation read
+before, from the cache into the same page, shows nothing of the other's close (1).
+
+Seven mutations, each one change, each caught, each file restored byte for byte (`cmp`): `FOR
+SHARE` dropped from `statusHeldUntilCommit` (3 of 5 Postgres cases fail; on PGlite, with one
+connection, all 30 pass); the mark's open check taken out (4 of 30 PGlite cases, and 1 of 5 on
+Postgres); the clear's (4 of 30, and 1 of 5); `/me` comparing the header as sent (1 of 14); the
+report's 400 taken out of the spec (5 of 61 with the OpenAPI guard, whose own cases pass either
+way); the close section taken out of the keyed fragment (1 of 27 in the two Support files, the
+test section's case passing); and the fragment's key taken out (2 of 27).
+
+Gates, on this branch from `main` at `7d13ab33`, with Node 22.22.0: every unit file of `apps/api`,
+177 files, 2,383 cases passed; every guard under `scripts/`, 309 files, 7,550 cases passed and 37
+skipped, but for the 2 files that run pnpm themselves, which a stand-in for pnpm refused, as before
+(`ui-build-output` and `a-measurement-that-could-not-reach-the-deployments-client`, 3 cases); the
+nine `unit-browser` files that load the Support page, 149 cases, passed; `tsc --noEmit` for the root
+and `apps/web`, ESLint on the 9 changed TypeScript files, `git diff --check`, the fixture UUID check
+and the six docs checks found nothing. On Postgres 16.15, every integration file of `apps/api`
+passed, 41 files, 372 cases.
+
 **2026-11-21, last: T1 built, on `claude/ownpace-public-readiness-y7orc6-0162-t1-marker`, from
-`main` at `17548646`; not merged.** It merges after #2011, which settled the first four things to
-settle below (the sharing rescan and the permission report, the Dropbox bin, IMAP subjects, and
-the status door of `PUT /api/migrations/:id`) and merged as `f716c5a0`; `main` is merged in here
-at `f716c5a0`. It settles the fifth. Once it is merged, an operator can mark an organisation, and
-its migrations copy only what is marked. T3 merged as #2003 on 2026-11-21 (`cba6c64d`).
+`main` at `17548646`; merged as #2013 (`4a510a43`; *was:* not merged).** It merged after #2011,
+which settled the first four things to settle below (the sharing rescan and the permission
+report, the Dropbox bin, IMAP subjects, and the status door of `PUT /api/migrations/:id`) and
+merged as `f716c5a0`; `main` is merged in here at `f716c5a0`. It settles the fifth. Once it is
+merged, an operator can mark an organisation, and its migrations copy only what is marked. T3
+merged as #2003 on 2026-11-21 (`cba6c64d`).
 
 - **The organisation's marker** is a row of `test_organisation` (managed migration 0062, which only
   adds): one per test organisation, with 0070's CHECK and a trimmed marker, under row security,
@@ -611,7 +680,7 @@ Nothing was built with it.
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** | §2, agreed as written. A marker in the item's own title, set on an organisation by an appointed operator, fixed for the life of each migration, applied where the source is first listed; a test migration is never finished or switched over; losing the marker deletes nothing. |
-| T1 The test organisation and its marker | builder | 🔨 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0162-t1-marker` | §3. Support marks an organisation (`POST` and `DELETE /api/support/tenants/{tenantId}/test`, managed migration 0062), only while it holds no migration; `POST /api/migrations` copies the marker onto each migration made there, and no update anywhere names the column (`a-test-marker-only-a-create-writes`); every page of a test migration says so, the lists show a *Test* badge, and the Finish page offers its data types no ending (the fifth thing to settle). ADR-0053. Not merged: it merges after #2011, which settled prerequisites 1–4 and merged as `f716c5a0` (Status, 2026-11-21, later and last). |
+| T1 The test organisation and its marker | builder | ✅ **Merged** as #2013 on 2026-11-21 (`4a510a43`) | §3. Support marks an organisation (`POST` and `DELETE /api/support/tenants/{tenantId}/test`, managed migration 0062), only while it holds no migration; `POST /api/migrations` copies the marker onto each migration made there, and no update anywhere names the column (`a-test-marker-only-a-create-writes`); every page of a test migration says so, the lists show a *Test* badge, and the Finish page offers its data types no ending (the fifth thing to settle). ADR-0053. It merged after #2011, which settled prerequisites 1–4 and merged as `f716c5a0` (Status, 2026-11-21, later and last). Its re-review's four follow-ups: Status, 2026-11-21, after T1 merged. |
 | T2 The marker where the source is first listed | builder | ✅ **Merged** as #1975 on 2026-11-21 (`45a758af`), inert until T1 sets the column | §4. `MarkedOnly`, one wrapper per source port (`marked-only.ts`), applied by every builder of a mapping's source in both editions; the cursor, collection and file rules in `domain-sync.ts`, and since 2026-11-21 a set-aside item counted as seen by the removals and the bin; the column it reads (ledger 0070). E2E (managed) run 44881786816 was green and applied ledger migration 0070. The E2E smoke of a marked migration waits for T1. |
 | T3 Never finished, never switched over | builder | ✅ **Merged** as #2003 on 2026-11-21 (`cba6c64d`), inert until T1 sets the column | §5. Finish, ending or keeping a data type, the cutover's preparation (its door and its job), the gate's report and `approve`, `execute` and `complete` refuse a test migration and name the reason; the Verify and Finish pages say it in English and Dutch; delete stays open. E2E (managed) run 44911194184 was green on its head. |
 | T4 The scenarios on live | owner | 📋 **Proposed** | §6. Marked items and an unmarked control of each data type in a real Google account; copy, change, delete and a lost marker, each watched at the target and in the guest's inbox. |
