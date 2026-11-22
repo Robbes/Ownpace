@@ -1,7 +1,8 @@
-# Semgrep over the tree with a short list of named rules, REPORT ONLY
-# (workplan 0163 T3; the owner's decision D3 of 2026-11-20: a named list of
-# rules, not whole packs, report only first, the two ReDoS rules never
-# blocking, and CodeQL not now).
+# Semgrep over the tree with a short list of named rules, ONE OF THEM BLOCKING
+# (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: a named
+# list of rules, not whole packs, report only first, the two ReDoS rules never
+# blocking, and CodeQL not now; then a rule blocks once it reports nothing on
+# main).
 #
 # An outside, read-only check of 2026-11-20 listed five classes of finding in
 # this tree that no check in CI had a rule for: a regular expression built at
@@ -16,26 +17,54 @@
 # summary. A spot workplan 0163 read and left (`KNOWN_FINDINGS` there) is
 # marked known with its reason and still listed.
 #
-# REPORT ONLY. No finding fails this job: the script exits 0 whatever Semgrep
-# found. On a pull request it exits 0 even when the scan did not finish, and
-# warns, in the summary too. On a push to main or a dispatch a scan that did
-# not finish fails the job, since there the run is the record (security-scan.yml's
-# rule: a scan that skipped itself is not green). It is not in ci.yml, so
-# ci-complete never waits for it, and it is not a required check
-# (every-pr-check-is-classified.unit.test.ts, docs/testing.md).
+# ONE RULE BLOCKS (0163 T5). run-shell-injection reports nothing on main, and
+# as a YAML rule without taint mode it never reaches the taint analysis's time
+# limit, so a spot of it fails this job, on every event, as an error on its
+# line. Nothing in the tree can excuse or hide one: no KNOWN_FINDINGS entry,
+# no inline nosemgrep comment (Semgrep runs with --disable-nosem), and no
+# .semgrepignore, which the checkout may not track. Every workflow and action
+# file the checkout tracks must be among what Semgrep scanned, so one its own
+# ignore list leaves out (build/, vendor/, test/ and the rest), one over its
+# size limit, a link or an upper-case extension is a scan that did not
+# finish. Semgrep's per-file time limit and a file it could not parse are
+# notes in its report, and a note on a workflow or action file, or on no file
+# naming the rule that blocks, is a scan that did not finish.
+# The other seven report only: their spots are listed and fail nothing.
+# react-href-var reports nothing on main either, but it is a taint rule over
+# JavaScript and TypeScript, and main's run at 0683eb04 (45025731298) read ten
+# places only in part where it can have timed out, one naming it first, so
+# blocking it would make such a run a scan that did not finish
+# (scripts/semgrep-report.mjs, READ ONLY IN PART).
 #
-# IT BECOMES BLOCKING rule by rule (0163 §5, step 5): a rule fails the build
-# once it reports nothing on main, in a pull request of its own that says so.
+# A scan that did not finish fails the job too, on a pull request as well,
+# since there the job vouches for the rule that blocks: that includes a
+# registry that does not answer when the rules are fetched, which fails the
+# pull request until a re-run. The rules are fetched by id and not pinned, so
+# a rule renamed or withdrawn upstream fails every pull request, and a re-run
+# does not help; and an upstream edit to run-shell-injection changes what
+# blocks with no change here. On a push to main or a dispatch the run is the
+# record (security-scan.yml's rule: a scan that skipped itself is not green).
+# It is not in ci.yml, whose ci-complete cannot wait for another file's job.
+# It is to be a required check by its job's name, `Semgrep`
+# (every-pr-check-is-classified.unit.test.ts, docs/testing.md's required
+# checks), once the owner adds it to the repository ruleset that holds main's
+# required checks, so that name is load-bearing: renamed, the merge would wait
+# for a check that never reports.
+#
+# IT BECOMES BLOCKING rule by rule (0163 §5, step 5): each other rule fails the
+# build once it reports nothing on main and its time-outs leave every run on
+# main finished, in a pull request of its own that says so.
 # The two ReDoS rules, detect-non-literal-regexp and detect-redos, never do
 # (D3): each flags how a pattern is built, not what reaches it, and every spot
 # outside the tests was read as fed a constant or an escaped value.
 #
 # CODE SCANNING. On a push to main the spots of the six rules that may block
 # go to code scanning (CODE_SCANNING_REPORT in scripts/semgrep-report.mjs), so
-# they are listed there beside Trivy's. The two ReDoS rules, which never block
-# (D3), stay in the job's summary only. Never from a pull request: there code
-# scanning adds a check of its own, which can fail on a new alert, and this job
-# is report only.
+# they are listed there beside Trivy's, also when the rule that blocks failed
+# the job, since that scan finished (`!cancelled()`). The two ReDoS rules,
+# which never block (D3), stay in the job's summary only. Never from a pull
+# request: there code scanning adds a check of its own, which can fail on a
+# new alert, and this job decides itself which rules block.
 #
 # WHICH IMAGE. SEMGREP_IMAGE below, by tag and index digest, which the guard
 # holds to the reference it records as read (`SEMGREP`), and moved by hand:
@@ -58,8 +87,9 @@ name: Semgrep
 
 on:
   # No `branches:` filter (ci.yml's trigger block says why), and no `paths:`,
-  # so the report is there on every pull request and a rule can be required
-  # as it is once it turns blocking.
+  # so the check reports on every pull request, as a required check must: a
+  # required check that never reports leaves the merge waiting for good
+  # (docs/testing.md).
   pull_request:
   push:
     branches: [main]
@@ -75,7 +105,8 @@ concurrency:
 
 jobs:
   semgrep:
-    name: Semgrep (report only)
+    # The required check's name (ONE RULE BLOCKS, above): keep it as it is.
+    name: Semgrep
     # GitHub-hosted, like every other pull_request job: see ci.yml's "Which
     # machine runs untrusted code" header for the policy.
     runs-on: ubuntu-24.04
@@ -107,7 +138,7 @@ jobs:
         id: semgrep
         run: node scripts/semgrep-report.mjs
       - name: Upload the SARIF to code scanning, from main only
-        if: github.event_name == 'push' && steps.semgrep.outputs.sarif != ''
+        if: "!cancelled() && github.event_name == 'push' && steps.semgrep.outputs.sarif != ''"
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: ${{ steps.semgrep.outputs.sarif }}
