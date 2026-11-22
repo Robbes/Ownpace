@@ -839,7 +839,12 @@ peak (#2048). That is 2.5 and `4864m` at the default cap of 3, and 4 and
 `6400m` at live's 6. Docker refuses a `cpus` above the host's CPU count, and a
 memory limit above the host's memory is one no host can give, so the bring-up
 refuses either, in one sentence, before the plane stops and before the worker
-starts.
+starts. A line that passes names no number of the host's (the gate's log is
+public); a refusal does. Where a worked-out size differs from `managed.yml`'s
+default, the bring-up says that a compose call outside it (a hand
+`docker compose up -d`) would recreate the worker at the default, and prints
+the one `env-upsert.sh … WORKER_CPUS=… WORKER_MEMORY=…` that keeps the size in
+`.env`; it writes nothing there itself.
 
 **A comment where the worker reads a value.** A `.env` line such as
 `LEDGER_RETENTION_DAYS=  # days` (spaces or a tab, then `#`) is empty to bash,

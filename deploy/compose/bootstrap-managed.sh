@@ -1938,6 +1938,9 @@ worker_sized() {
   [[ "$cap" =~ ^[1-9][0-9]*$ ]] || die "MAX_PASSES_IN_FLIGHT is not a whole number of at least 1, so the worker's size cannot be worked out; the tick refuses it too. Its value is not printed. The worker was not started."
   WORKER_CPUS_RULE="$(awk -v c="$cap" 'BEGIN { printf "%g", 0.5 * (c + 2) }')"
   WORKER_MEMORY_RULE="$(((cap + 1) * 512 + 2816))m"
+  local cpus_from_rule='' memory_from_rule=''
+  [ -n "${WORKER_CPUS:-}" ] || cpus_from_rule=1
+  [ -n "${WORKER_MEMORY:-}" ] || memory_from_rule=1
   if [ -n "${WORKER_CPUS:-}" ]; then
     note "WORKER_CPUS ${WORKER_CPUS}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${WORKER_CPUS_RULE})"
   else
@@ -1950,6 +1953,28 @@ worker_sized() {
     export WORKER_MEMORY="$WORKER_MEMORY_RULE"
     note "WORKER_MEMORY ${WORKER_MEMORY}: (MAX_PASSES_IN_FLIGHT ${cap} + 1) x 512 MB + 2816 MB, for this run's compose calls (not written to .env)"
   fi
+  worker_size_drift "$cpus_from_rule" "$memory_from_rule"
+}
+
+# worker_size_drift <cpus from the rule> <memory from the rule> — one line when
+# a value worked out here differs from managed.yml's default: a compose call
+# outside the bring-up (a hand `docker compose up -d`) reads managed.yml's
+# default, and would recreate the worker at it. The line gives the one
+# command that sets both in .env; nothing here writes .env.
+worker_size_drift() {
+  local yml="${SCRIPT_DIR}/managed.yml" dc dm drift=''
+  dc="$(grep -oE '\$\{WORKER_CPUS:-[^}]+\}' "$yml" | awk 'NR==1')" || dc=''
+  dc="$(sed 's/.*:-//; s/}$//' <<<"$dc")"
+  dm="$(grep -oE '\$\{WORKER_MEMORY:-[^}]+\}' "$yml" | awk 'NR==1')" || dm=''
+  dm="$(sed 's/.*:-//; s/}$//' <<<"$dm")"
+  if [ -n "${1:-}" ] && [ -n "$dc" ] && ! awk -v a="$WORKER_CPUS" -v b="$dc" 'BEGIN { exit (a + 0 == b + 0) ? 0 : 1 }'; then
+    drift=1
+  fi
+  if [ -n "${2:-}" ] && [ -n "$dm" ] && [ "$(worker_memory_bytes "$WORKER_MEMORY")" != "$(worker_memory_bytes "$dm" || echo "$dm")" ]; then
+    drift=1
+  fi
+  [ -n "$drift" ] || return 0
+  note "managed.yml's defaults are WORKER_CPUS ${dc:-none} and WORKER_MEMORY ${dm:-none}, so a compose call outside the bring-up (a hand docker compose up -d) would recreate the worker at those. To keep this size there too, set both in .env: ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_CPUS=${WORKER_CPUS} WORKER_MEMORY=${WORKER_MEMORY}"
 }
 
 # worker_cpus_fit — the worker's CPU cap, the value Compose will use
@@ -1964,7 +1989,10 @@ worker_cpus_fit() {
   if awk -v c="$cpus" -v h="$host" 'BEGIN { exit (c > h) ? 0 : 1 }'; then
     die "WORKER_CPUS is ${cpus}, above this host's ${host} CPU(s), and Docker refuses a cpus value above that. Set it to at most ${host} (the rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${WORKER_CPUS_RULE}): ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_CPUS=<n>. The worker was not started."
   fi
-  note "the worker's CPU cap: ${cpus} of this host's ${host} (the rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${WORKER_CPUS_RULE})"
+  # The host's own count stays out of a line that passes: the gate's log is
+  # public, and with the memory it names the hardware. A refusal names it,
+  # because the operator needs it to fix .env.
+  note "the worker's CPU cap: ${cpus}, within this host's CPUs (the rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${WORKER_CPUS_RULE})"
 }
 
 # worker_memory_bytes <value> — a Compose memory value (a number of bytes, or
@@ -1994,7 +2022,7 @@ worker_memory_fit() {
   if [ "$bytes" -gt "$host" ]; then
     die "WORKER_MEMORY is ${mem}, above this host's $((host / 1048576)) MB of memory. Set it to at most that (the rule: (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2816 MB = ${WORKER_MEMORY_RULE}), or lower MAX_PASSES_IN_FLIGHT: ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_MEMORY=<n>m. The worker was not started."
   fi
-  note "the worker's memory limit: ${mem} of this host's $((host / 1048576)) MB"
+  note "the worker's memory limit: ${mem}, within this host's memory"
 }
 
 # worker_env_fit — no key the worker receives has a .env line `KEY=` followed
