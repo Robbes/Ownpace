@@ -672,6 +672,14 @@ export interface UpsertOptions {
    * the loop records afterwards is discarded.
    */
   readonly sourceRef?: string;
+  /**
+   * The address table the body was changed under (ADR-0055; workplan 0168
+   * T4), or null when no address in it changed. Carried for the same race as
+   * `sourceVersion`: a writer that records its own row on a create records
+   * this with it. Not recorded on an adopted copy, whose bytes are the
+   * target's own and were never changed by us.
+   */
+  readonly addressDigest?: string | null;
 }
 
 /** A target mailbox store the engine writes to. NEVER deletes or overwrites (non-destructive). */
@@ -1053,6 +1061,14 @@ export interface LedgerRecord {
    * rule ever fires where it should not, this is where the evidence is.
    */
   readonly repaired?: string;
+  /**
+   * THE ADDRESS TABLE THIS COPY WAS WRITTEN UNDER (ADR-0055; workplan 0168
+   * §3.1, T4): `addressTableDigest` of the confirmed rows that changed an
+   * address in it, or null when none did. Absent from a record means nothing
+   * to say: `recordUpdate` then keeps what the row holds. Null means "written
+   * with no change", and is written. Never set for mail or files.
+   */
+  readonly addressDigest?: string | null;
   readonly contentHash: string;
   readonly targetId: string;
   /** ISO 8601 timestamp the row was first recorded. */
@@ -2890,6 +2906,26 @@ export interface LedgerVerificationReader {
     mappingId: MappingId,
     domain: DiscoveryDomain
   ): Promise<string[]>;
+
+  /**
+   * The address table's part of one data type (ADR-0055; workplan 0168 T5):
+   * the organisation's confirmed table's digest now, how many copies we wrote
+   * carry a change under it, and the keys of those written under an OLDER
+   * table, which verification never counts as a match. Optional, as a reader
+   * without a table has nothing to say.
+   */
+  addressChangesOf?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<AddressChangesInLedger>;
+}
+
+/** What `LedgerVerificationReader.addressChangesOf` answers. Counts and keys, never addresses. */
+export interface AddressChangesInLedger {
+  readonly digest: string | null;
+  readonly changed: number;
+  readonly olderKeys: ReadonlyArray<string>;
 }
 
 /**

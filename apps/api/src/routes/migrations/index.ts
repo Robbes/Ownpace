@@ -48,6 +48,7 @@ import {
   pathStopChoices,
   readGraceEnds,
   readPathPhases,
+  applyNewAddressesHere,
 } from '@openmig/ledger';
 import {
   A_TEST_IS_NOT_FINISHED,
@@ -3859,6 +3860,44 @@ router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest,
     res.json(await recordVisit(tenantId, mappingId, pool));
   } catch (error) {
     serverFault(res, 'visit_failed', 'recording this visit', error);
+  }
+});
+
+/**
+ * POST /api/migrations/:mappingId/address-changes/apply
+ *
+ * *Apply the new addresses here too* (ADR-0055; workplan 0168 §3.4, D5). Past
+ * a data type's cutover the target is the person's live system, so a change to
+ * the organisation's address table reaches its copies only once someone
+ * presses this on the migration. It records the confirmed table as it is now
+ * (`applyNewAddressesHere`, the ledger's door, shared with the appliance); the
+ * next pass rewrites the copies whose table moved and which the person has not
+ * edited since. A later change to the table waits for a press of its own.
+ * 200 with the digest and the number of rows (never an address); 404 for a
+ * migration this organisation does not have.
+ */
+router.post('/:mappingId/address-changes/apply', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { mappingId } = req.params;
+    if (!mappingId || Array.isArray(mappingId)) {
+      res.status(400).json({ error: 'mappingId is required' });
+      return;
+    }
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found in authentication context' });
+      return;
+    }
+    const applied = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      applyNewAddressesHere(db, tenantId, mappingId, req.userId ?? 'unknown'),
+    );
+    if (applied === null) {
+      res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+      return;
+    }
+    res.json({ id: mappingId, applied: true, digest: applied.digest, rows: applied.rows });
+  } catch (error) {
+    serverFault(res, 'address_changes_apply_failed', 'applying the new addresses here', error);
   }
 });
 

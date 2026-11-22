@@ -304,6 +304,15 @@ export const mailboxMapping = pgTable(
      * refuses an UPDATE that changes it, for every role (§2 (c)).
      */
     testMarker: text('test_marker'),
+    /**
+     * The confirmed address table a person last pressed *Apply the new
+     * addresses here too* for (ADR-0055; workplan 0168 D5, migration 0073),
+     * with who and when. Past a data type's cutover a pass applies the table
+     * only while this is its digest now. NULL when nobody pressed it.
+     */
+    addressChangesAppliedDigest: text('address_changes_applied_digest'),
+    addressChangesAppliedBy: text('address_changes_applied_by'),
+    addressChangesAppliedAt: timestamp('address_changes_applied_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

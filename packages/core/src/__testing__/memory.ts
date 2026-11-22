@@ -465,6 +465,9 @@ export class MemoryLedger implements Ledger {
       ...(record.targetVersion !== undefined ? { targetVersion: record.targetVersion } : {}),
       ...(record.collection !== undefined ? { collection: record.collection } : {}),
       ...(record.sourceRef !== undefined ? { sourceRef: record.sourceRef } : {}),
+      // Said, null included, as PgLedger's SET is (ADR-0055); a null digest
+      // leaves the field off, as a NULL column reads back.
+      ...(record.addressDigest !== undefined ? { addressDigest: record.addressDigest } : {}),
       // Conditional AND non-empty, exactly as the SQL is: `''` is what every
       // row written before 2026-09-12 holds, so PgLedger treats it as nothing
       // to say and lets a later pass repair the row. A fake that accepted a

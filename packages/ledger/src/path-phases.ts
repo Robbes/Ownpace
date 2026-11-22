@@ -26,7 +26,7 @@
  * phase is believed: it runs no pass, and its phase says the rest.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import {
   pathRunsNow,
   phasesOfThePaths,
@@ -35,6 +35,7 @@ import {
   shareMayBeApplied,
   type PathPhaseOf,
   type PathRow,
+  addressTablePressDigest,
 } from '@openmig/shared';
 import * as schemaPg from './schema-pg.ts';
 import type { PgDatabase } from './db-types.ts';
@@ -102,6 +103,14 @@ export interface MigrationPhases {
    * wrapped as the managed builders wrap theirs.
    */
   readonly testMarker?: string;
+  /**
+   * The confirmed address table a person last pressed *Apply the new
+   * addresses here too* for on this migration (`mailbox_mapping.
+   * address_changes_applied_digest`, migration 0073; ADR-0055, workplan 0168
+   * D5). Past a data type's cutover a pass applies the table only while this
+   * is its digest now. Absent when nobody pressed it.
+   */
+  readonly addressChangesApplied?: string;
 }
 
 /**
@@ -118,6 +127,7 @@ export async function readPathPhases(
       status: schemaPg.mailboxMapping.status,
       grantWithdrawnAt: schemaPg.mailboxMapping.grantWithdrawnAt,
       testMarker: schemaPg.mailboxMapping.testMarker,
+      addressChangesApplied: schemaPg.mailboxMapping.addressChangesAppliedDigest,
     })
     .from(schemaPg.mailboxMapping)
     .where(eq(schemaPg.mailboxMapping.id, mappingId));
@@ -161,7 +171,37 @@ export async function readPathPhases(
     phaseOf: phasesOfThePaths(row.status, windows.of, paths),
     anyRuns,
     ...(row.testMarker !== null ? { testMarker: row.testMarker } : {}),
+    ...(row.addressChangesApplied !== null ? { addressChangesApplied: row.addressChangesApplied } : {}),
   };
+}
+
+/**
+ * A person pressed *Apply the new addresses here too* on one migration
+ * (ADR-0055; workplan 0168 D5): record the confirmed table's digest it was
+ * pressed for, by whom, inside the organisation's transaction. Past a data
+ * type's cutover, the next pass rewrites copies whose table moved, and only
+ * while the table stays as it was pressed for. False when the migration is
+ * not this organisation's, or gone. Pressing again for the same table writes
+ * the same digest, and only who and when move.
+ */
+export async function recordAddressChangesApplied(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  digest: string,
+  appliedBy: string,
+): Promise<boolean> {
+  if (!/^[0-9a-f]{64}$/.test(digest)) throw new Error('An address table digest is 64 hex characters.');
+  const rows = await db
+    .update(schemaPg.mailboxMapping)
+    .set({
+      addressChangesAppliedDigest: digest,
+      addressChangesAppliedBy: appliedBy,
+      addressChangesAppliedAt: sql`now()`,
+    })
+    .where(and(eq(schemaPg.mailboxMapping.id, mappingId), eq(schemaPg.mailboxMapping.tenantId, tenantId)))
+    .returning({ id: schemaPg.mailboxMapping.id });
+  return rows.length > 0;
 }
 
 /**
@@ -178,4 +218,40 @@ export async function readShareGate(
   const phases = await readPathPhases(db, tenantId, mappingId);
   if (phases === null) return () => false;
   return (subject) => shareMayBeApplied(subject, phases.status, phases.phaseOf);
+}
+
+/** What a press of *Apply the new addresses here too* answers. */
+export interface AddressChangesApplied {
+  /** The press digest recorded (`addressTablePressDigest`). */
+  readonly digest: string;
+  /** How many confirmed rows the table held when it was pressed. A count, never an address. */
+  readonly rows: number;
+}
+
+/**
+ * THE PRESS ITSELF (ADR-0055; workplan 0168 D5), the one door both editions
+ * use: read the organisation's confirmed address table as it is now, and
+ * record its press digest on the migration. Null when the migration is not
+ * this organisation's. The next pass rewrites, past a data type's cutover,
+ * the copies whose table moved and that the person has not edited since
+ * (the `If-Match` rule); before the cutover the press changes nothing, since
+ * the table applies there anyway.
+ */
+export async function applyNewAddressesHere(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  appliedBy: string,
+): Promise<AddressChangesApplied | null> {
+  const rows = await db
+    .select({
+      oldKey: schemaPg.addressChange.oldKey,
+      oldAddress: schemaPg.addressChange.oldAddress,
+      newAddress: schemaPg.addressChange.newAddress,
+    })
+    .from(schemaPg.addressChange)
+    .where(and(eq(schemaPg.addressChange.tenantId, tenantId), eq(schemaPg.addressChange.state, 'confirmed')));
+  const digest = addressTablePressDigest(rows);
+  const recorded = await recordAddressChangesApplied(db, tenantId, mappingId, digest, appliedBy);
+  return recorded ? { digest, rows: rows.length } : null;
 }

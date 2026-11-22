@@ -40,6 +40,8 @@ import { applyTargetFolderPrefix,
   fileNaturalKeyHash,
   containerContentHash,
   fileContentHash,
+  applyAddressChanges,
+  type AddressTable,
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncResult } from './domain-sync.ts';
 import { fileTooLarge } from './largest-file.ts';
@@ -55,6 +57,56 @@ import { fileTooLarge } from './largest-file.ts';
  */
 function ownsPrefix(target: unknown): boolean {
   return (target as { ownsTargetFolderPrefix?: boolean } | undefined)?.ownsTargetFolderPrefix === true;
+}
+
+/**
+ * THE ADDRESS TABLE A PASS APPLIES (ADR-0055; workplan 0168 §3, T4), read once
+ * at the pass's start from the tenant's CONFIRMED rows and made ready with
+ * `prepareAddressTable`.
+ *
+ * Applied to the body the source gave, before anything else reads it: the
+ * writer's own repairs (`repairPayload`) and `neutraliseScheduling` then run
+ * on the changed body, the loop's content hash is of it, and the writer sends
+ * it. So the ledger, the target and verification name one set of bytes.
+ * Absent, or empty, every byte is the source's, exactly as before.
+ */
+export interface AddressChangesForPass {
+  readonly table: AddressTable;
+  /** `addressKey` of the migration's own account's addresses: its events' guests change too (D3). */
+  readonly ownKeys: ReadonlyArray<string>;
+  /**
+   * A person pressed *Apply the new addresses here too* on this migration for
+   * this table (D5): past the data type's cutover, a changed table rewrites
+   * copies. Without it, it waits.
+   */
+  readonly pastCutoverApplies?: boolean;
+}
+
+/** The loop's address-change hooks for one format, or nothing for a pass without a table. */
+function addressHooks<Item>(
+  changes: AddressChangesForPass | undefined,
+  format: 'vcard' | 'icalendar',
+  bodyOf: (item: Item) => string,
+): {
+  readonly addressDigestNow?: (item: Item) => string | null;
+  readonly addressRewritePastCutover?: boolean;
+} {
+  if (!changes) return {};
+  return {
+    addressDigestNow: (item) => applyAddressChanges(format, bodyOf(item), changes.table, changes.ownKeys).digest,
+    ...(changes.pastCutoverApplies ? { addressRewritePastCutover: true } : {}),
+  };
+}
+
+/** A body with the table applied, and the digest it was changed under; the body itself without a table. */
+function changed(
+  changes: AddressChangesForPass | undefined,
+  format: 'vcard' | 'icalendar',
+  body: string,
+): { readonly body: string; readonly addressDigest?: string | null } {
+  if (!changes) return { body };
+  const r = applyAddressChanges(format, body, changes.table, changes.ownKeys);
+  return { body: r.body, addressDigest: r.digest };
 }
 
 /**
@@ -81,6 +133,8 @@ export interface CalendarSyncDeps extends PassClock, SourceAuthority {
    * fail to migrate because an advisory record could not be written.
    */
   readonly recordTargetScheduling?: () => Promise<void>;
+  /** The tenant's confirmed address changes for this pass (ADR-0055); absent changes nothing. */
+  readonly addressChanges?: AddressChangesForPass;
 }
 
 /**
@@ -108,12 +162,15 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
     fetchRaw: async (item) => {
-      const raw = item.icalendar;
-      return { 
-        raw: { item: item.item, icalendar: raw } as RawCalendarEvent,
-        sizeBytes: Buffer.from(item.icalendar, 'utf8').length 
+      // The address table first (ADR-0055), then the writer's own steps.
+      const { body, addressDigest } = changed(deps.addressChanges, 'icalendar', item.icalendar);
+      return {
+        raw: { item: item.item, icalendar: body } as RawCalendarEvent,
+        sizeBytes: Buffer.from(body, 'utf8').length,
+        ...(addressDigest !== undefined ? { addressDigest } : {}),
       };
     },
+    ...addressHooks<RawCalendarEvent>(deps.addressChanges, 'icalendar', (item) => item.icalendar),
     upsert: async (calendarId, raw, _item, options) =>
       target.upsertCalendarEvent(calendarId, raw as RawCalendarEvent, options),
     // Through the shared helper, not the bare UID: a recurring series and each
@@ -218,12 +275,15 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
     fetchRaw: async (item) => {
-      const raw = item.icalendar;
+      // The address table first (ADR-0055), then the writer's own steps.
+      const { body, addressDigest } = changed(deps.addressChanges, 'icalendar', item.icalendar);
       return {
-        raw: { item: item.item, icalendar: raw } as RawCalendarEvent,
-        sizeBytes: Buffer.from(item.icalendar, 'utf8').length,
+        raw: { item: item.item, icalendar: body } as RawCalendarEvent,
+        sizeBytes: Buffer.from(body, 'utf8').length,
+        ...(addressDigest !== undefined ? { addressDigest } : {}),
       };
     },
+    ...addressHooks<RawCalendarEvent>(deps.addressChanges, 'icalendar', (item) => item.icalendar),
     upsert: async (calendarId, raw, _item, options) =>
       target.upsertCalendarEvent(calendarId, raw as RawCalendarEvent, options),
     // THE ONE LINE THAT IS NOT THE CALENDAR PASS. `naturalKeyForTask` carries
@@ -269,6 +329,8 @@ export interface ContactSyncDeps extends PassClock, SourceAuthority {
   readonly onCollision?: 'skip' | 'fail';
   /** Create every target directory under this folder — see `MappingConfig.targetFolderPrefix`. */
   readonly targetFolderPrefix?: string;
+  /** The tenant's confirmed address changes for this pass (ADR-0055); absent changes nothing. */
+  readonly addressChanges?: AddressChangesForPass;
 }
 
 /**
@@ -303,11 +365,15 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
       // contact arrived with its name and numbers and without its face
       // (owner's report, 2026-09-23).
       const full = source.fetch ? await source.fetch(item) : item;
+      // The address table first (ADR-0055), then the writer's own repairs.
+      const { body, addressDigest } = changed(deps.addressChanges, 'vcard', full.vcard);
       return {
-        raw: { item: full.item, vcard: full.vcard } as RawContact,
-        sizeBytes: Buffer.from(full.vcard, 'utf8').length,
+        raw: { item: full.item, vcard: body } as RawContact,
+        sizeBytes: Buffer.from(body, 'utf8').length,
+        ...(addressDigest !== undefined ? { addressDigest } : {}),
       };
     },
+    ...addressHooks<RawContact>(deps.addressChanges, 'vcard', (item) => item.vcard),
     upsert: async (folderId, raw, _item, options) =>
       target.upsertContact(folderId, raw as RawContact, options),
     naturalKey: (item) => contactNaturalKeyHash(item.item.uid),

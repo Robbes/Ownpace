@@ -189,10 +189,23 @@ function noRowsYet(): Record<RowState, number> {
   return { ...NO_ROWS_YET };
 }
 
+/**
+ * What a row says about the address table (ADR-0055; workplan 0168 T5).
+ *
+ * - `changed`: the copy was written with an address changed, under the table
+ *   as it is now. A match is a match *with your new address*.
+ * - `older`: it was written under a table that is no longer the table, and a
+ *   pass has not rewritten it yet. It is never a match: until then the copy
+ *   does not say what the table says it should.
+ */
+export type AddressMark = 'changed' | 'older';
+
 /** One row, with its evidence named rather than implied. */
 export interface ConfirmedRow {
   readonly state: RowState;
   readonly claim: ClaimKind;
+  /** The address table's word on this row, when a table changed it (ADR-0055). Absent otherwise. */
+  readonly address?: AddressMark;
 }
 
 /**
@@ -280,6 +293,39 @@ export function rowFor(args: {
    * 0042 T7 (c) exists to stop the list from saying. There are two callers;
    * both hold the value; the compiler names any third.
    */
+  readonly contentHash: string | null;
+  /**
+   * The address table the copy was written under (`item.address_digest`) and
+   * the table's digest now (ADR-0055; workplan 0168 T5). Absent where the
+   * caller has no table to say anything with; then no row is marked.
+   */
+  readonly addressDigest?: { readonly item: string | null; readonly table: string | null };
+}): ConfirmedRow {
+  const row = rowBeforeTheAddressTable(args);
+  const digest = args.addressDigest;
+  // Only a copy WE wrote with an address changed carries a mark. The
+  // customer's own bytes, a removed copy and one never placed say nothing
+  // about a table, and neither does a row the table did not touch.
+  if (!digest || digest.item === null) return row;
+  if (!PLACED_BY_US.has(args.status)) return row;
+  if (digest.item === digest.table) return { ...row, address: 'changed' };
+  // Written under an older table: NEVER a match (ADR-0055 decision 5). A
+  // re-read that agrees with the ledger proves only that the copy is what we
+  // wrote then, and what we wrote then is not what the table says now.
+  return { ...row, state: row.state === 'verified' ? 'differs' : row.state, address: 'older' };
+}
+
+/** The statuses of a copy this product wrote and still stands behind. */
+const PLACED_BY_US: ReadonlySet<LedgerRecord['status']> = new Set<LedgerRecord['status']>([
+  'copied',
+  'updated',
+  'deleted_source',
+]);
+
+function rowBeforeTheAddressTable(args: {
+  readonly domain: DiscoveryDomain;
+  readonly status: LedgerRecord['status'];
+  readonly answer: TargetAnswer;
   readonly contentHash: string | null;
 }): ConfirmedRow {
   const { domain, status, answer, contentHash } = args;
@@ -489,6 +535,13 @@ export interface ConfirmedList<Row extends ConfirmedRow = ConfirmedRow> {
    * describe the first two hundred rows as if they were the account.
    */
   readonly byState: Readonly<Record<RowState, number>>;
+  /**
+   * The address table's part of the account (ADR-0055; workplan 0168 T5):
+   * the table's digest, named, and how many rows carry a change under it
+   * (`changed`) or under an older one (`older`, never a match). Counted over
+   * every row, as `byState` is. Absent when the caller had no table to read.
+   */
+  readonly addressChanges?: { readonly digest: string | null; readonly changed: number; readonly older: number };
 }
 
 /**
@@ -514,11 +567,18 @@ export interface ConfirmedList<Row extends ConfirmedRow = ConfirmedRow> {
 export function confirmedListOf<Row extends ConfirmedRow>(options?: {
   /** Keep at most this many non-verified rows. Absent means keep every one. */
   readonly limit?: number;
+  /**
+   * The address table's digest now, to name beside the counts (ADR-0055).
+   * Absent means no table was read, and the list says nothing about one.
+   */
+  readonly addressDigest?: string | null;
 }): {
   add(row: Row): void;
   result(): ConfirmedList<Row>;
 } {
   const limit = options?.limit;
+  let addressChanged = 0;
+  let addressOlder = 0;
   const rows: Row[] = [];
   const byState = noRowsYet();
   let verified = 0;
@@ -530,6 +590,8 @@ export function confirmedListOf<Row extends ConfirmedRow>(options?: {
       // Tallied before the early return below, so the breakdown covers the
       // verified rows the screen never receives as well as the ones it does.
       byState[row.state] += 1;
+      if (row.address === 'changed') addressChanged += 1;
+      else if (row.address === 'older') addressOlder += 1;
       if (countsAsVerified(row)) {
         verified += 1;
         return;
@@ -542,6 +604,9 @@ export function confirmedListOf<Row extends ConfirmedRow>(options?: {
       total,
       rows,
       byState,
+      ...(options?.addressDigest !== undefined
+        ? { addressChanges: { digest: options.addressDigest, changed: addressChanged, older: addressOlder } }
+        : {}),
       ...(dropped > 0 ? { truncated: true } : {}),
     }),
   };

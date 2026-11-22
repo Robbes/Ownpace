@@ -4,6 +4,26 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22: T1 and T3 built, on `claude/ownpace-0168-core`.** Nothing calls either yet.
+
+- **T1.** `packages/shared/src/address-forms.ts`: `addressKey`, `isAddress`, `NOT_TAKEN_ALONG`,
+  `cannotTakeAlong`. `signed-in-account.ts` reads its fold from there, and its tests pass unchanged.
+  **`NOT_TAKEN_ALONG` holds `gmail.com` and `googlemail.com` only.** They are the only domains
+  whose sources could be read from the build container on 2026-11-22 (two Google for Developers
+  pages, quoted beside the entry). The container's network refused every other provider's pages
+  (`support.google.com`, `support.apple.com`; the Dutch and Belgian internet providers' sites),
+  so these are left out until their pages are read: Microsoft's `outlook.com`, `hotmail.com`,
+  `live.com`, `msn.com`, the country variants and `onmicrosoft.com`; Apple's `icloud.com`,
+  `me.com`, `mac.com`; Yahoo's domains; and every internet provider's.
+- **T3.** `packages/shared/src/address-changes.ts`: `ConfirmedAddressChange`,
+  `addressTableDigest`, `prepareAddressTable` and `applyAddressChanges(format, body, table,
+  ownKeys)`, as D2 and D3 say. A table that chains, holds one old key twice or holds a value that
+  is not an address is refused whole (`AddressTableRefused`). Proven by unit tests: hand-written
+  fixtures in Google's, Graph's and Apple's shapes, and seeded property tests over 400 random
+  cards and 400 random events (an empty table is byte-identical; `f(f(x)) = f(x)`; free text,
+  display names and UIDs unchanged; folded lines read as unfolded). A guard keeps the module off
+  the mail path (`an-address-change-that-reached-mail.unit.test.ts`).
+
 **2026-11-22: T2 built, on `claude/ownpace-0168-table`; nothing applies a row yet.** The table,
 its routes in both editions and every migration file of this plan:
 
@@ -52,9 +72,9 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The owner's decisions and ADR-0055 | owner | ✅ **Done 2026-11-22** | §9: D1–D10 answered as recommended on 2026-11-22 (D7 after rewording). ADR-0055 accepted the same day. |
-| T1 Address forms and the list of addresses nobody can take along | builder | 📋 **Proposed** | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moves there. No behaviour change. |
+| T1 Address forms and the list of addresses nobody can take along | builder | 🔄 **Built 2026-11-22, in review** | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moved there, no behaviour change. The list holds Google's two domains; the rest wait for their sources to be read (Status). |
 | T2 The table of address changes | builder | 🟡 **Built, in review** | §4, §5. `address_change` (ledger 0071), `item.address_digest` (0072), `address_change_person` (managed 0063), routes in both editions, `PURGED_TABLES`, Support's counts. Status 2026-11-22. |
-| T3 The change itself, as a pure function | builder | 📋 **Proposed** | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests. |
+| T3 The change itself, as a pure function | builder | 🔄 **Built 2026-11-22, in review** | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests; mail-path guard. |
 | T4 The writers apply it, and a changed table converges | builder | 📋 **Proposed** | §3. CardDAV, JMAP contacts and CalDAV writers; `item.address_digest`; `classifyKnownItem`. |
 | T5 Verification and the confirmed list say what was changed | builder | 📋 **Proposed** | §3.1. A declared change, never a silent difference. |
 | T6 The Sharing checklist reads the table | builder | 📋 **Proposed** | §2.4. Pre-fills the grantee; each press still sends its address. |

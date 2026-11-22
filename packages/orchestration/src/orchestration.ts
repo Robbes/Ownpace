@@ -54,6 +54,7 @@ import {
 } from '@openmig/shared';
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps, withTheLedgersMarker, type LedgerOptions } from './build-deps.ts';
+import { accountAddressesOf, addressChangesForPass } from './address-changes-for-pass.ts';
 import {
   GATE_NAME,
   asReindexer,
@@ -516,6 +517,23 @@ export async function runAllDomains(
     }
   };
 
+  // THE ADDRESS TABLE (ADR-0055; workplan 0168 §4.3), read once at the start
+  // of each contact, calendar and task pass, inside its `try`: a table the
+  // ledger refuses is that data type's failure, never an empty table. The
+  // press past a cutover (D5) is the migration's own, read with its phases.
+  const addressChangesOf = async (passLedger: Ledger) => {
+    const changes = await addressChangesForPass(
+      passLedger,
+      tenantId,
+      accountAddressesOf(
+        config.source as unknown as Record<string, unknown>,
+        config.target as unknown as Record<string, unknown>,
+      ),
+      (await phasesNow())?.addressChangesApplied,
+    );
+    return changes ? { addressChanges: changes } : {};
+  };
+
   async function runOneDomain(domain: DiscoveryDomain): Promise<void> {
     // Collected per domain rather than read back off the end of the shared
     // array: with lanes in flight at once, `results[results.length - 1]` is no
@@ -610,8 +628,9 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'calendar') {
-        const deps = { ...buildDomainDeps(config, 'calendar', builtWith), ...startsAs, ...askedWhy(domain) };
+        const built = { ...buildDomainDeps(config, 'calendar', builtWith), ...startsAs, ...askedWhy(domain) };
         try {
+          const deps = { ...built, ...(await addressChangesOf(built.ledger)) };
           const result = await runCalendarSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
@@ -638,11 +657,12 @@ export async function runAllDomains(
             deletions: result.deletions.length,
           };
         } finally {
-          await deps.close();
+          await built.close();
         }
       } else if (domain === 'contact') {
-        const deps = { ...buildDomainDeps(config, 'contact', builtWith), ...startsAs, ...askedWhy(domain) };
+        const built = { ...buildDomainDeps(config, 'contact', builtWith), ...startsAs, ...askedWhy(domain) };
         try {
+          const deps = { ...built, ...(await addressChangesOf(built.ledger)) };
           const result = await runContactSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
@@ -668,7 +688,7 @@ export async function runAllDomains(
             deletions: result.deletions.length,
           };
         } finally {
-          await deps.close();
+          await built.close();
         }
       } else if (domain === 'task') {
         // ITS OWN BRANCH, and the trailing `else` below is narrowed to `file`
@@ -687,8 +707,9 @@ export async function runAllDomains(
         // `else` is never a compile error either. It is the meaner of the two,
         // because an absent branch omits work while a catch-all does the wrong
         // work and says it went fine.
-        const deps = { ...buildDomainDeps(config, 'task', builtWith), ...startsAs, ...askedWhy(domain) };
+        const built = { ...buildDomainDeps(config, 'task', builtWith), ...startsAs, ...askedWhy(domain) };
         try {
+          const deps = { ...built, ...(await addressChangesOf(built.ledger)) };
           const result = await runTaskSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
@@ -714,7 +735,7 @@ export async function runAllDomains(
             deletions: result.deletions.length,
           };
         } finally {
-          await deps.close();
+          await built.close();
         }
       } else if (domain === 'file') {
         const deps = { ...buildDomainDeps(config, 'file', builtWith), ...startsAs, ...askedWhy(domain) };
