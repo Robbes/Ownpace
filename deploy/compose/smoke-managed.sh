@@ -42,8 +42,16 @@
 # print a remark and pass, which is how the apply half reached the gate's first
 # green run (2026-08-18) never once having executed.
 #
+# ON A STACK WHOSE JOBS RUN ON pg-boss (OWNPACE_JOB_RUNNER=pg-boss; ADR-0054,
+# workplan 0167 T7) the Trigger.dev sections are skipped, each with one line
+# naming itself and the mode, and the runner's part of that is the worker's:
+# no job ran is the failure no runner at all is, read from pgboss.job; every
+# job since the start completed; no runner-* container started; the worker is
+# the API's image, as uid 65532, with no shell; and its log, from the start, is
+# kept beside $OUT for the same redaction as the runner logs.
+#
 # Requirements: the managed stack up (managed.yml), tasks deployed
-# (deploy-tasks.sh), the demo seed applied (seed-managed.ts — it creates the
+# (deploy-tasks.sh) on Trigger.dev or the worker up on pg-boss, the demo seed applied (seed-managed.ts — it creates the
 # tenant_member rows the minted tokens rely on), and `pnpm install` done in
 # the repo (the JWT is minted with apps/api's own jsonwebtoken).
 #
@@ -65,6 +73,10 @@
 #                            organisation billed Free, so Sync now is not held
 #                            to Free's one pass a day (0157; run #238).
 #   SMOKE_PREPARE_POLLS (60) how long that preparation may wait, in POLL_SLEEPs.
+#   SMOKE_JOB_SETTLE_POLLS (60) on pg-boss, how long the jobs this run asked for
+#                            may take to settle before the verdict, in POLL_SLEEPs.
+#   SMOKE_WORKER_CONTAINER (<project>-worker) SMOKE_WORKER_LOG (beside SMOKE_OUT,
+#                            `-worker.log` for its extension) on pg-boss.
 #   SMOKE_TARGET_DAV_USER/PASSWORD (tenant-b-target) the other end of the apply
 #                            mapping, so the balance section can take the copies
 #                            back out of it.
@@ -189,6 +201,9 @@ PREP_POLLS="${SMOKE_PREPARE_POLLS:-60}"
 # running out here means "report it and measure what landed", never "the pass
 # is wrong".
 SYNC_POLLS="${SMOKE_SYNC_POLLS:-90}"
+# On pg-boss, how long the jobs this run asked for may take to settle once
+# everything else is done, in POLL_SLEEPs ("the jobs on pg-boss").
+JOB_SETTLE_POLLS="${SMOKE_JOB_SETTLE_POLLS:-60}"
 OUT="${SMOKE_OUT:-/tmp/openmig-smoke-managed-$(date -u +%Y%m%dT%H%M%SZ).txt}"
 
 # Demo-seed fixtures (apps/api/src/scripts/seed-managed.ts).
@@ -217,6 +232,9 @@ TARGET_DAV_PASSWORD="${SMOKE_TARGET_DAV_PASSWORD:-tenant_b_target_pw}"
 # end. Empty means prepare did not run, and then there is nothing to take back —
 # which is a state to report, not to paper over.
 BALANCE_TAG=""
+# Every runId an API 202 handed this run and the run followed: on pg-boss each
+# is a job id, and "the jobs on pg-boss" holds each to a job that completed.
+FOLLOWED_REFS=""
 
 # THE STREAM IS FILTERED BEFORE IT IS KEPT, because both places it goes are
 # public on the gate: the job log, and this file, which is uploaded as the
@@ -294,6 +312,79 @@ not_proven() { # not_proven <what> — a gap this stack cannot prove; said, not 
 # `note` names the section AND remembers it, so `fail_at` can say which half of
 # the run was speaking without every call site repeating it.
 note() { SECTION="$*"; printf '\n--- %s ---\n' "$*"; }
+
+# WHICH RUNNER WORKS THIS STACK'S JOBS (ADR-0054; workplan 0167 T7).
+#
+# Two answers. `trigger`: self-hosted Trigger.dev, its plane and the runner
+# containers its supervisor starts, every section below as it has always run.
+# `pg-boss`: the jobs on pg-boss in the ledger's own Postgres, worked by the
+# `worker` container, each run a child process of it, with the Trigger.dev
+# plane stopped and kept. Read ONCE, here, before anything asks the stack, and
+# the way the bring-up reads it: .env's OWNPACE_JOB_RUNNER, else the default
+# managed.yml gives it (`${OWNPACE_JOB_RUNNER:-…}`), else `trigger`. Unset or
+# empty is `trigger`, any other value is refused in one sentence. Like every
+# other setting here, never this shell's environment: Compose would read that
+# too, so the preflights also ask the API container what it was started with,
+# and stop when the two disagree.
+#
+# A SECTION THAT CANNOT SPEAK FOR THIS STACK IS SKIPPED OUT LOUD. On pg-boss
+# the Trigger.dev sections (the object store and the plane's TLS front, the
+# runner-log capture, the registry and the Docker proxy, ClickHouse, the
+# runner logs, the tasks' image) would each fail on a plane that is stopped
+# by design, so each prints one line naming itself and the mode, through
+# `trigger_only`, and its pg-boss counterpart runs in its place: the worker's
+# log, the worker's image, the jobs pg-boss completed, the jobs role. They are
+# not indented under their `if`, on purpose: the guards under scripts/ take
+# those sections out of this file by their first column, and run them.
+SMOKE_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+smoke_job_runner() { # smoke_job_runner — `trigger` or `pg-boss` on stdout; 1 and one sentence on stderr for anything else
+  local v
+  v="$(smoke_env_value OWNPACE_JOB_RUNNER)"
+  # As Compose reads it: env_value keeps double quotes, and Compose does not.
+  v="${v#\"}"
+  v="${v%\"}"
+  if [ -z "$v" ] && [ -f "${SCRIPT_DIR}/managed.yml" ]; then
+    # shellcheck disable=SC2016 # the `${…}` is managed.yml's text, matched, not expanded
+    v="$(sed -n 's/.*\${OWNPACE_JOB_RUNNER:-\([^}]*\)}.*/\1/p' "${SCRIPT_DIR}/managed.yml" | awk 'NR==1')"
+  fi
+  case "$v" in
+    ''|trigger) echo trigger ;;
+    pg-boss) echo pg-boss ;;
+    *) echo "OWNPACE_JOB_RUNNER is '${v}', and a stack's jobs run on 'trigger' or 'pg-boss' (unset or empty is 'trigger')." >&2; return 1 ;;
+  esac
+}
+JOB_RUNNER="$(smoke_job_runner)" || { echo "FATAL: which runner works this stack's jobs cannot be told, so neither can what to ask it"; exit 1; }
+echo "this stack's jobs run on ${JOB_RUNNER} (OWNPACE_JOB_RUNNER, as the bring-up reads it); started ${SMOKE_STARTED_AT}"
+trigger_only() { # trigger_only <section> — 0 on Trigger.dev; on pg-boss one line naming the section and the mode, and 1
+  [ "$JOB_RUNNER" = trigger ] && return 0
+  printf '\n--- %s: skipped, this stack runs its jobs on %s and its Trigger.dev plane is stopped ---\n' "$1" "$JOB_RUNNER"
+  return 1
+}
+
+# THE WORKER'S LOG, from the smoke's start (pg-boss only). The worker is one
+# long-lived container, not a runner that AutoRemove takes, so its log is read
+# once, at the end, by `docker logs --since` the moment this run started:
+# whatever it ran for this smoke, the jobs the tick sent meanwhile among them.
+# Into a file of its own beside $OUT, never into this stream: a job's error can
+# name a host, so it is evidence for redact-evidence.sh, as the runner logs
+# are (the gate's collector globs `smoke-managed-*.log`, and this name is
+# `smoke-managed-<run>-worker.log` there). Read before the verdict, where a
+# read that fails is a failure, and from every EXIT trap below, so a run that
+# stops early still keeps it; once.
+WORKER_CONTAINER="${SMOKE_WORKER_CONTAINER:-${COMPOSE_PROJECT}-worker}"
+WORKER_LOG="${SMOKE_WORKER_LOG:-${OUT%.*}-worker.log}"
+keep_worker_log() {
+  [ "${JOB_RUNNER:-}" = pg-boss ] || return 0
+  [ -z "${WORKER_LOG_KEPT:-}" ] || return 0
+  WORKER_LOG_KEPT=1
+  if docker logs --since "$SMOKE_STARTED_AT" "$WORKER_CONTAINER" >"$WORKER_LOG" 2>&1; then
+    echo "the worker's log since ${SMOKE_STARTED_AT}: $(grep -c '' <"$WORKER_LOG") line(s), kept in ${WORKER_LOG} for redact-evidence.sh, not printed here"
+  else
+    echo "the worker's log could not be read (docker logs exited non-zero; its words are the first line of ${WORKER_LOG})"
+    return 1
+  fi
+}
+trap 'keep_worker_log; end_stream' EXIT
 
 # WHO ELSE IS ON THIS STACK (E2E (managed) #195, 2026-09-23).
 #
@@ -1011,6 +1102,26 @@ if [ "$API_NODE_VERSION" != "$WANT_NODE" ]; then
 fi
 echo "preflights OK (API up, db reachable, jsonwebtoken present, secret read, ${API_NODE} ${API_NODE_VERSION} runs in the API container, the Dockerfile's Node)"
 
+# THE MODE THE API WAS STARTED IN IS THE MODE READ ABOVE (workplan 0167 T7).
+# The file says what the bring-up would do; the API's environment says what it
+# did, and a shell that exported OWNPACE_JOB_RUNNER to Compose could part them.
+# Unset or empty is `trigger`, as it is for the API itself.
+api_runner="$(api_env OWNPACE_JOB_RUNNER)" && api_runner_rc=0 || api_runner_rc=$?
+case "$api_runner_rc:${api_runner:-trigger}" in
+  0:trigger|1:*) api_runner=trigger ;;
+  0:pg-boss) ;;
+  2:*)
+    echo "FATAL: cannot read OWNPACE_JOB_RUNNER from '$API_CONTAINER', so which runner it enqueues on cannot be told"
+    exit 1 ;;
+  *) ;;
+esac
+if [ "$api_runner" != "$JOB_RUNNER" ]; then
+  echo "FATAL: the API container was started with OWNPACE_JOB_RUNNER=${api_runner}, and this stack's .env and managed.yml say ${JOB_RUNNER}:"
+  echo "       the API enqueues on one runner and this smoke would judge the other. Bring the stack up again from its .env"
+  exit 1
+fi
+echo "the API was started to enqueue on ${JOB_RUNNER}, the runner this stack's .env names"
+
 # WHAT A BROWSER MAY DO WITH THE APP, AS THE IMAGE SENDS IT (workplan 0158).
 # `scripts/what-a-browser-may-do-with-the-app.unit.test.ts` reads the template
 # and runs it on whatever nginx the test machine has. This is the one place the
@@ -1082,6 +1193,7 @@ fi
 # something a probe inside the store cannot: that the store answers at
 # `minio:9000` from another container on the stack network, as trigger-api
 # reaches it.
+if trigger_only "minio and trigger-tls"; then
 note "minio and trigger-tls (0084 — the last two unasserted services)"
 
 # MINIO is network-internal (no published port), so this goes through a
@@ -1138,8 +1250,15 @@ else
   echo "      unreachable for every operator who is not sitting at the machine."
   fail_at
 fi
+fi # trigger_only "minio and trigger-tls"
 
 # ---------- runner-log capture (before anything can AutoRemove) ----------
+# On pg-boss no runner container is started, and the worker's log is kept by
+# keep_worker_log instead; WATCHER_PID stays empty, so every trap's kill is a
+# no-op there.
+WATCHER_PID=""
+RUNNER_LOG_DIR=""
+if trigger_only "the runner-log capture"; then
 RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
 (
   # Capture every runner-* container's log stream the moment it appears.
@@ -1170,7 +1289,8 @@ RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
   done
 ) >/dev/null 2>&1 &
 WATCHER_PID=$!
-trap 'kill "$WATCHER_PID" 2>/dev/null || true; end_stream' EXIT
+fi # trigger_only "the runner-log capture"
+trap 'kill "$WATCHER_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
 
 # ---------- the last two services nothing speaks for (0084 T7.1) ----------
 #
@@ -1201,6 +1321,7 @@ trap 'kill "$WATCHER_PID" 2>/dev/null || true; end_stream' EXIT
 # of services without a healthcheck is unchanged by it (four then, three since
 # minio's probe in 0146 T7). That is stated rather than glossed: this
 # closes the COVERAGE gap, not the healthcheck one.
+if trigger_only "trigger-registry and trigger-docker-proxy"; then
 note "trigger-registry and trigger-docker-proxy (the last two unasserted services)"
 
 # THE REGISTRY publishes on 127.0.0.1:5000, so the host's own curl reaches it —
@@ -1306,6 +1427,7 @@ case "$px_rc:$px_from_api" in
     echo "      trigger-docker-socket, with trigger-supervisor alone."
     fail_at ;;
 esac
+fi # trigger_only "trigger-registry and trigger-docker-proxy"
 
 # ---------- ClickHouse: its one client reaches it, and nothing else does ----------
 #
@@ -1329,6 +1451,7 @@ esac
 # connection or a timeout, means a network it is on knows the name, and fails.
 # Only the error's code is printed: the message of a refused connection carries
 # the address, and this log is public.
+if trigger_only "clickhouse, and who can reach it"; then
 note "clickhouse, and who can reach it (CVE-2026-116366)"
 TRIGGER_API_CONTAINER="${COMPOSE_PROJECT}-trigger-api"
 if docker exec "$TRIGGER_API_CONTAINER" node -e \
@@ -1353,6 +1476,7 @@ case "$ch_rc:$ch_from_api" in
     echo "      (CVE-2026-116366): it must be on trigger-event-store alone."
     fail_at ;;
 esac
+fi # trigger_only "clickhouse, and who can reach it"
 
 # ---------- whoever this stack is willing to believe ----------
 #
@@ -1763,7 +1887,7 @@ else
   # watcher, and `trap … EXIT` REPLACES the handler rather than adding to it —
   # so a second one here silently leaks that process for the rest of the run.
   # Caught by looking, not by it going wrong, which is the cheaper way round.
-  trap 'idp_take_back; kill "$WATCHER_PID" 2>/dev/null || true; end_stream' EXIT
+  trap 'idp_take_back; kill "$WATCHER_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
 
   # ---- the client this gate signs in with ----
   #
@@ -2693,6 +2817,7 @@ sync_and_wait() { # sync_and_wait <tenant> <mapping> <token> <label>
     echo "sync ($label): HTTP $code carried no runId, so this pass cannot be followed — the verify below is unsynchronised."
     return 0
   fi
+  FOLLOWED_REFS="${FOLLOWED_REFS}${FOLLOWED_REFS:+ }${ref}"
 
   # THE ROW DOES NOT EXIST YET, and that is the first state worth waiting
   # through. The API enqueues; `run-delta-sync` opens the ledger row only once
@@ -2972,7 +3097,239 @@ fi
 # APPLY_RESULT is judged here, `skipped-no-item` among them.
 case "$APPLY_RESULT" in applied | refused) : ;; *) fail_at "the apply half neither applied nor refused — APPLY_RESULT=$APPLY_RESULT" ;; esac
 
+# ---------- on pg-boss: what stands in for the runners (workplan 0167 T7) ----------
+#
+# Defined here, run only on a stack whose jobs run on pg-boss: worker_fit in
+# the tasks' image's place, the rest in "the jobs on pg-boss", just before the
+# verdict, once everything this run causes has been caused.
+# scripts/smoke-managed-verdict.unit.test.ts runs each of them against stubs:
+# the first real stack they meet is the E2E (managed) run of the switch-on.
+
+# THE WORKER IS THE API'S IMAGE, WORKED AS THE API'S USER, HEALTHY, AND HOLDS
+# NO OWNER'S URL. Asked of the running container, so it speaks for whatever
+# compose started (its `user:` included), and only by /nodejs/bin/node, the
+# distroless path: apps/worker/Dockerfile's FROM lines are apps/api/Dockerfile's,
+# so it has no shell to ask `command -v`. Five things, each said, each failed
+# by name: its Node is the one the preflights found the API running; it runs
+# as uid 65532, distroless's nonroot; no shell starts in it; its health answers
+# 200 on 127.0.0.1:3002 inside it; and of every postgres URL it was started
+# with, JOBS_DATABASE_URL's role is ownpace_jobs through the pooler and none is
+# the database owner's (POSTGRES_USER). Of its environment only names and
+# roles are printed: the values carry passwords.
+worker_fit() {
+  local said rc started="" shell env line name rest role owner jobs_url="" owners=""
+  said="$(docker exec "$WORKER_CONTAINER" /nodejs/bin/node --version 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" != 0 ] || [[ ! "$said" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "the worker's /nodejs/bin/node could not be asked (exit ${rc}): ${said}"
+    fail_at "the worker's Node could not be asked"
+  elif [ "$said" != "$API_NODE_VERSION" ]; then
+    echo "the worker runs Node ${said}, and the API ${API_NODE_VERSION}, apps/api/Dockerfile's ${WANT_NODE}:"
+    echo "       apps/worker/Dockerfile's FROM lines are to be apps/api/Dockerfile's, or this worker was not built from this checkout"
+    fail_at "the worker's Node is not the API's"
+  else
+    echo "the worker: Node ${said}, the API's"
+  fi
+  said="$(docker exec "$WORKER_CONTAINER" /nodejs/bin/node -e 'process.stdout.write(String(process.getuid()))' 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" = 0 ] && [ "$said" = 65532 ]; then
+    echo "the worker: runs as uid 65532"
+  else
+    echo "the worker: its uid is '${said}' (exit ${rc}), not 65532, distroless's nonroot, which the API runs as"
+    fail_at "the worker does not run as uid 65532"
+  fi
+  for shell in sh /bin/sh bash /bin/bash /busybox/sh; do
+    if said="$(docker exec "$WORKER_CONTAINER" "$shell" -c true 2>&1)"; then
+      started="${started}${started:+; }${shell} started"
+    elif [[ ! "$said" =~ (executable file not found|no such file or directory) ]]; then
+      started="${started}${started:+; }${shell} did not start, for another reason than its absence: ${said}"
+    fi
+  done
+  if [ -n "$started" ]; then
+    echo "the worker: ${started}. The API's image has no shell, so this is not an image built on its FROM lines"
+    fail_at "the worker's image has a shell"
+  else
+    echo "the worker: no shell (sh, /bin/sh, bash, /bin/bash, /busybox/sh)"
+  fi
+  said="$(docker exec "$WORKER_CONTAINER" /nodejs/bin/node -e \
+    "fetch('http://127.0.0.1:3002/health').then(r=>{console.log('HTTP '+r.status);process.exit(r.status===200?0:1)}).catch(e=>{console.log((e.cause&&e.cause.code)||e.name);process.exit(1)})" 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" = 0 ]; then
+    echo "the worker: its health answers ${said} inside its container, so its runner has started"
+  else
+    echo "the worker: its health inside its container answered '${said}' (exit ${rc}), not HTTP 200: 503 is a runner starting or stopping"
+    fail_at "the worker's health is not 200"
+  fi
+  if ! env="$(docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$WORKER_CONTAINER" 2>&1)"; then
+    echo "the worker's environment could not be read: ${env}"
+    fail_at "the worker's environment could not be read"
+    return 0
+  fi
+  owner="$(smoke_env_value POSTGRES_USER)"
+  owner="${owner:-openmigrate}"
+  while IFS= read -r line; do
+    name="${line%%=*}"
+    rest="${line#*=}"
+    [[ "$rest" =~ ^postgres(ql)?://([^:@/]+)[:@] ]] || continue
+    role="${BASH_REMATCH[2]}"
+    [ "$role" = "$owner" ] && owners="${owners}${owners:+, }${name}"
+    if [ "$name" = JOBS_DATABASE_URL ]; then
+      if [ "$role" = ownpace_jobs ] && [[ "$rest" =~ @pgbouncer:6432/ ]]; then jobs_url=fit; else jobs_url="role ${role}, $([[ "$rest" =~ @pgbouncer:6432/ ]] && echo 'through the pooler' || echo 'not through pgbouncer:6432')"; fi
+    fi
+  done <<<"$env"
+  if [ "$jobs_url" = fit ]; then
+    echo "the worker: JOBS_DATABASE_URL is ownpace_jobs's, through pgbouncer:6432"
+  else
+    echo "the worker: JOBS_DATABASE_URL is ${jobs_url:-not set}; it is to be ownpace_jobs's, through pgbouncer:6432 (JOBS_DB_PASSWORD)"
+    fail_at "the worker's JOBS_DATABASE_URL is not ownpace_jobs's through the pooler"
+  fi
+  if [ -n "$owners" ]; then
+    echo "the worker was started with the database owner's role (${owner}) in: ${owners}. The worker never gets the owner's URL"
+    fail_at "the worker holds the owner's URL"
+  else
+    echo "the worker: no URL it was started with is the owner's (${owner})"
+  fi
+}
+
+# THE QUEUES, AS THE CATALOG NAMES THEM: the Trigger.dev task ids
+# (packages/scheduler/src/pg-boss/catalog.ts, JOB_CATALOG), one a line.
+catalog_queues() { # catalog_queues [catalog.ts] — the names; 1 and nothing when none can be read
+  local f="${1:-${REPO_ROOT}/packages/scheduler/src/pg-boss/catalog.ts}" names
+  [ -f "$f" ] || return 1
+  names="$(sed -n '/^export const JOB_CATALOG = \[/,/^\] as const/p' "$f" | grep -oE "name: '[a-z][a-z0-9-]*'" | cut -d"'" -f2 | sort -u)"
+  [ -n "$names" ] || return 1
+  printf '%s\n' "$names"
+}
+
+# EVERY JOB THIS RUN SAW, COMPLETED, AND AT LEAST ONE: pg-boss's "no runner at
+# all" is "no job ran" (workplan 0167 T7). Read from `pgboss.job` through the
+# connection that reads the ledger (`q`): pg-boss 12.38.2 has no archive table,
+# and keeps a finished job in `pgboss.job` until its deletion time, a week by
+# default, so every job created since this smoke's start is there. By queue
+# and state:
+#  - a failed or cancelled job is a failure, its queue and count named (its
+#    error is in the worker's log, in the evidence: a job's error can name a
+#    host, and this stream is the public job log);
+#  - a job waiting to retry is an attempt that failed, and a failure;
+#  - a job somebody asked for (a queue with no row in `pgboss.schedule`)
+#    still created or active is waited for, up to SMOKE_JOB_SETTLE_POLLS
+#    polls, and then a failure: this run left work running behind it;
+#  - a schedule's job still created or active is the next tick, and said;
+#  - a queue the catalog does not name is a failure: something enqueued onto
+#    a queue no worker works;
+#  - no job asked for that completed is a failure, the pg-boss form of "no
+#    runner at all": the smoke's own passes run as such jobs;
+#  - every runId this smoke followed (the API's 202s) is a pg-boss job id, a
+#    UUID, of a job that completed, not a Trigger.dev `run_…`.
+pgboss_jobs() {
+  local queues rows i=0 waiting name state n retried sched completed=0 refs ref got
+  if ! queues="$(catalog_queues)"; then
+    echo "no queue could be read from packages/scheduler/src/pg-boss/catalog.ts's JOB_CATALOG, so which jobs are this stack's cannot be told"
+    fail_at "the catalog's queues could not be read"
+    return 0
+  fi
+  while :; do
+    if ! waiting="$(q "SELECT count(*) FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' AND j.state IN ('created', 'retry', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name)" 2>&1)"; then
+      echo "pg-boss's jobs could not be read: ${waiting}"
+      fail_at "pgboss.job could not be read"
+      return 0
+    fi
+    [ "$waiting" = 0 ] && break
+    [ "$i" -ge "$JOB_SETTLE_POLLS" ] && break
+    i=$((i + 1))
+    sleep "$POLL_SLEEP"
+  done
+  [ "$i" -gt 0 ] && echo "waited $((i * POLL_SLEEP))s for the jobs this run asked for to settle"
+  if ! rows="$(q "SELECT j.name || '|' || j.state || '|' || count(*) || '|' || count(*) FILTER (WHERE j.retry_count > 0) || '|' || EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' GROUP BY j.name, j.state ORDER BY j.name, j.state" 2>&1)"; then
+    echo "pg-boss's jobs could not be read: ${rows}"
+    fail_at "pgboss.job could not be read"
+    return 0
+  fi
+  echo "pg-boss's jobs since ${SMOKE_STARTED_AT}, by queue and state:"
+  [ -n "$rows" ] || echo "  (none)"
+  while IFS='|' read -r name state n retried sched; do
+    [ -n "$name" ] || continue
+    echo "  ${name}: ${n} ${state}$([ "${retried:-0}" != 0 ] && echo ", ${retried} after a retry")"
+    if ! grep -qxF "$name" <<<"$queues"; then
+      fail_at "${n} job(s) on '${name}', a queue the catalog does not name, so no worker works it"
+      continue
+    fi
+    case "$state:$sched" in
+      completed:false) completed=$((completed + n)) ;;
+      completed:true) ;;
+      failed:*|cancelled:*) fail_at "${n} job(s) on ${name} ended ${state}: their error is in the worker's log, in the evidence" ;;
+      retry:*) fail_at "${n} job(s) on ${name} are waiting to retry, so an attempt failed: its error is in the worker's log, in the evidence" ;;
+      created:true|active:true) echo "  (${name} is a schedule: its ${state} job is the next tick, not this run's)" ;;
+      *) fail_at "${n} job(s) on ${name} are still ${state} after $((JOB_SETTLE_POLLS * POLL_SLEEP))s: this run left work behind it" ;;
+    esac
+  done <<<"$rows"
+  if [ "$completed" = 0 ]; then
+    echo "NO job somebody asked for completed on pg-boss during this smoke."
+    fail_at "no job ran: no job this run asked for completed on pg-boss"
+  fi
+  refs=""
+  for ref in $FOLLOWED_REFS; do
+    if [[ ! "$ref" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+      fail_at "the API answered runId '${ref}', which is no pg-boss job id (a UUID): it enqueued on another runner"
+      continue
+    fi
+    got="$(q "SELECT j.name || ' ' || j.state FROM pgboss.job j WHERE j.id = '${ref}'" 2>&1)"
+    case "$got" in
+      *' completed') refs="${refs}${refs:+, }${got% completed}" ;;
+      '') fail_at "runId ${ref}, which the API answered, is no job in pgboss.job" ;;
+      *) fail_at "runId ${ref}, which the API answered, is '${got}', not completed" ;;
+    esac
+  done
+  [ -n "$refs" ] && echo "every runId this run followed is a pg-boss job that completed: ${refs}"
+  return 0
+}
+
+# NO RUNNER CONTAINER STARTED ON THIS STACK SINCE THE SMOKE'S START. Asked of
+# Docker's own events, not of `docker ps`, because AutoRemove takes a runner
+# the moment it ends: a container start named runner-* whose container joined
+# this stack's network. Another stack on this machine may run on Trigger.dev
+# and start runners of its own, on its own network.
+no_runner_started() {
+  local now starts joined runners="" id cname
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if ! starts="$(docker events --since "$SMOKE_STARTED_AT" --until "$now" --filter type=container --filter event=start --format '{{.Actor.ID}} {{.Actor.Attributes.name}}' 2>&1)" ||
+    ! joined="$(docker events --since "$SMOKE_STARTED_AT" --until "$now" --filter type=network --filter event=connect --filter "network=${COMPOSE_PROJECT}_ownpace-network" --format '{{.Actor.Attributes.container}}' 2>&1)"; then
+    echo "Docker's events since ${SMOKE_STARTED_AT} could not be read, so whether a runner started cannot be told"
+    fail_at "Docker's events could not be read"
+    return 0
+  fi
+  while read -r id cname; do
+    [[ "$cname" == runner-* ]] || continue
+    grep -qxF "$id" <<<"$joined" && runners="${runners}${runners:+, }${cname}"
+  done <<<"$starts"
+  if [ -n "$runners" ]; then
+    echo "runner containers started on this stack since ${SMOKE_STARTED_AT}: ${runners}. Its jobs run on pg-boss, so Trigger.dev is not stopped"
+    fail_at "a Trigger.dev runner started on a pg-boss stack"
+  else
+    echo "no runner-* container started on this stack's network since ${SMOKE_STARTED_AT}"
+  fi
+}
+
+# THE JOBS' ROLE IS FIT, AND OWNS pgboss AND WHAT pg-boss PUT IN IT. The
+# bring-up asks its whole question (db-roles.sh, db_roles_jobs_fit); this is the
+# stack's short form of it, the way ownpace_system is asked below: no
+# superuser, may create no role or database, does not replicate, no BYPASSRLS,
+# logs in, NOINHERIT, a member of no role and no role a member of it, owns
+# `pgboss`, may create no schema and nothing in `public`, and every relation
+# in `pgboss` is its own: pg-boss installed its tables as the worker's role,
+# not as the owner.
+jobs_role_fit() {
+  local got want='false|false|false|false|false|true|false|0|0|true|false|false|0'
+  got="$(q "SELECT r.rolsuper || '|' || r.rolcreaterole || '|' || r.rolcreatedb || '|' || r.rolreplication || '|' || r.rolbypassrls || '|' || r.rolcanlogin || '|' || r.rolinherit || '|' || (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid) || '|' || (SELECT count(*) FROM pg_auth_members m WHERE m.roleid = r.oid) || '|' || coalesce((SELECT (n.nspowner = r.oid)::text FROM pg_namespace n WHERE n.nspname = 'pgboss'), 'no schema') || '|' || has_database_privilege(r.oid, current_database(), 'CREATE') || '|' || has_schema_privilege(r.oid, 'public', 'CREATE') || '|' || (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'pgboss' AND c.relowner <> r.oid) FROM pg_roles r WHERE r.rolname = 'ownpace_jobs'" 2>&1 | tail -n1)"
+  if [ "$got" = "$want" ]; then
+    echo "ownpace_jobs: no superuser, may create no role or database, does not replicate, no BYPASSRLS, logs in, NOINHERIT, a member of no role and no role a member of it, owns pgboss and every relation in it, may create no schema and nothing in public"
+  else
+    fail_at "ownpace_jobs is not the role the bring-up makes (deploy/compose/jobs-role.sql): '${got:-<no such role>}' (superuser|createrole|createdb|replication|bypassrls|login|inherit|roles it belongs to|roles that belong to it|owns pgboss|may create a schema|may create in public|relations in pgboss it does not own; expected ${want})"
+  fi
+}
+
 # ---------- runner logs ----------
+# On pg-boss "no runner at all" becomes "no job ran", read from pgboss.job in
+# "the jobs on pg-boss" before the verdict, once every job this run causes has
+# been caused.
+if trigger_only "runner logs captured before AutoRemove"; then
 note "runner logs captured before AutoRemove"
 sleep 2
 found_logs=0
@@ -2997,6 +3354,9 @@ if [ "$found_logs" != "1" ]; then
   echo "NO runner containers appeared during this smoke."
   fail_at
 fi
+fi # trigger_only "runner logs captured before AutoRemove"
+
+if trigger_only "the tasks' image"; then
 
 # ---------- the tasks' image is the prebuilt base's: the API's Node, and no shell ----------
 #
@@ -3146,6 +3506,13 @@ if [ -n "$ours" ]; then
     echo "${short}: no shell (sh, /bin/sh, bash, /bin/bash, /busybox/sh)"
   fi
 fi
+# ---------- on pg-boss, the worker's image in the tasks' image's place ----------
+# The jobs run in the worker's own children, on the worker's image, so that is
+# the image held to the API's Node and to no shell (worker_fit, above).
+else
+note "the worker's image is the API's: its Node, uid 65532, no shell, healthy, and no owner's URL (0167)"
+worker_fit
+fi # trigger_only "the tasks' image"
 # ---------- the identity provider, and the three answers to an invitation ----------
 #
 # WHY THIS SECTION EXISTS. Zitadel was added to managed.yml in #496 and was not
@@ -6743,6 +7110,8 @@ else
     || fail_at "the 202 must say what it enqueued and that no ledger existed: got '$prep'"
   [ -n "$(jq -r '.runId // empty' <<<"$CUT_BODY" 2>/dev/null)" ] \
     || fail_at "the 202 carried no runId — the door enqueued nothing it can name"
+  cut_ref="$(jq -r '.runId // empty' <<<"$CUT_BODY" 2>/dev/null)"
+  [ -z "$cut_ref" ] || FOLLOWED_REFS="${FOLLOWED_REFS}${FOLLOWED_REFS:+ }${cut_ref}"
   i=0; st=""
   while [ $i -lt "$SYNC_POLLS" ]; do
     st="$(ledger_state)"
@@ -6884,6 +7253,18 @@ if [ "$tick_beat" = "fresh" ]; then
 else
   fail_at "the sync tick has not completed a run in five minutes (${tick_beat:-no beat at all}): it connects as ownpace_system since 0138 T3 step 2, so read its runs on the plane for a refusal naming a table or SYSTEM_DATABASE_URL"
 fi
+# AND ON pg-boss, THE TICK THAT BEAT RAN THERE (workplan 0167 T7). The tick
+# beats as `managed-sync-tick` on either runner, and as its runner too:
+# `managed-sync-tick-pg-boss` is the beat only a tick worked by pg-boss writes,
+# so a fresh one says the minute's schedule fires and the worker works it.
+if [ "$JOB_RUNNER" = pg-boss ]; then
+  runner_beat="$(q "SELECT CASE WHEN now() - beat_at < interval '5 minutes' THEN 'fresh' ELSE 'stale since ' || beat_at::text END FROM sync_tick_beat WHERE task = 'managed-sync-tick-pg-boss'" 2>&1 | tail -n1)"
+  if [ "$runner_beat" = "fresh" ]; then
+    echo "the sync tick beat within the last five minutes on pg-boss (managed-sync-tick-pg-boss)"
+  else
+    fail_at "the sync tick has not completed a run on pg-boss in five minutes (${runner_beat:-no beat at all}): is managed-sync-tick scheduled in pgboss.schedule, and does the worker work it? Its log is in the evidence"
+  fi
+fi
 
 # ---------- the books: one sandbox invoice a night (0111, decision 12) ----------
 #
@@ -6915,6 +7296,20 @@ elif grep -q '^Skipped: Moneybird is off' <<<"$books_out"; then
   not_proven "the books: Moneybird is off on this stack, so no sandbox invoice was made, paid and read back"
 elif ! grep -q '^Read back as paid\.$\|^Skipped: this month already has' <<<"$books_out"; then
   fail_at "operator.sh moneybird nightly exited 0 without saying the invoice read back as paid or why it skipped"
+fi
+
+# ---------- the jobs on pg-boss (workplan 0167 T7) ----------
+#
+# Last before the verdict, so every job this run caused has been caused: what
+# the runner logs and the tasks' image prove on Trigger.dev, on the stack that
+# replaced it. No job ran is a failure here as no runner at all is there, and
+# a pass the smoke followed by its runId is a pg-boss job id that completed.
+if [ "$JOB_RUNNER" = pg-boss ]; then
+note "the jobs on pg-boss: every one completed, no runner started, the jobs' role fit (0167)"
+pgboss_jobs
+no_runner_started
+jobs_role_fit
+keep_worker_log || fail_at "the worker's log could not be read, so the evidence holds no account of the jobs"
 fi
 
 # ---------- verdict ----------

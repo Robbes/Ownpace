@@ -1077,6 +1077,7 @@ reading a file drops off its entry by itself.
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-catcher-only-where-it-catches](../scripts/the-catcher-only-where-it-catches.unit.test.ts) — THE CATCHER ONLY WHERE IT CATCHES (workplan 0133 T3 (b), the owner's D5).
 - [the-check-postgres-never-made](../scripts/the-check-postgres-never-made.unit.test.ts) — A CREDENTIAL CHECK THAT POSTGRES NEVER MADE.
@@ -1273,6 +1274,7 @@ reading a file drops off its entry by itself.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-catcher-only-where-it-catches](../scripts/the-catcher-only-where-it-catches.unit.test.ts) — THE CATCHER ONLY WHERE IT CATCHES (workplan 0133 T3 (b), the owner's D5).
 - [the-role-that-was-not-there](../scripts/the-role-that-was-not-there.unit.test.ts) — THE ROLE THAT WAS NOT THERE LOOKED EXACTLY LIKE THE WRONG PASSWORD.
@@ -1886,6 +1888,7 @@ reading a file drops off its entry by itself.
 - [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
 ### `deploy/compose/trigger.dev/Dockerfile`
@@ -2874,6 +2877,7 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 - [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 
 ### `packages/scheduler/src/pg-boss/job-runner.integration.test.ts`
 
@@ -7382,11 +7386,15 @@ Reads:
 
 - `.github/workflows/e2e-managed.yml`
 - `apps/api/src/scripts/seed-managed.ts`
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/env-read.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/redact-evidence.sh`
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/smoke-managed.sh`
+- `deploy/compose/trigger-version.sh`
 - `packages/core/src/apply-deletion.ts`
+- `packages/scheduler/src/pg-boss/catalog.ts`
 - `test/e2e/no-workspace-imports.unit.test.ts`
 - `test/e2e/seed-imap-source.mjs`
 - `test/e2e/selfhost-verification.e2e.test.ts`

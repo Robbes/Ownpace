@@ -66,7 +66,10 @@ name: E2E (managed)
 # ------------------------------------------------------------------------------
 #   1. Every service the run touches is HEALTHY, not merely started.
 #   2. A task deployed and RAN — an enqueue became a runner container on this
-#      machine. 0018 T5's lesson: a green CI says nothing about that.
+#      machine. 0018 T5's lesson: a green CI says nothing about that. On a
+#      stack whose jobs run on pg-boss (the `job_runner` input, workplan 0167
+#      T7): the jobs the run asked for completed in pg-boss, worked by the
+#      worker, and no runner container started.
 #   3. Verify reached a terminal state, and apply reached `applied` or
 #      `refused`. A refusal is a legitimate pass — the gates said no, and said
 #      why.
@@ -95,6 +98,21 @@ on:
     # watch now checks how old a run is instead of trusting the clock.
     - cron: '30 3 * * *'
   workflow_dispatch:
+    inputs:
+      # WHICH RUNNER WORKS THE JOBS, FOR THIS RUN ONLY (ADR-0054, workplan
+      # 0167 T7). `trigger`, self-hosted Trigger.dev, is what managed.yml runs
+      # until the switch-on; `pg-boss` is the rehearsal of that switch. Written
+      # into this checkout's .env after the persisted copy is saved, so it
+      # reaches the bring-up and the smoke and never the next run: a scheduled
+      # run has no input and runs what the persisted .env says. Passed to the
+      # steps through `env:`, never into a `run:` script.
+      job_runner:
+        description: Which runner works the stack's jobs in this run (not persisted)
+        type: choice
+        options:
+          - trigger
+          - pg-boss
+        default: trigger
 
 concurrency:
   group: ${{ github.workflow }}
@@ -338,6 +356,45 @@ jobs:
           set -euo pipefail
           ./deploy/compose/own-addresses.sh --mask deploy/compose/.env
 
+      - name: Which runner works this run's jobs (OWNPACE_JOB_RUNNER)
+        # ONE RULE, THE BRING-UP'S AND THE SMOKE'S (workplan 0167 T7): the
+        # dispatch's input when there is one, else the restored .env's
+        # OWNPACE_JOB_RUNNER, else managed.yml's default for it, else
+        # `trigger`; any other value is refused. Read here, before anything is
+        # written, so the steps for Trigger.dev's plane can be left out on a
+        # stack whose plane is stopped. The input itself is written into the
+        # checkout's .env further down, after the persisted copy is saved.
+        # The answer goes into a file of this run's, $RUNNER_TEMP/job-runner,
+        # read by the steps that need it, never into $GITHUB_OUTPUT: a step
+        # that reads a .env writes neither of the files the runner prints
+        # (scripts/a-credential-the-next-step-printed.unit.test.ts).
+        # scripts/smoke-managed-verdict.unit.test.ts runs this step and the
+        # smoke's smoke_job_runner on the same files and holds them to one answer.
+        env:
+          JOB_RUNNER_INPUT: ${{ inputs.job_runner }}
+        run: |
+          set -euo pipefail
+          . deploy/compose/env-read.sh
+          mode="${JOB_RUNNER_INPUT:-}"
+          from="this dispatch's input"
+          if [ -z "$mode" ] && [ -f deploy/compose/.env ]; then
+            mode="$(env_value deploy/compose/.env OWNPACE_JOB_RUNNER)"
+            mode="${mode#\"}"
+            mode="${mode%\"}"
+            from="the restored .env"
+          fi
+          if [ -z "$mode" ]; then
+            mode="$(sed -n 's/.*\${OWNPACE_JOB_RUNNER:-\([^}]*\)}.*/\1/p' deploy/compose/managed.yml | awk 'NR==1')"
+            from="managed.yml's default"
+          fi
+          case "$mode" in
+            ''|trigger) mode=trigger ;;
+            pg-boss) ;;
+            *) echo "::error::OWNPACE_JOB_RUNNER is '${mode}' (${from}), and a stack's jobs run on 'trigger' or 'pg-boss' (unset or empty is 'trigger')."; exit 1 ;;
+          esac
+          echo "this run's jobs run on ${mode} (${from})"
+          printf '%s\n' "$mode" >"$RUNNER_TEMP/job-runner"
+
       - name: Refuse early if the one-time setup was never done
         # Loud and specific, because the alternative is a failure fifteen
         # minutes later inside the smoke, pointing at a task that never
@@ -346,13 +403,21 @@ jobs:
         # ONLY the two a human must obtain. Everything else managed.yml
         # requires is filled by the next step, from the repo's own sources —
         # see there for why this list shrank.
+        #
+        # On pg-boss (workplan 0167 T7) the plane is stopped and its two keys
+        # are not asked for: the .env itself still is.
         run: |
+          JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"
           ENV_FILE=deploy/compose/.env
           missing=()
           [ -f "$ENV_FILE" ] || missing+=("$ENV_FILE itself")
-          for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY; do
-            grep -qE "^${key}=." "$ENV_FILE" 2>/dev/null || missing+=("$key")
-          done
+          if [ "$JOB_RUNNER" = trigger ]; then
+            for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY; do
+              grep -qE "^${key}=." "$ENV_FILE" 2>/dev/null || missing+=("$key")
+            done
+          else
+            echo "the Trigger.dev plane's two keys: not asked, this run's jobs run on ${JOB_RUNNER}"
+          fi
           if [ ${#missing[@]} -gt 0 ]; then
             . deploy/compose/env-read.sh
             COMPOSE_PROJECT="$(compose_project deploy/compose)"
@@ -517,6 +582,19 @@ jobs:
           # userlist as the gate's. PERSIST_DIR is the one from the top of this step.
           cp deploy/compose/.env "${PERSIST_DIR}/.env"
           echo "persisted to ${PERSIST_DIR}/.env so the next run reuses these exact values"
+
+      - name: This run's job runner, in this checkout's .env only
+        # After the copy above, so the persisted .env keeps what it had and
+        # the next run, scheduled or dispatched, starts from that (workplan
+        # 0167 T7). The checkout's own .env is the one the bring-up and the
+        # smoke read, and the next run's checkout removes it. Only when a
+        # dispatch gave the input: a scheduled run runs the persisted value.
+        if: inputs.job_runner != ''
+        run: |
+          set -euo pipefail
+          JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"
+          ./deploy/compose/env-upsert.sh deploy/compose/.env "OWNPACE_JOB_RUNNER=${JOB_RUNNER}"
+          echo "OWNPACE_JOB_RUNNER=${JOB_RUNNER} for this run, in the checkout's .env; the persisted .env is as it was"
 
       - name: Bring the stack up
         # Through bootstrap-managed.sh rather than an inline copy of the run
@@ -711,7 +789,16 @@ jobs:
       # dump would actually load — the self-hosted appliance has had a
       # Backup/Restore Drill since §22.1 and the managed plane had none.
       - name: Backup/Restore drill for the Trigger.dev control plane
-        run: ./deploy/compose/trigger-version.sh drill
+        # Only where the plane runs: on pg-boss it is stopped, its volumes
+        # kept, and there is no running triggerdb to dump (workplan 0167 T7).
+        run: |
+          set -euo pipefail
+          JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"
+          if [ "$JOB_RUNNER" != trigger ]; then
+            echo "the Trigger.dev control plane's drill: skipped, this run's jobs run on ${JOB_RUNNER} and its plane is stopped"
+            exit 0
+          fi
+          ./deploy/compose/trigger-version.sh drill
 
       - name: The acceptance smoke (verify + apply, through real runners)
         # 0020 T5's script. It mints a seeded-member token, drives verify and
@@ -749,6 +836,10 @@ jobs:
           set -euo pipefail
           mkdir -p managed-evidence
           shopt -s nullglob
+          # smoke-managed-*.log holds the worker's log too, on pg-boss: the
+          # smoke keeps it from its start beside its own, as
+          # smoke-managed-<run>-worker.log (workplan 0167 T7), and a job's error
+          # can name a host, so it is redacted here with the rest.
           for f in smoke-managed-*.log deploy/compose/smoke-*.out test-logs/*; do
             [ -f "$f" ] && cp "$f" managed-evidence/
           done

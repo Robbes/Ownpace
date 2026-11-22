@@ -48,6 +48,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   without the plane not one-way by itself on a stack on pg-boss, calls a move of pg-boss's version or
   schema version one-way, and stops and removes the worker before checking out a tag without one.
   The Trigger.dev-only scripts refuse in pg-boss mode; `live-pass-check.sh` follows a pg-boss job's id.
+- **The managed gate runs in either job runner** (workplan 0167 T7; ADR-0054). E2E (managed) and
+  its smoke read `OWNPACE_JOB_RUNNER` as the bring-up does, and a dispatch can pick `pg-boss` for
+  one run. On pg-boss the Trigger.dev checks are skipped, each with a line that says so. In their
+  place the run fails unless every job it saw completed in pg-boss and no Trigger.dev runner
+  started. The worker's log is redacted into the evidence. Trigger.dev runs are checked as before.
 
 ### Changed
 
