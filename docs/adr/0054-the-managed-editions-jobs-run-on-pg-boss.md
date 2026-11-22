@@ -31,7 +31,8 @@
 - **Its schema `pgboss` is owned by `ownpace_jobs`**, no superuser and no grant on the ledger,
   made by the bring-up and by neither chain; reached through PgBouncer, polling, never LISTEN.
 - **The `worker` container works the jobs**: a process per run, its heap capped; half a CPU and
-  512 MB a run. One pass per mapping; discovery joins its run; a cutover waits. **At most
+  512 MB a run, and 256 MB for itself. One pass per mapping; discovery joins its run; a cutover
+  waits. **At most
   `MAX_PASSES_IN_FLIGHT` + 2 runs at once, every queue together**: a run past it waits in its
   queue (`run-slots.ts`).
 - **A run settles as Trigger.dev 4.8.8 settles it**, decided by the error's name: an hour,
@@ -284,4 +285,8 @@ operative rules above say them in short; these are the rules in full:
   environment limit.
   pg-boss's own `work()` fetches whenever a loop is idle, so each queue is worked on its public
   `fetch`, `touch`, `complete` and `fail`. The operative bullet on the worker says so, and that
-  its size is per run; the *In force* bullet on the +17 stands as the record of alpha.16.
+  its size is per run: (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 256 MB, every run at the 512 MB
+  budget `small-1x` gives every queue alike and 256 MB for the worker itself, whose process
+  measured 120 MB. A run claimed as a stop comes goes back to its queue at its attempt, or, where
+  its queue's policy refuses it back, is run under its claim, as pg-boss's own give-back runs it.
+  The *In force* bullet on the +17 stands as the record of alpha.16.
