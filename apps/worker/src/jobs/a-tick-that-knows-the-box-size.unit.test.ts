@@ -309,7 +309,8 @@ function code(text: string): string {
 describe('the tick applies it', () => {
   const TICK = (() => {
     const whole = code(readFileSync(join(HERE, 'managed-sync-tick.ts'), 'utf8'));
-    const body = whole.indexOf("run: leavesAReference('managed-sync-tick', async () => {");
+    // The run, exported for either runner (workplan 0167 T6).
+    const body = whole.indexOf("export const managedSyncTickRun = leavesAReference(\n  'managed-sync-tick',");
     expect(body, 'the scheduled task body is no longer recognisable').toBeGreaterThan(-1);
     return whole.slice(body);
   })();
@@ -354,8 +355,11 @@ describe('the tick applies it', () => {
     expect(count('mapWithConcurrency(toEnqueue,')).toBe(1);
     expect(count('mapWithConcurrency(toRead,')).toBe(1);
     expect(count('mapWithConcurrency(')).toBe(2);
-    expect(count('runDeltaSync.trigger(')).toBe(1);
-    expect(at('runDeltaSync.trigger(')).toBeGreaterThan(enqueue);
+    // Through the run's own runner (workplan 0167 T6): the SDK's trigger is
+    // the Trigger.dev runner's (run-context.ts), and the tick names it nowhere.
+    expect(count('context.runner.enqueue(')).toBe(1);
+    expect(at('context.runner.enqueue(')).toBeGreaterThan(enqueue);
+    expect(count('.trigger(')).toBe(0);
   });
 
   it('runs a first copy at the floor only where the schedule was asked, so the caps still choose (0156 T5)', () => {

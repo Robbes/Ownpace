@@ -26,6 +26,7 @@ import type { Pool } from 'pg';
 import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { eq } from 'drizzle-orm';
 import { asTenantId, asMappingId, log } from '@openmig/shared';
 import { organisationStillOpen, withTenant } from '@openmig/ledger';
@@ -37,7 +38,7 @@ import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-d
 import { ledgerReaderFor, testMarkerOf, verificationConfigFor } from './cutover-gate.ts';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 
-const VerificationJobSchema = z.object({
+export const VerificationJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
   /** The `verification_run` row the API created; this job owns its outcome. */
@@ -158,8 +159,18 @@ export async function verifyForTheOwner(
   }
 }
 
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const runVerificationRun = leavesAReference(
+  'run-verification',
+  async (payload: z.infer<typeof VerificationJobSchema>, _context: RunContext) => verifyForTheOwner(pool, payload),
+);
+
 export const runVerificationTask = schemaTask({
   id: 'run-verification',
   schema: VerificationJobSchema,
-  run: leavesAReference('run-verification', async (payload) => verifyForTheOwner(pool, payload)),
+  run: onTriggerDev(runVerificationRun),
 });

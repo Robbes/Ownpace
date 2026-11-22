@@ -51,8 +51,9 @@ import {
   DISCOVERY_DOMAINS,
   type DiscoveryDomain,
 } from '@openmig/shared';
-import { AbortTaskRunError, configure, schemaTask } from '@trigger.dev/sdk';
+import { AbortTaskRunError, schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { tenantCutoverStore, bindCutoverLedger, type CutoverStateStore } from '@openmig/ledger';
 import {
   CutoverRefused,
@@ -69,7 +70,7 @@ import { finalSyncReport, type FinalSyncReport } from './final-sync.ts';
 import { runCutoverGate, testMarkerOf } from './cutover-gate.ts';
 
 // Job input schema
-const CutoverJobSchema = z.object({
+export const CutoverJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
   // One data type's cutover (0128 T5, slice 5c): its own ledger, its own
@@ -345,12 +346,14 @@ export async function prepareCutover(
   return result;
 }
 
-// Register the job with Trigger.dev
-export const runCutover = schemaTask({
-  id: 'run-cutover',
-  description: 'Cutover preparation (final sync + verification gate)',
-  schema: CutoverJobSchema,
-  run: leavesAReference('run-cutover', async (payload: unknown, _context, afterwards) => {
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const runCutoverRun = leavesAReference(
+  'run-cutover',
+  async (payload: unknown, context: RunContext, afterwards) => {
     const { tenantId, mappingId, domain, options } = payload as CutoverJobPayload;
 
     appLog.info('Starting cutover preparation', { tenantId, mappingId, domain, options });
@@ -402,16 +405,16 @@ export const runCutover = schemaTask({
           : async () => {
               // The pass the scheduler runs, on the migration's own queue, so a
               // scheduled pass already under way finishes first rather than
-              // running beside this one (final-sync.ts). Loaded here and not at
-              // the top: the task file opens its database pool when imported.
-              const { runDeltaSync } = await import('./run-delta-sync.ts');
-              // The in-network API address, for the reason managed-sync-tick gives.
-              configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' });
+              // running beside this one (final-sync.ts). Through the run's own
+              // runner (run-context.ts): on Trigger.dev, the pass's task is
+              // loaded here and not at the top, since the task file opens its
+              // database pool when imported (the definition below).
               // One data type's final sync is that data type's pass alone.
-              const pass = await runDeltaSync.triggerAndWait(
+              const pass = await context.runner.enqueueAndWait(
+                'run-delta-sync',
                 { tenantId, mappingId, ...(domain !== undefined ? { domains: [domain] } : {}) },
                 {
-                  concurrencyKey: mappingId,
+                  serializeBy: mappingId,
                   tags: [`tenant:${tenantId}`, `mapping:${mappingId}`, 'cutover-final-sync'],
                 },
               );
@@ -461,5 +464,18 @@ export const runCutover = schemaTask({
       if (!policy.retry) throw new AbortTaskRunError(err.message);
       throw error;
     }
+  },
+);
+
+// Register the job with Trigger.dev
+export const runCutover = schemaTask({
+  id: 'run-cutover',
+  description: 'Cutover preparation (final sync + verification gate)',
+  schema: CutoverJobSchema,
+  run: onTriggerDev(runCutoverRun, {
+    // Loaded when the final sync starts, and not at the top: the task file
+    // opens its database pools, and points the process's sinks at them,
+    // when it is imported.
+    deltaSync: async () => (await import('./run-delta-sync.ts')).runDeltaSync,
   }),
 });

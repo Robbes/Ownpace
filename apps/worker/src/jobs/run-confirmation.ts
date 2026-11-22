@@ -39,6 +39,7 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { PgRateBudget, plainDb } from '@openmig/ledger';
 import { openTaskPools } from './task-pools.ts';
 import {
@@ -53,7 +54,7 @@ import { targetProviderKey } from '@openmig/orchestration/build-confirmation-rea
 import { managedOpener } from '@openmig/orchestration/build-reindexers';
 import { runConfirmationOver } from '@openmig/orchestration/run-confirmation-pass';
 
-const ConfirmationJobSchema = z.object({
+export const ConfirmationJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
   /**
@@ -77,10 +78,14 @@ const ConfirmationJobSchema = z.object({
 // (0129 T4) at the key's pool, the one read app_user may not make.
 const { tenant: pool } = openTaskPools();
 
-export const runConfirmationTask = schemaTask({
-  id: 'run-confirmation',
-  schema: ConfirmationJobSchema,
-  run: leavesAReference('run-confirmation', async (payload) => {
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const runConfirmationRun = leavesAReference(
+  'run-confirmation',
+  async (payload: z.infer<typeof ConfirmationJobSchema>, _context: RunContext) => {
     const tenantId = asTenantId(payload.tenantId);
     const mappingId = asMappingId(payload.mappingId);
 
@@ -161,5 +166,11 @@ export const runConfirmationTask = schemaTask({
           : ''),
     );
     return { started: true as const, runId: result.runId, tally: result.tally };
-  }),
+  },
+);
+
+export const runConfirmationTask = schemaTask({
+  id: 'run-confirmation',
+  schema: ConfirmationJobSchema,
+  run: onTriggerDev(runConfirmationRun),
 });

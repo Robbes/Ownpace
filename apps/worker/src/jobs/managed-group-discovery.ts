@@ -43,10 +43,12 @@
 
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
+import { z } from 'zod';
 import { schedules } from '@trigger.dev/sdk';
 import type { Pool } from 'pg';
 import { sql, type SQL } from 'drizzle-orm';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
 import { PgGroupDefStore, PgDecisionStore, tenantScopedDb, withTenant } from '@openmig/ledger';
 import { log, renderEvent, asTenantId, type GroupListing, type RaiseDecisionInput } from '@openmig/shared';
@@ -213,10 +215,21 @@ export async function groupsOfOrganisation(
   return { sources: sources.length, discovered, known, unclassified, asked, membersUnknown, blindSpots };
 }
 
-export const managedGroupDiscovery = schedules.task({
-  id: 'managed-group-discovery',
-  cron: '30 6 * * *',
-  run: leavesAReference('managed-group-discovery', async (_payload: unknown, _context: unknown, afterwards) => {
+/**
+ * What a run of this schedule reads of its payload: nothing (ADR-0054;
+ * workplan 0167 T6). Trigger.dev hands a schedule's run its
+ * `ScheduledTaskPayload`, which this run never reads.
+ */
+export const GroupDiscoveryJobSchema = z.strictObject({});
+
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const managedGroupDiscoveryRun = leavesAReference(
+  'managed-group-discovery',
+  async (_payload: unknown, _context: RunContext, afterwards) => {
     // This run's pools (0138 T1, T2): the tenant pool on APP_DATABASE_URL,
     // app_user, under row security, and the audit key's pool of one. It points
     // the sinks too: the operator's log page at the tenant pool, the audit
@@ -255,5 +268,11 @@ export const managedGroupDiscovery = schedules.task({
 
     log.info('[group-discovery]', result);
     return result;
-  }),
+  },
+);
+
+export const managedGroupDiscovery = schedules.task({
+  id: 'managed-group-discovery',
+  cron: '30 6 * * *',
+  run: onTriggerDev(managedGroupDiscoveryRun),
 });
