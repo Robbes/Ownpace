@@ -126,12 +126,23 @@ The coordinator's review found the image and the service right, and five things 
     from the stack's `MAX_PASSES_IN_FLIGHT`, and refusing a `.env` line whose value is a comment.
 
 - **Evidence.**
-  - Every unit file under `scripts/` and `deploy/`: 319 files, 8,016 tests passed, 33 skipped, and
-    `every-release-is-a-starting-point` 13 of 13 once every tag was fetched.
+  - Every unit file under `scripts/` and `deploy/`, after the second merge: 321 files, 8,105 tests
+    passed, 33 skipped (`every-release-is-a-starting-point` needs every tag fetched).
   - `pnpm typecheck` 0, `pnpm lint` 0.
   - Broken once each, then restored byte for byte (`cmp`): `required: false` dropped (2 failed),
     minio out of the profile (2), the worker back in profile `jobs` (4); `operator.sh` without the
     hand-on (2 of 5); the end of the alpha's `pgboss` lines taken out (3 of 18).
+- **Merged again, later the same day**, with `main` (#2040 merged as `c9654774`) and every newer
+  head: the reviews of #2048, #2045, #2044, #2046 (the worker's memory from its realistic peak,
+  `(MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2,816 MB`, 4,864 MB at 3), #2049 (its shared fixtures,
+  `scripts/job-runner-fixtures.ts`, replace this branch's fix of the deploy test's running release)
+  and #2047, and the privacy row's Dutch approval. The deploy test's stage now defaults to trigger
+  with those fixtures, since the file's default is pg-boss (290 of 290; 10 fail without it).
+- **Open, for the pull requests that own the files:** #2049's bring-up works the worker's memory out
+  from the old rule, `(MAX_PASSES_IN_FLIGHT + 3) x 512 MB + 256 MB`, and exports it wherever `.env`
+  sets none, so on a default stack it hands the worker 3,328 MB over #2046's `managed.yml` default
+  of 4,864 MB, and `docs/managed-bring-up.md` (*The worker's size*) says the same old numbers. Not
+  changed here.
 - **Not proved here:** a real stack in either mode. That is E2E (managed) on this branch, in pg-boss
   mode and with `job_runner=trigger`.
 - **Next:** E2E (managed) in both modes; then alpha.16's release; then T9 in its own release.
