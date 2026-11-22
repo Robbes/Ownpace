@@ -4,6 +4,68 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still: the runner's production gaps (T5a).** On branch
+`claude/ownpace-pgboss-runner-gaps`, from T5's branch at `6d6e299d`. Only
+`packages/scheduler/src/pg-boss/` and this plan changed; nothing imports the runner yet. The
+coordinator listed what T6 and T7 need from the runner as E1 to E8. E1 was already there. Checked
+against T5's code, and closed:
+
+- **E2, a producer.** `PgBossProducer` is for the API and for runs that enqueue. It takes the
+  queue specs in its constructor and runs pg-boss with `migrate`, `supervise` and `schedule` off.
+  It has no `work` and no `schedule`, and never creates a queue. It refuses a jobs schema the
+  worker has not installed, or one at another version. Enqueueing to a queue the worker has not
+  made fails, naming the queue and the reason, and creates nothing.
+- **E3, status and cancel by the run id alone.** `status(runId)` and `cancel(runId)` look the id up
+  on the declared queues' `(name, id)` key. That is one statement per job table, and every queue
+  shares `job_common` unless it is partitioned. An id that is not a UUID (`run_…`) is refused
+  before pg-boss is asked. One that no queue holds reads `null`. The `(queue, runId)` forms stay.
+- **E4, the run's lines.** The child's stdout and stderr reach the worker's own, line by line,
+  prefixed `[<queue> <run id>] `. A death is told by a fixed sentence and a `verdict`
+  (`out-of-memory`, `killed`, `exited`), read from the first 16 kB of stderr and never quoted.
+  T5's `ChildRunDied` had put stderr's first line into the stored error.
+- **E5, the time limit and the claim.** `work` aborts the run's signal itself,
+  `killMarginSeconds` before the queue's `expireInSeconds` and fails it as `RunTimedOut`, which is
+  retried. The margin is 30 s, a tenth of a test's short limit, and at least 1 s, and the code
+  says why. A lost claim (a cancel, another supervisor) aborts the same signal. `workInChild`
+  kills the run's process on it and settles only after the process has exited. A run's process
+  exits when its IPC channel closes, so a worker killed outright leaves no run writing behind it.
+- **E6, the names.** `work` decided "not retried" with `instanceof RunNotRetried`, which an error
+  from a forked process never is. It now goes by name: `RunNotRetried`, `AbortTaskRunError` and
+  `ZodError` go to `deadletter`, anything else is retried (`settlementFor`).
+- **E7.** Already met for the worker: T5's schema refusal and pin guard. The producer now refuses
+  in the same way.
+- **E8.** `overview` already read only pg-boss's queue table, whose counters the monitor keeps.
+  `recentFailures` read up to 100,000 rows and sorted them in memory. It now reads at most its
+  limit (1,000 at most), backwards on pg-boss's `<table>_i16` index, `(name, completed_on)`.
+
+**The evidence**, on a throwaway cluster from `scripts/local-pg.sh` (PostgreSQL 16 here; CI's
+Testcontainers run is the one to trust for 18):
+
+- `job-runner.integration.test.ts`: `Tests 20 passed (20)`, 131.9 s. That is T5's 11 and 9 new
+  tests.
+  - E5: with an 8 s limit, both attempts of one singleton key were killed under 8 s, with
+    `RunTimedOut`, in different processes, both dead. The retry's process started after the
+    first one's last write.
+  - E5: a cancel from the producer killed the run's process within one heartbeat.
+  - E2: a schedule due every second fired from a worker and never from a producer alone in 8 s.
+  - E8: the read is a `Limit` over `Index Scan Backward using job_common_i16`, with no sort.
+- `run-in-child.unit.test.ts`: 15 passed, 11 of them new: forwarding, the death in its own words,
+  six error names across the IPC, and the child that dies with its parent.
+- **Mutations**, each restored byte for byte. Each of these failed its test:
+  - the margin made negative;
+  - the producer with `schedule` on, or with `migrate` on;
+  - the by-id lookup finding nothing;
+  - the names set cut to `RunNotRetried`;
+  - the failures read oldest first;
+  - the queue-not-found message unmapped;
+  - `workInChild` without the signal;
+  - stderr put back into the death's message (1 of 15 failed);
+  - the prefix dropped (3 failed);
+  - the `disconnect` exit removed (1 failed).
+- Found on the way: a test that imported an entry module (one ending in `serveRuns`) served runs
+  inside vitest's own forked worker, and so did `process.exit` there. The key-holder fixture's
+  table helper is now a module of its own, `key-holder-table.ts`.
+
 **2026-11-22, later: the owner's yes, and the runner as production code (T4, T5).**
 The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* Earlier the same
 day they had approved the spike. [ADR-0054](../adr/0054-the-managed-editions-jobs-run-on-pg-boss.md)
@@ -90,6 +152,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T3 Gates | builder | ✅ **Done 2026-11-22** | Typecheck and lint 0; unit 22,282 passed, 1 failed for missing tags in this checkout (Status entry). CI not dispatched, by instruction. |
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
 | T5 This runner, merged | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-public-readiness-y7orc6-pgboss-runner` | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). Done when its pull request merges. |
+| T5a The runner's production gaps | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-pgboss-runner-gaps` | E2–E8 from the coordinator's plan: `PgBossProducer`, status and cancel by id, the child's lines forwarded and never stored, the worker's own time limit and kill on a lost claim, "not retried" by name, a bounded `recentFailures` (the Status entry "later still"). Done when its pull request merges. |
 | T6 The jobs on the runner, behind a switch | builder | ⬜ **Not started** | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. |
 | T7 The worker service, and the switch on | builder, owner | ⬜ **Not started** | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |

@@ -9,6 +9,11 @@
  * `scripts/local-pg.sh`); the jobs run as a role of their own, provisioned
  * here, with no superuser rights and nothing outside its schema.
  *
+ * Then one `describe` per production gap T5 closed (E2 to E8 in the
+ * coordinator's plan): the producer, status and cancel by id, the run's own
+ * time limit and lost claim, names that decide a retry, and the bounded
+ * failures read.
+ *
  * Point 7's PgBouncer half is this same file run with `TEST_DATABASE_URL`
  * pointing at a PgBouncer in transaction mode: every test then talks to
  * Postgres through it. The workplan records both runs.
@@ -19,9 +24,17 @@ import { fork, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import { PgBossJobRunner, RunNotRetried, type RunStatus } from './job-runner.ts';
+import {
+  PgBossJobRunner,
+  PgBossProducer,
+  RunNotRetried,
+  recentFailuresSql,
+  type QueueSpec,
+  type RunStatus,
+} from './job-runner.ts';
 import { ChildRunDied, runInChild } from './run-in-child.ts';
 import { copyPass, prepareCopyTables, type CopyPassPayload } from './__testing__/copy-pass.ts';
+import { prepareKeyHolderTable, type KeyHolderPayload } from './__testing__/key-holder-table.ts';
 
 const ADMIN_URL = process.env.TEST_DATABASE_URL;
 if (!ADMIN_URL) {
@@ -58,7 +71,7 @@ let jobsPool: pg.Pool;
 let rlsBefore: Array<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }>;
 let extensionsBefore: string[];
 const EXTENSIONS = 'SELECT extname FROM pg_extension ORDER BY 1';
-const runners: PgBossJobRunner[] = [];
+const runners: Array<PgBossJobRunner | PgBossProducer> = [];
 
 function newRunner(): PgBossJobRunner {
   const r = new PgBossJobRunner({
@@ -73,11 +86,24 @@ function newRunner(): PgBossJobRunner {
   return r;
 }
 
-async function settled(r: PgBossJobRunner, queue: string, runId: string, timeoutMs = 60_000): Promise<RunStatus> {
+function newProducer(queues: readonly QueueSpec[], schema = SCHEMA): PgBossProducer {
+  const p = new PgBossProducer({ connectionString: JOBS_URL, schema }, queues);
+  runners.push(p);
+  return p;
+}
+
+/** Read by the run's id alone, as `orchestrator_ref` holds it (E3); `queue` only names the wait. */
+async function settled(
+  r: PgBossJobRunner | PgBossProducer,
+  queue: string,
+  runId: string,
+  timeoutMs = 60_000,
+): Promise<RunStatus> {
   return until(
     `run ${runId} on ${queue} to settle`,
     async () => {
-      const s = await r.status(queue, runId);
+      const s = await r.status(runId);
+      if (s) expect(s.queue).toBe(queue);
       return s && ['completed', 'failed', 'cancelled'].includes(s.state) ? s : null;
     },
     timeoutMs,
@@ -101,6 +127,7 @@ beforeAll(async () => {
   await admin.query(`CREATE SCHEMA ${SCHEMA} AUTHORIZATION ${ROLE}`);
   jobsPool = new pg.Pool({ connectionString: JOBS_URL, max: 4 });
   await prepareCopyTables(jobsPool, SCHEMA);
+  await prepareKeyHolderTable(jobsPool, SCHEMA);
 });
 
 afterAll(async () => {
@@ -267,10 +294,10 @@ describe('point 3: a cancel reaches a running pass within one heartbeat', () => 
     const { runId } = await r.enqueue(queue, {});
     await until('the run to start', async () => started, 20_000);
     const cancelledAt = Date.now();
-    await r.cancel(queue, runId!);
+    expect(await r.cancel(runId!)).toBe(true);
     await until('the handler to see the abort', async () => abortedAt > 0, 20_000);
     expect(abortedAt - cancelledAt).toBeLessThan(10_000);
-    expect((await r.status(queue, runId!))?.state).toBe('cancelled');
+    expect((await r.status(runId!))?.state).toBe('cancelled');
     await r.stop();
   }, 60_000);
 });
@@ -524,8 +551,281 @@ describe('the jobs schema is the version the runner was proved on', () => {
       // Refused before any queue was declared, so it takes no work.
       await expect(later.enqueue(queue, {})).rejects.toThrow('was not declared');
       await later.stop();
+      // A producer refuses it too, and never migrates it either way.
+      const producer = newProducer([{ name: queue, policy: 'standard' }]);
+      await expect(producer.start()).rejects.toThrow(`is not at pg-boss schema version ${proved}`);
+      expect(Number((await jobsPool.query(`SELECT version FROM ${SCHEMA}.version`)).rows[0].version)).toBe(proved + 1);
+      await producer.stop();
     } finally {
       await jobsPool.query(`UPDATE ${SCHEMA}.version SET version = $1`, [proved]);
     }
+  }, 60_000);
+});
+
+const FORKED = new URL('./__testing__/forked-passes.ts', import.meta.url).href;
+const KEY_HOLDER = new URL('./__testing__/key-holder.ts', import.meta.url).href;
+
+async function jobCount(queue: string): Promise<number> {
+  const { rows } = await jobsPool.query<{ n: string }>(`SELECT count(*) AS n FROM ${SCHEMA}.job WHERE name = $1`, [queue]);
+  return Number(rows[0]!.n);
+}
+
+async function queueExists(schema: string, queue: string): Promise<boolean> {
+  const { rows } = await admin.query(`SELECT 1 FROM ${schema}.queue WHERE name = $1`, [queue]);
+  return rows.length > 0;
+}
+
+describe('E2: a producer enqueues, and never migrates, supervises, schedules or makes a queue', () => {
+  it('refuses a jobs schema the worker never installed, and leaves it empty', async () => {
+    const bare = `${SCHEMA}_bare`;
+    await admin.query(`CREATE SCHEMA ${bare} AUTHORIZATION ${ROLE}`);
+    try {
+      const p = newProducer([{ name: 'e2-bare', policy: 'standard' }], bare);
+      await expect(p.start()).rejects.toThrow(`The jobs schema "${bare}" is not at pg-boss schema version`);
+      await p.stop();
+      const { rows } = await admin.query(`SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = $1`, [bare]);
+      expect(rows[0].n).toBe(0);
+    } finally {
+      await admin.query(`DROP SCHEMA ${bare} CASCADE`);
+    }
+  }, 30_000);
+
+  it('fails to enqueue to a queue the worker has not made, by name, and makes none', async () => {
+    // The schema is installed: point 7a's worker did it.
+    const p = newProducer([{ name: 'e2-never-made', policy: 'singleton' }]);
+    await p.start();
+    await expect(p.enqueue('e2-never-made', { mappingId: 'm' }, { serializeBy: 'm' })).rejects.toThrow(
+      `The queue "e2-never-made" does not exist in the jobs schema "${SCHEMA}". The worker creates every queue when it starts`,
+    );
+    await expect(
+      p.enqueue('e2-never-made', { mappingId: 'm' }, { idempotency: { key: 'k', ttlSeconds: 60 } }),
+    ).rejects.toThrow('does not exist in the jobs schema');
+    expect(await queueExists(SCHEMA, 'e2-never-made')).toBe(false);
+    await expect(p.enqueue('e2-undeclared', {})).rejects.toThrow('was not declared');
+    await p.stop();
+  }, 30_000);
+
+  it("enqueues with the queue's spec from its constructor, and the worker's run is the producer's to read and join", async () => {
+    const queue = 'e2-made';
+    const spec: QueueSpec = { name: queue, policy: 'singleton', heartbeatSeconds: 10, attempts: 1 };
+    const worker = newRunner();
+    await worker.start([spec]);
+    const release: Array<() => void> = [];
+    await worker.work<{ n: number }, number>(queue, async (p) => {
+      await new Promise<void>((resolve) => release.push(resolve));
+      return p.n * 2;
+    }, { concurrency: 2 });
+    const p = newProducer([spec]);
+    await p.start();
+    const first = await p.enqueue(queue, { n: 21 }, { serializeBy: 'm-e2', tags: ['mapping:m-e2'], idempotency: { key: 'k-e2', ttlSeconds: 60 } });
+    const joined = await p.enqueue(queue, { n: 21 }, { serializeBy: 'm-e2', idempotency: { key: 'k-e2', ttlSeconds: 60 } });
+    expect(joined).toEqual({ runId: first.runId, joined: true });
+    const second = await p.enqueue(queue, { n: 1 }, { serializeBy: 'm-e2' });
+    await until('one run of the key to be running', async () => release.length === 1, 20_000);
+    await sleep(1500);
+    // The per-key limit came from the producer's spec: one active, the other waiting.
+    expect((await p.status(second.runId!))?.state).toBe('queued');
+    while (release.length) release.shift()!();
+    const a = await until('both to finish', async () => {
+      while (release.length) release.shift()!();
+      const [x, y] = [await p.status(first.runId!), await p.status(second.runId!)];
+      return x?.state === 'completed' && y?.state === 'completed' ? x : null;
+    }, 30_000);
+    expect(a).toMatchObject({ queue, output: { value: 42 }, tags: ['mapping:m-e2'] });
+    await p.stop();
+    await worker.stop();
+  }, 60_000);
+
+  it('fires no schedule, even one that is due every second, while the worker is stopped', async () => {
+    const queue = 'e2-cron';
+    const spec: QueueSpec = { name: queue, policy: 'stately' };
+    const worker = newRunner();
+    await worker.start([spec]);
+    await worker.schedule(queue, '* * * * * *', {});
+    // The control: a worker fires it.
+    await until('the worker to fire the schedule', async () => (await jobCount(queue)) > 0, 20_000);
+    await worker.stop();
+    await jobsPool.query(`DELETE FROM ${SCHEMA}.job WHERE name = $1`, [queue]);
+    const p = newProducer([spec]);
+    await p.start();
+    await sleep(8_000); // more than the cron worker's interval, many times over the schedule's
+    expect(await jobCount(queue)).toBe(0);
+    await p.stop();
+    // Left as it found it, for any later run of this file against the same schema.
+    const w2 = newRunner();
+    await w2.start([spec]);
+    await w2.unschedule(queue);
+    await w2.stop();
+  }, 60_000);
+});
+
+describe('E3: status and cancel by the run id alone', () => {
+  it('finds a run on whichever declared queue holds it, and reads a ref it never made as such', async () => {
+    const specs: QueueSpec[] = ['e3-a', 'e3-b', 'e3-c'].map((name) => ({ name, policy: 'standard' as const }));
+    const worker = newRunner();
+    await worker.start(specs);
+    const p = newProducer(specs);
+    await p.start();
+    const onB = await p.enqueue('e3-b', { id: 'b' }, { tags: ['t:b'] });
+    expect(await p.status(onB.runId!)).toMatchObject({ runId: onB.runId, queue: 'e3-b', state: 'queued', tags: ['t:b'] });
+    // A pg-boss id no queue holds (settled and deleted after its retention) is null, which the caller reads as finished.
+    expect(await p.status('00000000-0000-4000-8000-000000000000')).toBeNull();
+    expect(await p.cancel('00000000-0000-4000-8000-000000000000')).toBe(false);
+    // A ref of Trigger.dev's shape is never asked of pg-boss.
+    await expect(p.status('run_cm1a2b3c4d5e6f')).rejects.toThrow('"run_cm1a2b3c4d5e6f" is not a pg-boss run id');
+    await expect(p.cancel('run_cm1a2b3c4d5e6f')).rejects.toThrow('is not a pg-boss run id');
+    expect(await p.cancel(onB.runId!)).toBe(true);
+    expect((await p.status(onB.runId!))?.state).toBe('cancelled');
+    expect(await p.cancel(onB.runId!)).toBe(false);
+    await p.stop();
+    await worker.stop();
+  }, 30_000);
+});
+
+describe("E5: a run's process is killed at its time limit and on a lost claim, before any retry starts", () => {
+  const payload: KeyHolderPayload = { connectionString: JOBS_URL, schema: SCHEMA };
+  type Held = { attempt: number; pid: number; started_at: Date; last_beat: Date };
+  const held = async (runId: string): Promise<Held[]> =>
+    (
+      await jobsPool.query<Held>(
+        `SELECT attempt, pid, started_at, last_beat FROM ${SCHEMA}.key_holder WHERE run_id = $1 ORDER BY attempt`,
+        [runId],
+      )
+    ).rows;
+  const alive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it('kills a run that outlives its limit, then lets the retry start, never both at once on one key', async () => {
+    const queue = 'e5-limit';
+    // 8 s: pg-boss's own limit. The worker's comes a margin earlier (killMarginSeconds: 1 s at this length).
+    const r = newRunner();
+    await r.start([{ name: queue, policy: 'singleton', maxDurationSeconds: 8, heartbeatSeconds: 10, attempts: 2, retryDelaySeconds: 0 }]);
+    await r.workInChild(queue, KEY_HOLDER, { maxOldSpaceMb: 64, concurrency: 2 });
+    const { runId } = await r.enqueue(queue, payload, { serializeBy: 'mapping-e5' });
+    const done = await settled(r, queue, runId!, 60_000);
+    expect(done.state).toBe('failed');
+    expect(done.attempt).toBe(2);
+    expect(done.output).toEqual({ name: 'RunTimedOut', message: `The run reached its time limit of 8 s on "${queue}" and was stopped.` });
+    const [first, second] = await held(runId!);
+    expect([first?.attempt, second?.attempt]).toEqual([1, 2]);
+    expect(first!.pid).not.toBe(second!.pid);
+    for (const h of [first!, second!]) {
+      const ran = h.last_beat.getTime() - h.started_at.getTime();
+      // Stopped by the worker, before pg-boss's 8 s: about 7 s less the child's start.
+      expect(ran).toBeLessThan(8_000);
+      expect(ran).toBeGreaterThan(5_000);
+      expect(alive(h.pid)).toBe(false);
+    }
+    // The retry's process began only after the first one's last word.
+    expect(second!.started_at.getTime()).toBeGreaterThan(first!.last_beat.getTime());
+    await r.stop();
+  }, 90_000);
+
+  it('kills the run when its claim is lost to a cancel from the producer', async () => {
+    const queue = 'e5-claim';
+    const spec: QueueSpec = { name: queue, policy: 'singleton', heartbeatSeconds: 10, attempts: 1 };
+    const r = newRunner();
+    await r.start([spec]);
+    await r.workInChild(queue, KEY_HOLDER, { maxOldSpaceMb: 64 });
+    const p = newProducer([spec]);
+    await p.start();
+    const { runId } = await p.enqueue(queue, payload, { serializeBy: 'mapping-e5b' });
+    const [h] = await until('the run to be holding its key', async () => {
+      const rows = await held(runId!);
+      return rows.length ? rows : null;
+    }, 20_000);
+    expect(alive(h!.pid)).toBe(true);
+    const cancelledAt = Date.now();
+    expect(await p.cancel(runId!)).toBe(true);
+    // pg-boss sees the claim gone at its next heartbeat (half of 10 s); the process dies then.
+    await until('the run process to be gone', async () => !alive(h!.pid), 15_000);
+    expect(Date.now() - cancelledAt).toBeLessThan(10_000);
+    const [after] = await held(runId!);
+    await sleep(500);
+    expect((await held(runId!))[0]!.last_beat).toEqual(after!.last_beat);
+    expect((await p.status(runId!))?.state).toBe('cancelled');
+    await p.stop();
+    await r.stop();
+  }, 60_000);
+});
+
+describe("E6: a forked run's error name decides whether it is tried again", () => {
+  it('fails RunNotRetried, AbortTaskRunError and ZodError at once, and retries everything else', async () => {
+    const queue = 'e6-names';
+    const r = newRunner();
+    await r.start([{ name: queue, policy: 'standard', heartbeatSeconds: 10, attempts: 2, retryDelaySeconds: 1 }]);
+    await r.workInChild(queue, FORKED, { maxOldSpaceMb: 64, call: 'throws', concurrency: 4 });
+    const names: Array<[string, number]> = [
+      ['RunNotRetried', 1],
+      ['AbortTaskRunError', 1],
+      ['ZodError', 1],
+      ['Error', 2],
+      ['TypeError', 2],
+    ];
+    const runs = await Promise.all(
+      names.map(async ([name]) => ({ name, run: await r.enqueue(queue, { name, message: `the run threw ${name}` }) })),
+    );
+    for (const { name, run } of runs) {
+      const done = await settled(r, queue, run.runId!, 60_000);
+      const expected = names.find(([n]) => n === name)![1];
+      expect({ name, state: done.state, attempt: done.attempt, output: done.output }).toEqual({
+        name,
+        state: 'failed',
+        attempt: expected,
+        output: { name, message: `the run threw ${name}` },
+      });
+    }
+    await r.stop();
+  }, 90_000);
+});
+
+describe('E8: recentFailures reads only as many rows as it hands back', () => {
+  it('gives the newest failures first, at most the limit, on an index read stopped at the limit', async () => {
+    const queue = 'e8-failures';
+    const r = newRunner();
+    await r.start([{ name: queue, policy: 'standard', attempts: 1, heartbeatSeconds: 10 }]);
+    await r.work<{ n: number }, number>(queue, async (p) => {
+      if (p.n % 2 === 0) throw new Error(`failure ${p.n}`);
+      return p.n;
+    });
+    for (let n = 0; n < 8; n++) {
+      const { runId } = await r.enqueue(queue, { n }, { tags: [`n:${n}`] });
+      await settled(r, queue, runId!);
+    }
+    const three = await r.recentFailures(queue, 3);
+    expect(three.map((f) => f.error)).toEqual([
+      { name: 'Error', message: 'failure 6' },
+      { name: 'Error', message: 'failure 4' },
+      { name: 'Error', message: 'failure 2' },
+    ]);
+    expect(three[0]).toMatchObject({ queue, attempt: 1, tags: ['n:6'] });
+    expect((await r.recentFailures(queue)).length).toBe(4);
+
+    // The table pg-boss keeps this queue's rows in (`job_common` unless the queue is partitioned).
+    const table = (await jobsPool.query<{ t: string }>(`SELECT table_name AS t FROM ${SCHEMA}.queue WHERE name = $1`, [queue]))
+      .rows[0]!.t;
+    const client = await jobsPool.connect();
+    try {
+      await client.query('BEGIN');
+      // On a handful of rows the planner may scan; with that off, it must be able to read the index in order.
+      await client.query('SET LOCAL enable_seqscan = off');
+      await client.query('SET LOCAL enable_sort = off');
+      const plan = (
+        await client.query<{ 'QUERY PLAN': string }>(`EXPLAIN ${recentFailuresSql(SCHEMA, table)}`, [queue, 3])
+      ).rows.map((row) => row['QUERY PLAN']).join('\n');
+      await client.query('ROLLBACK');
+      expect(plan).toMatch(/^Limit/);
+      expect(plan).toMatch(new RegExp(`Index Scan Backward using ${table}_i16 on ${table}`));
+      expect(plan).not.toMatch(/Sort/);
+    } finally {
+      client.release();
+    }
+    await r.stop();
   }, 60_000);
 });
