@@ -1739,7 +1739,9 @@ sleep() { :; }
   }
 
   it('the jobs this run asked for completed, a tick completed, the runIds followed completed: a pass', () => {
-    const r = jobs(['managed-sync-tick|completed|9|0|true', 'run-delta-sync|completed|2|1|false', 'run-verification|completed|1|0|false'], {
+    // `__pgboss__send-it` is pg-boss's own: its timekeeper puts one job there per schedule
+    // occurrence, a row the review reproduced on the pinned pg-boss as `completed|2|0|false`.
+    const r = jobs(['__pgboss__send-it|completed|2|0|false', 'managed-sync-tick|completed|9|0|true', 'run-delta-sync|completed|2|1|false', 'run-verification|completed|1|0|false'], {
       refs: UUID,
       jobs: { [UUID]: 'run-delta-sync completed' },
     });
@@ -1766,6 +1768,30 @@ sleep() { :; }
     expect(r.reasons).toContain(`1 job(s) on run-cutover ended ${state}`);
   });
 
+  it.each([['failed'], ['retry']])("a job on pg-boss's own queue that is %s fails the run, as a schedule's would", (state) => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', `__pgboss__send-it|${state}|1|1|false`]);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('on __pgboss__send-it');
+    expect(r.reasons).not.toContain('a queue the catalog does not name');
+  });
+
+  it("pg-boss's own queue alone is no job this run asked for: no job ran", () => {
+    const r = jobs(['__pgboss__send-it|completed|3|0|false', 'managed-sync-tick|completed|3|0|true']);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('no job ran');
+  });
+
+  it("a schedule's retry that completed inside the wait is said, not failed, every time alike", () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', 'managed-digest|completed|1|1|true']);
+    expect(r.fail, r.out).toBe('0');
+    expect(r.out).toContain('managed-digest: 1 completed, 1 after a retry');
+  });
+
+  it('the wait waits for a retry on any queue, a schedule\'s included, and for the jobs asked for', () => {
+    const body = smokeFunction('pgboss_jobs');
+    expect(body).toContain("(j.state = 'retry' OR (j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__'))");
+  });
+
   it("a job waiting to retry is a failed attempt, a schedule's included", () => {
     const r = jobs(['run-delta-sync|completed|1|0|false', 'managed-digest|retry|1|1|true']);
     expect(r.fail).toBe('1');
@@ -1777,6 +1803,14 @@ sleep() { :; }
     expect(r.fail).toBe('1');
     expect(r.out).toContain('waited 4s for the jobs this run asked for to settle');
     expect(r.reasons).toContain('1 job(s) on run-verification are still active after 4s');
+  });
+
+  it("a job that began after the wait found nothing in flight is a failure, and not said to have outlasted the wait", () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', 'run-verification|active|1|0|false'], { waiting: '0' });
+    expect(r.fail).toBe('1');
+    expect(r.out).not.toContain('waited');
+    expect(r.reasons).toContain('1 job(s) on run-verification are active, begun after the wait had found nothing in flight');
+    expect(r.reasons).not.toContain('after 4s');
   });
 
   it("a schedule's next tick, created or running, is said and not failed", () => {
@@ -1839,40 +1873,93 @@ sleep() { :; }
 });
 
 describe('on pg-boss, no Trigger.dev runner started on this stack', () => {
-  function events(starts: string, joined: string, failing = false) {
-    const stub = `docker() {
-  [ -n "\${FAILING:-}" ] && { echo "Cannot connect to the Docker daemon" >&2; return 1; }
-  case "$*" in
-    *"event=start"*) printf '%s' "$STARTS" ;;
-    *"event=connect"*"network=ownpace-managed_ownpace-network"*) printf '%s' "$JOINED" ;;
-    *) echo "unexpected docker call: $*" >&2; return 9 ;;
-  esac
-}`;
-    return smokeRun(['no_runner_started'], `${stub}\nno_runner_started\n${SHOW_REASONS}`, {
-      SMOKE_STARTED_AT: '2026-11-22T17:00:00Z',
-      COMPOSE_PROJECT: 'ownpace-managed',
-      STARTS: starts,
-      JOINED: joined,
-      ...(failing ? { FAILING: '1' } : {}),
-    });
+  /** no_runner_started over the events file `lines`, its watcher alive or not. */
+  function events(lines: string[], watcher: 'alive' | 'dead' | 'none' = 'alive') {
+    const dir = mkdtempSync(join(tmpdir(), 'smoke-events-'));
+    try {
+      const file = join(dir, 'events');
+      if (watcher !== 'none') writeFileSync(file, lines.map((l) => `${l}\n`).join(''));
+      writeFileSync(`${file}.err`, watcher === 'dead' ? 'Cannot connect to the Docker daemon\n' : '');
+      const pid = watcher === 'alive' ? 'sleep 30 & WATCHER_PID=$!' : watcher === 'dead' ? '(exit 0) & WATCHER_PID=$!; wait "$WATCHER_PID"' : 'WATCHER_PID=""';
+      const r = smokeRun(['no_runner_started'], `${pid}\nno_runner_started\n${SHOW_REASONS}\nkill "$WATCHER_PID" 2>/dev/null || true`, {
+        SMOKE_STARTED_AT: '2026-11-22T17:00:00Z',
+        COMPOSE_PROJECT: 'ownpace-managed',
+        EVENTS_FILE: watcher === 'none' ? '' : file,
+      });
+      return r;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
+  const NET = 'ownpace-managed_ownpace-network';
 
   it("a runner on this stack's network is a failure, by name", () => {
-    const r = events('aaa ownpace-managed-api\nbbb runner-cm9x\n', 'aaa\nbbb\n');
+    const r = events(['container start aaa ownpace-managed-api ', `network connect n1 ${NET} aaa`, 'container start bbb runner-cm9x ', `network connect n1 ${NET} bbb`]);
     expect(r.fail).toBe('1');
     expect(r.out).toContain('runner containers started on this stack since 2026-11-22T17:00:00Z: runner-cm9x');
   });
 
   it("another stack's runner, on its own network, is not this stack's", () => {
-    const r = events('bbb runner-cm9x\nccc ownpace-managed-worker\n', 'ccc\n');
+    const r = events(['container start bbb runner-cm9x ', 'network connect n2 ownpace-live_ownpace-network bbb', 'container start ccc ownpace-managed-worker ', `network connect n1 ${NET} ccc`]);
     expect(r.fail, r.out).toBe('0');
-    expect(r.out).toContain("no runner-* container started on this stack's network");
+    expect(r.out).toContain("no runner-* container started on this stack's network since 2026-11-22T17:00:00Z (2 container start(s) watched)");
   });
 
-  it('events that cannot be read are a failure', () => {
-    const r = events('', '', true);
+  it.each([['dead'], ['none']] as const)('a stream that is %s is a failure: what it did not watch, it cannot speak for', (watcher) => {
+    const r = events([], watcher);
     expect(r.fail).toBe('1');
-    expect(r.reasons).toContain("Docker's events could not be read");
+    expect(r.reasons).toContain("Docker's events were not watched for the whole run");
+  });
+
+  it('the stream starts with the run, on pg-boss only, runs until the trap, and is never a replay with --until', () => {
+    const at = smoke.indexOf('\nif [ "$JOB_RUNNER" = pg-boss ]; then\n  EVENTS_FILE="$(mktemp');
+    expect(at).toBeGreaterThan(0);
+    const block = smoke.slice(at, smoke.indexOf('\nfi\n', at));
+    expect(block).toContain('docker events --since "$SMOKE_STARTED_AT" --filter type=container --filter type=network');
+    expect(block).toContain('--filter event=start --filter event=connect');
+    expect(block).toContain('WATCHER_PID=$!');
+    const code = smoke.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+    expect(code, 'a replay of the daemon\'s last 256 events').not.toMatch(/docker events[^\n]*--until/);
+    expect(at).toBeLessThan(smoke.indexOf('note "preflights"'));
+    // Ended by every EXIT trap from there on, the runner-log watcher's kill.
+    const traps = smoke.slice(at).split('\n').filter((l) => /^\s*trap\s+.*\bEXIT\b/.test(l));
+    expect(traps.length).toBeGreaterThanOrEqual(3);
+    for (const trap of traps) expect(trap).toContain('kill "$WATCHER_PID" 2>/dev/null || true');
+    // And nothing resets WATCHER_PID after it is started.
+    expect(smoke.slice(at + block.length).match(/^WATCHER_PID=""/m)).toBeNull();
+  });
+});
+
+describe('on pg-boss, the Trigger.dev supervisor is not running, at the start and at the end', () => {
+  const ask = (said: string, rc: number) =>
+    smokeRun(['supervisor_stopped'], `docker() { printf '%s\\n' "$SAID"; return "$RC"; }\nsupervisor_stopped "at the start"\n${SHOW_REASONS}`, {
+      COMPOSE_PROJECT: 'ownpace-managed',
+      SAID: said,
+      RC: String(rc),
+    });
+
+  it.each([
+    ['stopped', 'false', 0],
+    ['not there', 'Error: No such container: ownpace-managed-trigger-supervisor', 1],
+    ['not there, in an older Docker\'s words', 'Error: No such object: ownpace-managed-trigger-supervisor', 1],
+  ])('%s is a pass', (_what, said, rc) => {
+    expect(ask(said, rc).fail).toBe('0');
+  });
+
+  it.each([
+    ['running', 'true', 0, 'trigger-supervisor is running at the start'],
+    ['a Docker that cannot be asked', 'Cannot connect to the Docker daemon', 1, 'trigger-supervisor could not be asked at the start'],
+  ])('%s is a failure', (_what, said, rc, reason) => {
+    const r = ask(said, rc);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain(reason);
+  });
+
+  it('is asked once at the start, after the mode is known, and once at the end', () => {
+    expect(smoke).toContain('[ "$JOB_RUNNER" = pg-boss ] && supervisor_stopped "at the start"');
+    expect(smoke.indexOf('supervisor_stopped "at the start"')).toBeLessThan(smoke.indexOf('if trigger_only "minio and trigger-tls"; then'));
+    expect(smoke.indexOf('\nsupervisor_stopped "at the end"\n')).toBeGreaterThan(smoke.indexOf('\npgboss_jobs\n'));
+    expect(smoke.indexOf('supervisor_stopped() {')).toBeLessThan(smoke.indexOf('supervisor_stopped "at the start"'));
   });
 });
 
@@ -1971,6 +2058,13 @@ smoke_env_value() { [ "$1" = POSTGRES_USER ] && printf '%s' "\${OWNER:-}"; retur
     expect(r.out).not.toContain('owner-pw');
   });
 
+  it('a double-quoted POSTGRES_USER is read as Compose reads it, so the check does not pass on nothing', () => {
+    const r = worker({ OWNER: '"openmigrate"', WORKER_ENV: `${ENV}\nDATABASE_URL=postgresql://openmigrate:x@pgbouncer:6432/openmigrate` });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain("the worker holds the owner's URL");
+    expect(r.out).toContain('(openmigrate)');
+  });
+
   it('a POSTGRES_USER of its own is the owner asked about', () => {
     const r = worker({ OWNER: 'ledger_owner', WORKER_ENV: `${ENV}\nDATABASE_URL=postgresql://ledger_owner:x@pgbouncer:6432/openmigrate` });
     expect(r.reasons).toContain("the worker holds the owner's URL");
@@ -2043,5 +2137,107 @@ describe('on pg-boss, the tick that beat ran there', () => {
     expect(run('stale since 2026-11-22 16:00:00+00')).toBe('1');
     expect(run('')).toBe('1');
     expect(verdict(block!, "JOB_RUNNER=trigger\nq() { echo 'stale'; }")).toBe('0');
+  });
+});
+
+describe("a pass that never ran points at the section that explains it, in each mode", () => {
+  it('on pg-boss at the jobs and the worker\'s log, on Trigger.dev at the runner logs, as it always did', () => {
+    expect(smoke).toContain('echo "sync ($label): the enqueue was accepted and never became a runner — see the runner-log section below."');
+    expect(smoke).toMatch(/if \[ "\$JOB_RUNNER" = pg-boss \]; then\n\s+echo "sync \(\$label\): the enqueue was accepted and never ran — see the jobs on pg-boss/);
+  });
+});
+
+describe("the stack's memory, sampled from the start in both runners, is read out and never judged", () => {
+  /** What `docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}'` prints: the used part, then the limit. */
+  const STATS = [
+    'ownpace-managed-api\t212.4MiB / 7.627GiB',
+    'ownpace-managed-worker\t96.25MiB / 512MiB',
+    'ownpace-managed-db\t1.104GiB / 7.627GiB',
+    'runner-cm9x\t180MiB / 7.627GiB',
+    'ownpace-live-api\t300MiB / 7.627GiB',
+  ].join('\n');
+  const LIMITS = ['7.627GiB', '512MiB'];
+
+  function readout(samples: string, runners = '', err = '') {
+    const dir = mkdtempSync(join(tmpdir(), 'smoke-mem-'));
+    try {
+      const file = join(dir, 'mem');
+      writeFileSync(file, samples);
+      if (err) writeFileSync(`${file}.err`, err);
+      return smokeRun(['memory_readout'], `memory_readout '${file}' "$RUNNERS"`, { RUNNERS: runners });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  /** The sampler's own cut, on the fixture, as it runs: this stack's names and the runners only. */
+  function strip(stats: string, at: string) {
+    const r = smokeRun(['mem_strip_limit'], `grep -E "^(\${COMPOSE_PROJECT}-|runner-)" <<<"$STATS" | mem_strip_limit '${at}'`, { STATS: stats, COMPOSE_PROJECT: 'ownpace-managed' });
+    return r.out.replace(/FAIL=\d\n?$/, '');
+  }
+
+  it('keeps the used part of each line, never the limit after " / ", and no other stack', () => {
+    const kept = strip(STATS, '2026-11-22T19:00:00Z');
+    for (const limit of LIMITS) expect(kept, limit).not.toContain(limit);
+    expect(kept).not.toContain('/');
+    expect(kept).not.toContain('ownpace-live-api');
+    expect(kept.trim().split('\n')).toEqual([
+      '2026-11-22T19:00:00Z\townpace-managed-api\t212.4MiB',
+      '2026-11-22T19:00:00Z\townpace-managed-worker\t96.25MiB',
+      '2026-11-22T19:00:00Z\townpace-managed-db\t1.104GiB',
+      '2026-11-22T19:00:00Z\trunner-cm9x\t180MiB',
+    ]);
+  });
+
+  it("prints each container's highest and when, this stack's runs as one line, and the sum, with no limit in it", () => {
+    const samples =
+      strip(STATS, '2026-11-22T19:00:00Z') +
+      strip(STATS.replace('212.4MiB', '250MiB').replace('runner-cm9x\t180MiB', 'runner-cm9x\t120MiB\nrunner-zz11\t20MiB'), '2026-11-22T19:00:15Z');
+    const r = readout(samples, 'runner-cm9x\nrunner-zz11');
+    expect(r.fail).toBe('0');
+    const lines = r.out.split('\n').filter((l) => l.startsWith('memory:'));
+    expect(lines).toEqual([
+      `memory: ${'ownpace-managed-api'.padEnd(40)} highest ${'250.0 MiB'.padStart(12)} at 2026-11-22T19:00:15Z`,
+      `memory: ${'ownpace-managed-db'.padEnd(40)} highest ${'1130.5 MiB'.padStart(12)} at 2026-11-22T19:00:00Z`,
+      `memory: ${'ownpace-managed-worker'.padEnd(40)} highest ${'96.2 MiB'.padStart(12)} at 2026-11-22T19:00:00Z`,
+      `memory: ${'Trigger.dev runs'.padEnd(40)} highest ${'200.0 MiB'.padStart(12)}, the sum of 2 run(s)' highest`,
+      'memory: the sum of the highest values: 1676.7 MiB',
+    ]);
+    for (const limit of LIMITS) expect(r.out, limit).not.toContain(limit);
+  });
+
+  it("leaves out a runner this stack did not start, and a pg-boss stack names no runs", () => {
+    const r = readout(strip(STATS, '2026-11-22T19:00:00Z'));
+    expect(r.out).not.toContain('Trigger.dev runs');
+    expect(r.out).not.toContain('runner-cm9x');
+    expect(r.out).toContain('memory: the sum of the highest values: 1439.1 MiB');
+  });
+
+  it('a sampler that failed says so in one line, and the verdict is not touched', () => {
+    const cases: Array<[string, string]> = [['', ''], ['', 'Cannot connect to the Docker daemon'], ['x\ty\t1MiB\n', 'permission denied']];
+    for (const [samples, err] of cases) {
+      const r = readout(samples, '', err);
+      expect(r.fail).toBe('0');
+      const said = r.out.split('\n').filter((l) => l.startsWith('memory:'));
+      expect(said).toHaveLength(1);
+      expect(said[0]).toContain('the sampler read nothing');
+    }
+  });
+
+  it('runs from the start in both modes, ends in every trap, and is read before the verdict without a fail_at', () => {
+    const sampler = smoke.indexOf("if stats=\"$(docker stats --no-stream --format '{{.Name}}{{\"\\t\"}}{{.MemUsage}}' 2>&1)\"; then");
+    expect(sampler).toBeGreaterThan(0);
+    expect(sampler).toBeLessThan(smoke.indexOf('note "preflights"'));
+    // Not inside a mode: the line before the sampler's subshell is no `if [ "$JOB_RUNNER"`.
+    const start = smoke.lastIndexOf('\n(\n', sampler);
+    expect(smoke.slice(smoke.lastIndexOf('\nMEM_PID=""', start), start)).not.toContain('JOB_RUNNER');
+    expect(smoke.slice(start, sampler)).toContain('while kill -0 $$ 2>/dev/null; do');
+    expect(smoke.slice(sampler, smoke.indexOf('\nMEM_PID=$!', sampler))).toContain('| mem_strip_limit "$now" >>"$MEM_FILE"');
+    const traps = smoke.slice(sampler).split('\n').filter((l) => /^\s*trap\s+.*\bEXIT\b/.test(l));
+    expect(traps).toHaveLength(3);
+    for (const trap of traps) expect(trap).toContain('kill "$MEM_PID" 2>/dev/null || true');
+    const read = smoke.indexOf('\nmemory_readout "$MEM_FILE"');
+    expect(read).toBeGreaterThan(smoke.indexOf('\npgboss_jobs\n'));
+    expect(read).toBeLessThan(smoke.indexOf('note "verdict"'));
+    expect(smokeFunction('memory_readout')).not.toContain('fail_at');
   });
 });

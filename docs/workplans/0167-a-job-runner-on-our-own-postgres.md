@@ -480,6 +480,27 @@ only against stubs. Their first real stack is the switch-on's E2E (managed) run.
   - `bash -n` clean. Semgrep's rule could not be fetched here (its registry is blocked), so no
     added `run:` line was allowed an expression.
 - **Not proved here:** the E2E (managed) dispatch in trigger mode, which the coordinator runs.
+  It ran green as run 45048987955, through the same 43 sections as `main`'s.
+- **The review's fixes, all inside the pg-boss branches:**
+  - pg-boss's own queues, `__pgboss__*`, are judged as schedules. Its timekeeper puts a job on
+    `__pgboss__send-it` for each schedule occurrence, which the catalog does not name.
+  - No runner started is now read from an events stream kept from the smoke's start, not from
+    `docker events --until`, which replays only the daemon's last 256 events.
+  - `trigger-supervisor` must not be running, at the start and at the end.
+  - The settle wait now also waits for a retry on any queue, and the wording no longer says a job
+    outlasted a wait that ended early.
+  - A quoted `POSTGRES_USER` is read as Compose reads it.
+  - The sync's pointer names the jobs section on pg-boss.
+
+  `smoke-managed-verdict` now has 219 tests. One mutation per fix, eight in all, each failed a
+  test, and the file was restored byte for byte (`cmp`).
+- **The stack's memory, read out in both runners and never judged** (the owner asked how much
+  the jobs really use). `docker stats --no-stream` is sampled every 15 s from the start, for the
+  containers named after the project and this stack's runners, and the used part of each reading
+  is kept, never the limit. Before the verdict the smoke prints each container's highest value,
+  with its time, the Trigger.dev runs as one line, and the sum. 224 tests. Three mutations each
+  failed a test: the limit kept, a failed sampler failing the run, and another stack's runner
+  counted.
 
 **2026-11-22, later still: T6's first step, the job catalog and the jobs made runner-neutral.**
 On branch `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`, from `main` with T5 merged
