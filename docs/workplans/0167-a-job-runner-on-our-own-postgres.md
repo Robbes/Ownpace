@@ -17,18 +17,30 @@ instruction (alpha.15's fold is in flight).
 run twice on a throwaway cluster from `scripts/local-pg.sh` (PostgreSQL 16 here; production runs 18,
 so CI's Testcontainers run is the one to trust for the version):
 
-- **Run A, directly against Postgres:** `Tests 10 passed (10)`, 71.9 s.
-- **Run B, through PgBouncer 1.22 with `pool_mode = transaction`:** `Tests 10 passed (10)`, 71.8 s.
-  PgBouncer's own `SHOW STATS` counted 2,197 transactions through it to the test database.
-- **The per-run process:** `run-in-child.unit.test.ts`, 4 passed. The repository gates on the branch:
-  `pnpm typecheck` 0 and `pnpm lint` 0; `pnpm test` in the table's T3 row.
+- **Run A, directly against Postgres:** `Tests 10 passed (10)`, 73.0 s.
+- **Run B, through PgBouncer 1.22 with `pool_mode = transaction`:** `Tests 10 passed (10)`, 71.6 s.
+  PgBouncer's own `SHOW STATS` counted the suite's transactions through it to the test database
+  (4,361 across two runs).
+- Both are runs of the committed code. Point 2 settled 18.6 s after the kill in each.
+- **The per-run process:** `run-in-child.unit.test.ts`, 4 passed.
+- **The repository gates on the branch:**
+  - `pnpm typecheck` 0 and `pnpm lint` 0.
+  - `pnpm test`: 1367 of 1368 files and 22,282 tests passed, 40 skipped. The 1 failure is
+    `scripts/every-release-is-a-starting-point.unit.test.ts` ("lists no release that is not
+    tagged"). This checkout carries 4 tags, so alpha.1 onward read as untagged. The branch
+    touches neither tags nor `CHANGELOG.md`, and CI's full checkout is the one to read it.
+- **Three guards the first unit run caught, now fixed:**
+  - `an-image-that-shipped-what-it-never-runs`: no `import()` of a computed name, so the run's
+    module is now the forked entry (`serveRuns`).
+  - `a-subpath-the-alias-swallowed`: the new subpath is pinned in `tsconfig.base.json` and
+    `vitest.aliases.ts`.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The runner | builder | ✅ **Done 2026-11-22** | `job-runner.ts`, `run-in-child.ts`, `child-entry.ts`; §2. |
 | T1 The nine points | builder | ✅ **Done 2026-11-22**, 8 passed, 1 passed in part | §3: point 8's CPU half is the worker container's, not the runner's. |
 | T2 Through PgBouncer and a plain role | builder | ✅ **Done 2026-11-22** | Run B above; point 7. |
-| T3 Gates | builder | 🟡 **Typecheck and lint 0**; unit suite in the Status entry | |
+| T3 Gates | builder | ✅ **Done 2026-11-22** | Typecheck and lint 0; unit 22,282 passed, 1 failed for missing tags in this checkout (Status entry). CI not dispatched, by instruction. |
 | T4 The owner's decision | owner | ⏸️ **Waiting** | §5. Nothing beyond the spike until then. |
 
 ## 1. Why, and what was asked
@@ -70,7 +82,8 @@ No checkpoints, no `wait.*`.
   shares `singletonKey` with the per-key limit, so the runner looks for an earlier run with the
   same key inside a transaction holding `pg_advisory_xact_lock`.
 - **`run-in-child.ts`.** One forked Node process per run, with V8's heap capped. A cancel kills it
-  with SIGKILL.
+  with SIGKILL. The run's module is the process's entry and ends in `serveRuns({...})`, so nothing
+  imports a computed name.
 - **`spike-fixtures/`.** A create-if-absent copy pass, a worker process that is killed, and a
   runaway pass, all for the tests.
 - **Dependencies.** `pg-boss@12.38.2`, MIT, published 2026-11-10, inside the three-day floor's
