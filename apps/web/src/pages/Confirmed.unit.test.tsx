@@ -850,3 +850,27 @@ describe('the full list is saved under a name a person can read (the UX sweep)',
     await waitFor(() => expect(names).toEqual(['confirmed-mapping-1.csv']));
   });
 });
+
+describe('a declared address change, never a silent one (workplan 0168 §3.1, T5)', () => {
+  it('says an item with the current table matches with the new address, and one under an older table waits', async () => {
+    show(
+      queue({
+        verified: 0,
+        total: 2,
+        rows: [
+          { ...row({ domain: 'contact', naturalKey: 'uid-1', state: 'present' }), address: 'changed' } as never,
+          { ...row({ domain: 'contact', naturalKey: 'uid-2', state: 'differs' }), address: 'older' } as never,
+        ],
+      }),
+    );
+    expect(await screen.findByText('Matches, with your new address')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for the next pass')).toBeInTheDocument();
+  });
+
+  it('says nothing of an address where the row carries no change', async () => {
+    show(queue({ verified: 0, total: 1, rows: [row({ naturalKey: 'uid-3' })] }));
+    await screen.findByText('uid-3');
+    expect(screen.queryByText('Matches, with your new address')).toBeNull();
+    expect(screen.queryByText('Waiting for the next pass')).toBeNull();
+  });
+});

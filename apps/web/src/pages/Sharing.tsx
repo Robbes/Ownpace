@@ -38,6 +38,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import {
+  addressKey,
   groupShareGrants,
   readGrant,
   type ShareGrantRow,
@@ -59,6 +60,7 @@ import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { formatDateTime } from '../i18n/datetime.ts';
 import { serverMessage } from '../services/api.ts';
 import { Hint } from '../components/Hint.tsx';
+import { fetchAddressChanges } from '../services/address-change-service.ts';
 
 /**
  * A grant, as copy — never as the key it is compared on.
@@ -232,6 +234,8 @@ const Row: React.FC<{
   refusalLang?: 'en';
   /** A pair the owner already confirmed on another row of the same grantee. */
   confirmedGrantee?: string;
+  /** The pair is a confirmed row of the address changes (0168 T6), and says so. */
+  fromAddressChanges?: boolean;
   /**
    * Why this row is not under a folder's lid — rendered INSIDE this card.
    *
@@ -241,7 +245,7 @@ const Row: React.FC<{
    * about, or the reader has to guess which one it points at.
    */
   note?: React.ReactNode;
-}> = ({ row, busy, onDecide, refusal, refusalLang, confirmedGrantee, note }) => {
+}> = ({ row, busy, onDecide, refusal, refusalLang, confirmedGrantee, fromAddressChanges = false, note }) => {
   // The grantee box and its label are joined by id (0067 T7 (a)); one Row per share.
   const granteeId = React.useId();
   const { t, locale } = useLocale();
@@ -329,6 +333,9 @@ const Row: React.FC<{
                 }}
                 className="input text-sm py-1 w-56"
               />
+              {fromAddressChanges && !edited && (
+                <span className="text-xs text-emerald-700">{t('addresses.sharing.fromTable')}</span>
+              )}
               {/* Two presses, because the new system emails a real person the
                   moment this lands and that cannot be unsent — but NOT the
                   destructive dressing: this creates access, it removes
@@ -403,6 +410,8 @@ const GroupCard: React.FC<{
   onDecideMany: (rows: ReadonlyArray<ShareGrantRow>, action: 'done' | 'skip') => void;
   /** Addresses a person has confirmed this session, by the source's grantee. */
   confirmed: Readonly<Record<string, string>>;
+  /** Whether a grantee's confirmed address is a row of the address changes (0168 T6). */
+  fromAddressChanges?: (grantee: string) => boolean;
   onConfirm: (grantee: string, address: string) => void;
   onApplyFolder: (group: ShareGroup, grantees: readonly string[]) => void;
   /** The server's own words when a folder press was refused. */
@@ -412,7 +421,20 @@ const GroupCard: React.FC<{
   /** The rows the last folder press here stopped before at the new system's limit. */
   waiting?: WaitingRows;
   children: React.ReactNode;
-}> = ({ group, rows, busy, onDecideMany, confirmed, onConfirm, onApplyFolder, refusal, notShared, waiting, children }) => {
+}> = ({
+  group,
+  rows,
+  busy,
+  onDecideMany,
+  confirmed,
+  fromAddressChanges = () => false,
+  onConfirm,
+  onApplyFolder,
+  refusal,
+  notShared,
+  waiting,
+  children,
+}) => {
   const t = useT();
   const grantText = useGrantText();
   const [open, setOpen] = React.useState(false);
@@ -551,7 +573,9 @@ const GroupCard: React.FC<{
                 {confirmed[g] ? (
                   <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
                     <Check className="w-3 h-3" />
-                    {t('sharing.group.confirmed')}
+                    {fromAddressChanges(g) && drafts[g] === undefined
+                      ? t('addresses.sharing.fromTable')
+                      : t('sharing.group.confirmed')}
                   </span>
                 ) : (
                   <ActionButton pending={false} onClick={() => confirmOne(g)}>
@@ -674,6 +698,28 @@ const Sharing: React.FC = () => {
     refetchOnWindowFocus: true,
     staleTime: 30_000,
   });
+  // THE ORGANISATION'S ADDRESS CHANGES (workplan 0168 §2.4, T6; ADR-0055
+  // decision 7): a CONFIRMED row is a person's confirmation of a grantee's new
+  // address, as a correction typed here is. It pre-fills the grantee and
+  // counts as confirmed for a folder press; each press still sends its
+  // address. One typed here this session wins over it. A table that could not
+  // be read pre-fills nothing, and the person confirms as before.
+  const addressTable = useQuery({ queryKey: ['address-changes'], queryFn: fetchAddressChanges, retry: false });
+  const fromTable: Readonly<Record<string, string>> = React.useMemo(() => {
+    const confirmedRows = (addressTable.data?.rows ?? []).filter((r) => r.state === 'confirmed');
+    if (confirmedRows.length === 0 || !data) return {};
+    const byKey = new Map(confirmedRows.map((r) => [r.oldKey, r.newAddress] as const));
+    const out: Record<string, string> = {};
+    for (const grant of data.grants) {
+      const to = grant.grantee ? byKey.get(addressKey(grant.grantee)) : undefined;
+      if (grant.grantee && to !== undefined) out[grant.grantee] = to;
+    }
+    return out;
+  }, [addressTable.data, data]);
+  const pairs: Readonly<Record<string, string>> = { ...fromTable, ...confirmedPairs };
+  /** Whether a grantee's address is the table's, not one typed here. */
+  const tableSays = (grantee: string | undefined): boolean =>
+    grantee !== undefined && fromTable[grantee] !== undefined && confirmedPairs[grantee] === undefined;
 
   if (!mappingId) return <p className="text-sm text-amber-800">{t('hub.noId')}</p>;
 
@@ -771,7 +817,7 @@ const Sharing: React.FC = () => {
     // quietly let a press carry a confirmation the screen never showed for it.
     const confirmed: Record<string, string> = {};
     for (const grantee of grantees) {
-      const address = confirmedPairs[grantee];
+      const address = pairs[grantee];
       if (address) confirmed[grantee] = address;
     }
     applyShareFolder(mappingId, group.parentKey, confirmed)
@@ -884,7 +930,8 @@ const Sharing: React.FC = () => {
         onDecide={onDecide}
         refusal={own || fromFolder?.text}
         refusalLang={fromFolder?.english ? 'en' : undefined}
-        confirmedGrantee={row.grantee ? confirmedPairs[row.grantee] : undefined}
+        confirmedGrantee={row.grantee ? pairs[row.grantee] : undefined}
+        fromAddressChanges={tableSays(row.grantee)}
         note={note}
       />
     );
@@ -962,7 +1009,8 @@ const Sharing: React.FC = () => {
                 busyGroup === g.rowIds.filter((id) => rowById(id)?.state === 'open').join(',')
               }
               onDecideMany={onDecideMany}
-              confirmed={confirmedPairs}
+              confirmed={pairs}
+              fromAddressChanges={(grantee) => tableSays(grantee)}
               onConfirm={(grantee, address) =>
                 setConfirmedPairs((p) => ({ ...p, [grantee]: address }))
               }
