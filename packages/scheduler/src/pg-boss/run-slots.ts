@@ -31,6 +31,14 @@
  * - {@link workQueue} is one queue's loop: at most `concurrency` of its runs
  *   at once, and each only with a slot.
  *
+ * A CLAIM THAT LANDS AS THE STOP COMES (a fetch under way when the stop came)
+ * was never started, so it goes back to its queue at the attempt it had. A
+ * queue's policy can refuse it back: on a stately queue one run waits as
+ * `created`, and that place may be taken. pg-boss's own give-back then leaves
+ * the claim active and runs it (`#giveBack`, beside `fetch` in its manager),
+ * and so does this loop: under its slot, and under its own attempt, which
+ * every beat and settlement is fenced on.
+ *
  * DATA AND TIMERS ONLY: it imports nothing, so it is held to its word without
  * a database (`run-slots.unit.test.ts`).
  */
@@ -122,8 +130,12 @@ export interface QueueSource<P> {
   touch(run: ClaimedRun<P>): Promise<boolean>;
   /** Settle a claim, fenced on its attempt. */
   settle(run: ClaimedRun<P>, settlement: Settlement): Promise<void>;
-  /** Put back a claim that landed after a stop, at the attempt it had, before it started. */
-  giveBack(run: ClaimedRun<P>): Promise<void>;
+  /**
+   * Put back a claim that landed after a stop, at the attempt it had, before it started: true
+   * once it is back in its queue, or no longer this worker's; false when its queue's policy
+   * refuses it back, and the claim, still this worker's, is to be run.
+   */
+  giveBack(run: ClaimedRun<P>): Promise<boolean>;
 }
 
 export interface WorkQueueOptions<P> {
@@ -163,9 +175,10 @@ function pause(ms: number, signal: AbortSignal): Promise<void> {
 /**
  * Work one queue until `stop` aborts: take a slot, then fetch; a queue found
  * empty gives its slot back at once and asks again after the polling interval;
- * a run keeps its slot until it has settled. Resolves once the loop has
- * stopped fetching; the runs it started settle on their own, each told to
- * `started`.
+ * a run keeps its slot until it has settled. A claim that lands as the stop
+ * comes is given back, or run where its queue refuses it back. Resolves once
+ * the loop has stopped fetching; the runs it started settle on their own, each
+ * told to `started` before it resolves.
  */
 export async function workQueue<P>(opts: WorkQueueOptions<P>): Promise<void> {
   const { source, slots, stop } = opts;
@@ -204,10 +217,21 @@ export async function workQueue<P>(opts: WorkQueueOptions<P>): Promise<void> {
       continue;
     }
     if (stop.aborted) {
-      // Claimed as the stop came: never started, so back to its queue at its attempt.
-      slots.give();
-      await source.giveBack(claimed).catch(opts.onError);
-      break;
+      // Claimed as the stop came: never started, so back to its queue at its attempt. Where its
+      // queue's policy refuses it back, the claim is still this worker's, and it runs below, on
+      // the slot it holds, as pg-boss runs a claim it cannot give back; the stop waits for it as
+      // for the runs already going. A give-back that failed otherwise leaves the claim to
+      // pg-boss's heartbeat sweep, as pg-boss leaves one whose give-back threw.
+      let back = true;
+      try {
+        back = await source.giveBack(claimed);
+      } catch (err) {
+        opts.onError(err);
+      }
+      if (back) {
+        slots.give();
+        break;
+      }
     }
     going += 1;
     const run = claimed;

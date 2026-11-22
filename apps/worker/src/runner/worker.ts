@@ -35,7 +35,9 @@
  * stops, unhealthy (503) again.
  *
  * ON STOP: no further run is fetched, and a run waiting for a slot stays in
- * its queue for the next worker; the runs already going have
+ * its queue for the next worker, as does one claimed as the stop came, given
+ * back at its attempt (or run with the runs going, where its queue's policy
+ * refuses it back, as pg-boss runs one); the runs already going have
  * `STOP_GRACE_MS` to finish; then each run's process still alive is killed,
  * its run failed to be retried, and the runner stops. Inside the compose
  * service's own grace of 60 s.

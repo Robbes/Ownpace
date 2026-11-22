@@ -891,13 +891,27 @@ export class PgBossJobRunner extends PgBossClient {
    * pg-boss's own `restore()` writes (it is not on the client's surface), at
    * the attempt it had, so its next claim is the same attempt. Fenced on the
    * claim. Nothing else in this worker fetches the queue by then.
+   *
+   * False when the queue's policy index refuses it back (23505). A stately
+   * queue holds one run waiting as `created`, and the claim goes back as
+   * `created` whatever it was, a retry included, so that place can be taken:
+   * by a run sent since the claim, or by one that waited beside the retry the
+   * claim was. pg-boss's own give-back (`#giveBack`, beside `fetch` in its
+   * manager) leaves such a claim active and runs it; so does this runner, and
+   * the claim keeps its attempt, which its beat and settlement are fenced on.
    */
-  async #giveBack(queue: string, table: string, run: ClaimedRun<unknown>): Promise<void> {
-    await this.pool.query(
-      `UPDATE ${this.schema}.${table} SET state = 'created', started_on = NULL, heartbeat_on = NULL, upsert_by_key = NULL ` +
-        "WHERE name = $1 AND id = $2::uuid AND state = 'active' AND retry_count = $3",
-      [queue, run.id, run.retryCount],
-    );
+  async #giveBack(queue: string, table: string, run: ClaimedRun<unknown>): Promise<boolean> {
+    try {
+      await this.pool.query(
+        `UPDATE ${this.schema}.${table} SET state = 'created', started_on = NULL, heartbeat_on = NULL, upsert_by_key = NULL ` +
+          "WHERE name = $1 AND id = $2::uuid AND state = 'active' AND retry_count = $3",
+        [queue, run.id, run.retryCount],
+      );
+      return true;
+    } catch (err) {
+      if (hasCode(err, '23505')) return false;
+      throw err;
+    }
   }
 
   /**
@@ -905,7 +919,9 @@ export class PgBossJobRunner extends PgBossClient {
    * to `timeoutMs` for the runs going to settle. A run still going after that
    * has its signal aborted and is given a second to settle; whatever has not
    * is failed by pg-boss's supervisor once its beat stops, and retried. A run
-   * that waited for a slot was never fetched, and is still in its queue.
+   * that waited for a slot was never fetched, and is still in its queue; one
+   * claimed as the stop came is back in it, or, where its queue refused it
+   * back, is one of the runs going, waited for here.
    */
   override async stop(opts: { graceful?: boolean; timeoutMs?: number } = {}): Promise<void> {
     this.#stop.abort();

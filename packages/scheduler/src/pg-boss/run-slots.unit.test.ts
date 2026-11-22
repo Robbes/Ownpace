@@ -6,12 +6,16 @@
  *
  * `workQueue` over a stand-in for pg-boss that keeps its runs in memory, as
  * pg-boss keeps them in its table: `created` until fetched, `active` while
- * claimed, then settled. Held here: with the limit's runs going, no queue
+ * claimed, then settled; and that counts attempts as pg-boss counts them, a
+ * claim of a run already started being its next attempt, and a give-back
+ * clearing the start. Held here: with the limit's runs going, no queue
  * fetches the next; when one ends, the next starts; nothing the limit holds
  * back fails, spends an attempt or is settled; the queues take turns at a
  * freed slot; and a stop fetches nothing more, lets the runs going
- * settle, and leaves the rest in their queues. The same on a real Postgres:
- * `apps/worker/src/runner/worker.integration.test.ts`.
+ * settle, and leaves the rest in their queues, a claim that landed as it came
+ * given back at its attempt, or run where its queue refuses it back. The same
+ * on a real Postgres: `apps/worker/src/runner/worker.integration.test.ts`, and
+ * the give-back in `./job-runner.integration.test.ts`.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -20,18 +24,23 @@ import { RunSlots, workQueue, type ClaimedRun, type QueueSource, type Settlement
 interface Row {
   readonly id: string;
   state: 'created' | 'active' | 'completed' | 'failed';
+  /** pg-boss's `retry_count`: the claim of attempt n holds n - 1. */
   retryCount: number;
+  /** Whether pg-boss's `started_on` is set: a claim of a run already started is its next attempt. */
+  started: boolean;
 }
 
 /** pg-boss, in memory: one table of runs per queue, and what was asked of it. */
 class Store {
   readonly rows = new Map<string, Row[]>();
   readonly settled: Array<{ queue: string; id: string; settlement: Settlement }> = [];
+  /** Queues whose policy refuses a claim back, as a stately queue whose waiting place is taken (23505). */
+  readonly refusesBack = new Set<string>();
   fetches = 0;
 
   add(queue: string, n: number): void {
     const rows = this.rows.get(queue) ?? [];
-    for (let i = 0; i < n; i += 1) rows.push({ id: `${queue}#${rows.length + 1}`, state: 'created', retryCount: 0 });
+    for (let i = 0; i < n; i += 1) rows.push({ id: `${queue}#${rows.length + 1}`, state: 'created', retryCount: 0, started: false });
     this.rows.set(queue, rows);
   }
 
@@ -41,6 +50,9 @@ class Store {
         this.fetches += 1;
         const row = (this.rows.get(queue) ?? []).find((r) => r.state === 'created');
         if (row === undefined) return Promise.resolve(null);
+        // As pg-boss's fetch: `retry_count + 1` where `started_on` is set, and `started_on` set.
+        if (row.started) row.retryCount += 1;
+        row.started = true;
         row.state = 'active';
         const run: ClaimedRun<null> = { id: row.id, retryCount: row.retryCount, expireInSeconds: 3600, heartbeatSeconds: null, data: null };
         return Promise.resolve(run);
@@ -53,8 +65,12 @@ class Store {
         return Promise.resolve();
       },
       giveBack: (run) => {
-        this.rows.get(queue)!.find((r) => r.id === run.id)!.state = 'created';
-        return Promise.resolve();
+        if (this.refusesBack.has(queue)) return Promise.resolve(false);
+        const row = this.rows.get(queue)!.find((r) => r.id === run.id)!;
+        // As pg-boss's restore(): `created`, and `started_on` cleared, so the next claim is this attempt.
+        row.state = 'created';
+        row.started = false;
+        return Promise.resolve(true);
       },
     };
   }
@@ -96,6 +112,18 @@ async function until(what: string, ok: () => boolean, ms = 2000): Promise<void> 
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
     await tick();
   }
+}
+
+/** `source`, with the stop coming inside the fetch that claims a run: the claim lands after the stop. */
+function stoppingOnItsClaim(source: QueueSource<null>, stop: AbortController): QueueSource<null> {
+  return {
+    ...source,
+    fetch: async () => {
+      const run = await source.fetch();
+      if (run !== null) stop.abort();
+      return run;
+    },
+  };
 }
 
 /** Every queue worked as the worker works the catalog: each its own concurrency, one limit for all. */
@@ -275,24 +303,17 @@ describe('workQueue: at the limit, the next run waits in its queue', () => {
     expect(w.slots.waiting).toBe(0);
   });
 
-  it('a run claimed as the stop came is given back to its queue, at its attempt, and never started', async () => {
+  it('a run claimed as the stop came is given back to its queue, at its attempt, and never started; the next worker runs it at that attempt', async () => {
     const store = new Store();
     store.add('run-discovery', 1);
     const stop = new AbortController();
     const base = store.source('run-discovery');
-    const source: QueueSource<null> = {
-      ...base,
-      fetch: async () => {
-        const run = await base.fetch();
-        stop.abort();
-        return run;
-      },
-    };
+    const slots = new RunSlots(5);
     const started: string[] = [];
     await workQueue<null>({
       queue: 'run-discovery',
-      source,
-      slots: new RunSlots(5),
+      source: stoppingOnItsClaim(base, stop),
+      slots,
       concurrency: 1,
       pollingIntervalMs: 5,
       stop: stop.signal,
@@ -306,7 +327,95 @@ describe('workQueue: at the limit, the next run waits in its queue', () => {
       },
     });
     expect(started).toEqual([]);
-    expect(store.rows.get('run-discovery')).toEqual([{ id: 'run-discovery#1', state: 'created', retryCount: 0 }]);
+    expect(slots.inUse).toBe(0);
+    expect(store.rows.get('run-discovery')).toEqual([{ id: 'run-discovery#1', state: 'created', retryCount: 0, started: false }]);
+
+    // The next worker's claim is the attempt it had, the first: the give-back cleared its start.
+    const next = new AbortController();
+    const attempts: number[] = [];
+    const loop = workQueue<null>({
+      queue: 'run-discovery',
+      source: base,
+      slots: new RunSlots(5),
+      concurrency: 1,
+      pollingIntervalMs: 5,
+      stop: next.signal,
+      run: (c) => {
+        attempts.push(c.retryCount + 1);
+        return Promise.resolve({ status: 'completed', output: {} });
+      },
+      started: () => {},
+      onError: (e) => {
+        throw e;
+      },
+    });
+    await until('the next worker to run it', () => store.count('completed') === 1);
+    next.abort();
+    await loop;
+    expect(attempts).toEqual([1]);
+  });
+
+  it("a run its queue's policy refuses back at the stop runs under its claim, on the slot it holds, as pg-boss runs one", async () => {
+    const store = new Store();
+    store.add('managed-sync-tick', 1);
+    // A stately queue whose one waiting place was taken after the claim.
+    store.refusesBack.add('managed-sync-tick');
+    const stop = new AbortController();
+    const slots = new RunSlots(5);
+    const gate = new Gate();
+    const going = new Set<Promise<void>>();
+    await workQueue<null>({
+      queue: 'managed-sync-tick',
+      source: stoppingOnItsClaim(store.source('managed-sync-tick'), stop),
+      slots,
+      concurrency: 1,
+      pollingIntervalMs: 5,
+      stop: stop.signal,
+      run: gate.run,
+      started: (p) => going.add(p),
+      onError: (e) => {
+        throw e;
+      },
+    });
+    // The loop is done, and the run it kept is going on its slot, told to `started` first, so a
+    // stop that waits for the runs going waits for it.
+    expect(gate.going).toEqual(['managed-sync-tick#1']);
+    expect(going.size).toBe(1);
+    expect(slots.inUse).toBe(1);
+    gate.end('managed-sync-tick#1');
+    await Promise.all([...going]);
+    expect(store.settled).toEqual([
+      { queue: 'managed-sync-tick', id: 'managed-sync-tick#1', settlement: { status: 'completed', output: { value: null } } },
+    ]);
+    expect(store.rows.get('managed-sync-tick')).toEqual([{ id: 'managed-sync-tick#1', state: 'completed', retryCount: 0, started: true }]);
+    expect(slots.inUse).toBe(0);
+  });
+
+  it('a give-back that fails is said, gives its slot back and starts nothing: the claim is left to the heartbeat sweep', async () => {
+    const store = new Store();
+    store.add('run-discovery', 1);
+    const stop = new AbortController();
+    const slots = new RunSlots(5);
+    const errors: unknown[] = [];
+    const started: string[] = [];
+    await workQueue<null>({
+      queue: 'run-discovery',
+      source: { ...stoppingOnItsClaim(store.source('run-discovery'), stop), giveBack: () => Promise.reject(new Error('connection reset')) },
+      slots,
+      concurrency: 1,
+      pollingIntervalMs: 5,
+      stop: stop.signal,
+      run: (c) => {
+        started.push(c.id);
+        return Promise.resolve({ status: 'completed', output: {} });
+      },
+      started: () => {},
+      onError: (e) => errors.push(e),
+    });
+    expect(errors).toEqual([new Error('connection reset')]);
+    expect(started).toEqual([]);
+    expect(slots.inUse).toBe(0);
+    expect(store.rows.get('run-discovery')).toEqual([{ id: 'run-discovery#1', state: 'active', retryCount: 0, started: true }]);
   });
 
   it('a fetch that fails gives its slot back and is said; the loop goes on', async () => {
