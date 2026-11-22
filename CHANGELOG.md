@@ -9,6 +9,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
   (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
 
+### Changed
+
+- **The privacy policy says the background tasks' logs go at each update of the service, as the
+  app's do, and stays version 1.0** (workplan 0167; ADR-0054; the owner, 2026-11-22: "Option A, but
+  keep the policy on 1.0, since no tester has yet accepted it"). Its §9 *Server logs* row no longer
+  says a background task's log goes when its run ends: on the job runner, runs are processes in one
+  long-lived worker container. Edited in place in both languages, dated 2026-11-22, because no
+  tester had accepted any version; the words apply from publication.
+
 ## [0.2.0-alpha.15] - 2026-11-22
 
 One press can now delete, on the new system, the copies listed on *Deleted on the old system*: while

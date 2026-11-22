@@ -4,6 +4,20 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22: the privacy policy's *Server logs* row, decided by the owner.** Under Trigger.dev
+each run had its own container, whose log went when the run ended; under the runner, runs are
+processes in one long-lived worker container, whose log goes when the worker is replaced, at each
+update of the service. So privacy §9's *"for a background task, when its run ends"* stops being
+true once the runner runs the jobs. The owner, verbatim: *"Option A, but keep the policy on 1.0,
+since no tester has yet accepted it."* Option A: the background tasks' logs go at each update of
+the service, as the app's do. Both languages say so, still 1.0, edited in place and dated
+2026-11-22, with the two privacy pins in `ACCEPTED_WORDS` moved
+(`scripts/a-version-the-tester-accepted.unit.test.ts`). It merges together with T7's pull request,
+which turns the runner on, so the published text never says more than the running service does.
+Owed elsewhere for the policy's *Records of the background tasks* row to stay true:
+`docs/ending-the-alpha.md` step 3 empties Trigger.dev's stores, and must also empty pg-boss's schema
+once the jobs run there.
+
 **2026-11-22, later: the owner's yes, and the runner as production code (T4, T5).**
 The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* Earlier the same
 day they had approved the spike. [ADR-0054](../adr/0054-the-managed-editions-jobs-run-on-pg-boss.md)

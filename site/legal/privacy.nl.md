@@ -6,6 +6,9 @@
   texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
+  Still 1.0, edited in place on 2026-11-22 (the owner: "Option A, but keep the policy on 1.0,
+  since no tester has yet accepted it"): §9's Serverlogs row has the background tasks follow
+  the app's rule. privacy.md's briefing has what changed, why, and what was read again.
 -->
 <!-- Dutch translation of privacy.md. Keep the SECTION NUMBERING identical, so
      the two can be diffed against each other when either changes. The site
@@ -24,7 +27,7 @@
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
 **Versie:** 1.0
-**Laatst bijgewerkt:** 2026-10-19
+**Laatst bijgewerkt:** 2026-11-22
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
 > te verklaren: de software draait op uw eigen infrastructuur, uw gegevens bereiken ons nooit,
@@ -695,6 +698,14 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        '{{.LoggingDriver}}' printed "json-file". The journald step is out of
        docs/managed-bring-up.md, and stand-up-live.sh refuses any other driver than json-file
        or local (#1362).
+       The background tasks: since 2026-11-22 (the owner: "Option A, but keep the policy on
+       1.0, since no tester has yet accepted it"; workplan 0167, ADR-0054) they follow the
+       app's rule. Under Trigger.dev each run had a container of its own, whose log went when
+       the run ended. Under the job runner on our own Postgres each run is a process inside one
+       long-lived worker container, so its lines stay in that container's log until the worker
+       is replaced, which happens at each update of the service, as for the app. The run log
+       events Trigger.dev kept in its own database are its records (the records row), not this
+       row's logs, and go with that database.
      - De bezoektotalen, "Zolang we deze website draaien" (the owner, 2026-10-05: "go with
        GoAccess on the logs and the sentence. id and status we skip for now, no netbird api
        tokens..."; the period is this pull request's, for the owner's reading): NOT YET TRUE ON
@@ -730,7 +741,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | De vastlegging van wat wij bij uw account inzagen (§4.5) | Tot uw gegevens worden gewist. Wat zonder organisatie wordt vastgelegd, blijft daarna staan: een zoekopdracht op adres, en een download van het logboek van wie wat deed. Die worden 12 maanden na het vastleggen verwijderd. |
 | De kopie vlak voor een update | Tot vaststaat dat de update waarvoor ze is gemaakt werkt, en nooit langer dan 7 dagen. Ze bevat de database van de dienst en die van onze inlogdienst; vóór een upgrade van het systeem dat de achtergrondtaken uitvoert, ook de database daarvan. Zo'n kopie is er alleen om een mislukte update terug te draaien, en verlaat de hostingomgeving niet. Gegevens die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan. |
 | Vastleggingen van de achtergrondtaken die uw migraties uitvoeren (kenmerken, aantallen, en bij een fout een categorie en een referentie; geen namen, adressen of inhoud, op de reden na die een van ons typt wanneer een overstap wordt teruggedraaid) | Uiterlijk tot het einde van de Alpha: dan beginnen de achtergrondtaken met een lege geschiedenis. Ze worden niet verwijderd wanneer uw gegevens worden gewist. |
-| Serverlogs (§4.5) | Tot het onderdeel van de dienst dat ze schreef wordt vervangen: voor de app en deze website bij elke update van de dienst; voor onze inlogdienst wanneer de versie of de instellingen ervan veranderen; voor een achtergrondtaak wanneer die klaar is. Er is geen vaste termijn. |
+| Serverlogs (§4.5) | Tot het onderdeel van de dienst dat ze schreef wordt vervangen: voor de app, haar achtergrondtaken en deze website bij elke update van de dienst; voor onze inlogdienst wanneer de versie of de instellingen ervan veranderen. Er is geen vaste termijn. |
 | De bezoektotalen die uit de serverlogs van deze website worden geteld (§4.5) | Zolang we deze website draaien. Het zijn alleen totalen, die niemand identificeren. |
 | Facturen en de gebruikscijfers eronder | **7 jaar**, omdat de Nederlandse belastingwet dat vereist, in ons boekhoudsysteem, dat ze uitreikt. Worden uw gegevens gewist, dan verwijderen we onze eigen kopie van uw facturen en bewaren we alleen hun nummers, zodat elke factuur in de boekhouding terug te vinden blijft. Tijdens de Alpha wordt niets in rekening gebracht: er zijn dan geen facturen, en de gebruikscijfers verdwijnen wanneer uw gegevens worden gewist. |
 

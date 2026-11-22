@@ -7,6 +7,38 @@
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
 
+  Still 1.0, edited in place on 2026-11-22, on the owner's decision, in both languages. The
+  owner, 2026-11-22, verbatim: "Option A, but keep the policy on 1.0, since no tester has yet
+  accepted it." Option A: background tasks' logs go at each update of the service, as the
+  app's do. Why: alpha.16 moves the managed edition's background tasks from self-hosted
+  Trigger.dev to a job runner on our own Postgres (ADR-0054, workplan 0167). Under Trigger.dev
+  every run had its own container, whose log went when the run ended; under the runner, runs
+  are processes inside one long-lived worker container, whose log goes when the worker is
+  replaced, at each update of the service. What changed:
+  - §9, Server logs: "for the app and this website, at each update of the service; ...; for a
+    background task, when its run ends" reads "for the app, its background tasks and this
+    website, at each update of the service; ..." / NL "voor de app, haar achtergrondtaken en
+    deze website bij elke update van de dienst; ...". The Last updated line moved to 2026-11-22.
+  - Read again and unchanged, as true while Trigger.dev is stopped with its database kept on
+    disk (alpha.16) and once it and its database are removed (alpha.17): §4.1 and §11 (the key
+    is in the service's configuration and the settings of the background tasks, both on this
+    machine: the worker's settings now, and Trigger.dev's kept database until it goes); §4.5
+    (a provider's error text goes to the log of the process that met it: a run is a process);
+    §5 (no row names the task runner); §9's copy before an update (pg-boss's tables are in the
+    service's own database, which the copy holds; Trigger.dev is upgraded no more); §9's
+    records of the background tasks (pg-boss keeps a run's payload and its error's name and
+    message, as Trigger.dev kept them, in its own schema, by its defaults at 12.38.2 until 7
+    days after a run settles, and erasure deletes neither; Trigger.dev's kept database goes with
+    alpha.17, or at the end of the Alpha by docs/ending-the-alpha.md, whose step 3 must then
+    empty pg-boss's schema too, for "start with an empty history" to hold);
+    §11's row-level security (the tasks reach the ledger as before; the runner's own role
+    reaches no ledger table).
+  - §13: the change lengthens how long a background task's log lines are kept, from the end of
+    its run to the next update of the service. No tester had accepted 1.0 (the owner, above), so
+    §13's 30 days' notice is owed to nobody and the words apply from publication.
+  The words stay 1.0, in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS, which pins them
+  under 1.0 again, as on 2026-10-14 and 2026-10-21.
+
   Still 1.0, edited in place on 2026-10-19, on the owner's approval, in both languages (#1639
   numbered these words 1.1; the owner put them back under 1.0 on 2026-10-21, below):
   - §4.3, and the rows of §5 and §9 that name it: the preflight is called by the name the site
@@ -672,7 +704,7 @@
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`, and this website.
 **Version:** 1.0
-**Last updated:** 2026-10-19
+**Last updated:** 2026-11-22
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for
 > us to state: the software runs on your infrastructure, your data never reaches us, and we
@@ -1325,6 +1357,14 @@ target. We show you the target before anything is written.
        '{{.LoggingDriver}}' printed "json-file". The journald step is out of
        docs/managed-bring-up.md, and stand-up-live.sh refuses a machine whose driver is not
        json-file or local (#1362, bfdfbf66).
+       The background tasks: since 2026-11-22 (the owner: "Option A, but keep the policy on
+       1.0, since no tester has yet accepted it"; workplan 0167, ADR-0054) they follow the
+       app's rule. Under Trigger.dev each run had a container of its own, whose log went when
+       the run ended. Under the job runner on our own Postgres each run is a process inside one
+       long-lived worker container, so its lines stay in that container's log until the worker
+       is replaced, which happens at each update of the service, as for the app. The run log
+       events Trigger.dev kept in its own database are its records (the records row), not this
+       row's logs, and go with that database.
      - The visit totals, "As long as we run this website" (the owner, 2026-10-05: "go with
        GoAccess on the logs and the sentence. id and status we skip for now, no netbird api
        tokens..."; the period is this pull request's, for the owner's reading): NOT YET TRUE ON
@@ -1360,7 +1400,7 @@ target. We show you the target before anything is written.
 | The record of what we viewed on your account (§4.5) | Until your data is erased. What is recorded without an organisation stays after that: a search by address, and a download of the log of who did what. These are deleted 12 months after they were recorded. |
 | The copy made right before an update | Until the update it was made for is shown to work, and never longer than 7 days. It holds the service's database and our sign-in service's database; before the system that runs the background tasks is upgraded, also its database. Such a copy is made only to undo a failed update, and it does not leave the hosting environment. Data erased from the service can remain in it for at most 7 days. |
 | Records of the background tasks that run your migrations (identifiers, counts, and a category and a reference for an error; no names, addresses or content, apart from the reason one of us types when a switch-over is undone) | Until the end of the Alpha at the latest: then the background tasks start with an empty history. They are not deleted when your data is erased. |
-| Server logs (§4.5) | Until the part of the service that wrote them is replaced: for the app and this website, at each update of the service; for our sign-in service, when its version or its settings change; for a background task, when its run ends. There is no fixed period. |
+| Server logs (§4.5) | Until the part of the service that wrote them is replaced: for the app, its background tasks and this website, at each update of the service; for our sign-in service, when its version or its settings change. There is no fixed period. |
 | The visit totals counted from this website's server logs (§4.5) | As long as we run this website. They are totals only, and identify nobody. |
 | Invoices and the usage figures behind them | **7 years**, because Dutch tax law requires it, in our bookkeeping system, which issues them. When your data is erased we delete our own copy of your invoices and keep only their numbers, so that each can still be found in the bookkeeping. During the Alpha nothing is charged: there are no invoices, and the usage figures go when your data is erased. |
 
