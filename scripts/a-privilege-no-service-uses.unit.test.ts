@@ -617,6 +617,10 @@ export const TARGETS: Readonly<Record<string, string | null>> = {
   // And the pooler's (0119, 2026-11-13): the build started as managed.yml runs pgbouncer, with
   // no capability, as a container of its own; what it execs there (sh, awk, cat, psql) runs as uid 70.
   '.github/workflows/images.yml|pooler-built': null,
+  // The managed smoke asks the worker (workplan 0167 T7) by `${COMPOSE_PROJECT}-worker`, the
+  // container_name its compose service is to carry; until that service is in managed.yml no
+  // file here resolves the name, and its node is all the smoke runs there.
+  'deploy/compose/smoke-managed.sh|$WORKER_CONTAINER': 'worker',
 };
 
 /** The capabilities a service's container has, read from its file: a list when it drops ALL, else null. */

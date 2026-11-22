@@ -436,6 +436,27 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   step as `integration-tests`, see below) since it drives `setup-stalwart.sh`'s provisioning phase.
 - `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the machine: the managed-edition
   gate, run against a long-lived configured stack, so it does not prove bring-up from scratch.
+  **In both job runners** (ADR-0054; workplan 0167 T7). Which one is read as the bring-up reads
+  it: `.env`'s `OWNPACE_JOB_RUNNER`, else `managed.yml`'s default for it, else `trigger`. A
+  dispatch's `job_runner` input (`trigger` by default, or `pg-boss`) sets it for that run only:
+  it is written into the checkout's `.env` after the persisted copy is saved. On `pg-boss`, the
+  workflow skips the Trigger.dev plane's drill and its two keys. `smoke-managed.sh` then skips
+  each section that asks the plane, printing one line that names the section and the mode:
+  the object store and the TLS front, the runner-log capture, the registry and the Docker proxy,
+  ClickHouse, the runner logs and the tasks' image. In their place it checks:
+  - every job in `pgboss.job` since the smoke's start completed, read by queue (the catalog's
+    names), and at least one the run asked for. *No job ran* fails, as *no runner at all* does on
+    Trigger.dev;
+  - each `runId` it followed is a pg-boss job that completed;
+  - no `runner-*` container started on the stack's network;
+  - `ownpace_jobs` is fit and owns `pgboss`;
+  - the worker runs the API's Node as uid 65532, with no shell and its health 200, and holds
+    no owner's URL;
+  - the tick beat as `managed-sync-tick-pg-boss`.
+
+  The worker's log from the start is kept as `smoke-managed-<run>-worker.log` and redacted with
+  the rest of the evidence. `scripts/smoke-managed-verdict.unit.test.ts` runs each of these
+  branches against stubs, and the switch-on's E2E (managed) run is the first on a real stack.
 - **Before a release tag, and so before a deploy to live** (workplan 0141 T14): the newest
   two *scheduled* runs of `e2e-managed.yml` on `main` both ran the commit being tagged and are green on every attempt,
   with no night missing, and the four scheduled `e2e.yml` runs of those nights ran it and are

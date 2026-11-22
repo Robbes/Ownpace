@@ -8,6 +8,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 - **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
   (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
+- **The managed gate runs in either job runner** (workplan 0167 T7; ADR-0054). E2E (managed) and
+  its smoke read `OWNPACE_JOB_RUNNER` as the bring-up does, and a dispatch can pick `pg-boss` for
+  one run. On pg-boss the Trigger.dev checks are skipped, each with a line that says so. In their
+  place the run fails unless every job it saw completed in pg-boss and no Trigger.dev runner
+  started. The worker's log is redacted into the evidence. Trigger.dev runs are checked as before.
 
 ### Fixed
 

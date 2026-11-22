@@ -4,6 +4,47 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, the smoke and the gate in both modes (T7, its gate's part).** On branch
+`claude/ownpace-pgboss-smoke-gate`, from `main` at `238142c`. Written to the contract the other
+alpha.16 pull requests keep: the switch `OWNPACE_JOB_RUNNER`, the worker
+`${COMPOSE_PROJECT}-worker` with its health on 127.0.0.1:3002, `JOBS_DATABASE_URL` as `ownpace_jobs`
+through the pooler, the queues named by the catalog, and a pg-boss job id as the `runId`. None of
+those is on `main` yet, so the pg-boss branches run here only against stubs. Their first real
+stack is the switch-on's E2E (managed) run.
+
+- **One reader for the mode.** The smoke's `smoke_job_runner` and the workflow's step `runner` both
+  read `.env`'s `OWNPACE_JOB_RUNNER`, else `managed.yml`'s `${OWNPACE_JOB_RUNNER:-…}`, else
+  `trigger`, and refuse anything else in one sentence. A test runs both on the same ten files and
+  holds them to one answer. The preflights also stop when the API container was started in the
+  other mode.
+- **Skipped out loud.** On pg-boss each of the six Trigger.dev sections prints
+  `--- <section>: skipped, this stack runs its jobs on pg-boss … ---`. Each section is wrapped in
+  `trigger_only`, left unindented so the guards still lift it out by column.
+- **What stands in for the runners**, just before the verdict:
+  - `pgboss_jobs`: every job since the start is read by queue and state. A failed, cancelled or
+    retrying job fails. So does a job asked for that is still in flight after the wait, a queue
+    the catalog does not name, and a followed `runId` that is not a completed pg-boss job.
+    *No job ran* fails too: no job asked for completed.
+  - `no_runner_started`: read from Docker's events, on this stack's network.
+  - `jobs_role_fit`.
+  - `worker_fit`, in the tasks' image's place.
+  - The `managed-sync-tick-pg-boss` beat.
+  - The worker's log, kept with `docker logs --since` as `smoke-managed-<run>-worker.log`, which
+    the collector already globs and redacts.
+- **The workflow.** A `job_runner` choice input, passed only through `env:`, written into the
+  checkout's `.env` after the persisted copy is saved. The drill runs only on trigger, and so does
+  the refusal of the plane's two keys.
+- **Evidence.**
+  - The 58 guards that read the smoke, the workflow or the redactor: 2,362 tests, all passed.
+  - `smoke-managed-verdict` has 203 tests, 73 of them new.
+  - The worker log's redaction test passes.
+  - Eleven mutations each failed a test, and every file was restored byte for byte (`cmp`).
+  - zizmor 1.32.0: no findings, as on `main`.
+  - shellcheck: no new finding at warning level.
+  - `bash -n` clean. Semgrep's rule could not be fetched here (its registry is blocked), so no
+    added `run:` line was allowed an expression.
+- **Not proved here:** the E2E (managed) dispatch in trigger mode, which the coordinator runs.
+
 **2026-11-22, later: the owner's yes, and the runner as production code (T4, T5).**
 The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* Earlier the same
 day they had approved the spike. [ADR-0054](../adr/0054-the-managed-editions-jobs-run-on-pg-boss.md)
@@ -91,7 +132,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
 | T5 This runner, merged | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-public-readiness-y7orc6-pgboss-runner` | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). Done when its pull request merges. |
 | T6 The jobs on the runner, behind a switch | builder | ⬜ **Not started** | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. |
-| T7 The worker service, and the switch on | builder, owner | ⬜ **Not started** | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
+| T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the smoke and the E2E gate in both modes, built on `claude/ownpace-pgboss-smoke-gate` | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. The gate's part (the Status entry of 2026-11-22, the smoke and the gate): `smoke-managed.sh` and `e2e-managed.yml` read `OWNPACE_JOB_RUNNER` as the bring-up does; on `pg-boss` each Trigger.dev section is skipped with one line, and the jobs in `pgboss.job`, the worker, its log and `ownpace_jobs` are checked in their place; a dispatch's `job_runner` input sets one run's mode without persisting it. Trigger mode unchanged. |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |
 
