@@ -71,7 +71,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -81,6 +81,7 @@ import {
   IMAGES,
   FIRST_RELEASE,
   publishedAt,
+  inputRefusal,
   MAIN_IDENTITY,
   TASK_BASE_IMAGE,
   checkTaskBaseAncestry,
@@ -431,6 +432,21 @@ describe('the images', () => {
     expect(publishedAt('worker', '0.2.0-alpha.16')).toBe(true);
     expect(publishedAt('worker', '0.2.0')).toBe(true);
     expect(IMAGES.filter((i) => i !== 'worker').every((i) => publishedAt(i, '0.1.0-rc.1'))).toBe(true);
+  });
+
+  it('refuses a VERSION that is no release tag with a line, rather than throwing at the first comparison', () => {
+    const commit = 'a'.repeat(40);
+    expect(inputRefusal('v0.2.0-alpha.16', commit)).toBeNull();
+    for (const version of ['latest', '0.2.0-alpha.16', 'v0.2', 'vlatest']) {
+      expect(inputRefusal(version, commit), version).toMatchObject({ kind: 'refuse', check: 'verify', sentence: expect.stringContaining('not a release tag') });
+    }
+    expect(inputRefusal(undefined, commit)).toMatchObject({ kind: 'refuse', sentence: 'VERSION and a full COMMIT are needed' });
+    expect(inputRefusal('v0.2.0', 'abc')).toMatchObject({ kind: 'refuse', sentence: 'VERSION and a full COMMIT are needed' });
+    // And the script itself, run as release.yml runs it: one refusal, exit 1, no stack trace.
+    const r = spawnSync(process.execPath, ['scripts/release-verify.mjs'], { cwd: join(dirname(fileURLToPath(import.meta.url)), '..'), env: { ...process.env, VERSION: 'latest', COMMIT: commit }, encoding: 'utf8' });
+    expect(r.status).toBe(1);
+    expect(`${r.stdout}${r.stderr}`).toMatch(/refuse verify: VERSION is "latest", not a release tag/);
+    expect(`${r.stdout}${r.stderr}`).not.toMatch(/at compareSemVer|is not a SemVer version/);
   });
 
   it('passes ownpace-selfhost:0.2.0-alpha.1 as published, both architectures', () => {

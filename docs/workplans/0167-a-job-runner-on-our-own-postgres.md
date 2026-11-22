@@ -4,6 +4,38 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still, after review: the worker's image (T7, its second part), the review of #2046 fixed.**
+The coordinator's review found the image and the service right, and five things to fix.
+
+- **The pooler's user list was in every image a stack built.** `ensure-env-secrets.sh` writes
+  `pgbouncer_auth`'s password in plain text to `deploy/compose/pgbouncer/userlist.txt` in the
+  checkout. Git ignores it and `.dockerignore` did not, so `COPY . .` put it in the API's image
+  and would have put it in the worker's. `.dockerignore` names it now. The new guard
+  `a-secret-the-image-copied` holds every path `.gitignore` names under `deploy/compose/` to a
+  secret it lists or a reason it holds none, and every listed secret to `.dockerignore`, read as
+  Docker reads it. A real build of a probe image showed the file absent from the context, and
+  copied in once the line was taken out.
+- **A landing step for the owner.** GHCR may make the new `ownpace-worker` package private, and
+  the scan and `verify` pull anonymously. `docs/release.md` now says to make it public after the
+  first `main` run that publishes it, and to check an anonymous pull, before the next weekly scan
+  and before the alpha.16 tag.
+- **The owner's URL outside the environment.** `a-worker-that-carries-no-superuser` now reads every
+  line of the worker service that is not a comment. An owner URL in `command:`, `entrypoint:`,
+  a build argument or a label fails it.
+- **The mode rule's exemption** in `a-stack-that-names-its-mode` is the worker's alone.
+- **`VERSION=latest`** gave `release-verify.mjs` a throw, not a refusal line. `inputRefusal` now
+  refuses any VERSION that is not `v` and a SemVer version, before any call. The comparison
+  that threw runs inside the image's `try`.
+- **Broken once each, then restored byte for byte:**
+  - the user list out of `.dockerignore`: 2 failed;
+  - an owner URL in the worker's `command:`: 2 failed;
+  - the api fixed to `production`: 1 failed;
+  - the SemVer refusal removed: 1 failed.
+- **Not this pull request's**, done where the changes are combined:
+  - the worker's rows in `a-privilege-no-service-uses` once #2047 is on the same tree;
+  - the bring-up building the worker with `GIT_SHA`, sizing `WORKER_CPUS` and `WORKER_MEMORY`
+    from the stack's `MAX_PASSES_IN_FLIGHT`, and refusing a `.env` line whose value is a comment.
+
 **2026-11-22, later still: the worker's image and its service, defined and not started (T7, its second part).**
 On branch `claude/ownpace-pgboss-worker-image`, from the jobs role's branch. Nothing starts the
 service: it is in profile `jobs`, nothing depends on it, and `OWNPACE_JOB_RUNNER` is `trigger`

@@ -13,3 +13,13 @@ test-logs
 !**/.env.example
 **/*.local
 .DS_Store
+
+# SECRETS THE CHECKOUT HOLDS AND NO IMAGE MAY (workplan 0167 T7 review). The
+# images build from the repository root with `COPY . .`, so a file git ignores
+# because it holds a secret is in every image built on a stack unless it is
+# named here too. The pooler's user list holds pgbouncer_auth's password in
+# plain text (ensure-env-secrets.sh writes it), and that role may run the
+# lookup that returns any role's password verifier. `**/.env` and `**/.env.*`
+# above cover .env, its backups and its temporary files.
+# scripts/a-secret-the-image-copied.unit.test.ts holds this list to .gitignore's.
+deploy/compose/pgbouncer/userlist.txt

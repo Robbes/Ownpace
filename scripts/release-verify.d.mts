@@ -27,6 +27,7 @@ export interface Release {
 export declare const IMAGES: string[];
 export declare const FIRST_RELEASE: Readonly<Record<string, string>>;
 export declare function publishedAt(image: string, tag: string): boolean;
+export declare function inputRefusal(version: string | undefined, commit: string | undefined): import('./release-github.mjs').Line | null;
 export declare const REGISTRY: string;
 export declare const ISSUER: string;
 export declare const IDENTITY_REGEXP: string;

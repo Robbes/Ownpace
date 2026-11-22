@@ -31,7 +31,11 @@
  *    `JOBS_DATABASE_URL` as `ownpace_jobs` with `JOBS_DB_PASSWORD`,
  *    `SYSTEM_DATABASE_URL` as `ownpace_system` with `SYSTEM_DB_PASSWORD`, and
  *    `APP_DATABASE_URL` as `app_user`; and no other value is a database URL;
- * 5. the api's `JOBS_DATABASE_URL` is the worker's, character for character.
+ * 5. the api's `JOBS_DATABASE_URL` is the worker's, character for character;
+ * 6. and rules 1 and 2 hold for every line of the service that is not a
+ *    comment, not only its environment: a `command:`, an `entrypoint:`, a
+ *    build argument or a label that carried the owner's URL would hand it to
+ *    the process all the same (the review of #2046).
  *
  * The last block breaks each rule on a copy of the file and expects it caught.
  *
@@ -82,6 +86,19 @@ export function workerProblems(text: string): string[] {
   const block = /^ {2}worker:\n([\s\S]*?)(?=^ {2}[a-z][a-z0-9-]*:\n|^[a-z])/m.exec(text)?.[1];
   if (block === undefined) return [`${MANAGED} has no worker service`];
   const problems: string[] = [];
+  // Every line that is not a comment, whatever key it is under.
+  for (const [n, raw] of block.split('\n').entries()) {
+    const line = raw.replace(/^\s*#.*$/, '').replace(/\s+#\s.*$/, '');
+    if (!line.trim()) continue;
+    const owner = variablesIn(line).filter((v) => OWNER_VARIABLES.includes(v));
+    if (owner.length > 0) problems.push(`line ${n + 1} of the worker service refers to ${[...new Set(owner)].join(' and ')}, the database owner's: ${line.trim()}`);
+    for (const literal of OWNER_DEFAULTS) {
+      if (line.includes(literal) && owner.length === 0) problems.push(`line ${n + 1} of the worker service carries the owner's default (${literal}): ${line.trim()}`);
+    }
+    for (const name of OWNER_NAMES) {
+      if (new RegExp(`(^|[^A-Z_])${name}([^A-Z_]|$)`).test(line)) problems.push(`line ${n + 1} of the worker service names ${name}, the database owner's: ${line.trim()}`);
+    }
+  }
   if (/^\s+<<:/m.test(block) || /:\s+\*[A-Za-z]/.test(block.replace(/logging: \*logging/, ''))) {
     problems.push('the worker service merges or aliases a map from elsewhere in the file: write its environment out in full');
   }
@@ -171,6 +188,19 @@ describe("the job worker's environment carries no database owner (workplan 0167 
     for (const [what, text, expected] of cases) {
       expect(workerProblems(text).join('\n'), what).toMatch(expected);
     }
+    // Outside the environment: a command, an entrypoint, a build argument, a label.
+    const outside: Array<[string, string, string]> = [
+      ['a command', '    container_name: ${COMPOSE_PROJECT_NAME}-worker\n', '    container_name: ${COMPOSE_PROJECT_NAME}-worker\n    command: ["apps/worker/src/runner/main.ts", "--db", "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/openmigrate"]\n'],
+      ['an entrypoint', '    container_name: ${COMPOSE_PROJECT_NAME}-worker\n', '    container_name: ${COMPOSE_PROJECT_NAME}-worker\n    entrypoint: ["/nodejs/bin/node", "--env-file-if-exists=$POSTGRES_PASSWORD"]\n'],
+      ['a build argument', '        GIT_SHA: ${GIT_SHA:-unknown}\n    container_name: ${COMPOSE_PROJECT_NAME}-worker', '        GIT_SHA: ${GIT_SHA:-unknown}\n        OWNER: ${POSTGRES_PASSWORD:-openmigrate_password}\n    container_name: ${COMPOSE_PROJECT_NAME}-worker'],
+      ['a label', '    container_name: ${COMPOSE_PROJECT_NAME}-worker\n', '    container_name: ${COMPOSE_PROJECT_NAME}-worker\n    labels:\n      db: postgresql://openmigrate:openmigrate_password@pgbouncer:6432/openmigrate\n'],
+    ];
+    for (const [what, find, replace] of outside) {
+      const text = at(find, replace);
+      expect(workerProblems(text).join('\n'), what).toMatch(/line \d+ of the worker service (refers to POSTGRES|carries the owner's default)/);
+    }
+    // A comment that names the owner is prose, and stays allowed.
+    expect(workerProblems(at('    container_name: ${COMPOSE_PROJECT_NAME}-worker\n', '    container_name: ${COMPOSE_PROJECT_NAME}-worker\n    # never ${POSTGRES_PASSWORD} here\n'))).toEqual([]);
     // And a merge of the api's map, which a reading of the parsed map alone would credit to the worker.
     const merged = at('    environment:\n      # THE SWITCH, read by the api, this worker', '    environment:\n      <<: *api-env\n      # THE SWITCH, read by the api, this worker');
     expect(workerProblems(merged).join('\n')).toMatch(/merges or aliases a map/);
