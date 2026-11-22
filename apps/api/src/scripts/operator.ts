@@ -75,7 +75,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '@openmig/shared';
 import { describeStanding, parseLinksCommand, runLinksCommand } from './operator-links.ts';
-import { describeClosed, parseCloseCommand } from './operator-close.ts';
+import { cancelEnvForTheClose, describeClosed, parseCloseCommand } from './operator-close.ts';
 import { runCloseCommand } from '../close-account.ts';
 import { cancelRun, closeJobRunner } from '../job-runner.ts';
 import { checkMoneybird, nightlyMoneybird, proveMoneybird } from '@openmig/managed';
@@ -726,8 +726,11 @@ async function main(): Promise<void> {
         // it, close-account.ts closes it.
         const command = parseCloseCommand(rest);
         if ('error' in command) throw new Error(command.error);
+        // On pg-boss the cancel needs JOBS_DATABASE_URL, which only the
+        // containers are given; composed here (operator-close.ts).
+        const cancelEnv = await cancelEnvForTheClose(process.env);
         const closed = await runCloseCommand(pool, command, {
-          cancelRun,
+          cancelRun: (ref: string) => cancelRun(ref, cancelEnv),
         });
         for (const line of describeClosed(command, closed)) log.info(line);
         break;

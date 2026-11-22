@@ -13,10 +13,13 @@
  * there is, refused where the jobs are. Found when the switch was turned on,
  * before any stack ran it.
  *
- * What holds: for `jobs`, `operator.sh` asks job-runner.sh, the scripts' one
- * reader of the switch, and hands its answer to the command, so an empty
- * `.env` is pg-boss, `trigger` is trigger, a value that is neither stops it
- * before Node runs, and no other verb is handed anything.
+ * The same held for `close`, which cancels a pass on the runner the switch
+ * names: on pg-boss it read `trigger` and refused every pg-boss job id.
+ *
+ * What holds: for every verb, `operator.sh` asks job-runner.sh, the scripts'
+ * one reader of the switch, and hands its answer to the command, so an empty
+ * `.env` is pg-boss, `trigger` is trigger, and a value that is neither stops it
+ * before Node runs.
  *
  * Run with stand-ins for `docker` (the published port) and `pnpm` (prints the
  * value it was handed).
@@ -57,7 +60,7 @@ function run(dotEnv: string, args: string[]): { status: number | null; out: stri
   return { status: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
-describe("operator.sh jobs reads the switch as the containers are told it (0167 T7)", () => {
+describe("operator.sh reads the switch as the containers are told it (0167 T7)", () => {
   it("an empty OWNPACE_JOB_RUNNER in .env is managed.yml's default, pg-boss", () => {
     const r = run('OWNPACE_JOB_RUNNER=\n', ['jobs']);
     expect(r.status, r.out).toBe(0);
@@ -79,8 +82,8 @@ describe("operator.sh jobs reads the switch as the containers are told it (0167 
     expect(r.out).not.toContain('handed');
   });
 
-  it('another verb is handed nothing new', () => {
-    expect(run('OWNPACE_JOB_RUNNER=\n', ['list']).out).toContain('handed OWNPACE_JOB_RUNNER=');
-    expect(run('OWNPACE_JOB_RUNNER=\n', ['list']).out).not.toContain('handed OWNPACE_JOB_RUNNER=pg-boss');
+  it('every other verb is handed the same answer: close cancels on that runner', () => {
+    expect(run('OWNPACE_JOB_RUNNER=\n', ['close']).out).toContain('handed OWNPACE_JOB_RUNNER=pg-boss');
+    expect(run('OWNPACE_JOB_RUNNER=trigger\n', ['list']).out).toContain('handed OWNPACE_JOB_RUNNER=trigger');
   });
 });
