@@ -20,7 +20,12 @@ export declare function gateBranch(version: string): string;
 export declare function assertNotARelease(name: string): void;
 export declare function rehearsalTagName(runNumber: number | string): string;
 
-export declare function chooseRun(runs: Run[], sha: string): { action: 'reuse' | 'wait' | 'rerun' | 'dispatch'; run?: Run };
+export declare const RELEASE_ACTOR: string;
+export declare function chooseRun(
+  runs: Array<Run & { actor?: { login?: string } | null }>,
+  sha: string,
+  options?: { workflow?: string },
+): { action: 'reuse' | 'wait' | 'rerun' | 'dispatch'; run?: Run };
 export declare function judgeRun(run: Run | null, want: { sha: string; workflow: string; ref: string; check?: string }): Line;
 
 type Sleep = (ms: number) => Promise<unknown>;
