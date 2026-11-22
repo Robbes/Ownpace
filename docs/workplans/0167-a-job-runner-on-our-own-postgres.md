@@ -14,9 +14,16 @@ the service, as the app's do. Both languages say so, still 1.0, edited in place 
 2026-11-22, with the two privacy pins in `ACCEPTED_WORDS` moved
 (`scripts/a-version-the-tester-accepted.unit.test.ts`). It merges together with T7's pull request,
 which turns the runner on, so the published text never says more than the running service does.
-Owed elsewhere for the policy's *Records of the background tasks* row to stay true:
-`docs/ending-the-alpha.md` step 3 empties Trigger.dev's stores, and must also empty pg-boss's schema
-once the jobs run there.
+§4.5 and the *Records of the background tasks* row rest on #2040, which merges before this one:
+the worker writes every line a run writes to stdout or stderr to its own output, prefixed with the
+queue and the run id; a child that dies is reported by a fixed sentence and a verdict, never by its
+text; and a run that fails on its own stores only its error's `{ name, message }`, which the jobs'
+wrapper makes a category and a reference. It merges only while no tester has accepted any version,
+which the owner confirms on the day it merges: if one has by then, the words take 1.1 instead, in
+both languages, `LEGAL_VERSIONS` and `ACCEPTED_WORDS`, with §13's notice. If it merges on a later
+day, both *Last updated* lines and both pins move to that day, in the same pull request. The row
+holds for the worker only with what T7 carries (its row below). `site/legal/README.md` records the
+edit, as every earlier change of the policy's words did.
 
 **2026-11-22, later: the owner's yes, and the runner as production code (T4, T5).**
 The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* Earlier the same
@@ -105,7 +112,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
 | T5 This runner, merged | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-public-readiness-y7orc6-pgboss-runner` | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). Done when its pull request merges. |
 | T6 The jobs on the runner, behind a switch | builder | ⬜ **Not started** | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. |
-| T7 The worker service, and the switch on | builder, owner | ⬜ **Not started** | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
+| T7 The worker service, and the switch on | builder, owner | ⬜ **Not started** | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. For privacy §9's *Server logs* row (2026-11-22) to be true, the switch also carries: the worker's image built and its container recreated at every deploy, like the API's (a container whose image does not change keeps its output: `a-journal-that-outlived-the-container`); a run's output forwarded to the worker's log (#2040); *How long they stay* in `docs/operator-runbook.md` and the log collector's paragraph in `docs/managed-bring-up.md` no longer saying "when its run ends" for a task; and `docs/ending-the-alpha.md` step 3 also emptying pg-boss's schema, read by `the-end-of-the-alpha-empties-the-task-history`. It merges together with the privacy PR (#2042). |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |
 

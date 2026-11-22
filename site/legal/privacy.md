@@ -23,7 +23,10 @@
     disk (alpha.16) and once it and its database are removed (alpha.17): §4.1 and §11 (the key
     is in the service's configuration and the settings of the background tasks, both on this
     machine: the worker's settings now, and Trigger.dev's kept database until it goes); §4.5
-    (a provider's error text goes to the log of the process that met it: a run is a process);
+    (a provider's error text goes to the log of the process that met it: a run is a process,
+    and the worker writes every line a run writes to stdout or stderr to its own log, prefixed
+    with the queue and the run id, #2040; a child that dies is reported by a fixed sentence and
+    a verdict, never by its text);
     §5 (no row names the task runner); §9's copy before an update (pg-boss's tables are in the
     service's own database, which the copy holds; Trigger.dev is upgraded no more); §9's
     records of the background tasks (pg-boss keeps a run's payload and its error's name and
@@ -37,7 +40,9 @@
     its run to the next update of the service. No tester had accepted 1.0 (the owner, above), so
     §13's 30 days' notice is owed to nobody and the words apply from publication.
   The words stay 1.0, in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS, which pins them
-  under 1.0 again, as on 2026-10-14 and 2026-10-21.
+  under 1.0 again, as on 2026-10-14 and 2026-10-21. They merge with the pull request that
+  switches the jobs to the runner (0167 T7), so the published text never says more than the
+  running service does, and only while no tester has accepted any version (0167's Status).
 
   Still 1.0, edited in place on 2026-10-19, on the owner's approval, in both languages (#1639
   numbered these words 1.1; the owner put them back under 1.0 on 2026-10-21, below):
@@ -1361,7 +1366,8 @@ target. We show you the target before anything is written.
        1.0, since no tester has yet accepted it"; workplan 0167, ADR-0054) they follow the
        app's rule. Under Trigger.dev each run had a container of its own, whose log went when
        the run ended. Under the job runner on our own Postgres each run is a process inside one
-       long-lived worker container, so its lines stay in that container's log until the worker
+       long-lived worker container, which writes each line a run writes to its own log, with the
+       queue and the run id (#2040), so the lines stay in that container's log until the worker
        is replaced, which happens at each update of the service, as for the app. The run log
        events Trigger.dev kept in its own database are its records (the records row), not this
        row's logs, and go with that database.

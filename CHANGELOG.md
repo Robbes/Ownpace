@@ -12,7 +12,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Changed
 
 - **The privacy policy says the background tasks' logs go at each update of the service, as the
-  app's do, and stays version 1.0** (workplan 0167; ADR-0054; the owner, 2026-11-22: "Option A, but
+  app's do, and stays version 1.0**, shipped with the switch to the job runner (workplan 0167 T7;
+  ADR-0054; the owner, 2026-11-22: "Option A, but
   keep the policy on 1.0, since no tester has yet accepted it"). Its §9 *Server logs* row no longer
   says a background task's log goes when its run ends: on the job runner, runs are processes in one
   long-lived worker container. Edited in place in both languages, dated 2026-11-22, because no

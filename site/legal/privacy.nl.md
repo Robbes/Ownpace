@@ -702,7 +702,8 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        1.0, since no tester has yet accepted it"; workplan 0167, ADR-0054) they follow the
        app's rule. Under Trigger.dev each run had a container of its own, whose log went when
        the run ended. Under the job runner on our own Postgres each run is a process inside one
-       long-lived worker container, so its lines stay in that container's log until the worker
+       long-lived worker container, which writes each line a run writes to its own log, with the
+       queue and the run id (#2040), so the lines stay in that container's log until the worker
        is replaced, which happens at each update of the service, as for the app. The run log
        events Trigger.dev kept in its own database are its records (the records row), not this
        row's logs, and go with that database.

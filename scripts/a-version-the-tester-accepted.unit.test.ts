@@ -47,8 +47,8 @@
  * `LEGAL_VERSIONS`, and pin the new words under the new number. The one other
  * case is the owner's word, before the first tester, that no tester has
  * accepted any version: then the text stays 1.0 and is edited in place, as
- * alpha-version-number (a) says (the owner, 2026-10-14 and 2026-10-21; the
- * comment beside the pins records each).
+ * alpha-version-number (a) says (the owner, 2026-10-14, 2026-10-21 and
+ * 2026-11-22, privacy only; the comment beside the pins records each).
  *
  * ## What it reads
  *
@@ -121,7 +121,9 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // in one long-lived worker container instead of a container per run (ADR-0054, workplan 0167),
   // and the Last updated line moved to 2026-11-22, in both languages. No tester had accepted any
   // version, so the number stays 1.0, edited in place, as on 2026-10-14 and 2026-10-21. Only the
-  // two privacy pins move; the alpha and terms texts are unchanged.
+  // two privacy pins move; the alpha and terms texts are unchanged. As on 2026-10-21, an acceptance
+  // of 1.0 recorded before these words reach a stack counts for them, and only the owner's own and
+  // test accounts can hold one.
   // From the first tester's acceptance on, a change of words takes a new number (1.1); the pins of
   // earlier words are in git, with the texts.
   'alpha.md@1.0': 'acc56aaf5e570d53687793a4e6951ae5732c5ce7273328a5ac5ed4201785018c',
