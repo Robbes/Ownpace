@@ -255,7 +255,7 @@ export function invalidAddressChange(text: Bilingual): AddressChangeRefusal {
 /** The appliance has one implicit person: a body naming a person is refused. */
 export const NO_PERSON_HERE: Bilingual = {
   en: 'This appliance moves one person, so an address change here names no person. Leave personId out.',
-  nl: 'Dit apparaat verhuist één persoon, dus een adreswijziging noemt hier geen persoon. Laat personId weg.',
+  nl: 'Dit apparaat migreert voor één persoon, dus een adreswijziging noemt hier geen persoon. Laat personId weg.',
 };
 
 /** The appliance's page keeps its rows confirmed: a row it does not want is deleted. */
