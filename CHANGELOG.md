@@ -6,6 +6,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The table of address changes, and its routes in both editions; nothing applies a row yet**
+  (workplan 0168 T2; ADR-0055). One table per organisation, old address to new, proposed or
+  confirmed, at `/api/address-changes` and on the appliance at `/address-changes`, where
+  `address-changes.json` in the config directory is the Organisation door. Support sees counts only.
+  Ledger migrations 0071 and 0072 and managed migration 0063 make the next deploy one-way.
 - **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
   (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
 - **The jobs' own database role and schema, made by the managed bring-up; nothing connects as it
