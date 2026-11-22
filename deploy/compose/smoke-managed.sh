@@ -701,15 +701,16 @@ idp_pat() {
 #
 # HOW MANY TIMES IT IS ASKED. THE SAME NAME AS setup-zitadel.sh's, ON PURPOSE:
 # one setting covers both scripts, and the gate runs them one after the other
-# against the same front. Four asks, 2s + 4s + 8s ≈ 14 seconds of patience.
-# The wait doubles with no ceiling, as setup-zitadel.sh's does: the knob is for
-# a blip, not an outage.
+# against the same front. Six asks, 2s + 4s + 8s + 16s + 32s = 62 seconds of
+# patience, about a minute (four asks and 14 seconds until 2026-11-22: why six
+# is told at setup-zitadel.sh's line). The wait doubles with no ceiling, as
+# setup-zitadel.sh's does: the knob is for a blip, not an outage.
 #
-# THOSE 14 SECONDS ARE THE WAITS ONLY. Each ask keeps its own time limit, the
+# THOSE 62 SECONDS ARE THE WAITS ONLY. Each ask keeps its own time limit, the
 # `-m 15` of the requests that had one. `idp_api` has none, as before, so a front
 # that never completes a handshake costs curl's own connect timeout (300 s) on
-# each of the four asks, where it cost it once before. A front that ANSWERS — a
-# 502, a refused connection — costs only the waits.
+# each of the six asks, where it cost it once before. A front that ANSWERS — a
+# 502, a refused connection, a TLS alert — costs only the waits.
 #
 # WHY THIS EXISTS. E2E (managed) #263 and #264 stopped in setup-zitadel.sh on
 # 2026-10-21: its token check went through the public issuer, and the NetBird
@@ -720,7 +721,7 @@ idp_pat() {
 # name — and asked every question once, with no retry at all, not even for a
 # dropped handshake. One blip of the front was a red nightly gate on a healthy
 # stack, blamed on whichever section happened to be asking.
-IDP_READ_ATTEMPTS="${IDP_READ_ATTEMPTS:-4}"
+IDP_READ_ATTEMPTS="${IDP_READ_ATTEMPTS:-6}"
 
 # read_retrying curl <args…> — sets CURL_OUT, CURL_RC and CURL_ATTEMPTS; the
 # caller decides what a failure means. The curl is spelled out at the call site,

@@ -313,26 +313,34 @@ fi
 # the front was briefly unable to complete a handshake, and a script that asks
 # once turned that into a failed gate and an afternoon of diagnosis.
 #
-# Four attempts, 2s + 4s + 8s ≈ 14 seconds of patience. Long enough to ride out
-# a front reloading a certificate or a container finishing its start; short
-# enough that a provider which is really gone still fails well inside the gate's
-# own timeout, with exactly the diagnosis it has always printed. A 502, 503 or
-# 504 from the front spends the same budget (#263; rule 1 on
-# `curl_read_retrying`).
+# Six attempts, 2s + 4s + 8s + 16s + 32s = 62 seconds of patience, about a
+# minute. Long enough to ride out a front reloading a certificate or a
+# container finishing its start; short enough that a provider which is really
+# gone still fails well inside the gate's own timeout (the job's 60 minutes),
+# with exactly the diagnosis it has always printed. A 502, 503 or 504 from the
+# front spends the same budget (#263; rule 1 on `curl_read_retrying`).
 #
-# The fourteen seconds are the WAITS between asks, not the whole bound: each
+# WHY SIX, NOT FOUR (2026-11-22). Four attempts were 14 seconds, and the front
+# has outlasted them three times since, with the same `tlsv1 alert internal
+# error`: #1725's E2E (managed) on 2026-10-28, #1907's on 2026-11-15, and E2E
+# (managed) run 497 on 2026-11-22. Each time every container was up and none
+# unhealthy, and the next attempt passed. The doubling is kept: the fifth and
+# sixth asks wait 16 s and 32 s, and only a read that is already failing
+# waits for them.
+#
+# The 62 seconds are the WAITS between asks, not the whole bound: each
 # ask also takes as long as its answer does, and `api` sets no `--max-time`. A
-# front answers 504 only once ITS OWN upstream timeout has run out, so four
-# 504s take four of those plus the waits. The transport retry had the same open
+# front answers 504 only once ITS OWN upstream timeout has run out, so six
+# 504s take six of those plus the waits. The transport retry had the same open
 # end before (curl's own connect timeout, on every ask). No cap is added here:
 # one would be a new way to fail a read that is slow and right, and nothing
 # measured says where it should sit.
 #
 # NOT applied to the CURL_ORIGIN probe further up, and that is deliberate: that
 # one asks "can this machine reach the issuer directly?", where a fast NO is the
-# right answer and the fallback is safe. Retrying it would add fourteen seconds
-# to every run that needs `--resolve`, which is every managed gate run.
-IDP_READ_ATTEMPTS="${IDP_READ_ATTEMPTS:-4}"
+# right answer and the fallback is safe. Retrying it would add a minute to
+# every run that needs `--resolve`, which is every managed gate run.
+IDP_READ_ATTEMPTS="${IDP_READ_ATTEMPTS:-6}"
 
 # THE CREDENTIAL'S LIFETIME, in one place. The seed below is read by the
 # provider exactly once — at FIRST INIT — and the rotation section further down
@@ -526,7 +534,7 @@ ${#PAT} characters long, which is too short to be one:
 #   1. ONLY NO ANSWER FROM THE PROVIDER — a curl EXIT CODE, or a 502, 503 or 504.
 #      A 401, 403 or 404 is the provider ANSWERING, and every one of those has a
 #      diagnosis written out in `api` below. Retrying them would delay a correct
-#      message by fourteen seconds and change nothing about it.
+#      message by a minute and change nothing about it.
 #
 #      A 502, 503 or 504 is NOT the provider answering. It is whatever stands in
 #      front of it saying it could not get an answer — a gateway error, the same

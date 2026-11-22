@@ -4,6 +4,17 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, a read of the identity provider waits about a minute:** `setup-zitadel.sh` and
+`smoke-managed.sh` now ask a read that got no answer six times, waiting 2, 4, 8, 16 and 32
+seconds, 62 in all, where they asked four times and waited 14 (`IDP_READ_ATTEMPTS`, still the one
+setting for both). The front before the provider outlasted the 14 seconds three times with
+`tlsv1 alert internal error` (curl exit 35), each time with every container up and none unhealthy,
+and each time the next attempt was green: #1725's E2E (managed) on 2026-10-28 (run 40684434123,
+attempt 1), #1907's on 2026-11-15 (run 43695259732, attempt 1), and E2E (managed) run 497 on
+2026-11-22 (45066115111, Trigger.dev mode on #2050's branch; run 498 green after it). The owner's
+word that day: *"Ok, widen to about one minute"*. A status the provider gave is still taken at once,
+a write is still sent once, and the last failure still stops the run with its message.
+
 **2026-11-22, after alpha.15's release:** alpha.15, released on 2026-11-22, will not run on live, on
 the owner's word that day (*"Ok, I go with 16."*), so alpha.16's deploy, from alpha.14, will take
 its changes too.

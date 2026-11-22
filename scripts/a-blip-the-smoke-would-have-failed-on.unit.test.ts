@@ -214,8 +214,8 @@ interface Asked {
 /**
  * Runs `call` after the REAL `read_retrying`, `is_read`, `idp_api`,
  * `sign_in_as` and `idp_sweep_leftovers`, under the script's own
- * `set -uo pipefail`, with `sleep` replaced so a test does not wait fourteen
- * seconds. `attempts: null` runs with IDP_READ_ATTEMPTS unset and the script's
+ * `set -uo pipefail`, with `sleep` replaced so a test does not wait out the
+ * backoff. `attempts: null` runs with IDP_READ_ATTEMPTS unset and the script's
  * own default line.
  */
 function ask(answers: readonly string[], call: string, attempts: number | null = 4): Asked {
@@ -342,8 +342,14 @@ describe('a gateway error from the front is not the provider answering (#263, #2
     expect(ask(['503'], READ_ME, 1).calls).toHaveLength(1);
   });
 
-  it('asks four times when nobody set the knob', () => {
-    expect(ask(['502'], READ_ME, null).calls).toHaveLength(4);
+  it('asks six times when nobody set the knob, about a minute of waits', () => {
+    // Six since 2026-11-22: four asks were 14 seconds, and the front outlasted
+    // them three times with a TLS alert while every container was up.
+    const r = ask(['502'], READ_ME, null);
+    expect(r.calls).toHaveLength(6);
+    expect(r.slept).toEqual([2, 4, 8, 16, 32]);
+    expect(r.stderr).toContain('attempt 5 of 6, retrying in 32s');
+    expect(r.stderr).not.toContain('attempt 6 of 6');
   });
 
   it('costs a healthy call nothing', () => {
@@ -840,8 +846,8 @@ describe('the boundary the retry must not cross', () => {
   });
 
   it('turns the same knob as setup-zitadel.sh, so one setting covers both', () => {
-    expect(knob()).toBe('IDP_READ_ATTEMPTS="${IDP_READ_ATTEMPTS:-4}"');
-    expect(readFileSync(SETUP, 'utf8')).toMatch(/^IDP_READ_ATTEMPTS="\$\{IDP_READ_ATTEMPTS:-4\}"$/m);
+    expect(knob()).toBe('IDP_READ_ATTEMPTS="${IDP_READ_ATTEMPTS:-6}"');
+    expect(readFileSync(SETUP, 'utf8')).toMatch(/^IDP_READ_ATTEMPTS="\$\{IDP_READ_ATTEMPTS:-6\}"$/m);
   });
 });
 
