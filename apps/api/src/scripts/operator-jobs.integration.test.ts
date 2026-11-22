@@ -43,9 +43,9 @@ const JOBS_URL = (() => {
   return u.toString();
 })();
 
-const TENANT = '5a1c0000-e29b-41d4-a716-446655440001';
-const MAPPING = '5a1c0000-e29b-41d4-a716-446655440002';
-const HOLD = '5a1c0000-e29b-41d4-a716-4466554400ff';
+const TENANT = '6c9d0000-e29b-41d4-a716-446655440001';
+const MAPPING = '6c9d0000-e29b-41d4-a716-446655440002';
+const HOLD = '6c9d0000-e29b-41d4-a716-4466554400ff';
 const SECRET = 'words-a-tester-typed';
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -216,8 +216,8 @@ describe('operator.sh jobs, on a real pg-boss', () => {
   }, 90_000);
 
   it('a run no queue holds is said to be gone, and exits 1', async () => {
-    const report = await jobs('show', '00000000-0000-4000-8000-000000000000');
+    const report = await jobs('show', '6c9d0000-e29b-41d4-a716-446655440099');
     expect(report.exitCode).toBe(1);
-    expect(report.lines[0]).toContain('No queue holds a run 00000000-0000-4000-8000-000000000000');
+    expect(report.lines[0]).toContain('No queue holds a run 6c9d0000-e29b-41d4-a716-446655440099');
   });
 });
