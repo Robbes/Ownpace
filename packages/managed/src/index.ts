@@ -80,6 +80,7 @@ export * from './since-a-withdrawal.ts';
 export * from './withdrawal.ts';
 export * from './grant-link-allowance.ts';
 export * from './people.ts';
+export * from './address-change-person.ts';
 export * from './person-link-store.ts';
 export * from './legal-versions.ts';
 export * from './legal-acceptance.ts';

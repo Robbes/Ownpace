@@ -55,7 +55,7 @@ CREATE TABLE public.address_change (
     CONSTRAINT address_change_confirmed_at_check CHECK (((state = 'confirmed'::text) = (confirmed_at IS NOT NULL))),
     -- And who, exactly when it says when.
     CONSTRAINT address_change_confirmed_by_check CHECK (((confirmed_at IS NULL) = (confirmed_by IS NULL))),
-    -- RFC 5321's path, as `person.email` is held to.
+    -- At most RFC 5321's path, 254 characters.
     CONSTRAINT address_change_old_address_check CHECK ((char_length(old_address) BETWEEN 3 AND 254)),
     CONSTRAINT address_change_new_address_check CHECK ((char_length(new_address) BETWEEN 3 AND 254)),
     CONSTRAINT address_change_old_key_check CHECK ((char_length(old_key) BETWEEN 3 AND 254)),
