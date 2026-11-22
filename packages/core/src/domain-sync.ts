@@ -171,13 +171,14 @@ export function quietSkip(
   row: LedgerRecord,
   sourceVersion: string | undefined,
   collection: string,
+  addressDigestNow?: string | null,
 ): boolean {
   return (
     !row.absentPasses &&
     row.deletionReportedAt === undefined &&
     row.deletionTrashedAt === undefined &&
     row.movedToCollection === undefined &&
-    classifyKnownItem(row, sourceVersion, collection) === 'skip'
+    classifyKnownItem(row, sourceVersion, collection, addressDigestNow) === 'skip'
   );
 }
 
@@ -359,6 +360,13 @@ export type KnownItemAction =
   /** The source changed and we own the target copy: rewrite it. */
   | 'rewrite'
   /**
+   * The source did not change, but the address table it would be written
+   * under did (ADR-0055; workplan 0168 §3.3): rewrite it, as `rewrite` does,
+   * except past the data type's cutover, where only a person's press lets it
+   * through (D5).
+   */
+  | 'rewrite-addresses'
+  /**
    * The copy was removed because the item RELOCATED, and something is at the
    * old key again. Copy it: see `classifyKnownItem` for why this is not the
    * same as a deletion tombstone.
@@ -430,6 +438,7 @@ export function classifyKnownItem(
     | 'parkedAt'
     | 'collection'
     | 'movedToNaturalKeyHash'
+    | 'addressDigest'
   >,
   sourceVersion: string | undefined,
   /**
@@ -439,6 +448,13 @@ export function classifyKnownItem(
    * exact behaviour: with nothing to compare against there is no move.
    */
   collection?: string,
+  /**
+   * The digest of the address table the item would be written under NOW
+   * (the digest the contact and calendar wrappers compute; ADR-0055), null when the table would
+   * change nothing in it. Undefined when the pass has no table to say
+   * anything with: mail, files, a ledger without one. Then nothing changes.
+   */
+  addressDigestNow?: string | null,
 ): KnownItemAction {
   // FAILURE STATES FIRST. A row is not proof the item was migrated — it is only
   // proof we have seen the item, and these three states mean we have NOT copied
@@ -508,6 +524,22 @@ export function classifyKnownItem(
     known.collection !== collection
   ) {
     return 'moved';
+  }
+
+  // THE ADDRESS TABLE MOVED (ADR-0055; workplan 0168 §3.3). The copy was
+  // written under another table than the one it would get now: a row came,
+  // went, or changed its new address. Ahead of the version rules, because the
+  // source is unchanged and they would answer `skip`, so a new row would reach
+  // nothing already copied. The source having changed too is the same rewrite.
+  // Every rule a rewrite keeps holds: an adopted copy is the customer's and is
+  // left alone and counted; the write carries `If-Match`; a tombstone was
+  // answered above and never reaches here.
+  if (addressDigestNow !== undefined && (known.addressDigest ?? null) !== addressDigestNow) {
+    if (known.status === 'adopted') return 'leave-adopted';
+    if (sourceVersion !== undefined && known.sourceVersion !== undefined && known.sourceVersion !== sourceVersion) {
+      return 'rewrite';
+    }
+    return 'rewrite-addresses';
   }
 
   if (sourceVersion === undefined) return 'skip';
@@ -661,7 +693,31 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
     unmarked?: ReadonlyArray<Item>;
   }>;
   /** Fetch raw data for an item */
-  readonly fetchRaw: (item: Item) => Promise<{ raw: unknown; sizeBytes: number }>;
+  readonly fetchRaw: (
+    item: Item,
+  ) => Promise<{
+    raw: unknown;
+    sizeBytes: number;
+    /**
+     * The address table `raw` was changed under (ADR-0055), null when it
+     * changed nothing; absent for a domain the table never reaches.
+     */
+    addressDigest?: string | null;
+  }>;
+  /**
+   * The digest of the address table this item would be written under now,
+   * from its listing (ADR-0055; workplan 0168 §3.3), null when it would change
+   * nothing. Absent for a domain the table never reaches, or a pass with no
+   * table: no item is then rewritten for its addresses.
+   */
+  readonly addressDigestNow?: (item: Item) => string | null;
+  /**
+   * Past this data type's cutover, may a changed address table rewrite a copy
+   * (D5)? Only when a person pressed *Apply the new addresses here too* on
+   * this migration for the table as it is now. Otherwise such a copy is
+   * counted (`addressChangesWaiting`) and left as the person has it.
+   */
+  readonly addressRewritePastCutover?: boolean;
   /**
    * Upsert item on target.
    *
@@ -1019,6 +1075,18 @@ export interface DomainSyncResult {
    */
   readonly changedAfterCutover: number;
   /**
+   * Items written this pass with an address changed (ADR-0055; workplan 0168
+   * §3.3): created or rewritten under a non-empty table that changed them.
+   * A count, never the addresses.
+   */
+  readonly addressChanged?: number;
+  /**
+   * Copies whose address table moved past the data type's cutover, left as
+   * the person has them until someone presses *Apply the new addresses here
+   * too* (D5). Counted every pass, as `changedAfterCutover` is.
+   */
+  readonly addressChangesWaiting?: number;
+  /**
    * Items that failed THIS pass and will be retried on the next one.
    *
    * A pass no longer aborts on the first of these: one unreadable item used to
@@ -1228,6 +1296,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     legacyCopyOnTarget,
     contentHash,
     onCollision,
+    addressDigestNow,
+    addressRewritePastCutover,
     ensureCollection,
     sourceVersion,
     sourceRef,
@@ -1291,6 +1361,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // alone by hard rule 2, and counted so that is a fact rather than a silence.
   let changedButAdopted = 0;
   let changedAfterCutover = 0;
+  let addressChanged = 0;
+  let addressChangesWaiting = 0;
   let moved = 0;
   // Rewrites REFUSED because somebody edited our copy in the new system.
   let conflicted = 0;
@@ -1926,7 +1998,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // read with its window: counted and left, with nothing written, as the
         // `skip` branch below would. Anything else is asked about afresh.
         const readAhead = ahead ? await timed(phases, 'ledgerReadMs', () => ahead.get(index, key)) : undefined;
-        if (readAhead && quietSkip(readAhead, version, collectionPath)) {
+        // The address table's word on this item, from its listing (ADR-0055).
+        const digestNow = addressDigestNow?.(item);
+        if (readAhead && quietSkip(readAhead, version, collectionPath, digestNow)) {
           skipped += 1;
           return;
         }
@@ -1964,7 +2038,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               ledger.clearAbsent(tenantId, mappingId, domain, key),
             );
           }
-          const action = classifyKnownItem(known, version, collectionPath);
+          const action = classifyKnownItem(known, version, collectionPath, digestNow);
           if (action === 'moved') {
             // The source shows this item somewhere else. Do NOTHING to the
             // target: writing it into the new collection would leave the old
@@ -2034,6 +2108,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             changedButAdopted += 1;
             return;
           }
+          if (action === 'rewrite-addresses' && !sourceIsAuthorityOnExistence && !addressRewritePastCutover) {
+            // PAST THE CUTOVER, A CHANGED ADDRESS TABLE WAITS FOR A PERSON
+            // (ADR-0055, workplan 0168 D5). The copy is live data now; it is
+            // rewritten only once someone presses *Apply the new addresses
+            // here too* on this migration. Counted, before any fetch.
+            addressChangesWaiting += 1;
+            return;
+          }
           if (action === 'rewrite' && !sourceIsAuthorityOnExistence) {
             // AFTER CUTOVER A CHANGE AT THE OLD SYSTEM OVERWRITES NOTHING (the
             // owner, 2026-10-05: "Stop overwriting"). Counted, before any
@@ -2087,7 +2169,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // `recordUpdate` below turns the tombstone back into a live row.
           // Either way the ledger row already exists.
           hasExistingRow = true;
-          if (action === 'rewrite') rewriteOf = known;
+          if (action === 'rewrite' || action === 'rewrite-addresses') rewriteOf = known;
         }
       }
 
@@ -2338,6 +2420,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             ...(version !== undefined ? { sourceVersion: version } : {}),
             collection: collectionPath,
             ...(sourceRef?.(item) !== undefined ? { sourceRef: sourceRef(item) } : {}),
+            // The table the body was changed under, for a writer that records
+            // its own row on a create (ADR-0055).
+            ...(fetched.addressDigest !== undefined ? { addressDigest: fetched.addressDigest } : {}),
           }),
         );
 
@@ -2419,6 +2504,12 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // the ledger could not tell an item that had never moved from one
           // that had, so a move was indistinguishable from a steady state.
           collection: collectionPath,
+          // The address table the copy was written under (ADR-0055), null when
+          // it changed nothing. Not on an adopted copy: its bytes are the
+          // target's own, and none of ours were written.
+          ...(fetched.addressDigest !== undefined && !result.adopted
+            ? { addressDigest: fetched.addressDigest }
+            : {}),
         };
 
         // An item the ledger already knows MUST go through recordUpdate.
@@ -2433,6 +2524,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         );
 
         consecutiveFailures = 0;
+        if ((rewriteOf || result.created) && fetched.addressDigest) addressChanged += 1;
         if ((rewriteOf || result.created) && phases.firstWriteAt === undefined) phases.firstWriteAt = Date.now();
         if (rewriteOf) updated += 1;
         else if (result.created) {
@@ -3123,6 +3215,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     heldAtCeiling,
     changedButAdopted,
     changedAfterCutover,
+    addressChanged,
+    addressChangesWaiting,
     conflicted,
     keptForGuests,
     needsDecision,

@@ -398,6 +398,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       // this writer knows — the loop never sees the payload — so it is recorded
       // here or nowhere.
       ...(repaired !== undefined ? { repaired } : {}),
+      // The address table the card was changed under (ADR-0055), carried
+      // from the loop for the same race as `sourceVersion`.
+      ...(options?.addressDigest !== undefined ? { addressDigest: options.addressDigest } : {}),
     });
 
     return {

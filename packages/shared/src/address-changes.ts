@@ -112,6 +112,18 @@ export function addressTableDigest(rows: ReadonlyArray<ConfirmedAddressChange>):
 }
 
 /**
+ * What a press of *Apply the new addresses here too* records for a table
+ * (workplan 0168 D5; ledger migration 0073): its digest, or, for an empty
+ * table, the digest of no rows at all. An empty table has no digest
+ * (`addressTableDigest` is null), and yet removing the last row after a
+ * cutover is a change a person may press for, so that every copy goes back to
+ * what the source says. Never written on an item.
+ */
+export function addressTablePressDigest(rows: ReadonlyArray<ConfirmedAddressChange>): string {
+  return addressTableDigest(rows) ?? createHash('sha256').update('ownpace-address-table-v1\n').digest('hex');
+}
+
+/**
  * Check and index a table. Refuses (`AddressTableRefused`), rather than
  * applying a part of it, a table the ledger should never have held: a row
  * whose key is not its old address's, two rows for one old key, a value that

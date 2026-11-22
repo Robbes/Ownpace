@@ -686,6 +686,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // NOT from the loop: only this writer saw the server's answer to the
       // PUT. Same race, opposite direction — recorded here or not at all.
       ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
+      // The address table the event was changed under (ADR-0055), carried
+      // from the loop for the same race as `sourceVersion`.
+      ...(options?.addressDigest !== undefined ? { addressDigest: options.addressDigest } : {}),
     });
 
     return {
