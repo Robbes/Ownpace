@@ -31,6 +31,7 @@ import {
 } from '@openmig/shared';
 import { runFileSync } from './dav-sync.ts';
 import { classifyKnownItem } from './domain-sync.ts';
+import { applyDeletion } from './apply-deletion.ts';
 import { MemoryCursorStore, MemoryLedger } from './__testing__/memory.ts';
 
 const TENANT = asTenantId('0e1d0000-e29b-41d4-a716-446655443001');
@@ -45,6 +46,8 @@ interface Listed {
   readonly formerPaths?: ReadonlyArray<string>;
   /** The fetch throws this, standing in for a refusal. */
   readonly fails?: string;
+  /** The version the listing gives; `v1` unless an edit is being played. */
+  readonly etag?: string;
 }
 
 /** A flat source whose listing a test replaces between passes. */
@@ -61,7 +64,7 @@ function source(initial: ReadonlyArray<Listed>, opts: { listKeys?: boolean } = {
           isDirectory: false,
           size: 3,
           modifiedAt: '2026-09-23T00:00:00Z',
-          etag: 'v1',
+          etag: l.etag ?? 'v1',
           sourceRef: l.sourceRef,
           ...(l.formerPaths ? { formerPaths: l.formerPaths } : {}),
         },
@@ -78,8 +81,12 @@ function source(initial: ReadonlyArray<Listed>, opts: { listKeys?: boolean } = {
   return { state, src };
 }
 
-/** Stores what it is given; enough to make a copy a copy. */
-function target() {
+/**
+ * Stores what it is given; enough to make a copy a copy. A write over an
+ * existing copy reads as adopted, unless `rewrites` says it is our own
+ * copy written again, as a real target answers an update.
+ */
+function target(opts: { rewrites?: boolean } = {}) {
   const stored = new Map<string, Uint8Array>();
   return {
     stored,
@@ -88,16 +95,20 @@ function target() {
       const at = `${parentId}:${raw.item.path}`;
       const existed = stored.has(at);
       stored.set(at, raw.content ?? new Uint8Array());
-      return existed ? { targetId: at, created: false, adopted: true } : { targetId: at, created: true };
+      if (!existed) return { targetId: at, created: true };
+      return opts.rewrites ? { targetId: at, created: false } : { targetId: at, created: false, adopted: true };
     },
     findFileByNaturalKey: async () => undefined,
   };
 }
 
-function world(initial: ReadonlyArray<Listed>, opts: { cursors?: boolean; listKeys?: boolean } = {}) {
+function world(
+  initial: ReadonlyArray<Listed>,
+  opts: { cursors?: boolean; listKeys?: boolean; rewrites?: boolean } = {},
+) {
   const { state, src } = source(initial, opts);
   const ledger = new MemoryLedger();
-  const onTarget = target();
+  const onTarget = target(opts);
   const deps = {
     tenantId: TENANT,
     mappingId: MAPPING,
@@ -356,6 +367,85 @@ describe('the copy the old name left on the target', () => {
       status: 'copied',
       supersededByNaturalKeyHash: key('Report.docx'),
     });
+  });
+
+  it('drops a keep given to it as an earlier export once it is a current copy again (workplan 0164)', async () => {
+    // The keep answered "leave this earlier export on the new system". Once
+    // the policy gives its name again, it is the current copy and an earlier
+    // export of nothing, so that question is gone. A later deletion of the
+    // document is a new question, offered afresh, as `clearAbsent` does for
+    // an item that came back.
+    const w = world([reportUnder.office]);
+    await w.pass();
+    w.state.listed = [reportUnder.odf];
+    await w.pass();
+    const docx = key('Report.docx');
+    expect(await w.ledger.resolveDeletion(TENANT, MAPPING, docx, 'keep'), 'kept as an earlier export').toBe(true);
+
+    w.state.listed = [reportUnder.office];
+    await w.pass();
+    expect((await w.ledger.find(TENANT, MAPPING, 'file', docx))?.deletionAcknowledgedAt).toBeUndefined();
+
+    // Then the document is deleted, and the old system says so.
+    await w.ledger.recordReportedDeletion(TENANT, MAPPING, 'file', docx);
+    const row = (await w.ledger.listDeletions(TENANT, MAPPING)).find((d) => d.naturalKeyHash === docx);
+    expect(row, 'offered, not filed as decided').toMatchObject({ evidence: 'reported' });
+    expect(row?.acknowledgedAt).toBeUndefined();
+    const removed: string[] = [];
+    const outcome = await applyDeletion(
+      {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        domain: 'file',
+        ledger: w.ledger,
+        target: { removeItem: async (id: string) => (removed.push(id), { kind: 'deleted' as const }) },
+        allowApplyDeletions: true,
+        stillTheAuthority: async () => true,
+      },
+      docx,
+    );
+    expect(outcome).toEqual({ ok: true, kind: 'deleted' });
+    expect(removed).toEqual(['t/root:Report.docx']);
+  });
+
+  it('drops that keep too when the document was edited between the two switches (workplan 0164)', async () => {
+    // A native Google document's version is its modified time, so any edit
+    // made while the copy was an earlier export gives the switch-back pass a
+    // new version. That pass rewrites the copy (`recordUpdate`), which takes
+    // the mark off before the step that clears an earlier export reads the
+    // row, so the keep has to go where the item is first seen under its name.
+    const w = world([reportUnder.office], { rewrites: true });
+    await w.pass();
+    w.state.listed = [reportUnder.odf];
+    await w.pass();
+    const docx = key('Report.docx');
+    expect(await w.ledger.resolveDeletion(TENANT, MAPPING, docx, 'keep'), 'kept as an earlier export').toBe(true);
+
+    w.state.listed = [{ ...reportUnder.office, etag: 'v2' }];
+    await w.pass();
+    const back = await w.ledger.find(TENANT, MAPPING, 'file', docx);
+    expect(back?.status, 'rewritten, because it was edited').toBe('updated');
+    expect(back?.supersededByNaturalKeyHash).toBeUndefined();
+    expect(back?.deletionAcknowledgedAt).toBeUndefined();
+
+    await w.ledger.recordReportedDeletion(TENANT, MAPPING, 'file', docx);
+    const row = (await w.ledger.listDeletions(TENANT, MAPPING)).find((d) => d.naturalKeyHash === docx);
+    expect(row, 'offered, not filed as decided').toMatchObject({ evidence: 'reported' });
+    expect(row?.acknowledgedAt).toBeUndefined();
+    expect(
+      await applyDeletion(
+        {
+          tenantId: TENANT,
+          mappingId: MAPPING,
+          domain: 'file',
+          ledger: w.ledger,
+          target: { removeItem: async () => ({ kind: 'deleted' as const }) },
+          allowApplyDeletions: true,
+          stillTheAuthority: async () => true,
+        },
+        docx,
+      ),
+    ).toEqual({ ok: true, kind: 'deleted' });
   });
 
   it('leaves alone a copy that says it belongs to another document', async () => {

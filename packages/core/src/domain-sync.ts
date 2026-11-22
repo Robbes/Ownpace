@@ -2003,6 +2003,19 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               ledger.clearMove(tenantId, mappingId, domain, key),
             );
           }
+          // Listed under this key, so a name the export policy gives again (it
+          // was switched back): the copy is a current one, an earlier export of
+          // nothing, and a keep given to it as one goes with the mark (workplan
+          // 0164). Here, before any write: an edit made while it was an earlier
+          // export brings a rewrite below (`recordUpdate`, `recordFailure`),
+          // which clears the mark itself, and the step that clears an earlier
+          // export after the loop would then find nothing to clear and leave
+          // the keep, so a later deletion of it was never offered.
+          if (known.supersededByNaturalKeyHash !== undefined) {
+            await timed(phases, 'ledgerWriteMs', () =>
+              ledger.clearEarlierExport(tenantId, mappingId, domain, key),
+            );
+          }
           if (action === 'skip') {
             skipped += 1;
             return;
