@@ -4,6 +4,43 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, night: what alpha.16 moves, and what moves for live from alpha.14.** The fold for
+`v0.2.0-alpha.16` (0146's entry of the same day) carries what `main` merged after alpha.15's C,
+`0683eb04`: 10 pull requests (0146's entry lists them). Live runs alpha.14 since 2026-11-22 and
+skips alpha.15 (0146), so alpha.16 also brings it what alpha.15 moved. For live, from alpha.14:
+
+- the managed edition's jobs move off Trigger.dev, onto pg-boss 12.38.2 in the stack's own
+  Postgres (ADR-0054, #2050): a new npm dependency, pinned exactly, which brings six of its own in
+  the lockfile (`cron-parser` 5.10.6, `luxon` 3.7.2, `non-error` 0.1.0, `rrule-temporal` 2.3.0,
+  `serialize-error` 13.1.0 and `temporal-spec` 1.0.1). They run in the worker,
+  `ownpace-managed-worker`, which the tag's bring-up builds with the api and the web, from the same
+  checkout and on the api's two base images by digest, and starts after the api: nothing new is
+  pulled for it;
+- Trigger.dev's eleven services, `trigger-db`, `trigger-redis`, `trigger-api`, `clickhouse`,
+  `trigger-registry`, `trigger-docker-proxy`, `trigger-supervisor`, `minio`, `minio-init`,
+  `trigger-tls` and `trigger-tls-init`, are in the compose profile `trigger`, and the bring-up
+  stops them in order and keeps their volumes. Their pins are as they were, Trigger.dev
+  (`v4.8.8`), ClickHouse (`26.8.37.168`) and MinIO (`59953701…`), and so is the identity
+  provider's (Zitadel `v4.20.4`). Of their image lines only the socket proxy's moves, to alpha.15's
+  HAProxy 3.4.8 build (#2031, `localhost/docker-socket-proxy:3.4.8-alpine-0950ae008aa4`). This
+  deploy builds only the api, the web and the worker, by name, and stops the plane, so that build
+  is made at the first `up` that starts the plane again, with `OWNPACE_JOB_RUNNER=trigger`;
+- the jobs' role `ownpace_jobs` and its schema `pgboss` are made by the bring-up from
+  `jobs-role.sql`, not by a migration, and `.env` gains `JOBS_DB_PASSWORD`, filled in when it is
+  missing (#2041); no file in either migration chain is added, changed or removed;
+- the api's and the worker's images, built on the machine, no longer carry the pooler's user list
+  (`.dockerignore`, #2050);
+- privacy §9's server-log row is edited in place at version 1.0, in both languages (#2042, landed
+  in #2050).
+
+So live's deploy from alpha.14 is reversible by the deploy's own rule (0146's entry). CI alone:
+`run-shell-injection` failing a pull request (#2037), the attach on a release tag (#2039), and the
+worker's image, `ghcr.io/robbes/ownpace-worker`, published, signed, scanned and verified with each
+release from 0.2.0-alpha.16 on. It is public: a pull with no login of `edge` and `sha-281d0a9`
+answered 200 on 2026-11-22 at 21:09 UTC, so `docs/release.md`'s owner step before alpha.16 is done.
+Not moved for alpha.16: MinIO's `latest` at `e9cf6b99…` and Atlas v1.4.1 (the entry of alpha.15's
+four pin moves below), each still wanting a later branch; MinIO now runs only with the plane.
+
 **2026-11-22, last: what alpha.15 moves, and what moves for live from alpha.14.** The fold for
 `v0.2.0-alpha.15` (0146's entry of the same day) carries what `main` merged after alpha.14's C,
 `9456f618`: 5 pull requests (0146's entry lists them). Live runs alpha.14 since 2026-11-22 (0132's
