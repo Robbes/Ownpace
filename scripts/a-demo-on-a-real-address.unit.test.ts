@@ -83,7 +83,7 @@ function checkout(dotEnv: string): { root: string; compose: string; log: string;
   mkdirSync(compose, { recursive: true });
   // What the script sources at its top, and the file its reader reads, and
   // what the demo phase writes the .env with.
-  for (const f of ['bootstrap-managed.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'trigger-cli-lib.sh', 'env-upsert.sh', 'shipped-passwords.sh']) {
+  for (const f of ['bootstrap-managed.sh', 'env-read.sh', 'job-runner.sh', 'stack-kind.sh', 'own-addresses.sh', 'trigger-cli-lib.sh', 'env-upsert.sh', 'shipped-passwords.sh']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }

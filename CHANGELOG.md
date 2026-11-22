@@ -14,6 +14,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   ledger. The data phase makes both from `jobs-role.sql`, not a migration, refuses a role that is
   otherwise, sets `.env`'s new `JOBS_DB_PASSWORD` on it (filled in when missing) and proves it over the
   network and through the pooler. `rotate-db-passwords.sh --check` asks it and `--sync` sets it.
+- **The managed bring-up and the deploy scripts in either runner; the default is still Trigger.dev**
+  (workplan 0167 T7; ADR-0054). `OWNPACE_JOB_RUNNER` (`trigger` or `pg-boss`) is read by one reader,
+  `deploy/compose/job-runner.sh`, as Compose hands it to the containers; any other value is refused
+  in one sentence. In pg-boss mode the bring-up stops the Trigger.dev plane in order (the supervisor,
+  then its runners gone, then the rest; stopped, never removed, its volumes kept), skips the account,
+  login and tasks phases, and starts the worker after the API, the system role asked first and its
+  CPU cap held to the host's. In trigger mode it stops and removes a worker first. `deploy-live.sh`
+  drains pg-boss's queue too, takes no `--trigger` copy for a tag that runs pg-boss, calls a tag
+  without the plane not one-way by itself on a stack on pg-boss, calls a move of pg-boss's version or
+  schema version one-way, and stops and removes the worker before checking out a tag without one.
+  The Trigger.dev-only scripts refuse in pg-boss mode; `live-pass-check.sh` follows a pg-boss job's id.
 
 ### Fixed
 

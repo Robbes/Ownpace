@@ -811,6 +811,45 @@ managed chain references `public.tenant`.
 
 **Verify:** the seed prints two demo owner tokens. Re-running it is a no-op.
 
+### The two runners: `OWNPACE_JOB_RUNNER` (alpha.16)
+
+From alpha.16 the managed edition runs its jobs on one of two runners until
+alpha.17 removes Trigger.dev (workplan 0167, ADR-0054): `trigger`, the plane
+described in phases 5 to 7 and 9, or `pg-boss`, the `worker` service on our
+own Postgres. `deploy/compose/job-runner.sh` is the one reader every script
+here uses, and it reads the value as Compose hands it to the containers: this
+shell's `OWNPACE_JOB_RUNNER`, else `.env`'s, else `managed.yml`'s default,
+else `trigger`. A `managed.yml` that never names the switch (alpha.14,
+alpha.15) runs the plane whatever `.env` says. Any other value stops every
+script in one sentence, before anything runs. What the bring-up does in each:
+
+| Phase | `trigger` | `pg-boss` |
+|---|---|---|
+| `trigger` | stops and removes the worker if it has one, then the plane as below | stops the plane, if it runs: `trigger-supervisor` first, then waits (up to `PLANE_RUNNERS_TIMEOUT`, 300 s) until no `runner-*` container is left on the stack's network, then `trigger-api trigger-tls clickhouse trigger-registry trigger-docker-proxy minio trigger-redis trigger-db`. `stop`, never `rm -v`: the containers stay `Exited` and their volumes stay, as the way back |
+| `account`, `login` | as below | `skipped: pg-boss mode` |
+| `app` | builds `api web`; the plane with the rest | builds `api web worker`; no plane service; then the system role's question (as the `tasks` phase asks it in trigger mode), the worker's CPU cap held to the host's, and the worker, after the api |
+| `tasks` | as below | `skipped: pg-boss mode`; nothing is uploaded or deployed |
+
+**The worker's CPU cap.** Docker refuses a `cpus` above the host's CPU count,
+so the app phase refuses a `WORKER_CPUS` (or `managed.yml`'s default) above it,
+in one sentence, before the worker starts. The rule for the value:
+0.5 × (`MAX_PASSES_IN_FLIGHT` + 2), which is 2.5 at the default cap of 3.
+
+**The way back from pg-boss**, with the hold on and the drain done:
+`./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_JOB_RUNNER=trigger`,
+then `./deploy/compose/bootstrap-managed.sh --from data`. Its trigger phase
+stops and removes the worker first, then starts the plane from its volumes at
+the same version; the tasks phase uploads the task environment, sets the
+plane's limit and deploys this checkout's tasks.
+
+**Where the other scripts stand.** `deploy-tasks.sh`, `set-task-env.sh`,
+`plane-limit.sh`, `plane-tokens.sh`, `trigger-credentials.sh`,
+`trigger-magic-link.sh`, `trigger-remember-token.sh`, `reset-trigger.sh` and
+`trigger-version.sh backup|restore|drill` refuse in pg-boss mode, saying so;
+`trigger-version.sh pin` and `probe` still run. `copy-before-update.sh take
+--trigger` is refused there too. For `deploy-live.sh` in either mode, see
+[its section](#ownpace-live-a-release-tag-with-deploy-livesh).
+
 ### 5. `trigger` — the Trigger.dev plane
 
 Brings up `trigger-db`, `trigger-redis`, `clickhouse`, `minio`,
@@ -6100,6 +6139,22 @@ deploy to alpha.4 this reading is the whole check: alpha.3's script, and its
 `deploy-live.sh`, run from the checkout at alpha.4, says `Node: <path> is
 v26.x, and <tag> asks for >=26` as it passes, and refuses a shell below what
 the tag asks for.
+
+**In either runner (workplan 0167 T7).** `deploy-live.sh` says which runner the
+jobs run on here now and which the tag's own bring-up will run them on (a tag
+whose `managed.yml` has no switch runs the plane). Its drain reads pg-boss's
+queue too, once the schema `pgboss` holds one: a job created, retrying or
+active outside the schedule queues is refused as a pass in flight is. A tag
+whose bring-up runs pg-boss takes the copy **without** `--trigger`: that
+bring-up stops the plane and nothing migrates triggerdb. A tag whose
+`managed.yml` has neither the Trigger.dev nor the ClickHouse line (alpha.17),
+deployed on a stack already on pg-boss, "removes the Trigger.dev plane from
+managed.yml (its volumes stay)", which is not one-way by itself. A move of
+pg-boss's version in `pnpm-lock.yaml` or of its schema version
+(`PG_BOSS_SCHEMA_VERSION`) between two tags that both carry it is one-way:
+pg-boss migrates its schema forward. And before the checkout of a tag whose
+`managed.yml` defines no `worker` (alpha.14, alpha.15: the way back), it stops
+and removes this stack's worker, which nothing after the checkout would stop.
 
 ### The OTA stack: the nightly gate, or a pull
 

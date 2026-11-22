@@ -4,6 +4,44 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still: the bring-up and the deploy scripts in either runner, the default still
+Trigger.dev (T7).** On branch `claude/ownpace-pgboss-bringup-deploy`, from the jobs role's branch
+(#2041). No file in either migration chain, and no line of `managed.yml`, changed; the worker's
+service is another pull request's, and these scripts are written against the contract it keeps
+(`worker`, profile `jobs` until the flip, `<project>-worker`, `/health` behind its healthcheck).
+
+- **One reader.** `deploy/compose/job-runner.sh` answers `trigger` or `pg-boss` as Compose hands the
+  value to the containers: the shell's `OWNPACE_JOB_RUNNER`, else `.env`'s, else `managed.yml`'s
+  default, else `trigger`. A `managed.yml` that never names the switch runs the one runner it has
+  (alpha.14 and alpha.15: the plane). Any other value is refused in one sentence, never printed.
+  Fifteen scripts source it, and a test holds that none reads the key itself.
+- **The bring-up.** pg-boss mode: the trigger phase stops the plane if it runs, the supervisor
+  first, then a bounded wait until no `runner-*` container is on the stack's network, then the
+  other eight in order, with `stop` and the profile `trigger` named; account, login and tasks say
+  `skipped: pg-boss mode`; the app phase builds `api web worker`, starts no plane service, asks the
+  system role (`system_role_ready`), holds `WORKER_CPUS` to the host's CPU count (the rule
+  0.5 × (`MAX_PASSES_IN_FLIGHT` + 2)), and starts the worker through `up_wait` after the api.
+  Trigger mode: the worker is stopped and removed first, then everything as before.
+- **The deploy.** `deploy-live.sh` reads the runner here and the tag's; its drain counts pg-boss's
+  `created`, `retry` and `active` jobs outside the schedule queues (`-` while the schema holds no
+  pg-boss); no `--trigger` for a tag whose bring-up runs pg-boss; a tag without the Trigger.dev and
+  ClickHouse lines is a `note:`, not one-way, on a stack on pg-boss; two tags without the plane
+  compare nothing on it; a move of pg-boss's version (`pnpm-lock.yaml`) or of
+  `PG_BOSS_SCHEMA_VERSION` between two tags that carry it is one-way; and before the checkout of a
+  tag whose `managed.yml` defines no `worker`, the worker is stopped and removed (by Compose with
+  the profile named, or by its container name when this `managed.yml` has none).
+- **The rest.** `copy-before-update.sh take --trigger` is refused in pg-boss mode.
+  `live-pass-check.sh` accepts a pg-boss job's id (a UUID, shown by its first eight characters,
+  since the guard holds it to printing no whole UUID). `set-task-env.sh`, `deploy-tasks.sh`,
+  `plane-limit.sh`, `plane-tokens.sh`, `trigger-credentials.sh`, `trigger-magic-link.sh`,
+  `trigger-remember-token.sh`, `reset-trigger.sh` and `trigger-version.sh backup|restore|drill`
+  refuse in pg-boss mode. `rotate-db-passwords.sh` names the worker among the containers to
+  recreate, `stand-up-live.sh` never takes a stop in pg-boss mode for the Trigger.dev account,
+  `rehearse-capacity.sh` and `setup-managed-demo.sh` word their lines by mode. `box-checks.sh`
+  already says a stopped `trigger-db` is not running here; a test now holds that.
+- **Evidence.** In the PR body (unit counts, the guards, and each break-and-restore).
+
+
 **2026-11-22, later still, after review: the fit question no longer refuses every real stack.**
 The coordinator's review of #2041 found the question refused every stack that has
 `pg_stat_statements`. The data phase creates that extension in the app's database just before the
@@ -201,7 +239,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
 | T5 This runner, merged | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-public-readiness-y7orc6-pgboss-runner` | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). Done when its pull request merges. |
 | T6 The jobs on the runner, behind a switch | builder | ⬜ **Not started** | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. |
-| T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the role and schema, built on `claude/ownpace-public-readiness-y7orc6-jobs-role` | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
+| T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the role and schema, built on `claude/ownpace-public-readiness-y7orc6-jobs-role`; the bring-up and the deploy scripts in either runner (default still Trigger.dev), built on `claude/ownpace-pgboss-bringup-deploy` | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |
 

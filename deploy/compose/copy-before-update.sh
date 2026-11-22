@@ -205,6 +205,9 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 # Live's marker, named once.
 # shellcheck source=deploy/compose/stack-kind.sh
 . "${SCRIPT_DIR}/stack-kind.sh"
+# Which runner the jobs run on (workplan 0167 T7), from the one reader.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
 
 say() { printf '[copy-before-update] %s\n' "$@"; }
 fail() { printf '[copy-before-update] %s\n' "$@" >&2; }
@@ -271,6 +274,18 @@ stack_is_live "$ENV_FILE" ||
 # Prints its own reason when it refuses (env-read.sh).
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" ||
   refuse "the project this checkout drives could not be settled (the reason is above)."
+
+# --trigger adds triggerdb, for a deploy that starts the plane at another
+# version. A stack whose jobs run on pg-boss has its plane stopped, and the
+# tag's bring-up there migrates nothing in it (workplan 0167 T7), so the
+# option is a mistake there, refused before anything is read or written.
+if [ -n "$TRIGGER" ]; then
+  job_runner_mode "$SCRIPT_DIR" "$ENV_FILE" || refuse "$JOB_RUNNER_WHY"
+  if [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
+    refuse "--trigger, and this stack's jobs run on pg-boss (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}): the Trigger.dev plane is stopped, and nothing migrates its database, so no copy of it is taken (workplan 0167 T7). Nothing was read or written." \
+      "Run it without --trigger; deploy-live.sh passes none while the tag's bring-up runs pg-boss."
+  fi
+fi
 
 COPY_DIR="$(copy_before_update_dir)"
 [ ! -L "$COPY_DIR" ] || refuse "$(copy_before_update_link_refusal)"

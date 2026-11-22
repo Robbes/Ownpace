@@ -135,6 +135,10 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 # Live's marker, named once.
 # shellcheck source=deploy/compose/stack-kind.sh
 . "${SCRIPT_DIR}/stack-kind.sh"
+# Which runner the jobs run on (workplan 0167 T7), for the sentences that
+# name it: the one reader.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
 # The .env named to Compose, so that it reads the file checked below and not
 # one a COMPOSE_ENV_FILES in the shell names.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
@@ -163,6 +167,15 @@ DEMO_FILE_SOURCE_MAILBOX='b0000000-0000-4000-8000-0000000000b1'
 DEMO_FILE_TARGET_MAILBOX='b0000000-0000-4000-8000-0000000000b2'
 
 say() { printf '[rehearsal] %s\n' "$@"; }
+# on_pg_boss — true where the jobs run on pg-boss; a value of the switch that
+# is neither stops the rehearsal (job-runner.sh).
+on_pg_boss() {
+  if ! job_runner_mode "$SCRIPT_DIR" "$ENV_FILE"; then
+    printf '[rehearsal] refused: %s\n' "$JOB_RUNNER_WHY" >&2
+    exit 1
+  fi
+  [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]
+}
 die() {
   printf '[rehearsal] %s\n' "$@" >&2
   exit 1
@@ -425,14 +438,15 @@ do_seed() {
   say "rows written:"
   printf '  %s\n' "${rows[@]}"
   local mail=$((N * ((M + 1) / 2))) files=$((N * (M / 2)))
-  local cap per
+  local cap per reads='which the tick has once set-task-env.sh has uploaded them'
+  on_pg_boss && reads="which the tick has from the worker's environment, as the bring-up started it (pg-boss mode)"
   cap="$(env_value "$ENV_FILE" MAX_PASSES_IN_FLIGHT)"
   per="$(env_value "$ENV_FILE" MAX_PASSES_PER_ORGANISATION)"
   say "seeded ${N} organisations, $((N * M)) migrations (${mail} mail, ${files} files), on ${SCHEDULE}," \
     "each under its own folder ${FOLDER_PREFIX}${tag}-oNN-mNN on the demo targets." \
     "A migration that never ran is due at once. The tick starts ${cap:-3} at a time on this stack, ${per:-2} per organisation," \
     "longest-waiting first, and the next as a pass ends: MAX_PASSES_IN_FLIGHT and MAX_PASSES_PER_ORGANISATION, read from" \
-    "${ENV_FILE}, which the tick has once set-task-env.sh has uploaded them. Start --sample first, and --remove when the sitting ends."
+    "${ENV_FILE}, ${reads}. Start --sample first, and --remove when the sitting ends."
 }
 
 # ---------------------------------------------------------------------------
@@ -604,8 +618,10 @@ do_remove() {
       "Nothing was removed. Run --remove again when they have finished; a pass ends within the hour."
   fi
   if [ "$recent" -eq 1 ]; then
+    local holder='The plane'
+    on_pg_boss && holder="pg-boss's queue"
     die "a pass of the rehearsal started, or its migrations were paused, within the last ${REMOVE_QUIET_MINUTES} minutes." \
-      "The plane may still hold passes it queued before the pause." \
+      "${holder} may still hold passes it queued before the pause." \
       "Nothing was removed. Run --remove again in a few minutes."
   fi
   if [ "$nothing" -eq 1 ]; then
@@ -620,7 +636,11 @@ do_remove() {
       "A later seed with another tag writes beside them, not into them; one with this tag would adopt them."
     printf '  %s\n' "${folders[@]}"
   fi
-  say "also left: the Trigger.dev plane's records of the rehearsal's runs (workplan 0143 T7)."
+  if on_pg_boss; then
+    say "also left: pg-boss's own records of the rehearsal's jobs in the schema pgboss, which it deletes once their retention ends (workplan 0167)."
+  else
+    say "also left: the Trigger.dev plane's records of the rehearsal's runs (workplan 0143 T7)."
+  fi
 }
 
 # ---------------------------------------------------------------------------

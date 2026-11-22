@@ -327,7 +327,7 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
   const home = join(root, 'home');
   mkdirSync(compose, { recursive: true });
   mkdirSync(home);
-  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'dump-idp.sh', 'trigger-version.sh', 'managed.yml']) {
+  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'dump-idp.sh', 'trigger-version.sh', 'managed.yml', 'job-runner.sh']) {
     // A script that is not there yet is simply not there: the cases fail on it.
     if (!existsSync(join(COMPOSE_DIR, f))) continue;
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
@@ -1925,5 +1925,52 @@ describe('the way back is written down where the operator looks', () => {
     const doc = readFileSync(join(REPO_ROOT, 'docs', 'managed-bring-up.md'), 'utf8');
     expect(doc).toContain('copy-before-update.sh expire');
     expect(doc).toContain('./deploy/compose/copy-before-update.sh delete');
+  });
+});
+
+describe('--trigger while the jobs run on pg-boss (workplan 0167 T7)', () => {
+  /** The stage, with a managed.yml that hands the switch to its containers, defaulting to <runner>. */
+  const onRunner = (runner: 'trigger' | 'pg-boss', dotEnv = LIVE_ENV): Stage => {
+    const s = stage(dotEnv);
+    const yml = join(s.compose, 'managed.yml');
+    const text = readFileSync(yml, 'utf8');
+    const switched = text.replace(
+      /\nservices:\n/,
+      `\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${runner}}\n`,
+    );
+    expect(switched).not.toBe(text);
+    writeFileSync(yml, switched);
+    return s;
+  };
+
+  it('refused, before anything is read or written: the plane is stopped and nothing migrates triggerdb', () => {
+    const s = onRunner('pg-boss');
+    const r = run(s, ['take', '--trigger', TAG]);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/refused: --trigger, and this stack's jobs run on pg-boss \(OWNPACE_JOB_RUNNER=pg-boss\).*Nothing was read or written\./);
+    expect(filesIn(s.dir)).toEqual([]);
+    expect(dumps(s)).toEqual([]);
+  });
+
+  it("refused in a dry run too, and from live's .env as from managed.yml's default", () => {
+    const s = onRunner('trigger', `${LIVE_ENV}OWNPACE_JOB_RUNNER=pg-boss\n`);
+    const r = run(s, ['take', '--dry-run', '--trigger', TAG]);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/refused: --trigger, and this stack's jobs run on pg-boss/);
+  });
+
+  it('without --trigger, the copy is taken as before, with no triggerdb', () => {
+    const s = onRunner('pg-boss');
+    const r = run(s, ['take', TAG]);
+    expect(r.status, r.out).toBe(0);
+    expect(filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'))).toEqual([]);
+    expect(filesIn(s.dir)).toContain('copy-before-update.txt');
+  });
+
+  it('trigger mode: --trigger takes triggerdb, as before', () => {
+    const s = onRunner('trigger');
+    const r = run(s, ['take', '--trigger', TAG]);
+    expect(r.status, r.out).toBe(0);
+    expect(filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
   });
 });

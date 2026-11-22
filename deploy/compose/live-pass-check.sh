@@ -31,8 +31,10 @@
 #      (pressSyncNow): the close, the pause, a withdrawn grant, Free's pace and
 #      the hold again, right before the enqueue. It records no visit, so the
 #      migration keeps its cadence
-#   4. follows the pass it started by its Trigger.dev run id (the run row's
-#      orchestrator_ref), never by a time window, every
+#   4. follows the pass it started by the id its runner gave it (the run
+#      row's orchestrator_ref): Trigger.dev's `run_…`, or, where the jobs run
+#      on pg-boss (workplan 0167 T7), the pg-boss job's id, a UUID. Never by a
+#      time window, every
 #      LIVE_PASS_CHECK_INTERVAL seconds for at most LIVE_PASS_CHECK_POLLS reads
 #      (15 minutes by default), and says how it ended: its status, and whether
 #      every data type it selects completed in it. A `succeeded` here is a pass
@@ -48,7 +50,8 @@
 # NOTHING SECRET. It prints no value from the .env but the two caps and the
 # project's name (COMPOSE_PROJECT_NAME), never the migration's or the
 # organisation's id, and never the hold's sentence: times, counts and the
-# Trigger.dev run id. A refusal names the key, never its value.
+# run's id: Trigger.dev's whole, pg-boss's (a UUID) by its first eight
+# characters. A refusal names the key, never its value.
 # Nothing that runs it may use `set -x`.
 #
 # Usage:  ./deploy/compose/live-pass-check.sh      from live's checkout, no arguments
@@ -80,9 +83,11 @@ STALE_RUN_AFTER_SECONDS=7200
 # The tick's defaults for its two caps (managed-sync-tick.ts), for a blank line.
 DEFAULT_MAX_PASSES_IN_FLIGHT=3
 DEFAULT_MAX_PASSES_PER_ORGANISATION=2
-# run-delta-sync's attempts (apps/worker/trigger.config.ts: maxAttempts 3), and
-# how long a failed attempt waits for its retry before it is the last: the
-# backoff is at most 60 s, plus a runner's start.
+# run-delta-sync's attempts, the same on either runner: apps/worker/
+# trigger.config.ts's maxAttempts 3, and the pg-boss catalog's 3 for every
+# queue (packages/scheduler/src/pg-boss/catalog.ts, workplan 0167). And how
+# long a failed attempt waits for its retry before it is the last: the
+# backoff is at most 60 s on both, plus a runner's start.
 ATTEMPTS=3
 RETRY_GRACE_SECONDS=180
 
@@ -182,7 +187,8 @@ main() {
   # Its stdout is the one line read below; its stderr is fixed words, and passes through.
   pressed="$("${COMPOSE[@]}" exec -T api "$api_node_path" apps/api/src/scripts/live-pass.ts "$tenant" "$MAPPING")" || rc=$?
   local tab=$'\t'
-  local started_re="^started${tab}(run_[A-Za-z0-9]+)$"
+  # Trigger.dev's run id, or pg-boss's job id (a UUID, workplan 0167 T7).
+  local started_re="^started${tab}(run_[A-Za-z0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
   local refused_re="^refused${tab}[0-9]{3}${tab}([a-z_]+)$"
   case "$rc" in
     0)
@@ -207,11 +213,21 @@ main() {
     2) refuse 2 "refused, nothing was started: the press refused its arguments, or the api container has no APP_DATABASE_URL." ;;
     *) refuse 7 "could not tell: not known whether a pass started (the press answered nothing this reads): the migration's page says." ;;
   esac
-  say "started one pass on your migration, as Sync now starts it (Trigger.dev run ${run_id})"
+  # A pg-boss job's id is a UUID, the shape this never prints whole (the
+  # migration's and the organisation's ids are UUIDs too): its first eight
+  # characters, which `orchestrator_ref LIKE '<them>%'` finds.
+  local run_shown="$run_id"
+  case "$run_id" in
+    run_*) say "started one pass on your migration, as Sync now starts it (Trigger.dev run ${run_id})" ;;
+    *)
+      run_shown="${run_id:0:8}…"
+      say "started one pass on your migration, as Sync now starts it (pg-boss run ${run_shown})"
+      ;;
+  esac
 
   # ---- The follow: by the run's own id, never a time window ------------------------
   local row attempts state started since_finished done_count items i shown='' now=''
-  local unread="could not tell: could not read the pass's row; it was started (run ${run_id}): the migration's page says how it ends."
+  local unread="could not tell: could not read the pass's row; it was started (run ${run_shown}): the migration's page says how it ends."
   for ((i = 1; i <= POLLS; i++)); do
     row="$(follow_read "$run_id")" || refuse 7 "$unread"
     [[ "$row" =~ ^[0-9]+[|](queued|running|succeeded|failed|cancelled|-)[|]([0-9TZ:-]{20}|-)[|]([0-9]+|-)[|][0-9]+[|][0-9]+[|]([0-9]+|-)$ ]] ||

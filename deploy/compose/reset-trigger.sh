@@ -48,6 +48,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/compose/env-read.sh
 . "${SCRIPT_DIR}/env-read.sh"
 ENV_FILE="${SCRIPT_DIR}/.env"
+# Trigger.dev's alone (workplan 0167 T7): refused, in one sentence and before
+# anything is asked or changed, where the jobs run on pg-boss.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
+job_runner_refuse_in_pg_boss reset-trigger.sh "it resets the Trigger.dev plane's database"
+
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 VOLUME="${COMPOSE_PROJECT}_trigger_db_data"

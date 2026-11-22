@@ -104,6 +104,11 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 . "${SCRIPT_DIR}/trigger-cli-lib.sh"
 
 ENV_FILE="${SCRIPT_DIR}/.env"
+# Trigger.dev's alone (workplan 0167 T7): refused, in one sentence and before
+# anything is asked or changed, where the jobs run on pg-boss.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
+job_runner_refuse_in_pg_boss deploy-tasks.sh "it deploys the tasks to Trigger.dev"
 if [ -f "$ENV_FILE" ]; then
   set -a
   # shellcheck disable=SC1090

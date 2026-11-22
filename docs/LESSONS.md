@@ -1041,6 +1041,7 @@ reading a file drops off its entry by itself.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [no-pipeline-its-own-consumer-can-kill](../scripts/no-pipeline-its-own-consumer-can-kill.unit.test.ts) — A PIPELINE WHOSE CONSUMER EXITS EARLY REPORTS FAILURE WHEN IT SUCCEEDED.
 - [nothing-ever-parsed-the-bring-up](../scripts/nothing-ever-parsed-the-bring-up.unit.test.ts) — NOTHING EVER PARSED THE BRING-UP.
@@ -1097,6 +1098,7 @@ reading a file drops off its entry by itself.
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-retention-the-bring-up-states](../scripts/a-retention-the-bring-up-states.unit.test.ts) — A RETENTION THE BRING-UP STATES (workplan 0134 T1).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
@@ -1127,6 +1129,7 @@ reading a file drops off its entry by itself.
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 - [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
@@ -1147,6 +1150,7 @@ reading a file drops off its entry by itself.
 - [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
 ### `deploy/compose/dev.ci.yml`
@@ -1234,6 +1238,7 @@ reading a file drops off its entry by itself.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
@@ -1302,6 +1307,21 @@ reading a file drops off its entry by itself.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
+
+### `deploy/compose/job-runner.sh`
+
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
+- [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/jobs-role.sql`
 
@@ -1432,6 +1452,7 @@ reading a file drops off its entry by itself.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
@@ -1490,6 +1511,7 @@ reading a file drops off its entry by itself.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/pgbouncer/Dockerfile`
@@ -1507,11 +1529,13 @@ reading a file drops off its entry by itself.
 
 - [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 
 ### `deploy/compose/plane-tokens.sh`
 
 - [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 
 ### `deploy/compose/postgres/Dockerfile`
 
@@ -1545,6 +1569,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/rehearse-capacity.sh`
 
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 
 ### `deploy/compose/release-tag.sh`
 
@@ -1561,6 +1586,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/reset-trigger.sh`
 
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
@@ -1608,6 +1634,7 @@ reading a file drops off its entry by itself.
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
@@ -1619,6 +1646,7 @@ reading a file drops off its entry by itself.
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts) — The demo's DAV content, and the two ways seeding it goes quietly wrong.
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
 
@@ -1641,6 +1669,7 @@ reading a file drops off its entry by itself.
 - [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
@@ -1766,6 +1795,7 @@ reading a file drops off its entry by itself.
 - [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
@@ -1799,23 +1829,27 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/trigger-credentials.sh`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/trigger-magic-link.sh`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/trigger-remember-token.sh`
 
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 
 ### `deploy/compose/trigger-version.sh`
 
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
@@ -1884,6 +1918,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/zitadel-network-alias.sh`
 
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 
 ### `deploy/selfhost/README.md`
@@ -2807,6 +2842,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/scheduler/src/pg-boss/job-runner.ts`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
 
 ### `packages/shared/src/a-grant-mail-that-says-alpha.unit.test.ts`
@@ -3034,6 +3070,7 @@ reading a file drops off its entry by itself.
 ### `pnpm-lock.yaml`
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
 - [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
@@ -4173,6 +4210,7 @@ Reads:
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/seed-managed.sh`
@@ -4220,6 +4258,7 @@ Reads:
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/exposure-check.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/live-pass-check.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
@@ -4230,6 +4269,8 @@ Reads:
 - `deploy/compose/www.yml`
 - `docs/incident-runbook.md`
 - `docs/managed-bring-up.md`
+- `packages/scheduler/src/pg-boss/job-runner.ts`
+- `pnpm-lock.yaml`
 - `scripts/app-headers.mjs`
 - `scripts/nginx-config.mjs`
 - `site/build.mjs`
@@ -4455,6 +4496,7 @@ Reads:
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/exposure-check.sh`
 - `deploy/compose/idp-strays.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/redact-evidence.sh`
@@ -4537,6 +4579,7 @@ Reads:
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/exposure-check.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/release-tag.sh`
@@ -4892,6 +4935,7 @@ Reads:
 - `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/trigger-remember-token.sh`
 - `packages/testing/fixtures/stalwart/config.json`
 
@@ -5540,6 +5584,7 @@ Reads:
 - `apps/api/src/scripts/seed-managed.ts`
 - `apps/worker/src/jobs/managed-sync-tick.ts`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/rehearse-capacity.sh`
 - `deploy/compose/stack-kind.sh`
@@ -5693,6 +5738,7 @@ Reads:
 - `deploy/compose/db-roles.sh`
 - `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/set-task-env.sh`
@@ -6764,13 +6810,17 @@ Reads:
 - `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
+- `deploy/compose/own-addresses.sh`
+- `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/shipped-passwords.sh`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/trigger-cli-lib.sh`
 - `deploy/compose/trigger-credentials.sh`
 - `deploy/compose/trigger-magic-link.sh`
+- `deploy/compose/zitadel-network-alias.sh`
 - `scripts/every-service-somebody-starts.unit.test.ts`
 
 ### [claims-you-can-check](../scripts/claims-you-can-check.unit.test.ts)
@@ -6930,6 +6980,31 @@ Reads:
 - `deploy/compose/stack-kind.sh`
 - `scripts/bootstrap-managed.unit.test.ts`
 
+### [job-runner-mode](../scripts/job-runner-mode.unit.test.ts)
+
+ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/copy-before-update.sh`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/deploy-tasks.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/job-runner.sh`
+- `deploy/compose/managed.yml`
+- `deploy/compose/plane-limit.sh`
+- `deploy/compose/plane-tokens.sh`
+- `deploy/compose/rehearse-capacity.sh`
+- `deploy/compose/reset-trigger.sh`
+- `deploy/compose/set-task-env.sh`
+- `deploy/compose/setup-managed-demo.sh`
+- `deploy/compose/stand-up-live.sh`
+- `deploy/compose/trigger-credentials.sh`
+- `deploy/compose/trigger-magic-link.sh`
+- `deploy/compose/trigger-remember-token.sh`
+- `deploy/compose/trigger-version.sh`
+
 ### [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts)
 
 THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
@@ -7046,6 +7121,7 @@ Reads:
 - `deploy/compose/dump-idp.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/idp-strays.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/trigger-version.sh`
@@ -7085,6 +7161,7 @@ Reads:
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/exposure-check.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/release-tag.sh`
@@ -7628,6 +7705,7 @@ Reads:
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/exposure-check.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/operator.sh`
 - `deploy/compose/reset-trigger.sh`

@@ -65,6 +65,12 @@ case "${1:-}" in
   *) echo "plane-tokens.sh: unknown argument '$1'" >&2; exit 1 ;;
 esac
 
+# Trigger.dev's alone (workplan 0167 T7): refused, in one sentence and before
+# anything is asked or changed, where the jobs run on pg-boss.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
+job_runner_refuse_in_pg_boss plane-tokens.sh "it releases the Trigger.dev plane's concurrency tokens"
+
 say() { echo "[plane-tokens] $*"; }
 fail() { echo "[plane-tokens] $*" >&2; exit 1; }
 
