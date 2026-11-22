@@ -111,6 +111,7 @@ const USAGE = `Usage:
   operator:moneybird check
   operator:moneybird proof
   operator:moneybird nightly
+  operator:jobs [failures [<task>] [--limit n] | show <id> | cancel <id> | run <task> '<json>' [--despite-hold]]
 
 DATABASE_URL must be the OWNER connection — app_user cannot write this table,
 which is the point of it.`;
@@ -1048,6 +1049,17 @@ async function main(): Promise<void> {
               : await nightlyMoneybird(process.env, new Date());
         for (const line of report.lines) log.info(line);
         if (!report.ok) process.exitCode = 1;
+        break;
+      }
+
+      case 'jobs': {
+        // The jobs on pg-boss (workplan 0167 T6): operator-jobs.ts, which
+        // connects as the jobs role and reads the hold over this pool. Loaded
+        // here, so no other verb loads pg-boss.
+        const { runJobsVerb } = await import('./operator-jobs.ts');
+        const report = await runJobsVerb(rest, process.env, pool);
+        for (const line of report.lines) log.info(line);
+        if (report.exitCode !== 0) process.exitCode = report.exitCode;
         break;
       }
 

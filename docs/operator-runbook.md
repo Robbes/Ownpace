@@ -384,6 +384,49 @@ runner-log capture, guarded evidence cleanup) and exits non-zero unless verify l
 and apply lands `applied` or `refused`. A green CI says nothing about this machine; the
 smoke does. Its evidence file is **secret-bearing** (runner logs print the task env).
 
+## The jobs on pg-boss: seeing and steering them (pg-boss mode only)
+
+**For a stack whose jobs run on pg-boss** (`OWNPACE_JOB_RUNNER=pg-boss`, ADR-0054, workplan
+0167). On Trigger.dev, the default until the switch is turned on, the dashboard's Runs page and
+Test runs are where this is done, and each command below says so in one sentence and exits 1.
+pg-boss has no dashboard; these take the place of both:
+
+```bash
+./deploy/compose/operator.sh jobs                                  # per queue: queued, active, failed, active keys
+./deploy/compose/operator.sh jobs failures [<task>] [--limit <n>]  # newest failed runs, 20 unless told
+./deploy/compose/operator.sh jobs show <run-id>                    # one run: state, attempt, times, tags, error
+./deploy/compose/operator.sh jobs cancel <run-id>                  # a run waiting or going
+./deploy/compose/operator.sh jobs run <task> '<json>' [--despite-hold]
+```
+
+- **`jobs`** lists the seventeen queues, named by their Trigger.dev task ids, with the runs
+  queued, active and failed (the failed that pg-boss still keeps, 7 days by default), and for a
+  pass, a count or a confirmation the migration each active run holds. The counts are the
+  worker's, refreshed every 15 s. A queue *not made yet* means the worker has not started on
+  this database.
+- **`jobs failures`** lists the most recent failed runs, on one queue or all, newest first: the
+  time in UTC, the queue, the run's id, the attempt, its tags (`tenant:…`, `mapping:…`), and its
+  error's name and message. Nothing else of the error, and nothing of the payload. The words
+  behind a reference are where they always were, in the migration's own run history and on the
+  operator log page.
+- **`jobs show` and `jobs cancel`** take a run's id, a UUID: what a run row's `orchestrator_ref`
+  holds on pg-boss. A `run_…` ref is Trigger.dev's and is refused. A cancelled run that is going
+  stops at its next heartbeat, within 30 s.
+- **`jobs run`** queues one run by hand, in place of Test runs: `run-rollback` (see
+  [rollback-mechanisms.md](./rollback-mechanisms.md#managed-pg-boss)), or a schedule's run now,
+  with `'{}'`, which is all a schedule takes: `jobs run managed-digest '{}'`. A schedule that already
+  has a run waiting queues no other. A pass, a count or a confirmation needs the migration's
+  `mappingId`, which is its key. The payload is checked only for that: a job's schema lives in
+  its own module, which opens its pools when it is loaded, so the run's own schema refuses the
+  rest and the run fails once, not retried, and shows in `jobs failures`. **While the
+  operator's hold is open it starts nothing**, as every door of the API starts nothing; add
+  `--despite-hold` when the run is what the hold is for.
+
+They connect as `ownpace_jobs`, the role that owns pg-boss's schema `pgboss` and nothing else,
+with `.env`'s `JOBS_DB_PASSWORD`, on the port `operator.sh` finds for Postgres; never as the
+owner. The owner connection `operator.sh` composes is used only to read the hold. See
+`apps/api/src/scripts/operator-jobs.ts`.
+
 ## Email notifications (workplan 0030)
 
 Four things send email on managed, all through the operator's own SMTP relay configured in

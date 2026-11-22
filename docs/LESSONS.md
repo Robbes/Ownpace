@@ -527,6 +527,10 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 
+### `apps/api/src/scripts/operator-jobs.ts`
+
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+
 ### `apps/api/src/scripts/operator-links.ts`
 
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
@@ -1474,6 +1478,7 @@ reading a file drops off its entry by itself.
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
 - [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
@@ -5652,9 +5657,11 @@ Reads:
 - `apps/api/src/routes/migrations/operating-routes.ts`
 - `apps/api/src/routes/permissions.ts`
 - `apps/api/src/routes/view.ts`
+- `apps/api/src/scripts/operator-jobs.ts`
 - `apps/api/src/scripts/operator.ts`
 - `apps/api/src/scripts/seed-managed.ts`
 - `deploy/compose/managed.yml`
+- `deploy/compose/operator.sh`
 - `docs/rls-guide.md`
 - `packages/ledger/src/direct-url.ts`
 - `packages/ledger/src/verification-queries.ts`

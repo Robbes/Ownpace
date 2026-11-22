@@ -47,6 +47,11 @@
 #   ./deploy/compose/operator.sh moneybird proof
 #   ./deploy/compose/operator.sh moneybird nightly
 #   ./deploy/compose/operator.sh measure-google-sync
+#   ./deploy/compose/operator.sh jobs
+#   ./deploy/compose/operator.sh jobs failures [<task>] [--limit <n>]
+#   ./deploy/compose/operator.sh jobs show <run-id>
+#   ./deploy/compose/operator.sh jobs cancel <run-id>
+#   ./deploy/compose/operator.sh jobs run <task> '<json>' [--despite-hold]
 #
 # `<subject>` is the OIDC `sub`, never an email: sign in once, call
 # `GET /api/me`, and read `userId` back. operator.ts's header says why.
@@ -115,6 +120,16 @@
 # than asking early), and never posts a payment twice. See
 # moneybird-nightly.ts.
 #
+# `jobs` is for a stack whose jobs run on pg-boss (OWNPACE_JOB_RUNNER=pg-boss,
+# ADR-0054); on Trigger.dev it says so and exits 1, and the dashboard is the
+# place to look. Per queue it counts the runs queued, active and failed;
+# `failures` lists the newest failed runs with their errors' names and
+# messages; `show` and `cancel` take a run's id; `run` queues a run by hand
+# (`run-rollback`, or a schedule's run now, with '{}'), refused while the
+# operator's hold is open unless --despite-hold. It connects as ownpace_jobs,
+# with .env's JOBS_DB_PASSWORD in place of the owner's, on the same port, and
+# prints ids, counts and times, never a payload. See operator-jobs.ts.
+#
 # `measure-google-sync` is the one verb that is not the API's (workplan 0164
 # T1): the worker's CLI, apps/worker/src/cli/index.ts, on this same owner
 # connection and with this .env loaded, since it reads one migration's Google
@@ -147,6 +162,7 @@ if [ "$#" -eq 0 ]; then
   echo "  ./deploy/compose/operator.sh moneybird proof" >&2
   echo "  ./deploy/compose/operator.sh moneybird nightly" >&2
   echo "  ./deploy/compose/operator.sh measure-google-sync" >&2
+  echo "  ./deploy/compose/operator.sh jobs [failures [<task>] [--limit <n>] | show <run-id> | cancel <run-id> | run <task> '<json>' [--despite-hold]]" >&2
   exit 1
 fi
 

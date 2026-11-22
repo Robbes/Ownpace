@@ -137,6 +137,13 @@ const OFF_THE_REQUEST_PATH: Record<string, { reason: string; pinned?: readonly s
       'every organisation (docs/rls-guide.md §2)',
   },
   'apps/api/src/scripts/seed-managed.ts': { reason: 'writes the demo organisations at the machine, as the owner' },
+  'apps/api/src/scripts/operator-jobs.ts': {
+    reason:
+      "`operator.sh jobs`, run at the machine as the jobs role (workplan 0167 T6): JOBS_DATABASE_URL, or " +
+      "operator.sh's own URL with that role and JOBS_DB_PASSWORD put in place of the owner and theirs, " +
+      'and refused for any other role',
+    pinned: ['reads DATABASE_URL, in jobsConnectionString()', 'reads JOBS_DATABASE_URL, in jobsConnectionString()'],
+  },
 };
 
 /** Where the whole-file entries live: processes of their own, never the API's. */
