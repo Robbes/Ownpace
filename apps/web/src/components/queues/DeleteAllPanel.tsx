@@ -40,7 +40,17 @@
  * click of a double click and any click within `CONFIRM_GUARD_MS` of
  * opening, so a double click cannot pass it. Nothing is ordered unless the
  * page's rows at the confirming press, and the list read again from the
- * server, are both that frozen set. From the confirming press on, every row
+ * server, are both that frozen set.
+ *
+ * THE BIN'S ROWS, COUNTED APART. A run takes both kinds of row a single
+ * delete is offered for: those the old system reported deleted, and those
+ * found in its bin (`trashed`). When some came from the bin, the
+ * confirmation names how many, apart from the reported ones, and says why
+ * that matters: a message can be in the bin and in a live folder at once,
+ * so a copy here may be one still in use, and once deleted it is never
+ * copied again. Both numbers are counted from the frozen set, the rows the
+ * press acts on, so they cannot disagree with what is removed. When none
+ * came from the bin, it says nothing about the bin. From the confirming press on, every row
  * of the run waits its turn with no button of its own, the reading of the
  * list included: a keep pressed there was overwritten by the run, and a
  * single delete pressed there ran beside it (the second review, F-A). A run
@@ -292,6 +302,7 @@ export const DeleteAllPanel: React.FC<{
   const statusRef = React.useRef<HTMLParagraphElement>(null);
   const questionId = React.useId();
   const leadId = React.useId();
+  const binId = React.useId();
 
   React.useEffect(() => {
     gone.current = false;
@@ -560,6 +571,10 @@ export const DeleteAllPanel: React.FC<{
   if (!offered && !showConfirm && run === undefined) return null;
 
   const count = String((showConfirm ? armed.rows : rows).length);
+  // The bin's rows, from the frozen set the press acts on, never from the
+  // page as it is now.
+  const fromTheBin = showConfirm ? armed.rows.filter((d) => d.evidence === 'trashed').length : 0;
+  const reportedCount = showConfirm ? armed.rows.length - fromTheBin : 0;
   const stoppable = (run?.phase === 'reading' || run?.phase === 'running') && !run.stopping;
 
   return (
@@ -585,7 +600,7 @@ export const DeleteAllPanel: React.FC<{
           role="alertdialog"
           aria-modal="true"
           aria-labelledby={questionId}
-          aria-describedby={leadId}
+          aria-describedby={fromTheBin > 0 ? `${leadId} ${binId}` : leadId}
           tabIndex={-1}
           className="p-3 rounded-lg border border-red-300 bg-red-50 space-y-2 outline-none"
           onKeyDown={onDialogKeyDown}
@@ -596,6 +611,17 @@ export const DeleteAllPanel: React.FC<{
           <p id={leadId} className="text-xs text-gray-700">
             {t('deletions.all.lead', { count })}
           </p>
+          {fromTheBin > 0 && (
+            <div id={binId} className="space-y-1 text-xs text-red-900">
+              <p>
+                {t('deletions.all.confirm.split', {
+                  reported: String(reportedCount),
+                  bin: String(fromTheBin),
+                })}
+              </p>
+              <p>{t('deletions.all.confirm.bin')}</p>
+            </div>
+          )}
           {/* Cancel first, and focused: the end of a double click lands on
               nothing that deletes. */}
           <div className="flex flex-wrap items-center gap-2">

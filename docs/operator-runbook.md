@@ -2145,6 +2145,16 @@ below). One removal at a time is under way per migration's run; a single press
 still under way, another migration's run on the same page, or a second page,
 is not waited for.
 
+A run takes the rows the old system reported deleted and the rows found in its
+bin (`trashed`), as a single press does. When some came from the bin, the
+confirmation names how many, apart from the reported ones, and says why: a
+message can be in the bin and in a live folder at once, so a copy here may be
+one still in use, and once deleted it is never copied again. So one confirmation
+can remove every row the page offers. Item 4 below, the mass-deletion breaker,
+bounds it per migration and data type: at most a fifth of a data type with 20
+migrated items or more, and every listed item of a smaller one, which the
+breaker does not weigh.
+
 It has to be turned on per mapping first:
 
 ```json

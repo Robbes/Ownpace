@@ -21,22 +21,21 @@
   successful read; IMAP: UIDVALIDITY); (6) mass-deletion breaker, 20% of ≥20; (7)
   concurrent-apply re-check: `packages/core/src/apply-deletion.unit.test.ts`.
 - **With no recorded version, nothing is removed** (`version_unknown`); a weak ETag counts as
-  none. JMAP mail, which records no version by design, is exempt:
-  `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
-- **After cutover nothing is applied, by hand either** (2026-10-05): the four removing functions
-  ask the item's data type's phase afresh and refuse `after_cutover`; no Apply is offered. A
-  rollback re-admits what nobody answered (ADR-0047); a kept entry stays kept. Guard:
-  `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
+  none. JMAP mail is exempt: `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
+- **After cutover nothing is applied, by hand either** (2026-10-05): every removing function
+  refuses `after_cutover`, and no Apply is offered. A rollback re-admits what nobody answered
+  (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
 - **One owner action may apply many** (2026-11-21): offered only where a single delete is, one
-  confirmation naming the count over a frozen set, then each row's own apply through the same
-  call and all seven gates, the next only after an answer. Guard:
+  confirmation over a frozen set naming the count, the bin's apart, then each row's own apply
+  through the same call and all seven gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
-- The breaker, `not_enabled`, `removed_not_recorded`, or a press not answered or not started
-  **stops the whole run**; *Stop* or a closed page orders nothing more.
+- One confirmation can remove every row offered: all of a data type under 20 migrated items, at
+  most a fifth of a larger one (gate 6). The breaker, `not_enabled`, `removed_not_recorded`, or a
+  press not answered or not started **stops the whole run**; *Stop* or a closed page orders
+  nothing more.
 - **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
-  `already_kept` before anything is sent to the target. A keep that lands while a removal is
-  already under way cannot stop it; the removal is recorded as what it was. Guard:
-  `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
+  `already_kept` before anything is sent to the target. A keep cannot stop a removal already
+  under way. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.
@@ -144,6 +143,19 @@ single presses, one after another. As built after the pull request's two reviews
 - **The press.** *Delete all of these here too*, on the Deletions page, is offered only where a
   single *Delete it here too* is: deleting by hand on, rows that `mayOfferApply` offers (positive
   evidence, not past their data type's cutover), two at least.
+- **Both kinds of positive evidence, the bin's counted apart.** A run takes the rows the old
+  system reported deleted and the rows found in its bin (`trashed`), as a single press does.
+  When some came from the bin, the confirmation names how many, apart from the reported ones, and
+  says why that matters: a message can be in the bin and in a live folder at once, so a copy here
+  may be one still in use, and once deleted it is never copied again (a tombstoned item's
+  reappearance is never re-copied). Both numbers are counted from the frozen set the press acts
+  on. When no row came from the bin, the confirmation says nothing about it.
+- **What one confirmation can remove.** Every row the page offers, the bin's included, each
+  through all seven gates, so what bounds a run is gate 6. Per migration and data type, it
+  refuses every apply once more than a fifth (`MASS_DELETION_FRACTION`, 0.2) of the migrated items,
+  those already removed still counted, are waiting to be deleted, and it does not apply below 20
+  migrated items (`MASS_DELETION_MIN_ITEMS`). So one confirmation can remove at most a fifth of a
+  data type with 20 migrated items or more, and every listed item of a smaller one.
 - **The confirmation, and how it relates to "the caller states an expected count".** The rejected
   alternative above asked, before bulk apply was revisited, for stronger confirmation, "e.g.
   requiring the caller to state an expected count". T0 (b) asked for one confirmation that names
@@ -248,7 +260,9 @@ the reason), and the screens show the reason as served.
 - **2026-11-21** — Per item reads as each item decided by itself: one owner action may apply many,
   each through all seven gates, after one confirmation over a frozen set, the next only once one
   has answered; a breaker refusal, `not_enabled`, `removed_not_recorded`, or a press that did not
-  answer or started nothing stops the run (workplan 0164 T0 (b), T3). Record: *Amendment, 2026-11-21: per item reads as each item decided
+  answer or started nothing stops the run (workplan 0164 T0 (b), T3). The confirmation counts the
+  rows found in the source's bin apart; one confirmation removes at most a fifth of a data type of
+  20 migrated items or more, and every listed item of a smaller one. Record: *Amendment, 2026-11-21: per item reads as each item decided
   by itself*.
 
 - **2026-10-05** — After cutover nothing is applied, by hand either: `after_cutover`, and no Apply

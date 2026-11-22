@@ -119,6 +119,11 @@ export const en = {
   'deletions.all.confirm.question': 'Delete these {count} on the new system?',
   'deletions.all.confirm.yes': 'Delete {count}',
   'deletions.all.confirm.no': 'Cancel',
+  // Only when some of them came from the bin, counted from the rows the
+  // press acts on, in the words of the rows' own chips.
+  'deletions.all.confirm.split': "Reported by the source: {reported}. In the source's bin: {bin}.",
+  'deletions.all.confirm.bin':
+    'A message can be in the bin and in a live folder at once, so a copy here may be one still in use, and once deleted it is never copied again.',
   'deletions.all.waiting': 'Waiting its turn',
   'deletions.all.reading': 'Reading the list again before anything is deleted…',
   // Said when the list moved while the confirmation was open, and when the
@@ -294,6 +299,9 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.all.confirm.question': 'Deze {count} verwijderen op het nieuwe systeem?',
   'deletions.all.confirm.yes': 'Verwijder {count}',
   'deletions.all.confirm.no': 'Annuleren',
+  'deletions.all.confirm.split': 'Gemeld door de bron: {reported}. In de prullenbak van de bron: {bin}.',
+  'deletions.all.confirm.bin':
+    'Een bericht kan tegelijk in de prullenbak en in een gewone map staan, dus een kopie hier kan er een zijn die nog in gebruik is, en eenmaal verwijderd wordt die nooit meer gekopieerd.',
   'deletions.all.waiting': 'Wacht op zijn beurt',
   'deletions.all.reading': 'De lijst wordt opnieuw gelezen voordat er iets wordt verwijderd…',
   'deletions.all.changed':

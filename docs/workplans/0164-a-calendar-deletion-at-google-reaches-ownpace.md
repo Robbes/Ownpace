@@ -4,7 +4,33 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-22, 03:10 UTC, latest: T3's second review is answered, on
+**2026-11-22, 08:20 UTC, latest: F-B is built; T3 is still held for alpha.15.** On
+`claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`, with `main` merged at `20eccaa0`
+(#2029, alpha.14's release record):
+- **Both kinds of row, the bin's counted apart.** *Delete all of these here too* keeps taking the
+  rows the old system reported deleted and the rows found in its bin (`trashed`), as a single
+  press does. When some came from the bin, its confirmation names how many, apart from the
+  reported ones, in the words of the rows' own chips (*Reported by the source: 1. In the source's
+  bin: 2.*), and says why that matters: a message can be in the bin and in a live folder at once,
+  so a copy here may be one still in use, and once deleted it is never copied again. Both numbers
+  come from the frozen set the press acts on. When no row came from the bin, it says nothing
+  about the bin.
+- **What one confirmation can remove**, now in ADR-0024's operative rules: every row offered.
+  That is all of a data type under 20 migrated items, since gate 6 does not apply below
+  `MASS_DELETION_MIN_ITEMS` (20, `apply-deletion.ts`), and at most a fifth
+  (`MASS_DELETION_FRACTION`) of a larger one, per migration and data type.
+- **Tests** in `apps/web/src/pages/a-delete-all-each-decided-by-itself.unit.test.tsx`:
+  - the confirmation names the bin's count apart, says why, and the run orders the bin's rows too;
+  - the same in Dutch;
+  - nothing about the bin when no row came from it;
+  - the count from the frozen set, not from the page refetched under the open confirmation.
+
+  Five mutants, each undone byte for byte, are killed: the bin counted from the page, never named,
+  named when none came from it, the reported count taken as all, and the bin's rows left out of a
+  run.
+- **Next:** CI, then E2E (managed).
+
+**2026-11-22, 03:10 UTC, earlier: T3's second review is answered, on
 `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`; it is still held for alpha.15, and
 one question waits for the owner.** The second adversarial review said *merge after these fixes*:
 - **Nothing is pressed beside a run while the list is read again** (F-A). The rows of a run wait
@@ -40,10 +66,11 @@ one question waits for the owner.** The second adversarial review said *merge af
 - **Accessibility** (F-K): the focus returns to the button after Cancel or Escape and stays in the
   confirmation while it is open, and Escape works from anywhere in it. The queue is read again
   once, when a run ends (F-L), and the refusal codes are held at run time too (F-M).
-- **Open, for the owner (F-B):** should the bulk take in only `reported` rows, with `trashed` rows
-  keeping their single press? Mail's known false positive, a message both in the bin and in a
-  live folder (`domain-sync.ts`), would become a permanent tombstone through the bulk, and below
-  20 items the breaker never applies. The evidence filter is unchanged until the owner answers.
+- **Open then, built since (F-B, the entry above):** should the bulk take in only `reported`
+  rows, with `trashed` rows keeping their single press? Mail's known false positive, a message both
+  in the bin and in a live folder (`domain-sync.ts`), would become a permanent tombstone through
+  the bulk, and below 20 items the breaker never applies. The evidence filter was left unchanged
+  until it was answered.
 - **Tests:**
   - the page's test, 53 cases, holds each finding;
   - the test over the real operating service now covers a receipt, a 404, `removed_not_recorded`
@@ -333,7 +360,7 @@ Read for this plan, on `main` at `8b8fac07`:
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
 | T1 What Google answers | builder | ✅ **Done 2026-11-21**: built as #2008, run by the owner; A is the reader | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
 | T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
-| T3 Apply in bulk | builder | 🟡 **Review**, held for alpha.15: built 2026-11-21, both reviews' findings fixed and the keep fix (#2027) taken 2026-11-22, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`; F-B open for the owner | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled`, `removed_not_recorded`, or a press not answered or not started stops the run. ADR-0024 amended |
+| T3 Apply in bulk | builder | 🟡 **Review**, held for alpha.15: built 2026-11-21, both reviews' findings fixed, the keep fix (#2027) taken and F-B built 2026-11-22, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply` | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled`, `removed_not_recorded`, or a press not answered or not started stops the run. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
 
@@ -455,8 +482,9 @@ will remove. Each item still goes through every gate on its own, so an edited co
 one refuses that item and says why, and the rest go on. A breaker trip, deleting by hand turned
 off, a removal the ledger could not record, or a press that did not answer stops the whole run.
 ADR-0024's "per item" is read as "each item decided by itself"; an amendment says so in the
-owner's words. Open, for the owner (F-B in the Status above): whether the bulk takes in only
-`reported` rows, with `trashed` rows keeping their single press.
+owner's words. It takes in both the rows the old system reported deleted and the rows found in
+its bin, and its confirmation names how many came from the bin, apart from the reported ones, and
+why that matters (F-B in the Status above).
 
 ### 4.3 By itself (needs the rule changed, T4)
 

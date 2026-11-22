@@ -194,22 +194,21 @@ live in [README.md](./README.md), the register.
   successful read; IMAP: UIDVALIDITY); (6) mass-deletion breaker, 20% of ≥20; (7)
   concurrent-apply re-check: `packages/core/src/apply-deletion.unit.test.ts`.
 - **With no recorded version, nothing is removed** (`version_unknown`); a weak ETag counts as
-  none. JMAP mail, which records no version by design, is exempt:
-  `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
-- **After cutover nothing is applied, by hand either** (2026-10-05): the four removing functions
-  ask the item's data type's phase afresh and refuse `after_cutover`; no Apply is offered. A
-  rollback re-admits what nobody answered (ADR-0047); a kept entry stays kept. Guard:
-  `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
+  none. JMAP mail is exempt: `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
+- **After cutover nothing is applied, by hand either** (2026-10-05): every removing function
+  refuses `after_cutover`, and no Apply is offered. A rollback re-admits what nobody answered
+  (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
 - **One owner action may apply many** (2026-11-21): offered only where a single delete is, one
-  confirmation naming the count over a frozen set, then each row's own apply through the same
-  call and all seven gates, the next only after an answer. Guard:
+  confirmation over a frozen set naming the count, the bin's apart, then each row's own apply
+  through the same call and all seven gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
-- The breaker, `not_enabled`, `removed_not_recorded`, or a press not answered or not started
-  **stops the whole run**; *Stop* or a closed page orders nothing more.
+- One confirmation can remove every row offered: all of a data type under 20 migrated items, at
+  most a fifth of a larger one (gate 6). The breaker, `not_enabled`, `removed_not_recorded`, or a
+  press not answered or not started **stops the whole run**; *Stop* or a closed page orders
+  nothing more.
 - **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
-  `already_kept` before anything is sent to the target. A keep that lands while a removal is
-  already under way cannot stop it; the removal is recorded as what it was. Guard:
-  `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
+  `already_kept` before anything is sent to the target. A keep cannot stop a removal already
+  under way. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.

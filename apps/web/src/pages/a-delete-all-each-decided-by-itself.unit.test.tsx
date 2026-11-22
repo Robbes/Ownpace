@@ -13,6 +13,10 @@
  *  - one confirmation, a control of its own that names the count over the
  *    rows as they were when it opened, which a double click cannot pass; the
  *    page's rows at the press and the list read again must both be that set;
+ *  - the rows found in the source's bin are in a run, and the confirmation
+ *    names how many, apart from the reported ones, and why that matters,
+ *    from the rows it froze; it says nothing about the bin when none came
+ *    from it;
  *  - in turn: each press answered to its end (a managed receipt included)
  *    before the next; a refusal of one row is that row's answer, while the
  *    breaker's refusal, deleting by hand turned off, a removal the ledger
@@ -401,6 +405,80 @@ describe('one confirmation, a control of its own', () => {
     expect(await screen.findByText(/the server did not answer/)).toBeInTheDocument();
     expect(screen.getAllByText(new RegExp(en['deletions.all.unreadable'])).length).toBeGreaterThan(0);
     expect(applyDeletion).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A run takes both kinds of row a single delete is offered for: reported by
+ * the source, and found in the source's bin (`trashed`). When some came from
+ * the bin, the confirmation names how many, apart from the reported ones, and
+ * why that matters, counted from the rows it froze: the rows the press acts on.
+ */
+describe('the bin’s rows, counted apart', () => {
+  const split = (reported: number, bin: number, words = en) =>
+    fill(words['deletions.all.confirm.split'], { reported, bin });
+
+  it('names how many came from the source’s bin, apart from those it reported, says why, and orders them all', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({
+        confirmed: [
+          deletion('a'),
+          deletion('b', { evidence: 'trashed' }),
+          deletion('m', { domain: 'email', evidence: 'trashed' }),
+        ],
+      }),
+    );
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => removed(hash));
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: en['deletions.all'] }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete these 3 on the new system?' });
+    expect(within(dialog).getByText(split(1, 2))).toBeInTheDocument();
+    expect(within(dialog).getByText(en['deletions.all.confirm.bin'])).toBeInTheDocument();
+    // Said to a screen reader as part of what the confirmation asks.
+    expect(dialog).toHaveAccessibleDescription(expect.stringContaining(split(1, 2)));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete 3' }));
+    expect(await screen.findByText(done(3, 0, 0))).toBeInTheDocument();
+    expect(orderedHashes()).toEqual(['a', 'b', 'm']);
+  });
+
+  it('says it in Dutch', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a', { evidence: 'trashed' }), deletion('b')] }));
+    renderScreen({ locale: 'nl' });
+    fireEvent.click(await screen.findByRole('button', { name: nl['deletions.all'] }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(split(1, 1, nl))).toBeInTheDocument();
+    expect(within(dialog).getByText(nl['deletions.all.confirm.bin'])).toBeInTheDocument();
+  });
+
+  it('says nothing about the bin when no row came from it', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: en['deletions.all'] }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete these 2 on the new system?' });
+    expect(within(dialog).queryByText(en['deletions.all.confirm.bin'])).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Reported by the source:/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/bin/)).not.toBeInTheDocument();
+  });
+
+  it('counts the bin from the rows it froze, not from the page as it is now', async () => {
+    fetchDeletions
+      .mockResolvedValueOnce(queue({ confirmed: [deletion('a'), deletion('b', { evidence: 'trashed' })] }))
+      .mockResolvedValue(
+        queue({
+          confirmed: [deletion('a'), deletion('b', { evidence: 'trashed' }), deletion('c', { evidence: 'trashed' })],
+        }),
+      );
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: en['deletions.all'] }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete these 2 on the new system?' });
+    expect(within(dialog).getByText(split(1, 1))).toBeInTheDocument();
+    // The page reads the list again under the open confirmation, and grows a row from the bin.
+    fireEvent.click(screen.getByRole('button', { name: en['asof.refresh'] }));
+    await screen.findByText('Event c');
+    expect(within(dialog).getByText(split(1, 1))).toBeInTheDocument();
+    expect(within(dialog).queryByText(split(1, 2))).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(split(2, 1))).not.toBeInTheDocument();
   });
 });
 
