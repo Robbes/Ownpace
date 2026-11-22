@@ -92,6 +92,7 @@ import type { LedgerDriver } from '@openmig/ledger';
 import { readOpenPause, readOrganisationClosure } from '@openmig/managed';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { EnqueueOptions } from '@openmig/scheduler/pg-boss';
+import { log } from '@openmig/shared';
 import { withTenantDb } from './middleware/auth.ts';
 import { accountClosedAnswer } from './closed-organisation.ts';
 import { jobRunner, pgBossProducer } from './job-runner.ts';
@@ -111,13 +112,14 @@ export interface EnqueueAsked {
 /**
  * The enqueue, on whichever runner `OWNPACE_JOB_RUNNER` names (0167 T6),
  * handed out only while no hold is open. Every door reads the run's `id` and
- * nothing else of what comes back.
+ * nothing else of what comes back; on pg-boss `joined` also says whether an
+ * earlier run with the same idempotency key was handed back.
  */
 export type Enqueue = (
   taskId: string,
   payload: Record<string, unknown>,
   options?: EnqueueAsked,
-) => Promise<{ readonly id: string }>;
+) => Promise<{ readonly id: string; readonly joined?: boolean }>;
 
 /** What a held door says when the operator typed no sentence. */
 export const HELD_DEFAULT =
@@ -193,21 +195,68 @@ const enqueue: Enqueue = async (taskId, payload, options = {}) => {
 };
 
 /**
- * The pg-boss half, exported for its tests. A queue the worker has not made
- * (it never started on this schema) fails here, naming the queue, and the door
- * lands that on its row as any failed enqueue.
+ * The pg-boss half, reached only through the enqueue the two doors above hand
+ * out; not exported, so no door can enqueue round the hold through it
+ * (`a-hold-that-holds-every-door`). A queue the worker has not made (it never
+ * started on this schema) fails here, naming the queue, and the door lands
+ * that on its row as any failed enqueue. A connection that failed is said in
+ * `QUEUE_UNREACHABLE`, with no address, and logged as it was: the doors echo
+ * the message to the person who pressed, and node-postgres names the host
+ * and port it could not reach.
  */
-export async function enqueueOnPgBoss(
+async function enqueueOnPgBoss(
   taskId: string,
   payload: Record<string, unknown>,
-  options: EnqueueAsked = {},
+  options: EnqueueAsked,
 ): Promise<{ readonly id: string; readonly joined: boolean }> {
-  const producer = await pgBossProducer();
-  const { runId, joined } = await producer.enqueue(taskId, payload, pgBossOptionsFor(options));
+  let enqueued: { runId: string | null; joined: boolean };
+  try {
+    const producer = await pgBossProducer();
+    enqueued = await producer.enqueue(taskId, payload, pgBossOptionsFor(options));
+  } catch (err) {
+    if (!isUnreachable(err)) throw err;
+    log.error(`[jobs] the job queue could not be reached to enqueue "${taskId}":`, err);
+    // The cause is for the server's log; the doors echo the message alone.
+    throw new Error(QUEUE_UNREACHABLE, { cause: err });
+  }
   // Only a `stately` queue turns a run away without an id, and none of the
   // queues this API enqueues on is one; said, never returned as a run.
-  if (runId === null) throw new Error(`pg-boss turned the run on "${taskId}" away: one is already waiting.`);
-  return { id: runId, joined };
+  if (enqueued.runId === null) throw new Error(`pg-boss turned the run on "${taskId}" away: one is already waiting.`);
+  return { id: enqueued.runId, joined: enqueued.joined };
+}
+
+/** What a door says, and stores, when the jobs database could not be reached. */
+export const QUEUE_UNREACHABLE = 'The job queue could not be reached, so nothing was enqueued. Try again shortly.';
+
+/** Socket errors Node gives for a host it could not reach or that dropped the connection. */
+const UNREACHABLE_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EPIPE',
+]);
+
+/**
+ * Whether the enqueue failed on the way to the database rather than in it:
+ * a socket error, Postgres's connection-exception class (`08…`), a refused
+ * login (`28…`), a server shutting down or not yet up (`57P0…`), or a
+ * dropped or timed-out connection. Read
+ * through `cause` and an `AggregateError`'s errors, which is how Node reports
+ * a name that resolved to several addresses.
+ */
+export function isUnreachable(err: unknown, depth = 0): boolean {
+  if (depth > 5 || err === null || typeof err !== 'object') return false;
+  const e = err as { code?: unknown; message?: unknown; cause?: unknown; errors?: unknown };
+  const code = typeof e.code === 'string' ? e.code : '';
+  if (UNREACHABLE_CODES.has(code) || /^(08|28|57P0)/.test(code)) return true;
+  const message = typeof e.message === 'string' ? e.message : '';
+  if (/Connection terminated|timeout expired when connecting|^connect E[A-Z]+ /.test(message)) return true;
+  if (Array.isArray(e.errors) && e.errors.some((x) => isUnreachable(x, depth + 1))) return true;
+  return isUnreachable(e.cause, depth + 1);
 }
 
 /** Trigger.dev's options in the runner's words: the singleton key, the idempotency key and its seconds, the tags. */

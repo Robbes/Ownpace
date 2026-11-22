@@ -12,10 +12,13 @@
  *
  * Two halves:
  *
- *  1. **Loaded.** The whole app (`index.ts`, every router) and the operator's
- *     script are imported in trigger mode, with both specifiers mocked to say
- *     so when anything loads them; a close's cancel and the scheduler's
- *     readiness are then asked. Neither is loaded.
+ *  1. **Loaded.** A child Node process loads the API as its image does (`node`
+ *     on `apps/api/src/index.ts`, types erased, workspace packages through
+ *     `node_modules`), and the operator's script, with a resolve hook that
+ *     records every module URL resolved, in this repository or out of it, and
+ *     asks the scheduler's readiness. None is pg-boss's package or the runner's
+ *     module. A control process, on `pg-boss`, asks for the producer, and both
+ *     show up: the hook does see them.
  *  2. **Written.** No shipped file under `apps/api/src` imports `pg-boss`, and
  *     none imports `@openmig/scheduler/pg-boss` but for its types, which Node
  *     erases; the one dynamic import of it is `job-runner.ts`'s, on the
@@ -23,76 +26,86 @@
  *     reaches.
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { relative } from 'node:path';
+import { describe, it, expect } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { code, sourceFiles } from './__tests__/doors-that-start-work.ts';
 
-const { loaded, sdk } = vi.hoisted(() => ({
-  loaded: [] as string[],
-  sdk: { cancel: vi.fn(async (..._args: unknown[]) => ({})) },
-}));
-
-vi.mock('pg-boss', () => {
-  loaded.push('pg-boss');
-  return {};
-});
-vi.mock('@openmig/scheduler/pg-boss', () => {
-  loaded.push('@openmig/scheduler/pg-boss');
-  return {};
-});
-// A bare factory, as `an-organisation-the-operator-can-close` writes it.
-vi.mock('@openmig/scheduler', () => ({
-  getTriggerClient: () => ({ runs: { cancel: sdk.cancel }, tasks: { trigger: vi.fn() } }),
-}));
-
 const SRC = import.meta.dirname;
-let saved: { runner?: string; key?: string };
+const REPO = join(SRC, '..', '..', '..');
 
-beforeAll(() => {
-  saved = { runner: process.env.OWNPACE_JOB_RUNNER, key: process.env.TRIGGER_SECRET_KEY };
-  delete process.env.OWNPACE_JOB_RUNNER;
-  delete process.env.TRIGGER_SECRET_KEY;
-});
+/** pg-boss's package, wherever pnpm put it, and the runner's module in this repository. */
+const PG_BOSS_PACKAGE = /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?pg-boss\//;
+const RUNNER_MODULE = /\/packages\/scheduler\/src\/pg-boss\//;
 
-afterAll(() => {
-  if (saved.runner === undefined) delete process.env.OWNPACE_JOB_RUNNER;
-  else process.env.OWNPACE_JOB_RUNNER = saved.runner;
-  if (saved.key === undefined) delete process.env.TRIGGER_SECRET_KEY;
-  else process.env.TRIGGER_SECRET_KEY = saved.key;
-});
+/**
+ * Run `body` (an ES module's text, which may `await`) in a child Node process
+ * whose every resolved module URL is recorded; returns those URLs and what the
+ * body put in `said`.
+ */
+function loadInAChild(body: string, env: Record<string, string>): { urls: string[]; said: string } {
+  const program = `
+    import { registerHooks } from 'node:module';
+    const seen = new Set();
+    registerHooks({ resolve(specifier, context, next) { const r = next(specifier, context); seen.add(r.url); return r; } });
+    const at = (rel) => new URL(rel, ${JSON.stringify(pathToFileURL(`${REPO}/`).href)}).href;
+    let said = '';
+    ${body}
+    // To a file: a pipe may still be draining when the process exits.
+    (await import('node:fs')).writeFileSync(process.env.LOADED_TO, JSON.stringify({ urls: [...seen], said }));
+    process.exit(0);
+  `;
+  const keep = ['PATH', 'HOME', 'TMPDIR'].flatMap((k) => (process.env[k] ? [[k, process.env[k]!] as const] : []));
+  const out = join(mkdtempSync(join(tmpdir(), 'api-loads-')), 'loaded.json');
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', program], {
+    cwd: REPO,
+    env: { ...Object.fromEntries(keep), NODE_ENV: 'test', ...env, LOADED_TO: out },
+    encoding: 'utf8',
+    timeout: 120_000,
+  });
+  expect(child.status, `the child said:\n${child.stderr}`).toBe(0);
+  try {
+    return JSON.parse(readFileSync(out, 'utf8')) as { urls: string[]; said: string };
+  } finally {
+    rmSync(dirname(out), { recursive: true, force: true });
+  }
+}
 
-describe('1. loaded: the app in trigger mode', () => {
-  it('imports every router and the operator’s script, and neither pg-boss module is loaded', async () => {
-    const { app } = await import('./index.ts');
-    expect(typeof app).toBe('function');
-    await import('./scripts/operator.ts');
-    expect(loaded).toEqual([]);
+describe('1. loaded: the API as its image runs it, in trigger mode', () => {
+  it('index.ts (every router) and the operator’s script resolve no pg-boss module, and readiness is off', () => {
+    const { urls, said } = loadInAChild(
+      `
+      await import(at('apps/api/src/index.ts'));
+      await import(at('apps/api/src/scripts/operator.ts'));
+      const { schedulerReadiness } = await import(at('apps/api/src/routes/ready.ts'));
+      const { jobRunner } = await import(at('apps/api/src/job-runner.ts'));
+      said = jobRunner() + ' ' + JSON.stringify(await schedulerReadiness());
+      `,
+      {},
+    );
+    expect(said).toBe('trigger {"scheduler":"off"}');
+    // It loaded the API, through the packages, and the SDK it does use.
+    expect(urls.length).toBeGreaterThan(500);
+    expect(urls.some((u) => u.endsWith('/apps/api/src/routes/migrations/index.ts'))).toBe(true);
+    expect(urls.some((u) => /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@trigger\.dev\/sdk\//.test(u))).toBe(true);
+    expect(urls.filter((u) => PG_BOSS_PACKAGE.test(u) || RUNNER_MODULE.test(u))).toEqual([]);
   });
 
-  it('a close’s cancel goes to Trigger.dev, and the readiness reads no runner, still loading neither', async () => {
-    const { cancelRun, jobRunner } = await import('./job-runner.ts');
-    const { schedulerReadiness } = await import('./routes/ready.ts');
-    expect(jobRunner()).toBe('trigger');
-    await cancelRun('run_cmabc123def456');
-    expect(sdk.cancel).toHaveBeenCalledWith('run_cmabc123def456');
-    expect(await schedulerReadiness()).toEqual({ scheduler: 'off' });
-    expect(loaded).toEqual([]);
-  });
-
-  it('the mocks above do hear a load: the pg-boss branch loads its module', async () => {
-    // Without this, a mock that never fires would pass the two tests above.
-    process.env.OWNPACE_JOB_RUNNER = 'pg-boss';
-    process.env.JOBS_DATABASE_URL = 'postgres://nobody@pgbouncer:6432/none';
-    try {
-      const { pgBossProducer } = await import('./job-runner.ts');
-      // The mocked module has no producer, so the make fails, after the load.
-      await expect(pgBossProducer()).rejects.toThrow();
-      expect(loaded).toEqual(['@openmig/scheduler/pg-boss']);
-    } finally {
-      delete process.env.OWNPACE_JOB_RUNNER;
-      delete process.env.JOBS_DATABASE_URL;
-      loaded.length = 0;
-    }
+  it('the control: on pg-boss, asking for the producer resolves both, so the hook would have seen them', () => {
+    const { urls, said } = loadInAChild(
+      `
+      const { pgBossProducer } = await import(at('apps/api/src/job-runner.ts'));
+      // Nothing listens on port 1: the start fails, after the modules are loaded.
+      said = await pgBossProducer().then(() => 'started', (e) => e.code ?? e.message);
+      `,
+      { OWNPACE_JOB_RUNNER: 'pg-boss', JOBS_DATABASE_URL: 'postgres://nobody@127.0.0.1:1/none' },
+    );
+    expect(said).not.toBe('started');
+    expect(urls.some((u) => PG_BOSS_PACKAGE.test(u))).toBe(true);
+    expect(urls.some((u) => RUNNER_MODULE.test(u))).toBe(true);
   });
 });
 

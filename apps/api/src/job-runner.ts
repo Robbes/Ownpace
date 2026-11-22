@@ -75,17 +75,25 @@ let stopOnSignal: ((signal: NodeJS.Signals) => void) | null = null;
  * (`a-hold-that-holds-every-door`).
  */
 export function pgBossProducer(env: NodeJS.ProcessEnv = process.env): Promise<PgBossProducer> {
-  producer ??= makeProducer(env).catch((err: unknown) => {
-    producer = null;
+  if (producer) return producer;
+  // A start that fails forgets only itself: by the time it fails, a close and
+  // a newer press may have made another, which is the one to keep (and close).
+  const making: Promise<PgBossProducer> = makeProducer(env).catch((err: unknown) => {
+    if (producer === making) producer = null;
     throw err;
   });
-  return producer;
+  producer = making;
+  return making;
 }
+
+/** What a pg-boss enqueue or cancel says when the runner has no URL to reach. */
+export const NO_JOBS_URL =
+  'OWNPACE_JOB_RUNNER is "pg-boss" and JOBS_DATABASE_URL is not set, so no job can be enqueued or cancelled.';
 
 async function makeProducer(env: NodeJS.ProcessEnv): Promise<PgBossProducer> {
   const connectionString = env.JOBS_DATABASE_URL?.trim();
   if (!connectionString) {
-    throw new Error('OWNPACE_JOB_RUNNER is "pg-boss" and JOBS_DATABASE_URL is not set, so nothing was enqueued.');
+    throw new Error(NO_JOBS_URL);
   }
   const { PgBossProducer, JOB_CATALOG } = await import('@openmig/scheduler/pg-boss');
   const made = new PgBossProducer({ connectionString, schema: JOBS_SCHEMA, maxConnections: 2 }, JOB_CATALOG);

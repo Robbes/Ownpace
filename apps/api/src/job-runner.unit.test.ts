@@ -59,8 +59,29 @@ vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) => {
   return { JOB_CATALOG: actual.JOB_CATALOG, PgBossProducer };
 });
 
-const { jobRunner, cancelRun, closeJobRunner, pgBossProducer, isPgBossRef, JOBS_SCHEMA } = await import('./job-runner.ts');
-const { enqueueOnPgBoss, pgBossOptionsFor, durationSeconds } = await import('./enqueue-unless-held.ts');
+// The doors' own questions answer "nothing stops it", so the enqueue the doors
+// are handed is what the tests below call: the pg-boss branch has no other way in.
+vi.mock('@openmig/managed', () => ({
+  readOrganisationClosure: async () => null,
+  readOpenPause: async () => null,
+}));
+vi.mock('./middleware/auth.ts', () => ({
+  withTenantDb: async (_tenantId: string, _source: unknown, fn: (db: unknown) => unknown) => fn({}),
+}));
+
+const { jobRunner, cancelRun, closeJobRunner, pgBossProducer, isPgBossRef, JOBS_SCHEMA, NO_JOBS_URL } = await import(
+  './job-runner.ts'
+);
+const { enqueueIfFree, pgBossOptionsFor, durationSeconds, isUnreachable, QUEUE_UNREACHABLE } = await import(
+  './enqueue-unless-held.ts'
+);
+
+/** The enqueue a door is handed when nothing holds it. */
+async function enqueueOnPgBoss(...args: Parameters<import('./enqueue-unless-held.ts').Enqueue>) {
+  const free = await enqueueIfFree('t-1', {} as never);
+  if (!('enqueue' in free)) throw new Error(`stopped: ${free.stopped}`);
+  return free.enqueue(...args);
+}
 
 const UUID = '6f1c2a9e-3b4d-4e5f-8a6b-7c8d9e0f1a2b';
 const JOBS_URL = 'postgres://ownpace_jobs:not-a-real-password@pgbouncer:6432/ownpace';
@@ -181,8 +202,9 @@ describe('the enqueue on pg-boss', () => {
 
   it('without JOBS_DATABASE_URL: refused in one sentence that names no URL, and no producer made', async () => {
     delete process.env.JOBS_DATABASE_URL;
-    await expect(enqueueOnPgBoss('run-delta-sync', {})).rejects.toThrow(
-      'OWNPACE_JOB_RUNNER is "pg-boss" and JOBS_DATABASE_URL is not set, so nothing was enqueued.',
+    await expect(enqueueOnPgBoss('run-delta-sync', {})).rejects.toThrow(NO_JOBS_URL);
+    expect(NO_JOBS_URL).toBe(
+      'OWNPACE_JOB_RUNNER is "pg-boss" and JOBS_DATABASE_URL is not set, so no job can be enqueued or cancelled.',
     );
     expect(boss.made).toHaveLength(0);
   });
@@ -196,6 +218,57 @@ describe('the enqueue on pg-boss', () => {
     expect(boss.made).toHaveLength(2);
     expect(boss.start).toHaveBeenCalledTimes(2);
     expect(warned).not.toHaveBeenCalled();
+  });
+
+  it('a start that fails late forgets only itself, never a newer producer', async () => {
+    const warned = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    let failFirst!: (err: Error) => void;
+    boss.start.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => (failFirst = reject)));
+    const first = pgBossProducer();
+    // A close, and a press after it, while the first start is still out.
+    void closeJobRunner();
+    const second = await pgBossProducer();
+    failFirst(new Error('connect ECONNREFUSED 10.0.0.9:6432'));
+    await expect(first).rejects.toThrow(/ECONNREFUSED/);
+    // The newer producer is still the process's: no third is made, and the close stops it.
+    expect(await pgBossProducer()).toBe(second);
+    expect(boss.made).toHaveLength(2);
+    boss.stop.mockClear();
+    await closeJobRunner();
+    expect(boss.stop).toHaveBeenCalledTimes(1);
+    void warned;
+  });
+
+  it.each([
+    ['refused', Object.assign(new Error('connect ECONNREFUSED 10.0.0.9:6432'), { code: 'ECONNREFUSED' })],
+    ['a name that did not resolve', Object.assign(new Error('getaddrinfo ENOTFOUND pgbouncer.internal'), { code: 'ENOTFOUND' })],
+    ['every address of a name', new AggregateError([Object.assign(new Error('connect ECONNREFUSED [fd00::9]:6432'), { code: 'ECONNREFUSED' })], '')],
+    ['dropped', new Error('Connection terminated unexpectedly')],
+    ['a login refused', Object.assign(new Error('password authentication failed for user "ownpace_jobs"'), { code: '28P01' })],
+  ])('a connection that failed (%s): one sentence with no address, the original in the log only', async (_what, err) => {
+    const logged = vi.spyOn(log, 'error').mockImplementation(() => {});
+    boss.start.mockRejectedValueOnce(err);
+    const thrown = await enqueueOnPgBoss('run-delta-sync', {}, { concurrencyKey: 'm' }).catch((e: unknown) => e);
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe(QUEUE_UNREACHABLE);
+    expect((thrown as Error).message).not.toMatch(/10\.0\.0\.9|fd00|pgbouncer|6432|ownpace_jobs/);
+    // Kept for the server's log, never in the message the doors echo.
+    expect((thrown as Error).cause).toBe(err);
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0]?.[1]).toBe(err);
+  });
+
+  it('the same once the producer is up: a connection lost on the enqueue itself', async () => {
+    vi.spyOn(log, 'error').mockImplementation(() => {});
+    boss.enqueue.mockRejectedValueOnce(Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }));
+    await expect(enqueueOnPgBoss('run-delta-sync', {})).rejects.toThrow(QUEUE_UNREACHABLE);
+  });
+
+  it('an error that is not the connection is said as it was', () => {
+    expect(isUnreachable(new Error('The queue "run-delta-sync" does not exist in the jobs schema "pgboss".'))).toBe(false);
+    expect(isUnreachable(Object.assign(new Error('duplicate key'), { code: '23505' }))).toBe(false);
+    expect(isUnreachable(new Error('pg-boss refused a run on "run-x" and gave no id.'))).toBe(false);
+    expect(isUnreachable(new Error('outer', { cause: Object.assign(new Error('x'), { code: 'ETIMEDOUT' }) }))).toBe(true);
   });
 
   it('closes the producer it made, once, and never logs the URL', async () => {

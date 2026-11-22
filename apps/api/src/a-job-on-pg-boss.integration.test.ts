@@ -18,7 +18,8 @@
  *   its singleton key, and the tags.
  * - **A queue the worker never made** fails *Start*'s first pass, which lands
  *   on the answer as `queued: false` with the producer's sentence, as a failed
- *   enqueue does today.
+ *   enqueue does today. **A jobs database it cannot reach** lands the same
+ *   way, in one sentence that names no host or port.
  * - **The close** cancels the queued pass by its `orchestrator_ref`, through
  *   the same `cancelRun` the close routes hand it.
  * - **Readiness** on pg-boss reads the shared beat, `managed-sync-tick`, and
@@ -48,6 +49,7 @@ const CONN = '0167a6d0-e29b-41d4-a716-446655440011';
 const BOX = '0167a6d0-e29b-41d4-a716-446655440021';
 const ACTIVE = '0167a6d0-e29b-41d4-a716-446655440031';
 const DRAFT = '0167a6d0-e29b-41d4-a716-446655440032';
+const DRAFT_TOO = '0167a6d0-e29b-41d4-a716-446655440033';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const SUFFIX = randomBytes(4).toString('hex');
@@ -91,7 +93,7 @@ vi.mock('@openmig/scheduler', async (importOriginal) => ({
 
 const { default: migrationRoutes } = await import('./routes/migrations/index.ts');
 const { cancelRun, closeJobRunner } = await import('./job-runner.ts');
-const { enqueueOnPgBoss } = await import('./enqueue-unless-held.ts');
+const { enqueueIfFree, QUEUE_UNREACHABLE } = await import('./enqueue-unless-held.ts');
 const { discoveryTriggerOptions } = await import('./routes/migrations/job-resolution.ts');
 const { closeAccount } = await import('./close-account.ts');
 const { schedulerReadiness, __setPoolForTests } = await import('./routes/ready.ts');
@@ -180,8 +182,8 @@ beforeAll(async () => {
   );
   await sql(
     `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status)
-     VALUES ($1,$3,$4,'active'), ($2,$3,$4,'paused')`,
-    [ACTIVE, DRAFT, TENANT, BOX],
+     VALUES ($1,$3,$4,'active'), ($2,$3,$4,'paused'), ($5,$3,$4,'paused')`,
+    [ACTIVE, DRAFT, TENANT, BOX, DRAFT_TOO],
   );
 
   process.env.OWNPACE_JOB_RUNNER = 'pg-boss';
@@ -216,11 +218,14 @@ describe('discovery, joined as on Trigger.dev', () => {
     expect(first.body.runId).toMatch(UUID);
     expect(second.body.runId).toBe(first.body.runId);
 
-    // The door reads only the id; the join itself, asked with the door's own options.
+    // The door reads only the id; the join itself, asked of the enqueue a door
+    // is handed, with the door's own options.
     const { rows } = await jobsDb.query<{ n: string }>(`SELECT count(*) AS n FROM pgboss.job WHERE name = 'run-discovery'`);
     expect(Number(rows[0]!.n)).toBe(1);
     const updatedAt = await mappingUpdatedAt();
-    const again = await enqueueOnPgBoss(
+    const free = await enqueueIfFree(TENANT, driver);
+    if (!('enqueue' in free)) throw new Error(`stopped: ${free.stopped}`);
+    const again = await free.enqueue(
       'run-discovery',
       { tenantId: TENANT, mappingId: ACTIVE },
       discoveryTriggerOptions(TENANT, ACTIVE, { updatedAt }),
@@ -307,6 +312,25 @@ describe('Sync now, a queue never made, and the close', () => {
           'The queue "run-delta-sync" does not exist in the jobs schema "pgboss". The worker creates every queue ' +
           'when it starts, so it has not started on this schema yet; nothing was enqueued.',
       });
+    } finally {
+      await closeJobRunner();
+      process.env.JOBS_DATABASE_URL = JOBS_URL;
+    }
+  });
+
+  it('a jobs database it cannot reach: Start says so in one sentence, and names no address', async () => {
+    await closeJobRunner();
+    // The same server's host, on a port nothing listens on.
+    const nowhere = new URL(JOBS_URL);
+    nowhere.port = '1';
+    process.env.JOBS_DATABASE_URL = nowhere.toString();
+    try {
+      const res = await request(app).post(`/api/migrations/${DRAFT_TOO}/start`).send({});
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(res.body.firstRun).toEqual({ queued: false, reason: QUEUE_UNREACHABLE });
+      const said = JSON.stringify(res.body);
+      expect(said).not.toContain(nowhere.hostname);
+      expect(said).not.toMatch(/ECONNREFUSED|:1\b/);
     } finally {
       await closeJobRunner();
       process.env.JOBS_DATABASE_URL = JOBS_URL;
