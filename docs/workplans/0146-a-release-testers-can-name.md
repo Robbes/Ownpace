@@ -4,6 +4,38 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still: alpha.15's counted nights are waived, in the owner's words, before its
+fold.** The owner, on 2026-11-22: *"I waive the waitings for a next alpha."* So `v0.2.0-alpha.15`
+joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs`, beside alpha.3 to alpha.14, with those
+words, which Release's `waive_nights` must carry. The two guards that read the list name it, with
+`v0.2.0-alpha.16` now the version a waiver is refused for, and `docs/release.md` lists it. It lands
+before alpha.15's fold, so C carries the list: Release reads `WAIVER_VERSIONS` from `main`'s own
+scripts. The words also cover alpha.15's other waits: a release taken inside its three-day floor for
+alpha.15 says so in its own pull request, and is taken only where an item needs it.
+
+**2026-11-22, later: live runs `v0.2.0-alpha.14`, one-way, on a copy of alpha.12's databases and the
+task runner's (T2).** The owner deployed it from the tag on 2026-11-22: one run of alpha.12's
+`deploy-live.sh`, from about 09:16 UTC, which took at 09:20:23, one-way over alpha.12 by ledger
+migration 0070, managed migration 0062 and the Trigger.dev pin's move to v4.8.8, as the fold's entry
+below expected; alpha.13 never ran on live, and came with it. The owner began at about 08:33, in
+their words *"Let's do it now"*, ahead of the sheet's window that afternoon, with the self-hosted
+runner stopped, so that no E2E run could start on the shared Docker daemon meanwhile. On the owner's
+word, the copy before alpha.12, of alpha.11's databases and not proven, was deleted by hand first,
+so the take made the copy before alpha.14, of alpha.12's databases and the task runner's, at
+09:16:21: the way back from alpha.14. `TRIGGER_IMAGE_TAG=v4.8.8` was set in live's `.env` before the
+run. After it the api and the web run their builds from the tag, the new api applied 0070 and 0062
+at 09:19, Trigger.dev's webapp and supervisor run v4.8.8, the webapp having applied 17 Prisma
+migrations to the task runner's database as it started, with ClickHouse's goose record still 56,
+both databases, Redis, the socket proxy and the TLS front run their new builds, the proxy as uid 99
+in the socket's group, and the tasks deployed as `20261122.1` on 4.8.8; ClickHouse, MinIO, the
+registry, Zitadel and Gatus kept their containers. Every check after it passed, and the hold, on
+from 09:00:52, came off at 09:51:03; 0132's Status of 2026-11-22 has the blocks. E2E (self-hosted)'s
+scheduled run 45003936616, on PGlite, created at 08:40:53 while the runner was stopped, ran `main`
+at `20eccaa0` once it was back, green from 09:46:21 to 09:51:29. Still the owner's: the first
+invitation's date (0131 T5), the migration on live that proves alpha.14, which cannot run while the
+only organisation on live is closed, so the copy is kept to its day 6, until 2026-11-28 at 08:16:21
+(0132 T9; 0139 T7 (b)), and Google's consent on live (0140 T11).
+
 **2026-11-22, morning: `v0.2.0-alpha.14` is released, its nights waived (T2, T4).** Read from
 GitHub on 2026-11-22. Times are UTC.
 

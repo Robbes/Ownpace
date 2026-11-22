@@ -2,7 +2,17 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-11-20 (update this block at the end of every session)
+## Status — 2026-11-22 (update this block at the end of every session)
+
+**2026-11-22: a closed organisation takes nobody in, on live since alpha.14's deploy (T7 (b)).**
+#1972, the change of the entry below, merged on 2026-11-21 (`4ecf0e41`), and live runs it since its
+deploy of `v0.2.0-alpha.14` on 2026-11-22 at 09:20:23 UTC (0132's Status, 2026-11-22). The
+organisation that entry found is the only one on live: closed from the support page on 2026-11-18,
+it is the one the owner's first sign-in on 2026-11-20 bound them to as its active owner, before the
+change. The change binds no new membership to a closed organisation; the owner's, made before it,
+stays, as the entry below says of anybody already bound. The organisation stays closed, every start
+there refused (`account_closed`), and is erased on its purge date. So a pass on live answers
+`account_closed`, and none can prove alpha.14 there (0132's Status, 2026-11-22, T9).
 
 **2026-11-20: a closed organisation takes nobody in (T7 (b)).** Found on live that day. An
 organisation a granted request had made, which nobody had signed in to, was closed from the support
