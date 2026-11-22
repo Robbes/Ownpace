@@ -183,8 +183,8 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0024: `apply` — an explicit, gated exception to non-destructiveness](./0024-explicit-owner-deletion-apply.md)
 
-- `apply` is the **only destructive code path**: per item, each item decided by itself,
-  owner-called, never automatic. Relocations remove through `applyRelocation` beside it
+- `apply` is the **only destructive code path**: each item decided by itself, owner-called,
+  never automatic. Relocations remove through `applyRelocation` beside it
   (ADR-0030/0031): the same gates, gate 3
   taking a recorded relocation as evidence and gate 6 counting relocations too.
   `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
@@ -201,12 +201,16 @@ live in [README.md](./README.md), the register.
 - **After cutover nothing is applied, by hand either** (2026-10-05): the four removing functions
   ask the item's data type's phase afresh (`stillTheAuthority`, required) and refuse
   `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
-  it (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
-- **One owner action may apply many** (2026-11-21, workplan 0164 T0 (b)): *Delete all of these
-  here too*, after one confirmation over a frozen set, presses each row's own apply through the
-  same call and all seven gates, the next only after an answer. A breaker refusal,
-  `not_enabled` or a press that did not answer stops the whole run. Guard:
-  `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
+  what nobody answered (ADR-0047); a kept entry stays kept. Guard:
+  `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
+- **One press may apply many** (2026-11-21): one confirmation over a frozen set, then each row's
+  own apply, each answered before the next; the breaker, `not_enabled` or an unanswered press
+  stops the run. Guard: `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
+- **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
+  `already_kept` after `already_applied` and the phase, as a kept move is refused, before
+  anything is sent to the target. A keep that lands while a removal is already under way cannot
+  stop it; the removal is recorded as what it was. Guard:
+  `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.

@@ -1364,7 +1364,9 @@ export class MemoryLedger implements Ledger {
         ...r,
         status: 'tombstoned',
         deletionAppliedAt: new Date().toISOString(),
-        deletionAcknowledgedAt: new Date().toISOString(),
+        // A keep that landed while the removal was under way keeps its time,
+        // as the SQL's COALESCE keeps it; the row says, truly, removed.
+        deletionAcknowledgedAt: r.deletionAcknowledgedAt ?? new Date().toISOString(),
       });
       return Promise.resolve(true);
     }

@@ -37,7 +37,8 @@ after the other, so a mark never lands on a closed organisation. *Pay* opens Mol
 app follows a checkout, consent or grant address only to its provider's own host, a migration whose
 grant was withdrawn reads nothing, and a migration waits at most five seconds for a table lock. An
 event deleted in a Google calendar now reaches *Deleted on the old system*: the CalDAV source reads
-Google's `sync-collection` answer, which an operator can also measure, read only. Underneath,
+Google's `sync-collection` answer, which an operator can also measure, read only, and a deletion the
+owner chose to keep is never removed on the new system, by a press or a queued job. Underneath,
 Trigger.dev moves to v4.8.8, its webapp's image runs effect 3.22.4 and, like Redis's, carries no
 PAM, both Postgres builds take Alpine's fixed libxml2, and pnpm moves to 11.28.13. In CI, a pull
 request that adds a secret fails, squawk reports the locks each migration takes, the two secrets
@@ -250,6 +251,16 @@ so does the Trigger.dev pin.
   server lists without its data is read rather than passed over. The sync loop holds a calendar's
   token for its deletions only while one of them could become a deletion, and does not report a
   removal at the old address of an item whose move it recorded.
+- **A deletion the owner chose to keep is never removed on the new system** (ADR-0024, amended
+  2026-11-22). On *Deleted on the old system*, *Keep our copy* and *Delete it here too* are the
+  two answers to one question, and nothing on the deletion path read the first: a press on a row
+  somebody had kept (from a page read before the keep, another tab, or the API) removed the copy,
+  and the row then said *deleted on the new system too*. On managed, a removal still waiting for
+  its job was carried out even if the copy was kept meanwhile. Both editions now refuse such a
+  press with `already_kept`, on the request and again at the removal, before anything is sent to
+  the new system, as they already did for a move. A keep that lands while a removal is already
+  under way cannot stop it, and the removal is recorded as what it was. The refusal after cutover
+  no longer says a rollback re-opens a kept entry: a kept one stays kept.
 - **A migration whose grant was withdrawn reads nothing, whatever connection its mailbox names**
   (workplan 0162, #2011's review). A migration whose source mailbox, or that mailbox's connection,
   is another organisation's, which only a row written by hand reaches, fell back to the

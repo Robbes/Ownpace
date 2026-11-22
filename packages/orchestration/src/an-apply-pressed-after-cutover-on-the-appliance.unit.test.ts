@@ -16,9 +16,10 @@
  *
  * Against a real ledger (PGlite, every migration), with the migration's own
  * row moved between the presses the way execute and a rollback move it. Each
- * item is one a later gate refuses too (adopted bytes; a move already kept),
- * so the press never reaches a target, and which refusal answers says where
- * the phase is asked: before cutover the later gate's, after it this one's.
+ * item is one a later gate refuses too (adopted bytes; a deletion and a move
+ * already kept), so the press never reaches a target, and which refusal
+ * answers says where the phase is asked: before cutover the later gate's,
+ * after it this one's.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -41,6 +42,7 @@ const MAPPING = '11111111-1111-4111-8111-111111111005';
 const PASSWORD_ENV = 'A_PASSWORD_FOR_THE_APPLY_AFTER_CUTOVER_TEST';
 
 const EVENT = 'e'.repeat(64);
+const KEPT_EVENT = 'b'.repeat(64);
 const OLD_FILE = 'f'.repeat(64);
 const NEW_FILE = '0'.repeat(64);
 
@@ -112,6 +114,14 @@ beforeAll(async () => {
        VALUES ('${TENANT}', '${MAPPING}', 'calendar', 'Personal', 'ev', '${EVENT}', 'adopted', 'h-ev',
                jsonb_build_object('id', 't-ev'), now())`,
     );
+    // An event deleted at the old system, whose deletion the owner already
+    // answered with keep: refused too (`already_kept`, 2026-11-22).
+    await tdb.execute(
+      `INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash, status,
+                         content_hash, target_ref, deletion_reported_at, deletion_acknowledged_at)
+       VALUES ('${TENANT}', '${MAPPING}', 'calendar', 'Personal', 'kept-ev', '${KEPT_EVENT}', 'copied', 'h-kept',
+               jsonb_build_object('id', 't-kept'), now(), now())`,
+    );
     // A file renamed at the old system, whose move the owner already answered
     // with keep: the relocation gate refuses it too (`already_kept`).
     await tdb.execute(
@@ -137,6 +147,7 @@ describe("the appliance's apply, after cutover", () => {
   it('before cutover, the press reaches the gates after the phase', async () => {
     await setStatus('active');
     expect(refusalOf(await applyMappingDeletion(config(), EVENT, { ledgerDb }, phasesNow))).toBe('not_ours');
+    expect(refusalOf(await applyMappingDeletion(config(), KEPT_EVENT, { ledgerDb }, phasesNow))).toBe('already_kept');
     expect(refusalOf(await applyMappingRelocation(config(), OLD_FILE, { ledgerDb }, phasesNow))).toBe('already_kept');
   });
 
@@ -144,6 +155,9 @@ describe("the appliance's apply, after cutover", () => {
     it(`in '${status}', the same presses are refused as after_cutover, with the phase read at the press`, async () => {
       await setStatus(status);
       expect(refusalOf(await applyMappingDeletion(config(), EVENT, { ledgerDb }, phasesNow))).toBe('after_cutover');
+      expect(refusalOf(await applyMappingDeletion(config(), KEPT_EVENT, { ledgerDb }, phasesNow))).toBe(
+        'after_cutover',
+      );
       expect(refusalOf(await applyMappingRelocation(config(), OLD_FILE, { ledgerDb }, phasesNow))).toBe(
         'after_cutover',
       );
@@ -156,6 +170,7 @@ describe("the appliance's apply, after cutover", () => {
     // ADR-0047: a rollback puts the migration back to `active`.
     await setStatus('active');
     expect(refusalOf(await applyMappingDeletion(config(), EVENT, { ledgerDb }, phasesNow))).toBe('not_ours');
+    expect(refusalOf(await applyMappingDeletion(config(), KEPT_EVENT, { ledgerDb }, phasesNow))).toBe('already_kept');
     expect(refusalOf(await applyMappingRelocation(config(), OLD_FILE, { ledgerDb }, phasesNow))).toBe('already_kept');
   });
 });

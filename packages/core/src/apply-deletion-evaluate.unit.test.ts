@@ -140,6 +140,17 @@ const CASES: Array<{
       l.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString(), status: 'pending' })),
     expectCode: 'not_ours',
   },
+  {
+    // `keep` and `apply` answer one question (2026-11-22): the route must not
+    // queue a removal of a row somebody kept, and the job must refuse it too.
+    name: 'the owner already answered this deletion with `keep`',
+    allow: true,
+    seed: async (l) => {
+      await l.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString() }));
+      expect(await l.resolveDeletion(TENANT, MAPPING, 'nk-1', 'keep')).toBe(true);
+    },
+    expectCode: 'already_kept',
+  },
 ];
 
 describe('evaluate and apply agree on every ledger-side refusal', () => {
