@@ -26,18 +26,28 @@
  * which every task's error goes through, and the words go to the container's
  * output under the reference the error carries. The class still decides the
  * retry; `a-run-that-kept-a-testers-words` holds the words.
+ *
+ * **Since workplan 0167 T6 the decision has a name of its own,**
+ * `failsOnceByName`, for a runner that hears of a run's error only as the name
+ * and the message its process sent: the pg-boss worker settles a run that ends
+ * in one by name as not retried, as Trigger.dev does by class.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { PassAbortError } from '@openmig/core';
-import { planeErrorFor } from './what-a-run-leaves.ts';
+import { FAILS_ONCE_NAMES, failsOnceByName, planeErrorFor } from './what-a-run-leaves.ts';
 
 const where = { task: 'run-delta-sync' };
 
 // The words go to the container's output; this file does not read them.
 afterEach(() => vi.restoreAllMocks());
 const quiet = () => vi.spyOn(console, 'error').mockImplementation(() => {});
+/** A verdict is said as a warning: quiet that too. */
+const quieter = () => {
+  quiet();
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+};
 
 describe('a pass that stopped on purpose', () => {
   it('fails the task once instead of retrying it', async () => {
@@ -96,5 +106,40 @@ describe('everything else still gets another go', () => {
     quiet();
     const once = await planeErrorFor(new PassAbortError('25 items failed in a row'), where);
     expect(await planeErrorFor(once, where)).toBe(once);
+  });
+});
+
+describe('the decision, by name, for a runner that hears only the name (workplan 0167 T6)', () => {
+  it('names the two errors that fail their run once: Trigger.dev’s and the pg-boss runner’s', () => {
+    expect([...FAILS_ONCE_NAMES]).toEqual(['AbortTaskRunError', 'RunNotRetried']);
+    expect(failsOnceByName('AbortTaskRunError')).toBe(true);
+    expect(failsOnceByName('RunNotRetried')).toBe(true);
+    // By the whole name: neither a look-alike nor a plain error.
+    for (const name of ['Error', 'TypeError', 'PassAbortError', 'abortTaskRunError', 'AbortTaskRunError ', 'ChildRunDied']) {
+      expect(failsOnceByName(name), name).toBe(false);
+    }
+  });
+
+  it('reads each error the plane is handed as the plane does: a deliberate stop once, everything else again', async () => {
+    quieter();
+    const stopped = await planeErrorFor(new PassAbortError('25 items failed in a row'), where);
+    const verdict = await planeErrorFor(new AbortTaskRunError('Cutover refused'), { task: 'run-cutover' });
+    const ordinary = await planeErrorFor(new Error('Connection terminated unexpectedly'), where);
+    for (const error of [stopped, verdict]) {
+      expect(error).toBeInstanceOf(AbortTaskRunError);
+      expect(failsOnceByName(error.name)).toBe(true);
+    }
+    expect(ordinary).not.toBeInstanceOf(AbortTaskRunError);
+    expect(failsOnceByName(ordinary.name)).toBe(false);
+  });
+
+  it('keeps a task’s own RunNotRetried a verdict, as its own AbortTaskRunError is: not retried', async () => {
+    // Thrown by a job in place of AbortTaskRunError once Trigger.dev is gone
+    // (ADR-0054, T9): the plane's error still fails the run once.
+    quieter();
+    const own = Object.assign(new Error('Rollback refused'), { name: 'RunNotRetried' });
+    const mapped = await planeErrorFor(own, { task: 'run-rollback' });
+    expect(failsOnceByName(mapped.name)).toBe(true);
+    expect(mapped.message).toMatch(/^run-rollback ended, and is not retried \([a-z_]+\)\. Reference [0-9a-f]{8}\.$/);
   });
 });

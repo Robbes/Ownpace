@@ -20,7 +20,14 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { pgliteDriver, runMigrations, withSubject } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from './migrate-managed.ts';
-import { readTickBeat, recordTickBeat, SYNC_TICK_BEAT, TICK_LATE_AFTER_MS } from './tick-beat.ts';
+import {
+  ANOTHER_RUNNER_BEAT_MS,
+  readTickBeat,
+  recordTickBeat,
+  SYNC_TICK_BEAT,
+  SYNC_TICK_BEAT_ON,
+  TICK_LATE_AFTER_MS,
+} from './tick-beat.ts';
 
 const NOW = new Date('2026-09-27T12:00:00.000Z');
 const after = (ms: number) => new Date(NOW.getTime() + ms);
@@ -104,6 +111,16 @@ describe('reading it', () => {
 
   it('is down with no beat at all', async () => {
     expect(await read(NOW)).toBe('down');
+  });
+
+  it('is read in a window of its own when asked, as the sync tick reads the other runner’s (0167 T6)', async () => {
+    const other = SYNC_TICK_BEAT_ON['pg-boss'];
+    await beat(NOW, other);
+    const within = (at: Date) => withSubject(driver, 'anyone', (db) => readTickBeat(db, at, other, ANOTHER_RUNNER_BEAT_MS));
+    expect(await within(after(ANOTHER_RUNNER_BEAT_MS - 1_000))).toBe('up');
+    expect(await within(after(ANOTHER_RUNNER_BEAT_MS + 1_000))).toBe('down');
+    // Unasked, the window is still five minutes.
+    expect(await withSubject(driver, 'anyone', (db) => readTickBeat(db, after(ANOTHER_RUNNER_BEAT_MS + 1_000), other))).toBe('up');
   });
 });
 

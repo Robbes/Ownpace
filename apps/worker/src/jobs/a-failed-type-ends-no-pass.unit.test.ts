@@ -19,9 +19,10 @@
  *
  * Driven, not read. The other tests of this pass read `run-delta-sync.ts` as
  * text, because its body needs a database, a runner and five connectors. Here
- * the task's own `run` runs, over a real ledger (PGlite, the ledger's migrations), with
- * only what it cannot have stood in: Trigger.dev's `schemaTask` hands its
- * definition back, as in `a-system-role-that-is-not-the-owner`; the task's pool
+ * the task's own run runs, over a real ledger (PGlite, the ledger's migrations), with
+ * only what it cannot have stood in: the run is the one the task file exports
+ * for either runner (`runDeltaSyncRun`, workplan 0167 T6), called with a
+ * context of its own, so Trigger.dev's SDK is the real one; the task's pool
  * is the PGlite driver; the five passes and their builders are scripted; and the
  * first-copy email, which reads managed tables, is counted instead of sent.
  * Everything between them is the pass's own: the order, the shares of time, the
@@ -39,6 +40,7 @@ import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { PassAbortError, withFailureSide } from '@openmig/core';
 import { createPgliteDb, runMigrations, type LedgerDriver } from '@openmig/ledger';
 import { setAppEventSink, type AppEvent } from '@openmig/shared';
+import type { JobRunnerPort, RunContext } from './run-context.ts';
 
 /** What the stand-ins below see and do, shared with the hoisted mocks. */
 const stand = vi.hoisted(() => {
@@ -70,12 +72,6 @@ const stand = vi.hoisted(() => {
     };
   return { s, pass };
 });
-
-// The task's definition, handed back, so its `run` can be called here.
-vi.mock('@trigger.dev/sdk', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@trigger.dev/sdk')>()),
-  schemaTask: (config: Record<string, unknown>) => config,
-}));
 
 // The task opens its pool at import (`openTaskPools`); here it is the ledger below.
 vi.mock('./task-pools.ts', async (importOriginal) => ({
@@ -137,7 +133,16 @@ const calendarRefused = () => withFailureSide('target', new Error(CALENDAR_WORDS
 const emailTimedOut = () => withFailureSide('source', new Error(EMAIL_WORDS));
 
 let driver: LedgerDriver;
-let runPass: (payload: unknown, context: unknown) => Promise<unknown>;
+let runPass: (payload: unknown, context: RunContext) => Promise<unknown>;
+
+/** A pass asks nothing of the runner it runs on: each question it might ask fails the case. */
+const NOTHING_ASKED: JobRunnerPort = {
+  name: 'trigger',
+  enqueue: () => Promise.reject(new Error('a pass enqueues nothing')),
+  enqueueAndWait: () => Promise.reject(new Error('a pass waits for nothing')),
+  verdict: () => Promise.reject(new Error('a pass asks after no run')),
+  cancel: () => Promise.reject(new Error('a pass cancels no run')),
+};
 const events: AppEvent[] = [];
 
 /** One statement, on a connection taken and given back (PGlite has one). */
@@ -153,7 +158,7 @@ async function query<R = Record<string, unknown>>(text: string, params: unknown[
 /** One pass of the migration, as the tick starts it: what it threw, or null. */
 async function aPass(): Promise<unknown> {
   try {
-    await runPass({ tenantId: TENANT, mappingId: MAPPING }, { ctx: { run: { id: 'run_stand_in' } } });
+    await runPass({ tenantId: TENANT, mappingId: MAPPING }, { runId: 'run_stand_in', runner: NOTHING_ASKED });
     return null;
   } catch (error) {
     return error;
@@ -236,8 +241,7 @@ beforeAll(async () => {
 
   // Imported only now: the task takes its pool when it is imported.
   stand.s.driver = driver;
-  const { runDeltaSync } = await import('./run-delta-sync.ts');
-  runPass = (runDeltaSync as unknown as { run: typeof runPass }).run;
+  ({ runDeltaSyncRun: runPass } = await import('./run-delta-sync.ts'));
 }, 120_000);
 
 afterAll(async () => {
@@ -324,6 +328,14 @@ describe('a pass whose calendar fails', () => {
 
     // The first copy this pass finished is asked about once, on the way out.
     expect(stand.s.firstCopyAsked).toBe(1);
+
+    // The runner's own id for the run, from its context, is the row's handle
+    // (workplan 0167 T6): what the erasure's quiesce asks the runner about.
+    const [ref] = await query<{ orchestrator_ref: string | null }>(
+      'SELECT orchestrator_ref FROM run WHERE mapping_id = $1',
+      [MAPPING],
+    );
+    expect(ref!.orchestrator_ref).toBe('run_stand_in');
   });
 
   it('hands the time calendar did not use to the data types after it', async () => {
@@ -442,7 +454,7 @@ describe('a pass told to stop', () => {
     // Paused before the first data type, with nothing failing at all.
     await query(`UPDATE mailbox_mapping SET status = 'paused' WHERE id = $1`, [MAPPING]);
 
-    const output = await runPass({ tenantId: TENANT, mappingId: MAPPING }, {});
+    const output = await runPass({ tenantId: TENANT, mappingId: MAPPING }, { runner: NOTHING_ASKED });
 
     // Not a failure, so nothing to retry: the pass returns, and says where it stopped.
     expect(output).toMatchObject({
@@ -455,6 +467,12 @@ describe('a pass told to stop', () => {
     expect(called()).toEqual([]);
     const run = await theRun();
     expect(run.status).toBe('succeeded');
+    // A runner that gave no id leaves the row without a handle, never a guessed one.
+    const [ref] = await query<{ orchestrator_ref: string | null }>(
+      'SELECT orchestrator_ref FROM run WHERE mapping_id = $1',
+      [MAPPING],
+    );
+    expect(ref!.orchestrator_ref).toBeNull();
     const stops = run.events.filter((e) => e.message.startsWith('pass stopped before'));
     expect(stops).toHaveLength(1);
     expect(stops[0]!.message).toMatch(/^pass stopped before contact: .* — nothing failed, /);
