@@ -370,9 +370,11 @@ beforeAll(async () => {
   producer = new PgBossProducer({ connectionString: JOBS_URL, schema: JOBS_SCHEMA }, JOB_CATALOG);
 }, 120_000);
 
+// A stop waits for the runs still going, up to the tests' grace of 20 s and 5 s to settle: past
+// vitest's own 10 s for a hook, which the integration project leaves as it is.
 afterEach(async () => {
   for (const worker of workers.splice(0)) await worker.stop();
-});
+}, 60_000);
 
 afterAll(async () => {
   for (const worker of workers.splice(0)) await worker.stop();
@@ -501,7 +503,7 @@ describe("the sync tick's schedule fires on pg-boss and enqueues a pass", () => 
       "INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1, $2, 'email', true) ON CONFLICT DO NOTHING",
       [TENANT, TICK_MAPPING],
     );
-  });
+  }, 60_000);
 
   it('on the minute, as the system role: a pass keyed by the migration, filed under its tags, and both beats at once', async () => {
     await forgetBeats();
@@ -908,7 +910,7 @@ describe("the tick's interlock across runners, its pg-boss half", () => {
   beforeAll(async () => {
     // Imported once its environment is set: it opens its pools as the system role when imported.
     tick = (await import('../jobs/managed-sync-tick.ts')).managedSyncTickRun as TickRun;
-  });
+  }, 60_000);
 
   it("holds under the other runner's own beat: starts nothing, beats as pg-boss alone, the shared beat left", async () => {
     await forgetBeats();
