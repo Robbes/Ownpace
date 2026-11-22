@@ -134,7 +134,7 @@ The coordinator's review found the image and the service right, and five things 
     minio out of the profile (2), the worker back in profile `jobs` (4); `operator.sh` without the
     hand-on (2 of 5); the end of the alpha's `pgboss` lines taken out (3 of 18).
 - **Merged again, later the same day**, with `main` (#2040 merged as `c9654774`, and #2039) and the
-  newest heads the coordinator named: #2048 `d9901b8d`, #2045 `c6bd8fea`, #2044 `4a09ac43`, #2046
+  newest heads the coordinator named: #2048 `2977b72d`, #2045 `c6bd8fea`, #2044 `4a09ac43`, #2046
   `71c8d9d7`, #2049 `916c7915`, #2047 `0d21c510` and #2042 `fcf4f9c9`. #2049's shared fixtures
   (`scripts/job-runner-fixtures.ts`) replace this branch's fix of the deploy test's running release;
   that stage now defaults to trigger with them (290 of 290; 10 fail without it).
