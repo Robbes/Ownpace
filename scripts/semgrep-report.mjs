@@ -2,9 +2,10 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * SEMGREP OVER THE TREE, EIGHT NAMED RULES, REPORT ONLY (workplan 0163 T3;
- * the owner's decision D3 of 2026-11-20: a named list of rules, not whole
- * packs, report only first, the two ReDoS rules never blocking).
+ * SEMGREP OVER THE TREE, EIGHT NAMED RULES, ONE OF THEM BLOCKING (workplan
+ * 0163 T3 and T5; the owner's decision D3 of 2026-11-20: a named list of
+ * rules, not whole packs, report only first, the two ReDoS rules never
+ * blocking; then a rule blocks once it reports nothing on `main`).
  *
  * An outside, read-only check of 2026-11-20 listed five classes of finding in
  * this tree that no check in CI had a rule for. Semgrep's community rules have
@@ -33,18 +34,47 @@
  * their spots outside the tests was read as fed a constant or an escaped
  * value. Their spots are listed under them and counted apart.
  *
- * REPORT ONLY, until a rule reports nothing on `main` and turns blocking, one
- * rule at a time (0163 §5, step 5). A finding fails nothing: Semgrep runs
- * without `--error`, and this exits 0 whatever it found. On a pull request
- * this exits 0 whatever happened, and warns when the scan did not finish. On
- * a push or a dispatch it exits 1 when it did not: the image not pulled,
+ * ONE RULE BLOCKS, THE REST REPORT (0163 T5, §5 step 5). A rule turns
+ * blocking once it reports nothing on `main` and none of its time-outs can
+ * leave a scan unfinished there, one at a time, each in a pull request that
+ * says so (`blocks` in `RULES`). `run-shell-injection` reports nothing on
+ * `main` and, a YAML rule without taint mode, never reaches the taint
+ * analysis's time limit, so it blocks. Semgrep's other limits still hold
+ * for it: its per-file time limit (`--timeout`, 5 seconds by default) and a
+ * file it could not parse land in its errors, and a note on a workflow or
+ * action file (`isHome`), or on no file naming the rule that blocks, is a
+ * scan that did not finish. A note on other YAML, the lock file or a compose
+ * file GitHub never runs, is a note. A spot of it fails this
+ * job, on a pull request, a push and a dispatch alike, and is marked on its
+ * line as an error. No entry excuses it: `KNOWN_FINDINGS` holds none for a
+ * rule that blocks, and none is read for one (NOTHING IN THE TREE SWITCHES A
+ * RULE OFF, below). Every other rule reports only: its spots are listed, the ones no
+ * entry explains marked on their lines as warnings, and they fail nothing.
+ * Semgrep itself runs without `--error`; this decides.
+ *
+ * `react-href-var` also reports nothing on `main`, and does not block yet: it
+ * is a taint rule over JavaScript and TypeScript, and `main`'s run at
+ * `0683eb04` (45025731298) read 13 places only in part, 10 of them in a
+ * JavaScript or TypeScript file where more than one rule timed out, one of
+ * them naming it first. Blocking, it would make every such run a scan that
+ * did not finish (READ ONLY IN PART, below).
+ *
+ * A SCAN THAT DID NOT FINISH FAILS THE JOB, on every event: on a pull request
+ * the job vouches for the rule that blocks, and on a push or a dispatch the
+ * run is the record, and a scan that skipped itself is not green
+ * (security-scan.yml's rule). Not finished means: the image not pulled,
  * Semgrep exiting anything but 0, a report it did not write or not in its
  * shape (its timing section included), a Semgrep that does not call itself
  * the pinned release, a named rule it did not run, a rule it ran that is not
  * named, fewer than `MIN_FILES` files scanned, or a place it read only in
  * part where a rule that blocks can have timed out (READ ONLY IN PART,
- * below). There the run is the record, and a scan that skipped itself is not
- * green (security-scan.yml's rule).
+ * below), a note on a file a rule that blocks reads, a `.semgrepignore` the
+ * checkout tracks, or git not listing what it tracks. The rules are fetched
+ * from Semgrep's registry by id as the job runs, not pinned: a registry that
+ * does not answer fails a pull request until a re-run; a rule renamed or
+ * withdrawn upstream fails every pull request, and a re-run does not help;
+ * and an upstream edit to the rule that blocks changes what blocks with no
+ * change here.
  *
  * READ ONLY IN PART. Semgrep's taint analysis gives each function, and each
  * file's top level, a time limit of its own. A rule that reaches it there
@@ -60,8 +90,12 @@
  * that may block can have timed out is marked on its line as well, as a spot
  * of that rule is. One where a rule that blocks can have timed out is a scan
  * that did not finish, since a spot that rule would fail on can be missing.
- * No rule blocks yet (`blocks` in `RULES`), so no time-out fails a run
- * today.
+ * Which rules can have timed out at a place (`timedOut`): Semgrep names the
+ * first and counts the rest, so the first alone when it counts one, and
+ * otherwise every rule whose languages include the file there (`languages`
+ * in `RULES`, by `languageOf` its extension), since a rule never reads a file
+ * outside its languages. A place whose file has no language here, or whose
+ * first rule's languages do not include it, can have any rule timed out.
  *
  * HOW IT RUNS SEMGREP. The image by tag and index digest (`SEMGREP_IMAGE`, the
  * workflow's), pulled once, in three attempts 5 and 15 seconds apart, then run
@@ -72,9 +106,26 @@
  * workflow sends to code scanning from a push to `main`. That directory is the
  * runner's own temporary one, opened to that user. It has the network, which
  * the rules' fetch needs, and runs with `--metrics=off` and
- * `--disable-version-check`, so it sends nothing else. With no `.semgrepignore` here, Semgrep's own default
- * leaves out `test/`, `tests/`, `node_modules/`, `dist/` and `build/`; this
- * adds no exclusion of its own.
+ * `--disable-version-check`, so it sends nothing else. With no `.semgrepignore`
+ * here, Semgrep's own built-in ignore list leaves directories out at any
+ * depth, `test/`, `tests/`, `testsuite/`, `node_modules/`, `dist/`, `build/`
+ * and `vendor/` among them (its `Semgrepignore.ml`); it also skips a file
+ * over its size limit, a link, and an extension in a case its languages do
+ * not name. This adds no exclusion of its own.
+ *
+ * NOTHING IN THE TREE SWITCHES A RULE OFF. Semgrep runs with
+ * `--disable-nosem`, so an inline `nosemgrep` comment silences no spot:
+ * without it, Semgrep leaves such a spot out of the JSON report this reads
+ * (its SARIF keeps it, marked suppressed), and a pull request could switch
+ * the rule that blocks off in the line it adds, as `zizmor.yml` refuses with
+ * `--no-ignores`. And a `.semgrepignore` the checkout tracks, at any depth
+ * (`trackedIgnores`, read with `git ls-files` before anything runs), is a
+ * scan that did not finish: one at `.github/` would leave every workflow out,
+ * the YAML rule would read nothing, and the rest would still count more than
+ * `MIN_FILES`. And every workflow and action file the checkout tracks
+ * (`isWorkflowFile`, from the same `git ls-files`) must be among the files
+ * Semgrep scanned (`paths.scanned`): one it left out for any reason above,
+ * which it says nothing of, is a scan that did not finish, said by name.
  *
  * `.mjs` for the reason `audit-advisories.mjs` gives: it runs in a CI step on
  * a bare checkout, with no `node_modules`, and needs no type stripping. Its
@@ -82,8 +133,8 @@
  * with a stubbed `docker`.
  *
  * Usage:  SEMGREP_IMAGE=semgrep/semgrep:<x.y.z>@sha256:<digest> node scripts/semgrep-report.mjs
- * Exit: 0 the scan finished, whatever Semgrep found, or this is a pull
- * request; 1 on any other event, when the scan did not finish.
+ * Exit: 0 when the scan finished and no rule that blocks found a spot; 1
+ * otherwise, on every event.
  */
 
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -120,10 +171,14 @@ export const CODE_SCANNING_REPORT = 'semgrep-code-scanning.sarif';
 /**
  * The rules, by their registry id, in the order the summary lists them, with
  * the outside check's finding each answers (null for the three the measure
- * runs added), what it reports, whether it may ever block (D3), and whether
- * it blocks now. None does yet. A rule turns blocking in a pull request of
- * its own (0163 §5, step 5), which also makes a finding of it fail the job;
- * until then `blocks` is read only for a time-out (READ ONLY IN PART).
+ * runs added), what it reports, whether it may ever block (`never`, D3),
+ * whether it blocks now (`blocks`, ONE RULE BLOCKS above), and the languages
+ * its own `languages:` names (`languages`, read for a time-out, READ ONLY IN
+ * PART above). The languages were read from each rule's source in Semgrep's
+ * rules repository on 2026-11-22, at `a5ad1714` of 2026-11-10, the source
+ * its registry publishes; the four taint rules there are
+ * `detect-non-literal-regexp`, `path-join-resolve-traversal`,
+ * `js-open-redirect-from-function` and `react-href-var` (`mode: taint`).
  */
 export const RULES = [
   {
@@ -131,6 +186,7 @@ export const RULES = [
     finding: 5,
     never: true,
     blocks: false,
+    languages: ['javascript', 'typescript'],
     what: 'a regular expression built at run time from a value',
   },
   {
@@ -138,6 +194,7 @@ export const RULES = [
     finding: 5,
     never: true,
     blocks: false,
+    languages: ['javascript', 'typescript'],
     what: 'a regular expression whose own shape can backtrack for a long time',
   },
   {
@@ -145,6 +202,7 @@ export const RULES = [
     finding: 6,
     never: false,
     blocks: false,
+    languages: ['javascript', 'typescript'],
     what: 'a path joined or resolved from a value',
   },
   {
@@ -152,6 +210,7 @@ export const RULES = [
     finding: 8,
     never: false,
     blocks: false,
+    languages: ['javascript', 'typescript'],
     what: 'the browser sent to an address a function returned',
   },
   {
@@ -159,6 +218,7 @@ export const RULES = [
     finding: 9,
     never: false,
     blocks: false,
+    languages: ['javascript', 'typescript'],
     what: 'a React link to an address from a value, which can be a `javascript:` address',
   },
   {
@@ -166,13 +226,15 @@ export const RULES = [
     finding: null,
     never: false,
     blocks: false,
+    languages: ['javascript', 'typescript'],
     what: 'an AES-GCM decipher that does not name its tag length',
   },
   {
     id: 'yaml.github-actions.security.run-shell-injection.run-shell-injection',
     finding: null,
     never: false,
-    blocks: false,
+    blocks: true,
+    languages: ['yaml'],
     what: 'a workflow expression written into a `run:` script',
   },
   {
@@ -180,6 +242,7 @@ export const RULES = [
     finding: null,
     never: false,
     blocks: false,
+    languages: ['javascript', 'typescript'],
     what: 'a value written inside a `<script>` tag',
   },
 ];
@@ -276,7 +339,7 @@ export function scanArgs(image, { root, out }, rules = RULES) {
     '--user', SEMGREP_USER,
     '--volume', `${root}:/src:ro`, '--volume', `${out}:/out`, '--workdir', '/src',
     image,
-    'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet', '--time',
+    'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet', '--time', '--disable-nosem',
     ...rules.flatMap((r) => ['--config', `r/${r.id}`]),
     `--json-output=/out/${JSON_REPORT}`,
     `--sarif-output=/out/${SARIF_REPORT}`,
@@ -333,12 +396,16 @@ export function readScan(ran, out) {
     level: String(e?.level ?? ''),
     type: Array.isArray(e?.type) ? String(e.type[0]) : String(e?.type ?? ''),
     path: typeof e?.path === 'string' ? e.path : '',
+    // The rule a note is about, when Semgrep names one: a note on no file is still that rule's.
+    rule: typeof e?.rule_id === 'string' ? e.rule_id : '',
     message: firstLine(e?.message),
   }));
   const timing = report.time?.fixpoint_timeouts;
   return {
     version: typeof report.version === 'string' ? report.version : '',
     scanned: report.paths.scanned.length,
+    // Each file Semgrep scanned, by its path from the checkout's root, as git names it.
+    scannedPaths: report.paths.scanned.map((f) => String(f).replace(/^\.\//, '')),
     findings,
     notes,
     timeouts: Array.isArray(timing) ? timing.map(readTimeout) : null,
@@ -377,14 +444,77 @@ function readTimeout(entry) {
 }
 
 /**
- * The rules that can have timed out at a place: the first alone, when
- * Semgrep counts one rule there and names it as one of `rules`; any of
- * `rules` otherwise, since Semgrep names only the first of several, and an
- * entry that does not say names none.
+ * The file extensions of each language a rule names, and the ones Semgrep
+ * leaves out of it, as Semgrep 1.186.0's `lang.json` gives them (`exts` and
+ * `excluded_exts`, in its `semgrep_interfaces` at the release's commit
+ * `a5844e7c`, read on 2026-11-22): the extension of a file says which rules
+ * read it.
+ */
+export const EXTENSIONS = {
+  javascript: ['.cjs', '.js', '.jsx', '.mjs'],
+  typescript: ['.ts', '.tsx'],
+  yaml: ['.yml', '.yaml'],
+};
+export const EXCLUDED = {
+  javascript: ['.min.js'],
+  typescript: ['.d.ts'],
+  yaml: [],
+};
+
+/**
+ * The language of a file by its extension (EXTENSIONS, less EXCLUDED), as
+ * written: Semgrep matches an extension by its case, so `a.YML` is no YAML
+ * it reads. Null for a file no language here reads, or no file. A null reads
+ * as any rule where a place is read (`timedOut`).
+ */
+export function languageOf(path) {
+  const name = String(path ?? '').split('/').at(-1) ?? '';
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0) return null;
+  const ext = name.slice(dot);
+  return Object.keys(EXTENSIONS).find((lang) => own(EXTENSIONS, lang).includes(ext) && !own(EXCLUDED, lang).some((x) => name.endsWith(x))) ?? null;
+}
+
+/**
+ * A workflow GitHub runs (`.github/workflows/<name>.yml` or `.yaml`) or a
+ * composite action's `action.yml` or `action.yaml`, anywhere: the files
+ * `run-shell-injection` is there for, since it reads any YAML with `steps:`.
+ * In any case, since a file Semgrep would not read by its extension's case is
+ * still one GitHub may run.
+ */
+export function isWorkflowFile(path) {
+  const p = String(path ?? '');
+  return /^\.github\/workflows\/[^/]+\.ya?ml$/i.test(p) || /(^|\/)action\.ya?ml$/i.test(p);
+}
+
+/**
+ * The files a rule that blocks is there for: a YAML rule's, the workflow and
+ * action files (`isWorkflowFile`), not every YAML file GitHub never runs; any
+ * other rule's, the files of its languages.
+ */
+export function isHome(rule, path) {
+  const languages = Array.isArray(rule.languages) ? rule.languages : [];
+  if (languages.includes('yaml')) return isWorkflowFile(path);
+  const language = languageOf(path);
+  return language !== null && languages.includes(language);
+}
+
+/**
+ * The rules that can have timed out at a place (READ ONLY IN PART, above):
+ * the first alone, when Semgrep counts one rule there and names it as one of
+ * `rules`; otherwise each of `rules` whose languages include the file there,
+ * since Semgrep names only the first of several, and an entry that does not
+ * say names none. Every one of `rules` when the file has no language here,
+ * or when the first Semgrep names does not read that language, since then
+ * the place is not read as this says.
  */
 export function timedOut(timeout, rules = RULES) {
   const first = timeout.first === null ? null : ruleOf(timeout.first, rules);
-  return timeout.rules === 1 && first ? [first] : [...rules];
+  const language = languageOf(timeout.path);
+  if (language === null) return timeout.rules === 1 && first ? [first] : [...rules];
+  const reading = rules.filter((r) => Array.isArray(r.languages) && r.languages.includes(language));
+  if (first && !reading.includes(first)) return [...rules];
+  return timeout.rules === 1 && first ? [first] : reading;
 }
 
 /** A table cell: one line, its bars escaped, nothing a renderer reads as HTML or as code. */
@@ -399,7 +529,16 @@ const commandProperty = (text) => commandData(text).replace(/:/g, '%3A').replace
 const ruleLink = (rule) => `[\`${nameOf(rule.id)}\`](https://semgrep.dev/r/${rule.id})`;
 
 /** What the summary says the outside check called a rule's class. */
-const findingOf = (rule) => (rule.finding === null ? 'none (found by the measure runs)' : `${rule.finding}${rule.never ? ', never blocks' : ''}`);
+const findingOf = (rule) => (rule.finding === null ? 'none (found by the measure runs)' : String(rule.finding));
+
+/** Whether a rule blocks, as the summary's table says it. */
+const blocksOf = (rule) => (rule.never ? 'never (D3)' : rule.blocks ? '**yes**' : 'not yet');
+
+/** A small count in words, as the summary says it: "the two rules that never block". */
+const inWords = (n) => ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'][n] ?? String(n);
+
+/** "the two rules that never block", "the one rule that blocks". */
+const theRules = (n, that) => `the ${inWords(n)} ${n === 1 ? `rule that ${that}s` : `rules that ${that}`}`;
 
 /** Text Semgrep gave, a path or a rule's id, on one line: no line break in it starts a workflow command. */
 const oneLine = (text) => String(text).replace(/[\r\n]+/g, ' ');
@@ -412,11 +551,11 @@ const namesOf = (list) => {
 
 /**
  * The report of one run: the job summary's Markdown, the log's lines, the exit
- * code (REPORT ONLY, above), and the SARIF report's path when the scan
- * finished. `stopped` says why there is no reading at all; `timeouts` is null
+ * code (ONE RULE BLOCKS and A SCAN THAT DID NOT FINISH, above), and the SARIF
+ * report's path when the scan finished. `stopped` says why there is no reading at all; `timeouts` is null
  * when Semgrep's report has no timing section (READ ONLY IN PART, above).
  */
-export function report({ image, event, stopped = null, version = '', scanned = 0, findings = [], notes = [], timeouts = [], ran = [], sarif = '', uploaded = null, rules = RULES, known = KNOWN_FINDINGS }) {
+export function report({ image, event, stopped = null, version = '', scanned = 0, scannedPaths = null, mustScan = [], findings = [], notes = [], timeouts = [], ran = [], sarif = '', uploaded = null, rules = RULES, known = KNOWN_FINDINGS }) {
   const pr = event === 'pull_request';
   const tag = IMAGE.exec(image)?.[1] ?? '';
   // Each place read only in part, with the rules that can have timed out there.
@@ -444,6 +583,32 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
     for (const id of strays) problems.push(`Semgrep reported ${id}, which RULES does not name`);
     if (scanned < MIN_FILES) problems.push(`Semgrep scanned ${plural(scanned, 'file')}, fewer than the ${plural(MIN_FILES, 'file')} a scan of this tree reads`);
     if (timeouts === null) problems.push("Semgrep's JSON report has no time.fixpoint_timeouts, which --time writes, so what it read only in part is not known");
+    const blockingRules = rules.filter((r) => r.blocks === true);
+    // A note on a file a rule that blocks is there for (`isHome`): Semgrep's per-file time limit, or a
+    // file it could not parse, which it reads around. A spot that rule would fail on can be missing
+    // there. A note on no file that names a rule that blocks can have been on any of its files.
+    for (const n of notes) {
+      const readers = n.path ? blockingRules.filter((r) => isHome(r, n.path)) : blockingRules.filter((r) => n.rule && ruleOf(n.rule, [r]));
+      if (readers.length === 0) continue;
+      const one = readers.length === 1;
+      const what = `${oneLine(n.type || n.level || 'a note')}`;
+      problems.push(
+        n.path
+          ? `Semgrep could not read ${oneLine(n.path)} in full (${what}), and ${namesOf(readers)}, which ${one ? 'blocks' : 'block'}, ${one ? 'reads' : 'read'} it: a spot ${one ? 'it' : 'they'} would fail on can be missing there`
+          : `Semgrep could not read a file it did not name in full (${what}), and ${namesOf(readers)}, which ${one ? 'blocks' : 'block'}, wrote it: a spot ${one ? 'it' : 'they'} would fail on can be missing`,
+      );
+    }
+    // A workflow or action file the checkout tracks that Semgrep did not scan: a directory its own
+    // ignore list leaves out (build/, vendor/, test/ …), a file over its size limit, a link, an
+    // extension in another case. Semgrep says nothing of any of them.
+    const scannedSet = new Set(scannedPaths ?? []);
+    for (const f of mustScan) {
+      if (scannedSet.has(f)) continue;
+      const readers = blockingRules.filter((r) => isHome(r, f));
+      if (readers.length === 0) continue;
+      const one = readers.length === 1;
+      problems.push(`Semgrep did not scan ${oneLine(f)}, a workflow or action file the checkout tracks, which ${namesOf(readers)}, which ${one ? 'blocks' : 'block'}, ${one ? 'is' : 'are'} there for`);
+    }
     for (const t of places) {
       if (t.blocking.length === 0) continue;
       const one = t.blocking.length === 1;
@@ -451,12 +616,12 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
     }
   }
   const failed = problems.length > 0;
-  const code = failed && !pr ? 1 : 0;
 
   const byRule = rules.map((rule) => {
     const spots = findings
       .filter((f) => ruleOf(f.rule, [rule]))
-      .map((f) => ({ ...f, known: knownAs(nameOf(rule.id), f.path, known) }))
+      // A rule that blocks is never excused: no entry is read for it (ONE RULE BLOCKS, above).
+      .map((f) => ({ ...f, known: rule.blocks === true ? null : knownAs(nameOf(rule.id), f.path, known) }))
       .sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line);
     const knownCount = spots.filter((s) => s.known).length;
     return { rule, spots, known: knownCount, toRead: rule.never ? 0 : spots.length - knownCount, tests: spots.filter((s) => TEST_FILE.test(s.path)).length };
@@ -465,23 +630,29 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
   const knownTotal = byRule.reduce((n, r) => n + r.known, 0);
   const neverTotal = byRule.filter((r) => r.rule.never).reduce((n, r) => n + r.spots.length - r.known, 0);
   const toRead = byRule.reduce((n, r) => n + r.toRead, 0);
+  const blocking = byRule.filter((r) => r.rule.blocks === true);
+  const blocked = blocking.reduce((n, r) => n + r.spots.length, 0);
+  const code = failed || blocked > 0 ? 1 : 0;
+  const blockNames = namesOf(blocking.map((r) => r.rule));
+  const never = rules.filter((r) => r.never).length;
 
-  const lines = [`Semgrep: ${image || '(no image)'}, ${plural(rules.length, 'rule')} fetched by id, over the checkout; report only`];
+  const lines = [`Semgrep: ${image || '(no image)'}, ${plural(rules.length, 'rule')} fetched by id, over the checkout; ${blocking.length ? `${blockNames} ${blocking.length === 1 ? 'blocks' : 'block'}` : 'no rule blocks'}`];
   const md = [
-    '## Semgrep, report only',
+    '## Semgrep',
     '',
     `\`${image || '(no image)'}\` with the ${plural(rules.length, 'rule')} \`RULES\` names in \`scripts/semgrep-report.mjs\`, each fetched from Semgrep's registry by its id, over the checkout. ` +
-      'No finding fails this job: a rule turns blocking, one at a time, once it reports nothing on `main` (workplan 0163, step 5), and the two ReDoS rules never do. ' +
-      'A known spot is one `KNOWN_FINDINGS` in that script records, listed with why it stands.',
+      (blocking.length ? `A spot of a rule that blocks fails this job: ${blocking.map((r) => `\`${nameOf(r.rule.id)}\``).join(', ')} (workplan 0163 T5). ` : 'No rule blocks yet. ') +
+      `The others report only, until each reports nothing on \`main\` and turns blocking in a pull request of its own, and ${theRules(never, 'never block')} (D3). ` +
+      'A known spot is one `KNOWN_FINDINGS` in that script records, listed with why it stands; no entry excuses a rule that blocks.',
     '',
   ];
 
   if (!stopped) {
     md.push(
-      "| rule | the outside check's finding | spots | in test files | known | to read |",
-      '| --- | --- | ---: | ---: | ---: | ---: |',
-      ...byRule.map((r) => `| ${ruleLink(r.rule)} | ${findingOf(r.rule)} | ${r.spots.length} | ${r.tests} | ${r.known} | ${r.rule.never ? 'never blocks' : r.toRead} |`),
-      `| **${plural(rules.length, 'rule')}** | | **${total}** | **${byRule.reduce((n, r) => n + r.tests, 0)}** | **${knownTotal}** | **${toRead}** |`,
+      "| rule | the outside check's finding | blocks | spots | in test files | known | to read |",
+      '| --- | --- | --- | ---: | ---: | ---: | ---: |',
+      ...byRule.map((r) => `| ${ruleLink(r.rule)} | ${findingOf(r.rule)} | ${blocksOf(r.rule)} | ${r.spots.length} | ${r.tests} | ${r.known} | ${r.rule.never ? '' : r.toRead} |`),
+      `| **${plural(rules.length, 'rule')}** | | | **${total}** | **${byRule.reduce((n, r) => n + r.tests, 0)}** | **${knownTotal}** | **${toRead}** |`,
       '',
       `Semgrep ${cell(version || '(no version)')} scanned ${plural(scanned, 'file')}${notes.length ? `, with ${plural(notes.length, 'note')} (below)` : ''}${places.length ? `${notes.length ? ',' : ''} and read ${plural(places.length, 'place')} in them only in part (below)` : ''}.`,
       '',
@@ -490,13 +661,14 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
       `Semgrep ${version || '(no version)'} scanned ${plural(scanned, 'file')}${notes.length ? `, with ${plural(notes.length, 'note')} on what it could not read in full` : ''}${places.length ? `${notes.length ? ',' : ''} and read ${plural(places.length, 'place')} in them only in part, where its taint analysis timed out` : ''}.`,
     );
     for (const r of byRule) {
-      for (const s of r.spots) lines.push(`${nameOf(r.rule.id)} ${s.path}:${s.line}${s.known ? ' [known]' : ''}${r.rule.never ? ' [never blocks]' : ''}`);
+      for (const s of r.spots) lines.push(`${nameOf(r.rule.id)} ${s.path}:${s.line}${s.known ? ' [known]' : ''}${r.rule.never ? ' [never blocks]' : ''}${r.rule.blocks === true ? ' [blocks]' : ''}`);
       if (r.spots.length === 0) continue;
       md.push(`### ${ruleLink(r.rule)}: ${cell(r.rule.what)}`, '');
       const rows = ['| file | line | known |', '| --- | ---: | --- |', ...r.spots.map((s) => `| \`${cell(s.path)}\` | ${s.line} | ${s.known ? 'KNOWN_FINDINGS' : ''} |`)];
       if (r.rule.never) {
         md.push(`This rule never blocks (D3). ${plural(r.tests, 'spot')} of ${r.spots.length} ${r.tests === 1 ? 'is' : 'are'} in test files.`, '', '<details><summary>Every spot</summary>', '', ...rows, '', '</details>');
       } else {
+        if (r.rule.blocks === true) md.push('**This rule blocks** (workplan 0163 T5): each spot below fails this job.', '');
         md.push(`What Semgrep says: ${cell(r.spots[0].message)}`, '', ...rows);
       }
       const reasons = [...new Map(r.spots.filter((s) => s.known).map((s) => [s.path, s.known]))];
@@ -527,7 +699,14 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
       md.push('');
     }
     if (notes.length) {
-      md.push('### Notes', '', 'What Semgrep could not read in full, which it reads around; none stops the scan.', '', '| level | kind | file | what it says |', '| --- | --- | --- | --- |');
+      md.push(
+        '### Notes',
+        '',
+        'What Semgrep could not read in full, which it reads around. A note on a workflow or action file, or on no file naming a rule that blocks, is a scan that did not finish.',
+        '',
+        '| level | kind | file | what it says |',
+        '| --- | --- | --- | --- |',
+      );
       for (const n of notes) md.push(`| ${cell(n.level)} | ${cell(n.type)} | ${n.path ? `\`${cell(n.path)}\`` : ''} | ${cell(n.message)} |`);
       md.push('');
     }
@@ -541,19 +720,21 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
       md.push('### Known, and not reported this run', '', ...stale.map((s) => `- ${s}`), '');
       lines.push(...stale.map((s) => s.replace(/`/g, '')));
     }
-    // A spot a rule that may block reports, and no entry explains, is marked
-    // where it is, so a pull request that adds one sees it on the line.
+    // Each spot of a rule that blocks is an error on its line. A spot of a rule
+    // that only reports, and no entry explains, is a warning there, so a pull
+    // request that adds one sees it on the line.
     for (const r of byRule) {
       if (r.rule.never) continue;
       for (const s of r.spots.filter((x) => !x.known)) {
-        lines.push(`::warning file=${commandProperty(s.path)},line=${s.line},title=${commandProperty(`Semgrep ${nameOf(r.rule.id)} (report only)`)}::${commandData(s.message)}`);
+        const [kind, how] = r.rule.blocks === true ? ['error', 'blocks'] : ['warning', 'report only'];
+        lines.push(`::${kind} file=${commandProperty(s.path)},line=${s.line},title=${commandProperty(`Semgrep ${nameOf(r.rule.id)} (${how})`)}::${commandData(s.message)}`);
       }
     }
     // So is a place where such a rule can have timed out: a spot of it can be missing there.
     for (const t of places.filter((x) => x.mayBlock)) {
       const at = t.path ? `file=${commandProperty(t.path)},${t.line ? `line=${t.line},` : ''}` : '';
       const said = `Semgrep's taint analysis timed out here ${forRules(t)}: a spot of a rule that ${t.blocking.length ? 'blocks' : 'may block'} can be missing.`;
-      lines.push(`::warning ${at}title=${commandProperty('Semgrep read this only in part (report only)')}::${commandData(said)}`);
+      lines.push(`::warning ${at}title=${commandProperty('Semgrep read this only in part')}::${commandData(said)}`);
     }
   }
 
@@ -561,8 +742,8 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
     md.push('### The scan did not finish', '', ...problems.map((p) => `- ${cell(p)}`), '');
     md.push(
       pr
-        ? 'On a pull request that is a warning, and this job passes all the same.'
-        : 'Outside a pull request that fails this job: here the run is the record, and a record of a scan that did not finish is not green.',
+        ? 'That fails this job: a scan that did not finish vouches for no rule that blocks.'
+        : 'That fails this job: here the run is the record, and a record of a scan that did not finish is not green.',
       '',
     );
     for (const p of problems) lines.push(`not finished: ${p}`);
@@ -570,16 +751,20 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
 
   const tally = stopped
     ? 'No reading: the scan did not run.'
-    : `${plural(total, 'spot')} from ${plural(rules.length, 'rule')}: ${neverTotal} under the two rules that never block, ${knownTotal} known, ${toRead} to read.`;
+    : `${plural(total, 'spot')} from ${plural(rules.length, 'rule')}: ${blocked} under ${theRules(blocking.length, 'block')}, ${neverTotal} under ${theRules(never, 'never block')}, ${knownTotal} known, ${toRead} to read.`;
   md.push(`**${tally}**`, '');
-  lines.push(`${tally} Report only: no finding fails this job.`);
+  if (!stopped && blocked > 0) md.push(`**${plural(blocked, 'spot')} of a rule that blocks: this job fails.**`, '');
+  lines.push(`${tally} ${stopped ? '' : blocked > 0 ? `The rules that block found ${plural(blocked, 'spot')}: this job fails.` : 'No rule that blocks found a spot.'}`.trim());
+  if (!stopped && blocked > 0) {
+    lines.push(`::error::Semgrep: ${plural(blocked, 'spot')} of ${namesOf(blocking.filter((r) => r.spots.length).map((r) => r.rule))}, which ${blocking.filter((r) => r.spots.length).length === 1 ? 'blocks' : 'block'} (workplan 0163 T5); each is marked on its line.`);
+  }
   if (!failed && uploaded) {
     const said = `Code scanning, from a push to main: ${plural(uploaded.kept, 'spot')} of the rules that may block. ${plural(uploaded.dropped, 'spot')} of the two that never block ${uploaded.dropped === 1 ? 'is' : 'are'} in this summary only.`;
     md.push(said, '');
     lines.push(said);
   }
   if (failed) {
-    lines.push(pr ? '::warning::Semgrep: the scan did not finish; on a pull request the job passes all the same (the summary says why).' : '::error::Semgrep: the scan did not finish; outside a pull request the run is the record, so it fails.');
+    lines.push('::error::Semgrep: the scan did not finish, so it vouches for no rule that blocks, and this job fails (the summary says why).');
   }
   return { markdown: `${md.join('\n')}\n`, lines, code, sarif: failed ? '' : sarif };
 }
@@ -587,6 +772,24 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
 /** The real `docker`: its status, its output and its error, never a throw. */
 const realDocker = (args) =>
   spawnSync('docker', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: args[0] === 'pull' ? 300_000 : 600_000 });
+
+/** The real `git`, as `docker` is run. */
+const realGit = (args) => spawnSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60_000 });
+
+/**
+ * Each `.semgrepignore` the checkout at `root` tracks, at any depth (NOTHING
+ * IN THE TREE SWITCHES A RULE OFF, above): `{ ignores }`, or `{ error }` when
+ * git could not say, which is a scan that did not finish as well.
+ */
+export function trackedIgnores(root, git = realGit) {
+  const ran = git(['-C', root, 'ls-files', '-z']);
+  if (ran.error || ran.status !== 0) {
+    const why = ran.error ? `git could not be run (${ran.error.code ?? ran.error.message})` : `git exited ${ran.status}${firstLine(ran.stderr) ? `: ${firstLine(ran.stderr)}` : ''}`;
+    return { error: `git could not list the files the checkout tracks (${why}), so whether one leaves files out of the scan is not known` };
+  }
+  const tracked = String(ran.stdout ?? '').split('\0').filter(Boolean);
+  return { tracked, ignores: tracked.filter((f) => f === '.semgrepignore' || f.endsWith('/.semgrepignore')) };
+}
 
 /** Pulls the image, in `PULL_DELAYS.length + 1` attempts. Null once pulled, or why it was not. */
 async function pull(image, docker, wait) {
@@ -613,6 +816,7 @@ export async function run({
   env = process.env,
   docker = realDocker,
   wait = sleep,
+  git = realGit,
   out = join(env.RUNNER_TEMP || tmpdir(), 'semgrep-report'),
 } = {}) {
   const event = env.GITHUB_EVENT_NAME ?? '';
@@ -621,12 +825,19 @@ export async function run({
   if (!IMAGE.test(image)) {
     return report({ ...base, stopped: `SEMGREP_IMAGE is ${image ? `\`${image}\`` : 'not set'}, not semgrep/semgrep:<x.y.z>@sha256:<index digest>` });
   }
+  const tracked = trackedIgnores(root, git);
+  if (tracked.error) return report({ ...base, stopped: tracked.error });
+  if (tracked.ignores.length) {
+    return report({ ...base, stopped: tracked.ignores.map((f) => `the checkout tracks ${f}, which would leave out of the scan files Semgrep reads, the rule that blocks among them`).join('; ') });
+  }
   mkdirSync(out, { recursive: true });
   chmodSync(out, 0o777);
   for (const file of [JSON_REPORT, SARIF_REPORT, CODE_SCANNING_REPORT]) rmSync(join(out, file), { force: true });
   const pulled = await pull(image, docker, wait);
   if (pulled) return report({ ...base, stopped: pulled });
-  return report({ ...base, ...readScan(docker(scanArgs(image, { root, out })), out) });
+  // Every workflow and action file the checkout tracks must be among what Semgrep scanned.
+  const mustScan = tracked.tracked.filter((f) => isWorkflowFile(f));
+  return report({ ...base, mustScan, ...readScan(docker(scanArgs(image, { root, out })), out) });
 }
 
 async function main() {
@@ -645,10 +856,9 @@ if (process.argv[1] && resolvePath(process.argv[1]) === fileURLToPath(import.met
       process.exitCode = code;
     },
     (e) => {
-      // A fault here is no finding either: a pull request passes, and the record fails (REPORT ONLY).
-      const pr = process.env.GITHUB_EVENT_NAME === 'pull_request';
-      console.log(`${pr ? '::warning::' : '::error::'}semgrep-report stopped: ${e instanceof Error ? e.message : String(e)}`);
-      process.exitCode = pr ? 0 : 1;
+      // A fault here vouches for no rule that blocks: the job fails, on every event (A SCAN THAT DID NOT FINISH, above).
+      console.log(`::error::semgrep-report stopped: ${e instanceof Error ? e.message : String(e)}`);
+      process.exitCode = 1;
     },
   );
 }

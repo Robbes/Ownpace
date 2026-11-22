@@ -40,6 +40,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   whether or not the document was edited in between, so that deletion is offered and goes
   through every check.
 
+### Security
+
+- **A Semgrep rule now fails a pull request** (workplan 0163 T5). `run-shell-injection`, a workflow
+  expression written into a `run:` script, reports nothing on `main`, so a spot of it now fails the
+  *Semgrep* check, marked as an error on its line. No recorded spot, inline `nosemgrep` comment or
+  committed `.semgrepignore` can excuse or hide one, and a workflow or action file Semgrep did not
+  scan, or a time-out or parse note on one, now fails the check too. The other
+  seven rules still report only. `react-href-var` reports nothing on `main` either, but Semgrep's
+  taint analysis times out where it reads, so it waits. A place Semgrep read only in part now
+  counts only against the rules whose languages include the file there, so a time-out in a
+  TypeScript function never stops the workflow rule. A Semgrep scan that did not finish now fails a
+  pull request too, since the check vouches for the rule that blocks. The check is renamed from
+  *Semgrep (report only)* to *Semgrep*, the name it is to be required under.
+
 ## [0.2.0-alpha.15] - 2026-11-22
 
 One press can now delete, on the new system, the copies listed on *Deleted on the old system*: while
