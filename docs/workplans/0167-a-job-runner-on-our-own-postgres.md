@@ -32,13 +32,17 @@ only against stubs. Their first real stack is the switch-on's E2E (managed) run.
   - The worker's log, kept with `docker logs --since` as `smoke-managed-<run>-worker.log`, which
     the collector already globs and redacts.
 - **The workflow.** A `job_runner` choice input, passed only through `env:`, written into the
-  checkout's `.env` after the persisted copy is saved. The drill runs only on trigger, and so does
-  the refusal of the plane's two keys.
+  checkout's `.env` after the persisted copy is saved. The drill and the refusal of the plane's two
+  keys act only on trigger, and say so when they skip.
 - **Evidence.**
-  - The 58 guards that read the smoke, the workflow or the redactor: 2,362 tests, all passed.
-  - `smoke-managed-verdict` has 203 tests, 73 of them new.
+  - Every guard under `scripts/`, after `main` (with #2043) was merged in: 310 of 310 files,
+    7,650 tests passed. 36 were skipped, as before this change.
+  - `smoke-managed-verdict` has 203 tests, 73 of them new. The real catalog reads as 17 queues.
   - The worker log's redaction test passes.
-  - Eleven mutations each failed a test, and every file was restored byte for byte (`cmp`).
+  - Twelve mutations each failed a test, and every file was restored byte for byte (`cmp`).
+  - The mode reaches later steps through `$RUNNER_TEMP/job-runner`, never `$GITHUB_OUTPUT`
+    (`a-credential-the-next-step-printed`).
+  - `tsc --noEmit` 0, ESLint 0 on the three changed tests, and `commit-convention` passes.
   - zizmor 1.32.0: no findings, as on `main`.
   - shellcheck: no new finding at warning level.
   - `bash -n` clean. Semgrep's rule could not be fetched here (its registry is blocked), so no
