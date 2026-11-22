@@ -2,11 +2,11 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-21 (update this block at the end of every session)
+## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-21, last: what alpha.14 moves, and what moves for live from alpha.12.** The fold for
+**2026-11-22: what alpha.14 moves, and what moves for live from alpha.12.** The fold for
 `v0.2.0-alpha.14` (0146's entry of the same day) carries what `main` merged after alpha.13's tag,
-32 pull requests (0146's entry lists them). Live runs alpha.12 (0132's Status, 2026-11-20), and no
+36 pull requests (0146's entry lists them). Live runs alpha.12 (0132's Status, 2026-11-20), and no
 deploy of alpha.13 is recorded, so live's deploy of alpha.14 takes alpha.13's moves too. For live,
 from alpha.12:
 
@@ -33,7 +33,12 @@ from alpha.12:
 - the CalDAV source, in the API and task images, reads a Google calendar's `sync-collection` answer
   from the first pass after the deploy, so that an event deleted at Google reaches the deletions
   queue, and asks every CalDAV server, Nextcloud's included, with `sync-level` 1 (#2019); it moves
-  nothing in either migration chain or in `deploy/`.
+  nothing in either migration chain or in `deploy/`;
+- after the fold's first squash (#2021), the API image reads the root `package.json` once per
+  process for `GET /version` (#2023), and the API's support and `/api/me` routes and the web's
+  Support page take 0162 T1's re-review (#2025); #2022 changes test files only. None of the three
+  moves an image name, a dependency, a pin, a migration or a file in `deploy/`, so nothing more
+  moves for live.
 
 So live's deploy from alpha.12 is one-way by the deploy's own rule, by 0070, 0062 and the pin;
 alpha.13 alone moved none of them. CI alone: Semgrep's report naming where it read only in part
