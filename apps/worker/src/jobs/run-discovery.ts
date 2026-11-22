@@ -18,6 +18,7 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask, queue } from '@trigger.dev/sdk';
 import { leavesAReference, outcomesForThePlane } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import type { Pool } from 'pg';
 import { discoverSource } from '@openmig/core';
 import type {
@@ -43,7 +44,7 @@ import { openTaskPools } from './task-pools.ts';
  * fails the build if the shared list ever outruns the CHECKs again — so
  * deriving is now the safer of the two, not just the shorter.
  */
-const DiscoveryJobSchema = z.object({
+export const DiscoveryJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
   domains: z.array(z.enum(DISCOVERY_DOMAINS)).optional(),
@@ -263,16 +264,14 @@ export async function domainsToCount(
  */
 export const discoveryQueue = queue({ name: 'run-discovery', concurrencyLimit: 1 });
 
-export const runDiscovery = schemaTask({
-  id: 'run-discovery',
-  description: 'Pre-sync discovery (read-only counts)',
-  schema: DiscoveryJobSchema,
-  queue: discoveryQueue,
-  // THE MACHINE A COUNT RUNS ON (workplan 0143 T1 step 2): it lists
-  // everything a migration holds, so it names its own, as a pass does. Its
-  // peak is not measured yet; that is 0143 T9.
-  machine: 'small-1x',
-  run: leavesAReference('run-discovery', async (payload: unknown, _context) => {
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const runDiscoveryRun = leavesAReference(
+  'run-discovery',
+  async (payload: unknown, _context: RunContext) => {
     const typed = payload as DiscoveryJobPayload;
     if (!typed.tenantId) {
       throw new Error('tenantId is required in job payload');
@@ -295,5 +294,17 @@ export const runDiscovery = schemaTask({
 
     log.info('Discovery complete', { outcomes });
     return { outcomes };
-  }),
+  },
+);
+
+export const runDiscovery = schemaTask({
+  id: 'run-discovery',
+  description: 'Pre-sync discovery (read-only counts)',
+  schema: DiscoveryJobSchema,
+  queue: discoveryQueue,
+  // THE MACHINE A COUNT RUNS ON (workplan 0143 T1 step 2): it lists
+  // everything a migration holds, so it names its own, as a pass does. Its
+  // peak is not measured yet; that is 0143 T9.
+  machine: 'small-1x',
+  run: onTriggerDev(runDiscoveryRun),
 });

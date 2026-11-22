@@ -455,10 +455,12 @@ describe('the doors, read as text', () => {
   it("the final sync is run-delta-sync, waited for on the migration's own queue", () => {
     const cutover = code('run-cutover.ts');
 
+    // Through the run's own runner (workplan 0167 T6): on Trigger.dev, the
+    // pass's triggerAndWait (run-context.ts).
     expect(cutover).toMatch(
-      /runDeltaSync\.triggerAndWait\(\s*\{ tenantId, mappingId, \.\.\.\(domain !== undefined \? \{ domains: \[domain\] \} : \{\}\) \}/,
+      /context\.runner\.enqueueAndWait\(\s*'run-delta-sync',\s*\{ tenantId, mappingId, \.\.\.\(domain !== undefined \? \{ domains: \[domain\] \} : \{\}\) \}/,
     );
-    expect(cutover).toMatch(/concurrencyKey: mappingId/);
+    expect(cutover).toMatch(/serializeBy: mappingId/);
     expect(cutover).toContain('return finalSyncReport(pass.output);');
   });
 

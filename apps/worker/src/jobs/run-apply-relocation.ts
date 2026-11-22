@@ -26,6 +26,7 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { eq } from 'drizzle-orm';
 import { applyRelocation, type ApplyDeletionOutcome } from '@openmig/core';
 import { withTenant } from '@openmig/ledger';
@@ -36,7 +37,7 @@ import type { MappingId, RemovalKind, TenantId } from '@openmig/shared';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
 
-const ApplyJobSchema = z.object({
+export const ApplyJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
   naturalKeyHash: z.string().min(1),
@@ -105,10 +106,14 @@ async function openDeps(tenantId: string, mappingId: string, domain: (typeof DOM
   }
 }
 
-export const runApplyRelocationTask = schemaTask({
-  id: 'run-apply-relocation',
-  schema: ApplyJobSchema,
-  run: leavesAReference('run-apply-relocation', async (payload) => {
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const runApplyRelocationRun = leavesAReference(
+  'run-apply-relocation',
+  async (payload: z.infer<typeof ApplyJobSchema>, _context: RunContext) => {
     const { tenantId, mappingId, naturalKeyHash, receiptId } = payload;
     log.info(
       `[run-apply-relocation] ${mappingId}: item ${naturalKeyHash.slice(0, 12)} (receipt ${receiptId})`,
@@ -208,5 +213,11 @@ export const runApplyRelocationTask = schemaTask({
       await landReceipt(tenantId, receiptId, { state: 'failed', error: message });
       throw err;
     }
-  }),
+  },
+);
+
+export const runApplyRelocationTask = schemaTask({
+  id: 'run-apply-relocation',
+  schema: ApplyJobSchema,
+  run: onTriggerDev(runApplyRelocationRun),
 });
