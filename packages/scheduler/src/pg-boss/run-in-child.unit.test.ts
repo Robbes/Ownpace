@@ -66,13 +66,14 @@ describe('runInChild', () => {
     });
   }, 60_000);
 
-  it('knows a heap death after the run has said 20 kB on stderr, where V8 says it last', async () => {
+  it('knows a heap death after the run has said more than 16 kB on stderr, where V8 says it last', async () => {
     const output = collect();
     const err = await runInChild(FIXTURE, null, { maxOldSpaceMb: 64, call: 'warnsThenRunsAway', output }).then(
       () => null,
       (e: unknown) => e,
     );
-    expect(output.stderr.text.indexOf('FATAL ERROR')).toBeGreaterThan(20_000);
+    // Past the 16 kB head T5's verdict read, which is where this bug hid.
+    expect(output.stderr.text.indexOf('FATAL ERROR')).toBeGreaterThan(16_000);
     expect(err).toBeInstanceOf(RunOutOfMemory);
     expect((err as ChildRunDied).verdict).toBe('out-of-memory');
   }, 60_000);
