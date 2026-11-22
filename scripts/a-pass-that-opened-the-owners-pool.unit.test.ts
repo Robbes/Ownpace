@@ -1078,7 +1078,10 @@ function valueExports(file: string, text: string): string[] {
   return [...found].sort();
 }
 
-/** What a module imports as a value, as `<module>: <name>`, `<module>: * as`, `<module>: default` or `<module>: (loaded)`. */
+/**
+ * What a module loads as a value, as `<module>: <name>`, `<module>: * as`, `<module>: default`,
+ * `<module>: (loaded)` or `<module>: (re-exported)`.
+ */
 function valueImports(file: string, text: string): string[] {
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const found = new Set<string>();
@@ -1109,6 +1112,10 @@ function valueImports(file: string, text: string): string[] {
         // as a bare import under verbatimModuleSyntax: the module loads all the same.
         if (!value) found.add(`${from}: (loaded)`);
       }
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      // `export … from` loads the module it names, whatever it names, but for `export type`:
+      // `export { type X } from …` is kept as `export {} from …` under verbatimModuleSyntax.
+      if (!node.isTypeOnly) found.add(`${node.moduleSpecifier.text}: (re-exported)`);
     } else if (ts.isCallExpression(node)) {
       const first = node.arguments[0];
       const loads =
@@ -2189,6 +2196,32 @@ describe("the worker's runner reads the jobs role's URL alone, its parent loads 
       }
     }
     expect(offences, 'A Trigger.dev task would load pg-boss: its half of the run context is run-context.ts, which loads the SDK alone.').toEqual([]);
+  });
+
+  it('no workspace package a task can load reaches pg-boss, but the runner’s own directory', () => {
+    // A task loads packages too (the tick loads @openmig/managed's tick-beat.ts), and those are
+    // listed above, not followed: so no file of any package may import pg-boss at all, but the
+    // runner's own, packages/scheduler/src/pg-boss/, which only its subpath exports.
+    const offences: string[] = [];
+    for (const file of files.filter((f) => f.startsWith('packages/') && !f.startsWith('packages/scheduler/src/pg-boss/'))) {
+      for (const imported of valueImports(file, texts.get(file)!)) {
+        const from = imported.slice(0, imported.lastIndexOf(': '));
+        if (PG_BOSS_SPECIFIERS.some((s) => from === s || from.startsWith(`${s}/`))) offences.push(`${file} loads ${from}`);
+      }
+    }
+    expect(files.filter((f) => f.startsWith('packages/managed/src/')).length).toBeGreaterThan(10);
+    expect(offences, 'A workspace package a Trigger.dev task loads would load pg-boss with it.').toEqual([]);
+  });
+
+  it('sees a re-export as a load: `export … from` loads the module it names', () => {
+    expect(valueImports('shape.ts', "export { PgBossProducer } from '@openmig/scheduler/pg-boss';")).toEqual([
+      '@openmig/scheduler/pg-boss: (re-exported)',
+    ]);
+    expect(valueImports('shape.ts', "export * from 'pg-boss';")).toEqual(['pg-boss: (re-exported)']);
+    // Kept under verbatimModuleSyntax as `export {} from …`, which loads the module too.
+    expect(valueImports('shape.ts', "export { type QueueSpec } from 'pg-boss';")).toEqual(['pg-boss: (re-exported)']);
+    // Only `export type … from` is erased whole.
+    expect(valueImports('shape.ts', "export type { QueueSpec } from 'pg-boss';")).toEqual([]);
   });
 
   it('follows a load through a relative path, and sees pg-boss behind it', () => {

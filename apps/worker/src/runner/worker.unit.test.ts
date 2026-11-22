@@ -26,19 +26,21 @@ import {
   RunOutOfMemory,
   RunPossiblyOutOfMemory,
   RunTimedOut,
+  killMarginSeconds,
   settlementFor,
   type RunOutcome,
   type RunStatus,
 } from '@openmig/scheduler/pg-boss';
 import { log } from '@openmig/shared';
 import type { RunContext as JobRunContext } from '../jobs/run-context.ts';
-import { isPgBossRef, pgBossRunner, verdictOfStatus, WAIT_POLL_MS, type ProducerLike } from './pg-boss-context.ts';
+import { isPgBossRef, pgBossRunner, verdictOfStatus, waitBudgetMs, WAIT_POLL_MS, type ProducerLike } from './pg-boss-context.ts';
 import { onPgBoss } from './serve-job.ts';
 import {
   DEFAULT_MAX_PASSES_IN_FLIGHT,
   RUN_ENTRIES,
   STOP_GRACE_MS,
   STOP_SETTLE_MS,
+  healthyIn,
   passesInFlightFrom,
   refusalToStart,
   serveHealth,
@@ -273,6 +275,33 @@ describe('what a job asks of its runner, through the pg-boss context', () => {
     await cancelledRunner.close();
   });
 
+  it('a wait that reaches the run’s own deadline hands back a pass not settled, before the run is killed', async () => {
+    // The cutover then throws FinalSyncNotFinished through its own catch, as on Trigger.dev.
+    const calls: unknown[] = [];
+    const producer: ProducerLike = {
+      ...fakeProducer().producer,
+      enqueueAndWait: <R>(_q: string, _p: unknown, opts: { signal?: AbortSignal }) =>
+        new Promise<RunOutcome<R>>((_resolve, reject) => {
+          calls.push(opts.signal !== undefined);
+          opts.signal?.addEventListener('abort', () => reject(opts.signal!.reason as Error), { once: true });
+        }),
+    };
+    const runner = pgBossRunner(() => producer, Date.now() + 200);
+    const asked = Date.now();
+    const settled = await runner.port.enqueueAndWait('run-delta-sync', { tenantId: 't', mappingId: 'm' }, { serializeBy: 'm', tags: [] });
+    expect(Date.now() - asked).toBeGreaterThanOrEqual(150);
+    expect(calls).toEqual([true]);
+    expect(settled).toMatchObject({ ok: false, error: { name: 'FinalSyncTimedOut' } });
+    await runner.close();
+  }, 5_000);
+
+  it('a run’s wait budget stops short of its kill: its limit, less the kill margin and time to record why', () => {
+    expect(waitBudgetMs(3600)).toBe((3600 - 30 - 60) * 1000);
+    expect(waitBudgetMs(3 * 3600)).toBe((3 * 3600 - 30 - 60) * 1000);
+    expect(waitBudgetMs(30)).toBe((30 - 3 - 3) * 1000);
+    for (const limit of [12, 30, 3600, 10_800]) expect(waitBudgetMs(limit)).toBeLessThan((limit - killMarginSeconds(limit)) * 1000);
+  });
+
   it('a producer that fails to start is stopped, and its failure is the run’s', async () => {
     const { producer, calls } = fakeProducer({ startFails: new Error('the jobs schema is at version 47') });
     const runner = pgBossRunner(() => producer);
@@ -394,6 +423,11 @@ describe('every entry loads under Node itself, no transpiler', () => {
 });
 
 describe('/health', () => {
+  it('is healthy once started, and only then: 503 while starting, stopping and stopped', () => {
+    expect(healthyIn('running')).toBe(true);
+    for (const state of ['starting', 'stopping', 'stopped'] as const) expect(healthyIn(state), state).toBe(false);
+  });
+
   it('200 while healthy, 503 while not, 404 for anything else; on the address it is given', async () => {
     let healthy = false;
     const server = await serveHealth('127.0.0.1', 0, () => healthy);

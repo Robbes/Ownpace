@@ -609,10 +609,15 @@ function longestWaitingFirst(a: Waiting, b: Waiting): number {
 export const SyncTickJobSchema = z.strictObject({});
 
 /**
- * Whether the shared beat is fresh (within `ANOTHER_RUNNER_BEAT_MS`) and newer
- * than `ownBeat`, or `ownBeat` was never written: a tick on another runner
- * wrote it (0167 T6, the pg-boss tick's second rule). Compared in the
- * database, as `readTickBeat` compares; a read that fails fails the tick.
+ * Whether the shared beat is fresh (within `ANOTHER_RUNNER_BEAT_MS`) and
+ * differs from `ownBeat`, or `ownBeat` was never written: a tick on another
+ * runner wrote it (0167 T6, the pg-boss tick's second rule). This runner
+ * writes both at one moment, so a shared beat it wrote is equal to its own;
+ * one that differs is somebody else's, whether it is newer or older. Older is
+ * the case that matters: the two ticks' order within a minute is jitter, and
+ * after a hold the other tick's shared beat is older than this one's own until
+ * that tick writes again. Compared in the database, as `readTickBeat`
+ * compares; a read that fails fails the tick.
  */
 export async function sharedBeatWrittenByAnother(
   db: Pick<Pool, 'query'>,
@@ -621,7 +626,7 @@ export async function sharedBeatWrittenByAnother(
 ): Promise<boolean> {
   const { rows } = await db.query<{ anothers: boolean }>(
     `SELECT shared.beat_at > $1::timestamptz - ($2::int * interval '1 millisecond')
-            AND (own.beat_at IS NULL OR shared.beat_at > own.beat_at) AS anothers
+            AND shared.beat_at IS DISTINCT FROM own.beat_at AS anothers
        FROM sync_tick_beat shared
        LEFT JOIN sync_tick_beat own ON own.task = $4
       WHERE shared.task = $3`,
@@ -661,7 +666,7 @@ export const managedSyncTickRun = leavesAReference(
      * and not the shared one, so two left running start no pass and the
      * status page's *Scheduled syncs*, which reads the shared beat, goes down.
      *
-     * On pg-boss it also holds while the shared beat is fresh and newer than
+     * On pg-boss it also holds while the shared beat is fresh and differs from
      * its own: a Trigger.dev tick from before the interlock (alpha.14's,
      * alpha.15's) writes the shared beat and no beat of its runner, and only
      * that says it is still running (`sharedBeatWrittenByAnother`).
@@ -678,16 +683,16 @@ export const managedSyncTickRun = leavesAReference(
     // The pg-boss half's second rule (0167 T6): a Trigger.dev tick from before
     // the interlock (alpha.14's, alpha.15's) writes the shared beat and no beat
     // of its runner, so the rule above cannot see it. The pg-boss tick also
-    // holds while the shared beat is fresh and newer than its own: somebody
-    // else wrote it. Its own two beats are written at one time, so the shared
-    // one is never the newer when this runner wrote both.
+    // holds while the shared beat is fresh and differs from its own: somebody
+    // else wrote it. Its own two beats are written at one time, so they are
+    // equal when this runner wrote both, and only then.
     const sharedBeatIsAnothers =
       !otherRunnerBeats && context.runner.name === 'pg-boss' && (await sharedBeatWrittenByAnother(pool, now, ownBeat));
     if (otherRunnerBeats || sharedBeatIsAnothers) {
       const summary = { anotherRunner: otherRunner, triggered: 0, ms: Date.now() - startedAt };
       const whose = otherRunnerBeats
         ? `the ${otherRunner} runner's tick beat within the last ${ANOTHER_RUNNER_BEAT_MS / 1000} s (${otherBeat})`
-        : `the shared tick beat (${SYNC_TICK_BEAT}) is newer than this runner's own (${ownBeat}) and within the ` +
+        : `the shared tick beat (${SYNC_TICK_BEAT}) differs from this runner's own (${ownBeat}) and is within the ` +
           `last ${ANOTHER_RUNNER_BEAT_MS / 1000} s, so a tick on another runner wrote it`;
       log.warn(
         `[sync-tick] holding: ${whose}, so this one, on ${context.runner.name}, starts no ` +

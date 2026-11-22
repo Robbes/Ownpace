@@ -145,7 +145,9 @@ describe('the runtime needs no transpiler', () => {
       for (const m of text.matchAll(/new URL\(\s*'(\.[^']*)'\s*,\s*import\.meta\.url\s*\)/g)) {
         const spec = m[1]!;
         urls.push(spec);
-        if (!/\.ts$/.test(spec)) offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}' (not a .ts file)`);
+        // A test may read a file by its URL (the bring-up's SQL); only what ships is forked.
+        const forked = !/\.test\.ts$/.test(file);
+        if (forked && !/\.ts$/.test(spec)) offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}' (not a .ts file)`);
         else if (!existsSync(resolve(dirname(file), spec))) offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}' (no such file)`);
       }
     }

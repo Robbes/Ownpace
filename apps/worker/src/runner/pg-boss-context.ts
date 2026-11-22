@@ -29,7 +29,14 @@
  * runs.
  */
 
-import { JOB_CATALOG, PgBossProducer, type RunOutcome, type RunStatus } from '@openmig/scheduler/pg-boss';
+import {
+  JOB_CATALOG,
+  PgBossProducer,
+  killMarginSeconds,
+  type ChildRunInfo,
+  type RunOutcome,
+  type RunStatus,
+} from '@openmig/scheduler/pg-boss';
 import { log, type OrchestratorVerdict } from '@openmig/shared';
 // The job's context, beside the runner's own `RunContext` (`@openmig/scheduler/pg-boss`).
 import type { JobRunnerPort, RunContext as JobRunContext, Settled } from '../jobs/run-context.ts';
@@ -40,6 +47,27 @@ export const JOBS_SCHEMA = 'pgboss';
 
 /** How often a run waiting for another asks after it (Trigger.dev's `triggerAndWait` waits on a push). */
 export const WAIT_POLL_MS = 1000;
+
+/**
+ * How long a run may wait for another, from when it started: its own limit,
+ * less the margin at which the worker kills it (`killMarginSeconds`), less as
+ * long again, up to a minute, for the run to say why it stopped waiting. A
+ * cutover waits for a pass ahead of it and for its own final sync; on
+ * Trigger.dev those waits did not count toward its limit, and a final sync
+ * that failed came back as one that did not settle, which the cutover records
+ * (`FinalSyncNotFinished`). Here the wall clock counts, so the wait gives up
+ * first and hands back the same answer: the run is never killed mid-wait as
+ * `RunTimedOut`, with nothing recorded.
+ */
+export function waitBudgetMs(limitSeconds: number): number {
+  const settle = Math.min(60, Math.max(1, Math.floor(limitSeconds / 10)));
+  return Math.max(1, limitSeconds - killMarginSeconds(limitSeconds) - settle) * 1000;
+}
+
+/** What the worker hands a forked run besides its id and attempt: until when it may wait (ms since the epoch). */
+export interface PgBossRunInfo extends ChildRunInfo {
+  readonly waitsUntil?: number;
+}
 
 /** A pg-boss job id. Anything else, Trigger.dev's `run_…` among them, this runner never started. */
 const PG_BOSS_REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,7 +80,7 @@ export interface ProducerLike {
   enqueueAndWait<R>(
     queue: string,
     payload: unknown,
-    opts: { serializeBy?: string; tags?: readonly string[]; pollMs?: number },
+    opts: { serializeBy?: string; tags?: readonly string[]; pollMs?: number; signal?: AbortSignal },
   ): Promise<RunOutcome<R>>;
   status(runId: string): Promise<RunStatus | null>;
   cancel(runId: string): Promise<boolean>;
@@ -113,7 +141,7 @@ export interface PgBossRunner {
   close(): Promise<void>;
 }
 
-export function pgBossRunner(open: () => ProducerLike = producerFromEnv): PgBossRunner {
+export function pgBossRunner(open: () => ProducerLike = producerFromEnv, waitsUntil?: number): PgBossRunner {
   let opened: Promise<ProducerLike> | null = null;
   const producer = (): Promise<ProducerLike> => {
     opened ??= (async () => {
@@ -144,12 +172,27 @@ export function pgBossRunner(open: () => ProducerLike = producerFromEnv): PgBoss
       return { runId };
     },
     async enqueueAndWait(queue, payload, options) {
-      const outcome = await (await producer()).enqueueAndWait<DeltaSyncOutput>(queue, payload, {
-        serializeBy: options.serializeBy,
-        tags: options.tags,
-        pollMs: WAIT_POLL_MS,
-      });
-      return settledOf(outcome);
+      const deadline = waitsUntil === undefined ? undefined : AbortSignal.timeout(Math.max(0, waitsUntil - Date.now()));
+      try {
+        const outcome = await (await producer()).enqueueAndWait<DeltaSyncOutput>(queue, payload, {
+          serializeBy: options.serializeBy,
+          tags: options.tags,
+          pollMs: WAIT_POLL_MS,
+          ...(deadline ? { signal: deadline } : {}),
+        });
+        return settledOf(outcome);
+      } catch (err) {
+        if (deadline?.aborted !== true) throw err;
+        // The wait's own deadline, not the pass's: the pass goes on, and this run says it did not settle.
+        log.warn(`[jobs] stopped waiting for a run on "${queue}": this run's time would run out before it settled.`);
+        return {
+          ok: false,
+          error: {
+            name: 'FinalSyncTimedOut',
+            message: `The run on "${queue}" had not settled when this run's own time limit was near.`,
+          },
+        };
+      }
     },
     async verdict(ref) {
       if (!isPgBossRef(ref)) return 'unknown';

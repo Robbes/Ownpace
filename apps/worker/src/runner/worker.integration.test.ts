@@ -28,9 +28,9 @@
  *     other runner's beat, and under a shared beat somebody else wrote; not
  *     under its own; and two runners left running start nothing.
  *
- * THE JOBS ROLE is made as `deploy/compose/jobs-role.sql` makes it (pull
- * request #2041, not yet on `main`): a test-local copy of that file's two
- * statements, to be replaced by the file itself once it merges. pg-boss's
+ * THE JOBS ROLE is made by `deploy/compose/jobs-role.sql`, the bring-up's own
+ * file (#2041), run here as it is; the password is set after, as the bring-up
+ * sets `.env`'s. pg-boss's
  * schema `pgboss` is dropped before and after, so every run starts from none.
  *
  * Handed its database as `TEST_DATABASE_URL` (the Testcontainers harness, or
@@ -56,17 +56,8 @@ if (!ADMIN_URL) {
   throw new Error('TEST_DATABASE_URL is not set. Run under the Testcontainers harness or scripts/local-pg.sh.');
 }
 
-/** `deploy/compose/jobs-role.sql`'s two statements, as #2041 has them; replaced by the file once it merges. */
-const JOBS_ROLE_SQL = `
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ownpace_jobs') THEN
-    CREATE ROLE ownpace_jobs LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
-  END IF;
-END
-$$;
-CREATE SCHEMA IF NOT EXISTS pgboss AUTHORIZATION ownpace_jobs;
-`;
+/** The jobs' role and schema, made as the bring-up makes them: `deploy/compose/jobs-role.sql`, run as it is (#2041). */
+const JOBS_ROLE_SQL = readFileSync(fileURLToPath(new URL('../../../../deploy/compose/jobs-role.sql', import.meta.url)), 'utf8');
 
 const JOBS_PASSWORD = randomBytes(18).toString('base64url');
 const SYSTEM_PASSWORD = randomBytes(18).toString('hex');
@@ -442,6 +433,25 @@ describe('the worker starts on the jobs role, declares the catalog, answers its 
     }
   });
 
+  it('a stop asked for while it starts: the start returns quietly, the worker never says it runs, and it stops', async () => {
+    for (const after of [0, 50, 300]) {
+      const worker = new JobWorker({
+        connectionString: JOBS_URL,
+        passesInFlight: 2,
+        catalog: catalogOf(WORKED),
+        entries: { ...RUN_ENTRIES, 'run-delta-sync': STAND_IN_PASS, 'run-cutover': STAND_IN_CUTOVER },
+        health: null,
+        stopGraceMs: 2_000,
+        stopSettleMs: 2_000,
+      });
+      const starting = worker.start();
+      await sleep(after);
+      await worker.stop();
+      await expect(starting, `a stop ${after} ms into the start`).resolves.toBeUndefined();
+      expect(worker.state).toBe('stopped');
+    }
+  }, 120_000);
+
   it('main.ts: starts with the switch on pg-boss and the jobs URL, is healthy, and exits 0 on SIGTERM', async () => {
     const child = spawn(process.execPath, [MAIN], {
       env: { ...process.env, OWNPACE_JOB_RUNNER: 'pg-boss', JOBS_DATABASE_URL: JOBS_URL, MAX_PASSES_IN_FLIGHT: '7' },
@@ -634,6 +644,22 @@ describe('what a run asks of its runner, on pg-boss', () => {
     expect(waited).toMatchObject({ ok: true, output: { runId: finalSync.run_id, attempt: 1 } });
   }, 120_000);
 
+  it("a cutover whose final sync outlives the cutover's own limit: the wait gives up first, and the cutover hears a pass not settled", async () => {
+    // A cutover's limit of 30 s here; its pass holds a minute. On Trigger.dev the wait did not
+    // count and the pass's own failure came back; here the wait stops short of the kill, so the
+    // cutover's catch still runs (run-cutover.ts: FinalSyncNotFinished) instead of a RunTimedOut.
+    await startWorker({ catalog: catalogOf(WORKED, { 'run-cutover': { maxDurationSeconds: 30 } }) });
+    const mapping = randomUUID();
+    await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping, holdMs: 60_000 }, { serializeBy: mapping });
+    await until('the pass ahead to start', async () => (await attemptsOf(mapping)).length === 1, 30_000);
+    const cutover = await producer.enqueue('run-cutover', { tenantId: TENANT, mappingId: mapping }, {});
+    const done = await settled(cutover.runId!, 60_000);
+    expect(done.state, JSON.stringify(done.output)).toBe('completed');
+    expect(done.attempt).toBe(1);
+    const { settled: waited } = (done.output as { value: { settled: { ok: boolean; error: { name: string } } } }).value;
+    expect(waited).toMatchObject({ ok: false, error: { name: 'FinalSyncTimedOut' } });
+  }, 120_000);
+
   it("the purge's verdict: live while it waits or runs, finished once it ended or is gone, unknown for a Trigger.dev ref", async () => {
     await startWorker();
     const runner = pgBossRunner();
@@ -643,8 +669,9 @@ describe('what a run asks of its runner, on pg-boss', () => {
       const holding = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping, holdMs: 3000 }, {
         serializeBy: mapping,
       });
-      const waiting = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping }, { serializeBy: mapping });
+      // A singleton key promises one at a time, not an order: the second is sent once the first runs.
       await until('the first pass to start', async () => (await attemptsOf(mapping)).length === 1, 30_000);
+      const waiting = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping }, { serializeBy: mapping });
       expect(await port.verdict(holding.runId!)).toBe('live');
       expect(await port.verdict(waiting.runId!)).toBe('live');
       await settled(waiting.runId!);
@@ -725,6 +752,8 @@ describe("a run's process", () => {
     const hung = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping, holdMs: 120_000 }, {
       serializeBy: mapping,
     });
+    // A singleton key promises one at a time, not an order: the second is sent once the first runs.
+    await until('the hung run to start', async () => (await attemptsOf(mapping)).length === 1, 30_000);
     const next = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping }, { serializeBy: mapping });
     const s = await settled(hung.runId!, 60_000);
     expect(s.state).toBe('failed');
@@ -894,7 +923,7 @@ describe("the tick's interlock across runners, its pg-boss half", () => {
     expect((await beatOf('managed-sync-tick-pg-boss'))!.getTime()).toBeGreaterThan(shared!.getTime());
   });
 
-  it('holds under a shared beat newer than its own, which a Trigger.dev tick from before the interlock wrote', async () => {
+  it('holds under a shared beat that differs from its own, newer here, which a Trigger.dev tick from before the interlock wrote', async () => {
     await forgetBeats();
     await beat('managed-sync-tick-pg-boss', 60);
     await beat('managed-sync-tick', 10);
@@ -906,6 +935,30 @@ describe("the tick's interlock across runners, its pg-boss half", () => {
     await beat('managed-sync-tick', 10);
     expect(await tick({}, { runner: port })).toMatchObject({ anotherRunner: 'trigger', triggered: 0 });
     expect(enqueued).toEqual([]);
+  });
+
+  it('beside a Trigger.dev tick from before the interlock, in either order from minute to minute, never starts a pass', async () => {
+    // alpha.14's and alpha.15's tick writes the shared beat and nothing else. The two ticks'
+    // order within a minute is jitter, so the pg-boss tick sometimes reads a shared beat that
+    // is older than its own hold: it must hold then too (the review of #2048).
+    await forgetBeats();
+    const oldTick = () => beat('managed-sync-tick');
+    const { port, enqueued } = recordingPort('pg-boss');
+    const pgBossTick = async (): Promise<void> => {
+      expect(await tick({}, { runner: port })).toMatchObject({ anotherRunner: 'trigger', triggered: 0 });
+    };
+    // Minute 1: the old tick first; minute 2: the pg-boss tick first, 35 ms after its hold; and so on.
+    await oldTick();
+    await pgBossTick();
+    await sleep(35);
+    await pgBossTick();
+    await oldTick();
+    await pgBossTick();
+    await sleep(35);
+    await pgBossTick();
+    expect(enqueued).toEqual([]);
+    // The shared beat is the old tick's alone: two runners read as a stopped tick only if neither writes it.
+    expect((await beatOf('managed-sync-tick-pg-boss'))!.getTime()).toBeGreaterThan((await beatOf('managed-sync-tick'))!.getTime());
   });
 
   it('runs under a shared beat it wrote itself, or one older than 90 s, and writes both at one time', async () => {

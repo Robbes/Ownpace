@@ -166,7 +166,7 @@ describe('the tick asks first, and holds as under an operator’s hold', () => {
   const OWN = 'const ownBeat = SYNC_TICK_BEAT_ON[context.runner.name];';
   const OTHER = "const otherRunner = context.runner.name === 'trigger' ? 'pg-boss' : 'trigger';";
   const READ_OTHER = "const otherRunnerBeats = (await readTickBeat(drizzle(pool), now, otherBeat, ANOTHER_RUNNER_BEAT_MS)) === 'up';";
-  /** The pg-boss half's second rule (0167 T6): a shared beat newer than its own, asked on pg-boss only. */
+  /** The pg-boss half's second rule (0167 T6): a shared beat that differs from its own, asked on pg-boss only. */
   const READ_SHARED =
     "!otherRunnerBeats && context.runner.name === 'pg-boss' && (await sharedBeatWrittenByAnother(pool, now, ownBeat));";
   const ASKED = 'if (otherRunnerBeats || sharedBeatIsAnothers) {';
