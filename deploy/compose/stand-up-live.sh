@@ -107,7 +107,9 @@
 #   1. POSTGRES_PASSWORD, APP_DB_PASSWORD, CLICKHOUSE_PASSWORD,
 #      MINIO_ROOT_PASSWORD and TRIGGER_DB_PASSWORD (D8, T2): each one empty or
 #      published, and whose volume does not exist yet, gets `openssl rand -hex
-#      24`, written through `env-upsert.sh --stdin`. A value the owner set is
+#      24`, written through `env-upsert.sh --stdin`; and JOBS_DB_PASSWORD, the
+#      jobs role's (ADR-0054), whenever it is empty or published, since the
+#      data phase sets it on the role on every run and no volume keeps it. A value the owner set is
 #      kept. No value is on any command line or printed. In the same write,
 #      ZITADEL_ORG_NAME=Ownpace (LIVE_ORG_NAME, stack-kind.sh) when the key is
 #      empty, so the identity provider's first start names its organisation
@@ -233,19 +235,22 @@ DEMO_PORT_KEYS=' NEXTCLOUD_PORT '
 # guard checks the name and the value against that script's once it is here.
 SITE_SWITCH_KEY=WWW_LIVE
 # Each password this may generate, and the volume that takes it at its first
-# initialisation and keeps it.
+# initialisation and keeps it. `-` for one no volume keeps: the jobs role's,
+# which the bring-up's data phase sets on the role on every run (ADR-0054), so
+# it is generated whenever it is empty or published, volume or none.
 PASSWORDS=(
   'POSTGRES_PASSWORD postgres_data'
   'APP_DB_PASSWORD postgres_data'
   'CLICKHOUSE_PASSWORD clickhouse_data_v2'
   'MINIO_ROOT_PASSWORD minio_data_v2'
   'TRIGGER_DB_PASSWORD trigger_db_data'
+  'JOBS_DB_PASSWORD -'
 )
 # managed.yml puts these in a URL, so only characters a URL carries as they are:
 # a database's, or minio-init's MC_HOST_store, where mc reads a ':' in the
 # password as the start of a session token (hostKeyTokens, cmd/config.go at
 # mc's RELEASE.2025-08-13T08-35-41Z) and the bucket is never made.
-URL_PASSWORDS=' POSTGRES_PASSWORD APP_DB_PASSWORD CLICKHOUSE_PASSWORD TRIGGER_DB_PASSWORD MINIO_ROOT_PASSWORD '
+URL_PASSWORDS=' POSTGRES_PASSWORD APP_DB_PASSWORD CLICKHOUSE_PASSWORD TRIGGER_DB_PASSWORD MINIO_ROOT_PASSWORD JOBS_DB_PASSWORD '
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 CHECK_TRIES="${STAND_UP_LIVE_CHECK_TRIES:-5}"
@@ -1033,7 +1038,7 @@ check_passwords() {
     read -r key vol <<<"$entry"
     value="$(env_value "$ENV_FILE" "$key")"
     if is_published "$key" "$value"; then
-      if has_volume "$vol"; then
+      if [ "$vol" != - ] && has_volume "$vol"; then
         _p+=("${key}: empty or a value this repository publishes, and ${COMPOSE_PROJECT}_${vol} exists, which took it at its first start and keeps it. $(password_remedy "$vol")")
       else
         _g+=("$key")

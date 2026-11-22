@@ -451,7 +451,11 @@ describe('the role: no superuser, no role or database of its own, a member of no
       SELECT c.oid, CASE WHEN n.nspname = 'public' THEN c.relname ELSE n.nspname || '.' || c.relname END AS tbl
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
        WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f')
-         AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND left(n.nspname, 3) <> 'pg_'`;
+         AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND left(n.nspname, 3) <> 'pg_'
+         -- An extension's own relations are not the ledger: pg_stat_statements, which the bring-up
+         -- creates in this database, grants PUBLIC SELECT on its two views from its install script.
+         AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                          WHERE e.classid = 'pg_class'::regclass AND e.objid = c.oid AND e.deptype = 'e')`;
     const tables = await ownerRows<{ tbl: string; priv: string }>(sql`
       SELECT r.tbl, p.priv FROM (${relations}) r
         CROSS JOIN unnest(ARRAY[${sql.raw(privileges.map((p) => `'${p}'`).join(', '))}]) AS p(priv)

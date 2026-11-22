@@ -4,6 +4,160 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still, after the second review: a NOLOGIN jobs role is not "not made yet", and four smaller holes.**
+The coordinator's second review of #2041 confirmed the first five fixes, and E2E (managed) run
+45044295985 passed at `3fc7556b`, with the role made, fit, set and proven on the OTA stack. `main`
+(#2043, T6's first step) is merged in, with both Status entries kept, main's T5 and T6 rows and this
+branch's T7 row.
+
+- **`rotate-db-passwords.sh` and a NOLOGIN `ownpace_jobs`.** `db_roles_list` lists login roles only,
+  so `--check` and `--sync` took a NOLOGIN role for one not made yet: exit 0 and "done". Both now ask
+  the fit question whenever the role is not a login role. They skip only on its empty answer
+  (`DB_ROLES_JOBS_MISSING`). `--check` then names the refusal and exits 2; `--sync` sets the two,
+  leaves the jobs role and exits 1. Taking the old shortcut in either fails the NOLOGIN test.
+- **`--sync`'s exit merges the skip** by the script's own rule (a refusal anywhere is 1, otherwise
+  a question not asked is 2). The NOT DONE line is printed whatever the two's proof found, and the
+  Exit codes block names the skip. Saying it only when the two passed fails its test.
+- **A temporary table no longer counts as owned elsewhere** (`pg_temp_N`, `pg_toast_temp_N`). In
+  transaction pooling, a temporary table can outlive its client on a server connection. A test holds a
+  fit role with a temporary table; without the clause it fails.
+- **Two more privileges are counted:**
+  - **A `public` relation whose ACL names the role or PUBLIC** (`aclexplode`, grantee 0 or the
+    role), on every version. This counts PostgreSQL 17's MAINTAIN, which the privilege functions'
+    list does not name. Its test grants MAINTAIN through PUBLIC on 17 and later, so it runs on CI's
+    18; here, on 16, it checks that 16 has no MAINTAIN.
+  - **EXECUTE on `pgbouncer_auth`'s functions**, through PUBLIC as well, as a new last field. The
+    bring-up revokes PUBLIC's EXECUTE just before the question; `--sync` does not. Not counting it
+    fails its test.
+- **`a-system-role-that-is-not-the-owner`** failed 1 of 41 while `pg_stat_statements` existed in the
+  shared database. Its relations query now leaves extension-owned relations out, and it passes 41 of
+  41 with the extension and without it.
+- **`docs/managed-bring-up.md`'s grants query** filters by database (run here against a database
+  grant and a column grant), and names the lookup function's remedy.
+- **Evidence.** On a `scripts/local-pg.sh` cluster (PostgreSQL 16.15):
+  - **The integration file:** `Tests 40 passed (40)`.
+  - **`a-system-role-that-is-not-the-owner`:** `41 passed (41)`, with the extension and without it
+    (1 failed with it before).
+  - **`rotate-db-passwords`:** `68 passed (68)`.
+  - **Every unit file under `scripts/` and `deploy/`:** 7,644 tests, 7,610 passed. The one failure is
+    `every-release-is-a-starting-point`, for this checkout's 12 tags.
+  - **Broken once each, then restored byte for byte:**
+    - the temporary-schema clause: 1 failed;
+    - the lookup count: 1 failed;
+    - `--check`'s and `--sync`'s NOLOGIN shortcut: 1 each;
+    - the skip said only at rc 0: 1.
+  - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
+
+**2026-11-22, later still, after review: the fit question no longer refuses every real stack.**
+The coordinator's review of #2041 found the question refused every stack that has
+`pg_stat_statements`. The data phase creates that extension in the app's database just before the
+question runs, and its install script grants PUBLIC SELECT on its two views in `public`. So the
+answer counted 2 relations of `public`, and the bring-up died: E2E (managed) and live's alpha.16
+deploy after its copy and checkout. The integration test had passed because the Testcontainers
+database has no such extension, and the unit stubs answer a canned line.
+
+- **Fixed.** The `public` count leaves out relations an extension owns (`pg_depend` `e`). The test
+  now runs what the phase runs before the file, in the phase's order: `setup-auth.sql`, then the
+  extension, in the shared database and in the copy's. Against the old question the new file failed
+  28 of 36. Against the new one it passes 37 of 37, and taking only the extension clause out fails 28.
+- **Three new answers**, for the roles the review found that still read as fit:
+  - **Grants naming the role** (`pg_shdepend` `a`): a table, column, schema, function, default
+    privilege or the database. This covers USAGE and EXECUTE on `pgbouncer_auth.user_lookup`, CREATE
+    or USAGE on `public` by name, and `ALTER DEFAULT PRIVILEGES … TO ownpace_jobs`.
+  - **CREATE on the database**, by name or through PUBLIC.
+  - **CREATE on `public`**, by name or through PUBLIC.
+
+  A sequence's USAGE is now counted with the `public` relations. Each case has its own test, 11 new
+  in all; with the by-name count disabled 4 fail, and with the sequence clause out 1 fails.
+- **`jobs-role.sql` has no REVOKE any more.** It would take back a PUBLIC grant on an existing
+  schema before the question saw it, against the file's own "repairs nothing". A new schema grants
+  PUBLIC nothing anyway. A case runs the file again after such a grant and expects the refusal; with
+  the REVOKE put back it fails.
+- **`rotate-db-passwords.sh --sync` no longer lets an unfit jobs role block the other two.** It names
+  the jobs role and leaves it exactly as it is, still sets and proves the owner and `app_user`, then
+  exits 1 (2 when the question could not be asked). `--sync` is how the operator puts the two back
+  while the stack may be down; a changed jobs role is a separate fault. Making it refuse again, or
+  exit 0, each fails its test.
+- **Docs.** `docs/managed-bring-up.md` gains *The jobs role*: every refusal with its remedy, and
+  the query that lists what names the role (run here against real grants). The refusal points there.
+  `docs/operator-runbook.md`'s roles line names `ownpace_jobs` (and `ownpace_system`, which it had
+  left out). The rls-guide row says what the question leaves out and counts.
+- **Evidence.** On a `scripts/local-pg.sh` cluster (PostgreSQL 16.15), with the shared database put
+  back afterwards (no `ownpace_jobs`, `pgbouncer_auth`, `pgboss` or extension left):
+  - **The integration file:** `Tests 37 passed (37)`.
+  - **Every unit file under `scripts/` and `deploy/`:** 310 files, 7,634 tests, 7,600 passed. The one
+    failure is `every-release-is-a-starting-point`, because this checkout holds only 12 tags (it
+    passed on CI's full checkout of this branch).
+  - **`a-password-the-repository-knows` and `rotate-db-passwords`:** `Tests 170 passed (170)`, with 3
+    new unfit lines in (f).
+  - **Broken once each, then restored byte for byte:**
+    - `jobs-role.sql`'s REVOKE put back: 2 failed.
+    - The bash check of the by-name grants made a no-op: 1 failed.
+    - `--sync` refusing on an unfit jobs role: 1 failed.
+    - The skip exiting 0: 1 failed.
+  - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
+
+**2026-11-22, later still: the jobs' role and schema, made by the managed bring-up (T7, its first part).**
+On branch `claude/ownpace-public-readiness-y7orc6-jobs-role`, from T5's branch. Nothing connects as
+the role yet, and no service in `managed.yml` changed; no file in either migration chain and none of
+the Trigger.dev, identity-provider and ClickHouse image lines moved, so live's deploy of alpha.16
+from alpha.14 stays reversible by `deploy-live.sh`'s own rule.
+
+- **Why the bring-up and not a migration, read from the scripts.** Alpha.14's `deploy-live.sh`
+  takes the copy with its own `copy-before-update.sh`, then `git checkout --detach <tag>`, then runs
+  that tag's `bootstrap-managed.sh --from data`. So the data phase of the release being deployed is
+  the first code of it that runs, and every `--from data` passes `load_env` first. The role is made
+  there, as `pgbouncer_auth` is (`setup-auth.sql`), between postgres and the pooler.
+- **What was built.** `deploy/compose/jobs-role.sql`: `ownpace_jobs`
+  (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`, no password) when
+  it does not exist, `CREATE SCHEMA IF NOT EXISTS pgboss AUTHORIZATION ownpace_jobs`, and
+  `REVOKE ALL ON SCHEMA pgboss FROM PUBLIC`. It creates and never alters, so a role that was changed
+  is refused, not repaired. `db-roles.sh` gains `db_roles_jobs_ensure`, `db_roles_jobs_fit`,
+  `db_roles_jobs_set` and `db_roles_jobs_prove`. The data phase runs ensure, fit and set after
+  `setup-auth.sql`, and prove after the pooler is up. `load_env` seeds a missing
+  `JOBS_DB_PASSWORD`, before the file is sourced and before any Compose call, through
+  `ensure-env-secrets.sh --only JOBS_DB_PASSWORD`, a new mode that fills in that key and nothing
+  else (a whole run there would generate the database passwords `load_env` refuses as missing on a
+  real address). Also: `managed.env.example`, `rotate-db-passwords.sh` (`--check` asks the role,
+  `--sync` judges it and then sets it), `stand-up-live.sh` (generates it, in `URL_PASSWORDS`, and
+  no volume keeps it), `docs/rls-guide.md` and `SECURITY.md`.
+- **The question, field by field.** Superuser, create role, create database, replication,
+  BYPASSRLS, login, inherit; roles it belongs to and roles that belong to it; whether it owns
+  `pgboss`; objects it owns outside it but for TOAST (relations, functions, types, schemas and
+  databases, and anything else through `pg_shdepend`); relations of `public` it holds any privilege
+  on, a column's included, through itself or PUBLIC; and privileges on `pgboss`, or on a relation
+  in it, granted to anyone but the role.
+- **The copy and the rollback (the open question).** `scripts/a-jobs-role-that-owns-only-its-queue.integration.test.ts`
+  makes a database of its own, with both chains, the file and pg-boss with one job queued. It dumps
+  it with `copy-before-update.sh`'s flags and restores it over itself with the runbook's rollback
+  flags (`pg_restore -d postgres --clean --if-exists --create`), both read from those files. The
+  schema is still the role's, the job is in it, the question answers fit, and the runner starts on it
+  as the role. The roles are cluster-wide and not in the dump, as the runbook says for the others: on
+  a new server the roles' dump comes first (step 7's note).
+- **Evidence.** On a throwaway cluster from `scripts/local-pg.sh` (PostgreSQL 16.15; CI's
+  Testcontainers run on 18 is the one to trust for the version):
+  - **The new integration file:** `Tests 26 passed (26)`, 2.1 s, with `pg_dump` and `pg_restore`
+    this machine's (their major is the server's; on CI the harness image's, on the host network).
+    Afterwards no `ownpace_jobs`, no `pgboss` and no copy database are left.
+  - **The guards that read what changed** (the ten files touched or run by the phase): `Tests 1079
+    passed (1079)`. Every unit file under `scripts/` and `deploy/`: 310 files, 7,631 tests. The first
+    run failed 2: `a-demo-on-a-real-address`, whose checkout has no `ensure-env-secrets.sh` (its OTA
+    `.env` now carries the key), and `lessons`, regenerated. Both pass now.
+  - **Broken once each, then restored byte for byte** (sha256 the same):
+    - `NOINHERIT` dropped from `jobs-role.sql`: 20 of 26 integration tests failed.
+    - The fit question's `public` privilege clause made `false`: the PUBLIC column grant case failed.
+    - `--no-owner` added to the runbook's restore: the restore test failed, the schema no longer
+      the role's.
+    - In `a-password-the-repository-knows` (f): no `jobs_role_proven` failed 2; the seed running the
+      whole generator failed 1; the fit answer ignored failed 9.
+    - In `rotate-db-passwords`: no `check_jobs` failed 2; `--sync` without the question failed 2.
+    - `managed-env-contract`: load_env without the seed failed 1.
+    - `bootstrap-managed`: `--only` going on past its key failed 2.
+    - `a-first-bring-up-of-live`: the key judged by `postgres_data` failed 1.
+    - `a-connection-the-docs-did-not-know-about`: the guide's row changed failed 1.
+  - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
+- **Next:** T6 and the rest of T7 (the worker service, `JOBS_DATABASE_URL`, the switch).
+
 **2026-11-22, later still: T6's first step, the job catalog and the jobs made runner-neutral.**
 On branch `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`, from `main` with T5 merged
 (#2038). Nothing that runs changes: Trigger.dev runs every job under the same ids, queues, machines
@@ -200,7 +354,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
 | T5 This runner, merged | builder | ✅ **Done 2026-11-22**, #2038 | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
 | T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, built on `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. Still to come: the worker, the API's doors and the operator's commands. |
-| T7 The worker service, and the switch on | builder, owner | ⬜ **Not started** | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. For privacy §9's *Server logs* row (2026-11-22) to be true, the switch also carries: the worker's image built and its container recreated at every deploy, like the API's (a container whose image does not change keeps its output: `a-journal-that-outlived-the-container`); a run's output forwarded to the worker's log (#2040); *How long they stay* in `docs/operator-runbook.md` and the log collector's paragraph in `docs/managed-bring-up.md` no longer saying "when its run ends" for a task; and `docs/ending-the-alpha.md` step 3 also emptying pg-boss's schema, read by `the-end-of-the-alpha-empties-the-task-history`. It merges together with the privacy PR (#2042). |
+| T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the role and schema, built on `claude/ownpace-public-readiness-y7orc6-jobs-role` | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. For privacy §9's *Server logs* row (2026-11-22) to be true, the switch also carries: the worker's image built and its container recreated at every deploy, like the API's (a container whose image does not change keeps its output: `a-journal-that-outlived-the-container`); a run's output forwarded to the worker's log (#2040); *How long they stay* in `docs/operator-runbook.md` and the log collector's paragraph in `docs/managed-bring-up.md` no longer saying "when its run ends" for a task; and `docs/ending-the-alpha.md` step 3 also emptying pg-boss's schema, read by `the-end-of-the-alpha-empties-the-task-history`. It merges together with the privacy PR (#2042). |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |
 
