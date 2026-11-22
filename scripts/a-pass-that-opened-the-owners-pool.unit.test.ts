@@ -253,13 +253,15 @@ const AT_THE_MACHINE: readonly string[] = Object.freeze([
  * all it reads. The jobs role's URL, `ownpace_jobs` through PgBouncer, which
  * owns pg-boss's schema and nothing in `public`. The stand-in pass is the
  * integration test's own, forked by its URL and imported by nothing, and
- * writes to the test's own table.
+ * writes to the test's own table; the worker to kill is the same test's, a
+ * worker in a process of its own.
  */
 const THE_WORKERS_RUNNER: Record<string, readonly string[]> = {
   'apps/worker/src/runner/main.ts': ['JOBS_DATABASE_URL'],
   'apps/worker/src/runner/worker.ts': ['JOBS_DATABASE_URL'],
   'apps/worker/src/runner/pg-boss-context.ts': ['JOBS_DATABASE_URL'],
   'apps/worker/src/runner/__testing__/a-pass-stand-in.ts': ['WORKER_TEST_DATABASE_URL'],
+  'apps/worker/src/runner/__testing__/a-worker-to-kill.ts': ['JOBS_DATABASE_URL'],
 };
 const RUNNER_DIR = 'apps/worker/src/runner';
 const RUNNER_MAIN = `${RUNNER_DIR}/main.ts`;

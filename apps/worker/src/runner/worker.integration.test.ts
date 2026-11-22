@@ -84,6 +84,7 @@ const APP_URL = as('app_user', 'app_password');
 const STAND_IN_PASS = new URL('./__testing__/a-pass-stand-in.ts', import.meta.url);
 const STAND_IN_CUTOVER = new URL('./__testing__/a-cutover-stand-in.ts', import.meta.url);
 const MAIN = fileURLToPath(new URL('./main.ts', import.meta.url));
+const WORKER_TO_KILL = fileURLToPath(new URL('./__testing__/a-worker-to-kill.ts', import.meta.url));
 
 const NEXTCLOUD_URL = process.env.NEXTCLOUD_WEBDAV_URL;
 const NEXTCLOUD_USER = process.env.NEXTCLOUD_USERNAME;
@@ -146,6 +147,13 @@ const WORKED = ['managed-sync-tick', 'run-delta-sync', 'run-cutover', 'run-disco
 
 let producerStarted = false;
 
+/** The producer never migrates: it starts once a worker has installed the schema. */
+async function producerReady(): Promise<void> {
+  if (producerStarted) return;
+  await producer.start();
+  producerStarted = true;
+}
+
 async function startWorker(
   opts: {
     catalog?: readonly JobCatalogEntry[];
@@ -177,11 +185,7 @@ async function startWorker(
   });
   workers.push(worker);
   await worker.start();
-  // The producer never migrates: it starts once a worker has installed the schema.
-  if (!producerStarted) {
-    await producer.start();
-    producerStarted = true;
-  }
+  await producerReady();
   return worker;
 }
 
@@ -656,29 +660,63 @@ describe('what a run asks of its runner, on pg-boss', () => {
 });
 
 describe("a run's process", () => {
-  it('killed with SIGKILL from outside: retried, and the retry converges', async () => {
+  it('killed by a SIGKILL the worker did not send: failed on its first attempt, not retried, as on Trigger.dev', async () => {
+    // Trigger.dev 4.8.8 reads a task process killed by SIGKILL or SIGABRT as
+    // TASK_PROCESS_MAYBE_OOM_KILLED, which it does not retry: the kernel's OOM
+    // killer, once the container has a limit, or a person.
     await startWorker();
     const mapping = randomUUID();
-    const { runId } = await producer.enqueue(
-      'run-delta-sync',
-      { tenantId: TENANT, mappingId: mapping, holdMs: 60_000, holdOnAttempt: 1 },
-      { serializeBy: mapping },
-    );
+    const { runId } = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping, holdMs: 60_000 }, {
+      serializeBy: mapping,
+    });
     const [first] = await until('the first attempt to start', async () => {
       const a = await attemptsOf(mapping);
       return a.length === 1 ? a : null;
     }, 30_000);
     process.kill(first!.pid, 'SIGKILL');
     const s = await settled(runId!, 60_000);
-    expect(s.state).toBe('completed');
-    expect(s.attempt).toBe(2);
-    const attempts = await attemptsOf(mapping);
-    expect(attempts.map((a) => [a.attempt, a.others_alive])).toEqual([
-      [1, 0],
-      [2, 0],
-    ]);
-    expect(attempts[1]!.finished_at).not.toBeNull();
+    expect(s.state).toBe('failed');
+    expect(s.attempt).toBe(1);
+    await sleep(8_000);
+    expect(await attemptsOf(mapping)).toHaveLength(1);
   }, 120_000);
+
+  it('on a worker that dies mid-run: retried by the next worker once its claim lapses, never two on one key', async () => {
+    const mapping = randomUUID();
+    const dying = spawn(process.execPath, [WORKER_TO_KILL], { env: process.env, stdio: ['ignore', 'pipe', 'inherit'] });
+    let said = '';
+    dying.stdout.on('data', (d: Buffer) => (said += d.toString()));
+    try {
+      await until('the worker to kill to be working', async () => {
+        if (dying.exitCode !== null) throw new Error(`the worker to kill exited ${dying.exitCode}:\n${said}`);
+        return said.includes('[a-worker-to-kill] working');
+      }, 60_000);
+      await producerReady();
+      const { runId } = await producer.enqueue(
+        'run-delta-sync',
+        { tenantId: TENANT, mappingId: mapping, holdMs: 60_000, holdOnAttempt: 1 },
+        { serializeBy: mapping },
+      );
+      const [first] = await until('the first attempt to start', async () => {
+        const a = await attemptsOf(mapping);
+        return a.length === 1 ? a : null;
+      }, 30_000);
+      // The worker dies outright; its run's process follows it, as its IPC closes.
+      dying.kill('SIGKILL');
+      await until('the dead worker’s run process to be gone', async () => !alive(first!.pid), 10_000);
+      await startWorker();
+      const s = await settled(runId!, 90_000);
+      expect(s.state).toBe('completed');
+      expect(s.attempt).toBe(2);
+      const attempts = await attemptsOf(mapping);
+      expect(attempts.map((a) => [a.attempt, a.others_alive])).toEqual([
+        [1, 0],
+        [2, 0],
+      ]);
+    } finally {
+      if (dying.exitCode === null) dying.kill('SIGKILL');
+    }
+  }, 180_000);
 
   it('past its time limit: killed before the next run on its key starts, and failed as timed out, not retried', async () => {
     // A limit of 12 s: the worker kills the run 1 s before pg-boss's own limit (killMarginSeconds).
