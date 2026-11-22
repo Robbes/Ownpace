@@ -874,18 +874,19 @@ services:
   # Built here since 2026-10-30 (workplan 0119): Tecnativa's docker-socket-proxy
   # at its release v0.6.0 since 2026-11-20 (v0.5.0 before), its Dockerfile,
   # haproxy.cfg and entrypoint as they are at that tag, on the newest HAProxy
-  # of the same line, 3.4.7, instead of the 3.4.2 that v0.5.0's image was
-  # built on in July and never rebuilt (0 critical and 6 high findings on
-  # 2026-10-29, all 6 fixed in newer Alpine packages). The environment below
-  # is upstream's interface, unchanged, and v0.6.0 allows and refuses under
-  # it what v0.5.0 did. deploy/compose/docker-socket-proxy/Dockerfile says
-  # what changed (the base, which upstream's v0.6.0 upgrades while it builds
-  # and this one does not, and since 2026-11-20 the user it ends as: HAProxy's
-  # uid 99 in place of upstream's root), why the name carries the hash of its
-  # instructions, and how it moves.
+  # of the same line, 3.4.8 since 2026-11-22 (3.4.7 before), instead of the
+  # 3.4.2 that v0.5.0's image was built on in July and never rebuilt (0
+  # critical and 6 high findings on 2026-10-29, all 6 fixed in newer Alpine
+  # packages). The environment below is upstream's interface, unchanged, and
+  # v0.6.0 allows and refuses under it what v0.5.0 did.
+  # deploy/compose/docker-socket-proxy/Dockerfile says what changed (the
+  # base, which upstream's v0.6.0 upgrades while it builds and this one does
+  # not, and since 2026-11-20 the user it ends as: HAProxy's uid 99 in place
+  # of upstream's root), why the name carries the hash of its instructions,
+  # and how it moves.
   # `never`, as for the databases: no registry serves this name.
   trigger-docker-proxy:
-    image: localhost/docker-socket-proxy:3.4.7-alpine-98dbd75c6730
+    image: localhost/docker-socket-proxy:3.4.8-alpine-0950ae008aa4
     build: ./docker-socket-proxy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy

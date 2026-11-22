@@ -39,27 +39,31 @@
 #      haproxy`, which upgrade every Alpine package while the image builds and
 #      give the base's user back (v0.5.0's was `FROM haproxy:3.4.2-alpine`
 #      alone). This one is one FROM: the newest release of the same line,
-#      3.4.7, by the digest of its index: Docker Hub's rebuild of the tag on
-#      Alpine 3.24.4, whose index it pushed on 2026-11-05 at 23:56 UTC, taken
-#      on 2026-11-09, past the three-day floor (CONTRIBUTING.md). Its platforms
-#      include linux/amd64 and linux/arm64. Against the tag's build of
-#      2026-10-24 on Alpine 3.24.3, taken on 2026-10-30, the rebuild moves
-#      alpine-release, apk-tools and libapk (3.0.8 to 3.0.9) and nothing else
-#      but the build's own `.haproxy-rundeps` marker, on both platforms;
-#      HAProxy is the same 3.4.7 source. Nothing upgrades it while it builds:
-#      an upgrade installs what Alpine serves on the day of the build, which
-#      the name below does not say, and the base moves by its digest instead,
-#      in Dependabot's pull requests (HOW IT MOVES), where each move is read
-#      and is a new name. `lts` named 3.4 when v0.6.0 was taken (Docker Hub's
-#      `lts-alpine` was the index of `3.4-alpine` and `3.4.8-alpine`,
-#      2026-11-20), the line v0.5.0 chose, and upstream builds `3.4` by name
+#      3.4.8, by the digest of its index, which Docker Hub pushed on
+#      2026-11-19 at 17:56 UTC over its linux/amd64 and linux/arm64 images of
+#      2026-11-18, taken on 2026-11-22 inside the three-day floor
+#      (CONTRIBUTING.md), on the owner's waiver of that day. Its platforms
+#      include linux/amd64 and linux/arm64. Against 3.4.7's rebuild on Alpine
+#      3.24.4, pinned from 2026-11-09 to 2026-11-22, each platform's Alpine
+#      layer is the same blob, and its config differs in HAProxy's version,
+#      source URL and the source's SHA-256 alone: the build's steps are the
+#      same. That rebuild had moved, against the tag's build of 2026-10-24 on
+#      Alpine 3.24.3, alpine-release, apk-tools and libapk (3.0.8 to 3.0.9)
+#      and nothing else but the build's own `.haproxy-rundeps` marker.
+#      Nothing upgrades it while it builds: an upgrade installs what Alpine
+#      serves on the day of the build, which the name below does not say, and
+#      the base moves by its digest instead, in Dependabot's pull requests
+#      (HOW IT MOVES), where each move is read and is a new name. `lts` named
+#      3.4 when v0.6.0 was taken (Docker Hub's `lts-alpine` was the index of
+#      `3.4-alpine` and `3.4.8-alpine`, the one pinned here, on 2026-11-20 and
+#      2026-11-22), the line v0.5.0 chose, and upstream builds `3.4` by name
 #      too (its docker-bake.hcl), so the line stays. The base's user,
 #      entrypoint, command, working directory and stop signal are the same at
-#      3.4.2 and 3.4.7, read from the registry on 2026-10-30, and the
-#      rebuild's again on 2026-11-09 and 2026-11-20. Its user is haproxy, so
-#      upstream's `USER root` and `USER haproxy` around the upgrade end where
-#      the base starts, and the two RUNs after the COPY run as haproxy here,
-#      as upstream's one does.
+#      3.4.2, 3.4.7 and 3.4.8: 3.4.2's and 3.4.7's read from the registry on
+#      2026-10-30, 3.4.7's rebuild's on 2026-11-09 and 2026-11-20, and 3.4.8's
+#      on 2026-11-22. Its user is haproxy, so upstream's `USER root` and `USER
+#      haproxy` around the upgrade end where the base starts, and the two RUNs
+#      after the COPY run as haproxy here, as upstream's one does.
 #   2. One RUN, after the COPY, that checks both files by SHA-256 and the
 #      entrypoint's executable bit. The name managed.yml builds this under
 #      hashes this file's instruction lines and nothing else (THE NAME, below),
@@ -142,7 +146,7 @@
 #     is told to leave the line alone.
 #
 # docker-socket-proxy v0.6.0
-FROM haproxy:3.4.7-alpine@sha256:5312d37032c079c4937d45ef63758852434351f3b425a3703521fd999837abcf
+FROM haproxy:3.4.8-alpine@sha256:8aa6458a9d22a8364a2d2ee9ce93de0cc4a2789e3cf63f0b44adc972863724d7
 
 EXPOSE 2375
 ENV ALLOW_RESTARTS=0 \
