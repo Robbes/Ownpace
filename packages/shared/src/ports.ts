@@ -6,6 +6,7 @@ import type { PauseReason } from './pause-reason.ts';
 import type { UnreadCollection } from './unread-collections.ts';
 import type { DeadlinePause, HaltPause, PassClock } from './pass-deadline.ts';
 import type { SourceAuthority } from './lifecycle.ts';
+import type { ConfirmedAddressChangeRow } from './address-change-table.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
 import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail.ts';
 import type { CalendarFolder, RawCalendarEvent } from './calendar.ts';
@@ -1765,6 +1766,15 @@ export interface Ledger {
     stepKey: string,
     decision: { readonly state: 'open' | 'done' | 'skipped'; readonly decidedBy: string },
   ): Promise<SetupStepRow>;
+  /**
+   * The organisation's CONFIRMED address changes (ADR-0055; workplan 0168 T2),
+   * sorted by old key: the table every migration of the tenant applies, read
+   * once at the start of a pass (0168 §4.3). A `proposed` row is never here.
+   * An empty answer is an empty table, and changes no byte of any copy.
+   *
+   * Optional, as `findMany` is: a ledger without it has no table.
+   */
+  listConfirmedAddressChanges?(tenantId: TenantId): Promise<ReadonlyArray<ConfirmedAddressChangeRow>>;
   /** Every sharing-queue row for one mapping, checklist order (open first, then by label). */
   listShareGrants(tenantId: TenantId, mappingId: MappingId): Promise<ReadonlyArray<ShareGrantRow>>;
   /**

@@ -246,6 +246,9 @@ const EXPECTED: Record<string, readonly string[]> = {
   policy_preset: PURGED_ONLY(),
   group_def: PURGED_ONLY(),
   share_grant: PURGED_ONLY(),
+  // The addresses that change and whose they are (workplan 0168 T2, managed 0063): only the purge.
+  address_change: PURGED_ONLY(),
+  address_change_person: PURGED_ONLY(),
   apply_receipt: PURGED_ONLY(),
   setup_step: PURGED_ONLY(),
   backup_target: PURGED_ONLY(),
