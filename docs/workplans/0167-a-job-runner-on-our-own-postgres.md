@@ -20,7 +20,9 @@ service is another pull request's, and these scripts are written against the con
   other eight in order, with `stop` and the profile `trigger` named; account, login and tasks say
   `skipped: pg-boss mode`; the app phase builds `api web worker`, starts no plane service, asks the
   system role (`system_role_ready`), holds `WORKER_CPUS` to the host's CPU count (the rule
-  0.5 × (`MAX_PASSES_IN_FLIGHT` + 2)), and starts the worker through `up_wait` after the api.
+  0.5 × (`MAX_PASSES_IN_FLIGHT` + 2)), and starts the worker after the api, recreating it
+  whenever this run replaced the api's container, so its output goes at each update as the api's
+  does (privacy §9, #2042).
   Trigger mode: the worker is stopped and removed first, then everything as before.
 - **The deploy.** `deploy-live.sh` reads the runner here and the tag's; its drain counts pg-boss's
   `created`, `retry` and `active` jobs outside the schedule queues (`-` while the schema holds no

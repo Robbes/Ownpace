@@ -1825,7 +1825,11 @@ describe('the bring-up in either runner (0167 T7)', () => {
         '    [ "$n" -ge "${RUNNER_POLLS:-0}" ] || echo runner-abc123',
         '    echo ownpace-managed-api-1 ;;',
         '  "info --format {{.NCPU}}") echo "${NCPU:-4}" ;;',
-        '  *" up -d --wait worker") exit "${WORKER_UP_EXIT:-0}" ;;',
+        // The api's container id: another after the `up` when API_REPLACED says so.
+        '  *" ps -q api")',
+        '    if [ -f "$STATE.api" ] && [ -n "${API_REPLACED:-}" ]; then echo api-new; else echo api-old; fi',
+        '    : >"$STATE.api" ;;',
+        '  *" up -d --wait worker" | *" up -d --wait --force-recreate worker") exit "${WORKER_UP_EXIT:-0}" ;;',
         'esac',
         'exit 0',
         '',
@@ -1944,11 +1948,38 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.calls[up]).not.toMatch(/trigger-|minio|clickhouse|worker/);
       const after = r.calls.slice(up + 1);
       expect(after).toEqual([
+        'docker compose -f managed.yml ps -q api',
         'system_role_ready',
         'docker info --format {{.NCPU}}',
         'docker compose -f managed.yml --profile jobs up -d --wait worker',
       ]);
       expect(r.out).toMatch(/the worker's CPU cap: 2\.5 of this host's 4 \(the rule: 0\.5 x \(MAX_PASSES_IN_FLIGHT \+ 2\) = 2\.5\)/);
+    });
+
+    it('app: the worker is built in the api\'s build call, and recreated whenever this run replaced the api (privacy §9)', () => {
+      const r = phase(['app'], { env: PG, answers: { API_REPLACED: '1' } });
+      expect(r.status, r.out).toBe(0);
+      const builds = r.calls.filter((c) => / build /.test(c));
+      expect(builds).toEqual(['docker compose -f managed.yml --profile jobs build api web worker']);
+      expect(r.calls.at(-1)).toBe('docker compose -f managed.yml --profile jobs up -d --wait --force-recreate worker');
+      expect(r.out).toMatch(/the api container was replaced by this run: recreating the worker with it/);
+      // The ids were asked around the `up` that replaced the api.
+      const up = r.calls.findIndex((c) => / up -d --wait .*\bapi\b/.test(c));
+      expect(r.calls[up - 1]).toBe('docker compose -f managed.yml ps -q api');
+      expect(r.calls[up + 1]).toBe('docker compose -f managed.yml ps -q api');
+    });
+
+    it('app: an api that was not replaced leaves the worker to Compose, which replaces it when its image moved', () => {
+      const r = phase(['app'], { env: PG });
+      expect(r.status, r.out).toBe(0);
+      expect(r.calls.at(-1)).toBe('docker compose -f managed.yml --profile jobs up -d --wait worker');
+      expect(r.out).not.toMatch(/recreating the worker/);
+    });
+
+    it('app: a worker recreated with the api that never comes up is explained from its own log', () => {
+      const r = phase(['app'], { env: PG, answers: { API_REPLACED: '1', WORKER_UP_EXIT: '1' } });
+      expect(r.status).not.toBe(0);
+      expect(r.calls.at(-1)).toBe('explain_failure worker');
     });
 
     it('app: an unfit system role stops it before the worker starts, as the tasks phase stopped the upload', () => {

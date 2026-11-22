@@ -1938,12 +1938,27 @@ worker_cpus_fit() {
 
 # worker_up — the worker started after the api, and waited on: its
 # healthcheck asks its own /health, which answers 200 once the runner runs.
-# Through up_wait, with the worker's profile named, so a worker that never
-# comes up is explained from its own log like any other service.
+# worker_up <api before> <api after> — the worker started after the api, and
+# waited on, with its profile named, so one that never comes up is explained
+# from its own log like any other service.
+#
+# REPLACED WHENEVER THE API IS (privacy §9: a part's server logs go when that
+# part is replaced, "at each update of the service"). A container keeps its
+# output until it is removed, and Compose replaces one only when its image or
+# settings changed. The worker's image is built in the same call as the api's,
+# from the same checkout; and when this run replaced the api container (its
+# id before and after the `up` differ), the worker is recreated too, whatever
+# Compose would have decided, so no update leaves the worker's output behind.
 worker_up() {
+  local before="${1:-}" after="${2:-}"
   local -a compose_before=("${COMPOSE[@]}")
   COMPOSE=("${COMPOSE_WORKER[@]}")
-  up_wait worker
+  if [ -n "$before" ] && [ "$after" != "$before" ]; then
+    note "the api container was replaced by this run: recreating the worker with it, so its output goes with the api's (privacy §9)"
+    "${COMPOSE[@]}" up -d --wait --force-recreate worker || explain_failure worker
+  else
+    up_wait worker
+  fi
   COMPOSE=("${compose_before[@]}")
   note "worker up and healthy: the jobs run on pg-boss"
 }
@@ -2691,7 +2706,12 @@ phase_app() {
     GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
       "${COMPOSE[@]}" --profile jobs build api web worker || die "the api, web and worker images did not build (compose's words are above); nothing was started or recreated."
   fi
+  # Which api container ran before this `up`, so that a replaced one takes the
+  # worker with it (worker_up).
+  local api_before api_after
+  api_before="$("${COMPOSE[@]}" ps -q api 2>/dev/null | awk 'NR==1')" || api_before=''
   up_wait "${services[@]}"
+  api_after="$("${COMPOSE[@]}" ps -q api 2>/dev/null | awk 'NR==1')" || api_after=''
   note "up and healthy: ${services[*]}"
   # PG-BOSS MODE: the worker after the api, once the system role it connects
   # as for the jobs across organisations is asked and readied, as the tasks
@@ -2700,7 +2720,7 @@ phase_app() {
   if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
     system_role_ready
     worker_cpus_fit
-    worker_up
+    worker_up "$api_before" "$api_after"
   fi
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
   # What the rule for a host a tenant gives us admits by name (workplan 0136

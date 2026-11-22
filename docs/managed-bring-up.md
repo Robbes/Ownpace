@@ -827,7 +827,7 @@ script in one sentence, before anything runs. What the bring-up does in each:
 |---|---|---|
 | `trigger` | stops and removes the worker if it has one, then the plane as below | stops the plane, if it runs: `trigger-supervisor` first, then waits (up to `PLANE_RUNNERS_TIMEOUT`, 300 s) until no `runner-*` container is left on the stack's network, then `trigger-api trigger-tls clickhouse trigger-registry trigger-docker-proxy minio trigger-redis trigger-db`. `stop`, never `rm -v`: the containers stay `Exited` and their volumes stay, as the way back |
 | `account`, `login` | as below | `skipped: pg-boss mode` |
-| `app` | builds `api web`; the plane with the rest | builds `api web worker`; no plane service; then the system role's question (as the `tasks` phase asks it in trigger mode), the worker's CPU cap held to the host's, and the worker, after the api |
+| `app` | builds `api web`; the plane with the rest | builds `api web worker`; no plane service; then the system role's question (as the `tasks` phase asks it in trigger mode), the worker's CPU cap held to the host's, and the worker, after the api, recreated whenever this run replaced the api's container, so its server log goes at each update as the api's does (privacy §9) |
 | `tasks` | as below | `skipped: pg-boss mode`; nothing is uploaded or deployed |
 
 **The worker's CPU cap.** Docker refuses a `cpus` above the host's CPU count,
