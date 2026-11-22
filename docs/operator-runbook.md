@@ -657,7 +657,7 @@ docker compose -f managed.yml exec -T postgres \
 # (managed.yml: ZITADEL_DATABASE_POSTGRES_DATABASE, default `zitadel`):
 docker compose -f managed.yml exec -T postgres \
   pg_dump -U openmigrate -d zitadel --format=custom > zitadel-$(date +%F).dump
-# Roles are cluster-global and pg_dump omits them (app_user, pgbouncer_auth, zitadel):
+# Roles are cluster-global and pg_dump omits them (app_user, ownpace_system, ownpace_jobs, pgbouncer_auth, zitadel):
 docker compose -f managed.yml exec -T postgres \
   pg_dumpall -U openmigrate --roles-only > roles-$(date +%F).sql
 

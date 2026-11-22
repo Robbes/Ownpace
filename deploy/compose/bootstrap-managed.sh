@@ -1469,10 +1469,10 @@ jobs_role_ready() {
   db_roles_jobs_fit || rc=$?
   case "$rc" in
     0) ;;
-    1) die "REFUSED, before its password is set: ${DB_ROLES_WHY}. Nothing here repairs the role; put it back as jobs-role.sql makes it (docs/rls-guide.md, 'Where row security holds today'), then run this again." ;;
+    1) die "REFUSED, before its password is set: ${DB_ROLES_WHY}. Nothing here repairs the role; docs/managed-bring-up.md, 'The jobs role', says how to put it back as jobs-role.sql makes it, then run this again." ;;
     *) die "could not ask Postgres what ${DB_ROLES_JOBS} may do, so its password is not set: ${DB_ROLES_WHY}" ;;
   esac
-  note "${DB_ROLES_JOBS}: no superuser, may create no role or database, NOINHERIT, no BYPASSRLS, a member of no role and no role a member of it, owns ${DB_ROLES_JOBS_SCHEMA} and nothing else, no privilege on any table of public (idempotent)"
+  note "${DB_ROLES_JOBS}: no superuser, may create no role or database, NOINHERIT, no BYPASSRLS, a member of no role and no role a member of it, owns ${DB_ROLES_JOBS_SCHEMA} and nothing else, no privilege on any table of public, no grant naming it, may create no schema and nothing in public (idempotent)"
   db_roles_jobs_set "$DB_ROLES_JOBS_PASSWORD" || die "could not set ${DB_ROLES_JOBS}'s password: ${DB_ROLES_WHY}. No value is printed."
   note "${DB_ROLES_JOBS} holds .env's JOBS_DB_PASSWORD, with no setting left on it"
 }

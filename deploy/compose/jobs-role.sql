@@ -48,6 +48,7 @@ $$;
 -- tables, functions and types inside it as that role.
 CREATE SCHEMA IF NOT EXISTS pgboss AUTHORIZATION ownpace_jobs;
 
--- A new schema grants PUBLIC nothing already; said here, so that it stays so
--- whatever the server's defaults become.
-REVOKE ALL ON SCHEMA pgboss FROM PUBLIC;
+-- No REVOKE here. A new schema grants PUBLIC nothing, and a REVOKE run on
+-- every bring-up would quietly take back a grant somebody made on a schema
+-- that exists, before the question below could see it. Left as it is, such a
+-- grant is refused by db_roles_jobs_fit, naming it, as everything else is.

@@ -4,6 +4,55 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still, after review: the fit question no longer refuses every real stack.**
+The coordinator's review of #2041 found the question refused every stack that has
+`pg_stat_statements`. The data phase creates that extension in the app's database just before the
+question runs, and its install script grants PUBLIC SELECT on its two views in `public`. So the
+answer counted 2 relations of `public`, and the bring-up died: E2E (managed) and live's alpha.16
+deploy after its copy and checkout. The integration test had passed because the Testcontainers
+database has no such extension, and the unit stubs answer a canned line.
+
+- **Fixed.** The `public` count leaves out relations an extension owns (`pg_depend` `e`). The test
+  now runs what the phase runs before the file, in the phase's order: `setup-auth.sql`, then the
+  extension, in the shared database and in the copy's. Against the old question the new file failed
+  28 of 36. Against the new one it passes 37 of 37, and taking only the extension clause out fails 28.
+- **Three new answers**, for the roles the review found that still read as fit:
+  - **Grants naming the role** (`pg_shdepend` `a`): a table, column, schema, function, default
+    privilege or the database. This covers USAGE and EXECUTE on `pgbouncer_auth.user_lookup`, CREATE
+    or USAGE on `public` by name, and `ALTER DEFAULT PRIVILEGES … TO ownpace_jobs`.
+  - **CREATE on the database**, by name or through PUBLIC.
+  - **CREATE on `public`**, by name or through PUBLIC.
+
+  A sequence's USAGE is now counted with the `public` relations. Each case has its own test, 11 new
+  in all; with the by-name count disabled 4 fail, and with the sequence clause out 1 fails.
+- **`jobs-role.sql` has no REVOKE any more.** It would take back a PUBLIC grant on an existing
+  schema before the question saw it, against the file's own "repairs nothing". A new schema grants
+  PUBLIC nothing anyway. A case runs the file again after such a grant and expects the refusal; with
+  the REVOKE put back it fails.
+- **`rotate-db-passwords.sh --sync` no longer lets an unfit jobs role block the other two.** It names
+  the jobs role and leaves it exactly as it is, still sets and proves the owner and `app_user`, then
+  exits 1 (2 when the question could not be asked). `--sync` is how the operator puts the two back
+  while the stack may be down; a changed jobs role is a separate fault. Making it refuse again, or
+  exit 0, each fails its test.
+- **Docs.** `docs/managed-bring-up.md` gains *The jobs role*: every refusal with its remedy, and
+  the query that lists what names the role (run here against real grants). The refusal points there.
+  `docs/operator-runbook.md`'s roles line names `ownpace_jobs` (and `ownpace_system`, which it had
+  left out). The rls-guide row says what the question leaves out and counts.
+- **Evidence.** On a `scripts/local-pg.sh` cluster (PostgreSQL 16.15), with the shared database put
+  back afterwards (no `ownpace_jobs`, `pgbouncer_auth`, `pgboss` or extension left):
+  - **The integration file:** `Tests 37 passed (37)`.
+  - **Every unit file under `scripts/` and `deploy/`:** 310 files, 7,634 tests, 7,600 passed. The one
+    failure is `every-release-is-a-starting-point`, because this checkout holds only 12 tags (it
+    passed on CI's full checkout of this branch).
+  - **`a-password-the-repository-knows` and `rotate-db-passwords`:** `Tests 170 passed (170)`, with 3
+    new unfit lines in (f).
+  - **Broken once each, then restored byte for byte:**
+    - `jobs-role.sql`'s REVOKE put back: 2 failed.
+    - The bash check of the by-name grants made a no-op: 1 failed.
+    - `--sync` refusing on an unfit jobs role: 1 failed.
+    - The skip exiting 0: 1 failed.
+  - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
+
 **2026-11-22, later still: the jobs' role and schema, made by the managed bring-up (T7, its first part).**
 On branch `claude/ownpace-public-readiness-y7orc6-jobs-role`, from T5's branch. Nothing connects as
 the role yet, and no service in `managed.yml` changed; no file in either migration chain and none of

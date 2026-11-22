@@ -369,7 +369,7 @@ if (svc === 'postgres' && cmd[0] === 'psql') {
   // The jobs role's question (db_roles_jobs_fit): one line for a role that exists, nothing for one that does not.
   if (p.v.jobs_role !== undefined && sql.includes('r.rolinherit')) {
     log('docker', { kind: 'socket', what: 'jobs-fit', container: env, psql: p, sql });
-    if (state.roles[p.v.jobs_role]) out((state.jobsFit || 'f|f|f|f|f|t|f|0|0|t|0|0|0') + '\\n');
+    if (state.roles[p.v.jobs_role]) out((state.jobsFit || 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f') + '\\n');
     done(0);
   }
   log('docker', { kind: 'socket', what: 'alter', container: env, psql: p, sql });
@@ -2079,20 +2079,29 @@ describe('the jobs role, ownpace_jobs (ADR-0054): --check asks it, --sync sets i
   );
 
   it(
-    '--sync refuses an unfit jobs role, or an empty JOBS_DB_PASSWORD with the role there, before it changes anything',
+    '--sync leaves an unfit jobs role, or one with no value in .env, exactly as it is, still sets the two, and exits 1',
     () => {
-      const unfit = fixture({ state: { ...withJobs(JOBS_PW), jobsFit: 'f|f|f|f|t|t|f|0|0|t|0|0|0' } });
+      const stale = { pgowner: { super: true, login: true, pw: 'openmigrate_password' }, app_user: { super: false, login: true, pw: 'app_password' } };
+      const unfit = fixture({
+        state: { roles: { ...withJobs('jobs-as-it-was').roles, ...stale }, jobsFit: 'f|f|f|f|t|t|f|0|0|t|0|0|0|0|f|f' },
+      });
       const r = run(unfit, ['--sync']);
       expect(r.status, r.output).toBe(1);
-      expect(r.stderr).toContain('ownpace_jobs: it has BYPASSRLS');
-      expect(r.stderr).toContain('Nothing was changed.');
-      expect(calls(unfit).filter((c) => c.what === 'alter'), 'a role was changed').toEqual([]);
+      expect(r.stderr).toContain('ownpace_jobs is left as it is, and the rest goes on: REFUSED: ownpace_jobs: it has BYPASSRLS');
+      expect(r.stderr).toContain("NOT DONE: app_user and pgowner accept .env's values, and ownpace_jobs was left as it is");
+      // The two the operator ran it for are put right; the jobs role is not touched.
+      expect(stateOf(unfit).roles.pgowner?.pw).toBe(OWNER_PW);
+      expect(stateOf(unfit).roles.app_user?.pw).toBe(APP_PW);
+      expect(stateOf(unfit).roles.ownpace_jobs?.pw).toBe('jobs-as-it-was');
+      expect(calls(unfit).filter((c) => c.what === 'alter' && c.psql?.v.jobs_role !== undefined), 'the jobs role was changed').toEqual([]);
+      expect(leaks(unfit, r.output)).toEqual([]);
 
-      const empty = fixture({ state: withJobs(JOBS_PW), env: { JOBS_DB_PASSWORD: '' } });
+      const empty = fixture({ state: withJobs('jobs-as-it-was'), env: { JOBS_DB_PASSWORD: '' } });
       const e = run(empty, ['--sync']);
       expect(e.status, e.output).toBe(1);
       expect(e.stderr).toContain('ownpace_jobs is a login role here, and JOBS_DB_PASSWORD is empty in .env');
-      expect(calls(empty).filter((c) => c.what === 'alter'), 'a role was changed').toEqual([]);
+      expect(calls(empty).filter((c) => c.what === 'jobs-fit'), 'asked a role it cannot set').toEqual([]);
+      expect(stateOf(empty).roles.ownpace_jobs?.pw).toBe('jobs-as-it-was');
 
       // Without the role, --sync sets the two and says there is nothing of the jobs role to set.
       const before = fixture();

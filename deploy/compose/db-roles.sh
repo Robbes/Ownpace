@@ -99,8 +99,10 @@
 #       NOINHERIT, no superuser, may create no role or database, does not
 #       replicate, no BYPASSRLS, a member of no role and no role a member of
 #       it, the owner of `pgboss`, owning nothing outside it but its tables'
-#       TOAST, with no privilege on any relation of `public`, through itself or
-#       PUBLIC, and nothing on `pgboss` or in it granted to another role),
+#       TOAST, with no privilege on any relation of `public` but an
+#       extension's own, through itself or PUBLIC, no grant made to it by name
+#       anywhere, unable to create a schema or to create in `public`, and
+#       nothing on `pgboss` or in it granted to another role),
 #       1 unfit or missing (DB_ROLES_WHY names every reason), 2 could not ask.
 #   db_roles_jobs_set <password>
 #       ALTER ROLE with .env's JOBS_DB_PASSWORD over the socket as the owner,
@@ -258,8 +260,21 @@ DB_ROLES_JOBS_SCHEMA='pgboss'
 # objects it owns outside the schema, its tables' TOAST apart (relations,
 # functions, types, schemas and databases by their catalogs, anything else
 # by pg_shdepend); how many relations of `public` it holds any privilege on,
-# a column's included, through itself or PUBLIC; and how many privileges on
-# the schema or on a relation in it are granted to another role or PUBLIC.
+# a column's or a sequence's USAGE included, through itself or PUBLIC, an
+# extension's own relations apart; how many privileges on the schema or on a
+# relation in it are granted to another role or PUBLIC; how many grants name
+# it, anywhere in this database or on a shared object (pg_shdepend's `a`:
+# a table, a column, a schema, a function, a default privilege, the database
+# itself); whether it may create a schema in this database; and whether it may
+# create in the schema `public`, through PUBLIC as well.
+#
+# AN EXTENSION'S OWN RELATIONS ARE NOT THE LEDGER. pg_stat_statements, which
+# the data phase creates in the app's database just before this question,
+# grants PUBLIC SELECT on its two views in `public` from its own install
+# script. Counted, they refused every real stack: E2E (managed), and live's
+# deploy after its copy and checkout. They are left out by pg_depend's `e`
+# (an object that belongs to an extension), and a grant by name on one is
+# still counted by the grants that name the role.
 # No line: no such role. The two names go by psql variables, never into the
 # text. a-jobs-role-that-owns-only-its-queue (integration) asks it of a real
 # database, before pg-boss installs and after.
@@ -283,13 +298,21 @@ SELECT r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolreplication, r.rolbypass
                                  'pg_namespace'::regclass, 'pg_database'::regclass)),
        (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
          WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+           AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                            WHERE e.classid = 'pg_class'::regclass AND e.objid = c.oid AND e.deptype = 'e')
            AND (has_table_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-                OR has_any_column_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES'))),
+                OR has_any_column_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
+                OR (c.relkind = 'S' AND has_sequence_privilege(r.oid, c.oid, 'USAGE')))),
        (SELECT count(*) FROM pg_namespace n CROSS JOIN LATERAL aclexplode(n.nspacl) a
          WHERE n.nspname = :'jobs_schema' AND a.grantee <> r.oid)
      + (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
               CROSS JOIN LATERAL aclexplode(c.relacl) a
-         WHERE n.nspname = :'jobs_schema' AND a.grantee <> r.oid)
+         WHERE n.nspname = :'jobs_schema' AND a.grantee <> r.oid),
+       (SELECT count(*) FROM pg_shdepend d
+         WHERE d.refclassid = 'pg_authid'::regclass AND d.refobjid = r.oid AND d.deptype = 'a'
+           AND d.dbid IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))),
+       has_database_privilege(r.oid, current_database(), 'CREATE'),
+       has_schema_privilege(r.oid, 'public', 'CREATE')
   FROM pg_roles r
  WHERE r.rolname = :'jobs_role';
 SQL
@@ -577,7 +600,7 @@ db_roles_jobs_ensure() { # 0 ran, 1 did not (DB_ROLES_WHY says why)
 # The jobs role, asked of the catalog after jobs-role.sql and before its
 # password is set: every reason it is unfit, at once, in DB_ROLES_WHY.
 db_roles_jobs_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
-  local out rc super createrole createdb replication bypass login inherit members held owns elsewhere public granted reason joined
+  local out rc super createrole createdb replication bypass login inherit members held owns elsewhere public granted named dbcreate pubcreate reason joined
   local -a unfit=()
   DB_ROLES_WHY=''
   out=$("${COMPOSE[@]}" exec -T postgres psql -X -q -At -F '|' -U "$DB_ROLES_OWNER" -d "$DB_ROLES_DB" \
@@ -590,7 +613,7 @@ db_roles_jobs_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
     DB_ROLES_WHY="${DB_ROLES_JOBS} is not a role in this database: jobs-role.sql makes it, and the bring-up's data phase runs that"
     return 1
   fi
-  IFS='|' read -r super createrole createdb replication bypass login inherit members held owns elsewhere public granted <<<"$out"
+  IFS='|' read -r super createrole createdb replication bypass login inherit members held owns elsewhere public granted named dbcreate pubcreate <<<"$out"
   [ "$super" = f ] || unfit+=('it is a superuser, whom row security never binds and who may run programs on the database server')
   [ "$createrole" = f ] || unfit+=('it may create roles, and so change its own')
   [ "$createdb" = f ] || unfit+=('it may create databases')
@@ -608,6 +631,9 @@ db_roles_jobs_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
   [ "$elsewhere" = 0 ] || unfit+=("it owns ${elsewhere:-an unknown number of} object(s) outside ${DB_ROLES_JOBS_SCHEMA}")
   [ "$public" = 0 ] || unfit+=("it holds a privilege on ${public:-an unknown number of} relation(s) of public, through itself or PUBLIC, where the ledger is")
   [ "$granted" = 0 ] || unfit+=("${granted:-an unknown number of} privilege(s) on ${DB_ROLES_JOBS_SCHEMA} or in it are granted to another role or PUBLIC, and its tables carry no row security")
+  [ "$named" = 0 ] || unfit+=("${named:-an unknown number of} grant(s) name it (on a table, a column, a schema, a function, a default privilege or the database), and it is given nothing")
+  [ "$dbcreate" = f ] || unfit+=('it may create a schema in this database')
+  [ "$pubcreate" = f ] || unfit+=('it may create in the schema public, where the ledger is')
   [ "${#unfit[@]}" -eq 0 ] && return 0
   joined=''
   for reason in "${unfit[@]}"; do joined+="${joined:+; }${reason}"; done

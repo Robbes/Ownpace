@@ -68,10 +68,12 @@
 # function, once trigger-db is up and before trigger-api starts. ClickHouse
 # and MinIO need nothing: they read .env when they are recreated. When the
 # jobs role is a login role here, --sync asks the catalog whether it is fit
-# (db_roles_jobs_fit) before it changes anything, refuses when it is not or
-# when JOBS_DB_PASSWORD is empty, and once the two roles are proven sets the
-# jobs role to .env's value, every setting on it cleared, and proves it over
-# the network and through the pooler: what the data phase does on every run.
+# (db_roles_jobs_fit) before it changes anything. When it is, once the two
+# roles are proven, it sets the jobs role to .env's value, every setting on it
+# cleared, and proves it over the network and through the pooler: what the
+# data phase does on every run. When it is not, or JOBS_DB_PASSWORD is empty,
+# the jobs role is named and left as it is, the two are still set, and --sync
+# exits 1 (require_jobs says why it does not refuse the whole run).
 # --rotate does not change it: a new value in .env, then --sync or the
 # bring-up, is all a change of it takes.
 #
@@ -590,22 +592,44 @@ require_trigger_db() {
 }
 
 # The jobs role, judged before --sync changes anything: JOBS_SYNC says
-# whether it is to be set. Not a login role yet: nothing to set.
+# whether it is to be set, and JOBS_SKIP why it is not when it is there and
+# cannot be (JOBS_SKIP_RC: 1 unfit or no usable value, 2 could not ask). Not a
+# login role yet: nothing to set, and nothing wrong.
+#
+# AN UNFIT JOBS ROLE DOES NOT BLOCK THE OTHER TWO. --sync is how the operator
+# puts the owner and app_user back when .env and the database disagree, which
+# is the moment the stack may be down; a jobs role somebody changed is a
+# separate fault with a separate remedy. So it is named, left exactly as it
+# is, and --sync goes on with the two (and trigger-db's with the flag), then
+# exits 1 (2 when the question could not be asked): the two were set, and the
+# run is still not a success while the jobs role is unfit.
 JOBS_SYNC=''
+JOBS_SKIP=''
+JOBS_SKIP_RC=0
 require_jobs() {
   local rc=0
   db_roles_has "$DB_ROLES_JOBS" || return 0
-  [ -n "$DB_ROLES_JOBS_PASSWORD" ] ||
-    refuse "${DB_ROLES_JOBS} is a login role here, and JOBS_DB_PASSWORD is empty in .env, so it cannot be set to it." \
-      "./deploy/compose/ensure-env-secrets.sh fills it in (it fills in missing secrets only); then run this again."
-  [[ "$DB_ROLES_JOBS_PASSWORD" =~ ^[A-Za-z0-9._~-]+$ ]] ||
-    refuse "JOBS_DB_PASSWORD holds a character a URL does not carry as it is, and the worker puts it in JOBS_DATABASE_URL. Its value is not printed." \
-      "Use hex (openssl rand -hex 24), as ensure-env-secrets.sh makes."
+  if [ -z "$DB_ROLES_JOBS_PASSWORD" ]; then
+    JOBS_SKIP="${DB_ROLES_JOBS} is a login role here, and JOBS_DB_PASSWORD is empty in .env, so it cannot be set to it. ./deploy/compose/ensure-env-secrets.sh --only JOBS_DB_PASSWORD fills it in; then run this again."
+    JOBS_SKIP_RC=1
+    return 0
+  fi
+  if ! [[ "$DB_ROLES_JOBS_PASSWORD" =~ ^[A-Za-z0-9._~-]+$ ]]; then
+    JOBS_SKIP="JOBS_DB_PASSWORD holds a character a URL does not carry as it is, and the worker puts it in JOBS_DATABASE_URL. Use hex (openssl rand -hex 24), as ensure-env-secrets.sh makes. Its value is not printed."
+    JOBS_SKIP_RC=1
+    return 0
+  fi
   db_roles_jobs_fit || rc=$?
   case "$rc" in
     0) JOBS_SYNC=1 ;;
-    1) refuse "${DB_ROLES_WHY}." "Nothing here repairs the role: put it back as jobs-role.sql makes it (docs/rls-guide.md), then run this again." ;;
-    *) refuse "could not ask Postgres what ${DB_ROLES_JOBS} may do: ${DB_ROLES_WHY}" ;;
+    1)
+      JOBS_SKIP="REFUSED: ${DB_ROLES_WHY}. Nothing here repairs the role: docs/managed-bring-up.md, 'The jobs role', says how to put it back as jobs-role.sql makes it."
+      JOBS_SKIP_RC=1
+      ;;
+    *)
+      JOBS_SKIP="could not ask Postgres what ${DB_ROLES_JOBS} may do: ${DB_ROLES_WHY}"
+      JOBS_SKIP_RC=2
+      ;;
   esac
 }
 
@@ -614,6 +638,7 @@ do_sync() {
   [ -z "$WITH_STORES" ] || require_trigger_db
   require_roles
   require_jobs
+  [ -z "$JOBS_SKIP" ] || say "${DB_ROLES_JOBS} is left as it is, and the rest goes on: ${JOBS_SKIP}" >&2
   say "setting ${DB_ROLES_APP} and ${DB_ROLES_OWNER} to the values in .env: one transaction, over the socket as ${DB_ROLES_OWNER}"
   if ! db_roles_set "$DB_ROLES_OWNER_PASSWORD" "$DB_ROLES_APP_PASSWORD"; then
     say "FAILED: the roles were not changed: ${DB_ROLES_WHY}" >&2
@@ -632,7 +657,7 @@ do_sync() {
     show_proof
     # A refusal anywhere is 1; otherwise a question not asked anywhere is 2.
     if [ "$jobs_rc" -eq 1 ] || { [ "$jobs_rc" -ne 0 ] && [ "$rc" -eq 0 ]; }; then rc="$jobs_rc"; fi
-  else
+  elif [ -z "$JOBS_SKIP" ]; then
     say "${DB_ROLES_JOBS} is not a login role in this database yet: the bring-up's data phase makes it, so there is nothing of it to set"
   fi
   if [ -n "$WITH_STORES" ]; then
@@ -650,6 +675,12 @@ do_sync() {
     esac
     # A refusal anywhere is 1; otherwise a question not asked anywhere is 2.
     if [ "$trigger_rc" -eq 1 ] || { [ "$trigger_rc" -ne 0 ] && [ "$rc" -eq 0 ]; }; then rc="$trigger_rc"; fi
+  fi
+  if [ "$rc" -eq 0 ] && [ "$JOBS_SKIP_RC" -ne 0 ]; then
+    local stores=''
+    [ -z "$WITH_STORES" ] || stores=", and trigger-db's,"
+    say "NOT DONE: ${DB_ROLES_APP} and ${DB_ROLES_OWNER}${stores} accept .env's values, and ${DB_ROLES_JOBS} was left as it is: ${JOBS_SKIP}" >&2
+    exit "$JOBS_SKIP_RC"
   fi
   case "$rc" in
     0)

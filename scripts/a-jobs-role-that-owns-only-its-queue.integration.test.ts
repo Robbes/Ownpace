@@ -103,7 +103,7 @@ const FIT_SQL = dbRolesSql('DB_ROLES_JOBS_FIT_SQL')
   .replaceAll(":'jobs_role'", `'${ROLE}'`)
   .replaceAll(":'jobs_schema'", `'${SCHEMA}'`);
 /** What db_roles_jobs_fit reads as fit, as psql -At prints it. */
-const FIT = 'f|f|f|f|f|t|f|0|0|t|0|0|0';
+const FIT = 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f';
 
 /** One row as psql -At prints it: `t`/`f`, numbers as digits, NULL as nothing, `|` between. */
 const asPsqlPrints = (row: unknown[]): string =>
@@ -143,12 +143,42 @@ async function dropTheRoleAndItsSchema(pool: pg.Pool): Promise<void> {
   }
 }
 
+/**
+ * What the data phase runs before jobs-role.sql, in its order: setup-auth.sql
+ * (the pooler's lookup role and its SECURITY DEFINER function, which returns
+ * any role's verifier), then pg_stat_statements, whose install script grants
+ * PUBLIC SELECT on its two views in `public`. A real stack has both; a fit
+ * question that did not leave the extension's views out refused every one.
+ * Returns what this call made, so the shared database is put back after.
+ */
+async function asTheDataPhaseDoes(pool: pg.Pool): Promise<{ authRole: boolean; authSchema: boolean; extension: boolean }> {
+  const had = (
+    await pool.query<{ role: boolean; schema: boolean; extension: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pgbouncer_auth') AS role,
+              EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'pgbouncer_auth') AS schema,
+              EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') AS extension`,
+    )
+  ).rows[0]!;
+  const setupAuth = readRepo('deploy/compose/pgbouncer/setup-auth.sql')
+    .split('\n')
+    .filter((l) => !/^\s*\\/.test(l))
+    .join('\n');
+  // The password reaches it as the session setting it reads, as the phase's PGOPTIONS gives it.
+  await pool.query(`SET my.pw = '${randomBytes(24).toString('hex')}'; ${setupAuth}; RESET my.pw;`);
+  await pool.query('CREATE EXTENSION IF NOT EXISTS pg_stat_statements');
+  await pool.query(JOBS_SQL);
+  return { authRole: !had.role, authSchema: !had.schema, extension: !had.extension };
+}
+let madeHere: { authRole: boolean; authSchema: boolean; extension: boolean } | undefined;
+
 beforeAll(async () => {
   admin = new pg.Pool({ connectionString: ADMIN_URL, max: 2 });
   await dropTheRoleAndItsSchema(admin);
   rlsBefore = (await admin.query(RLS_SNAPSHOT)).rows;
+  madeHere = await asTheDataPhaseDoes(admin);
+  // After the phase's own extension: what pg-boss installs must add none.
   extensionsBefore = (await admin.query(EXTENSIONS)).rows.map((e: { extname: string }) => e.extname);
-  await admin.query(JOBS_SQL);
+  expect(extensionsBefore).toContain('pg_stat_statements');
   // What db_roles_jobs_set does with .env's value; the value is this file's, made here.
   await admin.query(`ALTER ROLE ${ROLE} PASSWORD '${PASSWORD}'`);
   jobs = new pg.Pool({ connectionString: urlOf(ADMIN_URL, { user: ROLE, password: PASSWORD }), max: 2 });
@@ -160,6 +190,10 @@ afterAll(async () => {
   if (admin) {
     await admin.query(`DROP DATABASE IF EXISTS ${COPY_DB} WITH (FORCE)`);
     await dropTheRoleAndItsSchema(admin);
+    // What asTheDataPhaseDoes made in the shared database, and only that.
+    if (madeHere?.extension) await admin.query('DROP EXTENSION IF EXISTS pg_stat_statements');
+    if (madeHere?.authSchema) await admin.query('DROP SCHEMA IF EXISTS pgbouncer_auth CASCADE');
+    if (madeHere?.authRole) await admin.query('DROP ROLE IF EXISTS pgbouncer_auth');
     await admin.end();
   }
 }, 60_000);
@@ -173,7 +207,8 @@ describe('the file the bring-up runs, and the names it asks about', () => {
       `CREATE ROLE ${ROLE} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;`,
     );
     expect(code).toContain(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA} AUTHORIZATION ${ROLE};`);
-    expect(code).toContain(`REVOKE ALL ON SCHEMA ${SCHEMA} FROM PUBLIC;`);
+    // No REVOKE: it would take back a grant on an existing schema before the question could refuse it.
+    expect(code).not.toMatch(/\bREVOKE\b/);
     // No psql meta-command, so the file this test runs is the file the bring-up runs.
     expect(code.split('\n').filter((l) => /^\s*\\/.test(l))).toEqual([]);
     // And no password: the role is made with none, and the bring-up sets .env's.
@@ -282,8 +317,11 @@ describe('pg-boss, installed as that role', () => {
     const readable = await admin.query(
       `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+          AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                           WHERE e.classid = 'pg_class'::regclass AND e.objid = c.oid AND e.deptype = 'e')
           AND (has_table_privilege($1, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-               OR has_any_column_privilege($1, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES'))`,
+               OR has_any_column_privilege($1, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
+               OR (c.relkind = 'S' AND has_sequence_privilege($1, c.oid, 'USAGE')))`,
       [ROLE],
     );
     expect(readable.rows).toEqual([]);
@@ -322,13 +360,26 @@ describe('the question refuses a role made unfit', () => {
     ['one granted a column of public through PUBLIC', 'GRANT SELECT (id) ON public.tenant TO PUBLIC', 11, '1'],
     ['one whose schema app_user may use', `GRANT USAGE ON SCHEMA ${SCHEMA} TO app_user`, 12, '1'],
     ['one whose queue PUBLIC may read', `GRANT SELECT ON ${SCHEMA}.job TO PUBLIC`, 12, '1'],
+    ['one whose schema PUBLIC may use', `GRANT USAGE ON SCHEMA ${SCHEMA} TO PUBLIC`, 12, '1'],
+    // The bring-up runs the file before the question: it must not take the grant back first.
+    ['one whose schema PUBLIC may use, the file run again before the question', `GRANT USAGE ON SCHEMA ${SCHEMA} TO PUBLIC; ${JOBS_SQL}`, 12, '1'],
+    ['one granted a sequence of public through PUBLIC', 'CREATE SEQUENCE public.jobs_role_probe_seq; GRANT USAGE ON SEQUENCE public.jobs_role_probe_seq TO PUBLIC', 11, '1'],
+    ["one granted an extension's view by name", `GRANT SELECT ON public.pg_stat_statements TO ${ROLE}`, 13, '1'],
+    ['one that may create in this database, by name', `GRANT CREATE ON DATABASE "THIS_DATABASE" TO ${ROLE}`, 14, 't'],
+    ['one that may create in this database, through PUBLIC', `GRANT CREATE ON DATABASE "THIS_DATABASE" TO PUBLIC`, 14, 't'],
+    ['one that may create in public, by name', `GRANT CREATE ON SCHEMA public TO ${ROLE}`, 15, 't'],
+    ['one that may create in public, through PUBLIC', 'GRANT CREATE ON SCHEMA public TO PUBLIC', 15, 't'],
+    ['one given USAGE on public by name', `GRANT USAGE ON SCHEMA public TO ${ROLE}`, 13, '1'],
+    ['one given a default privilege in public', `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO ${ROLE}`, 13, '1'],
+    ["one that may call the pooler's lookup, which returns any role's verifier", `GRANT USAGE ON SCHEMA pgbouncer_auth TO ${ROLE}; GRANT EXECUTE ON FUNCTION pgbouncer_auth.user_lookup(text) TO ${ROLE}`, 13, '2'],
   ];
 
   it.each(CHANGES)('%s', async (_what, change, field, value) => {
     const client = await admin.connect();
     try {
       await client.query('BEGIN');
-      await client.query(change);
+      const db = (await client.query<{ db: string }>('SELECT current_database() AS db')).rows[0]!.db;
+      await client.query(change.replaceAll('THIS_DATABASE', db));
       const [line] = await fitAnswer(client);
       expect(line!.split('|')[field]).toBe(value);
       expect(line, 'db_roles_jobs_fit would read this as fit').not.toBe(FIT);
@@ -400,7 +451,7 @@ describe('a copy taken once pgboss exists restores as the rollback restores it',
           await owner.query(readRepo(`${chain}/${f}`));
         }
       }
-      await owner.query(JOBS_SQL);
+      await asTheDataPhaseDoes(owner);
       expect(await fitAnswer(owner)).toEqual([FIT]);
     } finally {
       await owner.end();
