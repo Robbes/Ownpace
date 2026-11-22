@@ -6,7 +6,7 @@
 
 **2026-11-22: what alpha.14 moves, and what moves for live from alpha.12.** The fold for
 `v0.2.0-alpha.14` (0146's entry of the same day) carries what `main` merged after alpha.13's tag,
-36 pull requests (0146's entry lists them). Live runs alpha.12 (0132's Status, 2026-11-20), and no
+38 pull requests (0146's entry lists them). Live runs alpha.12 (0132's Status, 2026-11-20), and no
 deploy of alpha.13 is recorded, so live's deploy of alpha.14 takes alpha.13's moves too. For live,
 from alpha.12:
 
@@ -38,7 +38,10 @@ from alpha.12:
   process for `GET /version` (#2023), and the API's support and `/api/me` routes and the web's
   Support page take 0162 T1's re-review (#2025); #2022 changes test files only. None of the three
   moves an image name, a dependency, a pin, a migration or a file in `deploy/`, so nothing more
-  moves for live.
+  moves for live;
+- #2027 changes the API's, the tasks' and the appliance's own code, so that a deletion the owner
+  kept is never applied; it moves no image name, dependency, pin, migration or file in `deploy/`,
+  so nothing more moves for live.
 
 So live's deploy from alpha.12 is one-way by the deploy's own rule, by 0070, 0062 and the pin;
 alpha.13 alone moved none of them. CI alone: Semgrep's report naming where it read only in part

@@ -4,13 +4,13 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-22: the fold for `v0.2.0-alpha.14` (T2), made again after #2022, #2023 and #2025.**
-`package.json` and the API contract say `0.2.0-alpha.14`, `scripts/release-line.json` lists it, and
-everything under [Unreleased] moves to its section, dated 2026-11-22, under a summary; [Unreleased]
-stays, empty. alpha.14 carries what `main` merged after alpha.13's tag, `v0.2.0-alpha.13` on
-`45dfead1`: 36 pull requests, merged on 2026-11-21 from 07:29 to 23:31 UTC. The npm group (#2004)
-and react-router (#2012) came from Dependabot, so their entries are added at the end of alpha.14's
-Changed.
+**2026-11-22: the fold for `v0.2.0-alpha.14` (T2), made again after #2022, #2023 and #2025, and once
+more after #2027.** `package.json` and the API contract say `0.2.0-alpha.14`,
+`scripts/release-line.json` lists it, and everything under [Unreleased] moves to its section, dated
+2026-11-22, under a summary; [Unreleased] stays, empty. alpha.14 carries what `main` merged after
+alpha.13's tag, `v0.2.0-alpha.13` on `45dfead1`: 38 pull requests, merged from 2026-11-21 at 07:29
+to 2026-11-22 at 01:19 UTC. The npm group (#2004) and react-router (#2012) came from Dependabot, so
+their entries are added at the end of alpha.14's Changed.
 
 - a migration with a test marker copying only its marked items, with ledger migration 0070
   (#1975), never finished or switched over (#2003), and its sharing keeping only its marked items,
@@ -26,6 +26,8 @@ Changed.
 - the read-only measurement of what Google answers to `sync-collection` (#2008), after workplan
   0164's decision (#1983), and the CalDAV source reading that answer, so that an event deleted in a
   Google calendar reaches *Deleted on the old system* (#2019);
+- a deletion the owner chose to keep never removed on the new system, by a press or a queued job,
+  with ADR-0024 amended (#2027);
 - Trigger.dev v4.8.8 (#2009), the webapp's build replacing effect 3.21.2 by 3.22.4 (#2018), and
   the Redis and webapp builds without linux-pam (#2016);
 - both Postgres builds on libxml2 2.13.9-r3 (#2015);
@@ -40,7 +42,7 @@ Changed.
   (#2001), zizmor's secrets-outside-env report (#2007), and the outside probe's TLS hello to each
   port the front answers by itself (#2020);
 - the records of alpha.13's release and alpha.14's nights waiver (#1991) and of the evening of
-  2026-11-21 (#2017), workplan 0166 (#2010), and this fold's first squash (#2021).
+  2026-11-21 (#2017), workplan 0166 (#2010), and this fold's first two squashes (#2021, #2026).
 
 - **C and the freeze.** The fold first merged as #2021 on 2026-11-21 at 22:07 UTC, its section dated
   2026-11-21, and its squash, `7d13ab33`, was C. All of its checks were green: CI run 44955070575,
@@ -48,9 +50,14 @@ Changed.
   Nextcloud's second major, run 44955070617, Semgrep run 44955070618, the Windows payload, run
   44955093875, E2E (managed) run 44955089046, and E2E (self-hosted) on Postgres, run 44955824560,
   and on PGlite, run 44956403978. Then #2022, #2023 and #2025 merged, and [Unreleased] held four
-  entries again, which the preflight's `changelogFolded` refuses on `main`'s head. This fold moves
-  them into the section, now dated 2026-11-22, and C is its squash. From C until the tag nothing
-  merges to `main`.
+  entries again, which the preflight's `changelogFolded` refuses on `main`'s head. The fold made
+  again merged as #2026 on 2026-11-22 at 00:00 UTC, its section dated 2026-11-22, and its squash,
+  `6aafb4df`, was C, with all of its checks green: CI run 44964487576, Security Scan run 44964487556
+  with the image scans, run 44964494995, Images run 44964487575, Semgrep run 44964487541, Dockerfile
+  lint run 44964487539, the Windows payload, run 44964497388, E2E (managed) run 44964499823, and E2E
+  (self-hosted) on Postgres, run 44965291145, and on PGlite, run 44965843742. Then #2027 merged,
+  with one entry under [Unreleased]. This fold moves it into the section, still dated 2026-11-22,
+  and C is its squash. From C until the tag nothing merges to `main`.
 - **In the nights' place,** waived for alpha.14 (*"I also waive waitings for alpha 14."*, #1991):
   E2E (managed) and E2E (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at
   a time, beside C's push runs and its Windows smoke.
@@ -71,7 +78,7 @@ Changed.
   the webapp (`v4.8.8-c8ebb4044c16`). From the first pass after the deploy, the CalDAV source reads
   a Google calendar by its `sync-collection` answer (#2019), which brings no migration, variable or
   file in `deploy/` of its own. Nothing merged after the fold's first squash adds a migration or
-  changes a file in `deploy/`: between `7d13ab33` and `b28794d2`, git lists no file in either chain
+  changes a file in `deploy/`: between `7d13ab33` and `c867e9cc`, git lists no file in either chain
   or there.
 - **What the deploy's sheet must hold, read from the tree:**
   - the hold and the drain, then `TRIGGER_IMAGE_TAG=v4.8.8` in live's persisted `.env` with
