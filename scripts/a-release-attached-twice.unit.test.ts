@@ -36,12 +36,19 @@
  *    release-verify.mjs counts) as it is, and says so in the log.
  * 2. **A verified SBOM is not replaced.** Against a release that carries a
  *    `bom.json`, the step uploads nothing and says so; `--clobber` appears
- *    nowhere in it.
+ *    nowhere in it. One verify would refuse (not in state `uploaded`, or
+ *    empty) is not a verified one: it is deleted and uploaded again, and the
+ *    log says so (the review of #2039).
  * 3. **The scan after a release belongs on main.** A dispatch with
  *    `image_scans` on a tag ref refuses at the job's first step, with a
  *    sentence that says to dispatch it on `main` at the release commit; the
  *    image jobs skip a tag ref; Release's own dispatches pass
- *    `image_scans=false`; `docs/release.md` says it plainly.
+ *    `image_scans=false`; `docs/release.md` says it plainly. The refusal also
+ *    says how to make or finish the release on the tag (Security Scan with
+ *    `image_scans` off, as §2's hand dispatch now says), and the steps that
+ *    run past a failure skip after it, so it is the run's only error.
+ *    That a refused run is never the one Release re-runs is held in
+ *    a-dispatch-that-waited-for-the-wrong-run (`chooseRun`).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -71,6 +78,7 @@ const ATTACH = step('Attach SBOM to GitHub release');
 const REFUSE_ON_TAG = 'A dispatch with the image scans runs on main, not on a tag';
 
 const TAG = 'v0.2.0-alpha.15';
+const ZIP = 'ownpace-appliance-win-x64-v0.2.0-alpha.15.zip';
 
 /**
  * A stand-in for the `gh` the attach step calls. It keeps one release in
@@ -82,34 +90,48 @@ const TAG = 'v0.2.0-alpha.15';
 const FAKE_GH = `
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const dir = process.env.FAKE_GH_STATE;
 const f = (n) => path.join(dir, n);
 const args = process.argv.slice(2);
 fs.appendFileSync(f('calls'), JSON.stringify(args) + '\\n');
 const exists = fs.existsSync(f('exists'));
-const assets = () => (fs.existsSync(f('assets')) ? fs.readFileSync(f('assets'), 'utf8').split('\\n').filter(Boolean) : []);
+const assets = () => (fs.existsSync(f('assets')) ? JSON.parse(fs.readFileSync(f('assets'), 'utf8')) : []);
+const save = (a) => fs.writeFileSync(f('assets'), JSON.stringify(a));
 const flag = (name) => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
+const uploaded = (name) => ({ name, state: 'uploaded', size: fs.statSync(name).size });
 const [group, verb] = args;
 if (group !== 'release') { console.error('unexpected gh ' + args.join(' ')); process.exit(2); }
 if (verb === 'create') {
   if (exists) { console.error('a release with the same tag name already exists: ' + args[2]); process.exit(1); }
   fs.writeFileSync(f('exists'), '');
   fs.writeFileSync(f('body'), fs.readFileSync(flag('--notes-file'), 'utf8'));
-  fs.writeFileSync(f('assets'), args.filter((a) => a === 'bom.json').join('\\n') + '\\n');
+  save(args.filter((a) => a === 'bom.json').map(uploaded));
   process.exit(0);
 }
 if (!exists) { console.error('release not found'); process.exit(1); }
 if (verb === 'view') {
-  const field = flag('--json');
-  if (field === 'tagName') { console.log(JSON.stringify({ tagName: args[2] })); process.exit(0); }
-  if (field === 'assets') { for (const a of assets()) console.log(a); process.exit(0); }
-  if (field === 'body') { process.stdout.write(fs.readFileSync(f('body'), 'utf8') + '\\n'); process.exit(0); }
+  const fields = { tagName: args[2], assets: assets(), body: fs.readFileSync(f('body'), 'utf8') };
+  const json = {};
+  for (const k of flag('--json').split(',')) json[k] = fields[k];
+  const jq = flag('--jq');
+  process.stdout.write(jq ? execFileSync('jq', ['-r', jq], { input: JSON.stringify(json), encoding: 'utf8' }) : JSON.stringify(json) + '\\n');
+  process.exit(0);
 }
 if (verb === 'upload') {
   const name = args[3];
-  if (assets().includes(name) && !args.includes('--clobber')) { console.error('asset under the same name already exists: ' + name); process.exit(1); }
-  if (args.includes('--clobber')) fs.appendFileSync(f('clobbered'), name + '\\n');
-  if (!assets().includes(name)) fs.appendFileSync(f('assets'), name + '\\n');
+  const clobber = args.includes('--clobber');
+  if (assets().some((a) => a.name === name) && !clobber) { console.error('asset under the same name already exists: ' + name); process.exit(1); }
+  if (clobber) fs.appendFileSync(f('clobbered'), name + '\\n');
+  save([...assets().filter((a) => a.name !== name), uploaded(name)]);
+  process.exit(0);
+}
+if (verb === 'delete-asset') {
+  const name = args[3];
+  if (!args.includes('--yes')) { console.error('delete-asset asks to confirm without --yes'); process.exit(1); }
+  if (!assets().some((a) => a.name === name)) { console.error('no asset ' + name); process.exit(1); }
+  fs.appendFileSync(f('deleted'), name + '\\n');
+  save(assets().filter((a) => a.name !== name));
   process.exit(0);
 }
 if (verb === 'edit') {
@@ -121,8 +143,11 @@ console.error('unexpected gh ' + args.join(' '));
 process.exit(2);
 `;
 
-type Release = { assets: string[]; body: string } | null;
-type Result = { status: number | null; stdout: string; stderr: string; calls: string[][]; release: Release; clobbered: string[] };
+type Asset = { name: string; state: string; size: number };
+type Release = { assets: Asset[]; body: string } | null;
+type Result = { status: number | null; stdout: string; stderr: string; calls: string[][]; release: Release; clobbered: string[]; deleted: string[] };
+const ok = (name: string, size = 25): Asset => ({ name, state: 'uploaded', size });
+const names = (r: Result) => r.release?.assets.map((a) => a.name);
 
 /** Run Compose, then Attach, by bash as the workflow runs them, against a release in the state given. */
 function attach(before: Release, opts: { compose?: (run: string) => string; attach?: (run: string) => string } = {}): Result {
@@ -136,7 +161,7 @@ function attach(before: Release, opts: { compose?: (run: string) => string; atta
     chmodSync(join(bin, 'gh'), 0o755);
     if (before) {
       writeFileSync(join(state, 'exists'), '');
-      writeFileSync(join(state, 'assets'), before.assets.map((a) => `${a}\n`).join(''));
+      writeFileSync(join(state, 'assets'), JSON.stringify(before.assets));
       writeFileSync(join(state, 'body'), before.body);
     }
     writeFileSync(join(work, 'bom.json'), '{"bomFormat":"CycloneDX"}');
@@ -146,8 +171,18 @@ function attach(before: Release, opts: { compose?: (run: string) => string; atta
     const run = (opts.attach ?? ((r) => r))(ATTACH.run!);
     const r = spawnSync('bash', ['-e', '-c', run], { cwd: work, env, encoding: 'utf8' });
     const lines = (n: string) => (existsSync(join(state, n)) ? readFileSync(join(state, n), 'utf8').split('\n').filter(Boolean) : []);
-    const release: Release = existsSync(join(state, 'exists')) ? { assets: lines('assets'), body: readFileSync(join(state, 'body'), 'utf8') } : null;
-    return { status: r.status, stdout: r.stdout, stderr: r.stderr, calls: lines('calls').map((l) => JSON.parse(l) as string[]), release, clobbered: lines('clobbered') };
+    const release: Release = existsSync(join(state, 'exists'))
+      ? { assets: JSON.parse(readFileSync(join(state, 'assets'), 'utf8')) as Asset[], body: readFileSync(join(state, 'body'), 'utf8') }
+      : null;
+    return {
+      status: r.status,
+      stdout: r.stdout,
+      stderr: r.stderr,
+      calls: lines('calls').map((l) => JSON.parse(l) as string[]),
+      release,
+      clobbered: lines('clobbered'),
+      deleted: lines('deleted'),
+    };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -161,20 +196,20 @@ describe(`${WORKFLOW}: the release attach runs once per release, whatever runs o
 
   it('creates the release, with its body and bom.json, when there is none (Release’s scan on the tag)', () => {
     expect(fresh.status, fresh.stderr).toBe(0);
-    expect(fresh.release?.assets).toEqual(['bom.json']);
+    expect(names(fresh)).toEqual(['bom.json']);
     expect(generatedBlocks(fresh.release!.body, TAG)).toBe(1);
   });
 
   it('adds bom.json and appends the body once to a release windows-payload.yml made first (a tag pushed by hand)', () => {
-    const r = attach({ assets: ['ownpace-appliance-win-x64-v0.2.0-alpha.15.zip'], body: '' });
+    const r = attach({ assets: [ok(ZIP)], body: '' });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.release?.assets).toEqual(['ownpace-appliance-win-x64-v0.2.0-alpha.15.zip', 'bom.json']);
+    expect(names(r)).toEqual([ZIP, 'bom.json']);
     expect(generatedBlocks(r.release!.body, TAG)).toBe(1);
     expect(r.clobbered).toEqual([]);
   });
 
   it('keeps prose a person wrote when it appends', () => {
-    const r = attach({ assets: ['ownpace-appliance-win-x64-v0.2.0-alpha.15.zip'], body: 'Written by hand.' });
+    const r = attach({ assets: [ok(ZIP)], body: 'Written by hand.' });
     expect(r.status, r.stderr).toBe(0);
     expect(r.release!.body.startsWith('Written by hand.\n')).toBe(true);
     expect(generatedBlocks(r.release!.body, TAG)).toBe(1);
@@ -194,16 +229,31 @@ describe(`${WORKFLOW}: the release attach runs once per release, whatever runs o
   });
 
   it('a re-run after a half-done attach adds only what is missing', () => {
-    const noBody = attach({ assets: ['bom.json'], body: '' });
+    const noBody = attach({ assets: [ok('bom.json')], body: '' });
     expect(noBody.status, noBody.stderr).toBe(0);
     expect(uploads(noBody)).toEqual([]);
     expect(generatedBlocks(noBody.release!.body, TAG)).toBe(1);
 
     const noBom = attach({ assets: [], body: fresh.release!.body });
     expect(noBom.status, noBom.stderr).toBe(0);
-    expect(noBom.release?.assets).toEqual(['bom.json']);
+    expect(names(noBom)).toEqual(['bom.json']);
     expect(bodyEdits(noBom)).toEqual([]);
     expect(generatedBlocks(noBom.release!.body, TAG)).toBe(1);
+  });
+
+  // The review of #2039: verify refuses a bom.json that is not in state
+  // "uploaded" or is empty (release-verify.mjs, checkAssets). Before this
+  // change a re-run's --clobber replaced such a one; it must still be replaced.
+  it('replaces a bom.json verify would refuse (not uploaded, or empty), by deleting it first, and says so', () => {
+    for (const broken of [{ name: 'bom.json', state: 'starter', size: 25 }, ok('bom.json', 0)]) {
+      const r = attach({ assets: [ok(ZIP), broken], body: fresh.release!.body });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.deleted, JSON.stringify(broken)).toEqual(['bom.json']);
+      expect(r.clobbered).toEqual([]);
+      expect(r.release?.assets).toEqual([ok(ZIP), ok('bom.json', 25)]);
+      expect(r.stdout).toContain(`bom.json on the release for ${TAG} is ${broken.state}, ${broken.size} bytes`);
+      expect(bodyEdits(r)).toEqual([]);
+    }
   });
 
   it('never clobbers: no intended path puts a bom.json on a release before this step, so none is replaced', () => {
@@ -238,7 +288,12 @@ describe(`${WORKFLOW}: the image scan after a release belongs on main, never on 
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/^::error::/);
     expect(r.stdout).toContain(`on the tag ${TAG}`);
-    expect(r.stdout).toContain('Dispatch Security Scan on main at the release commit instead');
+    expect(r.stdout).toContain('dispatch Security Scan on main at the release commit');
+    // A hand dispatch meant to make or finish the release (docs/release.md §2) is told how.
+    expect(r.stdout).toContain('To make or finish the release on this tag, dispatch Security Scan on the tag with image_scans off.');
+    // Since this change a run on a tag attaches nothing already there: the message must not say otherwise.
+    expect(r.stdout).not.toMatch(/attach bom\.json and the release body again/);
+    expect(read(WORKFLOW)).not.toMatch(/would attach `?bom\.json`? and the release body again/);
   });
 
   it('the image jobs skip a tag ref', () => {
@@ -259,5 +314,23 @@ describe(`${WORKFLOW}: the image scan after a release belongs on main, never on 
     const doc = read('docs/release.md').replace(/\s+/g, ' ');
     expect(doc).toContain('**The image scan after the tag:** dispatch Security Scan **on `main` at the release commit**');
     expect(doc).toContain('never on the tag');
+    // §2's hand dispatch of a missing publisher: Security Scan on a tag goes with image_scans off.
+    expect(doc).toContain('dispatch a single publisher on the tag by hand from the Actions tab if one is missing; Security Scan with `image_scans` off');
+  });
+
+  // Item 6 of the review of #2039: after the refusal, nothing else in the job
+  // runs to add errors of its own (no checkout happened).
+  it('after the refusal, the steps that run past a failure skip, so the refusal is the run’s only error', () => {
+    const refusal = scanSteps[0] as Step & { id?: string };
+    expect(refusal.id).toBe('refuse_tag');
+    const pastFailure = scanSteps.filter((s) => /always\(\)|!cancelled\(\)/.test(s.if ?? ''));
+    expect(pastFailure.map((s) => s.name)).toEqual([
+      'Install osv-scanner from its GitHub release, checked by its sha256',
+      'osv-scanner over the lockfile (blocks a malicious package, reports the rest)',
+      'Upload SARIF to code scanning',
+      'Upload SBOM artifact',
+      'The scan produced a report, and it was uploaded',
+    ]);
+    for (const s of pastFailure) expect(s.if, s.name).toContain("steps.refuse_tag.outcome != 'failure'");
   });
 });

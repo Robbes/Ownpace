@@ -222,8 +222,9 @@ describe('the Security Scan runs it as decided', () => {
   });
 
   it('runs both steps after a red audit, so a malicious package is never hidden behind it', () => {
-    expect(steps[install]?.if).toBe('${{ !cancelled() }}');
-    expect(steps[scan]?.if).toBe('${{ !cancelled() }}');
+    // And not after the refusal of an image-scan dispatch on a tag, which runs before any checkout (a-release-attached-twice).
+    expect(steps[install]?.if).toBe("${{ !cancelled() && steps.refuse_tag.outcome != 'failure' }}");
+    expect(steps[scan]?.if).toBe("${{ !cancelled() && steps.refuse_tag.outcome != 'failure' }}");
   });
 
   it("hands the scanner's own exit code, and the report it wrote of the whole lockfile, to the reporter", () => {

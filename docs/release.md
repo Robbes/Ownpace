@@ -191,7 +191,9 @@ carries on without reading the nights, while a fresh dispatch refuses that
 tag (its run's tag job did not succeed). A fresh dispatch days later is
 refused at the preflight if newer nights ran another commit; use
 `mode=verify` then, and dispatch a single publisher on the tag by hand from
-the Actions tab if one is missing. A run you cancel stops: only the gate
+the Actions tab if one is missing; Security Scan with `image_scans` off, which
+the Actions tab leaves on: a dispatch on a tag that asks for the image scans is
+refused (§4). A run you cancel stops: only the gate
 branch and the rehearsal tag are cleaned up after it.
 
 **The other modes:** `rehearse` is the preflight plus the gate scan, and no
@@ -376,12 +378,12 @@ releases. `v0.1.0-rc.1` refuses: no generated body and no Windows zip.
 - [ ] **The image scan after the tag:** dispatch Security Scan **on `main`
       at the release commit**, with `image_scans` left on: on `main` while
       its head is still C, which a dispatch names by branch, never on the
-      tag. A run on a tag ref is a release run: it would attach
-      `bom.json` and the body again, and an image report keeps issues on
-      `main` only. Since 2026-11-22 a dispatch on a tag that asks for the
-      image scans is refused at its first step with that sentence, and its
-      image jobs skip (alpha.15's ran on the tag, replaced the `bom.json`
-      verify had read and appended its body a second time).
+      tag. A run on a tag ref is a release run, whose release steps run
+      (they add only what the release is missing), and an image report
+      keeps issues on `main` only. Since 2026-11-22 a dispatch on a tag that
+      asks for the image scans is refused at its first step with that
+      sentence, and its image jobs skip (alpha.15's ran on the tag, replaced
+      the `bom.json` verify had read and appended its body a second time).
 - [ ] Announce; the changelog section is the text.
 
 `GET /version` on a pulled image is checked by Release's verify job.
