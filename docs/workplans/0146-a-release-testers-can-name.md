@@ -4,6 +4,60 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, latest: the fold for `v0.2.0-alpha.15` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.15`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-22, under a summary; [Unreleased] stays, empty. alpha.15 carries what
+`main` merged after alpha.14's C, `9456f618`, the commit its tag names: 5 pull requests, merged on
+2026-11-22 from 08:05 to 12:37 UTC. None came from Dependabot, and the move changes no entry.
+
+- the records of alpha.14's release (#2029), and of alpha.14 on live since 2026-11-22, with
+  alpha.15's counted nights waived in the owner's words (#2030);
+- *Delete all of these here too* on *Deleted on the old system*, each row decided by itself through
+  every gate, with ADR-0024 amended (#2024), and its follow-up: a copy already removed counted apart
+  from a run's deletions, the weak-evidence words true in a run, and ADR-0024 saying what gate 6
+  counts (#2032);
+- the Docker socket proxy on HAProxy 3.4.8 and, in CI alone, the image build's BuildKit v0.35.1,
+  both inside their three-day floor on the owner's waiver, with MinIO and Atlas not moved (#2031).
+
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`.
+- **In the nights' place,** waived for alpha.15 (*"I waive the waitings for a next alpha."*, #2030):
+  E2E (managed) and E2E (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at a
+  time, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** C's checks, its push runs and its Windows smoke, and the three E2E lanes
+  at C, one at a time; then the Release run, which the owner starts from their own account, with
+  `commit` set to C and `waive_nights` set to the reason in their own words, and the approval in the
+  `release` environment.
+- **Live's deploy** goes from alpha.14, which live runs since 2026-11-22 (0132's Status of that
+  day). It is **reversible** by the deploy's own rule, as alpha.14's `deploy-live.sh`, the one
+  live's checkout runs and the same at C, reads it: it compares the tag with the last deploy that
+  took, alpha.14 on `9456f618` (`deploys.log`'s last line, 0132's Status), and with the checkout's
+  HEAD, which that deploy left on the same commit. Between that commit and C, git lists no file
+  added, changed or removed in either migration chain, `packages/ledger/migrations` and
+  `packages/managed/migrations`, the only two under `packages/`, and `managed.yml` pins the same
+  Trigger.dev version (`v4.8.8`), identity provider (Zitadel `v4.20.4`) and ClickHouse
+  (`26.8.37.168` by digest `a5670285…`) at both. The script's own functions, run over the
+  two commits through git's objects, print *reversible: over each of those, v0.2.0-alpha.15 adds,
+  changes or removes no migration file in either chain, and moves none of the Trigger.dev,
+  identity-provider and ClickHouse pins in managed.yml.* and *If it misbehaves, v0.2.0-alpha.14 can
+  be deployed again with this script.*; over alpha.12 and alpha.14 the same functions name 0070,
+  0062 and *v4.8.5 -> v4.8.8*, as that deploy's dry run did. The images each machine builds change
+  in one: the socket proxy's, `localhost/docker-socket-proxy:3.4.8-alpine-0950ae008aa4` (#2031),
+  built at its first `up`, which restarts the proxy once. #2024 and #2032 bring no migration,
+  dependency, variable or file in `deploy/`.
+- **What the deploy's sheet must hold, read from the tree:**
+  - the hold and the drain; `TRIGGER_IMAGE_TAG` stays `v4.8.8`, as live's `.env` says since
+    2026-11-22, since the pin does not move;
+  - the dry run, which says reversible over alpha.14 and names no migration and no pin;
+  - the take, without `--trigger`, since the pin does not move. With the copy before alpha.14 still
+    kept and not proven, as the deploy's entry below records, it keeps that copy, of alpha.12's
+    databases and the task runner's, and takes no other; from 2026-11-27 at 08:16:21 UTC, that
+    copy's last day, every take refuses but a deploy of alpha.12, the release it holds. With that
+    copy proven and not yet deleted, it refuses; with no copy there, it takes the copy before
+    alpha.15: the app's database, the sign-in service's database and the roles;
+  - on a machine without it, the socket proxy's build pulls `haproxy:3.4.8-alpine` by its digest
+    from Docker Hub, and nothing from Alpine's mirror; after it, the proxy runs its new name as
+    99:99 in the socket's group, as 3.4.7's build did.
+
 **2026-11-22, later still: alpha.15's counted nights are waived, in the owner's words, before its
 fold.** The owner, on 2026-11-22: *"I waive the waitings for a next alpha."* So `v0.2.0-alpha.15`
 joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs`, beside alpha.3 to alpha.14, with those
