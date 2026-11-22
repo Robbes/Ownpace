@@ -42,6 +42,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { switchedTo } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const UPSERT = join(REPO_ROOT, 'deploy/compose/env-upsert.sh');
@@ -1790,7 +1791,15 @@ describe('the bring-up in either runner (0167 T7)', () => {
       '  trigger-api:',
       `    image: ${TRIGGER_IMAGE_LINE}`,
       ...(opts.worker
-        ? ['  worker:', '    profiles: ["jobs"]', ...(opts.cpus ? [`    cpus: \${WORKER_CPUS:-${opts.cpus}}`] : [])]
+        ? [
+            '  worker:',
+            '    profiles: ["jobs"]',
+            ...(opts.cpus ? [`    cpus: \${WORKER_CPUS:-${opts.cpus}}`] : []),
+            // Keys the worker receives, as #2046's service hands them on.
+            '    environment:',
+            '      LEDGER_RETENTION_DAYS: ${LEDGER_RETENTION_DAYS:-}',
+            '      LOG_LEVEL: ${LOG_LEVEL:-}',
+          ]
         : []),
       '',
     ].join('\n');
@@ -1821,7 +1830,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
         'printf "docker %s\\n" "$*" >>"$CALLS"',
         'case "$*" in',
         '  *" ps -a -q worker") printf "%s" "${WORKER_IDS-}" ;;',
-        '  *" ps --status running --format {{.Service}}") [ -z "${PLANE_RUNNING-}" ] || printf "%s\\n" $PLANE_RUNNING ;;',
+        '  *" ps --status running --status restarting --format {{.Service}}") [ -z "${PLANE_RUNNING-}" ] || printf "%s\\n" $PLANE_RUNNING ;;',
         '  "ps --filter network="*)',
         '    n=$(cat "$STATE" 2>/dev/null || echo 0); echo $((n + 1)) >"$STATE"',
         '    [ "$n" -ge "${RUNNER_POLLS:-0}" ] || echo runner-abc123',
@@ -1860,7 +1869,9 @@ describe('the bring-up in either runner (0167 T7)', () => {
       'PLANE_RUNNERS_INTERVAL=0',
       "JOB_RUNNER_MODE=''",
       ...['say', 'note', 'die', 'env_get', 'env_or', 'runner_mode', 'worker_stop_and_remove', 'plane_runners'].map(definition),
-      ...['plane_stop_in_order', 'worker_cpus_fit', 'worker_up', 'up_wait', 'phase_trigger', 'phase_account'].map(definition),
+      "WORKER_CPUS_RULE=''; WORKER_MEMORY_RULE=''",
+      ...['plane_stop_in_order', 'worker_sized', 'worker_cpus_fit', 'worker_env_fit', 'worker_ready_to_start'].map(definition),
+      ...['worker_up', 'up_wait', 'phase_trigger', 'phase_account'].map(definition),
       ...['phase_login', 'phase_app', 'phase_tasks'].map(definition),
       // set -a, as load_env sources the file: the shell then holds what it says.
       'load_env() { set -a; . "$ENV_FILE"; set +a; }',
@@ -1905,7 +1916,9 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.out).toMatch(/pg-boss mode \(OWNPACE_JOB_RUNNER=pg-boss\).*nothing migrates triggerdb/);
       const C = 'docker compose -f managed.yml --profile trigger';
       expect(r.calls).toEqual([
-        `${C} ps --status running --format {{.Service}}`,
+        // The worker's readiness first, before anything stops.
+        'docker info --format {{.NCPU}}',
+        `${C} ps --status running --status restarting --format {{.Service}}`,
         `${C} stop trigger-supervisor`,
         'docker ps --filter network=ownpace-managed_ownpace-network --format {{.Names}}',
         'docker ps --filter network=ownpace-managed_ownpace-network --format {{.Names}}',
@@ -1921,7 +1934,78 @@ describe('the bring-up in either runner (0167 T7)', () => {
       const r = phase(['trigger'], { env: PG });
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/none of the plane's services runs: nothing to stop/);
-      expect(r.calls).toEqual(['docker compose -f managed.yml --profile trigger ps --status running --format {{.Service}}']);
+      expect(r.calls).toEqual([
+        'docker info --format {{.NCPU}}',
+        'docker compose -f managed.yml --profile trigger ps --status running --status restarting --format {{.Service}}',
+      ]);
+    });
+
+    it('trigger: a crash-looping plane container (restarting) is asked for and stopped too', () => {
+      // The stand-in answers the one query that names both states; the service is in it.
+      const r = phase(['trigger'], { env: PG, answers: { PLANE_RUNNING: 'trigger-supervisor' } });
+      expect(r.status, r.out).toBe(0);
+      expect(r.calls).toContain('docker compose -f managed.yml --profile trigger ps --status running --status restarting --format {{.Service}}');
+      expect(r.calls).toContain('docker compose -f managed.yml --profile trigger stop trigger-supervisor');
+    });
+
+    it.each([
+      ['a CPU cap above the host', 'WORKER_CPUS=8\n', {}, /WORKER_CPUS is 8, above this host's 4 CPU\(s\)/],
+      ['a comment where the worker reads a value', 'LEDGER_RETENTION_DAYS=  # days\n', {}, /LEDGER_RETENTION_DAYS: its line/],
+    ])('trigger: %s refuses before the plane is touched, so a cutover never leaves no runner', (_l, env, answers, why) => {
+      const r = phase(['trigger'], { env: `${PG}${env}`, answers: { PLANE_RUNNING: ALL_PLANE, ...answers } });
+      expect(r.status).not.toBe(0);
+      expect(r.out).toMatch(why);
+      expect(r.calls.filter((c) => / stop | ps --status /.test(c))).toEqual([]);
+    });
+
+    it('app: the size follows MAX_PASSES_IN_FLIGHT when .env sets none, exported for the compose calls and never written', () => {
+      const env = `${PG}MAX_PASSES_IN_FLIGHT=6\n`;
+      const r = phase(['app'], { env, answers: { NCPU: '8' } });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/WORKER_CPUS 4: 0\.5 x \(MAX_PASSES_IN_FLIGHT 6 \+ 2\), for this run's compose calls \(not written to \.env\)/);
+      expect(r.out).toMatch(/WORKER_MEMORY 4864m: \(MAX_PASSES_IN_FLIGHT 6 \+ 3\) x 512 MB \+ 256 MB/);
+      expect(r.out).toMatch(/the worker's CPU cap: 4 of this host's 8/);
+    });
+
+    it('app: the default cap of 3 gives managed.yml\'s own 2.5 CPUs and 3328m', () => {
+      const r = phase(['app'], { env: PG });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/WORKER_CPUS 2\.5: /);
+      expect(r.out).toMatch(/WORKER_MEMORY 3328m: /);
+    });
+
+    it('app: a size .env sets is the one used and checked', () => {
+      const r = phase(['app'], { env: `${PG}MAX_PASSES_IN_FLIGHT="6"\nWORKER_CPUS="3"\nWORKER_MEMORY=4g\n`, answers: { NCPU: '4' } });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/WORKER_CPUS 3, from \.env \(the rule for MAX_PASSES_IN_FLIGHT 6: 4\)/);
+      expect(r.out).toMatch(/WORKER_MEMORY 4g, from \.env/);
+      expect(r.out).toMatch(/the worker's CPU cap: 3 of this host's 4/);
+    });
+
+    it('app: the rule\'s size above the host is refused, as a .env value is', () => {
+      const r = phase(['app'], { env: `${PG}MAX_PASSES_IN_FLIGHT=6\n`, answers: { NCPU: '2' } });
+      expect(r.status).not.toBe(0);
+      expect(r.out).toMatch(/WORKER_CPUS is 4, above this host's 2 CPU\(s\)/);
+      expect(r.calls.some((c) => / up -d --wait( --force-recreate)? worker/.test(c))).toBe(false);
+    });
+
+    it.each([
+      ['spaces', 'LEDGER_RETENTION_DAYS=  # keep a year\n'],
+      ['a tab', 'LOG_LEVEL=\t# info\n'],
+    ])('app: a worker key whose .env line is empty then a comment after %s is refused, named, and .env left as it was', (_l, line) => {
+      const env = `${PG}SOMETHING_ELSE=  # not the worker's\n${line}`;
+      const r = phase(['app'], { env });
+      expect(r.status).not.toBe(0);
+      const key = line.split('=')[0]!;
+      expect(r.out).toMatch(new RegExp(`!!! {3}${key}: its line in .* is ${key}= then a space and a # comment`));
+      expect(r.out).not.toMatch(/SOMETHING_ELSE/);
+      expect(r.out).toMatch(/was not changed; fix each line, then run this again\. The worker was not started\./);
+      expect(r.calls.some((c) => / up -d --wait( --force-recreate)? worker/.test(c))).toBe(false);
+    });
+
+    it('app: a value with a comment after it, or a # with no space before it, is not that', () => {
+      const r = phase(['app'], { env: `${PG}LEDGER_RETENTION_DAYS=365 # a year\nLOG_LEVEL=#info\n` });
+      expect(r.status, r.out).toBe(0);
     });
 
     it('trigger: runners that outlive the wait stop the phase, with the rest of the plane still running', () => {
@@ -2065,7 +2149,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
       const compose = join(d, 'deploy', 'compose');
       cpSync(join(REPO_ROOT, 'deploy', 'compose'), compose, { recursive: true, filter: (src) => !src.endsWith('/.env') });
       const real = readFileSync(join(compose, 'managed.yml'), 'utf8');
-      writeFileSync(join(compose, 'managed.yml'), real.replace(/\nservices:\n/, '\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-trigger}\n'));
+      writeFileSync(join(compose, 'managed.yml'), switchedTo('trigger')(real));
       const r = spawnSync(join(compose, 'bootstrap-managed.sh'), ['--only', 'smoke'], {
         env: { ...process.env, OWNPACE_JOB_RUNNER: 'both', HOME: d },
         encoding: 'utf8',

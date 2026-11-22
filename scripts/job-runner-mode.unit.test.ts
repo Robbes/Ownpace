@@ -25,6 +25,7 @@ import { chmodSync, copyFileSync, cpSync, mkdtempSync, readFileSync, rmSync, wri
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { switchedTo } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -251,11 +252,7 @@ describe('the Trigger.dev-only scripts, run in each mode', () => {
     const compose = join(root, 'deploy', 'compose');
     cpSync(COMPOSE_DIR, compose, { recursive: true, filter: (src) => !/\/\.env$/.test(src) });
     const real = readFileSync(join(compose, 'managed.yml'), 'utf8');
-    const switched = real.replace(
-      /\nservices:\n/,
-      `\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${runner}}\n`,
-    );
-    expect(switched).not.toBe(real);
+    const switched = switchedTo(runner)(real);
     writeFileSync(join(compose, 'managed.yml'), switched);
     writeFileSync(join(compose, '.env'), 'TRIGGER_PROJECT_REF=proj_stand_in\n');
     const bin = join(root, 'bin');

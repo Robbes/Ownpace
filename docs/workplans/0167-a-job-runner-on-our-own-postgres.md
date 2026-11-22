@@ -50,6 +50,36 @@ its removal (T9) is a later release's, started once this pull request merges.
   bring-up, the runbook, the end of the alpha (step 3 also empties pg-boss's job tables), rollback,
   cutover, testing and the two READMEs. ADR-0054 is in force (its *Pending* rules, in short, are
   operative; the section is kept in full), and ADR-0004's first rule names pg-boss.
+
+**2026-11-22, later still, after review: the bring-up and the deploy scripts, nine fixes (T7, #2049).**
+The coordinator's review of #2049 found the cutover path working as live will run it, and these:
+
+- **The fixtures hold beside the worker's service (#2046).** They injected a second switch into a
+  `managed.yml` that already named one, which `job-runner.sh` rightly refuses. They now share
+  `scripts/job-runner-fixtures.ts`: rewrite the switch's defaults where the file names it, drop
+  whatever `worker` block is there, take every switch line out for a release from before it. On a
+  scratch merge with #2046's branch the five files pass, 817 of 817.
+- **`deploy-live.sh`.**
+  - A tag without the plane onto a stack still in trigger mode is refused before anything moves,
+    in a dry run too: nothing would stop the plane, and two runners would run.
+  - A release that carries pg-boss (its scheduler depends on it) with a lockfile or schema-version
+    line that cannot be read is "cannot be compared", so one-way, never reversible by silence.
+  - The drain leaves pg-boss's own `__pgboss__*` queues out, as it leaves the schedule queues out:
+    the timekeeper's send-it job comes and goes every minute.
+  - The runner line names where each answer came from. A refusal after the worker was stopped no
+    longer says the stack is as it was; it says how to start the worker again.
+- **`bootstrap-managed.sh`.**
+  - In pg-boss mode the trigger phase checks that the worker can start before it stops the plane.
+  - The plane's stop also takes a `restarting` container.
+  - The worker's size follows the stack's `MAX_PASSES_IN_FLIGHT` where `.env` sets none: 0.5 ×
+    (MAX + 2) CPUs, (MAX + 3) × 512 MB + 256 MB, exported for the compose calls and never written,
+    with the host's CPU check on that value.
+  - A key the worker receives whose `.env` line is empty and then a comment (`KEY=  # note`) is
+    refused, named, with its fix; `.env` is never rewritten.
+- **`stand-up-live.sh`** asks for the plane's three networks in trigger mode only.
+- **`rotate-db-passwords.sh`**: its worker lines are tested.
+- **Evidence.** In the PR body (counts, and one break per fix, each restored byte for byte).
+
 **2026-11-22, later still: the worker's memory limit from the realistic peak (T7, its second part).**
 The worker's pull request (#2048) measured the peak a worker can reach:
 - one pass more than the cap, at 307 MB each;
@@ -977,7 +1007,6 @@ both languages, `LEGAL_VERSIONS` and `ACCEPTED_WORDS`, with §13's notice. If it
 day, both *Last updated* lines and both pins move to that day, in the same pull request. The row
 holds for the worker only with what T7 carries (its row below). `site/legal/README.md` records the
 edit, as every earlier change of the policy's words did.
-
 
 **2026-11-22, later: the owner's yes, and the runner as production code (T4, T5).**
 The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* Earlier the same

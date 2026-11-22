@@ -15,6 +15,16 @@
 # the project ref and production key back out of the instance afterwards
 # (trigger-credentials.sh) rather than asking you to transcribe them.
 #
+# EITHER RUNNER (workplan 0167 T7). OWNPACE_JOB_RUNNER, read by job-runner.sh,
+# says whether the jobs run on Trigger.dev's plane (`trigger`) or in the worker
+# on pg-boss (`pg-boss`). In pg-boss mode there is no human step: the trigger
+# phase checks the worker can start (its size from MAX_PASSES_IN_FLIGHT, its
+# CPU cap against the host's, no comment where it reads a value), then stops
+# the plane in order and keeps its volumes; account, login and tasks are
+# skipped; the app phase builds api, web and worker, asks the system role, and
+# starts the worker after the api, recreated whenever the api was. In trigger
+# mode a worker is stopped and removed first, and all else is as below.
+#
 # IDEMPOTENT AND RESUMABLE. Every phase checks whether it is already done. Run
 # it again after a `git pull`, after a reboot, after fixing whatever it stopped
 # on — it picks up rather than starts over. When a phase needs you, the script
@@ -126,7 +136,7 @@ while [ "$#" -gt 0 ]; do
     --no-smoke) NO_SMOKE=1; shift ;;
     --accept-defaults) ACCEPT_DEFAULTS=1; shift ;;
     --list) printf '%s\n' "${PHASES[@]}"; exit 0 ;;
-    -h | --help) sed -n '2,40p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h | --help) sed -n '2,52p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "bootstrap-managed.sh: unknown argument '$1' (try --help)" >&2; exit 1 ;;
   esac
 done
@@ -1876,7 +1886,9 @@ plane_runners() {
 # migrates triggerdb, deploys a task or starts a plane service.
 plane_stop_in_order() {
   local running svc waited=0 left
-  running="$("${COMPOSE_PLANE[@]}" ps --status running --format '{{.Service}}')" ||
+  # Running, or restarting: a crash-looping container (the supervisor, say)
+  # that was left would come back beside the worker.
+  running="$("${COMPOSE_PLANE[@]}" ps --status running --status restarting --format '{{.Service}}')" ||
     die "could not ask Compose which of the plane's services run (its words are above); nothing was stopped."
   local -a up=()
   for svc in "${JOB_RUNNER_PLANE_FIRST[@]}" "${JOB_RUNNER_PLANE_REST[@]}"; do
@@ -1907,33 +1919,93 @@ plane_stop_in_order() {
   note "the plane stopped, in order, its containers kept as Exited and its volumes kept: ${up[*]}"
 }
 
-# worker_cpus_fit — the worker's CPU cap is not above the host's CPU count,
-# which Docker refuses as a `cpus` value. WORKER_CPUS from .env, else
-# managed.yml's default. The rule for the value: 0.5 x (MAX_PASSES_IN_FLIGHT
-# + 2), a half CPU for each pass the tick may run at once and two for the
-# tick and the jobs beside it.
+# worker_sized — the worker's CPU cap and memory limit, as Compose will hand
+# them to it: .env's WORKER_CPUS and WORKER_MEMORY where it sets them, and
+# otherwise worked out from this stack's MAX_PASSES_IN_FLIGHT and EXPORTED for
+# the compose calls after it, never written to .env. managed.yml's defaults
+# are the sizing for the default cap of 3 passes; a stack that runs more
+# (live runs 6) needs more. The rules: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) CPUs, a
+# half CPU for each pass the tick may run at once and two for the tick and the
+# jobs beside it; and (MAX_PASSES_IN_FLIGHT + 3) x 512 MB + 256 MB, each run's
+# child capped at its heap below that. Read after load_env, from the
+# environment, as Compose reads them (bash has taken the quotes off).
+WORKER_CPUS_RULE=''
+WORKER_MEMORY_RULE=''
+worker_sized() {
+  local cap="${MAX_PASSES_IN_FLIGHT:-}"
+  cap="${cap:-3}"
+  [[ "$cap" =~ ^[1-9][0-9]*$ ]] || die "MAX_PASSES_IN_FLIGHT is not a whole number of at least 1, so the worker's size cannot be worked out; the tick refuses it too. Its value is not printed. The worker was not started."
+  WORKER_CPUS_RULE="$(awk -v c="$cap" 'BEGIN { printf "%g", 0.5 * (c + 2) }')"
+  WORKER_MEMORY_RULE="$(((cap + 3) * 512 + 256))m"
+  if [ -n "${WORKER_CPUS:-}" ]; then
+    note "WORKER_CPUS ${WORKER_CPUS}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${WORKER_CPUS_RULE})"
+  else
+    export WORKER_CPUS="$WORKER_CPUS_RULE"
+    note "WORKER_CPUS ${WORKER_CPUS}: 0.5 x (MAX_PASSES_IN_FLIGHT ${cap} + 2), for this run's compose calls (not written to .env)"
+  fi
+  if [ -n "${WORKER_MEMORY:-}" ]; then
+    note "WORKER_MEMORY ${WORKER_MEMORY}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${WORKER_MEMORY_RULE})"
+  else
+    export WORKER_MEMORY="$WORKER_MEMORY_RULE"
+    note "WORKER_MEMORY ${WORKER_MEMORY}: (MAX_PASSES_IN_FLIGHT ${cap} + 3) x 512 MB + 256 MB, for this run's compose calls (not written to .env)"
+  fi
+}
+
+# worker_cpus_fit — the worker's CPU cap, the value Compose will use
+# (worker_sized), is not above the host's CPU count, which Docker refuses as
+# a `cpus` value.
 worker_cpus_fit() {
-  local cpus host cap rule
-  cpus="$(env_get WORKER_CPUS)"
-  if [ -z "$cpus" ]; then
-    cpus="$(grep -oE '\$\{WORKER_CPUS:-[0-9.]+\}' "${SCRIPT_DIR}/managed.yml" | awk 'NR==1')" || cpus=''
-    cpus="$(sed 's/.*:-//; s/}$//' <<<"$cpus")"
-  fi
-  cap="$(env_or MAX_PASSES_IN_FLIGHT 3)"
-  [[ "$cap" =~ ^[1-9][0-9]*$ ]] || die "MAX_PASSES_IN_FLIGHT is not a whole number of at least 1, so the worker's CPU rule cannot be worked out; the tick refuses it too. Its value is not printed."
-  rule="$(awk -v c="$cap" 'BEGIN { printf "%g", 0.5 * (c + 2) }')"
-  if [ -z "$cpus" ]; then
-    note "the worker has no CPU cap here (no WORKER_CPUS in .env, and no default in managed.yml); the rule would give ${rule}"
-    return 0
-  fi
+  local cpus="${WORKER_CPUS:-}" host
   [[ "$cpus" =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk -v c="$cpus" 'BEGIN { exit (c > 0) ? 0 : 1 }' ||
-    die "WORKER_CPUS is '${cpus}', not a number of CPUs above 0. The rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${rule}. The worker was not started."
+    die "WORKER_CPUS is '${cpus}', not a number of CPUs above 0. The rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${WORKER_CPUS_RULE}. The worker was not started."
   host="$(docker info --format '{{.NCPU}}' 2>&1)" || die "could not ask Docker how many CPUs this host has, so the worker's cap of ${cpus} cannot be checked against it: ${host}"
   [[ "$host" =~ ^[1-9][0-9]*$ ]] || die "Docker answered '${host}' for this host's CPU count, which is not one, so the worker's cap of ${cpus} cannot be checked against it."
   if awk -v c="$cpus" -v h="$host" 'BEGIN { exit (c > h) ? 0 : 1 }'; then
-    die "WORKER_CPUS is ${cpus}, above this host's ${host} CPU(s), and Docker refuses a cpus value above that. Set it to at most ${host} (the rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${rule}): ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_CPUS=<n>. The worker was not started."
+    die "WORKER_CPUS is ${cpus}, above this host's ${host} CPU(s), and Docker refuses a cpus value above that. Set it to at most ${host} (the rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${WORKER_CPUS_RULE}): ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_CPUS=<n>. The worker was not started."
   fi
-  note "the worker's CPU cap: ${cpus} of this host's ${host} (the rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${rule})"
+  note "the worker's CPU cap: ${cpus} of this host's ${host} (the rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${WORKER_CPUS_RULE})"
+}
+
+# worker_env_fit — no key the worker receives has a .env line `KEY=` followed
+# by spaces or a tab and a `#`. bash reads that as an empty value and a
+# comment; Compose hands the container the comment itself as the value, even
+# over a ${KEY:-default}. alpha.1 to alpha.15's examples shipped
+# LEDGER_RETENTION_DAYS, LEDGER_RUN_RETENTION_DAYS, LOG_LEVEL and
+# TRIGGER_API_URL_IN_NETWORK that way, so old .env files carry them, and the
+# worker reads them from Compose (the retention job would throw on every run).
+# The keys are the ones managed.yml's worker service names; each is named, with
+# its fix, and .env is never rewritten here.
+worker_env_fit() {
+  local keys key line
+  local -a bad=()
+  keys="$(awk '
+    /^services:/ { s = 1; next }
+    /^[^[:space:]#]/ { s = 0 }
+    s && /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ { w = ($0 == "  worker:") ; next }
+    s && w { while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*/)) { print substr($0, RSTART + 2, RLENGTH - 2); $0 = substr($0, RSTART + RLENGTH) } }' "${SCRIPT_DIR}/managed.yml" | sort -u)"
+  [ -f "$ENV_FILE" ] || return 0
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    line="$(grep -E "^(export[[:space:]]+)?${key}=" "$ENV_FILE" | tail -1)" || line=''
+    [[ "$line" =~ ^[^=]*=[[:space:]]+# ]] && bad+=("$key")
+  done <<<"$keys"
+  [ "${#bad[@]}" -eq 0 ] && return 0
+  local k
+  for k in "${bad[@]}"; do
+    echo "!!!   ${k}: its line in ${ENV_FILE} is ${k}= then a space and a # comment. bash reads it as empty, and Compose hands the worker the comment as its value. Put the comment on a line of its own above it, and leave ${k}= (or a value) on its own line." >&2
+  done
+  die "the worker would receive a comment as the value of ${bad[*]} (above). ${ENV_FILE} was not changed; fix each line, then run this again. The worker was not started."
+}
+
+# worker_ready_to_start — everything about the worker that can be refused
+# before it starts: its size, its CPU cap against the host's, and the values
+# it would receive. Run in pg-boss mode before the plane stops (phase_trigger),
+# so a cutover that cannot start the worker leaves the plane running, and
+# again right before the worker starts (phase_app), for --from or --only app.
+worker_ready_to_start() {
+  worker_sized
+  worker_cpus_fit
+  worker_env_fit
 }
 
 # worker_up — the worker started after the api, and waited on: its
@@ -1973,6 +2045,9 @@ phase_trigger() {
   # this bring-up start it again, at the same version, from what it held.
   if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
     note "pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}): the jobs run in the worker, so the plane is stopped, not started; nothing migrates triggerdb"
+    # Before anything stops: a worker that could not start would leave the
+    # plane stopped and no runner at all.
+    worker_ready_to_start
     plane_stop_in_order
     return 0
   fi
@@ -2719,7 +2794,7 @@ phase_app() {
   # to the host's.
   if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
     system_role_ready
-    worker_cpus_fit
+    worker_ready_to_start
     worker_up "$api_before" "$api_after"
   fi
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"

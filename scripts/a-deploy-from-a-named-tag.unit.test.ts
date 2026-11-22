@@ -206,6 +206,7 @@ import { fileURLToPath } from 'node:url';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
 import { APP_TEMPLATE, expectedAppHeaders } from './app-headers.mjs';
+import { switchedTo, withoutPlane, withoutSwitch, withoutWorker } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -367,6 +368,7 @@ case "$1" in
   stop | rm)
     [ "\${*: -1}" = worker ] || { echo "docker stub: unexpected compose $1: $*" >&2; exit 97; }
     [ "$1" = stop ] || : >"$STUB_LOG.worker-gone"
+    [ "$1" = stop ] || [ -z "\${STUB_LOCK_INDEX:-}" ] || : >"$STUB_LOCK_INDEX"
     exit "\${STUB_WORKER_STOP_EXIT:-0}"
     ;;
   ps)
@@ -816,27 +818,6 @@ interface StageOptions {
   runningFiles?: Record<string, string>;
 }
 
-/**
- * managed.yml as a release from before the switch has it (alpha.14, alpha.15):
- * the repository's own file with the job worker's service and every line of
- * the switch and the jobs' URL taken out. The running release of every case
- * is that release, and a case that means a release with the switch says so
- * with `withWorker` (workplan 0167 T7). Without this the fixture's worker and
- * the file's own would give the switch two defaults.
- */
-function beforeTheSwitch(yml: string): string {
-  const lines = yml.split('\n');
-  const at = lines.indexOf('  worker:');
-  if (at >= 0) {
-    let start = at;
-    while (start > 0 && (lines[start - 1] ?? '').startsWith('  #')) start--;
-    let end = at + 1;
-    while (end < lines.length && !/^ {2}\S/.test(lines[end] ?? '') && !/^\S/.test(lines[end] ?? '')) end++;
-    lines.splice(start, end - start);
-  }
-  return lines.filter((l) => !/^\s*(OWNPACE_JOB_RUNNER|JOBS_DATABASE_URL):/.test(l)).join('\n');
-}
-
 function stage(opts: StageOptions = {}): Stage {
   const root = tempDir('deploy-live-');
   const origin = join(root, 'origin.git');
@@ -863,7 +844,7 @@ function stage(opts: StageOptions = {}): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
-  writeFileSync(join(compose, 'managed.yml'), beforeTheSwitch(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8')));
+  copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(compose, 'managed.yml'));
   if (opts.runningGhcrTrigger) writeFileSync(join(compose, 'managed.yml'), ghcrTrigger(readFileSync(join(compose, 'managed.yml'), 'utf8')));
   if (opts.runningYml) writeFileSync(join(compose, 'managed.yml'), opts.runningYml(readFileSync(join(compose, 'managed.yml'), 'utf8')));
   for (const [rel, body] of Object.entries(opts.runningFiles ?? {})) {
@@ -902,8 +883,7 @@ function stage(opts: StageOptions = {}): Stage {
     writeFileSync(join(work, 'package.json'), r.packageText ? r.packageText(version) : packageJson(version, r.engines));
     if (r.ledger) writeFileSync(join(work, 'packages', 'ledger', 'migrations', r.ledger), 'SELECT 2;\n');
     if (r.managed) writeFileSync(join(work, 'packages', 'managed', 'migrations', r.managed), 'SELECT 2;\n');
-    let yml = readFileSync(join(compose, 'managed.yml'), 'utf8');
-    if (r.builtTrigger) yml = beforeTheSwitch(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8'));
+    let yml = readFileSync(join(r.builtTrigger ? COMPOSE_DIR : compose, 'managed.yml'), 'utf8');
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
     if (r.clickhouse) yml = movePin(yml, 'clickhouse', r.clickhouse);
@@ -3314,7 +3294,9 @@ describe('the hold and the drain, read from a database with both chains applied'
           INSERT INTO pgboss.schedule (name) VALUES ('managed-sync-tick'), ('retention');
           INSERT INTO pgboss.job (name, state) VALUES
             ('managed-sync-tick', 'created'), ('managed-sync-tick', 'active'), ('retention', 'retry'),
-            ('run-delta-sync', 'completed'), ('run-delta-sync', 'failed'), ('run-delta-sync', 'cancelled');`);
+            ('run-delta-sync', 'completed'), ('run-delta-sync', 'failed'), ('run-delta-sync', 'cancelled'),
+            -- pg-boss's timekeeper's own queue: a send-it job every minute, hold or not.
+            ('__pgboss__send-it', 'created'), ('__pgboss__send-it', 'active');`);
       });
       try {
         const quiet = stage({ releases: [NEXT] });
@@ -3739,30 +3721,10 @@ describe('the script survives its own checkout', () => {
  * version or schema version is one-way.
  */
 describe('the deploy in either runner (0167 T7)', () => {
-  /** managed.yml with the switch, defaulting to <runner>, and a worker service. */
-  const withWorker = (runner: 'trigger' | 'pg-boss') => (yml: string) => {
-    const out = yml.replace(
-      /\nservices:\n/,
-      `\nservices:\n  worker:\n    image: localhost/ownpace-worker\n    profiles: ["jobs"]\n    environment:\n      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${runner}}\n`,
-    );
-    if (out === yml) throw new Error('managed.yml has no services: line this fixture knows');
-    return out;
-  };
-  /** managed.yml as it was before withWorker: a release from before the worker (alpha.14, alpha.15). */
-  const withoutWorker = (yml: string) => {
-    const out = yml.replace(/\n {2}worker:\n {4}image: localhost\/ownpace-worker\n(?: {4}.*\n| {6}.*\n)*/, '\n');
-    if (out === yml) throw new Error('managed.yml has no worker this fixture added');
-    return out;
-  };
-  /** managed.yml without the plane: no Trigger.dev and no ClickHouse image line. */
-  const withoutPlane = (yml: string) => {
-    const out = yml
-      .replace(/^[ \t]*image:.*\$\{TRIGGER_IMAGE_TAG:-v[^}]*\}.*\n/gm, '')
-      .replace(/^[ \t]*image:.*clickhouse\/clickhouse-server.*\n/gm, '');
-    if (out === yml) throw new Error('managed.yml has no plane image line this fixture knows');
-    return out;
-  };
-  const pgboss = (version: string, schema: number) => ({
+  // managed.yml changed by the shared fixtures (job-runner-fixtures.ts), from whatever it holds.
+  const withWorker = switchedTo;
+  const pgboss = (version: string, schema: number): Record<string, string> => ({
+    'packages/scheduler/package.json': `{ "name": "@openmig/scheduler", "dependencies": { "pg-boss": "${version}" } }\n`,
     'pnpm-lock.yaml': `lockfileVersion: '9.0'\n\npackages:\n\n  pg-boss@${version}:\n    resolution: {integrity: sha512-x}\n\nsnapshots:\n\n  pg-boss@${version}(@opentelemetry/api@1.9.1):\n    dependencies: {}\n`,
     'packages/scheduler/src/pg-boss/job-runner.ts': `// stand-in\nconst PG_BOSS_SCHEMA_VERSION = ${schema};\n`,
   });
@@ -3775,8 +3737,8 @@ describe('the deploy in either runner (0167 T7)', () => {
       const s = stage({ releases: [{ ...NEXT, trigger: 'v9.9.9', yml: withWorker('pg-boss') }] });
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/the jobs run on trigger here now; v0\.2\.0-alpha\.2's bring-up will run them on pg-boss/);
-      expect(r.out).toMatch(/no --trigger: .*runs the jobs on pg-boss, so it stops the Trigger\.dev plane and nothing migrates triggerdb/);
+      expect(r.out).toMatch(/the jobs run on trigger here now \(from .*managed\.yml.*\); v0\.2\.0-alpha\.2's bring-up will run them on pg-boss \(from managed\.yml at [0-9a-f]+'s default\)/);
+      expect(r.out).toMatch(/no --trigger: .*runs the jobs on pg-boss, so it starts no Trigger\.dev plane and nothing migrates triggerdb/);
       expect(copyCalls(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
     },
     CASE_MS,
@@ -3800,13 +3762,13 @@ describe('the deploy in either runner (0167 T7)', () => {
     "a tag without the switch (alpha.14's) runs the plane, whatever live's .env says",
     () => {
       const s = stage({
-        releases: [{ ...NEXT, trigger: 'v9.9.9', yml: withoutWorker }],
+        releases: [{ ...NEXT, trigger: 'v9.9.9', yml: (y) => withoutSwitch(withoutWorker(y)) }],
         dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=pg-boss\n`,
         runningYml: withWorker('pg-boss'),
       });
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/the jobs run on pg-boss here now; v0\.2\.0-alpha\.2's bring-up will run them on trigger/);
+      expect(r.out).toMatch(/the jobs run on pg-boss here now \(from .*\.env\); v0\.2\.0-alpha\.2's bring-up will run them on trigger \(from the one runner managed\.yml at [0-9a-f]+ has, since it names no switch\)/);
       expect(copyCalls(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
     },
     CASE_MS,
@@ -3844,17 +3806,22 @@ describe('the deploy in either runner (0167 T7)', () => {
   );
 
   it(
-    'the same tag from a stack on the plane: its pins cannot be compared, so one-way, as before',
+    'the same tag onto a stack still on the plane: refused before anything moves, in a dry run too, since nothing would stop the plane',
     () => {
-      const s = stage({
-        runningYml: withWorker('trigger'),
-        releases: [{ ...NEXT, yml: (y) => withoutPlane(y.replace(':-trigger}', ':-pg-boss}')) }],
-      });
-      const r = run(s, ['--dry-run', NEXT.tag]);
-      expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/cannot be compared with it on the Trigger\.dev pin/);
-      expect(r.out).toMatch(/would be one-way/);
-      expect(r.out).not.toMatch(/removes the Trigger\.dev plane/);
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const s = stage({
+          runningYml: withWorker('trigger'),
+          releases: [{ ...NEXT, yml: (y) => withoutPlane(switchedTo('pg-boss')(y)) }],
+        });
+        const r = run(s, args);
+        expect(r.status, r.out).toBe(1);
+        expect(r.out).toMatch(
+          /refused: v0\.2\.0-alpha\.2's managed\.yml has no Trigger\.dev plane, and this stack's jobs still run on it \(OWNPACE_JOB_RUNNER=trigger\): switch to pg-boss with the bring-up first, then deploy\./,
+        );
+        expect(r.out).not.toMatch(/would be (one-way|reversible)/);
+        expectNothingChanged(s, r.out);
+        expect(copyCalls(s)).toEqual([]);
+      }
     },
     CASE_MS,
   );
@@ -3885,18 +3852,56 @@ describe('the deploy in either runner (0167 T7)', () => {
 
   it.each([
     ['the same pg-boss', pgboss('12.38.2', 46)],
-    ['none (the way back to alpha.14)', {}],
+    // A release from before pg-boss: its scheduler depends on no pg-boss.
+    ['none (the way back to alpha.14)', { 'packages/scheduler/package.json': '{ "name": "@openmig/scheduler" }\n' }],
   ])('a tag with %s: reversible', (_label, files) => {
     const s = stage({ runningFiles: pgboss('12.38.2', 46), releases: [{ ...NEXT, files }] });
-    if (Object.keys(files).length === 0) {
-      // The tag removes both files, as a release from before pg-boss has neither.
-      git(s.root, s.work, 'checkout', '-q', '--detach', `refs/tags/${RUNNING.tag}`);
-    }
     const r = run(s, ['--dry-run', NEXT.tag]);
     expect(r.status, r.out).toBe(0);
     expect(r.out).not.toMatch(/moves pg-boss/);
     expect(r.out).toMatch(/would be reversible/);
   }, CASE_MS);
+
+  it.each([
+    ['a lockfile that resolves no pg-boss', { 'pnpm-lock.yaml': "lockfileVersion: '9.0'\n" }, /cannot be compared with it on pg-boss's version: pnpm-lock\.yaml at one of the two resolves no pg-boss/],
+    [
+      'a runner with no schema version line',
+      { 'packages/scheduler/src/pg-boss/job-runner.ts': '// stand-in\n' },
+      /cannot be compared with it on pg-boss's schema version: .*no PG_BOSS_SCHEMA_VERSION line/,
+    ],
+  ])('a tag that carries pg-boss with %s: cannot be compared, so one-way', (_label, files, line) => {
+    const s = stage({ runningFiles: pgboss('12.38.2', 46), releases: [{ ...NEXT, files }] });
+    const r = run(s, ['--dry-run', NEXT.tag]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(line);
+    expect(r.out).toMatch(/would be one-way/);
+  }, CASE_MS);
+
+  it(
+    'the worker stopped before a checkout that then failed: the refusal says the stack is not as it was, and how to start it again',
+    () => {
+      const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
+      // The stand-in's `rm` of the worker leaves git's index locked, so the checkout after it fails.
+      const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r', STUB_LOCK_INDEX: join(s.work, '.git', 'index.lock') });
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toMatch(/refused: git checkout --detach v0\.2\.0-alpha\.2 failed/);
+      expect(r.out).toMatch(/The checkout is as it was\. The stack is not: its worker was stopped and removed before the checkout; \.\/deploy\/compose\/bootstrap-managed\.sh --only app starts it again\./);
+      expect(r.out).not.toMatch(/The checkout and the stack are as they were/);
+      rmSync(join(s.work, '.git', 'index.lock'), { force: true });
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the runner line names where each answer came from",
+    () => {
+      const s = stage({ releases: [{ ...NEXT, yml: withWorker('pg-boss') }], dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=trigger\n` });
+      const r = run(s, ['--dry-run', NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/the jobs run on trigger here now \(from .*\); v0\.2\.0-alpha\.2's bring-up will run them on trigger \(from .*\/\.env\)/);
+    },
+    CASE_MS,
+  );
 
   describe('a tag without a worker, from a stack that has one', () => {
     it(
@@ -3920,7 +3925,7 @@ describe('the deploy in either runner (0167 T7)', () => {
     it(
       'this managed.yml does not define it: stopped and removed by the name managed.yml gives it',
       () => {
-        const s = stage({ releases: [NEXT] });
+        const s = stage({ runningYml: withoutWorker, releases: [NEXT] });
         const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
         expect(r.status, r.out).toBe(0);
         expect(called(s, 'docker').filter((l) => /worker/.test(l))).toEqual([

@@ -99,6 +99,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
+import { switchedTo } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -1940,14 +1941,8 @@ describe('--trigger while the jobs run on pg-boss (workplan 0167 T7)', () => {
     const s = stage(dotEnv);
     const yml = join(s.compose, 'managed.yml');
     const text = readFileSync(yml, 'utf8');
-    const switched = text.replace(
-      /\nservices:\n/,
-      `\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${runner}}\n`,
-    );
-    expect(switched).not.toBe(text);
-    // The repository's managed.yml carries the switch itself (the api's and
-    // the worker's), so every default it gives is the case's runner too.
-    writeFileSync(yml, switched.replace(/\$\{OWNPACE_JOB_RUNNER:-[^}]*\}/g, `\${OWNPACE_JOB_RUNNER:-${runner}}`));
+    const switched = switchedTo(runner)(text);
+    writeFileSync(yml, switched);
     return s;
   };
 

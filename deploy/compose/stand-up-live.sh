@@ -1320,8 +1320,13 @@ run_checks() {
   fi
   # Live's networks are its own (D9).
   before="${#_f[@]}"
+  # The plane's three networks only in trigger mode: Compose creates the
+  # networks of the services it starts, and a pg-boss stand-up starts no
+  # plane service (workplan 0167 T7).
+  local -a live_nets=(ownpace-network status-probe)
+  [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ] || live_nets+=(trigger-event-store trigger-docker-socket trigger-task-images)
   if nets="$(docker network ls --filter "name=${COMPOSE_PROJECT}_" --format '{{.Name}}')"; then
-    for n in ownpace-network status-probe trigger-event-store trigger-docker-socket trigger-task-images; do
+    for n in "${live_nets[@]}"; do
       grep -qx -- "${COMPOSE_PROJECT}_${n}" <<<"$nets" || _f+=("the network ${COMPOSE_PROJECT}_${n} is not there (workplan 0132 D9).")
     done
   else
