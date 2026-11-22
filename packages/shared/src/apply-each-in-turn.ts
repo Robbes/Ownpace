@@ -41,6 +41,13 @@
  *   being deleted from (a folder restored at the source mid-run is the
  *   case: its next items are still reported until the pass reaches them), so
  *   nothing after it is ordered. Its own copy is gone all the same.
+ * - **Evidence withdrawn during the run stops it too.** Every item had
+ *   positive evidence when the list was read again (`mayOfferApply`), so an
+ *   item refused `not_confirmed` (no evidence left) or `weak_evidence` (only
+ *   absence left) lost it after the confirmation: a pass saw it back on the
+ *   old system. That is the same sign that the list changed under the run,
+ *   and the items after it, still reported only because the pass has not
+ *   reached them yet, are not ordered.
  * - **An answer marked `stopsTheRun` stops it too**: the caller's word that
  *   nothing was started for that item, for a reason the next press would
  *   meet as well (on managed: the operator's hold, a closed account, a
@@ -67,14 +74,17 @@ export const BREAKER_CODES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The refusals that stop a run: the breaker's, deleting by hand turned off,
- * and a removal the ledger could not record. Each says something about every
- * item after it, not only about its own.
+ * The refusals that stop a run: the breaker's, deleting by hand turned off, a
+ * removal the ledger could not record, and evidence withdrawn after the
+ * confirmation (`not_confirmed`, `weak_evidence`). Each says something about
+ * every item after it, not only about its own.
  */
 export const RUN_STOPPING_REFUSALS: ReadonlySet<string> = new Set([
   ...BREAKER_CODES,
   'not_enabled',
   'removed_not_recorded',
+  'not_confirmed',
+  'weak_evidence',
 ]);
 
 /**
@@ -98,7 +108,7 @@ export interface OneApplyAnswer {
 export type NotTried =
   /**
    * An earlier item's answer stopped the run: the breaker's, `not_enabled`,
-   * `removed_not_recorded`, or one marked `stopsTheRun`.
+   * `removed_not_recorded`, evidence withdrawn, or one marked `stopsTheRun`.
    */
   | { readonly by: 'refusal'; readonly code: string; readonly reason: string }
   /** An earlier press did not answer, so nothing more was ordered. */

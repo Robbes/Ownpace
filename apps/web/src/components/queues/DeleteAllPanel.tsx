@@ -40,21 +40,27 @@
  * click of a double click and any click within `CONFIRM_GUARD_MS` of
  * opening, so a double click cannot pass it. Nothing is ordered unless the
  * page's rows at the confirming press, and the list read again from the
- * server, are both that frozen set.
+ * server, are both that frozen set, each row with the evidence it was
+ * counted with: a row turned from reported into binned, or back, is a list
+ * that changed.
  *
  * THE BIN'S ROWS, COUNTED APART. A run takes both kinds of row a single
  * delete is offered for: those the old system reported deleted, and those
  * found in its bin (`trashed`). When some came from the bin, the
- * confirmation names how many, apart from the reported ones, and says why
- * that matters: a message can be in the bin and in a live folder at once,
- * so a copy here may be one still in use, and once deleted it is never
- * copied again. Both numbers are counted from the frozen set, the rows the
- * press acts on, so they cannot disagree with what is removed. When none
- * came from the bin, it says nothing about the bin. From the confirming press on, every row
- * of the run waits its turn with no button of its own, the reading of the
- * list included: a keep pressed there was overwritten by the run, and a
- * single delete pressed there ran beside it (the second review, F-A). A run
- * that orders nothing gives the rows their buttons back.
+ * confirmation names how many, apart from the reported ones. When one of
+ * those is mail, it also says why that matters: a message can be in the bin
+ * and in a live folder at once, so a copy here may be one still in use, and
+ * once deleted it is never copied again. Both numbers are counted from the
+ * frozen set, and the press orders nothing unless every row still has the
+ * evidence it was counted with, on the page and in the list read again. What
+ * happens to a row's evidence after that, during the run, its own gates
+ * decide. When none came from the bin, it says nothing about the bin.
+ *
+ * From the confirming press on, every row of the run waits its turn with no
+ * button of its own, the reading of the list included: a keep pressed there
+ * was overwritten by the run, and a single delete pressed there ran beside it
+ * (the second review, F-A). A run that orders nothing gives the rows their
+ * buttons back.
  *
  * A REFUSAL IS A GATE'S, OR IT IS NOT A REFUSAL. A 403 or 404 with a code
  * the destructive path refuses with (`APPLY_REFUSAL_CODES`), or the 500
@@ -156,6 +162,13 @@ interface Armed {
 
 const KNOWN_REFUSALS: ReadonlySet<string> = new Set(APPLY_REFUSAL_CODES);
 
+/**
+ * Refusals that mean a row's evidence was withdrawn during the run: it had
+ * positive evidence when the list was read again, so the list changed under
+ * the run. They stop it (`RUN_STOPPING_REFUSALS`).
+ */
+const EVIDENCE_WITHDRAWN: ReadonlySet<string> = new Set(['not_confirmed', 'weak_evidence']);
+
 /** Refusals that mean the copy is gone all the same: someone else's removal, or one the ledger did not record. */
 const GONE_ALL_THE_SAME: ReadonlySet<string> = new Set(['already_applied', 'removed_not_recorded']);
 
@@ -227,11 +240,18 @@ function groupOf(result: RunResult): Group {
   return GONE_ALL_THE_SAME.has(result.answered.code) ? 'deleted' : 'notDeleted';
 }
 
-/** The same rows, by their handles, whatever their order. */
+/** A row as the confirmation counted it: its handle and its evidence. */
+const asCounted = (d: ItemDeletion): string => `${d.naturalKeyHash}\u0000${d.evidence}`;
+
+/**
+ * The same rows, whatever their order: the same handles, each with the same
+ * evidence. A row whose evidence changed is not the row the confirmation
+ * counted (a reported row now in the bin was never named as one).
+ */
 function sameRows(a: readonly ItemDeletion[], b: readonly ItemDeletion[]): boolean {
   if (a.length !== b.length) return false;
-  const inB = new Set(b.map((d) => d.naturalKeyHash));
-  return a.every((d) => inB.has(d.naturalKeyHash));
+  const inB = new Set(b.map(asCounted));
+  return a.every((d) => inB.has(asCounted(d)));
 }
 
 /** What stopped a run, in the summary's words. */
@@ -241,6 +261,7 @@ function stoppedKey(by: NotTried): StringKey {
   if (BREAKER_CODES.has(by.code)) return 'deletions.all.stoppedBy.breaker';
   if (by.code === 'not_enabled') return 'deletions.all.stoppedBy.notEnabled';
   if (by.code === 'removed_not_recorded') return 'deletions.all.stoppedBy.notRecorded';
+  if (EVIDENCE_WITHDRAWN.has(by.code)) return 'deletions.all.stoppedBy.evidenceWithdrawn';
   return 'deletions.all.stoppedBy.notStarted';
 }
 
@@ -251,6 +272,7 @@ function notTriedKey(by: NotTried): StringKey {
   if (BREAKER_CODES.has(by.code)) return 'deletions.all.notTried.breaker';
   if (by.code === 'not_enabled') return 'deletions.all.notTried.notEnabled';
   if (by.code === 'removed_not_recorded') return 'deletions.all.notTried.notRecorded';
+  if (EVIDENCE_WITHDRAWN.has(by.code)) return 'deletions.all.notTried.evidenceWithdrawn';
   return 'deletions.all.notTried.notStarted';
 }
 
@@ -345,12 +367,17 @@ export const DeleteAllPanel: React.FC<{
   }, [phase]);
 
   // While the confirmation is open the focus stays in it: a focus that lands
-  // anywhere else on the page is brought back to Cancel.
+  // anywhere else on the page is brought back to Cancel. Except in another
+  // confirmation: two migrations' panels on one page can each have one open,
+  // and two traps pulling the focus back would pull it back and forth for
+  // ever (the third review, R5).
   React.useEffect(() => {
     if (!showConfirm) return;
     const keepIn = (event: FocusEvent) => {
       const dialog = dialogRef.current;
-      if (dialog && event.target instanceof Node && !dialog.contains(event.target)) cancelRef.current?.focus();
+      if (!dialog || !(event.target instanceof Element) || dialog.contains(event.target)) return;
+      if (event.target.closest('[role="alertdialog"]')) return;
+      cancelRef.current?.focus();
     };
     document.addEventListener('focusin', keepIn);
     return () => document.removeEventListener('focusin', keepIn);
@@ -575,6 +602,8 @@ export const DeleteAllPanel: React.FC<{
   // page as it is now.
   const fromTheBin = showConfirm ? armed.rows.filter((d) => d.evidence === 'trashed').length : 0;
   const reportedCount = showConfirm ? armed.rows.length - fromTheBin : 0;
+  // The bin's sentence speaks of a message: said when one of the bin's rows is mail.
+  const mailFromTheBin = showConfirm && armed.rows.some((d) => d.evidence === 'trashed' && d.domain === 'email');
   const stoppable = (run?.phase === 'reading' || run?.phase === 'running') && !run.stopping;
 
   return (
@@ -619,7 +648,7 @@ export const DeleteAllPanel: React.FC<{
                   bin: String(fromTheBin),
                 })}
               </p>
-              <p>{t('deletions.all.confirm.bin')}</p>
+              {mailFromTheBin && <p>{t('deletions.all.confirm.bin')}</p>}
             </div>
           )}
           {/* Cancel first, and focused: the end of a double click lands on

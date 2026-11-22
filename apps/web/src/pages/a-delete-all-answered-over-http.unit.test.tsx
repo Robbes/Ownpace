@@ -13,7 +13,7 @@
  *  - managed: a 403 with a gate's code is a refusal, and the run goes on; a
  *    500 from `serverFault` carries an `error` field too, and it is not
  *    known, and it stops the run;
- *  - managed: a 202 receipt read to its end, a 404 with a gate's code, and a
+ *  - managed: a 202 receipt read to its end, a 404 `not_found`, and a
  *    receipt refused `removed_not_recorded`, which is deleted and stops the
  *    run;
  *  - managed: the operator's hold (409) started nothing: not deleted, and the
@@ -224,9 +224,11 @@ describe('Delete all of these here too, answered over HTTP', () => {
       { status: 200, data: QUEUED.receipt },
       landed({ state: 'applied', kind: 'binned' }),
     ]);
+    // A 404 that is that row's answer alone (`not_confirmed` would stop the run:
+    // evidence withdrawn after the confirmation).
     http.answers.set(`POST ${M}/deletions/b/apply`, {
       status: 404,
-      data: { error: 'not_confirmed', reason: 'This item has no deletion evidence any more.' },
+      data: { error: 'not_found', reason: "No migrated item under that natural key in any of this mapping's enabled domains." },
     });
     http.answers.set(`POST ${M}/deletions/c/apply`, { status: 202, data: QUEUED });
     http.answers.set(
@@ -241,7 +243,7 @@ describe('Delete all of these here too, answered over HTTP', () => {
     const deleted = group(en['deletions.all.removed']);
     expect(within(deleted).getByText(en['receipt.applied.binned'])).toBeInTheDocument();
     expect(within(deleted).getByText(en['deletions.refused.removedNotRecorded'])).toBeInTheDocument();
-    expect(within(group(en['deletions.all.notRemoved'])).getByText(en['deletions.refused.notConfirmed'])).toBeInTheDocument();
+    expect(within(group(en['deletions.all.notRemoved'])).getByText(en['deletions.refused.notFound'])).toBeInTheDocument();
     // a's receipt was read to its end before b was pressed, and d never was.
     const order = http.asked.filter((key) => key.includes('/deletions/'));
     const lastReadOfA = order.lastIndexOf(`GET ${M}/deletions/a/receipt`);

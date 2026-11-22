@@ -12,7 +12,11 @@
  * of it:
  *
  *  - a run in which each gate that speaks for one row refuses one row, and
- *    the others are removed: the run goes on past each of them;
+ *    the others are removed: the run goes on past each of them, and stops at
+ *    a row whose evidence is only absence (`weak_evidence`);
+ *  - evidence withdrawn during the run (a pass sees an item back while the
+ *    run removes another) stops it: the next item, still reported only
+ *    because the pass has not reached it, is not asked;
  *  - a removal the ledger could not record (`removed_not_recorded`) stops
  *    the whole run: the ledger changed under it, as when the owner restores
  *    a folder at the source mid-run, so its next items are not asked;
@@ -20,6 +24,9 @@
  *  - the breaker stops the whole run, every data type, whether it trips on
  *    the first row or in the middle, even when the share has dropped by the
  *    time the next row is reached;
+ *  - what one confirmation can remove is what gate 6 counts: a fifth of the
+ *    items placed on the target, removed and adopted ones included, rows with
+ *    no recorded collection not, asked afresh at every press, with no total;
  *  - a row somebody kept in another tab before its turn is refused as
  *    already kept, and the run goes on; a keep during that row's own
  *    removal cannot stop it (ADR-0024, amended 2026-11-22);
@@ -119,7 +126,7 @@ const statusOf = async (ledger: MemoryLedger, domain: DiscoveryDomain, hash: str
   (await ledger.find(TENANT, MAPPING, domain, hash))?.status;
 
 describe('a run in which each gate that speaks for one row refuses one row', () => {
-  it('decides every row by itself, goes on past each refusal, and removes only what the gates let through', async () => {
+  it('decides every row by itself, goes on past each refusal of that row alone, and stops where only absence is left', async () => {
     const ledger = new MemoryLedger();
     // Calendar: under MASS_DELETION_MIN_ITEMS, so its breaker never weighs in.
     await ledger.recordIfAbsent(row('calendar', 'cal-ok', reported));
@@ -130,6 +137,7 @@ describe('a run in which each gate that speaks for one row refuses one row', () 
     await ledger.recordIfAbsent(row('contact', 'con-ok', reported));
     await ledger.recordIfAbsent(row('task', 'task-1', reported));
     await ledger.recordIfAbsent(row('email', 'mail-1', reported));
+    await ledger.recordIfAbsent(row('calendar', 'cal-after', reported));
 
     const targets = {
       calendar: remover({
@@ -144,26 +152,30 @@ describe('a run in which each gate that speaks for one row refuses one row', () 
     const results = await applyEachInTurn(
       [
         { domain: 'calendar', naturalKeyHash: 'cal-ok' },
-        { domain: 'calendar', naturalKeyHash: 'cal-inferred' },
         { domain: 'calendar', naturalKeyHash: 'cal-adopted' },
         { domain: 'calendar', naturalKeyHash: 'cal-edited' },
         { domain: 'calendar', naturalKeyHash: 'cal-unversioned' },
         { domain: 'task', naturalKeyHash: 'task-1' },
         { domain: 'email', naturalKeyHash: 'mail-1' },
         { domain: 'contact', naturalKeyHash: 'con-ok' },
+        // The page never offers it (`mayOfferApply`); in a run its evidence
+        // was withdrawn after the confirmation, and the run stops there.
+        { domain: 'calendar', naturalKeyHash: 'cal-inferred' },
+        { domain: 'calendar', naturalKeyHash: 'cal-after' },
       ],
       pressWith(ledger, targets, { pastCutover: new Set(['email']) }),
     );
 
     expect(said(results)).toEqual([
       'removed',
-      'weak_evidence', // gate 3: absence, however often repeated
       'not_ours', // gate 4: the account owner's bytes
       'edited_on_target', // gate 5: changed on the new system since
       'version_unknown', // gate 5: nothing to compare
       'target_cannot_remove', // gate 2
       'after_cutover', // the old system no longer decides
       'removed',
+      'weak_evidence', // gate 3: absence, however often repeated; it stops the run
+      'not tried: refusal (weak_evidence)',
     ]);
 
     expect(await statusOf(ledger, 'calendar', 'cal-ok')).toBe('tombstoned');
@@ -175,6 +187,7 @@ describe('a run in which each gate that speaks for one row refuses one row', () 
       ['calendar', 'cal-unversioned'],
       ['task', 'task-1'],
       ['email', 'mail-1'],
+      ['calendar', 'cal-after'],
     ] as const) {
       expect(await statusOf(ledger, domain, hash), `${hash} was refused, so it stays`).not.toBe('tombstoned');
     }
@@ -197,6 +210,14 @@ describe('a run in which each gate that speaks for one row refuses one row', () 
  * deleted from any more, and nothing after it is asked.
  */
 describe('a removal the ledger could not record stops the whole run', () => {
+  /** The server's reason is true of both causes, whichever one this is. */
+  const namesBothCauses = (results: ApplyEachResult<ApplyDeletionOutcome>[]) => {
+    const first = results[0];
+    const reason = first && 'answered' in first && !first.answered.ok ? first.answered.reason : '';
+    expect(reason).toMatch(/the row changed while it ran \(a pass saw the item again, or another removal recorded it first\)/);
+    expect(reason).toMatch(/Unless another removal recorded it, Verification will report this item as missing/);
+  };
+
   it('when another tab recorded it first: counted as removed, and nothing after it is asked', async () => {
     const ledger = new MemoryLedger();
     await ledger.recordIfAbsent(row('contact', 'con-raced', reported));
@@ -227,6 +248,7 @@ describe('a removal the ledger could not record stops the whole run', () => {
       'not tried: refusal (removed_not_recorded)',
       'not tried: refusal (removed_not_recorded)',
     ]);
+    namesBothCauses(results);
     expect(contact.asked).toEqual(['t-con-raced']);
     expect(calendar.asked).toEqual([]);
     expect(await statusOf(ledger, 'contact', 'con-ok')).toBe('copied');
@@ -251,12 +273,42 @@ describe('a removal the ledger could not record stops the whole run', () => {
       'not tried: refusal (removed_not_recorded)',
       'not tried: refusal (removed_not_recorded)',
     ]);
+    namesBothCauses(results);
     expect(calendar.asked).toEqual(['t-a']);
     for (const hash of ['b', 'c']) {
       const left = await ledger.find(TENANT, MAPPING, 'calendar', hash);
       expect(left?.status, `${hash} was not asked`).toBe('copied');
       expect(left?.deletionReportedAt, `${hash} is still reported: the pass had not reached it`).toBeDefined();
     }
+  });
+});
+
+/**
+ * Every row of a run had positive evidence when the list was read again, so a
+ * row refused `not_confirmed` (no evidence left) or `weak_evidence` (only
+ * absence left) lost it after the confirmation: a pass saw it back on the old
+ * system. That is the list changing under the run, and the rows after it,
+ * still reported only because the pass has not reached them, are not asked
+ * (the third review, R1).
+ */
+describe('evidence withdrawn during a run stops it', () => {
+  it('when a pass sees the next row back while one is removed: [removed, not_confirmed, not tried]', async () => {
+    const ledger = new MemoryLedger();
+    for (const hash of ['a', 'b', 'c']) await ledger.recordIfAbsent(row('calendar', hash, reported));
+    // While a is being removed, a pass sees b on the old system again and
+    // clears its evidence; it has not reached c, which is still reported.
+    const calendar = remover({}, { 't-a': () => ledger.clearAbsent(TENANT, MAPPING, 'calendar', 'b') });
+
+    const results = await applyEachInTurn(
+      ['a', 'b', 'c'].map((h) => ({ domain: 'calendar' as const, naturalKeyHash: h })),
+      pressWith(ledger, { calendar }),
+    );
+
+    expect(said(results)).toEqual(['removed', 'not_confirmed', 'not tried: refusal (not_confirmed)']);
+    expect(calendar.asked).toEqual(['t-a']);
+    const c = await ledger.find(TENANT, MAPPING, 'calendar', 'c');
+    expect(c?.status, 'c was not asked').toBe('copied');
+    expect(c?.deletionReportedAt, 'c is still reported: the pass had not reached it').toBeDefined();
   });
 });
 
@@ -464,5 +516,70 @@ describe('a press that throws', () => {
     expect(contact.asked).toEqual([]);
     // Nothing recorded a removal the target never confirmed.
     expect(await statusOf(ledger, 'calendar', 'a')).toBe('copied');
+  });
+});
+
+/**
+ * What one confirmation can remove (ADR-0024's operative rules, the third
+ * review's R3). Gate 6 counts `placedItems`: every item placed on the
+ * target, those removed since and adopted ones included, rows with no
+ * recorded collection not. It is asked afresh at every press, so it caps a
+ * run at a fifth and caps no total.
+ */
+describe('what one confirmation can remove, as gate 6 counts it', () => {
+  const calendarRun = async (ledger: MemoryLedger, hashes: string[]) =>
+    said(
+      await applyEachInTurn(
+        hashes.map((h) => ({ domain: 'calendar' as const, naturalKeyHash: h })),
+        pressWith(ledger, { calendar: remover() }),
+      ),
+    );
+  const five = ['c-0', 'c-1', 'c-2', 'c-3', 'c-4'];
+
+  it('counts the removed and the adopted: 5 waiting of 20 copied, 3 adopted and 2 removed is a fifth, and all 5 go', async () => {
+    const ledger = new MemoryLedger();
+    for (let i = 0; i < 20; i++) await ledger.recordIfAbsent(row('calendar', `c-${i}`, i < 5 ? reported : {}));
+    for (let i = 0; i < 3; i++) await ledger.recordIfAbsent(row('calendar', `a-${i}`, { status: 'adopted' }));
+    for (let i = 0; i < 2; i++) {
+      await ledger.recordIfAbsent(
+        row('calendar', `r-${i}`, {
+          status: 'tombstoned',
+          deletionReportedAt: NOW,
+          deletionAppliedAt: NOW,
+          deletionAcknowledgedAt: NOW,
+        }),
+      );
+    }
+
+    // 5 of 25 placed. Counted without the removed and the adopted, 5 of 20
+    // would be a quarter, and the breaker would refuse the first.
+    expect(await calendarRun(ledger, five)).toEqual(['removed', 'removed', 'removed', 'removed', 'removed']);
+  });
+
+  it('does not count a row with no recorded collection: 5 waiting of 20 copied and 5 with none is a quarter, and none goes', async () => {
+    const ledger = new MemoryLedger();
+    for (let i = 0; i < 20; i++) await ledger.recordIfAbsent(row('calendar', `c-${i}`, i < 5 ? reported : {}));
+    for (let i = 0; i < 5; i++) await ledger.recordIfAbsent(row('calendar', `old-${i}`, { collection: '' }));
+
+    expect(await calendarRun(ledger, five)).toEqual([
+      'mass_deletion_suspected',
+      ...Array(4).fill('not tried: refusal (mass_deletion_suspected)'),
+    ]);
+    for (const hash of five) expect(await statusOf(ledger, 'calendar', hash)).toBe('copied');
+  });
+
+  it('caps no total: once a run’s removals have left the queue, a second confirmation removes another fifth', async () => {
+    const ledger = new MemoryLedger();
+    for (let i = 0; i < 20; i++) await ledger.recordIfAbsent(row('calendar', `c-${i}`, i < 4 ? reported : {}));
+    expect(await calendarRun(ledger, ['c-0', 'c-1', 'c-2', 'c-3'])).toEqual(Array(4).fill('removed'));
+
+    // Four more are deleted at the source, and a later pass reports them.
+    for (const hash of ['c-4', 'c-5', 'c-6', 'c-7']) {
+      await ledger.recordReportedDeletion(TENANT, MAPPING, 'calendar', hash);
+    }
+    expect(await calendarRun(ledger, ['c-4', 'c-5', 'c-6', 'c-7'])).toEqual(Array(4).fill('removed'));
+
+    const removed = (await ledger.placedItems(TENANT, MAPPING, 'calendar')).filter((p) => p.deletionAppliedAt);
+    expect(removed, 'two confirmations, two fifths').toHaveLength(8);
   });
 });

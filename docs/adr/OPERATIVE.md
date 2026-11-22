@@ -184,7 +184,7 @@ live in [README.md](./README.md), the register.
 ## [ADR-0024: `apply` — an explicit, gated exception to non-destructiveness](./0024-explicit-owner-deletion-apply.md)
 
 - `apply` is the **only destructive code path**: each item decided by itself, owner-called,
-  never automatic. Relocations remove through `applyRelocation` beside it, behind the same gates
+  never automatic. Relocations go through `applyRelocation`, behind the same gates
   (ADR-0030/0031). `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
 - **Seven gates**, enforced by `applyDeletion`; evidence and ownership re-checked in the ledger's
   conditional UPDATE:
@@ -203,9 +203,9 @@ live in [README.md](./README.md), the register.
   through the same call and all seven gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
 - One confirmation can remove every row offered: all of a data type under 20 migrated items, at
-  most a fifth of a larger one (gate 6). The breaker, `not_enabled`, `removed_not_recorded`, or a
-  press not answered or not started **stops the whole run**; *Stop* or a closed page orders
-  nothing more.
+  most a fifth of a larger one, removed and adopted counted (gate 6). The breaker, `not_enabled`,
+  `removed_not_recorded`, withdrawn evidence, or an unanswered or unstarted press **stops the
+  whole run**; *Stop* or a closed page orders nothing more.
 - **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
   `already_kept` before anything is sent to the target. A keep cannot stop a removal already
   under way. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.

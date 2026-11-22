@@ -11,7 +11,7 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - `apply` is the **only destructive code path**: each item decided by itself, owner-called,
-  never automatic. Relocations remove through `applyRelocation` beside it, behind the same gates
+  never automatic. Relocations go through `applyRelocation`, behind the same gates
   (ADR-0030/0031). `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
 - **Seven gates**, enforced by `applyDeletion`; evidence and ownership re-checked in the ledger's
   conditional UPDATE:
@@ -30,9 +30,9 @@
   through the same call and all seven gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
 - One confirmation can remove every row offered: all of a data type under 20 migrated items, at
-  most a fifth of a larger one (gate 6). The breaker, `not_enabled`, `removed_not_recorded`, or a
-  press not answered or not started **stops the whole run**; *Stop* or a closed page orders
-  nothing more.
+  most a fifth of a larger one, removed and adopted counted (gate 6). The breaker, `not_enabled`,
+  `removed_not_recorded`, withdrawn evidence, or an unanswered or unstarted press **stops the
+  whole run**; *Stop* or a closed page orders nothing more.
 - **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
   `already_kept` before anything is sent to the target. A keep cannot stop a removal already
   under way. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
@@ -138,24 +138,29 @@ a migration, and a removal on *Deleted on the old system* took one press per ite
 reads as **each item decided by itself**: one owner action may apply many, and each item goes
 through all seven gates by itself, through the code path a single press uses. The Decision's
 "nothing here is automatic, scheduled, or batched" reads the same way: a press for many is many
-single presses, one after another. As built after the pull request's two reviews (2026-11-22):
+single presses, one after another. As built after the pull request's three reviews (2026-11-22):
 
 - **The press.** *Delete all of these here too*, on the Deletions page, is offered only where a
   single *Delete it here too* is: deleting by hand on, rows that `mayOfferApply` offers (positive
   evidence, not past their data type's cutover), two at least.
 - **Both kinds of positive evidence, the bin's counted apart.** A run takes the rows the old
   system reported deleted and the rows found in its bin (`trashed`), as a single press does.
-  When some came from the bin, the confirmation names how many, apart from the reported ones, and
-  says why that matters: a message can be in the bin and in a live folder at once, so a copy here
-  may be one still in use, and once deleted it is never copied again (a tombstoned item's
-  reappearance is never re-copied). Both numbers are counted from the frozen set the press acts
-  on. When no row came from the bin, the confirmation says nothing about it.
+  When some came from the bin, the confirmation names how many, apart from the reported ones.
+  When one of them is mail, it also says why that matters: a message can be in the bin and in a
+  live folder at once, so a copy here may be one still in use, and once deleted it is never
+  copied again (a tombstoned item's reappearance is never re-copied). Both numbers are counted
+  from the frozen set, and nothing is ordered unless each row still has the evidence it was
+  counted with, on the page and in the list read again. When no row came from the bin, the
+  confirmation says nothing about it.
 - **What one confirmation can remove.** Every row the page offers, the bin's included, each
-  through all seven gates, so what bounds a run is gate 6. Per migration and data type, it
-  refuses every apply once more than a fifth (`MASS_DELETION_FRACTION`, 0.2) of the migrated items,
-  those already removed still counted, are waiting to be deleted, and it does not apply below 20
-  migrated items (`MASS_DELETION_MIN_ITEMS`). So one confirmation can remove at most a fifth of a
-  data type with 20 migrated items or more, and every listed item of a smaller one.
+  through all seven gates, so what bounds a run is gate 6. Per migration and data type, it counts
+  the items placed on the target (`placedItems`: removed and adopted ones included, failed ones
+  and rows with no recorded collection not), and refuses every apply once more than a fifth
+  (`MASS_DELETION_FRACTION`, 0.2) of them are waiting to be deleted; below 20 of them
+  (`MASS_DELETION_MIN_ITEMS`) it does not apply. It is asked afresh at every press and caps no
+  total: once a run's removals have left the queue, a second confirmation can remove another
+  fifth. So one confirmation can remove at most a fifth of a data type with 20 placed items or
+  more, and every listed item of a smaller one.
 - **The confirmation, and how it relates to "the caller states an expected count".** The rejected
   alternative above asked, before bulk apply was revisited, for stronger confirmation, "e.g.
   requiring the caller to state an expected count". T0 (b) asked for one confirmation that names
@@ -163,12 +168,13 @@ single presses, one after another. As built after the pull request's two reviews
   of its own, over the rows as they were when it opened (the set is frozen then), which names
   their number. A double click cannot pass it: its *Cancel* comes first and takes the focus, and
   its *Delete N* ignores the second click of a double click and any click within 800 ms of
-  opening. The focus stays in it until it closes, and Escape closes it from anywhere in it.
-  Nothing is ordered unless the page's rows at that press, and the list read again from the
-  server, are both the frozen set. From that press on, no row of the run has a button of its
-  own, the reading of the list included, so nothing is kept or pressed on it beside the run. So what is ordered is never more than the rows the
-  person counted. The check is the page's: the server is told no count. It sees single presses,
-  each through every gate.
+  opening. The focus stays in it until it closes, unless it moves into another open
+  confirmation, such as another migration's, and Escape closes it from anywhere in it. Nothing is ordered unless the page's
+  rows at that press, and the list read again from the server, are both the frozen set, each row
+  with the evidence it was counted with. From that press on, no row of the run has a button of
+  its own, the reading of the list included, so nothing is kept or pressed on it beside the run.
+  So what is ordered is never more than the rows the person counted. The check is the page's:
+  the server is told no count. It sees single presses, each through every gate.
 - **The same path.** The page presses each row's own apply (`applyEachInTurn` in
   `@openmig/shared`, `DeleteAllPanel` in the web app): the same request, the same route, the same
   `evaluateApplyDeletion` and `applyDeletion`, and on managed the same receipt, audit row
@@ -195,12 +201,16 @@ single presses, one after another. As built after the pull request's two reviews
   `removed_not_recorded`, the one answer that proves the ledger changed under a removal (a pass
   saw the item back, or another tab removed it first): when the owner restores a folder at the
   source mid-run, its next items are still reported until the pass reaches them, and a run that
-  went on would remove them. A press made afterwards, by hand or in a new run, is decided
-  afresh.
+  went on would remove them. So does evidence withdrawn during the run: every item had positive
+  evidence when the list was read again, so `not_confirmed` (none left) or `weak_evidence` (only
+  absence left) means a pass saw it back, the same sign. A press made afterwards, by hand or in a
+  new run, is decided afresh.
 - **Every other refusal is that item's answer**, said with its reason, and the next item is
-  ordered. That includes `already_kept`: a row somebody kept during the run, in another tab or
-  by another person, is refused if the keep was recorded before its removal began (*Amendment,
-  2026-11-22*).
+  ordered: one that speaks for that item alone (`not_found`, `not_ours`, `edited_on_target`,
+  `version_unknown`, `target_cannot_remove`, `kept_for_guests`, `after_cutover`,
+  `already_applied`). That includes `already_kept`: a row somebody kept during the run, in
+  another tab or by another person, is refused if the keep was recorded before its removal began
+  (*Amendment, 2026-11-22*).
 - **Afterwards** the page says what was deleted, what was not, and what is not known, with each
   reason, in English and Dutch: a sentence per refusal code in the reader's language, the
   server's own words and code beside it, verbatim.
@@ -259,11 +269,12 @@ the reason), and the screens show the reason as served.
 
 - **2026-11-21** — Per item reads as each item decided by itself: one owner action may apply many,
   each through all seven gates, after one confirmation over a frozen set, the next only once one
-  has answered; a breaker refusal, `not_enabled`, `removed_not_recorded`, or a press that did not
-  answer or started nothing stops the run (workplan 0164 T0 (b), T3). The confirmation counts the
-  rows found in the source's bin apart; one confirmation removes at most a fifth of a data type of
-  20 migrated items or more, and every listed item of a smaller one. Record: *Amendment, 2026-11-21: per item reads as each item decided
-  by itself*.
+  has answered; a breaker refusal, `not_enabled`, `removed_not_recorded`, evidence withdrawn
+  during the run, or a press that did not answer or started nothing stops the run (workplan 0164
+  T0 (b), T3). The confirmation counts the rows found in the source's bin apart; one confirmation
+  removes at most a fifth of a data type of 20 placed items or more, removed and adopted ones
+  counted, and every listed item of a smaller one. Record: *Amendment, 2026-11-21: per item reads
+  as each item decided by itself*.
 
 - **2026-10-05** — After cutover nothing is applied, by hand either: `after_cutover`, and no Apply
   offered (the owner's "Refuse after cutover (Recommended)"). Record: *Amendment, 2026-10-05: after

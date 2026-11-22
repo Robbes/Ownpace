@@ -3,8 +3,9 @@
 /**
  * The loop *Delete all of these here too* orders a run with (workplan 0164
  * T3): in turn, each answered before the next is ordered; a press that did
- * not answer, the breaker's refusal, `not_enabled`, `removed_not_recorded`
- * and an answer marked `stopsTheRun` each stop the whole run; any other
+ * not answer, the breaker's refusal, `not_enabled`, `removed_not_recorded`,
+ * evidence withdrawn (`not_confirmed`, `weak_evidence`) and an answer marked
+ * `stopsTheRun` each stop the whole run; any other
  * refusal is that item's answer and the next is ordered; a stop is honoured
  * between items. What each press decides is the gates', and
  * `packages/core/src/a-delete-all-through-every-gate.unit.test.ts` runs this
@@ -81,14 +82,16 @@ describe('a refusal that speaks for every item', () => {
     ]);
   });
 
-  it('is the breaker’s, deleting by hand turned off, or a removal the ledger could not record, and no other', () => {
+  it('is the breaker’s, deleting by hand turned off, a removal the ledger could not record, or evidence withdrawn, and no other', () => {
     expect([...RUN_STOPPING_REFUSALS].sort()).toEqual(
-      [...BREAKER_CODES, 'not_enabled', 'removed_not_recorded'].sort(),
+      [...BREAKER_CODES, 'not_enabled', 'removed_not_recorded', 'not_confirmed', 'weak_evidence'].sort(),
     );
   });
 
   it('does not include any other refusal: each of those is its own item’s answer', async () => {
-    const codes = ['after_cutover', 'edited_on_target', 'weak_evidence', 'not_ours', 'already_kept', 'already_applied'];
+    // Evidence withdrawn during a run (`weak_evidence`, `not_confirmed`) is no
+    // longer one of these: every item had positive evidence at the re-read.
+    const codes = ['after_cutover', 'edited_on_target', 'not_ours', 'already_kept', 'already_applied'];
     const ordered: string[] = [];
     await applyEachInTurn(
       codes.map((c) => item(c)),

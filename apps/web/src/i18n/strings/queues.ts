@@ -146,6 +146,8 @@ export const en = {
   'deletions.all.stoppedBy.notRecorded':
     'Stopped: one was deleted, but Ownpace could not record it, because the list changed while it was being deleted. So nothing after it was asked.',
   'deletions.all.stoppedBy.notStarted': 'Stopped: nothing could be started for one, so nothing after it was asked.',
+  'deletions.all.stoppedBy.evidenceWithdrawn':
+    'Stopped: the old system no longer says one of them was deleted, so the list changed during the run. Nothing after it was asked.',
   'deletions.all.stoppedBy.stop': 'Stopped: you pressed Stop.',
   'deletions.all.removed': 'Deleted on the new system',
   'deletions.all.notRemoved': 'Not deleted',
@@ -158,6 +160,8 @@ export const en = {
   'deletions.all.notTried.failure': 'Not tried: an earlier one did not answer.',
   'deletions.all.notTried.notRecorded': 'Not tried: the list changed while an earlier one was being deleted.',
   'deletions.all.notTried.notStarted': 'Not tried: nothing could be started for an earlier one.',
+  'deletions.all.notTried.evidenceWithdrawn':
+    'Not tried: the old system stopped saying an earlier one was deleted, so the list changed during the run.',
   'deletions.all.notTried.stop': 'Not tried: you pressed Stop before its turn.',
   'deletions.all.failed':
     'This did not answer, so whether it was deleted is not known. Look at it on the new system before you press again.',
@@ -177,7 +181,9 @@ export const en = {
     'It is only assumed to be deleted: the old system never said so. Ownpace does not delete it on the new system.',
   // Also said when there is no copy on the new system at all.
   'deletions.refused.notOurs': 'Ownpace did not delete it: there is no copy on the new system that Ownpace made.',
-  'deletions.refused.alreadyApplied': 'It had already been deleted on the new system.',
+  // Also the answer after a move removed the old copy (`applyRelocation`):
+  // never *deleted*, which would say the item is gone.
+  'deletions.refused.alreadyApplied': 'It had already been removed on the new system.',
   'deletions.refused.alreadyKept':
     'Somebody chose to keep this copy, so it was not deleted. If that was a mistake, delete it on the new system yourself.',
   'deletions.refused.afterCutover':
@@ -190,8 +196,10 @@ export const en = {
     'The event still lists guests, and the new system would email each of them a cancellation, so it was not deleted.',
   'deletions.refused.massDeletionSuspected':
     'So much of this kind is waiting to be deleted at once that it looks like a problem at the old system. The safeguard against mass deletion refuses every deletion of this kind in this migration while that many are waiting.',
+  // Two causes: a pass saw the item back while it was deleted, or another
+  // delete recorded it first, in which case nothing is missing.
   'deletions.refused.removedNotRecorded':
-    'It was deleted on the new system, but Ownpace could not record that. Check will report it as missing until that is put right by hand.',
+    'It was deleted on the new system, but this delete could not be recorded: the item changed while it ran. If another delete recorded it first, nothing more is needed; if not, Check reports it as missing until that is put right by hand.',
   'deletions.refused.other': 'It was refused, for the reason under Technical details.',
   // A press the server started nothing for (a hold, a closed account, a
   // removal that could not be queued): not deleted, and the run stops.
@@ -295,7 +303,7 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.applyArmed': 'Bevestig verwijderen',
   'deletions.all': 'Verwijder deze allemaal hier ook',
   'deletions.all.lead':
-    'Verwijdert de kopie van elk van deze {count} op het nieuwe systeem, de een na de ander. Elk wordt eerst afzonderlijk gecontroleerd, net als bij één verwijdering, en de volgende wordt pas verwijderd als de vorige antwoord heeft gegeven. Wat wordt geweigerd, blijft hier staan, met de reden. Een weigering die voor allemaal geldt, of een verwijdering die geen antwoord gaf, stopt de rest.',
+    'Verwijdert de kopie van elk van deze {count} op het nieuwe systeem, de een na de ander. Elk wordt eerst afzonderlijk gecontroleerd, net als bij één verwijdering, en op de knop van de volgende wordt pas gedrukt als de vorige antwoord heeft gegeven. Wat wordt geweigerd, blijft hier staan, met de reden. Een weigering die voor allemaal geldt, of een verwijdering die geen antwoord gaf, stopt de rest.',
   'deletions.all.confirm.question': 'Deze {count} verwijderen op het nieuwe systeem?',
   'deletions.all.confirm.yes': 'Verwijder {count}',
   'deletions.all.confirm.no': 'Annuleren',
@@ -324,6 +332,8 @@ export const nl: Record<keyof typeof en, string> = {
     'Gestopt: er is er een verwijderd, maar Ownpace kon dat niet vastleggen, omdat de lijst veranderde terwijl die werd verwijderd. Daarom is er daarna niets meer gevraagd.',
   'deletions.all.stoppedBy.notStarted':
     'Gestopt: voor een ervan kon niets in gang worden gezet, dus daarna is er niets meer gevraagd.',
+  'deletions.all.stoppedBy.evidenceWithdrawn':
+    'Gestopt: het oude systeem meldt niet meer dat er een is verwijderd, dus de lijst veranderde tijdens de reeks. Daarna is er niets meer gevraagd.',
   'deletions.all.stoppedBy.stop': 'Gestopt: u drukte op Stoppen.',
   'deletions.all.removed': 'Verwijderd op het nieuwe systeem',
   'deletions.all.notRemoved': 'Niet verwijderd',
@@ -335,6 +345,8 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.all.notTried.failure': 'Niet geprobeerd: een eerdere gaf geen antwoord.',
   'deletions.all.notTried.notRecorded': 'Niet geprobeerd: de lijst veranderde terwijl een eerdere werd verwijderd.',
   'deletions.all.notTried.notStarted': 'Niet geprobeerd: voor een eerdere kon niets in gang worden gezet.',
+  'deletions.all.notTried.evidenceWithdrawn':
+    'Niet geprobeerd: het oude systeem meldde niet meer dat een eerdere was verwijderd, dus de lijst veranderde tijdens de reeks.',
   'deletions.all.notTried.stop': 'Niet geprobeerd: u drukte op Stoppen voordat het aan de beurt was.',
   'deletions.all.failed':
     'Dit gaf geen antwoord, dus of het is verwijderd, is niet bekend. Kijk op het nieuwe systeem voordat u nog een keer drukt.',
@@ -352,7 +364,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Het is alleen een vermoeden: het oude systeem heeft niet gemeld dat het verwijderd is. Ownpace verwijdert het niet op het nieuwe systeem.',
   'deletions.refused.notOurs':
     'Ownpace heeft het niet verwijderd: op het nieuwe systeem staat geen kopie die Ownpace heeft gemaakt.',
-  'deletions.refused.alreadyApplied': 'Het was op het nieuwe systeem al verwijderd.',
+  'deletions.refused.alreadyApplied': 'Het stond al niet meer op het nieuwe systeem.',
   'deletions.refused.alreadyKept':
     'Iemand heeft ervoor gekozen deze kopie te behouden, dus die is niet verwijderd. Was dat een vergissing, verwijder die dan zelf op het nieuwe systeem.',
   'deletions.refused.afterCutover':
@@ -366,7 +378,7 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.refused.massDeletionSuspected':
     'Er wacht zoveel van deze soort tegelijk op verwijderen dat het op een probleem bij het oude systeem lijkt. De beveiliging tegen massaal verwijderen weigert elke verwijdering van deze soort in deze migratie zolang er zoveel wachten.',
   'deletions.refused.removedNotRecorded':
-    'Het is op het nieuwe systeem verwijderd, maar Ownpace kon dat niet vastleggen. Bij de verificatie wordt het als ontbrekend gemeld totdat dat met de hand is rechtgezet.',
+    'Het is op het nieuwe systeem verwijderd, maar deze verwijdering kon niet worden vastgelegd: het item veranderde terwijl die liep. Heeft een andere verwijdering het al vastgelegd, dan hoeft er niets meer; zo niet, dan meldt de verificatie het als ontbrekend totdat dat met de hand is rechtgezet.',
   'deletions.refused.other': 'Het is geweigerd, om de reden onder Technische details.',
   'deletions.refused.held':
     'Ownpace heeft het migreren gepauzeerd voor een update, dus er is niets in gang gezet en het is niet verwijderd.',

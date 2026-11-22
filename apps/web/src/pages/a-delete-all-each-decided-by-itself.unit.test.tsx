@@ -14,14 +14,15 @@
  *    rows as they were when it opened, which a double click cannot pass; the
  *    page's rows at the press and the list read again must both be that set;
  *  - the rows found in the source's bin are in a run, and the confirmation
- *    names how many, apart from the reported ones, and why that matters,
- *    from the rows it froze; it says nothing about the bin when none came
- *    from it;
+ *    names how many, apart from the reported ones, from the rows it froze,
+ *    and, when one of them is mail, why that matters; it says nothing about
+ *    the bin when none came from it; a row whose evidence changed since the
+ *    count orders nothing;
  *  - in turn: each press answered to its end (a managed receipt included)
  *    before the next; a refusal of one row is that row's answer, while the
  *    breaker's refusal, deleting by hand turned off, a removal the ledger
- *    could not record, a press the server started nothing for, and a press
- *    that did not answer each stop the run;
+ *    could not record, evidence withdrawn during the run, a press the server
+ *    started nothing for, and a press that did not answer each stop the run;
  *  - from the confirming press on, no row of the run has a button of its
  *    own, the reading of the list included, and Stop is there already;
  *  - each migration's answers are its own, though two share an item's hash;
@@ -31,7 +32,8 @@
  *  - afterwards, what was deleted, not deleted and not known, with each
  *    reason, in English and in Dutch, the server's own words beside it;
  *  - a closed page orders and polls nothing more; a second press orders only
- *    what is still waiting.
+ *    what is still waiting;
+ *  - the words say what is true in every case they are said in.
  *
  * The gates themselves are the server's; `packages/core/src/
  * a-delete-all-through-every-gate.unit.test.ts` runs the same loop over the
@@ -376,6 +378,19 @@ describe('one confirmation, a control of its own', () => {
     expect(applyDeletion).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['reported when counted, found in the bin when read again', 'reported', 'trashed'],
+    ['found in the bin when counted, reported when read again', 'trashed', 'reported'],
+  ] as const)('orders nothing when a row’s evidence changed, %s', async (_what, counted, read) => {
+    fetchDeletions
+      .mockResolvedValueOnce(queue({ confirmed: [deletion('a'), deletion('b', { evidence: counted })] }))
+      .mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b', { evidence: read })] }));
+    renderScreen();
+    await pressAll(2);
+    expect(await screen.findByText(fill(en['deletions.all.changed'], { count: 2 }))).toBeInTheDocument();
+    expect(applyDeletion).not.toHaveBeenCalled();
+  });
+
   it('orders nothing when the list read again holds other rows, even as many', async () => {
     fetchDeletions
       .mockResolvedValueOnce(queue({ confirmed: [deletion('a'), deletion('b')] }))
@@ -443,12 +458,32 @@ describe('the bin’s rows, counted apart', () => {
   });
 
   it('says it in Dutch', async () => {
-    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a', { evidence: 'trashed' }), deletion('b')] }));
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion('m', { domain: 'email', evidence: 'trashed' }), deletion('b')] }),
+    );
     renderScreen({ locale: 'nl' });
     fireEvent.click(await screen.findByRole('button', { name: nl['deletions.all'] }));
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText(split(1, 1, nl))).toBeInTheDocument();
     expect(within(dialog).getByText(nl['deletions.all.confirm.bin'])).toBeInTheDocument();
+  });
+
+  it('counts the bin’s rows of every kind, and says the message sentence only when one of them is mail', async () => {
+    // A file from Drive's trash or a Dropbox tombstone, an event from a bin: no message among them.
+    fetchDeletions.mockResolvedValue(
+      queue({
+        confirmed: [
+          deletion('f', { domain: 'file', collection: 'Docs', displayName: 'report.pdf', evidence: 'trashed' }),
+          deletion('e', { evidence: 'trashed' }),
+          deletion('r'),
+        ],
+      }),
+    );
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: en['deletions.all'] }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete these 3 on the new system?' });
+    expect(within(dialog).getByText(split(1, 2))).toBeInTheDocument();
+    expect(within(dialog).queryByText(en['deletions.all.confirm.bin'])).not.toBeInTheDocument();
   });
 
   it('says nothing about the bin when no row came from it', async () => {
@@ -841,6 +876,31 @@ describe('a receipt that is no answer', () => {
   });
 });
 
+/**
+ * Every row of a run had positive evidence when the list was read again, so a
+ * row refused `not_confirmed` or `weak_evidence` lost it during the run: the
+ * list changed under it, and the run stops (the third review, R1).
+ */
+describe('evidence withdrawn during a run', () => {
+  it.each([
+    ['not_confirmed', 'The deletion evidence for this item was withdrawn.'],
+    ['weak_evidence', 'Only absence is left as evidence for this item.'],
+  ])('%s stops the run, and says why', async (code, reason) => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b'), deletion('c')] }));
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => {
+      if (hash === 'b') throw refusal(code, reason, code === 'not_confirmed' ? 404 : 403);
+      return removed(hash);
+    });
+    renderScreen();
+    await pressAll(3);
+
+    expect(await screen.findByText(new RegExp(en['deletions.all.stoppedBy.evidenceWithdrawn']))).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(done(1, 2, 0));
+    expect(within(group(en['deletions.all.notRemoved'])).getByText(en['deletions.all.notTried.evidenceWithdrawn'])).toBeInTheDocument();
+    expect(orderedHashes()).toEqual(['a', 'b']);
+  });
+});
+
 describe('the breaker, and deleting by hand turned off, stop the run', () => {
   it('the breaker on the request stops every row after it, of every data type', async () => {
     fetchDeletions.mockResolvedValue(
@@ -1098,6 +1158,42 @@ describe('a stop', () => {
  * Message-ID. Each migration's answers stay with its own rows (the second
  * review, F-F): a run in one marked the other's row as deleted too.
  */
+/**
+ * Two migrations on one page (the appliance) can each have a confirmation
+ * open. Each keeps the focus inside its own, and a trap that pulled back a
+ * focus landing in the other made the two pull it back and forth for ever
+ * (the third review, R5: one `.focus()` set off 201 more).
+ */
+describe('two confirmations open at once', () => {
+  it('leave a focus that lands in the other alone, and do not pull it back and forth', async () => {
+    const two = queue({ confirmed: [deletion('a'), deletion('b')] })['acme-mail']!;
+    fetchDeletions.mockResolvedValue({ 'm-one': two, 'm-two': two });
+    renderScreen();
+
+    const [first, second] = await waitFor(() => {
+      const panels = screen.getAllByTestId('delete-all');
+      expect(panels).toHaveLength(2);
+      return panels.map((panel) => panel.closest('section')!);
+    });
+    fireEvent.click(within(first!).getByRole('button', { name: en['deletions.all'] }));
+    fireEvent.click(within(second!).getByRole('button', { name: en['deletions.all'] }));
+    const secondCancel = await within(second!).findByRole('button', { name: 'Cancel' });
+    const firstCancel = within(first!).getByRole('button', { name: 'Cancel' });
+
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    try {
+      firstCancel.focus();
+      expect(firstCancel).toHaveFocus();
+      secondCancel.focus();
+      expect(secondCancel).toHaveFocus();
+      // The two calls made here, and none set off by them.
+      expect(focus.mock.calls.length).toBeLessThanOrEqual(2);
+    } finally {
+      focus.mockRestore();
+    }
+  });
+});
+
 describe('two migrations with one item', () => {
   it('keeps a run’s answers to its own migration’s rows', async () => {
     const rows = () => [deletion('msg-1', { domain: 'email' }), deletion('msg-2', { domain: 'email' })];
@@ -1171,5 +1267,32 @@ describe('a second press', () => {
     await pressAll(2);
     await screen.findByText(done(1, 1, 0));
     expect(orderedHashes()).toEqual(['b', 'd']);
+  });
+});
+
+/**
+ * Words a test of the page cannot catch, since it reads them from the same
+ * dictionary: each one said in a case where an earlier wording was untrue.
+ */
+describe('the words say what is true in every case they are said in', () => {
+  it('a removal already made is said as removed, never deleted: it can follow a move', () => {
+    // `already_applied` also answers a deletion whose old copy a move removed
+    // (`applyRelocation`), and that item is not gone: it lives on, moved.
+    expect(en['deletions.refused.alreadyApplied']).toMatch(/removed/);
+    expect(en['deletions.refused.alreadyApplied']).not.toMatch(/delet/i);
+    expect(nl['deletions.refused.alreadyApplied']).not.toMatch(/verwijder/i);
+  });
+
+  it('the Dutch words above the button, like the English, say the next is pressed once the one before has answered', () => {
+    expect(en['deletions.all.lead']).toMatch(/the next is pressed only once it has answered/);
+    expect(nl['deletions.all.lead']).toMatch(/op de knop van de volgende wordt pas gedrukt als de vorige antwoord heeft gegeven/);
+  });
+
+  it('a removal that could not be recorded names both causes: the item changed, or another delete recorded it first', () => {
+    // Only when another delete recorded it is nothing missing; otherwise Check reports it.
+    expect(en['deletions.refused.removedNotRecorded']).toMatch(/the item changed while it ran/);
+    expect(en['deletions.refused.removedNotRecorded']).toMatch(/If another delete recorded it first, nothing more is needed; if not, Check/);
+    expect(nl['deletions.refused.removedNotRecorded']).toMatch(/het item veranderde terwijl die liep/);
+    expect(nl['deletions.refused.removedNotRecorded']).toMatch(/Heeft een andere verwijdering het al vastgelegd, dan hoeft er niets meer; zo niet/);
   });
 });

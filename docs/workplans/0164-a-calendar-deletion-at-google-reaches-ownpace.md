@@ -4,7 +4,52 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-22, 08:20 UTC, latest: F-B is built; T3 is still held for alpha.15.** On
+**2026-11-22, 09:50 UTC, latest: T3's third review is answered; T3 is still held for
+alpha.15.** The third review said *fix first*. On
+`claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`:
+- **Evidence withdrawn during a run stops it** (R1). Every row had positive evidence when the
+  list was read again, so a `not_confirmed` or `weak_evidence` refusal during the run means a
+  pass saw that item back, the same sign as `removed_not_recorded`. Both are in
+  `RUN_STOPPING_REFUSALS`, with their own words in English and Dutch. ADR-0024 and the runbook
+  name them among the stops; every other refusal is still that item's answer.
+- **The list read again is compared by item and evidence** (R2). A row whose evidence changed
+  between the count and the press, from reported to the bin or back, orders nothing, and the
+  page says the list has changed.
+- **What one confirmation can remove** (R3): gate 6 counts `placedItems`, removed and adopted
+  rows included and rows with no recorded collection not, is asked afresh at every press, and
+  caps no total. ADR-0024's operative rule and narrative, the runbook, the arch doc §11.1 and
+  the CHANGELOG say the same.
+- **Words** (R4 and the nits). `already_applied` reads *It had already been removed on the new
+  system*, true after a move too. `removed_not_recorded` names both of its causes, a pass that
+  saw the item again or another removal that recorded it first, on the page and in the server's
+  reason. The confirmation says why the bin matters only when a bin row is mail, and counts the
+  bin's rows for every data type. The Dutch words above the button say the next is pressed only
+  once the one before has answered.
+- **Two confirmations open at once** (R5) no longer pull the focus from each other: a
+  confirmation's focus trap leaves the focus alone inside another one.
+- **A Dropbox rename reached by a run before its move is applied** (R6, checked) is not a loss.
+  `packages/core/src/a-dropbox-rename-in-a-delete-all-run.unit.test.ts` holds it through the real
+  `DropboxFileSource`, `runFileSync`, `applyDeletion`, `applyRelocation` and `MemoryLedger`:
+  - the old path's row is on Deletions (`trashed`) and on Moves;
+  - the run removes the old path's copy only, the one applying the move removes, and the new
+    path's copy stays;
+  - the move stays listed, and applying it afterwards removes nothing more (`already_applied`);
+  - the next pass leaves the new path's copy as it is, and a file renamed back to the old path
+    is copied again (`relocated-away`), since its row carries the recorded move.
+
+  Left as it was, and true of a single press too: a rename with an edit, or a listing that
+  missed the new path, gives a `trashed` row with no recorded move, and deleting it tombstones
+  the old path's key.
+- **Tests:** the shared loop's set; core, over the real `applyDeletion` and `MemoryLedger`, a
+  run stopped by withdrawn evidence, the per-gate run ending on `weak_evidence`, what one
+  confirmation can remove as gate 6 counts it, and `removed_not_recorded`'s reason for both
+  causes; the page's test, 66 cases (both directions of a changed evidence, both withdrawn
+  codes, mail and other bin rows, two confirmations open at once, the words); the HTTP test, its
+  404 now `not_found`. 66 mutants, each undone byte for byte, are killed, 17 of them for this
+  review.
+- **Next:** CI, then E2E (managed).
+
+**2026-11-22, 08:20 UTC, earlier: F-B is built; T3 is still held for alpha.15.** On
 `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`, with `main` merged at `20eccaa0`
 (#2029, alpha.14's release record):
 - **Both kinds of row, the bin's counted apart.** *Delete all of these here too* keeps taking the
@@ -480,11 +525,12 @@ With **Turn on deleting by hand** on, each removal on *Deleted on the old system
 An **Apply all** for the removals the page shows, with one confirmation that names how many it
 will remove. Each item still goes through every gate on its own, so an edited copy or an adopted
 one refuses that item and says why, and the rest go on. A breaker trip, deleting by hand turned
-off, a removal the ledger could not record, or a press that did not answer stops the whole run.
-ADR-0024's "per item" is read as "each item decided by itself"; an amendment says so in the
-owner's words. It takes in both the rows the old system reported deleted and the rows found in
-its bin, and its confirmation names how many came from the bin, apart from the reported ones, and
-why that matters (F-B in the Status above).
+off, a removal the ledger could not record, evidence withdrawn during the run, or a press that did
+not answer stops the whole run. ADR-0024's "per item" is read as "each item decided by itself";
+an amendment says so in the owner's words. It takes in both the rows the old system reported
+deleted and the rows found in its bin, and its confirmation names how many came from the bin,
+apart from the reported ones, and, when one of them is mail, why that matters (F-B and the third
+review in the Status above).
 
 ### 4.3 By itself (needs the rule changed, T4)
 
