@@ -95,6 +95,7 @@
       "@openmig/orchestration": ["./packages/orchestration/src/index.ts"],
       "@openmig/orchestration/*": ["./packages/orchestration/src/*"],
       "@openmig/scheduler/in-process": ["./packages/scheduler/src/scheduler.ts"],
+      "@openmig/scheduler/pg-boss": ["./packages/scheduler/src/pg-boss/index.ts"],
       "@openmig/connectors": ["./packages/connectors/src/index.ts"],
       "@openmig/connectors/*": ["./packages/connectors/src/*"],
       "@openmig/engines": ["./packages/engines/src/index.ts"],

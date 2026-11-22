@@ -4,9 +4,10 @@
  * Hard rule 5 guard (workplan 0010, T2/T3 "no managed leakage").
  *
  * The self-host appliance must never load managed-only code — no Trigger.dev,
- * no billing/Mollie, no RLS app-user path. This test walks the *actual*
- * transitive `@openmig`/relative import graph starting from the selfhost
- * entrypoint and fails if any reachable module imports a forbidden specifier.
+ * no pg-boss (ADR-0054), no billing/Mollie, no RLS app-user path. This test
+ * walks the *actual* transitive `@openmig`/relative import graph starting from
+ * the selfhost entrypoint and fails if any reachable module imports a
+ * forbidden specifier.
  *
  * It is a real graph walk (not a grep of one file), so it catches transitive
  * regressions — e.g. importing `@openmig/scheduler` (the package index, which
@@ -59,6 +60,13 @@ function forbiddenReason(spec: string): string | null {
   // the trigger-free `/in-process` subpath instead.
   if (spec === '@openmig/scheduler' || spec === '@openmig/scheduler/index') {
     return 'scheduler package index (use @openmig/scheduler/in-process)';
+  }
+  // ADR-0054: the managed edition's jobs move to pg-boss, and the appliance
+  // keeps its in-process scheduler. pg-boss is managed orchestration as
+  // Trigger.dev is, so neither it nor the subpath that wraps it is reachable.
+  if (/^pg-boss(\/|$)/.test(spec)) return 'pg-boss (managed orchestration, ADR-0054)';
+  if (/^@openmig\/scheduler\/pg-boss(\/|$)/.test(spec)) {
+    return 'the managed job runner (ADR-0054; use @openmig/scheduler/in-process)';
   }
   return null;
 }
@@ -181,7 +189,7 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     }
   });
 
-  it('imports no Trigger.dev / billing / Mollie anywhere in its reachable graph', () => {
+  it('imports no Trigger.dev / pg-boss / billing / Mollie anywhere in its reachable graph', () => {
     expect(violations).toEqual([]);
   });
 

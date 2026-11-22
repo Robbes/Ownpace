@@ -2789,6 +2789,18 @@ reading a file drops off its entry by itself.
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
+### `packages/scheduler/package.json`
+
+- [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
+
+### `packages/scheduler/src/pg-boss/job-runner.integration.test.ts`
+
+- [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
+
+### `packages/scheduler/src/pg-boss/job-runner.ts`
+
+- [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
+
 ### `packages/shared/src/a-grant-mail-that-says-alpha.unit.test.ts`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
@@ -3015,6 +3027,7 @@ reading a file drops off its entry by itself.
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
+- [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
@@ -4707,6 +4720,17 @@ Reads:
 
 - `apps/selfhost/src/a-button-only-one-edition-answers.unit.test.ts`
 - `deploy/compose/managed.yml`
+
+### [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts)
+
+A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
+
+Reads:
+
+- `packages/scheduler/package.json`
+- `packages/scheduler/src/pg-boss/job-runner.integration.test.ts`
+- `packages/scheduler/src/pg-boss/job-runner.ts`
+- `pnpm-lock.yaml`
 
 ### [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts)
 
