@@ -22,6 +22,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   while a Trigger.dev tick from an earlier release still writes the shared beat. The worker's
   package now declares `pg` and `drizzle-orm`, which its jobs import. No migration, no compose
   change.
+- **`operator.sh jobs`, the operator's view of the jobs and their hand on them when they run on
+  pg-boss** (workplan 0167 T6; ADR-0054), in place of Trigger.dev's Runs page and Test runs: per
+  queue the runs queued, active and failed; the newest failures with their errors' names and
+  messages; one run shown or cancelled by its id; and a run queued by hand, `run-rollback` or a
+  schedule's run now, refused while the operator's hold is open unless `--despite-hold`. As the
+  jobs role, never the owner. On Trigger.dev, still the default, each says so and exits 1.
 
 ### Changed
 
