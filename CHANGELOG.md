@@ -4,6 +4,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
+  (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
+
 ### Security
 
 - **A Semgrep rule now fails a pull request** (workplan 0163 T5). `run-shell-injection`, a workflow

@@ -27,7 +27,7 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0004: Orchestration via Trigger.dev (managed) + in-process scheduler (self-host)](./0004-orchestration-triggerdev-and-inprocess.md)
 
-- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance, **Trigger.dev** on managed.
+- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance; on managed **Trigger.dev**, which [ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md) replaces with pg-boss on our own Postgres (accepted 2026-11-22, *Pending* there until workplan 0167 T7).
 - The orchestrator never sees content: task payloads carry ids only; bytes move inside the task process (SAD §17).
 
 ## [ADR-0005: Idempotency via a ledger; non-destructive by default](./0005-idempotency-ledger-nondestructive.md)
@@ -772,3 +772,21 @@ live in [README.md](./README.md), the register.
 - **Losing the marker deletes nothing**: only a real deletion at the source reaches the queue.
 - **Guests as for any event; every source kind** reads the marker.
 - **Managed only**: the appliance has no operator and no test migration.
+
+## [ADR-0054: The managed edition's jobs run on pg-boss, on our own Postgres](./0054-the-managed-editions-jobs-run-on-pg-boss.md)
+
+- **Pending (accepted 2026-11-22, not in force):** the managed edition's jobs run on pg-boss, on
+  its own Postgres, worked by a worker container, in place of self-hosted Trigger.dev. In force
+  when workplan 0167 T7 turns the switch on; until then Trigger.dev runs them (ADR-0004). The
+  rules it brings: this ADR's *Pending* section.
+- **The runner is `PgBossJobRunner`, behind its own subpath, `@openmig/scheduler/pg-boss`**
+  (`packages/scheduler/src/pg-boss/`), so nothing that imports `@openmig/scheduler` or
+  `/in-process` loads pg-boss, and the appliance may not reach it
+  (`apps/selfhost/src/no-managed-leakage.unit.test.ts`).
+- **pg-boss is pinned exactly, and the runner runs only on its release's schema version**:
+  `start()` refuses any other. The pin and `PG_BOSS_SCHEMA_VERSION` move together, once the new
+  release's migration is read (`scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts`,
+  `job-runner.integration.test.ts`).
+- **A job carries ids only** (ADR-0004): content moves inside the run's process, never in a job
+  row.
+- **Self-host is unchanged**: the appliance keeps its in-process scheduler (ADR-0004).
