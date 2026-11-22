@@ -183,10 +183,9 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0024: `apply` — an explicit, gated exception to non-destructiveness](./0024-explicit-owner-deletion-apply.md)
 
-- `apply` is the **only destructive code path**: per item, owner-called, never automatic.
-  Relocations remove through `applyRelocation` beside it (ADR-0030/0031): the same gates, gate 3
-  taking a recorded relocation as evidence and gate 6 counting relocations too.
-  `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
+- `apply` is the **only destructive code path**: each item decided by itself, owner-called,
+  never automatic. Relocations go through `applyRelocation`, behind the same gates
+  (ADR-0030/0031). `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
 - **Seven gates**, enforced by `applyDeletion`; evidence and ownership re-checked in the ledger's
   conditional UPDATE:
   (1) per-mapping opt-in; (2) `TargetRemover` capability; (3) **positive evidence only**,
@@ -194,19 +193,22 @@ live in [README.md](./README.md), the register.
   `adopted`; (5) no edit since (DAV: the server's `If-Match`; JMAP contacts and files: a
   successful read; IMAP: UIDVALIDITY); (6) mass-deletion breaker, 20% of ≥20; (7)
   concurrent-apply re-check: `packages/core/src/apply-deletion.unit.test.ts`.
-- **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3); a weak
-  ETag counts as none. JMAP mail, which records no version by design, is exempt:
-  `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
-- **After cutover nothing is applied, by hand either** (2026-10-05): the four removing functions
-  ask the item's data type's phase afresh (`stillTheAuthority`, required) and refuse
-  `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
-  what nobody answered (ADR-0047); a kept entry stays kept. Guard:
-  `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
+- **With no recorded version, nothing is removed** (`version_unknown`); a weak ETag counts as
+  none. JMAP mail is exempt: `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
+- **After cutover nothing is applied, by hand either** (2026-10-05): every removing function
+  refuses `after_cutover`, and no Apply is offered. A rollback re-admits what nobody answered
+  (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
+- **One owner action may apply many** (2026-11-21): offered only where a single delete is, one
+  confirmation over a frozen set naming the count, the bin's apart, then each row's own apply
+  through the same call and all seven gates, the next only after an answer. Guard:
+  `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
+- One confirmation can remove every row offered: all of a data type under 20 migrated items, at
+  most a fifth of a larger one, removed and adopted counted (gate 6). The breaker, `not_enabled`,
+  `removed_not_recorded`, withdrawn evidence, or an unanswered or unstarted press **stops the
+  whole run**; *Stop* or a closed page orders nothing more.
 - **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
-  `already_kept` after `already_applied` and the phase, as a kept move is refused, before
-  anything is sent to the target. A keep that lands while a removal is already under way cannot
-  stop it; the removal is recorded as what it was. Guard:
-  `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
+  `already_kept` before anything is sent to the target. A keep cannot stop a removal already
+  under way. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.

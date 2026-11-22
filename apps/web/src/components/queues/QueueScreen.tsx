@@ -5,7 +5,13 @@
  *
  * Decisions are tracked per item rather than per screen because they are
  * per-item actions: one refusal must not blank out the queue, and one success
- * must not imply anything about the row next to it. `applyDeletion` in
+ * must not imply anything about the row next to it. An item is a migration's
+ * item: an outcome is kept under the migration AND the item's hash, and each
+ * migration's rows are handed only their own. The hash alone is not an item
+ * across migrations: a mail item's comes from its Message-ID, so one message
+ * in two migrations has one hash, and a removal in the first marked the
+ * second's row *Deleted on the new system too* (the second review of workplan
+ * 0164 T3, F-F). `applyDeletion` in
  * particular is designed to be used one confirmed item at a time, and a UI that
  * reported its outcome globally would be describing something the API does not
  * do.
@@ -36,9 +42,21 @@ import { serverMessage } from '../../services/api.ts';
  * its reader's language, also after a language switch (`ServedEffect`).
  */
 export type ItemOutcome =
+  /**
+   * In a *Delete all of these here too* run (workplan 0164 T3), not yet its
+   * turn: its buttons give way to a word saying so, so nothing is pressed on
+   * a row the run is about to order.
+   */
+  | { readonly state: 'waiting' }
   | { readonly state: 'pending' }
   | { readonly state: 'done'; readonly served: Partial<DecisionEffectFields> }
   | { readonly state: 'refused'; readonly text: string }
+  /**
+   * A press that did not answer, in a run (workplan 0164 T3): a fault, a
+   * time-out, a receipt that never landed. Not a refusal: whether the copy is
+   * gone is not known, and the row says so.
+   */
+  | { readonly state: 'unknown'; readonly text: string }
   | { readonly state: 'receipt'; readonly receipt: ApplyReceipt };
 
 export interface QueueScreenProps<T extends QueueEnvelope> {
@@ -53,12 +71,22 @@ export interface QueueScreenProps<T extends QueueEnvelope> {
     queue: T,
     act: (hash: string, run: () => Promise<Partial<DecisionEffectFields>>) => void,
     outcomes: Readonly<Record<string, ItemOutcome>>,
-    /** Direct outcome control, for flows `act` cannot model (the apply receipt). */
-    setOutcome: (hash: string, outcome: ItemOutcome) => void,
+    /**
+     * Direct outcome control, for flows `act` cannot model (the apply receipt,
+     * a run over many rows). `undefined` gives a row back its buttons: a row
+     * a run never reached had nothing happen to it.
+     */
+    setOutcome: (hash: string, outcome: ItemOutcome | undefined) => void,
     /** Re-read the queue from the server (never patch the cache by hand). */
     refresh: () => void,
   ) => React.ReactNode;
 }
+
+/** A migration's outcomes before anything was decided in it: one object, so its identity holds. */
+const NO_OUTCOMES: Readonly<Record<string, ItemOutcome>> = Object.freeze({});
+
+type Act = (hash: string, run: () => Promise<Partial<DecisionEffectFields>>) => void;
+type SetOutcome = (hash: string, outcome: ItemOutcome | undefined) => void;
 
 export function QueueScreen<T extends QueueEnvelope>({
   title,
@@ -70,7 +98,8 @@ export function QueueScreen<T extends QueueEnvelope>({
 }: QueueScreenProps<T>): React.ReactElement {
   const queryClient = useQueryClient();
   const t = useT();
-  const [outcomes, setOutcomes] = React.useState<Record<string, ItemOutcome>>({});
+  /** Per migration, then per item hash. */
+  const [outcomes, setOutcomes] = React.useState<Record<string, Record<string, ItemOutcome>>>({});
 
   const { data, isLoading, error, dataUpdatedAt, refetch, isFetching } = useQuery({
     queryKey: [queryKey],
@@ -82,20 +111,28 @@ export function QueueScreen<T extends QueueEnvelope>({
     staleTime: 30_000,
   });
 
-  const setOutcome = React.useCallback((hash: string, outcome: ItemOutcome) => {
-    setOutcomes((o) => ({ ...o, [hash]: outcome }));
-  }, []);
+  const setOutcomeIn = React.useCallback(
+    (mappingId: string, hash: string, outcome: ItemOutcome | undefined) => {
+      setOutcomes((all) => {
+        const mine = all[mappingId] ?? NO_OUTCOMES;
+        if (outcome !== undefined) return { ...all, [mappingId]: { ...mine, [hash]: outcome } };
+        const { [hash]: _cleared, ...rest } = mine;
+        return { ...all, [mappingId]: rest };
+      });
+    },
+    [],
+  );
 
   const refresh = React.useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: [queryKey] });
   }, [queryClient, queryKey]);
 
-  const act = React.useCallback(
-    (hash: string, run: () => Promise<Partial<DecisionEffectFields>>) => {
-      setOutcomes((o) => ({ ...o, [hash]: { state: 'pending' } }));
+  const actIn = React.useCallback(
+    (mappingId: string, hash: string, run: () => Promise<Partial<DecisionEffectFields>>) => {
+      setOutcomeIn(mappingId, hash, { state: 'pending' });
       void run()
         .then((r) => {
-          setOutcomes((o) => ({ ...o, [hash]: { state: 'done', served: servedOf(r) } }));
+          setOutcomeIn(mappingId, hash, { state: 'done', served: servedOf(r) });
           // Re-read rather than patch the cache: the server decides what a
           // decision did to the queue (a `keep` and an `apply` both move the
           // item to `acknowledged`, because the ledger closes the entry either
@@ -107,26 +144,39 @@ export function QueueScreen<T extends QueueEnvelope>({
           if (err instanceof DecisionRefusedError) {
             // The server's own words. See DecisionRefusedError.
             const { refusal } = err;
-            setOutcomes((o) => ({
-              ...o,
-              [hash]: {
-                state: 'refused',
-                text: refusal.reason ?? refusal.hint ?? refusal.error,
-              },
-            }));
+            setOutcomeIn(mappingId, hash, {
+              state: 'refused',
+              text: refusal.reason ?? refusal.hint ?? refusal.error,
+            });
             return;
           }
-          setOutcomes((o) => ({
-            ...o,
-            [hash]: {
-              state: 'refused',
-              text: err instanceof Error ? serverMessage(err) : t('common.requestFailed'),
-            },
-          }));
+          setOutcomeIn(mappingId, hash, {
+            state: 'refused',
+            text: err instanceof Error ? serverMessage(err) : t('common.requestFailed'),
+          });
         });
     },
-    [queryClient, queryKey],
+    [queryClient, queryKey, setOutcomeIn, t],
   );
+
+  // Each migration's `act` and `setOutcome`, bound to it once, so a row is
+  // only ever told about its own migration's items and keeps one function
+  // across renders. They call through a ref, so a bound pair never holds an
+  // `actIn` older than this render's.
+  const actInRef = React.useRef(actIn);
+  actInRef.current = actIn;
+  const bound = React.useRef(new Map<string, { act: Act; setOutcome: SetOutcome }>());
+  const boundTo = (mappingId: string) => {
+    let pair = bound.current.get(mappingId);
+    if (!pair) {
+      pair = {
+        act: (hash, run) => actInRef.current(mappingId, hash, run),
+        setOutcome: (hash, outcome) => setOutcomeIn(mappingId, hash, outcome),
+      };
+      bound.current.set(mappingId, pair);
+    }
+    return pair;
+  };
 
   if (isLoading) {
     return (
@@ -137,20 +187,21 @@ export function QueueScreen<T extends QueueEnvelope>({
     );
   }
 
-  if (error) {
-    // Surfaced verbatim rather than replaced with an empty queue. An empty
-    // decision queue means "nothing needs you", and showing that when we simply
-    // could not ask is the failure hard rule 9 exists to prevent.
-    return (
-      <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
-        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <div>
-          <p className="font-medium">{t('queue.loadFailed')}</p>
-          <p className="mt-1">{serverMessage(error)}</p>
-        </div>
+  // Surfaced verbatim rather than replaced with an empty queue. An empty
+  // decision queue means "nothing needs you", and showing that when we simply
+  // could not ask is the failure hard rule 9 exists to prevent.
+  const loadFailed = error ? (
+    <div className="flex items-start gap-2 p-4 mb-4 rounded-lg bg-red-50 text-red-800 text-sm" role="alert">
+      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+      <div>
+        <p className="font-medium">{t('queue.loadFailed')}</p>
+        <p className="mt-1">{serverMessage(error)}</p>
       </div>
-    );
-  }
+    </div>
+  ) : null;
+
+  // Nothing read yet: the failure is all there is to show.
+  if (error && data === undefined) return loadFailed!;
 
   const mappings = Object.entries(data ?? {});
 
@@ -166,6 +217,12 @@ export function QueueScreen<T extends QueueEnvelope>({
         )}
       </div>
       <Hint className="mt-1 mb-6" label="more" text={intro} why={more} />
+
+      {/* A read that failed AFTER one that worked (workplan 0164 T3): said
+          above the rows, which stay. Replacing them took everything below
+          with it, a run under way and what it had said included. The rows
+          are as last read, and the time beside the title says when. */}
+      {loadFailed}
 
       {mappings.length === 0 && <p className="text-sm text-gray-500">{t('queue.noMappings')}</p>}
 
@@ -187,7 +244,14 @@ export function QueueScreen<T extends QueueEnvelope>({
               {t(LIFECYCLE_NOTE_KEY[queue.migrationStatus]!)}
             </p>
           )}
-          {renderMapping(mappingId, queue, act, outcomes, setOutcome, refresh)}
+          {renderMapping(
+            mappingId,
+            queue,
+            boundTo(mappingId).act,
+            outcomes[mappingId] ?? NO_OUTCOMES,
+            boundTo(mappingId).setOutcome,
+            refresh,
+          )}
         </section>
       ))}
     </div>

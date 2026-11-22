@@ -975,6 +975,40 @@ export type ApplyReceipt =
     };
 
 /**
+ * Every code `applyDeletion` and its siblings in `@openmig/core` refuse with
+ * (`ApplyRefusal`), as data a screen can test a refusal against (workplan 0164
+ * T3). A 403 or 404 whose `error` is one of these is a gate saying no, and
+ * nothing was removed; `removed_not_recorded` comes as a 500 and means the
+ * copy is gone. Anything else an apply answers (a fault, a hold, a 502, a
+ * code nobody wrote here) is not a refusal: what happened is not known.
+ * `packages/core/src/a-refusal-code-the-page-knows.unit.test.ts` holds this
+ * list equal to `ApplyRefusal`, so a code added in core is added here too.
+ */
+export const APPLY_REFUSAL_CODES = [
+  'not_enabled',
+  'target_cannot_remove',
+  'not_found',
+  'not_confirmed',
+  'weak_evidence',
+  'not_ours',
+  'already_applied',
+  'after_cutover',
+  'edited_on_target',
+  'version_unknown',
+  'kept_for_guests',
+  'mass_deletion_suspected',
+  'mass_relocation_suspected',
+  'already_kept',
+  'not_relocated',
+  'relocation_unconfirmed',
+  'target_cannot_confirm',
+  'removed_not_recorded',
+] as const;
+
+/** One of `APPLY_REFUSAL_CODES`. */
+export type ApplyRefusalCode = (typeof APPLY_REFUSAL_CODES)[number];
+
+/**
  * What the managed `POST .../deletions/{hash}/apply` answers when the removal
  * is PERMITTED. (A refusal never gets this far — it is a 403/404 on the spot.)
  * `queued: false` means a receipt for this item was already open and this

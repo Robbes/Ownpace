@@ -2127,7 +2127,40 @@ So it is never counted as one, and never deleted for you: Deletions lists it as
 Everything documented above it — failures, moves, the deletions queue itself —
 only ever reports. `apply` takes the target's copy away, on an explicit,
 per-item decision an operator makes by calling the endpoint. Nothing about it is
-automatic, batched, or triggered by a schedule.
+automatic or triggered by a schedule. The Deletions page's *Delete all of these
+here too* (workplan 0164 T3) is one press for every row that has its own delete
+button, after one confirmation over the rows as they were when it opened: it
+calls the same endpoint for each row, and the next only once the one before has
+answered (on managed, its receipt read to the end, within five minutes), so
+every row passes everything below by itself. A `mass_deletion_suspected` or
+`not_enabled` refusal stops the whole run, and so does a `removed_not_recorded`
+(the ledger row changed while that removal ran: a pass saw the item again, or
+another removal recorded it first). So does a `not_confirmed` or
+`weak_evidence`: every row had positive evidence when the list was read again,
+so either means a pass saw that item back during the run, and the rows after it
+may be on their way back too. A call that did not answer (a fault, a time-out, a
+receipt that failed or did not land) stops it too, and the page calls its row
+not known. A call the server started nothing for (a 409 hold or closed account,
+or a 502 that could not queue the removal) stops it with its row not deleted.
+Any other refusal is that row's answer, and the next row is called:
+`already_kept` among them, for a row somebody kept during the run (item 7
+below). One removal at a time is under way per migration's run; a single press
+still under way, another migration's run on the same page, or a second page,
+is not waited for.
+
+A run takes the rows the old system reported deleted and the rows found in its
+bin (`trashed`), as a single press does. When some came from the bin, the
+confirmation names how many, apart from the reported ones, and when one of them
+is mail it says why: a message can be in the bin and in a live folder at once,
+so a copy here may be one still in use, and once deleted it is never copied
+again. Nothing is called unless every row, on the page and in the list read
+again, still has the evidence it was counted with. So one confirmation can
+remove every row the page offers. Item 4 below, the mass-deletion breaker,
+bounds it per migration and data type, asked afresh at every call: at most a
+fifth of the data type's placed items when there are 20 or more, and every
+listed item of a smaller one, which the breaker does not weigh. It caps no
+total: once a run's removals have left the queue, a second confirmation can
+remove another fifth.
 
 It has to be turned on per mapping first:
 
@@ -2164,9 +2197,12 @@ before anything is removed:
    whether it changed: `apply` reports `version_unknown`, and you can delete
    it in the new system yourself if you are sure, then choose `keep`.
 4. **This does not look like a mass-deletion event.** If more than a fifth of
-   a domain's migrated items (and there are at least 20 of them) are sitting in
+   a domain's placed items (and there are at least 20 of them) are sitting in
    the deletions queue at once, every `apply` call for that domain is refused
-   with `mass_deletion_suspected` until that clears. That pattern is far more
+   with `mass_deletion_suspected` until that clears. A domain's placed items
+   are those the ledger has put on the target: the ones removed since and
+   adopted ones are counted, failed ones and rows with no recorded collection
+   are not. That pattern is far more
    likely to be a source outage, a restored account, or a connector reading the
    wrong place than an owner deleting a fifth of their own data between two
    passes — and once the evidence looks that wrong in bulk, no single item in

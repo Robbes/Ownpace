@@ -522,16 +522,22 @@ export async function applyDeletion(
     // is the correct thing for an operator to be shown.
     log.error(
       `[apply] ${domain}: removed the target copy of item ${naturalKeyHash.slice(0, 12)} but the ` +
-        'ledger refused to record it — the row still claims the item is on the target. ' +
+        'ledger refused to record it: the row changed under the removal. Unless another ' +
+        'removal recorded it first, the row still claims the item is on the target, and ' +
         'Verification will report it as missing until this is reconciled by hand.',
     );
     return {
       ok: false,
       code: 'removed_not_recorded',
+      // Two causes, and the words true for both (0164 T3, the third review):
+      // a pass saw the item again while it was removed, or another removal
+      // recorded it first, which leaves nothing missing.
       reason:
-        'The copy WAS removed from the target, and the ledger could not record it. Nothing is ' +
-        'left to retry: the removal happened. Verification will report this item as missing on ' +
-        'the target until that is reconciled by hand.',
+        'The copy WAS removed from the target, and the ledger could not record this removal: ' +
+        'the row changed while it ran (a pass saw the item again, or another removal recorded it ' +
+        'first). Nothing is left to retry: the removal happened. Unless another removal recorded ' +
+        'it, Verification will report this item as missing on the target until that is ' +
+        'reconciled by hand.',
     };
   }
 
@@ -756,17 +762,20 @@ export async function applyRelocation(
   if (!recorded) {
     log.error(
       `[apply] ${domain}: removed the target's old copy of relocated item ` +
-        `${naturalKeyHash.slice(0, 12)} but the ledger refused to record it — the row still ` +
-        'claims the item is on the target. Verification will report it as missing until this ' +
-        'is reconciled by hand.',
+        `${naturalKeyHash.slice(0, 12)} but the ledger refused to record it: the row changed ` +
+        'under the removal. Unless another removal recorded it first, the row still claims the ' +
+        'item is on the target, and Verification will report it as missing until this is ' +
+        'reconciled by hand.',
     );
     return {
       ok: false,
       code: 'removed_not_recorded',
       reason:
-        "The old copy WAS removed from the target, and the ledger could not record it. Nothing " +
-        'is left to retry: the removal happened. Verification will report this item as missing ' +
-        'on the target until that is reconciled by hand.',
+        'The old copy WAS removed from the target, and the ledger could not record this removal: ' +
+        'the row changed while it ran, for example because another removal recorded it first. ' +
+        'Nothing is left to retry: the removal happened. Unless another removal recorded it, ' +
+        'Verification will report this item as missing on the target until that is reconciled ' +
+        'by hand.',
     };
   }
 

@@ -66,6 +66,16 @@ export const QUEUE_GUIDANCE: Readonly<
             'the copy on the new system is deleted as well. This works only while deleting by hand is on, ' +
             'and never for an item marked Assumed.',
         },
+        {
+          // One press for the rows above (workplan 0164 T3; ADR-0024,
+          // amended 2026-11-21), each decided by itself.
+          label: 'Delete all of these here too',
+          text:
+            'the same, for every row that has its own delete button, one after another, after one ' +
+            'confirmation that names how many. Each is checked by itself first; one that is refused stays ' +
+            'here, with the reason. A refusal that speaks for all of them, or a delete that did not ' +
+            'answer, stops the rest.',
+        },
         { label: 'Do nothing', text: 'the row stays here and nothing happens.' },
       ],
     },
@@ -83,6 +93,14 @@ export const QUEUE_GUIDANCE: Readonly<
           text:
             'de kopie op het nieuwe systeem wordt ook verwijderd. Dit kan alleen zolang Handmatig ' +
             'verwijderen aan staat, en nooit voor een item met het label Vermoeden.',
+        },
+        {
+          label: 'Verwijder deze allemaal hier ook',
+          text:
+            'hetzelfde, voor elke regel met een eigen verwijderknop, de een na de ander, na één ' +
+            'bevestiging die zegt hoeveel. Elk wordt eerst afzonderlijk gecontroleerd; wat wordt geweigerd, ' +
+            'blijft hier staan, met de reden. Een weigering die voor allemaal geldt, of een verwijdering die ' +
+            'geen antwoord gaf, stopt de rest.',
         },
         { label: 'Niets doen', text: 'de regel blijft hier staan en er gebeurt niets.' },
       ],
