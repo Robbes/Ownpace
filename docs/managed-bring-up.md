@@ -6331,7 +6331,7 @@ right without a word. What can stop the phase:
     'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "ALTER ROLE ownpace_jobs LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS"'
   # Every grant that names it, and the memberships both ways (what to REVOKE):
   docker compose -f deploy/compose/managed.yml exec -T postgres sh -c \
-    'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT pg_describe_object(classid, objid, objsubid) FROM pg_shdepend WHERE refobjid = '"'"'ownpace_jobs'"'"'::regrole AND deptype = '"'"'a'"'"'" -c "SELECT m.roleid::regrole || '"'"' is lent to '"'"' || m.member::regrole FROM pg_auth_members m WHERE '"'"'ownpace_jobs'"'"'::regrole IN (m.roleid, m.member)"'
+    'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT pg_describe_object(classid, objid, objsubid) FROM pg_shdepend WHERE refobjid = '"'"'ownpace_jobs'"'"'::regrole AND deptype = '"'"'a'"'"' AND dbid IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))" -c "SELECT m.roleid::regrole || '"'"' is lent to '"'"' || m.member::regrole FROM pg_auth_members m WHERE '"'"'ownpace_jobs'"'"'::regrole IN (m.roleid, m.member)"'
   ```
 
   - *"it belongs to N role(s)"* / *"N role(s) belong to it"*:
@@ -6344,6 +6344,9 @@ right without a word. What can stop the phase:
     no grant naming it: the grant is to PUBLIC, and so to every role.
     `REVOKE … FROM PUBLIC` it; an extension's own views (pg_stat_statements')
     are not counted.
+  - *"it may call N function(s) of pgbouncer_auth"*: `REVOKE ALL ON FUNCTION
+    pgbouncer_auth.user_lookup(text) FROM PUBLIC` (and `FROM ownpace_jobs`);
+    the data phase's `setup-auth.sql` revokes PUBLIC's every run, `--sync` does not.
   - *"N privilege(s) on pgboss or in it are granted to another role or
     PUBLIC"*: `REVOKE ALL ON SCHEMA pgboss FROM <that role>` and, for a table,
     `REVOKE ALL ON pgboss.<table> FROM <that role>`. pg-boss's tables carry no

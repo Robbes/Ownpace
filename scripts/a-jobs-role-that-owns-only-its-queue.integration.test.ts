@@ -103,7 +103,7 @@ const FIT_SQL = dbRolesSql('DB_ROLES_JOBS_FIT_SQL')
   .replaceAll(":'jobs_role'", `'${ROLE}'`)
   .replaceAll(":'jobs_schema'", `'${SCHEMA}'`);
 /** What db_roles_jobs_fit reads as fit, as psql -At prints it. */
-const FIT = 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f';
+const FIT = 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f|0';
 
 /** One row as psql -At prints it: `t`/`f`, numbers as digits, NULL as nothing, `|` between. */
 const asPsqlPrints = (row: unknown[]): string =>
@@ -371,8 +371,42 @@ describe('the question refuses a role made unfit', () => {
     ['one that may create in public, through PUBLIC', 'GRANT CREATE ON SCHEMA public TO PUBLIC', 15, 't'],
     ['one given USAGE on public by name', `GRANT USAGE ON SCHEMA public TO ${ROLE}`, 13, '1'],
     ['one given a default privilege in public', `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO ${ROLE}`, 13, '1'],
+    ["one that may call the pooler's lookup through PUBLIC, which --sync does not revoke", 'GRANT EXECUTE ON FUNCTION pgbouncer_auth.user_lookup(text) TO PUBLIC', 16, '1'],
     ["one that may call the pooler's lookup, which returns any role's verifier", `GRANT USAGE ON SCHEMA pgbouncer_auth TO ${ROLE}; GRANT EXECUTE ON FUNCTION pgbouncer_auth.user_lookup(text) TO ${ROLE}`, 13, '2'],
   ];
+
+  it('a fit role that holds a temporary table is still fit: in transaction pooling one can outlive its client', async () => {
+    const client = await admin.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL ROLE ${ROLE}`);
+      await client.query('CREATE TEMP TABLE jobs_role_left_behind (id int)');
+      await client.query('RESET ROLE');
+      expect(await fitAnswer(client)).toEqual([FIT]);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
+
+  it('counts a privilege the privilege functions do not name, by the ACL itself: MAINTAIN through PUBLIC (PostgreSQL 17 and later)', async () => {
+    const version = Number((await admin.query<{ v: string }>("SELECT current_setting('server_version_num') AS v")).rows[0]!.v);
+    const client = await admin.connect();
+    try {
+      await client.query('BEGIN');
+      if (version >= 170000) {
+        await client.query('GRANT MAINTAIN ON public.tenant TO PUBLIC');
+        const [line] = await fitAnswer(client);
+        expect(line!.split('|')[11]).toBe('1');
+      } else {
+        // No MAINTAIN before 17; the same branch is held by an ACL entry for PUBLIC the functions also see.
+        await expect(client.query('GRANT MAINTAIN ON public.tenant TO PUBLIC')).rejects.toThrow(/privilege type maintain|unrecognized privilege/i);
+      }
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
 
   it.each(CHANGES)('%s', async (_what, change, field, value) => {
     const client = await admin.connect();

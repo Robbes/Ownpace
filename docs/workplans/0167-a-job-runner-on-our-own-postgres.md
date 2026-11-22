@@ -95,6 +95,50 @@ Trigger.dev, ClickHouse and identity-provider lines in `managed.yml` changed.
     - `read_only` removed: 1 failed;
     - the worker's first release moved to alpha.1: 2 failed.
 
+**2026-11-22, later still, after the second review: a NOLOGIN jobs role is not "not made yet", and four smaller holes.**
+The coordinator's second review of #2041 confirmed the first five fixes, and E2E (managed) run
+45044295985 passed at `3fc7556b`, with the role made, fit, set and proven on the OTA stack. `main`
+(#2043, T6's first step) is merged in, with both Status entries kept, main's T5 and T6 rows and this
+branch's T7 row.
+
+- **`rotate-db-passwords.sh` and a NOLOGIN `ownpace_jobs`.** `db_roles_list` lists login roles only,
+  so `--check` and `--sync` took a NOLOGIN role for one not made yet: exit 0 and "done". Both now ask
+  the fit question whenever the role is not a login role. They skip only on its empty answer
+  (`DB_ROLES_JOBS_MISSING`). `--check` then names the refusal and exits 2; `--sync` sets the two,
+  leaves the jobs role and exits 1. Taking the old shortcut in either fails the NOLOGIN test.
+- **`--sync`'s exit merges the skip** by the script's own rule (a refusal anywhere is 1, otherwise
+  a question not asked is 2). The NOT DONE line is printed whatever the two's proof found, and the
+  Exit codes block names the skip. Saying it only when the two passed fails its test.
+- **A temporary table no longer counts as owned elsewhere** (`pg_temp_N`, `pg_toast_temp_N`). In
+  transaction pooling, a temporary table can outlive its client on a server connection. A test holds a
+  fit role with a temporary table; without the clause it fails.
+- **Two more privileges are counted:**
+  - **A `public` relation whose ACL names the role or PUBLIC** (`aclexplode`, grantee 0 or the
+    role), on every version. This counts PostgreSQL 17's MAINTAIN, which the privilege functions'
+    list does not name. Its test grants MAINTAIN through PUBLIC on 17 and later, so it runs on CI's
+    18; here, on 16, it checks that 16 has no MAINTAIN.
+  - **EXECUTE on `pgbouncer_auth`'s functions**, through PUBLIC as well, as a new last field. The
+    bring-up revokes PUBLIC's EXECUTE just before the question; `--sync` does not. Not counting it
+    fails its test.
+- **`a-system-role-that-is-not-the-owner`** failed 1 of 41 while `pg_stat_statements` existed in the
+  shared database. Its relations query now leaves extension-owned relations out, and it passes 41 of
+  41 with the extension and without it.
+- **`docs/managed-bring-up.md`'s grants query** filters by database (run here against a database
+  grant and a column grant), and names the lookup function's remedy.
+- **Evidence.** On a `scripts/local-pg.sh` cluster (PostgreSQL 16.15):
+  - **The integration file:** `Tests 40 passed (40)`.
+  - **`a-system-role-that-is-not-the-owner`:** `41 passed (41)`, with the extension and without it
+    (1 failed with it before).
+  - **`rotate-db-passwords`:** `68 passed (68)`.
+  - **Every unit file under `scripts/` and `deploy/`:** 7,644 tests, 7,610 passed. The one failure is
+    `every-release-is-a-starting-point`, for this checkout's 12 tags.
+  - **Broken once each, then restored byte for byte:**
+    - the temporary-schema clause: 1 failed;
+    - the lookup count: 1 failed;
+    - `--check`'s and `--sync`'s NOLOGIN shortcut: 1 each;
+    - the skip said only at rc 0: 1.
+  - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
+
 **2026-11-22, later still, after review: the fit question no longer refuses every real stack.**
 The coordinator's review of #2041 found the question refused every stack that has
 `pg_stat_statements`. The data phase creates that extension in the app's database just before the
@@ -380,7 +424,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
 | T5 This runner, merged | builder | ✅ **Done 2026-11-22**, #2038 | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
 | T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, built on `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. Still to come: the worker, the API's doors and the operator's commands. |
-| T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the role and schema, built on `claude/ownpace-public-readiness-y7orc6-jobs-role`; the worker's image and its service, defined and not started, built on `claude/ownpace-pgboss-worker-image` | A worker service in `managed.yml`, its CPUs and memory from `MAX_PASSES_IN_FLIGHT` by the owner's rule, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. The image (`apps/worker/Dockerfile`, on the API's two images) and the service in profile `jobs`, with the api's `JOBS_DATABASE_URL` and `OWNPACE_JOB_RUNNER`, are built (the Status entry of 2026-11-22, the worker's image). ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
+| T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the role and schema, built on `claude/ownpace-public-readiness-y7orc6-jobs-role` and merged (#2041); the worker's image and its service, defined and not started, built on `claude/ownpace-pgboss-worker-image` | A worker service in `managed.yml`, its CPUs and memory from `MAX_PASSES_IN_FLIGHT` by the owner's rule, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. The image (`apps/worker/Dockerfile`, on the API's two images) and the service in profile `jobs`, with the api's `JOBS_DATABASE_URL` and `OWNPACE_JOB_RUNNER`, are built (the Status entry of 2026-11-22, the worker's image). ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |
 

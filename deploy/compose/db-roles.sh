@@ -265,8 +265,19 @@ DB_ROLES_JOBS_SCHEMA='pgboss'
 # relation in it are granted to another role or PUBLIC; how many grants name
 # it, anywhere in this database or on a shared object (pg_shdepend's `a`:
 # a table, a column, a schema, a function, a default privilege, the database
-# itself); whether it may create a schema in this database; and whether it may
-# create in the schema `public`, through PUBLIC as well.
+# itself); whether it may create a schema in this database; whether it may
+# create in the schema `public`, through PUBLIC as well; and how many functions
+# of `pgbouncer_auth` (setup-auth.sql's lookup, which returns any role's
+# password verifier) it may call, through PUBLIC as well: the bring-up revokes
+# PUBLIC's EXECUTE just before this question, rotate-db-passwords.sh --sync
+# does not.
+#
+# A relation of `public` counts when any privilege-asking function says so, or
+# when its ACL holds an entry for the role or for PUBLIC (grantee 0): that is
+# true on every version, and catches what the functions' list does not name,
+# PostgreSQL 17's MAINTAIN among them. Objects in a temporary schema
+# (pg_temp_N, pg_toast_temp_N) are not counted as owned: in transaction
+# pooling a temporary table may outlive its client on a server connection.
 #
 # AN EXTENSION'S OWN RELATIONS ARE NOT THE LEDGER. pg_stat_statements, which
 # the data phase creates in the app's database just before this question,
@@ -284,11 +295,13 @@ SELECT r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolreplication, r.rolbypass
        (SELECT count(*) FROM pg_auth_members m WHERE m.roleid = r.oid),
        (SELECT n.nspowner = r.oid FROM pg_namespace n WHERE n.nspname = :'jobs_schema'),
        (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-         WHERE c.relowner = r.oid AND n.nspname NOT IN (:'jobs_schema', 'pg_toast'))
+         WHERE c.relowner = r.oid AND n.nspname NOT IN (:'jobs_schema', 'pg_toast')
+           AND n.nspname !~ '^pg_(toast_)?temp_')
      + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
          WHERE p.proowner = r.oid AND n.nspname <> :'jobs_schema')
      + (SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
-         WHERE t.typowner = r.oid AND n.nspname NOT IN (:'jobs_schema', 'pg_toast'))
+         WHERE t.typowner = r.oid AND n.nspname NOT IN (:'jobs_schema', 'pg_toast')
+           AND n.nspname !~ '^pg_(toast_)?temp_')
      + (SELECT count(*) FROM pg_namespace n WHERE n.nspowner = r.oid AND n.nspname <> :'jobs_schema')
      + (SELECT count(*) FROM pg_database d WHERE d.datdba = r.oid)
      + (SELECT count(*) FROM pg_shdepend d
@@ -302,7 +315,8 @@ SELECT r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolreplication, r.rolbypass
                             WHERE e.classid = 'pg_class'::regclass AND e.objid = c.oid AND e.deptype = 'e')
            AND (has_table_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
                 OR has_any_column_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
-                OR (c.relkind = 'S' AND has_sequence_privilege(r.oid, c.oid, 'USAGE')))),
+                OR (c.relkind = 'S' AND has_sequence_privilege(r.oid, c.oid, 'USAGE'))
+                OR EXISTS (SELECT 1 FROM aclexplode(c.relacl) a WHERE a.grantee IN (0, r.oid)))),
        (SELECT count(*) FROM pg_namespace n CROSS JOIN LATERAL aclexplode(n.nspacl) a
          WHERE n.nspname = :'jobs_schema' AND a.grantee <> r.oid)
      + (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -312,7 +326,9 @@ SELECT r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolreplication, r.rolbypass
          WHERE d.refclassid = 'pg_authid'::regclass AND d.refobjid = r.oid AND d.deptype = 'a'
            AND d.dbid IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))),
        has_database_privilege(r.oid, current_database(), 'CREATE'),
-       has_schema_privilege(r.oid, 'public', 'CREATE')
+       has_schema_privilege(r.oid, 'public', 'CREATE'),
+       (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'pgbouncer_auth' AND has_function_privilege(r.oid, p.oid, 'EXECUTE'))
   FROM pg_roles r
  WHERE r.rolname = :'jobs_role';
 SQL
@@ -599,10 +615,11 @@ db_roles_jobs_ensure() { # 0 ran, 1 did not (DB_ROLES_WHY says why)
 
 # The jobs role, asked of the catalog after jobs-role.sql and before its
 # password is set: every reason it is unfit, at once, in DB_ROLES_WHY.
-db_roles_jobs_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
-  local out rc super createrole createdb replication bypass login inherit members held owns elsewhere public granted named dbcreate pubcreate reason joined
+db_roles_jobs_fit() { # 0 fit, 1 unfit or missing (DB_ROLES_JOBS_MISSING=1 when missing), 2 could not ask
+  local out rc super createrole createdb replication bypass login inherit members held owns elsewhere public granted named dbcreate pubcreate lookup reason joined
   local -a unfit=()
   DB_ROLES_WHY=''
+  DB_ROLES_JOBS_MISSING=''
   out=$("${COMPOSE[@]}" exec -T postgres psql -X -q -At -F '|' -U "$DB_ROLES_OWNER" -d "$DB_ROLES_DB" \
     -v ON_ERROR_STOP=1 -v jobs_role="$DB_ROLES_JOBS" -v jobs_schema="$DB_ROLES_JOBS_SCHEMA" 2>&1 <<<"$DB_ROLES_JOBS_FIT_SQL") && rc=0 || rc=$?
   if [ "$rc" -ne 0 ]; then
@@ -610,10 +627,11 @@ db_roles_jobs_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
     return 2
   fi
   if [ -z "$out" ]; then
+    DB_ROLES_JOBS_MISSING=1
     DB_ROLES_WHY="${DB_ROLES_JOBS} is not a role in this database: jobs-role.sql makes it, and the bring-up's data phase runs that"
     return 1
   fi
-  IFS='|' read -r super createrole createdb replication bypass login inherit members held owns elsewhere public granted named dbcreate pubcreate <<<"$out"
+  IFS='|' read -r super createrole createdb replication bypass login inherit members held owns elsewhere public granted named dbcreate pubcreate lookup <<<"$out"
   [ "$super" = f ] || unfit+=('it is a superuser, whom row security never binds and who may run programs on the database server')
   [ "$createrole" = f ] || unfit+=('it may create roles, and so change its own')
   [ "$createdb" = f ] || unfit+=('it may create databases')
@@ -634,6 +652,7 @@ db_roles_jobs_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
   [ "$named" = 0 ] || unfit+=("${named:-an unknown number of} grant(s) name it (on a table, a column, a schema, a function, a default privilege or the database), and it is given nothing")
   [ "$dbcreate" = f ] || unfit+=('it may create a schema in this database')
   [ "$pubcreate" = f ] || unfit+=('it may create in the schema public, where the ledger is')
+  [ "$lookup" = 0 ] || unfit+=("it may call ${lookup:-an unknown number of} function(s) of pgbouncer_auth, which return any role's password verifier")
   [ "${#unfit[@]}" -eq 0 ] && return 0
   joined=''
   for reason in "${unfit[@]}"; do joined+="${joined:+; }${reason}"; done
