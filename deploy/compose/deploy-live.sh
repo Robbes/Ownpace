@@ -213,6 +213,19 @@
 #       only the build makes would otherwise pass the dry run and fail the
 #       deploy after the checkout.
 #
+# EITHER RUNNER (workplan 0167 T7). The jobs run on Trigger.dev's plane or on
+# the worker (pg-boss), by OWNPACE_JOB_RUNNER, read by job-runner.sh for this
+# checkout (what runs now) and for the tag (what its bring-up will run), each
+# said with where it came from. A tag whose managed.yml has no switch runs the
+# one runner it has. In pg-boss mode: the drain also counts pg-boss's jobs
+# created, retrying or active outside the schedule queues and its own
+# `__pgboss__*` queues; a tag whose bring-up runs pg-boss takes the copy
+# without --trigger; on a stack on pg-boss, a tag without the plane's lines is
+# not one-way by itself, and a move of pg-boss's version or schema version is.
+# A tag without the plane onto a stack still on it is refused: switch to
+# pg-boss with the bring-up first. Before the checkout of a tag that defines no
+# worker, the worker is stopped and removed.
+#
 # ONE-WAY OR REVERSIBLE (0146 T5). Before the checkout moves, and again at the
 # end, it says whether the deploy can be undone by deploying a tag this stack
 # has run again. It compares the new tag with each of:
@@ -330,7 +343,12 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 # shellcheck source=deploy/compose/job-runner.sh
 . "${SCRIPT_DIR}/job-runner.sh"
 STACK_RUNNER=''
+STACK_RUNNER_FROM=''
 TAG_RUNNER=''
+TAG_RUNNER_FROM=''
+# Set once worker_gone_before_checkout has stopped the worker, so that a
+# refusal after it does not say the stack is as it was.
+WORKER_GONE=''
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 # Plain progress for every compose call here and in the bring-up it starts:
@@ -371,7 +389,13 @@ refuse() {
   printf '[deploy-live] refused: %s\n' "$1" >&2
   shift
   [ "$#" -eq 0 ] || printf '  %s\n' "$@" >&2
-  printf '[deploy-live] The checkout and the stack are as they were.\n' >&2
+  if [ -n "$WORKER_GONE" ]; then
+    # worker_gone_before_checkout stopped and removed it, and the checkout did
+    # not happen: say so, and how to start it again (workplan 0167 T7).
+    printf '[deploy-live] The checkout is as it was. The stack is not: its worker was stopped and removed before the checkout; ./deploy/compose/bootstrap-managed.sh --only app starts it again.\n' >&2
+  else
+    printf '[deploy-live] The checkout and the stack are as they were.\n' >&2
+  fi
   exit 1
 }
 usage() {
@@ -676,6 +700,7 @@ main() {
   # ---- The runner: which one runs the jobs here (workplan 0167 T7) ------------
   job_runner_mode "$SCRIPT_DIR" "$ENV_FILE" || refuse "$JOB_RUNNER_WHY"
   STACK_RUNNER="$JOB_RUNNER"
+  STACK_RUNNER_FROM="$JOB_RUNNER_FROM"
 
   # ---- The checkout: clean -----------------------------------------------------
   local dirty
@@ -749,7 +774,17 @@ main() {
   # managed.yml has no switch runs the one it knows (job-runner.sh).
   job_runner_mode_at "$REPO_ROOT" "$commit" "$ENV_FILE" || refuse "${tag}: ${JOB_RUNNER_WHY}"
   TAG_RUNNER="$JOB_RUNNER"
-  say "the jobs run on ${STACK_RUNNER} here now; ${tag}'s bring-up will run them on ${TAG_RUNNER}"
+  TAG_RUNNER_FROM="$JOB_RUNNER_FROM"
+  say "the jobs run on ${STACK_RUNNER} here now (from ${STACK_RUNNER_FROM}); ${tag}'s bring-up will run them on ${TAG_RUNNER} (from ${TAG_RUNNER_FROM})"
+  # A TAG WITHOUT THE PLANE ONTO A STACK STILL ON IT (alpha.17 onto trigger
+  # mode). Its bring-up names no plane service, so nothing would stop the
+  # plane, and its supervisor would go on running the old tasks against the
+  # new schema beside the tag's worker: two runners. Refused before anything
+  # moves.
+  if [ "$STACK_RUNNER" = "$JOB_RUNNER_TRIGGER" ] && [ -z "$(trigger_pin "$commit")$(image_pins "$commit" 'clickhouse\/clickhouse-server')" ]; then
+    refuse "${tag}'s managed.yml has no Trigger.dev plane, and this stack's jobs still run on it (${JOB_RUNNER_KEY}=${JOB_RUNNER_TRIGGER}): switch to pg-boss with the bring-up first, then deploy." \
+      "With the hold on and the drain done: ./deploy/compose/env-upsert.sh deploy/compose/.env ${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}, then ./deploy/compose/bootstrap-managed.sh --from data, which stops the plane in order and starts the worker (docs/managed-bring-up.md, The two runners). Then run this again."
+  fi
 
   # ---- The site at this tag: its own project, a port, no blank in its texts --------
   if [ "$site" = on ]; then
@@ -788,7 +823,7 @@ main() {
   # outside the schedule queues is work one runner holds that the next may
   # never run. `-` when the schema holds no pg-boss yet.
   if [ "$queued" != - ] && [ "$queued" -gt 0 ]; then
-    refuse "${queued} pg-boss job(s) still created, retrying or active outside the schedule queues. Wait until none is (the worker runs them; with the hold on, the tick queues no pass), then run this again." \
+    refuse "${queued} pg-boss job(s) still created, retrying or active outside the schedule queues. Wait until none is (the runner that holds them runs them; with the hold on, the tick queues no pass), then run this again." \
       "They are counted in the schema pgboss: SELECT name, state, count(*) FROM pgboss.job WHERE state IN ('created','retry','active') GROUP BY 1, 2;"
   fi
   if [ "$age" -lt $((QUIET_MINUTES * 60)) ]; then
@@ -826,7 +861,7 @@ main() {
   local -a copy_args=(take)
   [ -z "$dry_run" ] || copy_args+=(--dry-run)
   if [ "$TAG_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
-    say "no --trigger: ${tag}'s bring-up runs the jobs on pg-boss, so it stops the Trigger.dev plane and nothing migrates triggerdb (workplan 0167 T7)."
+    say "no --trigger: ${tag}'s bring-up runs the jobs on pg-boss, so it starts no Trigger.dev plane and nothing migrates triggerdb (workplan 0167 T7)."
   elif trigger_moves "$commit" "${bases[@]}"; then
     copy_args+=(--trigger)
   fi
@@ -1119,6 +1154,7 @@ worker_gone_before_checkout() {
     docker rm "${COMPOSE_PROJECT}-worker" >/dev/null ||
       refuse "the worker stopped and was not removed (above), and ${tag} defines none. Nothing was checked out."
   fi
+  WORKER_GONE=1
   say "the worker stopped and removed before the checkout: ${tag}'s managed.yml defines none, so nothing after it would stop it, and its runs and the plane's never overlap (workplan 0167 T7)"
 }
 
@@ -1127,7 +1163,9 @@ worker_gone_before_checkout() {
 # own socket. Reads only. The in-flight count is the tick's own
 # (managed-sync-tick.ts): `running` rows younger than STALE_RUN_AFTER_MS. The
 # last is pg-boss's (workplan 0167 T7): its jobs created, retrying or active
-# outside the schedule queues (the tick's minute is no work waiting), or `-`
+# outside the schedule queues (the tick's minute is no work waiting) and
+# pg-boss's own `__pgboss__*` queues (its timekeeper's send-it job comes and
+# goes every minute, hold or not), or `-`
 # while the schema pgboss holds no pg-boss yet. Asked through query_to_xml in
 # the CASE's other arm, so that a schema without pg-boss's table is never
 # parsed for it.
@@ -1143,7 +1181,7 @@ SELECT (SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'yes' ELSE 'no' END
            AND started_at > now() - interval '${STALE_RUN_AFTER_SECONDS} seconds') AS in_flight,
        (SELECT CASE WHEN to_regclass('pgboss.job') IS NULL OR to_regclass('pgboss.schedule') IS NULL THEN '-'
                ELSE (xpath('/row/n/text()', query_to_xml(
-                 'SELECT count(*) AS n FROM pgboss.job WHERE state IN (''created'', ''retry'', ''active'') AND name NOT IN (SELECT name FROM pgboss.schedule)',
+                 'SELECT count(*) AS n FROM pgboss.job WHERE state IN (''created'', ''retry'', ''active'') AND name NOT IN (SELECT name FROM pgboss.schedule) AND left(name, 10) <> ''__pgboss__''',
                  false, true, '')))[1]::text END) AS pgboss_waiting;
 SQL
 }
@@ -1220,6 +1258,14 @@ trigger_pin() {
   sed 's/.*:-//; s/}$//' <<<"$found" | sort -u
 }
 
+# pgboss_carried <commit> — true when packages/scheduler/package.json at that
+# commit depends on pg-boss: the release carries it, so its pins must be read.
+pgboss_carried() {
+  local pkg
+  pkg="$(git -C "$REPO_ROOT" show "$1:packages/scheduler/package.json" 2>/dev/null)" || return 1
+  grep -qE '"pg-boss"[[:space:]]*:' <<<"$pkg"
+}
+
 # pgboss_pins <commit> — `version <v>` lines for each pg-boss the lockfile at
 # that commit resolves, and `schema <n>` for the schema version the runner
 # there refuses any other than (PG_BOSS_SCHEMA_VERSION), sorted, or nothing.
@@ -1287,18 +1333,28 @@ differences() {
   # its version moves, and a runner refuses any schema version but its own,
   # so a move of either, between two commits that both carry pg-boss, is one
   # way. A tag without pg-boss ignores the schema, and is no move of it.
-  old_pins="$(pgboss_pins "$base")"
-  new_pins="$(pgboss_pins "$new")"
-  if [ -n "$old_pins" ] && [ -n "$new_pins" ]; then
-    local o n
-    o="$(sed -n 's/^version //p' <<<"$old_pins")"; n="$(sed -n 's/^version //p' <<<"$new_pins")"
-    if [ -n "$o" ] && [ -n "$n" ] && [ "$o" != "$n" ]; then
-      echo "moves pg-boss in pnpm-lock.yaml: ${o//$nl/, } -> ${n//$nl/, }; it migrates its schema pgboss forward, and an older release's runner refuses what it left"
-    fi
-    o="$(sed -n 's/^schema //p' <<<"$old_pins")"; n="$(sed -n 's/^schema //p' <<<"$new_pins")"
-    if [ -n "$o" ] && [ -n "$n" ] && [ "$o" != "$n" ]; then
-      echo "moves pg-boss's schema version (PG_BOSS_SCHEMA_VERSION): ${o} -> ${n}"
-    fi
+  # A pin that cannot be read where both releases carry pg-boss cannot be
+  # compared, which the rule calls one-way, as it does a missing image line.
+  if pgboss_carried "$base" && pgboss_carried "$new"; then
+    old_pins="$(pgboss_pins "$base")"
+    new_pins="$(pgboss_pins "$new")"
+    local o n what
+    for what in version schema; do
+      o="$(sed -n "s/^${what} //p" <<<"$old_pins")"; n="$(sed -n "s/^${what} //p" <<<"$new_pins")"
+      if [ -z "$o" ] || [ -z "$n" ]; then
+        if [ "$what" = version ]; then
+          echo "cannot be compared with it on pg-boss's version: pnpm-lock.yaml at one of the two resolves no pg-boss"
+        else
+          echo "cannot be compared with it on pg-boss's schema version: packages/scheduler/src/pg-boss/job-runner.ts at one of the two has no PG_BOSS_SCHEMA_VERSION line"
+        fi
+      elif [ "$o" != "$n" ]; then
+        if [ "$what" = version ]; then
+          echo "moves pg-boss in pnpm-lock.yaml: ${o//$nl/, } -> ${n//$nl/, }; it migrates its schema pgboss forward, and an older release's runner refuses what it left"
+        else
+          echo "moves pg-boss's schema version (PG_BOSS_SCHEMA_VERSION): ${o} -> ${n}"
+        fi
+      fi
+    done
   fi
   for line in "${pinned[@]}"; do
     if [ "$line" = Trigger.dev ]; then

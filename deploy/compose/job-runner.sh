@@ -58,6 +58,10 @@ JOB_RUNNER_PLANE_FIRST=(trigger-supervisor)
 JOB_RUNNER_PLANE_REST=(trigger-api trigger-tls clickhouse trigger-registry trigger-docker-proxy minio trigger-redis trigger-db)
 JOB_RUNNER=''
 JOB_RUNNER_WHY=''
+# Where the answer came from, in words, for the line a script says it in:
+# "this shell's environment", "<env-file>", "<managed.yml>'s default", or
+# "the one runner <managed.yml> has, since it names no switch".
+JOB_RUNNER_FROM=''
 
 # env_value, for the .env's line, unless the caller has it already. SCRIPT_DIR
 # is the caller's.
@@ -76,23 +80,28 @@ job_runner_default_in() {
   printf '%s' "$found"
 }
 
-# job_runner_judge <value> <where it came from> — sets JOB_RUNNER, or WHY and 1.
+# job_runner_judge <value> <where it came from> — sets JOB_RUNNER and
+# JOB_RUNNER_FROM, or WHY and 1.
 job_runner_judge() {
   case "${1:-}" in
     "$JOB_RUNNER_TRIGGER" | "$JOB_RUNNER_PGBOSS")
       JOB_RUNNER="$1"
+      JOB_RUNNER_FROM="${2:-}"
       return 0
       ;;
   esac
   JOB_RUNNER=''
+  JOB_RUNNER_FROM=''
   JOB_RUNNER_WHY="${JOB_RUNNER_KEY} in ${2} is neither ${JOB_RUNNER_TRIGGER} nor ${JOB_RUNNER_PGBOSS} (its value is not printed), so which runner the jobs run on cannot be said, and nothing has run."
   return 1
 }
 
 # job_runner_from <managed.yml text> <managed.yml's name> <env-file>
+# shellcheck disable=SC2034 # JOB_RUNNER_FROM is read by the scripts that source this
 job_runner_from() {
   local text="${1:-}" where="${2:-managed.yml}" env_file="${3:-}" value default
   JOB_RUNNER_WHY=''
+  JOB_RUNNER_FROM=''
   # A managed.yml that never names the switch hands it to no container, so
   # that release runs the one runner it has, whatever the .env or the shell
   # says: the plane while it carries Trigger.dev's image line (alpha.14,
@@ -106,6 +115,7 @@ job_runner_from() {
     else
       JOB_RUNNER="$JOB_RUNNER_PGBOSS"
     fi
+    JOB_RUNNER_FROM="the one runner ${where} has, since it names no switch"
     return 0
   fi
   if [ -n "${OWNPACE_JOB_RUNNER:-}" ]; then

@@ -24,7 +24,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   drains pg-boss's queue too, takes no `--trigger` copy for a tag that runs pg-boss, calls a tag
   without the plane not one-way by itself on a stack on pg-boss, calls a move of pg-boss's version or
   schema version one-way, and stops and removes the worker before checking out a tag without one.
-  The Trigger.dev-only scripts refuse in pg-boss mode; `live-pass-check.sh` follows a pg-boss job's id.
+  The Trigger.dev-only scripts refuse in pg-boss mode; `live-pass-check.sh` follows a pg-boss job's id. In pg-boss mode
+  the worker's size follows the stack's `MAX_PASSES_IN_FLIGHT` where `.env` sets none, and a `.env`
+  line that would hand the worker a comment as a value is refused, named. A tag without the
+  Trigger.dev plane is refused onto a stack still on it.
 
 ### Changed
 

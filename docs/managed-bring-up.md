@@ -825,15 +825,28 @@ script in one sentence, before anything runs. What the bring-up does in each:
 
 | Phase | `trigger` | `pg-boss` |
 |---|---|---|
-| `trigger` | stops and removes the worker if it has one, then the plane as below | stops the plane, if it runs: `trigger-supervisor` first, then waits (up to `PLANE_RUNNERS_TIMEOUT`, 300 s) until no `runner-*` container is left on the stack's network, then `trigger-api trigger-tls clickhouse trigger-registry trigger-docker-proxy minio trigger-redis trigger-db`. `stop`, never `rm -v`: the containers stay `Exited` and their volumes stay, as the way back |
+| `trigger` | stops and removes the worker if it has one, then the plane as below | first checks the worker can start (its size, its CPU cap, the values it reads, below), so a cutover that cannot start it leaves the plane running; then stops the plane, if it runs or restarts: `trigger-supervisor` first, then waits (up to `PLANE_RUNNERS_TIMEOUT`, 300 s) until no `runner-*` container is left on the stack's network, then `trigger-api trigger-tls clickhouse trigger-registry trigger-docker-proxy minio trigger-redis trigger-db`. `stop`, never `rm -v`: the containers stay `Exited` and their volumes stay, as the way back |
 | `account`, `login` | as below | `skipped: pg-boss mode` |
 | `app` | builds `api web`; the plane with the rest | builds `api web worker`; no plane service; then the system role's question (as the `tasks` phase asks it in trigger mode), the worker's CPU cap held to the host's, and the worker, after the api, recreated whenever this run replaced the api's container, so its server log goes at each update as the api's does (privacy §9) |
 | `tasks` | as below | `skipped: pg-boss mode`; nothing is uploaded or deployed |
 
-**The worker's CPU cap.** Docker refuses a `cpus` above the host's CPU count,
-so the app phase refuses a `WORKER_CPUS` (or `managed.yml`'s default) above it,
-in one sentence, before the worker starts. The rule for the value:
-0.5 × (`MAX_PASSES_IN_FLIGHT` + 2), which is 2.5 at the default cap of 3.
+**The worker's size.** `.env`'s `WORKER_CPUS` and `WORKER_MEMORY` when it sets
+them; otherwise the bring-up works them out from this stack's
+`MAX_PASSES_IN_FLIGHT` and hands them to Compose for that run, without writing
+`.env`: 0.5 × (`MAX_PASSES_IN_FLIGHT` + 2) CPUs and
+(`MAX_PASSES_IN_FLIGHT` + 3) × 512 MB + 256 MB. That is 2.5 and `3328m` at the
+default cap of 3 (`managed.yml`'s own defaults), and 4 and `4864m` at live's 6.
+Docker refuses a `cpus` above the host's CPU count, so the bring-up refuses that
+value, in one sentence, before the worker starts.
+
+**A comment where the worker reads a value.** A `.env` line such as
+`LEDGER_RETENTION_DAYS=  # days` (spaces or a tab, then `#`) is empty to bash,
+and Compose hands the container the comment itself as the value, even over a
+`${KEY:-default}`. Older examples (alpha.1 to alpha.15) shipped
+`LEDGER_RETENTION_DAYS`, `LEDGER_RUN_RETENTION_DAYS`, `LOG_LEVEL` and
+`TRIGGER_API_URL_IN_NETWORK` that way. In pg-boss mode the bring-up refuses
+when any key the worker receives has such a line, naming each; put the comment
+on a line of its own above the key. It never rewrites `.env`.
 
 **The way back from pg-boss**, with the hold on and the drain done:
 `./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_JOB_RUNNER=trigger`,
@@ -6144,12 +6157,15 @@ the tag asks for.
 jobs run on here now and which the tag's own bring-up will run them on (a tag
 whose `managed.yml` has no switch runs the plane). Its drain reads pg-boss's
 queue too, once the schema `pgboss` holds one: a job created, retrying or
-active outside the schedule queues is refused as a pass in flight is. A tag
+active outside the schedule queues and pg-boss's own `__pgboss__*` queues is
+refused as a pass in flight is. A tag
 whose bring-up runs pg-boss takes the copy **without** `--trigger`: that
 bring-up stops the plane and nothing migrates triggerdb. A tag whose
 `managed.yml` has neither the Trigger.dev nor the ClickHouse line (alpha.17),
 deployed on a stack already on pg-boss, "removes the Trigger.dev plane from
-managed.yml (its volumes stay)", which is not one-way by itself. A move of
+managed.yml (its volumes stay)", which is not one-way by itself; deployed on a
+stack still in trigger mode it is refused (nothing would stop the plane):
+switch to pg-boss with the bring-up first, then deploy. A move of
 pg-boss's version in `pnpm-lock.yaml` or of its schema version
 (`PG_BOSS_SCHEMA_VERSION`) between two tags that both carry it is one-way:
 pg-boss migrates its schema forward. And before the checkout of a tag whose

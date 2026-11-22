@@ -102,6 +102,7 @@ import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { switchedTo } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -2199,14 +2200,7 @@ describe('env-upsert.sh --stdin', () => {
 
 describe('a first bring-up of live in either runner (workplan 0167 T7)', () => {
   /** managed.yml that hands the switch to its containers, defaulting to <runner>, as alpha.16's does. */
-  const switched = (runner: 'trigger' | 'pg-boss') => (text: string) => {
-    const out = text.replace(
-      /\nservices:\n/,
-      `\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${runner}}\n`,
-    );
-    if (out === text) throw new Error('managed.yml has no services: line this fixture knows');
-    return out;
-  };
+  const switched = switchedTo;
 
   it(
     'pg-boss mode: said before the bring-up, and a stop of the bring-up is never taken for the Trigger.dev account',
@@ -2219,6 +2213,23 @@ describe('a first bring-up of live in either runner (workplan 0167 T7)', () => {
       expect(r.out).toMatch(/In pg-boss mode it has no Trigger\.dev account or login to stop for/);
       expect(r.out).not.toMatch(/Your turn: live's own Trigger\.dev account/);
       expect(deployLines(s)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "pg-boss mode: the plane's three networks, which a pg-boss stand-up never makes, are not asked for; trigger mode still asks",
+    () => {
+      const missing = { STUB_NO_STORE_NET: '1', STUB_NO_SOCKET_NET: '1', STUB_NO_REGISTRY_NET: '1' };
+      const pg = stage({ managedYml: switched('pg-boss') });
+      const r = run(pg, [], missing);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/ownpace-live stands/);
+      expect(r.out).not.toMatch(/trigger-event-store|trigger-docker-socket|trigger-task-images/);
+      const tr = stage({ managedYml: switched('trigger') });
+      const t = run(tr, [], missing);
+      expect(t.status, t.out).toBe(3);
+      expect(t.out).toMatch(/the network ownpace-live_trigger-event-store is not there/);
     },
     CASE_MS,
   );

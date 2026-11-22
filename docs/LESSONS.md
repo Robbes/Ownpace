@@ -2843,6 +2843,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/scheduler/package.json`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
 
 ### `packages/scheduler/src/pg-boss/catalog.ts`
@@ -4284,6 +4285,7 @@ Reads:
 - `deploy/compose/www.yml`
 - `docs/incident-runbook.md`
 - `docs/managed-bring-up.md`
+- `packages/scheduler/package.json`
 - `packages/scheduler/src/pg-boss/job-runner.ts`
 - `pnpm-lock.yaml`
 - `scripts/app-headers.mjs`

@@ -105,6 +105,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { switchedTo } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -1541,6 +1542,32 @@ describe('--rotate', () => {
     },
     CASE_MS,
   );
+
+  it.each([
+    ['pg-boss', /the API, the identity provider's admin connection and the worker \(pg-boss mode\) still present the old values\./, true],
+    ['trigger', /the API, the identity provider's admin connection and the Trigger\.dev tasks still present the old values\./, false],
+  ] as const)('the containers that still present the old values, in %s mode, name what runs the jobs (workplan 0167 T7)', (runner, holds, worker) => {
+    const fx = fixture({ env: { OWNPACE_JOB_RUNNER: runner } });
+    const yml = join(fx.compose, 'managed.yml');
+    writeFileSync(yml, switchedTo('trigger')(readFileSync(yml, 'utf8')));
+    const r = run(fx, ['--rotate'], { input: `${OTA}\n` });
+    expect(r.status, r.output).toBe(0);
+    expect(r.stdout).toMatch(holds);
+    const among = /the worker among them \(pg-boss mode: it reads APP_DATABASE_URL when it is created, and nothing is uploaded\)/;
+    if (worker) expect(r.stdout).toMatch(among);
+    else expect(r.stdout).not.toMatch(among);
+    expect(r.stdout).toMatch(/uploads SYSTEM_DATABASE_URL and APP_DATABASE_URL to Trigger\.dev again in trigger mode/);
+  }, CASE_MS);
+
+  it('a value of the switch that is neither names both, after the change, rather than stopping', () => {
+    const fx = fixture({ env: { OWNPACE_JOB_RUNNER: 'both' } });
+    const yml = join(fx.compose, 'managed.yml');
+    writeFileSync(yml, switchedTo('trigger')(readFileSync(yml, 'utf8')));
+    const r = run(fx, ['--rotate'], { input: `${OTA}\n` });
+    expect(r.status, r.output).toBe(0);
+    expect(r.stdout).toMatch(/and the worker or the Trigger\.dev tasks \(OWNPACE_JOB_RUNNER in .* is neither trigger nor pg-boss \(its value is not printed\)\) still present the old values/);
+    expect(r.output).not.toContain('both');
+  }, CASE_MS);
 
   it(
     'without --with-trigger-stores it leaves ClickHouse, MinIO and trigger-db alone, and does not need trigger-db up',
