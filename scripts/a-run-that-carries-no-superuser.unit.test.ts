@@ -722,6 +722,8 @@ function runScript(args: string[], answers: Record<string, string> = {}, script 
       HOME: root,
       STAND_IN_LOG: root,
       STAND_IN_FIT_ANSWER: FIT_ANSWER,
+      // Trigger mode: this script works on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
+      OWNPACE_JOB_RUNNER: 'trigger',
       ...answers,
     },
     encoding: 'utf8',

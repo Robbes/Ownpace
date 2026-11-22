@@ -879,7 +879,8 @@ function resetTrigger(dotenv: string): { status: number | null; calls: string; e
     chmodSync(join(bin, 'docker'), 0o755);
     writeFileSync(log, '');
     const r = spawnSync('bash', [join(compose, 'reset-trigger.sh'), '--yes'], {
-      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir },
+      // Trigger mode: these scripts work on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
+      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir, OWNPACE_JOB_RUNNER: 'trigger' },
       encoding: 'utf8',
     });
     return { status: r.status, calls: readFileSync(log, 'utf8'), err: r.stderr };
@@ -962,7 +963,8 @@ function inOtaCheckout(
     chmodSync(join(bin, 'docker'), 0o755);
     chmodSync(join(bin, 'pnpm'), 0o755);
     const r = spawnSync('bash', [join(compose, script), ...args], {
-      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir, ...shell },
+      // Trigger mode: these scripts work on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
+      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir, OWNPACE_JOB_RUNNER: 'trigger', ...shell },
       encoding: 'utf8',
       input: '',
       timeout: 20_000,

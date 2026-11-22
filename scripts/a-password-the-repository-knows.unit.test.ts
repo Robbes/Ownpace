@@ -90,6 +90,7 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import {
+  appendFileSync,
   chmodSync,
   copyFileSync,
   existsSync,
@@ -1420,6 +1421,9 @@ describe("(e) the trigger phase sets trigger-db's role to .env's value, once tri
     expect(tag, "managed.yml carries no TRIGGER_IMAGE_TAG default").toBeTruthy();
     mkdirSync(join(s.root, 'apps', 'worker'), { recursive: true });
     writeFileSync(join(s.root, 'apps', 'worker', 'package.json'), JSON.stringify({ dependencies: { '@trigger.dev/sdk': tag } }));
+    // The trigger phase runs the plane in trigger mode only, and managed.yml's
+    // default is pg-boss (workplan 0167 T7), so this stack says trigger.
+    appendFileSync(s.envFile, 'OWNPACE_JOB_RUNNER=trigger\n');
     return s;
   }
 

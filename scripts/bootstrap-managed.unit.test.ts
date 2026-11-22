@@ -65,7 +65,9 @@ function run(
 ): { status: number; stdout: string; stderr: string } {
   const r = spawnSync(script, args, {
     encoding: 'utf8',
-    env: { ...process.env, ...env },
+    // Trigger mode unless a case says otherwise: the Trigger.dev scripts run
+    // here refuse in pg-boss mode, managed.yml's default (workplan 0167 T7).
+    env: { ...process.env, OWNPACE_JOB_RUNNER: 'trigger', ...env },
     cwd: dir,
   });
   return { status: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };

@@ -138,7 +138,7 @@ describe("the job worker's environment carries no database owner (workplan 0167 
       expect(managed.includes(find), `${MANAGED} no longer holds ${find}, so this case would prove nothing`).toBe(true);
       return managed.replace(find, replace);
     };
-    const workerEnv = '      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-trigger}\n      NODE_ENV: production\n';
+    const workerEnv = '      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}\n      NODE_ENV: production\n';
     const cases: Array<[string, string, RegExp]> = [
       [
         'the api\'s DATABASE_URL copied in',

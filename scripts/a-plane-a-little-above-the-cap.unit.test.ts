@@ -101,6 +101,8 @@ function run(envLines: string[], stub: Stub, args: string[] = []) {
       HOME: dir,
       TRIGGER_DB_PSQL: psql,
       PLANE_LIMIT_ENV_FILE: envFile,
+      // Trigger mode: this script works on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
+      OWNPACE_JOB_RUNNER: 'trigger',
     },
   });
   const statements = readFileSync(log, 'utf8')

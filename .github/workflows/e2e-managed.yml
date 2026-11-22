@@ -922,8 +922,12 @@ jobs:
           # machine's addresses. `docker ps --format '{{.Names}} {{.Ports}}'`
           # on the machine itself shows them to whoever needs them. No COMMAND
           # either: zitadel's carries its `--masterkey`.
-          docker compose $MANAGED_COMPOSE ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}' || true
-          health=$(docker compose $MANAGED_COMPOSE ps --format '{{.Name}} {{.Health}}' 2>/dev/null || true)
+          # `--profile trigger`: since the flip, Trigger.dev's plane is in that
+          # profile, and a `ps` without it would not list the plane in a
+          # trigger-mode run. In a pg-boss run the plane is stopped, so the
+          # profile adds nothing that runs.
+          docker compose $MANAGED_COMPOSE --profile trigger ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}' || true
+          health=$(docker compose $MANAGED_COMPOSE --profile trigger ps --format '{{.Name}} {{.Health}}' 2>/dev/null || true)
           echo '--- no healthcheck defined (this gate cannot speak for these) ---'
           echo "$health" | awk 'NF==1 && $1!=""' || true
           echo '--- unhealthy ---'

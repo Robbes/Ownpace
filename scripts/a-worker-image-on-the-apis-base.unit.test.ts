@@ -25,15 +25,17 @@
  *    logs go at each update of the service);
  * 4. Dependabot moves `/apps/worker` in the API's docker group;
  * 5. managed.yml's `worker` service: built from that Dockerfile, named after
- *    its project, in profile `jobs` (until the pull request that turns the
- *    switch on), nothing depending on it, on `ownpace-network` alone, no
+ *    its project, in no profile since the switch is on (profile `jobs` kept
+ *    it out of every `up` until then), nothing depending on it, on
+ *    `ownpace-network` alone, no
  *    port, its healthcheck the Dockerfile's, after postgres, the pooler and
  *    the api are healthy, with a stop grace period;
  * 6. its CPUs and memory follow the owner's rule from MAX_PASSES_IN_FLIGHT
  *    (3 when unset): the defaults are the rule at 3, and the example and the
  *    service's comment state the rule;
  * 7. the switch: the api and the worker both read `OWNPACE_JOB_RUNNER`,
- *    `trigger` by default, and the example names it.
+ *    `pg-boss` by default since the switch is on (workplan 0167 T7), and the
+ *    example names it.
  *
  * Each is broken once below, on a copy, and must fail.
  */
@@ -159,7 +161,7 @@ export function serviceProblems(text: string): string[] {
   if (w.build?.dockerfile !== WORKER || w.build?.context !== '../..') problems.push(`the worker is not built from ${WORKER} with the repository as its context`);
   if (w.build?.args?.['GIT_SHA'] !== '${GIT_SHA:-unknown}') problems.push('the worker build does not pass GIT_SHA as the api build does');
   if (w.container_name !== '${COMPOSE_PROJECT_NAME}-worker') problems.push(`the worker's container_name is ${w.container_name}, not \${COMPOSE_PROJECT_NAME}-worker`);
-  if (JSON.stringify(w.profiles) !== '["jobs"]') problems.push(`the worker's profiles are ${JSON.stringify(w.profiles)}, not ["jobs"]: it is defined and not started until the switch is turned on`);
+  if (w.profiles !== undefined) problems.push(`the worker's profiles are ${JSON.stringify(w.profiles)}: since the switch is on it has none, so every \`up\` starts it`);
   for (const [name, s] of Object.entries(compose.services)) {
     const deps = Array.isArray(s.depends_on) ? s.depends_on : Object.keys(s.depends_on ?? {});
     if (deps.includes('worker')) problems.push(`${name} depends on the worker, so every Compose call without profile jobs fails`);
@@ -178,8 +180,8 @@ export function serviceProblems(text: string): string[] {
     problems.push(`the worker's mem_limit is ${String(w.mem_limit)}, not \${WORKER_MEMORY:-${workerMemoryMb(ota)}m}, the rule at ${ota}`);
   }
   for (const name of ['worker', 'api']) {
-    if (compose.services[name]?.environment?.['OWNPACE_JOB_RUNNER'] !== '${OWNPACE_JOB_RUNNER:-trigger}') {
-      problems.push(`the ${name}'s OWNPACE_JOB_RUNNER is not \${OWNPACE_JOB_RUNNER:-trigger}`);
+    if (compose.services[name]?.environment?.['OWNPACE_JOB_RUNNER'] !== '${OWNPACE_JOB_RUNNER:-pg-boss}') {
+      problems.push(`the ${name}'s OWNPACE_JOB_RUNNER is not \${OWNPACE_JOB_RUNNER:-pg-boss}`);
     }
   }
   if (w.environment?.['NODE_ENV'] !== 'production') problems.push("the worker's NODE_ENV is not production");
@@ -257,14 +259,14 @@ describe("managed.yml's worker service: defined, not started, sized by the owner
       return managed.replace(find, replace);
     };
     const cases: Array<[string, string, RegExp]> = [
-      ['the profile removed', at('    profiles: ["jobs"]\n', ''), /profiles are undefined/],
+      ['the profile put back', at('    container_name: ${COMPOSE_PROJECT_NAME}-worker\n', '    container_name: ${COMPOSE_PROJECT_NAME}-worker\n    profiles: ["jobs"]\n'), /profiles are \["jobs"\]/],
       ['the web waiting for it', at('    depends_on:\n      - api\n', '    depends_on:\n      - api\n      - worker\n'), /web depends on the worker/],
       ['a second network', at('      api:\n        condition: service_healthy\n    networks:\n      - ownpace-network\n', '      api:\n        condition: service_healthy\n    networks:\n      - ownpace-network\n      - trigger-event-store\n'), /networks are/],
       ['a port', at('    stop_grace_period: 60s\n', '    stop_grace_period: 60s\n    ports:\n      - "127.0.0.1:3002:3002"\n'), /publishes or exposes a port/],
       ['before the migrations', at('      api:\n        condition: service_healthy\n    networks:', '      api:\n        condition: service_started\n    networks:'), /does not wait for api/],
       ['the cpus off the rule', at('${WORKER_CPUS:-2.5}', '${WORKER_CPUS:-0.5}'), /cpus is \$\{WORKER_CPUS:-0.5\}/],
       ['the memory off the rule', at('${WORKER_MEMORY:-3328m}', '${WORKER_MEMORY:-1g}'), /mem_limit is/],
-      ['the switch on by default', at('      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-trigger}\n      NODE_ENV: production\n', '      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}\n      NODE_ENV: production\n'), /the worker's OWNPACE_JOB_RUNNER/],
+      ['the switch off by default', at('      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}\n      NODE_ENV: production\n', '      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-trigger}\n      NODE_ENV: production\n'), /the worker's OWNPACE_JOB_RUNNER/],
       ['no grace', at('    stop_grace_period: 60s\n', ''), /no stop_grace_period/],
     ];
     for (const [what, text, expected] of cases) expect(serviceProblems(text).join('\n'), what).toMatch(expected);

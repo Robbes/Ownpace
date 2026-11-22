@@ -595,7 +595,14 @@ function stage(opts: StageOptions = {}): Stage {
   copyFileSync(join(COMPOSE_DIR, 'env-upsert.sh'), join(compose, 'env-upsert.real.sh'));
   chmodSync(join(compose, 'env-upsert.real.sh'), 0o755);
   writeExec(join(compose, 'env-upsert.sh'), UPSERT_WRAPPER);
-  const managed = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8');
+  // A first bring-up on Trigger.dev's plane, with its two stops for the
+  // owner, as these cases were written for: since the flip managed.yml's
+  // default is pg-boss, so the stage's copy defaults to trigger. The cases of
+  // the two runners set their own (workplan 0167 T7).
+  const managed = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8').replace(
+    /\$\{OWNPACE_JOB_RUNNER:-[^}]*\}/g,
+    '${OWNPACE_JOB_RUNNER:-trigger}',
+  );
   writeFileSync(join(compose, 'managed.yml'), opts.managedYml ? opts.managedYml(managed) : managed);
   copyFileSync(join(COMPOSE_DIR, 'www.yml'), join(compose, 'www.yml'));
   for (const unit of UNITS) {

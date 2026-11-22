@@ -333,6 +333,12 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
+  // A stack on Trigger.dev's plane, as these cases were written for: since the
+  // flip managed.yml's default is pg-boss, where --trigger is refused, so the
+  // stage's copy defaults to trigger. The cases of the two runners set their
+  // own (workplan 0167 T7).
+  const yml = join(compose, 'managed.yml');
+  writeFileSync(yml, readFileSync(yml, 'utf8').replace(/\$\{OWNPACE_JOB_RUNNER:-[^}]*\}/g, '${OWNPACE_JOB_RUNNER:-trigger}'));
   writeFileSync(join(work, '.gitignore'), '.env\n');
   git(home, root, 'init', '-q', '-b', 'main', work);
   git(home, work, 'add', '-A');
