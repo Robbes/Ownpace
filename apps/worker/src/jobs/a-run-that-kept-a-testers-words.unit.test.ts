@@ -261,6 +261,19 @@ function taskFiles(): Array<{ file: string; code: string }> {
     .filter(({ code }) => /\n {2}id: '[a-z-]+',/.test(code));
 }
 
+/**
+ * A task's run, by its id, as each task file exports it for either runner
+ * (workplan 0167 T6): `managed-sync-tick` runs as `managedSyncTickRun`.
+ */
+const runNameOf = (id: string): string => `${id.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())}Run`;
+
+/** A task file's run, from its declaration to the `run:` of the definition that calls it. */
+function runBodyOf(code: string): string {
+  const id = /\n {2}id: '([a-z-]+)',/.exec(code)![1]!;
+  const from = code.indexOf(`\nexport const ${runNameOf(id)} = leavesAReference(`);
+  return from === -1 ? '' : code.slice(from, code.indexOf('\n  run: ', from));
+}
+
 describe('every task', () => {
   const tasks = taskFiles();
 
@@ -272,10 +285,16 @@ describe('every task', () => {
   });
 
   it.each(tasks.map((t) => [t.file, t.code] as const))('%s runs inside leavesAReference, under its own id', (_file, code) => {
-    const id = /\n {2}id: '([a-z-]+)',/.exec(code)![1];
+    const id = /\n {2}id: '([a-z-]+)',/.exec(code)![1]!;
     const runs = code.match(/\n {2}run: /g) ?? [];
     expect(runs).toHaveLength(1);
-    expect(code).toContain(`\n  run: leavesAReference('${id}', async (`);
+    // Its run, exported for either runner (workplan 0167 T6), is the file's one
+    // leavesAReference, and the definition calls it through onTriggerDev with
+    // the context made from Trigger.dev's own, and does nothing else.
+    const run = runNameOf(id);
+    expect(code).toContain(`\nexport const ${run} = leavesAReference(\n  '${id}',\n  async (`);
+    expect(code.split('leavesAReference(')).toHaveLength(2);
+    expect(code).toMatch(new RegExp(`\\n {2}run: onTriggerDev\\(${run}[,)]`));
   });
 
   it.each(tasks.map((t) => [t.file, t.code] as const))('%s does not use the SDK’s logger', (_file, code) => {
@@ -301,7 +320,7 @@ describe('every task', () => {
     // lost its pool (0138 T1 step 2's review). The jobs split in two
     // open theirs in their run too (0138 T2): a daily or hourly job holds no pool
     // between runs, and its first act, the list of organisations, can fail.
-    const perRun = tasks.filter(({ code }) => /\n {2}run: [\s\S]*\bopenTaskPools\(\)/.test(code));
+    const perRun = tasks.filter(({ code }) => /\bopenTaskPools\(\)/.test(runBodyOf(code)));
     expect(perRun.map((t) => t.file).sort()).toEqual([
       'managed-cadence-email.ts',
       'managed-digest.ts',
@@ -313,7 +332,7 @@ describe('every task', () => {
       'run-rollback.ts',
     ]);
     for (const { file, code } of perRun) {
-      const body = code.slice(code.indexOf('\n  run: '));
+      const body = runBodyOf(code);
       const opens = body.indexOf('openTaskPools()');
       expect(opens, file).toBeGreaterThan(0);
       // Before anything it throws, and before anything it awaits: the list, the

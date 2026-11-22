@@ -1050,7 +1050,7 @@ router.post(
       if (!applied) {
         return void res.status(404).json({
           error: 'no open move under that natural key',
-          hint: 'It may have been moved back on the source, or already been acknowledged.',
+          hint: 'It may have been moved back on the source, or already been decided: kept, or its old copy removed.',
         });
       }
       const body: DecisionAccepted = {

@@ -35,6 +35,7 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { tenantCutoverStore, mappingLifecyclePort, withTenant } from '@openmig/ledger';
 import { performRollback, RollbackRefused } from '@openmig/core';
 import { and, eq } from 'drizzle-orm';
@@ -47,7 +48,7 @@ import { openTaskPools } from './task-pools.ts';
 import { notifierFromEnv } from '@openmig/connectors';
 
 // Job input schema
-const RollbackJobSchema = z.object({
+export const RollbackJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
   reason: z.string(),
@@ -89,12 +90,14 @@ export async function mappingNameOf(
   return row?.name;
 }
 
-// Register the job with Trigger.dev
-export const runRollback = schemaTask({
-  id: 'run-rollback',
-  description: 'Rollback',
-  schema: RollbackJobSchema,
-  run: leavesAReference('run-rollback', async (payload: unknown, _context, afterwards) => {
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const runRollbackRun = leavesAReference(
+  'run-rollback',
+  async (payload: unknown, _context: RunContext, afterwards) => {
     const typedPayload = payload as RollbackJobPayload;
     const { tenantId, mappingId, reason, options } = typedPayload;
 
@@ -229,5 +232,13 @@ export const runRollback = schemaTask({
 
       throw error;
     }
-  }),
+  },
+);
+
+// Register the job with Trigger.dev
+export const runRollback = schemaTask({
+  id: 'run-rollback',
+  description: 'Rollback',
+  schema: RollbackJobSchema,
+  run: onTriggerDev(runRollbackRun),
 });

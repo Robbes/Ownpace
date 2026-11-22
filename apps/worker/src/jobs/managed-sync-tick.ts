@@ -47,8 +47,10 @@
 
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
-import { schedules, configure } from '@trigger.dev/sdk';
+import { z } from 'zod';
+import { schedules } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { Pool } from 'pg';
 import {
   log,
@@ -72,8 +74,11 @@ import {
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import {
+  ANOTHER_RUNNER_BEAT_MS,
   readOpenPause,
+  readTickBeat,
   recordTickBeat,
+  SYNC_TICK_BEAT_ON,
   BILLABLE_RUN_KINDS,
   billedTierNow,
   FREE_PASS_EVERY_MINUTES,
@@ -95,6 +100,11 @@ import {
   minGapMinutes,
   SELF_HEALING_CATEGORIES,
 } from '@openmig/orchestration/failing-backoff';
+// The pass's task, for the Trigger.dev runner (the definition below). Loaded
+// here, before this file points the sinks at the system role's pool, as it
+// always was: its module opens its own pools when it is imported, and points
+// the process's sinks at them, so loaded during a run it would take them back
+// from this one (workplan 0167 T6).
 import { runDeltaSync } from './run-delta-sync.ts';
 
 // The system role, `ownpace_system`, which spans organisations and is not a
@@ -590,24 +600,21 @@ function longestWaitingFirst(a: Waiting, b: Waiting): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
-export const managedSyncTick = schedules.task({
-  id: 'managed-sync-tick',
-  cron: '* * * * *',
-  run: leavesAReference('managed-sync-tick', async () => {
-    // In-network API URL (found live, 2026-08-01, the tick's first due firing):
-    // the platform injects TRIGGER_API_URL as the HOST-perspective API origin
-    // (http://localhost:3090 — correct for the deploy CLI, which is why
-    // API_ORIGIN is set that way), but inside a runner container `localhost`
-    // is the runner itself. This is the FIRST task that calls the API from
-    // within a runner — idle ticks succeeded, and the first DUE tick died on
-    // the .trigger() call with connection refused. Point the SDK at the
-    // compose-network address instead; secretKey keeps resolving from the
-    // injected TRIGGER_SECRET_KEY env. Scoped to this run's own process (each
-    // task run executes in its own TaskRunProcess).
-    configure({
-      baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000',
-    });
+/**
+ * What a run of this schedule reads of its payload: nothing (ADR-0054;
+ * workplan 0167 T6). Trigger.dev hands a schedule's run its
+ * `ScheduledTaskPayload`, which this run never reads.
+ */
+export const SyncTickJobSchema = z.strictObject({});
 
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const managedSyncTickRun = leavesAReference(
+  'managed-sync-tick',
+  async (_payload: unknown, context: RunContext) => {
     const now = new Date();
     // The tick runs on a one-minute cron, so its own duration is the number
     // that decides whether it still fits (workplan 0083). 0082 fixed three
@@ -616,6 +623,41 @@ export const managedSyncTick = schedules.task({
     // tick rather than sampled: it is one line, and the interesting value is
     // the tail, which sampling is exactly what loses.
     const startedAt = Date.now();
+
+    /**
+     * NO PASS WHILE THE OTHER RUNNER'S TICK BEATS (ADR-0054; workplan 0167
+     * T6).
+     *
+     * Each runner serialises a migration's passes on its own queue, and only
+     * there, so two runners at once, Trigger.dev and pg-boss, could start two
+     * passes on one migration: two writers. The procedures stop one before
+     * starting the other; this makes a slip loud rather than harmful. The tick
+     * beats as its runner, `SYNC_TICK_BEAT_ON`, besides the shared beat, and
+     * holds, as under an operator's hold, while the other runner's tick has
+     * beaten within `ANOTHER_RUNNER_BEAT_MS`. Holding, it writes its own beat
+     * and not the shared one, so two left running start no pass and the
+     * status page's *Scheduled syncs*, which reads the shared beat, goes down.
+     *
+     * Asked first, before the operator's hold, so the status page says so
+     * while the hold is still on, before anybody lifts it. A read that fails
+     * fails the tick, as the hold's own read does: not knowing is not leave
+     * to start passes.
+     */
+    const ownBeat = SYNC_TICK_BEAT_ON[context.runner.name];
+    const otherRunner = context.runner.name === 'trigger' ? 'pg-boss' : 'trigger';
+    const otherBeat = SYNC_TICK_BEAT_ON[otherRunner];
+    if ((await readTickBeat(drizzle(pool), now, otherBeat, ANOTHER_RUNNER_BEAT_MS)) === 'up') {
+      const summary = { anotherRunner: otherRunner, triggered: 0, ms: Date.now() - startedAt };
+      log.warn(
+        `[sync-tick] holding: the ${otherRunner} runner's tick beat within the last ` +
+          `${ANOTHER_RUNNER_BEAT_MS / 1000} s (${otherBeat}), so this one, on ${context.runner.name}, starts no ` +
+          'pass: two runners at once would start two passes on one migration. Stop one of them. Until then ' +
+          'this tick beats as its own runner only, and Scheduled syncs reads as stopped.',
+        summary,
+      );
+      await recordTickBeat(drizzle(pool), new Date(), ownBeat);
+      return summary;
+    }
 
     /**
      * AN OPERATOR HOLD STOPS THIS TICK STARTING ANYTHING (managed migration
@@ -661,9 +703,12 @@ export const managedSyncTick = schedules.task({
           `. ${stillRunning} pass(es) still in flight; the drain is done when that reaches 0.`,
         summary,
       );
-      // It ran, and held: a beat all the same (workplan 0142 T2). The hold is
-      // shown to testers on its own, with the operator's sentence.
-      await recordTickBeat(drizzle(pool), new Date());
+      // It ran, and held: a beat all the same (workplan 0142 T2), and its
+      // runner's own (0167 T6), at one time. The hold is shown to testers on
+      // its own, with the operator's sentence.
+      const heldAt = new Date();
+      await recordTickBeat(drizzle(pool), heldAt);
+      await recordTickBeat(drizzle(pool), heldAt, ownBeat);
       return summary;
     }
 
@@ -918,10 +963,13 @@ export const managedSyncTick = schedules.task({
     const failures: string[] = [];
     await mapWithConcurrency(toEnqueue, ENQUEUE_CONCURRENCY, async (m) => {
       try {
-        await runDeltaSync.trigger(
+        // On the migration's own queue, one pass at a time per migration, by
+        // the runner this tick runs on (run-context.ts).
+        await context.runner.enqueue(
+          'run-delta-sync',
           { tenantId: m.tenant_id, mappingId: m.id, domains: m.domains },
           {
-            concurrencyKey: m.id,
+            serializeBy: m.id,
             tags: [`tenant:${m.tenant_id}`, `mapping:${m.id}`],
           }
         );
@@ -966,8 +1014,17 @@ export const managedSyncTick = schedules.task({
     // The beat, at the END of a run that completed (workplan 0142 T2): one
     // written first would say "ran" for a tick that then threw on its
     // enumeration. A mapping that failed to enqueue is counted above, and does
-    // not stop it.
-    await recordTickBeat(drizzle(pool), new Date());
+    // not stop it. And its runner's own (0167 T6), at the same time, so the
+    // shared beat is never the newer of the two when this runner wrote both.
+    const beatAt = new Date();
+    await recordTickBeat(drizzle(pool), beatAt);
+    await recordTickBeat(drizzle(pool), beatAt, ownBeat);
     return summary;
-  }),
+  },
+);
+
+export const managedSyncTick = schedules.task({
+  id: 'managed-sync-tick',
+  cron: '* * * * *',
+  run: onTriggerDev(managedSyncTickRun, { deltaSync: async () => runDeltaSync }),
 });

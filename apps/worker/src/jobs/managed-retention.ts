@@ -35,8 +35,10 @@
 
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
+import { z } from 'zod';
 import { schedules } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
@@ -73,10 +75,21 @@ setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-work
 // its failure carries in the plane (0134, open question 3 (a)).
 setAppEventSink(appEventSinkOn(pgDriver(pool)));
 
-export const managedRetention = schedules.task({
-  id: 'managed-retention',
-  cron: '17 3 * * *',
-  run: leavesAReference('managed-retention', async () => {
+/**
+ * What a run of this schedule reads of its payload: nothing (ADR-0054;
+ * workplan 0167 T6). Trigger.dev hands a schedule's run its
+ * `ScheduledTaskPayload`, which this run never reads.
+ */
+export const RetentionJobSchema = z.strictObject({});
+
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const managedRetentionRun = leavesAReference(
+  'managed-retention',
+  async (_payload: unknown, _context: RunContext) => {
     const db = drizzle(pool, { schema: schemaPg }) as unknown as PgDatabase;
     const now = new Date();
     const days = retentionDaysFromEnv(process.env.LEDGER_RETENTION_DAYS);
@@ -165,5 +178,11 @@ export const managedRetention = schedules.task({
       appEventsDeleted: events.deleted,
       declinedRequestsDeleted: declined.deleted,
     };
-  }),
+  },
+);
+
+export const managedRetention = schedules.task({
+  id: 'managed-retention',
+  cron: '17 3 * * *',
+  run: onTriggerDev(managedRetentionRun),
 });

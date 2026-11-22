@@ -235,16 +235,6 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
-### `CHANGELOG.md`
-
-- [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
-- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
-- [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
-- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
-- [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
-- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
-- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
-
 ### `CONTRIBUTING.md`
 
 - [a-convention-two-of-two-hundred-commits-followed](../scripts/a-convention-two-of-two-hundred-commits-followed.unit.test.ts) — THE CONVENTION NOTHING ENFORCED.
@@ -949,6 +939,10 @@ reading a file drops off its entry by itself.
 - [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts) — A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
 
 ### `apps/worker/src/jobs/run-confirmation.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+
+### `apps/worker/src/jobs/run-context.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 
@@ -2797,6 +2791,10 @@ reading a file drops off its entry by itself.
 
 - [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
 
+### `packages/scheduler/src/pg-boss/catalog.ts`
+
+- [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
+
 ### `packages/scheduler/src/pg-boss/job-runner.integration.test.ts`
 
 - [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
@@ -4314,7 +4312,6 @@ A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 Reads:
 
 - `.github/workflows/ci.yml`
-- `CHANGELOG.md`
 - `SECURITY.md`
 - `docs/adr/OPERATIVE.md`
 - `docs/architecture/solution-architecture.md`
@@ -4899,7 +4896,6 @@ Reads:
 
 - `.github/workflows/ci.yml`
 - `AGENTS.md`
-- `CHANGELOG.md`
 - `docs/LESSONS.md`
 - `docs/workplans/README.md`
 - `pnpm-lock.yaml`
@@ -5098,6 +5094,7 @@ Reads:
 - `apps/worker/src/jobs/run-apply-deletion.ts`
 - `apps/worker/src/jobs/run-apply-relocation.ts`
 - `apps/worker/src/jobs/run-confirmation.ts`
+- `apps/worker/src/jobs/run-context.ts`
 - `apps/worker/src/jobs/run-cutover.ts`
 - `apps/worker/src/jobs/run-delta-sync.ts`
 - `apps/worker/src/jobs/run-discovery.ts`
@@ -5119,6 +5116,7 @@ A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 Reads:
 
 - `apps/worker/trigger.config.ts`
+- `packages/scheduler/src/pg-boss/catalog.ts`
 - `packages/shared/src/pass-deadline.ts`
 
 ### [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts)
@@ -5577,7 +5575,6 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
-- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `scripts/fixtures/release/changelog-2026-10-23.md`
 - `scripts/fixtures/release/ci-jobs-39866562875.json`
@@ -5598,7 +5595,6 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
-- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `apps/web/src/components/Layout.tsx`
 - `apps/web/src/components/Layout.unit.test.tsx`
@@ -5939,10 +5935,6 @@ Reads:
 ### [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts)
 
 Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
-
-Reads:
-
-- `CHANGELOG.md`
 
 ### [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts)
 
@@ -6539,7 +6531,6 @@ AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T1
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
-- `CHANGELOG.md`
 - `apps/api/Dockerfile`
 - `apps/api/src/index.ts`
 - `deploy/compose/deploy-live.sh`
@@ -6570,7 +6561,6 @@ AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decisi
 Reads:
 
 - `.github/workflows/e2e.yml`
-- `CHANGELOG.md`
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `deploy/selfhost/README.md`

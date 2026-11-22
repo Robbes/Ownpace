@@ -155,26 +155,35 @@ describe('a decided row says what was decided (PgLedger, integration)', () => {
     expect(await moveOf('kr')).toMatchObject({ decided: 'applied' });
   });
 
-  it('a renamed file removed through Deletions says applied there, and its move stays open', async () => {
+  it('a renamed file removed through Deletions says applied there, and its move is closed as applied (workplan 0164)', async () => {
     await renamed('both');
     await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', 'both');
     expect(await ledger.applyDeletion(TENANT, MAPPING, 'file', 'both')).toBe(true);
 
     expect(await deletionOf('both')).toMatchObject({ decided: 'applied' });
-    const move = await moveOf('both');
-    expect(move?.acknowledgedAt).toBeUndefined();
-    expect(move?.decided).toBeUndefined();
+    // Its old copy is gone, so there is nothing left for the move to remove:
+    // closed, as the removal's own time, and listed after an open move.
+    await renamed('waiting');
+    const moves = await ledger.listMoves(TENANT, MAPPING);
+    expect(moves.map((m) => m.naturalKeyHash)).toEqual(['waiting', 'both']);
+    expect(moves[1]).toMatchObject({ decided: 'applied', acknowledgedAt: expect.any(String) });
+    // A keep pressed from a page read before the removal answers nothing: the
+    // move is decided, and Deletions still says the deletion's removal.
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'both', 'keep')).toBe(false);
+    expect(await deletionOf('both')).toMatchObject({ decided: 'applied' });
   });
 
   it('a removed copy whose move was answered afterwards still says applied, not relocated', async () => {
-    // The same row, its move then left where it is: the move closes LATER
-    // than the removal, in a write of its own, so the times differ and the
-    // removal stays the deletion's. (Moves says applied too: the old copy is
-    // gone from the new system, whichever answer closed the move.)
+    // A row written before 2026-11-22, when a keep could still close such a
+    // move later than the removal, in a write of its own: the times differ
+    // and the removal stays the deletion's.
     await renamed('later');
     await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', 'later');
     expect(await ledger.applyDeletion(TENANT, MAPPING, 'file', 'later')).toBe(true);
-    expect(await ledger.resolveMove(TENANT, MAPPING, 'later', 'keep')).toBe(true);
+    await db.execute(sql`
+      UPDATE item SET move_acknowledged_at = deletion_applied_at + interval '1 second'
+       WHERE mapping_id = ${MAPPING} AND natural_key_hash = 'later'
+    `);
 
     expect(await deletionOf('later')).toMatchObject({ decided: 'applied' });
     expect(await moveOf('later')).toMatchObject({ decided: 'applied' });
