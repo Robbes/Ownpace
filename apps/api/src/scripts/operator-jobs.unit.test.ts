@@ -22,7 +22,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Pool } from 'pg';
 import type { PlatformPause } from '@openmig/managed';
-import type { EnqueueOptions, FailedRun, QueueOverview, RunStatus } from '@openmig/scheduler/pg-boss';
+import { JOB_CATALOG, type EnqueueOptions, type FailedRun, type QueueOverview, type RunStatus } from '@openmig/scheduler/pg-boss';
 import {
   ON_TRIGGER_DEV,
   errorLine,
@@ -161,6 +161,8 @@ describe('the arguments', () => {
     [['run', 'managed-digest', '{"tenantId":"t"}'], 'managed-digest is a schedule, and a schedule\'s run takes {} and nothing else.'],
     [['run', 'run-delta-sync', '{"tenantId":"t"}'], 'run-delta-sync runs one at a time per migration'],
     [['run', 'run-confirmation', '{"mappingId":1}'], 'run-confirmation runs one at a time per migration'],
+    [['run', 'run-discovery', '{"mappingId":"m-1"}'], 'must name the migration by its id, a UUID, as "mappingId".'],
+    [['run', 'run-delta-sync', '{"mappingId":"$&"}'], 'must name the migration by its id, a UUID, as "mappingId".'],
     [['jobs'], 'jobs does not know "jobs"'],
   ])('refuses %j', (args, said) => {
     expect(refusalOf(args)).toContain(said);
@@ -266,6 +268,18 @@ describe('jobs run and the hold', () => {
     expect(report.lines).toEqual([`Queued run-rollback as run ${RUN}. Follow it with \`jobs show ${RUN}\`.`]);
   });
 
+  it('an upper-case migration id keys the run as the tick and the API do, in lower case, in the payload too', async () => {
+    const { jobs, asked } = fakeJobs();
+    const upper = MAPPING.toUpperCase();
+    await runJobsCommand(parsed(['run', 'run-confirmation', JSON.stringify({ tenantId: TENANT, mappingId: upper })]), {
+      jobs,
+      readHold: async () => null,
+    });
+    expect(asked[0]!.opts?.serializeBy).toBe(`confirm:${MAPPING}`);
+    expect(asked[0]!.payload).toEqual({ tenantId: TENANT, mappingId: MAPPING });
+    expect(asked[0]!.opts?.tags).toEqual(['operator', `tenant:${TENANT}`, `mapping:${MAPPING}`]);
+  });
+
   it("serialises a singleton queue's run by the catalog's key", async () => {
     for (const [task, key] of [
       ['run-delta-sync', MAPPING],
@@ -279,6 +293,18 @@ describe('jobs run and the hold', () => {
       });
       expect(asked[0]!.opts?.serializeBy).toBe(key);
     }
+  });
+
+  it('a schedule that already has a run waiting, under the hold and --despite-hold, says only that nothing was queued', async () => {
+    const { jobs } = fakeJobs({ enqueue: async () => ({ runId: null, joined: false }) });
+    const report = await runJobsCommand(parsed(['run', 'managed-digest', '{}', '--despite-hold']), {
+      jobs,
+      readHold: async () => OPEN_HOLD,
+    });
+    expect(report).toEqual({
+      lines: ['managed-digest already has a run waiting, so no other was queued: it runs next.'],
+      exitCode: 0,
+    });
   });
 
   it('a schedule that already has a run waiting queues no other, and says so', async () => {
@@ -306,6 +332,8 @@ describe('what is printed', () => {
     const found: QueueOverview[] = [
       { queue: 'run-delta-sync', policy: 'singleton', queued: 2, active: 1, failed: 3, total: 9, activeKeys: [MAPPING] },
       { queue: 'managed-sync-tick', policy: 'stately', queued: 0, active: 0, failed: 0, total: 0, activeKeys: [] },
+      // pg-boss's array_agg(singleton_key) for a stately queue's running run, which has no key.
+      { queue: 'managed-digest', policy: 'stately', queued: 0, active: 1, failed: 0, total: 1, activeKeys: [null as unknown as string] },
     ];
     const { jobs } = fakeJobs({ overview: async () => found });
     const report = await runJobsCommand({ kind: 'overview' }, { jobs, readHold: async () => null });
@@ -316,9 +344,27 @@ describe('what is printed', () => {
       new RegExp(`^run-delta-sync +2 +1 +3  ${MAPPING}$`),
     );
     expect(report.lines.find((l) => l.startsWith('managed-sync-tick '))).toMatch(/^managed-sync-tick +0 +0 +0 {2}-$/);
+    expect(report.lines.find((l) => l.startsWith('managed-digest '))).toMatch(/^managed-digest +0 +1 +0 {2}-$/);
     expect(report.lines.find((l) => l.startsWith('run-rollback '))).toMatch(/^run-rollback +not made yet$/);
     expect(report.lines.at(-1)).toBe(
-      '15 queue(s) not made yet: the worker makes every queue when it starts, so it has not started on this schema.',
+      '14 queue(s) not made yet: the worker makes every queue when it starts, so it has not started on this schema.',
+    );
+  });
+
+  it('with every queue made, says the counts are as the worker last counted them', async () => {
+    const all: QueueOverview[] = JOB_CATALOG.map((j) => ({
+      queue: j.name,
+      policy: j.policy,
+      queued: 0,
+      active: 0,
+      failed: 0,
+      total: 0,
+      activeKeys: [],
+    }));
+    const { jobs } = fakeJobs({ overview: async () => all });
+    const report = await runJobsCommand({ kind: 'overview' }, { jobs, readHold: async () => null });
+    expect(report.lines.at(-1)).toBe(
+      "Counts are as the worker last counted them, every 15 s while it runs; failed counts the runs pg-boss still keeps.",
     );
   });
 
@@ -326,10 +372,19 @@ describe('what is printed', () => {
     expect(errorLine({ name: 'ZodError', message: 'mappingId:\n  Required', stack: 'at x', payload: SECRET })).toBe(
       'ZodError: mappingId: Required',
     );
-    expect(errorLine({ message: 'job expired' })).toBe('job expired');
     expect(errorLine(null)).toBe('(no error recorded)');
-    expect(errorLine({ value: SECRET })).toBe('(no error recorded)');
+    expect(errorLine({ value: { other: SECRET } })).toBe('(no error recorded)');
+    expect(errorLine({ value: 7 })).toBe('(no error recorded)');
     expect(errorLine({ name: 'E', message: 'x'.repeat(400) })).toHaveLength(300);
+  });
+
+  it.each([
+    // pg-boss 12.38.2's own words, as it writes them (plans.js; manager.js, failWip and mapCompletionDataArg).
+    [{ value: { message: 'job heartbeat timeout' } }, 'job heartbeat timeout'],
+    [{ value: { message: 'job timed out' } }, 'job timed out'],
+    [{ value: 'pg-boss shut down while active' }, 'pg-boss shut down while active'],
+  ])("pg-boss's own failure %j reads as its sentence", (stored, said) => {
+    expect(errorLine(stored)).toBe(said);
   });
 
   it('failures on every queue, newest first, cut at the limit, with attempt, tags and UTC time', async () => {

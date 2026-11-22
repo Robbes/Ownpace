@@ -28,7 +28,15 @@ import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { readOpenPause } from '@openmig/managed';
 import { JOB_CATALOG, PgBossJobRunner, PgBossProducer, RunNotRetried } from '@openmig/scheduler/pg-boss';
-import { parseJobsCommand, runJobsCommand, type JobsDeps, type JobsReport } from './operator-jobs.ts';
+import {
+  JOBS_ROLE,
+  JOBS_SCHEMA,
+  parseJobsCommand,
+  runJobsCommand,
+  runJobsVerb,
+  type JobsDeps,
+  type JobsReport,
+} from './operator-jobs.ts';
 
 const ADMIN_URL = process.env.TEST_DATABASE_URL;
 if (!ADMIN_URL) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
@@ -220,4 +228,79 @@ describe('operator.sh jobs, on a real pg-boss', () => {
     expect(report.exitCode).toBe(1);
     expect(report.lines[0]).toContain('No queue holds a run 6c9d0000-e29b-41d4-a716-446655440099');
   });
+});
+
+/**
+ * The whole verb, as operator.sh runs it: the switch read, the jobs role's URL
+ * composed from operator.sh's own and `JOBS_DB_PASSWORD`, the producer started
+ * on `pgboss`, the hold read over the owner's pool. The role and the schema are
+ * made here as jobs-role.sql makes them, when they are not there, and dropped
+ * after, so `scripts/a-jobs-role-that-owns-only-its-queue` finds them as it
+ * left them.
+ */
+describe('operator.sh jobs, the whole verb, as ownpace_jobs on pgboss', () => {
+  const password = randomBytes(18).toString('base64url');
+  const env = { OWNPACE_JOB_RUNNER: 'pg-boss', DATABASE_URL: ADMIN_URL, JOBS_DB_PASSWORD: password };
+  let owner: pg.Pool;
+  let made: { role: boolean; schema: boolean };
+  let onPgboss: PgBossJobRunner;
+
+  beforeAll(async () => {
+    owner = new pg.Pool({ connectionString: ADMIN_URL, max: 2 });
+    const had = (
+      await owner.query<{ role: boolean; schema: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1) AS role,
+                EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $2) AS schema`,
+        [JOBS_ROLE, JOBS_SCHEMA],
+      )
+    ).rows[0]!;
+    made = { role: !had.role, schema: !had.schema };
+    if (made.role) {
+      await owner.query(
+        `CREATE ROLE ${JOBS_ROLE} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`,
+      );
+    }
+    await owner.query(`ALTER ROLE ${JOBS_ROLE} PASSWORD '${password}'`);
+    if (made.schema) await owner.query(`CREATE SCHEMA ${JOBS_SCHEMA} AUTHORIZATION ${JOBS_ROLE}`);
+    const u = new URL(ADMIN_URL);
+    u.username = JOBS_ROLE;
+    u.password = password;
+    onPgboss = new PgBossJobRunner({ connectionString: u.toString(), schema: JOBS_SCHEMA, monitorIntervalSeconds: 1 });
+    await onPgboss.start(JOB_CATALOG);
+  }, 60_000);
+
+  afterAll(async () => {
+    await onPgboss?.stop({ graceful: false }).catch(() => undefined);
+    if (owner) {
+      if (made?.schema) await owner.query(`DROP SCHEMA IF EXISTS ${JOBS_SCHEMA} CASCADE`);
+      if (made?.role) {
+        await owner.query(`DROP OWNED BY ${JOBS_ROLE}`);
+        await owner.query(`DROP ROLE ${JOBS_ROLE}`);
+      }
+      await owner.end();
+    }
+  });
+
+  it('queues a run and shows it by its id, connected as the jobs role', async () => {
+    const queued = await runJobsVerb(['run', 'run-rollback', JSON.stringify({ tenantId: TENANT, note: SECRET })], env, owner);
+    expect(queued.exitCode).toBe(0);
+    const runId = runIdOf(queued);
+    const { rows } = await owner.query<{ owner: string }>(
+      `SELECT tableowner AS owner FROM pg_tables WHERE schemaname = $1 AND tablename = 'job_common'`,
+      [JOBS_SCHEMA],
+    );
+    expect(rows[0]?.owner).toBe(JOBS_ROLE);
+    const job = await owner.query(`SELECT name FROM ${JOBS_SCHEMA}.job WHERE id = $1`, [runId]);
+    expect(job.rows).toEqual([{ name: 'run-rollback' }]);
+
+    const shown = await runJobsVerb(['show', runId], env, owner);
+    expect(shown.exitCode).toBe(0);
+    expect(shown.lines[0]).toBe(`${runId} on run-rollback: queued, attempt 1`);
+    expect(shown.lines.join('\n')).not.toContain(SECRET);
+
+    const overview = await runJobsVerb([], env, owner);
+    expect(overview.exitCode).toBe(0);
+    expect(overview.lines.find((l) => l.startsWith('run-rollback '))).toMatch(/^run-rollback +\d+ +0 +0 {2}-$/);
+    expect(overview.lines.join('\n')).not.toContain('not made yet');
+  }, 60_000);
 });

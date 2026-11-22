@@ -340,6 +340,26 @@ the API runs every job on Trigger.dev as before.
   and `apps/api/`: 482 files, 9,911 passed, 36 skipped. The integration file on a throwaway cluster
   from `scripts/local-pg.sh` (PostgreSQL 16 here; CI's Testcontainers run is the one to trust for
   18): 5 passed, 18.4 s.
+- **The coordinator's review, fixed.**
+  - pg-boss's own failures read as its sentences, not "(no error recorded)": pg-boss 12.38.2 writes
+    them under `value`, `{ value: { message: 'job heartbeat timeout' } }`, `job timed out`, and
+    `{ value: 'pg-boss shut down while active' }`. `errorLine` now reads `value` or `value.message`
+    when there is no top-level name or message.
+  - The singleton key: `mappingId` must be a UUID, and is lower-cased in the key and the payload, so
+    an upper-case id keys the run as the tick and the API do. The key is made with a function
+    replacer, so nothing in it is read as `$&`.
+  - The overview says its counts are as the worker last counted them, every 15 s while it runs,
+    and leaves out the null key a stately queue's running run reports. A run asked for despite the
+    hold on a schedule that already has one waiting says only that nothing was queued.
+  - CHANGELOG: #2043's entry, twice after a merge, is once.
+  - A sixth integration case goes through `runJobsVerb`: the jobs URL composed from operator.sh's
+    own and `JOBS_DB_PASSWORD`, the producer on `pgboss` as `ownpace_jobs`. It makes the role and
+    the schema only when they are not there, and drops only what it made.
+  - Mutated, each restored byte for byte (`cmp`), each failing its test: `value` as a string ignored
+    (1 of 59), `value.message` ignored (2), the UUID check dropped (2), the id not lower-cased (1),
+    the old footer (1), null keys kept (1), both sentences said (1), the verb on another schema
+    (integration, 1 of 6). Not caught by a test: the replacer made a string again, since no UUID
+    holds a `$`.
 
 **2026-11-22, the smoke and the gate in both modes (T7, its gate's part).** On branch
 `claude/ownpace-pgboss-smoke-gate`, from `main` at `238142c`. Written to the contract the other
