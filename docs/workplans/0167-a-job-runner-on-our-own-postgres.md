@@ -4,6 +4,63 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, latest: the switch on, the managed edition's jobs on pg-boss by default (T7's last part, T8 built).**
+On branch `claude/ownpace-pgboss-flip`, from `main` with the seven open alpha.16 branches merged in
+order (the runner's gaps, the worker, the API's doors, the operator's commands, the worker's image,
+the bring-up and the deploy, the smoke and the gate) and the privacy policy's *Server logs* row
+(#2042). The owner, 2026-11-22, on alpha.16: *"Put in the successful spike (replace triggerdev)."*
+The owner, 2026-11-22 16:32 UTC, asked whether alpha.17's removal could come into alpha.16: *"Ok,
+keep 16 and 17 seperate"*. So alpha.16 keeps Trigger.dev installed and stopped as the fallback, and
+its removal (T9) is a later release's, started once this pull request merges.
+
+- **The flip, `deploy/compose/managed.yml`.** `OWNPACE_JOB_RUNNER` defaults to `pg-boss` for the api
+  and the worker; the worker leaves profile `jobs`; the plane's eleven services (trigger-db,
+  trigger-redis, trigger-api, clickhouse, trigger-registry, trigger-docker-proxy,
+  trigger-supervisor, minio, minio-init, trigger-tls, trigger-tls-init) are in profile `trigger`;
+  the api's `depends_on` on trigger-api says `required: false`. minio is in the profile: only
+  trigger-api uses it (its `OBJECT_STORE_*` keys). The Trigger.dev, ClickHouse and
+  identity-provider image lines are byte-identical, no file in either migration chain changed, and
+  the volumes and networks stay declared. Read with alpha.14's own `deploy-live.sh` rule
+  (`differences`, `trigger_pin`, `image_pins`) against this tree: no migration added, changed or
+  removed, and the three pins the same, so live's deploy from alpha.14 reads *reversible* and takes
+  no `--trigger` copy.
+- **Compose, in both modes** (the example env with dummies for its empty required keys): `config -q`
+  passes without a profile (9 services: postgres, pgbouncer, zitadel, api, web, worker, gatus,
+  mailpit, nextcloud) and with `--profile trigger` (20). A profiled service is still interpolated,
+  so the plane's `TRIGGER_*` keys stay required and generated. Without `required: false`, Compose
+  refuses the file: `service "api" depends on undefined service "trigger-api"`. Named services
+  resolve whatever their profile (`ps`, `logs`, `stop` of a plane service passed the project load;
+  only an unknown name failed it), so the bring-up's named calls and `COMPOSE_PLANE` work in both
+  modes. The E2E teardown's bare `ps` now names `--profile trigger`, so a trigger-mode run still
+  lists the plane.
+- **E2E (managed).** Its `job_runner` input was a choice defaulting to `trigger`, so a dispatch with
+  nothing chosen would still have run Trigger.dev. It is a string, empty by default: empty runs the
+  persisted `.env`'s value, else `managed.yml`'s default, pg-boss; `trigger` runs the fallback.
+- **The privacy row (#2042)** holds: `bootstrap-managed.sh`'s `app` phase builds `api web worker`
+  in one call from the release's `GIT_SHA`, and `worker_up` force-recreates the worker whenever the
+  api container was replaced; the worker's image takes `GIT_SHA` as the api's does.
+- **Found on the way, and fixed in commits of their own:**
+  - five guards of the merged branches disagreed (each passes alone): the deploy test's running
+    release, the two fixtures that set the switch's default, the worker's exec reviews and the
+    operator-jobs pin;
+  - `operator.sh jobs` read an empty `.env` value as `trigger` (the example leaves it empty), so it
+    refused on the stack the default makes; it now asks `job-runner.sh`
+    (`a-switch-the-operator-read-otherwise`).
+- **Docs** say what runs the jobs: the architecture doc, AGENTS.md, SECURITY.md, the RLS guide, the
+  bring-up, the runbook, the end of the alpha (step 3 also empties pg-boss's job tables), rollback,
+  cutover, testing and the two READMEs. ADR-0054 is in force (its *Pending* rules, in short, are
+  operative; the section is kept in full), and ADR-0004's first rule names pg-boss.
+- **Evidence.**
+  - Every unit file under `scripts/` and `deploy/`: 319 files, 8,016 tests passed, 33 skipped, and
+    `every-release-is-a-starting-point` 13 of 13 once every tag was fetched.
+  - `pnpm typecheck` 0, `pnpm lint` 0.
+  - Broken once each, then restored byte for byte (`cmp`): `required: false` dropped (2 failed),
+    minio out of the profile (2), the worker back in profile `jobs` (4); `operator.sh` without the
+    hand-on (2 of 5); the end of the alpha's `pgboss` lines taken out (3 of 18).
+- **Not proved here:** a real stack in either mode. That is E2E (managed) on this branch, in pg-boss
+  mode and with `job_runner=trigger`.
+- **Next:** E2E (managed) in both modes; then alpha.16's release; then T9 in its own release.
+
 **2026-11-22, later still: the worker on pg-boss, inert until started (T6's second step).** On
 branch `claude/ownpace-pgboss-worker-process`, from the catalog's branch with the runner's gaps
 merged (#2043, #2040). Nothing starts it: no compose service, no script and no workflow changes,
@@ -880,9 +937,9 @@ so CI's Testcontainers run is the one to trust for the version):
 | T5 This runner, merged | builder | ✅ **Merged 2026-11-22**, as #2038 (`98e9bc34`) | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
 | T5a The runner's production gaps | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-pgboss-runner-gaps` | E2–E8 from the coordinator's plan: `PgBossProducer`, status and cancel by id, the child's lines forwarded and never stored, the worker's own time limit and kill on a lost claim, "not retried" by name, a bounded `recentFailures` (the Status entry "later still"). Done when its pull request merges. |
 | T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, merged as #2043 (`2f86401c`); the worker built on `claude/ownpace-pgboss-worker-process`; the API's doors, cancels and readiness on the switch built on `claude/ownpace-pgboss-api-doors`; the operator's commands built on `claude/ownpace-pgboss-operator-jobs` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. The API's step (the Status entry "the API's doors on the switch") reads `OWNPACE_JOB_RUNNER` in `apps/api/src/job-runner.ts`: on `pg-boss` every door enqueues through one producer on `JOBS_DATABASE_URL`, a close cancels by the pg-boss id, and readiness reads the shared beat; on `trigger`, unset or empty, nothing changes and no pg-boss module loads. Its second step, the worker (the Status entry "the worker on pg-boss, inert until started"), built on `claude/ownpace-pgboss-worker-process`: `apps/worker/src/runner/`, the seventeen jobs worked one process per run, the pg-boss half of the run context and of the tick's interlock; nothing starts it yet. The operator's commands, `operator.sh jobs` (overview, failures, show, cancel, run, refused while the hold is open unless `--despite-hold`), built on `claude/ownpace-pgboss-operator-jobs` (the Status entry of 2026-11-22, later still, T6's operator commands). |
-| T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the role and schema, built on `claude/ownpace-public-readiness-y7orc6-jobs-role` and merged (#2041); the worker's image and its service, defined and not started, built on `claude/ownpace-pgboss-worker-image`; the bring-up and the deploy scripts in either runner (default still Trigger.dev), built on `claude/ownpace-pgboss-bringup-deploy`; the smoke and the E2E gate in both modes, built on `claude/ownpace-pgboss-smoke-gate` | A worker service in `managed.yml`, its CPUs and memory from `MAX_PASSES_IN_FLIGHT` by the owner's rule, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. The image (`apps/worker/Dockerfile`, on the API's two images) and the service in profile `jobs`, with the api's `JOBS_DATABASE_URL` and `OWNPACE_JOB_RUNNER`, are built (the Status entry of 2026-11-22, the worker's image). ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. The gate's part (the Status entry of 2026-11-22, the smoke and the gate): `smoke-managed.sh` and `e2e-managed.yml` read `OWNPACE_JOB_RUNNER` as the bring-up does; on `pg-boss` each Trigger.dev section is skipped with one line, and the jobs in `pgboss.job`, the worker, its log and `ownpace_jobs` are checked in their place; a dispatch's `job_runner` input sets one run's mode without persisting it. Trigger mode unchanged. |
-| T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
-| T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |
+| T7 The worker service, and the switch on | builder, owner | 🟡 **Built 2026-11-22**: the role and schema (#2041); the worker's image and service, the bring-up and the deploy, the smoke and the gate on their branches; the switch on, built on `claude/ownpace-pgboss-flip`. Done when that pull request merges and E2E (managed) passes in both modes | A worker service in `managed.yml`, its CPUs and memory from `MAX_PASSES_IN_FLIGHT` by the owner's rule, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. The image (`apps/worker/Dockerfile`, on the API's two images) and the service in profile `jobs`, with the api's `JOBS_DATABASE_URL` and `OWNPACE_JOB_RUNNER`, are built (the Status entry of 2026-11-22, the worker's image). ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. The gate's part (the Status entry of 2026-11-22, the smoke and the gate): `smoke-managed.sh` and `e2e-managed.yml` read `OWNPACE_JOB_RUNNER` as the bring-up does; on `pg-boss` each Trigger.dev section is skipped with one line, and the jobs in `pgboss.job`, the worker, its log and `ownpace_jobs` are checked in their place; a dispatch's `job_runner` input sets one run's mode without persisting it. Trigger mode unchanged. |
+| T8 Trigger.dev's services stopped | builder, owner | 🟡 **Built 2026-11-22**, with the switch on `claude/ownpace-pgboss-flip` | In pg-boss mode the bring-up stops the plane in order, in profile `trigger`, its volumes kept as the way back (`OWNPACE_JOB_RUNNER=trigger`). Stopped on a stack when it is deployed at alpha.16. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: alpha.16 keeps the plane installed and stopped. |
+| T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: not in alpha.16; its pull requests start once the switch's has merged. |
 
 ## 1. Why, and what was asked
 

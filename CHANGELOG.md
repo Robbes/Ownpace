@@ -56,6 +56,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The managed edition's jobs run on pg-boss, on its own Postgres; Trigger.dev is kept installed
+  and stopped as the way back** (workplan 0167 T7; ADR-0054, now in force). `managed.yml` gives
+  `OWNPACE_JOB_RUNNER` the default `pg-boss` for the API and the worker, and the worker starts with
+  every bring-up, built with the API from the release's commit and replaced with it. Trigger.dev's
+  eleven services are in the compose profile `trigger`: the bring-up stops them, keeps their
+  volumes, and starts them again only with `OWNPACE_JOB_RUNNER=trigger` in the stack's `.env`.
+  E2E (managed) runs pg-boss when its `job_runner` input is empty, its default now, and Trigger.dev
+  with `trigger`. No migration; the Trigger.dev, ClickHouse and identity-provider pins are as
+  they were.
 - **The managed edition's jobs call Trigger.dev through a context that names their runner**
   (workplan 0167 T6; ADR-0054). Each job's run takes a context that names the runner it is on, and
   the Trigger.dev calls three of them make (the tick enqueueing a pass, a cutover waiting for one,
