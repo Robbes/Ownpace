@@ -193,6 +193,17 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     expect(violations).toEqual([]);
   });
 
+  it('reaches no file of the managed job runner, its catalog included (ADR-0054)', () => {
+    // The job catalog (workplan 0167 T6) is data and imports nothing, so no
+    // specifier in it is one the check above forbids: reached by a relative
+    // path rather than through `@openmig/scheduler/pg-boss`, it would be in
+    // the appliance's graph unseen.
+    const runner = [...visited]
+      .map((f) => f.slice(ROOT.length + 1))
+      .filter((f) => f.startsWith('packages/scheduler/src/pg-boss/'));
+    expect(runner).toEqual([]);
+  });
+
   // ======================= the schema half (ADR-0036) =======================
   //
   // The checks above prove the appliance loads no managed CODE. They said
