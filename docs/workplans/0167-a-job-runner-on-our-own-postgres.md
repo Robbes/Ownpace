@@ -126,6 +126,66 @@ and retries, nothing runs on pg-boss, and nothing reads a switch. No migration i
 - **Next:** T6's other steps: the worker that runs the jobs on pg-boss, the API's doors and the
   operator's commands.
 
+**2026-11-22, last: the review of #2040, fixed (T5a).** On the same branch, after `main`
+(#2036) was merged in. The coordinator's review found one blocking bug and seven fixes, and
+decided two retry questions:
+
+- **Blocking: the heap verdict read the wrong part of stderr.** V8 writes its
+  `FATAL ERROR: … heap` line as the process dies, after everything the run already wrote. Since
+  E4, that includes the run's own warnings on the same stream. A run that wrote 20 kB first was
+  read as `killed`. `runInChild` now tests every line as it forwards it, and the death is a
+  `RunOutOfMemory`. In the new test, V8's line sits past byte 16,000, the most T5 read. A heap
+  abort can drop the tail of what the run wrote: one loaded run passed the parent 17,875 bytes of
+  the 20,200 written. So the fixture writes about 40 kB.
+- **Decided: settle as Trigger.dev 4.8.8 does.** ADR-0054 §2's table, its *Pending* rules and its
+  new amendment log record it.
+  - `RunTimedOut` is not retried, as Trigger.dev does not retry `MAX_DURATION_EXCEEDED`.
+  - `RunOutOfMemory` is not retried either.
+  - A process killed from outside is retried, as point 2 proved: the passes converge.
+- **The fixes:**
+  - status and cancel by id look at every queue in the schema, so a live run on a queue the
+    asking client does not declare is never read as finished;
+  - the producer's `supervise`, `schedule` and `migrate` are checked in pg-boss's own `instance`
+    rows;
+  - the kill is timed from the job row's `expireInSeconds`, which pg-boss goes by, not from the
+    spec;
+  - once the limit has fired, only a `ChildRunDied` becomes `RunTimedOut`, so an answer the run
+    gave first stands;
+  - `serveRuns` answers only in a process `runInChild` forked, which it marks with an argument;
+  - both clients read the schema's version before pg-boss starts, so a newer schema is refused
+    before pg-boss registers on it or runs a cron pass;
+  - `stop()` closes pg-boss's pool after a `start()` that threw;
+  - T5 is marked merged, the `recentFailures` bound is worded as it is, and the planner settings
+    behind the plan are said.
+- **Found while proving them:**
+  - pg-boss runs a cron pass at most once per `cronMonitorIntervalSeconds`, 30 s by default,
+    claimed across every instance. So the schedule test's control, waiting 20 s, passed or not
+    by where it fell in that window.
+  - A producer that scheduled could not claim a pass within 8 s of the worker's last one, so the
+    earlier `schedule: true` mutation had timed out on the control and proved nothing. pg-boss
+    also does not send a schedule's first occurrence again once it has sent it.
+  - The runner now takes `cronMonitorIntervalSeconds`, and the tests use 1. The test clears
+    `cron_on` and copies in a schedule no pass has sent yet.
+
+**The evidence**, on `scripts/local-pg.sh`'s cluster:
+
+- `job-runner.integration.test.ts`: `Tests 26 passed (26)`, 125.7 s; 6 tests are new.
+- `run-in-child.unit.test.ts`: 18 passed; 3 are new.
+- `pnpm lint` and `pnpm typecheck` passed. `pnpm test`: 22,317 tests passed and 2 failed:
+  - the heap test's 20,000-byte precondition, since loosened (above);
+  - `every-release-is-a-starting-point`, for this checkout's 5 tags.
+- **Mutations**, each restored byte for byte. Each of these failed its test:
+  - `RunTimedOut`, then `RunOutOfMemory`, taken out of the names;
+  - the by-id lookup cut back to the declared queues;
+  - the producer with `supervise` on;
+  - the producer with `schedule` on;
+  - the spec's limit in place of the row's;
+  - the substitution for any error;
+  - the version pre-check removed;
+  - `stop()` skipping pg-boss after a failed start;
+  - the verdict read from the first 16 kB only;
+  - the marker check removed.
+
 **2026-11-22, later still: the runner's production gaps (T5a).** On branch
 `claude/ownpace-pgboss-runner-gaps`, from T5's branch at `6d6e299d`. Only
 `packages/scheduler/src/pg-boss/` and this plan changed; nothing imports the runner yet. The
