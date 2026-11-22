@@ -137,10 +137,11 @@ jobs:
       # the job that holds `packages: write` and `id-token: write` and pushes
       # and signs the published images. Each is now the build its channel
       # named when it was read: binfmt's `latest` is `qemu-v10.2.3` (pushed
-      # 2026-06-08, read 2026-11-01), BuildKit's `buildx-stable-1` is
-      # `v0.34.2` (pushed 2026-11-03, read 2026-11-07; `v0.33.1` from
-      # 2026-11-01 until then), both past the three-day floor
-      # (CONTRIBUTING.md).
+      # 2026-06-08, read 2026-11-01), past the three-day floor
+      # (CONTRIBUTING.md); BuildKit's `buildx-stable-1` is `v0.35.1` (pushed
+      # 2026-11-19, the channel's since 2026-11-20, read 2026-11-22; `v0.34.2`
+      # from 2026-11-07 and `v0.33.1` from 2026-11-01 until then), taken
+      # inside that floor on the owner's waiver of 2026-11-22.
       # Dependabot moves these actions and never an image in their inputs; the
       # pin watch (`scripts/idp-pin-watch.mjs`, a row each) says when the
       # channel names another build, and `a-pin-that-knows-it-is-behind`
@@ -157,7 +158,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         with:
-          driver-opts: image=moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe
+          driver-opts: image=moby/buildkit:v0.35.1@sha256:baf6138eb8c37644800c7c913fba051e840ebb9ba13eaf92d92ef9a1712d0b4c
 
       - name: Log in to ghcr.io
         if: github.event_name != 'pull_request'
