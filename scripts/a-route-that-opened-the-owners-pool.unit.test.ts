@@ -143,7 +143,8 @@ const OFF_THE_REQUEST_PATH: Record<string, { reason: string; pinned?: readonly s
       "`operator.sh jobs`, run at the machine as the jobs role (workplan 0167 T6): JOBS_DATABASE_URL, or " +
       "operator.sh's own URL with that role and JOBS_DB_PASSWORD put in place of the owner and theirs, " +
       'and refused for any other role',
-    pinned: ['reads DATABASE_URL, in jobsConnectionString()', 'reads JOBS_DATABASE_URL, in jobsConnectionString()'],
+    // JOBS_DATABASE_URL is not pinned: it is the jobs role's, NOT_THE_OWNER below.
+    pinned: ['reads DATABASE_URL, in jobsConnectionString()'],
   },
 };
 

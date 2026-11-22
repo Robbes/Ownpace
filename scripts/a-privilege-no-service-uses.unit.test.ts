@@ -575,6 +575,11 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
     printenv: NONE('reads its own environment'),
     '(its command)': NONE('the API as its image starts it (or a command a document breaks over a line)'),
   },
+  // smoke-managed.sh's worker_fit (workplan 0167 T7) asks the job worker, which runs as uid 65532 with every capability dropped.
+  worker: {
+    '/nodejs/bin/node': NONE("the image's node, as uid 65532: its --version, its uid and its own /health on loopback"),
+    $shell: NONE('each shell the check expects not to find, so that it fails to start, which needs no capability'),
+  },
   'trigger-supervisor': { node: NONE('the image\'s node, as node') },
   // images.yml's build (docker-socket-proxy) reads, as uid 99, the uids and groups of the proxy's own processes (workplan 0119, 2026-11-20).
   'trigger-docker-proxy': {

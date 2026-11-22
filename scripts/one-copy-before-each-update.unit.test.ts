@@ -1939,7 +1939,9 @@ describe('--trigger while the jobs run on pg-boss (workplan 0167 T7)', () => {
       `\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${runner}}\n`,
     );
     expect(switched).not.toBe(text);
-    writeFileSync(yml, switched);
+    // The repository's managed.yml carries the switch itself (the api's and
+    // the worker's), so every default it gives is the case's runner too.
+    writeFileSync(yml, switched.replace(/\$\{OWNPACE_JOB_RUNNER:-[^}]*\}/g, `\${OWNPACE_JOB_RUNNER:-${runner}}`));
     return s;
   };
 

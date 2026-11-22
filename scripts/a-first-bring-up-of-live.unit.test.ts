@@ -2205,7 +2205,9 @@ describe('a first bring-up of live in either runner (workplan 0167 T7)', () => {
       `\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${runner}}\n`,
     );
     if (out === text) throw new Error('managed.yml has no services: line this fixture knows');
-    return out;
+    // The repository's managed.yml carries the switch itself (the api's and
+    // the worker's), so every default it gives is the case's runner too.
+    return out.replace(/\$\{OWNPACE_JOB_RUNNER:-[^}]*\}/g, `\${OWNPACE_JOB_RUNNER:-${runner}}`);
   };
 
   it(

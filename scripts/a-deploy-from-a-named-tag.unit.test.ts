@@ -816,6 +816,27 @@ interface StageOptions {
   runningFiles?: Record<string, string>;
 }
 
+/**
+ * managed.yml as a release from before the switch has it (alpha.14, alpha.15):
+ * the repository's own file with the job worker's service and every line of
+ * the switch and the jobs' URL taken out. The running release of every case
+ * is that release, and a case that means a release with the switch says so
+ * with `withWorker` (workplan 0167 T7). Without this the fixture's worker and
+ * the file's own would give the switch two defaults.
+ */
+function beforeTheSwitch(yml: string): string {
+  const lines = yml.split('\n');
+  const at = lines.indexOf('  worker:');
+  if (at >= 0) {
+    let start = at;
+    while (start > 0 && lines[start - 1].startsWith('  #')) start--;
+    let end = at + 1;
+    while (end < lines.length && !/^ {2}\S/.test(lines[end]) && !/^\S/.test(lines[end])) end++;
+    lines.splice(start, end - start);
+  }
+  return lines.filter((l) => !/^\s*(OWNPACE_JOB_RUNNER|JOBS_DATABASE_URL):/.test(l)).join('\n');
+}
+
 function stage(opts: StageOptions = {}): Stage {
   const root = tempDir('deploy-live-');
   const origin = join(root, 'origin.git');
@@ -842,7 +863,7 @@ function stage(opts: StageOptions = {}): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
-  copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(compose, 'managed.yml'));
+  writeFileSync(join(compose, 'managed.yml'), beforeTheSwitch(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8')));
   if (opts.runningGhcrTrigger) writeFileSync(join(compose, 'managed.yml'), ghcrTrigger(readFileSync(join(compose, 'managed.yml'), 'utf8')));
   if (opts.runningYml) writeFileSync(join(compose, 'managed.yml'), opts.runningYml(readFileSync(join(compose, 'managed.yml'), 'utf8')));
   for (const [rel, body] of Object.entries(opts.runningFiles ?? {})) {
@@ -881,7 +902,8 @@ function stage(opts: StageOptions = {}): Stage {
     writeFileSync(join(work, 'package.json'), r.packageText ? r.packageText(version) : packageJson(version, r.engines));
     if (r.ledger) writeFileSync(join(work, 'packages', 'ledger', 'migrations', r.ledger), 'SELECT 2;\n');
     if (r.managed) writeFileSync(join(work, 'packages', 'managed', 'migrations', r.managed), 'SELECT 2;\n');
-    let yml = readFileSync(join(r.builtTrigger ? COMPOSE_DIR : compose, 'managed.yml'), 'utf8');
+    let yml = readFileSync(join(compose, 'managed.yml'), 'utf8');
+    if (r.builtTrigger) yml = beforeTheSwitch(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8'));
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
     if (r.clickhouse) yml = movePin(yml, 'clickhouse', r.clickhouse);
