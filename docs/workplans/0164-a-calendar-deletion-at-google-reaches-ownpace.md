@@ -2,9 +2,39 @@
 
 > **In one line:** An event deleted in a Google calendar during a migration reaches *Deleted on the old system* as a reported removal, so its copy can be removed through the gated path: by hand, as today; in bulk, with one confirmation; and by itself only if the owner changes the rule that forbids it.
 
-## Status — 2026-11-21 (update this block at the end of every session)
+## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-21, latest: T2 is built, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader`, as
+**2026-11-22, latest: a deletion the owner kept is never applied, fixed on its own; T3 is held
+for alpha.15.** Found in the review of T3 (*Delete all of these here too*, on
+`claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`): a keep pressed in another tab during
+a run was removed when the run reached it. It held for a single press too, since neither
+`applyDeletion` nor the ledger's conditional UPDATE read `deletion_acknowledged_at`, where a move
+already had `already_kept`. So it was fixed on its own, on
+`claude/ownpace-public-readiness-y7orc6-deletion-kept`, ahead of T3:
+- **Core:** `applyDeletion` and `evaluateApplyDeletion` refuse `already_kept` at the same point,
+  after `already_applied` and the phase, before anything is sent to the target. The managed job
+  asks again at the removal, so a keep made while the removal waited in the queue wins.
+- **What it cannot stop:** a keep that lands while a removal is already under way. The copy is
+  removed before the row is recorded, so the ledger records the removal as what it was
+  (tombstoned and applied), and keeps the keep's own time.
+- **The refusal after cutover** no longer says a rollback re-opens a kept entry: a kept one stays
+  kept, and a rollback admits again only what nobody answered.
+- **Tests:** core over `MemoryLedger` (keep then press, the managed order, the race, a removed
+  row, `after_cutover` first; the case of an item that came back calls `clearAbsent` directly);
+  the ledger's half on PGlite as `app_user`, and on Postgres as the superuser CI's integration job
+  uses; the managed route over HTTP; the appliance's `applyMappingDeletion`; the worker job's
+  half pinned by its source shape, since it cannot be run in a test.
+- **Records:** ADR-0024 (*Amendment, 2026-11-22*), the arch doc §11.1, the operator runbook, the
+  CHANGELOG.
+- **Follow-up, alpha.15:** a keep given in the earlier-exports queue is not cleared by
+  `clearEarlierExport` when the format is switched back, so a later deletion of that item arrives
+  already kept, filed as decided and never offered. Clear it there, or keep it so: not changed
+  here.
+- **T3** is held out of alpha.14, and its review's other findings are fixed on its own branch for
+  alpha.15.
+- **Next:** this fix's E2E (managed), then T3 again.
+
+**2026-11-21: T2 is built, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader`, as
 §3.1 A, reviewed twice and fixed, and not yet on the test environment.** The CalDAV source reads a
 `sync-collection` answer whose members carry no calendar data as a list of members to read, keyed
 on what the server answers and not on its host (`packages/connectors/src/caldav-source.ts`):

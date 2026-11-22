@@ -65,7 +65,12 @@
  * So each of the four functions asks the data type's phase, fresh, through
  * the question its caller hands in (`stillTheAuthority`), and refuses with
  * `after_cutover`. A rollback makes the old system decide again (ADR-0047),
- * and the same press is admitted again.
+ * and the same press is admitted again, for an entry nobody has answered: a
+ * kept one stays kept.
+ *
+ * AND NEVER AFTER A KEEP (2026-11-22), right behind the cutover check, in
+ * both deletion functions. `keep` and `apply` are the two answers to one
+ * question, and no press made after a keep removes the copy: see `keptCheck`.
  *
  * ORDER MATTERS: remove first, record second. A failure between them leaves the
  * row claiming the item is on the target when it is not, which §20 verification
@@ -200,7 +205,8 @@ export type ApplyRefusal =
    */
   | 'mass_relocation_suspected'
   /**
-   * The owner already saw this move and chose `keep` (ADR-0030).
+   * The owner already saw this move and chose `keep` (ADR-0030), or this
+   * deletion, and chose `keep` (2026-11-22).
    *
    * Distinct from `already_applied`, which means the copy is gone. This one
    * means it is still there, on purpose.
@@ -277,8 +283,8 @@ async function afterCutoverCheck(
       `This data type is past its cutover, so the old system no longer decides what exists, and ` +
       `nothing is removed from the new system on its account. This ${what} was recorded before the ` +
       'cutover, or by a pass that was still running when it was executed. Nothing was removed: the ' +
-      'copy stays. Choose `keep` to clear it from the queue; a rollback of the cutover makes the old ' +
-      'system decide again.',
+      'copy stays. Choose `keep` to clear it from the queue; a kept entry stays kept, and a rollback ' +
+      'of the cutover admits this press again only while nobody has answered it.',
   };
 }
 
@@ -340,6 +346,10 @@ export async function evaluateApplyDeletion(
   // NOTHING AFTER CUTOVER: the data type's phase, asked now.
   const cutOver = await afterCutoverCheck(deps, 'deletion');
   if (cutOver) return cutOver;
+
+  // NEVER AFTER A KEEP: the owner already answered this one.
+  const kept = keptCheck(row);
+  if (kept) return kept;
 
   // GATE 3: positive evidence only.
   const evidence =
@@ -429,6 +439,12 @@ export async function applyDeletion(
   // something to decide about, and before anything is read from the target.
   const cutOver = await afterCutoverCheck(deps, 'deletion');
   if (cutOver) return cutOver;
+
+  // NEVER AFTER A KEEP, at the same point as in `evaluateApplyDeletion`, and
+  // asked again here because the managed job runs this after the route's
+  // answer: a keep recorded while the removal waited in the queue wins.
+  const kept = keptCheck(row);
+  if (kept) return kept;
 
   // GATE 3: positive evidence only. The whole safety argument in one condition.
   const evidence =
@@ -771,6 +787,55 @@ function notEnabled(): Extract<ApplyDeletionOutcome, { ok: false }> {
       'Removing items from the target is switched off for this mapping. Set ' +
       '`allowApplyDeletions: true` in its config to enable it, and read the runbook first — ' +
       'this is the only operation here that destroys anything.',
+  };
+}
+
+/**
+ * A deletion the owner answered with `keep` is never applied (2026-11-22).
+ *
+ * `keep` and `apply` are the two answers to one question, and no press made
+ * after a keep removes the copy, as `relocationCheck` holds for a move. Until
+ * this, nothing on the deletion path read the answer: `applyDeletion` removed
+ * a kept row's copy and the ledger's write closed it again as applied, so the
+ * row said *deleted on the new system too* and nothing kept the keep. The page
+ * offers no button on a kept row, so what reached it was a page read before
+ * the keep (another tab, another person), a call to the API, and on managed a
+ * removal that waited in the queue while somebody kept it. The review of
+ * workplan 0164 T3's *Delete all of these here too* found it: a keep pressed
+ * in another tab during a run was removed when the run reached it.
+ *
+ * WHERE IT IS ASKED, and why there. After `already_applied`, because a
+ * removal's own write sets `deletion_acknowledged_at` beside
+ * `deletion_applied_at` (it closes the entry, ledger.ts `applyDeletion`), so a
+ * second press on a removed row must still say it is removed. After the
+ * cutover check, as `already_kept` comes after it for a move. Before the
+ * evidence gate and the removal: nothing is sent to the target for a row
+ * somebody kept.
+ *
+ * WHAT IT CANNOT STOP: a keep that lands while a removal is already under
+ * way. The copy is removed before the row is recorded, so the keep is too
+ * late for it, and the removal is recorded as what it was (ledger.ts
+ * `applyDeletion`: tombstoned and applied, with the keep's time kept).
+ *
+ * NOT FOREVER, for the rows `clearAbsent` clears. It clears the
+ * acknowledgement when an item with a recorded absence or deletion is seen
+ * on the source again, so such an item that comes back and is deleted again
+ * is a new question, asked afresh. Known and older than this: a keep given to
+ * an earlier export (0042 T8 (b)) is not cleared by `clearEarlierExport`, so
+ * a later deletion of that item arrives already kept; that queue already
+ * files it as decided and never offers it (workplan 0164 has the follow-up).
+ */
+function keptCheck(row: {
+  readonly deletionAcknowledgedAt?: string;
+}): Extract<ApplyDeletionOutcome, { ok: false }> | undefined {
+  if (row.deletionAcknowledgedAt === undefined) return undefined;
+  return {
+    ok: false,
+    code: 'already_kept',
+    reason:
+      "Somebody already looked at this deletion and chose to keep the target's copy, so it will " +
+      'not be removed now. If that was the wrong call, delete it in the target system yourself — ' +
+      'this decision is not re-opened here.',
   };
 }
 

@@ -2013,7 +2013,15 @@ export class PgLedger implements Ledger {
         // Closes the queue entry too: the decision has been made AND carried out,
         // and an entry that stayed open would invite a second removal of
         // something already gone.
-        deletionAcknowledgedAt: sql`now()`,
+        //
+        // An entry already closed by a keep keeps its time (2026-11-22). Core
+        // refuses a press on a kept row before anything is sent to the target
+        // (`already_kept`), so a keep found here is one that landed while this
+        // removal was already under way. It could not stop the removal: the
+        // copy is removed before this row is written. So the row says what
+        // happened, removed (`tombstoned`, applied), and the keep's own time
+        // stays as it was written.
+        deletionAcknowledgedAt: sql`COALESCE(${schemaPg.item.deletionAcknowledgedAt}, now())`,
         updatedAt: sql`now()`,
       })
       .where(

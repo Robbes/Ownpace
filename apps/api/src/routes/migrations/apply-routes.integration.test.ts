@@ -73,6 +73,7 @@ const HASH_UNCONFIRMED = 'b'.repeat(64); // no evidence → not_confirmed
 const HASH_ADOPTED = 'c'.repeat(64); // adopted bytes → not_ours
 const HASH_NONE = 'd'.repeat(64); // no such item
 const HASH_QUEUEFAIL = 'e'.repeat(64); // permitted, but the enqueue dies
+const HASH_KEPT = 'f'.repeat(64); // reported deletion the owner answered with keep → already_kept
 
 function token(tenantId: string): string {
   return jwt.sign(
@@ -129,6 +130,7 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
     await seedItem(HASH_UNCONFIRMED, {});
     await seedItem(HASH_ADOPTED, { status: 'adopted', reported: true });
     await seedItem(HASH_QUEUEFAIL, { reported: true });
+    await seedItem(HASH_KEPT, { reported: true });
   });
 
   afterAll(async () => {
@@ -186,6 +188,35 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
       expect(res.status).toBe(403);
       expect(res.body.error).toBe('not_ours');
       expect(res.body.reason).toMatch(/before this migration ran/i);
+    });
+
+    it('403s a deletion the owner already answered with keep — that answer holds, and nothing is queued', async () => {
+      // `keep` and `apply` answer one question (2026-11-22). Through the
+      // route's own keep, as the page presses it.
+      const kept = await request
+        .post(`/api/migrations/${MAPPING}/deletions/${HASH_KEPT}/keep`)
+        .set(auth);
+      expect(kept.status).toBe(200);
+      expect(kept.body.action).toBe('keep');
+
+      const res = await request
+        .post(`/api/migrations/${MAPPING}/deletions/${HASH_KEPT}/apply`)
+        .set(auth);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('already_kept');
+      expect(res.body.reason).toMatch(/chose to keep the target's copy/i);
+
+      // Refused on the request: no receipt, no job, and no order recorded.
+      const receipt = await request
+        .get(`/api/migrations/${MAPPING}/deletions/${HASH_KEPT}/receipt`)
+        .set(auth);
+      expect(receipt.body).toEqual({ state: 'none' });
+      const ordered = await pool.query(
+        `SELECT 1 FROM audit_log
+          WHERE tenant_id = $1 AND action = 'apply_deletion.ordered' AND detail ->> 'naturalKeyHash' = $2`,
+        [TENANT, HASH_KEPT],
+      );
+      expect(ordered.rows).toHaveLength(0);
     });
 
     it('an open receipt is JOINED — 200, queued: false, before any evaluation', async () => {
