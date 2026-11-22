@@ -77,10 +77,14 @@ import {
   type QueueOverview,
   type RunStatus,
 } from '@openmig/scheduler/pg-boss';
+import { JOBS_SCHEMA, jobRunner } from '../job-runner.ts';
+
+// One parser of the switch and one name for pg-boss's schema in apps/api: the
+// API's (job-runner.ts), re-exported for this module's callers.
+export { JOBS_SCHEMA };
 
 /** The role that owns pg-boss's schema, and the schema (deploy/compose/jobs-role.sql). */
 export const JOBS_ROLE = 'ownpace_jobs';
-export const JOBS_SCHEMA = 'pgboss';
 
 /** How many failures `jobs failures` lists when not told; and the most it will. */
 export const DEFAULT_FAILURES = 20;
@@ -118,18 +122,20 @@ export interface JobsReport {
 const refused = (sentence: string): JobsReport => ({ lines: [sentence], exitCode: 1 });
 
 /**
- * Which runner the jobs run on (alpha.16's switch): `OWNPACE_JOB_RUNNER`, unset
- * or empty meaning `trigger`, and any other value refused in one sentence.
+ * Which runner the jobs run on (alpha.16's switch), read by the API's own
+ * parser, `jobRunner()` in job-runner.ts: `OWNPACE_JOB_RUNNER`, trimmed, unset
+ * or empty meaning `trigger`, and any other value refused in its one sentence.
+ * `operator.sh` hands this the answer `job-runner.sh` gives, as Compose hands
+ * the containers theirs.
  */
 export function jobRunnerOf(env: Readonly<Record<string, string | undefined>>):
   | { readonly runner: 'trigger' | 'pg-boss' }
   | { readonly error: string } {
-  const value = env.OWNPACE_JOB_RUNNER;
-  if (value === undefined || value === '' || value === 'trigger') return { runner: 'trigger' };
-  if (value === 'pg-boss') return { runner: 'pg-boss' };
-  return {
-    error: `OWNPACE_JOB_RUNNER is "${value}", and the jobs run on trigger or pg-boss only (unset or empty means trigger).`,
-  };
+  try {
+    return { runner: jobRunner(env) };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
 }
 
 /** The one sentence every `jobs` command says in trigger mode. */

@@ -89,9 +89,12 @@ describe('the switch', () => {
 
   it('refuses any other value in one sentence', () => {
     const r = jobRunnerOf({ OWNPACE_JOB_RUNNER: 'pgboss' });
+    // The API's own sentence (job-runner.ts's jobRunner), the one parser of the switch.
     expect('error' in r && r.error).toBe(
-      'OWNPACE_JOB_RUNNER is "pgboss", and the jobs run on trigger or pg-boss only (unset or empty means trigger).',
+      'OWNPACE_JOB_RUNNER is "pgboss", and it may only be "trigger" or "pg-boss" (unset or empty means "trigger").',
     );
+    // Trimmed as the API trims it.
+    expect(jobRunnerOf({ OWNPACE_JOB_RUNNER: ' pg-boss ' })).toEqual({ runner: 'pg-boss' });
   });
 
   it.each([[[]], [['failures']], [['show', RUN]], [['cancel', RUN]], [['run', 'run-rollback', '{}']], [['nonsense']]])(
@@ -459,7 +462,8 @@ describe('what it loads', () => {
   it('imports no job module, and pg-boss only through the runner', () => {
     const source = readFileSync(join(HERE, 'operator-jobs.ts'), 'utf8');
     const imports = [...source.matchAll(/^import[^;]*? from '([^']+)';$/gms)].map((m) => m[1]);
-    expect(imports.sort()).toEqual(['@openmig/managed', '@openmig/scheduler/pg-boss', 'drizzle-orm/node-postgres', 'pg']);
+    // ../job-runner.ts: the API's one parser of the switch and its JOBS_SCHEMA, which loads no pg-boss.
+    expect(imports.sort()).toEqual(['../job-runner.ts', '@openmig/managed', '@openmig/scheduler/pg-boss', 'drizzle-orm/node-postgres', 'pg']);
   });
 
   it('operator.ts loads it only for `jobs`', () => {
@@ -467,5 +471,9 @@ describe('what it loads', () => {
     expect(operator).not.toMatch(/^import[^;]*from '\.\/operator-jobs\.ts';$/m);
     expect(operator).not.toMatch(/^import[^;]*from '@openmig\/scheduler\/pg-boss';$/m);
     expect(operator).toContain("await import('./operator-jobs.ts')");
+    // And the close's cancel loads it on pg-boss only, dynamically (operator-close.ts).
+    const close = readFileSync(join(HERE, 'operator-close.ts'), 'utf8');
+    expect(close).not.toMatch(/^import[^;]*from '\.\/operator-jobs\.ts';$/m);
+    expect(close).toContain("await import('./operator-jobs.ts')");
   });
 });
