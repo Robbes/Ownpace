@@ -138,3 +138,6 @@ export * from './calendar-scheduling.ts';
 
 // The forms an address takes, and the domains nobody can take along (workplan 0168 T1).
 export * from './address-forms.ts';
+
+// The table of address changes, as both editions serve it (workplan 0168 T2).
+export * from './address-change-table.ts';
