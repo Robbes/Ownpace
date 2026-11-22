@@ -40,9 +40,11 @@
  *      and a setting the role leaves on itself, which an ordinary role may,
  *      is gone after the statements the bring-up sets its password with;
  *   2. each job's statements run as it: the tick's `run` (held, and then
- *      free), retention's and the purge's, on the pools the jobs build from
- *      `SYSTEM_DATABASE_URL`, each doing what it did on the owner's, and the
- *      list, the audit key and the operator's log page;
+ *      free, and held again while the pg-boss runner's tick beats, workplan
+ *      0167 T6, whose beats need no grant of their own), retention's and the
+ *      purge's, on the pools the jobs build from `SYSTEM_DATABASE_URL`, each
+ *      doing what it did on the owner's, and the list, the audit key and the
+ *      operator's log page;
  *   3. it is refused what it was not given: creating a role or a database,
  *      `SET ROLE` to the owner, letting another role take its rights, the
  *      server's files and programs, a column or a table it was not granted, a
@@ -322,6 +324,8 @@ const ENV = ['SYSTEM_DATABASE_URL', 'APP_DATABASE_URL', 'MAX_PASSES_IN_FLIGHT', 
 async function forgetThisFilesRows(): Promise<void> {
   const mine = [A, B, C];
   await owner.execute(sql`DELETE FROM platform_pause WHERE id = ${`${P}ff`}`);
+  // The pg-boss runner's beat this file writes, which would hold every tick here for 90 s.
+  await owner.execute(sql`DELETE FROM sync_tick_beat WHERE task = 'managed-sync-tick-pg-boss'`);
   await owner.execute(sql`DELETE FROM invoice WHERE id IN (${A_INVOICE}, ${C_INVOICE}) OR tenant_id IN (${A}, ${B}, ${C})`);
   await owner.execute(sql`DELETE FROM erasure_record WHERE tenant_ref = ${tenantRef(C)}`);
   await owner.execute(sql`DELETE FROM app_event WHERE id = ${A_OLD_EVENT} OR reference IN ('0138f0e1', '0138f0e2', '0138f0e3')`);
@@ -700,12 +704,15 @@ describe('the sync tick runs as the system role', () => {
       ON CONFLICT (id) DO UPDATE SET status = 'running', started_at = now()`);
   });
 
-  const theBeat = async (): Promise<Date | undefined> => {
+  /** A tick's beat: the shared one the status page reads, or a runner's own (workplan 0167 T6). */
+  const theBeat = async (task = 'managed-sync-tick'): Promise<Date | undefined> => {
     const [beat] = await ownerRows<{ at: string | Date }>(
-      sql`SELECT beat_at AS at FROM sync_tick_beat WHERE task = 'managed-sync-tick'`,
+      sql`SELECT beat_at AS at FROM sync_tick_beat WHERE task = ${task}`,
     );
     return beat ? new Date(beat.at) : undefined;
   };
+  const ON_TRIGGER = 'managed-sync-tick-trigger';
+  const ON_PG_BOSS = 'managed-sync-tick-pg-boss';
 
   it('under a hold: starts nothing, counts what is in flight, and beats', async () => {
     const hold = `${P}ff`;
@@ -718,6 +725,8 @@ describe('the sync tick runs as the system role', () => {
       expect(summary.stillRunning).toBeGreaterThanOrEqual(1);
       expect(stand.triggered).toEqual([]);
       expect((await theBeat())!.getTime()).toBeGreaterThanOrEqual(before - 1_000);
+      // And as its runner, Trigger.dev, at the same time (workplan 0167 T6).
+      expect((await theBeat(ON_TRIGGER))?.getTime()).toBe((await theBeat())!.getTime());
     } finally {
       await owner.execute(sql`UPDATE platform_pause SET ended_at = now(), ended_by = 'system:probe' WHERE id = ${hold}`);
     }
@@ -733,6 +742,38 @@ describe('the sync tick runs as the system role', () => {
     expect(mine).toEqual([{ tenantId: A, mappingId: A_MAPPING, domains: ['email'] }]);
     expect(summary.skippedRunning).toBeGreaterThanOrEqual(1);
     expect((await theBeat())!.getTime()).toBeGreaterThanOrEqual(before - 1_000);
+    expect((await theBeat(ON_TRIGGER))?.getTime()).toBe((await theBeat())!.getTime());
+  });
+
+  it('holds while the pg-boss runner’s tick beats: starts nothing, beats as Trigger.dev alone, and starts again once it stops', async () => {
+    // Two runners at once (workplan 0167 T6). The other runner's tick beats as
+    // the same role, under the same grant, as this one does.
+    await system.query(
+      `INSERT INTO sync_tick_beat (task, beat_at) VALUES ($1, now())
+       ON CONFLICT (task) DO UPDATE SET beat_at = EXCLUDED.beat_at`,
+      [ON_PG_BOSS],
+    );
+    const shared = (await theBeat())!.getTime();
+    const before = Date.now();
+    try {
+      stand.triggered.splice(0);
+      const held = await tickRun({}, {});
+      expect(held).toMatchObject({ anotherRunner: 'pg-boss', triggered: 0 });
+      expect(held.heldSince).toBeUndefined();
+      expect(stand.triggered).toEqual([]);
+      expect((await theBeat(ON_TRIGGER))!.getTime()).toBeGreaterThanOrEqual(before - 1_000);
+      // The shared beat is left as it was: two runners left running read as a stopped tick.
+      expect((await theBeat())!.getTime()).toBe(shared);
+    } finally {
+      await owner.execute(sql`DELETE FROM sync_tick_beat WHERE task = ${ON_PG_BOSS}`);
+    }
+    stand.triggered.splice(0);
+    const free = await tickRun({}, {});
+    expect(free.anotherRunner).toBeUndefined();
+    expect(stand.triggered.filter((t) => [A, B, C].includes(t.tenantId))).toEqual([
+      { tenantId: A, mappingId: A_MAPPING, domains: ['email'] },
+    ]);
+    expect((await theBeat())!.getTime()).toBeGreaterThan(shared);
   });
 });
 

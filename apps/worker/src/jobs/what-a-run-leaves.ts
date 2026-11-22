@@ -90,8 +90,25 @@ function messageOf(error: unknown): string {
   }
 }
 
-/** A task's own verdict: an `AbortTaskRunError` it threw on purpose. */
-const isVerdict = (error: unknown): boolean => error instanceof Error && error.name === 'AbortTaskRunError';
+/**
+ * THE ERRORS THAT FAIL THEIR RUN ONCE, BY NAME (ADR-0054; workplan 0167 T6).
+ *
+ * A run that throws one of these is not tried again, whatever attempts it had
+ * left: `AbortTaskRunError`, Trigger.dev's, which a task throws for a verdict
+ * and {@link planeErrorFor} makes for a deliberate stop, and `RunNotRetried`,
+ * the pg-boss runner's own. By the NAME, not the class, because a runner that
+ * works a run in a process of its own (`runInChild`) hears of its error as
+ * the name and the message the process sent, never the object.
+ */
+export const FAILS_ONCE_NAMES: readonly string[] = Object.freeze(['AbortTaskRunError', 'RunNotRetried']);
+
+/** Whether a run whose error carries this name fails once: see {@link FAILS_ONCE_NAMES}. */
+export function failsOnceByName(name: string): boolean {
+  return FAILS_ONCE_NAMES.includes(name);
+}
+
+/** A task's own verdict: an error it threw on purpose to fail its run once. */
+const isVerdict = (error: unknown): boolean => error instanceof Error && failsOnceByName(error.name);
 
 /**
  * A refusal from Trigger.dev's own API that its executor would not retry: a 4xx
@@ -245,7 +262,9 @@ export type Afterwards = (end: () => Promise<void>) => void;
  *
  * Every task under `src/jobs` is defined with one (the guard
  * `a-run-that-kept-a-testers-words` reads them all), so a task added later
- * cannot let a tester's words out by forgetting.
+ * cannot let a tester's words out by forgetting. Each task file exports it as
+ * its run on either runner (workplan 0167 T6), which Trigger.dev's definition
+ * calls with the context `run-context.ts` makes.
  *
  * **WHAT A RUN OPENED IS ENDED AFTER ITS FAILURE IS RECORDED.** The run gets a
  * third argument, {@link Afterwards}, and what it hands over there is ended
