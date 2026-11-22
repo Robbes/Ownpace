@@ -4,42 +4,66 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The words outside the app for a new address, drafted for the owner's check** (workplan 0168
+  T9; ADR-0055). The privacy policy's §4.6 names the addresses that change and §9 says how long they
+  are kept, in both languages; its version and date are unchanged, for the owner to decide. The
+  Google and Microsoft guides say what *Start a migration* will do with an address that cannot come
+  along, and Finish step 4 says to turn on an automatic reply at the old provider. Nothing changes
+  an address yet (0168 T1 to T8).
+
+## [0.2.0-alpha.16] - 2026-11-22
+
+The managed edition's background jobs now run on pg-boss, on the stack's own Postgres, in one
+worker container, `ownpace-worker`, in place of Trigger.dev's eleven services. Those stay installed
+and stopped, their volumes kept: `OWNPACE_JOB_RUNNER=trigger` in a stack's `.env` and the bring-up
+bring them back. The jobs connect as a role of their own, `ownpace_jobs`, which owns the schema
+`pgboss` and nothing else; `operator.sh jobs` shows and handles them, and the managed gate runs in
+either runner. The privacy policy's *Server logs* row says the background tasks' logs go at each
+update of the service, and the policy stays version 1.0. On Moves, a move whose old copy was
+deleted is decided, and a keep in the earlier-exports queue ends when the format is switched back.
+An image built on a stack no longer carries the pooler's user list, and the bring-up and its gate
+wait about a minute, not 14 seconds, for a read of the identity provider that got no answer. In
+CI, a Semgrep rule now fails a pull request, and a second Security Scan on a release tag no longer
+replaces the release's SBOM. Live's deploy from alpha.14 is reversible: no migration moves, and
+neither do the Trigger.dev, identity-provider and ClickHouse pins.
+
 ### Added
 
-- **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
-  (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
-- **The jobs' own database role and schema, made by the managed bring-up; nothing connects as it
-  yet** (workplan 0167 T7, its first part; ADR-0054). `ownpace_jobs` owns the schema `pgboss` and
+- **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly** (workplan 0167 T5;
+  ADR-0054). The API's image carries it; the appliance cannot load it.
+- **The jobs' own database role and schema, made by the managed bring-up** (workplan 0167 T7, its
+  first part; ADR-0054). `ownpace_jobs` owns the schema `pgboss` and
   nothing else, is no superuser, has no `BYPASSRLS`, belongs to no role and may read no table of the
   ledger. The data phase makes both from `jobs-role.sql`, not a migration, refuses a role that is
   otherwise, sets `.env`'s new `JOBS_DB_PASSWORD` on it (filled in when missing) and proves it over the
   network and through the pooler. `rotate-db-passwords.sh --check` asks it and `--sync` sets it.
-- **The managed edition's worker for its jobs on pg-boss, which nothing starts yet** (workplan 0167
-  T6; ADR-0054). `apps/worker/src/runner/main.ts` works the seventeen jobs, each run in a process of
-  its own, with Trigger.dev's retries, time limit and memory, and refuses to start unless
+- **The managed edition's worker for its jobs on pg-boss** (workplan 0167 T6; ADR-0054).
+  `apps/worker/src/runner/main.ts` works the seventeen jobs, each run in a process of its own,
+  with Trigger.dev's retries, time limit and memory, and refuses to start unless
   `OWNPACE_JOB_RUNNER=pg-boss` and `JOBS_DATABASE_URL` are set; a cutover there has three hours,
   as its waits for passes never counted on Trigger.dev. The sync tick on pg-boss also holds
   while the shared beat is under 90 seconds old and differs from its own, which is how a
   Trigger.dev tick from an earlier release, writing the shared beat alone, shows it still runs. The worker's
-  package now declares `pg` and `drizzle-orm`, which its jobs import. No migration, no compose
-  change.
+  package now declares `pg` and `drizzle-orm`, which its jobs import. No migration.
 - **`operator.sh jobs`, the operator's view of the jobs and their hand on them when they run on
   pg-boss** (workplan 0167 T6; ADR-0054), in place of Trigger.dev's Runs page and Test runs: per
   queue the runs queued, active and failed; the newest failures with their errors' names and
   messages; one run shown or cancelled by its id; and a run queued by hand, `run-rollback` or a
   schedule's run now, refused while the operator's hold is open unless `--despite-hold`. As the
-  jobs role, never the owner. On Trigger.dev, still the default, each says so and exits 1.
-- **The job worker's image, `ownpace-worker`, and its service in `managed.yml`, defined and not
-  started** (workplan 0167 T7; ADR-0054). Built on the API's two images, distroless, as uid 65532,
+  jobs role, never the owner. On Trigger.dev, with `OWNPACE_JOB_RUNNER=trigger`, each says so
+  and exits 1.
+- **The job worker's image, `ownpace-worker`, and its service in `managed.yml`** (workplan 0167 T7;
+  ADR-0054). Built on the API's two images, distroless, as uid 65532,
   with no shell; published, signed, scanned and verified with each release from 0.2.0-alpha.16 on.
-  The service is in profile `jobs`, so no command starts it, and Trigger.dev still runs every job.
   It gets the variables the tasks are uploaded today, never the database owner's URL, and the jobs'
-  role URL; the api gets that URL and `OWNPACE_JOB_RUNNER` (`trigger` unless set). Its CPUs and
+  role URL; the api gets that URL and `OWNPACE_JOB_RUNNER` (`pg-boss` unless set). Its CPUs and
   memory follow `MAX_PASSES_IN_FLIGHT` (`WORKER_CPUS`, `WORKER_MEMORY`; `managed.env.example` has
   the rule). Six keys of `managed.env.example` that the worker reads now keep their notes on a line
   of their own, since Compose reads `KEY=  # note` as the note.
-- **The managed bring-up and the deploy scripts in either runner; the default is still Trigger.dev**
-  (workplan 0167 T7; ADR-0054). `OWNPACE_JOB_RUNNER` (`trigger` or `pg-boss`) is read by one reader,
+- **The managed bring-up and the deploy scripts in either runner** (workplan 0167 T7; ADR-0054).
+  `OWNPACE_JOB_RUNNER` (`trigger` or `pg-boss`) is read by one reader,
   `deploy/compose/job-runner.sh`, as Compose hands it to the containers; any other value is refused
   in one sentence. In pg-boss mode the bring-up stops the Trigger.dev plane in order (the supervisor,
   then its runners gone, then the rest; stopped, never removed, its volumes kept), skips the account,
@@ -53,19 +77,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   line that would hand the worker a comment as a value is refused, named. A tag without the
   Trigger.dev plane is refused onto a stack still on it.
 - **The managed gate runs in either job runner** (workplan 0167 T7; ADR-0054). E2E (managed) and
-  its smoke read `OWNPACE_JOB_RUNNER` as the bring-up does, and a dispatch can pick `pg-boss` for
-  one run. On pg-boss the Trigger.dev checks are skipped, each with a line that says so. In their
+  its smoke read `OWNPACE_JOB_RUNNER` as the bring-up does, and a dispatch can pick either for one
+  run. On pg-boss the Trigger.dev checks are skipped, each with a line that says so. In their
   place the run fails unless every job it saw completed in pg-boss and no Trigger.dev runner
   started. The worker's log is redacted into the evidence. Trigger.dev runs are checked as before.
 
 ### Changed
 
-- **The words outside the app for a new address, drafted for the owner's check** (workplan 0168
-  T9; ADR-0055). The privacy policy's §4.6 names the addresses that change and §9 says how long they
-  are kept, in both languages; its version and date are unchanged, for the owner to decide. The
-  Google and Microsoft guides say what *Start a migration* will do with an address that cannot come
-  along, and Finish step 4 says to turn on an automatic reply at the old provider. Nothing changes
-  an address yet (0168 T1 to T8).
 - **The managed edition's jobs run on pg-boss, on its own Postgres; Trigger.dev is kept installed
   and stopped as the way back** (workplan 0167 T7; ADR-0054, now in force). `managed.yml` gives
   `OWNPACE_JOB_RUNNER` the default `pg-boss` for the API and the worker, and the worker starts with
@@ -82,10 +100,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The managed edition's jobs call Trigger.dev through a context that names their runner**
   (workplan 0167 T6; ADR-0054). Each job's run takes a context that names the runner it is on, and
   the Trigger.dev calls three of them make (the tick enqueueing a pass, a cutover waiting for one,
-  the purge asking after a run and cancelling it) are made there, as they were. Trigger.dev still runs every job under the same names, queues, machines and
-  retries; a catalog of the same seventeen jobs for the pg-boss runner is added, which nothing reads
-  yet. The sync tick also writes a beat of its own runner each minute, and starts no pass while
-  another runner's tick has beaten within the last 90 seconds; no migration.
+  the purge asking after a run and cancelling it) are made there, as they were. On Trigger.dev
+  every job still runs under the same names, queues, machines and retries; a catalog of the same
+  seventeen jobs is added for the pg-boss runner. The sync tick also writes a beat of its own
+  runner each minute, and starts no pass while another runner's tick has beaten within the last
+  90 seconds; no migration.
 - **The API's doors, the close's cancel and the scheduler's readiness follow a switch,
   `OWNPACE_JOB_RUNNER`** (workplan 0167 T6; ADR-0054). Unset, empty or `trigger`, nothing changes:
   every door enqueues on Trigger.dev as before, and the API loads no pg-boss. Set to `pg-boss`, the
@@ -94,7 +113,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   its pg-boss id, and a ref of the other runner's kind is refused and left to the erasure's
   quiesce; `/api/ready/scheduler` reads the same beat, and says `off` without the jobs URL. Any
   other value stops the API's start in one sentence. A jobs database it cannot reach is said in one
-  sentence that names no address. No migration; nothing sets the switch yet.
+  sentence that names no address. No migration; `managed.yml` sets
+  the switch to `pg-boss` unless the stack's `.env` says `trigger`.
 - **The privacy policy says the background tasks' logs go at each update of the service, as the
   app's do, and stays version 1.0**, shipped with the switch to the job runner (workplan 0167 T7;
   ADR-0054; the owner, 2026-11-22: "Option A, but
@@ -120,6 +140,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `.dockerignore`. The images CI publishes were not affected, since their checkout has no user list.
   Rotate `PGBOUNCER_AUTH_PASSWORD` on a stack whose locally built images may have been copied
   elsewhere.
+- **A Semgrep rule now fails a pull request** (workplan 0163 T5). `run-shell-injection`, a workflow
+  expression written into a `run:` script, reports nothing on `main`, so a spot of it now fails the
+  *Semgrep* check, marked as an error on its line. No recorded spot, inline `nosemgrep` comment or
+  committed `.semgrepignore` can excuse or hide one, and a workflow or action file Semgrep did not
+  scan, or a time-out or parse note on one, now fails the check too. The other
+  seven rules still report only. `react-href-var` reports nothing on `main` either, but Semgrep's
+  taint analysis times out where it reads, so it waits. A place Semgrep read only in part now
+  counts only against the rules whose languages include the file there, so a time-out in a
+  TypeScript function never stops the workflow rule. A Semgrep scan that did not finish now fails a
+  pull request too, since the check vouches for the rule that blocks. The check is renamed from
+  *Semgrep (report only)* to *Semgrep*, the name it is to be required under.
 
 ### Fixed
 
@@ -142,20 +173,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   generated block, and says so. A dispatch with the image scans on a tag is refused at once, saying
   to dispatch it on `main` at the release commit, or on the tag with the image scans off to make or
   finish the release; Release re-runs only Security Scan runs it dispatched itself.
-
-### Security
-
-- **A Semgrep rule now fails a pull request** (workplan 0163 T5). `run-shell-injection`, a workflow
-  expression written into a `run:` script, reports nothing on `main`, so a spot of it now fails the
-  *Semgrep* check, marked as an error on its line. No recorded spot, inline `nosemgrep` comment or
-  committed `.semgrepignore` can excuse or hide one, and a workflow or action file Semgrep did not
-  scan, or a time-out or parse note on one, now fails the check too. The other
-  seven rules still report only. `react-href-var` reports nothing on `main` either, but Semgrep's
-  taint analysis times out where it reads, so it waits. A place Semgrep read only in part now
-  counts only against the rules whose languages include the file there, so a time-out in a
-  TypeScript function never stops the workflow rule. A Semgrep scan that did not finish now fails a
-  pull request too, since the check vouches for the rule that blocks. The check is renamed from
-  *Semgrep (report only)* to *Semgrep*, the name it is to be required under.
 
 ## [0.2.0-alpha.15] - 2026-11-22
 
