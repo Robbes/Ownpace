@@ -185,6 +185,8 @@ const MINIO_PW = '0d1d1e'.repeat(8);
 const PGB_PW = '0e1e1f'.repeat(8);
 /** trigger-db's, as stand-up-live.sh, ensure-env-secrets.sh or the rotation leaves it. */
 const TRIGGER_PW = '0f1f2f'.repeat(8);
+/** The jobs role's (ADR-0054), as ensure-env-secrets.sh leaves it. */
+const JOBS_PW = '1a2b3c'.repeat(8);
 const GOOD: Record<string, string> = {
   POSTGRES_PASSWORD: OWNER_PW,
   APP_DB_PASSWORD: APP_PW,
@@ -239,6 +241,8 @@ interface StubState {
   triggerFails: boolean;
   /** What `compose ps -q postgres` answers, one per call: the container before the `up`, then after it. Empty: the same id every time. */
   dbIds?: string[];
+  /** What the jobs role's fit question answers for a role that exists; the fit line when unset. */
+  jobsFit?: string;
 }
 interface Call {
   kind: string;
@@ -423,6 +427,34 @@ if (p.c !== undefined) {
   done(0);
 }
 const sql = readIn();
+// The jobs role (ADR-0054): jobs-role.sql makes the role with no password, the
+// fit question answers from the state, and the set statement is kept as the
+// roles statement is, its RESET lines required.
+if (sql.indexOf('CREATE SCHEMA IF NOT EXISTS pgboss AUTHORIZATION ownpace_jobs') >= 0) {
+  log({ kind: 'jobs-role', stdin: sql, user: p.U, v: p.v, env: e.env, inline: e.inline });
+  if (p.v.ON_ERROR_STOP !== '1') { err('docker stub: jobs-role.sql run without ON_ERROR_STOP' + NL); done(95); }
+  if (!state.roles.ownpace_jobs) { state.roles.ownpace_jobs = { pw: '', login: true, super: false }; save(); }
+  done(0);
+}
+if (p.v.jobs_role !== undefined && sql.indexOf('r.rolinherit') >= 0) {
+  log({ kind: 'jobs-fit', stdin: sql, user: p.U, v: p.v, env: e.env, inline: e.inline });
+  if (state.roles[p.v.jobs_role]) out((state.jobsFit || 'f|f|f|f|f|t|f|0|0|t|0|0|0') + NL);
+  done(0);
+}
+if (p.v.jobs_role !== undefined && sql.indexOf('ALTER ROLE :"jobs_role" PASSWORD') >= 0) {
+  log({ kind: 'jobs-set', stdin: sql, user: p.U, v: p.v, env: e.env, inline: e.inline });
+  const lines = sql.split(NL).map((l) => l.trim());
+  { const why = keptOut(lines, p); if (why) { err('docker stub: the jobs role statement is not one transaction kept out of the log: ' + why + NL); done(95); } }
+  if (lines.filter((l) => l.endsWith(' RESET ALL;')).length !== 2) { err('docker stub: the jobs role statement clears no setting' + NL); done(95); }
+  let pw = '';
+  for (const line of lines) {
+    if (line.startsWith(BS + 'set jobs_pw ')) { const a = line.indexOf('"$'); const b = line.lastIndexOf('"'); pw = a >= 0 && b > a ? (e.env[line.slice(a + 2, b)] || '') : ''; }
+  }
+  if (!state.roles[p.v.jobs_role]) { err('ERROR:  role "' + p.v.jobs_role + '" does not exist' + NL); done(3); }
+  if (!pw) { err('ERROR:  an empty password' + NL); done(3); }
+  state.roles[p.v.jobs_role].pw = pw; save();
+  done(0);
+}
 if (p.f === '-') { log({ kind: 'setup-auth', stdin: sql, user: p.U, env: e.env, inline: e.inline }); done(0); }
 if (sql.indexOf('ROLE :"') < 0) { log({ kind: 'socket-other', stdin: sql, user: p.U, env: e.env, inline: e.inline }); done(0); }
 
@@ -505,7 +537,7 @@ function aStack(dotEnv: string, state: Partial<StubState> = {}): Stack {
     copyFileSync(join(COMPOSE_DIR, f), join(composeDir, f));
     chmodSync(join(composeDir, f), 0o755);
   }
-  for (const f of ['managed.yml', 'managed.env.example']) copyFileSync(join(COMPOSE_DIR, f), join(composeDir, f));
+  for (const f of ['managed.yml', 'managed.env.example', 'jobs-role.sql']) copyFileSync(join(COMPOSE_DIR, f), join(composeDir, f));
   for (const f of ['pgbouncer.ini', 'setup-auth.sql']) {
     copyFileSync(join(COMPOSE_DIR, 'pgbouncer', f), join(composeDir, 'pgbouncer', f));
   }
@@ -572,6 +604,7 @@ const realEnv = (over: Record<string, string | null> = {}): Record<string, strin
   APP_DB_USER: 'app_user',
   ...GOOD,
   PGBOUNCER_AUTH_PASSWORD: PGB_PW,
+  JOBS_DB_PASSWORD: JOBS_PW,
   ...over,
 });
 
@@ -1039,7 +1072,7 @@ describe("(b) on localhost the data phase goes on, and says which keys are still
 // ---------------------------------------------------------------------------
 
 describe('(c) the data phase sets both roles to .env, before anything migrates, and passes every value by name', () => {
-  const VALUES = [OWNER_PW, APP_PW, CH_PW, MINIO_PW, TRIGGER_PW, PGB_PW];
+  const VALUES = [OWNER_PW, APP_PW, CH_PW, MINIO_PW, TRIGGER_PW, PGB_PW, JOBS_PW];
 
   function nothingShown(r: { out: string; calls: Call[] }) {
     for (const v of VALUES) {
@@ -1148,6 +1181,7 @@ describe('(c) the data phase sets both roles to .env, before anything migrates, 
           APP_DB_USER: '"app_user"',
           POSTGRES_PASSWORD: `"${OWNER_PW}"`,
           APP_DB_PASSWORD: `"${APP_PW}"`,
+          JOBS_DB_PASSWORD: `"${JOBS_PW}"`,
         }),
       ),
       {
@@ -1160,7 +1194,9 @@ describe('(c) the data phase sets both roles to .env, before anything migrates, 
     const r = bootstrap(s, ['--only', 'data']);
     expect(r.status, r.out).toBe(0);
     const roles = stateOf(s).roles;
-    expect(Object.keys(roles).sort()).toEqual(['app_user', 'pgbouncer_auth', 'pgowner']);
+    // ownpace_jobs is jobs-role.sql's name, never .env's (ADR-0054).
+    expect(Object.keys(roles).sort()).toEqual(['app_user', 'ownpace_jobs', 'pgbouncer_auth', 'pgowner']);
+    expect(roles.ownpace_jobs?.pw, "the jobs role holds .env's value with its quotes").toBe(JOBS_PW);
     expect(roles.pgowner?.pw, "the owner holds .env's value with its quotes, which no container presents").toBe(OWNER_PW);
     expect(roles.app_user?.pw, "app_user holds .env's value with its quotes, which no container presents").toBe(APP_PW);
     nothingShown(r);
@@ -1240,6 +1276,132 @@ describe('(c2) a postgres the run replaced takes a new pooler before the proof (
     const r = bootstrap(s, ['--only', 'data']);
     expect(r.status, r.out).toBe(0);
     expect(recreated(r.calls)).toHaveLength(0);
+  });
+});
+
+describe("(f) the data phase makes the jobs role and its schema, judges the role, sets .env's value on it and proves it (ADR-0054)", () => {
+  const VALUES = [OWNER_PW, APP_PW, CH_PW, MINIO_PW, TRIGGER_PW, PGB_PW, JOBS_PW];
+  function nothingShown(r: { out: string; calls: Call[] }, values: readonly string[] = VALUES) {
+    for (const v of values) {
+      expect(showsAPiece(r.out, v), 'a value, or part of one, in the output').toBe(false);
+      for (const c of r.calls) {
+        expect(showsAPiece(c.argv.join(' '), v), `a value, or part of one, on docker's command line: ${c.kind}`).toBe(false);
+        expect(showsAPiece(c.stdin ?? '', v), `a value, or part of one, in the SQL text given to ${c.kind}`).toBe(false);
+      }
+    }
+    for (const c of r.calls) expect(c.inline ?? [], `-e NAME=value in ${c.kind}`).toEqual([]);
+  }
+  const kindsOf = (calls: Call[]) => calls.map((c) => (c.kind === 'up' ? `up ${(c.services ?? []).join(' ')}` : c.kind));
+
+  it('in order: the file once postgres is up, the question, the password, the pooler, then the proof where the worker will connect', () => {
+    const s = aStack(envText(realEnv()));
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(0);
+    const kinds = kindsOf(r.calls);
+    const file = kinds.indexOf('jobs-role');
+    const fit = kinds.indexOf('jobs-fit');
+    const set = kinds.indexOf('jobs-set');
+    const pooler = kinds.indexOf('up pgbouncer');
+    expect([file, fit, set].every((i) => i > -1), kinds.join('\n')).toBe(true);
+    expect(kinds.filter((k) => k.startsWith('jobs-'))).toEqual(['jobs-role', 'jobs-fit', 'jobs-set']);
+    expect(kinds.indexOf('up postgres')).toBeLessThan(file);
+    expect(kinds.indexOf('roles'), 'after the two roles').toBeLessThan(file);
+    expect(file).toBeLessThan(fit);
+    expect(fit).toBeLessThan(set);
+    expect(set).toBeLessThan(pooler);
+    // The file is jobs-role.sql as it is, and the statements go as the owner, over the socket.
+    expect(r.calls[file]!.stdin).toBe(read('deploy/compose/jobs-role.sql'));
+    for (const i of [file, fit, set]) expect(r.calls[i]!.user).toBe('pgowner');
+    expect(r.calls[fit]!.v).toMatchObject({ jobs_role: 'ownpace_jobs', jobs_schema: 'pgboss', ON_ERROR_STOP: '1' });
+    expect(r.calls[set]!.v).toMatchObject({ jobs_role: 'ownpace_jobs' });
+    expect(Object.values(r.calls[set]!.env ?? {})).toEqual([JOBS_PW]);
+    expect(stateOf(s).roles.ownpace_jobs).toEqual({ pw: JOBS_PW, login: true, super: false });
+    const asked = r.calls.map((c, i) => ({ c, i })).filter(({ c }) => (c.kind === 'network' || c.kind === 'pooler') && c.user === 'ownpace_jobs');
+    expect(asked.map(({ c }) => c.kind).sort()).toEqual(['network', 'pooler']);
+    for (const { c, i } of asked) {
+      expect(i).toBeGreaterThan(pooler);
+      expect(c.env?.PGPASSWORD).toBe(JOBS_PW);
+    }
+    expect(r.out).toMatch(/ownpace_jobs opens with JOBS_DB_PASSWORD over the stack's network and through the pooler/);
+    nothingShown(r);
+  });
+
+  it('a second run makes nothing new and sets the same value', () => {
+    const s = aStack(envText(realEnv()));
+    expect(bootstrap(s, ['--only', 'data']).status).toBe(0);
+    const first = stateOf(s).roles;
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(0);
+    expect(stateOf(s).roles).toEqual(first);
+    nothingShown(r);
+  });
+
+  it.each([
+    ['a superuser', 't|f|f|f|f|t|f|0|0|t|0|0|0', /it is a superuser/],
+    ['one with BYPASSRLS', 'f|f|f|f|t|t|f|0|0|t|0|0|0', /it has BYPASSRLS/],
+    ['one that inherits', 'f|f|f|f|f|t|t|0|0|t|0|0|0', /it inherits/],
+    ['a member of a role', 'f|f|f|f|f|t|f|1|0|t|0|0|0', /it belongs to 1 role/],
+    ['one a role belongs to', 'f|f|f|f|f|t|f|0|1|t|0|0|0', /1 role\(s\) belong to it/],
+    ["one whose schema is another role's", 'f|f|f|f|f|t|f|0|0|f|0|0|0', /the schema pgboss belongs to another role/],
+    ['one that owns things outside its schema', 'f|f|f|f|f|t|f|0|0|t|3|0|0', /it owns 3 object\(s\) outside pgboss/],
+    ['one that may read the ledger', 'f|f|f|f|f|t|f|0|0|t|0|2|0', /it holds a privilege on 2 relation\(s\) of public/],
+    ['one whose queue is granted to another role', 'f|f|f|f|f|t|f|0|0|t|0|0|1', /1 privilege\(s\) on pgboss or in it are granted/],
+  ])('refuses %s before its password is set, naming why, and repairs nothing', (_what, line, why) => {
+    const s = aStack(envText(realEnv()), { jobsFit: line });
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/REFUSED, before its password is set: ownpace_jobs: /);
+    expect(r.out).toMatch(why);
+    const kinds = kindsOf(r.calls);
+    expect(kinds).not.toContain('jobs-set');
+    expect(kinds, 'the pooler came up').not.toContain('up pgbouncer');
+    expect(stateOf(s).roles.ownpace_jobs?.pw).toBe('');
+    nothingShown(r);
+  });
+
+  it('a role that does not open through the pooler stops the phase, naming the role and the channel', () => {
+    const s = aStack(envText(realEnv()), { poolerRefuses: ['ownpace_jobs'] });
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/ownpace_jobs over the pooler: REFUSED/);
+    nothingShown(r);
+  });
+
+  it('a value a URL does not carry as it is is refused before the role is made, and not printed', () => {
+    const odd = 'abc@def-jobs-q7x';
+    const s = aStack(envText(realEnv({ JOBS_DB_PASSWORD: odd })));
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/JOBS_DB_PASSWORD holds a character a URL does not carry/);
+    expect(kindsOf(r.calls).filter((k) => k.startsWith('jobs-'))).toEqual([]);
+    nothingShown(r, [...VALUES, odd]);
+  });
+
+  it('load_env seeds a missing JOBS_DB_PASSWORD through ensure-env-secrets.sh --only, before any Compose call, and nothing else', () => {
+    const s = aStack(envText(realEnv({ JOBS_DB_PASSWORD: null })));
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/JOBS_DB_PASSWORD is not in \.env yet: generating it with ensure-env-secrets\.sh --only JOBS_DB_PASSWORD/);
+    expect(r.out).toMatch(/\[ensure-env-secrets\] generated JOBS_DB_PASSWORD/);
+    // That one key: realEnv has no JWT_SECRET, which a whole run would have generated.
+    expect(r.out).not.toMatch(/generated JWT_SECRET/);
+    const env = readFileSync(s.envFile, 'utf8');
+    expect(env).not.toMatch(/^JWT_SECRET=/m);
+    const seeded = /^JOBS_DB_PASSWORD=([0-9a-f]{48})$/m.exec(env)?.[1];
+    expect(seeded, 'JOBS_DB_PASSWORD is not 48 hex characters in .env').toBeDefined();
+    // Before the first Compose call, so the file Compose reads has it.
+    expect(r.out.indexOf('generated JOBS_DB_PASSWORD')).toBeLessThan(r.out.indexOf('postgres healthy'));
+    expect(callsOf(s).findIndex((c) => c.kind === 'config')).toBeGreaterThan(-1);
+    expect(stateOf(s).roles.ownpace_jobs?.pw).toBe(seeded);
+    nothingShown(r, [...VALUES, seeded!]);
+  });
+
+  it('a JOBS_DB_PASSWORD that is set is kept, and ensure-env-secrets.sh is not run', () => {
+    const s = aStack(envText(realEnv()));
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).not.toMatch(/ensure-env-secrets/);
+    expect(readFileSync(s.envFile, 'utf8')).toMatch(new RegExp(`^JOBS_DB_PASSWORD=${JOBS_PW}$`, 'm'));
   });
 });
 

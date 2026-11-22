@@ -8,6 +8,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 - **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
   (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
+- **The jobs' own database role and schema, made by the managed bring-up; nothing connects as it
+  yet** (workplan 0167 T7, its first part; ADR-0054). `ownpace_jobs` owns the schema `pgboss` and
+  nothing else, is no superuser, has no `BYPASSRLS`, belongs to no role and may read no table of the
+  ledger. The data phase makes both from `jobs-role.sql`, not a migration, refuses a role that is
+  otherwise, sets `.env`'s new `JOBS_DB_PASSWORD` on it (filled in when missing) and proves it over the
+  network and through the pooler. `rotate-db-passwords.sh --check` asks it and `--sync` sets it.
 
 ## [0.2.0-alpha.15] - 2026-11-22
 

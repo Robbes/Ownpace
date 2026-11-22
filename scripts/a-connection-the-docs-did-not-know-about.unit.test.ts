@@ -108,6 +108,31 @@ describe('the document knows every script that holds the owner connection', () =
     }
   });
 
+  it('knows every role the bring-up makes outside the migrations, and says what it may do', () => {
+    // ANOTHER CLOSED SET. A role made by a `.sql` file the bring-up runs, and
+    // not by a migration (`pgbouncer_auth` by setup-auth.sql, `ownpace_jobs`
+    // by jobs-role.sql, ADR-0054), is in no chain a reader would look in. The
+    // guide is where a reader learns which roles exist and what each may
+    // reach, so each one is named there.
+    const sqlFiles = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? sqlFiles(join(dir, e.name)) : e.name.endsWith('.sql') ? [join(dir, e.name)] : [],
+      );
+    const made = sqlFiles(COMPOSE_DIR)
+      .flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/^[^-\n]*CREATE ROLE ([a-z_]+)/gm)].map((m) => m[1]!))
+      .sort();
+    expect(made, 'no CREATE ROLE found under deploy/compose: has the shape changed?').toEqual(['ownpace_jobs', 'pgbouncer_auth']);
+    for (const role of made) {
+      expect(RLS_GUIDE, `docs/rls-guide.md does not name ${role}, which the bring-up makes`).toContain(`\`${role}\``);
+    }
+    // The jobs role's row in "Where row security holds today", and why its tables carry no policy.
+    const row = RLS_GUIDE.split('\n').find((l) => l.startsWith("| **pg-boss's queues**")) ?? '';
+    expect(row, "the guide's table has no row for pg-boss's queues").not.toBe('');
+    expect(row).toContain('`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`');
+    expect(row).toContain('**none on its tables, by design**');
+    expect(row).toContain('deploy/compose/jobs-role.sql');
+  });
+
   it('still says the thing that matters most', () => {
     // The sentence this whole paragraph exists for. A rewrite that made the
     // list correct and dropped the warning would be a worse document.

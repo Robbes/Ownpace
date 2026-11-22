@@ -180,6 +180,8 @@ interface State {
   generated: string[];
   alters: number;
   alterAttempts: number;
+  /** What the jobs role's fit question answers for a role that exists; the fit line when unset. */
+  jobsFit?: string;
 }
 
 /** Shared by every stub: argv and the whole environment, one JSON line per call. */
@@ -364,6 +366,12 @@ if (svc === 'postgres' && cmd[0] === 'psql') {
     done(0);
   }
   const sql = fs.readFileSync(0, 'utf8');
+  // The jobs role's question (db_roles_jobs_fit): one line for a role that exists, nothing for one that does not.
+  if (p.v.jobs_role !== undefined && sql.includes('r.rolinherit')) {
+    log('docker', { kind: 'socket', what: 'jobs-fit', container: env, psql: p, sql });
+    if (state.roles[p.v.jobs_role]) out((state.jobsFit || 'f|f|f|f|f|t|f|0|0|t|0|0|0') + '\\n');
+    done(0);
+  }
   log('docker', { kind: 'socket', what: 'alter', container: env, psql: p, sql });
   if (!state.roles[p.U]) { err('psql: error: FATAL:  role "' + p.U + '" does not exist\\n'); done(2); }
   { const why = keptOut(sql, p); if (why) { err('docker stub: the ALTER is not one transaction kept out of the log: ' + why + '\\n'); done(95); } }
@@ -549,6 +557,8 @@ const MINIO_PW = 'minio-secret-31cc';
 const TRIGGER_PW = 'trigger-secret-3c3c';
 /** managed.yml's fallback for an empty TRIGGER_DB_PASSWORD, which the OTA stack's trigger_db_data held until the owner's rotation of 2026-10-05. */
 const TRIGGER_LITERAL = 'trigger_password';
+/** The jobs role's (ADR-0054), as ensure-env-secrets.sh generates it. */
+const JOBS_PW = 'jobs-secret-5a5a';
 
 interface Fixture {
   root: string;
@@ -584,6 +594,7 @@ function baseEnv(): Record<string, string> {
     MINIO_ROOT_USER: 'admin',
     MINIO_ROOT_PASSWORD: MINIO_PW,
     TRIGGER_DB_PASSWORD: TRIGGER_PW,
+    JOBS_DB_PASSWORD: JOBS_PW,
     JWT_SECRET: 'jwt-secret-5e5e',
     SECRET_ENCRYPTION_KEY: 'key-secret-6f6f',
     WEB_BIND: MESH,
@@ -773,7 +784,7 @@ const stateOf = (fx: Fixture): State => JSON.parse(readFileSync(fx.statePath, 'u
 
 /** Every value that must never be seen: the .env's own, the generated ones, and two addresses. */
 function secrets(fx: Fixture): string[] {
-  return [OWNER_PW, APP_PW, CH_PW, MINIO_PW, TRIGGER_PW, 'jwt-secret-5e5e', 'key-secret-6f6f', ...stateOf(fx).generated];
+  return [OWNER_PW, APP_PW, CH_PW, MINIO_PW, TRIGGER_PW, JOBS_PW, 'jwt-secret-5e5e', 'key-secret-6f6f', ...stateOf(fx).generated];
 }
 
 /** A value on any argv, in any SQL text, or in the output: each hit named, never the value. */
@@ -1996,6 +2007,103 @@ describe('--sync', () => {
 // ---------------------------------------------------------------------------
 // The script's own text
 // ---------------------------------------------------------------------------
+
+describe('the jobs role, ownpace_jobs (ADR-0054): --check asks it, --sync sets it', () => {
+  const withJobs = (pw: string): Partial<State> => ({
+    roles: { ...baseState(OTA).roles, ownpace_jobs: { super: false, login: true, pw } },
+  });
+
+  it(
+    '--check asks .env\'s value over the network and through the pooler, and a stack without the role yet has nothing to ask',
+    () => {
+      const fx = fixture({ state: withJobs(JOBS_PW) });
+      const r = run(fx, ['--check']);
+      expect(r.status, r.output).toBe(0);
+      expect(r.stdout).toContain('ownpace_jobs, JOBS_DB_PASSWORD from .env, over the network: opens');
+      expect(r.stdout).toContain('ownpace_jobs, JOBS_DB_PASSWORD from .env, through the pooler: opens');
+      const asked = calls(fx).filter((c) => (c.psql?.U ?? '') === 'ownpace_jobs');
+      expect(asked.map((c) => c.kind).sort()).toEqual(['network', 'pooler']);
+      for (const c of asked) expect(c.container?.PGPASSWORD).toBe(JOBS_PW);
+      expect(calls(fx).filter((c) => c.what === 'alter'), '--check changed a role').toEqual([]);
+      expect(leaks(fx, r.output)).toEqual([]);
+
+      const before = fixture();
+      const none = run(before, ['--check']);
+      expect(none.status, none.output).toBe(0);
+      expect(none.stdout).toContain('jobs role ownpace_jobs: not a login role in this database yet, so there is nothing to ask');
+      expect(calls(before).filter((c) => (c.psql?.U ?? '') === 'ownpace_jobs')).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    '--check: a jobs role that refuses .env\'s value is "cannot tell", 2, and points to --sync; an empty key with the role there is 2 too',
+    () => {
+      const fx = fixture({ state: withJobs(`${GEN}stale`) });
+      const r = run(fx, ['--check']);
+      expect(r.status, r.output).toBe(2);
+      expect(r.stdout).toContain('ownpace_jobs, JOBS_DB_PASSWORD from .env, over the network: REFUSED');
+      expect(r.stdout).toContain("It is the jobs role's control that is refused: ./deploy/compose/rotate-db-passwords.sh --sync sets ownpace_jobs too.");
+      expect(leaks(fx, r.output)).toEqual([]);
+
+      const empty = fixture({ state: withJobs(JOBS_PW), env: { JOBS_DB_PASSWORD: '' } });
+      const e = run(empty, ['--check']);
+      expect(e.status, e.output).toBe(2);
+      expect(e.stdout).toContain('JOBS_DB_PASSWORD is empty in .env, so its control could not be asked');
+    },
+    CASE_MS,
+  );
+
+  it(
+    '--sync asks whether the role is fit, sets .env\'s value on it with every setting cleared, and proves it where the worker will connect',
+    () => {
+      const fx = fixture({ state: withJobs(`${GEN}stale`) });
+      const r = run(fx, ['--sync']);
+      expect(r.status, r.output).toBe(0);
+      expect(stateOf(fx).roles.ownpace_jobs?.pw).toBe(JOBS_PW);
+      const all = calls(fx);
+      const fit = all.findIndex((c) => c.what === 'jobs-fit');
+      const alters = all.map((c, i) => ({ c, i })).filter(({ c }) => c.what === 'alter' && !c.service);
+      expect(fit, 'the question was not asked').toBeGreaterThan(-1);
+      expect(fit, 'asked before anything changed').toBeLessThan(alters[0]!.i);
+      const jobsSet = alters.find(({ c }) => c.psql?.v.jobs_role === 'ownpace_jobs');
+      expect(jobsSet, 'the jobs role was not set').toBeDefined();
+      expect(jobsSet!.c.container?.DB_ROLES_NEW_JOBS_PASSWORD).toBe(JOBS_PW);
+      expect(jobsSet!.c.sql).toContain('ALTER ROLE :"jobs_role" RESET ALL;');
+      expect(jobsSet!.c.sql).toContain('ALTER ROLE :"jobs_role" IN DATABASE :"DBNAME" RESET ALL;');
+      expect(r.stdout).toMatch(/ownpace_jobs, over the network: opens/);
+      expect(r.stdout).toMatch(/ownpace_jobs, through the pooler: opens/);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    '--sync refuses an unfit jobs role, or an empty JOBS_DB_PASSWORD with the role there, before it changes anything',
+    () => {
+      const unfit = fixture({ state: { ...withJobs(JOBS_PW), jobsFit: 'f|f|f|f|t|t|f|0|0|t|0|0|0' } });
+      const r = run(unfit, ['--sync']);
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toContain('ownpace_jobs: it has BYPASSRLS');
+      expect(r.stderr).toContain('Nothing was changed.');
+      expect(calls(unfit).filter((c) => c.what === 'alter'), 'a role was changed').toEqual([]);
+
+      const empty = fixture({ state: withJobs(JOBS_PW), env: { JOBS_DB_PASSWORD: '' } });
+      const e = run(empty, ['--sync']);
+      expect(e.status, e.output).toBe(1);
+      expect(e.stderr).toContain('ownpace_jobs is a login role here, and JOBS_DB_PASSWORD is empty in .env');
+      expect(calls(empty).filter((c) => c.what === 'alter'), 'a role was changed').toEqual([]);
+
+      // Without the role, --sync sets the two and says there is nothing of the jobs role to set.
+      const before = fixture();
+      const b = run(before, ['--sync']);
+      expect(b.status, b.output).toBe(0);
+      expect(b.stdout).toContain('ownpace_jobs is not a login role in this database yet');
+      expect(calls(before).filter((c) => c.what === 'jobs-fit')).toEqual([]);
+    },
+    CASE_MS,
+  );
+});
 
 describe("the script's own text", () => {
   const script = readIf(`deploy/compose/${SCRIPT}`);

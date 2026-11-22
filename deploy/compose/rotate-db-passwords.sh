@@ -43,7 +43,13 @@
 #      it (no pooler stands in front of it): a control first, .env's
 #      TRIGGER_DB_PASSWORD with managed.yml's fallback when it is empty, then
 #      that fallback, counted like the others. --rotate --with-trigger-stores
-#      changes it (0132 T2, step A).
+#      changes it (0132 T2, step A);
+#   6. asks the jobs role, `ownpace_jobs` (ADR-0054), with .env's
+#      JOBS_DB_PASSWORD over the network and through the pooler, as the worker
+#      will: a control, when the role is a login role here (the bring-up's
+#      data phase makes it). It has no default and no shipped value, so
+#      nothing else is tried; an empty key with the role there is a question
+#      that cannot be asked.
 #   One line per pair: the account, where the value comes from, opens or
 #   refused. Never the value. A role that opens and is neither the owner nor
 #   APP_DB_USER (the owner's old name, left with LOGIN after a rename) is one
@@ -60,7 +66,14 @@
 # trigger-db's own socket as that role, and proves it over the network. The
 # bring-up's trigger phase does that on every run too, with the same
 # function, once trigger-db is up and before trigger-api starts. ClickHouse
-# and MinIO need nothing: they read .env when they are recreated.
+# and MinIO need nothing: they read .env when they are recreated. When the
+# jobs role is a login role here, --sync asks the catalog whether it is fit
+# (db_roles_jobs_fit) before it changes anything, refuses when it is not or
+# when JOBS_DB_PASSWORD is empty, and once the two roles are proven sets the
+# jobs role to .env's value, every setting on it cleared, and proves it over
+# the network and through the pooler: what the data phase does on every run.
+# --rotate does not change it: a new value in .env, then --sync or the
+# bring-up, is all a change of it takes.
 #
 # --rotate refuses, before anything changes:
 #   xtrace (set -x, bash -x, SHELLOPTS, BASH_XTRACEFD): tracing prints values;
@@ -254,6 +267,8 @@ CONTROLS_OPEN=1
 # trigger-db's control refused: .env and trigger-db disagree, and the remedy
 # is --sync --with-trigger-stores, not plain --sync.
 TRIGGER_DISAGREES=''
+# The jobs role's control refused: --sync sets it to .env's value.
+JOBS_DISAGREES=''
 # Of OPENED, those on a Postgres role --rotate does not change, and their names.
 OPENED_OTHER=0
 OTHER_ROLES=''
@@ -319,6 +334,41 @@ check_controls() {
           ;;
       esac
     done
+  done
+}
+
+# The jobs role's control: .env's JOBS_DB_PASSWORD, asked the way the worker
+# will connect. Nothing when the role is not a login role here yet.
+check_jobs() {
+  local rc channel where
+  if ! db_roles_has "$DB_ROLES_JOBS"; then
+    say "jobs role ${DB_ROLES_JOBS}: not a login role in this database yet, so there is nothing to ask; the bring-up's data phase makes it (jobs-role.sql)"
+    return 0
+  fi
+  if [ -z "$DB_ROLES_JOBS_PASSWORD" ]; then
+    say "jobs role ${DB_ROLES_JOBS}: JOBS_DB_PASSWORD is empty in .env, so its control could not be asked; ensure-env-secrets.sh fills it in, and the bring-up then sets it"
+    UNASKED=1
+    return 0
+  fi
+  say "jobs role: .env's own value, asked the way the worker will connect:"
+  for channel in network pooler; do
+    rc=0
+    db_roles_ask "$channel" "$DB_ROLES_JOBS" "$DB_ROLES_JOBS_PASSWORD" || rc=$?
+    where='over the network'
+    [ "$channel" = network ] || where='through the pooler'
+    case "$rc" in
+      0) item "${DB_ROLES_JOBS}, JOBS_DB_PASSWORD from .env, ${where}: opens" ;;
+      1)
+        item "${DB_ROLES_JOBS}, JOBS_DB_PASSWORD from .env, ${where}: REFUSED"
+        CONTROLS_OPEN=''
+        JOBS_DISAGREES=1
+        ;;
+      *)
+        item "${DB_ROLES_JOBS}, JOBS_DB_PASSWORD from .env, ${where}: could not be asked (${DB_ROLES_WHY})"
+        CONTROLS_OPEN=''
+        UNASKED=1
+        ;;
+    esac
   done
 }
 
@@ -454,6 +504,7 @@ do_check() {
   local role
   check_controls
   if [ -n "$DB_ROLES_LIST" ]; then
+    check_jobs
     pg_roles_to_try
     check_pg_shipped "${PG_TRY[@]}"
   fi
@@ -486,6 +537,8 @@ do_check() {
     say "  If .env and the database disagree, set the roles to .env's values: ./deploy/compose/rotate-db-passwords.sh --sync"
     [ -z "$TRIGGER_DISAGREES" ] ||
       say "  It is trigger-db's control that is refused: ./deploy/compose/rotate-db-passwords.sh --sync --with-trigger-stores sets its role too."
+    [ -z "$JOBS_DISAGREES" ] ||
+      say "  It is the jobs role's control that is refused: ./deploy/compose/rotate-db-passwords.sh --sync sets ${DB_ROLES_JOBS} too."
     say "  (read zitadel-db-password.sh's header first if a second .env exists on this machine)."
     exit 2
   fi
@@ -536,10 +589,31 @@ require_trigger_db() {
       "Bring the Trigger.dev plane up first, or run this without --with-trigger-stores."
 }
 
+# The jobs role, judged before --sync changes anything: JOBS_SYNC says
+# whether it is to be set. Not a login role yet: nothing to set.
+JOBS_SYNC=''
+require_jobs() {
+  local rc=0
+  db_roles_has "$DB_ROLES_JOBS" || return 0
+  [ -n "$DB_ROLES_JOBS_PASSWORD" ] ||
+    refuse "${DB_ROLES_JOBS} is a login role here, and JOBS_DB_PASSWORD is empty in .env, so it cannot be set to it." \
+      "./deploy/compose/ensure-env-secrets.sh fills it in (it fills in missing secrets only); then run this again."
+  [[ "$DB_ROLES_JOBS_PASSWORD" =~ ^[A-Za-z0-9._~-]+$ ]] ||
+    refuse "JOBS_DB_PASSWORD holds a character a URL does not carry as it is, and the worker puts it in JOBS_DATABASE_URL. Its value is not printed." \
+      "Use hex (openssl rand -hex 24), as ensure-env-secrets.sh makes."
+  db_roles_jobs_fit || rc=$?
+  case "$rc" in
+    0) JOBS_SYNC=1 ;;
+    1) refuse "${DB_ROLES_WHY}." "Nothing here repairs the role: put it back as jobs-role.sql makes it (docs/rls-guide.md), then run this again." ;;
+    *) refuse "could not ask Postgres what ${DB_ROLES_JOBS} may do: ${DB_ROLES_WHY}" ;;
+  esac
+}
+
 do_sync() {
-  local rc=0 trigger_rc=0 trigger_pw
+  local rc=0 trigger_rc=0 jobs_rc=0 trigger_pw
   [ -z "$WITH_STORES" ] || require_trigger_db
   require_roles
+  require_jobs
   say "setting ${DB_ROLES_APP} and ${DB_ROLES_OWNER} to the values in .env: one transaction, over the socket as ${DB_ROLES_OWNER}"
   if ! db_roles_set "$DB_ROLES_OWNER_PASSWORD" "$DB_ROLES_APP_PASSWORD"; then
     say "FAILED: the roles were not changed: ${DB_ROLES_WHY}" >&2
@@ -548,6 +622,19 @@ do_sync() {
   db_roles_prove "$DB_ROLES_OWNER_PASSWORD" "$DB_ROLES_APP_PASSWORD" || rc=$?
   say "asked the way the stack's containers ask:"
   show_proof
+  if [ -n "$JOBS_SYNC" ]; then
+    say "setting ${DB_ROLES_JOBS} to JOBS_DB_PASSWORD from .env, every setting on it cleared, over the socket as ${DB_ROLES_OWNER}"
+    if ! db_roles_jobs_set "$DB_ROLES_JOBS_PASSWORD"; then
+      say "FAILED: ${DB_ROLES_JOBS} was not changed: ${DB_ROLES_WHY}" >&2
+      exit 1
+    fi
+    db_roles_jobs_prove "$DB_ROLES_JOBS_PASSWORD" || jobs_rc=$?
+    show_proof
+    # A refusal anywhere is 1; otherwise a question not asked anywhere is 2.
+    if [ "$jobs_rc" -eq 1 ] || { [ "$jobs_rc" -ne 0 ] && [ "$rc" -eq 0 ]; }; then rc="$jobs_rc"; fi
+  else
+    say "${DB_ROLES_JOBS} is not a login role in this database yet: the bring-up's data phase makes it, so there is nothing of it to set"
+  fi
   if [ -n "$WITH_STORES" ]; then
     trigger_pw="$(db_roles_env TRIGGER_DB_PASSWORD "$SHIPPED_TRIGGER_DB")"
     say "setting trigger-db's ${DB_ROLES_TRIGGER_ROLE} to $(from_env TRIGGER_DB_PASSWORD), over trigger-db's socket as ${DB_ROLES_TRIGGER_ROLE}"
@@ -945,7 +1032,8 @@ do_rotate() {
   fi
   say "NEXT, the one step: E2E (managed) on main. It restores this .env, recreates every container whose settings changed,"
   say "  uploads SYSTEM_DATABASE_URL and APP_DATABASE_URL to Trigger.dev again (the owner's URL no longer goes to the tasks,"
-  say "  and this script does not rotate the system role's password: the bring-up sets .env's SYSTEM_DB_PASSWORD on every run),"
+  say "  and this script does not rotate the system role's or the jobs role's password: the bring-up sets .env's SYSTEM_DB_PASSWORD"
+  say "  and JOBS_DB_PASSWORD on every run),"
   say "  and its smoke proves a task still connects."
   if [ -n "$GATE_ASKS_GH" ] && (cd "$REPO_ROOT" && gh workflow run e2e-managed.yml --ref main) >/dev/null 2>&1; then
     say "  Dispatched it (gh workflow run e2e-managed.yml --ref main)."
