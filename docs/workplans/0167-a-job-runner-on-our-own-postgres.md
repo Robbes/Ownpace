@@ -4,6 +4,46 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still: T6's operator commands, `operator.sh jobs` (pg-boss mode).** On branch
+`claude/ownpace-pgboss-operator-jobs`, from the catalog's branch (#2043) with the runner's gaps
+(#2040) merged in. Nothing that runs changes: Trigger.dev is still the default, and there every
+`jobs` command says so in one sentence and exits 1. No migration; `deploy/compose` changes only in
+`operator.sh`'s usage text.
+
+- **`apps/api/src/scripts/operator-jobs.ts`**, dispatched from `operator.ts` (`case 'jobs'`, loaded
+  by a dynamic import so no other verb loads pg-boss) and `apps/api/package.json`
+  (`operator:jobs`). Through #2040's `PgBossProducer` only, no SQL of its own on pg-boss's tables:
+  `jobs` (`overview`: per catalog queue, queued, active, failed, active keys), `jobs failures
+  [<task>] [--limit n]` (`recentFailures`, every queue merged newest first and cut at the limit),
+  `jobs show <id>` and `jobs cancel <id>` (`status` and `cancel` by id alone; a `run_…` ref refused),
+  `jobs run <task> '<json>' [--despite-hold]` (`enqueue`, with the catalog's key for a singleton
+  queue and the tags `operator`, `tenant:…`, `mapping:…`).
+- **As `ownpace_jobs`**: `JOBS_DATABASE_URL` when set, else operator.sh's own URL with that role and
+  `JOBS_DB_PASSWORD` in place of the owner; any other role refused, and no refusal quotes a URL.
+  The owner pool operator.ts already holds reads the hold, with `readOpenPause`, and nothing else.
+- **What it prints**: ids, counts, states, tags, times in UTC, and of an error its `name` and
+  `message` on one line, cut at 300 characters. No payload value, no run output.
+- **`jobs run` imports no job module**: it checks a JSON object, `{}` for a schedule, and a
+  `mappingId` for a singleton queue; the run's own schema refuses the rest, failing once, not
+  retried (`ZodError` by name).
+- **Tests.** `operator-jobs.unit.test.ts`, 51: the switch, the arguments, the connection, the hold,
+  what is printed, and what the module imports. `operator-jobs.integration.test.ts`, 5, on a real
+  pg-boss worked by `PgBossJobRunner`: the 17 queues listed, a real `platform_pause` hold refusing
+  `jobs run` with nothing queued and `--despite-hold` starting it, a failure read back without
+  its payload, the active key of a pass, and a cancel by id that stops it.
+  `scripts/a-route-that-opened-the-owners-pool` gets an entry for the new file, pinned to its two
+  reads in `jobsConnectionString()`.
+- **Mutated**, each restored byte for byte (`cmp`), each failing its test: the hold ignored (unit
+  1 of 51, integration 1 of 5), trigger mode passed through (6), the whole error printed (3), any
+  role accepted (2), active keys dropped (integration 1 of 5), failures oldest first (1), no
+  `serializeBy` (1), a `run_…` ref accepted (2), a schedule given a payload (1), `operator:jobs`
+  removed from package.json (`a-verb-three-files-have-to-agree-on`, 1 of 6), the guard's pin cut
+  (1 of 13).
+- **Gates.** `tsc --noEmit` 0; ESLint 0 on the changed files. Unit, every file under `scripts/`
+  and `apps/api/`: 482 files, 9,911 passed, 36 skipped. The integration file on a throwaway cluster
+  from `scripts/local-pg.sh` (PostgreSQL 16 here; CI's Testcontainers run is the one to trust for
+  18): 5 passed, 18.4 s.
+
 **2026-11-22, later still: T6's first step, the job catalog and the jobs made runner-neutral.**
 On branch `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`, from `main` with T5 merged
 (#2038). Nothing that runs changes: Trigger.dev runs every job under the same ids, queues, machines
@@ -245,7 +285,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
 | T5 This runner, merged | builder | ✅ **Merged 2026-11-22**, as #2038 (`98e9bc34`) | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
 | T5a The runner's production gaps | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-pgboss-runner-gaps` | E2–E8 from the coordinator's plan: `PgBossProducer`, status and cancel by id, the child's lines forwarded and never stored, the worker's own time limit and kill on a lost claim, "not retried" by name, a bounded `recentFailures` (the Status entry "later still"). Done when its pull request merges. |
-| T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, built on `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. Still to come: the worker, the API's doors and the operator's commands. |
+| T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, built on `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. The operator's commands, `operator.sh jobs` (overview, failures, show, cancel, run, refused while the hold is open unless `--despite-hold`), built on `claude/ownpace-pgboss-operator-jobs` (the Status entry of 2026-11-22, later still, T6's operator commands). Still to come: the worker and the API's doors. |
 | T7 The worker service, and the switch on | builder, owner | ⬜ **Not started** | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |
