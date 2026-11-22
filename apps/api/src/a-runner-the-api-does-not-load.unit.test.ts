@@ -129,7 +129,17 @@ describe('2. written: who may import the runner', () => {
       if (/\bexport\s[^;]*from\s+['"]@openmig\/scheduler\/pg-boss['"]/.test(text)) valueImports.push(`${rel} (re-export)`);
       if (/import\s*\(\s*['"]@openmig\/scheduler\/pg-boss['"]\s*\)/.test(text)) dynamicImports.push(rel);
     }
-    expect(valueImports).toEqual([]);
+    // The operator's own producer (workplan 0167 T7): scripts/operator-jobs.ts
+    // value-imports the runner, and is itself loaded only by a dynamic import,
+    // from operator.ts for `jobs` and from operator-close.ts for the close's
+    // cancel on pg-boss; the second half above runs operator.ts whole and sees
+    // no pg-boss module. a-hold-that-holds-every-door holds the rest.
+    const OPERATOR_FILE = 'scripts/operator-jobs.ts';
+    expect(valueImports).toEqual([OPERATOR_FILE]);
+    for (const [rel, text] of files()) {
+      if (rel === OPERATOR_FILE) continue;
+      expect(text, `${rel} imports operator-jobs.ts statically`).not.toMatch(/^\s*import\s[^;]*from\s+['"]\.\/operator-jobs(\.ts)?['"]/m);
+    }
     expect(dynamicImports).toEqual(['job-runner.ts']);
   });
 });

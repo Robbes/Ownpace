@@ -194,10 +194,32 @@ describe('the sweep: nothing in apps/api/src enqueues except through the one fun
       if (text.includes('@openmig/scheduler/pg-boss')) namers.push(rel);
       if (/\bnew\s+PgBossProducer\b|\bPgBossJobRunner\b/.test(text)) makers.push(rel);
     }
-    expect(importers.sort()).toEqual([THE_FUNCTION_FILE]);
+    // THE OPERATOR'S OWN PRODUCER (workplan 0167 T7, #2044 beside #2045):
+    // `operator.sh jobs` (scripts/operator-jobs.ts) makes a producer of its
+    // own, at the machine, as the jobs role. It is no door: no route loads it,
+    // only operator.ts (for `jobs`) and operator-close.ts (the close's cancel
+    // on pg-boss) do, each by a dynamic import, and its `run` reads the hold
+    // itself before it enqueues, refusing while it is open unless told
+    // `--despite-hold`. Held to exactly that, then left out of the lists.
+    const OPERATOR_FILE = 'scripts/operator-jobs.ts';
+    const operatorJobs = code(join(SRC, OPERATOR_FILE));
+    expect(operatorJobs.search(/readHold\s*\(\s*\)/)).toBeGreaterThan(-1);
+    expect(operatorJobs.search(/readHold\s*\(\s*\)/)).toBeLessThan(operatorJobs.search(/\.enqueue\s*\(/));
+    expect(operatorJobs).toMatch(/if \(hold && !command\.despiteHold\)/);
+    expect(operatorJobs).toContain('readOpenPause(');
+    const loaders = sourceFiles()
+      .map((f) => [relative(SRC, f), code(f)] as const)
+      .filter(([rel, text]) => rel !== OPERATOR_FILE && /operator-jobs(\.ts)?['"]/.test(text));
+    expect(loaders.map(([rel]) => rel).sort()).toEqual(['scripts/operator-close.ts', 'scripts/operator.ts']);
+    for (const [rel, text] of loaders) {
+      expect(text, `${rel} loads operator-jobs.ts statically`).not.toMatch(/^\s*import\s[^;]*from\s+['"]\.\/operator-jobs(\.ts)?['"]/m);
+      expect(text, rel).toMatch(/import\(\s*['"]\.\/operator-jobs\.ts['"]\s*\)/);
+    }
+    const notTheOperator = (list: string[]) => list.filter((rel) => rel !== OPERATOR_FILE);
+    expect(notTheOperator(importers).sort()).toEqual([THE_FUNCTION_FILE]);
     expect(wholes).toEqual([]);
-    expect(namers.sort()).toEqual([THE_FUNCTION_FILE, RUNNER_FILE].sort());
-    expect(makers).toEqual([RUNNER_FILE]);
+    expect(notTheOperator(namers).sort()).toEqual([THE_FUNCTION_FILE, RUNNER_FILE].sort());
+    expect(notTheOperator(makers)).toEqual([RUNNER_FILE]);
     // In the function's file, the producer's enqueue comes after the hold, as the SDK's does.
     const text = code(join(SRC, THE_FUNCTION_FILE));
     expect(text.search(/producer\.enqueue\s*\(/)).toBeGreaterThan(text.indexOf('status(409)'));
