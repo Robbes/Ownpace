@@ -4,9 +4,55 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21, 22:55 UTC, latest: T3 is built, on
+**2026-11-22, 00:15 UTC, latest: T3 was reviewed and is held for alpha.15; its findings are fixed
+on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`.** An adversarial review of #2024
+found one blocker and three majors. The blocker is fixed from `main` in a pull request of its own
+(below); the rest is fixed here:
+- **The confirmation is a control of its own** (F2, F5). The button opens it over the rows as they
+  were then, a frozen set, and it names how many. *Cancel* comes first, where the button was, and
+  takes the focus. *Delete N* ignores the second click of a double click and any click within
+  800 ms of opening. Nothing is ordered unless the page's rows at that press, and the list read
+  again from the server, are both the frozen set, compared row by row.
+- **A fault is not a refusal** (F3). Only a 403 or 404 with a code in `APPLY_REFUSAL_CODES`
+  (`@openmig/shared`, held equal to core's `ApplyRefusal` by
+  `packages/core/src/a-refusal-code-the-page-knows.unit.test.ts`), or the 500
+  `removed_not_recorded`, counts as a refusal. Anything else is a press that did not answer.
+- **A press that did not answer stops the run** (F4, F6), its row *not known*. That is a fault, a
+  hold, a time-out, a receipt that failed, or one that did not land within five minutes.
+  Repeated failures to read a receipt are said while it is being read.
+- **The breaker and deleting by hand turned off stop the whole run** (F8, F14), every data type:
+  what the breaker suspects is the whole account's.
+- **Three groups afterwards** (F7): deleted (one removed by somebody else, and one the ledger
+  could not record, included), not deleted, and not known. The summary counts each and says what
+  stopped a run.
+- **A failed refresh keeps the page** (F9): Deletions, Moves and Failures keep their rows under
+  the error, so a run under way and its report stay.
+- **Accessibility** (F10): one status line for progress and the summary, with the lists outside
+  it. The focus goes to *Cancel*, then *Stop*, then the summary. The lists' headings are h4,
+  under the migration's h3.
+- **Words** (F12, F15): every claim of one at a time, each answered before the next, the count
+  confirmed being the count ordered, or the rest going on, now says what holds: in the ADR, its
+  operative rules, the arch doc §11.1, the runbook, the CHANGELOG, the guidance and the page.
+  *Not found* says Ownpace has no record of the item, and a changed list with one row left asks
+  for no second confirmation.
+- **Tests** (F11): the review's four surviving mutants are killed. They were a re-read compared by
+  count only, rows not marked *Waiting its turn*, a closed page that went on ordering, and one
+  that went on polling. One test runs the page over the real operating service, with only axios's
+  transport replaced (`apps/web/src/pages/a-delete-all-answered-over-http.unit.test.tsx`).
+- **The blocker (F1) is not this branch's.** A *Keep* did not stop a later apply of the same row,
+  by hand or in a run. It is fixed from `main` in its own pull request: `applyDeletion` refuses
+  `already_kept`, and the ledger's conditional UPDATE requires `deletion_acknowledged_at IS NULL`.
+  Once that is on `main`, this branch takes it and says `already_kept` in both languages.
+- **Follow-up, not built** (F13): two pages can run at once. On managed, a press joins a queued
+  receipt by reading first and inserting after, and `apply_receipt` has no partial unique index
+  on `state = 'queued'`. So two presses of one row in the same moment can queue two jobs, and gate
+  7 still records one removal. Closing it needs a migration, so it is left for a decision.
+- **Next:** CI on the pull request and a second review, then E2E (managed).
+
+**2026-11-21, 22:55 UTC, earlier: T3 is built, on
 `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`, as §4.2, and not yet on the test
-environment.** *Delete all of these here too* on *Deleted on the old system*
+environment.** The entry above supersedes this one where they differ: the breaker now stops the
+whole run, not only its data type, and a press that did not answer stops it too. *Delete all of these here too* on *Deleted on the old system*
 (`apps/web/src/components/queues/DeleteAllPanel.tsx`), on T2 as merged in #2019:
 - **The loop lives in the page**, not in a new endpoint that loops server-side. It presses each row's own *Delete it here
   too* in turn, through the same call, and reads each answer to its end before the next press: the
@@ -182,7 +228,7 @@ Read for this plan, on `main` at `8b8fac07`:
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
 | T1 What Google answers | builder | ✅ **Done 2026-11-21**: built as #2008, run by the owner; A is the reader | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
 | T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
-| T3 Apply in bulk | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply` | §4.2: *Delete all of these here too*, each row's own press in turn through every gate, the breaker stopping its data type. ADR-0024 amended |
+| T3 Apply in bulk | builder | 🟡 **Review**, held for alpha.15: built 2026-11-21, review findings fixed 2026-11-22, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply` | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled` or an unanswered press stops the run. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
 

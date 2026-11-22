@@ -30,9 +30,10 @@
   `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
   it (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
 - **One owner action may apply many** (2026-11-21, workplan 0164 T0 (b)): *Delete all of these
-  here too* presses each row's own apply in turn, through the same call and all seven gates,
-  each answered before the next; a breaker refusal stops the rest of that data type in the run.
-  Guard: `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
+  here too*, after one confirmation over a frozen set, presses each row's own apply through the
+  same call and all seven gates, the next only after an answer. A breaker refusal,
+  `not_enabled` or a press that did not answer stops the whole run. Guard:
+  `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.
@@ -135,34 +136,47 @@ a migration, and a removal on *Deleted on the old system* took one press per ite
 reads as **each item decided by itself**: one owner action may apply many, and each item goes
 through all seven gates by itself, through the code path a single press uses. The Decision's
 "nothing here is automatic, scheduled, or batched" reads the same way: a press for many is many
-single presses, in turn.
+single presses, one after another. As built after the pull request's review (2026-11-22):
 
 - **The press.** *Delete all of these here too*, on the Deletions page, is offered only where a
   single *Delete it here too* is: deleting by hand on, rows that `mayOfferApply` offers (positive
-  evidence, not past their data type's cutover), two at least. One confirmation, which names how
-  many it will delete. The list is read again before anything is ordered, and a list that changed
-  since it was shown orders nothing. That is the stronger confirmation the rejected alternative
-  above asked for before bulk apply was revisited: the count a person confirmed is the count
-  ordered.
-- **The same path.** The page presses each row's own apply in turn (`applyEachInTurn` in
+  evidence, not past their data type's cutover), two at least.
+- **The confirmation, and how it relates to "the caller states an expected count".** The rejected
+  alternative above asked, before bulk apply was revisited, for stronger confirmation, "e.g.
+  requiring the caller to state an expected count". T0 (b) asked for one confirmation that names
+  how many. Here the person states the count by confirming it. The button opens a confirmation
+  of its own, over the rows as they were when it opened (the set is frozen then), which names
+  their number. A double click cannot pass it: its *Cancel* is focused and sits where the button
+  was, and its *Delete N* ignores the second click of a double click and any click within 800 ms
+  of opening. Nothing is ordered unless the page's rows at that press, and the list read again
+  from the server, are both the frozen set. So what is ordered is never more than the rows the
+  person counted. The check is the page's: the server is told no count. It sees single presses,
+  each through every gate.
+- **The same path.** The page presses each row's own apply (`applyEachInTurn` in
   `@openmig/shared`, `DeleteAllPanel` in the web app): the same request, the same route, the same
   `evaluateApplyDeletion` and `applyDeletion`, and on managed the same receipt, audit row
   (`apply_deletion.ordered`, with the person who pressed) and job per item. No route was added,
   and nothing on the server can tell a row of a run from one pressed by hand.
-- **In turn, each to its end.** An item's answer, the appliance's or a managed receipt polled to
-  `applied`, `refused` or `failed`, is read before the next is ordered, so one removal at a time
-  reaches the new system, as a person pressing would.
-- **The breaker's rule, followed exactly.** Gate 6 refuses every apply for a data type while it
-  trips, because no single item in that queue is trustworthy then. So once an item of a run is
-  refused as a mass deletion, on the request or on its receipt, no later item of that data type
-  is ordered in that run, even if the share has dropped by the time it is reached. Another data
-  type goes on, behind its own breaker. A press made afterwards, by hand or in a new run, is
-  decided afresh.
+- **The next only once one has answered.** The appliance's answer, or a managed receipt read to
+  `applied`, `refused` or `failed` within five minutes, is read before the next row is pressed.
+  A press that did not answer stops the run, with its row *not known*. That covers a fault, a
+  time-out, a receipt that failed or did not land, and any answer that is not a gate's refusal
+  (a 403 or 404 with a refusal code, or the 500 `removed_not_recorded`). Its removal may still be
+  running, and a next press beside it could pass a refusal it never got to say. So one removal at
+  a time reaches the new system from a page, as a person pressing would. Two pages, or two
+  people, can still each run one.
+- **A refusal that speaks for every item stops the run.** Gate 6 refuses every apply while the
+  queue looks like a source problem, because no single item in it is trustworthy then. What it
+  suspects, a restored account, an outage or the wrong place read, is the whole account's. So
+  once an item of a run is refused as a mass deletion, on the request or on its receipt, no
+  later item of any data type is ordered in that run, even if the share has dropped by the time
+  it is reached. Deleting by hand turned off (`not_enabled`) stops it the same way. A press made
+  afterwards, by hand or in a new run, is decided afresh.
 - **Every other refusal is that item's answer**, said with its reason, and the next item is
-  ordered. A press that failed is said as a failure, never as a refusal.
-- **Afterwards** the page says what was deleted and what was not, with each reason, in English and
-  Dutch: a sentence per refusal code in the reader's language, the server's own words and code
-  beside it, verbatim.
+  ordered.
+- **Afterwards** the page says what was deleted, what was not, and what is not known, with each
+  reason, in English and Dutch: a sentence per refusal code in the reader's language, the
+  server's own words and code beside it, verbatim.
 - **Still never by itself.** Hard rule 2 stands: nothing is removed without a person's press, and
   removal by itself (workplan 0164 §4.3, T4) stays parked. A run orders nothing more once the
   person presses *Stop* or the page closes; what was ordered finishes where it runs.
@@ -170,7 +184,8 @@ single presses, in turn.
 ## Amendment log
 
 - **2026-11-21** — Per item reads as each item decided by itself: one owner action may apply many,
-  each through all seven gates, a breaker refusal stopping the rest of its data type in the run
+  each through all seven gates, after one confirmation over a frozen set, the next only once one
+  has answered; a breaker refusal, `not_enabled` or a press that did not answer stops the run
   (workplan 0164 T0 (b), T3). Record: *Amendment, 2026-11-21: per item reads as each item decided
   by itself*.
 

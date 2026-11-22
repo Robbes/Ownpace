@@ -109,37 +109,52 @@ export const en = {
   'deletions.applyArmed': 'Confirm delete',
   // ONE PRESS FOR THE ROWS WITH A DELETE BUTTON (workplan 0164 T3; ADR-0024,
   // amended 2026-11-21). Each row is still decided by itself, by the same
-  // checks as its own button, one after another; the confirmation names how
-  // many. Offered only while deleting by hand is on, and never for a row
-  // without a delete button of its own.
+  // checks as its own button, the next only once the one before has
+  // answered. Offered only while deleting by hand is on, and never for a row
+  // without a delete button of its own. Its confirmation is a control of its
+  // own, which names how many, over the rows as they were when it opened.
   'deletions.all': 'Delete all of these here too',
-  'deletions.all.armed': 'Confirm: delete these {count} here too',
   'deletions.all.lead':
-    'Deletes the copy of each of these {count} on the new system, one at a time. Each is checked by itself first, as a single delete is: one that is refused stays here, and the rest go on.',
+    'Deletes the copy of each of these {count} on the new system, one after another. Each is checked by itself first, as a single delete is, and the next is pressed only once it has answered. One that is refused stays here, with the reason. A refusal that speaks for all of them, or a delete that could not be carried out, stops the rest.',
+  'deletions.all.confirm.question': 'Delete these {count} on the new system?',
+  'deletions.all.confirm.yes': 'Delete {count}',
+  'deletions.all.confirm.no': 'Cancel',
   'deletions.all.waiting': 'Waiting its turn',
   'deletions.all.reading': 'Reading the list again before anything is deleted…',
   'deletions.all.changed':
-    'The list changed since it was shown: {count} can be deleted now. Nothing was deleted. Look at the list again, then press once more.',
+    'The list changed since you confirmed: {count} can be deleted now. Nothing was deleted. Look at the list again, then confirm once more.',
+  // A list with one row or none offers no press for all of them.
+  'deletions.all.changed.few': 'The list changed since you confirmed. Nothing was deleted. Look at the list again.',
   'deletions.all.unreadable': 'The list could not be read again, so nothing was deleted:',
   'deletions.all.running': 'Deleting on the new system, one at a time: {done} of {count} done.',
+  'deletions.all.pollTrouble': 'Its answer could not be read, {count} times in a row: {error}. Still asking.',
   'deletions.all.stop': 'Stop',
   'deletions.all.stopping': 'Stopping: nothing more is deleted after the one under way.',
-  'deletions.all.done': 'Done: {removed} of {count} deleted on the new system.',
+  'deletions.all.done': 'Done: {deleted} deleted on the new system, {notDeleted} not deleted, {unknown} not known.',
+  'deletions.all.stoppedBy.breaker':
+    'Stopped: the safeguard against mass deletion refused one, so nothing after it was asked.',
+  'deletions.all.stoppedBy.notEnabled': 'Stopped: deleting by hand was turned off, so nothing after it was asked.',
+  'deletions.all.stoppedBy.failure': 'Stopped: one could not be carried out, so nothing after it was asked.',
+  'deletions.all.stoppedBy.stop': 'Stopped: you pressed Stop.',
   'deletions.all.removed': 'Deleted on the new system',
   'deletions.all.notRemoved': 'Not deleted',
+  'deletions.all.unknown': 'Not known',
   // The server's own words and code, verbatim, folded under each line that
   // says it in the reader's language (docs/i18n-prose-boundary.md, class 2).
   'deletions.all.technical': 'Technical details',
-  'deletions.all.notTried.breaker':
-    'Not tried: the safeguard against mass deletion refused an earlier item of the same kind ({dataType}), so none after it was deleted.',
+  'deletions.all.notTried.breaker': 'Not tried: the safeguard against mass deletion refused an earlier one in this run.',
+  'deletions.all.notTried.notEnabled': 'Not tried: deleting by hand was turned off earlier in this run.',
+  'deletions.all.notTried.failure': 'Not tried: an earlier one could not be carried out.',
   'deletions.all.notTried.stop': 'Not tried: you pressed Stop before its turn.',
   'deletions.all.failed':
     'This could not be carried out, so whether it was deleted is not known. Look at it on the new system before you press again.',
+  'deletions.all.late': 'No answer came within {minutes} minutes, so whether it was deleted is not known.',
+  'deletions.all.unknownRow': 'Not known whether it was deleted:',
   // Why one was not deleted, keyed on the refusal's stable code: the
   // server's sentence stays beside it, under Technical details.
   'deletions.refused.notEnabled': 'Deleting by hand is off for this migration, so it was not deleted.',
   'deletions.refused.targetCannotRemove': 'The new system did not delete it for Ownpace, so nothing changed there.',
-  'deletions.refused.notFound': 'Ownpace no longer knows this item, so there was nothing to delete.',
+  'deletions.refused.notFound': 'Ownpace has no record of this item any more, so it did not delete anything.',
   'deletions.refused.notConfirmed':
     'Nothing says any more that it was deleted on the old system, so it was not deleted.',
   'deletions.refused.weakEvidence':
@@ -155,7 +170,7 @@ export const en = {
   'deletions.refused.keptForGuests':
     'The event still lists guests, and the new system would email each of them a cancellation, so it was not deleted.',
   'deletions.refused.massDeletionSuspected':
-    'So much of this kind is waiting to be deleted at once that it looks like a problem at the old system. The safeguard against mass deletion refuses every deletion of this kind while that many are waiting.',
+    'So much is waiting to be deleted at once that it looks like a problem at the old system. The safeguard against mass deletion refuses every deletion while that many are waiting.',
   'deletions.refused.removedNotRecorded':
     'It was deleted on the new system, but Ownpace could not record that. Check will report it as missing until that is put right by hand.',
   'deletions.refused.other': 'It was refused, for the reason under Technical details.',
@@ -255,30 +270,47 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.apply': 'Verwijder het hier ook',
   'deletions.applyArmed': 'Bevestig verwijderen',
   'deletions.all': 'Verwijder deze allemaal hier ook',
-  'deletions.all.armed': 'Bevestig: verwijder deze {count} hier ook',
   'deletions.all.lead':
-    'Verwijdert de kopie van elk van deze {count} op het nieuwe systeem, één voor één. Elk wordt eerst afzonderlijk gecontroleerd, net als bij één verwijdering: wat wordt geweigerd, blijft hier staan, en de rest gaat door.',
+    'Verwijdert de kopie van elk van deze {count} op het nieuwe systeem, de een na de ander. Elk wordt eerst afzonderlijk gecontroleerd, net als bij één verwijdering, en de volgende wordt pas verwijderd als de vorige antwoord heeft gegeven. Wat wordt geweigerd, blijft hier staan, met de reden. Een weigering die voor allemaal geldt, of een verwijdering die niet kon worden uitgevoerd, stopt de rest.',
+  'deletions.all.confirm.question': 'Deze {count} verwijderen op het nieuwe systeem?',
+  'deletions.all.confirm.yes': 'Verwijder {count}',
+  'deletions.all.confirm.no': 'Annuleren',
   'deletions.all.waiting': 'Wacht op zijn beurt',
   'deletions.all.reading': 'De lijst wordt opnieuw gelezen voordat er iets wordt verwijderd…',
   'deletions.all.changed':
-    'De lijst is veranderd sinds die werd getoond: nu kunnen er {count} worden verwijderd. Er is niets verwijderd. Bekijk de lijst opnieuw en druk dan nog een keer.',
+    'De lijst is veranderd sinds u bevestigde: nu kunnen er {count} worden verwijderd. Er is niets verwijderd. Bekijk de lijst opnieuw en bevestig dan nog een keer.',
+  'deletions.all.changed.few': 'De lijst is veranderd sinds u bevestigde. Er is niets verwijderd. Bekijk de lijst opnieuw.',
   'deletions.all.unreadable': 'De lijst kon niet opnieuw worden gelezen, dus er is niets verwijderd:',
   'deletions.all.running': 'Verwijderen op het nieuwe systeem, één voor één: {done} van {count} klaar.',
+  'deletions.all.pollTrouble': 'Het antwoord kon {count} keer achter elkaar niet worden gelezen: {error}. Er wordt nog gevraagd.',
   'deletions.all.stop': 'Stoppen',
   'deletions.all.stopping': 'Bezig met stoppen: na de lopende verwijdering wordt er niets meer verwijderd.',
-  'deletions.all.done': 'Klaar: {removed} van {count} verwijderd op het nieuwe systeem.',
+  'deletions.all.done':
+    'Klaar: {deleted} verwijderd op het nieuwe systeem, {notDeleted} niet verwijderd, {unknown} onbekend.',
+  'deletions.all.stoppedBy.breaker':
+    'Gestopt: de beveiliging tegen massaal verwijderen weigerde er een, dus daarna is er niets meer gevraagd.',
+  'deletions.all.stoppedBy.notEnabled':
+    'Gestopt: handmatig verwijderen werd uitgeschakeld, dus daarna is er niets meer gevraagd.',
+  'deletions.all.stoppedBy.failure':
+    'Gestopt: er kon er een niet worden uitgevoerd, dus daarna is er niets meer gevraagd.',
+  'deletions.all.stoppedBy.stop': 'Gestopt: u drukte op Stoppen.',
   'deletions.all.removed': 'Verwijderd op het nieuwe systeem',
   'deletions.all.notRemoved': 'Niet verwijderd',
+  'deletions.all.unknown': 'Onbekend',
   'deletions.all.technical': 'Technische details',
   'deletions.all.notTried.breaker':
-    'Niet geprobeerd: de beveiliging tegen massaal verwijderen weigerde een eerder item van dezelfde soort ({dataType}), dus is er daarna geen meer verwijderd.',
+    'Niet geprobeerd: eerder in deze reeks weigerde de beveiliging tegen massaal verwijderen er een.',
+  'deletions.all.notTried.notEnabled': 'Niet geprobeerd: handmatig verwijderen werd eerder in deze reeks uitgeschakeld.',
+  'deletions.all.notTried.failure': 'Niet geprobeerd: een eerdere kon niet worden uitgevoerd.',
   'deletions.all.notTried.stop': 'Niet geprobeerd: u drukte op Stoppen voordat het aan de beurt was.',
   'deletions.all.failed':
     'Dit kon niet worden uitgevoerd, dus of het is verwijderd, is niet bekend. Kijk op het nieuwe systeem voordat u nog een keer drukt.',
+  'deletions.all.late': 'Er kwam binnen {minutes} minuten geen antwoord, dus of het is verwijderd, is niet bekend.',
+  'deletions.all.unknownRow': 'Niet bekend of het is verwijderd:',
   'deletions.refused.notEnabled': 'Handmatig verwijderen staat uit voor deze migratie, dus het is niet verwijderd.',
   'deletions.refused.targetCannotRemove':
     'Het nieuwe systeem heeft het niet voor Ownpace verwijderd, dus daar is niets veranderd.',
-  'deletions.refused.notFound': 'Ownpace kent dit item niet meer, dus er was niets te verwijderen.',
+  'deletions.refused.notFound': 'Ownpace heeft geen gegevens meer over dit item, dus het heeft niets verwijderd.',
   'deletions.refused.notConfirmed':
     'Niets meldt nog dat het op het oude systeem is verwijderd, dus het is niet verwijderd.',
   'deletions.refused.weakEvidence':
@@ -295,7 +327,7 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.refused.keptForGuests':
     'De afspraak heeft nog gasten, en het nieuwe systeem zou elk van hen een annulering mailen, dus die is niet verwijderd.',
   'deletions.refused.massDeletionSuspected':
-    'Er wacht zoveel van deze soort tegelijk op verwijderen dat het op een probleem bij het oude systeem lijkt. De beveiliging tegen massaal verwijderen weigert elke verwijdering van deze soort zolang er zoveel wachten.',
+    'Er wacht zoveel tegelijk op verwijderen dat het op een probleem bij het oude systeem lijkt. De beveiliging tegen massaal verwijderen weigert elke verwijdering zolang er zoveel wachten.',
   'deletions.refused.removedNotRecorded':
     'Het is op het nieuwe systeem verwijderd, maar Ownpace kon dat niet vastleggen. Bij de verificatie wordt het als ontbrekend gemeld totdat dat met de hand is rechtgezet.',
   'deletions.refused.other': 'Het is geweigerd, om de reden onder Technische details.',

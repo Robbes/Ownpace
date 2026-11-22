@@ -9,23 +9,29 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **One press to delete the copies on *Deleted on the old system*** (workplan 0164 T3; ADR-0024,
   amended 2026-11-21: "per item" reads as "each item decided by itself"). *Delete all of these
   here too* is offered beside the rows that have their own delete button, while deleting by hand
-  is on, and never for an assumed row or one past its data type's cutover. Its confirmation names
-  how many it will delete, and the list is read again first: a list that changed since it was
-  shown deletes nothing. It then presses each row's own *Delete it here too* in turn, through the
-  same request and every check a single press passes, each answered before the next is pressed
-  (on managed, each with its own receipt, audit row and job). A refusal of one is said and the
-  rest go on, except that once the safeguard against mass deletion refuses one, no later row of
-  that data type is pressed in that run. *Stop* presses nothing more. Afterwards the page lists
-  what was deleted and what was not, with each reason, in English and Dutch, the server's own
-  words beside it. Nothing is deleted by itself: no route was added, and the server cannot tell a
-  row of a run from one pressed by hand.
-
+  is on, and never for an assumed row or one past its data type's cutover. It opens a
+  confirmation of its own over the rows as they were then, which names how many and which a
+  double click cannot pass. Nothing is deleted if the rows, or the list read again from the
+  server, have changed by the time it is confirmed. It then presses each row's own *Delete it
+  here too*, through the same request and every check a single press passes, the next only once
+  the one before has answered (on managed, each with its own receipt, audit row and job). A
+  refusal of one row is said and the next is pressed; the safeguard against mass deletion,
+  deleting by hand turned off, or a delete that did not answer stops the rest. *Stop* presses
+  nothing more. Afterwards the page lists what was deleted, what was not and what is not known,
+  with each reason, in English and Dutch, the server's own words beside it. Nothing is deleted by
+  itself: no route was added, and the server cannot tell a row of a run from one pressed by hand.
 ### Changed
 
 - **`GET /version` no longer reads a file on every request** (workplan 0006 L). On both editions
   the build's version came from the root `package.json`, read again for every answer, every
   problem report and every unreadable-answer line, and each read held up the requests behind it.
   It is now read once per process; a version stamped in the environment still wins on every call.
+
+### Fixed
+
+- **A queue that could not be read again keeps its rows on screen** (workplan 0164 T3), under a
+  line that says so. A failed refresh on Deletions, Moves or Failures used to replace the whole
+  page with the error, a *Delete all of these here too* under way and its report included.
 
 ## [0.2.0-alpha.14] - 2026-11-21
 

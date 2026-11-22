@@ -45,6 +45,12 @@ export type ItemOutcome =
   | { readonly state: 'pending' }
   | { readonly state: 'done'; readonly served: Partial<DecisionEffectFields> }
   | { readonly state: 'refused'; readonly text: string }
+  /**
+   * A press that did not answer, in a run (workplan 0164 T3): a fault, a
+   * time-out, a receipt that never landed. Not a refusal: whether the copy is
+   * gone is not known, and the row says so.
+   */
+  | { readonly state: 'unknown'; readonly text: string }
   | { readonly state: 'receipt'; readonly receipt: ApplyReceipt };
 
 export interface QueueScreenProps<T extends QueueEnvelope> {
@@ -151,20 +157,21 @@ export function QueueScreen<T extends QueueEnvelope>({
     );
   }
 
-  if (error) {
-    // Surfaced verbatim rather than replaced with an empty queue. An empty
-    // decision queue means "nothing needs you", and showing that when we simply
-    // could not ask is the failure hard rule 9 exists to prevent.
-    return (
-      <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
-        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <div>
-          <p className="font-medium">{t('queue.loadFailed')}</p>
-          <p className="mt-1">{serverMessage(error)}</p>
-        </div>
+  // Surfaced verbatim rather than replaced with an empty queue. An empty
+  // decision queue means "nothing needs you", and showing that when we simply
+  // could not ask is the failure hard rule 9 exists to prevent.
+  const loadFailed = error ? (
+    <div className="flex items-start gap-2 p-4 mb-4 rounded-lg bg-red-50 text-red-800 text-sm" role="alert">
+      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+      <div>
+        <p className="font-medium">{t('queue.loadFailed')}</p>
+        <p className="mt-1">{serverMessage(error)}</p>
       </div>
-    );
-  }
+    </div>
+  ) : null;
+
+  // Nothing read yet: the failure is all there is to show.
+  if (error && data === undefined) return loadFailed!;
 
   const mappings = Object.entries(data ?? {});
 
@@ -180,6 +187,12 @@ export function QueueScreen<T extends QueueEnvelope>({
         )}
       </div>
       <Hint className="mt-1 mb-6" label="more" text={intro} why={more} />
+
+      {/* A read that failed AFTER one that worked (workplan 0164 T3): said
+          above the rows, which stay. Replacing them took everything below
+          with it, a run under way and what it had said included. The rows
+          are as last read, and the time beside the title says when. */}
+      {loadFailed}
 
       {mappings.length === 0 && <p className="text-sm text-gray-500">{t('queue.noMappings')}</p>}
 

@@ -2,15 +2,22 @@
 
 /**
  * The loop *Delete all of these here too* orders a run with (workplan 0164
- * T3): in turn, each answered before the next is ordered; the breaker stops
- * the rest of its data type and no other; a stop is honoured between items;
- * a failure is that item's result. What each press decides is the gates',
- * and `packages/core/src/a-delete-all-through-every-gate.unit.test.ts` runs
- * this loop over the real `applyDeletion`.
+ * T3): in turn, each answered before the next is ordered; a press that did
+ * not answer, the breaker's refusal and `not_enabled` each stop the whole
+ * run; any other refusal is that item's answer and the next is ordered; a
+ * stop is honoured between items. What each press decides is the gates', and
+ * `packages/core/src/a-delete-all-through-every-gate.unit.test.ts` runs this
+ * loop over the real `applyDeletion`.
  */
 
 import { describe, it, expect } from 'vitest';
-import { applyEachInTurn, BREAKER_CODES, type ApplyEachItem, type OneApplyAnswer } from './apply-each-in-turn.ts';
+import {
+  applyEachInTurn,
+  BREAKER_CODES,
+  RUN_STOPPING_REFUSALS,
+  type ApplyEachItem,
+  type OneApplyAnswer,
+} from './apply-each-in-turn.ts';
 
 const item = (naturalKeyHash: string, domain: ApplyEachItem['domain'] = 'calendar'): ApplyEachItem => ({
   naturalKeyHash,
@@ -49,40 +56,62 @@ describe('in turn', () => {
     );
     expect(results.map((r) => r.item.naturalKeyHash)).toEqual(['a', 'b', 'c']);
     expect(told).toEqual(['a', 'b', 'c']);
-    // A refusal that is not the breaker's leaves the rest going on.
+    // A refusal of that item alone leaves the rest going on.
     expect(results[1]).toEqual({ item: item('b'), answered: refused('not_ours') });
     expect(results[2]).toEqual({ item: item('c'), answered: removed });
   });
 });
 
-describe('the breaker', () => {
-  it.each([...BREAKER_CODES])('%s stops the rest of its data type, and no other', async (code) => {
+describe('a refusal that speaks for every item', () => {
+  it.each([...RUN_STOPPING_REFUSALS])('%s stops the whole run, every data type included', async (code) => {
     const ordered: string[] = [];
     const results = await applyEachInTurn(
-      [item('a'), item('b'), item('m', 'email'), item('c'), item('n', 'email')],
+      [item('a'), item('b'), item('m', 'email'), item('c')],
       async (it) => {
         ordered.push(it.naturalKeyHash);
         return it.naturalKeyHash === 'b' ? refused(code) : removed;
       },
     );
-    expect(ordered).toEqual(['a', 'b', 'm', 'n']);
-    expect(results[3]).toEqual({
-      item: item('c'),
-      notTried: { by: 'breaker', code, reason: `the gate said ${code}` },
-    });
-    expect(results[4]).toEqual({ item: item('n', 'email'), answered: removed });
+    expect(ordered).toEqual(['a', 'b']);
+    const said = { by: 'refusal', code, reason: `the gate said ${code}` };
+    expect(results.slice(2)).toEqual([
+      { item: item('m', 'email'), notTried: said },
+      { item: item('c'), notTried: said },
+    ]);
   });
 
-  it('is the only refusal that stops anything', async () => {
+  it('is the breaker’s, or deleting by hand turned off, and no other', () => {
+    expect([...RUN_STOPPING_REFUSALS].sort()).toEqual([...BREAKER_CODES, 'not_enabled'].sort());
+  });
+
+  it('does not include any other refusal: each of those is its own item’s answer', async () => {
+    const codes = ['after_cutover', 'edited_on_target', 'weak_evidence', 'not_ours', 'removed_not_recorded'];
     const ordered: string[] = [];
     await applyEachInTurn(
-      ['not_enabled', 'after_cutover', 'edited_on_target', 'weak_evidence', 'removed_not_recorded'].map((c) => item(c)),
+      codes.map((c) => item(c)),
       async (it) => {
         ordered.push(it.naturalKeyHash);
         return refused(it.naturalKeyHash);
       },
     );
-    expect(ordered).toHaveLength(5);
+    expect(ordered).toEqual(codes);
+  });
+});
+
+describe('a press that did not answer', () => {
+  it('is that item’s result, said in its own words, and nothing after it is ordered', async () => {
+    const ordered: string[] = [];
+    const results = await applyEachInTurn([item('a'), item('b'), item('k', 'contact')], async (it) => {
+      ordered.push(it.naturalKeyHash);
+      if (it.naturalKeyHash === 'a') throw new Error('the request did not complete');
+      return removed;
+    });
+    expect(ordered).toEqual(['a']);
+    expect(results).toEqual([
+      { item: item('a'), failed: 'the request did not complete' },
+      { item: item('b'), notTried: { by: 'failure' } },
+      { item: item('k', 'contact'), notTried: { by: 'failure' } },
+    ]);
   });
 });
 
@@ -103,19 +132,6 @@ describe('a stop', () => {
     expect(results.slice(1)).toEqual([
       { item: item('b'), notTried: { by: 'stop' } },
       { item: item('c'), notTried: { by: 'stop' } },
-    ]);
-  });
-});
-
-describe('a failure', () => {
-  it('is that item’s result, said in its own words, and the next item is ordered', async () => {
-    const results = await applyEachInTurn([item('a'), item('b')], async (it) => {
-      if (it.naturalKeyHash === 'a') throw new Error('the request did not complete');
-      return removed;
-    });
-    expect(results).toEqual([
-      { item: item('a'), failed: 'the request did not complete' },
-      { item: item('b'), answered: removed },
     ]);
   });
 });

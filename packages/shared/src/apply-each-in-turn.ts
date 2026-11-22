@@ -9,30 +9,36 @@
  * not remove anything and it decides nothing about an item: `applyOne` is the
  * press a single *Delete it here too* makes, through the same route and the
  * same `applyDeletion`, so every gate stands in front of every item. What
- * this adds is the order, and the one place where the breaker's own rule
- * reaches past one item.
+ * this adds is the order, and when the run stops.
  *
- * - **In turn.** One item at a time, each answered before the next is
- *   ordered: `applyOne` resolves once the item is decided (the appliance's
- *   answer, or a managed receipt polled to its end). A refusal goes into the
- *   results with its words, and the next item is ordered.
- * - **The breaker stops the rest of its data type.** ADR-0024 gate 6: while
- *   more than a fifth of a data type's migrated items wait to be deleted,
- *   every apply for that data type is refused, because *"once the evidence
- *   looks that wrong in bulk, no single item in the queue — including the
- *   one an operator is looking at — is trustworthy either"*. So once an item
- *   is refused by the breaker, no later item of that data type is ordered in
- *   this run, even if the share has dropped by the time it is reached: the
+ * - **In turn.** The next item is ordered only once the one before it has
+ *   answered: `applyOne` resolves when the item is decided (the appliance's
+ *   answer, or a managed receipt read to its end). A refusal of that item
+ *   alone goes into the results with its words, and the next item is
+ *   ordered.
+ * - **A press that did not answer stops the run.** `applyOne` throwing (a
+ *   fault, a time-out, a receipt that failed or never landed) is that item's
+ *   result, and nothing after it is ordered (`notTried: 'failure'`): its
+ *   removal may still be running, or have happened, and a next press would
+ *   run beside it, perhaps past a refusal the first one never got to say.
+ * - **A refusal that speaks for every item stops the run.** The breaker
+ *   (ADR-0024 gate 6) refuses every apply while the queue looks like a source
+ *   problem, because *"once the evidence looks that wrong in bulk, no single
+ *   item in the queue — including the one an operator is looking at — is
+ *   trustworthy either"*, and what it suspects (a restored account, an
+ *   outage, the wrong place read) is the whole account's, not one data
+ *   type's. So once an item is refused by it, nothing after it is ordered in
+ *   this run, of any data type, even if the share has dropped by then: the
  *   person pressed before the breaker spoke, and a run that went on would
- *   nibble through a queue somebody is meant to look at (the same reasoning
- *   `autoApplyRelocations` states for its cap). The other data types go on,
- *   each behind its own breaker, as the rule is per data type.
+ *   nibble through a queue somebody is meant to look at (the reasoning
+ *   `autoApplyRelocations` states for its cap). Deleting by hand turned off
+ *   (`not_enabled`) stops it the same way: every press after it would be
+ *   refused for the same reason. The cost is one more press, made afresh.
  * - **A stop is honoured between items.** `stopRequested` is asked before
  *   each order: the person's *Stop*, or the page closing. What was ordered
  *   finishes where it runs; nothing after it is ordered.
- * - **A failure is said, not swallowed** (hard rule 9). `applyOne` throwing
- *   is that item's result, and the run goes on: the next item is a press of
- *   its own, through every gate.
+ * - **Every item gets exactly one result**, in the order given, and a failure
+ *   is said, never swallowed (hard rule 9).
  */
 
 import type { DiscoveryDomain } from './discovery.ts';
@@ -43,14 +49,17 @@ export interface ApplyEachItem {
   readonly domain: DiscoveryDomain;
 }
 
-/**
- * The refusal codes of ADR-0024's breaker (gate 6), for deletions and for
- * relocations. Either one stops the rest of its data type in a run.
- */
+/** The refusal codes of ADR-0024's breaker (gate 6), for deletions and for relocations. */
 export const BREAKER_CODES: ReadonlySet<string> = new Set([
   'mass_deletion_suspected',
   'mass_relocation_suspected',
 ]);
+
+/**
+ * The refusals that stop a run: the breaker's, and deleting by hand turned
+ * off. Each says something about every item after it, not only about its own.
+ */
+export const RUN_STOPPING_REFUSALS: ReadonlySet<string> = new Set([...BREAKER_CODES, 'not_enabled']);
 
 /**
  * What one press answered, as far as this loop needs to read it: whether it
@@ -66,8 +75,10 @@ export interface OneApplyAnswer {
 
 /** Why an item was not ordered at all. Nothing was asked about it, and nothing changed. */
 export type NotTried =
-  /** The breaker refused an earlier item of the same data type in this run. */
-  | { readonly by: 'breaker'; readonly code: string; readonly reason: string }
+  /** An earlier item's refusal stopped the run: the breaker's, or `not_enabled`. */
+  | { readonly by: 'refusal'; readonly code: string; readonly reason: string }
+  /** An earlier press did not answer, so nothing more was ordered. */
+  | { readonly by: 'failure' }
   /** The person stopped the run, or the page went away, before its turn. */
   | { readonly by: 'stop' };
 
@@ -75,7 +86,7 @@ export type NotTried =
 export type ApplyEachResult<A extends OneApplyAnswer> =
   /** It was ordered, and this is what the press answered. */
   | { readonly item: ApplyEachItem; readonly answered: A }
-  /** It was ordered, and the press failed: its fate is for a person to look at. */
+  /** It was ordered, and the press did not answer: its fate is not known. */
   | { readonly item: ApplyEachItem; readonly failed: string }
   /** It was not ordered. */
   | { readonly item: ApplyEachItem; readonly notTried: NotTried };
@@ -97,9 +108,8 @@ export async function applyEachInTurn<A extends OneApplyAnswer>(
   options: ApplyEachOptions<A> = {},
 ): Promise<ApplyEachResult<A>[]> {
   const results: ApplyEachResult<A>[] = [];
-  // The breaker's answer per data type, from the item it refused.
-  const breakerSaid = new Map<DiscoveryDomain, { code: string; reason: string }>();
-  let stopped = false;
+  // Once set, every item after it is not tried, for this reason.
+  let stoppedBy: NotTried | undefined;
 
   const record = (result: ApplyEachResult<A>): void => {
     results.push(result);
@@ -107,14 +117,9 @@ export async function applyEachInTurn<A extends OneApplyAnswer>(
   };
 
   for (const item of items) {
-    if (!stopped && options.stopRequested?.() === true) stopped = true;
-    if (stopped) {
-      record({ item, notTried: { by: 'stop' } });
-      continue;
-    }
-    const breaker = breakerSaid.get(item.domain);
-    if (breaker) {
-      record({ item, notTried: { by: 'breaker', ...breaker } });
+    if (stoppedBy === undefined && options.stopRequested?.() === true) stoppedBy = { by: 'stop' };
+    if (stoppedBy !== undefined) {
+      record({ item, notTried: stoppedBy });
       continue;
     }
 
@@ -123,12 +128,13 @@ export async function applyEachInTurn<A extends OneApplyAnswer>(
       answered = await applyOne(item);
     } catch (err) {
       record({ item, failed: err instanceof Error ? err.message : String(err) });
+      stoppedBy = { by: 'failure' };
       continue;
     }
     record({ item, answered });
 
-    if (!answered.ok && answered.code !== undefined && BREAKER_CODES.has(answered.code)) {
-      breakerSaid.set(item.domain, { code: answered.code, reason: answered.reason ?? answered.code });
+    if (!answered.ok && answered.code !== undefined && RUN_STOPPING_REFUSALS.has(answered.code)) {
+      stoppedBy = { by: 'refusal', code: answered.code, reason: answered.reason ?? answered.code };
     }
   }
   return results;

@@ -2129,11 +2129,14 @@ only ever reports. `apply` takes the target's copy away, on an explicit,
 per-item decision an operator makes by calling the endpoint. Nothing about it is
 automatic or triggered by a schedule. The Deletions page's *Delete all of these
 here too* (workplan 0164 T3) is one press for every row that has its own delete
-button: it calls the same endpoint for each row in turn, each answered (on
-managed, its receipt read to the end) before the next is called, so every row
-passes everything below by itself. A `mass_deletion_suspected` refusal stops the
-rest of that domain in the run; any other refusal is that row's answer, and the
-next row is called.
+button, after one confirmation over the rows as they were when it opened: it
+calls the same endpoint for each row, and the next only once the one before has
+answered (on managed, its receipt read to the end, within five minutes), so
+every row passes everything below by itself. A `mass_deletion_suspected` or
+`not_enabled` refusal stops the whole run, and so does a call that did not
+answer (a fault, a time-out, a receipt that failed or did not land), whose row
+the page calls not known. Any other refusal is that row's answer, and the next
+row is called. Two pages can still each run one at the same time.
 
 It has to be turned on per mapping first:
 

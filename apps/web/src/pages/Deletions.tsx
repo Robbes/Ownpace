@@ -29,6 +29,7 @@
  */
 
 import React from 'react';
+import { AlertCircle } from 'lucide-react';
 import { useParams } from 'react-router';
 import type { ApplyReceipt, DeletionsQueue, EarlierExport, ItemDeletion } from '@openmig/shared';
 import { mayOfferApply } from '@openmig/shared';
@@ -150,6 +151,8 @@ const Row: React.FC<{
         <ReceiptStatus receipt={outcome.receipt} />
       ) : outcome?.state === 'waiting' ? (
         <WaitingItsTurn />
+      ) : outcome?.state === 'unknown' ? (
+        <NotKnown text={outcome.text} />
       ) : d.decided ? (
         <Decided decided={d.decided} />
       ) : (
@@ -163,6 +166,22 @@ const Row: React.FC<{
 const WaitingItsTurn: React.FC = () => {
   const t = useT();
   return <span className="text-xs text-gray-600">{t('deletions.all.waiting')}</span>;
+};
+
+/**
+ * A row whose press did not answer, in a run: a fault, a time-out, a receipt
+ * that never landed. Red, like a failed receipt, and never a refusal's amber:
+ * whether the copy is gone is not known. What the press said follows, as
+ * served.
+ */
+const NotKnown: React.FC<{ text: string }> = ({ text }) => {
+  const t = useT();
+  return (
+    <span className="inline-flex items-start gap-1 text-xs text-red-700">
+      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+      {t('deletions.all.unknownRow')} {text}
+    </span>
+  );
 };
 
 /** What a row is called, for the list a run leaves: as `WhichItem` says it, in one line. */
@@ -232,7 +251,11 @@ const offeredAll = (
 const Deletions: React.FC<{
   /** Test seam: the receipt poll interval. Production uses the default. */
   receiptPollMs?: number;
-}> = ({ receiptPollMs = 2000 }) => {
+  /** Test seam: how long a run waits for one receipt (`RECEIPT_DEADLINE_MS`). */
+  receiptDeadlineMs?: number;
+  /** Test seam: the run's confirmation guard (`CONFIRM_GUARD_MS`). */
+  confirmGuardMs?: number;
+}> = ({ receiptPollMs = 2000, receiptDeadlineMs, confirmGuardMs }) => {
   // Undefined on the appliance, which answers for every configured mapping;
   // required by the managed edition, which scopes each queue to one. See
   // `queuePath()` — the shapes are shared, the URLs are not.
@@ -348,6 +371,8 @@ const Deletions: React.FC<{
           setOutcome={setOutcome}
           refresh={refresh}
           receiptPollMs={receiptPollMs}
+          {...(receiptDeadlineMs !== undefined ? { receiptDeadlineMs } : {})}
+          {...(confirmGuardMs !== undefined ? { confirmGuardMs } : {})}
           nameOf={nameOf}
         />
         {/* What the chips mean is said here, where a phone can read it, not

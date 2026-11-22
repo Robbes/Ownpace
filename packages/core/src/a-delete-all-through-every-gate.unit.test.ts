@@ -11,10 +11,13 @@
  * so what is held is the product's own decision per item rather than a fake
  * of it:
  *
- *  - a run in which each gate refuses one item, and the others are removed;
- *  - a breaker that trips in the middle of a run stops the rest of its data
- *    type, as its rule says, even when the share has dropped by the time the
- *    next item is reached, while another data type goes on;
+ *  - a run in which each gate that speaks for one row refuses one row, and
+ *    the others are removed: the run goes on past each of them;
+ *  - deleting by hand turned off during a run stops it;
+ *  - the breaker stops the whole run, every data type, whether it trips on
+ *    the first row or in the middle, even when the share has dropped by the
+ *    time the next row is reached;
+ *  - a press that throws stops the run, and nothing after it is asked;
  *  - nothing is removed that a gate refused: each target is asked only about
  *    the items the gates before the removal let through.
  */
@@ -25,6 +28,7 @@ import {
   asMappingId,
   asTenantId,
   type ApplyEachItem,
+  type ApplyEachResult,
   type DiscoveryDomain,
   type LedgerRecord,
   type RemovalResult,
@@ -35,6 +39,7 @@ import { MemoryLedger } from './__testing__/memory.ts';
 const TENANT = asTenantId('01643000-e29b-41d4-a716-4466554400a1');
 const MAPPING = asMappingId('01643000-e29b-41d4-a716-4466554400b2');
 const NOW = new Date().toISOString();
+const reported = { deletionReportedAt: NOW };
 
 function row(domain: DiscoveryDomain, hash: string, over: Partial<LedgerRecord> = {}): LedgerRecord {
   return {
@@ -55,7 +60,7 @@ function row(domain: DiscoveryDomain, hash: string, over: Partial<LedgerRecord> 
 
 /** A target that removes, answering per target id; `before` runs first, as a concurrent change would. */
 function remover(
-  answers: Record<string, RemovalResult> = {},
+  answers: Record<string, RemovalResult | Error> = {},
   before: Record<string, () => Promise<void>> = {},
 ) {
   const asked: string[] = [];
@@ -64,41 +69,64 @@ function remover(
     removeItem: vi.fn(async (targetId: string): Promise<RemovalResult> => {
       asked.push(targetId);
       await before[targetId]?.();
-      return answers[targetId] ?? { kind: 'deleted' };
+      const answer = answers[targetId] ?? { kind: 'deleted' };
+      if (answer instanceof Error) throw answer;
+      return answer;
     }),
   };
 }
 
-const codeOf = (outcome: ApplyDeletionOutcome): string => (outcome.ok ? 'removed' : outcome.code);
 
-describe('a run in which each gate refuses one item, and the others are removed', () => {
-  it('decides every item by itself, through every gate, and removes only what they all let through', async () => {
+/** One press, as the page's press reaches it: the deps read afresh for each item. */
+function pressWith(
+  ledger: MemoryLedger,
+  targets: Partial<Record<DiscoveryDomain, unknown>>,
+  opts: { optIn?: { on: boolean }; pastCutover?: ReadonlySet<DiscoveryDomain> } = {},
+) {
+  return (item: ApplyEachItem) =>
+    applyDeletion(
+      {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        domain: item.domain,
+        ledger,
+        target: targets[item.domain],
+        allowApplyDeletions: opts.optIn ? opts.optIn.on : true,
+        stillTheAuthority: async () => !(opts.pastCutover ?? new Set()).has(item.domain),
+      },
+      item.naturalKeyHash,
+    );
+}
+
+const said = (results: ApplyEachResult<ApplyDeletionOutcome>[]) =>
+  results.map((r) =>
+    'answered' in r
+      ? r.answered.ok
+        ? 'removed'
+        : r.answered.code
+      : 'notTried' in r
+        ? `not tried: ${r.notTried.by}${r.notTried.by === 'refusal' ? ` (${r.notTried.code})` : ''}`
+        : 'failed',
+  );
+
+const statusOf = async (ledger: MemoryLedger, domain: DiscoveryDomain, hash: string) =>
+  (await ledger.find(TENANT, MAPPING, domain, hash))?.status;
+
+describe('a run in which each gate that speaks for one row refuses one row', () => {
+  it('decides every row by itself, goes on past each refusal, and removes only what the gates let through', async () => {
     const ledger = new MemoryLedger();
-    const reported = { deletionReportedAt: NOW };
-
     // Calendar: under MASS_DELETION_MIN_ITEMS, so its breaker never weighs in.
     await ledger.recordIfAbsent(row('calendar', 'cal-ok', reported));
     await ledger.recordIfAbsent(row('calendar', 'cal-inferred', { absentPasses: 3 }));
     await ledger.recordIfAbsent(row('calendar', 'cal-adopted', { ...reported, status: 'adopted' }));
     await ledger.recordIfAbsent(row('calendar', 'cal-edited', reported));
     await ledger.recordIfAbsent(row('calendar', 'cal-unversioned', reported));
-    await ledger.recordIfAbsent(row('calendar', 'cal-switched-off', reported));
-    // Contacts: one that another press removes first, one that is removed.
     await ledger.recordIfAbsent(row('contact', 'con-raced', reported));
     await ledger.recordIfAbsent(row('contact', 'con-ok', reported));
-    // Tasks: a target that cannot remove.
     await ledger.recordIfAbsent(row('task', 'task-1', reported));
-    // Mail: past its cutover.
     await ledger.recordIfAbsent(row('email', 'mail-1', reported));
-    // Files: a quarter of the corpus reported at once, so its breaker refuses.
-    for (let i = 0; i < MASS_DELETION_MIN_ITEMS; i++) {
-      await ledger.recordIfAbsent(row('file', `file-${i}`, i < 5 ? reported : {}));
-    }
 
-    // Deleting by hand, read afresh for each item as each press reads it; the
-    // owner turns it off in another tab while `con-ok` is being removed.
-    const optIn = { on: true };
-    const targets: Record<DiscoveryDomain, unknown> = {
+    const targets = {
       calendar: remover({
         't-cal-edited': { conflicted: true },
         't-cal-unversioned': { unversioned: true },
@@ -111,121 +139,125 @@ describe('a run in which each gate refuses one item, and the others are removed'
           't-con-raced': async () => {
             expect(await ledger.applyDeletion(TENANT, MAPPING, 'contact', 'con-raced')).toBe(true);
           },
-          't-con-ok': async () => {
-            optIn.on = false;
-          },
         },
       ),
       task: { upsertTask: vi.fn() },
       email: remover(),
-      file: remover(),
     };
-    const pastCutover = new Set<DiscoveryDomain>(['email']);
 
-    const run: ApplyEachItem[] = [
-      { domain: 'calendar', naturalKeyHash: 'cal-ok' },
-      { domain: 'calendar', naturalKeyHash: 'cal-inferred' },
-      { domain: 'calendar', naturalKeyHash: 'cal-adopted' },
-      { domain: 'calendar', naturalKeyHash: 'cal-edited' },
-      { domain: 'calendar', naturalKeyHash: 'cal-unversioned' },
-      { domain: 'task', naturalKeyHash: 'task-1' },
-      { domain: 'file', naturalKeyHash: 'file-0' },
-      { domain: 'file', naturalKeyHash: 'file-1' },
-      { domain: 'email', naturalKeyHash: 'mail-1' },
-      { domain: 'contact', naturalKeyHash: 'con-raced' },
-      { domain: 'contact', naturalKeyHash: 'con-ok' },
-      { domain: 'calendar', naturalKeyHash: 'cal-switched-off' },
-    ];
-
-    const results = await applyEachInTurn(run, (item) =>
-      applyDeletion(
-        {
-          tenantId: TENANT,
-          mappingId: MAPPING,
-          domain: item.domain,
-          ledger,
-          target: targets[item.domain],
-          allowApplyDeletions: optIn.on,
-          stillTheAuthority: async () => !pastCutover.has(item.domain),
-        },
-        item.naturalKeyHash,
-      ),
+    const results = await applyEachInTurn(
+      [
+        { domain: 'calendar', naturalKeyHash: 'cal-ok' },
+        { domain: 'calendar', naturalKeyHash: 'cal-inferred' },
+        { domain: 'calendar', naturalKeyHash: 'cal-adopted' },
+        { domain: 'calendar', naturalKeyHash: 'cal-edited' },
+        { domain: 'calendar', naturalKeyHash: 'cal-unversioned' },
+        { domain: 'task', naturalKeyHash: 'task-1' },
+        { domain: 'email', naturalKeyHash: 'mail-1' },
+        { domain: 'contact', naturalKeyHash: 'con-raced' },
+        { domain: 'contact', naturalKeyHash: 'con-ok' },
+      ],
+      pressWith(ledger, targets, { pastCutover: new Set(['email']) }),
     );
 
-    const said = results.map((r) =>
-      'answered' in r ? codeOf(r.answered) : 'notTried' in r ? `not tried: ${r.notTried.by}` : 'failed',
-    );
-    expect(said).toEqual([
+    expect(said(results)).toEqual([
       'removed',
       'weak_evidence', // gate 3: absence, however often repeated
       'not_ours', // gate 4: the account owner's bytes
       'edited_on_target', // gate 5: changed on the new system since
       'version_unknown', // gate 5: nothing to compare
       'target_cannot_remove', // gate 2
-      'mass_deletion_suspected', // gate 6
-      'not tried: breaker', // gate 6's rule: the rest of the data type stop
       'after_cutover', // the old system no longer decides
       'removed_not_recorded', // gate 7: two applies cannot both be recorded
       'removed',
-      'not_enabled', // gate 1, read afresh: turned off during the run
     ]);
 
-    // Removed: the two the gates let through, and the raced one, once.
-    const status = async (domain: DiscoveryDomain, hash: string) =>
-      (await ledger.find(TENANT, MAPPING, domain, hash))?.status;
-    expect(await status('calendar', 'cal-ok')).toBe('tombstoned');
-    expect(await status('contact', 'con-ok')).toBe('tombstoned');
+    expect(await statusOf(ledger, 'calendar', 'cal-ok')).toBe('tombstoned');
+    expect(await statusOf(ledger, 'contact', 'con-ok')).toBe('tombstoned');
     for (const [domain, hash] of [
       ['calendar', 'cal-inferred'],
       ['calendar', 'cal-adopted'],
       ['calendar', 'cal-edited'],
       ['calendar', 'cal-unversioned'],
-      ['calendar', 'cal-switched-off'],
       ['task', 'task-1'],
-      ['file', 'file-0'],
-      ['file', 'file-1'],
       ['email', 'mail-1'],
     ] as const) {
-      expect(await status(domain, hash), `${hash} was refused, so it stays`).not.toBe('tombstoned');
+      expect(await statusOf(ledger, domain, hash), `${hash} was refused, so it stays`).not.toBe('tombstoned');
     }
-
     // Each target was asked only about what the gates before the removal let
-    // through: never about an inferred, adopted, past-cutover, switched-off
-    // or breaker-refused item.
-    expect((targets.calendar as ReturnType<typeof remover>).asked).toEqual([
-      't-cal-ok',
-      't-cal-edited',
-      't-cal-unversioned',
-    ]);
-    expect((targets.contact as ReturnType<typeof remover>).asked).toEqual(['t-con-raced', 't-con-ok']);
-    expect((targets.file as ReturnType<typeof remover>).asked).toEqual([]);
-    expect((targets.email as ReturnType<typeof remover>).asked).toEqual([]);
-
-    // Every refusal says why, in the gate's own words.
+    // through: never about an inferred, adopted or past-cutover row.
+    expect(targets.calendar.asked).toEqual(['t-cal-ok', 't-cal-edited', 't-cal-unversioned']);
+    expect(targets.contact.asked).toEqual(['t-con-raced', 't-con-ok']);
+    expect(targets.email.asked).toEqual([]);
     for (const r of results) {
       if ('answered' in r && !r.answered.ok) expect(r.answered.reason.length).toBeGreaterThan(20);
     }
   });
 });
 
-describe('a breaker that trips in the middle of a run', () => {
+describe('deleting by hand turned off during a run', () => {
+  it('refuses the next row (gate 1, read afresh) and stops the run', async () => {
+    const ledger = new MemoryLedger();
+    for (const hash of ['a', 'b', 'c']) await ledger.recordIfAbsent(row('calendar', hash, reported));
+    const optIn = { on: true };
+    const calendar = remover({}, { 't-a': async () => void (optIn.on = false) });
+
+    const results = await applyEachInTurn(
+      ['a', 'b', 'c'].map((h) => ({ domain: 'calendar' as const, naturalKeyHash: h })),
+      pressWith(ledger, { calendar }, { optIn }),
+    );
+
+    expect(said(results)).toEqual(['removed', 'not_enabled', 'not tried: refusal (not_enabled)']);
+    expect(calendar.asked).toEqual(['t-a']);
+    expect(await statusOf(ledger, 'calendar', 'c')).toBe('copied');
+  });
+});
+
+describe('the breaker stops the whole run', () => {
+  it('on the first row: nothing is removed, of any data type', async () => {
+    const ledger = new MemoryLedger();
+    // Files: a quarter of the corpus reported at once.
+    for (let i = 0; i < MASS_DELETION_MIN_ITEMS; i++) {
+      await ledger.recordIfAbsent(row('file', `file-${i}`, i < 5 ? reported : {}));
+    }
+    await ledger.recordIfAbsent(row('calendar', 'cal-1', reported));
+    const targets = { file: remover(), calendar: remover() };
+
+    const results = await applyEachInTurn(
+      [
+        { domain: 'file', naturalKeyHash: 'file-0' },
+        { domain: 'file', naturalKeyHash: 'file-1' },
+        { domain: 'calendar', naturalKeyHash: 'cal-1' },
+      ],
+      pressWith(ledger, targets),
+    );
+
+    expect(said(results)).toEqual([
+      'mass_deletion_suspected',
+      'not tried: refusal (mass_deletion_suspected)',
+      'not tried: refusal (mass_deletion_suspected)',
+    ]);
+    expect(targets.file.asked).toEqual([]);
+    expect(targets.calendar.asked).toEqual([]);
+    expect(await statusOf(ledger, 'calendar', 'cal-1')).toBe('copied');
+  });
+
   /**
-   * 25 calendar events, three of them reported (12%, under the breaker). A
-   * pass running beside the run reports four more while the first is being
-   * removed (24%), so the second is refused by the breaker. Then somebody
-   * keeps those four, and the share drops to one event in 25: a loop that
-   * went on would remove the third. The rule says no single item in that
-   * queue is trustworthy once the breaker spoke, so the run orders none of
-   * the calendar's after it. Contacts have a breaker of their own, and go on.
+   * In the middle: 25 calendar events, three of them reported (12%, under the
+   * breaker). A pass running beside the run reports four more while the first
+   * is being removed (24%), so the second is refused by the breaker. Then
+   * somebody keeps those four, and the share drops to two events in 25: a
+   * loop that went on would remove the third. The rule says no single item in
+   * that queue is trustworthy once the breaker spoke, and what it suspects is
+   * the whole account's, so the run orders nothing more, a contact included.
    */
   async function aRunTheBreakerStops() {
     const ledger = new MemoryLedger();
     for (let i = 0; i < 25; i++) {
-      await ledger.recordIfAbsent(row('calendar', `c-${i}`, i < 3 ? { deletionReportedAt: NOW } : {}));
+      await ledger.recordIfAbsent(row('calendar', `c-${i}`, i < 3 ? reported : {}));
     }
-    await ledger.recordIfAbsent(row('contact', 'k-1', { deletionReportedAt: NOW }));
+    await ledger.recordIfAbsent(row('contact', 'k-1', reported));
     const lateReports = ['c-10', 'c-11', 'c-12', 'c-13'];
-
     const calendar = remover(
       {},
       {
@@ -235,20 +267,7 @@ describe('a breaker that trips in the middle of a run', () => {
       },
     );
     const contact = remover();
-    const target = (domain: DiscoveryDomain) => (domain === 'calendar' ? calendar : contact);
-    const press = (item: ApplyEachItem) =>
-      applyDeletion(
-        {
-          tenantId: TENANT,
-          mappingId: MAPPING,
-          domain: item.domain,
-          ledger,
-          target: target(item.domain),
-          allowApplyDeletions: true,
-          stillTheAuthority: async () => true,
-        },
-        item.naturalKeyHash,
-      );
+    const press = pressWith(ledger, { calendar, contact });
 
     const results = await applyEachInTurn(
       [
@@ -268,35 +287,57 @@ describe('a breaker that trips in the middle of a run', () => {
     return { ledger, results, calendar, contact, press };
   }
 
-  it('refuses the item it trips on and orders none of that data type after it', async () => {
-    const { ledger, results, calendar } = await aRunTheBreakerStops();
+  it('in the middle: refuses the row it trips on, and orders nothing after it', async () => {
+    const { ledger, results, calendar, contact } = await aRunTheBreakerStops();
 
     expect(results[0]).toMatchObject({ answered: { ok: true } });
     expect(results[1]).toMatchObject({ answered: { ok: false, code: 'mass_deletion_suspected' } });
     const tripped = (results[1] as { answered: { reason: string } }).answered.reason;
     // c-1, c-2 and the four reported beside the run: c-0 is removed by now.
     expect(tripped).toContain('6 of 25');
-    // Not asked, not removed, and said with the breaker's own words.
-    expect(results[2]).toEqual({
-      item: { domain: 'calendar', naturalKeyHash: 'c-2' },
-      notTried: { by: 'breaker', code: 'mass_deletion_suspected', reason: tripped },
-    });
+    const notTried = { by: 'refusal', code: 'mass_deletion_suspected', reason: tripped };
+    expect(results.slice(2)).toEqual([
+      { item: { domain: 'calendar', naturalKeyHash: 'c-2' }, notTried },
+      { item: { domain: 'contact', naturalKeyHash: 'k-1' }, notTried },
+    ]);
     expect(calendar.asked).toEqual(['t-c-0']);
-    expect((await ledger.find(TENANT, MAPPING, 'calendar', 'c-2'))?.status).toBe('copied');
+    expect(contact.asked).toEqual([]);
+    expect(await statusOf(ledger, 'calendar', 'c-2')).toBe('copied');
+    expect(await statusOf(ledger, 'contact', 'k-1')).toBe('copied');
   });
 
-  it('lets another data type go on, behind its own breaker', async () => {
-    const { ledger, results, contact } = await aRunTheBreakerStops();
-    expect(results[3]).toMatchObject({ item: { naturalKeyHash: 'k-1' }, answered: { ok: true, kind: 'deleted' } });
-    expect(contact.asked).toEqual(['t-k-1']);
-    expect((await ledger.find(TENANT, MAPPING, 'contact', 'k-1'))?.status).toBe('tombstoned');
-  });
-
-  it('stops only the run: the same item pressed by itself afterwards is decided afresh', async () => {
-    // The share has dropped by now, and a person pressing it alone has seen
-    // the breaker's sentence: the gates decide that press as any other.
+  it('stops only the run: the same rows pressed afresh afterwards are decided by the gates', async () => {
+    // The share has dropped by now, and a person pressing again has seen the
+    // breaker's sentence: the gates decide that press as any other.
     const { ledger, press } = await aRunTheBreakerStops();
     expect(await press({ domain: 'calendar', naturalKeyHash: 'c-2' })).toEqual({ ok: true, kind: 'deleted' });
-    expect((await ledger.find(TENANT, MAPPING, 'calendar', 'c-2'))?.status).toBe('tombstoned');
+    expect(await press({ domain: 'contact', naturalKeyHash: 'k-1' })).toEqual({ ok: true, kind: 'deleted' });
+    expect(await statusOf(ledger, 'calendar', 'c-2')).toBe('tombstoned');
+  });
+});
+
+describe('a press that throws', () => {
+  it('is that row’s failure, and nothing after it is asked', async () => {
+    const ledger = new MemoryLedger();
+    for (const hash of ['a', 'b']) await ledger.recordIfAbsent(row('calendar', hash, reported));
+    await ledger.recordIfAbsent(row('contact', 'k', reported));
+    const calendar = remover({ 't-a': new Error('socket hang up') });
+    const contact = remover();
+
+    const results = await applyEachInTurn(
+      [
+        { domain: 'calendar', naturalKeyHash: 'a' },
+        { domain: 'calendar', naturalKeyHash: 'b' },
+        { domain: 'contact', naturalKeyHash: 'k' },
+      ],
+      pressWith(ledger, { calendar, contact }),
+    );
+
+    expect(results[0]).toEqual({ item: { domain: 'calendar', naturalKeyHash: 'a' }, failed: 'socket hang up' });
+    expect(said(results).slice(1)).toEqual(['not tried: failure', 'not tried: failure']);
+    expect(calendar.asked).toEqual(['t-a']);
+    expect(contact.asked).toEqual([]);
+    // Nothing recorded a removal the target never confirmed.
+    expect(await statusOf(ledger, 'calendar', 'a')).toBe('copied');
   });
 });
