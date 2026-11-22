@@ -6,6 +6,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The E2E lane for a new address, written and not yet run** (workplan 0168 T8). The managed
+  gate confirms an address change through the API before the copy, then reads the changed card
+  and event off the target, `SCHEDULE-AGENT=CLIENT` included. It hashes a seeded message on both
+  accounts, and deletes the row to see the copies converge back. The appliance's e2e does the
+  same through `address-changes.json`, on both backends.
 - **The forms an address takes, and the change of an old address to a new one, as pure functions
   nothing calls yet** (workplan 0168 T1 and T3; ADR-0055). `addressKey` (moved from
   `googleAccountKey`, the sign-in's behaviour unchanged), `NOT_TAKEN_ALONG` and `cannotTakeAlong`

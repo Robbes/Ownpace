@@ -67,10 +67,6 @@ const operatorBlock = (marker: string): string => {
  * permanent by nobody noticing it.
  */
 const NOT_ASKED: Record<string, string> = {
-  '/api/address-changes':
-    'the table of address changes (workplan 0168 T2) is proven in the unit tier on the ' +
-    'real migrations; the gate asks for it with T8, which seeds a confirmed row and ' +
-    'asserts the copies it changes, and removes this entry.',
   '/api/access-requests':
     'granting one sends a real email to a real address. Covered by ' +
     'access-requests.integration.test.ts, which does not.',

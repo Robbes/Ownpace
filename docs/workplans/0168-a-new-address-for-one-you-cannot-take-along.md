@@ -4,6 +4,27 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22: T8 written, on `claude/ownpace-0168-e2e`; not run yet.** Both lanes need the shared
+runner, and nothing here dispatches them.
+
+- **The managed gate** (`smoke-managed.sh`, prepare) confirms two rows through
+  `POST /api/address-changes`:
+  - in the DAV organisation, a tagged old address to the target account's own;
+  - in the mail organisation, the seeded mail's sender.
+
+  The seeder adds event 4 and contact `a`, which name the old address. The gate asserts:
+  - on the target's bytes, the card's new address is first with `PREF=1` and the old one is kept;
+  - the event's organiser is the new address with `SCHEDULE-AGENT=CLIENT`, and its attendee and
+    description are unchanged;
+  - both ledger rows carry a digest;
+  - the row, deleted, converges back on the next pass;
+  - the catcher hears nothing (the existing count of the tagged canary attendee);
+  - `<seed-1@dev.local>` hashes on the target exactly as on the source, one copy.
+- **The appliance** (`selfhost-address-changes.e2e.test.ts`, both backends) runs the same through
+  `address-changes.json`. It does not prove the convergence after a deleted row, because the image
+  bakes its config directory. It does not prove the silence either: that stack runs no mail
+  catcher. The managed gate proves both.
+
 **2026-11-22: T1 and T3 built, on `claude/ownpace-0168-core`.** Nothing calls either yet.
 
 - **T1.** `packages/shared/src/address-forms.ts`: `addressKey`, `isAddress`, `NOT_TAKEN_ALONG`,
@@ -79,7 +100,7 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 | T5 Verification and the confirmed list say what was changed | builder | 📋 **Proposed** | §3.1. A declared change, never a silent difference. |
 | T6 The Sharing checklist reads the table | builder | 📋 **Proposed** | §2.4. Pre-fills the grantee; each press still sends its address. |
 | T7 The screens | builder | 📋 **Proposed** | §6. *Start a migration*'s step, the person's page, the organisation's table, the migration page. |
-| T8 The E2E lane proves it | builder | 📋 **Proposed** | §8. The managed gate and the appliance's e2e: bytes changed where declared, mail byte-identical, no mail sent. |
+| T8 The E2E lane proves it | builder | 🟡 **Written, not run** | §8. The managed gate and the appliance's e2e: bytes changed where declared, mail byte-identical, no mail sent. |
 | T9 Words outside the app | owner | ⏳ **Waiting** | §5, §7. The privacy policy (D8), the customer guides. |
 
 ## 1. The situations
