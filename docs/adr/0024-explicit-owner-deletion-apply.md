@@ -1,6 +1,6 @@
 # ADR-0024: `apply` — an explicit, gated exception to non-destructiveness
 
-- **Status:** Accepted 2026-07-30; amended twice (2026-09-27, 2026-10-05)
+- **Status:** Accepted 2026-07-30; amended three times (2026-09-27, 2026-10-05, 2026-11-22)
 - **Date:** 2026-07-30
 - **Relates to:** ADR-0005 (idempotency via ledger, non-destructive by default), ADR-0020 (ledger as rebuildable cache). Arch doc §11.1, §11.2, §20.
 
@@ -28,6 +28,11 @@
   ask the item's data type's phase afresh (`stillTheAuthority`, required) and refuse
   `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
   it (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
+- **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
+  `already_kept` after `already_applied` and the phase, as a kept move is refused, and the
+  ledger's conditional UPDATE requires the entry still open; a keep that lands during a removal
+  stays, and that press answers `removed_not_recorded`. Guard:
+  `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.
@@ -122,7 +127,45 @@ and `mayOfferApply` and `mayOfferRelocationApply` take it as a required argument
 a data type past its cutover, and one sentence above the rows saying why. A rollback makes the
 old system the authority again (ADR-0047) and re-admits the same press.
 
+## Amendment, 2026-11-22: a deletion the owner kept is never applied
+
+On *Deleted on the old system*, `keep` and `apply` are the two answers to one question, and
+nothing on the deletion path read the first. `applyDeletion` and `evaluateApplyDeletion` never
+looked at `deletion_acknowledged_at`, and the ledger's conditional UPDATE did not either, so a
+press on a row somebody had kept removed the copy, and the write closed the row again as
+applied: it then said *deleted on the new system too*, and nothing was left of the keep. The
+page offers no button on a kept row. What reached one was a page read before the keep (another
+tab, another person), a call to the API, and on managed a removal still waiting for its job
+while somebody kept the copy. It was found in the review of workplan 0164 T3, the press for all
+rows, where a keep pressed in another tab during a run was removed when the run reached it; it
+held for a single press as well, so it is fixed on its own. It is the correction ADR-0030 made
+for a move on 2026-08-15 (*`keep` was enforced by a button*), made for a deletion.
+
+- **Core refuses it, in both functions, at the same point.** After `already_applied`, because a
+  removal's own write sets `deletion_acknowledged_at` beside `deletion_applied_at` and a second
+  press on a removed row must still say it is removed; after the phase, as `already_kept` comes
+  after it for a move (a kept row past its cutover says `after_cutover`); before the evidence
+  gate and the removal, so nothing is sent to the target. The code is `already_kept`, already in
+  the closed set, with its own reason. The managed job asks `applyDeletion` again at the removal,
+  so a keep recorded while the job waited wins there too, and the receipt says `refused
+  already_kept`.
+- **The ledger records no removal over a keep.** `PgLedger.applyDeletion` (and `MemoryLedger`)
+  requires `deletion_acknowledged_at IS NULL`. The copy is removed before the row is recorded, so
+  this cannot stop a removal already under way when the keep lands; it stops the write from
+  taking the keep away. That press answers `removed_not_recorded`, which says the copy was
+  removed, and the row stays kept.
+- **Not forever.** `clearAbsent` clears the acknowledgement when the item is seen on the old
+  system again, so an item that comes back and is deleted again is asked afresh.
+
+No route changed: both editions answer the refusal as they answer the others (403, the code and
+the reason), and the screens show the reason as served.
+
 ## Amendment log
+
+- **2026-11-22** — A deletion the owner kept is never applied: `already_kept` in both deletion
+  functions, and the ledger's conditional UPDATE requires the entry still open (found in the
+  review of workplan 0164 T3). Record: *Amendment, 2026-11-22: a deletion the owner kept is never
+  applied*.
 
 - **2026-10-05** — After cutover nothing is applied, by hand either: `after_cutover`, and no Apply
   offered (the owner's "Refuse after cutover (Recommended)"). Record: *Amendment, 2026-10-05: after

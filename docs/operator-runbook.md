@@ -2180,11 +2180,22 @@ before anything is removed:
    and the screen offers no button for that data type. Nothing is removed and
    the copy stays: choose `keep` to clear the entry. A rollback makes the old
    system decide again, and the same `apply` is admitted.
+7. **Nobody has answered it with `keep`.** `keep` and `apply` are the two
+   answers to one question, and the first one stands: an `apply` on an entry
+   somebody kept (from a page read before the keep, another tab, or the API)
+   is refused with `already_kept` and nothing is sent to the target. On
+   managed the job asks again at the removal, so a keep recorded while the
+   removal waited in the queue wins there too. A keep that lands while a
+   removal is already under way cannot bring the copy back: that `apply`
+   answers `removed_not_recorded`, and the entry stays kept. If the keep was
+   the wrong call, delete the copy in the new system yourself. An item that
+   comes back on the old system and is deleted there again is a new entry,
+   asked afresh.
 
 A call that is refused always says why, in a `reason` you can read as-is —
 `not_enabled`, `target_cannot_remove`, `weak_evidence`, `not_ours`,
 `edited_on_target`, `version_unknown`, `mass_deletion_suspected`,
-`already_applied` are the distinct codes.
+`after_cutover`, `already_kept`, `already_applied` are the distinct codes.
 
 **What "removed" means depends on the target.** The response's `kind` tells you
 which you got:

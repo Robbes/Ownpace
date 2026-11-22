@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **A deletion the owner chose to keep is never removed on the new system** (ADR-0024, amended
+  2026-11-22). On *Deleted on the old system*, *Keep our copy* and *Delete it here too* are the
+  two answers to one question, and nothing on the deletion path read the first: a press on a row
+  somebody had kept (from a page read before the keep, another tab, or the API) removed the copy,
+  and the row then said *deleted on the new system too*. On managed, a removal still waiting for
+  its job was carried out even if the copy was kept meanwhile. Both editions now refuse such a
+  press with `already_kept`, on the request and again at the removal, before anything is sent to
+  the new system, as they already did for a move. The ledger records no removal over a keep: one
+  that lands while a removal is under way stays, and that press answers `removed_not_recorded`.
+
 ## [0.2.0-alpha.14] - 2026-11-22
 
 An appointed operator can mark an organisation as a test from Support, and every migration made

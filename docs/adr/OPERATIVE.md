@@ -201,6 +201,11 @@ live in [README.md](./README.md), the register.
   ask the item's data type's phase afresh (`stillTheAuthority`, required) and refuse
   `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
   it (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
+- **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
+  `already_kept` after `already_applied` and the phase, as a kept move is refused, and the
+  ledger's conditional UPDATE requires the entry still open; a keep that lands during a removal
+  stays, and that press answers `removed_not_recorded`. Guard:
+  `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.

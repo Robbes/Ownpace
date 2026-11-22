@@ -2034,6 +2034,22 @@ export class PgLedger implements Ledger {
           // Still open. A second apply on an already-tombstoned row would move
           // the audit date forward and report a removal that did not happen.
           isNull(schemaPg.item.deletionAppliedAt),
+          // AND NOT ALREADY ANSWERED WITH KEEP (2026-11-22). `keep` and `apply`
+          // are the two answers to one question, and the one written first
+          // stands; core refuses a kept row (`already_kept`) before anything
+          // is sent to the target, and this is the same rule where it has to
+          // hold when the two land together.
+          //
+          // WHAT IT CAN STOP, AND WHAT IT CANNOT. The copy is removed BEFORE
+          // this row is written (remove-then-record, core's `applyDeletion`),
+          // so a keep that lands while a removal is under way finds the copy
+          // already gone, and this clause cannot bring it back. What it stops
+          // is the write: without it, the removal overwrote the keep and the
+          // row said *deleted on the new system too*, with nothing left of
+          // the owner's answer. With it, the keep stays on the row, this UPDATE
+          // matches nothing, and the press answers `removed_not_recorded`,
+          // which says the copy WAS removed and Verification will report it.
+          isNull(schemaPg.item.deletionAcknowledgedAt),
           // Only an item WE wrote. `copied` and `updated` are both ours — the
           // second is one we rewrote when the source changed. `adopted` bytes are
           // the customer's own and hard rule 2 is absolute about them;

@@ -67,6 +67,10 @@
  * `after_cutover`. A rollback makes the old system decide again (ADR-0047),
  * and the same press is admitted again.
  *
+ * AND NEVER AFTER A KEEP (2026-11-22), right behind the cutover check, in
+ * both deletion functions. `keep` and `apply` are the two answers to one
+ * question, and the first one given stands: see `keptCheck`.
+ *
  * ORDER MATTERS: remove first, record second. A failure between them leaves the
  * row claiming the item is on the target when it is not, which §20 verification
  * reports as `missingOnTarget` — loud, and correctable by hand. The other order
@@ -200,7 +204,8 @@ export type ApplyRefusal =
    */
   | 'mass_relocation_suspected'
   /**
-   * The owner already saw this move and chose `keep` (ADR-0030).
+   * The owner already saw this move and chose `keep` (ADR-0030), or this
+   * deletion, and chose `keep` (2026-11-22).
    *
    * Distinct from `already_applied`, which means the copy is gone. This one
    * means it is still there, on purpose.
@@ -341,6 +346,10 @@ export async function evaluateApplyDeletion(
   const cutOver = await afterCutoverCheck(deps, 'deletion');
   if (cutOver) return cutOver;
 
+  // NEVER AFTER A KEEP: the owner already answered this one.
+  const kept = keptCheck(row);
+  if (kept) return kept;
+
   // GATE 3: positive evidence only.
   const evidence =
     row.deletionReportedAt !== undefined
@@ -429,6 +438,12 @@ export async function applyDeletion(
   // something to decide about, and before anything is read from the target.
   const cutOver = await afterCutoverCheck(deps, 'deletion');
   if (cutOver) return cutOver;
+
+  // NEVER AFTER A KEEP, at the same point as in `evaluateApplyDeletion`, and
+  // asked again here because the managed job runs this after the route's
+  // answer: a keep recorded while the removal waited in the queue wins.
+  const kept = keptCheck(row);
+  if (kept) return kept;
 
   // GATE 3: positive evidence only. The whole safety argument in one condition.
   const evidence =
@@ -771,6 +786,52 @@ function notEnabled(): Extract<ApplyDeletionOutcome, { ok: false }> {
       'Removing items from the target is switched off for this mapping. Set ' +
       '`allowApplyDeletions: true` in its config to enable it, and read the runbook first — ' +
       'this is the only operation here that destroys anything.',
+  };
+}
+
+/**
+ * A deletion the owner answered with `keep` is never applied (2026-11-22).
+ *
+ * `keep` and `apply` are the two answers to one question, and the first one
+ * given stands, as `relocationCheck` holds for a move. Until this, nothing on
+ * the deletion path read the answer: `applyDeletion` removed a kept row's copy
+ * and the ledger's write closed it again as applied, so the row said *deleted
+ * on the new system too* and nothing kept the keep. The page offers no button
+ * on a kept row, so what reached it was a page read before the keep (another
+ * tab, another person), a call to the API, and on managed a removal that
+ * waited in the queue while somebody kept it. The review of workplan 0164
+ * T3's *Delete all of these here too* found it: a keep pressed in another tab
+ * during a run was removed when the run reached it.
+ *
+ * WHERE IT IS ASKED, and why there. After `already_applied`, because a
+ * removal's own write sets `deletion_acknowledged_at` beside
+ * `deletion_applied_at` (it closes the entry, ledger.ts `applyDeletion`), so a
+ * second press on a removed row must still say it is removed. After the
+ * cutover check, as `already_kept` comes after it for a move. Before the
+ * evidence gate and the removal: nothing is sent to the target for a row
+ * somebody kept.
+ *
+ * AND ONCE MORE IN THE LEDGER'S WRITE (`deletion_acknowledged_at IS NULL`,
+ * ledger.ts `applyDeletion`), which settles a keep that lands while the
+ * removal is under way. It cannot bring the copy back: the copy is removed
+ * before the row is recorded, so that press answers `removed_not_recorded`,
+ * and the keep stays on the row.
+ *
+ * NOT FOREVER. `clearAbsent` clears the acknowledgement when the item is seen
+ * on the source again, so an item that comes back and is deleted again is a
+ * new question, asked afresh.
+ */
+function keptCheck(row: {
+  readonly deletionAcknowledgedAt?: string;
+}): Extract<ApplyDeletionOutcome, { ok: false }> | undefined {
+  if (row.deletionAcknowledgedAt === undefined) return undefined;
+  return {
+    ok: false,
+    code: 'already_kept',
+    reason:
+      "Somebody already looked at this deletion and chose to keep the target's copy, so it will " +
+      'not be removed now. If that was the wrong call, delete it in the target system yourself — ' +
+      'this decision is not re-opened here.',
   };
 }
 
