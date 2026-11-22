@@ -361,6 +361,26 @@ trigger_only() { # trigger_only <section> — 0 on Trigger.dev; on pg-boss one l
   return 1
 }
 
+# THE TRIGGER.DEV SUPERVISOR IS NOT RUNNING, at the start and at the end (pg-boss
+# only): it is what starts runner containers, and the bring-up stops the plane in
+# pg-boss mode, its volumes kept. A container that is not there, or there and
+# stopped, passes; running, or a Docker that cannot be asked, fails.
+supervisor_stopped() { # supervisor_stopped <when>
+  local said rc
+  said="$(docker container inspect --format '{{.State.Running}}' "${COMPOSE_PROJECT}-trigger-supervisor" 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" = 0 ] && [ "$said" = false ]; then
+    echo "trigger-supervisor: stopped ${1}"
+  elif [ "$rc" != 0 ] && [[ "$said" =~ [Nn]o\ such\ (container|object) ]]; then
+    echo "trigger-supervisor: no such container ${1}"
+  elif [ "$rc" = 0 ] && [ "$said" = true ]; then
+    echo "trigger-supervisor is running ${1}, on a stack whose jobs run on pg-boss: it starts runner containers"
+    fail_at "trigger-supervisor is running ${1}"
+  else
+    echo "whether trigger-supervisor runs ${1} cannot be told (exit ${rc}): ${said}"
+    fail_at "trigger-supervisor could not be asked ${1}"
+  fi
+}
+
 # THE WORKER'S LOG, from the smoke's start (pg-boss only). The worker is one
 # long-lived container, not a runner that AutoRemove takes, so its log is read
 # once, at the end, by `docker logs --since` the moment this run started:
@@ -384,7 +404,27 @@ keep_worker_log() {
     return 1
   fi
 }
-trap 'keep_worker_log; end_stream' EXIT
+# THE CONTAINERS THAT START, WATCHED FROM THE START (pg-boss only). `docker
+# events --since … --until …` replays only what the daemon still holds, its
+# last 256 events, and this run's own `docker exec`s and the stack's
+# healthchecks turn that over in minutes: read at the end, it could not see a
+# runner started during the passes. So one stream is kept from here, into a
+# file of this run's: each container start (ID and name) and each connect to a
+# network (the network's name and the container's ID), which
+# `no_runner_started` reads before the verdict. Its PID is WATCHER_PID, the
+# name the runner-log watcher has on Trigger.dev, so every EXIT trap below ends
+# it the same way.
+WATCHER_PID=""
+EVENTS_FILE=""
+if [ "$JOB_RUNNER" = pg-boss ]; then
+  EVENTS_FILE="$(mktemp /tmp/openmig-smoke-events.XXXXXX)"
+  docker events --since "$SMOKE_STARTED_AT" --filter type=container --filter type=network \
+    --filter event=start --filter event=connect \
+    --format '{{.Type}} {{.Action}} {{.Actor.ID}} {{.Actor.Attributes.name}} {{.Actor.Attributes.container}}' \
+    >"$EVENTS_FILE" 2>"${EVENTS_FILE}.err" &
+  WATCHER_PID=$!
+fi
+trap 'kill "$WATCHER_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
 
 # WHO ELSE IS ON THIS STACK (E2E (managed) #195, 2026-09-23).
 #
@@ -1121,6 +1161,7 @@ if [ "$api_runner" != "$JOB_RUNNER" ]; then
   exit 1
 fi
 echo "the API was started to enqueue on ${JOB_RUNNER}, the runner this stack's .env names"
+[ "$JOB_RUNNER" = pg-boss ] && supervisor_stopped "at the start"
 
 # WHAT A BROWSER MAY DO WITH THE APP, AS THE IMAGE SENDS IT (workplan 0158).
 # `scripts/what-a-browser-may-do-with-the-app.unit.test.ts` reads the template
@@ -1254,9 +1295,8 @@ fi # trigger_only "minio and trigger-tls"
 
 # ---------- runner-log capture (before anything can AutoRemove) ----------
 # On pg-boss no runner container is started, and the worker's log is kept by
-# keep_worker_log instead; WATCHER_PID stays empty, so every trap's kill is a
-# no-op there.
-WATCHER_PID=""
+# keep_worker_log instead, and WATCHER_PID is the events stream started with
+# the run (above), which every trap's kill ends the same way.
 RUNNER_LOG_DIR=""
 if trigger_only "the runner-log capture"; then
 RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
@@ -2846,7 +2886,11 @@ sync_and_wait() { # sync_and_wait <tenant> <mapping> <token> <label>
       ;;
     "")
       echo "sync ($label): no ledger row for orchestrator run ${ref} after $((SYNC_POLLS * POLL_SLEEP))s."
-      echo "sync ($label): the enqueue was accepted and never became a runner — see the runner-log section below."
+      if [ "$JOB_RUNNER" = pg-boss ]; then
+        echo "sync ($label): the enqueue was accepted and never ran — see the jobs on pg-boss, before the verdict, and the worker's log in the evidence."
+      else
+        echo "sync ($label): the enqueue was accepted and never became a runner — see the runner-log section below."
+      fi
       ;;
     *)
       echo "sync ($label): still '$status' after $((SYNC_POLLS * POLL_SLEEP))s — the verify below may read a half-copied target."
@@ -3163,6 +3207,10 @@ worker_fit() {
     return 0
   fi
   owner="$(smoke_env_value POSTGRES_USER)"
+  # As Compose reads it: env_value keeps double quotes, and a quoted owner
+  # would match no URL's role, so this check would pass on nothing.
+  owner="${owner#\"}"
+  owner="${owner%\"}"
   owner="${owner:-openmigrate}"
   while IFS= read -r line; do
     name="${line%%=*}"
@@ -3209,35 +3257,41 @@ catalog_queues() { # catalog_queues [catalog.ts] — the names; 1 and nothing wh
 #    host, and this stream is the public job log);
 #  - a job waiting to retry is an attempt that failed, and a failure;
 #  - a job somebody asked for (a queue with no row in `pgboss.schedule`)
-#    still created or active is waited for, up to SMOKE_JOB_SETTLE_POLLS
-#    polls, and then a failure: this run left work running behind it;
+#    still created or active, and ANY job waiting to retry, is waited for, up
+#    to SMOKE_JOB_SETTLE_POLLS polls, and then a failure: this run left work
+#    running behind it, or an attempt failed. A retry that completes inside
+#    the wait is said beside its queue ("after a retry"), every time alike;
 #  - a schedule's job still created or active is the next tick, and said;
-#  - a queue the catalog does not name is a failure: something enqueued onto
-#    a queue no worker works;
+#  - pg-boss's own queues, `__pgboss__*`, are judged as schedules are: its
+#    timekeeper (schedules on, as the worker runs it) puts one job on
+#    `__pgboss__send-it` for each schedule occurrence. The catalog names none
+#    of them, and a failed or retrying one fails like any other;
+#  - any other queue the catalog does not name is a failure: something
+#    enqueued onto a queue no worker works;
 #  - no job asked for that completed is a failure, the pg-boss form of "no
 #    runner at all": the smoke's own passes run as such jobs;
 #  - every runId this smoke followed (the API's 202s) is a pg-boss job id, a
 #    UUID, of a job that completed, not a Trigger.dev `run_…`.
 pgboss_jobs() {
-  local queues rows i=0 waiting name state n retried sched completed=0 refs ref got
+  local queues rows i=0 waiting name state n retried sched completed=0 refs ref got settled=0
   if ! queues="$(catalog_queues)"; then
     echo "no queue could be read from packages/scheduler/src/pg-boss/catalog.ts's JOB_CATALOG, so which jobs are this stack's cannot be told"
     fail_at "the catalog's queues could not be read"
     return 0
   fi
   while :; do
-    if ! waiting="$(q "SELECT count(*) FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' AND j.state IN ('created', 'retry', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name)" 2>&1)"; then
+    if ! waiting="$(q "SELECT count(*) FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' AND (j.state = 'retry' OR (j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__'))" 2>&1)"; then
       echo "pg-boss's jobs could not be read: ${waiting}"
       fail_at "pgboss.job could not be read"
       return 0
     fi
-    [ "$waiting" = 0 ] && break
+    [ "$waiting" = 0 ] && { settled=1; break; }
     [ "$i" -ge "$JOB_SETTLE_POLLS" ] && break
     i=$((i + 1))
     sleep "$POLL_SLEEP"
   done
   [ "$i" -gt 0 ] && echo "waited $((i * POLL_SLEEP))s for the jobs this run asked for to settle"
-  if ! rows="$(q "SELECT j.name || '|' || j.state || '|' || count(*) || '|' || count(*) FILTER (WHERE j.retry_count > 0) || '|' || EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' GROUP BY j.name, j.state ORDER BY j.name, j.state" 2>&1)"; then
+  if ! rows="$(q "SELECT j.name || '|' || j.state || '|' || count(*) || '|' || count(*) FILTER (WHERE j.retry_count > 0) || '|' || (EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) OR left(j.name, 10) = '__pgboss__') FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' GROUP BY j.name, j.state ORDER BY j.name, j.state" 2>&1)"; then
     echo "pg-boss's jobs could not be read: ${rows}"
     fail_at "pgboss.job could not be read"
     return 0
@@ -3246,8 +3300,9 @@ pgboss_jobs() {
   [ -n "$rows" ] || echo "  (none)"
   while IFS='|' read -r name state n retried sched; do
     [ -n "$name" ] || continue
+    [[ "$name" == __pgboss__* ]] && sched=true
     echo "  ${name}: ${n} ${state}$([ "${retried:-0}" != 0 ] && echo ", ${retried} after a retry")"
-    if ! grep -qxF "$name" <<<"$queues"; then
+    if [[ "$name" != __pgboss__* ]] && ! grep -qxF "$name" <<<"$queues"; then
       fail_at "${n} job(s) on '${name}', a queue the catalog does not name, so no worker works it"
       continue
     fi
@@ -3257,7 +3312,12 @@ pgboss_jobs() {
       failed:*|cancelled:*) fail_at "${n} job(s) on ${name} ended ${state}: their error is in the worker's log, in the evidence" ;;
       retry:*) fail_at "${n} job(s) on ${name} are waiting to retry, so an attempt failed: its error is in the worker's log, in the evidence" ;;
       created:true|active:true) echo "  (${name} is a schedule: its ${state} job is the next tick, not this run's)" ;;
-      *) fail_at "${n} job(s) on ${name} are still ${state} after $((JOB_SETTLE_POLLS * POLL_SLEEP))s: this run left work behind it" ;;
+      *)
+        if [ "$settled" = 1 ]; then
+          fail_at "${n} job(s) on ${name} are ${state}, begun after the wait had found nothing in flight: this run left work behind it"
+        else
+          fail_at "${n} job(s) on ${name} are still ${state} after $((i * POLL_SLEEP))s: this run left work behind it"
+        fi ;;
     esac
   done <<<"$rows"
   if [ "$completed" = 0 ]; then
@@ -3281,20 +3341,24 @@ pgboss_jobs() {
   return 0
 }
 
-# NO RUNNER CONTAINER STARTED ON THIS STACK SINCE THE SMOKE'S START. Asked of
-# Docker's own events, not of `docker ps`, because AutoRemove takes a runner
-# the moment it ends: a container start named runner-* whose container joined
-# this stack's network. Another stack on this machine may run on Trigger.dev
-# and start runners of its own, on its own network.
+# NO RUNNER CONTAINER STARTED ON THIS STACK SINCE THE SMOKE'S START. Read
+# from the events stream kept since the start (EVENTS_FILE, WATCHER_PID,
+# started with the run), not from `docker ps`, because AutoRemove takes a
+# runner the moment it ends, and not from `docker events --until`, which
+# replays only the daemon's last 256 events: a container start named runner-*
+# whose container joined this stack's network. Another stack on this machine
+# may run on Trigger.dev and start runners of its own, on its own network. A
+# stream that stopped, or never started, saw nothing after it stopped, and is
+# a failure.
 no_runner_started() {
-  local now starts joined runners="" id cname
-  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  if ! starts="$(docker events --since "$SMOKE_STARTED_AT" --until "$now" --filter type=container --filter event=start --format '{{.Actor.ID}} {{.Actor.Attributes.name}}' 2>&1)" ||
-    ! joined="$(docker events --since "$SMOKE_STARTED_AT" --until "$now" --filter type=network --filter event=connect --filter "network=${COMPOSE_PROJECT}_ownpace-network" --format '{{.Actor.Attributes.container}}' 2>&1)"; then
-    echo "Docker's events since ${SMOKE_STARTED_AT} could not be read, so whether a runner started cannot be told"
-    fail_at "Docker's events could not be read"
+  local starts joined runners="" id cname
+  if [ -z "${EVENTS_FILE:-}" ] || [ ! -f "$EVENTS_FILE" ] || [ -z "${WATCHER_PID:-}" ] || ! kill -0 "$WATCHER_PID" 2>/dev/null; then
+    echo "the stream of Docker's events kept since ${SMOKE_STARTED_AT} is not running ($(head -c 300 "${EVENTS_FILE:-/dev/null}.err" 2>/dev/null)), so whether a runner started cannot be told"
+    fail_at "Docker's events were not watched for the whole run"
     return 0
   fi
+  starts="$(awk '$1 == "container" && $2 == "start" { print $3, $4 }' "$EVENTS_FILE")"
+  joined="$(awk -v net="${COMPOSE_PROJECT}_ownpace-network" '$1 == "network" && $2 == "connect" && $4 == net { print $5 }' "$EVENTS_FILE")"
   while read -r id cname; do
     [[ "$cname" == runner-* ]] || continue
     grep -qxF "$id" <<<"$joined" && runners="${runners}${runners:+, }${cname}"
@@ -3303,7 +3367,7 @@ no_runner_started() {
     echo "runner containers started on this stack since ${SMOKE_STARTED_AT}: ${runners}. Its jobs run on pg-boss, so Trigger.dev is not stopped"
     fail_at "a Trigger.dev runner started on a pg-boss stack"
   else
-    echo "no runner-* container started on this stack's network since ${SMOKE_STARTED_AT}"
+    echo "no runner-* container started on this stack's network since ${SMOKE_STARTED_AT} ($(grep -c '^container start ' "$EVENTS_FILE") container start(s) watched)"
   fi
 }
 
@@ -7308,6 +7372,7 @@ if [ "$JOB_RUNNER" = pg-boss ]; then
 note "the jobs on pg-boss: every one completed, no runner started, the jobs' role fit (0167)"
 pgboss_jobs
 no_runner_started
+supervisor_stopped "at the end"
 jobs_role_fit
 keep_worker_log || fail_at "the worker's log could not be read, so the evidence holds no account of the jobs"
 fi
