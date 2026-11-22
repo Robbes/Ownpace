@@ -2,7 +2,19 @@
 
 > **In one line:** Testing on live with a real account: an organisation the operator marks as a test copies only the items whose title carries its marker, such as `[Ownpace-test]`, filtered where the source is first listed, and its migrations can never be finished or switched over.
 
-## Status — 2026-11-21 (update this block at the end of every session)
+## Status — 2026-11-22 (update this block at the end of every session)
+
+**2026-11-22, recorded: ledger migration 0070 and managed migration 0062 on live, and the *Test
+organisation* section on its Support page (T1, T2, T3; T4 open).** Live's deploy of
+`v0.2.0-alpha.14` (0132's Status, 2026-11-22) takes T1 (#2013, with its re-review's follow-ups,
+#2025), T2 (#1975) and T3 (#2003) to live, and its new api applied ledger migration 0070 and managed
+migration 0062 to the app's database at 09:19 UTC, the shared chain first. Read on live after it,
+with the hold on: `mailbox_mapping.test_marker` text, with its check and its trigger;
+`test_organisation` with row security on and forced, and 4 policies; `test_marker` in the two
+support views; no migration with a test marker, and no organisation marked as a test. On the Support
+page, the only organisation on live, which is closed (0139's Status, 2026-11-22), shows the new
+section saying *This is not a test organisation.*, with no marker form: the page offers the form
+only while an organisation is open. T4, the scenarios on live, stays the owner's and proposed.
 
 **2026-11-21, after T1 merged: T1's re-review follow-ups, on
 `claude/ownpace-public-readiness-y7orc6-0162-t1-followups`, from `main` at `7d13ab33`; not

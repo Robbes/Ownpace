@@ -2,7 +2,154 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-21 (update this block at the end of every session)
+## Status — 2026-11-22 (update this block at the end of every session)
+
+**2026-11-22: live runs `v0.2.0-alpha.14`, one-way over alpha.12 by ledger migration 0070, managed
+migration 0062 and the Trigger.dev pin, on a copy of alpha.12's databases and the task runner's (T6,
+T9).** The owner deployed it on 2026-11-22, before any tester, pasting the sheet's checked blocks
+one at a time, and ran the checks after it the same morning. alpha.13, released on 2026-11-21, never
+ran on live, so this deploy took its changes too. Times are UTC, on 2026-11-22 unless said. No
+values.
+
+- **The deploy log (T6 step 9).** 2026-11-22, `v0.2.0-alpha.14`: took at 09:20:23 UTC; one-way. The
+  tag is tag object `5caf7eb6…` on `9456f618` (#2028, the fold, made a third time), made at 07:46:01
+  by Release run 44999515030, which its message names with *Proved by: CI run #5985, Security Scan
+  run #6117 on main, windows-payload run #55* and the gate scan, run 44999608397. The owner waived
+  its counted nights, for this version alone (`WAIVER_VERSIONS`, #1991; 0146's Status, 2026-11-21,
+  later); the acceptance is the tag message's own line: *Nights waived by Robbes, in their words:
+  "waived by me"*. With alpha.13's changes, alpha.14 carries a migration with a test marker that
+  copies only its marked items, with ledger migration 0070, and an operator's test mark on an
+  organisation's support page, with managed migration 0062 (#1975, #2003, #2011, #2013), a closed
+  organisation taking nobody in (#1972), Trigger.dev v4.8.8 (#2009), both databases on libxml2
+  2.13.9-r3 (#2015), Redis and the Trigger.dev webapp without PAM (#2016), the Docker socket proxy
+  on docker-socket-proxy v0.6.0 as HAProxy's uid 99 (#1967, #1979), the dashboard's TLS front on
+  Caddy's newer index (#1982), and the other alpha.13 and alpha.14 pull requests (0146's Status,
+  2026-11-21 and 2026-11-22, the folds).
+- **Why block 1 ran, and why this morning.** The copy before alpha.12, taken at alpha.12's deploy on
+  2026-11-20 at 17:20:23, held alpha.11's databases and was not proven. While it was there, a take
+  would keep it, add the task runner's database to it and take no copy of alpha.12's, so the
+  deploy's only way back would have been alpha.11's databases, with everything since 2026-11-20 lost
+  on it. The sheet named two ways: in (A), the owner's word deletes that copy by hand (block 1), and
+  the deploy runs in the first window after the tag; in (B), the deploy waits for 2026-11-26 from
+  16:25, when the take deletes that copy first, as the daily backstop would. It ran in (A), on the
+  owner's word. The owner began at about 08:33, in their words *"Let's do it now"*, in the morning
+  after the tag, ahead of the sheet's window, which began at 14:05, after that day's daily duties.
+- **The self-hosted runner, stopped for the deploy.** Before 0a the runner was stopped, after a
+  check that it was running no job, so that no E2E run could start on the Docker daemon live shares
+  while the deploy ran: E2E (managed) and E2E (self-hosted) both run there, and a deploy whose
+  exposure check overlaps E2E (self-hosted)'s stack does not take. E2E (self-hosted)'s scheduled run
+  45003936616, on PGlite, which GitHub created at 08:40:53 on `main` at `20eccaa0` (#2029), waited
+  in the queue meanwhile (below).
+- **Read-only checks first (0a to 0d), each as the sheet expects.** 0a, as the owner, not root, with
+  live's `.env`: live's checkout at `v0.2.0-alpha.12`, clean; both box timers active; in live's
+  `.env` `TRIGGER_IMAGE_TAG=v4.8.5`, `WWW_LIVE=true`, one `COPY_DELETE_WHEN_PROVEN=true` line, no
+  `PGBOUNCER_USERLIST` line, the userlist being a file in the checkout, `OWNPACE_REACHABLE_HOSTS`,
+  `MOLLIE_API_KEY` and `CIRRUX_OAUTH_CLIENT_ID` empty, `WEB_URL`, `API_URL` and `CORS_ORIGIN` each
+  `https://app.ownpace.eu`, and no `DOCKER_SOCKET_GID` line yet, the Docker socket's group readable
+  as the bring-up reads it; `deploys.log`'s last three lines alpha.10's took reversible, alpha.11's
+  took one-way and alpha.12's took one-way (2026-11-20T17:22:57Z); the copy before alpha.12 at mode
+  700 with its 5 entries, its note `taken=2026-11-20T17:20:23Z`, `before=v0.2.0-alpha.12` and
+  `from=v0.2.0-alpha.11 (95ccf152…)`; the take's own dry run, with `--trigger`: that copy on day 2
+  of at most 7 and its update not proven, so kept, with no second copy taken, and a take would add
+  the task runner's database to it; nothing written, exit 0; no copy volume or ClickHouse list made
+  by hand; and ClickHouse's goose record 56. 0b: the deploy shell's own Node 26, and pnpm 11.28.12.
+  0c, which checks itself, read all 132 of its lines as expected: the tag object, its message and
+  its pins; between the two tags, the two migrations added, the worker's package and config, the
+  lockfile and the scripts under `deploy/compose` the sheet names; the migrations' statements; and
+  `managed.yml`'s lines, among them the six new image names and the socket proxy's `group_add`. The
+  13 images live ran were on the shared daemon. 0d: the npm registry answered 200 for corepack
+  0.36.0, pnpm 11.28.13 and 10.34.9, and effect 3.22.4; Docker Hub's, GitHub's and Google's
+  registries 401, so reachable; Alpine's mirror 200 for libxml2 2.13.9-r3; github.com's release
+  download 206; and the tasks' base and Trigger.dev v4.8.8's two images were readable from GitHub's
+  registry without a login, exit 0.
+- **The copy before alpha.12, deleted by hand (block 1, destructive, on the owner's word).** At
+  about 08:57 it read the copy's note and its 5 files, then deleted the 5 files: the directory left
+  with 0 entries, at mode 700.
+- **The hold (T6 step 2)** went on at 09:00:52, by its own row. Block 2's read, at about 09:05, 305
+  seconds after, was clean: one hold, 305 seconds old, 0 passes in flight, and nothing unfinished.
+  With the runner stopped, no E2E run ran on the shared daemon until it was back, after block 6; and
+  nothing was merged to `main` from before 0a until after the lift: #2029, at 08:05:50, was the last
+  merge before them. The dry run (block 3), at about 09:10, exited 0: one-way over alpha.12, naming
+  ledger migration 0070 and managed migration 0062, both added, and the Trigger.dev pin's move from
+  v4.8.5 to v4.8.8; the take, with `--trigger`, would take the copy before v0.2.0-alpha.14, of the
+  app's database, the sign-in service's database and the roles, and the task runner's database. Then
+  3b, at about 09:12: `env-upsert.sh` set `TRIGGER_IMAGE_TAG=v4.8.8` in live's `.env`, which the
+  bring-up reads.
+- **The run (T6 steps 3 to 7).** From about 09:16, one run of alpha.12's `deploy-live.sh`, the
+  checkout's, which is alpha.11's byte for byte. The take, at 09:16:21, made the copy before
+  v0.2.0-alpha.14, `from=v0.2.0-alpha.12 (b4d11ee7…)`, 6 entries: the app's database; with
+  `dump-idp.sh`, the sign-in service's database while it ran Zitadel v4.20.4, 701 entries read back
+  (410,119 bytes, its roles file 1,771 bytes); and, with `trigger-version.sh backup
+  before-v0.2.0-alpha.14`, the task runner's database (80,475,612 bytes), the first take on live
+  with the task runner's database since alpha.8's. In its data phase the bring-up wrote the Docker
+  socket's group into live's `.env` as `DOCKER_SOCKET_GID` (#1979). Trigger.dev's webapp, on v4.8.8,
+  applied 17 Prisma migrations to the task runner's database as it started, from 09:17; the tasks
+  deployed as `20261122.1`, 17 tasks on CLI and SDK 4.8.8, at 09:19; and the new api applied ledger
+  migration 0070 and managed migration 0062 at 09:19. Every check of its own passed: both version
+  endpoints at the tag's commit, the app's headers as the tag's template states them (0158 T4),
+  `/api/ready`, the auth mode managed, `NODE_ENV` production, the site, and the exposure check. *The
+  deploy took* at 09:20:23, one-way, exit 0. It printed no NOTE: block 5 found the tree clean,
+  nothing to put back.
+- **The checks after it, with the hold on (T6 step 7),** each as the sheet expects. Both version
+  endpoints at alpha.14's `9456f618`, `0.2.0-alpha.14`. On new builds, up for minutes: both
+  databases on `localhost/postgres:18.7-alpine-6adabb723757`, Redis on
+  `localhost/redis:7.4.12-bookworm-65e47a4df92f`, the webapp on
+  `localhost/trigger.dev:v4.8.8-c8ebb4044c16`, the supervisor on
+  `localhost/supervisor:v4.8.8-f21dbbd335dd`, the socket proxy on
+  `localhost/docker-socket-proxy:3.4.7-alpine-98dbd75c6730` and the dashboard's TLS front on
+  `localhost/caddy:2.11.9-alpine-9c1f752119a3`; the pooler on its build of alpha.12, `abd8080fb98b`,
+  recreated after the app's database; the api and the web on their builds from the tag. Every image
+  exactly as the tag pins it, Zitadel at GHCR's `2133708c0093…`; started after alpha.12's deploy
+  took: the two databases, the pooler, Redis, the proxy, `minio-init`, the webapp,
+  `trigger-tls-init`, the front, the supervisor, the api and the web; ClickHouse, the registry,
+  MinIO, Zitadel and Gatus not since, and 0 restarts. All 16 containers, live's and the site's, with
+  `no-new-privileges` (*without no-new-privileges: 0*), `drop=[ALL]` but `trigger-api`'s, and none
+  added on Redis, the web, the front or the proxy; the web as 101:101 with its sysctl for
+  unprivileged ports, the front as 65532:65532, its one-shot `trigger-tls-init` as root, and the
+  socket proxy now as 99:99, where it ran as root before #1979, in the socket's group, the one
+  `DOCKER_SOCKET_GID` names. Trigger.dev's two on Node v24.22.3, and in the webapp's and Redis's
+  images none of linux-pam's four packages or the three that need them, 7 of 7 not installed in each
+  (#2016). The switches as before: MinIO's update and call-home off, telemetry off
+  (`TRIGGER_TELEMETRY_DISABLED=1`, `POSTHOG_PROJECT_KEY` empty, `CHECKPOINT_DISABLE=1`),
+  `CLI_LOGIN_IDLE_TIMEOUT_DAYS=90` and `ADMIN_API_ENABLED=false`, the api's `CIRRUX_OAUTH_CLIENT_ID`
+  empty, and ClickHouse's crash reports off. The tasks' runners (6d): the runners of `20261122.1` on
+  image `239b82bd3056`, and the current deployment, `20261122.1`, on the same image, built at the
+  fixed 1970-01-01; the api's Node and the tasks' v26.13.1; in the tasks' image no `sh`, `/bin/sh`,
+  `bash`, `/bin/bash` or `/busybox/sh`; and no container left behind. The task row
+  `current|20261122.1|DEPLOYED|4.8.8|4.8.8|26.13.1|2026-11-22 09:19`; the tick's runs
+  `COMPLETED_SUCCESSFULLY` on 4.8.8; the 17 Prisma migrations finished, none unfinished or rolled
+  back (their names in 0119's Status, 2026-11-22); ClickHouse's goose record 56, as in 0a; managed
+  migration 0062 applied at 09:19, after 0061 on 2026-11-20 at 17:21, and ledger migration 0070 at
+  09:19, after 0069 on 2026-11-20 at 17:21; `mailbox_mapping.test_marker` text, with its check and
+  its trigger; `test_organisation` with row security on and forced and 4 policies, and `test_marker`
+  in the two support views; no migration with a test marker and no organisation marked as a test;
+  the site's check ok; `deploys.log`'s last lines alpha.11's took one-way, alpha.12's took one-way
+  and alpha.14's took one-way, at 09:20:23; and the copy as the take made it, `dump-idp.sh`'s one
+  note naming v4.20.4 as running, with the task runner's dump. The sign-in service (6f):
+  `setup-zitadel.sh --count-organisations` found it ready, still accepting the provisioning token,
+  with *organisations on this instance: 1*, exit 0, running `ghcr.io/zitadel/zitadel:v4.20.4`; the
+  owner signed in; and on the Support page the only organisation, which is closed (0139 T7 (b)),
+  shows the new *Test organisation* section (#2013) saying *This is not a test organisation.*, with
+  no marker form, which the page offers only while an organisation is open.
+- **The runner back, after block 6.** The runner was started again and listened for jobs at
+  09:46:19; at 09:46:21 it took the job `e2e-selfhost` of E2E (self-hosted) run 45003936616, queued
+  since 08:40:53, which ran `main` at `20eccaa0` and completed green at 09:51:29, on its first
+  attempt.
+- **The lift (T6 step 8).** The owner lifted the hold at 09:51:03, by the hold's own row (started
+  09:00:52), so the hold was on for 50 minutes 11 seconds. `live-pass-check.sh` was not run: the
+  only organisation on live is closed (0139 T7 (b)), so a pass there would answer `account_closed`.
+  The owner's check after the lift (7b) read `yes|0|-1|0`, no hold open and no pass in flight; the
+  last hold from 09:00:52 to 09:51:03; the box checks' timer having run 5 minutes before and running
+  again within 5; and the copy's directory with its 6 entries, kept, since nothing has proven
+  alpha.14.
+- **What is left (T9).** Nothing has proven alpha.14, and no pass can while the only organisation on
+  live is closed: a pass there answers `account_closed`. So the copy before alpha.14 is kept to its
+  day 6: it expires on 2026-11-28 at 08:16:21, 6 days less an hour after its take, its last day from
+  2026-11-27 at 08:16:21, on which every take refuses but a deploy of alpha.12, the release it
+  holds. It holds alpha.12's databases and the task runner's, so it is the way back from alpha.14,
+  which its two migrations and the Trigger.dev pin make one-way; the copy before alpha.12, of
+  alpha.11's, is gone. 7c, GoAccess's image as 65534:65534 after the next daily duties, built from
+  the same commit under its renamed build argument (#1998), is read on 2026-11-23.
 
 **2026-11-21: the outside probe knows the Trigger.dev dashboard on a port the front answers by
 itself (T3 (c)).** Built on the branch `claude/ownpace-public-readiness-y7orc6-probe-dashboard-tls`,
