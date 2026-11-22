@@ -21,7 +21,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **A keep in the earlier-exports queue ends when the format is switched back** (workplan 0164
   T3b). Once the copy carried a current name again, the keep still stood. A later deletion of the
   document then arrived already decided, and was never offered. The keep now goes with the mark,
-  so that deletion is offered and goes through every check.
+  whether or not the document was edited in between, so that deletion is offered and goes
+  through every check.
 
 ## [0.2.0-alpha.15] - 2026-11-22
 

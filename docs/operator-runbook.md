@@ -2120,7 +2120,8 @@ So it is never counted as one, and never deleted for you: Deletions lists it as
   not remove an earlier export: nothing was deleted at the source.
 - If the format is switched back, the old name is given again: that copy is
   a current one again, and the other becomes the earlier export. A keep given
-  to it as an earlier export ends there, so a later deletion of it is offered.
+  to it as an earlier export ends there, whether or not the document was
+  edited in between, so a later deletion of it is offered.
 
 ### Removing it on the target too — `apply`
 
@@ -2228,8 +2229,9 @@ before anything is removed:
    removal. If a keep was the wrong call, delete the copy in the new system
    yourself. A kept item that is seen on the old system again, and is then
    deleted there again, is a new entry, asked afresh. So is an earlier export
-   kept in its own queue once its format is switched back: the keep goes with
-   the mark, and a later deletion of it is offered (workplan 0164).
+   kept in its own queue once its format is switched back, edited in between
+   or not: the keep goes with the mark, and a later deletion of it is offered
+   (workplan 0164).
 
 A call that is refused always says why, in a `reason` you can read as-is —
 `not_enabled`, `target_cannot_remove`, `not_found`, `not_confirmed`,

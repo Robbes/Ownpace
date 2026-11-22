@@ -1891,7 +1891,9 @@ export interface Ledger {
    * switched back), so the copy is no longer an earlier export of anything.
    * A keep given to it as an earlier export goes with the mark (workplan
    * 0164): a later deletion of the document is a new question, offered
-   * afresh. A no-op on a row that is not one.
+   * afresh. A no-op on a row that is not one. `recordUpdate` and
+   * `recordFailure` take the mark off too, and leave the keep, so the pass
+   * calls this before either, where it first meets the item under that name.
    */
   clearEarlierExport(
     tenantId: TenantId,

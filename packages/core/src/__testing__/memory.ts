@@ -1006,14 +1006,16 @@ export class MemoryLedger implements Ledger {
           : {}),
       });
     }
-    // Open first, then by natural key — matching PgLedger's ORDER BY exactly,
-    // including the tie-break. When these two disagreed, the fake sorted the
-    // way the SQL's COMMENT claimed rather than the way the SQL behaved
-    // (Postgres puts NULLs LAST on ASC), so only the real database noticed.
+    // Open first, then decided ones by when they were decided, then by natural
+    // key — matching PgLedger's ORDER BY, including the tie-break (to the
+    // millisecond here, the microsecond there). When these two disagreed, the
+    // fake sorted the way the SQL's COMMENT claimed rather than the way the SQL
+    // behaved (Postgres puts NULLs LAST on ASC), so only the real database noticed.
     return Promise.resolve(
       out.sort(
         (a, b) =>
           Number(a.acknowledgedAt !== undefined) - Number(b.acknowledgedAt !== undefined) ||
+          (a.acknowledgedAt ?? '').localeCompare(b.acknowledgedAt ?? '') ||
           a.naturalKeyHash.localeCompare(b.naturalKeyHash),
       ),
     );

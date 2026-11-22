@@ -29,13 +29,14 @@
   confirmation over a frozen set naming the count, the bin's apart, then each row's own apply
   through the same call and all seven gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
-- Gate 6 bounds one confirmation: every row of a data type under 20 `placedItems` (removed and
-  adopted counted; failed, left-behind, superseded, collection-less not), else at most a fifth. The breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or an
-  unanswered or unstarted press **stops the whole run**; *Stop* or a closed page orders nothing
-  more.
-- **A kept deletion is never applied** (2026-11-22): `already_kept` first. A keep cannot stop a
-  removal under way, and ends with its cause (seen again, earlier export current again). A
-  removal closes its relocation. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
+- Gate 6 bounds one confirmation: every row of a data type under 20 `placedItems` (removed,
+  adopted counted; failed, left-behind, superseded, collection-less not), else at most a fifth.
+  The breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or an unanswered or
+  unstarted press **stops the whole run**; *Stop* or a closed page orders nothing more.
+- **A kept deletion is never applied** (2026-11-22): `already_kept` before anything is sent
+  (unless already removing); the keep ends with its cause (seen again, earlier export
+  current again); removing closes its relocation (core: `a-deletion-the-owner-kept`,
+  `a-name-the-document-outgrew`, `apply-relocation`).
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.
@@ -295,10 +296,16 @@ and in the workplan's Status block.
   deletion of the document arrived already decided and was never offered. That was the opposite
   of `clearAbsent`'s rule for an item seen again: "there is no longer anything to have agreed to,
   and a stale acknowledgement would silently suppress the report the next time". So
-  `clearEarlierExport` now clears it too, only on a row that is an earlier export, and only when
-  the pass sees the item on the old system. A later deletion is offered afresh and goes through
-  every gate. Nothing is removed by this change. Guards: `packages/core/src/a-name-the-document-outgrew.unit.test.ts`,
-  `packages/ledger/src/a-deletion-the-owner-kept` (PGlite and Postgres).
+  `clearEarlierExport` now clears it too, only on a row that is an earlier export. The pass
+  calls it where it first meets the item listed under that name again, before any write. A
+  document edited while its copy was an earlier export is rewritten on that pass (`recordUpdate`,
+  or `recordFailure` if the export fails), and those writes take the mark off by themselves, so
+  the call after the loop found nothing to clear and the keep stayed (found in the review of this
+  change). `recordUpdate` and `recordFailure` are not changed: the pass reaches them only through
+  that branch, so the keep keeps one write that clears it. A later deletion is offered afresh and
+  goes through every gate. Nothing is removed by this change. Guards:
+  `packages/core/src/a-name-the-document-outgrew.unit.test.ts` (unedited and edited, through
+  `runFileSync`), `packages/ledger/src/a-deletion-the-owner-kept` (PGlite and Postgres).
 
 ## Amendment log
 

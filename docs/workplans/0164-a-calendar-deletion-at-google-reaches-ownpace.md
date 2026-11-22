@@ -4,7 +4,25 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-22, 14:30 UTC, latest: T3's two follow-ups are built (T3a, T3b), on
+**2026-11-22, 15:45 UTC, latest: the review of #2036 is answered, on the same branch.** It
+found one blocker and five smaller points:
+- **T3b missed an edited document** (the blocker). A document edited while its copy was an
+  earlier export is rewritten on the switch-back pass. `recordUpdate`, or `recordFailure` if the
+  export fails, takes the mark off and leaves the keep, so the call to `clearEarlierExport` after
+  the loop found nothing to clear. The pass now calls `clearEarlierExport` where it first meets
+  the item under that name, before any write, beside `clearMove` (`domain-sync.ts`).
+  `recordUpdate` and `recordFailure` are unchanged: the pass reaches them only through that
+  branch, so the keep has one write that clears it. A test through the real `runFileSync`, with
+  the document edited between the two switches, fails without the call and passes with it.
+- **ADR-0024's operative rule** says `already_kept` comes before anything is sent, not first,
+  and names the guards the amendment names. The amendment, `ports.ts`, the runbook and this
+  plan say where the keep is cleared.
+- **`MemoryLedger.listMoves`** sorts decided rows by when they were decided, as `PgLedger` does.
+- **`main` merged** twice, the CHANGELOG's *Added* from #2038 kept above this branch's *Fixed*.
+- **No file in either migration chain** is added or changed (alpha.16's rule).
+- **Next:** CI, then E2E (managed), re-run by the coordinator.
+
+**2026-11-22, 14:30 UTC, earlier: T3's two follow-ups are built (T3a, T3b), on
 `claude/ownpace-0164-followups-moves-and-earlier-exports`.** F13 is not touched: it needs a
 migration and a decision.
 - **A removed old copy closes its move** (T3a). Once *Deleted on the old system* removes the old
@@ -21,7 +39,8 @@ migration and a decision.
   - **What still counts:** a relocation whose old copy is still there, its deletion open,
     reported or kept. A move that kept its key (mail, calendar) is unchanged.
 - **A keep ends when its earlier export is current again** (T3b). `clearEarlierExport` now
-  clears the keep with the mark. The keep answered *leave this earlier export*. Once the format
+  clears the keep with the mark (and, since the review above, the pass calls it before any
+  rewrite, so an edited document is covered too). The keep answered *leave this earlier export*. Once the format
   is switched back, the copy is the current one and that question is gone, as `clearAbsent`
   clears a keep for an item seen again. So a later deletion is offered and goes through every
   gate. This is decided from the code's own rule, and is not a question for the owner.
@@ -464,7 +483,7 @@ Read for this plan, on `main` at `8b8fac07`:
 | T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
 | T3 Apply in bulk | builder | ✅ **Merged 2026-11-22** as #2024 (`15fc504f`), held for alpha.15: built 2026-11-21, three reviews' findings fixed, the keep fix (#2027) taken and F-B built; a fresh check's four nits on `claude/ownpace-public-readiness-y7orc6-0164-t3-nits` | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or a press not answered or not started stops the run. ADR-0024 amended |
 | T3a A removed old copy closes its move | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-0164-followups-moves-and-earlier-exports` | T3's open follow-up: a relocation whose old copy a deletion removed reads decided (`applied`) on Moves, leaves `mass_relocation_suspected`'s count, and takes no keep. Closed, not listed apart. ADR-0024 amended |
-| T3b A keep ends when its earlier export is current again | builder | 🟡 **Built 2026-11-22**, on the same branch | The keep fix's follow-up: `clearEarlierExport` clears the keep with the mark, so a later deletion is offered afresh. Decided from `clearAbsent`'s rule, not left to the owner |
+| T3b A keep ends when its earlier export is current again | builder | 🟡 **Built 2026-11-22**, on the same branch | The keep fix's follow-up: `clearEarlierExport` clears the keep with the mark, called by the pass before any rewrite, so a later deletion is offered afresh, the document edited in between or not. Decided from `clearAbsent`'s rule, not left to the owner |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
 
