@@ -33,6 +33,32 @@ if [ -n "$ENSURE_TRACED" ] || [ -n "${BASH_XTRACEFD+set}" ]; then
 fi
 set -euo pipefail
 
+# --only <KEY>: that one secret, when it is missing, and nothing else: no other
+# key, no database password, no date, no group, no userlist. The bring-up's
+# load_env runs it so on every run for JOBS_DB_PASSWORD, before any Compose
+# call, so that live's deploy (`--from data`, which skips the env phase) fills
+# in the one key a release added without generating anything else, the
+# database passwords whose absence load_env refuses on a real address among
+# them. Only the keys named in ONLY_KEYS: each one safe to generate on a stack
+# whose volumes exist, because the bring-up sets it on its role every run.
+ONLY_KEYS=' JOBS_DB_PASSWORD '
+ONLY_KEY=''
+ONLY_SEEN=''
+case "${1:-}" in
+  '') ;;
+  --only)
+    ONLY_KEY="${2:-}"
+    if [ "$#" -ne 2 ] || [[ "$ONLY_KEYS" != *" ${ONLY_KEY} "* ]]; then
+      echo "[ensure-env-secrets] usage: ensure-env-secrets.sh [--only <KEY>], KEY one of:${ONLY_KEYS% }. Nothing was written." >&2
+      exit 2
+    fi
+    ;;
+  *)
+    echo "[ensure-env-secrets] usage: ensure-env-secrets.sh [--only <KEY>], KEY one of:${ONLY_KEYS% }. Nothing was written." >&2
+    exit 2
+    ;;
+esac
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # One reader for this file, shared with every other script here: what
 # check-env-agreement.sh accepts, env_value reads — quoted or bare, the same
@@ -170,6 +196,10 @@ generate() { # generate <name> <bytes>
 ensure() { # ensure <name> <bytes>
   local name="$1" bytes="$2"
   local current
+  if [ -n "$ONLY_KEY" ]; then
+    [ "$name" = "$ONLY_KEY" ] || return 0
+    ONLY_SEEN=1
+  fi
   # `|| true` is load-bearing: this script runs under `set -o pipefail`, and
   # grep exits 1 when the key is absent — which is the ORDINARY case on a fresh
   # .env, and would otherwise abort the script before generating anything.
@@ -271,6 +301,23 @@ ensure ZITADEL_ADMIN_PASSWORD 16
 # nightly gate persists .env back after this script, so it is generated once
 # per stack.
 ensure SYSTEM_DB_PASSWORD 24
+# The jobs role's password (ADR-0054, workplan 0167 T7's first part):
+# `ownpace_jobs`, the role that owns pg-boss's schema and nothing else, which
+# the worker will connect as. SAFE to generate on a stack whose volume exists,
+# as SYSTEM_DB_PASSWORD is: jobs-role.sql makes the role with no password, and
+# the bring-up's data phase sets this value on it with ALTER ROLE on every
+# run. The bring-up's load_env runs this script when the key is missing, so
+# live's first deploy of a release that carries the role fills it in.
+ensure JOBS_DB_PASSWORD 24
+
+# --only ends here: the one key, and nothing below.
+if [ -n "$ONLY_KEY" ]; then
+  if [ -z "$ONLY_SEEN" ]; then
+    echo "[ensure-env-secrets] FATAL: --only ${ONLY_KEY}, and no line above ensures it. Nothing was written." >&2
+    exit 1
+  fi
+  exit 0
+fi
 # The demo Nextcloud's database password (workplan 0150): the role `nextcloud`
 # in the stack's Postgres, which the bring-up's `data` phase makes with this
 # value before Nextcloud's first start, and which that install keeps in its own

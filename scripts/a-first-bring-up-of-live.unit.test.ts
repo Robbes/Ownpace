@@ -129,7 +129,8 @@ const PORTS: Record<string, string> = {
   REGISTRY_PORT: '45000',
   MAILPIT_PORT: '43127',
 };
-const PASSWORD_KEYS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD', 'TRIGGER_DB_PASSWORD'];
+// The five a volume keeps, and the jobs role's (ADR-0054), which the bring-up sets on every run.
+const PASSWORD_KEYS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD', 'TRIGGER_DB_PASSWORD', 'JOBS_DB_PASSWORD'];
 
 const tempDirs: string[] = [];
 // The temp folders are many and full; under a loaded full run a synchronous
@@ -166,6 +167,7 @@ const LIVE_ENV: Record<string, string> = {
   MINIO_ROOT_USER: 'admin',
   MINIO_ROOT_PASSWORD: 'change-me-minio',
   TRIGGER_DB_PASSWORD: '',
+  JOBS_DB_PASSWORD: '',
   OWNPACE_REACHABLE_HOSTS: '',
   // The most days a dump taken before a deploy is kept (0134, 2026-09-28).
   BACKUP_RETENTION_DAYS: '7',
@@ -1484,6 +1486,25 @@ describe("refused before anything changes: live's .env, key by key, never a valu
   );
 });
 
+it(
+  "an empty JOBS_DB_PASSWORD with live's volumes there is generated, not refused: no volume keeps it, the data phase sets it every run",
+  () => {
+    const own = { POSTGRES_PASSWORD: 'f00d'.repeat(12), APP_DB_PASSWORD: 'beef'.repeat(12), CLICKHOUSE_PASSWORD: 'cafe'.repeat(12), MINIO_ROOT_PASSWORD: 'face'.repeat(12), TRIGGER_DB_PASSWORD: 'fade'.repeat(12) };
+    const s = stage({
+      env: { ...own, JOBS_DB_PASSWORD: '' },
+      volumes: ['ownpace-live_postgres_data', 'ownpace-live_trigger_db_data', 'ownpace-live_clickhouse_data_v2', 'ownpace-live_minio_data_v2'],
+    });
+    const r = run(s, ['--resume'], { STUB_TRIGGER_STOP: 'account' });
+    expect(r.out).toContain('[stand-up-live] every refusal passed');
+    expect(r.out).toContain('generated JOBS_DB_PASSWORD on this machine');
+    expect(valueOf(s, 'JOBS_DB_PASSWORD')).toMatch(/^[0-9a-f]{48}$/);
+    for (const [k, v] of Object.entries(own)) expect(valueOf(s, k), k).toBe(v);
+    expect(called(s, 'openssl')).toEqual(['openssl rand -hex 24']);
+    expectNothingLeaked(s, r.out, [...Object.values(own), valueOf(s, 'JOBS_DB_PASSWORD')]);
+  },
+  CASE_MS,
+);
+
 /** Past every refusal, as far as the first stop (exit 2), with nothing said about `what`. */
 function expectPassed(r: { status: number; out: string }, what: string | RegExp): void {
   expect(r.status, r.out).toBe(2);
@@ -1857,13 +1878,13 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
       const first = run(s, [], { STUB_TRIGGER_STOP: 'account' });
       expect(first.status, first.out).toBe(2);
 
-      // The passwords: generated on the machine, five of them, 48 hex each,
+      // The passwords: generated on the machine, six of them, 48 hex each,
       // all different, written into the persisted file through the link.
       const secrets = PASSWORD_KEYS.map((k) => valueOf(s, k));
       for (const [i, v] of secrets.entries()) expect(v, PASSWORD_KEYS[i]).toMatch(/^[0-9a-f]{48}$/);
-      expect(new Set(secrets).size).toBe(5);
+      expect(new Set(secrets).size).toBe(6);
       expect(lstatSync(join(s.compose, '.env')).isSymbolicLink(), 'the link was replaced by a file').toBe(true);
-      expect(called(s, 'openssl')).toEqual(Array(5).fill('openssl rand -hex 24'));
+      expect(called(s, 'openssl')).toEqual(Array(6).fill('openssl rand -hex 24'));
       // Through env-upsert.sh, on stdin: no KEY=VALUE on its command line.
       expect(called(s, 'env-upsert')).toEqual([`env-upsert --stdin ${join(s.compose, '.env')}`]);
       // In the same write, the provider's organisation is named Ownpace before
@@ -1928,7 +1949,7 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
       expect(second.out).toMatch(/login/);
       expect(second.out).toContain('./deploy/compose/stand-up-live.sh --resume');
       // Nothing generated twice, app_user not created twice.
-      expect(called(s, 'openssl')).toHaveLength(5);
+      expect(called(s, 'openssl')).toHaveLength(6);
       expect(PASSWORD_KEYS.map((k) => valueOf(s, k))).toEqual(secrets);
       expect(readFileSync(s.sqlLog, 'utf8').match(/CREATE ROLE/g)).toHaveLength(1);
       expect(called(s, 'bootstrap').slice(4)).toEqual([
@@ -2027,7 +2048,7 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
       expect(r.status, r.out).toBe(2);
       expect(valueOf(s, 'POSTGRES_PASSWORD')).toBe(own);
       expect(valueOf(s, 'ZITADEL_ORG_NAME')).toBe('Ownpace Alpha');
-      expect(called(s, 'openssl')).toHaveLength(4);
+      expect(called(s, 'openssl')).toHaveLength(5);
       expectNothingLeaked(s, r.out, [own]);
     },
     CASE_MS,
