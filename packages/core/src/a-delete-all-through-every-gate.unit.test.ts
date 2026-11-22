@@ -13,6 +13,9 @@
  *
  *  - a run in which each gate that speaks for one row refuses one row, and
  *    the others are removed: the run goes on past each of them;
+ *  - a removal the ledger could not record (`removed_not_recorded`) stops
+ *    the whole run: the ledger changed under it, as when the owner restores
+ *    a folder at the source mid-run, so its next items are not asked;
  *  - deleting by hand turned off during a run stops it;
  *  - the breaker stops the whole run, every data type, whether it trips on
  *    the first row or in the middle, even when the share has dropped by the
@@ -124,7 +127,6 @@ describe('a run in which each gate that speaks for one row refuses one row', () 
     await ledger.recordIfAbsent(row('calendar', 'cal-adopted', { ...reported, status: 'adopted' }));
     await ledger.recordIfAbsent(row('calendar', 'cal-edited', reported));
     await ledger.recordIfAbsent(row('calendar', 'cal-unversioned', reported));
-    await ledger.recordIfAbsent(row('contact', 'con-raced', reported));
     await ledger.recordIfAbsent(row('contact', 'con-ok', reported));
     await ledger.recordIfAbsent(row('task', 'task-1', reported));
     await ledger.recordIfAbsent(row('email', 'mail-1', reported));
@@ -134,16 +136,7 @@ describe('a run in which each gate that speaks for one row refuses one row', () 
         't-cal-edited': { conflicted: true },
         't-cal-unversioned': { unversioned: true },
       }),
-      contact: remover(
-        {},
-        {
-          // Gate 7: another press records this removal first, so the ledger's
-          // conditional UPDATE refuses ours.
-          't-con-raced': async () => {
-            expect(await ledger.applyDeletion(TENANT, MAPPING, 'contact', 'con-raced')).toBe(true);
-          },
-        },
-      ),
+      contact: remover(),
       task: { upsertTask: vi.fn() },
       email: remover(),
     };
@@ -157,7 +150,6 @@ describe('a run in which each gate that speaks for one row refuses one row', () 
         { domain: 'calendar', naturalKeyHash: 'cal-unversioned' },
         { domain: 'task', naturalKeyHash: 'task-1' },
         { domain: 'email', naturalKeyHash: 'mail-1' },
-        { domain: 'contact', naturalKeyHash: 'con-raced' },
         { domain: 'contact', naturalKeyHash: 'con-ok' },
       ],
       pressWith(ledger, targets, { pastCutover: new Set(['email']) }),
@@ -171,7 +163,6 @@ describe('a run in which each gate that speaks for one row refuses one row', () 
       'version_unknown', // gate 5: nothing to compare
       'target_cannot_remove', // gate 2
       'after_cutover', // the old system no longer decides
-      'removed_not_recorded', // gate 7: two applies cannot both be recorded
       'removed',
     ]);
 
@@ -190,10 +181,81 @@ describe('a run in which each gate that speaks for one row refuses one row', () 
     // Each target was asked only about what the gates before the removal let
     // through: never about an inferred, adopted or past-cutover row.
     expect(targets.calendar.asked).toEqual(['t-cal-ok', 't-cal-edited', 't-cal-unversioned']);
-    expect(targets.contact.asked).toEqual(['t-con-raced', 't-con-ok']);
+    expect(targets.contact.asked).toEqual(['t-con-ok']);
     expect(targets.email.asked).toEqual([]);
     for (const r of results) {
       if ('answered' in r && !r.answered.ok) expect(r.answered.reason.length).toBeGreaterThan(20);
+    }
+  });
+});
+
+/**
+ * `removed_not_recorded`: the copy was removed, and the ledger's conditional
+ * UPDATE (gate 7) would not record it, because the row changed under the
+ * removal. It is the one answer that proves the ledger moved while the run
+ * was deleting, so the list the person confirmed is not the one being
+ * deleted from any more, and nothing after it is asked.
+ */
+describe('a removal the ledger could not record stops the whole run', () => {
+  it('when another tab recorded it first: counted as removed, and nothing after it is asked', async () => {
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(row('contact', 'con-raced', reported));
+    await ledger.recordIfAbsent(row('contact', 'con-ok', reported));
+    await ledger.recordIfAbsent(row('calendar', 'cal-ok', reported));
+    const contact = remover(
+      {},
+      {
+        // Gate 7: another press records this removal first.
+        't-con-raced': async () => {
+          expect(await ledger.applyDeletion(TENANT, MAPPING, 'contact', 'con-raced')).toBe(true);
+        },
+      },
+    );
+    const calendar = remover();
+
+    const results = await applyEachInTurn(
+      [
+        { domain: 'contact', naturalKeyHash: 'con-raced' },
+        { domain: 'contact', naturalKeyHash: 'con-ok' },
+        { domain: 'calendar', naturalKeyHash: 'cal-ok' },
+      ],
+      pressWith(ledger, { contact, calendar }),
+    );
+
+    expect(said(results)).toEqual([
+      'removed_not_recorded',
+      'not tried: refusal (removed_not_recorded)',
+      'not tried: refusal (removed_not_recorded)',
+    ]);
+    expect(contact.asked).toEqual(['t-con-raced']);
+    expect(calendar.asked).toEqual([]);
+    expect(await statusOf(ledger, 'contact', 'con-ok')).toBe('copied');
+    expect(await statusOf(ledger, 'calendar', 'cal-ok')).toBe('copied');
+  });
+
+  it('when the owner restores a folder at the source mid-run: its next items, still reported, are not asked', async () => {
+    const ledger = new MemoryLedger();
+    for (const hash of ['a', 'b', 'c']) await ledger.recordIfAbsent(row('calendar', hash, reported));
+    // The folder comes back at the source while a is being removed. A pass
+    // sees a first, and has not reached b or c yet: they are still reported.
+    const calendar = remover({}, { 't-a': () => ledger.clearAbsent(TENANT, MAPPING, 'calendar', 'a') });
+
+    const results = await applyEachInTurn(
+      ['a', 'b', 'c'].map((h) => ({ domain: 'calendar' as const, naturalKeyHash: h })),
+      pressWith(ledger, { calendar }),
+    );
+
+    // a's copy went before the ledger could record it; b and c were never asked.
+    expect(said(results)).toEqual([
+      'removed_not_recorded',
+      'not tried: refusal (removed_not_recorded)',
+      'not tried: refusal (removed_not_recorded)',
+    ]);
+    expect(calendar.asked).toEqual(['t-a']);
+    for (const hash of ['b', 'c']) {
+      const left = await ledger.find(TENANT, MAPPING, 'calendar', hash);
+      expect(left?.status, `${hash} was not asked`).toBe('copied');
+      expect(left?.deletionReportedAt, `${hash} is still reported: the pass had not reached it`).toBeDefined();
     }
   });
 });

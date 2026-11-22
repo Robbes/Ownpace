@@ -27,7 +27,8 @@ export * from './operating-contract.ts';
 // operator's that the contract serves (the owner, 2026-10-18).
 export * from './queue-guidance.ts';
 // Workplan 0164 T3 — one owner action that orders many removals, each in turn
-// through the single press's own path, the breaker stopping its data type.
+// through the single press's own path; the breaker, deleting by hand turned
+// off, or a removal the ledger could not record stopping the whole run.
 export * from './apply-each-in-turn.ts';
 // Workplan 0122 T1 — what a progress-link holder may see. Beside the
 // operating contract it narrows, so the pair is found together.

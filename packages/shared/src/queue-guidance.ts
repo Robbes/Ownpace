@@ -73,8 +73,8 @@ export const QUEUE_GUIDANCE: Readonly<
           text:
             'the same, for every row that has its own delete button, one after another, after one ' +
             'confirmation that names how many. Each is checked by itself first; one that is refused stays ' +
-            'here, with the reason. A refusal that speaks for all of them, or a delete that could not be ' +
-            'carried out, stops the rest.',
+            'here, with the reason. A refusal that speaks for all of them, or a delete that did not ' +
+            'answer, stops the rest.',
         },
         { label: 'Do nothing', text: 'the row stays here and nothing happens.' },
       ],
@@ -100,7 +100,7 @@ export const QUEUE_GUIDANCE: Readonly<
             'hetzelfde, voor elke regel met een eigen verwijderknop, de een na de ander, na één ' +
             'bevestiging die zegt hoeveel. Elk wordt eerst afzonderlijk gecontroleerd; wat wordt geweigerd, ' +
             'blijft hier staan, met de reden. Een weigering die voor allemaal geldt, of een verwijdering die ' +
-            'niet kon worden uitgevoerd, stopt de rest.',
+            'geen antwoord gaf, stopt de rest.',
         },
         { label: 'Niets doen', text: 'de regel blijft hier staan en er gebeurt niets.' },
       ],

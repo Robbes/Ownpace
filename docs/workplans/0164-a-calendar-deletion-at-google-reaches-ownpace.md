@@ -4,7 +4,59 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-22, 01:50 UTC, latest: T3 takes the keep fix from `main` and says `already_kept` in
+**2026-11-22, 03:10 UTC, latest: T3's second review is answered, on
+`claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`; it is still held for alpha.15, and
+one question waits for the owner.** The second adversarial review said *merge after these fixes*:
+- **Nothing is pressed beside a run while the list is read again** (F-A). The rows of a run wait
+  their turn, with no button of their own, from the confirming press on, not only once the list
+  has been read again. A keep pressed in that window was overwritten, and the row's removal
+  ordered; a single delete there ran beside the run's. A run that orders nothing gives the
+  buttons back, and *Stop* is offered while the list is read.
+- **`removed_not_recorded` stops the whole run** (F-C). It proves the ledger changed under a
+  removal: when the owner restores a folder at the source mid-run, the next items are still
+  reported until the pass reaches them. The row still counts as deleted, and the summary says why
+  the run stopped.
+- **Three surviving mutants are killed** (F-D): the 403/404 check, a failed receipt counted as a
+  refusal, and a refused receipt with an unknown code. The test over the real operating service
+  now also covers a receipt, a 404, `removed_not_recorded` on a receipt and on the appliance, the
+  hold, a request that got no answer, and the appliance's own answer.
+- **One removal at a time is under way per migration's run** (F-E): a run does not wait for a
+  single press still under way, nor for another migration's run on the same page. ADR-0024, the
+  panel and the runbook say so.
+- **Answers are kept per migration and item** (F-F). `QueueScreen` kept a row's answer under its
+  hash alone, and a mail item's hash comes from its Message-ID, so a run in one migration marked
+  the same message in another *Deleted on the new system too*. Deletions, Moves and Failures now
+  hand each migration only its own answers.
+- **Words** (F-G, F-H). *Could not be carried out* is now *did not answer*. A late receipt says it
+  may still delete. A hold, a closed account and a 502 that could not queue the removal are *not
+  deleted*, nothing started, and stop the run. The breaker's sentence names one data type of one
+  migration, *not ours* and *not found* cover their other cases, and *changed* no longer says
+  "since you confirmed". Only the server's words are marked English under *Technical details*.
+- **ADR-0024's operative rules** (F-I) say again that a run goes through the same call and all
+  seven gates, is offered only where a single delete is, names the count, and stops whole, and
+  that *Stop* or a closed page orders nothing more. Detail moved to the narrative and to ADR-0030
+  made room. Other claims (F-J): *Cancel* no longer claims the button's place, and the shared
+  index, §4.2 and the prose-boundary note say what holds.
+- **Accessibility** (F-K): the focus returns to the button after Cancel or Escape and stays in the
+  confirmation while it is open, and Escape works from anywhere in it. The queue is read again
+  once, when a run ends (F-L), and the refusal codes are held at run time too (F-M).
+- **Open, for the owner (F-B):** should the bulk take in only `reported` rows, with `trashed` rows
+  keeping their single press? Mail's known false positive, a message both in the bin and in a
+  live folder (`domain-sync.ts`), would become a permanent tombstone through the bulk, and below
+  20 items the breaker never applies. The evidence filter is unchanged until the owner answers.
+- **Tests:**
+  - the page's test, 53 cases, holds each finding;
+  - the test over the real operating service now covers a receipt, a 404, `removed_not_recorded`
+    on a receipt and on the appliance, a hold, a request that got no answer, the appliance's own
+    answer, and the three failures the review's mutants lived on;
+  - core, over the real `applyDeletion` and `MemoryLedger`, holds `removed_not_recorded` stopping
+    a run, the review's restored folder included.
+
+  44 mutants, each undone byte for byte, all killed. 17 of them (N28 to N44) are new for this
+  review.
+- **Next:** CI, a look at F-B by the owner, then E2E (managed).
+
+**2026-11-22, 01:50 UTC, earlier: T3 takes the keep fix from `main` and says `already_kept` in
 both languages; it is still held for alpha.15.** On
 `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`:
 - **Merged:** `main` with #2027 (the entry below) and the third alpha.14 fold (#2028). ADR-0024
@@ -62,8 +114,8 @@ on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`.** An adversarial
 found one blocker and three majors. The blocker is fixed from `main` in a pull request of its own
 (below); the rest is fixed here:
 - **The confirmation is a control of its own** (F2, F5). The button opens it over the rows as they
-  were then, a frozen set, and it names how many. *Cancel* comes first, where the button was, and
-  takes the focus. *Delete N* ignores the second click of a double click and any click within
+  were then, a frozen set, and it names how many. *Cancel* comes first and takes the focus.
+  *Delete N* ignores the second click of a double click and any click within
   800 ms of opening. Nothing is ordered unless the page's rows at that press, and the list read
   again from the server, are both the frozen set, compared row by row.
 - **A fault is not a refusal** (F3). Only a 403 or 404 with a code in `APPLY_REFUSAL_CODES`
@@ -116,7 +168,7 @@ whole run, not only its data type, and a press that did not answer stops it too.
     row with the person who pressed, and its own job, which runs every gate again;
   - reading each answer to its end is what lets the breaker's rule hold for a refusal on a
     receipt too, which a route that queued every row at once could not see in time;
-  - one removal at a time reaches the new system, as a person pressing would;
+  - one removal at a time is under way per migration's run, as a person pressing would;
   - a page closed mid-run presses nothing more, and what was pressed finishes where it runs;
   - a second press orders only what is still waiting, and the route joins a press already queued.
 - **Offered only where a single delete is:** deleting by hand on (read as the panel above reads it,
@@ -281,7 +333,7 @@ Read for this plan, on `main` at `8b8fac07`:
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
 | T1 What Google answers | builder | ✅ **Done 2026-11-21**: built as #2008, run by the owner; A is the reader | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
 | T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
-| T3 Apply in bulk | builder | 🟡 **Review**, held for alpha.15: built 2026-11-21, review findings fixed and the keep fix (#2027) taken 2026-11-22, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply` | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled` or an unanswered press stops the run. ADR-0024 amended |
+| T3 Apply in bulk | builder | 🟡 **Review**, held for alpha.15: built 2026-11-21, both reviews' findings fixed and the keep fix (#2027) taken 2026-11-22, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`; F-B open for the owner | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled`, `removed_not_recorded`, or a press not answered or not started stops the run. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
 
@@ -399,9 +451,12 @@ With **Turn on deleting by hand** on, each removal on *Deleted on the old system
 ### 4.2 In bulk (proposed, T3)
 
 An **Apply all** for the removals the page shows, with one confirmation that names how many it
-will remove. Each item still goes through every gate on its own, so an edited copy, an adopted
-one or a breaker trip refuses that item and says why, and the rest go on. ADR-0024's "per item"
-is read as "each item decided by itself"; an amendment says so in the owner's words.
+will remove. Each item still goes through every gate on its own, so an edited copy or an adopted
+one refuses that item and says why, and the rest go on. A breaker trip, deleting by hand turned
+off, a removal the ledger could not record, or a press that did not answer stops the whole run.
+ADR-0024's "per item" is read as "each item decided by itself"; an amendment says so in the
+owner's words. Open, for the owner (F-B in the Status above): whether the bulk takes in only
+`reported` rows, with `trashed` rows keeping their single press.
 
 ### 4.3 By itself (needs the rule changed, T4)
 

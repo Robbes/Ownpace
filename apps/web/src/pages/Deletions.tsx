@@ -235,6 +235,9 @@ const EarlierRow: React.FC<{
 const isTerminal = (r: ApplyReceipt): boolean =>
   r.state === 'applied' || r.state === 'refused' || r.state === 'failed';
 
+/** A receipt timer's key: the migration and the item, as an outcome's. */
+const pollKey = (mapping: string, hash: string): string => `${mapping}\u0000${hash}`;
+
 /**
  * The rows *Delete all of these here too* would order: waiting on you, each
  * offered a delete button of its own by `mayOfferApply` (positive evidence,
@@ -265,7 +268,8 @@ const Deletions: React.FC<{
 
   // One timer per in-flight receipt; all cleared on unmount so an abandoned
   // page never keeps polling. (Server-side nothing is lost — the receipt is a
-  // row, and reopening the page re-reads the queue.)
+  // row, and reopening the page re-reads the queue.) Keyed by migration and
+  // item, as the outcomes are: one hash can be an item of two migrations.
   const pollers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
   React.useEffect(() => {
     const timers = pollers.current;
@@ -285,7 +289,7 @@ const Deletions: React.FC<{
     ) => {
       setOutcome(hash, { state: 'receipt', receipt });
       if (isTerminal(receipt)) {
-        pollers.current.delete(hash);
+        pollers.current.delete(pollKey(mapping, hash));
         // An applied removal changes the queue itself; re-read rather than
         // guess what the server did to it.
         if (receipt.state === 'applied') refresh();
@@ -299,7 +303,7 @@ const Deletions: React.FC<{
           .then((next) => trackReceipt(mapping, hash, next, setOutcome, refresh))
           .catch(() => trackReceipt(mapping, hash, receipt, setOutcome, refresh));
       }, receiptPollMs);
-      pollers.current.set(hash, t);
+      pollers.current.set(pollKey(mapping, hash), t);
     },
     [receiptPollMs],
   );

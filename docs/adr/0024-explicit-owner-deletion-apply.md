@@ -11,10 +11,8 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - `apply` is the **only destructive code path**: each item decided by itself, owner-called,
-  never automatic. Relocations remove through `applyRelocation` beside it
-  (ADR-0030/0031): the same gates, gate 3
-  taking a recorded relocation as evidence and gate 6 counting relocations too.
-  `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
+  never automatic. Relocations remove through `applyRelocation` beside it, behind the same gates
+  (ADR-0030/0031). `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
 - **Seven gates**, enforced by `applyDeletion`; evidence and ownership re-checked in the ledger's
   conditional UPDATE:
   (1) per-mapping opt-in; (2) `TargetRemover` capability; (3) **positive evidence only**,
@@ -22,21 +20,22 @@
   `adopted`; (5) no edit since (DAV: the server's `If-Match`; JMAP contacts and files: a
   successful read; IMAP: UIDVALIDITY); (6) mass-deletion breaker, 20% of ≥20; (7)
   concurrent-apply re-check: `packages/core/src/apply-deletion.unit.test.ts`.
-- **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3); a weak
-  ETag counts as none. JMAP mail, which records no version by design, is exempt:
+- **With no recorded version, nothing is removed** (`version_unknown`); a weak ETag counts as
+  none. JMAP mail, which records no version by design, is exempt:
   `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
 - **After cutover nothing is applied, by hand either** (2026-10-05): the four removing functions
-  ask the item's data type's phase afresh (`stillTheAuthority`, required) and refuse
-  `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
-  what nobody answered (ADR-0047); a kept entry stays kept. Guard:
+  ask the item's data type's phase afresh and refuse `after_cutover`; no Apply is offered. A
+  rollback re-admits what nobody answered (ADR-0047); a kept entry stays kept. Guard:
   `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
-- **One press may apply many** (2026-11-21): one confirmation over a frozen set, then each row's
-  own apply, each answered before the next; the breaker, `not_enabled` or an unanswered press
-  stops the run. Guard: `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
+- **One owner action may apply many** (2026-11-21): offered only where a single delete is, one
+  confirmation naming the count over a frozen set, then each row's own apply through the same
+  call and all seven gates, the next only after an answer. Guard:
+  `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
+- The breaker, `not_enabled`, `removed_not_recorded`, or a press not answered or not started
+  **stops the whole run**; *Stop* or a closed page orders nothing more.
 - **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
-  `already_kept` after `already_applied` and the phase, as a kept move is refused, before
-  anything is sent to the target. A keep that lands while a removal is already under way cannot
-  stop it; the removal is recorded as what it was. Guard:
+  `already_kept` before anything is sent to the target. A keep that lands while a removal is
+  already under way cannot stop it; the removal is recorded as what it was. Guard:
   `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
@@ -140,7 +139,7 @@ a migration, and a removal on *Deleted on the old system* took one press per ite
 reads as **each item decided by itself**: one owner action may apply many, and each item goes
 through all seven gates by itself, through the code path a single press uses. The Decision's
 "nothing here is automatic, scheduled, or batched" reads the same way: a press for many is many
-single presses, one after another. As built after the pull request's review (2026-11-22):
+single presses, one after another. As built after the pull request's two reviews (2026-11-22):
 
 - **The press.** *Delete all of these here too*, on the Deletions page, is offered only where a
   single *Delete it here too* is: deleting by hand on, rows that `mayOfferApply` offers (positive
@@ -150,10 +149,12 @@ single presses, one after another. As built after the pull request's review (202
   requiring the caller to state an expected count". T0 (b) asked for one confirmation that names
   how many. Here the person states the count by confirming it. The button opens a confirmation
   of its own, over the rows as they were when it opened (the set is frozen then), which names
-  their number. A double click cannot pass it: its *Cancel* is focused and sits where the button
-  was, and its *Delete N* ignores the second click of a double click and any click within 800 ms
-  of opening. Nothing is ordered unless the page's rows at that press, and the list read again
-  from the server, are both the frozen set. So what is ordered is never more than the rows the
+  their number. A double click cannot pass it: its *Cancel* comes first and takes the focus, and
+  its *Delete N* ignores the second click of a double click and any click within 800 ms of
+  opening. The focus stays in it until it closes, and Escape closes it from anywhere in it.
+  Nothing is ordered unless the page's rows at that press, and the list read again from the
+  server, are both the frozen set. From that press on, no row of the run has a button of its
+  own, the reading of the list included, so nothing is kept or pressed on it beside the run. So what is ordered is never more than the rows the
   person counted. The check is the page's: the server is told no count. It sees single presses,
   each through every gate.
 - **The same path.** The page presses each row's own apply (`applyEachInTurn` in
@@ -164,18 +165,26 @@ single presses, one after another. As built after the pull request's review (202
 - **The next only once one has answered.** The appliance's answer, or a managed receipt read to
   `applied`, `refused` or `failed` within five minutes, is read before the next row is pressed.
   A press that did not answer stops the run, with its row *not known*. That covers a fault, a
-  time-out, a receipt that failed or did not land, and any answer that is not a gate's refusal
-  (a 403 or 404 with a refusal code, or the 500 `removed_not_recorded`). Its removal may still be
-  running, and a next press beside it could pass a refusal it never got to say. So one removal at
-  a time reaches the new system from a page, as a person pressing would. Two pages, or two
-  people, can still each run one.
+  time-out, a receipt that failed (its job may be tried again) or did not land, and any answer
+  that is not a gate's refusal (a 403 or 404 with a refusal code, or the 500
+  `removed_not_recorded`). Its removal may still be running, and a next press beside it could
+  pass a refusal it never got to say. A press the server started nothing for (a 409 hold or
+  closed account, or the 502 that could not queue the removal) is known not to be deleted, and
+  stops the run too, as the next press would meet the same. So a run has one removal at a time
+  under way for its migration, as a person pressing would. It does not wait for a single press
+  still under way, for another migration's run on the same page (each migration's breaker
+  counts by itself), or for a run on another page or by another person.
 - **A refusal that speaks for every item stops the run.** Gate 6 refuses every apply while the
   queue looks like a source problem, because no single item in it is trustworthy then. What it
   suspects, a restored account, an outage or the wrong place read, is the whole account's. So
   once an item of a run is refused as a mass deletion, on the request or on its receipt, no
   later item of any data type is ordered in that run, even if the share has dropped by the time
-  it is reached. Deleting by hand turned off (`not_enabled`) stops it the same way. A press made
-  afterwards, by hand or in a new run, is decided afresh.
+  it is reached. Deleting by hand turned off (`not_enabled`) stops it the same way. So does
+  `removed_not_recorded`, the one answer that proves the ledger changed under a removal (a pass
+  saw the item back, or another tab removed it first): when the owner restores a folder at the
+  source mid-run, its next items are still reported until the pass reaches them, and a run that
+  went on would remove them. A press made afterwards, by hand or in a new run, is decided
+  afresh.
 - **Every other refusal is that item's answer**, said with its reason, and the next item is
   ordered. That includes `already_kept`: a row somebody kept during the run, in another tab or
   by another person, is refused if the keep was recorded before its removal began (*Amendment,
@@ -185,7 +194,8 @@ single presses, one after another. As built after the pull request's review (202
   server's own words and code beside it, verbatim.
 - **Still never by itself.** Hard rule 2 stands: nothing is removed without a person's press, and
   removal by itself (workplan 0164 §4.3, T4) stays parked. A run orders nothing more once the
-  person presses *Stop* or the page closes; what was ordered finishes where it runs.
+  person presses *Stop*, offered from the reading of the list on, or the page closes; what was
+  ordered finishes where it runs.
 
 ## Amendment, 2026-11-22: a deletion the owner kept is never applied
 
@@ -237,8 +247,8 @@ the reason), and the screens show the reason as served.
 
 - **2026-11-21** — Per item reads as each item decided by itself: one owner action may apply many,
   each through all seven gates, after one confirmation over a frozen set, the next only once one
-  has answered; a breaker refusal, `not_enabled` or a press that did not answer stops the run
-  (workplan 0164 T0 (b), T3). Record: *Amendment, 2026-11-21: per item reads as each item decided
+  has answered; a breaker refusal, `not_enabled`, `removed_not_recorded`, or a press that did not
+  answer or started nothing stops the run (workplan 0164 T0 (b), T3). Record: *Amendment, 2026-11-21: per item reads as each item decided
   by itself*.
 
 - **2026-10-05** — After cutover nothing is applied, by hand either: `after_cutover`, and no Apply

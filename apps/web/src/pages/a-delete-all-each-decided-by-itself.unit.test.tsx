@@ -15,8 +15,12 @@
  *    page's rows at the press and the list read again must both be that set;
  *  - in turn: each press answered to its end (a managed receipt included)
  *    before the next; a refusal of one row is that row's answer, while the
- *    breaker's refusal, deleting by hand turned off, and a press that did not
- *    answer each stop the run;
+ *    breaker's refusal, deleting by hand turned off, a removal the ledger
+ *    could not record, a press the server started nothing for, and a press
+ *    that did not answer each stop the run;
+ *  - from the confirming press on, no row of the run has a button of its
+ *    own, the reading of the list included, and Stop is there already;
+ *  - each migration's answers are its own, though two share an item's hash;
  *  - a row kept in another tab during a run is refused as already kept when
  *    its turn comes, on the request or on its receipt, and the run goes on;
  *  - a fault is never shown as a refusal: it is not known;
@@ -168,6 +172,13 @@ const done = (deleted: number, notDeleted: number, unknown: number, words = en) 
 
 const orderedHashes = () => applyDeletion.mock.calls.map((call) => call[1] as string);
 
+/** A row of the queue, by its hash. */
+const rowOf = (hash: string) =>
+  screen
+    .getAllByText(`Event ${hash}`)
+    .map((el) => el.closest('li'))
+    .find((li) => li?.querySelector(`code[title="${hash}"]`))!;
+
 /** The list a group of the report holds, by its heading. */
 const group = (title: string) => {
   const heading = screen.getByRole('heading', { level: 4, name: new RegExp(`^${title}`) });
@@ -261,15 +272,41 @@ describe('one confirmation, a control of its own', () => {
     expect(fetchDeletions.mock.invocationCallOrder[1]!).toBeLessThan(applyDeletion.mock.invocationCallOrder[0]!);
   });
 
-  it('is closed by Cancel and by Escape, and orders nothing', async () => {
+  it('is closed by Cancel and by Escape, orders nothing, and gives the focus back to the button', async () => {
     fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
     renderScreen();
     fireEvent.click(await screen.findByRole('button', { name: en['deletions.all'] }));
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: en['deletions.all'] })).toHaveFocus();
 
     fireEvent.click(screen.getByRole('button', { name: en['deletions.all'] }));
     fireEvent.keyDown(await screen.findByRole('alertdialog'), { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: en['deletions.all'] })).toHaveFocus();
+    expect(applyDeletion).not.toHaveBeenCalled();
+  });
+
+  it('keeps the focus inside it: Tab goes round its two buttons, and Escape works from anywhere in it', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
+    const user = userEvent.setup();
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: en['deletions.all'] }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const no = within(dialog).getByRole('button', { name: 'Cancel' });
+    const yes = within(dialog).getByRole('button', { name: 'Delete 2' });
+    expect(no).toHaveFocus();
+    fireEvent.keyDown(no, { key: 'Tab', shiftKey: true });
+    expect(yes).toHaveFocus();
+    fireEvent.keyDown(yes, { key: 'Tab' });
+    expect(no).toHaveFocus();
+    // A focus that lands outside it is brought back.
+    screen.getByRole('button', { name: en['asof.refresh'] }).focus();
+    expect(no).toHaveFocus();
+    // Escape from anywhere in it: here after a click on its words, which are no button.
+    await user.click(within(dialog).getByText('Delete these 2 on the new system?'));
+    await user.keyboard('{Escape}');
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(applyDeletion).not.toHaveBeenCalled();
   });
@@ -367,6 +404,96 @@ describe('one confirmation, a control of its own', () => {
   });
 });
 
+/**
+ * From the confirming press on, every row of the run waits its turn with no
+ * button of its own, the reading of the list again included (the second
+ * review, F-A): a keep pressed there was overwritten by the run, which then
+ * ordered the row's removal, and a single delete pressed there ran beside
+ * the run's, two removals of one row at once.
+ */
+describe('while the list is read again', () => {
+  /** The first read answers; the read again at the press waits until released. */
+  function holdTheReadAgain(rows: ItemDeletion[]) {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    fetchDeletions.mockImplementation(async () => {
+      reads += 1;
+      if (reads === 2) await held;
+      return queue({ confirmed: rows });
+    });
+    return release;
+  }
+
+  it('offers no Keep on any row of the run, so a keep cannot be pressed there and overwritten', async () => {
+    const release = holdTheReadAgain([deletion('a'), deletion('b')]);
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => removed(hash));
+    renderScreen();
+    await pressAll(2);
+
+    expect(await screen.findByText(en['deletions.all.reading'])).toBeInTheDocument();
+    for (const hash of ['a', 'b']) {
+      expect(within(rowOf(hash)).getByText(en['deletions.all.waiting'])).toBeInTheDocument();
+      expect(within(rowOf(hash)).queryByRole('button', { name: en['deletions.keep'] })).not.toBeInTheDocument();
+    }
+    release();
+    expect(await screen.findByText(done(2, 0, 0))).toBeInTheDocument();
+    expect(keepDeletion).not.toHaveBeenCalled();
+  });
+
+  it('offers no single delete on any row of the run, so no row is ordered twice', async () => {
+    const release = holdTheReadAgain([deletion('a'), deletion('b')]);
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => removed(hash));
+    renderScreen();
+    await pressAll(2);
+
+    expect(await screen.findByText(en['deletions.all.reading'])).toBeInTheDocument();
+    for (const hash of ['a', 'b']) {
+      expect(within(rowOf(hash)).queryByText(en['deletions.apply'])).not.toBeInTheDocument();
+    }
+    release();
+    expect(await screen.findByText(done(2, 0, 0))).toBeInTheDocument();
+    expect(orderedHashes()).toEqual(['a', 'b']);
+  });
+
+  it.each([
+    ['the list cannot be read', () => Promise.reject(new Error('the server did not answer'))],
+    ['the list has changed', async () => queue({ confirmed: [deletion('a'), deletion('z')] })],
+  ])('gives the rows their buttons back when %s, and orders nothing', async (_what, second) => {
+    fetchDeletions
+      .mockResolvedValueOnce(queue({ confirmed: [deletion('a'), deletion('b')] }))
+      .mockImplementationOnce(second)
+      .mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
+    renderScreen();
+    await pressAll(2);
+
+    await waitFor(() => expect(screen.queryByText(en['deletions.all.waiting'])).not.toBeInTheDocument());
+    for (const hash of ['a', 'b']) {
+      expect(within(rowOf(hash)).getByRole('button', { name: en['deletions.keep'] })).toBeInTheDocument();
+    }
+    expect(applyDeletion).not.toHaveBeenCalled();
+  });
+
+  it('offers Stop already, focused, and a stop pressed there orders nothing', async () => {
+    const release = holdTheReadAgain([deletion('a'), deletion('b')]);
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => removed(hash));
+    renderScreen();
+    await pressAll(2);
+
+    const stopButton = await screen.findByRole('button', { name: en['deletions.all.stop'] });
+    expect(screen.getByText(en['deletions.all.reading'])).toBeInTheDocument();
+    expect(stopButton).toHaveFocus();
+    fireEvent.click(stopButton);
+    expect(await screen.findByText(en['deletions.all.stoppingBeforeStart'])).toBeInTheDocument();
+    release();
+
+    expect(await screen.findByText(new RegExp(en['deletions.all.stoppedBy.stop']))).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(done(0, 2, 0));
+    expect(applyDeletion).not.toHaveBeenCalled();
+    expect(within(rowOf('a')).getByRole('button', { name: en['deletions.keep'] })).toBeInTheDocument();
+  });
+});
+
 describe('each row decided by itself, and what the page says afterwards', () => {
   const rows = [
     deletion('a'),
@@ -423,17 +550,21 @@ describe('each row decided by itself, and what the page says afterwards', () => 
     expect(screen.getAllByText(deletionRemovedEffect('deleted').nl).length).toBeGreaterThan(0);
   });
 
-  it('counts a removal the ledger could not record as deleted, and goes on', async () => {
-    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
+  it('counts a removal the ledger could not record as deleted, and stops the run there, saying why', async () => {
+    // The ledger changed under that removal (a pass saw the item back, or
+    // another tab removed it first): the list confirmed is not the one any more.
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b'), deletion('c')] }));
     applyDeletion.mockImplementation(async (_m: string, hash: string) => {
       if (hash === 'a') throw refusal('removed_not_recorded', 'The copy WAS removed from the target.', 500);
       return removed(hash);
     });
     renderScreen();
-    await pressAll(2);
-    expect(await screen.findByText(done(2, 0, 0))).toBeInTheDocument();
+    await pressAll(3);
+    expect(await screen.findByText(new RegExp(en['deletions.all.stoppedBy.notRecorded']))).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(done(1, 2, 0));
     expect(within(group(en['deletions.all.removed'])).getByText(en['deletions.refused.removedNotRecorded'])).toBeInTheDocument();
-    expect(orderedHashes()).toEqual(['a', 'b']);
+    expect(within(group(en['deletions.all.notRemoved'])).getAllByText(en['deletions.all.notTried.notRecorded'])).toHaveLength(2);
+    expect(orderedHashes()).toEqual(['a']);
   });
 
   it('keeps the summary in one status line, with the lists outside it, under headings of their own', async () => {
@@ -507,12 +638,27 @@ describe('a keep in another tab during a run', () => {
 });
 
 describe('a fault is not a refusal', () => {
+  it('keeps the server’s own words for a fault, marked English on a Dutch page', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => {
+      if (hash === 'a') throw new DecisionRefusedError({ error: 'deletion_apply_failed', reason: 'Something went wrong.' }, 500);
+      return removed(hash);
+    });
+    renderScreen({ locale: 'nl' });
+    await pressAll(2, nl);
+    expect(await screen.findByText(new RegExp(nl['deletions.all.stoppedBy.failure']))).toBeInTheDocument();
+    expect(
+      within(group(nl['deletions.all.unknown'])).getByText('Something went wrong. (deletion_apply_failed, HTTP 500)'),
+    ).toHaveAttribute('lang', 'en');
+  });
+
   it.each([
     ['a fault on the server', new DecisionRefusedError({ error: 'deletion_apply_failed', reason: 'Something went wrong — Reference AB12.' }, 500)],
     ['the appliance’s catch-all', new DecisionRefusedError({ error: 'connect ECONNREFUSED' }, 500)],
-    ['a removal that could not be queued', new DecisionRefusedError({ error: 'Could not queue the removal' }, 502)],
-    ['an operator’s hold', new DecisionRefusedError({ error: 'platform_held', reason: 'Ownpace is being updated.' }, 409)],
     ['a 403 with a code no gate refuses with', new DecisionRefusedError({ error: 'forbidden', reason: 'No.' }, 403)],
+    // A gate's code, but on a status no gate answers with: not a refusal.
+    ['a gate’s code on a 500', new DecisionRefusedError({ error: 'not_ours', reason: 'The copy was already there.' }, 500)],
+    ['a hold’s code on a 502', new DecisionRefusedError({ error: 'platform_held', reason: 'Ownpace is being updated.' }, 502)],
     ['a time-out', new Error('timeout of 30000ms exceeded')],
   ])('%s is not known, and nothing after it is ordered', async (_what, error) => {
     fetchDeletions.mockResolvedValue(
@@ -532,6 +678,87 @@ describe('a fault is not a refusal', () => {
     expect(within(group(en['deletions.all.notRemoved'])).getAllByText(en['deletions.all.notTried.failure'])).toHaveLength(2);
     // The row says it is not known, never a refusal's amber.
     expect(screen.getByText(new RegExp(`^${en['deletions.all.unknownRow']}`))).toBeInTheDocument();
+    expect(orderedHashes()).toEqual(['a']);
+  });
+});
+
+/**
+ * A press the server started nothing for (`enqueueUnlessHeld`, and the
+ * managed route's failed enqueue): known not to be deleted, so it is never
+ * *not known*, and the run stops, as the next press would meet the same.
+ */
+describe('a press the server started nothing for', () => {
+  const notQueued = { error: 'Could not queue the removal', message: 'connect ECONNREFUSED' } as { error: string };
+  it.each([
+    [
+      'the operator’s hold',
+      new DecisionRefusedError({ error: 'platform_held', reason: 'Ownpace is being updated.' }, 409),
+      'deletions.refused.held',
+      'Ownpace is being updated. (platform_held, HTTP 409)',
+    ],
+    [
+      'a closed account',
+      new DecisionRefusedError({ error: 'account_closed', reason: 'This account was closed.' }, 409),
+      'deletions.refused.accountClosed',
+      'This account was closed. (account_closed, HTTP 409)',
+    ],
+    [
+      'a removal that could not be queued',
+      new DecisionRefusedError(notQueued, 502),
+      'deletions.refused.notQueued',
+      'connect ECONNREFUSED (Could not queue the removal, HTTP 502)',
+    ],
+  ] as const)('%s is not deleted, with the server’s words, and nothing after it is ordered', async (_what, error, key, technical) => {
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion('a'), deletion('b'), deletion('k', { domain: 'contact' })] }),
+    );
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => {
+      if (hash === 'a') throw error;
+      return removed(hash);
+    });
+    renderScreen();
+    await pressAll(3);
+
+    expect(await screen.findByText(new RegExp(en['deletions.all.stoppedBy.notStarted']))).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(done(0, 3, 0));
+    const notDeleted = group(en['deletions.all.notRemoved']);
+    expect(within(notDeleted).getByText(en[key])).toBeInTheDocument();
+    expect(within(notDeleted).getByText(technical)).toBeInTheDocument();
+    expect(within(notDeleted).getAllByText(en['deletions.all.notTried.notStarted'])).toHaveLength(2);
+    expect(screen.queryByRole('heading', { name: new RegExp(`^${en['deletions.all.unknown']}`) })).not.toBeInTheDocument();
+    expect(orderedHashes()).toEqual(['a']);
+  });
+});
+
+/**
+ * A managed receipt that lands as something this page cannot count: a job
+ * that failed, which may be tried again where it runs, or a refusal with a
+ * code no gate refuses with. Not known, and the run stops.
+ */
+describe('a receipt that is no answer', () => {
+  it.each([
+    [
+      'a receipt that failed',
+      { state: 'failed', requestedAt: QUEUED.requestedAt, finishedAt: '2026-11-22T00:00:05Z', error: 'The worker stopped mid-removal.' },
+      'The worker stopped mid-removal.',
+    ],
+    [
+      'a receipt refused with a code no gate refuses with',
+      { state: 'refused', requestedAt: QUEUED.requestedAt, finishedAt: '2026-11-22T00:00:05Z', code: 'something_new', reason: 'A reason nobody has seen.' },
+      'A reason nobody has seen. (something_new)',
+    ],
+  ] as const)('%s is not known, and nothing after it is ordered', async (_what, landed, technical) => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
+    applyDeletion.mockResolvedValue({ mode: 'queued', receipt: QUEUED });
+    fetchApplyReceipt.mockResolvedValue(landed);
+    renderScreen();
+    await pressAll(2);
+
+    expect(await screen.findByText(new RegExp(en['deletions.all.stoppedBy.failure']))).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(done(0, 1, 1));
+    const unknown = group(en['deletions.all.unknown']);
+    expect(within(unknown).getByText(en['deletions.all.failed'])).toBeInTheDocument();
+    expect(within(unknown).getByText(technical)).toBeInTheDocument();
     expect(orderedHashes()).toEqual(['a']);
   });
 });
@@ -625,6 +852,18 @@ describe('a receipt that does not land', () => {
     expect(await screen.findByText(new RegExp(en['deletions.all.stoppedBy.failure']))).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent(done(0, 1, 1));
     expect(orderedHashes()).toEqual(['a']);
+  });
+
+  it('says under Technical details, in the reader’s language and not marked English, that it may still be deleted', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
+    applyDeletion.mockResolvedValue({ mode: 'queued', receipt: QUEUED });
+    fetchApplyReceipt.mockResolvedValue(QUEUED);
+    renderScreen({ locale: 'nl', receiptDeadlineMs: 40 });
+    await pressAll(2, nl);
+    expect(await screen.findByText(new RegExp(nl['deletions.all.stoppedBy.failure']))).toBeInTheDocument();
+    const late = fill(nl['deletions.all.late'], { minutes: 0 });
+    const said = within(group(nl['deletions.all.unknown'])).getByText(late);
+    expect(said).not.toHaveAttribute('lang');
   });
 
   it('says so when its answer cannot be read, again and again, and goes on asking', async () => {
@@ -773,6 +1012,54 @@ describe('a stop', () => {
     // b and c were never ordered: their own buttons are back, and so is the press for both.
     expect(screen.getAllByText(en['deletions.apply'])).toHaveLength(2);
     expect(screen.getByRole('button', { name: en['deletions.all'] })).toBeInTheDocument();
+  });
+});
+
+/**
+ * One item can be an item of two migrations: a mail item's hash comes from its
+ * Message-ID. Each migration's answers stay with its own rows (the second
+ * review, F-F): a run in one marked the other's row as deleted too.
+ */
+describe('two migrations with one item', () => {
+  it('keeps a run’s answers to its own migration’s rows', async () => {
+    const rows = () => [deletion('msg-1', { domain: 'email' }), deletion('msg-2', { domain: 'email' })];
+    const one = queue({ confirmed: rows() })['acme-mail']!;
+    const two = queue({ confirmed: rows() })['acme-mail']!;
+    fetchDeletions.mockResolvedValue({ 'm-one': one, 'm-two': two });
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => removed(hash));
+    renderScreen();
+
+    const [first, second] = await waitFor(() => {
+      const panels = screen.getAllByTestId('delete-all');
+      expect(panels).toHaveLength(2);
+      return panels.map((panel) => panel.closest('section')!);
+    });
+    fireEvent.click(within(first!).getByRole('button', { name: en['deletions.all'] }));
+    fireEvent.click(await within(first!).findByRole('button', { name: 'Delete 2' }));
+    expect(await within(first!).findByText(done(2, 0, 0))).toBeInTheDocument();
+
+    expect(applyDeletion.mock.calls.map((call) => `${String(call[0])}/${String(call[1])}`)).toEqual([
+      'm-one/msg-1',
+      'm-one/msg-2',
+    ]);
+    // The other migration's rows still have their own buttons, and the press for both.
+    expect(within(second!).getAllByText(en['deletions.apply'])).toHaveLength(2);
+    expect(within(second!).queryByText(en['deletions.all.waiting'])).not.toBeInTheDocument();
+    expect(within(second!).getByRole('button', { name: en['deletions.all'] })).toBeInTheDocument();
+  });
+});
+
+describe('the queue read again', () => {
+  it('once, when the run ends, not after every row', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b'), deletion('c')] }));
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => removed(hash));
+    renderScreen();
+    await pressAll(3);
+    expect(await screen.findByText(done(3, 0, 0))).toBeInTheDocument();
+    // The first read, the read again at the press, and the one at the end.
+    await waitFor(() => expect(fetchDeletions).toHaveBeenCalledTimes(3));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(fetchDeletions).toHaveBeenCalledTimes(3);
   });
 });
 

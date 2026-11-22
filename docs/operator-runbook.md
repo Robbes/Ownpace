@@ -2133,11 +2133,17 @@ button, after one confirmation over the rows as they were when it opened: it
 calls the same endpoint for each row, and the next only once the one before has
 answered (on managed, its receipt read to the end, within five minutes), so
 every row passes everything below by itself. A `mass_deletion_suspected` or
-`not_enabled` refusal stops the whole run, and so does a call that did not
-answer (a fault, a time-out, a receipt that failed or did not land), whose row
-the page calls not known. Any other refusal is that row's answer, and the next
-row is called: `already_kept` among them, for a row somebody kept during the
-run (item 7 below). Two pages can still each run one at the same time.
+`not_enabled` refusal stops the whole run, and so does a `removed_not_recorded`
+(the ledger changed under that removal: a pass saw the item back, or another
+tab removed it first). A call that did not answer (a fault, a time-out, a
+receipt that failed or did not land) stops it too, and the page calls its row
+not known. A call the server started nothing for (a 409 hold or closed account,
+or a 502 that could not queue the removal) stops it with its row not deleted.
+Any other refusal is that row's answer, and the next row is called:
+`already_kept` among them, for a row somebody kept during the run (item 7
+below). One removal at a time is under way per migration's run; a single press
+still under way, another migration's run on the same page, or a second page,
+is not waited for.
 
 It has to be turned on per mapping first:
 

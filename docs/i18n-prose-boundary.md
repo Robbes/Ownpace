@@ -52,10 +52,15 @@ of* it.
    `code` (`deletions.refused.*` in the dictionary, chosen in
    `DeleteAllPanel.tsx`), and the `reason` with its code renders as served
    beside it, under *Technical details*, marked `lang="en"` on a Dutch page.
-   Only a code the destructive path refuses with counts as a refusal
-   (`APPLY_REFUSAL_CODES` in `@openmig/shared`); any other answer is said as
-   not known, its words as served under *Technical details*. The row itself
-   still shows the `reason` as served, as a single press does.
+   Only a 403 or 404 whose code the destructive path refuses with
+   (`APPLY_REFUSAL_CODES` in `@openmig/shared`), or the 500
+   `removed_not_recorded`, counts as a refusal. A 409 hold or closed account,
+   and the 502 that could not queue the removal, are said as not deleted,
+   nothing started, each keyed on its `error`. Any other answer is said as not
+   known. Each one's words stay as served under *Technical details*, marked
+   `lang="en"` only where they are the server's: a not-known line can be the
+   page's own sentence, in the reader's language. The row itself still shows
+   the `reason` as served, as a single press does.
 
    **A Test at an address the tester typed is the one place the client says
    the `reason` itself** (workplan 0136 T3). On managed, that `reason` is not

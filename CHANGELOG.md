@@ -12,13 +12,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   is on, and never for an assumed row or one past its data type's cutover. It opens a
   confirmation of its own over the rows as they were then, which names how many and which a
   double click cannot pass. Nothing is deleted if the rows, or the list read again from the
-  server, have changed by the time it is confirmed. It then presses each row's own *Delete it
-  here too*, through the same request and every check a single press passes, the next only once
-  the one before has answered (on managed, each with its own receipt, audit row and job). A
-  refusal of one row is said and the next is pressed: a row somebody kept in another tab before
-  its turn is not deleted, and the run goes on. The safeguard against mass deletion, deleting
-  by hand turned off, or a delete that did not answer stops the rest. *Stop* presses
-  nothing more. Afterwards the page lists what was deleted, what was not and what is not known,
+  server, have changed by the time it is confirmed, and from that press on no row of the run has
+  a button of its own. It then presses each row's own *Delete it here too*, through the same
+  request and every check a single press passes, the next only once the one before has answered
+  (on managed, each with its own receipt, audit row and job), one at a time for its migration.
+  A refusal of one row is said and the next is pressed: a row somebody kept in another tab
+  before its turn is not deleted, and the run goes on. The safeguard against mass deletion,
+  deleting by hand turned off, a removal Ownpace could not record, a delete the server started
+  nothing for (a hold, a closed account, a removal that could not be queued) or one that did
+  not answer stops the rest. *Stop*, offered from the first read on, presses nothing more. Afterwards the page lists what was deleted, what was not and what is not known,
   with each reason, in English and Dutch, the server's own words beside it. Nothing is deleted by
   itself: no route was added, and the server cannot tell a row of a run from one pressed by hand.
 
@@ -27,6 +29,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **A queue that could not be read again keeps its rows on screen** (workplan 0164 T3), under a
   line that says so. A failed refresh on Deletions, Moves or Failures used to replace the whole
   page with the error, a *Delete all of these here too* under way and its report included.
+- **An answer on Deletions, Moves or Failures stays with its own migration's row** (workplan 0164
+  T3). The screens kept a row's answer under its item's hash alone, and one item can be an item
+  of two migrations: a mail item's hash comes from its Message-ID. So a delete or a keep in one
+  migration showed on the same message in another, which then read *Deleted on the new system
+  too* and lost its buttons. Each migration's rows now show only their own answers.
 
 ## [0.2.0-alpha.14] - 2026-11-22
 

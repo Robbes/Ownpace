@@ -3,9 +3,10 @@
 /**
  * The loop *Delete all of these here too* orders a run with (workplan 0164
  * T3): in turn, each answered before the next is ordered; a press that did
- * not answer, the breaker's refusal and `not_enabled` each stop the whole
- * run; any other refusal is that item's answer and the next is ordered; a
- * stop is honoured between items. What each press decides is the gates', and
+ * not answer, the breaker's refusal, `not_enabled`, `removed_not_recorded`
+ * and an answer marked `stopsTheRun` each stop the whole run; any other
+ * refusal is that item's answer and the next is ordered; a stop is honoured
+ * between items. What each press decides is the gates', and
  * `packages/core/src/a-delete-all-through-every-gate.unit.test.ts` runs this
  * loop over the real `applyDeletion`.
  */
@@ -80,12 +81,14 @@ describe('a refusal that speaks for every item', () => {
     ]);
   });
 
-  it('is the breaker’s, or deleting by hand turned off, and no other', () => {
-    expect([...RUN_STOPPING_REFUSALS].sort()).toEqual([...BREAKER_CODES, 'not_enabled'].sort());
+  it('is the breaker’s, deleting by hand turned off, or a removal the ledger could not record, and no other', () => {
+    expect([...RUN_STOPPING_REFUSALS].sort()).toEqual(
+      [...BREAKER_CODES, 'not_enabled', 'removed_not_recorded'].sort(),
+    );
   });
 
   it('does not include any other refusal: each of those is its own item’s answer', async () => {
-    const codes = ['after_cutover', 'edited_on_target', 'weak_evidence', 'not_ours', 'removed_not_recorded'];
+    const codes = ['after_cutover', 'edited_on_target', 'weak_evidence', 'not_ours', 'already_kept', 'already_applied'];
     const ordered: string[] = [];
     await applyEachInTurn(
       codes.map((c) => item(c)),
@@ -95,6 +98,25 @@ describe('a refusal that speaks for every item', () => {
       },
     );
     expect(ordered).toEqual(codes);
+  });
+});
+
+describe('an answer marked as stopping the run', () => {
+  it('stops it whatever its code, and a code alone that is no gate’s does not', async () => {
+    const ordered: string[] = [];
+    const results = await applyEachInTurn([item('a'), item('b'), item('c')], async (it) => {
+      ordered.push(it.naturalKeyHash);
+      if (it.naturalKeyHash === 'a') return { ok: false, code: 'something_new', reason: 'not a gate' };
+      if (it.naturalKeyHash === 'b') {
+        return { ok: false, code: 'platform_held', reason: 'Nothing was started.', stopsTheRun: true };
+      }
+      return removed;
+    });
+    expect(ordered).toEqual(['a', 'b']);
+    expect(results[2]).toEqual({
+      item: item('c'),
+      notTried: { by: 'refusal', code: 'platform_held', reason: 'Nothing was started.' },
+    });
   });
 });
 

@@ -34,6 +34,17 @@
  *   `autoApplyRelocations` states for its cap). Deleting by hand turned off
  *   (`not_enabled`) stops it the same way: every press after it would be
  *   refused for the same reason. The cost is one more press, made afresh.
+ * - **A removal the ledger could not record stops the run.**
+ *   `removed_not_recorded` is the one answer that proves the ledger changed
+ *   under a removal: a pass saw the item back on the old system, or another
+ *   tab removed it first. The list the person confirmed is then not the one
+ *   being deleted from (a folder restored at the source mid-run is the
+ *   case: its next items are still reported until the pass reaches them), so
+ *   nothing after it is ordered. Its own copy is gone all the same.
+ * - **An answer marked `stopsTheRun` stops it too**: the caller's word that
+ *   nothing was started for that item, for a reason the next press would
+ *   meet as well (on managed: the operator's hold, a closed account, a
+ *   removal that could not be queued).
  * - **A stop is honoured between items.** `stopRequested` is asked before
  *   each order: the person's *Stop*, or the page closing. What was ordered
  *   finishes where it runs; nothing after it is ordered.
@@ -56,10 +67,15 @@ export const BREAKER_CODES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The refusals that stop a run: the breaker's, and deleting by hand turned
- * off. Each says something about every item after it, not only about its own.
+ * The refusals that stop a run: the breaker's, deleting by hand turned off,
+ * and a removal the ledger could not record. Each says something about every
+ * item after it, not only about its own.
  */
-export const RUN_STOPPING_REFUSALS: ReadonlySet<string> = new Set([...BREAKER_CODES, 'not_enabled']);
+export const RUN_STOPPING_REFUSALS: ReadonlySet<string> = new Set([
+  ...BREAKER_CODES,
+  'not_enabled',
+  'removed_not_recorded',
+]);
 
 /**
  * What one press answered, as far as this loop needs to read it: whether it
@@ -71,11 +87,19 @@ export interface OneApplyAnswer {
   readonly ok: boolean;
   readonly code?: string;
   readonly reason?: string;
+  /**
+   * Nothing was started for this item, for a reason that holds for the next
+   * press too, though its code is no gate's: nothing after it is ordered.
+   */
+  readonly stopsTheRun?: boolean;
 }
 
 /** Why an item was not ordered at all. Nothing was asked about it, and nothing changed. */
 export type NotTried =
-  /** An earlier item's refusal stopped the run: the breaker's, or `not_enabled`. */
+  /**
+   * An earlier item's answer stopped the run: the breaker's, `not_enabled`,
+   * `removed_not_recorded`, or one marked `stopsTheRun`.
+   */
   | { readonly by: 'refusal'; readonly code: string; readonly reason: string }
   /** An earlier press did not answer, so nothing more was ordered. */
   | { readonly by: 'failure' }
@@ -133,7 +157,11 @@ export async function applyEachInTurn<A extends OneApplyAnswer>(
     }
     record({ item, answered });
 
-    if (!answered.ok && answered.code !== undefined && RUN_STOPPING_REFUSALS.has(answered.code)) {
+    if (
+      !answered.ok &&
+      answered.code !== undefined &&
+      (answered.stopsTheRun === true || RUN_STOPPING_REFUSALS.has(answered.code))
+    ) {
       stoppedBy = { by: 'refusal', code: answered.code, reason: answered.reason ?? answered.code };
     }
   }

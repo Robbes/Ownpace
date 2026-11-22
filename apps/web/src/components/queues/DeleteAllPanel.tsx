@@ -18,9 +18,12 @@
  * lands on a receipt too. A press that does not answer (a fault, a time-out,
  * a receipt that failed or does not land in `RECEIPT_DEADLINE_MS`) stops the
  * run: its removal may still be running, and a next press beside it could
- * pass a refusal it never got to say. So one removal at a time reaches the
- * new system, as a person pressing would, and a page closed mid-run orders
- * nothing more. What was ordered finishes where it runs.
+ * pass a refusal it never got to say. So a run has one removal at a time
+ * under way for its migration, as a person pressing would. It does not wait
+ * for a single press still under way, nor for another migration's run on the
+ * same page: each migration's panel runs by itself, as each migration's
+ * breaker counts by itself. A page closed mid-run orders nothing more; what
+ * was ordered finishes where it runs.
  *
  * OFFERED ONLY WHERE A SINGLE DELETE IS, AND ONLY WHILE IT CAN GO THROUGH:
  * deleting by hand on (read as the panel above reads it; a row's own button
@@ -31,23 +34,31 @@
  *
  * ONE CONFIRMATION, A CONTROL OF ITS OWN. The button opens a confirmation
  * that names how many, over the rows as they were when it opened (the set is
- * frozen then). Its *Cancel* takes the focus and sits where the button was,
- * and its *Delete N* ignores the second click of a double click and any click
- * within `CONFIRM_GUARD_MS` of opening, so a double click cannot pass it.
- * Nothing is ordered unless the page's rows at the confirming press, and the
- * list read again from the server, are both that frozen set. What is ordered
- * is never more than the rows the confirmation counted.
+ * frozen then). Its *Cancel* comes first and takes the focus; the focus
+ * stays inside it until it closes, Escape closes it from anywhere in it, and
+ * the focus then goes back to the button. Its *Delete N* ignores the second
+ * click of a double click and any click within `CONFIRM_GUARD_MS` of
+ * opening, so a double click cannot pass it. Nothing is ordered unless the
+ * page's rows at the confirming press, and the list read again from the
+ * server, are both that frozen set. From the confirming press on, every row
+ * of the run waits its turn with no button of its own, the reading of the
+ * list included: a keep pressed there was overwritten by the run, and a
+ * single delete pressed there ran beside it (the second review, F-A). A run
+ * that orders nothing gives the rows their buttons back.
  *
  * A REFUSAL IS A GATE'S, OR IT IS NOT A REFUSAL. A 403 or 404 with a code
  * the destructive path refuses with (`APPLY_REFUSAL_CODES`), or the 500
- * `removed_not_recorded`, is a gate's answer. Anything else (a fault, a hold,
- * a 502, an unknown code) is a press that did not answer: not known.
+ * `removed_not_recorded`, is a gate's answer. A 409 hold or closed account,
+ * and the 502 that could not queue the removal, started nothing: the row is
+ * not deleted, and the run stops, as the next press would meet the same.
+ * Anything else (a fault, a code no gate refuses with) is a press that did
+ * not answer: not known.
  *
  * AFTERWARDS IT SAYS WHAT HAPPENED, in the reader's language, in three
  * groups: deleted, not deleted, and not known. The why is said from the
  * refusal's stable code, and the server's own sentence with its code stays
  * beside it, verbatim, under *Technical details* (docs/i18n-prose-boundary.md,
- * class 2).
+ * class 2), marked English only where it is the server's.
  */
 
 import React from 'react';
@@ -55,6 +66,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, AlertTriangle, Check, Loader2, Square, Trash2 } from 'lucide-react';
 import {
   APPLY_REFUSAL_CODES,
+  BREAKER_CODES,
   applyEachInTurn,
   type ApplyEachItem,
   type ApplyEachResult,
@@ -81,6 +93,12 @@ export const RECEIPT_DEADLINE_MS = 5 * 60_000;
 /** A confirming click this soon after the confirmation opened is the end of a double click, not a decision. */
 export const CONFIRM_GUARD_MS = 800;
 
+/** The managed route's 502 when the removal's job could not be queued: its `error` field, as served. */
+const NOT_QUEUED = 'Could not queue the removal';
+
+/** A 409 that started nothing (`enqueueUnlessHeld`): the operator's hold, or the organisation's close. */
+const NOTHING_STARTED_409: ReadonlySet<string> = new Set(['platform_held', 'account_closed']);
+
 /** What one press answered, read to its end. A press that did not answer is thrown, and becomes `failed`. */
 export type DeleteAllAnswer =
   | {
@@ -90,12 +108,23 @@ export type DeleteAllAnswer =
       /** A managed receipt's word for how final it was. */
       readonly kind?: string;
     }
-  | { readonly ok: false; readonly code: string; readonly reason: string };
+  | {
+      readonly ok: false;
+      /** The gate's refusal code, or for a press that started nothing, the `error` it was answered with. */
+      readonly code: string;
+      readonly reason: string;
+      /** The server's own words and code, as served, for *Technical details*. */
+      readonly technical: string;
+      /** Nothing was started for it, for a reason the next press would meet too. */
+      readonly stopsTheRun?: true;
+    };
+
+type Refusal = Extract<DeleteAllAnswer, { ok: false }>;
 
 type RunResult = ApplyEachResult<DeleteAllAnswer>;
 
 type Run =
-  | { readonly phase: 'reading' }
+  | { readonly phase: 'reading'; readonly stopping: boolean }
   | { readonly phase: 'changed'; readonly count: number }
   | { readonly phase: 'unreadable'; readonly error: string }
   | {
@@ -103,6 +132,8 @@ type Run =
       readonly rows: readonly ItemDeletion[];
       readonly results: Readonly<Record<string, RunResult>>;
       readonly stopping: boolean;
+      /** Rows whose *not known* words are the server's English, as served. */
+      readonly english: Readonly<Record<string, true>>;
       /** The receipt being read could not be, this many times in a row. */
       readonly pollTrouble?: { readonly count: number; readonly error: string };
     };
@@ -118,7 +149,7 @@ const KNOWN_REFUSALS: ReadonlySet<string> = new Set(APPLY_REFUSAL_CODES);
 /** Refusals that mean the copy is gone all the same: someone else's removal, or one the ledger did not record. */
 const GONE_ALL_THE_SAME: ReadonlySet<string> = new Set(['already_applied', 'removed_not_recorded']);
 
-/** Each refusal code a deletion's press can answer, in the reader's words. */
+/** Each refusal code a deletion's press can answer, and each press that started nothing, in the reader's words. */
 const REFUSED: Readonly<Record<string, StringKey>> = {
   not_enabled: 'deletions.refused.notEnabled',
   target_cannot_remove: 'deletions.refused.targetCannotRemove',
@@ -134,33 +165,46 @@ const REFUSED: Readonly<Record<string, StringKey>> = {
   kept_for_guests: 'deletions.refused.keptForGuests',
   mass_deletion_suspected: 'deletions.refused.massDeletionSuspected',
   removed_not_recorded: 'deletions.refused.removedNotRecorded',
+  platform_held: 'deletions.refused.held',
+  account_closed: 'deletions.refused.accountClosed',
+  [NOT_QUEUED]: 'deletions.refused.notQueued',
 };
 
 const isTerminal = (r: ApplyReceipt): boolean =>
   r.state === 'applied' || r.state === 'refused' || r.state === 'failed';
 
-/**
- * A gate's refusal, as this page counts one: a 403 or 404 whose code the
- * destructive path refuses with, or the 500 `removed_not_recorded`. Undefined
- * for everything else a press can throw, which is a fault, not an answer.
- */
-export function refusalOf(err: unknown): { readonly code: string; readonly reason: string } | undefined {
-  if (!(err instanceof DecisionRefusedError)) return undefined;
-  const code = err.refusal.error;
-  const reason = err.refusal.reason ?? err.refusal.hint ?? code;
-  if ((err.httpStatus === 403 || err.httpStatus === 404) && KNOWN_REFUSALS.has(code)) return { code, reason };
-  if (err.httpStatus === 500 && code === 'removed_not_recorded') return { code, reason };
-  return undefined;
+/** The words a refusal's body carries, as served: `reason`, else `hint`, else `message`. */
+function wordsOf(err: DecisionRefusedError): string | undefined {
+  const said = err.refusal as { reason?: string; hint?: string; message?: unknown };
+  return said.reason ?? said.hint ?? (typeof said.message === 'string' ? said.message : undefined);
 }
 
-/** What a press that did not answer said, as served, with its status where it had one. */
-function faultOf(err: unknown, fallback: string): string {
-  if (err instanceof DecisionRefusedError) {
-    const said = err.refusal as { error: string; reason?: string; hint?: string; message?: unknown };
-    const words = said.reason ?? said.hint ?? (typeof said.message === 'string' ? said.message : undefined);
-    return `${words !== undefined ? `${words} ` : ''}(${said.error}, HTTP ${err.httpStatus})`;
+/** A refused press as served: its words, its `error` and its status. */
+function servedAs(err: DecisionRefusedError): string {
+  const words = wordsOf(err);
+  return `${words !== undefined ? `${words} ` : ''}(${err.refusal.error}, HTTP ${err.httpStatus})`;
+}
+
+/**
+ * What a thrown press said, where it said something this page counts: a
+ * gate's refusal (a 403 or 404 whose code the destructive path refuses with,
+ * or the 500 `removed_not_recorded`), or a press the server started nothing
+ * for (a 409 hold or closed account, or the 502 that could not queue the
+ * removal). Undefined for everything else a press can throw, which is a
+ * fault, not an answer.
+ */
+export function answerOf(err: unknown): Refusal | undefined {
+  if (!(err instanceof DecisionRefusedError)) return undefined;
+  const code = err.refusal.error;
+  const status = err.httpStatus;
+  const reason = wordsOf(err) ?? code;
+  if (((status === 403 || status === 404) && KNOWN_REFUSALS.has(code)) || (status === 500 && code === 'removed_not_recorded')) {
+    return { ok: false, code, reason, technical: `${reason} (${code})` };
   }
-  return err instanceof Error ? serverMessage(err) : fallback;
+  if ((status === 409 && NOTHING_STARTED_409.has(code)) || (status === 502 && code === NOT_QUEUED)) {
+    return { ok: false, code, reason, technical: servedAs(err), stopsTheRun: true };
+  }
+  return undefined;
 }
 
 type Group = 'deleted' | 'notDeleted' | 'unknown';
@@ -184,7 +228,20 @@ function sameRows(a: readonly ItemDeletion[], b: readonly ItemDeletion[]): boole
 function stoppedKey(by: NotTried): StringKey {
   if (by.by === 'stop') return 'deletions.all.stoppedBy.stop';
   if (by.by === 'failure') return 'deletions.all.stoppedBy.failure';
-  return by.code === 'not_enabled' ? 'deletions.all.stoppedBy.notEnabled' : 'deletions.all.stoppedBy.breaker';
+  if (BREAKER_CODES.has(by.code)) return 'deletions.all.stoppedBy.breaker';
+  if (by.code === 'not_enabled') return 'deletions.all.stoppedBy.notEnabled';
+  if (by.code === 'removed_not_recorded') return 'deletions.all.stoppedBy.notRecorded';
+  return 'deletions.all.stoppedBy.notStarted';
+}
+
+/** Why a row the run never reached was not tried, in its line's words. */
+function notTriedKey(by: NotTried): StringKey {
+  if (by.by === 'stop') return 'deletions.all.notTried.stop';
+  if (by.by === 'failure') return 'deletions.all.notTried.failure';
+  if (BREAKER_CODES.has(by.code)) return 'deletions.all.notTried.breaker';
+  if (by.code === 'not_enabled') return 'deletions.all.notTried.notEnabled';
+  if (by.code === 'removed_not_recorded') return 'deletions.all.notTried.notRecorded';
+  return 'deletions.all.notTried.notStarted';
 }
 
 export const DeleteAllPanel: React.FC<{
@@ -224,6 +281,12 @@ export const DeleteAllPanel: React.FC<{
   const busy = React.useRef(false);
   const stop = React.useRef(false);
   const gone = React.useRef(false);
+  /** Rows of this run whose *not known* words are the server's English. */
+  const english = React.useRef(new Set<string>());
+  /** The confirmation closed without a run: the focus goes back to the button. */
+  const focusBack = React.useRef(false);
+  const allRef = React.useRef<HTMLButtonElement>(null);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
   const cancelRef = React.useRef<HTMLButtonElement>(null);
   const stopRef = React.useRef<HTMLButtonElement>(null);
   const statusRef = React.useRef<HTMLParagraphElement>(null);
@@ -247,16 +310,40 @@ export const DeleteAllPanel: React.FC<{
   });
   const deletingByHand = flag.data?.allowApplyDeletions === true;
 
-  // Focus follows the run: Cancel when the confirmation opens, Stop while it
-  // runs, the summary when it ends.
+  const running = run?.phase === 'reading' || run?.phase === 'running';
+  const showConfirm = armed !== undefined && deletingByHand && !running;
+  const offered = deletingByHand && rows.length >= 2 && !running && !showConfirm;
+
+  // Focus follows the run: Cancel when the confirmation opens, the button
+  // again when it closes without a run, Stop while the list is read and the
+  // run runs, the summary when it ends.
   React.useEffect(() => {
-    if (armed) cancelRef.current?.focus();
+    if (armed) {
+      cancelRef.current?.focus();
+      return;
+    }
+    if (focusBack.current) {
+      focusBack.current = false;
+      allRef.current?.focus();
+    }
   }, [armed]);
   const phase = run?.phase;
   React.useEffect(() => {
-    if (phase === 'running') stopRef.current?.focus();
+    if (phase === 'reading' || phase === 'running') stopRef.current?.focus();
     if (phase === 'done') statusRef.current?.focus();
   }, [phase]);
+
+  // While the confirmation is open the focus stays in it: a focus that lands
+  // anywhere else on the page is brought back to Cancel.
+  React.useEffect(() => {
+    if (!showConfirm) return;
+    const keepIn = (event: FocusEvent) => {
+      const dialog = dialogRef.current;
+      if (dialog && event.target instanceof Node && !dialog.contains(event.target)) cancelRef.current?.focus();
+    };
+    document.addEventListener('focusin', keepIn);
+    return () => document.removeEventListener('focusin', keepIn);
+  }, [showConfirm]);
 
   /** A managed receipt, read to its end, within `receiptDeadlineMs`. A missed read is said and read again. */
   const settle = async (hash: string, first: ApplyReceipt): Promise<ApplyReceipt> => {
@@ -295,7 +382,10 @@ export const DeleteAllPanel: React.FC<{
     return receipt;
   };
 
-  /** One row's own press, read to its end: exactly what its own button does. */
+  /**
+   * One row's own press, read to its end: exactly what its own button does.
+   * The queue is read again once, when the run ends, not after every row.
+   */
   const applyOne = async (item: ApplyEachItem): Promise<DeleteAllAnswer> => {
     const hash = item.naturalKeyHash;
     setOutcome(hash, { state: 'pending' });
@@ -306,37 +396,51 @@ export const DeleteAllPanel: React.FC<{
     try {
       outcome = await applyDeletion(mappingId, hash);
     } catch (err) {
-      const refusal = refusalOf(err);
-      if (refusal) {
-        setOutcome(hash, { state: 'refused', text: refusal.reason });
-        return { ok: false, ...refusal };
+      const answer = answerOf(err);
+      if (answer) {
+        setOutcome(hash, { state: 'refused', text: answer.reason });
+        return answer;
       }
-      fault = faultOf(err, t('common.requestFailed'));
+      if (err instanceof DecisionRefusedError) {
+        fault = servedAs(err);
+        english.current.add(hash);
+      } else {
+        // A transport's message, or `serverMessage`'s own sentence in the
+        // reader's language: said as it came, never marked English.
+        fault = err instanceof Error ? serverMessage(err) : t('common.requestFailed');
+      }
       setOutcome(hash, { state: 'unknown', text: fault });
     }
     if (outcome === undefined) throw new Error(fault ?? t('common.requestFailed'));
     if (outcome.mode === 'immediate') {
       const served = servedOf(outcome.result);
       setOutcome(hash, { state: 'done', served });
-      refresh();
       return { ok: true, served };
     }
     const receipt = await settle(hash, outcome.receipt);
-    if (receipt.state === 'applied') {
-      refresh();
-      return { ok: true, kind: receipt.kind };
-    }
+    if (receipt.state === 'applied') return { ok: true, kind: receipt.kind };
     if (receipt.state === 'refused' && KNOWN_REFUSALS.has(receipt.code)) {
-      return { ok: false, code: receipt.code, reason: receipt.reason };
+      return {
+        ok: false,
+        code: receipt.code,
+        reason: receipt.reason,
+        technical: `${receipt.reason} (${receipt.code})`,
+      };
     }
+    // A receipt that failed, or that was refused with a code no gate refuses
+    // with, is no answer this page can count. A failed job may be tried again
+    // where it runs, so its removal may still happen: not known, and the run
+    // stops.
     const said =
       receipt.state === 'failed'
         ? receipt.error
         : receipt.state === 'refused'
           ? `${receipt.reason} (${receipt.code})`
-          : t('common.requestFailed');
-    if (receipt.state !== 'failed') setOutcome(hash, { state: 'unknown', text: said });
-    throw new Error(said);
+          : undefined;
+    if (said !== undefined) english.current.add(hash);
+    const text = said ?? t('common.requestFailed');
+    if (receipt.state !== 'failed') setOutcome(hash, { state: 'unknown', text });
+    throw new Error(text);
   };
 
   const start = async (chosen: readonly ItemDeletion[]): Promise<void> => {
@@ -344,23 +448,33 @@ export const DeleteAllPanel: React.FC<{
     if (busy.current) return;
     busy.current = true;
     stop.current = false;
-    setRun({ phase: 'reading' });
+    english.current = new Set();
+    // From the confirming press on, every row of the run waits its turn,
+    // with no button of its own: not even while the list is read again,
+    // where a keep was overwritten by the run and a single delete ran beside
+    // it. A run that orders nothing gives the rows their buttons back.
+    for (const row of chosen) setOutcome(row.naturalKeyHash, { state: 'waiting' });
+    const giveBack = () => {
+      for (const row of chosen) setOutcome(row.naturalKeyHash, undefined);
+    };
+    setRun({ phase: 'reading', stopping: false });
     try {
       let fresh: readonly ItemDeletion[];
       try {
         fresh = await readAgain();
       } catch (err) {
+        giveBack();
         setRun({ phase: 'unreadable', error: err instanceof Error ? serverMessage(err) : t('common.requestFailed') });
         return;
       }
       if (!sameRows(chosen, fresh)) {
+        giveBack();
         setRun({ phase: 'changed', count: fresh.length });
         refresh();
         return;
       }
 
-      for (const row of chosen) setOutcome(row.naturalKeyHash, { state: 'waiting' });
-      setRun({ phase: 'running', rows: chosen, results: {}, stopping: false });
+      setRun({ phase: 'running', rows: chosen, results: {}, stopping: stop.current, english: {} });
 
       await applyEachInTurn(
         chosen.map((row) => ({ naturalKeyHash: row.naturalKeyHash, domain: row.domain })),
@@ -368,11 +482,17 @@ export const DeleteAllPanel: React.FC<{
         {
           stopRequested: () => stop.current || gone.current,
           onResult: (result) => {
+            const hash = result.item.naturalKeyHash;
             // Nothing happened to a row the run never reached: its buttons come back.
-            if ('notTried' in result) setOutcome(result.item.naturalKeyHash, undefined);
+            if ('notTried' in result) setOutcome(hash, undefined);
+            const isEnglish = 'failed' in result && english.current.has(hash);
             setRun((current) =>
               current?.phase === 'running'
-                ? { ...current, results: { ...current.results, [result.item.naturalKeyHash]: result } }
+                ? {
+                    ...current,
+                    results: { ...current.results, [hash]: result },
+                    english: isEnglish ? { ...current.english, [hash]: true } : current.english,
+                  }
                 : current,
             );
           },
@@ -392,7 +512,10 @@ export const DeleteAllPanel: React.FC<{
     setArmed({ rows, at: Date.now() });
   };
 
-  const cancel = () => setArmed(undefined);
+  const cancel = () => {
+    focusBack.current = true;
+    setArmed(undefined);
+  };
 
   const confirm = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (!armed) return;
@@ -400,22 +523,44 @@ export const DeleteAllPanel: React.FC<{
     // confirmation opened: not a decision.
     if (event.detail > 1 || Date.now() - armed.at < confirmGuardMs) return;
     const frozen = armed.rows;
-    setArmed(undefined);
-    // The rows the confirmation counted, or nothing: a list that moved under
-    // the pointer (a refetch, a row pressed on its own) is asked again.
+    // The rows the confirmation counted, or nothing: a list that moved while
+    // it was open (a refetch, a row pressed on its own) is asked again.
     if (!sameRows(frozen, rows)) {
+      focusBack.current = true;
+      setArmed(undefined);
       setRun({ phase: 'changed', count: rows.length });
       return;
     }
+    setArmed(undefined);
     void start(frozen);
   };
 
-  const running = run?.phase === 'reading' || run?.phase === 'running';
-  const showConfirm = armed !== undefined && deletingByHand && !running;
-  const offered = deletingByHand && rows.length >= 2 && !running && !showConfirm;
+  /** Tab and Shift+Tab go round the confirmation's own buttons; Escape closes it from anywhere in it. */
+  const onDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancel();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const buttons = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('button') ?? []);
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (!first || !last) return;
+    const at = document.activeElement;
+    if (event.shiftKey && (at === first || at === dialogRef.current)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (at === last || at === dialogRef.current)) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   if (!offered && !showConfirm && run === undefined) return null;
 
   const count = String((showConfirm ? armed.rows : rows).length);
+  const stoppable = (run?.phase === 'reading' || run?.phase === 'running') && !run.stopping;
 
   return (
     <div className="mb-2 space-y-2 text-sm" data-testid="delete-all">
@@ -423,6 +568,7 @@ export const DeleteAllPanel: React.FC<{
         <div className="space-y-1">
           <p className="text-xs text-gray-600">{t('deletions.all.lead', { count })}</p>
           <button
+            ref={allRef}
             type="button"
             onClick={open}
             className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-red-300 text-red-700 hover:bg-red-50"
@@ -435,13 +581,14 @@ export const DeleteAllPanel: React.FC<{
 
       {showConfirm && (
         <div
+          ref={dialogRef}
           role="alertdialog"
+          aria-modal="true"
           aria-labelledby={questionId}
           aria-describedby={leadId}
-          className="p-3 rounded-lg border border-red-300 bg-red-50 space-y-2"
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') cancel();
-          }}
+          tabIndex={-1}
+          className="p-3 rounded-lg border border-red-300 bg-red-50 space-y-2 outline-none"
+          onKeyDown={onDialogKeyDown}
         >
           <p id={questionId} className="font-medium text-red-900">
             {t('deletions.all.confirm.question', { count })}
@@ -449,8 +596,8 @@ export const DeleteAllPanel: React.FC<{
           <p id={leadId} className="text-xs text-gray-700">
             {t('deletions.all.lead', { count })}
           </p>
-          {/* Cancel first, where the button was, and focused: the end of a
-              double click lands on it, not on the delete. */}
+          {/* Cancel first, and focused: the end of a double click lands on
+              nothing that deletes. */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               ref={cancelRef}
@@ -477,13 +624,17 @@ export const DeleteAllPanel: React.FC<{
         <p ref={statusRef} role="status" tabIndex={-1} className="text-xs text-gray-800 outline-none">
           <StatusLine run={run} />
         </p>
-        {run?.phase === 'running' && !run.stopping && (
+        {stoppable && (
           <button
             ref={stopRef}
             type="button"
             onClick={() => {
               stop.current = true;
-              setRun((current) => (current?.phase === 'running' ? { ...current, stopping: true } : current));
+              setRun((current) =>
+                current?.phase === 'reading' || current?.phase === 'running'
+                  ? { ...current, stopping: true }
+                  : current,
+              );
             }}
             className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
           >
@@ -507,9 +658,10 @@ const StatusLine: React.FC<{ run: Run | undefined }> = ({ run }) => {
   switch (run.phase) {
     case 'reading':
       return (
-        <span className="inline-flex items-center gap-1 text-gray-600">
+        <span className="inline-flex flex-wrap items-center gap-1 text-gray-600">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           {t('deletions.all.reading')}
+          {run.stopping && <span>{t('deletions.all.stoppingBeforeStart')}</span>}
         </span>
       );
     case 'changed':
@@ -594,7 +746,11 @@ const RunLists: React.FC<{
               {rows.map((row) => (
                 <li key={row.naturalKeyHash} className="text-xs">
                   <span className="text-gray-900">{nameOf(row)}</span>
-                  <Said result={run.results[row.naturalKeyHash]!} locale={locale} />
+                  <Said
+                    result={run.results[row.naturalKeyHash]!}
+                    locale={locale}
+                    english={run.english[row.naturalKeyHash] === true}
+                  />
                 </li>
               ))}
             </ul>
@@ -607,29 +763,26 @@ const RunLists: React.FC<{
 
 /**
  * What became of one row, in the reader's language, with the server's own
- * words and code folded beside it, verbatim.
+ * words and code folded beside it, verbatim. Only the server's words are
+ * marked English: a *not known* line can be this page's own sentence, in the
+ * reader's language (`english` says which).
  */
-const Said: React.FC<{ result: RunResult; locale: string }> = ({ result, locale }) => {
+const Said: React.FC<{ result: RunResult; locale: string; english: boolean }> = ({ result, locale, english }) => {
   const t = useT();
-  const technical = (text: string) => (
+  const technical = (text: string, served: boolean) => (
     <details className="mt-0.5 text-gray-500">
       <summary className="cursor-pointer select-none">{t('deletions.all.technical')}</summary>
-      <span lang={locale === 'en' ? undefined : 'en'}>{text}</span>
+      <span lang={served && locale !== 'en' ? 'en' : undefined}>{text}</span>
     </details>
   );
 
   if ('notTried' in result) {
     const by = result.notTried;
-    if (by.by === 'stop') return <p className="text-gray-700">{t('deletions.all.notTried.stop')}</p>;
-    if (by.by === 'failure') return <p className="text-gray-700">{t('deletions.all.notTried.failure')}</p>;
+    if (by.by !== 'refusal') return <p className="text-gray-700">{t(notTriedKey(by))}</p>;
     return (
       <div className="text-amber-800">
-        <p>
-          {by.code === 'not_enabled'
-            ? t('deletions.all.notTried.notEnabled')
-            : t('deletions.all.notTried.breaker')}
-        </p>
-        {technical(`${by.reason} (${by.code})`)}
+        <p>{t(notTriedKey(by))}</p>
+        {technical(`${by.reason} (${by.code})`, true)}
       </div>
     );
   }
@@ -637,7 +790,7 @@ const Said: React.FC<{ result: RunResult; locale: string }> = ({ result, locale 
     return (
       <div className="text-red-700">
         <p>{t('deletions.all.failed')}</p>
-        {technical(result.failed)}
+        {technical(result.failed, english)}
       </div>
     );
   }
@@ -659,7 +812,7 @@ const Said: React.FC<{ result: RunResult; locale: string }> = ({ result, locale 
   return (
     <div className={GONE_ALL_THE_SAME.has(answer.code) ? 'text-gray-700' : 'text-amber-800'}>
       <p>{t(key)}</p>
-      {technical(`${answer.reason} (${answer.code})`)}
+      {technical(answer.technical, true)}
     </div>
   );
 };
