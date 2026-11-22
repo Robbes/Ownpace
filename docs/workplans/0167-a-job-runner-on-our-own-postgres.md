@@ -40,7 +40,12 @@ and Trigger.dev runs every job. No migration in either chain.
   (rule 10: the runner reads `JOBS_DATABASE_URL` alone, its parent loads no job, no Trigger.dev task
   loads pg-boss) 194, `an-image-that-shipped-what-it-never-runs` (the worker's closure) 25,
   `runs-without-a-transpiler` (the fork paths) 5, the tick's two anchor tests 14.
-- **Mutations**, each restored (sha256 checked): 17, every one failing its test.
+- **Mutations**, each restored (sha256 checked): 17, every one failing its test; and 4 more for the
+  review's points below.
+- **Gates on the final tree** (#2040 at `61394c96`, `main` at `2f86401c`): `tsc --noEmit` 0;
+  `pnpm lint` 0; the whole unit tier, **1,178 files, 18,554 passed, 62 skipped**; every integration
+  file of `apps/worker` and `packages/scheduler` on the local cluster, **155 passed, 3 skipped**
+  (the two Stalwart files, and the Nextcloud case).
 - **The review of #2043, its points on the catalog's consumers (fixed here).** (1) `run-cutover`
   gets three hours, not one: Trigger.dev 4.8.8 counts `maxDuration` on CPU time, wall time less its
   pauses, and `triggerAndWait` is one (`usage.pauseAsync`), while pg-boss's limit is the wall clock
