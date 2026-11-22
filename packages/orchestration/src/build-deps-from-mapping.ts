@@ -32,7 +32,7 @@ import {
   mailsGuestsItself,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
-import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget, readPathPhases } from '@openmig/ledger';
+import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget, readAddressChangesApplied, readPathPhases } from '@openmig/ledger';
 import {
   createTokenProvider,
   cirruxDriveNotConnected,
@@ -888,7 +888,7 @@ export async function buildDomainDepsFromMapping(
           ledger,
           tenantId,
           accountAddressesOf(src.config, src.creds, tgt.config, tgt.creds),
-          (await withTenant(pool, tenantId, (txDb) => readPathPhases(txDb, tenantId, mappingId)))?.addressChangesApplied,
+          await withTenant(pool, tenantId, (txDb) => readAddressChangesApplied(txDb, tenantId, mappingId)),
         )
       : undefined;
   const withAddressChanges = addressChanges ? { addressChanges } : {};

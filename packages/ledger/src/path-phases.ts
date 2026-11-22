@@ -177,6 +177,24 @@ export async function readPathPhases(
 }
 
 /**
+ * The press digest a person last recorded for this migration (migration
+ * 0073; ADR-0055, workplan 0168 D5), or undefined when nobody pressed it. Not
+ * a phase: the managed builder asks this beside the one reader of the phases
+ * (`readPathPhases`), which the appliance's pass already holds.
+ */
+export async function readAddressChangesApplied(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ digest: schemaPg.mailboxMapping.addressChangesAppliedDigest })
+    .from(schemaPg.mailboxMapping)
+    .where(and(eq(schemaPg.mailboxMapping.id, mappingId), eq(schemaPg.mailboxMapping.tenantId, tenantId)));
+  return row?.digest ?? undefined;
+}
+
+/**
  * A person pressed *Apply the new addresses here too* on one migration
  * (ADR-0055; workplan 0168 D5): record the confirmed table's digest it was
  * pressed for, by whom, inside the organisation's transaction. Past a data
