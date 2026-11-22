@@ -213,6 +213,10 @@ MODE="${MODE:-check}"
 # Live's marker, named once.
 # shellcheck source=deploy/compose/stack-kind.sh
 . "${SCRIPT_DIR}/stack-kind.sh"
+# Which runner the jobs run on (workplan 0167 T7), for the containers that
+# still present the old values after a rotation: the one reader.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
 
 [ -f "$ENV_FILE" ] || refuse "${ENV_FILE} does not exist, or is a link to nothing. This asks about the stack that .env describes."
 for arg in COMPOSE_ENV_FILES COMPOSE_FILE; do
@@ -1097,7 +1101,16 @@ do_rotate() {
   say "done. Changed in ${ENV_RESOLVED}: ${keys[*]}. No value is printed, here or anywhere."
   say "${DB_ROLES_APP} and ${DB_ROLES_OWNER} accept the new values over the network and through the pooler, and no shipped value opens either."
   say "UNTIL THE CONTAINERS ARE RECREATED this stack's app cannot open new database connections:"
-  say "  the API, the identity provider's admin connection and the Trigger.dev tasks still present the old values."
+  # The jobs present app_user's value too: in the worker, where they run on
+  # pg-boss (workplan 0167 T7), or in the Trigger.dev tasks. A value of the
+  # switch that is neither names both, rather than stopping after the change.
+  local jobs_hold='the Trigger.dev tasks'
+  if ! job_runner_mode "$SCRIPT_DIR" "$ENV_FILE"; then
+    jobs_hold="the worker or the Trigger.dev tasks (${JOB_RUNNER_WHY%%,*})"
+  elif [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
+    jobs_hold='the worker (pg-boss mode)'
+  fi
+  say "  the API, the identity provider's admin connection and ${jobs_hold} still present the old values."
   if [ -n "$WITH_STORES" ]; then
     say "ClickHouse and MinIO take their new values when their containers are recreated; nothing was asked of them here."
     say "  If MinIO refuses the new pair on its old volume, what is lost is its packets store: old large run payloads."
@@ -1106,7 +1119,8 @@ do_rotate() {
     say "  a trigger-api that restarts before then fails at its migration, until the run below recreates it."
   fi
   say "NEXT, the one step: E2E (managed) on main. It restores this .env, recreates every container whose settings changed,"
-  say "  uploads SYSTEM_DATABASE_URL and APP_DATABASE_URL to Trigger.dev again (the owner's URL no longer goes to the tasks,"
+  [ "$JOB_RUNNER" != "$JOB_RUNNER_PGBOSS" ] || say "  the worker among them (pg-boss mode: it reads APP_DATABASE_URL when it is created, and nothing is uploaded),"
+  say "  uploads SYSTEM_DATABASE_URL and APP_DATABASE_URL to Trigger.dev again in trigger mode (the owner's URL no longer goes to the tasks,"
   say "  and this script does not rotate the system role's or the jobs role's password: the bring-up sets .env's SYSTEM_DB_PASSWORD"
   say "  and JOBS_DB_PASSWORD on every run),"
   say "  and its smoke proves a task still connects."

@@ -247,6 +247,9 @@ case "$1" in
         label=com.docker.compose.service=*) s="\${a#label=com.docker.compose.service=}" ;;
       esac
     done
+    # A service stopped on a running stack (STUB_STOPPED, <project>:<service>):
+    # trigger-db, where the jobs run on pg-boss (workplan 0167 T7).
+    case " \${STUB_STOPPED:-} " in *" $p:$s "*) exit 0 ;; esac
     case " \${STUB_RUNNING:-} " in *" $p "*) echo "id-\${p}-\${s}" ;; esac ;;
   exec)
     id="$3"; sql="$(cat)"
@@ -824,6 +827,17 @@ describe('one summary a day, numbers only', () => {
     const line = told(s)[0]!.body.split('\n').find((l) => l.trim().startsWith('ownpace-managed:')) ?? '';
     expect(line).toContain('postgres: not running here');
     expect(line).toContain('trigger-db: not running here');
+  });
+
+  it("a stack whose jobs run on pg-boss: its trigger-db, stopped with the plane, is not running here, and is no failure (workplan 0167 T7)", () => {
+    const s = stage();
+    dutiesPassed(s);
+    const r = checks(s, ['--summary'], { STUB_STOPPED: 'ownpace-live:trigger-db' });
+    expect(r.status, r.out).toBe(0);
+    const line = told(s)[0]!.body.split('\n').find((l) => l.trim().startsWith('ownpace-live:')) ?? '';
+    expect(line).toContain('trigger-db: not running here');
+    expect(line).not.toContain('postgres: not running here');
+    expect(line).not.toContain('not read');
   });
 
   it('a database that cannot be read says so in the summary, which still goes, and the run fails (hard rule 9)', () => {

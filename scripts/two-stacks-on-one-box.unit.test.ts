@@ -870,7 +870,7 @@ function resetTrigger(dotenv: string): { status: number | null; calls: string; e
     const bin = join(dir, 'bin');
     mkdirSync(compose, { recursive: true });
     mkdirSync(bin);
-    for (const f of ['reset-trigger.sh', 'env-read.sh', 'stack-kind.sh', 'env-upsert.sh', 'managed.yml']) {
+    for (const f of ['reset-trigger.sh', 'env-read.sh', 'job-runner.sh', 'stack-kind.sh', 'env-upsert.sh', 'managed.yml']) {
       copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     }
     writeFileSync(join(compose, '.env'), dotenv);

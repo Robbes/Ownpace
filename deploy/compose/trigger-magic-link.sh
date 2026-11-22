@@ -40,6 +40,12 @@ case "${1:-}" in
   *) echo "trigger-magic-link.sh: unknown argument '$1'" >&2; exit 1 ;;
 esac
 
+# Trigger.dev's alone (workplan 0167 T7): refused, in one sentence and before
+# anything is asked or changed, where the jobs run on pg-boss.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
+job_runner_refuse_in_pg_boss trigger-magic-link.sh "it finds a sign-in link for the Trigger.dev dashboard"
+
 # Through Compose, which picks the stack the checkout's own .env names; a bare
 # `docker logs` of a fixed name read whichever stack owned that name. Compose
 # follows a COMPOSE_PROJECT_NAME exported in the shell over that .env, so the

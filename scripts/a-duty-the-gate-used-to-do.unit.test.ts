@@ -468,7 +468,7 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
   const root = tempDir('box-duties-');
   const compose = join(root, 'deploy', 'compose');
   mkdirSync(compose, { recursive: true });
-  for (const f of ['box-duties.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'managed.yml']) {
+  for (const f of ['box-duties.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'managed.yml', 'job-runner.sh']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   chmodSync(join(compose, 'box-duties.sh'), 0o755);

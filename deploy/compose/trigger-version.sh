@@ -638,6 +638,18 @@ backwards: that keeps this checkout's removals, read at this version.
 EOF
 }
 
+# A backup, a restore or a drill of triggerdb is Trigger.dev's alone (workplan
+# 0167 T7): refused where the jobs run on pg-boss, whose plane is stopped and
+# whose volumes are kept as they are. pin and probe read and write this
+# checkout only, and list and backups read what is on disk, so they still run.
+case "${1:-}" in
+  backup | restore | drill)
+    # shellcheck source=deploy/compose/job-runner.sh
+    . "${SCRIPT_DIR}/job-runner.sh"
+    job_runner_refuse_in_pg_boss trigger-version.sh "its ${1} works on the Trigger.dev plane's database"
+    ;;
+esac
+
 case "${1:-}" in
   list)    shift; cmd_list "$@" ;;
   backup)  shift; cmd_backup "$@" ;;

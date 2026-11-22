@@ -227,7 +227,7 @@ function stage(dotEnv: string): Stage {
   const root = tempDir('rehearsal-');
   const compose = join(root, 'deploy', 'compose');
   mkdirSync(compose, { recursive: true });
-  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh']) {
+  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'job-runner.sh']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }

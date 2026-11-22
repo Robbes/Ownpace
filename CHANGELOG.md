@@ -37,6 +37,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   memory follow `MAX_PASSES_IN_FLIGHT` (`WORKER_CPUS`, `WORKER_MEMORY`; `managed.env.example` has
   the rule). Six keys of `managed.env.example` that the worker reads now keep their notes on a line
   of their own, since Compose reads `KEY=  # note` as the note.
+- **The managed bring-up and the deploy scripts in either runner; the default is still Trigger.dev**
+  (workplan 0167 T7; ADR-0054). `OWNPACE_JOB_RUNNER` (`trigger` or `pg-boss`) is read by one reader,
+  `deploy/compose/job-runner.sh`, as Compose hands it to the containers; any other value is refused
+  in one sentence. In pg-boss mode the bring-up stops the Trigger.dev plane in order (the supervisor,
+  then its runners gone, then the rest; stopped, never removed, its volumes kept), skips the account,
+  login and tasks phases, and starts the worker after the API, the system role asked first and its
+  CPU cap held to the host's. In trigger mode it stops and removes a worker first. `deploy-live.sh`
+  drains pg-boss's queue too, takes no `--trigger` copy for a tag that runs pg-boss, calls a tag
+  without the plane not one-way by itself on a stack on pg-boss, calls a move of pg-boss's version or
+  schema version one-way, and stops and removes the worker before checking out a tag without one.
+  The Trigger.dev-only scripts refuse in pg-boss mode; `live-pass-check.sh` follows a pg-boss job's id.
 
 ### Changed
 

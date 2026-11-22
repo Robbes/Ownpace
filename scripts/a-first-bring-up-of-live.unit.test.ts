@@ -577,6 +577,7 @@ function stage(opts: StageOptions = {}): Stage {
   for (const f of [
     SCRIPT,
     'release-tag.sh',
+    'job-runner.sh',
     'env-read.sh',
     'stack-kind.sh',
     'shipped-passwords.sh',
@@ -2194,4 +2195,55 @@ describe('env-upsert.sh --stdin', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/usage/);
   });
+});
+
+describe('a first bring-up of live in either runner (workplan 0167 T7)', () => {
+  /** managed.yml that hands the switch to its containers, defaulting to <runner>, as alpha.16's does. */
+  const switched = (runner: 'trigger' | 'pg-boss') => (text: string) => {
+    const out = text.replace(
+      /\nservices:\n/,
+      `\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${runner}}\n`,
+    );
+    if (out === text) throw new Error('managed.yml has no services: line this fixture knows');
+    return out;
+  };
+
+  it(
+    'pg-boss mode: said before the bring-up, and a stop of the bring-up is never taken for the Trigger.dev account',
+    () => {
+      const s = stage({ managedYml: switched('pg-boss') });
+      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
+      expect(r.status, r.out).toBe(3);
+      expect(r.out).toMatch(/pg-boss mode \(OWNPACE_JOB_RUNNER=pg-boss\): the bring-up stops the Trigger\.dev plane, asks for no account or login/);
+      expect(r.out).toMatch(/stopped: bootstrap-managed\.sh --from trigger stopped for you \(exit 2\): do what it asks above\./);
+      expect(r.out).toMatch(/In pg-boss mode it has no Trigger\.dev account or login to stop for/);
+      expect(r.out).not.toMatch(/Your turn: live's own Trigger\.dev account/);
+      expect(deployLines(s)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'trigger mode: the account stop is the account stop, as before',
+    () => {
+      const s = stage({ managedYml: switched('trigger') });
+      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
+      expect(r.status, r.out).toBe(2);
+      expect(r.out).toMatch(/Your turn: live's own Trigger\.dev account/);
+      expect(r.out).not.toMatch(/pg-boss/);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a value of the switch that is neither stops it before the bring-up',
+    () => {
+      const s = stage({ managedYml: switched('trigger'), env: { OWNPACE_JOB_RUNNER: 'both' } });
+      const r = run(s, []);
+      expect(r.status, r.out).toBe(3);
+      expect(r.out).toMatch(/stopped: OWNPACE_JOB_RUNNER in .* is neither trigger nor pg-boss/);
+      expect(called(s, 'bootstrap')).not.toContain('bootstrap --from trigger');
+    },
+    CASE_MS,
+  );
 });

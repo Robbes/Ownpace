@@ -1744,3 +1744,335 @@ describe('ensure-env-secrets.sh --only, which load_env runs for the jobs role (A
     expect(readFileSync(envFile, 'utf8')).toBe(before);
   });
 });
+
+// ---------------------------------------------------------------------------
+/**
+ * THE BRING-UP IN EITHER RUNNER (workplan 0167 T7). The phases that differ by
+ * `OWNPACE_JOB_RUNNER` are taken out of `bootstrap-managed.sh` as written and
+ * RUN, under its own `set -euo pipefail`, with `docker` a stand-in on the PATH
+ * that records every call and answers what a case says: which plane services
+ * run, whether a worker container exists, how many polls still see a runner
+ * container, the host's CPU count. The phases' other helpers (the identity
+ * provider's, the mail catcher's, the system role's question) are stand-ins
+ * that record that they ran. The pg-boss branches run for real only from the
+ * flip's E2E dispatch; these are what holds them until then.
+ */
+describe('the bring-up in either runner (0167 T7)', () => {
+  const BOOTSTRAP = join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh');
+  const text = readFileSync(BOOTSTRAP, 'utf8');
+  const definition = (name: string): string => {
+    const start = text.indexOf(`\n${name}() {`);
+    expect(start, `bootstrap-managed.sh defines no ${name}()`).toBeGreaterThan(-1);
+    const oneLine = new RegExp(`^${name}\\(\\) \\{.*\\}$`, 'm').exec(text.slice(start + 1));
+    if (oneLine && oneLine.index === 0) return oneLine[0];
+    return text.slice(start + 1, text.indexOf('\n}\n', start) + 2);
+  };
+  /** A top-level line of the script, as written. */
+  const line = (re: RegExp): string => {
+    const m = re.exec(text);
+    expect(m, `bootstrap-managed.sh has no line matching ${re}`).not.toBeNull();
+    return m![0];
+  };
+
+  const TRIGGER_IMAGE_LINE = /\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}/.exec(
+    readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8'),
+  )![0];
+  const managedYml = (opts: { worker: boolean; cpus?: string; runner?: string }) =>
+    [
+      'name: ownpace-managed',
+      'services:',
+      '  api:',
+      '    image: example',
+      '    environment:',
+      `      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${opts.runner ?? 'trigger'}}`,
+      '  trigger-api:',
+      `    image: ${TRIGGER_IMAGE_LINE}`,
+      ...(opts.worker
+        ? ['  worker:', '    profiles: ["jobs"]', ...(opts.cpus ? [`    cpus: \${WORKER_CPUS:-${opts.cpus}}`] : [])]
+        : []),
+      '',
+    ].join('\n');
+
+  interface Ran {
+    status: number | null;
+    out: string;
+    /** Every docker call and every stand-in, in order. */
+    calls: string[];
+  }
+
+  function phase(
+    phases: string[],
+    o: { env?: string; yml?: string; answers?: Record<string, string> } = {},
+  ): Ran {
+    const d = mkdtempSync(join(tmpdir(), 'bring-up-mode-'));
+    const log = join(d, 'calls');
+    for (const f of ['job-runner.sh', 'env-read.sh', 'own-addresses.sh']) {
+      cpSync(join(REPO_ROOT, 'deploy/compose', f), join(d, f));
+    }
+    writeFileSync(join(d, 'managed.yml'), o.yml ?? managedYml({ worker: true, cpus: '2.5' }));
+    writeFileSync(join(d, '.env'), o.env ?? '');
+    mkdirSync(join(d, 'bin'));
+    writeFileSync(
+      join(d, 'bin', 'docker'),
+      [
+        '#!/usr/bin/env bash',
+        'printf "docker %s\\n" "$*" >>"$CALLS"',
+        'case "$*" in',
+        '  *" ps -a -q worker") printf "%s" "${WORKER_IDS-}" ;;',
+        '  *" ps --status running --format {{.Service}}") [ -z "${PLANE_RUNNING-}" ] || printf "%s\\n" $PLANE_RUNNING ;;',
+        '  "ps --filter network="*)',
+        '    n=$(cat "$STATE" 2>/dev/null || echo 0); echo $((n + 1)) >"$STATE"',
+        '    [ "$n" -ge "${RUNNER_POLLS:-0}" ] || echo runner-abc123',
+        '    echo ownpace-managed-api-1 ;;',
+        '  "info --format {{.NCPU}}") echo "${NCPU:-4}" ;;',
+        // The api's container id: another after the `up` when API_REPLACED says so.
+        '  *" ps -q api")',
+        '    if [ -f "$STATE.api" ] && [ -n "${API_REPLACED:-}" ]; then echo api-new; else echo api-old; fi',
+        '    : >"$STATE.api" ;;',
+        '  *" up -d --wait worker" | *" up -d --wait --force-recreate worker") exit "${WORKER_UP_EXIT:-0}" ;;',
+        'esac',
+        'exit 0',
+        '',
+      ].join('\n'),
+    );
+    chmodSync(join(d, 'bin', 'docker'), 0o755);
+    for (const s of ['zitadel-network-alias.sh', 'setup-zitadel.sh']) {
+      writeFileSync(join(d, s), `#!/usr/bin/env bash\nprintf '%s\\n' "${s}" >>"$CALLS"\n`);
+      chmodSync(join(d, s), 0o755);
+    }
+    const stub = (name: string) => `${name}() { printf '%s\\n' "${name}" >>"$CALLS"; }`;
+    const harness = [
+      'set -euo pipefail',
+      `SCRIPT_DIR='${d}'`,
+      `REPO_ROOT='${REPO_ROOT}'`,
+      'ENV_FILE="${SCRIPT_DIR}/.env"',
+      'COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")',
+      'COMPOSE_PROJECT=ownpace-managed',
+      'WITH_DEMO=0',
+      '. "${SCRIPT_DIR}/env-read.sh"',
+      '. "${SCRIPT_DIR}/own-addresses.sh"',
+      '. "${SCRIPT_DIR}/job-runner.sh"',
+      line(/^COMPOSE_PLANE=.*$/m),
+      line(/^COMPOSE_WORKER=.*$/m),
+      'PLANE_RUNNERS_TIMEOUT="${PLANE_RUNNERS_TIMEOUT:-300}"',
+      'PLANE_RUNNERS_INTERVAL=0',
+      "JOB_RUNNER_MODE=''",
+      ...['say', 'note', 'die', 'env_get', 'env_or', 'runner_mode', 'worker_stop_and_remove', 'plane_runners'].map(definition),
+      ...['plane_stop_in_order', 'worker_cpus_fit', 'worker_up', 'up_wait', 'phase_trigger', 'phase_account'].map(definition),
+      ...['phase_login', 'phase_app', 'phase_tasks'].map(definition),
+      // set -a, as load_env sources the file: the shell then holds what it says.
+      'load_env() { set -a; . "$ENV_FILE"; set +a; }',
+      'explain_failure() { printf "%s\\n" "explain_failure $*" >>"$CALLS"; exit 1; }',
+      ...[
+        'check_docker_networks',
+        'note_catcher_left_running',
+        'prepare_machinekey_volume',
+        'assert_zitadel_role_password',
+        'wait_for_idp_ready',
+        'check_idp_console_config',
+        'trigger_db_role_matches_env',
+      ].map(stub),
+      // As system_role_ready dies on an unfit role (a-superuser-the-bring-up-would-have-uploaded runs the real one).
+      `system_role_ready() { printf '%s\\n' system_role_ready >>"$CALLS"; [ -z "\${ROLE_UNFIT:-}" ] || die "REFUSED, before its password is set or its URL uploaded"; }`,
+      'catcher_needed() { return 1; }',
+      ...phases.map((p) => `phase_${p}`),
+    ].join('\n');
+    const r = spawnSync('bash', ['-c', harness], {
+      env: {
+        PATH: `${join(d, 'bin')}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+        HOME: d,
+        CALLS: log,
+        STATE: join(d, 'polls'),
+        ...o.answers,
+      },
+      encoding: 'utf8',
+    });
+    const calls = existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean) : [];
+    rmSync(d, { recursive: true, force: true });
+    return { status: r.status, out: `${r.stdout}${r.stderr}`, calls: calls.map((c) => c.replace(/-f \S+managed\.yml/, '-f managed.yml')) };
+  }
+
+  const PG = 'OWNPACE_JOB_RUNNER=pg-boss\n';
+  const ALL_PLANE =
+    'trigger-db trigger-redis clickhouse minio trigger-registry trigger-docker-proxy trigger-api trigger-tls trigger-supervisor';
+
+  describe('pg-boss mode', () => {
+    it('trigger: the supervisor first, a bounded wait for its runners, then the rest in order; stop, never rm', () => {
+      const r = phase(['trigger'], { env: PG, answers: { PLANE_RUNNING: ALL_PLANE, RUNNER_POLLS: '2' } });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/pg-boss mode \(OWNPACE_JOB_RUNNER=pg-boss\).*nothing migrates triggerdb/);
+      const C = 'docker compose -f managed.yml --profile trigger';
+      expect(r.calls).toEqual([
+        `${C} ps --status running --format {{.Service}}`,
+        `${C} stop trigger-supervisor`,
+        'docker ps --filter network=ownpace-managed_ownpace-network --format {{.Names}}',
+        'docker ps --filter network=ownpace-managed_ownpace-network --format {{.Names}}',
+        'docker ps --filter network=ownpace-managed_ownpace-network --format {{.Names}}',
+        ...['trigger-api', 'trigger-tls', 'clickhouse', 'trigger-registry', 'trigger-docker-proxy', 'minio', 'trigger-redis', 'trigger-db'].map(
+          (s) => `${C} stop ${s}`,
+        ),
+      ]);
+      expect(r.calls.join('\n')).not.toMatch(/\brm\b|down|-v\b|\bup\b/);
+    });
+
+    it('trigger: a plane that is already stopped is left as it is, and said', () => {
+      const r = phase(['trigger'], { env: PG });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/none of the plane's services runs: nothing to stop/);
+      expect(r.calls).toEqual(['docker compose -f managed.yml --profile trigger ps --status running --format {{.Service}}']);
+    });
+
+    it('trigger: runners that outlive the wait stop the phase, with the rest of the plane still running', () => {
+      const r = phase(['trigger'], {
+        env: PG,
+        answers: { PLANE_RUNNING: ALL_PLANE, RUNNER_POLLS: '1000', PLANE_RUNNERS_TIMEOUT: '0' },
+      });
+      expect(r.status).not.toBe(0);
+      expect(r.out).toMatch(/1 runner container\(s\) of the plane still on ownpace-managed_ownpace-network.*the drain was not done/);
+      expect(r.calls.filter((c) => / stop /.test(c))).toEqual(['docker compose -f managed.yml --profile trigger stop trigger-supervisor']);
+    });
+
+    it.each(['account', 'login', 'tasks'])('%s: says "skipped: pg-boss mode", and asks Docker nothing', (p) => {
+      const r = phase([p], { env: PG });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/skipped: pg-boss mode \(OWNPACE_JOB_RUNNER=pg-boss\)\. /);
+      expect(r.calls).toEqual([]);
+    });
+
+    it("app: builds api, web and worker; starts no plane service; the system role, the CPU cap, then the worker, after the api", () => {
+      const r = phase(['app'], { env: PG });
+      expect(r.status, r.out).toBe(0);
+      const build = r.calls.findIndex((c) => / build /.test(c));
+      expect(r.calls[build]).toBe('docker compose -f managed.yml --profile jobs build api web worker');
+      const up = r.calls.findIndex((c) => / up -d --wait .*\bapi\b/.test(c));
+      expect(r.calls[up]).not.toMatch(/trigger-|minio|clickhouse|worker/);
+      const after = r.calls.slice(up + 1);
+      expect(after).toEqual([
+        'docker compose -f managed.yml ps -q api',
+        'system_role_ready',
+        'docker info --format {{.NCPU}}',
+        'docker compose -f managed.yml --profile jobs up -d --wait worker',
+      ]);
+      expect(r.out).toMatch(/the worker's CPU cap: 2\.5 of this host's 4 \(the rule: 0\.5 x \(MAX_PASSES_IN_FLIGHT \+ 2\) = 2\.5\)/);
+    });
+
+    it('app: the worker is built in the api\'s build call, and recreated whenever this run replaced the api (privacy §9)', () => {
+      const r = phase(['app'], { env: PG, answers: { API_REPLACED: '1' } });
+      expect(r.status, r.out).toBe(0);
+      const builds = r.calls.filter((c) => / build /.test(c));
+      expect(builds).toEqual(['docker compose -f managed.yml --profile jobs build api web worker']);
+      expect(r.calls.at(-1)).toBe('docker compose -f managed.yml --profile jobs up -d --wait --force-recreate worker');
+      expect(r.out).toMatch(/the api container was replaced by this run: recreating the worker with it/);
+      // The ids were asked around the `up` that replaced the api.
+      const up = r.calls.findIndex((c) => / up -d --wait .*\bapi\b/.test(c));
+      expect(r.calls[up - 1]).toBe('docker compose -f managed.yml ps -q api');
+      expect(r.calls[up + 1]).toBe('docker compose -f managed.yml ps -q api');
+    });
+
+    it('app: an api that was not replaced leaves the worker to Compose, which replaces it when its image moved', () => {
+      const r = phase(['app'], { env: PG });
+      expect(r.status, r.out).toBe(0);
+      expect(r.calls.at(-1)).toBe('docker compose -f managed.yml --profile jobs up -d --wait worker');
+      expect(r.out).not.toMatch(/recreating the worker/);
+    });
+
+    it('app: a worker recreated with the api that never comes up is explained from its own log', () => {
+      const r = phase(['app'], { env: PG, answers: { API_REPLACED: '1', WORKER_UP_EXIT: '1' } });
+      expect(r.status).not.toBe(0);
+      expect(r.calls.at(-1)).toBe('explain_failure worker');
+    });
+
+    it('app: an unfit system role stops it before the worker starts, as the tasks phase stopped the upload', () => {
+      const r = phase(['app'], { env: PG, answers: { ROLE_UNFIT: '1' } });
+      expect(r.status).not.toBe(0);
+      expect(r.out).toMatch(/REFUSED, before/);
+      expect(r.calls.at(-1)).toBe('system_role_ready');
+      expect(r.calls.some((c) => /worker/.test(c) && !/ build /.test(c))).toBe(false);
+    });
+
+    it.each([
+      ['above the host', 'WORKER_CPUS=8\n', '4', /WORKER_CPUS is 8, above this host's 4 CPU\(s\), and Docker refuses/],
+      ['not a number', 'WORKER_CPUS=lots\n', '4', /WORKER_CPUS is 'lots', not a number of CPUs above 0/],
+      ['zero', 'WORKER_CPUS=0\n', '4', /not a number of CPUs above 0/],
+      ["managed.yml's default above a 2-CPU host", '', '2', /WORKER_CPUS is 2\.5, above this host's 2 CPU/],
+    ])('app: a CPU cap %s refuses, in one sentence, before the worker starts', (_l, env, ncpu, why) => {
+      const r = phase(['app'], { env: `${PG}${env}`, answers: { NCPU: ncpu } });
+      expect(r.status).not.toBe(0);
+      expect(r.out).toMatch(why);
+      expect(r.calls.some((c) => / up -d --wait worker/.test(c))).toBe(false);
+    });
+
+    it('app: a worker that never comes up is explained from its own log, with its profile named', () => {
+      const r = phase(['app'], { env: PG, answers: { WORKER_UP_EXIT: '1' } });
+      expect(r.status).not.toBe(0);
+      expect(r.calls.slice(-2)).toEqual(['docker compose -f managed.yml --profile jobs up -d --wait worker', 'explain_failure worker']);
+      expect(r.out).not.toMatch(/worker up and healthy/);
+    });
+  });
+
+  describe('trigger mode', () => {
+    const TRIGGER_ENV = 'OWNPACE_JOB_RUNNER=trigger\n';
+
+    it('trigger: a worker left from pg-boss mode is stopped and removed before any plane service starts', () => {
+      const r = phase(['trigger'], { env: TRIGGER_ENV, answers: { WORKER_IDS: 'abc123' } });
+      expect(r.status, r.out).toBe(0);
+      const W = 'docker compose -f managed.yml --profile jobs';
+      expect(r.calls.slice(0, 3)).toEqual([`${W} ps -a -q worker`, `${W} stop worker`, `${W} rm -f worker`]);
+      expect(r.calls[3]).toMatch(/ up -d --wait trigger-db$/);
+      expect(r.out).toMatch(/trigger mode \(OWNPACE_JOB_RUNNER=trigger\)/);
+    });
+
+    it('trigger: with no worker container, nothing is stopped, and the plane comes up as before', () => {
+      const r = phase(['trigger'], { env: '' });
+      expect(r.status, r.out).toBe(0);
+      expect(r.calls[0]).toBe('docker compose -f managed.yml --profile jobs ps -a -q worker');
+      expect(r.calls.some((c) => / (stop|rm) /.test(c))).toBe(false);
+      expect(r.calls[1]).toMatch(/ up -d --wait trigger-db$/);
+      expect(r.calls.at(-1)).toMatch(/ up -d --wait trigger-supervisor$/);
+    });
+
+    it("trigger: a managed.yml without a worker (alpha.14's) asks for none", () => {
+      const r = phase(['trigger'], { env: '', yml: managedYml({ worker: false }) });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/defines no worker service, so there is no worker to stop/);
+      expect(r.calls[0]).toMatch(/ up -d --wait trigger-db$/);
+    });
+
+    it('app: builds api and web only, starts the plane with the rest, and no worker', () => {
+      const r = phase(['app'], { env: '', answers: { WORKER_IDS: 'abc123' } });
+      expect(r.status, r.out).toBe(0);
+      expect(r.calls.slice(0, 3)).toEqual([
+        'docker compose -f managed.yml --profile jobs ps -a -q worker',
+        'docker compose -f managed.yml --profile jobs stop worker',
+        'docker compose -f managed.yml --profile jobs rm -f worker',
+      ]);
+      expect(r.calls).toContain('docker compose -f managed.yml build api web');
+      const up = r.calls.find((c) => / up -d --wait .*\bapi\b/.test(c))!;
+      expect(up).toMatch(/trigger-db .*trigger-supervisor/);
+      expect(up).not.toMatch(/\bworker\b/);
+      expect(r.calls).not.toContain('system_role_ready');
+      expect(r.calls.some((c) => /up -d --wait worker/.test(c))).toBe(false);
+    });
+  });
+
+  it('a value that is neither stops the bring-up before any phase runs', () => {
+    const d = mkdtempSync(join(tmpdir(), 'bring-up-bad-mode-'));
+    try {
+      // A checkout whose managed.yml hands the switch to its containers, as
+      // alpha.16's does; one that never names it ignores the value.
+      const compose = join(d, 'deploy', 'compose');
+      cpSync(join(REPO_ROOT, 'deploy', 'compose'), compose, { recursive: true, filter: (src) => !src.endsWith('/.env') });
+      const real = readFileSync(join(compose, 'managed.yml'), 'utf8');
+      writeFileSync(join(compose, 'managed.yml'), real.replace(/\nservices:\n/, '\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-trigger}\n'));
+      const r = spawnSync(join(compose, 'bootstrap-managed.sh'), ['--only', 'smoke'], {
+        env: { ...process.env, OWNPACE_JOB_RUNNER: 'both', HOME: d },
+        encoding: 'utf8',
+      });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/^!!! OWNPACE_JOB_RUNNER in this shell's environment is neither trigger nor pg-boss/m);
+      expect(r.stdout).not.toMatch(/=== \[smoke\]/);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+});

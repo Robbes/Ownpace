@@ -77,7 +77,7 @@ exit 96
 // An open hold fifteen minutes old, nothing in flight, as a superuser.
 const PSQL_STUB = `#!/usr/bin/env bash
 cat >/dev/null
-printf 'yes|1|900|0\\n'
+printf 'yes|1|900|0|-\\n'
 `;
 const BOOTSTRAP_STUB = '#!/usr/bin/env bash\nexit 0\n';
 
@@ -144,7 +144,7 @@ function stage(setup: (s: Stage, h: { release: (tag: string, version: string, op
   writeFileSync(join(work, '.gitignore'), '.env\n');
   writeFileSync(join(work, 'package.json'), pkg('0.2.0-alpha.1'));
   mkdirSync(compose, { recursive: true });
-  for (const f of ['deploy-live.sh', 'env-read.sh', 'stack-kind.sh', 'release-tag.sh', 'own-addresses.sh', 'www-live.sh']) {
+  for (const f of ['deploy-live.sh', 'env-read.sh', 'stack-kind.sh', 'release-tag.sh', 'own-addresses.sh', 'www-live.sh', 'job-runner.sh']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }

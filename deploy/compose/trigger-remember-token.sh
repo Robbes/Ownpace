@@ -72,6 +72,12 @@ case "${1:-}" in
   *) die "unknown argument '$1' (try --help)" ;;
 esac
 
+# Trigger.dev's alone (workplan 0167 T7): refused, in one sentence and before
+# anything is asked or changed, where the jobs run on pg-boss.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
+job_runner_refuse_in_pg_boss trigger-remember-token.sh "it stores the Trigger.dev deploy CLI's token"
+
 command -v jq >/dev/null 2>&1 || die "jq is required to read the profile file."
 
 CONFIG="${TRIGGER_CLI_CONFIG:-${HOME}/.config/trigger/config.json}"
