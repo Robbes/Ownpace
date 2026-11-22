@@ -5126,11 +5126,12 @@ Docker socket, runs `localhost/docker-socket-proxy:<base tag>-<12 hex>`, which
 compose builds from `deploy/compose/docker-socket-proxy`: Tecnativa's
 docker-socket-proxy at its release v0.6.0 (v0.5.0 until 2026-11-20), its
 Dockerfile, `haproxy.cfg.template` and entrypoint as they are at that tag,
-on the pinned `haproxy:3.4.7-alpine` digest instead of the 3.4.2 v0.5.0's
-image was built on in July and never rebuilt, and without the package
-upgrade v0.6.0's Dockerfile runs while it builds. The environment is the one
-it had, and v0.6.0's configuration is v0.5.0's, so what the supervisor may
-ask Docker, and what it may not, is unchanged.
+on the pinned `haproxy:3.4.8-alpine` digest (`3.4.7-alpine` until
+2026-11-22) instead of the 3.4.2 v0.5.0's image was built on in July and
+never rebuilt, and without the package upgrade v0.6.0's Dockerfile runs
+while it builds. The environment is the one it had, and v0.6.0's
+configuration is v0.5.0's, so what the supervisor may ask Docker, and what
+it may not, is unchanged.
 
 - **The first `up` builds it, and the proxy restarts once.** The bring-up's
   trigger phase (`up_wait … trigger-docker-proxy …`) finds no image of that

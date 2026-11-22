@@ -4,6 +4,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The Docker socket proxy is built on HAProxy 3.4.8** (workplan 0119): `haproxy:3.4.8-alpine`
+  by the digest of its index, the newest patch of the 3.4 line, in place of 3.4.7. It is built on
+  the same Alpine 3.24.4 and runs with the same user, entrypoint and command, and what the
+  Trigger.dev supervisor may ask Docker, and what it may not, is unchanged. The image has a new
+  name, so each machine builds it at its first `up` and restarts the proxy once. HAProxy's notes
+  for 3.4.8 were not read; its 3.4 branch takes fixes only. Taken inside its three-day floor, on
+  the owner's waiver.
+- **The image build's BuildKit moves to v0.35.1, the build Docker's stable channel names**
+  (workplan 0119): `images.yml` runs it by tag and digest for the `docker-container` driver that
+  builds, pushes and signs the published images, in place of v0.34.2. Its built-in Dockerfile
+  frontend moves to 1.29.0, which builds the tasks' base, the one Dockerfile here that names no
+  frontend of its own; the others pull theirs. Neither v0.35.0 nor v0.35.1 lists a breaking
+  change, and nothing the build asks of it changes. Taken inside its three-day floor, on the
+  owner's waiver.
+
 ## [0.2.0-alpha.14] - 2026-11-22
 
 An appointed operator can mark an organisation as a test from Support, and every migration made
