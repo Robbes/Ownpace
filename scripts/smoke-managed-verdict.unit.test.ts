@@ -1519,16 +1519,18 @@ describe('which runner works the jobs is read once, as the bring-up reads it, an
   }
   const smokeReads = (compose: string) =>
     smokeRun(['smoke_env_value', 'smoke_job_runner'], 'smoke_job_runner && echo "rc=0" || echo "rc=$?"', { SCRIPT_DIR: compose });
-  const step = (parse(workflow) as { jobs: Record<string, { steps: Array<{ id?: string; run?: string }> }> }).jobs['e2e-managed']!.steps.find((s) => s.id === 'runner');
+  const step = (parse(workflow) as { jobs: Record<string, { steps: Array<{ id?: string; run?: string }> }> }).jobs['e2e-managed']!.steps.find((s) => (s.run ?? '').includes('>"$RUNNER_TEMP/job-runner"'));
   function workflowReads(dir: string, input = '') {
-    const output = join(dir, 'github-output');
+    const temp = join(dir, 'runner-temp');
+    mkdirSync(temp, { recursive: true });
+    const output = join(temp, 'job-runner');
     writeFileSync(output, '');
     const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', step?.run ?? 'exit 99'], {
       cwd: dir,
       encoding: 'utf8',
-      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', JOB_RUNNER_INPUT: input, GITHUB_OUTPUT: output },
+      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', JOB_RUNNER_INPUT: input, RUNNER_TEMP: temp },
     });
-    return { status: r.status, out: `${r.stdout}${r.stderr}`, mode: /^job_runner=(.*)$/m.exec(readFileSync(output, 'utf8'))?.[1] ?? '' };
+    return { status: r.status, out: `${r.stdout}${r.stderr}`, mode: readFileSync(output, 'utf8').trim() };
   }
 
   it.each([
@@ -1592,15 +1594,30 @@ describe('which runner works the jobs is read once, as the bring-up reads it, an
   });
 
   it("the Trigger.dev plane's drill runs only on trigger, and its keys are asked only there", () => {
-    const steps = (parse(workflow) as { jobs: Record<string, { steps: Array<{ name?: string; run?: string; if?: string; env?: Record<string, string> }> }> }).jobs['e2e-managed']!.steps;
-    const drill = steps.find((s) => (s.run ?? '').includes('trigger-version.sh drill'));
-    expect(drill?.if).toBe("steps.runner.outputs.job_runner == 'trigger'");
-    const refuse = steps.find((s) => (s.run ?? '').includes('TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY'));
-    expect(refuse?.env?.JOB_RUNNER).toBe('${{ steps.runner.outputs.job_runner }}');
-    expect(refuse?.run).toMatch(/if \[ "\$JOB_RUNNER" = trigger \]; then\n\s+for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY; do/);
-    // Every other step runs in both modes: none but the drill is conditional on the mode.
-    const onMode = steps.filter((s) => /job_runner/.test(s.if ?? '')).map((s) => s.name);
-    expect(onMode).toHaveLength(2);
+    const steps = (parse(workflow) as { jobs: Record<string, { steps: Array<{ name?: string; run?: string; if?: string }> }> }).jobs['e2e-managed']!.steps;
+    const mode = steps.findIndex((s) => (s.run ?? '').includes('>"$RUNNER_TEMP/job-runner"'));
+    const reads = (s: { run?: string }) => (s.run ?? '').includes('JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"');
+    const drill = steps.findIndex((s) => (s.run ?? '').includes('trigger-version.sh drill'));
+    const refuse = steps.findIndex((s) => (s.run ?? '').includes('TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY'));
+    for (const at of [drill, refuse]) {
+      expect(at).toBeGreaterThan(mode);
+      expect(reads(steps[at]!), steps[at]!.name).toBe(true);
+    }
+    // Run, on a stand-in for the drill: on pg-boss it does not run, on trigger it does.
+    for (const [m, ran] of [['pg-boss', false], ['trigger', true]] as const) {
+      const dir = mkdtempSync(join(tmpdir(), 'drill-'));
+      dirs.push(dir);
+      mkdirSync(join(dir, 'deploy/compose'), { recursive: true });
+      writeFileSync(join(dir, 'job-runner'), `${m}\n`);
+      writeFileSync(join(dir, 'deploy/compose/trigger-version.sh'), '#!/usr/bin/env bash\necho "drill ran: $*"\n');
+      chmodSync(join(dir, 'deploy/compose/trigger-version.sh'), 0o755);
+      const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', steps[drill]!.run!], { cwd: dir, encoding: 'utf8', env: { PATH: process.env.PATH ?? '/usr/bin:/bin', RUNNER_TEMP: dir } });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout.includes('drill ran: drill'), `${m}: ${r.stdout}`).toBe(ran);
+    }
+    expect(steps[refuse]!.run).toMatch(/if \[ "\$JOB_RUNNER" = trigger \]; then\n\s+for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY; do/);
+    // No step is skipped by the mode: each decides inside its own run, and says so.
+    expect(steps.filter((s) => /steps\.|outputs\./.test(s.if ?? '')).map((s) => s.name)).toEqual([]);
   });
 
   afterAll(() => dirs.forEach((d) => rmSync(d, { recursive: true, force: true })));

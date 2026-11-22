@@ -357,7 +357,6 @@ jobs:
           ./deploy/compose/own-addresses.sh --mask deploy/compose/.env
 
       - name: Which runner works this run's jobs (OWNPACE_JOB_RUNNER)
-        id: runner
         # ONE RULE, THE BRING-UP'S AND THE SMOKE'S (workplan 0167 T7): the
         # dispatch's input when there is one, else the restored .env's
         # OWNPACE_JOB_RUNNER, else managed.yml's default for it, else
@@ -365,6 +364,10 @@ jobs:
         # written, so the steps for Trigger.dev's plane can be left out on a
         # stack whose plane is stopped. The input itself is written into the
         # checkout's .env further down, after the persisted copy is saved.
+        # The answer goes into a file of this run's, $RUNNER_TEMP/job-runner,
+        # read by the steps that need it, never into $GITHUB_OUTPUT: a step
+        # that reads a .env writes neither of the files the runner prints
+        # (scripts/a-credential-the-next-step-printed.unit.test.ts).
         # scripts/smoke-managed-verdict.unit.test.ts runs this step and the
         # smoke's smoke_job_runner on the same files and holds them to one answer.
         env:
@@ -390,7 +393,7 @@ jobs:
             *) echo "::error::OWNPACE_JOB_RUNNER is '${mode}' (${from}), and a stack's jobs run on 'trigger' or 'pg-boss' (unset or empty is 'trigger')."; exit 1 ;;
           esac
           echo "this run's jobs run on ${mode} (${from})"
-          echo "job_runner=${mode}" >>"$GITHUB_OUTPUT"
+          printf '%s\n' "$mode" >"$RUNNER_TEMP/job-runner"
 
       - name: Refuse early if the one-time setup was never done
         # Loud and specific, because the alternative is a failure fifteen
@@ -403,9 +406,8 @@ jobs:
         #
         # On pg-boss (workplan 0167 T7) the plane is stopped and its two keys
         # are not asked for: the .env itself still is.
-        env:
-          JOB_RUNNER: ${{ steps.runner.outputs.job_runner }}
         run: |
+          JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"
           ENV_FILE=deploy/compose/.env
           missing=()
           [ -f "$ENV_FILE" ] || missing+=("$ENV_FILE itself")
@@ -588,10 +590,9 @@ jobs:
         # smoke read, and the next run's checkout removes it. Only when a
         # dispatch gave the input: a scheduled run runs the persisted value.
         if: inputs.job_runner != ''
-        env:
-          JOB_RUNNER: ${{ steps.runner.outputs.job_runner }}
         run: |
           set -euo pipefail
+          JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"
           ./deploy/compose/env-upsert.sh deploy/compose/.env "OWNPACE_JOB_RUNNER=${JOB_RUNNER}"
           echo "OWNPACE_JOB_RUNNER=${JOB_RUNNER} for this run, in the checkout's .env; the persisted .env is as it was"
 
@@ -790,8 +791,14 @@ jobs:
       - name: Backup/Restore drill for the Trigger.dev control plane
         # Only where the plane runs: on pg-boss it is stopped, its volumes
         # kept, and there is no running triggerdb to dump (workplan 0167 T7).
-        if: steps.runner.outputs.job_runner == 'trigger'
-        run: ./deploy/compose/trigger-version.sh drill
+        run: |
+          set -euo pipefail
+          JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"
+          if [ "$JOB_RUNNER" != trigger ]; then
+            echo "the Trigger.dev control plane's drill: skipped, this run's jobs run on ${JOB_RUNNER} and its plane is stopped"
+            exit 0
+          fi
+          ./deploy/compose/trigger-version.sh drill
 
       - name: The acceptance smoke (verify + apply, through real runners)
         # 0020 T5's script. It mints a seeded-member token, drives verify and
