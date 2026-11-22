@@ -4,6 +4,20 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22: T7 built (the screens), with T6's screen; not yet run against a server.** On
+`claude/ownpace-0168-screens`, which merges T1 (`claude/ownpace-0168-core`) and T2's routes and
+table (`claude/ownpace-0168-table`). *Start a migration* gains the step `address` between `to`
+and `check` in §6.2's three cases, and otherwise keeps six steps; the person's page, the team
+screen, the migration page, the confirmed list, the Sharing checklist and the grant and progress
+pages say §6.3's lines, in English and Dutch. Proven: the web unit tests of every page touched and
+the UI smoke through the new step at phone width in Dutch (the PR quotes both). Not proven: any of
+it against a running API. Three things are written against shapes no route serves yet, and the PR
+names them: the pass's `lastPass.addressChanged`, the confirmed list's row `address`
+(`changed`/`older`), and the link door for a migrated person (`addressChanges` on the grant and
+view payloads, `PUT /api/{grant|view}/{link}/address-changes/{oldKey}`). The Dutch follows §6.2's
+draft in the dictionary's register (*u*, `GLOSSARY.md`) and without the retired word for a move
+(`a-word-the-owner-retired`); the owner reads it in the PR.
+
 **2026-11-22: ADR-0055 accepted.** The owner: *"I accept"*. T0 is done; T1 can start.
 
 **2026-11-22: all ten decisions answered.** D7, reworded, answered: *"ok, now I understand. I
@@ -41,8 +55,8 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 | T3 The change itself, as a pure function | builder | 📋 **Proposed** | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests. |
 | T4 The writers apply it, and a changed table converges | builder | 📋 **Proposed** | §3. CardDAV, JMAP contacts and CalDAV writers; `item.address_digest`; `classifyKnownItem`. |
 | T5 Verification and the confirmed list say what was changed | builder | 📋 **Proposed** | §3.1. A declared change, never a silent difference. |
-| T6 The Sharing checklist reads the table | builder | 📋 **Proposed** | §2.4. Pre-fills the grantee; each press still sends its address. |
-| T7 The screens | builder | 📋 **Proposed** | §6. *Start a migration*'s step, the person's page, the organisation's table, the migration page. |
+| T6 The Sharing checklist reads the table | builder | 📋 **Proposed; its screen built 2026-11-22 (T7's PR)** | §2.4. Pre-fills the grantee; each press still sends its address. |
+| T7 The screens | builder | 🔨 **Built 2026-11-22, not run against a server** | §6. *Start a migration*'s step, the person's page, the organisation's table, the migration page, the confirmed list, the Sharing checklist, the grant and progress pages. Unit tests and the UI smoke at phone width; three shapes written ahead of their routes (Status). The Dutch waits for the owner. |
 | T8 The E2E lane proves it | builder | 📋 **Proposed** | §8. The managed gate and the appliance's e2e: bytes changed where declared, mail byte-identical, no mail sent. |
 | T9 Words outside the app | owner | ⏳ **Waiting** | §5, §7. The privacy policy (D8), the customer guides. |
 

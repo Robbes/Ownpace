@@ -48,6 +48,7 @@
  */
 
 import React from 'react';
+import { YourNewAddress } from '../components/YourNewAddress.tsx';
 import { useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isPauseReason, type FailureCategory, type MappingLifecycle, type ViewTime } from '@openmig/shared';
@@ -556,6 +557,9 @@ const View: React.FC = () => {
       )}
 
       {person && link && <PersonProgress link={link} view={person} />}
+      {person && link && (
+        <YourNewAddress door="view" link={link} changes={person.addressChanges} queryKey={['view', link]} />
+      )}
       {person && (
         <>
           <p className="mt-8 text-sm text-gray-500">{t('view.until', { date: dateTime(person.expiresAt) })}</p>

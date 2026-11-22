@@ -6,6 +6,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **Your new address, a step of *Start a migration*, and the address changes on the pages after it**
+  (workplan 0168 T7 and T6's screen; ADR-0055). The step *Your new address* comes between *Where
+  does it go?* and *Check, then start* where an address being left is one nobody can take along,
+  where the organisation's table already holds it, or where the person ticks *I am also changing my
+  address*; otherwise the flow keeps its six steps. It says where the new address goes and where it
+  does not, takes another address and the changes of others moving along, and the check says one
+  line per changed address. Afterwards: *Addresses* on the person's page, *Address changes* on the
+  team screen, the line, the last pass's count and *Apply the new addresses here too* on a
+  migration's page, the confirmed list's *Matches, with your new address* and *Waiting for the next
+  pass*, the Sharing checklist's *From your address changes*, and *Your new address: … Is that
+  right?* on the grant and progress pages. English and Dutch; nothing sends mail.
 - **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
   (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
 - **The jobs' own database role and schema, made by the managed bring-up; nothing connects as it

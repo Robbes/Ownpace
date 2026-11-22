@@ -436,7 +436,7 @@ const MappingDetail: React.FC = () => {
       {detail.data && (
         <MigrationAddresses
           mappingId={id}
-          lifecycle={detail.data.status}
+          lifecycle={lifecycle}
           domains={detail.data.syncConfig.domains ?? []}
           domainStatus={detail.data.domainStatus}
         />
