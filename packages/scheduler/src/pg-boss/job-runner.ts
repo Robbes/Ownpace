@@ -318,7 +318,7 @@ function hasCode(err: unknown, code: string): boolean {
 
 /** What both clients share: enqueueing, waiting, status and cancel by id, the operator's view. */
 abstract class PgBossClient {
-  protected readonly boss: PgBoss;
+  readonly #boss: PgBoss;
   protected readonly pool: pg.Pool;
   protected readonly schema: string;
   protected readonly specs = new Map<string, QueueSpec>();
@@ -326,7 +326,7 @@ abstract class PgBossClient {
 
   protected constructor(opts: PgBossClientOptions, boss: Partial<ConstructorOptions>, poolName: string) {
     this.schema = identifier('schema', opts.schema);
-    this.boss = new PgBoss({
+    this.#boss = new PgBoss({
       connectionString: opts.connectionString,
       schema: opts.schema,
       max: opts.maxConnections ?? 5,
@@ -345,6 +345,11 @@ abstract class PgBossClient {
     this.pool = new pg.Pool({ connectionString: opts.connectionString, max: 2, application_name: poolName });
   }
 
+  /** The pg-boss instance; only this class makes it. */
+  protected get boss(): PgBoss {
+    return this.#boss;
+  }
+
   /**
    * Start pg-boss and refuse a schema at any version but the one this runner
    * was proved on. One that a later release migrated further is still there as
@@ -359,7 +364,7 @@ abstract class PgBossClient {
       throw said;
     }
     this.started = true;
-    const version = await this.boss.schemaVersion();
+    const version = await this.#boss.schemaVersion();
     if (version !== PG_BOSS_SCHEMA_VERSION) {
       this.started = false;
       const refused = new Error(
