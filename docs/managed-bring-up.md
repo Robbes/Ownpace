@@ -874,10 +874,17 @@ picked up again by its heartbeat.
 them; otherwise the bring-up works them out from this stack's
 `MAX_PASSES_IN_FLIGHT` and hands them to Compose for that run, without writing
 `.env`: 0.5 × (`MAX_PASSES_IN_FLIGHT` + 2) CPUs and
-(`MAX_PASSES_IN_FLIGHT` + 3) × 512 MB + 256 MB. That is 2.5 and `3328m` at the
-default cap of 3 (`managed.yml`'s own defaults), and 4 and `4864m` at live's 6.
-Docker refuses a `cpus` above the host's CPU count, so the bring-up refuses that
-value, in one sentence, before the worker starts.
+(`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB + 2,816 MB, from the worker's measured
+peak (#2048). That is 2.5 and `4864m` at the default cap of 3, and 4 and
+`6400m` at live's 6. Docker refuses a `cpus` above the host's CPU count, and a
+memory limit above the host's memory is one no host can give, so the bring-up
+refuses either, in one sentence, before the plane stops and before the worker
+starts. A line that passes names no number of the host's (the gate's log is
+public); a refusal does. Where a worked-out size differs from `managed.yml`'s
+default, the bring-up says that a compose call outside it (a hand
+`docker compose up -d`) would recreate the worker at the default, and prints
+the one `env-upsert.sh … WORKER_CPUS=… WORKER_MEMORY=…` that keeps the size in
+`.env`; it writes nothing there itself.
 
 **A comment where the worker reads a value.** A `.env` line such as
 `LEDGER_RETENTION_DAYS=  # days` (spaces or a tab, then `#`) is empty to bash,

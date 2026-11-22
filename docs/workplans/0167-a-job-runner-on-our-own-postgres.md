@@ -72,8 +72,9 @@ The coordinator's review of #2049 found the cutover path working as live will ru
   - In pg-boss mode the trigger phase checks that the worker can start before it stops the plane.
   - The plane's stop also takes a `restarting` container.
   - The worker's size follows the stack's `MAX_PASSES_IN_FLIGHT` where `.env` sets none: 0.5 ×
-    (MAX + 2) CPUs, (MAX + 3) × 512 MB + 256 MB, exported for the compose calls and never written,
-    with the host's CPU check on that value.
+    (MAX + 2) CPUs, (MAX + 1) × 512 MB + 2,816 MB (the coordinator's correction, from #2048's
+    measured peak: 4,864 MB at 3, 6,400 MB at 6), exported for the compose calls and never written.
+    Both are held to the host's (its CPU count, and Docker's MemTotal) before the plane stops.
   - A key the worker receives whose `.env` line is empty and then a comment (`KEY=  # note`) is
     refused, named, with its fix; `.env` is never rewritten.
 - **`stand-up-live.sh`** asks for the plane's three networks in trigger mode only.
