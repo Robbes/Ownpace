@@ -20,12 +20,14 @@ import { onUnauthorized } from './api.ts';
 import { rememberFault } from './recent-errors.ts';
 
 const client: AxiosInstance = axios.create({
-  baseURL: operatingBaseUrl(),
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
+// The base is read per request, not when the module loads: a page that never
+// reads the table never asks which edition it is.
 client.interceptors.request.use((config) => {
+  config.baseURL = operatingBaseUrl();
   const token = localStorage.getItem('auth_token');
   if (token && config.headers) config.headers.Authorization = `Bearer ${token}`;
   return config;

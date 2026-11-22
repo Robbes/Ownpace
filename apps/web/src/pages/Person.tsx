@@ -83,6 +83,7 @@ import { providerName } from '../components/ProviderTile.tsx';
 import { PersonGrantLinkSection, PersonViewLinkSection } from '../components/MappingLinksPanel.tsx';
 import { personLinkApi, type AwaitingGrant } from '../services/grant-link-service.ts';
 import { isSelfHost } from '../services/edition.ts';
+import { AddressChanges } from '../components/AddressChanges.tsx';
 import { useT, useFormatters, useLocale, type StringKey } from '../i18n/index.tsx';
 import type { Locale } from '../i18n/strings.ts';
 
@@ -439,6 +440,19 @@ const Person: React.FC = () => {
           />
         </section>
       )}
+
+      {/* Addresses (0168 §6.3): this person's rows of the organisation's
+          address changes. The appliance's one implicit person owns every
+          row, so it shows the whole table, read-only on its file door. */}
+      <AddressChanges
+        scope={
+          person.implicit || selfHost
+            ? { kind: 'organisation' }
+            : { kind: 'person', personId: person.id, personName: person.displayName ?? '', you: person.you }
+        }
+        canWrite
+        headingId="addresses"
+      />
 
       {/* For them (the drawing's "For Anna"): one grant link for all of their
           Google accounts, made, copied and revoked here (ADR-0035, amended

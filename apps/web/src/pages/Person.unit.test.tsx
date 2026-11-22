@@ -37,6 +37,11 @@ import { personLinkApi } from '../services/grant-link-service.ts';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../services/mapping-service', () => ({ mappingApi: { list: vi.fn(), pace: vi.fn() } }));
+// The organisation's address changes (0168 §6.3) hold nothing here; their
+// section has a test of its own (`components/AddressChanges.unit.test.tsx`).
+vi.mock('../services/address-change-service', () => ({
+  fetchAddressChanges: vi.fn(async () => ({ rows: [], door: 'api', file: null })),
+}));
 vi.mock('../services/operating-service', () => ({
   fetchPeople: vi.fn(),
   fetchAttention: vi.fn(),

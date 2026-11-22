@@ -27,8 +27,12 @@ const {
   fetchStatusMock,
   fetchAttentionMock,
   fetchProgressMock,
+  addressTableMock,
+  applyHereMock,
   editionFlag,
 } = vi.hoisted(() => ({
+  addressTableMock: vi.fn(),
+  applyHereMock: vi.fn(),
   mappingApiGet: vi.fn(),
   mappingRenameMock: vi.fn(),
   mappingVisitMock: vi.fn(),
@@ -71,6 +75,12 @@ vi.mock('../services/operating-service', () => ({
   fetchPeople: vi.fn().mockResolvedValue({ people: [], unassigned: [] }),
   createPerson: vi.fn(),
   addMigrationToPerson: vi.fn(),
+}));
+
+// The organisation's address changes (0168 §6.3): none, unless a test says.
+vi.mock('../services/address-change-service', () => ({
+  fetchAddressChanges: addressTableMock,
+  applyAddressChangesHere: applyHereMock,
 }));
 
 // And the check, from the progress read a person's lines read (0154 T1 (b)).
@@ -131,6 +141,8 @@ beforeEach(() => {
   mappingDiscoveryMock.mockResolvedValue({ mappingId: 'acme-mail', discovered: false, domains: [] });
   fetchAllDiscoveryMock.mockResolvedValue({});
   fetchRunsMock.mockResolvedValue({ runs: [] });
+  addressTableMock.mockResolvedValue({ rows: [], door: 'api', file: null });
+  applyHereMock.mockResolvedValue({});
 });
 
 const step = (key: string) => document.querySelector(`[data-step="${key}"]`) as HTMLElement;
@@ -1356,5 +1368,64 @@ describe('the steps, of this migration’s own facts', () => {
       expect(step(key).textContent, key).toContain('None');
       expect(step(key).textContent, key).not.toContain('Done');
     }
+  });
+});
+
+describe('the new address, on a migration’s page (0168 §6.3, D5)', () => {
+  const CONFIRMED = {
+    oldAddress: 'name@gmail.com',
+    oldKey: 'name@gmail.com',
+    newAddress: 'first@example.org',
+    state: 'confirmed',
+    setBy: null,
+    setByYou: true,
+    confirmedBy: null,
+    confirmedByYou: true,
+    createdAt: '2026-11-22T10:00:00.000Z',
+    confirmedAt: '2026-11-22T10:00:00.000Z',
+    person: null,
+  };
+  const contacts = (status: string, addressChanged?: number) =>
+    aMapping({
+      status,
+      syncConfig: { domains: ['contact'] },
+      domainStatus: [
+        {
+          domain: 'contact',
+          state: 'completed',
+          itemsSynced: 12,
+          itemsFailed: 0,
+          bytesTransferred: 0,
+          itemsRetrying: 0,
+          itemsNeedingDecision: 0,
+          ...(addressChanged === undefined ? {} : { lastPass: { items: 12, addressChanged } }),
+        },
+      ],
+    });
+
+  it('says nothing where the table holds no confirmed row', async () => {
+    mappingApiGet.mockResolvedValue(contacts('active', 3));
+    renderHub();
+    await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
+    expect(screen.queryByText(/Your new address is used/)).toBeNull();
+  });
+
+  it('says the new address is used, and the last pass’s count', async () => {
+    addressTableMock.mockResolvedValue({ rows: [CONFIRMED], door: 'api', file: null });
+    mappingApiGet.mockResolvedValue(contacts('active', 3));
+    renderHub();
+    expect(
+      await screen.findByText('Your new address is used in contacts and calendars · Changed in the last pass: 3'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply the new addresses here too' })).toBeNull();
+  });
+
+  it('past the switch, waits for a press, and the press asks the server', async () => {
+    addressTableMock.mockResolvedValue({ rows: [CONFIRMED], door: 'api', file: null });
+    mappingApiGet.mockResolvedValue(contacts('cutover'));
+    renderHub();
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply the new addresses here too' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('The next pass applies the new addresses here.');
+    expect(applyHereMock).toHaveBeenCalledWith('acme-mail');
   });
 });
