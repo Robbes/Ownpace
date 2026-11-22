@@ -11,7 +11,8 @@
  *    match;
  *  - the verification reader says the same, with the older keys;
  *  - a press of *Apply the new addresses here too* records the table's press
- *    digest, which the phases every pass reads hand back.
+ *    digest, which the phases every pass reads hand back;
+ *  - the completion report's counts come from the same rows.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -20,6 +21,7 @@ import {
   applyNewAddressesHere,
   createLedgerVerificationReader,
   createPgliteDb,
+  readAddressChangesForReport,
   readPathPhases,
   runMigrations,
   withTenant,
@@ -164,5 +166,10 @@ describe('the address table in a real ledger', () => {
       applyNewAddressesHere(db, TENANT, '01680000-e29b-41d4-a716-4466554400ff', 'operator'),
     );
     expect(elsewhere).toBeNull();
+  });
+
+  it('counts the completion report’s Addresses changed from the same rows', async () => {
+    const counted = await withTenant(driver, TENANT, (db) => readAddressChangesForReport(db, TENANT, MAPPING));
+    expect(counted).toEqual({ rows: 2, digest: NOW, byDomain: [{ domain: 'contact', changed: 1, older: 1 }] });
   });
 });

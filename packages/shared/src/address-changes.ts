@@ -124,6 +124,37 @@ export function addressTablePressDigest(rows: ReadonlyArray<ConfirmedAddressChan
 }
 
 /**
+ * The new address a confirmed row gives an address, or undefined when the
+ * table has no row for it (workplan 0168 §2.4, T6). Matched on the key, as
+ * every other use of the table is. The Sharing checklist proposes it for a
+ * grantee, and a folder press counts it as that grantee's confirmation
+ * (ADR-0032 §6): the row IS a person's confirmation of the new address.
+ */
+export function newAddressFor(
+  rows: ReadonlyArray<ConfirmedAddressChange>,
+  address: string,
+): string | undefined {
+  if (!isAddress(address)) return undefined;
+  const key = addressKey(address);
+  return rows.find((r) => r.oldKey === key)?.newAddress;
+}
+
+/**
+ * A sharing row as both editions serve it, with the new address a confirmed
+ * row of the address table gives its grantee (`granteeNewAddress`), for the
+ * Sharing checklist to propose (ADR-0055 decision 7; workplan 0168 T6). Left
+ * off when the table has none. Proposed, never pressed: each press still
+ * sends the address the page shows.
+ */
+export function withGranteesNewAddress<Row extends { readonly grantee?: string | null }>(
+  row: Row,
+  rows: ReadonlyArray<ConfirmedAddressChange>,
+): Row & { readonly granteeNewAddress?: string } {
+  const found = row.grantee ? newAddressFor(rows, row.grantee) : undefined;
+  return found === undefined ? row : { ...row, granteeNewAddress: found };
+}
+
+/**
  * Check and index a table. Refuses (`AddressTableRefused`), rather than
  * applying a part of it, a table the ledger should never have held: a row
  * whose key is not its old address's, two rows for one old key, a value that

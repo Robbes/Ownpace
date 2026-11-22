@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, applyNewAddressesHere, type PathEnding } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, applyNewAddressesHere, readAddressChangesForReport, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -70,6 +70,7 @@ import {
   summariseSetup,
   implicitPeople,
   ONE_PERSON_HERE,
+  withGranteesNewAddress,
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
@@ -2424,11 +2425,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           m.config.tenantId as TenantId,
           m.mailboxMappingId as MappingId,
         );
+        const addressChanges = await ledger.listConfirmedAddressChanges(m.config.tenantId as TenantId);
         return sendJson(res, 200, {
           migrationStatus: lifecycle,
           summary: summariseShareGrants(grants),
-          // The Dutch line beside the stored English, as managed answers it.
-          grants: grants.map((g) => ({ ...g, verdictTargetNl: verdictTargetFor(g, 'nl') })),
+          // The Dutch line beside the stored English, as managed answers it,
+          // and the grantee's new address from the address table (ADR-0055).
+          grants: grants.map((g) =>
+            withGranteesNewAddress({ ...g, verdictTargetNl: verdictTargetFor(g, 'nl') }, addressChanges),
+          ),
           ...(lifecycle === 'done' ? { reportingClosed: REPORTING_CLOSED } : {}),
         });
       }
@@ -2609,6 +2614,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             onError: (msg: string, err: unknown) => log.error(msg, err),
             isCutOver,
             confirmed,
+            // A confirmed address change is a grantee's confirmation (ADR-0055).
+            addressChanges: await ledger.listConfirmedAddressChanges(m.config.tenantId as TenantId),
             ...(createShare ? { createShare } : {}),
           },
           parentKey,
@@ -3051,6 +3058,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           lifecycle: await mappingStatus(m),
           generatedAt: new Date().toISOString(),
           domains: buildDomainStatusReports(statuses, failures, adopted, found),
+          // The addresses that changed (ADR-0055; workplan 0168 §6.3): counts only.
+          addressChanges: await withTenant(persistenceBackend.driver, tId, (tdb) =>
+            readAddressChangesForReport(tdb, tId, mId),
+          ),
           moves: await ledger.listMoves(tId, mId),
           deletions: await ledger.listDeletions(tId, mId),
           failures,

@@ -89,6 +89,68 @@ export interface CompletionSharingSummary {
   readonly openManual: number;
 }
 
+/**
+ * THE ADDRESSES THAT CHANGED (ADR-0055; workplan 0168 §6.3): the organisation's
+ * confirmed rows, counted, and per data type how many copies carry a new
+ * address under the table as it is now (`changed`) or under an older one
+ * (`older`, waiting for the next pass). Counts only: the report narrates
+ * counts, never the addresses (§17).
+ */
+export interface CompletionAddressChanges {
+  readonly rows: number;
+  readonly digest: string | null;
+  readonly byDomain: ReadonlyArray<{
+    readonly domain: 'contact' | 'calendar' | 'task';
+    readonly changed: number;
+    readonly older: number;
+  }>;
+}
+
+/** The section's sentences, in both languages (EN and NL key parity), for the document and the screen. */
+export interface CompletionAddressChangesSaid {
+  readonly heading: { readonly en: string; readonly nl: string };
+  readonly lines: ReadonlyArray<{ readonly en: string; readonly nl: string }>;
+}
+
+const DATA_TYPE_SAID: Record<CompletionAddressChanges['byDomain'][number]['domain'], { en: string; nl: string }> = {
+  contact: { en: 'Contacts', nl: 'Contacten' },
+  calendar: { en: 'Calendars', nl: "Agenda's" },
+  task: { en: 'Tasks', nl: 'Taken' },
+};
+
+/**
+ * What the report says about the addresses (ADR-0055), in English and in
+ * Dutch: how many changes were confirmed, how many copies carry them per data
+ * type, and, always, that mail was copied unchanged.
+ */
+export function addressChangesSaid(changes: CompletionAddressChanges): CompletionAddressChangesSaid {
+  const lines: Array<{ en: string; nl: string }> = [];
+  lines.push({
+    en: `${changes.rows} address ${changes.rows === 1 ? 'change was' : 'changes were'} confirmed for this organisation.`,
+    nl: `${changes.rows} ${changes.rows === 1 ? 'adreswijziging is' : 'adreswijzigingen zijn'} bevestigd voor deze organisatie.`,
+  });
+  for (const d of changes.byDomain) {
+    const name = DATA_TYPE_SAID[d.domain];
+    lines.push({
+      en:
+        `${name.en}: ${d.changed} ${d.changed === 1 ? 'copy carries' : 'copies carry'} a new address.` +
+        (d.older > 0 ? ` ${d.older} ${d.older === 1 ? 'waits' : 'wait'} for the next pass.` : ''),
+      nl:
+        `${name.nl}: ${d.changed} ${d.changed === 1 ? 'kopie heeft' : "kopieën hebben"} een nieuw adres.` +
+        (d.older > 0 ? ` ${d.older} ${d.older === 1 ? 'wacht' : 'wachten'} op de volgende ronde.` : ''),
+    });
+  }
+  lines.push({
+    en:
+      'Mail was copied unchanged: every message is exactly as it was sent, so its signatures ' +
+      'and its history stay intact.',
+    nl:
+      'Mail is ongewijzigd gekopieerd: elk bericht is precies zoals het is verstuurd, zodat de ' +
+      'handtekening en de geschiedenis ervan intact blijven.',
+  });
+  return { heading: { en: 'Addresses changed', nl: 'Gewijzigde adressen' }, lines };
+}
+
 export interface CompletionReportInputs {
   readonly mappingId: string;
   readonly name?: string;
@@ -102,6 +164,8 @@ export interface CompletionReportInputs {
   readonly failures: ReadonlyArray<ItemFailure>;
   readonly applied?: CompletionAppliedSummary;
   readonly sharing?: CompletionSharingSummary;
+  /** The address table's part (ADR-0055), where the edition read it. */
+  readonly addressChanges?: CompletionAddressChanges;
 }
 
 export interface CompletionReport {
@@ -115,6 +179,12 @@ export interface CompletionReport {
   readonly queues: CompletionQueueSummary;
   readonly applied?: CompletionAppliedSummary;
   readonly sharing?: CompletionSharingSummary;
+  /**
+   * *Addresses changed* (ADR-0055; workplan 0168 §6.3), with its sentences in
+   * both languages. Absent when the organisation confirmed no change and no
+   * copy carries one: a migration the table never touched reads as before.
+   */
+  readonly addressChanges?: CompletionAddressChanges & { readonly said: CompletionAddressChangesSaid };
   /**
    * The one-sentence verdict, derived, never hand-set: "complete" only when
    * every enabled domain completed AND nothing is waiting on a decision. A
@@ -198,6 +268,9 @@ export function buildCompletionReport(inputs: CompletionReportInputs): Completio
     queues,
     ...(inputs.applied ? { applied: inputs.applied } : {}),
     ...(inputs.sharing ? { sharing: inputs.sharing } : {}),
+    ...(inputs.addressChanges && (inputs.addressChanges.rows > 0 || inputs.addressChanges.byDomain.length > 0)
+      ? { addressChanges: { ...inputs.addressChanges, said: addressChangesSaid(inputs.addressChanges) } }
+      : {}),
     verdict: !allComplete
       ? 'in_progress'
       : decisionsPending
@@ -323,6 +396,12 @@ export function renderCompletionReportMarkdown(report: CompletionReport): string
           'retired. Work the Sharing screen until this line reads zero.',
       );
     }
+  }
+  if (report.addressChanges) {
+    lines.push('');
+    lines.push(`## ${report.addressChanges.said.heading.en}`);
+    lines.push('');
+    for (const line of report.addressChanges.said.lines) lines.push(`- ${line.en}`);
   }
   // The last section on purpose. Everything above is what happened; this is the
   // one thing still outstanding, and it is outstanding on the READER's side —

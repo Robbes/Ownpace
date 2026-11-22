@@ -4425,6 +4425,14 @@ paths:
                             The same line in Dutch, without the English developer
                             note; said on each read, never stored (UX sweep,
                             2026-10-17). The page shows it to a Dutch reader.
+                        granteeNewAddress:
+                          type: string
+                          description: >-
+                            The new address a confirmed row of the organisation's
+                            address table gives this grantee (ADR-0055; workplan 0168
+                            T6), for the page to propose, labelled as from the address
+                            changes. Absent when the table has none. Proposed, never
+                            pressed: a press still sends the address the page shows.
                         state: { type: string, enum: [open, applied, done_manual, skipped] }
                         stateReason: { type: string }
                         decidedBy: { type: string }
@@ -4601,6 +4609,15 @@ paths:
         address, or nothing is sent**: the 409 names exactly who is missing. An
         entry may repeat the source's own address unchanged; §6 asks for a
         person's judgement on the address, not for it to be different.
+
+        **A confirmed address change is such a confirmation** (ADR-0055
+        decision 7; workplan 0168 T6). A grantee left out of `confirmed`
+        whose old address has a confirmed row in the organisation's table
+        (`/api/address-changes`) is sent to that row's new address, matched on
+        the address's key, and is not named in the 409. An address in
+        `confirmed` wins over the row. A proposed row confirms nothing. The
+        press records how many grantees the table confirmed, never their
+        addresses.
 
         Which rows are in the folder is derived server-side with the same
         grouping rule the screen folds with, from `parentKey` alone — a caller
@@ -4802,6 +4819,14 @@ paths:
         `itemsFound`, what discovery found of the data type, where a count
         exists (absent, never 0, where none does), and `itemsAdopted`, what
         was left as it already was.
+
+        `report.addressChanges` (ADR-0055; workplan 0168 §6.3) is *Addresses
+        changed*: how many address changes the organisation confirmed, per
+        data type how many copies carry a new address and how many wait for
+        the next pass, and that mail was copied unchanged, with each sentence
+        in English and Dutch under `said`. Counts only, never an address.
+        Absent when the organisation confirmed no change and no copy carries
+        one.
       parameters:
         - { name: mappingId, in: path, required: true, schema: { type: string } }
       responses:
@@ -5166,6 +5191,21 @@ paths:
                     total:
                       type: integer
                       description: Every item in the account, including the ones `rows` does not carry.
+                    addressChanges:
+                      type: object
+                      description: |
+                        The address table's part of the account (ADR-0055; workplan
+                        0168 T5): the organisation's confirmed table's `digest` now,
+                        how many copies carry a change under it (`changed`), and how
+                        many under an older table (`older`). An older one is never
+                        `verified`: its row reads `differs`, marked `address: older`
+                        (*Waiting for the next pass*). A row changed under the table
+                        now is marked `address: changed` (*Matches, with your new
+                        address*). Counted over every item, as `byState` is.
+                      properties:
+                        digest: { type: [string, 'null'] }
+                        changed: { type: integer }
+                        older: { type: integer }
                     byState:
                       type: object
                       description: |
@@ -9937,6 +9977,19 @@ components:
         checksumMismatches: { type: integer }
         checksumSampleSize: { type: integer }
         checksumUnavailable: { type: integer }
+        addressChanges:
+          type: object
+          description: |
+            The address table's part of this data type (ADR-0055; workplan 0168
+            T5), when the ledger keeps one: the organisation's confirmed table's
+            `digest` now, how many copies carry a change under it (`changed`),
+            and how many under an OLDER table (`older`). Those wait for the next
+            pass, and a sample of one is never a match: it counts in
+            `checksumUnavailable`, and an `ADDRESS_OLDER_TABLE_*` warning says so.
+          properties:
+            digest: { type: [string, 'null'] }
+            changed: { type: integer }
+            older: { type: integer }
         totalBytesSource: { type: integer }
         totalBytesTarget: { type: [integer, 'null'] }
         issues:
