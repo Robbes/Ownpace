@@ -10,7 +10,7 @@
     "./db": "./src/db.ts"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.16",
+    "@electric-sql/pglite": "^0.5.17",
     "@openmig/core": "workspace:*",
     "@openmig/shared": "workspace:*",
     "@types/pg": "catalog:",
