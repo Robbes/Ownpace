@@ -254,6 +254,16 @@ load_env() {
   # the owner's.
   seed_docker_socket_gid "$ENV_FILE" ||
     die "the Docker socket's group could not be written into ${ENV_FILE} (above)."
+  # THE JOBS ROLE'S PASSWORD, for the same reason and at the same place
+  # (ADR-0054, workplan 0167 T7's first part): the data phase sets
+  # JOBS_DB_PASSWORD on `ownpace_jobs` on every run (jobs_role_ready), and
+  # deploy-live.sh runs `--from data`, so live's first deploy of a checkout
+  # that carries the role finds its .env without the key. Seeded here, before
+  # the file is sourced and before any Compose call, as system_role_ready seeds
+  # SYSTEM_DB_PASSWORD, and only when it is missing: ensure-env-secrets.sh
+  # fills in a missing secret and never replaces one, and --only keeps it to
+  # this one (seed_jobs_db_password).
+  seed_jobs_db_password
   # Before the file is sourced, so a value exported by another stack's shell
   # is still told apart from this .env's (pgbouncer_userlist, env-read.sh).
   refuse_a_userlist_docker_would_make_a_directory
@@ -321,6 +331,22 @@ load_env() {
     fi
     exit 1
   fi
+}
+
+# seed_jobs_db_password — JOBS_DB_PASSWORD into .env when it is missing,
+# through `ensure-env-secrets.sh --only JOBS_DB_PASSWORD`, which says what it
+# generated, never prints a value and touches no other key: load_env refuses
+# a real address's missing database passwords a few lines below, and a full
+# run here would have generated them first. A key that is set is left alone,
+# and ensure-env-secrets.sh is not run at all then.
+# scripts/a-password-the-repository-knows.unit.test.ts, (f), runs it both ways,
+# and scripts/bootstrap-managed.unit.test.ts holds --only to that one key.
+seed_jobs_db_password() {
+  [ -z "$(env_get JOBS_DB_PASSWORD)" ] || return 0
+  note "JOBS_DB_PASSWORD is not in .env yet: generating it with ensure-env-secrets.sh --only JOBS_DB_PASSWORD (it fills in that one missing secret)"
+  "${SCRIPT_DIR}/ensure-env-secrets.sh" --only JOBS_DB_PASSWORD ||
+    die "ensure-env-secrets.sh could not fill in JOBS_DB_PASSWORD (above)."
+  [ -n "$(env_get JOBS_DB_PASSWORD)" ] || die "JOBS_DB_PASSWORD is still empty in ${ENV_FILE} after ensure-env-secrets.sh (above)."
 }
 
 # EVERY *_BIND IS AN IPv4 ADDRESS, AND NONE IS EVERY INTERFACE (workplan 0132 T3).
@@ -1402,8 +1428,72 @@ trigger_db_role_matches_env() {
 }
 
 # ---------------------------------------------------------------------------
+# THE JOBS ROLE AND ITS SCHEMA, ON EVERY RUN (ADR-0054, workplan 0167 T7's
+# first part).
+#
+# pg-boss keeps the managed edition's jobs in the ledger's database, in the
+# schema `pgboss`, owned by `ownpace_jobs`: a plain role that owns that schema
+# and nothing else, and may read no table of `public`. The worker will connect
+# as it through the pooler (JOBS_DATABASE_URL, a later change); nothing does
+# yet. The role and the schema are made here, from jobs-role.sql, and not by
+# a migration: a file added to either chain would make live's deploy of this
+# release one-way (deploy-live.sh), and pgbouncer_auth is made the same way.
+#
+# Every run, in this order, each step stopping the bring-up when it fails:
+#   1. jobs-role.sql, as the owner over the socket: the role made with its
+#      attributes and no password when it does not exist, and the schema made
+#      for it when that does not. Neither is changed when it exists.
+#   2. the catalog asked whether the role is fit (db_roles_jobs_fit). An unfit
+#      one is refused, naming every reason, and nothing here repairs it: a
+#      role somebody changed is for a person to look at.
+#   3. .env's JOBS_DB_PASSWORD set on it, with every setting on the role
+#      cleared in the same transaction (db_roles_jobs_set, as
+#      db_roles_system_set does for ownpace_system).
+#   4. once the pooler is up, the password proven where the worker will
+#      connect: over the stack's network and through PgBouncer
+#      (jobs_role_proven, below).
+# load_env seeded the key when it was missing, before any Compose call.
+#
+# scripts/a-password-the-repository-knows.unit.test.ts runs the phase against
+# a docker stub and holds this order, and that no value is printed.
+jobs_role_ready() {
+  local rc=0
+  # shellcheck source=deploy/compose/db-roles.sh
+  . "${SCRIPT_DIR}/db-roles.sh"
+  db_roles_init "$ENV_FILE" || die "the checkout's compose project could not be read (above)."
+  [ -n "$DB_ROLES_JOBS_PASSWORD" ] || die "JOBS_DB_PASSWORD is empty in ${ENV_FILE}; ensure-env-secrets.sh fills it in."
+  # The worker will put it in JOBS_DATABASE_URL as it is.
+  [[ "$DB_ROLES_JOBS_PASSWORD" =~ ^[A-Za-z0-9._~-]+$ ]] ||
+    die "JOBS_DB_PASSWORD holds a character a URL does not carry as it is, and the worker puts it in JOBS_DATABASE_URL. ${DB_ROLES_JOBS} was not changed. Use hex (openssl rand -hex 24), as ensure-env-secrets.sh makes. Its value is not printed."
+  db_roles_jobs_ensure || die "jobs-role.sql did not run: ${DB_ROLES_WHY}"
+  db_roles_jobs_fit || rc=$?
+  case "$rc" in
+    0) ;;
+    1) die "REFUSED, before its password is set: ${DB_ROLES_WHY}. Nothing here repairs the role; docs/managed-bring-up.md, 'The jobs role', says how to put it back as jobs-role.sql makes it, then run this again." ;;
+    *) die "could not ask Postgres what ${DB_ROLES_JOBS} may do, so its password is not set: ${DB_ROLES_WHY}" ;;
+  esac
+  note "${DB_ROLES_JOBS}: no superuser, may create no role or database, NOINHERIT, no BYPASSRLS, a member of no role and no role a member of it, owns ${DB_ROLES_JOBS_SCHEMA} and nothing else, no privilege on any table of public, no grant naming it, may create no schema and nothing in public (idempotent)"
+  db_roles_jobs_set "$DB_ROLES_JOBS_PASSWORD" || die "could not set ${DB_ROLES_JOBS}'s password: ${DB_ROLES_WHY}. No value is printed."
+  note "${DB_ROLES_JOBS} holds .env's JOBS_DB_PASSWORD, with no setting left on it"
+}
+
+jobs_role_proven() {
+  local rc=0 role channel asked why verdict
+  db_roles_jobs_prove "$DB_ROLES_JOBS_PASSWORD" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    while IFS='|' read -r role channel asked why; do
+      [ -n "$role" ] || continue
+      case "$asked" in 0) verdict='opens' ;; 1) verdict='REFUSED' ;; *) verdict='could not be asked' ;; esac
+      echo "!!!   ${role} over the ${channel}: ${verdict}${why:+ (${why})}" >&2
+    done <<<"$DB_ROLES_PROOF"
+    die "${DB_ROLES_JOBS} was set to .env's JOBS_DB_PASSWORD and does not open with it where the worker will connect (above). No value is printed."
+  fi
+  note "${DB_ROLES_JOBS} opens with JOBS_DB_PASSWORD over the stack's network and through the pooler"
+}
+
+# ---------------------------------------------------------------------------
 phase_data() {
-  say data "postgres, the two roles set to .env, the pooler's lookup role, pgbouncer"
+  say data "postgres, the two roles set to .env, the pooler's lookup role, the jobs role and its schema, pgbouncer"
   load_env
 
   # Which postgres container ran before this `up`, so that a replaced one is
@@ -1447,6 +1537,10 @@ phase_data() {
     -U "${POSTGRES_USER:-openmigrate}" -d "${POSTGRES_DB:-openmigrate}" \
     -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements' >/dev/null
   note "pg_stat_statements present (idempotent)"
+
+  # The jobs' role and schema (jobs_role_ready, above): made, judged and given
+  # .env's password before the pooler starts, proven through it after.
+  jobs_role_ready
 
   # pgbouncer.ini's auth_dbname is a literal — compose mounts that file
   # verbatim, so it cannot read POSTGRES_DB. A mismatch does not fail at
@@ -1519,6 +1613,8 @@ phase_data() {
 
   # The two roles, asked the way the stack's containers ask.
   database_roles_proven
+  # And the jobs role, the same way.
+  jobs_role_proven
 
   if [ "$WITH_DEMO" -eq 1 ]; then
     nextcloud_database_ready
