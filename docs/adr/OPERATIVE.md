@@ -792,3 +792,9 @@ live in [README.md](./README.md), the register.
   way back (`OWNPACE_JOB_RUNNER=trigger`); removed only on the owner's word.
 - **A job carries ids only** (ADR-0004). Self-host keeps its in-process scheduler. The rules in
   full: *In force from workplan 0167 T7*, below.
+
+## [ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail](./0055-a-new-address-is-a-declared-change.md)
+
+- **Nothing is operative — proposed 2026-11-22, not accepted.** Until the owner accepts it, every
+  copy stays as ADR-0043 and ADR-0005 describe: no address in any copied item is changed. Workplan
+  0168 §9 holds the decisions this waits on.
