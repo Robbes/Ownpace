@@ -678,7 +678,7 @@ function runScript(args: string[], answers: Record<string, string> = {}, script 
   tempDirs.push(root);
   const compose = join(root, 'deploy', 'compose');
   mkdirSync(compose, { recursive: true });
-  for (const f of ['check-env-agreement.sh', 'trigger-cli-lib.sh', 'env-read.sh', 'own-addresses.sh', 'stack-kind.sh', 'db-roles.sh', 'managed.yml']) {
+  for (const f of ['check-env-agreement.sh', 'trigger-cli-lib.sh', 'env-read.sh', 'job-runner.sh', 'own-addresses.sh', 'stack-kind.sh', 'db-roles.sh', 'managed.yml']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   writeFileSync(join(compose, 'set-task-env.sh'), script);
@@ -722,6 +722,8 @@ function runScript(args: string[], answers: Record<string, string> = {}, script 
       HOME: root,
       STAND_IN_LOG: root,
       STAND_IN_FIT_ANSWER: FIT_ANSWER,
+      // Trigger mode: this script works on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
+      OWNPACE_JOB_RUNNER: 'trigger',
       ...answers,
     },
     encoding: 'utf8',

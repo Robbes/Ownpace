@@ -24,7 +24,9 @@ set -euo pipefail
 #      docker compose -f deploy/compose/managed.yml up -d (rest of the stack; never
 #      `up --build`, which rebuilds the databases' image too: managed.yml's postgres)
 #   5. ./deploy/compose/deploy-tasks.sh          (Trigger.dev tasks — needed for
-#      verify/apply's job loop; one-time dashboard steps in that script's header)
+#      verify/apply's job loop; one-time dashboard steps in that script's header).
+#      Trigger mode only: where OWNPACE_JOB_RUNNER=pg-boss the jobs ship in the
+#      worker's image and deploy-tasks.sh refuses (workplan 0167 T7)
 #
 # Idempotent: both underlying scripts are safe to re-run.
 #
@@ -79,6 +81,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # way Compose and `source` would. See deploy/compose/env-read.sh.
 # shellcheck source=deploy/compose/env-read.sh
 . "${SCRIPT_DIR}/env-read.sh"
+# Which runner the jobs run on, for the last line (workplan 0167 T7).
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
 
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
@@ -231,3 +236,11 @@ echo "[setup-managed-demo]   DAV:   http://nextcloud/ on ${MANAGED_NETWORK}"
 # The API and the tasks refuse a compose name unless OWNPACE_REACHABLE_HOSTS
 # lists it (workplan 0136 T2); bootstrap-managed.sh's demo phase writes both.
 echo "[setup-managed-demo]   Both names need OWNPACE_REACHABLE_HOSTS=nextcloud,stalwart in .env"
+if ! job_runner_mode "$SCRIPT_DIR"; then
+  echo "[setup-managed-demo] ${JOB_RUNNER_WHY}" >&2
+  exit 1
+elif [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
+  echo "[setup-managed-demo]   pg-boss mode: the jobs ship in the worker's image, so step 5 (deploy-tasks.sh) is not run here"
+else
+  echo "[setup-managed-demo]   trigger mode: step 5, deploy-tasks.sh, deploys the Trigger.dev tasks"
+fi

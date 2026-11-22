@@ -312,10 +312,28 @@ time the `latest` channel exists — check it appeared.
 | Workflow | Produces | What `verify` checks |
 |---|---|---|
 | `security-scan.yml` | the GitHub release, first under Release, with its generated body (pull lines, verify one-liner, changelog link) and `bom.json` (CycloneDX SBOM) | published, the pre-release flag right, exactly one generated block, the changelog link, `bom.json` attached, CycloneDX, naming the version |
-| `images.yml` | `ownpace-{api,web,selfhost}:<X.Y.Z>` multi-arch on GHCR, cosign-signed by digest | linux/amd64 and linux/arm64, the revision label C, `sha-<C>` the same index, `latest` withheld from a pre-release, and `cosign verify` by digest with the exact identity `https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/tags/<tag>` and then the documented one: `cosign verify ghcr.io/robbes/ownpace-selfhost:<X.Y.Z> --certificate-identity-regexp '^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/' --certificate-oidc-issuer https://token.actions.githubusercontent.com` |
+| `images.yml` | `ownpace-{api,web,selfhost,worker}:<X.Y.Z>` multi-arch on GHCR, cosign-signed by digest | linux/amd64 and linux/arm64, the revision label C, `sha-<C>` the same index, `latest` withheld from a pre-release, and `cosign verify` by digest with the exact identity `https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/tags/<tag>` and then the documented one: `cosign verify ghcr.io/robbes/ownpace-selfhost:<X.Y.Z> --certificate-identity-regexp '^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/' --certificate-oidc-issuer https://token.actions.githubusercontent.com` |
 | `windows-payload.yml` | `ownpace-appliance-win-x64-v<X.Y.Z>.zip` attached to the release by its `release` job, only after its `smoke` job ran that payload on a hosted `windows-2025` runner (Phases 1 and 2 of the Windows runbook) (unsigned — SmartScreen prompt documented in the runbook) | attached, its `SHA256SUMS.txt` holds for every file, and its `node.exe` hashes to the sum the tagged commit pins (`NODE_RUNTIME_SHA256` in `scripts/package-appliance.mjs`, read at the commit; a tag from before 2026-11-01 gets a note) |
 
 And `GET /version` on the selfhost image, started on PGlite: the version and C.
+
+`ownpace-worker`, the managed edition's job worker (ADR-0054), is published from
+`0.2.0-alpha.16` on (`FIRST_RELEASE` in `scripts/release-verify.mjs`): `verify` on an older tag
+notes it rather than refusing, and the weekly image scan reads its release from that tag on.
+
+**The owner's step once, before alpha.16 (workplan 0167 T7).** The first `main` run of `images.yml`
+after the worker's image merges creates `ghcr.io/robbes/ownpace-worker`, and GHCR may create a new
+package private (it did so for `ownpace-task-base`, workplan 0119). The weekly image scan and
+`verify` pull anonymously, so a private package fails the scan's worker leg and alpha.16's
+`verify`. After that run, in the package's settings on GitHub, set its visibility to public, as
+the other images are, and check a pull with no login:
+
+```bash
+docker logout ghcr.io
+docker pull ghcr.io/robbes/ownpace-worker:edge
+```
+
+Do it before the next weekly scan and before the alpha.16 tag.
 
 `images.yml` builds no `ownpace-task-base` on a tag. The managed tasks' prebuilt base is
 published from `main` only, as `edge` and `sha-<commit>`, and a release carries it as the

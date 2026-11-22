@@ -388,8 +388,8 @@ const buildJob = workflow.jobs['build']!;
 const PROBE_STEP = "The tasks' base starts as the CLI's runtime stage starts it, and has no shell";
 
 describe('images.yml builds, runs and signs the base, from main and on a pull request only', () => {
-  it('is a leg of the build job, added on a pull request and on main and never on a tag, beside the three the scan and the release read', () => {
-    expect(buildJob.strategy?.matrix?.image).toEqual(['api', 'web', 'selfhost']);
+  it('is a leg of the build job, added on a pull request and on main and never on a tag, beside the images the scan and the release read', () => {
+    expect(buildJob.strategy?.matrix?.image).toEqual(['api', 'web', 'selfhost', 'worker']);
     expect(buildJob.strategy?.matrix?.include).toBe(INCLUDE);
     expect(workflow.on.pull_request.paths).toContain('apps/worker/task-image/**');
   });
@@ -400,7 +400,7 @@ describe('images.yml builds, runs and signs the base, from main and on a pull re
     for (const step of attempts) {
       expect(step.with?.context).toBe(`\${{ matrix.image == 'task-base' && '${CONTEXT}' || '.' }}`);
       expect(step.with?.file).toBe(`\${{ matrix.image == 'task-base' && '${DOCKERFILE}' || format('apps/{0}/Dockerfile', matrix.image) }}`);
-      expect(step.with?.load).toBe("${{ github.event_name == 'pull_request' && matrix.image == 'task-base' }}");
+      expect(step.with?.load).toBe("${{ github.event_name == 'pull_request' && (matrix.image == 'task-base' || matrix.image == 'worker') }}");
       expect(step.with?.push).toBe("${{ github.event_name != 'pull_request' }}");
     }
     expect(attempts[0]!.with).toEqual(attempts[1]!.with);

@@ -19,8 +19,9 @@
  * While one is open it answers 409 with the hold's sentence and hands back
  * nothing, and the door returns having written and enqueued nothing.
  * Otherwise it hands back the enqueue, which holds the only `tasks.trigger(`
- * in `apps/api/src`. `a-hold-that-holds-every-door.unit.test.ts` sweeps the
- * source for any other.
+ * in `apps/api/src`, and the only pg-boss enqueue (0167 T6: the runner
+ * `OWNPACE_JOB_RUNNER` names, `job-runner.ts`).
+ * `a-hold-that-holds-every-door.unit.test.ts` sweeps the source for any other.
  *
  * *Sync now*'s gates live in `routes/migrations/sync-now.ts` (`pressSyncNow`),
  * which the route and the machine's press for live's pass check
@@ -44,7 +45,7 @@
  * A press the route itself joins to work already under way enqueues nothing
  * and is not asked: *Start* on a migration already active, a verification
  * already running, an apply whose receipt is still queued, a confirmation
- * already running. Discovery is different. Its join is Trigger.dev's (the
+ * already running. Discovery is different. Its join is the runner's (the
  * idempotency key in `discoveryTriggerOptions`), decided inside the enqueue,
  * so the door asks first, and while a hold is open a discovery press is
  * refused even when it would only have joined a count begun in the last
@@ -90,14 +91,35 @@ import type { Pool } from 'pg';
 import type { LedgerDriver } from '@openmig/ledger';
 import { readOpenPause, readOrganisationClosure } from '@openmig/managed';
 import { getTriggerClient } from '@openmig/scheduler';
+import type { EnqueueOptions } from '@openmig/scheduler/pg-boss';
+import { log } from '@openmig/shared';
 import { withTenantDb } from './middleware/auth.ts';
 import { accountClosedAnswer } from './closed-organisation.ts';
+import { jobRunner, pgBossProducer } from './job-runner.ts';
 import type { Answerable } from './types/api.ts';
 
-type Trigger = ReturnType<typeof getTriggerClient>['tasks']['trigger'];
+/** What a door asks of the enqueue besides the task and its payload: Trigger.dev's names for them. */
+export interface EnqueueAsked {
+  readonly tags?: readonly string[];
+  /** One running run per value: Trigger.dev's `concurrencyKey`, pg-boss's singleton key. */
+  readonly concurrencyKey?: string;
+  /** The same key within `idempotencyKeyTTL` hands back the run it started. */
+  readonly idempotencyKey?: string;
+  /** Trigger.dev's duration, as `job-resolution.ts` writes it: `<n>s`, `<n>m`, `<n>h` or `<n>d`. */
+  readonly idempotencyKeyTTL?: string;
+}
 
-/** The SDK's own `tasks.trigger`, handed out only while no hold is open. */
-export type Enqueue = (...args: Parameters<Trigger>) => ReturnType<Trigger>;
+/**
+ * The enqueue, on whichever runner `OWNPACE_JOB_RUNNER` names (0167 T6),
+ * handed out only while no hold is open. Every door reads the run's `id` and
+ * nothing else of what comes back; on pg-boss `joined` also says whether an
+ * earlier run with the same idempotency key was handed back.
+ */
+export type Enqueue = (
+  taskId: string,
+  payload: Record<string, unknown>,
+  options?: EnqueueAsked,
+) => Promise<{ readonly id: string; readonly joined?: boolean }>;
 
 /** What a held door says when the operator typed no sentence. */
 export const HELD_DEFAULT =
@@ -116,8 +138,9 @@ async function whatStopsAStart(tenantId: string, source: Pool | LedgerDriver) {
  * and return null when either stops the press.
  *
  * Otherwise returns the enqueue. The client is built when the enqueue is
- * called, not here, so a deployment without `TRIGGER_SECRET_KEY` still fails
- * where each door already lands that failure on its own row.
+ * called, not here, so a deployment without `TRIGGER_SECRET_KEY` (or, on
+ * pg-boss, without `JOBS_DATABASE_URL`) still fails where each door already
+ * lands that failure on its own row.
  */
 export async function enqueueUnlessHeld(
   res: Answerable,
@@ -157,5 +180,104 @@ export async function enqueueIfFree(
   return { enqueue };
 }
 
-/** The SDK's own `tasks.trigger`: the one enqueue in this API, handed out only by the two doors above. */
-const enqueue: Enqueue = (...args) => getTriggerClient().tasks.trigger(...args);
+/**
+ * The one enqueue in this API, handed out only by the two doors above. On
+ * Trigger.dev it is the SDK's own `tasks.trigger`, called exactly as before,
+ * so every test that mocks `@openmig/scheduler` still hears it. On pg-boss it
+ * is the producer's, which this module reaches only on that branch.
+ */
+const enqueue: Enqueue = async (taskId, payload, options = {}) => {
+  if (jobRunner() === 'trigger') {
+    const { tags, ...rest } = options;
+    return getTriggerClient().tasks.trigger(taskId, payload, { ...rest, ...(tags ? { tags: [...tags] } : {}) });
+  }
+  return enqueueOnPgBoss(taskId, payload, options);
+};
+
+/**
+ * The pg-boss half, reached only through the enqueue the two doors above hand
+ * out; not exported, so no door can enqueue round the hold through it
+ * (`a-hold-that-holds-every-door`). A queue the worker has not made (it never
+ * started on this schema) fails here, naming the queue, and the door lands
+ * that on its row as any failed enqueue. A connection that failed is said in
+ * `QUEUE_UNREACHABLE`, with no address, and logged as it was: the doors echo
+ * the message to the person who pressed, and node-postgres names the host
+ * and port it could not reach.
+ */
+async function enqueueOnPgBoss(
+  taskId: string,
+  payload: Record<string, unknown>,
+  options: EnqueueAsked,
+): Promise<{ readonly id: string; readonly joined: boolean }> {
+  let enqueued: { runId: string | null; joined: boolean };
+  try {
+    const producer = await pgBossProducer();
+    enqueued = await producer.enqueue(taskId, payload, pgBossOptionsFor(options));
+  } catch (err) {
+    if (!isUnreachable(err)) throw err;
+    log.error(`[jobs] the job queue could not be reached to enqueue "${taskId}":`, err);
+    // The cause is for the server's log; the doors echo the message alone.
+    throw new Error(QUEUE_UNREACHABLE, { cause: err });
+  }
+  // Only a `stately` queue turns a run away without an id, and none of the
+  // queues this API enqueues on is one; said, never returned as a run.
+  if (enqueued.runId === null) throw new Error(`pg-boss turned the run on "${taskId}" away: one is already waiting.`);
+  return { id: enqueued.runId, joined: enqueued.joined };
+}
+
+/** What a door says, and stores, when the jobs database could not be reached. */
+export const QUEUE_UNREACHABLE = 'The job queue could not be reached, so nothing was enqueued. Try again shortly.';
+
+/** Socket errors Node gives for a host it could not reach or that dropped the connection. */
+const UNREACHABLE_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EPIPE',
+]);
+
+/**
+ * Whether the enqueue failed on the way to the database rather than in it:
+ * a socket error, Postgres's connection-exception class (`08…`), a refused
+ * login (`28…`), a server shutting down or not yet up (`57P0…`), or a
+ * dropped or timed-out connection. Read
+ * through `cause` and an `AggregateError`'s errors, which is how Node reports
+ * a name that resolved to several addresses.
+ */
+export function isUnreachable(err: unknown, depth = 0): boolean {
+  if (depth > 5 || err === null || typeof err !== 'object') return false;
+  const e = err as { code?: unknown; message?: unknown; cause?: unknown; errors?: unknown };
+  const code = typeof e.code === 'string' ? e.code : '';
+  if (UNREACHABLE_CODES.has(code) || /^(08|28|57P0)/.test(code)) return true;
+  const message = typeof e.message === 'string' ? e.message : '';
+  if (/Connection terminated|timeout expired when connecting|^connect E[A-Z]+ /.test(message)) return true;
+  if (Array.isArray(e.errors) && e.errors.some((x) => isUnreachable(x, depth + 1))) return true;
+  return isUnreachable(e.cause, depth + 1);
+}
+
+/** Trigger.dev's options in the runner's words: the singleton key, the idempotency key and its seconds, the tags. */
+export function pgBossOptionsFor(options: EnqueueAsked): EnqueueOptions {
+  if (options.idempotencyKey !== undefined && options.idempotencyKeyTTL === undefined) {
+    throw new Error('An idempotency key was asked for without how long it holds (idempotencyKeyTTL).');
+  }
+  return {
+    ...(options.concurrencyKey !== undefined ? { serializeBy: options.concurrencyKey } : {}),
+    ...(options.idempotencyKey !== undefined
+      ? { idempotency: { key: options.idempotencyKey, ttlSeconds: durationSeconds(options.idempotencyKeyTTL!) } }
+      : {}),
+    ...(options.tags ? { tags: [...options.tags] } : {}),
+  };
+}
+
+const UNIT_SECONDS: Readonly<Record<string, number>> = { s: 1, m: 60, h: 3_600, d: 86_400 };
+
+/** `'15m'` → 900: the duration forms Trigger.dev's `idempotencyKeyTTL` takes. Throws on any other. */
+export function durationSeconds(duration: string): number {
+  const m = /^(\d+)([smhd])$/.exec(duration);
+  if (!m) throw new Error(`"${duration}" is not a duration this API can read (a number and s, m, h or d).`);
+  return Number(m[1]) * UNIT_SECONDS[m[2]!]!;
+}

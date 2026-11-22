@@ -24,6 +24,12 @@
  *   60 s (pg-boss adds up to as much again at random), and an hour a run. The
  *   hour is the pass's hard limit, `PASS_HARD_LIMIT_MS`, which its soft
  *   deadline stops short of (`scripts/a-pass-that-outlives-its-runner`).
+ *   **But the cutover: three hours.** Trigger.dev 4.8.8 counts `maxDuration`
+ *   on a run's CPU time, its wall time less its pauses, and a
+ *   `triggerAndWait` is a pause (`usage.pauseAsync`). A cutover's preparation
+ *   waits for a pass already running on its migration, then for its own final
+ *   sync, then runs the gate; pg-boss's limit is the wall clock, and a run
+ *   that reaches it is not retried, so one hour each.
  * - **Kept alive** by a beat every 30 s: a run whose worker stops beating is
  *   failed and retried (point 2).
  * - **Capped** at a heap of 410 MB a run, V8's share of the `small-1x`
@@ -32,9 +38,23 @@
  * - **Worked** one run at a time on each worker, except the pass: the sync
  *   tick's cap on passes in flight, `MAX_PASSES_IN_FLIGHT`, and one more, for
  *   the pass a cutover waits on, as the plane keeps a slot above the cap for
- *   it (`deploy/compose/plane-limit.sh`). An idle worker asks a queue for work
- *   every 2 s if somebody is waiting on it, every 10 s for the minute's tick,
- *   and every 30 s for an hourly or daily schedule.
+ *   it (`deploy/compose/plane-limit.sh`). How often an idle worker asks for
+ *   work is the runner's, one interval for every queue.
+ *
+ * NOT TRIGGER.DEV'S CONCURRENCY, AND KNOWN NOT TO BE (alpha.16; ADR-0054,
+ * 0167). Two differences, kept for this release and recorded there:
+ *  - **One of each job asked for at a time, across every organisation.**
+ *    Trigger.dev runs one count per migration and counts of different
+ *    migrations side by side, and puts no limit on verification,
+ *    confirmation, the two applies, the cutover and the rollback. Here each of
+ *    those queues is worked one run at a time on the one worker: a second
+ *    organisation's count, or a second cutover, waits for the first.
+ *  - **More runs at once than the plane admits.** The plane caps the stack at
+ *    `MAX_PASSES_IN_FLIGHT` + 2 runs (`plane-limit.sh`). Here every queue has
+ *    its own concurrency, so the worker may run the passes
+ *    (`MAX_PASSES_IN_FLIGHT` + 1) and one of each other queue, sixteen, at
+ *    once: `MAX_PASSES_IN_FLIGHT` + 17. A worker-wide cap of
+ *    `MAX_PASSES_IN_FLIGHT` + 2 is a recorded follow-up.
  *
  * DATA ONLY. It imports nothing, so whoever reads it loads no pg-boss. Each
  * entry is a `QueueSpec` as `PgBossJobRunner#start` takes it, with what a
@@ -70,8 +90,6 @@ interface EveryQueue extends EveryRun {
    * tick's cap on passes in flight and so many more (see {@link concurrencyOf}).
    */
   readonly concurrency: number | { readonly passesInFlightPlus: number };
-  /** How often an idle worker asks this queue for work. */
-  readonly pollingIntervalSeconds: number;
 }
 
 /** A schedule: a run sent on its cron, read in UTC, onto a queue that holds one waiting and one running. */
@@ -104,19 +122,20 @@ const EVERY_RUN = {
   maxOldSpaceMb: 410,
 } as const satisfies EveryRun;
 
-const HOURLY_OR_DAILY = {
-  ...EVERY_RUN,
-  kind: 'schedule',
-  policy: 'stately',
-  concurrency: 1,
-  pollingIntervalSeconds: 30,
-} as const;
+const HOURLY_OR_DAILY = { ...EVERY_RUN, kind: 'schedule', policy: 'stately', concurrency: 1 } as const;
 
-const ASKED_FOR = { ...EVERY_RUN, kind: 'on-demand', concurrency: 1, pollingIntervalSeconds: 2 } as const;
+const ASKED_FOR = { ...EVERY_RUN, kind: 'on-demand', concurrency: 1 } as const;
+
+/**
+ * The cutover's limit: a pass running ahead of it, its own final sync, and the
+ * gate, an hour each. On Trigger.dev its waits for the passes were pauses,
+ * which `maxDuration` does not count; pg-boss counts the wall clock.
+ */
+const CUTOVER_MAX_DURATION_SECONDS = 3 * EVERY_RUN.maxDurationSeconds;
 
 /** Every queue the managed edition's jobs run on, the nine schedules first. */
 export const JOB_CATALOG = [
-  { ...HOURLY_OR_DAILY, name: 'managed-sync-tick', cron: '* * * * *', pollingIntervalSeconds: 10 },
+  { ...HOURLY_OR_DAILY, name: 'managed-sync-tick', cron: '* * * * *' },
   { ...HOURLY_OR_DAILY, name: 'managed-cadence-email', cron: '30 7 * * *' },
   { ...HOURLY_OR_DAILY, name: 'managed-digest', cron: '0 8 * * *' },
   { ...HOURLY_OR_DAILY, name: 'managed-drift-detect', cron: '0 7 * * *' },
@@ -137,7 +156,7 @@ export const JOB_CATALOG = [
   { ...ASKED_FOR, name: 'run-confirmation', policy: 'singleton', serializedBy: 'confirm:<mappingId>' },
   { ...ASKED_FOR, name: 'run-apply-deletion', policy: 'standard' },
   { ...ASKED_FOR, name: 'run-apply-relocation', policy: 'standard' },
-  { ...ASKED_FOR, name: 'run-cutover', policy: 'standard' },
+  { ...ASKED_FOR, name: 'run-cutover', policy: 'standard', maxDurationSeconds: CUTOVER_MAX_DURATION_SECONDS },
   { ...ASKED_FOR, name: 'run-rollback', policy: 'standard' },
 ] as const satisfies readonly JobCatalogEntry[];
 

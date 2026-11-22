@@ -203,6 +203,34 @@ describe('redact-evidence.sh', () => {
     expect(out).toContain('<mesh-ip>');
   });
 
+  it("cleans the worker's log, which the smoke keeps beside its own on pg-boss, and keeps each line's queue and run", () => {
+    // Workplan 0167 T7: on a stack whose jobs run on pg-boss the runner logs are
+    // gone, and the worker's log from the smoke's start is the evidence of what
+    // the jobs did, smoke-managed-<run>-worker.log. The worker prints no
+    // environment, but a job's error can carry a connection string or a host,
+    // and JOBS_DB_PASSWORD is a *PASSWORD* key like the others.
+    const JOBS_DB_PASSWORD = 'jobs-role-password-7731aa';
+    writeFileSync(envFile, `${readFileSync(envFile, 'utf8')}\nJOBS_DB_PASSWORD=${JOBS_DB_PASSWORD}\nTRIGGER_TLS_HOST=100.64.0.1\n`);
+    const run = '[run-delta-sync 0f9c3b52-6b1e-4c1a-9a51-2f7e8d6c4b3a]';
+    const file = join(dir, 'evidence', 'smoke-managed-42-worker.log');
+    writeFileSync(
+      file,
+      [
+        `${run} error: password authentication failed for user "ownpace_jobs" (${JOBS_DB_PASSWORD})`,
+        `${run} at connect postgresql://ownpace_jobs:${JOBS_DB_PASSWORD}@pgbouncer:6432/openmigrate`,
+        `[run-discovery 1a2b3c4d-0000-4000-8000-000000000001] connect ETIMEDOUT 100.64.0.1:443`,
+        `[managed-sync-tick 2b3c4d5e-0000-4000-8000-000000000002] ${SECRET_ENCRYPTION_KEY}`,
+      ].join('\n'),
+    );
+    execFileSync('bash', [SCRIPT, join(dir, 'evidence')], { env: { ...process.env, REDACT_ENV_FILE: envFile } });
+    const out = readFileSync(file, 'utf8');
+    for (const secret of [JOBS_DB_PASSWORD, SECRET_ENCRYPTION_KEY, '100.64.0.1']) expect(out, secret).not.toContain(secret);
+    expect(out).toContain('postgresql://ownpace_jobs:[REDACTED]@pgbouncer:6432/openmigrate');
+    // What makes it worth keeping: which queue and which run said it.
+    expect(out).toContain(run);
+    expect(out).toContain('[run-discovery 1a2b3c4d-0000-4000-8000-000000000001] connect ETIMEDOUT');
+  });
+
   it('refuses a directory that is not there, rather than silently doing nothing', () => {
     // A redactor that no-ops on a bad path would report success over an
     // unredacted upload.

@@ -75,9 +75,9 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '@openmig/shared';
 import { describeStanding, parseLinksCommand, runLinksCommand } from './operator-links.ts';
-import { describeClosed, parseCloseCommand } from './operator-close.ts';
+import { cancelEnvForTheClose, describeClosed, parseCloseCommand } from './operator-close.ts';
 import { runCloseCommand } from '../close-account.ts';
-import { getTriggerClient } from '@openmig/scheduler';
+import { cancelRun, closeJobRunner } from '../job-runner.ts';
 import { checkMoneybird, nightlyMoneybird, proveMoneybird } from '@openmig/managed';
 import {
   checkByKind,
@@ -111,6 +111,7 @@ const USAGE = `Usage:
   operator:moneybird check
   operator:moneybird proof
   operator:moneybird nightly
+  operator:jobs [failures [<task>] [--limit n] | show <id> | cancel <id> | run <task> '<json>' [--despite-hold]]
 
 DATABASE_URL must be the OWNER connection — app_user cannot write this table,
 which is the point of it.`;
@@ -725,8 +726,11 @@ async function main(): Promise<void> {
         // it, close-account.ts closes it.
         const command = parseCloseCommand(rest);
         if ('error' in command) throw new Error(command.error);
+        // On pg-boss the cancel needs JOBS_DATABASE_URL, which only the
+        // containers are given; composed here (operator-close.ts).
+        const cancelEnv = await cancelEnvForTheClose(process.env);
         const closed = await runCloseCommand(pool, command, {
-          cancelRun: async (ref) => void (await getTriggerClient().runs.cancel(ref)),
+          cancelRun: (ref: string) => cancelRun(ref, cancelEnv),
         });
         for (const line of describeClosed(command, closed)) log.info(line);
         break;
@@ -1051,10 +1055,23 @@ async function main(): Promise<void> {
         break;
       }
 
+      case 'jobs': {
+        // The jobs on pg-boss (workplan 0167 T6): operator-jobs.ts, which
+        // connects as the jobs role and reads the hold over this pool. Loaded
+        // here, so no other verb loads pg-boss.
+        const { runJobsVerb } = await import('./operator-jobs.ts');
+        const report = await runJobsVerb(rest, process.env, pool);
+        for (const line of report.lines) log.info(line);
+        if (report.exitCode !== 0) process.exitCode = report.exitCode;
+        break;
+      }
+
       default:
         throw new Error(USAGE);
     }
   } finally {
+    // A close on pg-boss made the producer (`cancelRun`); its pool would keep the process alive.
+    await closeJobRunner();
     await pool.end();
   }
 }

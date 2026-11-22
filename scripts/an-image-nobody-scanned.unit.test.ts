@@ -565,15 +565,22 @@ describe('which images it scans', () => {
     expect(repinned.find((i) => i.name === TASK_IMAGE)?.ref).toBe(other);
   });
 
-  it("Ownpace's three images at :edge and at the newest release tag, as images.yml publishes them", async () => {
+  it("Ownpace's images at :edge and at the newest release tag, as images.yml publishes them", async () => {
     const net = fakeNet();
     const images = await imagesToScan(REAL, net, { upstream: 'https://github.com/example/repo.git' });
     expect(net.asked).toContain('https://github.com/example/repo.git');
     for (const image of OWNPACE_IMAGES) {
       expect(images.find((i) => i.name === `ownpace-${image}-edge`)?.ref).toBe(`${OWNPACE_REGISTRY}/ownpace-${image}:edge`);
       // SemVer order: alpha.10 after alpha.9, and the v dropped as metadata-action drops it.
-      expect(images.find((i) => i.name === `ownpace-${image}-release`)?.ref).toBe(`${OWNPACE_REGISTRY}/ownpace-${image}:0.2.0-alpha.10`);
+      // The worker is published from alpha.16 on, so a release before it has no worker to scan.
+      expect(images.find((i) => i.name === `ownpace-${image}-release`)?.ref).toBe(
+        image === 'worker' ? undefined : `${OWNPACE_REGISTRY}/ownpace-${image}:0.2.0-alpha.10`,
+      );
     }
+    // From its first release on, the worker's release is scanned as the others' are.
+    const later = await imagesToScan(REAL, fakeNet(lsRemote('v0.2.0-alpha.15', 'v0.2.0-alpha.16')));
+    expect(later.find((i) => i.name === 'ownpace-worker-release')?.ref).toBe(`${OWNPACE_REGISTRY}/ownpace-worker:0.2.0-alpha.16`);
+    expect((await imagesToScan(REAL, fakeNet(lsRemote('v0.2.0-alpha.15')))).find((i) => i.name === 'ownpace-worker-release')).toBeUndefined();
     // The three are images.yml's matrix, published under this registry, and the appliance's default.
     const images_yml = parseYaml(REAL.read('.github/workflows/images.yml')!) as { jobs: Record<string, { strategy?: { matrix?: { image?: string[] } } }> };
     const matrix = Object.values(images_yml.jobs).find((j) => j.strategy?.matrix?.image)?.strategy?.matrix?.image;
@@ -1261,7 +1268,8 @@ describe('every image has a tier, and the report leads with production (the owne
   });
 
   it('gives every image the list names a tier, and none it does not name', async () => {
-    const images = await imagesToScan(REAL, fakeNet());
+    // At a release that publishes every image, the worker's included (alpha.16 on).
+    const images = await imagesToScan(REAL, fakeNet(lsRemote('v0.2.0-alpha.16')));
     for (const image of images) {
       expect(TIERS, `${image.name} has no tier the report knows`).toContain(image.tier);
       expect(image.tier, image.name).toBe(IMAGE_TIERS[image.name]);
@@ -1280,9 +1288,12 @@ describe('every image has a tier, and the report leads with production (the owne
     expect(appliance.length, 'the appliance runs no image this list names, so this case would prove nothing').toBeGreaterThan(0);
     expect(images.filter((i) => i.tier === 'shipped').map((i) => i.name).sort()).toEqual([...appliance, 'ownpace-selfhost-edge', 'ownpace-selfhost-release'].sort());
     // Ownpace's api and web are what the internet reaches on live, at :edge and at the release.
-    for (const image of OWNPACE_IMAGES.filter((i) => i !== 'selfhost')) {
+    for (const image of OWNPACE_IMAGES.filter((i) => i === 'api' || i === 'web')) {
       for (const at of ['edge', 'release']) expect(images.find((i) => i.name === `ownpace-${image}-${at}`)?.tier).toBe('production-public');
     }
+    // The job worker is live's, on the stack's own network, with no port.
+    expect(images.find((i) => i.name === 'ownpace-worker-edge')?.tier).toBe('production-internal');
+    expect(IMAGE_TIERS['ownpace-worker-release']).toBe('production-internal');
   });
 
   it('refuses an image with no tier: a new one fails the list, naming it, and the report refuses one handed on without', async () => {

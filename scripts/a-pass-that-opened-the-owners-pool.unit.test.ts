@@ -134,6 +134,14 @@
  *      never opened, or the tick's taken from its system pool. A pass's task
  *      reaches it from the job that enqueues one, which loads the pass's
  *      module when it always did.
+ *  10. The worker's runner, `apps/worker/src/runner/` (workplan 0167 T6),
+ *      reads the jobs role's URL, `JOBS_DATABASE_URL`, and no other database
+ *      URL (THE_WORKERS_RUNNER, closed; its test's stand-in reads the test's
+ *      own table, and nothing imports it). Its parent process, `main.ts` and
+ *      every module it loads, loads no job module and so opens no job's pool:
+ *      each run's own process imports its job. And nothing a Trigger.dev task
+ *      loads reaches pg-boss: no file in `jobs/`, nor any file one of them
+ *      loads, imports `pg-boss`, `@openmig/scheduler/pg-boss` or the runner.
  *
  * Until T1's second step there was a second list, KNOWN_REMOVED_BY_T1, of the
  * per-tenant readers the ratchet let stand: eleven when it landed, the three
@@ -239,6 +247,24 @@ const AT_THE_MACHINE: readonly string[] = Object.freeze([
   'apps/worker/src/cli/index.ts',
   'packages/ledger/src/direct-url.ts',
 ]);
+
+/**
+ * The worker's runner (rule 10, workplan 0167 T6): what each file reads, and
+ * all it reads. The jobs role's URL, `ownpace_jobs` through PgBouncer, which
+ * owns pg-boss's schema and nothing in `public`. The stand-in pass is the
+ * integration test's own, forked by its URL and imported by nothing, and
+ * writes to the test's own table; the worker to kill is the same test's, a
+ * worker in a process of its own.
+ */
+const THE_WORKERS_RUNNER: Record<string, readonly string[]> = {
+  'apps/worker/src/runner/main.ts': ['JOBS_DATABASE_URL'],
+  'apps/worker/src/runner/worker.ts': ['JOBS_DATABASE_URL'],
+  'apps/worker/src/runner/pg-boss-context.ts': ['JOBS_DATABASE_URL'],
+  'apps/worker/src/runner/__testing__/a-pass-stand-in.ts': ['WORKER_TEST_DATABASE_URL'],
+  'apps/worker/src/runner/__testing__/a-worker-to-kill.ts': ['JOBS_DATABASE_URL'],
+};
+const RUNNER_DIR = 'apps/worker/src/runner';
+const RUNNER_MAIN = `${RUNNER_DIR}/main.ts`;
 
 /** The one database URL a task reads across organisations (rule 8). */
 const SYSTEM_URL = 'SYSTEM_DATABASE_URL';
@@ -1052,7 +1078,10 @@ function valueExports(file: string, text: string): string[] {
   return [...found].sort();
 }
 
-/** What a module imports as a value, as `<module>: <name>`, `<module>: * as`, `<module>: default` or `<module>: (loaded)`. */
+/**
+ * What a module loads as a value, as `<module>: <name>`, `<module>: * as`, `<module>: default`,
+ * `<module>: (loaded)` or `<module>: (re-exported)`.
+ */
 function valueImports(file: string, text: string): string[] {
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const found = new Set<string>();
@@ -1062,13 +1091,31 @@ function valueImports(file: string, text: string): string[] {
       const clause = node.importClause;
       if (clause === undefined) found.add(`${from}: (loaded)`);
       else if (!clause.isTypeOnly) {
-        if (clause.name) found.add(`${from}: default`);
-        const named = clause.namedBindings;
-        if (named && ts.isNamespaceImport(named)) found.add(`${from}: * as`);
-        if (named && ts.isNamedImports(named)) {
-          for (const el of named.elements) if (!el.isTypeOnly) found.add(`${from}: ${(el.propertyName ?? el.name).text}`);
+        let value = false;
+        if (clause.name) {
+          found.add(`${from}: default`);
+          value = true;
         }
+        const named = clause.namedBindings;
+        if (named && ts.isNamespaceImport(named)) {
+          found.add(`${from}: * as`);
+          value = true;
+        }
+        if (named && ts.isNamedImports(named)) {
+          for (const el of named.elements) {
+            if (el.isTypeOnly) continue;
+            found.add(`${from}: ${(el.propertyName ?? el.name).text}`);
+            value = true;
+          }
+        }
+        // `import { type X } from …` and `import {} from …` name no value, and are kept
+        // as a bare import under verbatimModuleSyntax: the module loads all the same.
+        if (!value) found.add(`${from}: (loaded)`);
       }
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      // `export … from` loads the module it names, whatever it names, but for `export type`:
+      // `export { type X } from …` is kept as `export {} from …` under verbatimModuleSyntax.
+      if (!node.isTypeOnly) found.add(`${node.moduleSpecifier.text}: (re-exported)`);
     } else if (ts.isCallExpression(node)) {
       const first = node.arguments[0];
       const loads =
@@ -1289,7 +1336,7 @@ describe('who reads a database URL other than the application role', () => {
     expect(readers.has('apps/worker/src/jobs/stopping-a-pass.ts')).toBe(false);
   });
 
-  it.each([...readers.keys()].map((f) => [f]))('%s is on CROSS_TENANT, with its reason', (file) => {
+  it.each([...readers.keys()].filter((f) => THE_WORKERS_RUNNER[f] === undefined).map((f) => [f]))('%s is on CROSS_TENANT, with its reason', (file) => {
     expect(
       CROSS_TENANT[file],
       `${file} reads ${readers.get(file)!.join(', ')} from the environment.\n\n` +
@@ -2064,5 +2111,124 @@ describe("the run's context, which every task imports, loads the SDK and nothing
       './run-delta-sync.ts: import(…)',
     );
     expect(valueImports('shape.ts', `${shape}import './task-pools.ts';`)).toContain('./task-pools.ts: (loaded)');
+    // Under verbatimModuleSyntax an import whose names are all inline types, or that names
+    // none, is kept as a bare import, and the module loads: Node and esbuild both keep it.
+    expect(valueImports('shape.ts', `${shape}import { type X } from './run-delta-sync.ts';`)).toContain(
+      './run-delta-sync.ts: (loaded)',
+    );
+    expect(valueImports('shape.ts', `${shape}import {} from './task-pools.ts';`)).toContain('./task-pools.ts: (loaded)');
+    // Only `import type` is erased whole.
+    expect(valueImports('shape.ts', shape)).toEqual(Object.keys(RUN_CONTEXT_IMPORTS).sort());
+  });
+});
+
+/** A relative specifier, from `file`, as a repository path; null for a package or a builtin. */
+function resolvedFrom(file: string, specifier: string): string | null {
+  if (!specifier.startsWith('.')) return null;
+  return relative(REPO_ROOT, join(REPO_ROOT, dirname(file), specifier));
+}
+
+/** Every file reached from `entry` by the modules each loads as a value: relative ones followed, packages listed. */
+function loadedFrom(entry: string): { files: string[]; packages: string[] } {
+  const seen = new Set<string>();
+  const packages = new Set<string>();
+  const visit = (file: string): void => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const text = texts.get(file) ?? readFileSync(join(REPO_ROOT, file), 'utf8');
+    for (const imported of valueImports(file, text)) {
+      const from = imported.slice(0, imported.lastIndexOf(': '));
+      const local = resolvedFrom(file, from);
+      if (local === null) packages.add(from);
+      else visit(local);
+    }
+  };
+  visit(entry);
+  return { files: [...seen].sort(), packages: [...packages].sort() };
+}
+
+const PG_BOSS_SPECIFIERS = ['pg-boss', '@openmig/scheduler/pg-boss'];
+
+describe("the worker's runner reads the jobs role's URL alone, its parent loads no job, and no Trigger.dev task loads pg-boss (rule 10)", () => {
+  it.each(Object.keys(THE_WORKERS_RUNNER).map((f) => [f]))('%s reads exactly what THE_WORKERS_RUNNER says', (file) => {
+    expect(texts.has(file), `${file} is on THE_WORKERS_RUNNER and is not a source file here`).toBe(true);
+    expect(readers.get(file) ?? [], `${file} reads another database URL than its entry says`).toEqual(THE_WORKERS_RUNNER[file]);
+  });
+
+  it('no other file reads the jobs role’s URL, and every runner file that reads one is listed', () => {
+    for (const [file, names] of readers) {
+      if (names.includes('JOBS_DATABASE_URL')) expect(THE_WORKERS_RUNNER[file], `${file} reads JOBS_DATABASE_URL`).toBeDefined();
+      if (file.startsWith(`${RUNNER_DIR}/`)) expect(THE_WORKERS_RUNNER[file], `${file} reads ${names.join(', ')}`).toBeDefined();
+    }
+  });
+
+  it('the stand-in that reads the test’s table is imported by no file', () => {
+    for (const file of files) {
+      expect(texts.get(file)!, `${file} imports the integration test's stand-in`).not.toMatch(/from '[^']*__testing__\/a-pass-stand-in/);
+    }
+  });
+
+  it('the parent process loads no job module, builds no pool of its own, and loads only the runner and the logger', () => {
+    const { files: loaded, packages } = loadedFrom(RUNNER_MAIN);
+    expect(loaded).toEqual([RUNNER_MAIN, `${RUNNER_DIR}/pg-boss-context.ts`, `${RUNNER_DIR}/worker.ts`].sort());
+    for (const file of loaded) expect(buildsAPool(file, texts.get(file)!), `${file} builds a pool`).toBe(false);
+    expect(packages, `${RUNNER_MAIN} loads, through its modules, more than the runner and the logger`).toEqual(
+      ['@openmig/scheduler/pg-boss', '@openmig/shared', 'node:http'].sort(),
+    );
+  });
+
+  it('nothing a Trigger.dev task loads imports pg-boss, its runner, or the worker’s runner', () => {
+    const taskFiles = files.filter((f) => f.startsWith(`${JOBS_DIR}/`) && definesATask(f, texts.get(f)!));
+    expect(taskFiles.length).toBeGreaterThanOrEqual(17);
+    const offences: string[] = [];
+    for (const task of taskFiles) {
+      const { files: loaded, packages } = loadedFrom(task);
+      for (const p of packages) if (PG_BOSS_SPECIFIERS.some((s) => p === s || p.startsWith(`${s}/`))) offences.push(`${task} loads ${p}`);
+      for (const f of loaded) if (f.startsWith(`${RUNNER_DIR}/`)) offences.push(`${task} loads ${f}`);
+    }
+    // And no file in jobs/ at all, a task or not: a module a task loads later by a computed name is not followed.
+    for (const file of files.filter((f) => f.startsWith(`${JOBS_DIR}/`))) {
+      for (const imported of valueImports(file, texts.get(file)!)) {
+        const from = imported.slice(0, imported.lastIndexOf(': '));
+        if (PG_BOSS_SPECIFIERS.some((s) => from === s || from.startsWith(`${s}/`)) || from.includes('/runner/')) {
+          offences.push(`${file} imports ${from}`);
+        }
+      }
+    }
+    expect(offences, 'A Trigger.dev task would load pg-boss: its half of the run context is run-context.ts, which loads the SDK alone.').toEqual([]);
+  });
+
+  it('no workspace package a task can load reaches pg-boss, but the runner’s own directory', () => {
+    // A task loads packages too (the tick loads @openmig/managed's tick-beat.ts), and those are
+    // listed above, not followed: so no file of any package may import pg-boss at all, but the
+    // runner's own, packages/scheduler/src/pg-boss/, which only its subpath exports.
+    const offences: string[] = [];
+    for (const file of files.filter((f) => f.startsWith('packages/') && !f.startsWith('packages/scheduler/src/pg-boss/'))) {
+      for (const imported of valueImports(file, texts.get(file)!)) {
+        const from = imported.slice(0, imported.lastIndexOf(': '));
+        if (PG_BOSS_SPECIFIERS.some((s) => from === s || from.startsWith(`${s}/`))) offences.push(`${file} loads ${from}`);
+      }
+    }
+    expect(files.filter((f) => f.startsWith('packages/managed/src/')).length).toBeGreaterThan(10);
+    expect(offences, 'A workspace package a Trigger.dev task loads would load pg-boss with it.').toEqual([]);
+  });
+
+  it('sees a re-export as a load: `export … from` loads the module it names', () => {
+    expect(valueImports('shape.ts', "export { PgBossProducer } from '@openmig/scheduler/pg-boss';")).toEqual([
+      '@openmig/scheduler/pg-boss: (re-exported)',
+    ]);
+    expect(valueImports('shape.ts', "export * from 'pg-boss';")).toEqual(['pg-boss: (re-exported)']);
+    // Kept under verbatimModuleSyntax as `export {} from …`, which loads the module too.
+    expect(valueImports('shape.ts', "export { type QueueSpec } from 'pg-boss';")).toEqual(['pg-boss: (re-exported)']);
+    // Only `export type … from` is erased whole.
+    expect(valueImports('shape.ts', "export type { QueueSpec } from 'pg-boss';")).toEqual([]);
+  });
+
+  it('follows a load through a relative path, and sees pg-boss behind it', () => {
+    expect(resolvedFrom('apps/worker/src/runner/main.ts', './worker.ts')).toBe('apps/worker/src/runner/worker.ts');
+    expect(resolvedFrom('apps/worker/src/jobs/x.ts', '../runner/pg-boss-context.ts')).toBe('apps/worker/src/runner/pg-boss-context.ts');
+    expect(resolvedFrom('apps/worker/src/jobs/x.ts', '@openmig/scheduler/pg-boss')).toBeNull();
+    // The tick, a task, reaches the pass's module by a relative import, and the guard follows it there.
+    expect(loadedFrom('apps/worker/src/jobs/managed-sync-tick.ts').files).toContain('apps/worker/src/jobs/run-delta-sync.ts');
   });
 });

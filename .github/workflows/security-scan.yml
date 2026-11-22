@@ -568,6 +568,7 @@ jobs:
           docker pull ghcr.io/robbes/ownpace-selfhost:${VER}
           docker pull ghcr.io/robbes/ownpace-api:${VER}
           docker pull ghcr.io/robbes/ownpace-web:${VER}
+          docker pull ghcr.io/robbes/ownpace-worker:${VER}
           \`\`\`
 
           **Verify a signature** (keyless, against the public Sigstore log):

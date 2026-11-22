@@ -81,6 +81,8 @@ const LIVE = 'ownpace-live';
 const TENANT = 'e0000000-0000-4000-8000-000000000001';
 const MAPPING = 'e0000000-0000-4000-8000-000000000031';
 const RUN_ID = 'run_cm9livepass0001';
+/** The pass's ref where the jobs run on pg-boss: the pg-boss job's id (workplan 0167 T7). */
+const JOB_ID = '0b8f6c3e-2d4a-4f1b-9c7e-5a6d8e9f0a1b';
 const STARTED = '2026-10-28T09:12:03Z';
 const SENTINEL = 'sentinel-3f80d2';
 const DISTROLESS_NODE = '/nodejs/bin/node';
@@ -542,6 +544,16 @@ describe("the room: counted by the tick's own rule, and stricter than Sync now",
       // its: the attempts, and a wait for the last retry longer than its backoff.
       const config = readFileSync(join(REPO_ROOT, 'apps/worker/trigger.config.ts'), 'utf8');
       expect(value('ATTEMPTS')).toBe(Number(/maxAttempts: (\d+)/.exec(config)?.[1]));
+      // And pg-boss's, from the catalog every queue is made from (workplan
+      // 0167): one number of attempts for every queue, and no retry waits
+      // longer than its cap. The catalog lands with the jobs on the runner
+      // (#2043); from then on this holds the two runners to one count.
+      const catalogFile = join(REPO_ROOT, 'packages/scheduler/src/pg-boss/catalog.ts');
+      if (existsSync(catalogFile)) {
+        const catalog = readFileSync(catalogFile, 'utf8');
+        expect(value('ATTEMPTS')).toBe(Number(/^\s*attempts: (\d+),$/m.exec(catalog)?.[1]));
+        expect(value('RETRY_GRACE_SECONDS')).toBeGreaterThan(Number(/^\s*retryDelayMaxSeconds: (\d+),$/m.exec(catalog)?.[1]));
+      }
       expect(value('RETRY_GRACE_SECONDS') * 1000).toBeGreaterThan(
         Number(/maxTimeoutInMs: ([\d_]+)/.exec(config)?.[1]?.replaceAll('_', '')),
       );
@@ -595,6 +607,8 @@ describe("the press: Node at its absolute path, with the two ids, and Sync now's
     ['a press killed', 7, '', '137', /not known whether a pass started/],
     ['two lines', 7, `started\t${RUN_ID}\nstarted\t${RUN_ID}`, '0', /not known whether a pass started/],
     ['a run id that is not one', 7, 'started\tsomething', '0', /not known whether a pass started/],
+    ['a UUID in capitals, which pg-boss never gives', 7, `started\t${JOB_ID.toUpperCase()}`, '0', /not known whether a pass started/],
+    ['a UUID cut short', 7, `started\t${JOB_ID.slice(0, -1)}`, '0', /not known whether a pass started/],
     ['a refusal with exit 0', 7, 'refused\t409\tpaused', '0', /not known whether a pass started/],
   ])('%s: exit %i', (_, code, press, rc, says) => {
     const s = stage();
@@ -632,6 +646,19 @@ describe("the follow: by the run's own id, never a time window, to the pass's en
       expect(sql).toContain(`mapping_id = '${MAPPING}'`);
       expect(sql).not.toMatch(/interval/i);
     }
+  }, CASE_MS);
+
+  it("a pass pg-boss started (workplan 0167 T7): followed by the job's id, a UUID, to its end", () => {
+    const s = stage();
+    answer(s, pre(), NO_ROW, row(), SUCCEEDED);
+    const r = run(s, { STUB_PRESS: `started\t${JOB_ID}` });
+    expect(r.status, r.out).toBe(0);
+    // Its first eight characters: the whole UUID is a shape this never prints.
+    expect(r.stdout).toContain(`started one pass on your migration, as Sync now starts it (pg-boss run ${JOB_ID.slice(0, 8)}…)`);
+    expect(r.stdout).not.toContain('Trigger.dev run');
+    const follows = statements(s).slice(1);
+    expect(follows).toHaveLength(3);
+    for (const sql of follows) expect(sql).toContain(`orchestrator_ref = '${JOB_ID}'`);
   }, CASE_MS);
 
   it('succeeded with 1 of 2 data types finished: ended unfinished, exit 6', () => {

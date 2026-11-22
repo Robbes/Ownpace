@@ -128,7 +128,11 @@
 #      values) must open, and the three published values must not, for the
 #      owner, openmigrate and app_user. PGPASSWORD goes to `docker run` by
 #      name.
-#   5. bootstrap-managed.sh --from trigger. It stops twice for you (exit 2):
+#   5. bootstrap-managed.sh --from trigger. Where the jobs run on pg-boss
+#      (OWNPACE_JOB_RUNNER, workplan 0167 T7) it stops for nothing: its
+#      trigger phase stops the plane, account and login say they are skipped,
+#      the app phase starts the worker, and nothing is deployed to Trigger.dev.
+#      Where they run on the plane it stops twice for you (exit 2):
 #      live's own Trigger.dev account, organisation and project on its
 #      dashboard, then the deploy CLI's login under live's own profile. This
 #      says what to do and exits 2; run it again with --resume. Its `tasks`
@@ -208,6 +212,9 @@ done
 # What a release tag is, the rule deploy-live.sh applies.
 # shellcheck source=deploy/compose/release-tag.sh
 . "${SCRIPT_DIR}/release-tag.sh"
+# Which runner the jobs run on (workplan 0167 T7): the one reader, for step 5.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
 
 LIVE_PROJECT=ownpace-live
 LIVE_APP=app.ownpace.eu
@@ -508,11 +515,20 @@ main() {
 
   # ---- 5. Trigger.dev, the account, the login, the app and the tasks ---------------
   local rc=0
+  job_runner_mode "$SCRIPT_DIR" "$ENV_FILE" || stopped "$JOB_RUNNER_WHY"
+  if [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
+    say "pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}): the bring-up stops the Trigger.dev plane, asks for no account or login, and starts the worker after the api (workplan 0167 T7)"
+  fi
   say "bootstrap-managed.sh --from trigger (never --with-demo)"
   "${SCRIPT_DIR}/bootstrap-managed.sh" --from trigger || rc=$?
   # ---- 6. What the task deploy leaves behind ------------------------------------------
   restore_worker_newline
-  if [ "$rc" -eq 2 ]; then
+  if [ "$rc" -eq 2 ] && [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
+    # No account and no login to stop for in pg-boss mode: whatever stopped
+    # it said so itself.
+    stopped "bootstrap-managed.sh --from trigger stopped for you (exit 2): do what it asks above." \
+      "In pg-boss mode it has no Trigger.dev account or login to stop for (workplan 0167 T7)."
+  elif [ "$rc" -eq 2 ]; then
     if [ -z "$(env_value "$ENV_FILE" TRIGGER_PROJECT_REF)" ] || [ -z "$(env_value "$ENV_FILE" TRIGGER_SECRET_KEY)" ]; then
       your_turn_account
     fi
@@ -1304,8 +1320,13 @@ run_checks() {
   fi
   # Live's networks are its own (D9).
   before="${#_f[@]}"
+  # The plane's three networks only in trigger mode: Compose creates the
+  # networks of the services it starts, and a pg-boss stand-up starts no
+  # plane service (workplan 0167 T7).
+  local -a live_nets=(ownpace-network status-probe)
+  [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ] || live_nets+=(trigger-event-store trigger-docker-socket trigger-task-images)
   if nets="$(docker network ls --filter "name=${COMPOSE_PROJECT}_" --format '{{.Name}}')"; then
-    for n in ownpace-network status-probe trigger-event-store trigger-docker-socket trigger-task-images; do
+    for n in "${live_nets[@]}"; do
       grep -qx -- "${COMPOSE_PROJECT}_${n}" <<<"$nets" || _f+=("the network ${COMPOSE_PROJECT}_${n} is not there (workplan 0132 D9).")
     done
   else

@@ -47,8 +47,8 @@
  * `LEGAL_VERSIONS`, and pin the new words under the new number. The one other
  * case is the owner's word, before the first tester, that no tester has
  * accepted any version: then the text stays 1.0 and is edited in place, as
- * alpha-version-number (a) says (the owner, 2026-10-14 and 2026-10-21; the
- * comment beside the pins records each).
+ * alpha-version-number (a) says (the owner, 2026-10-14, 2026-10-21 and
+ * 2026-11-22, privacy only; the comment beside the pins records each).
  *
  * ## What it reads
  *
@@ -114,12 +114,22 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // tester accepts, and the 1.1 pins go. An acceptance of 1.1 asks again; one of 1.0 recorded
   // before these words reached a stack counts for them, and only the owner's own and test
   // accounts can hold one.
+  //
+  // PRIVACY RE-PINNED UNDER 1.0 on 2026-11-22 (the owner, verbatim: "Option A, but keep the policy
+  // on 1.0, since no tester has yet accepted it"): §9's Server logs row has the background tasks
+  // follow the app's rule, at each update of the service, because alpha.16 runs them as processes
+  // in one long-lived worker container instead of a container per run (ADR-0054, workplan 0167),
+  // and the Last updated line moved to 2026-11-22, in both languages. No tester had accepted any
+  // version, so the number stays 1.0, edited in place, as on 2026-10-14 and 2026-10-21. Only the
+  // two privacy pins move; the alpha and terms texts are unchanged. As on 2026-10-21, an acceptance
+  // of 1.0 recorded before these words reach a stack counts for them, and only the owner's own and
+  // test accounts can hold one.
   // From the first tester's acceptance on, a change of words takes a new number (1.1); the pins of
   // earlier words are in git, with the texts.
   'alpha.md@1.0': 'acc56aaf5e570d53687793a4e6951ae5732c5ce7273328a5ac5ed4201785018c',
   'alpha.nl.md@1.0': 'bf9a41a1679f8ee912c8e611b52eb4daf93f0e4042f8c708c476dea99cfd4bfb',
-  'privacy.md@1.0': 'e18bfc5249c4077d7ba56f24c22adfa51b9e66f8339533c3f28dd78d864194ed',
-  'privacy.nl.md@1.0': 'c177e80f1ac4880ccc054aa78c006dc7409df15dd8d3a422a6f2fc3664add3e0',
+  'privacy.md@1.0': 'b66693fbd7a8a33fe9daaab2a6b63d5a2221538e41f666b44a17b7279633bbed',
+  'privacy.nl.md@1.0': 'efdb557be7c3f5a5b9a00749052b6c84f98915e9a3c887c8f5d2b09ab2b42a30',
   'terms.md@1.0': 'b743e1286302fcbc0ab0570f0e3b5afd7bc86a82de3d2d55233e9517ccc90633',
   'terms.nl.md@1.0': '7024556d073d4f12216250c1c0183223304721d2631f244707e46d523f1cc47a',
 };

@@ -15,6 +15,17 @@
 # the project ref and production key back out of the instance afterwards
 # (trigger-credentials.sh) rather than asking you to transcribe them.
 #
+# EITHER RUNNER (workplan 0167 T7). OWNPACE_JOB_RUNNER, read by job-runner.sh,
+# says whether the jobs run on Trigger.dev's plane (`trigger`) or in the worker
+# on pg-boss (`pg-boss`). In pg-boss mode there is no human step: the trigger
+# phase checks the worker can start (its size from MAX_PASSES_IN_FLIGHT, its
+# CPU cap and memory limit against the host's, no comment where it reads a
+# value), then stops
+# the plane in order and keeps its volumes; account, login and tasks are
+# skipped; the app phase builds api, web and worker, asks the system role, and
+# starts the worker after the api, recreated whenever the api was. In trigger
+# mode a worker is stopped and removed first, and all else is as below.
+#
 # IDEMPOTENT AND RESUMABLE. Every phase checks whether it is already done. Run
 # it again after a `git pull`, after a reboot, after fixing whatever it stopped
 # on — it picks up rather than starts over. When a phase needs you, the script
@@ -104,6 +115,12 @@ ZITADEL_PULL_TIMEOUT="${ZITADEL_PULL_TIMEOUT:-600}"
 FATAL_LINE_RE='level=(error|fatal)|"level":"(error|fatal)"|(^|[^A-Za-z])(FATAL|PANIC|ERROR)([^A-Za-z]|$)|panic:|(^|[ |])Error:|Traceback \(most recent call last\)'
 # shellcheck source=trigger-cli-lib.sh
 . "${SCRIPT_DIR}/trigger-cli-lib.sh"
+# WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054): OWNPACE_JOB_RUNNER,
+# `trigger` or `pg-boss`, read by the one reader every script here uses. The
+# phases that differ by it (trigger, account, login, app, tasks) ask it after
+# load_env, through runner_mode below, and every one they skip says so.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
 
 PHASES=(preflight env data demo trigger account login app tasks smoke)
 WITH_DEMO=0
@@ -120,7 +137,7 @@ while [ "$#" -gt 0 ]; do
     --no-smoke) NO_SMOKE=1; shift ;;
     --accept-defaults) ACCEPT_DEFAULTS=1; shift ;;
     --list) printf '%s\n' "${PHASES[@]}"; exit 0 ;;
-    -h | --help) sed -n '2,40p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h | --help) sed -n '2,52p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "bootstrap-managed.sh: unknown argument '$1' (try --help)" >&2; exit 1 ;;
   esac
 done
@@ -133,6 +150,12 @@ known_phase() {
 }
 [ -n "$FROM" ] && known_phase "$FROM"
 [ -n "$ONLY" ] && known_phase "$ONLY"
+# A value of the switch that is neither mode stops the bring-up here, before
+# any phase runs, in one sentence (job-runner.sh).
+if ! job_runner_mode "$SCRIPT_DIR" "$ENV_FILE"; then
+  echo "!!! ${JOB_RUNNER_WHY}" >&2
+  exit 1
+fi
 
 # NO DEMO ON LIVE (workplan 0132 T5). --with-demo seeds two organisations whose
 # credentials are published in this repository, and provisions the demo's mail
@@ -1807,9 +1830,291 @@ phase_demo() {
 }
 
 # ---------------------------------------------------------------------------
+# THE TWO RUNNERS (workplan 0167 T7, ADR-0054). Until alpha.17 removes
+# Trigger.dev, managed.yml carries both: the plane's eleven services, and the
+# `worker` service that runs the jobs on pg-boss. OWNPACE_JOB_RUNNER says which
+# one runs, and never both at once: the bring-up in one mode stops the other's
+# first. The compose calls that touch either name its profile (`trigger`,
+# `jobs`), which is harmless while a service has none and needed once it has
+# (the flip puts the plane in `trigger` and takes the worker out of `jobs`).
+COMPOSE_PLANE=("${COMPOSE[@]}" --profile trigger)
+COMPOSE_WORKER=("${COMPOSE[@]}" --profile jobs)
+# How long the plane's runner containers get to finish after the supervisor
+# stops, and how often they are counted. A drained stack has none.
+PLANE_RUNNERS_TIMEOUT="${PLANE_RUNNERS_TIMEOUT:-300}"
+PLANE_RUNNERS_INTERVAL="${PLANE_RUNNERS_INTERVAL:-5}"
+
+# runner_mode — sets JOB_RUNNER_MODE from job-runner.sh's reader, or stops.
+JOB_RUNNER_MODE=''
+runner_mode() {
+  job_runner_mode "$SCRIPT_DIR" "$ENV_FILE" || die "$JOB_RUNNER_WHY"
+  JOB_RUNNER_MODE="$JOB_RUNNER"
+}
+
+# worker_stop_and_remove <why> — the worker stopped (its stop_grace_period lets
+# a run's child finish or be killed) and removed, when this checkout's
+# managed.yml defines it and a container of it exists. Trigger mode runs it
+# before the plane starts, so the two runners never run side by side; the
+# worker's own interlock holds the tick meanwhile anyway.
+worker_stop_and_remove() {
+  local why="$1" ids
+  if ! job_runner_has_service "$(cat "${SCRIPT_DIR}/managed.yml")" worker; then
+    note "managed.yml here defines no worker service, so there is no worker to stop (${why})"
+    return 0
+  fi
+  ids="$("${COMPOSE_WORKER[@]}" ps -a -q worker)" ||
+    die "could not ask Compose whether the worker exists (${why}; its words are above). The plane was not started."
+  if [ -z "$ids" ]; then
+    note "no worker container (${why})"
+    return 0
+  fi
+  "${COMPOSE_WORKER[@]}" stop worker || die "the worker did not stop (${why}; Compose's words are above). The plane was not started."
+  "${COMPOSE_WORKER[@]}" rm -f worker >/dev/null || die "the worker stopped and was not removed (${why}; above). The plane was not started."
+  note "the worker stopped and removed (${why}), so its runs and the plane's never overlap"
+}
+
+# plane_runners — the names of the plane's runner containers on this stack's
+# network, one per line, or nothing. 1 when Docker could not be asked.
+plane_runners() {
+  local names
+  names="$(docker ps --filter "network=${COMPOSE_PROJECT}_ownpace-network" --format '{{.Names}}')" || return 1
+  awk '/^runner-/' <<<"$names"
+}
+
+# plane_stop_in_order — pg-boss mode's trigger phase: the plane stopped, if it
+# runs, in job-runner.sh's order. `stop`, never `rm -v`: its volumes are the
+# way back (OWNPACE_JOB_RUNNER=trigger, then this bring-up). Nothing here
+# migrates triggerdb, deploys a task or starts a plane service.
+plane_stop_in_order() {
+  local running svc waited=0 left
+  # Running, or restarting: a crash-looping container (the supervisor, say)
+  # that was left would come back beside the worker.
+  running="$("${COMPOSE_PLANE[@]}" ps --status running --status restarting --format '{{.Service}}')" ||
+    die "could not ask Compose which of the plane's services run (its words are above); nothing was stopped."
+  local -a up=()
+  for svc in "${JOB_RUNNER_PLANE_FIRST[@]}" "${JOB_RUNNER_PLANE_REST[@]}"; do
+    grep -qxF "$svc" <<<"$running" && up+=("$svc")
+  done
+  if [ "${#up[@]}" -eq 0 ]; then
+    note "none of the plane's services runs: nothing to stop (its volumes are where they were)"
+    return 0
+  fi
+  if grep -qxF trigger-supervisor <<<"$running"; then
+    "${COMPOSE_PLANE[@]}" stop trigger-supervisor || die "trigger-supervisor did not stop (above); the rest of the plane was left running."
+    note "trigger-supervisor stopped: nothing new is dequeued"
+  fi
+  while :; do
+    left="$(plane_runners)" || die "could not ask Docker for the plane's runner containers (above); the rest of the plane was left running."
+    [ -n "$left" ] || break
+    if [ "$waited" -ge "$PLANE_RUNNERS_TIMEOUT" ]; then
+      die "$(wc -l <<<"$left") runner container(s) of the plane still on ${COMPOSE_PROJECT}_ownpace-network after ${waited}s with the supervisor stopped. A Trigger.dev run is still going: the drain was not done. The rest of the plane was left running; wait for it, then run this again."
+    fi
+    sleep "$PLANE_RUNNERS_INTERVAL"
+    waited=$((waited + PLANE_RUNNERS_INTERVAL))
+  done
+  note "no runner container on ${COMPOSE_PROJECT}_ownpace-network"
+  for svc in "${JOB_RUNNER_PLANE_REST[@]}"; do
+    grep -qxF "$svc" <<<"$running" || continue
+    "${COMPOSE_PLANE[@]}" stop "$svc" || die "${svc} did not stop (above); the services after it in the order were left running."
+  done
+  note "the plane stopped, in order, its containers kept as Exited and its volumes kept: ${up[*]}"
+}
+
+# worker_sized — the worker's CPU cap and memory limit, as Compose will hand
+# them to it: .env's WORKER_CPUS and WORKER_MEMORY where it sets them, and
+# otherwise worked out from this stack's MAX_PASSES_IN_FLIGHT and EXPORTED for
+# the compose calls after it, never written to .env. managed.yml's defaults
+# are the sizing for the default cap of 3 passes; a stack that runs more
+# (live runs 6) needs more. The rules: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) CPUs, a
+# half CPU for each pass the tick may run at once and two for the tick and the
+# jobs beside it; and (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2816 MB, from the
+# worker's measured peak (#2048). Read after load_env, from the
+# environment, as Compose reads them (bash has taken the quotes off).
+WORKER_CPUS_RULE=''
+WORKER_MEMORY_RULE=''
+worker_sized() {
+  local cap="${MAX_PASSES_IN_FLIGHT:-}"
+  cap="${cap:-3}"
+  [[ "$cap" =~ ^[1-9][0-9]*$ ]] || die "MAX_PASSES_IN_FLIGHT is not a whole number of at least 1, so the worker's size cannot be worked out; the tick refuses it too. Its value is not printed. The worker was not started."
+  WORKER_CPUS_RULE="$(awk -v c="$cap" 'BEGIN { printf "%g", 0.5 * (c + 2) }')"
+  WORKER_MEMORY_RULE="$(((cap + 1) * 512 + 2816))m"
+  local cpus_from_rule='' memory_from_rule=''
+  [ -n "${WORKER_CPUS:-}" ] || cpus_from_rule=1
+  [ -n "${WORKER_MEMORY:-}" ] || memory_from_rule=1
+  if [ -n "${WORKER_CPUS:-}" ]; then
+    note "WORKER_CPUS ${WORKER_CPUS}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${WORKER_CPUS_RULE})"
+  else
+    export WORKER_CPUS="$WORKER_CPUS_RULE"
+    note "WORKER_CPUS ${WORKER_CPUS}: 0.5 x (MAX_PASSES_IN_FLIGHT ${cap} + 2), for this run's compose calls (not written to .env)"
+  fi
+  if [ -n "${WORKER_MEMORY:-}" ]; then
+    note "WORKER_MEMORY ${WORKER_MEMORY}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${WORKER_MEMORY_RULE})"
+  else
+    export WORKER_MEMORY="$WORKER_MEMORY_RULE"
+    note "WORKER_MEMORY ${WORKER_MEMORY}: (MAX_PASSES_IN_FLIGHT ${cap} + 1) x 512 MB + 2816 MB, for this run's compose calls (not written to .env)"
+  fi
+  worker_size_drift "$cpus_from_rule" "$memory_from_rule"
+}
+
+# worker_size_drift <cpus from the rule> <memory from the rule> — one line when
+# a value worked out here differs from managed.yml's default: a compose call
+# outside the bring-up (a hand `docker compose up -d`) reads managed.yml's
+# default, and would recreate the worker at it. The line gives the one
+# command that sets both in .env; nothing here writes .env.
+worker_size_drift() {
+  local yml="${SCRIPT_DIR}/managed.yml" dc dm drift=''
+  dc="$(grep -oE '\$\{WORKER_CPUS:-[^}]+\}' "$yml" | awk 'NR==1')" || dc=''
+  dc="$(sed 's/.*:-//; s/}$//' <<<"$dc")"
+  dm="$(grep -oE '\$\{WORKER_MEMORY:-[^}]+\}' "$yml" | awk 'NR==1')" || dm=''
+  dm="$(sed 's/.*:-//; s/}$//' <<<"$dm")"
+  if [ -n "${1:-}" ] && [ -n "$dc" ] && ! awk -v a="$WORKER_CPUS" -v b="$dc" 'BEGIN { exit (a + 0 == b + 0) ? 0 : 1 }'; then
+    drift=1
+  fi
+  if [ -n "${2:-}" ] && [ -n "$dm" ] && [ "$(worker_memory_bytes "$WORKER_MEMORY")" != "$(worker_memory_bytes "$dm" || echo "$dm")" ]; then
+    drift=1
+  fi
+  [ -n "$drift" ] || return 0
+  note "managed.yml's defaults are WORKER_CPUS ${dc:-none} and WORKER_MEMORY ${dm:-none}, so a compose call outside the bring-up (a hand docker compose up -d) would recreate the worker at those. To keep this size there too, set both in .env: ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_CPUS=${WORKER_CPUS} WORKER_MEMORY=${WORKER_MEMORY}"
+}
+
+# worker_cpus_fit — the worker's CPU cap, the value Compose will use
+# (worker_sized), is not above the host's CPU count, which Docker refuses as
+# a `cpus` value.
+worker_cpus_fit() {
+  local cpus="${WORKER_CPUS:-}" host
+  [[ "$cpus" =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk -v c="$cpus" 'BEGIN { exit (c > 0) ? 0 : 1 }' ||
+    die "WORKER_CPUS is '${cpus}', not a number of CPUs above 0. The rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${WORKER_CPUS_RULE}. The worker was not started."
+  host="$(docker info --format '{{.NCPU}}' 2>&1)" || die "could not ask Docker how many CPUs this host has, so the worker's cap of ${cpus} cannot be checked against it: ${host}"
+  [[ "$host" =~ ^[1-9][0-9]*$ ]] || die "Docker answered '${host}' for this host's CPU count, which is not one, so the worker's cap of ${cpus} cannot be checked against it."
+  if awk -v c="$cpus" -v h="$host" 'BEGIN { exit (c > h) ? 0 : 1 }'; then
+    die "WORKER_CPUS is ${cpus}, above this host's ${host} CPU(s), and Docker refuses a cpus value above that. Set it to at most ${host} (the rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${WORKER_CPUS_RULE}): ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_CPUS=<n>. The worker was not started."
+  fi
+  # The host's own count stays out of a line that passes: the gate's log is
+  # public, and with the memory it names the hardware. A refusal names it,
+  # because the operator needs it to fix .env.
+  note "the worker's CPU cap: ${cpus}, within this host's CPUs (the rule: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) = ${WORKER_CPUS_RULE})"
+}
+
+# worker_memory_bytes <value> — a Compose memory value (a number of bytes, or
+# one with b, k, m or g, either case) in bytes, or 1.
+worker_memory_bytes() {
+  local v="${1:-}" n u
+  [[ "$v" =~ ^([0-9]+)([bBkKmMgG]?)[bB]?$ ]] || return 1
+  n="${BASH_REMATCH[1]}"
+  u="${BASH_REMATCH[2],,}"
+  case "$u" in
+    '' | b) printf '%s' "$n" ;;
+    k) printf '%s' "$((n * 1024))" ;;
+    m) printf '%s' "$((n * 1024 * 1024))" ;;
+    g) printf '%s' "$((n * 1024 * 1024 * 1024))" ;;
+  esac
+}
+
+# worker_memory_fit — the worker's memory limit, the value Compose will use
+# (worker_sized), is not above the host's total memory (Docker's MemTotal):
+# a limit no host can give is a worker that is killed when it needs it.
+worker_memory_fit() {
+  local mem="${WORKER_MEMORY:-}" bytes host
+  bytes="$(worker_memory_bytes "$mem")" ||
+    die "WORKER_MEMORY is '${mem}', not an amount of memory Compose reads (a number with b, k, m or g). The rule: (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2816 MB = ${WORKER_MEMORY_RULE}. The worker was not started."
+  host="$(docker info --format '{{.MemTotal}}' 2>&1)" || die "could not ask Docker how much memory this host has, so the worker's limit of ${mem} cannot be checked against it: ${host}"
+  [[ "$host" =~ ^[1-9][0-9]*$ ]] || die "Docker answered '${host}' for this host's memory, which is not a number of bytes, so the worker's limit of ${mem} cannot be checked against it."
+  if [ "$bytes" -gt "$host" ]; then
+    die "WORKER_MEMORY is ${mem}, above this host's $((host / 1048576)) MB of memory. Set it to at most that (the rule: (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2816 MB = ${WORKER_MEMORY_RULE}), or lower MAX_PASSES_IN_FLIGHT: ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_MEMORY=<n>m. The worker was not started."
+  fi
+  note "the worker's memory limit: ${mem}, within this host's memory"
+}
+
+# worker_env_fit — no key the worker receives has a .env line `KEY=` followed
+# by spaces or a tab and a `#`. bash reads that as an empty value and a
+# comment; Compose hands the container the comment itself as the value, even
+# over a ${KEY:-default}. alpha.1 to alpha.15's examples shipped
+# LEDGER_RETENTION_DAYS, LEDGER_RUN_RETENTION_DAYS, LOG_LEVEL and
+# TRIGGER_API_URL_IN_NETWORK that way, so old .env files carry them, and the
+# worker reads them from Compose (the retention job would throw on every run).
+# The keys are the ones managed.yml's worker service names; each is named, with
+# its fix, and .env is never rewritten here.
+worker_env_fit() {
+  local keys key line
+  local -a bad=()
+  keys="$(awk '
+    /^services:/ { s = 1; next }
+    /^[^[:space:]#]/ { s = 0 }
+    s && /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ { w = ($0 == "  worker:") ; next }
+    s && w { while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*/)) { print substr($0, RSTART + 2, RLENGTH - 2); $0 = substr($0, RSTART + RLENGTH) } }' "${SCRIPT_DIR}/managed.yml" | sort -u)"
+  [ -f "$ENV_FILE" ] || return 0
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    line="$(grep -E "^(export[[:space:]]+)?${key}=" "$ENV_FILE" | tail -1)" || line=''
+    [[ "$line" =~ ^[^=]*=[[:space:]]+# ]] && bad+=("$key")
+  done <<<"$keys"
+  [ "${#bad[@]}" -eq 0 ] && return 0
+  local k
+  for k in "${bad[@]}"; do
+    echo "!!!   ${k}: its line in ${ENV_FILE} is ${k}= then a space and a # comment. bash reads it as empty, and Compose hands the worker the comment as its value. Put the comment on a line of its own above it, and leave ${k}= (or a value) on its own line." >&2
+  done
+  die "the worker would receive a comment as the value of ${bad[*]} (above). ${ENV_FILE} was not changed; fix each line, then run this again. The worker was not started."
+}
+
+# worker_ready_to_start — everything about the worker that can be refused
+# before it starts: its size, its CPU cap against the host's, and the values
+# it would receive. Run in pg-boss mode before the plane stops (phase_trigger),
+# so a cutover that cannot start the worker leaves the plane running, and
+# again right before the worker starts (phase_app), for --from or --only app.
+worker_ready_to_start() {
+  worker_sized
+  worker_cpus_fit
+  worker_memory_fit
+  worker_env_fit
+}
+
+# worker_up — the worker started after the api, and waited on: its
+# healthcheck asks its own /health, which answers 200 once the runner runs.
+# worker_up <api before> <api after> — the worker started after the api, and
+# waited on, with its profile named, so one that never comes up is explained
+# from its own log like any other service.
+#
+# REPLACED WHENEVER THE API IS (privacy §9: a part's server logs go when that
+# part is replaced, "at each update of the service"). A container keeps its
+# output until it is removed, and Compose replaces one only when its image or
+# settings changed. The worker's image is built in the same call as the api's,
+# from the same checkout; and when this run replaced the api container (its
+# id before and after the `up` differ), the worker is recreated too, whatever
+# Compose would have decided, so no update leaves the worker's output behind.
+worker_up() {
+  local before="${1:-}" after="${2:-}"
+  local -a compose_before=("${COMPOSE[@]}")
+  COMPOSE=("${COMPOSE_WORKER[@]}")
+  if [ -n "$before" ] && [ "$after" != "$before" ]; then
+    note "the api container was replaced by this run: recreating the worker with it, so its output goes with the api's (privacy §9)"
+    "${COMPOSE[@]}" up -d --wait --force-recreate worker || explain_failure worker
+  else
+    up_wait worker
+  fi
+  COMPOSE=("${compose_before[@]}")
+  note "worker up and healthy: the jobs run on pg-boss"
+}
+
+# ---------------------------------------------------------------------------
 phase_trigger() {
   say trigger "the Trigger.dev plane"
   load_env
+  runner_mode
+  # PG-BOSS MODE (workplan 0167 T7): the plane stopped, in order, if it runs,
+  # and nothing else. Its volumes are kept, so OWNPACE_JOB_RUNNER=trigger and
+  # this bring-up start it again, at the same version, from what it held.
+  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
+    note "pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}): the jobs run in the worker, so the plane is stopped, not started; nothing migrates triggerdb"
+    # Before anything stops: a worker that could not start would leave the
+    # plane stopped and no runner at all.
+    worker_ready_to_start
+    plane_stop_in_order
+    return 0
+  fi
+  # TRIGGER MODE: the worker goes first, so the two runners never run side by
+  # side (the way back from pg-boss: OWNPACE_JOB_RUNNER=trigger, then this).
+  note "trigger mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_TRIGGER}): the jobs run on the plane"
+  worker_stop_and_remove "trigger mode"
 
   # ONE VERSION NUMBER, TWO PLACES, AND THEY MUST AGREE (0018 T0).
   #
@@ -1959,6 +2264,11 @@ phase_trigger() {
 phase_account() {
   say account "the account, organisation and project — the one human step"
   load_env
+  runner_mode
+  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
+    note "skipped: pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}). The jobs run in the worker, so no Trigger.dev project is needed or asked for."
+    return 0
+  fi
 
   # Already done? Then say so and move on. This is what makes re-running the
   # whole script after a reboot cost nothing.
@@ -2016,6 +2326,11 @@ EOF
 phase_login() {
   say login "the deploy CLI, once per machine"
   load_env
+  runner_mode
+  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
+    note "skipped: pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}). No task is deployed to Trigger.dev, so its deploy CLI is not logged in."
+    return 0
+  fi
   local cli_version profile url origin
   cli_version="$(node -p "require('${REPO_ROOT}/apps/worker/package.json').dependencies['@trigger.dev/sdk']")"
   profile="${TRIGGER_CLI_PROFILE:-$TRIGGER_CLI_PROFILE_DEFAULT}"
@@ -2389,6 +2704,12 @@ check_idp_console_config() {
 phase_app() {
   say app "api, web, and anything else not yet running"
   load_env
+  runner_mode
+  # Trigger mode: a worker left from pg-boss mode goes first (phase_trigger
+  # removed it already on a whole run; `--only app` starts here).
+  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_TRIGGER" ]; then
+    worker_stop_and_remove "trigger mode"
+  fi
   # Before the API and the tasks, which connect to hosts a tester types.
   check_docker_networks
   # Nextcloud is in managed.yml for the demo only, and a bare `up -d` would
@@ -2399,8 +2720,6 @@ phase_app() {
   # `up` means for an existing stack is a bigger change than this needs.)
   local services=(
     postgres pgbouncer
-    trigger-db trigger-redis clickhouse minio minio-init trigger-registry
-    trigger-docker-proxy trigger-api trigger-tls-init trigger-tls trigger-supervisor
     # The identity provider (ADR-0042). It was in managed.yml from #496 and NOT
     # in this list, so it was defined, interpolated, required in .env — and
     # never started. Every compose command had to satisfy ZITADEL_MASTERKEY for
@@ -2424,6 +2743,13 @@ phase_app() {
     # there when it matters" — so it can come up anywhere in this list.
     gatus
   )
+  # The plane, in trigger mode only (workplan 0167 T7). In pg-boss mode the
+  # worker is started on its own, after the api and the system role's
+  # question, below.
+  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_TRIGGER" ]; then
+    services+=(trigger-db trigger-redis clickhouse minio minio-init trigger-registry
+      trigger-docker-proxy trigger-api trigger-tls-init trigger-tls trigger-supervisor)
+  fi
   [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)
   # Every notification a stack with `SMTP_HOST=mailpit` sends lands in the
   # catcher and is readable in a browser, and the demo's Nextcloud is pointed
@@ -2505,10 +2831,32 @@ phase_app() {
   # GIT_SHA so `GET /version` answers with a commit rather than "unknown"; it
   # is a build argument only, so the `up` below needs none.
   # scripts/a-database-started-as-root.unit.test.ts holds this.
-  GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
-    "${COMPOSE[@]}" build api web || die "the api and web images did not build (compose's words are above); nothing was started or recreated."
+  # In pg-boss mode the worker's image is built with them: it runs the api's
+  # Node, from the same checkout (its profile named, which is harmless once it
+  # has none).
+  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_TRIGGER" ]; then
+    GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
+      "${COMPOSE[@]}" build api web || die "the api and web images did not build (compose's words are above); nothing was started or recreated."
+  else
+    GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
+      "${COMPOSE[@]}" --profile jobs build api web worker || die "the api, web and worker images did not build (compose's words are above); nothing was started or recreated."
+  fi
+  # Which api container ran before this `up`, so that a replaced one takes the
+  # worker with it (worker_up).
+  local api_before api_after
+  api_before="$("${COMPOSE[@]}" ps -q api 2>/dev/null | awk 'NR==1')" || api_before=''
   up_wait "${services[@]}"
+  api_after="$("${COMPOSE[@]}" ps -q api 2>/dev/null | awk 'NR==1')" || api_after=''
   note "up and healthy: ${services[*]}"
+  # PG-BOSS MODE: the worker after the api, once the system role it connects
+  # as for the jobs across organisations is asked and readied, as the tasks
+  # phase asks it before an upload in trigger mode; then its CPU cap is held
+  # to the host's.
+  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
+    system_role_ready
+    worker_ready_to_start
+    worker_up "$api_before" "$api_after"
+  fi
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
   # What the rule for a host a tenant gives us admits by name (workplan 0136
   # T2): the demo's targets on the gate's stack, nothing on live.
@@ -2593,6 +2941,11 @@ system_role_ready() {
 phase_tasks() {
   say tasks "the system role, task environment variables, the plane's limit, the deploy, then the owner names forgotten"
   load_env
+  runner_mode
+  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
+    note "skipped: pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}). The jobs ship in the worker's image, built and started by the app phase; nothing is uploaded to or deployed on Trigger.dev."
+    return 0
+  fi
   [ -n "$(env_get TRIGGER_PROJECT_REF)" ] ||
     die "TRIGGER_PROJECT_REF is not set — the 'account' phase has not been completed."
 
@@ -2657,7 +3010,11 @@ done
 echo
 echo "=== done."
 if [ "$WITH_DEMO" -eq 1 ] && [ "$NO_SMOKE" -eq 0 ]; then
-  echo "    A green smoke means an enqueue became a runner container on this machine."
+  if [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
+    echo "    A green smoke means an enqueue became a run in the worker on this machine (pg-boss mode)."
+  else
+    echo "    A green smoke means an enqueue became a runner container on this machine."
+  fi
 else
   echo "    Nothing has proven a task actually RUNS here. Before trusting this stack,"
   echo "    run the smoke against a demo stack, or watch the first real sync through."

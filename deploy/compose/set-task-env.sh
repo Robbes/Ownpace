@@ -200,6 +200,12 @@ for arg in "$@"; do
       ;;
   esac
 done
+# Trigger.dev's alone (workplan 0167 T7): refused, in one sentence and before
+# anything is asked or changed, where the jobs run on pg-boss.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
+job_runner_refuse_in_pg_boss set-task-env.sh "it uploads the environment of the Trigger.dev tasks"
+
 # shellcheck source=trigger-cli-lib.sh
 . "${SCRIPT_DIR}/trigger-cli-lib.sh"
 

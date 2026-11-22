@@ -1,9 +1,12 @@
 # Managed edition: bringing it up on a new machine
 
-The managed edition is a **multi-tenant service**: Postgres behind PgBouncer, a
-self-hosted **Trigger.dev** instance that is the one execution plane, the API,
-the web app, and the tasks in `apps/worker` deployed onto Trigger.dev. This
-document is how to stand it up, kept next to the script that executes it.
+The managed edition is a **multi-tenant service**: Postgres behind PgBouncer,
+the API, the web app, and the **worker**, the compose service that runs the
+background jobs on pg-boss in the same Postgres. That is the default
+(`OWNPACE_JOB_RUNNER=pg-boss`, *The two runners*, below). A self-hosted
+**Trigger.dev** plane, with the tasks in `apps/worker` deployed onto it, is
+kept installed and stopped as the fallback, *trigger mode*. This document is
+how to stand it up, kept next to the script that executes it.
 
 - **The script:** [`deploy/compose/bootstrap-managed.sh`](../deploy/compose/bootstrap-managed.sh)
 - **This document:** the same steps in prose, with every dashboard screen
@@ -145,6 +148,13 @@ are **not** product-named and keep their names; nothing above touches them.
   machine, use the formula beside it in `managed.env.example`:
   (the memory the stacks may use ÷ 1.2 − both stacks' resident services − the
   other stack's cap × 0.5 GB − the nightly's 2 GB) ÷ 0.5 GB.
+  **These figures were worked out for Trigger.dev, trigger mode.** In pg-boss
+  mode, the default, the plane's containers are stopped and the passes run in
+  the worker, whose memory limit is a ceiling, not a reservation (*The worker's
+  size*, below; about 120 MB idle). The figures for pg-boss mode are measured
+  again in the cutover's rehearsal (E2E (managed), which prints each
+  container's highest memory use in both runners) before this bullet gives
+  them.
 - **CPU: half a CPU per pass in flight**, beside the resident services: at 6 and
   3, that is 4.5 CPUs for passes. The resident services' own figure is still to
   be measured on the machine; until then these numbers are estimates, not
@@ -473,14 +483,23 @@ pnpm install --frozen-lockfile
 ./deploy/compose/bootstrap-managed.sh          # creates .env, then stops
 #   … read deploy/compose/.env and make the decisions in it …
 ./deploy/compose/bootstrap-managed.sh --from data
+```
+
+One stop on a brand-new machine, and it goes away with `--accept-defaults` on
+a throwaway demo box. In the default pg-boss mode the `account`, `login` and
+`tasks` phases are skipped: there is no Trigger.dev project to create, no
+magic link, no CLI login, no credentials and no task deploy.
+
+In trigger mode (`OWNPACE_JOB_RUNNER=trigger` in `.env`) there are two more
+stops, for the plane:
+
+```bash
+./deploy/compose/bootstrap-managed.sh --from data
 #   … create the organisation and project in the dashboard …
 ./deploy/compose/bootstrap-managed.sh --from account
 #   … one `pnpm -C apps/worker exec trigger login` when it asks …
 ./deploy/compose/bootstrap-managed.sh --from login
 ```
-
-Three stops on a brand-new machine, and the first of them goes away with
-`--accept-defaults` on a throwaway demo box.
 
 Add `--with-demo` on a demo box or a CI runner: it provisions the demo mail and
 DAV backends, seeds two demo tenants, and runs the live smoke at the end. **A
@@ -811,9 +830,124 @@ managed chain references `public.tenant`.
 
 **Verify:** the seed prints two demo owner tokens. Re-running it is a no-op.
 
+### The two runners: `OWNPACE_JOB_RUNNER` (alpha.16)
+
+From alpha.16 the managed edition runs its 17 background jobs on one of two
+runners (workplan 0167, ADR-0054): `pg-boss`, the `worker` service on our own
+Postgres, which is `managed.yml`'s default, or `trigger`, the Trigger.dev
+plane described in phases 5 to 7 and 9, kept as the fallback. Trigger mode is
+the only one in which those phases do anything. `deploy/compose/job-runner.sh`
+is the one reader every script here uses, and it reads the value as Compose
+hands it to the containers: this shell's `OWNPACE_JOB_RUNNER`, else `.env`'s,
+else `managed.yml`'s default, `pg-boss`. Unset or empty in the code means
+`trigger`, but `managed.yml`'s default means that a `.env` without the key, or
+with it empty, runs pg-boss. A `managed.yml` that never names the switch (alpha.14, alpha.15) runs
+the plane whatever `.env` says. Any other value stops every script in one
+sentence, before anything runs.
+
+**The plane in pg-boss mode.** Its eleven services (`trigger-db`,
+`trigger-redis`, `trigger-api`, `clickhouse`, `trigger-registry`,
+`trigger-docker-proxy`, `trigger-supervisor`, `minio`, `minio-init`,
+`trigger-tls`, `trigger-tls-init`) are in compose profile `trigger`, so a plain
+`up` starts none of them. They stay installed and their volumes stay, as the
+way back; the bring-up stops them in order and removes no volume. Nothing asks
+for a Trigger.dev project, account or login. What the bring-up does in each
+mode:
+
+| Phase | `trigger` | `pg-boss` |
+|---|---|---|
+| `trigger` | stops and removes the worker if it has one, then the plane as below | first checks the worker can start (its size, its CPU cap, the values it reads, below), so a cutover that cannot start it leaves the plane running; then stops the plane, if it runs or restarts: `trigger-supervisor` first, then waits (up to `PLANE_RUNNERS_TIMEOUT`, 300 s) until no `runner-*` container is left on the stack's network, then `trigger-api trigger-tls clickhouse trigger-registry trigger-docker-proxy minio trigger-redis trigger-db`. `stop`, never `rm -v`: the containers stay `Exited` and their volumes stay, as the way back |
+| `account`, `login` | as below | `skipped: pg-boss mode` |
+| `app` | builds `api web`; the plane with the rest | builds `api web worker`; no plane service; then the system role's question (as the `tasks` phase asks it in trigger mode), the worker's CPU cap held to the host's, and the worker, after the api, recreated whenever this run replaced the api's container, so its server log goes at each update as the api's does (privacy §9) |
+| `tasks` | as below | `skipped: pg-boss mode`; nothing is uploaded or deployed |
+
+**The worker.** One container, `<project>-worker`, built from
+`apps/worker/Dockerfile` on the API's images; its process is
+`apps/worker/src/runner/main.ts`. It is in no profile. It connects as the jobs
+role, `ownpace_jobs`, with `JOBS_DATABASE_URL`, through PgBouncer, to the
+schema `pgboss` (*The jobs role*, below), and the jobs themselves read the
+environment `set-task-env.sh` uploads to the tasks in trigger mode, under the
+same names, never the database owner's. Each job's run is a child process of
+the worker. In pg-boss mode the app phase builds it together with `api` and
+`web`, from the same `GIT_SHA`, and starts it after the api is healthy (the
+api applies the migrations the jobs read); when the run replaced the api's
+container, it recreates the worker too. Its health is `GET
+http://127.0.0.1:3002/health` inside its container, which answers 200 once the
+runner runs; `managed.yml`'s healthcheck asks it every 30 s, and the app phase
+waits on it. A stop gives the running passes 60 s to settle; a run cut off is
+picked up again by its heartbeat.
+
+**The worker's size.** `.env`'s `WORKER_CPUS` and `WORKER_MEMORY` when it sets
+them; otherwise the bring-up works them out from this stack's
+`MAX_PASSES_IN_FLIGHT` and hands them to Compose for that run, without writing
+`.env`: 0.5 × (`MAX_PASSES_IN_FLIGHT` + 2) CPUs and
+(`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB + 2,816 MB, from the worker's measured
+peak (#2048). That is 2.5 and `4864m` at the default cap of 3, and 4 and
+`6400m` at live's 6. Docker refuses a `cpus` above the host's CPU count, and a
+memory limit above the host's memory is one no host can give, so the bring-up
+refuses either, in one sentence, before the plane stops and before the worker
+starts. A line that passes names no number of the host's (the gate's log is
+public); a refusal does. Where a worked-out size differs from `managed.yml`'s
+default, the bring-up says that a compose call outside it (a hand
+`docker compose up -d`) would recreate the worker at the default, and prints
+the one `env-upsert.sh … WORKER_CPUS=… WORKER_MEMORY=…` that keeps the size in
+`.env`; it writes nothing there itself.
+
+**A stack whose `MAX_PASSES_IN_FLIGHT` is not 3 sets `WORKER_CPUS` and
+`WORKER_MEMORY` in its `.env`**, from the rule above, so that every compose call
+agrees, the bring-up's and a hand `docker compose` alike: the values the
+bring-up works out hold only for its own calls. Live, at 6, sets
+`WORKER_CPUS=4` and `WORKER_MEMORY=6400m`.
+
+**A comment where the worker reads a value.** A `.env` line such as
+`LEDGER_RETENTION_DAYS=  # days` (spaces or a tab, then `#`) is empty to bash,
+and Compose hands the container the comment itself as the value, even over a
+`${KEY:-default}`. Older examples (alpha.1 to alpha.15) shipped
+`LEDGER_RETENTION_DAYS`, `LEDGER_RUN_RETENTION_DAYS`, `LOG_LEVEL` and
+`TRIGGER_API_URL_IN_NETWORK` that way. In pg-boss mode the bring-up refuses
+when any key the worker receives has such a line, naming each; put the comment
+on a line of its own above the key. It never rewrites `.env`.
+
+**Seeing the jobs.** pg-boss has no dashboard. `./deploy/compose/operator.sh
+jobs` lists the queues with their runs queued, active and failed, and its
+subcommands `failures`, `show`, `cancel` and `run` do the rest
+([operator runbook](./operator-runbook.md#the-jobs-on-pg-boss-seeing-and-steering-them-pg-boss-mode-only)).
+They refuse in trigger mode, where the dashboard's Runs page is the view.
+
+**To trigger mode, the fallback**, with the hold on and the drain done:
+`./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_JOB_RUNNER=trigger`,
+then `./deploy/compose/bootstrap-managed.sh --from data`. Its trigger phase
+stops and removes the worker first, so the two runners never run side by
+side, then starts the plane by name from its kept volumes at the same
+version; the tasks phase uploads the task environment, sets the plane's limit
+and deploys this checkout's tasks. A plane that has never run on this stack
+has no project yet, and the `account` and `login` phases stop for you as
+below.
+
+**Back to pg-boss**, again with the hold on and the drain done:
+`./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_JOB_RUNNER=pg-boss`
+(or remove the key, which gives `managed.yml`'s default), then
+`./deploy/compose/bootstrap-managed.sh --from data`. Its trigger phase stops
+the plane in order, waiting for the runner containers to finish, and keeps
+its volumes; the app phase starts the worker.
+
+**Where the other scripts stand.** `deploy-tasks.sh`, `set-task-env.sh`,
+`plane-limit.sh`, `plane-tokens.sh`, `trigger-credentials.sh`,
+`trigger-magic-link.sh`, `trigger-remember-token.sh`, `reset-trigger.sh` and
+`trigger-version.sh backup|restore|drill` refuse in pg-boss mode, saying so;
+`trigger-version.sh pin` and `probe` still run. `copy-before-update.sh take
+--trigger` is refused there too. For `deploy-live.sh` in either mode, see
+[its section](#ownpace-live-a-release-tag-with-deploy-livesh).
+
 ### 5. `trigger` — the Trigger.dev plane
 
-Brings up `trigger-db`, `trigger-redis`, `clickhouse`, `minio`,
+> **Trigger mode only** (`OWNPACE_JOB_RUNNER=trigger`). In the default pg-boss
+> mode this phase only stops the plane, if it runs, as *The two runners* says,
+> and phases 6, 7 and 9 are skipped: no project to create, no magic link, no
+> credentials, no CLI login, no task environment and no task deploy. Phases 5
+> to 7 and 9 below describe trigger mode.
+
+In trigger mode it stops and removes the worker, if there is one, then brings up `trigger-db`, `trigger-redis`, `clickhouse`, `minio`,
 `trigger-registry`, `trigger-docker-proxy`, `trigger-api`, `trigger-tls`,
 `trigger-supervisor` and waits for all of them to be **healthy**, not merely
 started. `minio-init`, a one-shot, makes MinIO's `packets` bucket once `minio`
@@ -891,6 +1025,8 @@ older `.env` back) is put right by the next run.
 
 ### 6. `account` — **your turn**
 
+*Trigger mode only; in pg-boss mode it prints `skipped: pg-boss mode`.*
+
 If `.env` already has `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY`, this
 phase does nothing. If the project exists on the instance but `.env` is behind
 (a re-clone, a rotated file), the script reads them back and carries on. Only
@@ -953,6 +1089,8 @@ if the instance genuinely has no project does it stop, and then:
 > `.env` it is destined for; do not paste a run of it into an issue.
 
 ### 7. `login` — the deploy CLI, once per machine
+
+*Trigger mode only; in pg-boss mode it prints `skipped: pg-boss mode`.*
 
 The CLI is `trigger.dev`, a devDependency of `apps/worker` at exactly the
 `@trigger.dev/sdk` version beside it, installed from the lockfile with
@@ -1055,6 +1193,9 @@ its OUTPUT, not its exit code, which is 0 either way (below).
 
 `docker compose build api web`, with `GIT_SHA` passed so `GET /version`
 reports a commit rather than `unknown`, then `up -d --wait` without `--build`.
+In pg-boss mode the build names `worker` too, from the same `GIT_SHA`, and the
+phase starts the worker after the api, as *The two runners* says; in trigger
+mode the plane's services start with the rest.
 By name, because `up --build` builds every service in its scope that has a
 `build:`, dependencies included, and the two databases have one (*Both
 PostgreSQL databases run a build of the official image*, below). The API runs
@@ -1784,17 +1925,19 @@ under the organisation it was narrowed to.
 is also one JSON line on the output of the process that recorded it, in
 OpenTelemetry's log format: `Body` is the event, `ownpace.audit.actor` who
 acted, `ownpace.audit.id` its row in `audit_log`, and `Resource` says which
-process (`ownpace-api`, or `ownpace-worker` for the task runs). Addresses and
+process (`ownpace-api`, or `ownpace-worker` for the jobs). Addresses and
 file and folder names are pseudonyms (`pseudo:` and sixteen hex characters,
 the same person always the same one), a URL keeps only its scheme and host,
 and a detail field nobody has classified is left out. Docker keeps each
 container's output with the container, not in the host's journal (`json-file`,
 *Before you start*), so a collector reads it from Docker: `docker compose logs`,
 or the file `json-file` writes for each container, which the stack's services
-rotate at 20 MB and keep five of. A task run's container is
-removed when its run ends, and its output goes with it, so a collector that is
-to forward the worker's lines reads them as they are written; what it missed is
-still in `audit_log` (below). The audit lines are the ones carrying
+rotate at 20 MB and keep five of. A job's run on pg-boss is a child process of
+the worker, and its lines are the worker container's output, capped the same
+way; they go with the worker's container, which the bring-up replaces at each
+update of the service, as it does the api's. In trigger mode a task run is a
+container of Trigger.dev's, and its output goes with that container. Either way a collector that is to forward the worker's lines reads
+them as they are written; what it missed is still in `audit_log` (below). The audit lines are the ones carrying
 `ownpace.audit.id`; the API's, from the stack's checkout:
 
 ```bash
@@ -2743,6 +2886,11 @@ give back* until they are marked given back.
 
 ### 9. `tasks` — the system role, the task environment, the deploy, then the owner names forgotten
 
+*Trigger mode only.* In pg-boss mode it prints `skipped: pg-boss mode`, and
+nothing is uploaded or deployed: the worker carries the jobs' environment from
+`managed.yml`, and the app phase has asked the system role's question before
+it started the worker.
+
 ```bash
 ./deploy/compose/bootstrap-managed.sh --only tasks
 # which is, in this order:
@@ -2852,13 +3000,18 @@ registration, not execution — see the next phase for the difference.
 Mints a seeded-member token, runs a verify to a terminal state and an apply to
 `applied` or `refused` (a refusal is a legitimate pass — the gates said no and
 said why), and captures runner logs live, because `AutoRemove` destroys them at
-exit.
+exit. That is trigger mode. In pg-boss mode the Trigger.dev sections are
+skipped, each with one line naming itself and the mode, and their pg-boss
+counterparts run instead: a job ran, every job since the start completed, no
+`runner-*` container started, the worker runs the API's image as uid 65532
+with no shell, and its log from the smoke's start is kept beside the evidence
+file for the same redaction.
 
 Only runs with `--with-demo`: it drives the demo tenants. A green CI says
 nothing about whether an enqueue becomes a runner container **on this machine**
 — this is the step that answers it.
 
-> Runner debug logs print the **full task environment** — `SYSTEM_DATABASE_URL`,
+> Runner debug logs (trigger mode) print the **full task environment** — `SYSTEM_DATABASE_URL`,
 > `APP_DATABASE_URL`, `SECRET_ENCRYPTION_KEY`, the `tr_prod_` key. The smoke's evidence file is
 > secret-bearing by construction. `deploy/compose/redact-evidence.sh` cleans it
 > before anything is uploaded anywhere.
@@ -3323,6 +3476,7 @@ whose program needs a capability its service does not keep.
 | `zitadel` | its image's user | none | no | read: an image of one binary, run as its non-root user |
 | `zitadel-machinekey` | root | CHOWN, DAC_OVERRIDE, FOWNER | yes | measured, its init and every other command it runs: without CHOWN the chown fails, without FOWNER the chmod after it; without DAC_OVERRIDE `setup-zitadel.sh` cannot read the token (`cat: can't open '/machinekey/pat.txt': Permission denied`) nor write the rotated one, in a directory the identity provider owns at mode 700 (DAC_READ_SEARCH alone reads it and still cannot write) |
 | `api` | uid 65532 | none | no | read: its image's user, and its base carries no setuid binary and no file capability |
+| `worker` | uid 65532 | none | yes, `/tmp` in memory | read (2026-11-22, workplan 0167 T7): the API's two images and its user (`apps/worker/Dockerfile`); it writes no file outside `/tmp`. In no profile: it runs in pg-boss mode, `managed.yml`'s default, and is stopped and removed in trigger mode. E2E (managed) is the proof |
 | `web` | uid 101 (nginx) | none | no | read (2026-11-19): its image runs nginx as its own user from its first process (`apps/web/Dockerfile`), with the template's output directory and nginx's cache its own and its pid file in `/tmp`, and binds port 80 by the service's `net.ipv4.ip_unprivileged_port_start=0`; until then measured as root, then nginx, keeping CHOWN, NET_BIND_SERVICE, SETGID and SETUID. E2E (managed) is the proof |
 | `gatus` | root | none | no | read: an image of one binary, writing only its own volume |
 | `mailpit` | root | none | yes, `/tmp` in memory | measured: a message in, and a restart |
@@ -3338,7 +3492,8 @@ fewer where that was cheap; all of them but ClickHouse and the web app also
 came up healthy, and answered as the scripts ask them, through `managed.yml`
 itself. *Read* means its Dockerfile and
 entrypoint at the pinned version, where the image could not be pulled. E2E
-(managed) is the proof for both: it brings up every service of this file.
+(managed) is the proof for both: it brings up every service of this file,
+the plane's in a run dispatched in trigger mode (`job_runner: trigger`).
 NET_BIND_SERVICE stays with the site's nginx although Docker's own
 `net.ipv4.ip_unprivileged_port_start=0` makes it redundant today, so that
 port 80 does not rest on a daemon default. `web` runs nginx as uid 101 with
@@ -3363,12 +3518,15 @@ command.
 
 **When it reaches a stack.** A changed service is recreated at its next `up`:
 the OTA stack at the next E2E (managed) or gate, live at the deploy of the
-release that carries it, inside `deploy-live.sh`'s hold and drain. Task runs are Trigger.dev's
-containers, made by the supervisor through the socket proxy with Trigger.dev's
-own settings, so nothing here reaches them.
+release that carries it, inside `deploy-live.sh`'s hold and drain. In pg-boss
+mode a job's run is a child process of the worker and runs with the worker's
+settings above. In trigger mode only, task runs are Trigger.dev's containers,
+made by the supervisor through the socket proxy with Trigger.dev's own
+settings, so nothing here reaches them.
 
-**Not set, and why.** No `mem_limit` and no `pids_limit`: there is no
-measurement of any service's peak, ClickHouse and Node size their threads and
+**Not set, and why.** No `pids_limit`, and no `mem_limit` but the worker's,
+which is sized by the owner's rule (*The two runners*): for the other services
+there is no measurement of a peak, ClickHouse and Node size their threads and
 heap from the machine, and a limit set without one turns a busy hour into a
 killed database. The `dev.yml` stack, which only a developer runs, sets none
 of this.
@@ -3384,6 +3542,15 @@ is written in the compose file itself, never read from `.env`, so it is the
 same on the OTA stack and on live, and no machine's `.env` can empty it. Live
 runs `managed.yml` and `www.yml` and no other compose file: `stand-up-live.sh`
 refuses a `COMPOSE_FILE` in the shell.
+
+**In pg-boss mode, the default, the plane does not run.** `trigger-api`,
+`clickhouse` and `minio` are three of its eleven services, in profile
+`trigger` and stopped, so their rows below, and the paragraphs on the
+entrypoint's children, corepack and the deploy CLI, apply in trigger mode
+only. Their switches stay written in `managed.yml` either way, so the plane
+starts with them in trigger mode. The worker that runs the jobs instead is
+built on the API's images from this repository's code; pg-boss in it speaks
+only to the stack's Postgres, through PgBouncer.
 
 | Service | What it sent by default | The switch | Read at |
 |---|---|---|---|
@@ -3562,14 +3729,17 @@ stack has it once Compose has recreated those containers: the OTA stack at its
 next nightly bring-up, and live at its stand-up and every deploy, since both
 run `bootstrap-managed.sh`, which brings each of them
 up by name. The pull sequence in *Updating a running deployment* does **not**
-do all of it: it brings up `api` and `web`, whose dependencies take in
-`trigger-api`, `clickhouse` and, through `minio-init`, the object store, but
-not the identity provider or the catcher, which keep their old environment
-until the next bring-up. By hand, on a stack that is already up, from its
-checkout:
+do all of it: it brings up `api` and `web`, whose dependencies take in, in
+trigger mode, `trigger-api`, `clickhouse` and, through `minio-init`, the
+object store, but not the identity provider or the catcher, which keep their
+old environment until the next bring-up. By hand, on a stack that is already
+up, from its checkout:
 
 ```bash
-docker compose -f deploy/compose/managed.yml up -d trigger-api clickhouse zitadel minio
+docker compose -f deploy/compose/managed.yml up -d zitadel
+# Trigger mode only: a service named here starts whatever its profile, so in
+# pg-boss mode this would start the plane the bring-up stopped.
+docker compose -f deploy/compose/managed.yml up -d trigger-api clickhouse minio
 # Only where it already runs: the catcher.
 docker compose -f deploy/compose/managed.yml up -d mailpit
 ```
@@ -3581,6 +3751,7 @@ To see it on a running stack, from its checkout:
 env_of() { docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
   "$(docker compose -f deploy/compose/managed.yml ps -q "$1")"; }
 
+# Trigger mode only: trigger-api, minio and clickhouse run only there.
 env_of trigger-api | grep -E '^(TRIGGER_TELEMETRY_DISABLED|POSTHOG_PROJECT_KEY|CHECKPOINT_DISABLE)='
 #   TRIGGER_TELEMETRY_DISABLED=1
 #   POSTHOG_PROJECT_KEY=
@@ -4320,18 +4491,28 @@ No script can do these. The script checks each one before it changes anything.
    NetBird's own cluster adds a hop is not in its source; the check in *After
    the script*, step 6, settles it.
 
-   **`MAX_PASSES_IN_FLIGHT=6`** is live's cap on passes running at once, and the
-   bring-up sets live's task plane to it plus two, 8. The OTA stack runs with 6
-   as well while it is the only stack on the machine. Once live is stood up, put the
-   OTA stack back to 3, from its own checkout, in a shell with no
-   `COMPOSE_PROJECT_NAME` exported (*One shell, one stack*):
+   **`MAX_PASSES_IN_FLIGHT=6`** is live's cap on passes running at once. In
+   pg-boss mode the worker is sized from it (*The two runners*): live sets
+   `WORKER_CPUS=4` and `WORKER_MEMORY=6400m` in its `.env` beside it. In trigger
+   mode the bring-up sets live's task plane to it plus two, 8. The OTA stack
+   runs with 6 as well while it is the only stack on the machine. Once live is
+   stood up, put the OTA stack back to 3, from its own checkout, in a shell with
+   no `COMPOSE_PROJECT_NAME` exported (*One shell, one stack*). In pg-boss mode,
+   with the worker's size back to `managed.yml`'s defaults, the rule at 3:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env MAX_PASSES_IN_FLIGHT=3 WORKER_CPUS= WORKER_MEMORY=
+   ./deploy/compose/bootstrap-managed.sh --only app
+   ```
+
+   In trigger mode:
 
    ```bash
    ./deploy/compose/env-upsert.sh deploy/compose/.env MAX_PASSES_IN_FLIGHT=3
    ./deploy/compose/bootstrap-managed.sh --only tasks
    ```
 
-   The second line uploads the cap to the OTA stack's tick, sets its plane to
+   That second line uploads the cap to the OTA stack's tick, sets its plane to
    5 and deploys its tasks.
 
    **Mail goes through a real relay from the first day**: live
@@ -4410,7 +4591,9 @@ port, because its fix lists it), and a production name that does not resolve.
 4. Asks live's database over live's own network, as every container does:
    the two controls must open, and the three published values
    must not.
-5. `bootstrap-managed.sh --from trigger`. That stops twice, and the script exits
+5. `bootstrap-managed.sh --from trigger`. In pg-boss mode, the default, it does
+   not stop: the plane stays stopped, and the `account`, `login` and `tasks`
+   phases are skipped. In trigger mode it stops twice, and the script exits
    2 each time, saying what to do:
    - **live's own Trigger.dev account**, organisation and project, on its
      dashboard at `https://localhost:<TRIGGER_TLS_PORT>` on the machine, or
@@ -4941,6 +5124,12 @@ journal of whatever ran it), 2 refused.
 > the `.env` beside `www.yml` and run `docker compose -f deploy/compose/www.yml
 > up -d` from the updated checkout. See *Which address a port answers on*, under
 > the ports table in *Before you start*.
+
+**Which runner the update is for.** In pg-boss mode, the default, an update
+rebuilds the api, web and worker images and recreates the three, and deploys
+no tasks: there is no task bundle to replace. The Trigger.dev task deploy,
+`set-task-env.sh`, and the notes below on the plane's services (ClickHouse,
+the socket proxy, the registry and the rest) apply in trigger mode only.
 
 **ClickHouse's network changes once, with no step of yours.** The first `up`
 from a checkout that carries it
@@ -6101,6 +6290,26 @@ deploy to alpha.4 this reading is the whole check: alpha.3's script, and its
 v26.x, and <tag> asks for >=26` as it passes, and refuses a shell below what
 the tag asks for.
 
+**In either runner (workplan 0167 T7).** `deploy-live.sh` says which runner the
+jobs run on here now and which the tag's own bring-up will run them on (a tag
+whose `managed.yml` has no switch runs the plane). Its drain reads pg-boss's
+queue too, once the schema `pgboss` holds one: a job created, retrying or
+active outside the schedule queues and pg-boss's own `__pgboss__*` queues is
+refused as a pass in flight is. A tag
+whose bring-up runs pg-boss takes the copy **without** `--trigger`: that
+bring-up stops the plane and nothing migrates triggerdb. A move of
+bring-up stops the plane and nothing migrates triggerdb. A tag whose
+`managed.yml` has neither the Trigger.dev nor the ClickHouse line (alpha.17),
+deployed on a stack already on pg-boss, "removes the Trigger.dev plane from
+managed.yml (its volumes stay)", which is not one-way by itself; deployed on a
+stack still in trigger mode it is refused (nothing would stop the plane):
+switch to pg-boss with the bring-up first, then deploy. A move of
+pg-boss's version in `pnpm-lock.yaml` or of its schema version
+(`PG_BOSS_SCHEMA_VERSION`) between two tags that both carry it is one-way:
+pg-boss migrates its schema forward. And before the checkout of a tag whose
+`managed.yml` defines no `worker` (alpha.14, alpha.15: the way back), it stops
+and removes this stack's worker, which nothing after the checkout would stop.
+
 ### The OTA stack: the nightly gate, or a pull
 
 On the OTA stack (`~/ownpace-managed`) the nightly gate is the deploy: it
@@ -6130,9 +6339,27 @@ it is a copy of its own, add it by hand:
 ./deploy/compose/env-upsert.sh deploy/compose/.env NODE_ENV=development
 ```
 
-By hand, a stack that is already up takes a pull,
-a rebuild of the two images that carry code, and — **sometimes** — a re-deploy
-of the tasks:
+By hand, a stack that is already up takes a pull and a rebuild of the images
+that carry code. In pg-boss mode, the default, those are three, and nothing
+is deployed anywhere else: the jobs run from the worker's image, so the
+rebuild is the whole update. The worker is recreated with the api, so its
+output goes at each update as the api's does (privacy §9):
+
+```bash
+cd ~/ownpace-managed
+git pull
+
+GIT_SHA=$(git rev-parse --short HEAD) \
+  docker compose -f deploy/compose/managed.yml build api web worker
+docker compose -f deploy/compose/managed.yml up -d --wait api web
+docker compose -f deploy/compose/managed.yml up -d --wait --force-recreate worker
+```
+
+Running the bring-up from `app` does the same, and checks the worker's CPU cap
+and the system role first: `./deploy/compose/bootstrap-managed.sh --from app`.
+
+**In trigger mode only**, the two images that carry code, and — **sometimes**
+— a re-deploy of the tasks:
 
 ```bash
 cd ~/ownpace-managed
@@ -6201,7 +6428,8 @@ and then stop here, `Could not resolve "undici/…"`, with the api and web on th
 new code and every pass on the old bundle. So `pnpm` must be on this
 machine's PATH; the script refuses by name when it is not.
 
-`set-task-env.sh` is a **different** question and a rarer one. Task containers
+`set-task-env.sh`, in trigger mode too, is a **different** question and a
+rarer one. Task containers
 inherit nothing from compose, so the environment is uploaded separately — run
 it only when a value in `.env` that the worker reads has changed (see phase 9).
 A code-only pull does not need it.
@@ -6310,9 +6538,9 @@ itself, as any role can; the next bring-up sets `.env`'s again.
 
 ### The jobs role
 
-`ownpace_jobs` (ADR-0054) owns the schema `pgboss`, where pg-boss will keep the
-managed edition's jobs, and nothing else. Nothing connects as it yet; the
-worker will, through the pooler. It is made by the bring-up's `data` phase from
+`ownpace_jobs` (ADR-0054) owns the schema `pgboss`, where pg-boss keeps the
+managed edition's jobs, and nothing else. The worker connects as it, through
+the pooler, with `JOBS_DATABASE_URL`, in pg-boss mode. It is made by the bring-up's `data` phase from
 `deploy/compose/jobs-role.sql`, not by a migration, and the phase asks Postgres
 what it may do on every run, before it sets `.env`'s `JOBS_DB_PASSWORD` on it.
 The file creates the role and the schema when they are missing and changes

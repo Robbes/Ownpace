@@ -53,7 +53,7 @@ const ENUMERATION = 'pool.query<TickRow>(ACTIVE_MAPPINGS_SQL';
 const HOLD = 'if (hold) {';
 const ENQUEUE = 'await mapWithConcurrency(toEnqueue';
 /** The hold for the other runner's tick (workplan 0167 T6), asked before the operator's. */
-const OTHER_RUNNER = "ANOTHER_RUNNER_BEAT_MS)) === 'up') {";
+const OTHER_RUNNER = 'if (otherRunnerBeats || sharedBeatIsAnothers) {';
 
 /** Every index at which `needle` occurs in `haystack`. */
 function allIndexes(haystack: string, needle: string): number[] {

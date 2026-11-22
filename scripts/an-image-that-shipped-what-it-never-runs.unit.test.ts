@@ -85,7 +85,16 @@ import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const DOCKERFILE = 'apps/api/Dockerfile';
+/**
+ * The images that install the workspace this way, each with the package its
+ * filter starts from: the API's, and since workplan 0167 T7 the job worker's,
+ * which runs the same packages on the same two images. Both are held to every
+ * rule below, by the closure their own filter selects.
+ */
+const IMAGES = [
+  { dockerfile: 'apps/api/Dockerfile', root: '@openmig/api' },
+  { dockerfile: 'apps/worker/Dockerfile', root: '@openmig/worker' },
+] as const;
 
 // ---------------------------------------------------------------- 1. stages
 
@@ -212,7 +221,7 @@ function devDependencyRefusals(text: string): string[] {
   return refusals;
 }
 
-describe('the API image carries production dependencies only', () => {
+describe.each(IMAGES)('$dockerfile carries production dependencies only', ({ dockerfile: DOCKERFILE }) => {
   const dockerfile = readFileSync(join(ROOT, DOCKERFILE), 'utf8');
 
   it('reads the stages it is about', () => {
@@ -291,12 +300,12 @@ function workspace(): Map<string, { dir: string; manifest: Manifest }> {
 }
 
 /**
- * The API and every workspace package it reaches along production edges: what
- * `--filter-prod @openmig/api...` selects. pnpm's graph for it has each
- * package's `dependencies`, `optionalDependencies` and `peerDependencies`, and
- * leaves out `devDependencies`.
+ * `root` and every workspace package it reaches along production edges, as
+ * `--filter-prod <root>...` selects. pnpm's graph for it has each package's
+ * `dependencies`, `optionalDependencies` and `peerDependencies`, and leaves out
+ * `devDependencies`.
  */
-function apiClosure(): Array<{ dir: string; manifest: Manifest }> {
+function closureOf(root: string): Array<{ dir: string; manifest: Manifest }> {
   const all = workspace();
   const seen = new Map<string, { dir: string; manifest: Manifest }>();
   const visit = (name: string) => {
@@ -308,7 +317,7 @@ function apiClosure(): Array<{ dir: string; manifest: Manifest }> {
       if (spec.startsWith('workspace:')) visit(dep);
     }
   };
-  visit('@openmig/api');
+  visit(root);
   return [...seen.values()];
 }
 
@@ -353,40 +362,46 @@ function packageOf(specifier: string): string | null {
   return BUILTINS.has(name) ? null : name;
 }
 
-describe('what the API image loads is declared where it is loaded', () => {
-  const closure = apiClosure();
+/** What a package's runtime source loads that its own `dependencies` do not declare. */
+function undeclaredLoads(dir: string, manifest: Manifest): string[] {
+  const declared = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.optionalDependencies ?? {})]);
+  const files = runtimeSources(`${dir}/src`);
+  expect(files.length, `${dir}/src has no runtime source to read`).toBeGreaterThan(0);
+  const missing: string[] = [];
+  for (const file of files) {
+    for (const specifier of runtimeSpecifiers(file, readFileSync(join(ROOT, file), 'utf8'))) {
+      if (specifier === null) {
+        missing.push(`${file}: an import() of a computed name, which this cannot check`);
+        continue;
+      }
+      const name = packageOf(specifier);
+      if (name && name !== manifest.name && !declared.has(name)) missing.push(`${name} (${relative(dir, file)})`);
+    }
+  }
+  return [...new Set(missing)];
+}
+
+describe.each(IMAGES)('what $dockerfile loads is declared where it is loaded', ({ dockerfile: DOCKERFILE, root }) => {
+  const closure = closureOf(root);
 
   it('walks the packages the image installs', () => {
     // Named, so a closure that stops following `workspace:` fails here.
     expect(closure.map((p) => p.manifest.name).sort()).toEqual(
-      expect.arrayContaining(['@openmig/api', '@openmig/core', '@openmig/ledger', '@openmig/managed', '@openmig/orchestration']),
+      expect.arrayContaining([root, '@openmig/core', '@openmig/ledger', '@openmig/managed', '@openmig/orchestration']),
     );
     // And it starts where the Dockerfile's filter starts, along the edges that filter follows.
     const commands = installsBehind(readStages(readFileSync(join(ROOT, DOCKERFILE), 'utf8')), 'runtime').map((i) => i.command);
+    const filter = new RegExp(`--filter-prod[ =]${root.replace('/', '\\/')}\\.\\.\\.(\\s|$)`);
     expect(
-      commands.some((command) => /--filter-prod[ =]@openmig\/api\.\.\.(\s|$)/.test(command)),
-      `${DOCKERFILE}: this walks what --filter-prod @openmig/api... selects, and the image installs ${commands.join(' | ')}`,
+      commands.some((command) => filter.test(command)),
+      `${DOCKERFILE}: this walks what --filter-prod ${root}... selects, and the image installs ${commands.join(' | ')}`,
     ).toBe(true);
   });
 
   for (const { dir, manifest } of closure) {
     it(`${manifest.name} declares in "dependencies" every package its runtime source loads`, () => {
-      const declared = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.optionalDependencies ?? {})]);
-      const files = runtimeSources(`${dir}/src`);
-      expect(files.length, `${dir}/src has no runtime source to read`).toBeGreaterThan(0);
-      const missing: string[] = [];
-      for (const file of files) {
-        for (const specifier of runtimeSpecifiers(file, readFileSync(join(ROOT, file), 'utf8'))) {
-          if (specifier === null) {
-            missing.push(`${file}: an import() of a computed name, which this cannot check`);
-            continue;
-          }
-          const name = packageOf(specifier);
-          if (name && name !== manifest.name && !declared.has(name)) missing.push(`${name} (${relative(dir, file)})`);
-        }
-      }
       expect(
-        [...new Set(missing)],
+        undeclaredLoads(dir, manifest),
         `${dir}/package.json: the image installs --prod, so these resolve only through another package's tree, or not at all`,
       ).toEqual([]);
     });
@@ -412,4 +427,32 @@ describe('what the API image loads is declared where it is loaded', () => {
     ]);
     expect(packageOf('fs/promises')).toBeNull();
   });
+});
+
+/**
+ * THE WORKER'S IMAGE, THE SAME RULE (workplan 0167 T6). The managed worker runs
+ * the jobs on pg-boss from `apps/worker/src/runner/main.ts`, and its image is
+ * installed `--prod` as the API's is. Until then the Trigger.dev CLI bundled
+ * each task with whatever it reached, so `apps/worker` never declared `pg`
+ * (sixteen job files import it) and kept `drizzle-orm` (thirteen) a
+ * devDependency: a `--prod` worker would have failed at its first run's
+ * import. Its Dockerfile comes with its compose service; the closure is read
+ * from the manifests here, so this holds before it does.
+ */
+describe('what the worker loads is declared where it is loaded', () => {
+  const closure = closureOf('@openmig/worker');
+
+  it('walks the packages the worker reaches', () => {
+    expect(closure.map((p) => p.manifest.name).sort()).toEqual(
+      expect.arrayContaining(['@openmig/worker', '@openmig/scheduler', '@openmig/managed', '@openmig/orchestration', '@openmig/ledger']),
+    );
+  });
+
+  it('declares pg and drizzle-orm itself, which its jobs import', () => {
+    const worker = closure.find((p) => p.manifest.name === '@openmig/worker')!;
+    expect(Object.keys(worker.manifest.dependencies ?? {})).toEqual(expect.arrayContaining(['pg', 'drizzle-orm']));
+  });
+
+  // Each package of the worker's closure is held to its own "dependencies" by
+  // the describe.each above, over apps/worker/Dockerfile's filter.
 });

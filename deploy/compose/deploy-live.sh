@@ -213,6 +213,19 @@
 #       only the build makes would otherwise pass the dry run and fail the
 #       deploy after the checkout.
 #
+# EITHER RUNNER (workplan 0167 T7). The jobs run on Trigger.dev's plane or on
+# the worker (pg-boss), by OWNPACE_JOB_RUNNER, read by job-runner.sh for this
+# checkout (what runs now) and for the tag (what its bring-up will run), each
+# said with where it came from. A tag whose managed.yml has no switch runs the
+# one runner it has. In pg-boss mode: the drain also counts pg-boss's jobs
+# created, retrying or active outside the schedule queues and its own
+# `__pgboss__*` queues; a tag whose bring-up runs pg-boss takes the copy
+# without --trigger; on a stack on pg-boss, a tag without the plane's lines is
+# not one-way by itself, and a move of pg-boss's version or schema version is.
+# A tag without the plane onto a stack still on it is refused: switch to
+# pg-boss with the bring-up first. Before the checkout of a tag that defines no
+# worker, the worker is stopped and removed.
+#
 # ONE-WAY OR REVERSIBLE (0146 T5). Before the checkout moves, and again at the
 # end, it says whether the deploy can be undone by deploying a tag this stack
 # has run again. It compares the new tag with each of:
@@ -324,6 +337,18 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 # below, word for word the library's (one-rule-for-a-release-tag).
 # shellcheck source=deploy/compose/release-tag.sh
 . "${SCRIPT_DIR}/release-tag.sh"
+# Which runner the jobs run on (workplan 0167 T7): the one reader, for this
+# checkout (STACK_RUNNER, what runs now) and for the tag (TAG_RUNNER, what the
+# tag's own bring-up will run them on after the checkout).
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
+STACK_RUNNER=''
+STACK_RUNNER_FROM=''
+TAG_RUNNER=''
+TAG_RUNNER_FROM=''
+# Set once worker_gone_before_checkout has stopped the worker, so that a
+# refusal after it does not say the stack is as it was.
+WORKER_GONE=''
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 # Plain progress for every compose call here and in the bring-up it starts:
@@ -364,7 +389,13 @@ refuse() {
   printf '[deploy-live] refused: %s\n' "$1" >&2
   shift
   [ "$#" -eq 0 ] || printf '  %s\n' "$@" >&2
-  printf '[deploy-live] The checkout and the stack are as they were.\n' >&2
+  if [ -n "$WORKER_GONE" ]; then
+    # worker_gone_before_checkout stopped and removed it, and the checkout did
+    # not happen: say so, and how to start it again (workplan 0167 T7).
+    printf '[deploy-live] The checkout is as it was. The stack is not: its worker was stopped and removed before the checkout; ./deploy/compose/bootstrap-managed.sh --only app starts it again.\n' >&2
+  else
+    printf '[deploy-live] The checkout and the stack are as they were.\n' >&2
+  fi
   exit 1
 }
 usage() {
@@ -666,6 +697,11 @@ main() {
     SITE_SCOPE_CLASS="$(env_value "$ENV_FILE" GOOGLE_ACCOUNT_SCOPE_CLASS)"
   fi
 
+  # ---- The runner: which one runs the jobs here (workplan 0167 T7) ------------
+  job_runner_mode "$SCRIPT_DIR" "$ENV_FILE" || refuse "$JOB_RUNNER_WHY"
+  STACK_RUNNER="$JOB_RUNNER"
+  STACK_RUNNER_FROM="$JOB_RUNNER_FROM"
+
   # ---- The checkout: clean -----------------------------------------------------
   local dirty
   dirty="$(git -C "$REPO_ROOT" status --porcelain --untracked-files=normal)" ||
@@ -673,7 +709,7 @@ main() {
   if [ -n "$dirty" ]; then
     refuse "the working tree is not clean. Live runs what the tag holds, and a checkout would carry these across or stop on them:" \
       "$dirty" \
-      "Look at each (git status, git diff). The task deploy is known to strip apps/worker/package.json's last newline; discard that with git checkout -- apps/worker/package.json."
+      "Look at each (git status, git diff).$(task_deploy_sentence "$STACK_RUNNER" '; discard that with git checkout -- apps/worker/package.json.')"
   fi
 
   # ---- The tag: a release ---------------------------------------------------------
@@ -734,6 +770,21 @@ main() {
   release_tag_carries "$REPO_ROOT" "$tag" "$commit" || refuse "${RELEASE_TAG_WHY[@]}"
   say "${tag} is an annotated release tag on origin, at ${commit}, version ${version}"
   say "$node_said"
+  # The runner the tag's own bring-up will run the jobs on: a tag whose
+  # managed.yml has no switch runs the one it knows (job-runner.sh).
+  job_runner_mode_at "$REPO_ROOT" "$commit" "$ENV_FILE" || refuse "${tag}: ${JOB_RUNNER_WHY}"
+  TAG_RUNNER="$JOB_RUNNER"
+  TAG_RUNNER_FROM="$JOB_RUNNER_FROM"
+  say "the jobs run on ${STACK_RUNNER} here now (from ${STACK_RUNNER_FROM}); ${tag}'s bring-up will run them on ${TAG_RUNNER} (from ${TAG_RUNNER_FROM})"
+  # A TAG WITHOUT THE PLANE ONTO A STACK STILL ON IT (alpha.17 onto trigger
+  # mode). Its bring-up names no plane service, so nothing would stop the
+  # plane, and its supervisor would go on running the old tasks against the
+  # new schema beside the tag's worker: two runners. Refused before anything
+  # moves.
+  if [ "$STACK_RUNNER" = "$JOB_RUNNER_TRIGGER" ] && [ -z "$(trigger_pin "$commit")$(image_pins "$commit" 'clickhouse\/clickhouse-server')" ]; then
+    refuse "${tag}'s managed.yml has no Trigger.dev plane, and this stack's jobs still run on it (${JOB_RUNNER_KEY}=${JOB_RUNNER_TRIGGER}): switch to pg-boss with the bring-up first, then deploy." \
+      "With the hold on and the drain done: ./deploy/compose/env-upsert.sh deploy/compose/.env ${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}, then ./deploy/compose/bootstrap-managed.sh --from data, which stops the plane in order and starts the worker (docs/managed-bring-up.md, The two runners). Then run this again."
+  fi
 
   # ---- The site at this tag: its own project, a port, no blank in its texts --------
   if [ "$site" = on ]; then
@@ -747,12 +798,12 @@ main() {
     refuse "docker compose reports the project '${reported:-none}', and this checkout chooses '${COMPOSE_PROJECT}'." \
       "Something in this shell points Compose at another stack. Open a new shell and run this again."
   fi
-  local answer superuser open age in_flight
+  local answer superuser open age in_flight queued
   answer="$(db_read)" ||
     refuse "could not read the hold and the passes in flight from ${COMPOSE_PROJECT}'s database (above). Is its postgres up?" \
       "A database that cannot be read is not one with nothing in flight."
-  IFS='|' read -r superuser open age in_flight <<<"$answer"
-  if ! [[ "$superuser" =~ ^(yes|no)$ && "$open" =~ ^[0-9]+$ && "$age" =~ ^-?[0-9]+$ && "$in_flight" =~ ^[0-9]+$ ]] ||
+  IFS='|' read -r superuser open age in_flight queued <<<"$answer"
+  if ! [[ "$superuser" =~ ^(yes|no)$ && "$open" =~ ^[0-9]+$ && "$age" =~ ^-?[0-9]+$ && "$in_flight" =~ ^[0-9]+$ && "$queued" =~ ^(-|[0-9]+)$ ]] ||
     [ "$(wc -l <<<"$answer")" -ne 1 ]; then
     refuse "could not read the hold and the passes in flight: the database answered something that is not a count." \
       "A database that cannot be read is not one with nothing in flight."
@@ -768,11 +819,23 @@ main() {
     refuse "${in_flight} pass(es) still in flight. Wait until the tick's log says 0 (workplan 0132 T6 step 3), then run this again." \
       "It logs every minute: [sync-tick] holding: … N pass(es) still in flight; the drain is done when that reaches 0."
   fi
+  # pg-boss's own queue (workplan 0167 T7): a job created, retrying or active
+  # outside the schedule queues is work one runner holds that the next may
+  # never run. `-` when the schema holds no pg-boss yet.
+  if [ "$queued" != - ] && [ "$queued" -gt 0 ]; then
+    refuse "${queued} pg-boss job(s) still created, retrying or active outside the schedule queues. Wait until none is (the runner that holds them runs them; with the hold on, the tick queues no pass), then run this again." \
+      "They are counted in the schema pgboss: SELECT name, state, count(*) FROM pgboss.job WHERE state IN ('created','retry','active') GROUP BY 1, 2;"
+  fi
   if [ "$age" -lt $((QUIET_MINUTES * 60)) ]; then
     refuse "the hold began $((age / 60)) minute(s) ago. A pass the tick queued just before it is in no count until it starts." \
       "Run this again once the hold is ${QUIET_MINUTES} minutes old."
   fi
   say "the hold is on and nothing is in flight"
+  if [ "$queued" = - ]; then
+    say "  (the schema pgboss holds no pg-boss queue yet)"
+  else
+    say "  in the ledger, and in pg-boss's queues outside the schedule queues"
+  fi
 
   # ---- The log: one that can be appended to (T6 step 9) ----------------------------
   # Past the checkout every way out is logged, and the next deploy reads the log
@@ -797,7 +860,11 @@ main() {
   # run it answers the same question and writes nothing.
   local -a copy_args=(take)
   [ -z "$dry_run" ] || copy_args+=(--dry-run)
-  if trigger_moves "$commit" "${bases[@]}"; then copy_args+=(--trigger); fi
+  if [ "$TAG_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
+    say "no --trigger: ${tag}'s bring-up runs the jobs on pg-boss, so it starts no Trigger.dev plane and nothing migrates triggerdb (workplan 0167 T7)."
+  elif trigger_moves "$commit" "${bases[@]}"; then
+    copy_args+=(--trigger)
+  fi
   copy_args+=("$tag")
   say "the copy before the update: copy-before-update.sh ${copy_args[*]}"
   "${SCRIPT_DIR}/copy-before-update.sh" "${copy_args[@]}" ||
@@ -807,6 +874,9 @@ main() {
   # ---- --dry-run stops here, before anything moves ---------------------------------
   if [ -n "$dry_run" ]; then
     echo
+    if ! job_runner_has_service "$(git -C "$REPO_ROOT" show "${commit}:deploy/compose/managed.yml" 2>/dev/null)" worker; then
+      say "dry run: ${tag}'s managed.yml defines no worker, so a deploy would stop and remove this stack's worker, if it has one, before the checkout."
+    fi
     say "dry run: a deploy of ${tag} now would be ${verdict}."
     if [ "$verdict" = one-way ]; then
       say "dry run: after it, the way back is forward, or the copy the deploy takes right before its checkout, until day 6 (copy-before-update.sh; the operator runbook's The copy before an update). Run this again without --dry-run to deploy it."
@@ -826,6 +896,12 @@ main() {
   # reader when the tag has none of its own (app_headers_check).
   local started_at
   started_at="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+  # A tag whose managed.yml defines no worker (alpha.14, alpha.15) would leave
+  # this one running beside the plane its bring-up starts: nothing runs
+  # --remove-orphans. So it goes first, while this checkout still knows it.
+  if ! job_runner_has_service "$(git -C "$REPO_ROOT" show "${commit}:deploy/compose/managed.yml" 2>/dev/null)" worker; then
+    worker_gone_before_checkout "$tag"
+  fi
   say "checking out ${tag}"
   git -C "$REPO_ROOT" -c advice.detachedHead=false checkout -q --detach "refs/tags/${tag}" ||
     refuse "git checkout --detach ${tag} failed (above)."
@@ -835,7 +911,11 @@ main() {
 
   say "installing the tag's dependencies"
   if ! (cd "$REPO_ROOT" && pnpm install --frozen-lockfile); then
-    did_not_take "$deploy_log" "$tag" "$commit" "$verdict" "pnpm install --frozen-lockfile failed (above). The task deploy builds from this checkout's node_modules."
+    if [ "$TAG_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
+      did_not_take "$deploy_log" "$tag" "$commit" "$verdict" "pnpm install --frozen-lockfile failed (above). The tag's own scripts run from this checkout's node_modules."
+    else
+      did_not_take "$deploy_log" "$tag" "$commit" "$verdict" "pnpm install --frozen-lockfile failed (above). The task deploy builds from this checkout's node_modules."
+    fi
   fi
 
   # The tag's own bring-up. GIT_SHA is `git rev-parse HEAD` inside it, which is
@@ -958,7 +1038,7 @@ main() {
     say "NOTE: git could not read the working tree after the deploy (above); the next deploy asks again."
   elif [ -n "$dirty" ]; then
     say "NOTE: the deploy left the working tree changed, and the next deploy refuses that:" "$dirty" \
-      "Look at it (git diff). The task deploy is known to strip apps/worker/package.json's last newline."
+      "Look at it (git diff).$(task_deploy_sentence "$TAG_RUNNER" .)"
   fi
 }
 
@@ -1033,10 +1113,62 @@ compose_reports_project() {
   sed -n 's/^name:[[:space:]]*//p' <<<"$cfg"
 }
 
+# task_deploy_sentence <runner> <end> — the sentence about the task deploy's
+# change to apps/worker/package.json, with <end> after it, in trigger mode;
+# nothing in pg-boss mode, where no task is deployed (workplan 0167 T7).
+task_deploy_sentence() {
+  [ "${1:-}" != "$JOB_RUNNER_PGBOSS" ] || return 0
+  printf " The task deploy is known to strip apps/worker/package.json's last newline%s" "${2:-.}"
+}
+
+# worker_gone_before_checkout <tag> — the worker stopped (its grace period
+# lets a run's child finish or be killed) and removed, before the checkout of
+# a tag whose managed.yml defines none. With this checkout's Compose, its
+# profile named, when this managed.yml defines it; otherwise by the container
+# name managed.yml gives it, <project>-worker. Refuses, before the checkout,
+# when it could not be done. The hold is on and the drain was done, so no run
+# is cut short.
+worker_gone_before_checkout() {
+  local tag="$1" ids
+  local -a worker_compose=("${COMPOSE[@]}" --profile jobs)
+  if job_runner_has_service "$(cat "${SCRIPT_DIR}/managed.yml" 2>/dev/null)" worker; then
+    ids="$("${worker_compose[@]}" ps -a -q worker)" ||
+      refuse "could not ask Compose whether this stack has a worker (above), and ${tag} defines none: it would keep running beside the plane ${tag} starts. Nothing was checked out."
+    if [ -z "$ids" ]; then
+      say "${tag} defines no worker, and this stack has none: nothing to stop"
+      return 0
+    fi
+    "${worker_compose[@]}" stop worker ||
+      refuse "the worker did not stop (above), and ${tag} defines none. Nothing was checked out."
+    "${worker_compose[@]}" rm -f worker >/dev/null ||
+      refuse "the worker stopped and was not removed (above), and ${tag} defines none. Nothing was checked out."
+  else
+    ids="$(docker ps -a -q --filter "name=^${COMPOSE_PROJECT}-worker\$")" ||
+      refuse "could not ask Docker whether this stack has a worker (above), and ${tag} defines none. Nothing was checked out."
+    if [ -z "$ids" ]; then
+      say "${tag} defines no worker, and this stack has none: nothing to stop"
+      return 0
+    fi
+    docker stop -t 60 "${COMPOSE_PROJECT}-worker" >/dev/null ||
+      refuse "the worker did not stop (above), and ${tag} defines none. Nothing was checked out."
+    docker rm "${COMPOSE_PROJECT}-worker" >/dev/null ||
+      refuse "the worker stopped and was not removed (above), and ${tag} defines none. Nothing was checked out."
+  fi
+  WORKER_GONE=1
+  say "the worker stopped and removed before the checkout: ${tag}'s managed.yml defines none, so nothing after it would stop it, and its runs and the plane's never overlap (workplan 0167 T7)"
+}
+
 # One line, `superuser|open holds|age of the open hold in seconds|passes in
-# flight`, read as the owner over the postgres container's own socket. Reads
-# only. The in-flight count is the tick's own (managed-sync-tick.ts): `running`
-# rows younger than STALE_RUN_AFTER_MS.
+# flight|pg-boss jobs waiting`, read as the owner over the postgres container's
+# own socket. Reads only. The in-flight count is the tick's own
+# (managed-sync-tick.ts): `running` rows younger than STALE_RUN_AFTER_MS. The
+# last is pg-boss's (workplan 0167 T7): its jobs created, retrying or active
+# outside the schedule queues (the tick's minute is no work waiting) and
+# pg-boss's own `__pgboss__*` queues (its timekeeper's send-it job comes and
+# goes every minute, hold or not), or `-`
+# while the schema pgboss holds no pg-boss yet. Asked through query_to_xml in
+# the CASE's other arm, so that a schema without pg-boss's table is never
+# parsed for it.
 db_read() {
   "${COMPOSE[@]}" exec -T postgres sh -c 'psql -X -q -At -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<SQL
 SELECT (SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'yes' ELSE 'no' END
@@ -1046,7 +1178,11 @@ SELECT (SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'yes' ELSE 'no' END
           FROM platform_pause WHERE ended_at IS NULL) AS hold_age_seconds,
        (SELECT count(*) FROM run
          WHERE status = 'running'
-           AND started_at > now() - interval '${STALE_RUN_AFTER_SECONDS} seconds') AS in_flight;
+           AND started_at > now() - interval '${STALE_RUN_AFTER_SECONDS} seconds') AS in_flight,
+       (SELECT CASE WHEN to_regclass('pgboss.job') IS NULL OR to_regclass('pgboss.schedule') IS NULL THEN '-'
+               ELSE (xpath('/row/n/text()', query_to_xml(
+                 'SELECT count(*) AS n FROM pgboss.job WHERE state IN (''created'', ''retry'', ''active'') AND name NOT IN (SELECT name FROM pgboss.schedule) AND left(name, 10) <> ''__pgboss__''',
+                 false, true, '')))[1]::text END) AS pgboss_waiting;
 SQL
 }
 
@@ -1091,6 +1227,9 @@ comparison_bases() {
 trigger_moves() {
   local new="$1" entry base new_pins old_pins
   shift
+  # In pg-boss mode the tag's bring-up stops the plane: nothing migrates
+  # triggerdb (workplan 0167 T7).
+  [ "$TAG_RUNNER" != "$JOB_RUNNER_PGBOSS" ] || return 1
   new_pins="$(trigger_pin "$new")" || new_pins=''
   [ -n "$new_pins" ] || return 0
   for entry in "$@"; do
@@ -1117,6 +1256,31 @@ trigger_pin() {
   text="$(git -C "$REPO_ROOT" show "$1:deploy/compose/managed.yml" 2>/dev/null)" || return 0
   found="$(grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[0-9.]+\}' <<<"$text")" || return 0
   sed 's/.*:-//; s/}$//' <<<"$found" | sort -u
+}
+
+# pgboss_carried <commit> — true when packages/scheduler/package.json at that
+# commit depends on pg-boss: the release carries it, so its pins must be read.
+pgboss_carried() {
+  local pkg
+  pkg="$(git -C "$REPO_ROOT" show "$1:packages/scheduler/package.json" 2>/dev/null)" || return 1
+  grep -qE '"pg-boss"[[:space:]]*:' <<<"$pkg"
+}
+
+# pgboss_pins <commit> — `version <v>` lines for each pg-boss the lockfile at
+# that commit resolves, and `schema <n>` for the schema version the runner
+# there refuses any other than (PG_BOSS_SCHEMA_VERSION), sorted, or nothing.
+pgboss_pins() {
+  local lock runner found
+  lock="$(git -C "$REPO_ROOT" show "$1:pnpm-lock.yaml" 2>/dev/null)" || lock=''
+  runner="$(git -C "$REPO_ROOT" show "$1:packages/scheduler/src/pg-boss/job-runner.ts" 2>/dev/null)" || runner=''
+  {
+    if found="$(grep -oE '^  pg-boss@[0-9][^:(]*:$' <<<"$lock")"; then
+      sed 's/^  pg-boss@/version /; s/:$//' <<<"$found"
+    fi
+    if found="$(grep -oE '^const PG_BOSS_SCHEMA_VERSION = [0-9]+;' <<<"$runner")"; then
+      sed 's/.* = /schema /; s/;$//' <<<"$found"
+    fi
+  } | sort -u
 }
 
 # image_pins <commit> <pattern> — the image lines of managed.yml at that commit
@@ -1149,7 +1313,50 @@ differences() {
       *) echo "changes ${file}" ;;
     esac
   done <<<"$changed"
-  for line in 'Trigger.dev' 'identity provider:zitadel\/zitadel' 'ClickHouse:clickhouse\/clickhouse-server'; do
+  # THE PLANE TAKEN OUT (workplan 0167 T7). A tag whose managed.yml has
+  # neither the Trigger.dev nor the ClickHouse line, over one that had both,
+  # removes the plane: on a stack whose jobs run on pg-boss its services are
+  # stopped already, and their volumes stay, so that is no one-way move by
+  # itself. A `note:` line, which compare_releases says and does not count.
+  # Where neither has them, there is nothing to compare.
+  local plane_old plane_new
+  plane_old="$(trigger_pin "$base")$(image_pins "$base" 'clickhouse\/clickhouse-server')"
+  plane_new="$(trigger_pin "$new")$(image_pins "$new" 'clickhouse\/clickhouse-server')"
+  local -a pinned=('Trigger.dev' 'identity provider:zitadel\/zitadel' 'ClickHouse:clickhouse\/clickhouse-server')
+  if [ -z "$plane_old" ] && [ -z "$plane_new" ]; then
+    pinned=('identity provider:zitadel\/zitadel')
+  elif [ -n "$plane_old" ] && [ -z "$plane_new" ] && [ "$STACK_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
+    echo "note: removes the Trigger.dev plane from managed.yml (its volumes stay); this stack's jobs run on pg-boss, so its services are stopped already"
+    pinned=('identity provider:zitadel\/zitadel')
+  fi
+  # PG-BOSS'S OWN SCHEMA (workplan 0167 T7): pg-boss migrates it forward when
+  # its version moves, and a runner refuses any schema version but its own,
+  # so a move of either, between two commits that both carry pg-boss, is one
+  # way. A tag without pg-boss ignores the schema, and is no move of it.
+  # A pin that cannot be read where both releases carry pg-boss cannot be
+  # compared, which the rule calls one-way, as it does a missing image line.
+  if pgboss_carried "$base" && pgboss_carried "$new"; then
+    old_pins="$(pgboss_pins "$base")"
+    new_pins="$(pgboss_pins "$new")"
+    local o n what
+    for what in version schema; do
+      o="$(sed -n "s/^${what} //p" <<<"$old_pins")"; n="$(sed -n "s/^${what} //p" <<<"$new_pins")"
+      if [ -z "$o" ] || [ -z "$n" ]; then
+        if [ "$what" = version ]; then
+          echo "cannot be compared with it on pg-boss's version: pnpm-lock.yaml at one of the two resolves no pg-boss"
+        else
+          echo "cannot be compared with it on pg-boss's schema version: packages/scheduler/src/pg-boss/job-runner.ts at one of the two has no PG_BOSS_SCHEMA_VERSION line"
+        fi
+      elif [ "$o" != "$n" ]; then
+        if [ "$what" = version ]; then
+          echo "moves pg-boss in pnpm-lock.yaml: ${o//$nl/, } -> ${n//$nl/, }; it migrates its schema pgboss forward, and an older release's runner refuses what it left"
+        else
+          echo "moves pg-boss's schema version (PG_BOSS_SCHEMA_VERSION): ${o} -> ${n}"
+        fi
+      fi
+    done
+  fi
+  for line in "${pinned[@]}"; do
     if [ "$line" = Trigger.dev ]; then
       old_pins="$(trigger_pin "$base")"
       new_pins="$(trigger_pin "$new")"
@@ -1170,8 +1377,8 @@ differences() {
 compare_releases() {
   local new="$1" tag="$2"
   shift 2
-  local entry base name what found line back=''
-  local -a listed=() over=()
+  local entry base name what found line back='' head
+  local -a listed=() over=() notes=()
   for entry in "$@"; do
     IFS=$'\t' read -r base name what <<<"$entry"
     [ -n "$base" ] || continue
@@ -1179,10 +1386,17 @@ compare_releases() {
     [ "${#listed[@]}" -gt 0 ] || [ "$name" = "$tag" ] || back="$name"
     listed+=("${name}: ${what}")
     found="$(differences "$base" "$new")"
-    if [ -n "$found" ]; then
-      over+=("over ${name}, ${tag}")
-      while IFS= read -r line; do over+=("  ${line}"); done <<<"$found"
-    fi
+    head=''
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      case "$line" in
+        'note: '*) notes+=("over ${name}, ${tag} ${line#note: }") ;;
+        *)
+          [ -n "$head" ] || { head=1; over+=("over ${name}, ${tag}"); }
+          over+=("  ${line}")
+          ;;
+      esac
+    done <<<"$found"
   done
   if [ "${#listed[@]}" -eq 0 ]; then
     listed+=("nothing: neither deploys.log nor this checkout names a release")
@@ -1191,6 +1405,10 @@ compare_releases() {
   if [ "${#over[@]}" -gt 0 ]; then echo one-way; else echo reversible; fi
   say "compared with what this stack has run:"
   printf '    %s\n' "${listed[@]}"
+  if [ "${#notes[@]}" -gt 0 ]; then
+    say "not one-way by itself (workplan 0167 T7):"
+    printf '    %s\n' "${notes[@]}"
+  fi
   if [ "${#over[@]}" -gt 0 ]; then
     say "one-way: after ${tag}, deploying a tag this stack ran before is no way back."
     printf '    %s\n' "${over[@]}"
@@ -1200,7 +1418,7 @@ compare_releases() {
       say "  That copy holds no ClickHouse volume, and this tag moves the ClickHouse pin: copy the volume by hand before this deploy, as docs/managed-bring-up.md (Moving ClickHouse, on live) says, or the way back starts the older ClickHouse on parts it cannot read."
     fi
   else
-    say "reversible: over each of those, ${tag} adds, changes or removes no migration file in either chain, and moves none of the Trigger.dev, identity-provider and ClickHouse pins in managed.yml."
+    say "reversible: over each of those, ${tag} adds, changes or removes no migration file in either chain, and moves none of the Trigger.dev, identity-provider and ClickHouse pins in managed.yml, nor pg-boss's version or schema version."
     say "  If it misbehaves, ${back:-the release that ran before it} can be deployed again with this script."
   fi
 }

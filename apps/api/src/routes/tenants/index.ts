@@ -17,7 +17,7 @@ import { closeAccount, reopenAccount } from '../../close-account.ts';
 import { isCloseWindow, CLOSE_WINDOWS_DAYS } from '@openmig/managed';
 import { backupRetentionDaysFromEnv, erasureScopeText } from '@openmig/shared';
 import { eq } from 'drizzle-orm';
-import { getTriggerClient } from '@openmig/scheduler';
+import { cancelRun } from '../../job-runner.ts';
 import * as schema from '@openmig/ledger/schema-pg';
 import {
   readTenantNotificationPrefs,
@@ -508,7 +508,7 @@ router.post(
           closedAt: new Date(),
           backupRetentionDays: backupRetentionDaysFromEnv(process.env.BACKUP_RETENTION_DAYS),
         },
-        { cancelRun: async (ref) => void (await getTriggerClient().runs.cancel(ref)) },
+        { cancelRun },
       );
       res.json(answer);
     } catch (error) {

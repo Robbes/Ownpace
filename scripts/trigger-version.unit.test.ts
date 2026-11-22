@@ -56,7 +56,8 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 function run(args: string[], env: NodeJS.ProcessEnv = {}) {
   const r = spawnSync(SCRIPT, args, {
     encoding: 'utf8',
-    env: { ...process.env, MANAGED_BACKUP_DIR: backups, ...env },
+    // Trigger mode: this script works on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
+    env: { ...process.env, OWNPACE_JOB_RUNNER: 'trigger', MANAGED_BACKUP_DIR: backups, ...env },
     cwd: dir,
   });
   return { status: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };

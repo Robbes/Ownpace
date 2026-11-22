@@ -25,12 +25,13 @@
  * while the script drifted underneath it.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SMOKE = join(REPO_ROOT, 'deploy/compose/smoke-managed.sh');
@@ -1178,10 +1179,24 @@ describe('nothing temporary is still living in the gate', () => {
   });
 
   it('takes no dispatch input that exists to switch the gate off', () => {
-    // `workflow_dispatch:` with no `inputs:` is the shape to keep. An input
-    // that gates the gate is how a run can look green having done nothing.
-    const dispatch = /workflow_dispatch:\s*\n((?: {4}.*\n|\s*\n)*)/.exec(workflow)?.[1] ?? '';
-    expect(dispatch.includes('inputs:'), `unexpected dispatch inputs:\n${dispatch}`).toBe(false);
+    // An input that gates the gate is how a run can look green having done
+    // nothing. ONE input is the gate's own since workplan 0167 T7: `job_runner`,
+    // which runner works the stack's jobs in that run, `trigger` or `pg-boss`,
+    // or empty for the stack's own (its .env, else managed.yml's default):
+    // a string, so that empty can be given, and refused by its step otherwise.
+    // It chooses what the gate drives, never whether it runs: every step but
+    // the Trigger.dev plane's own drill runs in both, and the smoke judges both
+    // (the pg-boss sections below). Nothing else.
+    const on = (parse(workflow) as { on: { workflow_dispatch?: { inputs?: Record<string, { type?: string; options?: string[]; default?: string }> } | null } }).on;
+    const inputs = on.workflow_dispatch?.inputs ?? {};
+    expect(Object.keys(inputs), 'a dispatch input beside job_runner').toEqual(['job_runner']);
+    expect(inputs.job_runner).toMatchObject({ type: 'string', default: '' });
+    // And nothing in the job reads an input but the steps that set the mode.
+    const reads = [...workflow.matchAll(/\$\{\{\s*inputs\.([a-z_]+)/g)].map((m) => m[1]);
+    expect(new Set(reads)).toEqual(new Set(['job_runner']));
+    // The one `if:` on it writes it into the checkout's .env; none skips a step of the gate.
+    const ifs = workflow.split('\n').filter((l) => /^\s*if:.*\binputs\./.test(l)).map((l) => l.trim());
+    expect(ifs).toEqual(["if: inputs.job_runner != ''"]);
   });
 
   it('no job is conditional on anything but the event that fired it', () => {
@@ -1454,5 +1469,794 @@ describe('a target the reindexer could not see is not a verified target (2026-09
     // spent fixture set then reads as a broken listing on every run.
     const r = drive(report({ [reported]: [3, 0] }), [reported], { [ledger]: 3 });
     expect(r.reasons).toContain('the fixture set is spent');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE GATE IN BOTH MODES (ADR-0054; workplan 0167 T7).
+//
+// On a stack whose jobs run on pg-boss the Trigger.dev plane is stopped, so
+// each section that asks it is skipped, out loud, and what stood for "an
+// enqueue became a runner" is read from pg-boss instead. The first real stack
+// these branches meet is the E2E (managed) run of the switch-on, so each is
+// run here against stubs, from the script's own text: a skip in the wrong mode
+// is a green on less evidence, and a pg-boss run in which no job completed
+// must be red.
+// ---------------------------------------------------------------------------
+
+/** A function of the smoke, as it is written there: `name() {` to the `}` that ends it. */
+function smokeFunction(name: string): string {
+  const start = smoke.indexOf(`\n${name}() {`);
+  if (start < 0) throw new Error(`smoke-managed.sh no longer defines ${name}()`);
+  return smoke.slice(start + 1, smoke.indexOf('\n}\n', start) + 3);
+}
+
+/** Run `body` after the smoke's own definitions of `fns`, under the smoke's `set -uo pipefail`. */
+function smokeRun(fns: string[], body: string, env: Record<string, string> = {}) {
+  const r = spawnSync(
+    'bash',
+    ['-c', ['set -uo pipefail', FAIL_PREAMBLE, `. '${join(REPO_ROOT, 'deploy/compose/env-read.sh')}'`, ...fns.map(smokeFunction), body, 'echo "FAIL=$fail"'].join('\n')],
+    { encoding: 'utf8', env: { PATH: process.env.PATH ?? '/usr/bin:/bin', ...env } },
+  );
+  const out = `${r.stdout}${r.stderr}`;
+  return { status: r.status, out, fail: /^FAIL=(\d)$/m.exec(r.stdout)?.[1] ?? '?', reasons: /FAIL_REASONS<<([\s\S]*?)>>/.exec(r.stdout)?.[1] ?? '' };
+}
+const SHOW_REASONS = 'printf "FAIL_REASONS<<%s>>\\n" "$FAIL_REASONS"';
+
+describe('which runner works the jobs is read once, as the bring-up reads it, and the workflow reads it the same way', () => {
+  const dirs: string[] = [];
+  /** A deploy/compose directory holding a .env (or none) and a managed.yml with this default (or none). */
+  function box(dotenv: string | null, ymlDefault: string | null) {
+    const dir = mkdtempSync(join(tmpdir(), 'job-runner-'));
+    dirs.push(dir);
+    const compose = join(dir, 'deploy/compose');
+    mkdirSync(compose, { recursive: true });
+    writeFileSync(join(compose, 'env-read.sh'), readFileSync(join(REPO_ROOT, 'deploy/compose/env-read.sh')));
+    // Both read the mode through the scripts' one reader (workplan 0167 T7).
+    writeFileSync(join(compose, 'job-runner.sh'), readFileSync(join(REPO_ROOT, 'deploy/compose/job-runner.sh')));
+    if (dotenv !== null) writeFileSync(join(compose, '.env'), dotenv);
+    writeFileSync(
+      join(compose, 'managed.yml'),
+      `services:\n  api:\n    environment:\n      APP_ENV: x\n${ymlDefault === null ? '' : `      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${ymlDefault}}\n`}`,
+    );
+    return { dir, compose };
+  }
+  const smokeReads = (compose: string) =>
+    smokeRun(['smoke_job_runner'], `. '${compose}/job-runner.sh'\nsmoke_job_runner && echo "rc=0" || echo "rc=$?"`, { SCRIPT_DIR: compose });
+  const step = (parse(workflow) as { jobs: Record<string, { steps: Array<{ id?: string; run?: string }> }> }).jobs['e2e-managed']!.steps.find((s) => (s.run ?? '').includes('>"$RUNNER_TEMP/job-runner"'));
+  function workflowReads(dir: string, input = '') {
+    const temp = join(dir, 'runner-temp');
+    mkdirSync(temp, { recursive: true });
+    const output = join(temp, 'job-runner');
+    writeFileSync(output, '');
+    const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', step?.run ?? 'exit 99'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', JOB_RUNNER_INPUT: input, RUNNER_TEMP: temp },
+    });
+    return { status: r.status, out: `${r.stdout}${r.stderr}`, mode: readFileSync(output, 'utf8').trim() };
+  }
+
+  it.each([
+    ['no .env and no default in managed.yml', null, null, 'trigger'],
+    ['a .env without the key, and no default', 'NODE_ENV=development\n', null, 'trigger'],
+    ['the key empty', 'OWNPACE_JOB_RUNNER=\n', 'trigger', 'trigger'],
+    ['trigger', 'OWNPACE_JOB_RUNNER=trigger\n', 'trigger', 'trigger'],
+    ['pg-boss', 'OWNPACE_JOB_RUNNER=pg-boss\n', 'trigger', 'pg-boss'],
+    ['pg-boss in double quotes, as Compose reads it', 'OWNPACE_JOB_RUNNER="pg-boss"\n', 'trigger', 'pg-boss'],
+    ['pg-boss in single quotes, with a comment', "OWNPACE_JOB_RUNNER='pg-boss'   # the switch\n", 'trigger', 'pg-boss'],
+    // job-runner.sh's rule: a managed.yml that never names the switch hands it
+    // to no container, so that release runs the plane whatever .env says.
+    ['pg-boss in .env, and a managed.yml without the switch', 'OWNPACE_JOB_RUNNER=pg-boss\n', null, 'trigger'],
+    ["the key empty, and managed.yml's default pg-boss (the flip)", 'OWNPACE_JOB_RUNNER=\n', 'pg-boss', 'pg-boss'],
+    ["no key, and managed.yml's default pg-boss", 'NODE_ENV=development\n', 'pg-boss', 'pg-boss'],
+    ["the .env's trigger over managed.yml's pg-boss", 'OWNPACE_JOB_RUNNER=trigger\n', 'pg-boss', 'trigger'],
+    ["the last assignment, as Compose takes it", 'OWNPACE_JOB_RUNNER=trigger\nOWNPACE_JOB_RUNNER=pg-boss\n', 'trigger', 'pg-boss'],
+  ])('%s: %s', (_what, dotenv, ymlDefault, want) => {
+    const { dir, compose } = box(dotenv, ymlDefault);
+    const s = smokeReads(compose);
+    expect(s.out).toContain('rc=0');
+    expect(s.out.split('\n')[0]).toBe(want);
+    const w = workflowReads(dir);
+    expect(w.status, w.out).toBe(0);
+    expect(w.mode).toBe(want);
+  });
+
+  it.each([['pgboss'], ['Trigger'], ['pg_boss']])("'%s' is refused in one sentence, by both", (value) => {
+    const { dir, compose } = box(`OWNPACE_JOB_RUNNER=${value}\n`, 'trigger');
+    const s = smokeReads(compose);
+    expect(s.out).toContain('rc=1');
+    // job-runner.sh's one sentence, which does not print the value.
+    expect(s.out).toMatch(/OWNPACE_JOB_RUNNER in \S+\.env is neither trigger nor pg-boss \(its value is not printed\)/);
+    const w = workflowReads(dir);
+    expect(w.status).not.toBe(0);
+    expect(w.mode).toBe('');
+    expect(w.out).toMatch(/::error::OWNPACE_JOB_RUNNER in \S+\.env is neither trigger nor pg-boss/);
+  });
+
+  it("the dispatch's input wins over the .env, for the run's steps, and is refused when it is neither", () => {
+    const { dir } = box('OWNPACE_JOB_RUNNER=trigger\n', null);
+    expect(workflowReads(dir, 'pg-boss').mode).toBe('pg-boss');
+    expect(workflowReads(dir, 'trigger').mode).toBe('trigger');
+    const bad = workflowReads(dir, 'both');
+    expect(bad.status).not.toBe(0);
+    expect(bad.mode).toBe('');
+    expect(bad.out).toContain("This dispatch's job_runner is 'both'");
+  });
+
+  it('both read it through job-runner.sh, not by a reader of their own', () => {
+    expect(smoke).toContain('. "${SCRIPT_DIR}/job-runner.sh"');
+    expect(smoke).toMatch(/smoke_job_runner\(\) \{[\s\S]*?job_runner_mode "\$SCRIPT_DIR"/);
+    expect(step?.run).toContain('. deploy/compose/job-runner.sh');
+    expect(step?.run).toContain('job_runner_mode deploy/compose deploy/compose/.env');
+    expect(step?.run).not.toMatch(/sed -n[^\n]*OWNPACE_JOB_RUNNER/);
+  });
+
+  it("the smoke stops at an answer it cannot read, before any section, and the API's own mode is held to it", () => {
+    const at = smoke.indexOf('JOB_RUNNER="$(smoke_job_runner)"');
+    expect(at).toBeGreaterThan(0);
+    expect(smoke.slice(at, smoke.indexOf('\n', at))).toContain('exit 1');
+    expect(at).toBeLessThan(smoke.indexOf('note "preflights"'));
+    expect(smoke).toMatch(/^api_runner="\$\(api_env OWNPACE_JOB_RUNNER\)"/m);
+    expect(smoke.indexOf('api_runner="$(api_env OWNPACE_JOB_RUNNER)"')).toBeLessThan(smoke.indexOf('if trigger_only "minio and trigger-tls"; then'));
+  });
+
+  it('the input is written into the checkout only after the persisted copy is saved, and never copied back', () => {
+    const steps = (parse(workflow) as { jobs: Record<string, { steps: Array<{ name?: string; run?: string; if?: string }> }> }).jobs['e2e-managed']!.steps;
+    const persist = steps.findIndex((s) => (s.run ?? '').includes('cp deploy/compose/.env "${PERSIST_DIR}/.env"'));
+    const write = steps.findIndex((s) => (s.run ?? '').includes('OWNPACE_JOB_RUNNER=${JOB_RUNNER}'));
+    const bringUp = steps.findIndex((s) => (s.run ?? '').includes('bootstrap-managed.sh'));
+    expect(persist).toBeGreaterThan(0);
+    expect(write).toBeGreaterThan(persist);
+    expect(write).toBeLessThan(bringUp);
+    expect(steps[write]!.if).toBe("inputs.job_runner != ''");
+    const after = steps.slice(write + 1).filter((s) => /PERSIST_DIR|\.persistent/.test(s.run ?? ''));
+    expect(after.map((s) => s.name), 'a step after the write reaches the persisted directory').toEqual([]);
+  });
+
+  it("the Trigger.dev plane's drill runs only on trigger, and its keys are asked only there", () => {
+    const steps = (parse(workflow) as { jobs: Record<string, { steps: Array<{ name?: string; run?: string; if?: string }> }> }).jobs['e2e-managed']!.steps;
+    const mode = steps.findIndex((s) => (s.run ?? '').includes('>"$RUNNER_TEMP/job-runner"'));
+    const reads = (s: { run?: string }) => (s.run ?? '').includes('JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"');
+    const drill = steps.findIndex((s) => (s.run ?? '').includes('trigger-version.sh drill'));
+    const refuse = steps.findIndex((s) => (s.run ?? '').includes('TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY'));
+    for (const at of [drill, refuse]) {
+      expect(at).toBeGreaterThan(mode);
+      expect(reads(steps[at]!), steps[at]!.name).toBe(true);
+    }
+    // Run, on a stand-in for the drill: on pg-boss it does not run, on trigger it does.
+    for (const [m, ran] of [['pg-boss', false], ['trigger', true]] as const) {
+      const dir = mkdtempSync(join(tmpdir(), 'drill-'));
+      dirs.push(dir);
+      mkdirSync(join(dir, 'deploy/compose'), { recursive: true });
+      writeFileSync(join(dir, 'job-runner'), `${m}\n`);
+      writeFileSync(join(dir, 'deploy/compose/trigger-version.sh'), '#!/usr/bin/env bash\necho "drill ran: $*"\n');
+      chmodSync(join(dir, 'deploy/compose/trigger-version.sh'), 0o755);
+      const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', steps[drill]!.run!], { cwd: dir, encoding: 'utf8', env: { PATH: process.env.PATH ?? '/usr/bin:/bin', RUNNER_TEMP: dir } });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout.includes('drill ran: drill'), `${m}: ${r.stdout}`).toBe(ran);
+    }
+    expect(steps[refuse]!.run).toMatch(/if \[ "\$JOB_RUNNER" = trigger \]; then\n\s+for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY; do/);
+    // No step is skipped by the mode: each decides inside its own run, and says so.
+    expect(steps.filter((s) => /steps\.|outputs\./.test(s.if ?? '')).map((s) => s.name)).toEqual([]);
+  });
+
+  afterAll(() => dirs.forEach((d) => rmSync(d, { recursive: true, force: true })));
+});
+
+describe('a section that cannot speak for a pg-boss stack is skipped, out loud, and only there', () => {
+  /** Each Trigger.dev section, by the name its skip line gives and a line only it carries. */
+  const SECTIONS: Array<[string, string]> = [
+    ['minio and trigger-tls', "fetch('http://minio:9000/minio/health/live')"],
+    ['the runner-log capture', "for c in $(docker ps --filter \"network=${COMPOSE_PROJECT}_ownpace-network\""],
+    ['trigger-registry and trigger-docker-proxy', 'REGISTRY_PORT_CHECK="${SMOKE_REGISTRY_PORT:-${registry_port:-5000}}"'],
+    ['clickhouse, and who can reach it', 'TRIGGER_API_CONTAINER="${COMPOSE_PROJECT}-trigger-api"'],
+    ['runner logs captured before AutoRemove', 'if [ "$found_logs" != "1" ]; then'],
+    ["the tasks' image", '--entrypoint node "$ours" --version'],
+  ];
+
+  it.each(SECTIONS)('"%s" lies inside its own trigger_only, unindented', (name, marker) => {
+    const open = smoke.indexOf(`\nif trigger_only "${name}"; then\n`);
+    const close = smoke.indexOf(`\nfi # trigger_only "${name}"\n`);
+    expect(open, `no trigger_only around "${name}"`).toBeGreaterThan(0);
+    expect(close).toBeGreaterThan(open);
+    const at = smoke.indexOf(marker);
+    expect(at, marker).toBeGreaterThan(open);
+    expect(at, `${marker} is outside its trigger_only`).toBeLessThan(close);
+    // Once each: a second copy of the marker outside would run in both modes.
+    expect(smoke.indexOf(marker, at + 1)).toBe(-1);
+  });
+
+  it('on trigger it says nothing and runs the section; on pg-boss it prints one line naming the section and the mode, and skips it', () => {
+    const t = smokeRun(['trigger_only'], 'JOB_RUNNER=trigger; trigger_only "the tasks\' image" && echo ran || echo skipped');
+    expect(t.out.trim().split('\n')).toEqual(['ran', 'FAIL=0']);
+    const p = smokeRun(['trigger_only'], 'JOB_RUNNER=pg-boss; trigger_only "the tasks\' image" && echo ran || echo skipped');
+    const lines = p.out.trim().split('\n').filter(Boolean);
+    expect(lines).toEqual([
+      "--- the tasks' image: skipped, this stack runs its jobs on pg-boss and its Trigger.dev plane is stopped ---",
+      'skipped',
+      'FAIL=0',
+    ]);
+  });
+
+  it("the pg-boss checks run only on pg-boss: in trigger mode the smoke's verdict rests on what it always did", () => {
+    for (const call of ['pgboss_jobs', 'no_runner_started', 'jobs_role_fit', 'worker_fit']) {
+      const calls = smoke.split('\n').filter((l) => l.trim() === call);
+      expect(calls, `${call} is called once`).toHaveLength(1);
+    }
+    const jobs = smoke.indexOf('\npgboss_jobs\n');
+    expect(smoke.lastIndexOf('if [ "$JOB_RUNNER" = pg-boss ]; then', jobs)).toBeGreaterThan(smoke.lastIndexOf('\nfi\n', jobs));
+    // The worker's image stands in the else of the tasks' image.
+    const worker = smoke.indexOf('\nworker_fit\n');
+    expect(smoke.lastIndexOf('\nelse\n', worker)).toBeGreaterThan(smoke.indexOf('if trigger_only "the tasks\' image"; then'));
+    expect(worker).toBeLessThan(smoke.indexOf('fi # trigger_only "the tasks\' image"'));
+    // And last before the verdict, once everything this run causes is caused.
+    expect(jobs).toBeGreaterThan(smoke.indexOf('note "the books: one sandbox invoice a night (0111, decision 12)"'));
+    expect(jobs).toBeLessThan(smoke.indexOf('note "verdict"'));
+  });
+
+  it("the header says both modes' rule", () => {
+    expect(smoke).toContain('no runner at all');
+    expect(smoke).toContain('no job ran is the failure no runner at all is');
+  });
+});
+
+describe('on pg-boss, every job this run saw completed, and at least one it asked for: "no job ran" is red', () => {
+  const UUID = '0f9c3b52-6b1e-4c1a-9a51-2f7e8d6c4b3a';
+  const CATALOG = [
+    'export const JOB_CATALOG = [',
+    "  { ...HOURLY_OR_DAILY, name: 'managed-sync-tick', cron: '* * * * *', pollingIntervalSeconds: 10 },",
+    "  { ...HOURLY_OR_DAILY, name: 'managed-digest', cron: '0 8 * * *' },",
+    '  {',
+    '    ...ASKED_FOR,',
+    "    name: 'run-delta-sync',",
+    "    policy: 'singleton',",
+    '  },',
+    "  { ...ASKED_FOR, name: 'run-verification', policy: 'standard' },",
+    "  { ...ASKED_FOR, name: 'run-cutover', policy: 'standard' },",
+    '] as const satisfies readonly JobCatalogEntry[];',
+    '',
+  ].join('\n');
+
+  /**
+   * pgboss_jobs against `rows` (name|state|count|retried|is-a-schedule) and `waiting` (the count of
+   * jobs asked for still in flight), with the jobs `jobs` (id → "name state") behind the runIds.
+   */
+  function jobs(rows: string[], opts: { waiting?: string; refs?: string; jobs?: Record<string, string>; broken?: boolean; catalog?: string | null } = {}) {
+    const dir = mkdtempSync(join(tmpdir(), 'pgboss-jobs-'));
+    try {
+      const catalog = join(dir, 'catalog.ts');
+      if (opts.catalog !== null) writeFileSync(catalog, opts.catalog ?? CATALOG);
+      writeFileSync(join(dir, 'rows'), rows.map((r) => `${r}\n`).join(''));
+      writeFileSync(join(dir, 'jobs'), Object.entries(opts.jobs ?? {}).map(([id, v]) => `${id} ${v}\n`).join(''));
+      const stub = `
+catalog_path='${catalog}'
+eval "$(declare -f catalog_queues | sed "s|\\\${REPO_ROOT}/packages/scheduler/src/pg-boss/catalog.ts|$catalog_path|")"
+q() {
+  [ -n "\${BROKEN:-}" ] && { echo 'ERROR:  relation "pgboss.job" does not exist' ; return 1; }
+  case "$1" in
+    *"WHERE j.id = '"*) id="\${1#*WHERE j.id = \\'}"; id="\${id%%\\'*}"; awk -v id="$id" '$1 == id { $1 = ""; sub(/^ /, ""); print }' '${join(dir, 'jobs')}' ;;
+    *"GROUP BY"*) cat '${join(dir, 'rows')}' ;;
+    *"count(*) FROM pgboss.job j"*) echo "\${WAITING:-0}" ;;
+    *) echo "unexpected query: $1" >&2; return 9 ;;
+  esac
+}
+sleep() { :; }
+`;
+      return smokeRun(['catalog_queues', 'pgboss_jobs'], `${stub}\npgboss_jobs\n${SHOW_REASONS}`, {
+        REPO_ROOT: dir,
+        SMOKE_STARTED_AT: '2026-11-22T17:00:00Z',
+        JOB_SETTLE_POLLS: '2',
+        POLL_SLEEP: '2',
+        FOLLOWED_REFS: opts.refs ?? '',
+        WAITING: opts.waiting ?? '0',
+        ...(opts.broken ? { BROKEN: '1' } : {}),
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('the jobs this run asked for completed, a tick completed, the runIds followed completed: a pass', () => {
+    // `__pgboss__send-it` is pg-boss's own: its timekeeper puts one job there per schedule
+    // occurrence, a row the review reproduced on the pinned pg-boss as `completed|2|0|false`.
+    const r = jobs(['__pgboss__send-it|completed|2|0|false', 'managed-sync-tick|completed|9|0|true', 'run-delta-sync|completed|2|1|false', 'run-verification|completed|1|0|false'], {
+      refs: UUID,
+      jobs: { [UUID]: 'run-delta-sync completed' },
+    });
+    expect(r.fail, r.out).toBe('0');
+    expect(r.out).toContain('run-delta-sync: 2 completed, 1 after a retry');
+    expect(r.out).toContain('every runId this run followed is a pg-boss job that completed: run-delta-sync');
+  });
+
+  it('no job at all is a failure: no job ran', () => {
+    const r = jobs([]);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('no job ran');
+  });
+
+  it("only the schedule's ticks completed is a failure: none of this run's own jobs ran", () => {
+    const r = jobs(['managed-sync-tick|completed|9|0|true']);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('no job ran');
+  });
+
+  it.each([['failed'], ['cancelled']])('a job that ended %s is a failure, its queue named', (state) => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', `run-cutover|${state}|1|0|false`]);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain(`1 job(s) on run-cutover ended ${state}`);
+  });
+
+  it.each([['failed'], ['retry']])("a job on pg-boss's own queue that is %s fails the run, as a schedule's would", (state) => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', `__pgboss__send-it|${state}|1|1|false`]);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('on __pgboss__send-it');
+    expect(r.reasons).not.toContain('a queue the catalog does not name');
+  });
+
+  it("pg-boss's own queue alone is no job this run asked for: no job ran", () => {
+    const r = jobs(['__pgboss__send-it|completed|3|0|false', 'managed-sync-tick|completed|3|0|true']);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('no job ran');
+  });
+
+  it("a schedule's retry that completed inside the wait is said, not failed, every time alike", () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', 'managed-digest|completed|1|1|true']);
+    expect(r.fail, r.out).toBe('0');
+    expect(r.out).toContain('managed-digest: 1 completed, 1 after a retry');
+  });
+
+  it('the wait waits for a retry on any queue, a schedule\'s included, and for the jobs asked for', () => {
+    const body = smokeFunction('pgboss_jobs');
+    expect(body).toContain("(j.state = 'retry' OR (j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__'))");
+  });
+
+  it("a job waiting to retry is a failed attempt, a schedule's included", () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', 'managed-digest|retry|1|1|true']);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('1 job(s) on managed-digest are waiting to retry');
+  });
+
+  it('a job this run asked for still running after the wait is a failure, and the wait was waited', () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', 'run-verification|active|1|0|false'], { waiting: '1' });
+    expect(r.fail).toBe('1');
+    expect(r.out).toContain('waited 4s for the jobs this run asked for to settle');
+    expect(r.reasons).toContain('1 job(s) on run-verification are still active after 4s');
+  });
+
+  it("a job that began after the wait found nothing in flight is a failure, and not said to have outlasted the wait", () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', 'run-verification|active|1|0|false'], { waiting: '0' });
+    expect(r.fail).toBe('1');
+    expect(r.out).not.toContain('waited');
+    expect(r.reasons).toContain('1 job(s) on run-verification are active, begun after the wait had found nothing in flight');
+    expect(r.reasons).not.toContain('after 4s');
+  });
+
+  it("a schedule's next tick, created or running, is said and not failed", () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', 'managed-sync-tick|active|1|0|true', 'managed-sync-tick|created|1|0|true']);
+    expect(r.fail, r.out).toBe('0');
+    expect(r.out).toContain("(managed-sync-tick is a schedule: its active job is the next tick, not this run's)");
+  });
+
+  it('a queue the catalog does not name is a failure', () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false', 'run-something-else|completed|1|0|false']);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain("on 'run-something-else', a queue the catalog does not name");
+  });
+
+  it.each([
+    ['a Trigger.dev run id', 'run_cm9x2abcdef', {}, 'which is no pg-boss job id (a UUID)'],
+    ['a UUID no job has', UUID, {}, 'is no job in pgboss.job'],
+    ['a job that failed', UUID, { [UUID]: 'run-delta-sync failed' }, "is 'run-delta-sync failed', not completed"],
+  ])('a runId the smoke followed that is %s is a failure', (_what, ref, known, says) => {
+    const r = jobs(['run-delta-sync|completed|1|0|false'], { refs: ref, jobs: known });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain(says);
+  });
+
+  it('pgboss.job that cannot be read is a failure, never an empty pass', () => {
+    const r = jobs([], { broken: true });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('pgboss.job could not be read');
+    expect(r.out).toContain('relation "pgboss.job" does not exist');
+  });
+
+  it('a catalog that cannot be read is a failure', () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false'], { catalog: null });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain("the catalog's queues could not be read");
+  });
+
+  it("reads the real catalog's seventeen queues once it is there, and refuses while it is not", () => {
+    const real = join(REPO_ROOT, 'packages/scheduler/src/pg-boss/catalog.ts');
+    const r = smokeRun(['catalog_queues'], `catalog_queues '${real}' && echo "rc=0" || echo "rc=$?"`);
+    if (existsSync(real)) {
+      const names = r.out.split('\n').filter((l) => /^[a-z]/.test(l) && !l.startsWith('rc='));
+      expect(names).toHaveLength(17);
+      expect(names).toContain('managed-sync-tick');
+      expect(names).toContain('run-delta-sync');
+    } else {
+      expect(r.out).toContain('rc=1');
+    }
+  });
+
+  it('reads pgboss.job by the start of the run and by the schedule table, through the connection that reads the ledger', () => {
+    const body = smokeFunction('pgboss_jobs');
+    expect(body).toContain("j.created_on >= timestamptz '${SMOKE_STARTED_AT}'");
+    expect(body).toContain('pgboss.schedule');
+    expect(body).not.toMatch(/docker exec/);
+    // Every runId an API 202 handed over is followed: the sync's and the cutover's.
+    expect(smoke).toContain('FOLLOWED_REFS="${FOLLOWED_REFS}${FOLLOWED_REFS:+ }${ref}"');
+    expect(smoke).toContain('[ -z "$cut_ref" ] || FOLLOWED_REFS="${FOLLOWED_REFS}${FOLLOWED_REFS:+ }${cut_ref}"');
+  });
+});
+
+describe('on pg-boss, no Trigger.dev runner started on this stack', () => {
+  /** no_runner_started over the events file `lines`, its watcher alive or not. */
+  function events(lines: string[], watcher: 'alive' | 'dead' | 'none' = 'alive') {
+    const dir = mkdtempSync(join(tmpdir(), 'smoke-events-'));
+    try {
+      const file = join(dir, 'events');
+      if (watcher !== 'none') writeFileSync(file, lines.map((l) => `${l}\n`).join(''));
+      writeFileSync(`${file}.err`, watcher === 'dead' ? 'Cannot connect to the Docker daemon\n' : '');
+      const pid = watcher === 'alive' ? 'sleep 30 & WATCHER_PID=$!' : watcher === 'dead' ? '(exit 0) & WATCHER_PID=$!; wait "$WATCHER_PID"' : 'WATCHER_PID=""';
+      const r = smokeRun(['no_runner_started'], `${pid}\nno_runner_started\n${SHOW_REASONS}\nkill "$WATCHER_PID" 2>/dev/null || true`, {
+        SMOKE_STARTED_AT: '2026-11-22T17:00:00Z',
+        COMPOSE_PROJECT: 'ownpace-managed',
+        EVENTS_FILE: watcher === 'none' ? '' : file,
+      });
+      return r;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  const NET = 'ownpace-managed_ownpace-network';
+
+  it("a runner on this stack's network is a failure, by name", () => {
+    const r = events(['container start aaa ownpace-managed-api ', `network connect n1 ${NET} aaa`, 'container start bbb runner-cm9x ', `network connect n1 ${NET} bbb`]);
+    expect(r.fail).toBe('1');
+    expect(r.out).toContain('runner containers started on this stack since 2026-11-22T17:00:00Z: runner-cm9x');
+  });
+
+  it("another stack's runner, on its own network, is not this stack's", () => {
+    const r = events(['container start bbb runner-cm9x ', 'network connect n2 ownpace-live_ownpace-network bbb', 'container start ccc ownpace-managed-worker ', `network connect n1 ${NET} ccc`]);
+    expect(r.fail, r.out).toBe('0');
+    expect(r.out).toContain("no runner-* container started on this stack's network since 2026-11-22T17:00:00Z (2 container start(s) watched)");
+  });
+
+  it.each([['dead'], ['none']] as const)('a stream that is %s is a failure: what it did not watch, it cannot speak for', (watcher) => {
+    const r = events([], watcher);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain("Docker's events were not watched for the whole run");
+  });
+
+  it('the stream starts with the run, on pg-boss only, runs until the trap, and is never a replay with --until', () => {
+    const at = smoke.indexOf('\nif [ "$JOB_RUNNER" = pg-boss ]; then\n  EVENTS_FILE="$(mktemp');
+    expect(at).toBeGreaterThan(0);
+    const block = smoke.slice(at, smoke.indexOf('\nfi\n', at));
+    expect(block).toContain('docker events --since "$SMOKE_STARTED_AT" --filter type=container --filter type=network');
+    expect(block).toContain('--filter event=start --filter event=connect');
+    expect(block).toContain('WATCHER_PID=$!');
+    const code = smoke.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+    expect(code, 'a replay of the daemon\'s last 256 events').not.toMatch(/docker events[^\n]*--until/);
+    expect(at).toBeLessThan(smoke.indexOf('note "preflights"'));
+    // Ended by every EXIT trap from there on, the runner-log watcher's kill.
+    const traps = smoke.slice(at).split('\n').filter((l) => /^\s*trap\s+.*\bEXIT\b/.test(l));
+    expect(traps.length).toBeGreaterThanOrEqual(3);
+    for (const trap of traps) expect(trap).toContain('kill "$WATCHER_PID" 2>/dev/null || true');
+    // And nothing resets WATCHER_PID after it is started.
+    expect(smoke.slice(at + block.length).match(/^WATCHER_PID=""/m)).toBeNull();
+  });
+});
+
+describe('on pg-boss, the Trigger.dev supervisor is not running, at the start and at the end', () => {
+  const ask = (said: string, rc: number) =>
+    smokeRun(['supervisor_stopped'], `docker() { printf '%s\\n' "$SAID"; return "$RC"; }\nsupervisor_stopped "at the start"\n${SHOW_REASONS}`, {
+      COMPOSE_PROJECT: 'ownpace-managed',
+      SAID: said,
+      RC: String(rc),
+    });
+
+  it.each([
+    ['stopped', 'false', 0],
+    ['not there', 'Error: No such container: ownpace-managed-trigger-supervisor', 1],
+    ['not there, in an older Docker\'s words', 'Error: No such object: ownpace-managed-trigger-supervisor', 1],
+  ])('%s is a pass', (_what, said, rc) => {
+    expect(ask(said, rc).fail).toBe('0');
+  });
+
+  it.each([
+    ['running', 'true', 0, 'trigger-supervisor is running at the start'],
+    ['a Docker that cannot be asked', 'Cannot connect to the Docker daemon', 1, 'trigger-supervisor could not be asked at the start'],
+  ])('%s is a failure', (_what, said, rc, reason) => {
+    const r = ask(said, rc);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain(reason);
+  });
+
+  it('is asked once at the start, after the mode is known, and once at the end', () => {
+    expect(smoke).toContain('[ "$JOB_RUNNER" = pg-boss ] && supervisor_stopped "at the start"');
+    expect(smoke.indexOf('supervisor_stopped "at the start"')).toBeLessThan(smoke.indexOf('if trigger_only "minio and trigger-tls"; then'));
+    expect(smoke.indexOf('\nsupervisor_stopped "at the end"\n')).toBeGreaterThan(smoke.indexOf('\npgboss_jobs\n'));
+    expect(smoke.indexOf('supervisor_stopped() {')).toBeLessThan(smoke.indexOf('supervisor_stopped "at the start"'));
+  });
+});
+
+describe("on pg-boss, the jobs' role is fit and owns pgboss", () => {
+  const FIT = 'false|false|false|false|false|true|false|0|0|true|false|false|0';
+  const role = (answer: string) =>
+    smokeRun(['jobs_role_fit'], `q() { printf '%s\\n' "$ANSWER"; }\njobs_role_fit\n${SHOW_REASONS}`, { ANSWER: answer });
+
+  it('the role the bring-up makes is a pass', () => {
+    const r = role(FIT);
+    expect(r.fail, r.out).toBe('0');
+    expect(r.out).toContain('owns pgboss and every relation in it');
+  });
+
+  it.each([
+    ['a superuser', `true${FIT.slice(5)}`],
+    ['BYPASSRLS', 'false|false|false|false|true|true|false|0|0|true|false|false|0'],
+    ['INHERIT', 'false|false|false|false|false|true|true|0|0|true|false|false|0'],
+    ['a member of a role', 'false|false|false|false|false|true|false|1|0|true|false|false|0'],
+    ['pgboss owned by another role', 'false|false|false|false|false|true|false|0|0|false|false|false|0'],
+    ['no schema pgboss', 'false|false|false|false|false|true|false|0|0|no schema|false|false|0'],
+    ['may create in public', 'false|false|false|false|false|true|false|0|0|true|false|true|0'],
+    ["pg-boss's tables installed by the owner", 'false|false|false|false|false|true|false|0|0|true|false|false|12'],
+    ['no such role', ''],
+  ])('%s is a failure', (_what, answer) => {
+    const r = role(answer);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('ownpace_jobs is not the role the bring-up makes');
+  });
+});
+
+describe("on pg-boss, the worker is the API's image, as uid 65532, with no shell, healthy, and holds no owner's URL", () => {
+  const ABSENT = 'OCI runtime exec failed: exec failed: unable to start container process: exec: "SHELL": executable file not found in $PATH: unknown';
+  const ENV = [
+    'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    'OWNPACE_JOB_RUNNER=pg-boss',
+    'JOBS_DATABASE_URL=postgresql://ownpace_jobs:a-password@pgbouncer:6432/openmigrate',
+    'APP_DATABASE_URL=postgresql://app_user:another@pgbouncer:6432/openmigrate',
+    'SYSTEM_DATABASE_URL=postgresql://ownpace_system:third@pgbouncer:6432/openmigrate',
+  ].join('\n');
+  function worker(over: Record<string, string> = {}) {
+    const stub = `docker() {
+  case "$1 $*" in
+    "container "*) [ -n "\${INSPECT_FAILS:-}" ] && { echo 'Error: No such container' >&2; return 1; }; printf '%s\\n' "$WORKER_ENV" ;;
+    "exec "*"/nodejs/bin/node --version") printf '%s\\n' "$NODE_SAYS" ;;
+    "exec "*"getuid"*) printf '%s' "$UID_SAYS" ;;
+    "exec "*"3002/health"*) printf '%s\\n' "$HEALTH_SAYS"; return "$HEALTH_RC" ;;
+    "exec "*" -c true") printf '%s\\n' "\${SHELL_SAYS//SHELL/$3}"; return "$SHELL_RC" ;;
+    *) echo "unexpected docker call: $*" >&2; return 9 ;;
+  esac
+}
+smoke_env_value() { [ "$1" = POSTGRES_USER ] && printf '%s' "\${OWNER:-}"; return 0; }`;
+    return smokeRun(['worker_fit'], `${stub}\nworker_fit\n${SHOW_REASONS}`, {
+      WORKER_CONTAINER: 'ownpace-managed-worker',
+      API_NODE_VERSION: 'v26.1.0',
+      WANT_NODE: 'v26.1.0',
+      NODE_SAYS: 'v26.1.0',
+      UID_SAYS: '65532',
+      HEALTH_SAYS: 'HTTP 200',
+      HEALTH_RC: '0',
+      SHELL_SAYS: ABSENT,
+      SHELL_RC: '127',
+      WORKER_ENV: ENV,
+      ...over,
+    });
+  }
+
+  it('a worker built on the API\'s FROM lines, started as compose is to start it, is a pass', () => {
+    const r = worker();
+    expect(r.fail, r.out).toBe('0');
+    expect(r.out).toContain('the worker: Node v26.1.0, the API\'s');
+    expect(r.out).toContain('the worker: runs as uid 65532');
+    expect(r.out).toContain('the worker: no shell (sh, /bin/sh, bash, /bin/bash, /busybox/sh)');
+    expect(r.out).toContain('its health answers HTTP 200');
+    expect(r.out).toContain("JOBS_DATABASE_URL is ownpace_jobs's, through pgbouncer:6432");
+    // Roles and names only: a password never reaches the stream.
+    expect(r.out).not.toContain('a-password');
+    expect(r.out).not.toContain('another');
+  });
+
+  it.each([
+    ['another Node', { NODE_SAYS: 'v24.0.0' }, "the worker's Node is not the API's"],
+    ['a Node that cannot be asked', { NODE_SAYS: 'exec: "/nodejs/bin/node": no such file' }, "the worker's Node could not be asked"],
+    ['root', { UID_SAYS: '0' }, 'the worker does not run as uid 65532'],
+    ['a shell', { SHELL_SAYS: '', SHELL_RC: '0' }, "the worker's image has a shell"],
+    ['a health of 503', { HEALTH_SAYS: 'HTTP 503', HEALTH_RC: '1' }, "the worker's health is not 200"],
+    ['JOBS_DATABASE_URL the owner\'s', { WORKER_ENV: ENV.replace('ownpace_jobs:a-password', 'openmigrate:a-password') }, "the worker holds the owner's URL"],
+    ['JOBS_DATABASE_URL straight to postgres', { WORKER_ENV: ENV.replace('pgbouncer:6432/openmigrate\nAPP', 'postgres:5432/openmigrate\nAPP') }, "the worker's JOBS_DATABASE_URL is not ownpace_jobs's through the pooler"],
+    ['no JOBS_DATABASE_URL', { WORKER_ENV: ENV.split('\n').filter((l) => !l.startsWith('JOBS_')).join('\n') }, "the worker's JOBS_DATABASE_URL is not ownpace_jobs's through the pooler"],
+    ["the owner's URL under another name", { WORKER_ENV: `${ENV}\nDATABASE_URL=postgresql://openmigrate:owner-pw@pgbouncer:6432/openmigrate` }, "the worker holds the owner's URL"],
+    ['an environment that cannot be read', { INSPECT_FAILS: '1' }, "the worker's environment could not be read"],
+  ])('%s is a failure, by name', (_what, over, reason) => {
+    const r = worker(over as Record<string, string>);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain(reason);
+    expect(r.out).not.toContain('owner-pw');
+  });
+
+  it('a double-quoted POSTGRES_USER is read as Compose reads it, so the check does not pass on nothing', () => {
+    const r = worker({ OWNER: '"openmigrate"', WORKER_ENV: `${ENV}\nDATABASE_URL=postgresql://openmigrate:x@pgbouncer:6432/openmigrate` });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain("the worker holds the owner's URL");
+    expect(r.out).toContain('(openmigrate)');
+  });
+
+  it('a POSTGRES_USER of its own is the owner asked about', () => {
+    const r = worker({ OWNER: 'ledger_owner', WORKER_ENV: `${ENV}\nDATABASE_URL=postgresql://ledger_owner:x@pgbouncer:6432/openmigrate` });
+    expect(r.reasons).toContain("the worker holds the owner's URL");
+    expect(r.out).toContain('DATABASE_URL');
+  });
+});
+
+describe("on pg-boss, the worker's log from the start is kept beside the evidence, for the redaction", () => {
+  it('is read with --since the start, into a file the collector globs, and not into the stream', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'worker-log-'));
+    try {
+      const out = 'smoke-managed-42.log';
+      const def = smoke.slice(smoke.indexOf('\nWORKER_LOG="'), smoke.indexOf('\n', smoke.indexOf('\nWORKER_LOG="') + 1));
+      const r = spawnSync(
+        'bash',
+        [
+          '-c',
+          [
+            'set -uo pipefail',
+            `OUT='${out}'`,
+            def,
+            smokeFunction('keep_worker_log'),
+            `docker() { printf '%s\\n' "$*" >calls; echo "[run-delta-sync ${'0'.repeat(8)}-0000-4000-8000-000000000000] secret-bearing line"; }`,
+            'JOB_RUNNER=pg-boss SMOKE_STARTED_AT=2026-11-22T17:00:00Z WORKER_CONTAINER=ownpace-managed-worker',
+            'keep_worker_log; echo "rc=$?"; keep_worker_log; echo "rc=$?"; echo "log=$WORKER_LOG"',
+          ].join('\n'),
+        ],
+        { cwd: dir, encoding: 'utf8' },
+      );
+      expect(r.stdout).toContain('log=smoke-managed-42-worker.log');
+      // The collector's glob, read from the workflow: the worker's log is in it.
+      expect(workflow).toContain('for f in smoke-managed-*.log');
+      expect('smoke-managed-42-worker.log').toMatch(/^smoke-managed-.*\.log$/);
+      expect(readFileSync(join(dir, 'calls'), 'utf8').trim()).toBe('logs --since 2026-11-22T17:00:00Z ownpace-managed-worker');
+      expect(readFileSync(join(dir, 'smoke-managed-42-worker.log'), 'utf8')).toContain('secret-bearing line');
+      expect(r.stdout, 'the log reached the stream').not.toContain('secret-bearing line');
+      expect(r.stdout.match(/rc=0/g)).toHaveLength(2);
+      expect(r.stdout.match(/the worker's log since/g), 'read twice').toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a log that cannot be read says so, and the jobs section fails on it', () => {
+    const r = smokeRun(['keep_worker_log'], 'docker() { echo "Error: No such container: x" >&2; return 1; }\nJOB_RUNNER=pg-boss SMOKE_STARTED_AT=x WORKER_CONTAINER=x WORKER_LOG=/dev/null\nkeep_worker_log; echo "rc=$?"');
+    expect(r.out).toContain('rc=1');
+    expect(r.out).toContain("the worker's log could not be read");
+    expect(smoke).toContain(`keep_worker_log || fail_at "the worker's log could not be read, so the evidence holds no account of the jobs"`);
+  });
+
+  it('does nothing on trigger, where the runner logs are the evidence', () => {
+    const r = smokeRun(['keep_worker_log'], 'docker() { echo called; }\nJOB_RUNNER=trigger\nkeep_worker_log; echo "rc=$?"');
+    expect(r.out.trim().split('\n')).toEqual(['rc=0', 'FAIL=0']);
+  });
+
+  it('every EXIT trap keeps it, so a run that stops early still does', () => {
+    const traps = smoke.split('\n').filter((l) => /^\s*trap\s+.*\bEXIT\b/.test(l));
+    expect(traps.length).toBeGreaterThanOrEqual(3);
+    expect(traps.slice(1).every((t) => t.includes('keep_worker_log; end_stream'))).toBe(true);
+  });
+});
+
+describe('on pg-boss, the tick that beat ran there', () => {
+  it('asks for the beat only a pg-boss tick writes, and fails when it is stale', () => {
+    const block = /^if \[ "\$JOB_RUNNER" = pg-boss \]; then\n {2}runner_beat=[\s\S]*?\nfi$/m.exec(smoke)?.[0];
+    expect(block).toBeDefined();
+    expect(block).toContain("task = 'managed-sync-tick-pg-boss'");
+    const run = (answer: string) => verdict(block!, `JOB_RUNNER=pg-boss\nq() { echo '${answer}'; }`);
+    expect(run('fresh')).toBe('0');
+    expect(run('stale since 2026-11-22 16:00:00+00')).toBe('1');
+    expect(run('')).toBe('1');
+    expect(verdict(block!, "JOB_RUNNER=trigger\nq() { echo 'stale'; }")).toBe('0');
+  });
+});
+
+describe("a pass that never ran points at the section that explains it, in each mode", () => {
+  it('on pg-boss at the jobs and the worker\'s log, on Trigger.dev at the runner logs, as it always did', () => {
+    expect(smoke).toContain('echo "sync ($label): the enqueue was accepted and never became a runner — see the runner-log section below."');
+    expect(smoke).toMatch(/if \[ "\$JOB_RUNNER" = pg-boss \]; then\n\s+echo "sync \(\$label\): the enqueue was accepted and never ran — see the jobs on pg-boss/);
+  });
+});
+
+describe("the stack's memory, sampled from the start in both runners, is read out and never judged", () => {
+  /** What `docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}'` prints: the used part, then the limit. */
+  const STATS = [
+    'ownpace-managed-api\t212.4MiB / 7.627GiB',
+    'ownpace-managed-worker\t96.25MiB / 512MiB',
+    'ownpace-managed-db\t1.104GiB / 7.627GiB',
+    'runner-cm9x\t180MiB / 7.627GiB',
+    'ownpace-live-api\t300MiB / 7.627GiB',
+  ].join('\n');
+  const LIMITS = ['7.627GiB', '512MiB'];
+
+  function readout(samples: string, runners = '', err = '') {
+    const dir = mkdtempSync(join(tmpdir(), 'smoke-mem-'));
+    try {
+      const file = join(dir, 'mem');
+      writeFileSync(file, samples);
+      if (err) writeFileSync(`${file}.err`, err);
+      return smokeRun(['memory_readout'], `memory_readout '${file}' "$RUNNERS"`, { RUNNERS: runners });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  /** The sampler's own cut, on the fixture, as it runs: this stack's names and the runners only. */
+  function strip(stats: string, at: string) {
+    const r = smokeRun(['mem_strip_limit'], `grep -E "^(\${COMPOSE_PROJECT}-|runner-)" <<<"$STATS" | mem_strip_limit '${at}'`, { STATS: stats, COMPOSE_PROJECT: 'ownpace-managed' });
+    return r.out.replace(/FAIL=\d\n?$/, '');
+  }
+
+  it('keeps the used part of each line, never the limit after " / ", and no other stack', () => {
+    const kept = strip(STATS, '2026-11-22T19:00:00Z');
+    for (const limit of LIMITS) expect(kept, limit).not.toContain(limit);
+    expect(kept).not.toContain('/');
+    expect(kept).not.toContain('ownpace-live-api');
+    expect(kept.trim().split('\n')).toEqual([
+      '2026-11-22T19:00:00Z\townpace-managed-api\t212.4MiB',
+      '2026-11-22T19:00:00Z\townpace-managed-worker\t96.25MiB',
+      '2026-11-22T19:00:00Z\townpace-managed-db\t1.104GiB',
+      '2026-11-22T19:00:00Z\trunner-cm9x\t180MiB',
+    ]);
+  });
+
+  it("prints each container's highest and when, this stack's runs as one line, and the sum, with no limit in it", () => {
+    const samples =
+      strip(STATS, '2026-11-22T19:00:00Z') +
+      strip(STATS.replace('212.4MiB', '250MiB').replace('runner-cm9x\t180MiB', 'runner-cm9x\t120MiB\nrunner-zz11\t20MiB'), '2026-11-22T19:00:15Z');
+    const r = readout(samples, 'runner-cm9x\nrunner-zz11');
+    expect(r.fail).toBe('0');
+    const lines = r.out.split('\n').filter((l) => l.startsWith('memory:'));
+    expect(lines).toEqual([
+      `memory: ${'ownpace-managed-api'.padEnd(40)} highest ${'250.0 MiB'.padStart(12)} at 2026-11-22T19:00:15Z`,
+      `memory: ${'ownpace-managed-db'.padEnd(40)} highest ${'1130.5 MiB'.padStart(12)} at 2026-11-22T19:00:00Z`,
+      `memory: ${'ownpace-managed-worker'.padEnd(40)} highest ${'96.2 MiB'.padStart(12)} at 2026-11-22T19:00:00Z`,
+      `memory: ${'Trigger.dev runs'.padEnd(40)} highest ${'200.0 MiB'.padStart(12)}, the sum of 2 run(s)' highest`,
+      'memory: the sum of the highest values: 1676.7 MiB',
+    ]);
+    for (const limit of LIMITS) expect(r.out, limit).not.toContain(limit);
+  });
+
+  it("leaves out a runner this stack did not start, and a pg-boss stack names no runs", () => {
+    const r = readout(strip(STATS, '2026-11-22T19:00:00Z'));
+    expect(r.out).not.toContain('Trigger.dev runs');
+    expect(r.out).not.toContain('runner-cm9x');
+    expect(r.out).toContain('memory: the sum of the highest values: 1439.1 MiB');
+  });
+
+  it('a sampler that failed says so in one line, and the verdict is not touched', () => {
+    const cases: Array<[string, string]> = [['', ''], ['', 'Cannot connect to the Docker daemon'], ['x\ty\t1MiB\n', 'permission denied']];
+    for (const [samples, err] of cases) {
+      const r = readout(samples, '', err);
+      expect(r.fail).toBe('0');
+      const said = r.out.split('\n').filter((l) => l.startsWith('memory:'));
+      expect(said).toHaveLength(1);
+      expect(said[0]).toContain('the sampler read nothing');
+    }
+  });
+
+  it('runs from the start in both modes, ends in every trap, and is read before the verdict without a fail_at', () => {
+    const sampler = smoke.indexOf("if stats=\"$(docker stats --no-stream --format '{{.Name}}{{\"\\t\"}}{{.MemUsage}}' 2>&1)\"; then");
+    expect(sampler).toBeGreaterThan(0);
+    expect(sampler).toBeLessThan(smoke.indexOf('note "preflights"'));
+    // Not inside a mode: the line before the sampler's subshell is no `if [ "$JOB_RUNNER"`.
+    const start = smoke.lastIndexOf('\n(\n', sampler);
+    expect(smoke.slice(smoke.lastIndexOf('\nMEM_PID=""', start), start)).not.toContain('JOB_RUNNER');
+    expect(smoke.slice(start, sampler)).toContain('while kill -0 $$ 2>/dev/null; do');
+    expect(smoke.slice(sampler, smoke.indexOf('\nMEM_PID=$!', sampler))).toContain('| mem_strip_limit "$now" >>"$MEM_FILE"');
+    const traps = smoke.slice(sampler).split('\n').filter((l) => /^\s*trap\s+.*\bEXIT\b/.test(l));
+    expect(traps).toHaveLength(3);
+    for (const trap of traps) expect(trap).toContain('kill "$MEM_PID" 2>/dev/null || true');
+    const read = smoke.indexOf('\nmemory_readout "$MEM_FILE"');
+    expect(read).toBeGreaterThan(smoke.indexOf('\npgboss_jobs\n'));
+    expect(read).toBeLessThan(smoke.indexOf('note "verdict"'));
+    expect(smokeFunction('memory_readout')).not.toContain('fail_at');
   });
 });

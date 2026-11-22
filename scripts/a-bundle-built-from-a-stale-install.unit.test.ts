@@ -119,6 +119,8 @@ function run(env: Record<string, string> = {}, withPnpm = true) {
       HOME: dir,
       STUB_LOG: log,
       TRIGGER_PROJECT_REF: 'proj_test',
+      // Trigger mode: this script works on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
+      OWNPACE_JOB_RUNNER: 'trigger',
       ...env,
     },
   });

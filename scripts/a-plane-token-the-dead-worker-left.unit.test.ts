@@ -131,6 +131,8 @@ function run(stub: Stub, args: string[] = []) {
       TRIGGER_DB_PSQL: psql,
       TRIGGER_REDIS_CLI: redis,
       PLANE_LIMIT_ENV_FILE: envFile,
+      // Trigger mode: this script works on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
+      OWNPACE_JOB_RUNNER: 'trigger',
     },
   });
   const statements = readFileSync(sqlLog, 'utf8')

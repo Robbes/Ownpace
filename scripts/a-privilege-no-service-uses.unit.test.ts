@@ -124,6 +124,8 @@ export const POLICIES: Readonly<Record<string, Readonly<Record<string, Policy>>>
     zitadel: { caps: [] },
     'zitadel-machinekey': { caps: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER'], readOnly: [] },
     api: { caps: [] },
+    // The job worker (workplan 0167 T7): uid 65532 from its first process, on the API's images.
+    worker: { caps: [], readOnly: ['/tmp'] },
     // nginx as its own user, uid 101, from its first process since 2026-11-19 (apps/web/Dockerfile).
     web: { caps: [] },
     gatus: { caps: [] },
@@ -573,6 +575,11 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
     printenv: NONE('reads its own environment'),
     '(its command)': NONE('the API as its image starts it (or a command a document breaks over a line)'),
   },
+  // smoke-managed.sh's worker_fit (workplan 0167 T7) asks the job worker, which runs as uid 65532 with every capability dropped.
+  worker: {
+    '/nodejs/bin/node': NONE("the image's node, as uid 65532: its --version, its uid and its own /health on loopback"),
+    $shell: NONE('each shell the check expects not to find, so that it fails to start, which needs no capability'),
+  },
   'trigger-supervisor': { node: NONE('the image\'s node, as node') },
   // images.yml's build (docker-socket-proxy) reads, as uid 99, the uids and groups of the proxy's own processes (workplan 0119, 2026-11-20).
   'trigger-docker-proxy': {
@@ -617,6 +624,10 @@ export const TARGETS: Readonly<Record<string, string | null>> = {
   // And the pooler's (0119, 2026-11-13): the build started as managed.yml runs pgbouncer, with
   // no capability, as a container of its own; what it execs there (sh, awk, cat, psql) runs as uid 70.
   '.github/workflows/images.yml|pooler-built': null,
+  // The managed smoke asks the worker (workplan 0167 T7) by `${COMPOSE_PROJECT}-worker`, the
+  // container_name its compose service is to carry; until that service is in managed.yml no
+  // file here resolves the name, and its node is all the smoke runs there.
+  'deploy/compose/smoke-managed.sh|$WORKER_CONTAINER': 'worker',
 };
 
 /** The capabilities a service's container has, read from its file: a list when it drops ALL, else null. */
@@ -813,8 +824,8 @@ describe('each rule fails when it is broken', () => {
       guideProblems(guide.replace(/^(\| `nextcloud` \|[^|]*\|) Docker's default \|/m, '$1 CHOWN |'), POLICIES).join('\n'),
     ).toMatch(/says nextcloud keeps CHOWN, the policy Docker's default/);
     expect(
-      guideProblems(guide.replace(/^(\| `gatus` \|.*\n)/m, '$1| `worker` | root | none | no | read |\n'), POLICIES).join('\n'),
-    ).toMatch(/has a row for worker, which is not a service/);
+      guideProblems(guide.replace(/^(\| `gatus` \|.*\n)/m, '$1| `poller` | root | none | no | read |\n'), POLICIES).join('\n'),
+    ).toMatch(/has a row for poller, which is not a service/);
     expect(
       guideProblems(guide.replace(/^(\| `www` \(www\.yml\) \|[^|]*\|) CHOWN, NET_BIND_SERVICE, SETGID, SETUID \|/m, '$1 CHOWN |'), POLICIES).join('\n'),
     ).toMatch(/says www \(www\.yml\) keeps CHOWN, the policy CHOWN, NET_BIND_SERVICE, SETGID, SETUID/);

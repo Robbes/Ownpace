@@ -29,6 +29,7 @@
 
 import { CLOSE_WINDOWS_DAYS, isCloseWindow } from '@openmig/managed';
 import { REFERENCE_MAX, type CloseCommand, type ClosedAccount } from '../close-account.ts';
+import { jobRunner } from '../job-runner.ts';
 
 export const CLOSE_USAGE = `Usage:
   operator.sh close <tenant-id> <window-days> --by <your-subject> --reference <the tester's request>
@@ -99,4 +100,29 @@ export function describeClosed(command: CloseCommand, closed: ClosedAccount): st
     }
   }
   return lines;
+}
+
+/** What `cancelEnvForTheClose` needs of operator-jobs.ts, loaded only on pg-boss. */
+type JobsConnection = (env: Readonly<Record<string, string | undefined>>) => { readonly url: string } | { readonly error: string };
+
+/**
+ * THE ENVIRONMENT THE CLOSE CANCELS WITH (workplan 0167 T7). On pg-boss the
+ * close cancels a pass by its job id through the API's producer, which
+ * connects on `JOBS_DATABASE_URL`. That URL is composed in `managed.yml`, for
+ * the containers; `operator.sh` runs this on the host with `.env` exported,
+ * which holds `JOBS_DB_PASSWORD` and not the URL. So on pg-boss the URL is
+ * composed here as `operator.sh jobs` composes it (operator-jobs.ts's
+ * `jobsConnectionString`: a given URL as the jobs role, else the owner's URL
+ * with the jobs role and its password in its place). A URL that cannot be
+ * composed is left out, and `cancelRun` then refuses in its own sentence,
+ * which the close logs. In trigger mode nothing is added, and operator-jobs.ts,
+ * which loads pg-boss, is not loaded.
+ */
+export async function cancelEnvForTheClose(
+  env: NodeJS.ProcessEnv,
+  connection: () => Promise<JobsConnection> = async () => (await import('./operator-jobs.ts')).jobsConnectionString,
+): Promise<NodeJS.ProcessEnv> {
+  if (jobRunner(env) !== 'pg-boss') return env;
+  const made = (await connection())(env);
+  return 'url' in made ? { ...env, JOBS_DATABASE_URL: made.url } : env;
 }

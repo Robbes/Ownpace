@@ -18,6 +18,9 @@
  *     only call that enqueues a Trigger.dev task is the one inside that
  *     function. A new door that calls `getTriggerClient().tasks.trigger(`
  *     itself fails here, by file, before anybody presses it during a deploy.
+ *     On pg-boss (workplan 0167 T6) the enqueue is the producer's, and only
+ *     that function and `job-runner.ts` may reach the producer or name the
+ *     runner's module.
  *     The number of doors that call the function is counted too, so a ninth
  *     door gets a row in the table (`enqueueDoors`, in
  *     `__tests__/doors-that-start-work.ts`, which the closed organisation's
@@ -48,6 +51,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { join, relative } from 'node:path';
+import ts from 'typescript';
 import express from 'express';
 import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
@@ -102,6 +106,38 @@ const DOORS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/migrations/operating-routes.ts': 4,
 };
 
+/**
+ * What a file takes from `job-runner.ts`: each imported name as the runner
+ * exports it (whatever the file calls it), or `*` for the whole module, by a
+ * namespace, a default or a dynamic import. Parsed, so an alias is seen.
+ */
+function takenFromTheRunner(file: string, text: string): string[] {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const isRunner = (spec: ts.Node | undefined) =>
+    spec !== undefined && ts.isStringLiteralLike(spec) && /(^|\/)job-runner(\.ts)?$/.test(spec.text);
+  const taken: string[] = [];
+  const visit = (node: ts.Node) => {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && isRunner(node.moduleSpecifier)) {
+      if (ts.isExportDeclaration(node)) {
+        const named = node.exportClause;
+        if (!named || !ts.isNamedExports(named)) taken.push('*');
+        else for (const el of named.elements) taken.push((el.propertyName ?? el.name).text);
+      } else {
+        const clause = node.importClause;
+        if (clause?.name) taken.push('*');
+        const named = clause?.namedBindings;
+        if (named && ts.isNamespaceImport(named)) taken.push('*');
+        if (named && ts.isNamedImports(named)) for (const el of named.elements) taken.push((el.propertyName ?? el.name).text);
+      }
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && isRunner(node.arguments[0])) {
+      taken.push('*');
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return taken;
+}
+
 describe('the sweep: nothing in apps/api/src enqueues except through the one function', () => {
   it('the one enqueue call is inside enqueueUnlessHeld, and there is no other', () => {
     const found = enqueueCalls();
@@ -130,6 +166,86 @@ describe('the sweep: nothing in apps/api/src enqueues except through the one fun
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it('the pg-boss enqueue is the function’s too: the producer is reached from it and the cancel only', () => {
+    // 0167 T6. On pg-boss the enqueue is the producer's, which the sweep's
+    // SDK calls above do not match. The producer is made in `job-runner.ts`
+    // and handed out by `pgBossProducer()`; only the one function (which
+    // enqueues on it) and that file (whose cancel uses it) may import it, by
+    // any local name, and only those two may name the runner's module at all.
+    // Matched by what each file imports, parsed, not by the call's text, so
+    // `import { pgBossProducer as aProducer }` is caught; and nothing may take
+    // `job-runner.ts` whole (a namespace or a dynamic import), which would
+    // reach the producer under a name no import lists.
+    const RUNNER_FILE = 'job-runner.ts';
+    const importers: string[] = [];
+    const wholes: string[] = [];
+    const namers: string[] = [];
+    const makers: string[] = [];
+    for (const file of sourceFiles()) {
+      const rel = relative(SRC, file);
+      const text = code(file);
+      for (const taken of takenFromTheRunner(file, text)) {
+        if (taken === 'pgBossProducer') importers.push(rel);
+        if (taken === '*') wholes.push(rel);
+      }
+      if (/\bpgBossProducer\b/.test(text) && rel !== RUNNER_FILE && !importers.includes(rel)) importers.push(`${rel} (by name)`);
+      if (text.includes('@openmig/scheduler/pg-boss')) namers.push(rel);
+      if (/\bnew\s+PgBossProducer\b|\bPgBossJobRunner\b/.test(text)) makers.push(rel);
+    }
+    // THE OPERATOR'S OWN PRODUCER (workplan 0167 T7, #2044 beside #2045):
+    // `operator.sh jobs` (scripts/operator-jobs.ts) makes a producer of its
+    // own, at the machine, as the jobs role. It is no door: no route loads it,
+    // only operator.ts (for `jobs`) and operator-close.ts (the close's cancel
+    // on pg-boss) do, each by a dynamic import, and its `run` reads the hold
+    // itself before it enqueues, refusing while it is open unless told
+    // `--despite-hold`. Held to exactly that, then left out of the lists.
+    const OPERATOR_FILE = 'scripts/operator-jobs.ts';
+    const operatorJobs = code(join(SRC, OPERATOR_FILE));
+    expect(operatorJobs.search(/readHold\s*\(\s*\)/)).toBeGreaterThan(-1);
+    expect(operatorJobs.search(/readHold\s*\(\s*\)/)).toBeLessThan(operatorJobs.search(/\.enqueue\s*\(/));
+    expect(operatorJobs).toMatch(/if \(hold && !command\.despiteHold\)/);
+    expect(operatorJobs).toContain('readOpenPause(');
+    const loaders = sourceFiles()
+      .map((f) => [relative(SRC, f), code(f)] as const)
+      .filter(([rel, text]) => rel !== OPERATOR_FILE && /operator-jobs(\.ts)?['"]/.test(text));
+    expect(loaders.map(([rel]) => rel).sort()).toEqual(['scripts/operator-close.ts', 'scripts/operator.ts']);
+    for (const [rel, text] of loaders) {
+      expect(text, `${rel} loads operator-jobs.ts statically`).not.toMatch(/^\s*import\s[^;]*from\s+['"]\.\/operator-jobs(\.ts)?['"]/m);
+      expect(text, rel).toMatch(/import\(\s*['"]\.\/operator-jobs\.ts['"]\s*\)/);
+    }
+    const notTheOperator = (list: string[]) => list.filter((rel) => rel !== OPERATOR_FILE);
+    expect(notTheOperator(importers).sort()).toEqual([THE_FUNCTION_FILE]);
+    expect(wholes).toEqual([]);
+    expect(notTheOperator(namers).sort()).toEqual([THE_FUNCTION_FILE, RUNNER_FILE].sort());
+    expect(notTheOperator(makers)).toEqual([RUNNER_FILE]);
+    // In the function's file, the producer's enqueue comes after the hold, as the SDK's does.
+    const text = code(join(SRC, THE_FUNCTION_FILE));
+    expect(text.search(/producer\.enqueue\s*\(/)).toBeGreaterThan(text.indexOf('status(409)'));
+    expect(text.match(/\.enqueue\s*\(/g)?.length).toBe(1);
+  });
+
+  it('the function’s file hands out no other enqueue: its exports are these, and nothing re-exported', () => {
+    // The pg-boss half is not exported; a door that imported it would enqueue
+    // round the hold. A new export here is a decision, made in this list.
+    const exported = [...code(join(SRC, THE_FUNCTION_FILE)).matchAll(
+      /^export\s+(?:async\s+)?(?:function|const|let|type|interface|class)\s+(\w+)/gm,
+    )].map((m) => m[1]);
+    expect(exported.sort()).toEqual(
+      [
+        'Enqueue',
+        'EnqueueAsked',
+        'HELD_DEFAULT',
+        'QUEUE_UNREACHABLE',
+        'durationSeconds',
+        'enqueueIfFree',
+        'enqueueUnlessHeld',
+        'isUnreachable',
+        'pgBossOptionsFor',
+      ].sort(),
+    );
+    expect(code(join(SRC, THE_FUNCTION_FILE))).not.toMatch(/^export\s*(?:\*|\{|default)/m);
   });
 
   it('the function reads the hold before it hands back the enqueue', () => {

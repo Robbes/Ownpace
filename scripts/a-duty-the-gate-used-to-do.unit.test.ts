@@ -223,6 +223,7 @@ const MAINTENANCE: Record<string, { live: string | null; why: string }> = {
 /** Commands of the gate that do not maintain the stack, and what each is for. */
 const NOT_MAINTENANCE: Record<string, string> = {
   'env-read.sh': 'the reader of a .env, sourced by a step',
+  'job-runner.sh': "the reader of which runner works the jobs, sourced by the step that says this run's mode (0167 T7)",
   'refuse-live-env.sh': "the gate's refusal of live's .env before its restore (T1g)",
   'own-addresses.sh': "the job's log: masks this machine's addresses",
   'ensure-env-secrets.sh': "fills the .env the gate restores; live's is the owner's (T1b, D8)",
@@ -468,7 +469,7 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
   const root = tempDir('box-duties-');
   const compose = join(root, 'deploy', 'compose');
   mkdirSync(compose, { recursive: true });
-  for (const f of ['box-duties.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'managed.yml']) {
+  for (const f of ['box-duties.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'managed.yml', 'job-runner.sh']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   chmodSync(join(compose, 'box-duties.sh'), 0o755);

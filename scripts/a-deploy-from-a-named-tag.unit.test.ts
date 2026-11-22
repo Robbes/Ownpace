@@ -206,6 +206,7 @@ import { fileURLToPath } from 'node:url';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
 import { APP_TEMPLATE, expectedAppHeaders } from './app-headers.mjs';
+import { switchedTo, withoutPlane, withoutSwitch, withoutWorker } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -278,14 +279,15 @@ printf 'docker %s\\n' "$*" >>"$STUB_LOG"
 case "$1" in
   ps)
     shift
-    project='' service=''
+    project='' service='' name=''
     while [ "$#" -gt 0 ]; do
       case "$1" in
-        -a) shift ;;
+        -a | -q) shift ;;
         --filter)
           case "$2" in
             label=com.docker.compose.project=*) project="\${2#label=com.docker.compose.project=}" ;;
             label=com.docker.compose.service=*) service="\${2#label=com.docker.compose.service=}" ;;
+            name=*) name="\${2#name=}" ;;
             *) echo "docker stub: unexpected filter: $2" >&2; exit 95 ;;
           esac
           shift 2
@@ -295,6 +297,12 @@ case "$1" in
       esac
     done
     if [ -n "\${STUB_DOCKER_PS_FAIL:-}" ]; then echo 'Cannot connect to the Docker daemon' >&2; exit 1; fi
+    # The worker, by the container name managed.yml gives it (workplan 0167 T7).
+    if [ -n "$name" ]; then
+      [ "$name" = '^ownpace-live-worker$' ] || { echo "docker stub: unexpected name filter: $name" >&2; exit 95; }
+      [ -z "\${STUB_WORKER_ID:-}" ] || [ -f "$STUB_LOG.worker-gone" ] || echo "$STUB_WORKER_ID"
+      exit 0
+    fi
     [ -n "$project" ] || { echo "docker stub: a ps of the whole daemon: $*" >&2; exit 95; }
     [ "$service" = www ] || { echo "docker stub: unexpected service filter: $service" >&2; exit 95; }
     if [ "$project" = ${SITE_PROJECT} ]; then
@@ -318,6 +326,11 @@ case "$1" in
     printf '%s\\n' PATH=/usr/local/sbin:/usr/local/bin "NODE_ENV=\${STUB_NODE_ENV:-production}"
     exit 0
     ;;
+  stop | rm)
+    [ "\${*: -1}" = ownpace-live-worker ] || { echo "docker stub: unexpected $1: $*" >&2; exit 92; }
+    [ "$1" = stop ] || : >"$STUB_LOG.worker-gone"
+    exit "\${STUB_WORKER_STOP_EXIT:-0}"
+    ;;
   compose) shift ;;
   *) echo "docker stub: unexpected call: $*" >&2; exit 98 ;;
 esac
@@ -327,6 +340,7 @@ while [ "$#" -gt 0 ]; do
     -p) named="$2"; shift 2 ;;
     -f) file="$2"; shift 2 ;;
     --env-file) env_file="$2"; shift 2 ;;
+    --profile) shift 2 ;;
     *) break ;;
   esac
 done
@@ -351,7 +365,18 @@ case "$1" in
     exit 0
     ;;
   config) printf 'name: %s\\nservices: {}\\n' "$project"; exit 0 ;;
+  stop | rm)
+    [ "\${*: -1}" = worker ] || { echo "docker stub: unexpected compose $1: $*" >&2; exit 97; }
+    [ "$1" = stop ] || : >"$STUB_LOG.worker-gone"
+    [ "$1" = stop ] || [ -z "\${STUB_LOCK_INDEX:-}" ] || : >"$STUB_LOCK_INDEX"
+    exit "\${STUB_WORKER_STOP_EXIT:-0}"
+    ;;
   ps)
+    # The worker, when this managed.yml defines it (workplan 0167 T7).
+    if [ "$2" = -a ] && [ "$3" = -q ] && [ "$4" = worker ]; then
+      [ -z "\${STUB_WORKER_ID:-}" ] || [ -f "$STUB_LOG.worker-gone" ] || echo "$STUB_WORKER_ID"
+      exit 0
+    fi
     # The api container's id, for its NODE_ENV (above); none when it is not running.
     [ "$2" = -q ] && [ "$3" = api ] || { echo "docker stub: unexpected compose ps: $*" >&2; exit 97; }
     [ -n "\${STUB_API_NOT_RUNNING:-}" ] || echo ${API_ID}
@@ -588,6 +613,10 @@ interface Release {
   omit?: string[];
   /** Take the Trigger.dev image lines out of managed.yml at this commit, so its pin cannot be read. */
   noTriggerPin?: boolean;
+  /** managed.yml changed further, after the pins (workplan 0167 T7). */
+  yml?: (yml: string) => string;
+  /** Files written at the tag, by path from the checkout's root. */
+  files?: Record<string, string>;
   /** Change the hash in the Trigger.dev builds' names at this commit, the version kept: a change to their Dockerfiles alone (0146 T16). */
   triggerBuild?: boolean;
   /** Start this commit's managed.yml from the real file, whose Trigger.dev images are built here, after a running release that pulled them. */
@@ -783,6 +812,10 @@ interface StageOptions {
   /** Which tag the checkout holds when the script starts (default the running one). */
   checkout?: string;
   dotEnv?: string;
+  /** The running release's managed.yml, changed (workplan 0167 T7). */
+  runningYml?: (yml: string) => string;
+  /** Files the running release holds, by path from the checkout's root. */
+  runningFiles?: Record<string, string>;
 }
 
 function stage(opts: StageOptions = {}): Stage {
@@ -805,14 +838,23 @@ function stage(opts: StageOptions = {}): Stage {
   mkdirSync(join(work, 'apps', 'worker'), { recursive: true });
   writeFileSync(join(work, 'apps', 'worker', 'package.json'), `${JSON.stringify({ name: '@ownpace/worker', private: true }, null, 2)}\n`);
   mkdirSync(compose, { recursive: true });
-  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'www-live.sh', 'release-tag.sh']) {
+  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'www-live.sh', 'release-tag.sh', 'job-runner.sh']) {
     // A helper the script does not source yet is simply not there.
     if (!existsSync(join(COMPOSE_DIR, f))) continue;
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
-  copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(compose, 'managed.yml'));
+  // The running release runs Trigger.dev's plane, as these cases were
+  // written for: since the switch is on, managed.yml's default is pg-boss,
+  // so the stage's copy defaults to trigger. The cases of either runner set
+  // their own with switchedTo (workplan 0167 T7).
+  writeFileSync(join(compose, 'managed.yml'), switchedTo('trigger')(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8')));
   if (opts.runningGhcrTrigger) writeFileSync(join(compose, 'managed.yml'), ghcrTrigger(readFileSync(join(compose, 'managed.yml'), 'utf8')));
+  if (opts.runningYml) writeFileSync(join(compose, 'managed.yml'), opts.runningYml(readFileSync(join(compose, 'managed.yml'), 'utf8')));
+  for (const [rel, body] of Object.entries(opts.runningFiles ?? {})) {
+    mkdirSync(dirname(join(work, rel)), { recursive: true });
+    writeFileSync(join(work, rel), body);
+  }
   writeFileSync(join(compose, 'www.yml'), wwwYml());
   writeExec(join(compose, 'bootstrap-managed.sh'), BOOTSTRAP_STUB);
   writeExec(join(compose, 'exposure-check.sh'), EXPOSURE_STUB);
@@ -845,7 +887,9 @@ function stage(opts: StageOptions = {}): Stage {
     writeFileSync(join(work, 'package.json'), r.packageText ? r.packageText(version) : packageJson(version, r.engines));
     if (r.ledger) writeFileSync(join(work, 'packages', 'ledger', 'migrations', r.ledger), 'SELECT 2;\n');
     if (r.managed) writeFileSync(join(work, 'packages', 'managed', 'migrations', r.managed), 'SELECT 2;\n');
-    let yml = readFileSync(join(r.builtTrigger ? COMPOSE_DIR : compose, 'managed.yml'), 'utf8');
+    let yml = r.builtTrigger
+      ? switchedTo('trigger')(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8'))
+      : readFileSync(join(compose, 'managed.yml'), 'utf8');
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
     if (r.clickhouse) yml = movePin(yml, 'clickhouse', r.clickhouse);
@@ -856,7 +900,12 @@ function stage(opts: StageOptions = {}): Stage {
       if (unpinned === yml) throw new Error('managed.yml carries no Trigger.dev image line this fixture knows how to take out');
       yml = unpinned;
     }
+    if (r.yml) yml = r.yml(yml);
     writeFileSync(join(compose, 'managed.yml'), yml);
+    for (const [rel, body] of Object.entries(r.files ?? {})) {
+      mkdirSync(dirname(join(work, rel)), { recursive: true });
+      writeFileSync(join(work, rel), body);
+    }
     for (const f of r.omit ?? []) rmSync(join(compose, f));
     writeFileSync(join(compose, 'www.yml'), wwwYml(r.fixedSiteName));
     if (r.realSite) {
@@ -925,7 +974,7 @@ function stage(opts: StageOptions = {}): Stage {
     STUB_SITE_UP: siteUp,
     STUB_SITE_DIST: join(work, 'site', 'dist'),
     // A superuser, one open hold fifteen minutes old, nothing in flight.
-    STUB_PSQL_ANSWER: 'yes|1|900|0\n',
+    STUB_PSQL_ANSWER: 'yes|1|900|0|-\n',
     DEPLOY_LIVE_CHECK_TRIES: '1',
     DEPLOY_LIVE_CHECK_INTERVAL: '0',
     DEPLOY_LIVE_SITE_WAIT: '0',
@@ -1418,7 +1467,7 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
     'no open hold',
     () => {
       const s = stage({ releases: [NEXT] });
-      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|0|-1|0\n' });
+      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|0|-1|0|-\n' });
       expect(r.status, r.out).not.toBe(0);
       expect(r.out).toMatch(/no hold is open/);
       expectNothingChanged(s, r.out, 'reads');
@@ -1430,7 +1479,7 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
     'passes still in flight',
     () => {
       const s = stage({ releases: [NEXT] });
-      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|1|900|3\n' });
+      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|1|900|3|-\n' });
       expect(r.status, r.out).not.toBe(0);
       expect(r.out).toMatch(/3 pass\(es\) still in flight/);
       expectNothingChanged(s, r.out, 'reads');
@@ -1442,7 +1491,7 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
     'a hold so new that a pass queued before it may not have started',
     () => {
       const s = stage({ releases: [NEXT] });
-      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|1|60|0\n' });
+      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|1|60|0|-\n' });
       expect(r.status, r.out).not.toBe(0);
       expect(r.out).toMatch(/the hold began 1 minute\(s\) ago/);
       expectNothingChanged(s, r.out, 'reads');
@@ -1453,7 +1502,7 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
   it.each([
     ['psql fails', { STUB_PSQL_FAIL: '1' }],
     ['psql answers nothing', { STUB_PSQL_ANSWER: '' }],
-    ['psql answers something else', { STUB_PSQL_ANSWER: 'yes|1|900|?\n' }],
+    ['psql answers something else', { STUB_PSQL_ANSWER: 'yes|1|900|?|-\n' }],
   ] as const)(
     'a database it cannot read is never taken for "nothing in flight": %s',
     (_label, extra) => {
@@ -1470,7 +1519,7 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
     'a role that row security would bind, which would count no pass at all',
     () => {
       const s = stage({ releases: [NEXT] });
-      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'no|1|900|0\n' });
+      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'no|1|900|0|-\n' });
       expect(r.status, r.out).not.toBe(0);
       expect(r.out).toMatch(/superuser/);
       expectNothingChanged(s, r.out, 'reads');
@@ -2798,11 +2847,11 @@ describe('a dry run refuses what the deploy refuses, says one-way or reversible,
     args?: string[];
   };
   const REFUSED: Array<[string, Setup, RegExp]> = [
-    ['no open hold', { extra: () => ({ STUB_PSQL_ANSWER: 'yes|0|-1|0\n' }) }, /no hold is open/],
-    ['a pass still in flight', { extra: () => ({ STUB_PSQL_ANSWER: 'yes|1|900|3\n' }) }, /3 pass\(es\) still in flight/],
-    ['a hold under five minutes old', { extra: () => ({ STUB_PSQL_ANSWER: 'yes|1|60|0\n' }) }, /the hold began 1 minute\(s\) ago/],
+    ['no open hold', { extra: () => ({ STUB_PSQL_ANSWER: 'yes|0|-1|0|-\n' }) }, /no hold is open/],
+    ['a pass still in flight', { extra: () => ({ STUB_PSQL_ANSWER: 'yes|1|900|3|-\n' }) }, /3 pass\(es\) still in flight/],
+    ['a hold under five minutes old', { extra: () => ({ STUB_PSQL_ANSWER: 'yes|1|60|0|-\n' }) }, /the hold began 1 minute\(s\) ago/],
     ['a database it cannot read', { extra: () => ({ STUB_PSQL_FAIL: '1' }) }, /could not read the hold/],
-    ['a role row security would bind', { extra: () => ({ STUB_PSQL_ANSWER: 'no|1|900|0\n' }) }, /not a superuser/],
+    ['a role row security would bind', { extra: () => ({ STUB_PSQL_ANSWER: 'no|1|900|0|-\n' }) }, /not a superuser/],
     ['a lightweight tag', { releases: [{ ...NEXT, lightweight: true }] }, /is a lightweight tag/],
     ['a tag not on origin', { releases: [{ ...NEXT, push: false }] }, /is not on origin/],
     [
@@ -3060,7 +3109,7 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
     'a refusal before it takes no copy',
     () => {
       const s = stage({ releases: [NEXT] });
-      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|0|-1|0\n' });
+      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|0|-1|0|-\n' });
       expect(r.status, r.out).toBe(1);
       expect(copies(s)).toEqual([]);
     },
@@ -3238,6 +3287,67 @@ describe('the hold and the drain, read from a database with both chains applied'
   );
 
   it(
+    "pg-boss's queue (workplan 0167 T7): a job waiting outside the schedule queues is refused; the tick's own minute is not waited for",
+    async () => {
+      // pg-boss's two tables as far as the drain reads them: a job's queue
+      // name and state, and the queues that have a schedule.
+      await setState(HOLD_TEN_MINUTES);
+      await withDb(async (db) => {
+        await db.exec(`
+          CREATE SCHEMA IF NOT EXISTS pgboss;
+          CREATE TABLE pgboss.job (id uuid NOT NULL DEFAULT gen_random_uuid(), name text NOT NULL, state text NOT NULL);
+          CREATE TABLE pgboss.schedule (name text NOT NULL, key text NOT NULL DEFAULT '', PRIMARY KEY (name, key));
+          INSERT INTO pgboss.schedule (name) VALUES ('managed-sync-tick'), ('retention');
+          INSERT INTO pgboss.job (name, state) VALUES
+            ('managed-sync-tick', 'created'), ('managed-sync-tick', 'active'), ('retention', 'retry'),
+            ('run-delta-sync', 'completed'), ('run-delta-sync', 'failed'), ('run-delta-sync', 'cancelled'),
+            -- pg-boss's timekeeper's own queue: a send-it job every minute, hold or not.
+            ('__pgboss__send-it', 'created'), ('__pgboss__send-it', 'active');`);
+      });
+      try {
+        const quiet = stage({ releases: [NEXT] });
+        const took = run(quiet, [NEXT.tag], { STUB_PGLITE: dataDir });
+        expect(took.status, took.out).toBe(0);
+        expect(took.out).toMatch(/the hold is on and nothing is in flight\n\[deploy-live\] {3}in the ledger, and in pg-boss's queues outside the schedule queues/);
+        await withDb(async (db) => {
+          await db.exec(`INSERT INTO pgboss.job (name, state) VALUES ('run-delta-sync', 'retry'), ('purge-closed', 'created');`);
+        });
+        const s = stage({ releases: [NEXT] });
+        const r = run(s, [NEXT.tag], { STUB_PGLITE: dataDir });
+        expect(r.status, r.out).toBe(1);
+        expect(r.out).toMatch(/refused: 2 pg-boss job\(s\) still created, retrying or active outside the schedule queues/);
+        expectNothingChanged(s, r.out, 'reads');
+      } finally {
+        await withDb(async (db) => {
+          await db.exec('DROP SCHEMA pgboss CASCADE');
+        });
+      }
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    "an empty schema pgboss, as the bring-up makes it before the worker's first start, reads as no pg-boss yet",
+    async () => {
+      await setState(HOLD_TEN_MINUTES);
+      await withDb(async (db) => {
+        await db.exec('CREATE SCHEMA IF NOT EXISTS pgboss');
+      });
+      try {
+        const s = stage({ releases: [NEXT] });
+        const r = run(s, [NEXT.tag], { STUB_PGLITE: dataDir });
+        expect(r.status, r.out).toBe(0);
+        expect(r.out).toMatch(/nothing is in flight\n\[deploy-live\] {3}\(the schema pgboss holds no pg-boss queue yet\)/);
+      } finally {
+        await withDb(async (db) => {
+          await db.exec('DROP SCHEMA pgboss CASCADE');
+        });
+      }
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
     'counts a pass in flight with the same window the tick uses',
     async () => {
       // Importing the tick opens a Pool; it is never used here.
@@ -3265,7 +3375,7 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
     calls(s).filter(
       (l) =>
         l.startsWith('site-build ') ||
-        /^docker (ps|inspect)\b/.test(l) ||
+        (/^docker (ps|inspect)\b/.test(l) && !l.includes('name=^ownpace-live-worker$')) ||
         l.includes(`-p ${SITE_PROJECT}`) ||
         l.startsWith('curl http://127.0.0.1'),
     );
@@ -3598,4 +3708,327 @@ describe('the script survives its own checkout', () => {
       .filter((line) => line.trim() !== '' && !/^\s*#/.test(line));
     expect(lines.at(-1)).toMatch(/^main "\$@"; exit\b/);
   });
+});
+
+// ---------------------------------------------------------------------------
+// Either runner (workplan 0167 T7)
+// ---------------------------------------------------------------------------
+
+/**
+ * THE DEPLOY IN EITHER RUNNER (workplan 0167 T7). From alpha.16 the managed
+ * edition runs its jobs on Trigger.dev's plane or on the worker (pg-boss), by
+ * `OWNPACE_JOB_RUNNER`, read by `job-runner.sh`. What the deploy must know:
+ * a tag whose bring-up runs pg-boss stops the plane, so no copy of triggerdb
+ * is taken (no `--trigger`); a tag without the plane (alpha.17) removes it,
+ * which on a stack already on pg-boss is not one-way by itself; a tag without
+ * a worker (alpha.14, alpha.15, the way back) would leave one running beside
+ * the plane its bring-up starts, so it is stopped and removed before the
+ * checkout; pg-boss's own queue is part of the drain; and a move of pg-boss's
+ * version or schema version is one-way.
+ */
+describe('the deploy in either runner (0167 T7)', () => {
+  // managed.yml changed by the shared fixtures (job-runner-fixtures.ts), from whatever it holds.
+  const withWorker = switchedTo;
+  const pgboss = (version: string, schema: number): Record<string, string> => ({
+    'packages/scheduler/package.json': `{ "name": "@openmig/scheduler", "dependencies": { "pg-boss": "${version}" } }\n`,
+    'pnpm-lock.yaml': `lockfileVersion: '9.0'\n\npackages:\n\n  pg-boss@${version}:\n    resolution: {integrity: sha512-x}\n\nsnapshots:\n\n  pg-boss@${version}(@opentelemetry/api@1.9.1):\n    dependencies: {}\n`,
+    'packages/scheduler/src/pg-boss/job-runner.ts': `// stand-in\nconst PG_BOSS_SCHEMA_VERSION = ${schema};\n`,
+  });
+  const copyCalls = (s: Stage) => called(s, 'copy-before-update');
+  const at = (s: Stage, re: RegExp) => calls(s).findIndex((l) => re.test(l));
+
+  it(
+    "a tag whose bring-up runs pg-boss is no --trigger take, even where it moves the Trigger.dev pin, and says why",
+    () => {
+      const s = stage({ releases: [{ ...NEXT, trigger: 'v9.9.9', yml: withWorker('pg-boss') }] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/the jobs run on trigger here now \(from .*managed\.yml.*\); v0\.2\.0-alpha\.2's bring-up will run them on pg-boss \(from managed\.yml at [0-9a-f]+'s default\)/);
+      expect(r.out).toMatch(/no --trigger: .*runs the jobs on pg-boss, so it starts no Trigger\.dev plane and nothing migrates triggerdb/);
+      expect(copyCalls(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the same tag with OWNPACE_JOB_RUNNER=trigger in live's .env: its pin moves, so --trigger",
+    () => {
+      const s = stage({
+        releases: [{ ...NEXT, trigger: 'v9.9.9', yml: withWorker('pg-boss') }],
+        dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=trigger\n`,
+      });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copyCalls(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a tag without the switch (alpha.14's) runs the plane, whatever live's .env says",
+    () => {
+      const s = stage({
+        releases: [{ ...NEXT, trigger: 'v9.9.9', yml: (y) => withoutSwitch(withoutWorker(y)) }],
+        dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=pg-boss\n`,
+        runningYml: withWorker('pg-boss'),
+      });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/the jobs run on pg-boss here now \(from .*\.env\); v0\.2\.0-alpha\.2's bring-up will run them on trigger \(from the one runner managed\.yml at [0-9a-f]+ has, since it names no switch\)/);
+      expect(copyCalls(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a value of the switch that is neither is refused before anything is read or moved',
+    () => {
+      const s = stage({ releases: [NEXT], dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=both\n`, runningYml: withWorker('trigger') });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status).toBe(1);
+      expect(r.out).toMatch(/refused: OWNPACE_JOB_RUNNER in .*\.env is neither trigger nor pg-boss/);
+      expectNothingChanged(s, r.out);
+      expect(called(s, 'docker')).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a tag without the plane, from a stack on pg-boss: "removes the Trigger.dev plane", not one-way by itself',
+    () => {
+      const s = stage({
+        runningYml: withWorker('pg-boss'),
+        releases: [{ ...NEXT, yml: withoutPlane }],
+      });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/not one-way by itself \(workplan 0167 T7\):\n {4}over v0\.2\.0-alpha\.1, v0\.2\.0-alpha\.2 removes the Trigger\.dev plane from managed\.yml \(its volumes stay\)/);
+      expect(r.out).toMatch(/reversible: over each of those/);
+      expect(r.out).not.toMatch(/one-way: after/);
+      expect(deployLines(s).at(-1)).toMatch(/\ttook\treversible$/);
+      expect(copyCalls(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'the same tag onto a stack still on the plane: refused before anything moves, in a dry run too, since nothing would stop the plane',
+    () => {
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const s = stage({
+          runningYml: withWorker('trigger'),
+          releases: [{ ...NEXT, yml: (y) => withoutPlane(switchedTo('pg-boss')(y)) }],
+        });
+        const r = run(s, args);
+        expect(r.status, r.out).toBe(1);
+        expect(r.out).toMatch(
+          /refused: v0\.2\.0-alpha\.2's managed\.yml has no Trigger\.dev plane, and this stack's jobs still run on it \(OWNPACE_JOB_RUNNER=trigger\): switch to pg-boss with the bring-up first, then deploy\./,
+        );
+        expect(r.out).not.toMatch(/would be (one-way|reversible)/);
+        expectNothingChanged(s, r.out);
+        expect(copyCalls(s)).toEqual([]);
+      }
+    },
+    CASE_MS,
+  );
+
+  it(
+    'two tags that both have no plane compare nothing on it: reversible',
+    () => {
+      const noPlane = (y: string) => withoutPlane(withWorker('pg-boss')(y));
+      const s = stage({ runningYml: noPlane, releases: [NEXT] });
+      const r = run(s, ['--dry-run', NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/would be reversible/);
+      expect(r.out).not.toMatch(/on the (Trigger\.dev|ClickHouse) pin|moves the (Trigger\.dev|ClickHouse) pin|removes the Trigger\.dev plane/);
+    },
+    CASE_MS,
+  );
+
+  it.each([
+    ['its version', pgboss('12.39.0', 46), /moves pg-boss in pnpm-lock\.yaml: 12\.38\.2 -> 12\.39\.0/],
+    ['its schema version', pgboss('12.38.2', 47), /moves pg-boss's schema version \(PG_BOSS_SCHEMA_VERSION\): 46 -> 47/],
+  ])('a tag that moves pg-boss, %s: one-way', (_label, files, line) => {
+    const s = stage({ runningFiles: pgboss('12.38.2', 46), releases: [{ ...NEXT, files }] });
+    const r = run(s, ['--dry-run', NEXT.tag]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(line);
+    expect(r.out).toMatch(/would be one-way/);
+  }, CASE_MS);
+
+  it.each([
+    ['the same pg-boss', pgboss('12.38.2', 46)],
+    // A release from before pg-boss: its scheduler depends on no pg-boss.
+    ['none (the way back to alpha.14)', { 'packages/scheduler/package.json': '{ "name": "@openmig/scheduler" }\n' }],
+  ])('a tag with %s: reversible', (_label, files) => {
+    const s = stage({ runningFiles: pgboss('12.38.2', 46), releases: [{ ...NEXT, files }] });
+    const r = run(s, ['--dry-run', NEXT.tag]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).not.toMatch(/moves pg-boss/);
+    expect(r.out).toMatch(/would be reversible/);
+  }, CASE_MS);
+
+  it.each([
+    ['a lockfile that resolves no pg-boss', { 'pnpm-lock.yaml': "lockfileVersion: '9.0'\n" }, /cannot be compared with it on pg-boss's version: pnpm-lock\.yaml at one of the two resolves no pg-boss/],
+    [
+      'a runner with no schema version line',
+      { 'packages/scheduler/src/pg-boss/job-runner.ts': '// stand-in\n' },
+      /cannot be compared with it on pg-boss's schema version: .*no PG_BOSS_SCHEMA_VERSION line/,
+    ],
+  ])('a tag that carries pg-boss with %s: cannot be compared, so one-way', (_label, files, line) => {
+    const s = stage({ runningFiles: pgboss('12.38.2', 46), releases: [{ ...NEXT, files }] });
+    const r = run(s, ['--dry-run', NEXT.tag]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(line);
+    expect(r.out).toMatch(/would be one-way/);
+  }, CASE_MS);
+
+  it(
+    'the worker stopped before a checkout that then failed: the refusal says the stack is not as it was, and how to start it again',
+    () => {
+      const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
+      // The stand-in's `rm` of the worker leaves git's index locked, so the checkout after it fails.
+      const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r', STUB_LOCK_INDEX: join(s.work, '.git', 'index.lock') });
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toMatch(/refused: git checkout --detach v0\.2\.0-alpha\.2 failed/);
+      expect(r.out).toMatch(/The checkout is as it was\. The stack is not: its worker was stopped and removed before the checkout; \.\/deploy\/compose\/bootstrap-managed\.sh --only app starts it again\./);
+      expect(r.out).not.toMatch(/The checkout and the stack are as they were/);
+      rmSync(join(s.work, '.git', 'index.lock'), { force: true });
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the runner line names where each answer came from",
+    () => {
+      const s = stage({ releases: [{ ...NEXT, yml: withWorker('pg-boss') }], dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=trigger\n` });
+      const r = run(s, ['--dry-run', NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/the jobs run on trigger here now \(from .*\); v0\.2\.0-alpha\.2's bring-up will run them on trigger \(from .*\/\.env\)/);
+    },
+    CASE_MS,
+  );
+
+  describe('a tag without a worker, from a stack that has one', () => {
+    it(
+      "this managed.yml defines the worker: stopped and removed with its profile named, after the copy and before the checkout",
+      () => {
+        const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
+        const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
+        expect(r.status, r.out).toBe(0);
+        const stop = at(s, /^docker compose .*--profile jobs stop worker$/);
+        const rm = at(s, /^docker compose .*--profile jobs rm -f worker$/);
+        expect(stop, r.out).toBeGreaterThan(at(s, /^copy-before-update /));
+        expect(rm).toBeGreaterThan(stop);
+        // The bring-up ran at the tag: after the checkout, which came after the stop.
+        expect(at(s, /^bootstrap /)).toBeGreaterThan(rm);
+        expect(called(s, 'bootstrap')).toEqual([`bootstrap --from data head=${s.commit[NEXT.tag]}`]);
+        expect(r.out).toMatch(/the worker stopped and removed before the checkout: v0\.2\.0-alpha\.2's managed\.yml defines none/);
+      },
+      CASE_MS,
+    );
+
+    it(
+      'this managed.yml does not define it: stopped and removed by the name managed.yml gives it',
+      () => {
+        const s = stage({ runningYml: withoutWorker, releases: [NEXT] });
+        const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
+        expect(r.status, r.out).toBe(0);
+        expect(called(s, 'docker').filter((l) => /worker/.test(l))).toEqual([
+          'docker ps -a -q --filter name=^ownpace-live-worker$',
+          'docker stop -t 60 ownpace-live-worker',
+          'docker rm ownpace-live-worker',
+        ]);
+        expect(at(s, /^bootstrap /)).toBeGreaterThan(at(s, /^docker rm ownpace-live-worker$/));
+      },
+      CASE_MS,
+    );
+
+    it(
+      'no worker container: nothing is stopped, and it says so',
+      () => {
+        const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
+        const r = run(s, [NEXT.tag]);
+        expect(r.status, r.out).toBe(0);
+        expect(r.out).toMatch(/defines no worker, and this stack has none: nothing to stop/);
+        expect(calls(s).filter((l) => / (stop|rm) /.test(l))).toEqual([]);
+      },
+      CASE_MS,
+    );
+
+    it(
+      'a worker that does not stop: refused before the checkout, nothing moved',
+      () => {
+        const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
+        const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r', STUB_WORKER_STOP_EXIT: '1' });
+        expect(r.status).toBe(1);
+        expect(r.out).toMatch(/refused: the worker did not stop \(above\), and v0\.2\.0-alpha\.2 defines none\. Nothing was checked out\./);
+        expectNothingChanged(s, r.out, 'reads');
+      },
+      CASE_MS,
+    );
+
+    it(
+      'a dry run says it would, and stops nothing',
+      () => {
+        const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
+        const r = run(s, ['--dry-run', NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
+        expect(r.status, r.out).toBe(0);
+        expect(r.out).toMatch(/dry run: v0\.2\.0-alpha\.2's managed\.yml defines no worker, so a deploy would stop and remove this stack's worker/);
+        expect(calls(s).filter((l) => /worker/.test(l))).toEqual([]);
+      },
+      CASE_MS,
+    );
+
+    it(
+      'a tag that defines the worker: it is left to the bring-up',
+      () => {
+        const s = stage({ runningYml: withWorker('pg-boss'), releases: [NEXT] });
+        const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
+        expect(r.status, r.out).toBe(0);
+        expect(calls(s).filter((l) => /worker/.test(l))).toEqual([]);
+      },
+      CASE_MS,
+    );
+  });
+
+  it(
+    "pg-boss jobs created, retrying or active outside the schedule queues: refused, as a pass in flight is",
+    () => {
+      const s = stage({ releases: [NEXT] });
+      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|1|900|0|2\n' });
+      expect(r.status).toBe(1);
+      expect(r.out).toMatch(/refused: 2 pg-boss job\(s\) still created, retrying or active outside the schedule queues/);
+      expectNothingChanged(s, r.out, 'reads');
+    },
+    CASE_MS,
+  );
+
+  it(
+    "pg-boss's count that is not one, or is missing, is not nothing waiting",
+    () => {
+      for (const answer of ['yes|1|900|0|?\n', 'yes|1|900|0\n']) {
+        const s = stage({ releases: [NEXT] });
+        const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: answer });
+        expect(r.status, answer).toBe(1);
+        expect(r.out).toMatch(/the database answered something that is not a count/);
+      }
+    },
+    CASE_MS,
+  );
+
+  it(
+    'in pg-boss mode no sentence names the task deploy; in trigger mode it still does',
+    () => {
+      const pg = stage({ releases: [{ ...NEXT, yml: withWorker('pg-boss') }] });
+      const r = run(pg, [NEXT.tag], { STUB_BOOTSTRAP_DIRTIES: 'apps/worker/package.json' });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/NOTE: the deploy left the working tree changed/);
+      expect(r.out).not.toMatch(/task deploy/);
+      const tr = stage({ releases: [NEXT] });
+      const t = run(tr, [NEXT.tag], { STUB_BOOTSTRAP_DIRTIES: 'apps/worker/package.json' });
+      expect(t.out).toMatch(/The task deploy is known to strip apps\/worker\/package\.json's last newline\./);
+    },
+    CASE_MS,
+  );
 });

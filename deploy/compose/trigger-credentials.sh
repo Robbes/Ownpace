@@ -57,6 +57,11 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 # into this checkout's .env. The reader (env-read.sh, which trigger-cli-lib.sh
 # sources) refuses a shell that names the other stack.
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || exit 1
+# Trigger.dev's alone (workplan 0167 T7): refused, in one sentence and before
+# anything is asked or changed, where the jobs run on pg-boss.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
+job_runner_refuse_in_pg_boss trigger-credentials.sh "it reads the Trigger.dev project's credentials"
 PROJECT_FILTER=""
 WRITE=0
 # The env FILE is passed rather than sourced: this script runs `docker compose

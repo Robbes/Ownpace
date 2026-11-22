@@ -436,6 +436,36 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   step as `integration-tests`, see below) since it drives `setup-stalwart.sh`'s provisioning phase.
 - `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the machine: the managed-edition
   gate, run against a long-lived configured stack, so it does not prove bring-up from scratch.
+  **In both job runners** (ADR-0054; workplan 0167 T7). Which one is read as the bring-up reads
+  it: `.env`'s `OWNPACE_JOB_RUNNER`, else `managed.yml`'s default for it, `pg-boss` since the
+  switch is on, else `trigger`. So a scheduled run, or a dispatch whose `job_runner` input is
+  empty (its default), runs pg-boss on a stack whose `.env` does not say otherwise; the input
+  set to `trigger` runs Trigger.dev's plane, the fallback, and `pg-boss` names the default. A
+  value it is given sets the mode for that run only:
+  it is written into the checkout's `.env` after the persisted copy is saved. On `pg-boss`, the
+  workflow skips the Trigger.dev plane's drill and its two keys. `smoke-managed.sh` then skips
+  each section that asks the plane, printing one line that names the section and the mode:
+  the object store and the TLS front, the runner-log capture, the registry and the Docker proxy,
+  ClickHouse, the runner logs and the tasks' image. In their place it checks:
+  - every job in `pgboss.job` since the smoke's start completed, read by queue (the catalog's
+    names), and at least one the run asked for. *No job ran* fails, as *no runner at all* does on
+    Trigger.dev;
+  - each `runId` it followed is a pg-boss job that completed;
+  - no `runner-*` container started on the stack's network;
+  - `ownpace_jobs` is fit and owns `pgboss`;
+  - the worker runs the API's Node as uid 65532, with no shell and its health 200, and holds
+    no owner's URL;
+  - the tick beat as `managed-sync-tick-pg-boss`.
+
+  The worker's log from the start is kept as `smoke-managed-<run>-worker.log` and redacted with
+  the rest of the evidence. `scripts/smoke-managed-verdict.unit.test.ts` runs each of these
+  branches against stubs, and the switch-on's E2E (managed) run is the first on a real stack.
+  **In both runners, the stack's memory** is sampled from the smoke's start with
+  `docker stats --no-stream`, every 15 s (`SMOKE_MEM_EVERY`), for the containers named after
+  the compose project and this stack's `runner-*` containers. Before the verdict the smoke prints
+  each container's highest value and when it was sampled, the Trigger.dev runs as one line, and
+  the sum. Only the used part of each reading is kept, never the limit, which for a container with
+  no cap is the host's memory. The readout never decides the verdict.
 - **Before a release tag, and so before a deploy to live** (workplan 0141 T14): the newest
   two *scheduled* runs of `e2e-managed.yml` on `main` both ran the commit being tagged and are green on every attempt,
   with no night missing, and the four scheduled `e2e.yml` runs of those nights ran it and are
@@ -727,7 +757,7 @@ than a rediscovery. This list is the honest complement to the coverage above;
 each entry is a candidate for a workplan, not a promise.
 
 - **The Trigger.dev task wrappers** (`apps/worker/src/jobs/*.ts`, fourteen
-  task files when checked).
+  task files when checked), which run the jobs in trigger mode only.
   The logic inside them is tested through extracted seams —
   `packages/orchestration/src/sync-due.unit.test.ts` proves the tick's
   due-evaluation, `cutover-preparation.integration.test.ts` drives
@@ -736,7 +766,16 @@ each entry is a candidate for a workplan, not a promise.
   apply/verify logic lives in `@openmig/core` with its own suites — but the
   `schemaTask` wrappers themselves (payload schemas, `configure()` wiring,
   error paths) execute only in live smokes (`deploy/compose/smoke-managed.sh`,
-  which `e2e-managed.yml` runs nightly).
+  which `e2e-managed.yml` runs nightly). On the pg-boss runner (workplan 0167
+  T6) the same runs are wrapped by `apps/worker/src/runner/`, and that wrapper
+  is tested: `worker.integration.test.ts` runs the worker against a real
+  Postgres, each job in its own process, and holds the payload schemas (a
+  refused payload fails once), the run context (a pass enqueued by the tick's
+  schedule, a cutover's wait, the purge's verdicts), the error paths (a
+  process killed from outside failed once, a worker that died retried, a time limit, a cancel, a
+  stop) and a real `run-discovery`;
+  `worker.unit.test.ts` holds that every queue has its entry. What stays live
+  only is the Trigger.dev half, `onTriggerDev`, which runs in trigger mode, the fallback.
 - **Web pages with no jsdom suite of their own**: `Invitations`, `NotFound`,
   `RedirectUris`. (`ReportProblem` is covered by
   `a-report-that-reaches-a-person.unit.test.tsx`; every other page has a

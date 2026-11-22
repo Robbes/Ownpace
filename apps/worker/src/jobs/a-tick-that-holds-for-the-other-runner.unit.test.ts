@@ -165,7 +165,11 @@ describe('the tick asks first, and holds as under an operator’s hold', () => {
 
   const OWN = 'const ownBeat = SYNC_TICK_BEAT_ON[context.runner.name];';
   const OTHER = "const otherRunner = context.runner.name === 'trigger' ? 'pg-boss' : 'trigger';";
-  const ASKED = "if ((await readTickBeat(drizzle(pool), now, otherBeat, ANOTHER_RUNNER_BEAT_MS)) === 'up') {";
+  const READ_OTHER = "const otherRunnerBeats = (await readTickBeat(drizzle(pool), now, otherBeat, ANOTHER_RUNNER_BEAT_MS)) === 'up';";
+  /** The pg-boss half's second rule (0167 T6): a shared beat that differs from its own, asked on pg-boss only. */
+  const READ_SHARED =
+    "!otherRunnerBeats && context.runner.name === 'pg-boss' && (await sharedBeatWrittenByAnother(pool, now, ownBeat));";
+  const ASKED = 'if (otherRunnerBeats || sharedBeatIsAnothers) {';
   const HELD = TICK.slice(at(ASKED), TICK.indexOf('return summary;', at(ASKED)));
 
   it('beats as the runner it runs on, and reads the other runner’s beat, each by its own name', () => {
@@ -173,6 +177,9 @@ describe('the tick asks first, and holds as under an operator’s hold', () => {
     expect(count(OTHER)).toBe(1);
     expect(count('const otherBeat = SYNC_TICK_BEAT_ON[otherRunner];')).toBe(1);
     expect(count('readTickBeat(')).toBe(1);
+    expect(count(READ_OTHER)).toBe(1);
+    expect(count(READ_SHARED)).toBe(1);
+    expect(count('sharedBeatWrittenByAnother(')).toBe(1);
   });
 
   it('asks before the operator’s hold, the enumeration and any enqueue', () => {
@@ -181,8 +188,10 @@ describe('the tick asks first, and holds as under an operator’s hold', () => {
     expect(asked).toBeLessThan(at('const hold = await readOpenPause(drizzle(pool));'));
     expect(asked).toBeLessThan(at('pool.query<TickRow>(ACTIVE_MAPPINGS_SQL'));
     expect(asked).toBeLessThan(at('context.runner.enqueue('));
-    // Nothing before it but the clock.
-    expect(TICK.slice(0, asked)).not.toMatch(/\bawait\b/);
+    // Nothing before it but the clock and the two beats it reads.
+    expect(TICK.slice(0, asked).match(/\bawait \w+/g)).toEqual(['await readTickBeat', 'await sharedBeatWrittenByAnother']);
+    expect(at(READ_OTHER)).toBeLessThan(at(READ_SHARED));
+    expect(at(READ_SHARED)).toBeLessThan(asked);
   });
 
   it('holding, starts no pass, says so, and beats as its own runner alone, never the shared beat', () => {

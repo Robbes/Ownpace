@@ -190,9 +190,9 @@ function programOf(command: string): string | undefined {
 describe('one Node base, on a named Debian release', () => {
   const bases = nodeBases();
 
-  it('the api, selfhost and web images all build FROM node (vacuity)', () => {
+  it('the api, selfhost, web and worker images all build FROM node (vacuity)', () => {
     expect(new Set(bases.map((b) => b.dockerfile))).toEqual(
-      new Set(['apps/api/Dockerfile', 'apps/selfhost/Dockerfile', 'apps/web/Dockerfile']),
+      new Set(['apps/api/Dockerfile', 'apps/selfhost/Dockerfile', 'apps/web/Dockerfile', 'apps/worker/Dockerfile']),
     );
   });
 
@@ -230,7 +230,7 @@ describe('one pnpm, brought one way, where the Node image ships no corepack', ()
     );
 
   it('each stage built FROM the Node line has one RUN that names corepack (vacuity)', () => {
-    expect(setups.map((s) => s.dockerfile).sort()).toEqual(['apps/api/Dockerfile', 'apps/selfhost/Dockerfile', 'apps/web/Dockerfile']);
+    expect(setups.map((s) => s.dockerfile).sort()).toEqual(['apps/api/Dockerfile', 'apps/selfhost/Dockerfile', 'apps/web/Dockerfile', 'apps/worker/Dockerfile']);
     for (const { dockerfile, runs } of setups) expect(runs, dockerfile).toHaveLength(1);
   });
 

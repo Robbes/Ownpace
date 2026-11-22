@@ -1,10 +1,13 @@
-# Managed deployment stack with Trigger.dev orchestration.
+# Managed deployment stack. Its background jobs run on pg-boss, in the
+# `worker` service, on the ledger's own Postgres (ADR-0054, workplan 0167).
 # Postgres version aligned with deploy/compose/dev.yml (Postgres 18).
 #
 # This stack includes:
 # - PostgreSQL (ledger database) behind PgBouncer
-# - Trigger.dev (managed orchestration platform; every job runs as a deployed task —
-#   there is no worker container, workplan 0022)
+# - The job worker (`worker`): the seventeen jobs on pg-boss, in the schema
+#   `pgboss` that the role `ownpace_jobs` owns
+# - Trigger.dev's plane (the eleven services in profile `trigger`), kept
+#   installed and stopped as the way back; it starts only in trigger mode
 # - Zitadel (the identity provider, ADR-0042)
 # - Ownpace API
 # - Web application
@@ -20,6 +23,26 @@
 # deploy/selfhost/setup-stalwart.sh instead (the ONE canonical way; see that
 # script's header) — deploy/compose/setup-managed-demo.sh does this for you,
 # joined to this stack's network so the worker reaches it by name.
+#
+# WHICH RUNNER THE JOBS RUN ON (ADR-0054, workplan 0167 T7). OWNPACE_JOB_RUNNER
+# is `pg-boss` or `trigger`, and its default here is `pg-boss`: the api and the
+# worker both carry it with that default, and the scripts read the same answer
+# through job-runner.sh. In pg-boss mode a plain `up` starts the worker and
+# none of Trigger.dev's plane, because each of the plane's eleven services
+# (trigger-db, trigger-redis, trigger-api, clickhouse, trigger-registry,
+# trigger-docker-proxy, trigger-supervisor, minio, minio-init, trigger-tls,
+# trigger-tls-init) is in profile `trigger`. minio is among them because only
+# trigger-api uses it (its OBJECT_STORE_* keys). The fallback is
+# OWNPACE_JOB_RUNNER=trigger in the .env and the bring-up, which names the
+# plane's services (a named service starts whatever its profile) and starts
+# them from their kept volumes at the same version.
+# A profile does not stop interpolation: Compose reads every service's required
+# keys, the plane's TRIGGER_* keys among them, in either mode, so those keys are
+# still generated (scripts/managed-env-contract.unit.test.ts). And a service
+# outside the profile that `depends_on` one inside it says `required: false`
+# (the api on trigger-api), or every Compose call without the profile refuses
+# the file. The plane's volumes and networks stay declared: they are the way
+# back. scripts/a-plane-kept-and-stopped.unit.test.ts holds all of this.
 #
 # Pinned project `name` below is load-bearing, not cosmetic: without it, `docker compose`
 # derives the resource-name prefix from the CURRENT DIRECTORY'S BASENAME ("compose"), so on a
@@ -145,8 +168,11 @@ name: ownpace-managed
 # §9's "until the part of the service that wrote them is replaced" holds; the
 # oldest lines can go sooner, never later. deploy/compose/www.yml sets no cap
 # on purpose: site-visits.sh counts the site's visits from the whole of its log
-# on every run. A task run's container is Trigger.dev's, not a service here, and
-# writes with the daemon's driver until its run ends.
+# on every run. A job's run on pg-boss is a child process of the worker and
+# writes through it, so its lines are the worker's and go with the worker's
+# container, which every update of the service replaces. In trigger mode a task
+# run's container is Trigger.dev's, not a service here, and writes with the
+# daemon's driver until its run ends.
 # scripts/a-month-of-container-output.unit.test.ts holds every service to it.
 #
 # HOW THE CONTAINERS RUN (2026-11-03, workplan 0119; the owner, 2026-11-03:
@@ -165,8 +191,10 @@ name: ownpace-managed
 # wrote, where the image could be pulled, and read from the image's Dockerfile
 # where it could not (docs/managed-bring-up.md, "How the containers run", has
 # the table). An `exec` into a service has the same capabilities as the service:
-# a repair that needs root's powers there is `exec --privileged -u 0`. Task runs
-# are Trigger.dev's containers, not services here, and none of this reaches them.
+# a repair that needs root's powers there is `exec --privileged -u 0`. A job's
+# run on pg-boss is a process inside the worker, so the worker's settings are
+# its own. In trigger mode task runs are Trigger.dev's containers, not services
+# here, and none of this reaches them.
 # scripts/a-privilege-no-service-uses.unit.test.ts holds every service to it.
 x-logging: &logging
   driver: json-file
@@ -340,6 +368,7 @@ services:
     build: ./postgres
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
+    profiles: ["trigger"]
     restart: unless-stopped
     logging: *logging
     # HOW IT RUNS (see the header): as postgres above, uid 70, no capability.
@@ -403,6 +432,7 @@ services:
     build: ./redis
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
+    profiles: ["trigger"]
     restart: unless-stopped
     logging: *logging
     # HOW IT RUNS (see the header): uid 999 from its first process, so no capability.
@@ -479,6 +509,7 @@ services:
         TRIGGER_IMAGE_TAG: ${TRIGGER_IMAGE_TAG:-}
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-api
+    profiles: ["trigger"]
     restart: unless-stopped
     logging: *logging
     # HOW IT RUNS (see the header): no-new-privileges, and Docker's default
@@ -721,6 +752,7 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-clickhouse
+    profiles: ["trigger"]
     restart: unless-stopped
     logging: *logging
     # HOW IT RUNS (see the header): the entrypoint starts as root, makes and chowns
@@ -840,6 +872,7 @@ services:
   trigger-registry:
     image: registry:3.1.2@sha256:82f6ff4a7f982960c8aa51617fea3aabc485df6e55cce80d22deb1de36f1bc3c
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-registry
+    profiles: ["trigger"]
     restart: unless-stopped
     logging: *logging
     # HOW IT RUNS (see the header): root, writing only its own volume, so no
@@ -890,6 +923,7 @@ services:
     build: ./docker-socket-proxy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
+    profiles: ["trigger"]
     restart: unless-stopped
     logging: *logging
     # HOW IT RUNS (see the header): as the image's user, HAProxy's own uid 99,
@@ -950,6 +984,7 @@ services:
         TRIGGER_IMAGE_TAG: ${TRIGGER_IMAGE_TAG:-}
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-supervisor
+    profiles: ["trigger"]
     restart: unless-stopped
     logging: *logging
     # HOW IT RUNS (see the header): node from its first process, so no capability.
@@ -1091,6 +1126,7 @@ services:
   minio:
     image: chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
+    profiles: ["trigger"]
     restart: unless-stopped
     logging: *logging
     # HOW IT RUNS (see the header): uid 65532 from its first process, so no capability.
@@ -1173,6 +1209,7 @@ services:
   minio-init:
     image: chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
+    profiles: ["trigger"]
     restart: "no"
     logging: *logging
     # HOW IT RUNS (see the header): uid 65532, no capability; read-only, with
@@ -1220,6 +1257,7 @@ services:
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
+    profiles: ["trigger"]
     restart: unless-stopped
     logging: *logging
     # HOW IT RUNS (see the header): as uid and gid 65532 from its first process,
@@ -1277,6 +1315,7 @@ services:
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls-init
+    profiles: ["trigger"]
     restart: "no"
     logging: *logging
     # HOW IT RUNS (see the header): root, for one chown (CHOWN) through
@@ -1974,6 +2013,15 @@ services:
       # and the migrations applied on others, so two replicas booting at once
       # would stop excluding each other — silently, and only under load.
       DIRECT_DATABASE_URL: postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}
+      # THE JOB RUNNER'S SWITCH AND ITS DATABASE (ADR-0054, workplan 0167 T7),
+      # the same two values the worker service below gets. `trigger` (unset or
+      # empty) sends every job to Trigger.dev as before; `pg-boss` enqueues it
+      # on the jobs' queues as ownpace_jobs, the role that owns pg-boss's schema
+      # and nothing else. Empty password rather than `:?` for the reason the
+      # worker's says: the bring-up generates the key before its first Compose
+      # call. `pg-boss` by default (see the header); `trigger` is the fallback.
+      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}
+      JOBS_DATABASE_URL: postgresql://ownpace_jobs:${JOBS_DB_PASSWORD:-}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
       # Fail-closed (0020 T2): with the tenant-membership gate, JWT_SECRET is
       # the outer wall of the tenancy boundary. No default — and the API also
       # refuses to BOOT in production with a known placeholder value.
@@ -2189,14 +2237,171 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # Trigger.dev's API, in profile `trigger`: started first when the plane
+      # runs (OWNPACE_JOB_RUNNER=trigger and `--profile trigger`), and not
+      # required when it does not, so an `up` in pg-boss mode leaves it out
+      # instead of refusing the api.
       trigger-api:
         condition: service_started
+        required: false
     networks:
       - ownpace-network
 
-  # There is deliberately NO worker/poller service (0022 T4): syncs are
-  # started by the deployed `managed-sync-tick` scheduled task, and every job
-  # executes as a Trigger.dev task via the supervisor. One execution plane.
+  # THE JOB WORKER (ADR-0054, workplan 0167 T7): pg-boss on the ledger's
+  # Postgres, in place of Trigger.dev, behind the switch OWNPACE_JOB_RUNNER
+  # (`pg-boss`, this file's default, or `trigger`, the fallback). It has no
+  # profile, so a bare `up` starts it, and the bring-up in pg-boss mode builds
+  # it with the api and the web app from the release's GIT_SHA and starts it
+  # after the api (worker_up). In trigger mode the bring-up stops and removes
+  # it before the plane starts, so one execution plane runs the jobs; started
+  # by hand there, it exits at once in one sentence, since its switch is not
+  # `pg-boss`. Nothing depends on it.
+  #
+  # The process (`apps/worker/src/runner/main.ts`, by Node directly, as the API
+  # runs its entry) refuses to start, exit 1 with one sentence on stderr,
+  # unless OWNPACE_JOB_RUNNER is `pg-boss` and JOBS_DATABASE_URL is set. It
+  # writes only to stdout and stderr, and answers GET /health on 127.0.0.1:3002
+  # inside its own container: 200 once the runner has started (schema checked,
+  # queues declared, workers started), 503 while it starts or stops. No port
+  # is published, and nothing outside the container asks it.
+  worker:
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+      args:
+        # The commit the image is built from, as the api's (images.yml passes it).
+        GIT_SHA: ${GIT_SHA:-unknown}
+    container_name: ${COMPOSE_PROJECT_NAME}-worker
+    restart: unless-stopped
+    logging: *logging
+    # HOW IT RUNS (see the header): uid 65532 from its first process, so no
+    # capability, and a read-only root. /tmp is in memory: nothing it ships
+    # writes a file, and a run's own child may.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
+    read_only: true
+    tmpfs: [/tmp]
+    # THE OWNER'S RULE FOR ITS SIZE (workplan 0167, 2026-11-22), from the cap
+    # on passes this stack runs at once, MAX_PASSES_IN_FLIGHT (3 when unset):
+    #   cpus      = 0.5 x (MAX_PASSES_IN_FLIGHT + 2), and never more than the
+    #               host's CPU count, since Docker refuses a container more
+    #               CPUs than the machine has;
+    #   mem_limit = (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2,816 MB: the passes
+    #               at their peak (one more than the cap, 307 MB measured each),
+    #               the three :23 schedules and one of each other on-demand
+    #               kind (203 MB each) and the parent (120 MB), with room, since
+    #               a run the kernel kills for memory is not retried.
+    # The defaults are the OTA stack's, at 3: 2.5 CPUs and 4,864 MB. Live, at
+    # 6, sets WORKER_CPUS=4 and WORKER_MEMORY=6400m in its .env. Compose cannot
+    # compare a value with the host's CPUs, so the bring-up checks
+    # WORKER_CPUS against them before it starts this service. Each run's child
+    # raises its own /proc/self/oom_score_adj, so at the limit the kernel takes
+    # a run, not the worker that settles it.
+    cpus: ${WORKER_CPUS:-2.5}
+    mem_limit: ${WORKER_MEMORY:-4864m}
+    # A stop gives the running passes a minute to settle (the runner stops its
+    # workers and lets pg-boss mark what was active) before Docker kills it; a
+    # run cut off is picked up again by its heartbeat and converges.
+    stop_grace_period: 60s
+    environment:
+      # THE SWITCH, read by the api, this worker, the scripts and the E2E
+      # workflow: `trigger` or `pg-boss`; unset or empty in code is `trigger`,
+      # and any other value is refused with one sentence. This file's default
+      # is `pg-boss` (see the header).
+      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}
+      NODE_ENV: production
+      # THE JOBS' OWN ROLE, ownpace_jobs, which owns pg-boss's schema `pgboss`
+      # and nothing else (deploy/compose/jobs-role.sql; the bring-up's data
+      # phase makes it and sets JOBS_DB_PASSWORD on it), through the pooler in
+      # transaction mode, to the ledger's database. EMPTY, NOT `:?`, ON
+      # PURPOSE: Compose interpolates this file whole, this inactive service
+      # included, so a required key would stop every Compose call, a `ps` or an
+      # `exec postgres` among them, on a stack whose .env does not have it yet.
+      # The bring-up's `load_env` generates the key before its first Compose
+      # call (ensure-env-secrets.sh --only JOBS_DB_PASSWORD), the data phase
+      # refuses one a URL cannot carry, as it refuses the others, and it is hex
+      # when generated, so the URL is composed as the stack's other role URLs
+      # are, unencoded. Empty, the role answers "password authentication
+      # failed", by name.
+      JOBS_DATABASE_URL: postgresql://ownpace_jobs:${JOBS_DB_PASSWORD:-}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
+      # WHAT set-task-env.sh UPLOADS TO THE TASKS TODAY, under the same names,
+      # composed the same way, so a job reads the same environment on either
+      # runner. NEVER THE OWNER: no DATABASE_URL, no DIRECT_DATABASE_URL, and
+      # no value built from POSTGRES_USER or POSTGRES_PASSWORD under any name
+      # (scripts/a-worker-that-carries-no-superuser.unit.test.ts, the twin of
+      # a-run-that-carries-no-superuser for the tasks). The system role by the
+      # name managed migration 0033 makes it under, with SYSTEM_DB_PASSWORD,
+      # empty rather than required for the reason above.
+      SYSTEM_DATABASE_URL: postgresql://ownpace_system:${SYSTEM_DB_PASSWORD:-}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
+      APP_DATABASE_URL: postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:-}
+      # The rest are optional, as the script's are: it uploads only what is
+      # set, and Compose passes an empty key as empty. Every reader a job
+      # reaches takes empty as unset, but for one: the tick's and the
+      # cutover's `?? 'http://trigger-api:3000'`, so that one carries the
+      # same default here.
+      OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-}
+      OAUTH2_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET:-}
+      OAUTH2_REFRESH_TOKEN: ${OAUTH2_REFRESH_TOKEN:-}
+      OAUTH2_TENANT_ID: ${OAUTH2_TENANT_ID:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      DROPBOX_OAUTH_CLIENT_ID: ${DROPBOX_OAUTH_CLIENT_ID:-}
+      DROPBOX_OAUTH_CLIENT_SECRET: ${DROPBOX_OAUTH_CLIENT_SECRET:-}
+      MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID:-}
+      MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
+      MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT:-}
+      CIRRUX_OAUTH_CLIENT_ID: ${CIRRUX_OAUTH_CLIENT_ID:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      NOTIFY_FROM: ${NOTIFY_FROM:-}
+      NOTIFY_TO: ${NOTIFY_TO:-}
+      NOTIFY_LOCALE: ${NOTIFY_LOCALE:-}
+      LEDGER_RETENTION_DAYS: ${LEDGER_RETENTION_DAYS:-}
+      LEDGER_RUN_RETENTION_DAYS: ${LEDGER_RUN_RETENTION_DAYS:-}
+      LARGEST_FILE_MB: ${LARGEST_FILE_MB:-}
+      MAX_PASSES_IN_FLIGHT: ${MAX_PASSES_IN_FLIGHT:-}
+      MAX_PASSES_PER_ORGANISATION: ${MAX_PASSES_PER_ORGANISATION:-}
+      TRIGGER_API_URL_IN_NETWORK: ${TRIGGER_API_URL_IN_NETWORK:-http://trigger-api:3000}
+      LOG_LEVEL: ${LOG_LEVEL:-}
+      OWNPACE_REACHABLE_HOSTS: ${OWNPACE_REACHABLE_HOSTS:-}
+      OWNPACE_STAGE: ${OWNPACE_STAGE:-}
+      OWNPACE_BILLING_FROM: ${OWNPACE_BILLING_FROM:-}
+      MONEYBIRD_API_TOKEN: ${MONEYBIRD_API_TOKEN:-}
+      MONEYBIRD_ADMINISTRATION_ID: ${MONEYBIRD_ADMINISTRATION_ID:-}
+      MONEYBIRD_WORKFLOW_ID: ${MONEYBIRD_WORKFLOW_ID:-}
+      MONEYBIRD_TAX_RATE_ID_DOMESTIC: ${MONEYBIRD_TAX_RATE_ID_DOMESTIC:-}
+      MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE: ${MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE:-}
+      MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU: ${MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU:-}
+      MONEYBIRD_DELIVERY: ${MONEYBIRD_DELIVERY:-}
+      MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: ${MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE:-}
+      MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
+      OWNPACE_SELLER_COUNTRY: ${OWNPACE_SELLER_COUNTRY:-NL}
+      VAT_OSS_ACTIVE: ${VAT_OSS_ACTIVE:-false}
+    healthcheck:
+      # The image's own HEALTHCHECK, said here so the service states it: Node by
+      # its path, its own fetch, on loopback. Exec form; the image has no shell.
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:3002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      # The api applies both migration chains at its start, so a healthy api is
+      # a database whose tables the jobs read are there: no job runs before
+      # the migrations it reads.
+      api:
+        condition: service_healthy
+    networks:
+      - ownpace-network
 
   # Web Application. VITE_API_URL is a BUILD arg (Vite bakes it into the
   # static bundle); the default /api keeps browser calls same-origin, and the

@@ -41,6 +41,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const setTaskEnv = readFileSync(join(REPO_ROOT, 'deploy/compose/set-task-env.sh'), 'utf8');
@@ -122,6 +123,42 @@ describe('every variable a scheduled task reads is one somebody uploads', () => 
     for (const name of Object.keys(NOT_UPLOADED)) {
       expect(everywhere, `${name} is exempted and nothing reads it`).toContain(name);
     }
+  });
+});
+
+/**
+ * AND THE WORKER SEES WHAT THE TASKS SEE (workplan 0167 T7). While both
+ * runners exist, a job runs either as a Trigger.dev task, with what
+ * set-task-env.sh uploads, or in managed.yml's `worker` service, with what
+ * that service's `environment:` names. A knob in one and not the other is a
+ * knob that works on one runner only, and the switch between them would
+ * change what a job reads without a word. So every variable the script
+ * uploads, by the name a task reads, is in the worker's environment under the
+ * same name, and so is every `process.env.X` a job reads that the script
+ * uploads.
+ */
+describe('the worker service names every variable the tasks are uploaded', () => {
+  const managed = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
+  const worker = (parseYaml(managed) as { services: Record<string, { environment?: Record<string, unknown> }> }).services['worker'];
+  const workerEnv = new Set(Object.keys(worker?.environment ?? {}));
+  const body = setTaskEnv.slice(setTaskEnv.indexOf("node -e '"));
+  const required = [...(/const variables = \{([\s\S]*?)\};/.exec(body)?.[1] ?? '').matchAll(/^\s*([A-Z_][A-Z0-9_]*):/gm)].map((m) => m[1]!);
+  const optional = [...(/for \(const name of \[([\s\S]*?)\]\) \{/.exec(body)?.[1] ?? '').matchAll(/"([A-Z_][A-Z0-9_]*)"/g)].map((m) => m[1]!);
+  const uploadedNames = [...new Set([...required, ...optional])].sort();
+
+  it('read the upload and the service, rather than comparing two empty lists', () => {
+    expect(required).toEqual(['SYSTEM_DATABASE_URL', 'APP_DATABASE_URL', 'SECRET_ENCRYPTION_KEY']);
+    expect(optional.length).toBeGreaterThan(30);
+    expect(workerEnv.size).toBeGreaterThan(30);
+  });
+
+  it.each(uploadedNames)('the worker service names %s', (name) => {
+    expect(workerEnv.has(name), `set-task-env.sh uploads ${name} to the tasks, and managed.yml's worker service does not name it`).toBe(true);
+  });
+
+  it('and every variable a job reads that the tasks are uploaded', () => {
+    const missing = [...new Set(envReadsIn(JOBS).map((r) => r.name))].filter((n) => uploadedNames.includes(n) && !workerEnv.has(n));
+    expect(missing).toEqual([]);
   });
 });
 

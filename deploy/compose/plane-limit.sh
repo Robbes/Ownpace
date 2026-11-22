@@ -52,6 +52,12 @@ case "${1:-}" in
   *) echo "plane-limit.sh: unknown argument '$1'" >&2; exit 1 ;;
 esac
 
+# Trigger.dev's alone (workplan 0167 T7): refused, in one sentence and before
+# anything is asked or changed, where the jobs run on pg-boss.
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
+job_runner_refuse_in_pg_boss plane-limit.sh "it sets the Trigger.dev plane's concurrency limit"
+
 say() { echo "[plane-limit] $*"; }
 fail() { echo "[plane-limit] $*" >&2; exit 1; }
 

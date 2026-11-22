@@ -135,6 +135,13 @@ export function resolveDiscoveryJob(
 export const DISCOVERY_JOIN_WINDOW = '15m';
 
 /**
+ * The same window in seconds, as the pg-boss runner takes it (0167 T6). The
+ * enqueue reads `DISCOVERY_JOIN_WINDOW` itself (`durationSeconds`); this is the
+ * number its test holds the two to.
+ */
+export const DISCOVERY_JOIN_WINDOW_SECONDS = 15 * 60;
+
+/**
  * How a preflight is enqueued: ONE count per migration at a time, and a
  * request for a count already under way JOINS it (2026-09-22).
  *

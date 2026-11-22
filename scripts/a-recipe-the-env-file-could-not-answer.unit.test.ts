@@ -213,6 +213,8 @@ describe('operator.sh composes what the host cannot inherit', () => {
     copyFileSync(join(COMPOSE_DIR, 'env-read.sh'), join(dir, 'env-read.sh'));
     copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(dir, 'managed.yml'));
     copyFileSync(join(COMPOSE_DIR, 'stack-kind.sh'), join(dir, 'stack-kind.sh'));
+    // operator.sh hands every verb job-runner.sh's answer (workplan 0167 T7).
+    copyFileSync(join(COMPOSE_DIR, 'job-runner.sh'), join(dir, 'job-runner.sh'));
     writeFileSync(
       join(dir, '.env'),
       'POSTGRES_USER=owneruser\nPOSTGRES_PASSWORD=ownerpw\nPOSTGRES_DB=ownerdb\n',

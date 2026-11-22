@@ -293,6 +293,8 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
       // What load_env checks is the .env's shape, which is not this guard's question.
       'load_env() { :; }',
       definition('system_role_ready'),
+      // Trigger mode, as a .env without the switch reads (job-runner.sh).
+      "JOB_RUNNER_PGBOSS=pg-boss; JOB_RUNNER_KEY=OWNPACE_JOB_RUNNER; runner_mode() { JOB_RUNNER_MODE=\"${STAND_IN_MODE:-trigger}\"; }",
       definition('phase_tasks'),
       'phase_tasks',
     ].join('\n');
@@ -361,6 +363,20 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
     expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh']);
   });
 
+  it('pg-boss mode: the phase says it is skipped and runs none of it (0167 T7)', () => {
+    const r = phaseTasks({ STAND_IN_MODE: 'pg-boss' }, withPassword());
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/skipped: pg-boss mode/);
+    expect(r.steps).toEqual([]);
+  });
+
+  it('pg-boss mode asks the same question before the worker starts, in the app phase (0167 T7)', () => {
+    const app = definition('phase_app');
+    const pg = app.indexOf('if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then\n    system_role_ready');
+    expect(pg, 'phase_app does not ask the system role first in pg-boss mode').toBeGreaterThan(-1);
+    expect(app.indexOf('worker_up', pg)).toBeGreaterThan(pg);
+  });
+
   it('a password a URL does not carry as it is stops it before the question', () => {
     const r = phaseTasks({}, 'TRIGGER_PROJECT_REF=proj_stand_in\nSYSTEM_DB_PASSWORD=a/b@c\n');
     expect(r.status, r.out).not.toBe(0);
@@ -386,6 +402,13 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
     expect(statements).toEqual([
       'say tasks "the system role, task environment variables, the plane\'s limit, the deploy, then the owner names forgotten"',
       'load_env',
+      // pg-boss mode skips the phase whole, saying so (workplan 0167 T7); the
+      // worker's start in the app phase asks the same question first.
+      'runner_mode',
+      'if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then',
+      'note "skipped: pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}). The jobs ship in the worker\'s image, built and started by the app phase; nothing is uploaded to or deployed on Trigger.dev."',
+      'return 0',
+      'fi',
       '[ -n "$(env_get TRIGGER_PROJECT_REF)" ] ||',
       'die "TRIGGER_PROJECT_REF is not set — the \'account\' phase has not been completed."',
       'system_role_ready',
