@@ -15,6 +15,7 @@ import {
   type MappingId,
   type SetupStepRow,
   type ShareGrantRow,
+  type ConfirmedAddressChangeRow,
   classifyFailure,
   isFailureCategory,
   nameOnRow,
@@ -1276,6 +1277,29 @@ export class PgLedger implements Ledger {
       ...(saved.decidedBy ? { decidedBy: saved.decidedBy } : {}),
       ...(saved.decidedAt ? { decidedAt: saved.decidedAt.toISOString() } : {}),
     };
+  }
+
+  /**
+   * The organisation's confirmed address changes, by old key (ADR-0055;
+   * workplan 0168 T2): what a pass applies to contacts and calendars (T4).
+   *
+   * By the statement's own tenant, beside row security, for the reason
+   * `namesOfKeys` gives: the appliance's ledger runs outside `withTenant`, so
+   * on its connection this filter is what keeps another organisation's rows
+   * out. A failed read throws: an empty table and an unreadable one are not
+   * the same answer (hard rule 9).
+   */
+  async listConfirmedAddressChanges(tenantId: TenantId): Promise<ReadonlyArray<ConfirmedAddressChangeRow>> {
+    const rows = await this.db
+      .select({
+        oldKey: schemaPg.addressChange.oldKey,
+        oldAddress: schemaPg.addressChange.oldAddress,
+        newAddress: schemaPg.addressChange.newAddress,
+      })
+      .from(schemaPg.addressChange)
+      .where(and(eq(schemaPg.addressChange.tenantId, tenantId), eq(schemaPg.addressChange.state, 'confirmed')))
+      .orderBy(schemaPg.addressChange.oldKey);
+    return rows.map((r) => ({ oldKey: r.oldKey, oldAddress: r.oldAddress, newAddress: r.newAddress }));
   }
 
   async listShareGrants(

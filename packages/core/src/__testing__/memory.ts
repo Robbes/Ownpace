@@ -18,6 +18,7 @@ import type {
   RawMessage,
   SetupStepRow,
   ShareGrantRow,
+  ConfirmedAddressChangeRow,
   SourceConnector,
   SyncCursor,
   TargetEntry,
@@ -741,6 +742,25 @@ export class MemoryLedger implements Ledger {
       .map((e) => e.at)
       .sort();
     return Promise.resolve(mine[mine.length - 1]);
+  }
+
+  /**
+   * The organisation's address changes (ADR-0055), set by tests. Only the
+   * `confirmed` ones are read, as the Pg ledger reads them.
+   */
+  readonly addressChanges: Array<
+    { tenantId: string; state: 'proposed' | 'confirmed' } & ConfirmedAddressChangeRow
+  > = [];
+
+  listConfirmedAddressChanges(
+    tenantId: LedgerRecord['tenantId'],
+  ): Promise<ReadonlyArray<ConfirmedAddressChangeRow>> {
+    return Promise.resolve(
+      this.addressChanges
+        .filter((r) => r.tenantId === tenantId && r.state === 'confirmed')
+        .map(({ oldKey, oldAddress, newAddress }) => ({ oldKey, oldAddress, newAddress }))
+        .sort((a, b) => (a.oldKey < b.oldKey ? -1 : a.oldKey > b.oldKey ? 1 : 0)),
+    );
   }
 
   /** The sharing queue's rows (ADR-0032), visible to tests. */

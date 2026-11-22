@@ -126,6 +126,14 @@ export const PURGED_TABLES = [
   // before `mailbox_mapping`, which a membership references. Both keys would
   // cascade; named so the receipt counts them.
   'person_migration',
+  // Whose old address an address change is (workplan 0168, managed 0063):
+  // before `person`, which it references, and before `address_change`, which
+  // it is about. Both keys would cascade; named so the receipt counts it.
+  'address_change_person',
+  // The organisation's addresses that change, old to new (ADR-0055, ledger
+  // 0071): other people's addresses, which is exactly what an erasure erases
+  // (0168 §5). The tenant key would cascade; named so the receipt counts it.
+  'address_change',
   // A person's links (0153 T5 (b), managed migration 0034) go before the
   // person they open: the person's key would cascade, and naming them counts
   // them on the receipt.
