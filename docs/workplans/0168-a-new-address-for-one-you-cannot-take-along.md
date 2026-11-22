@@ -4,6 +4,8 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22: ADR-0055 accepted.** The owner: *"I accept"*. T0 is done; T1 can start.
+
 **2026-11-22: all ten decisions answered.** D7, reworded, answered: *"ok, now I understand. I
 agree."* That is (a): Support shows counts only. Every decision in §9 is now the recommended
 option. ADR-0055 stays proposed until the owner accepts it; it is the only thing left in T0.
@@ -24,7 +26,7 @@ answer. ADR-0055 stays proposed until the owner accepts it.
 > or team might move together and want to overwrite other addresses as well."*
 
 This plan is the reasoning (§1 to §7), a plan in steps (§8) and the decisions it needs (§9). It
-proposes [ADR-0055](../adr/0055-a-new-address-is-a-declared-change.md), **proposed, not accepted**,
+proposed [ADR-0055](../adr/0055-a-new-address-is-a-declared-change.md), accepted by the owner on 2026-11-22,
 because the design amends what ADR-0005, ADR-0032 §6 and ADR-0043 say about a faithful copy. Every
 fact about today's behaviour below was read in the code on 2026-11-22 at `4aa500c`, and the file
 and function are named beside it.
@@ -33,7 +35,7 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The owner's decisions and ADR-0055 | owner | 🟡 **Decisions answered** | §9: D1–D10 answered as recommended on 2026-11-22 (D7 after rewording). ADR-0055 is proposed; nothing below starts before it is accepted or changed. |
+| T0 The owner's decisions and ADR-0055 | owner | ✅ **Done 2026-11-22** | §9: D1–D10 answered as recommended on 2026-11-22 (D7 after rewording). ADR-0055 accepted the same day. |
 | T1 Address forms and the list of addresses nobody can take along | builder | 📋 **Proposed** | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moves there. No behaviour change. |
 | T2 The table of address changes | builder | 📋 **Proposed** | §4, §5. `address_change` in the shared chain, its routes in both editions, `PURGED_TABLES`. |
 | T3 The change itself, as a pure function | builder | 📋 **Proposed** | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests. |

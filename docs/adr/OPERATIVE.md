@@ -795,6 +795,19 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail](./0055-a-new-address-is-a-declared-change.md)
 
-- **Nothing is operative — proposed 2026-11-22, not accepted.** Until the owner accepts it, every
-  copy stays as ADR-0043 and ADR-0005 describe: no address in any copied item is changed. Workplan
-  0168 §9 holds the decisions this waits on.
+- **Not built yet** (workplan 0168 T1–T8). Until it is, no address in any copied item changes.
+- **One table per organisation**, `address_change`, in the shared chain under forced row security.
+  Only rows a person **confirmed** reach a writer; the machine proposes, never confirms. An admin
+  may confirm for a person, attributed; the person can undo it (0168 D6).
+- **A pure function of source bytes and table** (`applyAddressChanges`), applied before
+  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, byte for byte.
+- **Changed:** a vCard `EMAIL` gains the new address first and preferred, the old kept (D2); an old
+  `ORGANIZER` is replaced; an `ATTENDEE` only where the organiser is in the table or is the person (D3).
+- **Never changed:** mail, in any byte (D1); free text (D4); display names; UIDs; an outside
+  organiser's invitation.
+- **Declared, never silent:** each item records `item.address_digest`; verification and the
+  confirmed list count and name it; an older digest is never a match.
+- **A changed table converges** by the ordinary rewrite (adopted left alone, `If-Match`, tombstones
+  kept); past a data type's cutover only on a person's press (D5). Silence (ADR-0043) holds.
+- **Shares:** a confirmed row is ADR-0032 §6's confirmation; each press still sends its address.
+  Support shows counts only (D7); erasure purges both tables (`PURGED_TABLES`).
