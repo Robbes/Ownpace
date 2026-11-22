@@ -141,3 +141,5 @@ export * from './address-forms.ts';
 
 // The table of address changes, as both editions serve it (workplan 0168 T2).
 export * from './address-change-table.ts';
+// A new address as a declared change to cards and events, never to mail (workplan 0168 T3, ADR-0055).
+export * from './address-changes.ts';
