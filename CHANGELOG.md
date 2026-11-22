@@ -9,6 +9,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
   (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
 
+### Fixed
+
+- **A second Security Scan on a release tag no longer replaces the release's SBOM or repeats its
+  body** (workplan 0146). alpha.15's image scan after the tag ran on the tag, replaced the
+  `bom.json` verify had read and appended the release body a second time. The attach now leaves a
+  `bom.json` already there and a body that already holds the generated block, and says so; a
+  dispatch with the image scans on a tag is refused at once, saying to dispatch it on `main` at the
+  release commit.
+
 ## [0.2.0-alpha.15] - 2026-11-22
 
 One press can now delete, on the new system, the copies listed on *Deleted on the old system*: while

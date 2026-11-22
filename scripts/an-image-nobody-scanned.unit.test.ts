@@ -1394,8 +1394,11 @@ const workflow = parseYaml(WORKFLOW) as { defaults?: unknown; jobs: Record<strin
 // A dispatch scans the images unless it says not to: the Release workflow
 // dispatches this file twice per release (on the commit, then on the tag) and
 // passes `image_scans: false`, so its runs are the repository scan alone
-// (workplan 0146, Status of 2026-10-23). A hand dispatch keeps the default.
-const SCHEDULE_OR_DISPATCH = "github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)";
+// (workplan 0146, Status of 2026-10-23). A hand dispatch keeps the default,
+// and never on a tag ref, which the repository scan's first step refuses
+// (2026-11-22, a-release-attached-twice).
+const SCHEDULE_OR_DISPATCH =
+  "github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans && !startsWith(github.ref, 'refs/tags/'))";
 // The condition of the two steps a test-only leg skips: the SARIF and its upload (the owner, 2026-11-03).
 const NOT_TEST_ONLY = "matrix.tier != 'test-only'";
 

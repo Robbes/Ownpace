@@ -173,6 +173,7 @@ reading a file drops off its entry by itself.
 
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-release-attached-twice](../scripts/a-release-attached-twice.unit.test.ts) — A RELEASE ATTACHED TWICE: alpha.15's image scan after the tag ran on the tag, replaced the `bom.json` verify had read and appended its body a second time (workplan 0146, Status of 2026-11-22).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 
@@ -186,6 +187,7 @@ reading a file drops off its entry by itself.
 - [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-release-attached-twice](../scripts/a-release-attached-twice.unit.test.ts) — A RELEASE ATTACHED TWICE: alpha.15's image scan after the tag ran on the tag, replaced the `bom.json` verify had read and appended its body a second time (workplan 0146, Status of 2026-11-22).
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
@@ -204,6 +206,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/windows-payload.yml`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-release-attached-twice](../scripts/a-release-attached-twice.unit.test.ts) — A RELEASE ATTACHED TWICE: alpha.15's image scan after the tag ran on the tag, replaced the `bom.json` verify had read and appended its body a second time (workplan 0146, Status of 2026-11-22).
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-runtime-only-its-own-host-vouched-for](../scripts/a-runtime-only-its-own-host-vouched-for.unit.test.ts) — A RUNTIME ONLY ITS OWN HOST VOUCHED FOR: the `node.exe` every Windows payload ships was checked against a `SHASUMS256.txt` fetched from the same `nodejs.org` release directory as the binary, so whoever could change the one could change t…
@@ -2163,6 +2166,7 @@ reading a file drops off its entry by itself.
 - [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-release-attached-twice](../scripts/a-release-attached-twice.unit.test.ts) — A RELEASE ATTACHED TWICE: alpha.15's image scan after the tag ran on the tag, replaced the `bom.json` verify had read and appended its body a second time (workplan 0146, Status of 2026-11-22).
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
@@ -3378,6 +3382,7 @@ reading a file drops off its entry by itself.
 ### `scripts/release-dispatch.mjs`
 
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
+- [a-release-attached-twice](../scripts/a-release-attached-twice.unit.test.ts) — A RELEASE ATTACHED TWICE: alpha.15's image scan after the tag ran on the tag, replaced the `bom.json` verify had read and appended its body a second time (workplan 0146, Status of 2026-11-22).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 
 ### `scripts/release-github.mjs`
@@ -5534,6 +5539,18 @@ Reads:
 - `deploy/compose/rehearse-capacity.sh`
 - `deploy/compose/stack-kind.sh`
 - `packages/shared/src/pass-deadline.ts`
+
+### [a-release-attached-twice](../scripts/a-release-attached-twice.unit.test.ts)
+
+A RELEASE ATTACHED TWICE: alpha.15's image scan after the tag ran on the tag, replaced the `bom.json` verify had read and appended its body a second time (workplan 0146, Status of 2026-11-22).
+
+Reads:
+
+- `.github/workflows/release.yml`
+- `.github/workflows/security-scan.yml`
+- `.github/workflows/windows-payload.yml`
+- `docs/release.md`
+- `scripts/release-dispatch.mjs`
 
 ### [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts)
 
