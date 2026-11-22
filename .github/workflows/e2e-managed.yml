@@ -361,9 +361,10 @@ jobs:
 
       - name: Which runner works this run's jobs (OWNPACE_JOB_RUNNER)
         # ONE RULE, THE BRING-UP'S AND THE SMOKE'S (workplan 0167 T7): the
-        # dispatch's input when there is one, else the restored .env's
+        # dispatch's input when there is one, else what deploy/compose/
+        # job-runner.sh, the scripts' one reader, answers (the restored .env's
         # OWNPACE_JOB_RUNNER, else managed.yml's default for it, else
-        # `trigger`; any other value is refused. Read here, before anything is
+        # `trigger`); any other value is refused. Read here, before anything is
         # written, so the steps for Trigger.dev's plane can be left out on a
         # stack whose plane is stopped. The input itself is written into the
         # checkout's .env further down, after the persisted copy is saved.
@@ -378,23 +379,21 @@ jobs:
         run: |
           set -euo pipefail
           . deploy/compose/env-read.sh
-          mode="${JOB_RUNNER_INPUT:-}"
-          from="this dispatch's input"
-          if [ -z "$mode" ] && [ -f deploy/compose/.env ]; then
-            mode="$(env_value deploy/compose/.env OWNPACE_JOB_RUNNER)"
-            mode="${mode#\"}"
-            mode="${mode%\"}"
-            from="the restored .env"
+          SCRIPT_DIR=deploy/compose
+          . deploy/compose/job-runner.sh
+          if [ -n "${JOB_RUNNER_INPUT:-}" ]; then
+            case "$JOB_RUNNER_INPUT" in
+              trigger|pg-boss) mode="$JOB_RUNNER_INPUT"; from="this dispatch's input" ;;
+              *) echo "::error::This dispatch's job_runner is '${JOB_RUNNER_INPUT}', and a stack's jobs run on 'trigger' or 'pg-boss' (empty runs the stack's own)."; exit 1 ;;
+            esac
+          else
+            if ! job_runner_mode deploy/compose deploy/compose/.env; then
+              echo "::error::${JOB_RUNNER_WHY}"
+              exit 1
+            fi
+            mode="$JOB_RUNNER"
+            from="the restored .env, else managed.yml's default (job-runner.sh)"
           fi
-          if [ -z "$mode" ]; then
-            mode="$(sed -n 's/.*\${OWNPACE_JOB_RUNNER:-\([^}]*\)}.*/\1/p' deploy/compose/managed.yml | awk 'NR==1')"
-            from="managed.yml's default"
-          fi
-          case "$mode" in
-            ''|trigger) mode=trigger ;;
-            pg-boss) ;;
-            *) echo "::error::OWNPACE_JOB_RUNNER is '${mode}' (${from}), and a stack's jobs run on 'trigger' or 'pg-boss' (unset or empty is 'trigger')."; exit 1 ;;
-          esac
           echo "this run's jobs run on ${mode} (${from})"
           printf '%s\n' "$mode" >"$RUNNER_TEMP/job-runner"
 

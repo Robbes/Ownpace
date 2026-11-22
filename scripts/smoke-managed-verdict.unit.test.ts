@@ -1512,6 +1512,8 @@ describe('which runner works the jobs is read once, as the bring-up reads it, an
     const compose = join(dir, 'deploy/compose');
     mkdirSync(compose, { recursive: true });
     writeFileSync(join(compose, 'env-read.sh'), readFileSync(join(REPO_ROOT, 'deploy/compose/env-read.sh')));
+    // Both read the mode through the scripts' one reader (workplan 0167 T7).
+    writeFileSync(join(compose, 'job-runner.sh'), readFileSync(join(REPO_ROOT, 'deploy/compose/job-runner.sh')));
     if (dotenv !== null) writeFileSync(join(compose, '.env'), dotenv);
     writeFileSync(
       join(compose, 'managed.yml'),
@@ -1520,7 +1522,7 @@ describe('which runner works the jobs is read once, as the bring-up reads it, an
     return { dir, compose };
   }
   const smokeReads = (compose: string) =>
-    smokeRun(['smoke_env_value', 'smoke_job_runner'], 'smoke_job_runner && echo "rc=0" || echo "rc=$?"', { SCRIPT_DIR: compose });
+    smokeRun(['smoke_job_runner'], `. '${compose}/job-runner.sh'\nsmoke_job_runner && echo "rc=0" || echo "rc=$?"`, { SCRIPT_DIR: compose });
   const step = (parse(workflow) as { jobs: Record<string, { steps: Array<{ id?: string; run?: string }> }> }).jobs['e2e-managed']!.steps.find((s) => (s.run ?? '').includes('>"$RUNNER_TEMP/job-runner"'));
   function workflowReads(dir: string, input = '') {
     const temp = join(dir, 'runner-temp');
@@ -1538,11 +1540,15 @@ describe('which runner works the jobs is read once, as the bring-up reads it, an
   it.each([
     ['no .env and no default in managed.yml', null, null, 'trigger'],
     ['a .env without the key, and no default', 'NODE_ENV=development\n', null, 'trigger'],
-    ['the key empty', 'OWNPACE_JOB_RUNNER=\n', null, 'trigger'],
-    ['trigger', 'OWNPACE_JOB_RUNNER=trigger\n', null, 'trigger'],
-    ['pg-boss', 'OWNPACE_JOB_RUNNER=pg-boss\n', null, 'pg-boss'],
-    ['pg-boss in double quotes, as Compose reads it', 'OWNPACE_JOB_RUNNER="pg-boss"\n', null, 'pg-boss'],
-    ['pg-boss in single quotes, with a comment', "OWNPACE_JOB_RUNNER='pg-boss'   # the switch\n", null, 'pg-boss'],
+    ['the key empty', 'OWNPACE_JOB_RUNNER=\n', 'trigger', 'trigger'],
+    ['trigger', 'OWNPACE_JOB_RUNNER=trigger\n', 'trigger', 'trigger'],
+    ['pg-boss', 'OWNPACE_JOB_RUNNER=pg-boss\n', 'trigger', 'pg-boss'],
+    ['pg-boss in double quotes, as Compose reads it', 'OWNPACE_JOB_RUNNER="pg-boss"\n', 'trigger', 'pg-boss'],
+    ['pg-boss in single quotes, with a comment', "OWNPACE_JOB_RUNNER='pg-boss'   # the switch\n", 'trigger', 'pg-boss'],
+    // job-runner.sh's rule: a managed.yml that never names the switch hands it
+    // to no container, so that release runs the plane whatever .env says.
+    ['pg-boss in .env, and a managed.yml without the switch', 'OWNPACE_JOB_RUNNER=pg-boss\n', null, 'trigger'],
+    ["the key empty, and managed.yml's default pg-boss (the flip)", 'OWNPACE_JOB_RUNNER=\n', 'pg-boss', 'pg-boss'],
     ["no key, and managed.yml's default pg-boss", 'NODE_ENV=development\n', 'pg-boss', 'pg-boss'],
     ["the .env's trigger over managed.yml's pg-boss", 'OWNPACE_JOB_RUNNER=trigger\n', 'pg-boss', 'trigger'],
     ["the last assignment, as Compose takes it", 'OWNPACE_JOB_RUNNER=trigger\nOWNPACE_JOB_RUNNER=pg-boss\n', 'trigger', 'pg-boss'],
@@ -1557,20 +1563,33 @@ describe('which runner works the jobs is read once, as the bring-up reads it, an
   });
 
   it.each([['pgboss'], ['Trigger'], ['pg_boss']])("'%s' is refused in one sentence, by both", (value) => {
-    const { dir, compose } = box(`OWNPACE_JOB_RUNNER=${value}\n`, null);
+    const { dir, compose } = box(`OWNPACE_JOB_RUNNER=${value}\n`, 'trigger');
     const s = smokeReads(compose);
     expect(s.out).toContain('rc=1');
-    expect(s.out).toContain(`OWNPACE_JOB_RUNNER is '${value}', and a stack's jobs run on 'trigger' or 'pg-boss' (unset or empty is 'trigger').`);
+    // job-runner.sh's one sentence, which does not print the value.
+    expect(s.out).toMatch(/OWNPACE_JOB_RUNNER in \S+\.env is neither trigger nor pg-boss \(its value is not printed\)/);
     const w = workflowReads(dir);
     expect(w.status).not.toBe(0);
     expect(w.mode).toBe('');
-    expect(w.out).toContain(`OWNPACE_JOB_RUNNER is '${value}'`);
+    expect(w.out).toMatch(/::error::OWNPACE_JOB_RUNNER in \S+\.env is neither trigger nor pg-boss/);
   });
 
-  it("the dispatch's input wins over the .env, for the run's steps", () => {
+  it("the dispatch's input wins over the .env, for the run's steps, and is refused when it is neither", () => {
     const { dir } = box('OWNPACE_JOB_RUNNER=trigger\n', null);
     expect(workflowReads(dir, 'pg-boss').mode).toBe('pg-boss');
     expect(workflowReads(dir, 'trigger').mode).toBe('trigger');
+    const bad = workflowReads(dir, 'both');
+    expect(bad.status).not.toBe(0);
+    expect(bad.mode).toBe('');
+    expect(bad.out).toContain("This dispatch's job_runner is 'both'");
+  });
+
+  it('both read it through job-runner.sh, not by a reader of their own', () => {
+    expect(smoke).toContain('. "${SCRIPT_DIR}/job-runner.sh"');
+    expect(smoke).toMatch(/smoke_job_runner\(\) \{[\s\S]*?job_runner_mode "\$SCRIPT_DIR"/);
+    expect(step?.run).toContain('. deploy/compose/job-runner.sh');
+    expect(step?.run).toContain('job_runner_mode deploy/compose deploy/compose/.env');
+    expect(step?.run).not.toMatch(/sed -n[^\n]*OWNPACE_JOB_RUNNER/);
   });
 
   it("the smoke stops at an answer it cannot read, before any section, and the API's own mode is held to it", () => {

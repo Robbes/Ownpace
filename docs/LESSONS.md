@@ -1376,6 +1376,7 @@ reading a file drops off its entry by itself.
 - [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/jobs-role.sql`
@@ -7491,6 +7492,7 @@ Reads:
 - `apps/api/src/scripts/seed-managed.ts`
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/redact-evidence.sh`
 - `deploy/compose/seed-demo-dav-content.sh`

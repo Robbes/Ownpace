@@ -94,6 +94,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/env-read.sh"
 # shellcheck source=deploy/compose/own-addresses.sh
 . "${SCRIPT_DIR}/own-addresses.sh"
+# Which runner works the jobs: the scripts' one reader (workplan 0167 T7).
+# shellcheck source=deploy/compose/job-runner.sh
+. "${SCRIPT_DIR}/job-runner.sh"
 # `trigger_env`, the one resolution of which Trigger.dev environment the tasks
 # deploy to: the tasks' image section below asks which deployment that
 # environment runs.
@@ -338,20 +341,14 @@ note() { SECTION="$*"; printf '\n--- %s ---\n' "$*"; }
 # those sections out of this file by their first column, and run them.
 SMOKE_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 smoke_job_runner() { # smoke_job_runner — `trigger` or `pg-boss` on stdout; 1 and one sentence on stderr for anything else
-  local v
-  v="$(smoke_env_value OWNPACE_JOB_RUNNER)"
-  # As Compose reads it: env_value keeps double quotes, and Compose does not.
-  v="${v#\"}"
-  v="${v%\"}"
-  if [ -z "$v" ] && [ -f "${SCRIPT_DIR}/managed.yml" ]; then
-    # shellcheck disable=SC2016 # the `${…}` is managed.yml's text, matched, not expanded
-    v="$(sed -n 's/.*\${OWNPACE_JOB_RUNNER:-\([^}]*\)}.*/\1/p' "${SCRIPT_DIR}/managed.yml" | awk 'NR==1')"
+  # job-runner.sh's job_runner_mode, as the bring-up reads it: the shell's
+  # value, else .env's (quotes as Compose takes them), else managed.yml's
+  # default, else `trigger`; any other value refused in its one sentence.
+  if ! job_runner_mode "$SCRIPT_DIR" "${SCRIPT_DIR}/.env"; then
+    echo "$JOB_RUNNER_WHY" >&2
+    return 1
   fi
-  case "$v" in
-    ''|trigger) echo trigger ;;
-    pg-boss) echo pg-boss ;;
-    *) echo "OWNPACE_JOB_RUNNER is '${v}', and a stack's jobs run on 'trigger' or 'pg-boss' (unset or empty is 'trigger')." >&2; return 1 ;;
-  esac
+  echo "$JOB_RUNNER"
 }
 JOB_RUNNER="$(smoke_job_runner)" || { echo "FATAL: which runner works this stack's jobs cannot be told, so neither can what to ask it"; exit 1; }
 echo "this stack's jobs run on ${JOB_RUNNER} (OWNPACE_JOB_RUNNER, as the bring-up reads it); started ${SMOKE_STARTED_AT}"
