@@ -4,6 +4,56 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, afternoon: `v0.2.0-alpha.15` is released, its nights waived (T2, T4).** Read from
+GitHub on 2026-11-22. Times are UTC.
+
+- **C is `0683eb04`**, the squash of #2033, the fold, merged on 2026-11-22 at 13:06:28 on
+  `768f4e0a` (#2032). Its tree is that of #2033's head, `86d42e9b`. On C, all green: CI run
+  45025731288 (13:06:30 to 13:31:23, `ci-complete` included), Security Scan run 45025731295, Images
+  run 45025731289, Semgrep run 45025731298, Dockerfile lint run 45025731301 and Nextcloud's second
+  major, run 45025731262. C did not move: nothing merged to `main` between the fold and the tag.
+- **In the counted nights' place**, waived for alpha.15 (*"I waive the waitings for a next
+  alpha."*, #2030), dispatched on `main` at C, all green: E2E (managed) run 45025787967 (13:07:09
+  to 13:15:08), then E2E (self-hosted) on Postgres, run 45026647839 (13:16:58 to 13:22:39), and on
+  PGlite, run 45027243076 (13:23:33 to 13:28:29), one at a time, each once the run before it had
+  ended green; beside them Security Scan with the image scans, run 45025790762 (29 jobs), and
+  `windows-payload.yml` run 45025793555 (win-x64).
+- **Release.** The owner ran it from their own account, first as a preflight alone: run
+  45028278042 (`mode` `preflight`, 13:35:21 to 13:36:10), which refused nothing. Then Release run
+  45028546885 (`mode` `release`), with `waive_nights` set to *"waived by me"*, in one attempt: its
+  preflight passed (13:38:38 to 13:39:23), and it waited at its approve job until the owner
+  approved in the `release` environment (13:39:36); then the gate scan of C (run 45028661004, on
+  `release-gate/v0.2.0-alpha.15`, 13:39:55 to 13:40:58) and the tag (13:41:52) succeeded. The
+  publish job's Security Scan on the tag, run 45028874807 (13:42:16 to 13:43:21), made the release
+  with its body and SBOM; the images, run 45029039290 (13:44:10 to 13:45:16), and the Windows zip,
+  run 45029033948 (13:44:06 to 13:45:42), both on the tag, were green; and verify passed (13:46:13
+  to 13:46:56).
+- **The two attaches, through the runner's own `gh`** (#1977): `bom.json` (2,064,513 bytes, with
+  the release at 13:43:17) and `ownpace-appliance-win-x64-v0.2.0-alpha.15.zip` (50,045,661 bytes,
+  13:45:35), both uploaded by `github-actions[bot]`. Verify, which reads both, passed.
+- **The tag.** `v0.2.0-alpha.15` is tag object `c1fdb844…` on `0683eb04`, made by
+  `github-actions[bot]` at 13:41:52. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/45028546885*, *Proved by: CI run #6005, Security
+  Scan run #6142 on main, windows-payload run #57; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/45028661004* and *Nights waived by Robbes, in
+  their words: "waived by me"*.
+- **The image scan after the tag**, Security Scan run 45029318456 (`image_scans`, on the tag, where
+  alpha.13's and alpha.14's ran on `main` at C, 13:47:19 to 13:50:35, 29 jobs), was green: 26
+  images listed and scanned, none past its end of life. Against C's own scan, run 45025790762, the
+  three production tiers are as they were (the 7 images the internet reaches: 0 critical, 8 high;
+  the 13 internal ones: 2 critical, 27 high; the appliance's 3: 0 critical, 2 high), and two things
+  moved: the three release images it reads are now alpha.15's (`0.2.0-alpha.15`), each with
+  alpha.14's counts, and the Nextcloud test image, not in production and the same image, lists 1
+  high finding fewer (252 to 251): `linux-libc-dev` has 30 findings a newer package fixes where it
+  had 31, a change in the scanner's data. On the tag it kept no issue, which only a run on `main`
+  does, and it ran Security Scan's release attach: at 13:48:29 it replaced `bom.json` with its own,
+  of the same size, after verify had read the first, and it appended its release body to the one
+  there, so the release's body now says everything twice.
+- **Live skips alpha.15:** on 2026-11-22, after the release, the owner asked *"Can i skip
+  deployment for alpha 15 on live and go straight to alpha 16?"* and decided *"Ok, I go with 16."*,
+  so live goes from alpha.14 straight to alpha.16, as it went from alpha.12 straight to alpha.14
+  past alpha.13, and the deploy from alpha.14 that the fold's entry below describes is not made.
+
 **2026-11-22, latest: the fold for `v0.2.0-alpha.15` (T2).** `package.json` and the API contract say
 `0.2.0-alpha.15`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
 its section, dated 2026-11-22, under a summary; [Unreleased] stays, empty. alpha.15 carries what
