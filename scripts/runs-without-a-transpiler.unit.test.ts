@@ -131,6 +131,29 @@ describe('the runtime needs no transpiler', () => {
     // 5s unless it says otherwise, and it once did not.
   }, 60_000);
 
+  it("names every file the managed worker forks by a path on disk, with its extension (workplan 0167 T6)", () => {
+    // The worker forks each run from `new URL('./runs/<queue>.ts', import.meta.url)`.
+    // That is a path, not an import: no scanner above reads it, tsc checks
+    // nothing in it, and a typo fails only when the queue's first run is
+    // forked, in production. So every relative URL under the runner is resolved
+    // here as Node will resolve it.
+    const runner = join(ROOT, 'apps/worker/src/runner');
+    const urls: string[] = [];
+    const offenders: string[] = [];
+    for (const file of sourceFiles(runner)) {
+      const text = readFileSync(file, 'utf8');
+      for (const m of text.matchAll(/new URL\(\s*'(\.[^']*)'\s*,\s*import\.meta\.url\s*\)/g)) {
+        const spec = m[1]!;
+        urls.push(spec);
+        if (!/\.ts$/.test(spec)) offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}' (not a .ts file)`);
+        else if (!existsSync(resolve(dirname(file), spec))) offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}' (no such file)`);
+      }
+    }
+    // The seventeen entries, and the integration test's stand-ins and main.ts besides.
+    expect(urls.filter((u) => u.startsWith('./runs/')).length).toBe(17);
+    expect(offenders, 'The worker forks these paths as they are written').toEqual([]);
+  });
+
   it('keeps the two compiler options the eraser depends on', () => {
     const base = readFileSync(join(ROOT, 'tsconfig.base.json'), 'utf8');
     expect(base).toMatch(/"erasableSyntaxOnly":\s*true/);

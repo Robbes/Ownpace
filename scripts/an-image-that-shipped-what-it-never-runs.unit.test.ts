@@ -297,6 +297,11 @@ function workspace(): Map<string, { dir: string; manifest: Manifest }> {
  * leaves out `devDependencies`.
  */
 function apiClosure(): Array<{ dir: string; manifest: Manifest }> {
+  return closureOf('@openmig/api');
+}
+
+/** `root` and every workspace package it reaches along production edges, as `--filter-prod <root>...` selects. */
+function closureOf(root: string): Array<{ dir: string; manifest: Manifest }> {
   const all = workspace();
   const seen = new Map<string, { dir: string; manifest: Manifest }>();
   const visit = (name: string) => {
@@ -308,7 +313,7 @@ function apiClosure(): Array<{ dir: string; manifest: Manifest }> {
       if (spec.startsWith('workspace:')) visit(dep);
     }
   };
-  visit('@openmig/api');
+  visit(root);
   return [...seen.values()];
 }
 
@@ -353,6 +358,25 @@ function packageOf(specifier: string): string | null {
   return BUILTINS.has(name) ? null : name;
 }
 
+/** What a package's runtime source loads that its own `dependencies` do not declare. */
+function undeclaredLoads(dir: string, manifest: Manifest): string[] {
+  const declared = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.optionalDependencies ?? {})]);
+  const files = runtimeSources(`${dir}/src`);
+  expect(files.length, `${dir}/src has no runtime source to read`).toBeGreaterThan(0);
+  const missing: string[] = [];
+  for (const file of files) {
+    for (const specifier of runtimeSpecifiers(file, readFileSync(join(ROOT, file), 'utf8'))) {
+      if (specifier === null) {
+        missing.push(`${file}: an import() of a computed name, which this cannot check`);
+        continue;
+      }
+      const name = packageOf(specifier);
+      if (name && name !== manifest.name && !declared.has(name)) missing.push(`${name} (${relative(dir, file)})`);
+    }
+  }
+  return [...new Set(missing)];
+}
+
 describe('what the API image loads is declared where it is loaded', () => {
   const closure = apiClosure();
 
@@ -371,22 +395,8 @@ describe('what the API image loads is declared where it is loaded', () => {
 
   for (const { dir, manifest } of closure) {
     it(`${manifest.name} declares in "dependencies" every package its runtime source loads`, () => {
-      const declared = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.optionalDependencies ?? {})]);
-      const files = runtimeSources(`${dir}/src`);
-      expect(files.length, `${dir}/src has no runtime source to read`).toBeGreaterThan(0);
-      const missing: string[] = [];
-      for (const file of files) {
-        for (const specifier of runtimeSpecifiers(file, readFileSync(join(ROOT, file), 'utf8'))) {
-          if (specifier === null) {
-            missing.push(`${file}: an import() of a computed name, which this cannot check`);
-            continue;
-          }
-          const name = packageOf(specifier);
-          if (name && name !== manifest.name && !declared.has(name)) missing.push(`${name} (${relative(dir, file)})`);
-        }
-      }
       expect(
-        [...new Set(missing)],
+        undeclaredLoads(dir, manifest),
         `${dir}/package.json: the image installs --prod, so these resolve only through another package's tree, or not at all`,
       ).toEqual([]);
     });
@@ -412,4 +422,38 @@ describe('what the API image loads is declared where it is loaded', () => {
     ]);
     expect(packageOf('fs/promises')).toBeNull();
   });
+});
+
+/**
+ * THE WORKER'S IMAGE, THE SAME RULE (workplan 0167 T6). The managed worker runs
+ * the jobs on pg-boss from `apps/worker/src/runner/main.ts`, and its image is
+ * installed `--prod` as the API's is. Until then the Trigger.dev CLI bundled
+ * each task with whatever it reached, so `apps/worker` never declared `pg`
+ * (sixteen job files import it) and kept `drizzle-orm` (thirteen) a
+ * devDependency: a `--prod` worker would have failed at its first run's
+ * import. Its Dockerfile comes with its compose service; the closure is read
+ * from the manifests here, so this holds before it does.
+ */
+describe('what the worker loads is declared where it is loaded', () => {
+  const closure = closureOf('@openmig/worker');
+
+  it('walks the packages the worker reaches', () => {
+    expect(closure.map((p) => p.manifest.name).sort()).toEqual(
+      expect.arrayContaining(['@openmig/worker', '@openmig/scheduler', '@openmig/managed', '@openmig/orchestration', '@openmig/ledger']),
+    );
+  });
+
+  it('declares pg and drizzle-orm itself, which its jobs import', () => {
+    const worker = closure.find((p) => p.manifest.name === '@openmig/worker')!;
+    expect(Object.keys(worker.manifest.dependencies ?? {})).toEqual(expect.arrayContaining(['pg', 'drizzle-orm']));
+  });
+
+  for (const { dir, manifest } of closure) {
+    it(`${manifest.name} declares in "dependencies" every package its runtime source loads (the worker's closure)`, () => {
+      expect(
+        undeclaredLoads(dir, manifest),
+        `${dir}/package.json: a --prod worker image resolves these only through another package's tree, or not at all`,
+      ).toEqual([]);
+    });
+  }
 });

@@ -178,6 +178,16 @@ force: nothing runs on the runner yet. From workplan 0167 T7 these are rules:
   `AbortTaskRunError`, `ZodError`, `RunTimedOut`, `RunOutOfMemory` and `RunPossiblyOutOfMemory`
   are not retried, decided by the error's name; a claim lost because the worker died or
   restarted is.
+- **A run's time limit is the hour Trigger.dev gives every task, on the wall clock; a cutover's is
+  three hours**, since Trigger.dev never counted a run's waits for another (`triggerAndWait` is a
+  pause of the run's CPU time) and a cutover waits for a pass ahead of it and its own before the
+  gate.
+- **Known, and kept for alpha.16: two ways the worker's concurrency is not Trigger.dev's.** Each
+  queue of a job somebody asks for is worked one run at a time across every organisation, where
+  Trigger.dev runs a count per migration side by side and puts no limit on verification,
+  confirmation, the applies, the cutover and the rollback; and the worker may run
+  `MAX_PASSES_IN_FLIGHT` + 17 runs at once, where the plane admits `MAX_PASSES_IN_FLIGHT` + 2. A
+  worker-wide cap of `MAX_PASSES_IN_FLIGHT` + 2 is the recorded follow-up (workplan 0167).
 - **Trigger.dev's services stop at T8, their volumes kept as the way back**; its code, images,
   scripts, pins and volumes go at T9, on the owner's word only.
 
@@ -255,3 +265,6 @@ force: nothing runs on the runner yet. From workplan 0167 T7 these are rules:
   The *Pending* rules gain the bullet that says so. §3's refusal also reads the schema's version
   before pg-boss starts, so a newer schema is refused before pg-boss registers on it or runs a
   cron pass; the reading after start stays.
+- **2026-11-22 (workplan 0167 T6, the worker's pull request):** the *Pending* rules gain two
+  bullets: a cutover's limit of three hours, and the two known differences from Trigger.dev's
+  concurrency, kept for alpha.16 with a worker-wide cap as the follow-up.

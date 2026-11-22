@@ -91,24 +91,16 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * THE ERRORS THAT FAIL THEIR RUN ONCE, BY NAME (ADR-0054; workplan 0167 T6).
- *
- * A run that throws one of these is not tried again, whatever attempts it had
- * left: `AbortTaskRunError`, Trigger.dev's, which a task throws for a verdict
- * and {@link planeErrorFor} makes for a deliberate stop, and `RunNotRetried`,
- * the pg-boss runner's own. By the NAME, not the class, because a runner that
- * works a run in a process of its own (`runInChild`) hears of its error as
- * the name and the message the process sent, never the object.
+ * The errors a task throws for a verdict, which fail its run once on
+ * Trigger.dev: `AbortTaskRunError`, Trigger.dev's own, and `RunNotRetried`,
+ * the pg-boss runner's, which a job may throw in its place. Private: a runner
+ * settles a run by its own list (`NOT_RETRIED_ERROR_NAMES`, workplan 0167 T6),
+ * and a name added here would change what Trigger.dev retries.
  */
-export const FAILS_ONCE_NAMES: readonly string[] = Object.freeze(['AbortTaskRunError', 'RunNotRetried']);
-
-/** Whether a run whose error carries this name fails once: see {@link FAILS_ONCE_NAMES}. */
-export function failsOnceByName(name: string): boolean {
-  return FAILS_ONCE_NAMES.includes(name);
-}
+const VERDICT_NAMES: readonly string[] = Object.freeze(['AbortTaskRunError', 'RunNotRetried']);
 
 /** A task's own verdict: an error it threw on purpose to fail its run once. */
-const isVerdict = (error: unknown): boolean => error instanceof Error && failsOnceByName(error.name);
+const isVerdict = (error: unknown): boolean => error instanceof Error && VERDICT_NAMES.includes(error.name);
 
 /**
  * A refusal from Trigger.dev's own API that its executor would not retry: a 4xx

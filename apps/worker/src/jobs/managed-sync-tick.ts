@@ -78,6 +78,7 @@ import {
   readOpenPause,
   readTickBeat,
   recordTickBeat,
+  SYNC_TICK_BEAT,
   SYNC_TICK_BEAT_ON,
   BILLABLE_RUN_KINDS,
   billedTierNow,
@@ -608,6 +609,28 @@ function longestWaitingFirst(a: Waiting, b: Waiting): number {
 export const SyncTickJobSchema = z.strictObject({});
 
 /**
+ * Whether the shared beat is fresh (within `ANOTHER_RUNNER_BEAT_MS`) and newer
+ * than `ownBeat`, or `ownBeat` was never written: a tick on another runner
+ * wrote it (0167 T6, the pg-boss tick's second rule). Compared in the
+ * database, as `readTickBeat` compares; a read that fails fails the tick.
+ */
+export async function sharedBeatWrittenByAnother(
+  db: Pick<Pool, 'query'>,
+  now: Date,
+  ownBeat: string,
+): Promise<boolean> {
+  const { rows } = await db.query<{ anothers: boolean }>(
+    `SELECT shared.beat_at > $1::timestamptz - ($2::int * interval '1 millisecond')
+            AND (own.beat_at IS NULL OR shared.beat_at > own.beat_at) AS anothers
+       FROM sync_tick_beat shared
+       LEFT JOIN sync_tick_beat own ON own.task = $4
+      WHERE shared.task = $3`,
+    [now.toISOString(), ANOTHER_RUNNER_BEAT_MS, SYNC_TICK_BEAT, ownBeat],
+  );
+  return rows[0]?.anothers === true;
+}
+
+/**
  * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
  * Trigger.dev task below calls it, and so will the pg-boss worker, each with
  * a context of its own (`run-context.ts`).
@@ -638,6 +661,11 @@ export const managedSyncTickRun = leavesAReference(
      * and not the shared one, so two left running start no pass and the
      * status page's *Scheduled syncs*, which reads the shared beat, goes down.
      *
+     * On pg-boss it also holds while the shared beat is fresh and newer than
+     * its own: a Trigger.dev tick from before the interlock (alpha.14's,
+     * alpha.15's) writes the shared beat and no beat of its runner, and only
+     * that says it is still running (`sharedBeatWrittenByAnother`).
+     *
      * Asked first, before the operator's hold, so the status page says so
      * while the hold is still on, before anybody lifts it. A read that fails
      * fails the tick, as the hold's own read does: not knowing is not leave
@@ -646,11 +674,23 @@ export const managedSyncTickRun = leavesAReference(
     const ownBeat = SYNC_TICK_BEAT_ON[context.runner.name];
     const otherRunner = context.runner.name === 'trigger' ? 'pg-boss' : 'trigger';
     const otherBeat = SYNC_TICK_BEAT_ON[otherRunner];
-    if ((await readTickBeat(drizzle(pool), now, otherBeat, ANOTHER_RUNNER_BEAT_MS)) === 'up') {
+    const otherRunnerBeats = (await readTickBeat(drizzle(pool), now, otherBeat, ANOTHER_RUNNER_BEAT_MS)) === 'up';
+    // The pg-boss half's second rule (0167 T6): a Trigger.dev tick from before
+    // the interlock (alpha.14's, alpha.15's) writes the shared beat and no beat
+    // of its runner, so the rule above cannot see it. The pg-boss tick also
+    // holds while the shared beat is fresh and newer than its own: somebody
+    // else wrote it. Its own two beats are written at one time, so the shared
+    // one is never the newer when this runner wrote both.
+    const sharedBeatIsAnothers =
+      !otherRunnerBeats && context.runner.name === 'pg-boss' && (await sharedBeatWrittenByAnother(pool, now, ownBeat));
+    if (otherRunnerBeats || sharedBeatIsAnothers) {
       const summary = { anotherRunner: otherRunner, triggered: 0, ms: Date.now() - startedAt };
+      const whose = otherRunnerBeats
+        ? `the ${otherRunner} runner's tick beat within the last ${ANOTHER_RUNNER_BEAT_MS / 1000} s (${otherBeat})`
+        : `the shared tick beat (${SYNC_TICK_BEAT}) is newer than this runner's own (${ownBeat}) and within the ` +
+          `last ${ANOTHER_RUNNER_BEAT_MS / 1000} s, so a tick on another runner wrote it`;
       log.warn(
-        `[sync-tick] holding: the ${otherRunner} runner's tick beat within the last ` +
-          `${ANOTHER_RUNNER_BEAT_MS / 1000} s (${otherBeat}), so this one, on ${context.runner.name}, starts no ` +
+        `[sync-tick] holding: ${whose}, so this one, on ${context.runner.name}, starts no ` +
           'pass: two runners at once would start two passes on one migration. Stop one of them. Until then ' +
           'this tick beats as its own runner only, and Scheduled syncs reads as stopped.',
         summary,
