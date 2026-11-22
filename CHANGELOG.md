@@ -29,7 +29,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   record, a row the old system stopped saying was deleted during the run, a delete the server
   started nothing for (a hold, a closed account, a removal that could not be queued) or one that did
   not answer stops the rest. *Stop*, offered from the first read on, presses nothing more.
-  Afterwards the page lists what was deleted, what was not and what is not known, with each reason,
+  Afterwards the page lists what was deleted, whose copy had already been removed (by an earlier
+  delete or a move, never counted as deleted), what was not and what is not known, with each reason,
   in English and Dutch, the server's own words beside it. Nothing is deleted by itself: no route was
   added, and the server cannot tell a row of a run from one pressed by hand.
 

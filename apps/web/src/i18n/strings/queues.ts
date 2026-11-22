@@ -138,7 +138,8 @@ export const en = {
   'deletions.all.stop': 'Stop',
   'deletions.all.stopping': 'Stopping: nothing more is deleted after the one under way.',
   'deletions.all.stoppingBeforeStart': 'Stopping: nothing will be deleted.',
-  'deletions.all.done': 'Done: {deleted} deleted on the new system, {notDeleted} not deleted, {unknown} not known.',
+  'deletions.all.done':
+    'Done: {deleted} deleted on the new system, {alreadyRemoved} already removed there, {notDeleted} not deleted, {unknown} not known.',
   'deletions.all.stoppedBy.breaker':
     'Stopped: the safeguard against mass deletion refused one, so nothing after it was asked.',
   'deletions.all.stoppedBy.notEnabled': 'Stopped: deleting by hand was turned off, so nothing after it was asked.',
@@ -150,6 +151,8 @@ export const en = {
     'Stopped: the old system no longer says one of them was deleted, so the list changed during the run. Nothing after it was asked.',
   'deletions.all.stoppedBy.stop': 'Stopped: you pressed Stop.',
   'deletions.all.removed': 'Deleted on the new system',
+  // A copy an earlier removal took, a move's included: never counted as deleted.
+  'deletions.all.alreadyRemoved': 'Copy already removed on the new system',
   'deletions.all.notRemoved': 'Not deleted',
   'deletions.all.unknown': 'Not known',
   // The server's own words and code, verbatim, folded under each line that
@@ -177,13 +180,15 @@ export const en = {
     'Ownpace found no record of this item among the kinds this migration copies, so it did not delete anything.',
   'deletions.refused.notConfirmed':
     'Nothing says any more that it was deleted on the old system, so it was not deleted.',
+  // True of a single press and of a run, where the old system did say so
+  // when the list was read again, and no longer does.
   'deletions.refused.weakEvidence':
-    'It is only assumed to be deleted: the old system never said so. Ownpace does not delete it on the new system.',
+    'The old system does not say it was deleted, so it is only assumed to be. Ownpace does not delete it on the new system.',
   // Also said when there is no copy on the new system at all.
   'deletions.refused.notOurs': 'Ownpace did not delete it: there is no copy on the new system that Ownpace made.',
   // Also the answer after a move removed the old copy (`applyRelocation`):
-  // never *deleted*, which would say the item is gone.
-  'deletions.refused.alreadyApplied': 'It had already been removed on the new system.',
+  // said of the copy, never *deleted*, which would say the item is gone.
+  'deletions.refused.alreadyApplied': 'The copy on the new system had already been removed.',
   'deletions.refused.alreadyKept':
     'Somebody chose to keep this copy, so it was not deleted. If that was a mistake, delete it on the new system yourself.',
   'deletions.refused.afterCutover':
@@ -322,7 +327,7 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.all.stopping': 'Bezig met stoppen: na de lopende verwijdering wordt er niets meer verwijderd.',
   'deletions.all.stoppingBeforeStart': 'Bezig met stoppen: er wordt niets verwijderd.',
   'deletions.all.done':
-    'Klaar: {deleted} verwijderd op het nieuwe systeem, {notDeleted} niet verwijderd, {unknown} onbekend.',
+    'Klaar: {deleted} verwijderd op het nieuwe systeem, {alreadyRemoved} daar al verwijderd, {notDeleted} niet verwijderd, {unknown} onbekend.',
   'deletions.all.stoppedBy.breaker':
     'Gestopt: de beveiliging tegen massaal verwijderen weigerde er een, dus daarna is er niets meer gevraagd.',
   'deletions.all.stoppedBy.notEnabled':
@@ -336,6 +341,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Gestopt: het oude systeem meldt niet meer dat er een is verwijderd, dus de lijst veranderde tijdens de reeks. Daarna is er niets meer gevraagd.',
   'deletions.all.stoppedBy.stop': 'Gestopt: u drukte op Stoppen.',
   'deletions.all.removed': 'Verwijderd op het nieuwe systeem',
+  'deletions.all.alreadyRemoved': 'Kopie al verwijderd op het nieuwe systeem',
   'deletions.all.notRemoved': 'Niet verwijderd',
   'deletions.all.unknown': 'Onbekend',
   'deletions.all.technical': 'Technische details',
@@ -361,10 +367,10 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.refused.notConfirmed':
     'Niets meldt nog dat het op het oude systeem is verwijderd, dus het is niet verwijderd.',
   'deletions.refused.weakEvidence':
-    'Het is alleen een vermoeden: het oude systeem heeft niet gemeld dat het verwijderd is. Ownpace verwijdert het niet op het nieuwe systeem.',
+    'Het oude systeem meldt niet dat het verwijderd is, dus het is alleen een vermoeden. Ownpace verwijdert het niet op het nieuwe systeem.',
   'deletions.refused.notOurs':
     'Ownpace heeft het niet verwijderd: op het nieuwe systeem staat geen kopie die Ownpace heeft gemaakt.',
-  'deletions.refused.alreadyApplied': 'Het stond al niet meer op het nieuwe systeem.',
+  'deletions.refused.alreadyApplied': 'De kopie op het nieuwe systeem was al verwijderd.',
   'deletions.refused.alreadyKept':
     'Iemand heeft ervoor gekozen deze kopie te behouden, dus die is niet verwijderd. Was dat een vergissing, verwijder die dan zelf op het nieuwe systeem.',
   'deletions.refused.afterCutover':

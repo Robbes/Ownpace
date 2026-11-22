@@ -29,8 +29,10 @@
  *  - a row kept in another tab during a run is refused as already kept when
  *    its turn comes, on the request or on its receipt, and the run goes on;
  *  - a fault is never shown as a refusal: it is not known;
- *  - afterwards, what was deleted, not deleted and not known, with each
- *    reason, in English and in Dutch, the server's own words beside it;
+ *  - afterwards, what was deleted, whose copy was already removed, what was
+ *    not deleted and what is not known, with each reason, in English and in
+ *    Dutch, the server's own words beside it; a copy already removed, which
+ *    a move can have taken, is never counted as deleted;
  *  - a closed page orders and polls nothing more; a second press orders only
  *    what is still waiting;
  *  - the words say what is true in every case they are said in.
@@ -173,8 +175,8 @@ const pressAll = async (count: number, words = en) => {
   fireEvent.click(await confirmButton(count, words));
 };
 
-const done = (deleted: number, notDeleted: number, unknown: number, words = en) =>
-  fill(words['deletions.all.done'], { deleted, notDeleted, unknown });
+const done = (deleted: number, notDeleted: number, unknown: number, words = en, alreadyRemoved = 0) =>
+  fill(words['deletions.all.done'], { deleted, alreadyRemoved, notDeleted, unknown });
 
 const orderedHashes = () => applyDeletion.mock.calls.map((call) => call[1] as string);
 
@@ -372,6 +374,34 @@ describe('one confirmation, a control of its own', () => {
     await screen.findByText('Event c');
     fireEvent.click(await confirmButton(2));
     expect(await screen.findByText(fill(en['deletions.all.changed'], { count: 3 }))).toBeInTheDocument();
+    // Nothing was read again, and nothing ordered.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetchDeletions).toHaveBeenCalledTimes(2);
+    expect(applyDeletion).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['reported when counted, in the bin on the page by the press', 'reported', 'trashed'],
+    ['in the bin when counted, reported on the page by the press', 'trashed', 'reported'],
+  ] as const)('orders nothing when a row’s evidence changed on the page under the open confirmation, %s', async (_what, counted, onPage) => {
+    // The page reads the list again under the open confirmation and shows b
+    // with other evidence; by the press the server's list is back to the rows
+    // as counted. Only the press's own check can see that what the person was
+    // looking at is not what they confirmed.
+    fetchDeletions
+      .mockResolvedValueOnce(queue({ confirmed: [deletion('a'), deletion('b', { evidence: counted })] }))
+      .mockResolvedValueOnce(queue({ confirmed: [deletion('a'), deletion('b', { evidence: onPage })] }))
+      .mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b', { evidence: counted })] }));
+    applyDeletion.mockImplementation(async (_m: string, hash: string) => removed(hash));
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: en['deletions.all'] }));
+    expect(await screen.findByRole('alertdialog', { name: 'Delete these 2 on the new system?' })).toBeInTheDocument();
+    const binChips = () => screen.queryAllByText(en['evidence.trashed']).length;
+    expect(binChips()).toBe(counted === 'trashed' ? 1 : 0);
+    fireEvent.click(screen.getByRole('button', { name: en['asof.refresh'] }));
+    await waitFor(() => expect(binChips()).toBe(onPage === 'trashed' ? 1 : 0));
+    fireEvent.click(await confirmButton(2));
+    expect(await screen.findByText(fill(en['deletions.all.changed'], { count: 2 }))).toBeInTheDocument();
     // Nothing was read again, and nothing ordered.
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(fetchDeletions).toHaveBeenCalledTimes(2);
@@ -628,12 +658,17 @@ describe('each row decided by itself, and what the page says afterwards', () => 
     renderScreen();
     await pressAll(5);
 
-    expect(await screen.findByText(done(3, 2, 0))).toBeInTheDocument();
+    expect(await screen.findByText(done(2, 2, 0, en, 1))).toBeInTheDocument();
     const deleted = group(en['deletions.all.removed']);
     expect(within(deleted).getByText('Event a')).toBeInTheDocument();
     expect(within(deleted).getByText('/Docs/report.pdf')).toBeInTheDocument();
-    // Removed by somebody else is gone all the same: deleted, not "not deleted".
-    expect(within(deleted).getByText(en['deletions.refused.alreadyApplied'])).toBeInTheDocument();
+    // A copy an earlier removal took, a move's included, is said and counted
+    // apart: never deleted by this run, never "not deleted".
+    expect(within(deleted).queryByText('Event e')).not.toBeInTheDocument();
+    const already = group(en['deletions.all.alreadyRemoved']);
+    expect(within(already).getByText('Event e')).toBeInTheDocument();
+    expect(within(already).getByText(en['deletions.refused.alreadyApplied'])).toBeInTheDocument();
+    expect(within(already).getByRole('heading', { level: 4 })).toHaveTextContent('(1)');
 
     const notDeleted = group(en['deletions.all.notRemoved']);
     expect(within(notDeleted).getByText(en['deletions.refused.editedOnTarget'])).toBeInTheDocument();
@@ -652,8 +687,9 @@ describe('each row decided by itself, and what the page says afterwards', () => 
     renderScreen({ locale: 'nl' });
     await pressAll(5, nl);
 
-    expect(await screen.findByText(done(3, 2, 0, nl))).toBeInTheDocument();
+    expect(await screen.findByText(done(2, 2, 0, nl, 1))).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 4, name: new RegExp(`^${nl['deletions.all.removed']}`) })).toBeInTheDocument();
+    expect(within(group(nl['deletions.all.alreadyRemoved'])).getByText(nl['deletions.refused.alreadyApplied'])).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 4, name: new RegExp(`^${nl['deletions.all.notRemoved']}`) })).toBeInTheDocument();
     expect(screen.getByText(nl['deletions.refused.editedOnTarget'])).toBeInTheDocument();
     expect(screen.getByText(nl['deletions.refused.notOurs'])).toBeInTheDocument();
@@ -686,7 +722,7 @@ describe('each row decided by itself, and what the page says afterwards', () => 
     renderScreen();
     await pressAll(5);
     const status = await screen.findByRole('status');
-    await waitFor(() => expect(status).toHaveTextContent(done(3, 2, 0)));
+    await waitFor(() => expect(status).toHaveTextContent(done(2, 2, 0, en, 1)));
     expect(within(status).queryByText('Event a')).not.toBeInTheDocument();
     // The summary takes the focus when the run ends.
     expect(status).toHaveFocus();
@@ -1275,12 +1311,23 @@ describe('a second press', () => {
  * dictionary: each one said in a case where an earlier wording was untrue.
  */
 describe('the words say what is true in every case they are said in', () => {
-  it('a removal already made is said as removed, never deleted: it can follow a move', () => {
+  it('a removal already made is said of the copy, never as the item deleted: it can follow a move', () => {
     // `already_applied` also answers a deletion whose old copy a move removed
     // (`applyRelocation`), and that item is not gone: it lives on, moved.
-    expect(en['deletions.refused.alreadyApplied']).toMatch(/removed/);
+    expect(en['deletions.refused.alreadyApplied']).toMatch(/^The copy on the new system had already been removed/);
     expect(en['deletions.refused.alreadyApplied']).not.toMatch(/delet/i);
-    expect(nl['deletions.refused.alreadyApplied']).not.toMatch(/verwijder/i);
+    expect(nl['deletions.refused.alreadyApplied']).toMatch(/^De kopie op het nieuwe systeem was al verwijderd/);
+    expect(en['deletions.all.alreadyRemoved']).toMatch(/^Copy already removed/);
+    expect(nl['deletions.all.alreadyRemoved']).toMatch(/^Kopie al verwijderd/);
+  });
+
+  it('a row with only an assumption left says the old system does not say so now, which a run and a single press both meet', () => {
+    // In a run the row had positive evidence when the list was read again,
+    // and lost it during the run: "never said so" would be untrue there.
+    expect(en['deletions.refused.weakEvidence']).toMatch(/^The old system does not say it was deleted, so it is only assumed to be\./);
+    expect(en['deletions.refused.weakEvidence']).not.toMatch(/never/);
+    expect(nl['deletions.refused.weakEvidence']).toMatch(/^Het oude systeem meldt niet dat het verwijderd is, dus het is alleen een vermoeden\./);
+    expect(nl['deletions.refused.weakEvidence']).not.toMatch(/heeft niet gemeld/);
   });
 
   it('the Dutch words above the button, like the English, say the next is pressed once the one before has answered', () => {

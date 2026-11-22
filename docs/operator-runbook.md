@@ -2201,8 +2201,8 @@ before anything is removed:
    the deletions queue at once, every `apply` call for that domain is refused
    with `mass_deletion_suspected` until that clears. A domain's placed items
    are those the ledger has put on the target: the ones removed since and
-   adopted ones are counted, failed ones and rows with no recorded collection
-   are not. That pattern is far more
+   adopted ones are counted; failed, left-behind and superseded ones, and rows
+   with no recorded collection, are not. That pattern is far more
    likely to be a source outage, a restored account, or a connector reading the
    wrong place than an owner deleting a fifth of their own data between two
    passes — and once the evidence looks that wrong in bulk, no single item in

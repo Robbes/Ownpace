@@ -102,9 +102,10 @@ const en = STRINGS.en;
 const MAPPING = 'm-0164';
 const M = `/migrations/${MAPPING}`;
 const A = `/mappings/${MAPPING}`;
-const done = (deleted: number, notDeleted: number, unknown: number) =>
+const done = (deleted: number, notDeleted: number, unknown: number, alreadyRemoved = 0) =>
   en['deletions.all.done']
     .replace('{deleted}', String(deleted))
+    .replace('{alreadyRemoved}', String(alreadyRemoved))
     .replace('{notDeleted}', String(notDeleted))
     .replace('{unknown}', String(unknown));
 

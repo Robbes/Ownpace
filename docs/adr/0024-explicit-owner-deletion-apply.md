@@ -29,10 +29,11 @@
   confirmation over a frozen set naming the count, the bin's apart, then each row's own apply
   through the same call and all seven gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
-- One confirmation can remove every row offered: all of a data type under 20 migrated items, at
-  most a fifth of a larger one, removed and adopted counted (gate 6). The breaker, `not_enabled`,
-  `removed_not_recorded`, withdrawn evidence, or an unanswered or unstarted press **stops the
-  whole run**; *Stop* or a closed page orders nothing more.
+- Gate 6 bounds one confirmation: every row of a data type with under 20 `placedItems` (removed
+  and adopted counted; failed, left-behind, superseded and collection-less rows not), otherwise
+  at most a fifth. The breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or an
+  unanswered or unstarted press **stops the whole run**; *Stop* or a closed page orders nothing
+  more.
 - **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
   `already_kept` before anything is sent to the target. A keep cannot stop a removal already
   under way. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
@@ -154,13 +155,13 @@ single presses, one after another. As built after the pull request's three revie
   confirmation says nothing about it.
 - **What one confirmation can remove.** Every row the page offers, the bin's included, each
   through all seven gates, so what bounds a run is gate 6. Per migration and data type, it counts
-  the items placed on the target (`placedItems`: removed and adopted ones included, failed ones
-  and rows with no recorded collection not), and refuses every apply once more than a fifth
-  (`MASS_DELETION_FRACTION`, 0.2) of them are waiting to be deleted; below 20 of them
-  (`MASS_DELETION_MIN_ITEMS`) it does not apply. It is asked afresh at every press and caps no
-  total: once a run's removals have left the queue, a second confirmation can remove another
-  fifth. So one confirmation can remove at most a fifth of a data type with 20 placed items or
-  more, and every listed item of a smaller one.
+  the items placed on the target (`placedItems`: removed and adopted ones included; failed,
+  left-behind and superseded ones, and rows with no recorded collection, not), and refuses every
+  apply once more than a fifth (`MASS_DELETION_FRACTION`, 0.2) of them are waiting to be
+  deleted; below 20 of them (`MASS_DELETION_MIN_ITEMS`) it does not apply. It is asked afresh at
+  every press and caps no total: once a run's removals have left the queue, a second
+  confirmation can remove another fifth. So one confirmation can remove at most a fifth of a
+  data type with 20 placed items or more, and every listed item of a smaller one.
 - **The confirmation, and how it relates to "the caller states an expected count".** The rejected
   alternative above asked, before bulk apply was revisited, for stronger confirmation, "e.g.
   requiring the caller to state an expected count". T0 (b) asked for one confirmation that names
@@ -211,9 +212,11 @@ single presses, one after another. As built after the pull request's three revie
   `already_applied`). That includes `already_kept`: a row somebody kept during the run, in
   another tab or by another person, is refused if the keep was recorded before its removal began
   (*Amendment, 2026-11-22*).
-- **Afterwards** the page says what was deleted, what was not, and what is not known, with each
-  reason, in English and Dutch: a sentence per refusal code in the reader's language, the
-  server's own words and code beside it, verbatim.
+- **Afterwards** the page says what was deleted, whose copy had already been removed, what was
+  not, and what is not known, with each reason, in English and Dutch: a sentence per refusal code
+  in the reader's language, the server's own words and code beside it, verbatim. A copy already
+  removed (`already_applied`) is said and counted apart, never as deleted: an earlier removal
+  took it, a move's included, and the item may live on, moved.
 - **Still never by itself.** Hard rule 2 stands: nothing is removed without a person's press, and
   removal by itself (workplan 0164 §4.3, T4) stays parked. A run orders nothing more once the
   person presses *Stop*, offered from the reading of the list on, or the page closes; what was
