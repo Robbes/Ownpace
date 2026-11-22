@@ -18,6 +18,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   long-lived worker container. Edited in place in both languages, dated 2026-11-22, because no
   tester had accepted any version; the words apply from publication.
 
+### Fixed
+
+- **A move whose old copy was deleted is decided on Moves** (workplan 0164 T3a; ADR-0024, amended
+  2026-11-22). After *Deleted on the old system* removed the old copy of a renamed file, by one
+  press or by *Delete all of these here too*, its move stayed open on Moves, with a button that
+  could only answer that the copy was already removed. It also counted toward the safeguard
+  against mass moves, so enough of them refused every move still waiting. It now reads *Old copy
+  removed on the new system* under *Already decided* and is no longer counted. A move whose old
+  copy is still there counts as before.
+- **A keep in the earlier-exports queue ends when the format is switched back** (workplan 0164
+  T3b). Once the copy carried a current name again, the keep still stood. A later deletion of the
+  document then arrived already decided, and was never offered. The keep now goes with the mark,
+  whether or not the document was edited in between, so that deletion is offered and goes
+  through every check.
+
 ## [0.2.0-alpha.15] - 2026-11-22
 
 One press can now delete, on the new system, the copies listed on *Deleted on the old system*: while

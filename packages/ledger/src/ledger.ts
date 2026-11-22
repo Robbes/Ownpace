@@ -374,7 +374,20 @@ export class PgLedger implements Ledger {
   ): Promise<void> {
     await this.db
       .update(schemaPg.item)
-      .set({ supersededByNaturalKeyHash: null, supersededAt: null, updatedAt: sql`now()` })
+      .set({
+        supersededByNaturalKeyHash: null,
+        supersededAt: null,
+        // And a keep given to it as an earlier export (workplan 0164). That
+        // keep answered "leave this earlier export on the new system"; the
+        // copy is the current one again, an earlier export of nothing, so
+        // there is no longer anything to have agreed to. Left, it filed a
+        // later deletion of the document as already decided and never
+        // offered it: `clearAbsent`'s rule, for the same reason. Only on a
+        // row that is an earlier export (the conditions below), and on one
+        // the pass sees on the old system, so no deletion is pending on it.
+        deletionAcknowledgedAt: null,
+        updatedAt: sql`now()`,
+      })
       .where(
         and(
           eq(schemaPg.item.tenantId, tenantId),
@@ -1490,8 +1503,14 @@ export class PgLedger implements Ledger {
       //
       // Then by natural key, so a list an operator is working through does not
       // reshuffle between reads.
+      //
+      // A relocation whose old copy a deletion removed is decided too
+      // (`closedAt` below), so it sorts by the removal's time among them.
       .orderBy(
-        sql`${schemaPg.item.moveAcknowledgedAt} ASC NULLS FIRST, ${schemaPg.item.naturalKeyHash} ASC`,
+        sql`(CASE WHEN ${schemaPg.item.movedToNaturalKeyHash} IS NOT NULL
+               THEN COALESCE(${schemaPg.item.moveAcknowledgedAt}, ${schemaPg.item.deletionAppliedAt})
+               ELSE ${schemaPg.item.moveAcknowledgedAt} END) ASC NULLS FIRST,
+            ${schemaPg.item.naturalKeyHash} ASC`,
       );
 
     // And, for a relocation, what it is called NOW: the name on the row its
@@ -1509,6 +1528,27 @@ export class PgLedger implements Ledger {
         : undefined;
       return name ? { toDisplayName: name } : {};
     };
+
+    // WHEN THE MOVE WAS DECIDED: its own answer, or, for a RELOCATION whose
+    // old copy is already gone because a deletion removed it (`applyDeletion`
+    // on Deletions, by one press or by *Delete all of these here too*), the
+    // removal's time (workplan 0164). A relocation exists to remove that old
+    // copy; once it is gone there is nothing left to apply, a keep would
+    // keep nothing, and the pass already treats the row as decided
+    // (`domain-sync.ts`: a row with `deletionAppliedAt` is skipped). Left
+    // open, it waited on Moves for a press that could only say
+    // `already_applied`, and counted toward `mass_relocation_suspected`.
+    //
+    // Read here and not written by `applyDeletion`: `listDeletions` tells a
+    // relocation's removal from a deletion's by the move's time EQUAL to the
+    // removal's, so writing it in the same statement would call the
+    // deletion a move there; and rows removed before 2026-11-22 are closed
+    // the same way, with no migration. A key-preserving move (mail,
+    // calendar) is not touched: its "old copy" is its only copy, and what
+    // to say about it is 0159 §6 item 6's follow-up.
+    const closedAt = (r: (typeof rows)[number]): unknown =>
+      r.moveAcknowledgedAt ??
+      (r.movedToNaturalKeyHash && r.deletionAppliedAt ? r.deletionAppliedAt : undefined);
 
     return rows.map((r) => ({
       domain: r.domain as ItemMove['domain'],
@@ -1528,19 +1568,18 @@ export class PgLedger implements Ledger {
                 : String(r.movedRecordedAt),
           }
         : {}),
-      ...(r.moveAcknowledgedAt
+      ...(closedAt(r)
         ? {
-            acknowledgedAt:
-              r.moveAcknowledgedAt instanceof Date
-                ? r.moveAcknowledgedAt.toISOString()
-                : String(r.moveAcknowledgedAt),
+            acknowledgedAt: ((at) => (at instanceof Date ? at.toISOString() : String(at)))(
+              closedAt(r),
+            ),
           }
         : {}),
       // Only a decided move says what was decided: the old copy is gone from
       // the new system once a removal wrote `deletion_applied_at`, and is
       // where it was otherwise. The ledger closes the entry the same way for
       // both, which is why the screen could not tell them apart.
-      ...(r.moveAcknowledgedAt
+      ...(closedAt(r)
         ? { decided: r.deletionAppliedAt ? ('applied' as const) : ('kept' as const) }
         : {}),
     }));
@@ -1622,6 +1661,10 @@ export class PgLedger implements Ledger {
           // OPEN only. Re-stamping an already-decided move would report a
           // decision that did not happen and move its audit date forward.
           isNull(schemaPg.item.moveAcknowledgedAt),
+          // And a relocation whose old copy a deletion already removed is
+          // decided too (`listMoves`, workplan 0164): a keep from a page read
+          // before the removal would keep nothing.
+          or(isNull(schemaPg.item.movedToNaturalKeyHash), isNull(schemaPg.item.deletionAppliedAt)),
         ),
       )
       .returning();
