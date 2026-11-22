@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { applyRelocation } from './apply-deletion.ts';
+import { applyDeletion, applyRelocation } from './apply-deletion.ts';
 import { MemoryLedger } from './__testing__/memory.ts';
 import {
   asTenantId,
@@ -451,6 +451,42 @@ describe('gate 6, the half nothing used to measure', () => {
     }
 
     expect(await applyRelocation(deps(ledger, fakeRemover()), 'old-0')).toMatchObject({ ok: true });
+  });
+
+  it('stops counting a relocation whose old copy an applied deletion removed (workplan 0164)', async () => {
+    // The old path's copy is gone, removed through *Deleted on the old system*
+    // (by one press or by *Delete all of these here too*): there is nothing
+    // left for this move to remove, so it is no longer open, and counting it
+    // would let decisions already carried out refuse the moves still waiting.
+    // 8 of 30 open, three of them removed that way: 5 of 30, under a fifth.
+    const ledger = await corpus(30, 8);
+    for (let i = 1; i < 4; i += 1) {
+      await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', `old-${i}`);
+      expect(await applyDeletion(deps(ledger, fakeRemover()), `old-${i}`)).toMatchObject({ ok: true });
+    }
+
+    expect(await applyRelocation(deps(ledger, fakeRemover()), 'old-0')).toMatchObject({ ok: true });
+  });
+
+  it('still counts a relocation whose deletion is only reported, or kept, and not carried out', async () => {
+    // The safeguard's meaning for every other case: the old copy is still on
+    // the new system, so the move is still open and still counted.
+    const reportedOnly = await corpus(30, 8);
+    const kept = await corpus(30, 8);
+    for (let i = 1; i < 4; i += 1) {
+      await reportedOnly.recordReportedDeletion(TENANT, MAPPING, 'file', `old-${i}`);
+      await kept.recordReportedDeletion(TENANT, MAPPING, 'file', `old-${i}`);
+      expect(await kept.resolveDeletion(TENANT, MAPPING, `old-${i}`, 'keep')).toBe(true);
+    }
+
+    expect(await applyRelocation(deps(reportedOnly, fakeRemover()), 'old-0')).toMatchObject({
+      ok: false,
+      code: 'mass_relocation_suspected',
+    });
+    expect(await applyRelocation(deps(kept, fakeRemover()), 'old-0')).toMatchObject({
+      ok: false,
+      code: 'mass_relocation_suspected',
+    });
   });
 
   it('still refuses on a mass DELETION, which says the listings cannot be trusted', async () => {

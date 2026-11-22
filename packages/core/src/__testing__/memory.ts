@@ -393,7 +393,7 @@ export class MemoryLedger implements Ledger {
     return Promise.resolve(marked);
   }
 
-  /** Mirrors `PgLedger.clearEarlierExport`: the mark on a copy only. */
+  /** Mirrors `PgLedger.clearEarlierExport`: the mark on a copy only, and its keep. */
   clearEarlierExport(
     tenantId: LedgerRecord['tenantId'],
     mappingId: LedgerRecord['mappingId'],
@@ -405,6 +405,8 @@ export class MemoryLedger implements Ledger {
     if (row && (row.status === 'copied' || row.status === 'updated') && row.supersededByNaturalKeyHash) {
       const cleared: LedgerRecord = { ...row };
       delete (cleared as { supersededByNaturalKeyHash?: string }).supersededByNaturalKeyHash;
+      // And its keep, as PgLedger clears it (workplan 0164).
+      delete (cleared as { deletionAcknowledgedAt?: string }).deletionAcknowledgedAt;
       this.rows.set(k, cleared);
     }
     return Promise.resolve();
@@ -983,6 +985,11 @@ export class MemoryLedger implements Ledger {
           )
         : undefined;
       const toName = arrival ? named(arrival).displayName : undefined;
+      // Decided by its own answer, or, for a relocation whose old copy a
+      // deletion removed, at that removal (PgLedger's `closedAt`, workplan 0164).
+      const closedAt =
+        r.moveAcknowledgedAt ??
+        (r.movedToNaturalKeyHash !== undefined ? r.deletionAppliedAt : undefined);
       out.push({
         domain: r.itemType,
         naturalKeyHash: r.naturalKeyHash,
@@ -992,21 +999,23 @@ export class MemoryLedger implements Ledger {
         ...(r.movedToNaturalKeyHash ? { toNaturalKeyHash: r.movedToNaturalKeyHash } : {}),
         ...(toName ? { toDisplayName: toName } : {}),
         ...(r.movedRecordedAt ? { recordedAt: r.movedRecordedAt } : {}),
-        ...(r.moveAcknowledgedAt ? { acknowledgedAt: r.moveAcknowledgedAt } : {}),
+        ...(closedAt ? { acknowledgedAt: closedAt } : {}),
         // What a decided move did on the new system, as PgLedger says it.
-        ...(r.moveAcknowledgedAt
+        ...(closedAt
           ? { decided: r.deletionAppliedAt !== undefined ? ('applied' as const) : ('kept' as const) }
           : {}),
       });
     }
-    // Open first, then by natural key — matching PgLedger's ORDER BY exactly,
-    // including the tie-break. When these two disagreed, the fake sorted the
-    // way the SQL's COMMENT claimed rather than the way the SQL behaved
-    // (Postgres puts NULLs LAST on ASC), so only the real database noticed.
+    // Open first, then decided ones by when they were decided, then by natural
+    // key — matching PgLedger's ORDER BY, including the tie-break (to the
+    // millisecond here, the microsecond there). When these two disagreed, the
+    // fake sorted the way the SQL's COMMENT claimed rather than the way the SQL
+    // behaved (Postgres puts NULLs LAST on ASC), so only the real database noticed.
     return Promise.resolve(
       out.sort(
         (a, b) =>
           Number(a.acknowledgedAt !== undefined) - Number(b.acknowledgedAt !== undefined) ||
+          (a.acknowledgedAt ?? '').localeCompare(b.acknowledgedAt ?? '') ||
           a.naturalKeyHash.localeCompare(b.naturalKeyHash),
       ),
     );
@@ -1025,6 +1034,8 @@ export class MemoryLedger implements Ledger {
       // OPEN only, as in Postgres: re-stamping a decided move would report a
       // decision that did not happen.
       if (!r.movedToCollection || r.moveAcknowledgedAt) continue;
+      // A relocation whose old copy a deletion removed is decided (workplan 0164).
+      if (r.movedToNaturalKeyHash !== undefined && r.deletionAppliedAt !== undefined) continue;
       this.rows.set(k, { ...r, moveAcknowledgedAt: new Date().toISOString() });
       return Promise.resolve(true);
     }

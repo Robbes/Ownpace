@@ -9,6 +9,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
   (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
 
+### Fixed
+
+- **A move whose old copy was deleted is decided on Moves** (workplan 0164 T3a; ADR-0024, amended
+  2026-11-22). After *Deleted on the old system* removed the old copy of a renamed file, by one
+  press or by *Delete all of these here too*, its move stayed open on Moves, with a button that
+  could only answer that the copy was already removed. It also counted toward the safeguard
+  against mass moves, so enough of them refused every move still waiting. It now reads *Old copy
+  removed on the new system* under *Already decided* and is no longer counted. A move whose old
+  copy is still there counts as before.
+- **A keep in the earlier-exports queue ends when the format is switched back** (workplan 0164
+  T3b). Once the copy carried a current name again, the keep still stood. A later deletion of the
+  document then arrived already decided, and was never offered. The keep now goes with the mark,
+  whether or not the document was edited in between, so that deletion is offered and goes
+  through every check.
+
 ### Security
 
 - **A Semgrep rule now fails a pull request** (workplan 0163 T5). `run-shell-injection`, a workflow
