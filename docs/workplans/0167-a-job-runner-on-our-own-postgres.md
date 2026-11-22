@@ -217,9 +217,40 @@ decided one retry question:
   - `RunPossiblyOutOfMemory` taken out of the names (unit and integration);
   - the limit overriding only a `ChildRunDied`;
   - the `disconnect` exit removed (the worker-death test).
-**2026-11-22, later still: the API's doors on the switch (T6, the API's step).** On branch
-`claude/ownpace-pgboss-api-doors`, from T6's first step (`claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`)
-with the runner's gaps (`claude/ownpace-pgboss-runner-gaps`) merged in. Only `apps/api` changed, with one guard under `scripts/`, this plan
+
+**2026-11-22, latest: the review of #2045, fixed (T6, the API's step).** The coordinator's review at `e719e907`
+found trigger mode unchanged (no pg-boss module among 4,699 resolutions, and every door's SDK arguments equal to
+`main`'s) and asked for six fixes. `main` (#2041) and #2040's newest head were merged in first.
+
+- **The hold had a way round it on pg-boss.** The pg-boss half, `enqueueOnPgBoss`, was exported "for its tests" and
+  enqueued without asking the hold, and the sweep matched `pgBossProducer(` by its text, so a door that imported either,
+  or `pgBossProducer as aProducer`, passed every guard. The half is no longer exported, and its tests go through the
+  enqueue `enqueueIfFree` hands back. The sweep now reads what each file imports from `job-runner.ts`, parsed (an alias
+  is seen; a namespace, default or dynamic import of it is refused), and pins the function file's exports.
+- **An address could reach the person who pressed.** *Start*'s `firstRun.reason`, the verification and receipt rows and
+  the 502s echo the enqueue's message, and node-postgres names the host and port it could not reach. On pg-boss a
+  connection that failed (a socket error, SQLSTATE `08`, `28` or `57P0`, a dropped or timed-out connection, through
+  `cause` and `AggregateError`) is now `QUEUE_UNREACHABLE`, one sentence with no address; the original goes to the
+  server log only. Every other error is said as it was.
+- **A late failed start could discard a newer producer**, which was then never closed. It now forgets only itself.
+- **The sentence for an unset `JOBS_DATABASE_URL`** said "so nothing was enqueued" on cancels too; it now reads "so no
+  job can be enqueued or cancelled" (`NO_JOBS_URL`).
+- **`a-runner-the-api-does-not-load`'s first half** mocked `pg-boss`, which does not see a load made outside
+  `apps/api`. It now runs a child Node process that loads `index.ts` and the operator's script as the image does, with a
+  resolve hook recording every module URL: 1,741 here, none pg-boss's package or the runner's module. A control process
+  on `pg-boss` asks for the producer, and both appear.
+- **Public text:** this entry named branches; it names pull requests.
+- **Mutated**, each once, each failing its test, each restored byte for byte (`cmp`), 9 in all: a door importing
+  `pgBossProducer as aProducer`; the half exported again and called by a door; a door importing `job-runner.ts` whole;
+  the scheduler's index importing `pg-boss` (only the child sees it); a value import of the runner's module; the
+  connection error echoed (unit, and the integration press against a port nothing listens on); the old late-failure
+  cleanup; the old sentence.
+- **Tests:** `job-runner` 35, `a-hold-that-holds-every-door` 41, `a-runner-the-api-does-not-load` 4,
+  `a-job-on-pg-boss.integration` 7 (one new: *Start* against an unreachable jobs database answers the sentence and no
+  address).
+
+**2026-11-22, later still: the API's doors on the switch (T6, the API's step).** In #2045, from T6's first step
+(#2043) with the runner's gaps (#2040) merged in. Only `apps/api` changed, with one guard under `scripts/`, this plan
 and the CHANGELOG: nothing in `packages/`, `apps/worker`, `deploy/` or `.github/`, no migration, and nothing sets the switch, so
 the API runs every job on Trigger.dev as before.
 
@@ -269,6 +300,7 @@ the API runs every job on Trigger.dev as before.
   - `a-job-on-pg-boss.integration` on a throwaway cluster from `scripts/local-pg.sh`: 6 passed (PostgreSQL 16 here;
     CI's Testcontainers run is the one to trust for 18).
 - **Next:** the worker, the operator's `jobs` commands, compose and the scripts, then the switch on (T7).
+
 **2026-11-22, later still: T6's operator commands, `operator.sh jobs` (pg-boss mode).** On branch
 `claude/ownpace-pgboss-operator-jobs`, from the catalog's branch (#2043) with the runner's gaps
 (#2040) merged in. Nothing that runs changes: Trigger.dev is still the default, and there every
@@ -353,6 +385,7 @@ only against stubs. Their first real stack is the switch-on's E2E (managed) run.
   - `bash -n` clean. Semgrep's rule could not be fetched here (its registry is blocked), so no
     added `run:` line was allowed an expression.
 - **Not proved here:** the E2E (managed) dispatch in trigger mode, which the coordinator runs.
+
 **2026-11-22, later still: T6's first step, the job catalog and the jobs made runner-neutral.**
 On branch `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`, from `main` with T5 merged
 (#2038). Nothing that runs changes: Trigger.dev runs every job under the same ids, queues, machines
@@ -574,6 +607,7 @@ Testcontainers run is the one to trust for 18):
 - Found on the way: a test that imported an entry module (one ending in `serveRuns`) served runs
   inside vitest's own forked worker, and so did `process.exit` there. The key-holder fixture's
   table helper is now a module of its own, `key-holder-table.ts`.
+
 **2026-11-22, later still: the worker's image and its service, defined and not started (T7, its second part).**
 On branch `claude/ownpace-pgboss-worker-image`, from the jobs role's branch. Nothing starts the
 service: it is in profile `jobs`, nothing depends on it, and `OWNPACE_JOB_RUNNER` is `trigger`
@@ -664,6 +698,7 @@ Trigger.dev, ClickHouse and identity-provider lines in `managed.yml` changed.
     - the profile removed: 2 failed;
     - `read_only` removed: 1 failed;
     - the worker's first release moved to alpha.1: 2 failed.
+
 **2026-11-22, later still: the bring-up and the deploy scripts in either runner, the default still
 Trigger.dev (T7).** On branch `claude/ownpace-pgboss-bringup-deploy`, from the jobs role's branch
 (#2041). No file in either migration chain, and no line of `managed.yml`, changed; the worker's
@@ -856,6 +891,7 @@ from alpha.14 stays reversible by `deploy-live.sh`'s own rule.
     - `a-connection-the-docs-did-not-know-about`: the guide's row changed failed 1.
   - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
 - **Next:** T6 and the rest of T7 (the worker service, `JOBS_DATABASE_URL`, the switch).
+
 **2026-11-22: the privacy policy's *Server logs* row, decided by the owner.** Under Trigger.dev
 each run had its own container, whose log went when the run ended; under the runner, runs are
 processes in one long-lived worker container, whose log goes when the worker is replaced, at each
@@ -876,6 +912,7 @@ both languages, `LEGAL_VERSIONS` and `ACCEPTED_WORDS`, with §13's notice. If it
 day, both *Last updated* lines and both pins move to that day, in the same pull request. The row
 holds for the worker only with what T7 carries (its row below). `site/legal/README.md` records the
 edit, as every earlier change of the policy's words did.
+
 
 **2026-11-22, later: the owner's yes, and the runner as production code (T4, T5).**
 The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* Earlier the same

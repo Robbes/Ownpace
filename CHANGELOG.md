@@ -80,7 +80,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   with the same singleton keys, tags and fifteen-minute discovery join; a close cancels a pass by
   its pg-boss id, and a ref of the other runner's kind is refused and left to the erasure's
   quiesce; `/api/ready/scheduler` reads the same beat, and says `off` without the jobs URL. Any
-  other value stops the API's start in one sentence. No migration; nothing sets the switch yet.
+  other value stops the API's start in one sentence. A jobs database it cannot reach is said in one
+  sentence that names no address. No migration; nothing sets the switch yet.
 - **The privacy policy says the background tasks' logs go at each update of the service, as the
   app's do, and stays version 1.0**, shipped with the switch to the job runner (workplan 0167 T7;
   ADR-0054; the owner, 2026-11-22: "Option A, but
