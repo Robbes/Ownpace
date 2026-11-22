@@ -4,6 +4,84 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, night: the fold for `v0.2.0-alpha.16` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.16`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-22, under a summary; [Unreleased] stays, empty. alpha.16 carries what
+`main` merged after alpha.15's C, `0683eb04`, the commit its tag names: 10 pull requests, merged on
+2026-11-22 from 14:45 to 21:19 UTC. None came from Dependabot. The move changes the words of nine
+entries written before the switch to pg-boss, which said what was not on yet (*nothing runs it
+yet*, *the default is still Trigger.dev*, a worker *in profile `jobs`*), so that each says what
+alpha.16 ships, and puts the two *Security* lists under one heading.
+
+- the records of alpha.15's release and of live skipping it, with alpha.16's counted nights waived
+  in the owner's words (#2035);
+- the managed edition's jobs on pg-boss (ADR-0054, workplan 0167): the runner on pg-boss 12.38.2
+  (#2038), the jobs' context and catalog (#2043), the jobs' own role and schema (#2041), the
+  runner's production gaps (#2040), and the switch, which landed the worker, its image and service,
+  `operator.sh jobs`, the API's doors, the bring-up and the deploy scripts in either runner, the
+  gate in either runner and privacy §9's server-log row, still version 1.0 (#2050, with #2042 and
+  #2044 to #2049 in it);
+- a removed old copy closes its move, and a keep ends when its earlier export is current again
+  (#2036);
+- in CI alone: `run-shell-injection` fails a pull request (#2037), and a second Security Scan on a
+  release tag attaches nothing twice (#2039);
+- a read of the identity provider that got no answer waits about a minute, not 14 seconds (#2054).
+
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`.
+- **In the nights' place,** waived for alpha.16 (*"Also, I waive the waiting and nights."*, #2035):
+  E2E (managed), on pg-boss, the stack's runner now unless its `.env` says otherwise, and E2E
+  (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at a time, beside C's push
+  runs and its Windows smoke.
+- **Owed before the tag:** C's checks, its push runs and its Windows smoke, the image scans with the
+  worker's image among them, and the three E2E lanes at C, one at a time; then the Release run,
+  which the owner starts from their own account, with `commit` set to C and `waive_nights` set to
+  the reason in their own words, and the approval in the `release` environment. The owner's step
+  once before alpha.16 in `docs/release.md`, the worker's package public, is done:
+  `ghcr.io/robbes/ownpace-worker` is public, and a pull with no login of `edge` and `sha-281d0a9`
+  answered 200 on 2026-11-22 at 21:09 UTC, after `main`'s Images run 45068801852 had published
+  them.
+- **Live's deploy** goes from alpha.14, which live runs since 2026-11-22 (0132's Status of that
+  day), past alpha.15 (#2035). It is **reversible** by the deploy's own rule, as alpha.14's
+  `deploy-live.sh`, the one live's checkout runs, reads it: it compares the tag with the last
+  deploy that took, alpha.14 on `9456f618` (`deploys.log`'s last line, 0132's Status), and with the
+  checkout's HEAD, which that deploy left on the same commit. Between that commit and C, git lists
+  no file added, changed or removed in either migration chain, `packages/ledger/migrations` and
+  `packages/managed/migrations`, and `managed.yml` pins the same Trigger.dev version (`v4.8.8`),
+  identity provider (Zitadel `v4.20.4`) and ClickHouse (`26.8.37.168` by digest `a5670285…`) at
+  both. The script's own functions, run over the two commits through git's objects, print
+  *reversible: over each of those, v0.2.0-alpha.16 adds, changes or removes no migration file in
+  either chain, and moves none of the Trigger.dev, identity-provider and ClickHouse pins in
+  managed.yml.* and *If it misbehaves, v0.2.0-alpha.14 can be deployed again with this script.*,
+  and give the take no `--trigger`. The script runs the tag's own bring-up, which moves the jobs to
+  the worker and stops the plane (0119's entry of the same day says what moves). The way back is
+  alpha.14, deployed with alpha.16's `deploy-live.sh`: its own rule reads that move as reversible
+  too, since alpha.14 carries no pg-boss to compare, and it stops and removes the worker before its
+  checkout, since alpha.14's `managed.yml` defines none; alpha.14's own bring-up then starts the
+  plane again.
+- **What the deploy's sheet must hold, read from the tree:**
+  - that no one has accepted privacy 1.0 on live: §9 is edited in place at 1.0 (#2042; the
+    owner, 2026-11-22: *"Option A, but keep the policy on 1.0, since no tester has yet accepted
+    it."*), so a count that is not 0 stops the deploy, and the row then needs a new version;
+  - no `.env` line `KEY=  # note`, which Compose hands the worker as the note: the bring-up refuses
+    one by name before the plane stops, and the sheet moves each note onto a line of its own first,
+    on a copy of `.env`;
+  - the worker's CPUs and memory, `WORKER_CPUS` and `WORKER_MEMORY`, from live's
+    `MAX_PASSES_IN_FLIGHT` by `managed.env.example`'s rule, set in live's `.env` with
+    `env-upsert.sh` so that a compose call by hand does not recreate the worker at `managed.yml`'s
+    defaults, and the machine's CPUs and memory read against them, as the bring-up does before the
+    plane stops;
+  - the hold and the drain, as alpha.14's script does them, of Trigger.dev's runs;
+    `TRIGGER_IMAGE_TAG` stays `v4.8.8`, since the pin does not move;
+  - the dry run, which says reversible over alpha.14 and names no migration and no pin;
+  - the take, without `--trigger`. With the copy before alpha.14 still kept and not proven, it keeps
+    that copy, of alpha.12's databases and the task runner's, and takes no other; from 2026-11-27 at
+    08:16:21 UTC, that copy's last day, every take refuses but a deploy of alpha.12, the release it
+    holds. With that copy proven and not yet deleted, it refuses; with no copy there, it takes the
+    copy before alpha.16: the app's database, the sign-in service's database and the roles;
+  - after the bring-up: the worker healthy and the plane stopped, its volumes kept;
+    `JOBS_DB_PASSWORD` in `.env`, read by its name and never its value; and `live-pass-check.sh`,
+    which follows a pass by its pg-boss job id.
+
 **2026-11-22, evening: a second Security Scan on a release tag can no longer attach twice.**
 alpha.15's duplicate `bom.json` and doubled body (the entry below) cannot happen again, because
 `security-scan.yml`'s attach now leaves a `bom.json` already on the release (no intended path puts
