@@ -148,6 +148,13 @@ are **not** product-named and keep their names; nothing above touches them.
   machine, use the formula beside it in `managed.env.example`:
   (the memory the stacks may use ÷ 1.2 − both stacks' resident services − the
   other stack's cap × 0.5 GB − the nightly's 2 GB) ÷ 0.5 GB.
+  **These figures were worked out for Trigger.dev, trigger mode.** In pg-boss
+  mode, the default, the plane's containers are stopped and the passes run in
+  the worker, whose memory limit is a ceiling, not a reservation (*The worker's
+  size*, below; about 120 MB idle). The figures for pg-boss mode are measured
+  again in the cutover's rehearsal (E2E (managed), which prints each
+  container's highest memory use in both runners) before this bullet gives
+  them.
 - **CPU: half a CPU per pass in flight**, beside the resident services: at 6 and
   3, that is 4.5 CPUs for passes. The resident services' own figure is still to
   be measured on the machine; until then these numbers are estimates, not
@@ -885,6 +892,12 @@ default, the bring-up says that a compose call outside it (a hand
 `docker compose up -d`) would recreate the worker at the default, and prints
 the one `env-upsert.sh … WORKER_CPUS=… WORKER_MEMORY=…` that keeps the size in
 `.env`; it writes nothing there itself.
+
+**A stack whose `MAX_PASSES_IN_FLIGHT` is not 3 sets `WORKER_CPUS` and
+`WORKER_MEMORY` in its `.env`**, from the rule above, so that every compose call
+agrees, the bring-up's and a hand `docker compose` alike: the values the
+bring-up works out hold only for its own calls. Live, at 6, sets
+`WORKER_CPUS=4` and `WORKER_MEMORY=6400m`.
 
 **A comment where the worker reads a value.** A `.env` line such as
 `LEDGER_RETENTION_DAYS=  # days` (spaces or a tab, then `#`) is empty to bash,
@@ -4480,7 +4493,7 @@ No script can do these. The script checks each one before it changes anything.
 
    **`MAX_PASSES_IN_FLIGHT=6`** is live's cap on passes running at once. In
    pg-boss mode the worker is sized from it (*The two runners*): live sets
-   `WORKER_CPUS=4` and `WORKER_MEMORY=4864m` in its `.env` beside it. In trigger
+   `WORKER_CPUS=4` and `WORKER_MEMORY=6400m` in its `.env` beside it. In trigger
    mode the bring-up sets live's task plane to it plus two, 8. The OTA stack
    runs with 6 as well while it is the only stack on the machine. Once live is
    stood up, put the OTA stack back to 3, from its own checkout, in a shell with
