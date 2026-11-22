@@ -2178,24 +2178,28 @@ before anything is removed:
    decides what exists there, and `apply` on a deletion or a move recorded
    before it is refused with `after_cutover`; the queue carries `afterCutover`
    and the screen offers no button for that data type. Nothing is removed and
-   the copy stays: choose `keep` to clear the entry. A rollback makes the old
-   system decide again, and the same `apply` is admitted.
+   the copy stays: choose `keep` to clear the entry, and it stays kept. A
+   rollback makes the old system decide again, and the same `apply` is
+   admitted for an entry nobody has answered.
 7. **Nobody has answered it with `keep`.** `keep` and `apply` are the two
-   answers to one question, and the first one stands: an `apply` on an entry
-   somebody kept (from a page read before the keep, another tab, or the API)
-   is refused with `already_kept` and nothing is sent to the target. On
-   managed the job asks again at the removal, so a keep recorded while the
-   removal waited in the queue wins there too. A keep that lands while a
-   removal is already under way cannot bring the copy back: that `apply`
-   answers `removed_not_recorded`, and the entry stays kept. If the keep was
-   the wrong call, delete the copy in the new system yourself. An item that
-   comes back on the old system and is deleted there again is a new entry,
-   asked afresh.
+   answers to one question: an `apply` on an entry somebody kept (from a page
+   read before the keep, another tab, or the API) is refused with
+   `already_kept`, and nothing is sent to the target. On managed the job asks
+   again at the removal, so a keep recorded while the removal waited in the
+   queue wins there too. A keep that lands while a removal is already under
+   way cannot stop it: that removal goes through and is recorded as a
+   removal. If a keep was the wrong call, delete the copy in the new system
+   yourself. A kept item that is seen on the old system again, and is then
+   deleted there again, is a new entry, asked afresh. One kind is not: an
+   earlier export kept in its own queue stays kept when its format is switched
+   back, so a later deletion of it arrives already decided.
 
 A call that is refused always says why, in a `reason` you can read as-is —
-`not_enabled`, `target_cannot_remove`, `weak_evidence`, `not_ours`,
-`edited_on_target`, `version_unknown`, `mass_deletion_suspected`,
-`after_cutover`, `already_kept`, `already_applied` are the distinct codes.
+`not_enabled`, `target_cannot_remove`, `not_found`, `not_confirmed`,
+`weak_evidence`, `not_ours`, `edited_on_target`, `version_unknown`,
+`kept_for_guests`, `mass_deletion_suspected`, `after_cutover`,
+`already_kept`, `already_applied` and `removed_not_recorded` are the distinct
+codes.
 
 **What "removed" means depends on the target.** The response's `kind` tells you
 which you got:

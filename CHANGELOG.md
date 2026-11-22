@@ -13,8 +13,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and the row then said *deleted on the new system too*. On managed, a removal still waiting for
   its job was carried out even if the copy was kept meanwhile. Both editions now refuse such a
   press with `already_kept`, on the request and again at the removal, before anything is sent to
-  the new system, as they already did for a move. The ledger records no removal over a keep: one
-  that lands while a removal is under way stays, and that press answers `removed_not_recorded`.
+  the new system, as they already did for a move. A keep that lands while a removal is already
+  under way cannot stop it, and the removal is recorded as what it was. The refusal after cutover
+  no longer says a rollback re-opens a kept entry: a kept one stays kept.
 
 ## [0.2.0-alpha.14] - 2026-11-22
 

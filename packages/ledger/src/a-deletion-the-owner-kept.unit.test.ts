@@ -3,15 +3,16 @@
 /**
  * A DELETION THE OWNER KEPT IS NEVER APPLIED (2026-11-22; ADR-0024), on PGlite.
  *
- * The SQL half of `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`:
- * `PgLedger.applyDeletion`'s conditional UPDATE requires the entry still
- * open (`deletion_acknowledged_at IS NULL`), so a removal is never recorded
- * over a keep, and core's `applyDeletion` over this ledger refuses a kept row
- * before anything is sent to the target. A fake does not run the UPDATE; this
- * runs it on the appliance's in-process backend, as `app_user`, through the
- * real migrations. Its Postgres twin
+ * The SQL half of `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
+ * Core's `applyDeletion` over this ledger refuses a kept row before anything
+ * is sent to the target. A keep that lands while a removal is already under
+ * way cannot stop it, and `PgLedger.applyDeletion` records the removal as
+ * what it was: tombstoned and applied, with the keep's own time kept
+ * (`COALESCE`). A fake does not run the UPDATE; this runs it on the
+ * appliance's in-process backend, as `app_user` under row security, through
+ * the real migrations. Its Postgres twin
  * (`a-deletion-the-owner-kept.integration.test.ts`) runs the same cases in
- * CI's integration job.
+ * CI's integration job, as the superuser that job connects as.
  *
  * Each ledger call is its own tenant transaction, as a press's ledger reads
  * and writes are, so a keep can land between core's read and the write.
@@ -137,17 +138,28 @@ beforeEach(async () => {
   }
 });
 
+/** A keep, its time as written, and a pause, so a later write is measurably later. */
+async function keepNow(key: string): Promise<string | undefined> {
+  expect(await keep(key)).toBe(true);
+  const keptAt = (await rowOf(key))?.deletionAcknowledgedAt;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  return keptAt;
+}
+
 describe('a deletion the owner kept is never applied (PgLedger on PGlite)', () => {
-  it('the conditional UPDATE records no removal over a keep, and the row still says kept', async () => {
+  it('a removal recorded after a keep says removed, and keeps the keep’s time', async () => {
     await reported('kept');
-    expect(await keep('kept')).toBe(true);
+    const keptAt = await keepNow('kept');
 
-    expect(await record('kept')).toBe(false);
+    // What a removal already under way writes once its copy is gone.
+    expect(await record('kept')).toBe(true);
 
-    expect(await deletionOf('kept')).toMatchObject({ decided: 'kept' });
+    expect(await deletionOf('kept')).toMatchObject({ decided: 'applied' });
     const row = await rowOf('kept');
-    expect(row?.status).toBe('copied');
-    expect(row?.deletionAppliedAt).toBeUndefined();
+    expect(row?.status).toBe('tombstoned');
+    expect(row?.deletionAppliedAt).toBeDefined();
+    expect(keptAt).toBeDefined();
+    expect(row?.deletionAcknowledgedAt).toBe(keptAt);
   });
 
   it('an open entry is still recorded once, and a second write on it records nothing', async () => {
@@ -181,17 +193,21 @@ describe('a deletion the owner kept is never applied (PgLedger on PGlite)', () =
     expect(await deletionOf('pressed')).toMatchObject({ decided: 'kept' });
   });
 
-  it('a keep that lands while the removal is under way stays, and the press answers removed_not_recorded', async () => {
+  it('a keep that lands while the removal is under way cannot stop it: the press answers deleted, and the row says removed', async () => {
     await reported('raced');
+    let keptAt: string | undefined;
     const target = remover(async () => {
-      expect(await keep('raced')).toBe(true);
+      keptAt = await keepNow('raced');
     });
 
-    expect(await press('raced', target)).toMatchObject({ ok: false, code: 'removed_not_recorded' });
+    expect(await press('raced', target)).toEqual({ ok: true, kind: 'deleted' });
 
-    // The copy was removed first; the write did not take the keep away.
+    // The copy was removed first, and the row says what happened.
     expect(target.removeItem).toHaveBeenCalledTimes(1);
-    expect(await deletionOf('raced')).toMatchObject({ decided: 'kept' });
-    expect((await rowOf('raced'))?.deletionAppliedAt).toBeUndefined();
+    expect(await deletionOf('raced')).toMatchObject({ decided: 'applied' });
+    const row = await rowOf('raced');
+    expect(row?.status).toBe('tombstoned');
+    expect(keptAt).toBeDefined();
+    expect(row?.deletionAcknowledgedAt).toBe(keptAt);
   });
 });

@@ -1337,12 +1337,11 @@ export class MemoryLedger implements Ledger {
   }
 
   /**
-   * Mirrors `PgLedger.applyDeletion`, INCLUDING every one of its gates —
-   * positive evidence, not already applied, not already kept, and status
-   * `copied`/`updated` only. The whole point of this write is that it destroys
-   * the record of an item being on the target, so a fake that skipped a gate
-   * would let a test believe a check exists that a real database does not
-   * actually enforce.
+   * Mirrors `PgLedger.applyDeletion`, INCLUDING every one of its four gates —
+   * positive evidence, not already applied, and status `copied`/`updated` only.
+   * The whole point of this write is that it destroys the record of an item
+   * being on the target, so a fake that skipped a gate would let a test believe
+   * a check exists that a real database does not actually enforce.
    */
   applyDeletion(
     tenantId: LedgerRecord['tenantId'],
@@ -1358,10 +1357,6 @@ export class MemoryLedger implements Ledger {
       if (r.deletionReportedAt === undefined && r.deletionTrashedAt === undefined) continue;
       // Still open.
       if (r.deletionAppliedAt !== undefined) continue;
-      // And not already answered with keep: the one written first stands. The
-      // copy is gone by now (remove-then-record), so this keeps the keep and
-      // makes the press answer `removed_not_recorded`, as the SQL does.
-      if (r.deletionAcknowledgedAt !== undefined) continue;
       // Only an item WE wrote.
       if (r.status !== 'copied' && r.status !== 'updated') continue;
 
@@ -1369,7 +1364,9 @@ export class MemoryLedger implements Ledger {
         ...r,
         status: 'tombstoned',
         deletionAppliedAt: new Date().toISOString(),
-        deletionAcknowledgedAt: new Date().toISOString(),
+        // A keep that landed while the removal was under way keeps its time,
+        // as the SQL's COALESCE keeps it; the row says, truly, removed.
+        deletionAcknowledgedAt: r.deletionAcknowledgedAt ?? new Date().toISOString(),
       });
       return Promise.resolve(true);
     }

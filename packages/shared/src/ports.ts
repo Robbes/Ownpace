@@ -2014,10 +2014,10 @@ export interface Ledger {
    * copy sits there, which nothing would ever notice.
    *
    * Sets `status = 'tombstoned'` — see the note on that value — plus the applied
-   * date, and closes the queue entry. Returns false when the row was no longer
-   * eligible, so a caller cannot report a removal the ledger did not accept —
-   * including a row somebody answered with `keep` meanwhile (2026-11-22): the
-   * keep stands, and the copy, removed first, is reported as not recorded.
+   * date, and closes the queue entry; an entry a keep closed while the removal
+   * was under way keeps the keep's time, and the row says it was removed
+   * (2026-11-22). Returns false when the row was no longer eligible, so a
+   * caller cannot report a removal the ledger did not accept.
    */
   applyDeletion(
     tenantId: TenantId,

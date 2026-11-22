@@ -4,29 +4,34 @@
  * A DELETION THE OWNER KEPT IS NEVER APPLIED (2026-11-22; ADR-0024).
  *
  * `keep` and `apply` are the two answers to one question on *Deleted on the
- * old system*, and the first one given stands, as it already did for a move
- * (`already_kept`, ADR-0030). Until this, nothing on the deletion path read
- * the answer: a press on a row somebody had kept removed the copy, and the
- * ledger's write closed the row again as applied, so the keep left no trace.
- * The page offers no button on a kept row; what reached one was a page read
- * before the keep, another tab or another person, a call to the API, and on
- * managed a removal that waited in the queue while somebody kept it. Found in
- * the review of workplan 0164 T3, where a keep pressed in another tab during
- * a *Delete all of these here too* run was removed when the run reached it.
+ * old system*, and no press made after a keep removes the copy, as it already
+ * held for a move (`already_kept`, ADR-0030). Until this, nothing on the
+ * deletion path read the answer: a press on a row somebody had kept removed
+ * the copy, and the ledger's write closed the row again as applied, so the
+ * keep left no trace. The page offers no button on a kept row; what reached
+ * one was a page read before the keep, another tab or another person, a call
+ * to the API, and on managed a removal that waited in the queue while
+ * somebody kept it. Found in the review of workplan 0164 T3, where a keep
+ * pressed in another tab during a *Delete all of these here too* run was
+ * removed when the run reached it.
  *
  * Held here over the real `applyDeletion` and `evaluateApplyDeletion` and the
  * real `MemoryLedger` (which mirrors `PgLedger`'s conditional UPDATE; the
- * PGlite and Postgres twins in `packages/ledger` run the same cases on the
+ * PGlite and Postgres twins in `packages/ledger` run the ledger's half on the
  * real SQL):
  *  - keep, then a press: refused `already_kept`, the target never asked, the
  *    row still kept;
  *  - the managed order: the route's answer at the press, a keep while the job
- *    waits, and the job's own `applyDeletion` refusing it;
- *  - a keep that lands while the removal is under way: the keep stays, and
- *    the press says the copy was removed and not recorded;
+ *    waits, and the job's own `applyDeletion` refusing it (the job itself
+ *    cannot be run in a test; its source is pinned by
+ *    `apps/worker/src/jobs/a-deletion-kept-while-its-removal-waited.unit.test.ts`);
+ *  - a keep that lands while the removal is under way cannot stop it: the
+ *    press answers deleted, and the row says removed, with the keep's time
+ *    kept;
  *  - what it must not change: a removed row still says `already_applied`, an
- *    item that came back and was deleted again is asked afresh, and after
- *    cutover a kept row says `after_cutover`, as a kept move does.
+ *    item that came back and was deleted again is asked afresh (the case calls
+ *    `clearAbsent` directly, where a pass calls it on seeing the item again),
+ *    and after cutover a kept row says `after_cutover`, as a kept move does.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -136,24 +141,30 @@ describe('on managed: a keep recorded while the removal waits in the queue', () 
 });
 
 describe('a keep that lands while the removal is under way', () => {
-  it('stays on the row, and the press says the copy was removed and not recorded', async () => {
+  it('cannot stop it: the press answers deleted, and the row says removed, with the keep’s time kept', async () => {
     const ledger = new MemoryLedger();
     await ledger.recordIfAbsent(reported());
     // Between core's read and the ledger's write: the removal is happening.
+    let keptAt: string | undefined;
     const target = remover(async () => {
       expect(await keep(ledger)).toBe(true);
+      keptAt = (await ledger.find(TENANT, MAPPING, 'calendar', HASH))?.deletionAcknowledgedAt;
+      // So the write that records the removal comes measurably later.
+      await new Promise((resolve) => setTimeout(resolve, 5));
     });
 
     const outcome = await applyDeletion(deps(ledger, target), HASH);
 
-    // The copy went (the removal comes first), and the write did not take
-    // the keep away: the one written first stands, and the press says so.
+    // The copy went (the removal comes first), and the row says so.
     expect(target.removeItem).toHaveBeenCalledTimes(1);
-    expect(outcome).toMatchObject({ ok: false, code: 'removed_not_recorded' });
+    expect(outcome).toEqual({ ok: true, kind: 'deleted' });
     const row = await ledger.find(TENANT, MAPPING, 'calendar', HASH);
-    expect(row?.deletionAcknowledgedAt).toBeDefined();
-    expect(row?.deletionAppliedAt).toBeUndefined();
-    expect(await queueRow(ledger)).toMatchObject({ decided: 'kept' });
+    expect(row?.status).toBe('tombstoned');
+    expect(row?.deletionAppliedAt).toBeDefined();
+    expect(await queueRow(ledger)).toMatchObject({ decided: 'applied' });
+    // And the keep's own time stays as it was written.
+    expect(keptAt).toBeDefined();
+    expect(row?.deletionAcknowledgedAt).toBe(keptAt);
   });
 });
 
