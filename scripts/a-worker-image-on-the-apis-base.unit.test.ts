@@ -150,7 +150,7 @@ type Compose = { services: Record<string, Service> };
 
 /** The owner's rule, from the cap on passes in flight. */
 export const workerCpus = (passes: number): number => 0.5 * (passes + 2);
-export const workerMemoryMb = (passes: number): number => (passes + 3) * 512 + 256;
+export const workerMemoryMb = (passes: number): number => (passes + 1) * 512 + 2816;
 
 /** What is wrong with managed.yml's worker service; empty when nothing is. */
 export function serviceProblems(text: string): string[] {
@@ -237,8 +237,8 @@ describe("managed.yml's worker service: defined, not started, sized by the owner
   });
 
   it('the rule, at 3 (the OTA stack) and at 6 (live)', () => {
-    expect([workerCpus(3), workerMemoryMb(3)]).toEqual([2.5, 3328]);
-    expect([workerCpus(6), workerMemoryMb(6)]).toEqual([4, 4864]);
+    expect([workerCpus(3), workerMemoryMb(3)]).toEqual([2.5, 4864]);
+    expect([workerCpus(6), workerMemoryMb(6)]).toEqual([4, 6400]);
   });
 
   it('the example and the service state the rule and name the knobs', () => {
@@ -248,7 +248,7 @@ describe("managed.yml's worker service: defined, not started, sized by the owner
     for (const [file, raw] of [[EXAMPLE, example], [MANAGED, managed]] as const) {
       const text = raw.replace(/\n\s*#\s*/g, ' ').replace(/\s+/g, ' ');
       expect(text, file).toMatch(/0\.5 x \(MAX_PASSES_IN_FLIGHT \+ 2\)/);
-      expect(text, file).toMatch(/\(MAX_PASSES_IN_FLIGHT \+ 3\) x 512 MB \+ 256 MB/);
+      expect(text, file).toMatch(/\(MAX_PASSES_IN_FLIGHT \+ 1\) x 512 MB \+ 2,816 MB/);
       expect(text, file).toMatch(/never more than (the host's|this machine's) CPU count/);
     }
   });
@@ -265,7 +265,7 @@ describe("managed.yml's worker service: defined, not started, sized by the owner
       ['a port', at('    stop_grace_period: 60s\n', '    stop_grace_period: 60s\n    ports:\n      - "127.0.0.1:3002:3002"\n'), /publishes or exposes a port/],
       ['before the migrations', at('      api:\n        condition: service_healthy\n    networks:', '      api:\n        condition: service_started\n    networks:'), /does not wait for api/],
       ['the cpus off the rule', at('${WORKER_CPUS:-2.5}', '${WORKER_CPUS:-0.5}'), /cpus is \$\{WORKER_CPUS:-0.5\}/],
-      ['the memory off the rule', at('${WORKER_MEMORY:-3328m}', '${WORKER_MEMORY:-1g}'), /mem_limit is/],
+      ['the memory off the rule', at('${WORKER_MEMORY:-4864m}', '${WORKER_MEMORY:-3328m}'), /mem_limit is/],
       ['the switch off by default', at('      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}\n      NODE_ENV: production\n', '      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-trigger}\n      NODE_ENV: production\n'), /the worker's OWNPACE_JOB_RUNNER/],
       ['no grace', at('    stop_grace_period: 60s\n', ''), /no stop_grace_period/],
     ];

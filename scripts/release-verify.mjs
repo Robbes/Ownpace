@@ -64,7 +64,7 @@ import { pathToFileURL } from 'node:url';
 import { github, pass, refuse, note, render, report, short } from './release-github.mjs';
 import { nodeRuntimeVersion } from './package-appliance.mjs';
 import { TASK_BASE_CONFIG, TASK_BASE_LINE, taskBasePin } from './idp-pin-watch.mjs';
-import { compareSemVer } from './release-names-agree.mjs';
+import { compareSemVer, parseSemVer } from './release-names-agree.mjs';
 
 export const IMAGES = ['api', 'web', 'selfhost', 'worker'];
 /**
@@ -564,16 +564,27 @@ async function checkTaskBase({ commit, readAt, client }) {
   return lines;
 }
 
+/**
+ * Why `VERSION` and `COMMIT` cannot be verified, or null: a tag that is not
+ * `v` and a SemVer version (`VERSION=latest`, say) is a refusal line, not a
+ * thrown comparison further down (the review of #2046).
+ */
+export function inputRefusal(version, commit) {
+  if (!version || !/^[0-9a-f]{40}$/.test(commit ?? '')) return refuse('verify', 'VERSION and a full COMMIT are needed');
+  if (!/^v/.test(version) || !parseSemVer(bare(version))) return refuse('verify', `VERSION is ${JSON.stringify(version)}, not a release tag (v and a SemVer version)`);
+  return null;
+}
+
 async function checkImages({ version, commit }) {
   const lines = [];
   const tag = bare(version);
   const digests = {};
   for (const image of IMAGES) {
-    if (!publishedAt(image, tag)) {
-      lines.push(note(`image-${image}`, `ownpace-${image} is published from ${FIRST_RELEASE[image]} on, and ${version} is older`));
-      continue;
-    }
     try {
+      if (!publishedAt(image, tag)) {
+        lines.push(note(`image-${image}`, `ownpace-${image} is published from ${FIRST_RELEASE[image]} on, and ${version} is older`));
+        continue;
+      }
       lines.push(...(await checkImage({ image, tag, version, commit, digests })));
     } catch (err) {
       lines.push(refuse(`image-${image}`, `ownpace-${image}:${tag} could not be read: ${String(err?.message ?? err).split('\n')[0]}`));
@@ -665,8 +676,9 @@ async function checkVersion({ version, commit }) {
 
 async function main() {
   const { VERSION: version, COMMIT: commit } = process.env;
-  if (!version || !/^[0-9a-f]{40}$/.test(commit ?? '')) {
-    report([refuse('verify', 'VERSION and a full COMMIT are needed')]);
+  const refused = inputRefusal(version, commit);
+  if (refused) {
+    report([refused]);
     return 1;
   }
   const client = github();

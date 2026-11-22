@@ -90,6 +90,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   long-lived worker container. Edited in place in both languages, dated 2026-11-22, because no
   tester had accepted any version; the words apply from publication.
 
+### Security
+
+- **An image built on a stack no longer carries the pooler's user list.** The API's image, and the
+  job worker's, are built from the repository with `COPY . .`, and `.dockerignore` did not name
+  `deploy/compose/pgbouncer/userlist.txt`. `ensure-env-secrets.sh` writes `pgbouncer_auth`'s
+  password there in plain text, so it was in every image a stack built, readable by the service's
+  user. It is now kept out, and a guard holds every secret the stack writes into the checkout to
+  `.dockerignore`. The images CI publishes were not affected, since their checkout has no user list.
+  Rotate `PGBOUNCER_AUTH_PASSWORD` on a stack whose locally built images may have been copied
+  elsewhere.
+
 ### Fixed
 
 - **A move whose old copy was deleted is decided on Moves** (workplan 0164 T3a; ADR-0024, amended

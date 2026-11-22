@@ -321,6 +321,20 @@ And `GET /version` on the selfhost image, started on PGlite: the version and C.
 `0.2.0-alpha.16` on (`FIRST_RELEASE` in `scripts/release-verify.mjs`): `verify` on an older tag
 notes it rather than refusing, and the weekly image scan reads its release from that tag on.
 
+**The owner's step once, before alpha.16 (workplan 0167 T7).** The first `main` run of `images.yml`
+after the worker's image merges creates `ghcr.io/robbes/ownpace-worker`, and GHCR may create a new
+package private (it did so for `ownpace-task-base`, workplan 0119). The weekly image scan and
+`verify` pull anonymously, so a private package fails the scan's worker leg and alpha.16's
+`verify`. After that run, in the package's settings on GitHub, set its visibility to public, as
+the other images are, and check a pull with no login:
+
+```bash
+docker logout ghcr.io
+docker pull ghcr.io/robbes/ownpace-worker:edge
+```
+
+Do it before the next weekly scan and before the alpha.16 tag.
+
 `images.yml` builds no `ownpace-task-base` on a tag. The managed tasks' prebuilt base is
 published from `main` only, as `edge` and `sha-<commit>`, and a release carries it as the
 digest its `apps/worker/trigger.config.ts` names (`TASK_BASE_IMAGE`): so the OTA stack, which

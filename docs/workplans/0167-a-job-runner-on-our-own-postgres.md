@@ -50,6 +50,51 @@ its removal (T9) is a later release's, started once this pull request merges.
   bring-up, the runbook, the end of the alpha (step 3 also empties pg-boss's job tables), rollback,
   cutover, testing and the two READMEs. ADR-0054 is in force (its *Pending* rules, in short, are
   operative; the section is kept in full), and ADR-0004's first rule names pg-boss.
+**2026-11-22, later still: the worker's memory limit from the realistic peak (T7, its second part).**
+The worker's pull request (#2048) measured the peak a worker can reach:
+- one pass more than the cap, at 307 MB each;
+- the three schedules due at :23, and one of each of the seven other on-demand kinds, at 203 MB each;
+- the parent, at 120 MB.
+
+That is 3,378 MB at a cap of 3, 50 MB above the 3,328 MB limit. A run the kernel kills for
+memory is not retried (`RunPossiblyOutOfMemory`), so a neighbour's peak would fail it for good.
+So the rule is now `(MAX_PASSES_IN_FLIGHT + 1) × 512 MB + 2,816 MB`: 4,864 MB at 3, which is
+`managed.yml`'s default, and 6,400 MB at 6. The CPU rule is unchanged. Changed in `managed.yml`,
+`managed.env.example` and `a-worker-image-on-the-apis-base`. The guard fails with the old
+default (`${WORKER_MEMORY:-3328m}`), and with the old formula in either file.
+
+**2026-11-22, later still, after review: the worker's image (T7, its second part), the review of #2046 fixed.**
+The coordinator's review found the image and the service right, and five things to fix.
+
+- **The pooler's user list was in every image a stack built.** `ensure-env-secrets.sh` writes
+  `pgbouncer_auth`'s password in plain text to `deploy/compose/pgbouncer/userlist.txt` in the
+  checkout. Git ignores it and `.dockerignore` did not, so `COPY . .` put it in the API's image
+  and would have put it in the worker's. `.dockerignore` names it now. The new guard
+  `a-secret-the-image-copied` holds every path `.gitignore` names under `deploy/compose/` to a
+  secret it lists or a reason it holds none, and every listed secret to `.dockerignore`, read as
+  Docker reads it. A real build of a probe image showed the file absent from the context, and
+  copied in once the line was taken out.
+- **A landing step for the owner.** GHCR may make the new `ownpace-worker` package private, and
+  the scan and `verify` pull anonymously. `docs/release.md` now says to make it public after the
+  first `main` run that publishes it, and to check an anonymous pull, before the next weekly scan
+  and before the alpha.16 tag.
+- **The owner's URL outside the environment.** `a-worker-that-carries-no-superuser` now reads every
+  line of the worker service that is not a comment. An owner URL in `command:`, `entrypoint:`,
+  a build argument or a label fails it.
+- **The mode rule's exemption** in `a-stack-that-names-its-mode` is the worker's alone.
+- **`VERSION=latest`** gave `release-verify.mjs` a throw, not a refusal line. `inputRefusal` now
+  refuses any VERSION that is not `v` and a SemVer version, before any call. The comparison
+  that threw runs inside the image's `try`.
+- **Broken once each, then restored byte for byte:**
+  - the user list out of `.dockerignore`: 2 failed;
+  - an owner URL in the worker's `command:`: 2 failed;
+  - the api fixed to `production`: 1 failed;
+  - the SemVer refusal removed: 1 failed.
+- **Not this pull request's**, done where the changes are combined:
+  - the worker's rows in `a-privilege-no-service-uses` once #2047 is on the same tree;
+  - the bring-up building the worker with `GIT_SHA`, sizing `WORKER_CPUS` and `WORKER_MEMORY`
+    from the stack's `MAX_PASSES_IN_FLIGHT`, and refusing a `.env` line whose value is a comment.
+
 - **Evidence.**
   - Every unit file under `scripts/` and `deploy/`: 319 files, 8,016 tests passed, 33 skipped, and
     `every-release-is-a-starting-point` 13 of 13 once every tag was fetched.
@@ -647,7 +692,7 @@ Trigger.dev, ClickHouse and identity-provider lines in `managed.yml` changed.
 - **The service.** `worker` in `managed.yml`:
   - built from that Dockerfile, named after its project, `restart: unless-stopped`, logging capped;
   - no capability, no new privileges, a read-only root with `/tmp` in memory;
-  - `cpus: ${WORKER_CPUS:-2.5}` and `mem_limit: ${WORKER_MEMORY:-3328m}`, the owner's rule at 3;
+  - `cpus: ${WORKER_CPUS:-2.5}` and `mem_limit: ${WORKER_MEMORY:-4864m}`, the rules at 3 (the memory rule as the review of #2046 changed it, below);
   - `stop_grace_period: 60s`, and it waits for postgres, the pooler and the api to be healthy;
   - the image's healthcheck, `ownpace-network` only, no port, and profile `jobs`.
 
