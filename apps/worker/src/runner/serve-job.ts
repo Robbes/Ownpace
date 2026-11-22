@@ -34,7 +34,7 @@ import type { ChildRunInfo } from '@openmig/scheduler/pg-boss';
 import { log } from '@openmig/shared';
 // The job's context, beside the runner's own `RunContext` (`@openmig/scheduler/pg-boss`).
 import type { RunContext as JobRunContext } from '../jobs/run-context.ts';
-import { pgBossContext, pgBossRunner, type ProducerLike } from './pg-boss-context.ts';
+import { pgBossContext, pgBossRunner, type PgBossRunInfo, type ProducerLike } from './pg-boss-context.ts';
 
 /** The most a process may say of itself: taken first. */
 const OOM_SCORE_ADJ = '1000';
@@ -76,7 +76,7 @@ export function onPgBoss<P, R>(
     }
     // Before the run, as Trigger.dev parses: a ZodError here is not retried.
     const parsed = schema.parse(payload);
-    const runner = pgBossRunner(open);
+    const runner = pgBossRunner(open, (info as PgBossRunInfo).waitsUntil);
     try {
       return await run(parsed, pgBossContext(info, runner));
     } finally {

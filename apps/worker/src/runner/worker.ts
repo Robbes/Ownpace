@@ -53,7 +53,7 @@ import {
   type RunContext as RunnerRunContext,
 } from '@openmig/scheduler/pg-boss';
 import { log } from '@openmig/shared';
-import { JOBS_SCHEMA } from './pg-boss-context.ts';
+import { JOBS_SCHEMA, waitBudgetMs, type PgBossRunInfo } from './pg-boss-context.ts';
 
 /** The entry each queue's run is forked from. Static, so nothing imports a computed name. */
 export const RUN_ENTRIES: Readonly<Record<JobName, URL>> = {
@@ -127,6 +127,11 @@ export function refusalToStart(env: NodeJS.ProcessEnv): string | null {
 
 export type WorkerState = 'starting' | 'running' | 'stopping' | 'stopped';
 
+/** Whether `/health` answers 200 in this state: only once started, never while starting or stopping. */
+export function healthyIn(state: WorkerState): boolean {
+  return state === 'running';
+}
+
 export interface WorkerOptions {
   readonly connectionString: string;
   readonly passesInFlight: number;
@@ -188,7 +193,7 @@ export class JobWorker {
 
   async start(): Promise<void> {
     const health = this.#opts.health === undefined ? { host: HEALTH_HOST, port: HEALTH_PORT } : this.#opts.health;
-    if (health !== null) this.#health = await serveHealth(health.host, health.port, () => this.#state === 'running');
+    if (health !== null) this.#health = await serveHealth(health.host, health.port, () => healthyIn(this.#state));
 
     const catalog = this.#opts.catalog ?? JOB_CATALOG;
     const entries: Readonly<Partial<Record<string, URL>>> = this.#opts.entries ?? RUN_ENTRIES;
@@ -196,8 +201,27 @@ export class JobWorker {
     const missing = catalog.filter((job) => entries[job.name] === undefined).map((job) => job.name);
     if (missing.length > 0) throw new Error(`No run entry for ${missing.join(', ')}: every queue the worker declares is worked.`);
 
+    try {
+      await this.#workEvery(catalog, entries);
+    } catch (err) {
+      // A stop asked for while starting closes the runner under the start, whose next call then
+      // fails: that is the stop, not a failure to start.
+      if (this.#state !== 'starting') return;
+      throw err;
+    }
+    // A stop asked for while the last call was under way: it stands, and the worker never says it is running.
+    if (this.#state !== 'starting') return;
+    this.#state = 'running';
+    log.info(
+      `[worker] working ${catalog.length} queues on pg-boss, passes at once: ` +
+        `${this.#opts.passesInFlight} and one for a cutover.`,
+    );
+  }
+
+  async #workEvery(catalog: readonly JobCatalogEntry[], entries: Readonly<Partial<Record<string, URL>>>): Promise<void> {
     await this.#runner.start(catalog);
     for (const job of catalog) {
+      if (this.#state !== 'starting') return;
       const entry = entries[job.name]!;
       const concurrency = concurrencyOf(job, this.#opts.passesInFlight);
       await this.#runner.work<unknown, unknown>(
@@ -205,10 +229,17 @@ export class JobWorker {
         async (payload: unknown, ctx: RunnerRunContext) => {
           this.#going.add(ctx.runId);
           try {
+            // Until when the run may wait for another: counted from here, as the runner counts its kill.
+            const run: PgBossRunInfo = {
+              queue: ctx.queue,
+              runId: ctx.runId,
+              attempt: ctx.attempt,
+              waitsUntil: Date.now() + waitBudgetMs(job.maxDurationSeconds),
+            };
             return await runInChild(entry.href, payload, {
               maxOldSpaceMb: job.maxOldSpaceMb,
               signal: AbortSignal.any([ctx.signal, this.#shutdown.signal]),
-              run: { queue: ctx.queue, runId: ctx.runId, attempt: ctx.attempt },
+              run,
             });
           } finally {
             this.#going.delete(ctx.runId);
@@ -218,13 +249,9 @@ export class JobWorker {
       );
     }
     for (const job of catalog) {
+      if (this.#state !== 'starting') return;
       if (job.kind === 'schedule') await this.#runner.schedule(job.name, job.cron, {});
     }
-    this.#state = 'running';
-    log.info(
-      `[worker] working ${catalog.length} queues on pg-boss, passes at once: ` +
-        `${this.#opts.passesInFlight} and one for a cutover.`,
-    );
   }
 
   /** Stop fetching, give the runs going their grace, kill what is left, stop. */

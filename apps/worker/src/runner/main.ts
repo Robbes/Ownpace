@@ -48,6 +48,7 @@ process.once('SIGTERM', () => stop('SIGTERM'));
 process.once('SIGINT', () => stop('SIGINT'));
 
 try {
+  // Returns quietly when a SIGTERM came while it started: the stop above exits 0.
   await worker.start();
 } catch (err) {
   log.error('[worker] could not start:', err);

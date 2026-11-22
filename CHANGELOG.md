@@ -13,7 +13,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   its own, with Trigger.dev's retries, time limit and memory, and refuses to start unless
   `OWNPACE_JOB_RUNNER=pg-boss` and `JOBS_DATABASE_URL` are set; a cutover there has three hours,
   as its waits for passes never counted on Trigger.dev. The sync tick on pg-boss also holds
-  while a Trigger.dev tick from an earlier release still writes the shared beat. The worker's
+  while the shared beat is under 90 seconds old and differs from its own, which is how a
+  Trigger.dev tick from an earlier release, writing the shared beat alone, shows it still runs. The worker's
   package now declares `pg` and `drizzle-orm`, which its jobs import. No migration, no compose
   change.
 - **The jobs' own database role and schema, made by the managed bring-up; nothing connects as it

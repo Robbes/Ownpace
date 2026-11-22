@@ -19,7 +19,7 @@ and Trigger.dev runs every job. No migration in either chain.
   (a refusal is `ZodError`, not retried, as Trigger.dev 4.8.8's `TaskPayloadParsedError` is
   `skipped`), and `oom_score_adj` raised; `pg-boss-context.ts`, the pg-boss half of the run
   context, which only the entries import. The tick's pg-boss half of the interlock: it also holds
-  while the shared beat is fresh and newer than its own. `apps/worker/package.json` declares `pg`
+  while the shared beat is fresh and differs from its own (design point 7: "newer than its own" became "differs from its own" in the review of #2048, since a hold leaves its own beat newer than the other tick's shared one). `apps/worker/package.json` declares `pg`
   and `drizzle-orm`.
 - **Proved, on a throwaway cluster from `scripts/local-pg.sh`** (PostgreSQL 16; CI's
   Testcontainers run is the one for 18, on amd64 and arm64): `worker.integration.test.ts`
@@ -73,6 +73,34 @@ and Trigger.dev runs every job. No migration in either chain.
   is 3,328 MB: short by 50 MB) and 4,299 MB at 6 (4,864 MB: holds). With each pass at its 512 MB budget and each other
   run at 256 MB, the formula that holds is (`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB + 2,816 MB:
   4,864 MB at 3, 6,400 MB at 6.
+- **The review of #2048 (at `01b091af`), fixed.** `main` merged in (#2041, #2040, #2037).
+  - **Blocking, the tick's second rule leaked.** It held only while the shared beat was *newer*
+    than its own, but a hold writes its own beat after the other tick's shared one, so when the
+    two ticks swapped order between minutes the pg-boss tick ran beside a Trigger.dev tick from
+    before the interlock. It now holds while the shared beat, under 90 s old, *differs from* its
+    own (`IS DISTINCT FROM`, which also covers a missing own beat). A new case alternates the two
+    ticks' order over four minutes and starts no pass; the five earlier cases still pass. Design
+    point 7's "newer than its own" is now "differs from its own".
+  - **The cutover's wait.** The three hours did not cover a final sync's own retries, and a
+    cutover killed at its limit is `RunTimedOut` with nothing recorded. The pg-boss
+    `enqueueAndWait` now stops waiting at the run's own limit, less the kill margin and up to a
+    minute more (`waitBudgetMs`: 3,510 s of an hour), and hands back a pass not settled
+    (`FinalSyncTimedOut`); run-cutover's `!pass.ok` then throws `FinalSyncNotFinished` through
+    its catch, as on Trigger.dev. The catalog is unchanged.
+  - **The import guard's rule 10** now counts `export … from` as a load, and refuses `pg-boss`
+    and `@openmig/scheduler/pg-boss` in every workspace package outside the runner's own
+    directory, which a task may load and the guard did not follow.
+  - **Two cases assumed an order on a singleton key** (the time limit, the purge's verdict): the
+    second run is sent once the first runs. The file passed three full runs in a row.
+  - **A stop during start** returns quietly and is never followed by "running"; `main.ts` then
+    exits 0. `/health`'s states are pinned in the unit tier (`healthyIn`). The integration test
+    runs `deploy/compose/jobs-role.sql` as it is.
+  - **Mutations**, one per fix, restored and checked with `cmp`: the rule back to "newer" (the
+    alternating case failed); a re-export in `what-a-run-leaves.ts` and an import in
+    `packages/managed/src/tick-beat.ts` (each failed rule 10); the wait without its deadline (unit
+    and integration failed); health "unless stopped" (unit failed); the bring-up's file without
+    its schema (integration failed); start without its stop checks (failed: "running" after a
+    stop). The catch alone, without the stop checks it backs, survived: the checks return first.
 - **Next:** the API's doors, the operator's commands, the worker's service, then the switch (T7).
 
 **2026-11-22, latest: the second review of #2040, fixed (T5a).** On the same branch, after `main`
