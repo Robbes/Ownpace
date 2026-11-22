@@ -71,6 +71,7 @@ import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';
 import { log, privacyPolicyUrl, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { setAuditKeyDriver } from './audit-key.ts';
+import { jobRunner } from './job-runner.ts';
 import { acceptanceAtStart } from './conditions-not-accepted.ts';
 
 // Re-export for backwards compatibility
@@ -380,6 +381,10 @@ if (process.env.NODE_ENV !== 'test') {
   // VITE_LEGAL_SITE_URL. A value the link cannot use stops the start here,
   // naming both, rather than failing each press afterwards.
   log.info(`[api] the share mail links the privacy policy at ${privacyPolicyUrl('en', process.env)}`);
+  // Which runner the jobs go to (0167 T6, `job-runner.ts`). A value the switch
+  // may not hold stops the start here, in its one sentence, rather than failing
+  // each press afterwards.
+  log.info(`[api] jobs run on ${jobRunner()}`);
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');

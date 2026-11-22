@@ -4,6 +4,59 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still: the API's doors on the switch (T6, the API's step).** On branch
+`claude/ownpace-pgboss-api-doors`, from T6's first step (`claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`)
+with the runner's gaps (`claude/ownpace-pgboss-runner-gaps`) merged in. Only `apps/api` changed, with one guard under `scripts/`, this plan
+and the CHANGELOG: nothing in `packages/`, `apps/worker`, `deploy/` or `.github/`, no migration, and nothing sets the switch, so
+the API runs every job on Trigger.dev as before.
+
+- **The switch**, `apps/api/src/job-runner.ts`: `OWNPACE_JOB_RUNNER` is `trigger` or `pg-boss`, and unset or empty is
+  `trigger`; any other value is refused in one sentence, which stops the API's start (`index.ts` logs the runner it
+  read). It lives in the API, so the tests that mock `@openmig/scheduler` with a bare factory need no new export.
+- **The enqueue**, `enqueue-unless-held.ts`. `Enqueue` is neutral, `(taskId, payload, { tags, concurrencyKey,
+  idempotencyKey, idempotencyKeyTTL }) => Promise<{ id }>`. On Trigger.dev it is still `getTriggerClient().tasks.trigger(…)`,
+  so every existing mock hears it. On pg-boss it is the producer's: `concurrencyKey` as `serializeBy`, the idempotency
+  key with its `'15m'` as `{ key, ttlSeconds: 900 }`, the tags. A run turned away without an id is an error, never a
+  run. `DISCOVERY_JOIN_WINDOW_SECONDS` (900) beside the window, held to it by a test.
+- **The producer.** One a process, #2040's `PgBossProducer` with the catalog's seventeen queues on `JOBS_DATABASE_URL`
+  and the schema `pgboss`, imported dynamically on the first pg-boss enqueue or cancel. The URL is read once and never
+  logged; unset, the enqueue is refused in one sentence. A producer whose start failed is closed and forgotten, so the
+  next press tries again. It is closed on SIGTERM and SIGINT, after which the signal does its default, and by the
+  operator's script before it ends its pool.
+- **The cancel**, `cancelRun(ref)`, handed to the close by `routes/support.ts`, `routes/tenants/index.ts` and
+  `scripts/operator.ts`. Each runner cancels its own refs (`run_…` on Trigger.dev, a UUID on pg-boss) and refuses the
+  other's in one sentence, which the close logs and leaves to the quiesce. A pg-boss run gone or settled reads as
+  finished, in a log line.
+- **Readiness**, `routes/ready.ts`: `off` when Trigger.dev has no `TRIGGER_SECRET_KEY` or pg-boss no
+  `JOBS_DATABASE_URL`; else the shared beat, `managed-sync-tick`, whichever runner, so Gatus's row needs no change. A
+  switch it cannot read is `down`, the sentence in the log.
+- **Tests.**
+  - New: `job-runner` (27), `a-runner-the-api-does-not-load` (5): in trigger mode the whole app and the operator's script
+    load neither `pg-boss` nor `@openmig/scheduler/pg-boss`, and no shipped file imports either but for types, but
+    `job-runner.ts`'s one dynamic import. `a-job-on-pg-boss.integration` (6), on a real pg-boss: two discovery presses
+    are one job, the second `joined`; a press after the migration changed is a new job on the same singleton key, which
+    a worker with a free slot does not start while the first runs; *Sync now* answers a UUID, its job singleton by the
+    migration with its tags; a queue the worker never made lands on *Start*'s answer as `queued: false` with the
+    producer's sentence; the close cancels the queued pass by its `orchestrator_ref`; readiness reads the shared beat,
+    not the runner's own. Trigger.dev's client throws if asked.
+  - Changed: `a-hold-that-holds-every-door` (the producer is reached from the one function and the cancel only, and the
+    runner's module named only there), `a-tick-that-says-it-ran` (four cases on the switch).
+  - Guard: `scripts/a-route-that-opened-the-owners-pool` counted `JOBS_DATABASE_URL` as the owner's URL, as it counts
+    every `*DATABASE_URL` but `APP_DATABASE_URL`. It is the jobs role's, so it joins `APP_DATABASE_URL` as a name that
+    is not the owner's, and the guard's compose case now holds it, once compose hands it to the API, to `ownpace_jobs`.
+- **Mutated**, each once, and restored byte for byte (`cmp`), each failing the test meant for it, 13 in all: the switch
+  admitting `pgboss`; `concurrencyKey` dropped; the join's window 0; trigger mode sent to pg-boss; a value import of the
+  runner's module; readiness by Trigger.dev's key alone; a UUID cancelled on Trigger.dev; the pg-boss cancel never
+  asked; a door reaching the producer; readiness on the runner's own beat; a failed start kept; and in the guard, an
+  owner's name exempted, and the jobs URL not.
+- **Gates.**
+  - `tsc --noEmit` 0, and ESLint 0 on the 13 changed TypeScript files.
+  - Unit, every file of `apps/api` and every guard under `scripts/`: 483 files, 9,895 tests passed, 36 skipped. Before
+    the change, the API's 177 files: 2,383 passed.
+  - `a-job-on-pg-boss.integration` on a throwaway cluster from `scripts/local-pg.sh`: 6 passed (PostgreSQL 16 here;
+    CI's Testcontainers run is the one to trust for 18).
+- **Next:** the worker, the operator's `jobs` commands, compose and the scripts, then the switch on (T7).
+
 **2026-11-22, later still: T6's first step, the job catalog and the jobs made runner-neutral.**
 On branch `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`, from `main` with T5 merged
 (#2038). Nothing that runs changes: Trigger.dev runs every job under the same ids, queues, machines
@@ -246,7 +299,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T4 The owner's decision | owner | ✅ **Decided 2026-11-22: yes** | The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* They had approved the spike earlier that day. ADR-0054 records it; §5 lists what it starts. |
 | T5 This runner, merged | builder | ✅ **Merged 2026-11-22**, as #2038 (`98e9bc34`) | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
 | T5a The runner's production gaps | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-pgboss-runner-gaps` | E2–E8 from the coordinator's plan: `PgBossProducer`, status and cancel by id, the child's lines forwarded and never stored, the worker's own time limit and kill on a lost claim, "not retried" by name, a bounded `recentFailures` (the Status entry "later still"). Done when its pull request merges. |
-| T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, built on `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. Still to come: the worker, the API's doors and the operator's commands. |
+| T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, built on `claude/ownpace-public-readiness-y7orc6-pgboss-a1-catalog`; the API's doors, cancels and readiness on the switch built on `claude/ownpace-pgboss-api-doors` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. The API's step (the Status entry "the API's doors on the switch") reads `OWNPACE_JOB_RUNNER` in `apps/api/src/job-runner.ts`: on `pg-boss` every door enqueues through one producer on `JOBS_DATABASE_URL`, a close cancels by the pg-boss id, and readiness reads the shared beat; on `trigger`, unset or empty, nothing changes and no pg-boss module loads. Still to come: the worker and the operator's commands. |
 | T7 The worker service, and the switch on | builder, owner | ⬜ **Not started** | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |

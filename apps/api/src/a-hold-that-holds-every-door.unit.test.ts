@@ -18,6 +18,9 @@
  *     only call that enqueues a Trigger.dev task is the one inside that
  *     function. A new door that calls `getTriggerClient().tasks.trigger(`
  *     itself fails here, by file, before anybody presses it during a deploy.
+ *     On pg-boss (workplan 0167 T6) the enqueue is the producer's, and only
+ *     that function and `job-runner.ts` may reach the producer or name the
+ *     runner's module.
  *     The number of doors that call the function is counted too, so a ninth
  *     door gets a row in the table (`enqueueDoors`, in
  *     `__tests__/doors-that-start-work.ts`, which the closed organisation's
@@ -130,6 +133,32 @@ describe('the sweep: nothing in apps/api/src enqueues except through the one fun
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it('the pg-boss enqueue is the function’s too: the producer is reached from it and the cancel only', () => {
+    // 0167 T6. On pg-boss the enqueue is the producer's, which the sweep's
+    // SDK calls above do not match. The producer is made in `job-runner.ts`
+    // and handed out by `pgBossProducer()`; only the one function (which
+    // enqueues on it) and that file (whose cancel uses it) may ask for it, and
+    // only those two may name the runner's module at all.
+    const RUNNER_FILE = 'job-runner.ts';
+    const askers: string[] = [];
+    const namers: string[] = [];
+    const makers: string[] = [];
+    for (const file of sourceFiles()) {
+      const rel = relative(SRC, file);
+      const text = code(file);
+      if (/\bpgBossProducer\s*\(/.test(text)) askers.push(rel);
+      if (text.includes('@openmig/scheduler/pg-boss')) namers.push(rel);
+      if (/\bnew\s+PgBossProducer\b|\bPgBossJobRunner\b/.test(text)) makers.push(rel);
+    }
+    expect(askers.sort()).toEqual([THE_FUNCTION_FILE, RUNNER_FILE].sort());
+    expect(namers.sort()).toEqual([THE_FUNCTION_FILE, RUNNER_FILE].sort());
+    expect(makers).toEqual([RUNNER_FILE]);
+    // In the function's file, the producer's enqueue comes after the hold, as the SDK's does.
+    const text = code(join(SRC, THE_FUNCTION_FILE));
+    expect(text.search(/producer\.enqueue\s*\(/)).toBeGreaterThan(text.indexOf('status(409)'));
+    expect(text.match(/\.enqueue\s*\(/g)?.length).toBe(1);
   });
 
   it('the function reads the hold before it hands back the enqueue', () => {

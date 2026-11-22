@@ -77,7 +77,7 @@ import { log } from '@openmig/shared';
 import { describeStanding, parseLinksCommand, runLinksCommand } from './operator-links.ts';
 import { describeClosed, parseCloseCommand } from './operator-close.ts';
 import { runCloseCommand } from '../close-account.ts';
-import { getTriggerClient } from '@openmig/scheduler';
+import { cancelRun, closeJobRunner } from '../job-runner.ts';
 import { checkMoneybird, nightlyMoneybird, proveMoneybird } from '@openmig/managed';
 import {
   checkByKind,
@@ -726,7 +726,7 @@ async function main(): Promise<void> {
         const command = parseCloseCommand(rest);
         if ('error' in command) throw new Error(command.error);
         const closed = await runCloseCommand(pool, command, {
-          cancelRun: async (ref) => void (await getTriggerClient().runs.cancel(ref)),
+          cancelRun,
         });
         for (const line of describeClosed(command, closed)) log.info(line);
         break;
@@ -1055,6 +1055,8 @@ async function main(): Promise<void> {
         throw new Error(USAGE);
     }
   } finally {
+    // A close on pg-boss made the producer (`cancelRun`); its pool would keep the process alive.
+    await closeJobRunner();
     await pool.end();
   }
 }

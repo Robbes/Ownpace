@@ -24,7 +24,8 @@
  * WHAT THE API IS GIVEN. `deploy/compose/managed.yml` hands the api service
  * three database URLs: `DATABASE_URL` and `DIRECT_DATABASE_URL`, both composed
  * from `${POSTGRES_USER`, the owner, and `APP_DATABASE_URL`, composed from
- * `${APP_DB_USER`. The first case below reads that block, so "a database URL
+ * `${APP_DB_USER`; from workplan 0167 T7 a fourth, `JOBS_DATABASE_URL`, the
+ * jobs role's (`NOT_THE_OWNER`). The first case below reads that block, so "a database URL
  * other than `APP_DATABASE_URL`" and "the owner's URL" stay the same set of
  * names for the API; an owner URL handed over under a name that does not end in
  * `DATABASE_URL` fails it.
@@ -144,7 +145,16 @@ const SCRIPTS = `${API_SRC}/scripts/`;
 
 /** The names 0138 T4 counts as a database URL (its `IS_DB_URL`). */
 const DB_URL_NAME = /^(?:[A-Z][A-Z0-9]*_)*DATABASE_URL$/;
-const IS_DB_URL = (name: string) => DB_URL_NAME.test(name) && name !== 'APP_DATABASE_URL';
+/**
+ * The two database URLs the API is handed that are not the owner's:
+ * `APP_DATABASE_URL`, the request path's `app_user`, and `JOBS_DATABASE_URL`
+ * (workplan 0167 T6), the role `ownpace_jobs`, which owns the schema `pgboss`
+ * and nothing else, and which the API's job producer (`job-runner.ts`)
+ * enqueues and cancels on. The first case holds both to their roles in
+ * managed.yml.
+ */
+const NOT_THE_OWNER = new Set(['APP_DATABASE_URL', 'JOBS_DATABASE_URL']);
+const IS_DB_URL = (name: string) => DB_URL_NAME.test(name) && !NOT_THE_OWNER.has(name);
 
 /**
  * Functions, each with the file that defines it, that read the owner's URL or
@@ -370,6 +380,10 @@ describe('the API is given the owner under the names this guard counts', () => {
     for (const name of owner) expect(IS_DB_URL(name), `${name} is the owner's and not counted`).toBe(true);
     // And the request path's URL is the application role's, and is set.
     expect(env.get('APP_DATABASE_URL')).toMatch(/^postgresql:\/\/\$\{APP_DB_USER\b/);
+    // The jobs URL, once compose hands it over (0167 T7), is the jobs role's:
+    // never composed from the owner (the filter above), and naming ownpace_jobs.
+    const jobs = env.get('JOBS_DATABASE_URL');
+    if (jobs !== undefined) expect(jobs, 'JOBS_DATABASE_URL is the jobs role’s').toMatch(/ownpace_jobs|\$\{JOBS_DB_USER\b/);
     // T4 still counts the same names.
     expect(readFileSync(join(REPO_ROOT, T4_GUARD), 'utf8')).toContain(DB_URL_NAME.source);
   });

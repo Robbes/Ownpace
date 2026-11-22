@@ -18,6 +18,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   retries; a catalog of the same seventeen jobs for the pg-boss runner is added, which nothing reads
   yet. The sync tick also writes a beat of its own runner each minute, and starts no pass while
   another runner's tick has beaten within the last 90 seconds; no migration.
+- **The API's doors, the close's cancel and the scheduler's readiness follow a switch,
+  `OWNPACE_JOB_RUNNER`** (workplan 0167 T6; ADR-0054). Unset, empty or `trigger`, nothing changes:
+  every door enqueues on Trigger.dev as before, and the API loads no pg-boss. Set to `pg-boss`, the
+  eight doors and the start when a grant lands enqueue through one producer on `JOBS_DATABASE_URL`,
+  with the same singleton keys, tags and fifteen-minute discovery join; a close cancels a pass by
+  its pg-boss id, and a ref of the other runner's kind is refused and left to the erasure's
+  quiesce; `/api/ready/scheduler` reads the same beat, and says `off` without the jobs URL. Any
+  other value stops the API's start in one sentence. No migration; nothing sets the switch yet.
 
 ### Fixed
 
