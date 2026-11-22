@@ -4,6 +4,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
+  (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
+
 ## [0.2.0-alpha.15] - 2026-11-22
 
 One press can now delete, on the new system, the copies listed on *Deleted on the old system*: while
