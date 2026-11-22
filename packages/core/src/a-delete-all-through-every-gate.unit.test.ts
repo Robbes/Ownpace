@@ -25,8 +25,9 @@
  *    the first row or in the middle, even when the share has dropped by the
  *    time the next row is reached;
  *  - what one confirmation can remove is what gate 6 counts: a fifth of the
- *    items placed on the target, removed and adopted ones included, rows with
- *    no recorded collection not, asked afresh at every press, with no total;
+ *    items placed on the target, removed and adopted ones included, failed,
+ *    left-behind and superseded rows and rows with no recorded collection
+ *    not, asked afresh at every press, with no total;
  *  - a row somebody kept in another tab before its turn is refused as
  *    already kept, and the run goes on; a keep during that row's own
  *    removal cannot stop it (ADR-0024, amended 2026-11-22);
@@ -522,9 +523,9 @@ describe('a press that throws', () => {
 /**
  * What one confirmation can remove (ADR-0024's operative rules, the third
  * review's R3). Gate 6 counts `placedItems`: every item placed on the
- * target, those removed since and adopted ones included, rows with no
- * recorded collection not. It is asked afresh at every press, so it caps a
- * run at a fifth and caps no total.
+ * target, those removed since and adopted ones included; failed, left-behind
+ * and superseded rows, and rows with no recorded collection, not. It is asked
+ * afresh at every press, so it caps a run at a fifth and caps no total.
  */
 describe('what one confirmation can remove, as gate 6 counts it', () => {
   const calendarRun = async (ledger: MemoryLedger, hashes: string[]) =>
@@ -567,6 +568,22 @@ describe('what one confirmation can remove, as gate 6 counts it', () => {
     ]);
     for (const hash of five) expect(await statusOf(ledger, 'calendar', hash)).toBe('copied');
   });
+
+  it.each(['failed', 'left_behind', 'superseded'] as const)(
+    'does not count a %s row: 5 waiting of 20 copied and 5 of those is a quarter, and none goes',
+    async (status) => {
+      // Nothing was placed on the target for such a row. Counted, 5 of 25
+      // would be a fifth, and all 5 would go.
+      const ledger = new MemoryLedger();
+      for (let i = 0; i < 20; i++) await ledger.recordIfAbsent(row('calendar', `c-${i}`, i < 5 ? reported : {}));
+      for (let i = 0; i < 5; i++) await ledger.recordIfAbsent(row('calendar', `x-${i}`, { status }));
+
+      expect(await calendarRun(ledger, five)).toEqual([
+        'mass_deletion_suspected',
+        ...Array(4).fill('not tried: refusal (mass_deletion_suspected)'),
+      ]);
+    },
+  );
 
   it('caps no total: once a run’s removals have left the queue, a second confirmation removes another fifth', async () => {
     const ledger = new MemoryLedger();

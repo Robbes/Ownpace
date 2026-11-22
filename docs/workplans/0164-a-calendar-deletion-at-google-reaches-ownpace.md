@@ -4,7 +4,32 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-22, 09:50 UTC, latest: T3's third review is answered; T3 is still held for
+**2026-11-22, 12:05 UTC, latest: T3 is merged (#2024, `15fc504f`) and held for alpha.15; the
+four nits of a fresh check are fixed.** A fresh check of the merged head said *merge as is* and
+named four nits. On `claude/ownpace-public-readiness-y7orc6-0164-t3-nits`:
+- **The press's own check compares evidence too, and a test says so.** The check of the frozen
+  set against the page's rows at the confirming press had no test of its own. A row whose
+  evidence changed on the page under the open confirmation, with the server's list back to the
+  counted rows by the press, now orders nothing in a test, in both directions.
+- **A row with only an assumption left** reads *The old system does not say it was deleted, so
+  it is only assumed to be*, true of a single press and of a run, where the old system did say so
+  when the list was read again. The Dutch says the same.
+- **A copy already removed is apart** (`already_applied`). It has its own group, *Copy already
+  removed on the new system* (*Kopie al verwijderd op het nieuwe systeem*), and its own number
+  in the summary, and is never counted as deleted: a move can have removed it, and the item may
+  live on. Its sentence says the copy had already been removed, in English and Dutch.
+- **What gate 6 counts**, in ADR-0024's operative rule and narrative, the runbook and the arch
+  doc §11.1: `placedItems`, removed and adopted rows counted; failed, left-behind and superseded
+  rows, and rows with no recorded collection, not. The core test holds each exclusion.
+- **Open follow-up, not changed here:** after `applyDeletion` removes an old path's copy, its
+  relocation stays open on Moves and counts toward `mass_relocation_suspected` until someone
+  presses *keep*, and *Delete all of these here too* makes such moves easier to pile up.
+- **Tests:** the page's test (69 cases) holds the press's own check, the four groups and both
+  languages' words; core holds the four exclusions. 14 mutants, each undone byte for byte, are
+  killed.
+- **Next:** CI; E2E (managed) after the live deploy.
+
+**2026-11-22, 09:50 UTC, earlier: T3's third review is answered; T3 is still held for
 alpha.15.** The third review said *fix first*. On
 `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`:
 - **Evidence withdrawn during a run stops it** (R1). Every row had positive evidence when the
@@ -405,7 +430,7 @@ Read for this plan, on `main` at `8b8fac07`:
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
 | T1 What Google answers | builder | ✅ **Done 2026-11-21**: built as #2008, run by the owner; A is the reader | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
 | T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
-| T3 Apply in bulk | builder | 🟡 **Review**, held for alpha.15: built 2026-11-21, both reviews' findings fixed, the keep fix (#2027) taken and F-B built 2026-11-22, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply` | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled`, `removed_not_recorded`, or a press not answered or not started stops the run. ADR-0024 amended |
+| T3 Apply in bulk | builder | ✅ **Merged 2026-11-22** as #2024 (`15fc504f`), held for alpha.15: built 2026-11-21, three reviews' findings fixed, the keep fix (#2027) taken and F-B built; a fresh check's four nits on `claude/ownpace-public-readiness-y7orc6-0164-t3-nits` | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or a press not answered or not started stops the run. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
 

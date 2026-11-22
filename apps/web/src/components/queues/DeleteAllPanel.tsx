@@ -70,8 +70,11 @@
  * Anything else (a fault, a code no gate refuses with) is a press that did
  * not answer: not known.
  *
- * AFTERWARDS IT SAYS WHAT HAPPENED, in the reader's language, in three
- * groups: deleted, not deleted, and not known. The why is said from the
+ * AFTERWARDS IT SAYS WHAT HAPPENED, in the reader's language, in four
+ * groups: deleted, the copy already removed, not deleted, and not known. A
+ * copy already removed (`already_applied`) is never counted as deleted: an
+ * earlier removal took it, a move's included, and the item may live on,
+ * moved. The why is said from the
  * refusal's stable code, and the server's own sentence with its code stays
  * beside it, verbatim, under *Technical details* (docs/i18n-prose-boundary.md,
  * class 2), marked English only where it is the server's.
@@ -169,8 +172,15 @@ const KNOWN_REFUSALS: ReadonlySet<string> = new Set(APPLY_REFUSAL_CODES);
  */
 const EVIDENCE_WITHDRAWN: ReadonlySet<string> = new Set(['not_confirmed', 'weak_evidence']);
 
-/** Refusals that mean the copy is gone all the same: someone else's removal, or one the ledger did not record. */
-const GONE_ALL_THE_SAME: ReadonlySet<string> = new Set(['already_applied', 'removed_not_recorded']);
+/** A refusal that means this press removed the copy all the same: the ledger could not record it. */
+const REMOVED_ALL_THE_SAME: ReadonlySet<string> = new Set(['removed_not_recorded']);
+
+/**
+ * A refusal that means the copy was gone before this press: an earlier
+ * removal took it, a move's included, so the item itself may live on. Said
+ * and counted apart, never as deleted.
+ */
+const ALREADY_REMOVED: ReadonlySet<string> = new Set(['already_applied']);
 
 /** Each refusal code a deletion's press can answer, and each press that started nothing, in the reader's words. */
 const REFUSED: Readonly<Record<string, StringKey>> = {
@@ -230,14 +240,15 @@ export function answerOf(err: unknown): Refusal | undefined {
   return undefined;
 }
 
-type Group = 'deleted' | 'notDeleted' | 'unknown';
+type Group = 'deleted' | 'alreadyRemoved' | 'notDeleted' | 'unknown';
 
-/** Which of the three a row's result belongs to. */
+/** Which of the four a row's result belongs to. */
 function groupOf(result: RunResult): Group {
   if ('failed' in result) return 'unknown';
   if ('notTried' in result) return 'notDeleted';
   if (result.answered.ok) return 'deleted';
-  return GONE_ALL_THE_SAME.has(result.answered.code) ? 'deleted' : 'notDeleted';
+  if (ALREADY_REMOVED.has(result.answered.code)) return 'alreadyRemoved';
+  return REMOVED_ALL_THE_SAME.has(result.answered.code) ? 'deleted' : 'notDeleted';
 }
 
 /** A row as the confirmation counted it: its handle and its evidence. */
@@ -755,13 +766,14 @@ const StatusLine: React.FC<{ run: Run | undefined }> = ({ run }) => {
     }
     case 'done': {
       const results = run.rows.map((row) => run.results[row.naturalKeyHash]).filter((r) => r !== undefined);
-      const counts = { deleted: 0, notDeleted: 0, unknown: 0 };
+      const counts = { deleted: 0, alreadyRemoved: 0, notDeleted: 0, unknown: 0 };
       for (const r of results) counts[groupOf(r)] += 1;
       const stoppedBy = results.find((r) => 'notTried' in r);
       return (
         <span className="font-medium text-gray-900">
           {t('deletions.all.done', {
             deleted: String(counts.deleted),
+            alreadyRemoved: String(counts.alreadyRemoved),
             notDeleted: String(counts.notDeleted),
             unknown: String(counts.unknown),
           })}
@@ -772,7 +784,7 @@ const StatusLine: React.FC<{ run: Run | undefined }> = ({ run }) => {
   }
 };
 
-/** What the run did, in three groups, outside the status line. */
+/** What the run did, in four groups, outside the status line. */
 const RunLists: React.FC<{
   run: Extract<Run, { phase: 'running' | 'done' }>;
   locale: string;
@@ -783,6 +795,7 @@ const RunLists: React.FC<{
   const inGroup = (group: Group) => settled.filter((row) => groupOf(run.results[row.naturalKeyHash]!) === group);
   const groups: ReadonlyArray<{ group: Group; title: StringKey }> = [
     { group: 'deleted', title: 'deletions.all.removed' },
+    { group: 'alreadyRemoved', title: 'deletions.all.alreadyRemoved' },
     { group: 'notDeleted', title: 'deletions.all.notRemoved' },
     { group: 'unknown', title: 'deletions.all.unknown' },
   ];
@@ -865,7 +878,11 @@ const Said: React.FC<{ result: RunResult; locale: string; english: boolean }> = 
   }
   const key = REFUSED[answer.code] ?? 'deletions.refused.other';
   return (
-    <div className={GONE_ALL_THE_SAME.has(answer.code) ? 'text-gray-700' : 'text-amber-800'}>
+    <div
+      className={
+        REMOVED_ALL_THE_SAME.has(answer.code) || ALREADY_REMOVED.has(answer.code) ? 'text-gray-700' : 'text-amber-800'
+      }
+    >
       <p>{t(key)}</p>
       {technical(answer.technical, true)}
     </div>
