@@ -20,7 +20,9 @@ same operating contract in-process (`apps/selfhost`, ADR-0026).
   payments (`POST /api/billing/webhooks/mollie` is the one webhook the API
   serves).
 - Jobs execute as **deployed Trigger.dev tasks** (ADR-0004, workplan 0022);
-  the API only enqueues, via `@openmig/scheduler`'s `trigger-client`.
+  the API only enqueues, via `@openmig/scheduler`'s `trigger-client`. With
+  `OWNPACE_JOB_RUNNER=pg-boss` they go to the worker on pg-boss instead
+  (ADR-0054, workplan 0167), through `src/job-runner.ts`.
 
 ## Quick start (from source, against the compose stack)
 
@@ -74,6 +76,17 @@ contract shared with `deploy-tasks.sh`):
 ```bash
 TRIGGER_API_URL=http://localhost:3090   # the self-hosted trigger instance
 TRIGGER_SECRET_KEY=tr_prod_...          # the project environment's secret key
+```
+
+Which runner the jobs go to (`src/job-runner.ts`): `OWNPACE_JOB_RUNNER` is
+`trigger` (also when unset or empty) or `pg-boss`, and any other value stops the
+start. On pg-boss the API enqueues and cancels through a producer on
+`JOBS_DATABASE_URL`, the role `ownpace_jobs` through PgBouncer, and never needs
+the two variables above:
+
+```bash
+OWNPACE_JOB_RUNNER=pg-boss
+JOBS_DATABASE_URL=postgres://ownpace_jobs:...@pgbouncer:6432/ownpace
 ```
 
 ## Authentication

@@ -86,7 +86,7 @@ import {
   CLOSE_WINDOWS_DAYS,
   holdsMigrationsSaid,
 } from '@openmig/managed';
-import { getTriggerClient } from '@openmig/scheduler';
+import { cancelRun } from '../job-runner.ts';
 import { auditPseudonymKey } from '../audit-key.ts';
 import {
   NotAnAppointedOperator,
@@ -451,7 +451,7 @@ router.post(
         pool(),
         { tenantId, windowDays, by: operator, reference },
         // Built only when a pass in flight has to be asked to stop.
-        { cancelRun: async (ref) => void (await getTriggerClient().runs.cancel(ref)) },
+        { cancelRun },
       );
       res.json(closed);
     } catch (error) {

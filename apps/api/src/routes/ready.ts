@@ -46,6 +46,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
 import { readTickBeat } from '@openmig/managed';
 import { getDbPool } from '../middleware/auth.ts';
+import { jobRunner, type JobRunnerName } from '../job-runner.ts';
 
 const router = Router();
 
@@ -181,11 +182,24 @@ export interface SchedulerReadiness {
  *
  * `up` when the tick's beat is under five minutes old (`readTickBeat`); `down`
  * when it is older, missing, or cannot be read. `off` is "not configured
- * here": a deployment with no orchestrator (`TRIGGER_SECRET_KEY` unset) runs no
- * tick, and its beat would never come.
+ * here": a deployment whose runner is not configured runs no tick, and its
+ * beat would never come. Which runner is `OWNPACE_JOB_RUNNER`'s (0167 T6):
+ * Trigger.dev without `TRIGGER_SECRET_KEY`, or pg-boss without
+ * `JOBS_DATABASE_URL`, is `off`. Either runner's tick writes the same shared
+ * beat, `managed-sync-tick`, so the status page's row reads one beat whichever
+ * runs. A switch set to a value it may not hold is `down`, said in the log.
  */
 export async function schedulerReadiness(now: Date = new Date()): Promise<SchedulerReadiness> {
-  if (!process.env.TRIGGER_SECRET_KEY?.trim()) return { scheduler: 'off' };
+  let runner: JobRunnerName;
+  try {
+    runner = jobRunner();
+  } catch (error) {
+    log.error('[ready] the job runner is not one this API knows:', error);
+    return { scheduler: 'down' };
+  }
+  const configured =
+    runner === 'trigger' ? process.env.TRIGGER_SECRET_KEY?.trim() : process.env.JOBS_DATABASE_URL?.trim();
+  if (!configured) return { scheduler: 'off' };
   try {
     return { scheduler: await readTickBeat(drizzle(pool()), now) };
   } catch (error) {
