@@ -13,7 +13,11 @@
  *    schema at any pg-boss version but the one it was proved on.
  * 2. **Declare the seventeen queues** from the catalog, as it gives them.
  * 3. **Work each queue** with its concurrency: one at a time, the pass
- *    `MAX_PASSES_IN_FLIGHT` and one more. The handler forks the queue's entry
+ *    `MAX_PASSES_IN_FLIGHT` and one more; and never more than
+ *    `MAX_PASSES_IN_FLIGHT` + 2 runs at once across every queue
+ *    (`runsAtOnceFor`), as Trigger.dev's plane admits. A run past either limit
+ *    is not fetched and waits in its queue: it neither fails nor spends an
+ *    attempt, and no kind of run is put ahead of another. The handler forks the queue's entry
  *    with `{ payload, runId, attempt }` and the run's `signal`, which the
  *    runner aborts on a cancel, a lost claim, or 30 s before the run's time
  *    limit, so a run's process is killed, and reaped, before pg-boss could
@@ -30,7 +34,8 @@
  * Healthy (`/health` 200) once all of that is done, and from the moment it
  * stops, unhealthy (503) again.
  *
- * ON STOP: no further run is fetched; the runs already going have
+ * ON STOP: no further run is fetched, and a run waiting for a slot stays in
+ * its queue for the next worker; the runs already going have
  * `STOP_GRACE_MS` to finish; then each run's process still alive is killed,
  * its run failed to be retried, and the runner stops. Inside the compose
  * service's own grace of 60 s.
@@ -91,6 +96,19 @@ export const STOP_SETTLE_MS = 10_000;
 
 /** The sync tick's default cap on passes in flight (`DEFAULT_MAX_PASSES_IN_FLIGHT` in `managed-sync-tick.ts`). */
 export const DEFAULT_MAX_PASSES_IN_FLIGHT = 3;
+
+/**
+ * The most runs the worker runs at once, every queue together:
+ * `MAX_PASSES_IN_FLIGHT` + 2, the limit Trigger.dev's plane admits on the
+ * stack (`deploy/compose/plane-limit.sh`), one slot above the tick's cap for
+ * the tick and one for a cutover's final sync. A run past it is not fetched:
+ * it waits in its queue, at the attempt it had, and a stop leaves it there.
+ * The worker's memory limit is sized for exactly this many runs
+ * (`deploy/compose/managed.yml`).
+ */
+export function runsAtOnceFor(passesInFlight: number): number {
+  return passesInFlight + 2;
+}
 
 /** `MAX_PASSES_IN_FLIGHT` as the sync tick reads it: blank is the default, anything but a whole number ≥ 1 refused. */
 export function passesInFlightFrom(raw: string | undefined): number {
@@ -172,6 +190,7 @@ export class JobWorker {
       connectionString: opts.connectionString,
       schema: JOBS_SCHEMA,
       superviseIntervalSeconds: 15,
+      runsAtOnce: runsAtOnceFor(opts.passesInFlight),
       ...opts.tuning,
     });
   }
@@ -214,7 +233,8 @@ export class JobWorker {
     this.#state = 'running';
     log.info(
       `[worker] working ${catalog.length} queues on pg-boss, passes at once: ` +
-        `${this.#opts.passesInFlight} and one for a cutover.`,
+        `${this.#opts.passesInFlight} and one for a cutover; runs at once, every queue together: ` +
+        `${runsAtOnceFor(this.#opts.passesInFlight)}, the rest waiting in their queues.`,
     );
   }
 

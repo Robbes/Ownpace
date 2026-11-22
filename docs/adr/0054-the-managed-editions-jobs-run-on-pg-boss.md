@@ -30,8 +30,10 @@
   (`scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts`).
 - **Its schema `pgboss` is owned by `ownpace_jobs`**, no superuser and no grant on the ledger,
   made by the bring-up and by neither chain; reached through PgBouncer, polling, never LISTEN.
-- **The `worker` container works the jobs**: a process per run, its heap capped, the container's
-  CPUs and memory capped. One pass per mapping; discovery joins its run; a cutover waits.
+- **The `worker` container works the jobs**: a process per run, its heap capped; half a CPU and
+  512 MB a run. One pass per mapping; discovery joins its run; a cutover waits. **At most
+  `MAX_PASSES_IN_FLIGHT` + 2 runs at once, every queue together**: a run past it waits in its
+  queue (`run-slots.ts`).
 - **A run settles as Trigger.dev 4.8.8 settles it**, decided by the error's name: an hour,
   three for a cutover (§2's table).
 - **The operator sees the work through `operator.sh jobs`**; there is no dashboard.
@@ -274,3 +276,12 @@ operative rules above say them in short; these are the rules in full:
   heading and opening line, as *In force from workplan 0167 T7*, since the operative budget
   (ADR-0051) cannot hold its eleven bullets. Its T8 bullet says the plane is stopped in the
   profile `trigger`. ADR-0004's first rule names pg-boss.
+- **2026-11-22 (workplan 0167, the T9 row's alpha.17 part):** the follow-up is done. The worker
+  holds every queue together to `MAX_PASSES_IN_FLIGHT` + 2 runs at once, counted before each
+  fetch (`packages/scheduler/src/pg-boss/run-slots.ts`), so a run past it stays `created` in its
+  queue: no attempt spent, no time limit counting, nothing lost at a stop, and the queues taking
+  turns at a freed slot, no kind of run ahead of another, as Trigger.dev's plane dequeues at its
+  environment limit.
+  pg-boss's own `work()` fetches whenever a loop is idle, so each queue is worked on its public
+  `fetch`, `touch`, `complete` and `fail`. The operative bullet on the worker says so, and that
+  its size is per run; the *In force* bullet on the +17 stands as the record of alpha.16.

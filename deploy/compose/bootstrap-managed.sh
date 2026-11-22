@@ -1925,11 +1925,16 @@ plane_stop_in_order() {
 # otherwise worked out from this stack's MAX_PASSES_IN_FLIGHT and EXPORTED for
 # the compose calls after it, never written to .env. managed.yml's defaults
 # are the sizing for the default cap of 3 passes; a stack that runs more
-# (live runs 6) needs more. The rules: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) CPUs, a
-# half CPU for each pass the tick may run at once and two for the tick and the
-# jobs beside it; and (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2816 MB, from the
-# worker's measured peak (#2048). Read after load_env, from the
-# environment, as Compose reads them (bash has taken the quotes off).
+# (live runs 6) needs more. The worker runs at most MAX_PASSES_IN_FLIGHT + 2
+# runs at once (the runner's limit, as Trigger.dev's plane admits), so the
+# rules are per run: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) CPUs, a half CPU a run,
+# Trigger.dev's small-1x; and (MAX_PASSES_IN_FLIGHT + 2) x 512 MB, which holds
+# at the limit with every run at its budget: at most MAX_PASSES_IN_FLIGHT + 1
+# passes at 512 MB, one other run at 256 MB and the parent (120 MB measured),
+# 136 MB to spare (workplan 0167). A value .env sets wins, as in Compose; one
+# above the rule is kept and said in one line (live's 6400m, the rule before
+# the limit), one below it is said as a warning. Read after load_env, from
+# the environment, as Compose reads them (bash has taken the quotes off).
 WORKER_CPUS_RULE=''
 WORKER_MEMORY_RULE=''
 worker_sized() {
@@ -1937,23 +1942,46 @@ worker_sized() {
   cap="${cap:-3}"
   [[ "$cap" =~ ^[1-9][0-9]*$ ]] || die "MAX_PASSES_IN_FLIGHT is not a whole number of at least 1, so the worker's size cannot be worked out; the tick refuses it too. Its value is not printed. The worker was not started."
   WORKER_CPUS_RULE="$(awk -v c="$cap" 'BEGIN { printf "%g", 0.5 * (c + 2) }')"
-  WORKER_MEMORY_RULE="$(((cap + 1) * 512 + 2816))m"
+  WORKER_MEMORY_RULE="$(((cap + 2) * 512))m"
   local cpus_from_rule='' memory_from_rule=''
   [ -n "${WORKER_CPUS:-}" ] || cpus_from_rule=1
   [ -n "${WORKER_MEMORY:-}" ] || memory_from_rule=1
   if [ -n "${WORKER_CPUS:-}" ]; then
-    note "WORKER_CPUS ${WORKER_CPUS}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${WORKER_CPUS_RULE})"
+    worker_set_against_rule WORKER_CPUS "$WORKER_CPUS" "$WORKER_CPUS_RULE" "$cap" \
+      "$(awk -v a="$WORKER_CPUS" -v b="$WORKER_CPUS_RULE" 'BEGIN { if (a + 0 > b + 0) print "above"; else if (a + 0 < b + 0) print "below"; else print "at" }')"
   else
     export WORKER_CPUS="$WORKER_CPUS_RULE"
     note "WORKER_CPUS ${WORKER_CPUS}: 0.5 x (MAX_PASSES_IN_FLIGHT ${cap} + 2), for this run's compose calls (not written to .env)"
   fi
   if [ -n "${WORKER_MEMORY:-}" ]; then
-    note "WORKER_MEMORY ${WORKER_MEMORY}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${WORKER_MEMORY_RULE})"
+    local set_bytes rule_bytes where=at
+    rule_bytes="$(worker_memory_bytes "$WORKER_MEMORY_RULE")"
+    # A value Compose cannot read is worker_memory_fit's to refuse, by name.
+    if set_bytes="$(worker_memory_bytes "$WORKER_MEMORY")"; then
+      if [ "$set_bytes" -gt "$rule_bytes" ]; then where=above; elif [ "$set_bytes" -lt "$rule_bytes" ]; then where=below; fi
+    fi
+    worker_set_against_rule WORKER_MEMORY "$WORKER_MEMORY" "$WORKER_MEMORY_RULE" "$cap" "$where"
   else
     export WORKER_MEMORY="$WORKER_MEMORY_RULE"
-    note "WORKER_MEMORY ${WORKER_MEMORY}: (MAX_PASSES_IN_FLIGHT ${cap} + 1) x 512 MB + 2816 MB, for this run's compose calls (not written to .env)"
+    note "WORKER_MEMORY ${WORKER_MEMORY}: (MAX_PASSES_IN_FLIGHT ${cap} + 2) x 512 MB, for this run's compose calls (not written to .env)"
   fi
   worker_size_drift "$cpus_from_rule" "$memory_from_rule"
+}
+
+# worker_set_against_rule <key> <value> <rule> <cap> <above|at|below> — the
+# one line for a size .env sets. Above the rule is a stack that pinned an
+# older, larger rule (live's WORKER_MEMORY=6400m, for alpha.16's worker with
+# no limit on runs at once): it works, and is kept, said with the one command
+# that takes the rule instead. Below the rule, a run at its budget may be
+# killed for memory and is not retried, or the runs at once share less than a
+# half CPU each: kept too, since .env wins, and said as a warning.
+worker_set_against_rule() {
+  local key="$1" value="$2" rule="$3" cap="$4" where="$5"
+  case "$where" in
+    above) note "${key} ${value}, from .env, is above the rule's ${rule} for MAX_PASSES_IN_FLIGHT ${cap} (the worker runs at most $((cap + 2)) runs at once), and is kept as set. To take the rule: ./deploy/compose/env-upsert.sh ${ENV_FILE} ${key}=${rule}" ;;
+    below) note "warning: ${key} ${value}, from .env, is below the rule's ${rule} for MAX_PASSES_IN_FLIGHT ${cap} (the worker runs at most $((cap + 2)) runs at once); kept as set, but runs at their budget may not fit. To take the rule: ./deploy/compose/env-upsert.sh ${ENV_FILE} ${key}=${rule}" ;;
+    *) note "${key} ${value}, from .env (the rule for MAX_PASSES_IN_FLIGHT ${cap}: ${rule})" ;;
+  esac
 }
 
 # worker_size_drift <cpus from the rule> <memory from the rule> — one line when
@@ -2016,11 +2044,11 @@ worker_memory_bytes() {
 worker_memory_fit() {
   local mem="${WORKER_MEMORY:-}" bytes host
   bytes="$(worker_memory_bytes "$mem")" ||
-    die "WORKER_MEMORY is '${mem}', not an amount of memory Compose reads (a number with b, k, m or g). The rule: (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2816 MB = ${WORKER_MEMORY_RULE}. The worker was not started."
+    die "WORKER_MEMORY is '${mem}', not an amount of memory Compose reads (a number with b, k, m or g). The rule: (MAX_PASSES_IN_FLIGHT + 2) x 512 MB = ${WORKER_MEMORY_RULE}. The worker was not started."
   host="$(docker info --format '{{.MemTotal}}' 2>&1)" || die "could not ask Docker how much memory this host has, so the worker's limit of ${mem} cannot be checked against it: ${host}"
   [[ "$host" =~ ^[1-9][0-9]*$ ]] || die "Docker answered '${host}' for this host's memory, which is not a number of bytes, so the worker's limit of ${mem} cannot be checked against it."
   if [ "$bytes" -gt "$host" ]; then
-    die "WORKER_MEMORY is ${mem}, above this host's $((host / 1048576)) MB of memory. Set it to at most that (the rule: (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2816 MB = ${WORKER_MEMORY_RULE}), or lower MAX_PASSES_IN_FLIGHT: ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_MEMORY=<n>m. The worker was not started."
+    die "WORKER_MEMORY is ${mem}, above this host's $((host / 1048576)) MB of memory. Set it to at most that (the rule: (MAX_PASSES_IN_FLIGHT + 2) x 512 MB = ${WORKER_MEMORY_RULE}), or lower MAX_PASSES_IN_FLIGHT: ./deploy/compose/env-upsert.sh ${ENV_FILE} WORKER_MEMORY=<n>m. The worker was not started."
   fi
   note "the worker's memory limit: ${mem}, within this host's memory"
 }

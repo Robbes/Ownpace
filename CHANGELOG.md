@@ -60,6 +60,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The job worker runs at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once, every queue together, as
+  Trigger.dev's plane admits, and its memory limit is lowered to match** (workplan 0167, the T9
+  row's alpha.17 part; ADR-0054). A run past the limit is not fetched: it waits in its queue at the
+  attempt it had, neither failing nor spending a retry, its time limit not counting, and a stop
+  leaves it there; the queues take turns at a slot that frees. The memory rule is now
+  (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB, 2,560 MB at 3 (`managed.yml`'s default) and 4,096 MB at 6,
+  from (`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB + 2,816 MB; the CPU rule is unchanged. A `.env` that
+  pins the old, larger values (live's `WORKER_MEMORY=6400m`) is kept, and the bring-up says so in
+  one line with the command that takes the rule. No migration, no pin moved.
+
 - **The managed edition's jobs run on pg-boss, on its own Postgres; Trigger.dev is kept installed
   and stopped as the way back** (workplan 0167 T7; ADR-0054, now in force). `managed.yml` gives
   `OWNPACE_JOB_RUNNER` the default `pg-boss` for the API and the worker, and the worker starts with
