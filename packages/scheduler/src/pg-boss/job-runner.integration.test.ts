@@ -623,8 +623,10 @@ describe('E2: a producer enqueues, and never migrates, supervises, schedules or 
     const second = await p.enqueue(queue, { n: 1 }, { serializeBy: 'm-e2' });
     await until('one run of the key to be running', async () => release.length === 1, 20_000);
     await sleep(1500);
-    // The per-key limit came from the producer's spec: one active, the other waiting.
-    expect((await p.status(second.runId!))?.state).toBe('queued');
+    // The per-key limit came from the producer's spec: one active, the other waiting, in either
+    // order, since a singleton queue does not promise which waiting run goes next (§4, 2).
+    const states = [(await p.status(first.runId!))?.state, (await p.status(second.runId!))?.state].sort();
+    expect(states).toEqual(['queued', 'running']);
     while (release.length) release.shift()!();
     const a = await until('both to finish', async () => {
       while (release.length) release.shift()!();
