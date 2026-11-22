@@ -11,6 +11,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and event off the target, `SCHEDULE-AGENT=CLIENT` included. It hashes a seeded message on both
   accounts, and deletes the row to see the copies converge back. The appliance's e2e does the
   same through `address-changes.json`, on both backends.
+- **Contacts and calendars take the organisation's confirmed address changes, and say so; nothing
+  shows them yet** (workplan 0168 T4, T5, T6; ADR-0055). Every contact, calendar and task pass
+  applies the confirmed rows before the writer's repairs, records the table it wrote under
+  (`item.address_digest`), and rewrites a copy once when the table changes, leaving an adopted or
+  edited copy alone. Past a data type's cutover a change waits for *Apply the new addresses here
+  too* (`POST /api/migrations/{mappingId}/address-changes/apply`, and the appliance's
+  `POST /mappings/{id}/address-changes/apply`; ledger migration 0073). The confirmed list and the
+  §20 report count changed copies and name the table's digest, and a copy under an older table is
+  never a match. The Sharing checklist's folder press takes a confirmed row as a grantee's
+  confirmation. The completion report says *Addresses changed*, and that mail was copied
+  unchanged, in English and Dutch.
 - **The forms an address takes, and the change of an old address to a new one, as pure functions
   nothing calls yet** (workplan 0168 T1 and T3; ADR-0055). `addressKey` (moved from
   `googleAccountKey`, the sign-in's behaviour unchanged), `NOT_TAKEN_ALONG` and `cannotTakeAlong`

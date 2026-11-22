@@ -26,7 +26,7 @@
  * phase is believed: it runs no pass, and its phase says the rest.
  */
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import {
   pathRunsNow,
   phasesOfThePaths,
@@ -35,6 +35,7 @@ import {
   shareMayBeApplied,
   type PathPhaseOf,
   type PathRow,
+  addressTableDigest,
   addressTablePressDigest,
 } from '@openmig/shared';
 import * as schemaPg from './schema-pg.ts';
@@ -176,6 +177,24 @@ export async function readPathPhases(
 }
 
 /**
+ * The press digest a person last recorded for this migration (migration
+ * 0073; ADR-0055, workplan 0168 D5), or undefined when nobody pressed it. Not
+ * a phase: the managed builder asks this beside the one reader of the phases
+ * (`readPathPhases`), which the appliance's pass already holds.
+ */
+export async function readAddressChangesApplied(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ digest: schemaPg.mailboxMapping.addressChangesAppliedDigest })
+    .from(schemaPg.mailboxMapping)
+    .where(and(eq(schemaPg.mailboxMapping.id, mappingId), eq(schemaPg.mailboxMapping.tenantId, tenantId)));
+  return row?.digest ?? undefined;
+}
+
+/**
  * A person pressed *Apply the new addresses here too* on one migration
  * (ADR-0055; workplan 0168 D5): record the confirmed table's digest it was
  * pressed for, by whom, inside the organisation's transaction. Past a data
@@ -254,4 +273,59 @@ export async function applyNewAddressesHere(
   const digest = addressTablePressDigest(rows);
   const recorded = await recordAddressChangesApplied(db, tenantId, mappingId, digest, appliedBy);
   return recorded ? { digest, rows: rows.length } : null;
+}
+
+/** One data type's copies carrying an address change (ADR-0055), counted. */
+export interface AddressChangesInDomain {
+  readonly domain: 'contact' | 'calendar' | 'task';
+  /** Written under the table as it is now. */
+  readonly changed: number;
+  /** Written under an older table, waiting for the next pass. */
+  readonly older: number;
+}
+
+/**
+ * The address table's part of one migration, for its completion report
+ * (ADR-0055; workplan 0168 §6.3): how many confirmed rows the organisation's
+ * table holds, its digest, and per data type how many copies we wrote carry a
+ * change. Counts only, never an address. A data type with none is left out.
+ */
+export async function readAddressChangesForReport(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+): Promise<{ readonly rows: number; readonly digest: string | null; readonly byDomain: AddressChangesInDomain[] }> {
+  const rows = await db
+    .select({
+      oldKey: schemaPg.addressChange.oldKey,
+      oldAddress: schemaPg.addressChange.oldAddress,
+      newAddress: schemaPg.addressChange.newAddress,
+    })
+    .from(schemaPg.addressChange)
+    .where(and(eq(schemaPg.addressChange.tenantId, tenantId), eq(schemaPg.addressChange.state, 'confirmed')));
+  const digest = addressTableDigest(rows);
+  const counted = await db
+    .select({
+      domain: schemaPg.item.domain,
+      addressDigest: schemaPg.item.addressDigest,
+      n: sql`count(*)`.mapWith(Number),
+    })
+    .from(schemaPg.item)
+    .where(
+      and(
+        eq(schemaPg.item.tenantId, tenantId),
+        eq(schemaPg.item.mappingId, mappingId),
+        isNotNull(schemaPg.item.addressDigest),
+        inArray(schemaPg.item.status, ['copied', 'updated', 'deleted_source']),
+      ),
+    )
+    .groupBy(schemaPg.item.domain, schemaPg.item.addressDigest);
+  const byDomain: AddressChangesInDomain[] = [];
+  for (const domain of ['contact', 'calendar', 'task'] as const) {
+    const mine = counted.filter((c) => c.domain === domain);
+    const changed = mine.filter((c) => c.addressDigest === digest).reduce((n, c) => n + c.n, 0);
+    const older = mine.filter((c) => c.addressDigest !== digest).reduce((n, c) => n + c.n, 0);
+    if (changed + older > 0) byDomain.push({ domain, changed, older });
+  }
+  return { rows: rows.length, digest, byDomain };
 }

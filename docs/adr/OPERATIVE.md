@@ -795,7 +795,8 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail](./0055-a-new-address-is-a-declared-change.md)
 
-- **Not built yet** (workplan 0168 T1–T8). Until it is, no address in any copied item changes.
+- **Built in the engine, not yet shown** (workplan 0168 T1, T3–T6; T7, T8 open). A copy changes only
+  once the organisation's table holds a confirmed row; with none, every byte is the source's.
 - **One table per organisation**, `address_change`, in the shared chain under forced row security.
   Only rows a person **confirmed** reach a writer; the machine proposes, never confirms. An admin
   may confirm for a person, attributed; the person can undo it (0168 D6).

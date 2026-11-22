@@ -25,6 +25,38 @@ runner, and nothing here dispatches them.
   bakes its config directory. It does not prove the silence either: that stack runs no mail
   catcher. The managed gate proves both.
 
+**2026-11-22: T4, T5 and T6's backend built, on `claude/ownpace-0168-engine`** (merges
+`claude/ownpace-0168-table` for T2's migrations and reader). Nothing is shown yet (T7).
+
+- **T4.** Each contact, calendar and task pass reads the tenant's confirmed rows once, at its
+  start, in both dispatchers (`addressChangesForPass`; `runAllDomains` and
+  `buildDomainDepsFromMapping`), and changes the body the source gave before anything reads it.
+  The writers' `repairPayload` and `neutraliseScheduling` then run on the changed body, and the
+  loop's hash, the writer's PUT and the ledger name one set of bytes. `item.address_digest` is
+  recorded on a create (through `UpsertOptions`, the writers' own race) and on a rewrite, null
+  included. `classifyKnownItem` answers `rewrite-addresses` on a changed digest: an adopted copy
+  is left alone and counted, the write carries `If-Match`, a tombstone stays. Past a data type's
+  cutover it waits (`addressChangesWaiting`) unless a person pressed *Apply the new addresses here
+  too*: `POST /api/migrations/{mappingId}/address-changes/apply` (managed) and
+  `POST /mappings/{id}/address-changes/apply` (appliance), one ledger door
+  (`applyNewAddressesHere`), recorded on `mailbox_mapping` (ledger 0073) and read with the
+  phases every pass reads. Proven by unit tests on the real loop with the memory ledger
+  (`a-new-address-that-converges.unit.test.ts`: a pass after a pass writes nothing; a table
+  change rewrites each affected item once; removing the row converges back; adopted and edited
+  copies left alone; tombstones kept; D5 waits, then goes through), two mutations of the rule
+  caught, and a PGlite read of the column, the press and the phases. **Not run here:**
+  integration against Stalwart and Nextcloud (no container runtime in the build session).
+- **T5.** The confirmed list and the §20 report name the table's digest and count copies changed
+  under it and under an older table. An older one is never a match: its list row reads
+  `differs` with `address: older`, its verification sample is set aside and warned about.
+  Proven by unit tests, a mutant of `confirmed-list.ts` run against them, a mutation of
+  `verification.ts`, and the PGlite read.
+- **T6.** A confirmed row is a grantee's confirmation in the folder press, and the sharing read
+  carries `granteeNewAddress` for the page to propose. The single-row press is unchanged: it
+  still sends its address. ADR-0032's gates are unchanged (the existing share-queue tests pass).
+- **Completion report:** *Addresses changed* / *Gewijzigde adressen*, counts per data type and
+  the line that mail was copied unchanged, in EN and NL.
+
 **2026-11-22: T1 and T3 built, on `claude/ownpace-0168-core`.** Nothing calls either yet.
 
 - **T1.** `packages/shared/src/address-forms.ts`: `addressKey`, `isAddress`, `NOT_TAKEN_ALONG`,
@@ -96,9 +128,9 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 | T1 Address forms and the list of addresses nobody can take along | builder | 🔄 **Built 2026-11-22, in review** | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moved there, no behaviour change. The list holds Google's two domains; the rest wait for their sources to be read (Status). |
 | T2 The table of address changes | builder | 🟡 **Built, in review** | §4, §5. `address_change` (ledger 0071), `item.address_digest` (0072), `address_change_person` (managed 0063), routes in both editions, `PURGED_TABLES`, Support's counts. Status 2026-11-22. |
 | T3 The change itself, as a pure function | builder | 🔄 **Built 2026-11-22, in review** | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests; mail-path guard. |
-| T4 The writers apply it, and a changed table converges | builder | 📋 **Proposed** | §3. CardDAV, JMAP contacts and CalDAV writers; `item.address_digest`; `classifyKnownItem`. |
-| T5 Verification and the confirmed list say what was changed | builder | 📋 **Proposed** | §3.1. A declared change, never a silent difference. |
-| T6 The Sharing checklist reads the table | builder | 📋 **Proposed** | §2.4. Pre-fills the grantee; each press still sends its address. |
+| T4 The writers apply it, and a changed table converges | builder | 🔄 **Built 2026-11-22, in review** | §3. CardDAV, JMAP contacts and CalDAV writers; `item.address_digest`; `classifyKnownItem`. |
+| T5 Verification and the confirmed list say what was changed | builder | 🔄 **Built 2026-11-22, in review** | §3.1. A declared change, never a silent difference. |
+| T6 The Sharing checklist reads the table | builder | 🔄 **Backend built 2026-11-22, in review** | §2.4. Pre-fills the grantee; each press still sends its address. |
 | T7 The screens | builder | 📋 **Proposed** | §6. *Start a migration*'s step, the person's page, the organisation's table, the migration page. |
 | T8 The E2E lane proves it | builder | 🟡 **Written, not run** | §8. The managed gate and the appliance's e2e: bytes changed where declared, mail byte-identical, no mail sent. |
 | T9 Words outside the app | owner | ⏳ **Waiting** | §5, §7. The privacy policy (D8), the customer guides. |

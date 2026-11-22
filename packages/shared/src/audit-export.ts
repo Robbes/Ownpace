@@ -82,6 +82,8 @@ export const AUDIT_DETAIL_FIELDS = {
   attempted: 'keep',
   applied: 'keep',
   grantees: 'keep',
+  // How many grantees a folder press sent by the address table (ADR-0055): a count.
+  fromAddressChanges: 'keep',
   sent: 'keep',
   failed: 'keep',
   withoutAddress: 'keep',
