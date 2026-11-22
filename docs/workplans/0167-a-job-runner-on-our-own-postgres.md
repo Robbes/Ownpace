@@ -771,6 +771,26 @@ from alpha.14 stays reversible by `deploy-live.sh`'s own rule.
     - `a-connection-the-docs-did-not-know-about`: the guide's row changed failed 1.
   - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
 - **Next:** T6 and the rest of T7 (the worker service, `JOBS_DATABASE_URL`, the switch).
+**2026-11-22: the privacy policy's *Server logs* row, decided by the owner.** Under Trigger.dev
+each run had its own container, whose log went when the run ended; under the runner, runs are
+processes in one long-lived worker container, whose log goes when the worker is replaced, at each
+update of the service. So privacy §9's *"for a background task, when its run ends"* stops being
+true once the runner runs the jobs. The owner, verbatim: *"Option A, but keep the policy on 1.0,
+since no tester has yet accepted it."* Option A: the background tasks' logs go at each update of
+the service, as the app's do. Both languages say so, still 1.0, edited in place and dated
+2026-11-22, with the two privacy pins in `ACCEPTED_WORDS` moved
+(`scripts/a-version-the-tester-accepted.unit.test.ts`). It merges together with T7's pull request,
+which turns the runner on, so the published text never says more than the running service does.
+§4.5 and the *Records of the background tasks* row rest on #2040, which merges before this one:
+the worker writes every line a run writes to stdout or stderr to its own output, prefixed with the
+queue and the run id; a child that dies is reported by a fixed sentence and a verdict, never by its
+text; and a run that fails on its own stores only its error's `{ name, message }`, which the jobs'
+wrapper makes a category and a reference. It merges only while no tester has accepted any version,
+which the owner confirms on the day it merges: if one has by then, the words take 1.1 instead, in
+both languages, `LEGAL_VERSIONS` and `ACCEPTED_WORDS`, with §13's notice. If it merges on a later
+day, both *Last updated* lines and both pins move to that day, in the same pull request. The row
+holds for the worker only with what T7 carries (its row below). `site/legal/README.md` records the
+edit, as every earlier change of the policy's words did.
 
 **2026-11-22, later: the owner's yes, and the runner as production code (T4, T5).**
 The owner, after the spike: *"Put in the successful spike (replace triggerdev)."* Earlier the same
