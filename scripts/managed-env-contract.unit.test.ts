@@ -238,6 +238,37 @@ describe('NODE_ENV: every stack names its mode (workplan 0132 T4)', () => {
   });
 });
 
+describe("the example hands the job worker no note as a value (workplan 0167 T7)", () => {
+  // The worker receives each key its service names, and a `.env` copied from
+  // the example hands Compose `KEY=   # note` as the value "# note", where
+  // set-task-env.sh, which sources the file, uploads nothing for it. A
+  // retention of "# run LOGS" stops the retention job; a URL of "# default"
+  // points the tick at nothing. So no key the worker reads may carry its note
+  // on its own line in the example, whether or not managed.yml defaults it.
+  const managed = read('managed.yml');
+  const block = /^ {2}worker:\n([\s\S]*?)(?=^ {2}[a-z][a-z0-9-]*:\n|^[a-z])/m.exec(managed)?.[1] ?? '';
+  const keys = new Set([...block.matchAll(/\$\{([A-Z_][A-Z0-9_]*)[:}]/g)].map((m) => m[1]!));
+
+  it('found the keys the worker reads (vacuity)', () => {
+    expect(keys.size, 'no ${VAR} in managed.yml\'s worker service').toBeGreaterThan(30);
+    expect(keys.has('LEDGER_RETENTION_DAYS')).toBe(true);
+  });
+
+  it('leaves none of them empty with a comment on the same line', () => {
+    const glued = read('managed.env.example')
+      .split('\n')
+      .flatMap((line) => {
+        const m = /^([A-Z_][A-Z0-9_]*)=[ \t]+#/.exec(line);
+        return m && keys.has(m[1]!) ? [m[1]!] : [];
+      });
+    expect(
+      glued,
+      'managed.env.example leaves these empty with a comment on the same line, and the worker receives the comment ' +
+        'as the value: move the comment to a line of its own and leave `KEY=` bare',
+    ).toEqual([]);
+  });
+});
+
 describe('the example cannot switch a compose default off', () => {
   // `${VAR:-default}` with a NON-EMPTY default: the keys whose fallback a
   // copied example could silently replace. An empty default (`${SMTP_SECURE:-}`)

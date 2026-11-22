@@ -37,7 +37,8 @@
  *
  * WHAT IS ASSERTED.
  *
- *   managed.yml: every service that sets NODE_ENV requires it with `:?`, none
+ *   managed.yml: every service that sets NODE_ENV requires it with `:?` or
+ *   fixes it to `production` (the job worker, workplan 0167 T7), none
  *   defaults it, and the message names both values and the plan, with no `}`
  *   or `$` that would end or expand it early.
  *
@@ -117,8 +118,13 @@ describe('managed.yml: every stack names its mode', () => {
   });
 
   it.each(setters.map((s) => [s.name, s.value] as const))(
-    'the %s service requires it with :?, and the message names the fix',
+    'the %s service requires it with :?, and the message names the fix, or fixes it to production',
     (_name, value) => {
+      // A service fixed to `production` cannot run development whatever .env
+      // says, which is the side this rule fails to: the job worker's (workplan
+      // 0167 T7), which reads no placeholder secret and takes no token. Any
+      // other literal, `development` among them, is a mode .env did not name.
+      if (value === 'production') return;
       const m = /^\$\{NODE_ENV:\?([^}$]+)\}$/.exec(value);
       expect(m, `NODE_ENV is handed as ${JSON.stringify(value)}, not \${NODE_ENV:?<the fix>}`).not.toBeNull();
       const message = m![1]!;

@@ -124,6 +124,8 @@ export const POLICIES: Readonly<Record<string, Readonly<Record<string, Policy>>>
     zitadel: { caps: [] },
     'zitadel-machinekey': { caps: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER'], readOnly: [] },
     api: { caps: [] },
+    // The job worker (workplan 0167 T7): uid 65532 from its first process, on the API's images.
+    worker: { caps: [], readOnly: ['/tmp'] },
     // nginx as its own user, uid 101, from its first process since 2026-11-19 (apps/web/Dockerfile).
     web: { caps: [] },
     gatus: { caps: [] },
@@ -813,8 +815,8 @@ describe('each rule fails when it is broken', () => {
       guideProblems(guide.replace(/^(\| `nextcloud` \|[^|]*\|) Docker's default \|/m, '$1 CHOWN |'), POLICIES).join('\n'),
     ).toMatch(/says nextcloud keeps CHOWN, the policy Docker's default/);
     expect(
-      guideProblems(guide.replace(/^(\| `gatus` \|.*\n)/m, '$1| `worker` | root | none | no | read |\n'), POLICIES).join('\n'),
-    ).toMatch(/has a row for worker, which is not a service/);
+      guideProblems(guide.replace(/^(\| `gatus` \|.*\n)/m, '$1| `poller` | root | none | no | read |\n'), POLICIES).join('\n'),
+    ).toMatch(/has a row for poller, which is not a service/);
     expect(
       guideProblems(guide.replace(/^(\| `www` \(www\.yml\) \|[^|]*\|) CHOWN, NET_BIND_SERVICE, SETGID, SETUID \|/m, '$1 CHOWN |'), POLICIES).join('\n'),
     ).toMatch(/says www \(www\.yml\) keeps CHOWN, the policy CHOWN, NET_BIND_SERVICE, SETGID, SETUID/);

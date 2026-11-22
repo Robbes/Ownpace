@@ -27,7 +27,7 @@
  *   the webapp's goose fetch make them (#1850, #1862, #1866), and only for
  *   no answer, a file cut short, a 5xx or a 429; one that still fails is
  *   refused as a download, with what GitHub answered (`downloadAsset`).
- * - **The images** `ghcr.io/robbes/ownpace-{api,web,selfhost}` at `X.Y.Z`:
+ * - **The images** `ghcr.io/robbes/ownpace-{api,web,selfhost,worker}` at `X.Y.Z`:
  *   an index with linux/amd64 and linux/arm64, its revision label the
  *   commit, `sha-<commit>` the same index, `latest` withheld from a
  *   pre-release and given to a release. Read from the registry's own API
@@ -64,8 +64,19 @@ import { pathToFileURL } from 'node:url';
 import { github, pass, refuse, note, render, report, short } from './release-github.mjs';
 import { nodeRuntimeVersion } from './package-appliance.mjs';
 import { TASK_BASE_CONFIG, TASK_BASE_LINE, taskBasePin } from './idp-pin-watch.mjs';
+import { compareSemVer } from './release-names-agree.mjs';
 
-export const IMAGES = ['api', 'web', 'selfhost'];
+export const IMAGES = ['api', 'web', 'selfhost', 'worker'];
+/**
+ * The first release an image is published at, for one that came after the
+ * first release: the job worker's is 0.2.0-alpha.16 (workplan 0167 T7). A tag
+ * before it gets a note for that image, not a refusal, as a tag whose config
+ * pins no task base does.
+ */
+export const FIRST_RELEASE = { worker: '0.2.0-alpha.16' };
+
+/** Whether `image` is published at the release `tag` (bare, `X.Y.Z`): every image is, but one older than its first release. */
+export const publishedAt = (image, tag) => !Object.hasOwn(FIRST_RELEASE, image) || compareSemVer(tag, FIRST_RELEASE[image]) >= 0;
 export const REGISTRY = 'ghcr.io/robbes';
 export const ISSUER = 'https://token.actions.githubusercontent.com';
 /** The identity regexp `docs/release.md` documents, to the character. */
@@ -558,6 +569,10 @@ async function checkImages({ version, commit }) {
   const tag = bare(version);
   const digests = {};
   for (const image of IMAGES) {
+    if (!publishedAt(image, tag)) {
+      lines.push(note(`image-${image}`, `ownpace-${image} is published from ${FIRST_RELEASE[image]} on, and ${version} is older`));
+      continue;
+    }
     try {
       lines.push(...(await checkImage({ image, tag, version, commit, digests })));
     } catch (err) {

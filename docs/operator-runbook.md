@@ -211,7 +211,11 @@ line's last field with `<client-ip>` as it replaces mesh addresses with
 **How long they stay.** Every container writes with Docker's default log driver,
 `json-file`, which keeps its output until the container is removed: at each
 deploy for the app and the site, when its image or settings change for the
-sign-in service, and when its run ends for a task. That is privacy §9's *"until
+sign-in service, and when its run ends for a task. The job worker (`worker`,
+defined and not started until the job runner's switch is turned on, workplan
+0167 T7) goes at each deploy as the app does: its image carries the commit it
+was built from (`GIT_SHA`), as the API's does, so every release is a new image
+and Compose replaces its container. That is privacy §9's *"until
 the part of the service that wrote them is replaced"*. The stack's own services
 (`managed.yml`, the app and the sign-in service among them) also rotate it by
 size, five files of 20 MB: one that writes a lot keeps only about its last

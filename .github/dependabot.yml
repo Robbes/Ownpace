@@ -121,6 +121,9 @@ updates:
   # 13): its two FROM lines are apps/api/Dockerfile's two, and
   # scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts holds them
   # equal, so it is in this group and moves in the same pull request.
+  # apps/worker is the job worker's image (workplan 0167 T7), on the same two
+  # FROM lines, held equal by scripts/a-worker-image-on-the-apis-base.unit.test.ts,
+  # and in the group for the same reason.
   - package-ecosystem: docker
     cooldown:
       default-days: 3
@@ -128,6 +131,7 @@ updates:
       - "/apps/api"
       - "/apps/web"
       - "/apps/selfhost"
+      - "/apps/worker"
       - "/apps/worker/task-image"
     schedule:
       interval: weekly
