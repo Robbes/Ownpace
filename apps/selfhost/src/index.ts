@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, type PathEnding } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, applyNewAddressesHere, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -3514,6 +3514,26 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           log.info(`[selfhost] ${m.config.mappingId}: ${domain} ${stop ? 'stopped' : 'resumed'} by operator`);
         }
         return sendJson(res, 200, { id, domain, stopped: stop, changed: outcome.changed });
+      }
+
+      // POST /mappings/:id/address-changes/apply — *Apply the new addresses
+      // here too* (ADR-0055; workplan 0168 D5), through the ledger's own door,
+      // as managed's route. The person on this loopback page is its owner, so
+      // the press is the operator's, as its decisions are.
+      const applyMatch =
+        req.method === 'POST' && req.url ? /^\/mappings\/([^/?]+)\/address-changes\/apply$/.exec(req.url) : null;
+      if (applyMatch) {
+        await drain(req);
+        const id = decodeURIComponent(applyMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const tenantId = m.config.tenantId as string;
+        const applied = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+          applyNewAddressesHere(tdb, tenantId, m.mailboxMappingId, 'operator'),
+        );
+        if (applied === null) return sendJson(res, 404, { error: 'unknown mapping' });
+        log.info(`[selfhost] ${m.config.mappingId}: new addresses applied here too by operator (${applied.rows} row(s))`);
+        return sendJson(res, 200, { id, applied: true, digest: applied.digest, rows: applied.rows });
       }
 
       // POST /mappings/:id/domains/:domain/end and …/keep — end or keep one data

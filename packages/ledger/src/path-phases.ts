@@ -35,6 +35,7 @@ import {
   shareMayBeApplied,
   type PathPhaseOf,
   type PathRow,
+  addressTablePressDigest,
 } from '@openmig/shared';
 import * as schemaPg from './schema-pg.ts';
 import type { PgDatabase } from './db-types.ts';
@@ -217,4 +218,40 @@ export async function readShareGate(
   const phases = await readPathPhases(db, tenantId, mappingId);
   if (phases === null) return () => false;
   return (subject) => shareMayBeApplied(subject, phases.status, phases.phaseOf);
+}
+
+/** What a press of *Apply the new addresses here too* answers. */
+export interface AddressChangesApplied {
+  /** The press digest recorded (`addressTablePressDigest`). */
+  readonly digest: string;
+  /** How many confirmed rows the table held when it was pressed. A count, never an address. */
+  readonly rows: number;
+}
+
+/**
+ * THE PRESS ITSELF (ADR-0055; workplan 0168 D5), the one door both editions
+ * use: read the organisation's confirmed address table as it is now, and
+ * record its press digest on the migration. Null when the migration is not
+ * this organisation's. The next pass rewrites, past a data type's cutover,
+ * the copies whose table moved and that the person has not edited since
+ * (the `If-Match` rule); before the cutover the press changes nothing, since
+ * the table applies there anyway.
+ */
+export async function applyNewAddressesHere(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  appliedBy: string,
+): Promise<AddressChangesApplied | null> {
+  const rows = await db
+    .select({
+      oldKey: schemaPg.addressChange.oldKey,
+      oldAddress: schemaPg.addressChange.oldAddress,
+      newAddress: schemaPg.addressChange.newAddress,
+    })
+    .from(schemaPg.addressChange)
+    .where(and(eq(schemaPg.addressChange.tenantId, tenantId), eq(schemaPg.addressChange.state, 'confirmed')));
+  const digest = addressTablePressDigest(rows);
+  const recorded = await recordAddressChangesApplied(db, tenantId, mappingId, digest, appliedBy);
+  return recorded ? { digest, rows: rows.length } : null;
 }

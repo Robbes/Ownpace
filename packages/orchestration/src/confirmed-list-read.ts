@@ -36,6 +36,7 @@
 import type { Pool } from 'pg';
 import {
   ConfirmationStore,
+  PgLedger,
   RunStore,
   withTenant,
   type LedgerDriver,
@@ -44,6 +45,7 @@ import {
 import { and, desc, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
+  addressTableDigest,
   budgetPauseToReason,
   confirmedListCsv,
   confirmedListOf,
@@ -99,6 +101,8 @@ export const CONFIRMED_ROWS_SHOWN = 1000;
 export async function walkConfirmedRows(
   scope: ConfirmedListScope,
   visit: (row: ConfirmedRowView) => void | Promise<void>,
+  /** The address table's digest now (ADR-0055), read once for the walk; `currentAddressDigest`. */
+  addressDigest?: string | null,
 ): Promise<void> {
   let after: string | undefined;
   for (;;) {
@@ -108,6 +112,7 @@ export async function walkConfirmedRows(
         mappingId: scope.mappingId,
         batch: PAGE,
         ...(after ? { after } : {}),
+        ...(addressDigest !== undefined ? { addressTableDigest: addressDigest } : {}),
       }),
     );
     if (page.length === 0) return;
@@ -129,11 +134,24 @@ export async function walkConfirmedRows(
         // undefined for the fall-back to fire.
         ...(row.displayName ? { displayName: row.displayName } : {}),
         confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
+        ...(row.address ? { address: row.address } : {}),
       });
     }
     after = last;
     if (page.length < PAGE) return;
   }
+}
+
+/**
+ * The organisation's confirmed address table's digest now (ADR-0055; workplan
+ * 0168 T5), or null for an empty table: what every row of the list is judged
+ * against, read once per read of the list.
+ */
+export async function currentAddressDigest(scope: ConfirmedListScope): Promise<string | null> {
+  const rows = await withTenant(scope.source, scope.tenantId, (db: PgDatabase) =>
+    new PgLedger(db).listConfirmedAddressChanges(scope.tenantId),
+  );
+  return addressTableDigest(rows);
 }
 
 /**
@@ -236,8 +254,9 @@ export async function readConfirmedList(
   scope: ConfirmedListScope,
   lifecycle: MappingLifecycle,
 ): Promise<ConfirmedListQueue> {
-  const list = confirmedListOf<ConfirmedRowView>({ limit: CONFIRMED_ROWS_SHOWN });
-  await walkConfirmedRows(scope, (row) => list.add(row));
+  const addressDigest = await currentAddressDigest(scope);
+  const list = confirmedListOf<ConfirmedRowView>({ limit: CONFIRMED_ROWS_SHOWN, addressDigest });
+  await walkConfirmedRows(scope, (row) => list.add(row), addressDigest);
   const shaped = list.result();
   const pass = await latestConfirmationPass(scope);
   return {
@@ -250,6 +269,8 @@ export async function readConfirmedList(
     // nought is what the owner met on 2026-09-17. From the shaper, never
     // recomputed here: the arithmetic has one home.
     byState: shaped.byState,
+    // The address table's part of the account, named by its digest (ADR-0055).
+    ...(shaped.addressChanges ? { addressChanges: shaped.addressChanges } : {}),
     ...(shaped.truncated ? { truncated: true } : {}),
     ...pass,
   };
@@ -282,10 +303,14 @@ export async function streamConfirmedListCsv(
     batch = [];
     await write(chunk);
   };
-  await walkConfirmedRows(scope, async (row) => {
-    batch.push(row);
-    if (batch.length >= PAGE) await flush();
-  });
+  await walkConfirmedRows(
+    scope,
+    async (row) => {
+      batch.push(row);
+      if (batch.length >= PAGE) await flush();
+    },
+    await currentAddressDigest(scope),
+  );
   await flush();
 }
 

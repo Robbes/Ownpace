@@ -3233,6 +3233,51 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/migrations/{mappingId}/address-changes/apply:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Migrations]
+      summary: Apply the new addresses here too
+      description: |
+        *Apply the new addresses here too* (ADR-0055; workplan 0168 §3.4,
+        D5). Past a data type's cutover the target is the person's live
+        system, so a change to the organisation's table of address changes
+        (`/api/address-changes`) reaches that data type's copies only once
+        someone presses this on the migration. Before the cutover the table
+        applies anyway, and the press changes nothing.
+
+        It records the CONFIRMED table as it is now, by its digest. The next
+        pass rewrites the contacts and events whose table moved and which the
+        person has not edited since (the copy's `If-Match`); an edited one is
+        left as the person has it. A later change to the table waits for a
+        press of its own. Pressing again for the same table records the same
+        digest. Mail is never changed.
+
+        **The appliance answers `POST /mappings/{mappingId}/address-changes/apply`
+        in the same shape**, recorded as the operator's press.
+      responses:
+        '200':
+          description: Recorded. The rows are counted, never named.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, applied, digest, rows]
+                properties:
+                  id: { type: string }
+                  applied: { type: boolean, enum: [true] }
+                  digest:
+                    type: string
+                    pattern: '^[0-9a-f]{64}$'
+                    description: The digest of the confirmed table the press was made for.
+                  rows:
+                    type: integer
+                    minimum: 0
+                    description: How many confirmed rows the table held.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /api/migrations/{mappingId}/cutover:
     parameters:
       - $ref: '#/components/parameters/MappingId'

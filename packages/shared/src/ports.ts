@@ -2906,6 +2906,26 @@ export interface LedgerVerificationReader {
     mappingId: MappingId,
     domain: DiscoveryDomain
   ): Promise<string[]>;
+
+  /**
+   * The address table's part of one data type (ADR-0055; workplan 0168 T5):
+   * the organisation's confirmed table's digest now, how many copies we wrote
+   * carry a change under it, and the keys of those written under an OLDER
+   * table, which verification never counts as a match. Optional, as a reader
+   * without a table has nothing to say.
+   */
+  addressChangesOf?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<AddressChangesInLedger>;
+}
+
+/** What `LedgerVerificationReader.addressChangesOf` answers. Counts and keys, never addresses. */
+export interface AddressChangesInLedger {
+  readonly digest: string | null;
+  readonly changed: number;
+  readonly olderKeys: ReadonlyArray<string>;
 }
 
 /**

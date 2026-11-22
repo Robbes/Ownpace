@@ -6,11 +6,11 @@
  * All queries are Postgres-only (ADR-0016).
  */
 
-import type { TenantId, MappingId } from '@openmig/shared';
+import { addressTableDigest, type AddressChangesInLedger, type TenantId, type MappingId } from '@openmig/shared';
 import { createPgDb } from './db.ts';
 import type { PgDatabase } from './db-types.ts';
 import * as schema from './schema-pg.ts';
-import { eq, and, sql, ne } from 'drizzle-orm';
+import { eq, and, sql, ne, inArray, isNotNull } from 'drizzle-orm';
 import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
@@ -38,6 +38,9 @@ export interface LedgerVerificationReader {
     mappingId: MappingId,
     domain: DiscoveryDomain
   ): Promise<string[]>;
+
+  /** The address table's part of one data type (ADR-0055), as the shared port says. */
+  addressChangesOf(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<AddressChangesInLedger>;
 }
 
 /**
@@ -200,6 +203,40 @@ export function createLedgerVerificationReader(
         );
       
       return result.map((row) => row.naturalKeyHash);
+    },
+
+    async addressChangesOf(tenantId, mappingId, domain) {
+      // The table as it is now, confirmed rows only (ADR-0055).
+      const rows = await db
+        .select({
+          oldKey: schema.addressChange.oldKey,
+          oldAddress: schema.addressChange.oldAddress,
+          newAddress: schema.addressChange.newAddress,
+        })
+        .from(schema.addressChange)
+        .where(and(eq(schema.addressChange.tenantId, tenantId), eq(schema.addressChange.state, 'confirmed')));
+      const digest = addressTableDigest(rows);
+      // Every copy we wrote with an address changed. A copy the customer owns,
+      // one removed, or one never placed is not ours to stand behind.
+      const items = await db
+        .select({ naturalKeyHash: schema.item.naturalKeyHash, addressDigest: schema.item.addressDigest })
+        .from(schema.item)
+        .where(
+          and(
+            eq(schema.item.tenantId, tenantId),
+            eq(schema.item.mappingId, mappingId),
+            eq(schema.item.domain, domain),
+            isNotNull(schema.item.addressDigest),
+            inArray(schema.item.status, ['copied', 'updated', 'deleted_source']),
+          ),
+        );
+      let changed = 0;
+      const olderKeys: string[] = [];
+      for (const it of items) {
+        if (it.addressDigest === digest) changed += 1;
+        else olderKeys.push(it.naturalKeyHash);
+      }
+      return { digest, changed, olderKeys };
     },
   };
 }

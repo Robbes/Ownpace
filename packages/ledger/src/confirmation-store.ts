@@ -233,6 +233,13 @@ export class ConfirmationStore {
     batch?: number;
     /** Resume after this item id, the same sayable keyset `itemsToConfirm` takes. */
     after?: string;
+    /**
+     * The organisation's confirmed address table's digest now (ADR-0055;
+     * workplan 0168 T5), read once by the caller for the whole walk. Given,
+     * each row is marked by the table it was written under, and one written
+     * under an older table is never a match. Absent, no row is marked.
+     */
+    addressTableDigest?: string | null;
   }): Promise<ConfirmedListRow[]> {
     const base = this.db
       .select({
@@ -251,6 +258,8 @@ export class ConfirmationStore {
         // the scheme that produced it, and that is what decides whether the row
         // says "by hash" or "by the container's parts" (0042 T7 (c)).
         contentHash: schemaPg.item.contentHash,
+        // The address table the copy was written under (ADR-0055).
+        addressDigest: schemaPg.item.addressDigest,
       })
       .from(schemaPg.item)
       .where(
@@ -295,6 +304,9 @@ export class ConfirmationStore {
         status,
         answer,
         contentHash: r.contentHash,
+        ...(args.addressTableDigest !== undefined
+          ? { addressDigest: { item: r.addressDigest ?? null, table: args.addressTableDigest } }
+          : {}),
       });
       return {
         ...row,
