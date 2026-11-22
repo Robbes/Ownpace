@@ -844,7 +844,11 @@ function stage(opts: StageOptions = {}): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
-  copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(compose, 'managed.yml'));
+  // The running release runs Trigger.dev's plane, as these cases were
+  // written for: since the switch is on, managed.yml's default is pg-boss,
+  // so the stage's copy defaults to trigger. The cases of either runner set
+  // their own with switchedTo (workplan 0167 T7).
+  writeFileSync(join(compose, 'managed.yml'), switchedTo('trigger')(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8')));
   if (opts.runningGhcrTrigger) writeFileSync(join(compose, 'managed.yml'), ghcrTrigger(readFileSync(join(compose, 'managed.yml'), 'utf8')));
   if (opts.runningYml) writeFileSync(join(compose, 'managed.yml'), opts.runningYml(readFileSync(join(compose, 'managed.yml'), 'utf8')));
   for (const [rel, body] of Object.entries(opts.runningFiles ?? {})) {
@@ -883,7 +887,9 @@ function stage(opts: StageOptions = {}): Stage {
     writeFileSync(join(work, 'package.json'), r.packageText ? r.packageText(version) : packageJson(version, r.engines));
     if (r.ledger) writeFileSync(join(work, 'packages', 'ledger', 'migrations', r.ledger), 'SELECT 2;\n');
     if (r.managed) writeFileSync(join(work, 'packages', 'managed', 'migrations', r.managed), 'SELECT 2;\n');
-    let yml = readFileSync(join(r.builtTrigger ? COMPOSE_DIR : compose, 'managed.yml'), 'utf8');
+    let yml = r.builtTrigger
+      ? switchedTo('trigger')(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8'))
+      : readFileSync(join(compose, 'managed.yml'), 'utf8');
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
     if (r.clickhouse) yml = movePin(yml, 'clickhouse', r.clickhouse);
