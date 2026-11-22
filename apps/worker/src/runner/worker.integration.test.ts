@@ -735,7 +735,9 @@ describe("the worker's limit on runs at once (0167, the T9 row's alpha.17 part)"
 
   it('a stop leaves a run waiting for a slot in its queue, unclaimed and at its first attempt, for the next worker', async () => {
     const worker = await startWorker({ passesInFlight: 1, catalog: catalogOf(['run-delta-sync'], ROOMY) });
-    const sent = await passes(4, 1500);
+    // Held long enough that none of the first three ends before the stop, on a slow machine too:
+    // one that did would free a slot, and the fourth could start before the stop came.
+    const sent = await passes(4, 4000);
     await until('three runs to start', async () => (await startedOf(sent)) === 3, 30_000);
     await worker.stop();
     const statuses = await Promise.all(sent.map((r) => producer.status(r.runId)));
