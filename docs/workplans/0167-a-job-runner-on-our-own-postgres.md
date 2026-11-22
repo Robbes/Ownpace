@@ -4,6 +4,50 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still, after the second review: a NOLOGIN jobs role is not "not made yet", and four smaller holes.**
+The coordinator's second review of #2041 confirmed the first five fixes, and E2E (managed) run
+45044295985 passed at `3fc7556b`, with the role made, fit, set and proven on the OTA stack. `main`
+(#2043, T6's first step) is merged in, with both Status entries kept, main's T5 and T6 rows and this
+branch's T7 row.
+
+- **`rotate-db-passwords.sh` and a NOLOGIN `ownpace_jobs`.** `db_roles_list` lists login roles only,
+  so `--check` and `--sync` took a NOLOGIN role for one not made yet: exit 0 and "done". Both now ask
+  the fit question whenever the role is not a login role. They skip only on its empty answer
+  (`DB_ROLES_JOBS_MISSING`). `--check` then names the refusal and exits 2; `--sync` sets the two,
+  leaves the jobs role and exits 1. Taking the old shortcut in either fails the NOLOGIN test.
+- **`--sync`'s exit merges the skip** by the script's own rule (a refusal anywhere is 1, otherwise
+  a question not asked is 2). The NOT DONE line is printed whatever the two's proof found, and the
+  Exit codes block names the skip. Saying it only when the two passed fails its test.
+- **A temporary table no longer counts as owned elsewhere** (`pg_temp_N`, `pg_toast_temp_N`). In
+  transaction pooling, a temporary table can outlive its client on a server connection. A test holds a
+  fit role with a temporary table; without the clause it fails.
+- **Two more privileges are counted:**
+  - **A `public` relation whose ACL names the role or PUBLIC** (`aclexplode`, grantee 0 or the
+    role), on every version. This counts PostgreSQL 17's MAINTAIN, which the privilege functions'
+    list does not name. Its test grants MAINTAIN through PUBLIC on 17 and later, so it runs on CI's
+    18; here, on 16, it checks that 16 has no MAINTAIN.
+  - **EXECUTE on `pgbouncer_auth`'s functions**, through PUBLIC as well, as a new last field. The
+    bring-up revokes PUBLIC's EXECUTE just before the question; `--sync` does not. Not counting it
+    fails its test.
+- **`a-system-role-that-is-not-the-owner`** failed 1 of 41 while `pg_stat_statements` existed in the
+  shared database. Its relations query now leaves extension-owned relations out, and it passes 41 of
+  41 with the extension and without it.
+- **`docs/managed-bring-up.md`'s grants query** filters by database (run here against a database
+  grant and a column grant), and names the lookup function's remedy.
+- **Evidence.** On a `scripts/local-pg.sh` cluster (PostgreSQL 16.15):
+  - **The integration file:** `Tests 40 passed (40)`.
+  - **`a-system-role-that-is-not-the-owner`:** `41 passed (41)`, with the extension and without it
+    (1 failed with it before).
+  - **`rotate-db-passwords`:** `68 passed (68)`.
+  - **Every unit file under `scripts/` and `deploy/`:** 7,644 tests, 7,610 passed. The one failure is
+    `every-release-is-a-starting-point`, for this checkout's 12 tags.
+  - **Broken once each, then restored byte for byte:**
+    - the temporary-schema clause: 1 failed;
+    - the lookup count: 1 failed;
+    - `--check`'s and `--sync`'s NOLOGIN shortcut: 1 each;
+    - the skip said only at rc 0: 1.
+  - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
+
 **2026-11-22, later still, after review: the fit question no longer refuses every real stack.**
 The coordinator's review of #2041 found the question refused every stack that has
 `pg_stat_statements`. The data phase creates that extension in the app's database just before the

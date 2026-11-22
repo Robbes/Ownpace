@@ -182,6 +182,8 @@ interface State {
   alterAttempts: number;
   /** What the jobs role's fit question answers for a role that exists; the fit line when unset. */
   jobsFit?: string;
+  /** The jobs role's fit question cannot be asked: psql loses the server. */
+  jobsFitFails?: boolean;
 }
 
 /** Shared by every stub: argv and the whole environment, one JSON line per call. */
@@ -369,7 +371,8 @@ if (svc === 'postgres' && cmd[0] === 'psql') {
   // The jobs role's question (db_roles_jobs_fit): one line for a role that exists, nothing for one that does not.
   if (p.v.jobs_role !== undefined && sql.includes('r.rolinherit')) {
     log('docker', { kind: 'socket', what: 'jobs-fit', container: env, psql: p, sql });
-    if (state.roles[p.v.jobs_role]) out((state.jobsFit || 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f') + '\\n');
+    if (state.jobsFitFails) { err('psql: error: server closed the connection unexpectedly\\n'); done(2); }
+    if (state.roles[p.v.jobs_role]) out((state.jobsFit || 'f|f|f|f|f|t|f|0|0|t|0|0|0|0|f|f|0') + '\\n');
     done(0);
   }
   log('docker', { kind: 'socket', what: 'alter', container: env, psql: p, sql });
@@ -2030,7 +2033,7 @@ describe('the jobs role, ownpace_jobs (ADR-0054): --check asks it, --sync sets i
       const before = fixture();
       const none = run(before, ['--check']);
       expect(none.status, none.output).toBe(0);
-      expect(none.stdout).toContain('jobs role ownpace_jobs: not a login role in this database yet, so there is nothing to ask');
+      expect(none.stdout).toContain('jobs role ownpace_jobs: not a role in this database yet, so there is nothing to ask');
       expect(calls(before).filter((c) => (c.psql?.U ?? '') === 'ownpace_jobs')).toEqual([]);
     },
     CASE_MS,
@@ -2079,11 +2082,56 @@ describe('the jobs role, ownpace_jobs (ADR-0054): --check asks it, --sync sets i
   );
 
   it(
+    'a NOLOGIN jobs role is asked, not taken for one not made yet: --check is 2 and names it, --sync sets the two and exits 1',
+    () => {
+      const nologin: Partial<State> = {
+        roles: { ...baseState(OTA).roles, ownpace_jobs: { super: false, login: false, pw: 'jobs-as-it-was' } },
+        jobsFit: 'f|f|f|f|f|f|f|0|0|t|0|0|0|0|f|f|0',
+      };
+      const fx = fixture({ state: nologin });
+      const c = run(fx, ['--check']);
+      expect(c.status, c.output).toBe(2);
+      expect(c.stdout).toContain("jobs role: REFUSED by the bring-up's question, so its control cannot open: ownpace_jobs: it cannot log in");
+      expect(c.stdout).toContain('The jobs role is not as jobs-role.sql makes it');
+      expect(c.stdout).not.toContain('RESULT: every control opens');
+
+      const r = run(fx, ['--sync']);
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toContain('ownpace_jobs is left as it is, and the rest goes on: REFUSED: ownpace_jobs: it cannot log in');
+      expect(r.stderr).toContain("NOT DONE: app_user and pgowner accept .env's values, and ownpace_jobs was left as it is");
+      expect(r.stdout).not.toContain('done: both roles');
+      expect(stateOf(fx).roles.ownpace_jobs?.pw).toBe('jobs-as-it-was');
+      expect(leaks(fx, `${c.output}\n${r.output}`)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    '--sync says the jobs role was skipped whatever the two\'s proof found, and merges it into the exit: 2 when only its question could not be asked',
+    () => {
+      const unasked = fixture({ state: { ...withJobs('jobs-as-it-was'), jobsFitFails: true } });
+      const u = run(unasked, ['--sync']);
+      expect(u.status, u.output).toBe(2);
+      expect(u.stderr).toContain('NOT DONE: app_user and pgowner accept .env\'s values, and ownpace_jobs was left as it is: could not ask Postgres what ownpace_jobs may do');
+
+      // The two's proof refused through the pooler, and the jobs role unfit: 1, and the skip still said.
+      const both = fixture({
+        state: { ...withJobs('jobs-as-it-was'), jobsFit: 'f|f|f|f|t|t|f|0|0|t|0|0|0|0|f|f|0', poolerRefusesPrefix: APP_PW.slice(0, 6) },
+      });
+      const b = run(both, ['--sync']);
+      expect(b.status, b.output).toBe(1);
+      expect(b.stderr).toContain('NOT DONE: app_user and pgowner were set; their proof is above, and ownpace_jobs was left as it is: REFUSED: ownpace_jobs: it has BYPASSRLS');
+      expect(leaks(both, `${u.output}\n${b.output}`)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
     '--sync leaves an unfit jobs role, or one with no value in .env, exactly as it is, still sets the two, and exits 1',
     () => {
       const stale = { pgowner: { super: true, login: true, pw: 'openmigrate_password' }, app_user: { super: false, login: true, pw: 'app_password' } };
       const unfit = fixture({
-        state: { roles: { ...withJobs('jobs-as-it-was').roles, ...stale }, jobsFit: 'f|f|f|f|t|t|f|0|0|t|0|0|0|0|f|f' },
+        state: { roles: { ...withJobs('jobs-as-it-was').roles, ...stale }, jobsFit: 'f|f|f|f|t|t|f|0|0|t|0|0|0|0|f|f|0' },
       });
       const r = run(unfit, ['--sync']);
       expect(r.status, r.output).toBe(1);
@@ -2108,7 +2156,9 @@ describe('the jobs role, ownpace_jobs (ADR-0054): --check asks it, --sync sets i
       const b = run(before, ['--sync']);
       expect(b.status, b.output).toBe(0);
       expect(b.stdout).toContain('ownpace_jobs is not a login role in this database yet');
-      expect(calls(before).filter((c) => c.what === 'jobs-fit')).toEqual([]);
+      // Asked, since a role that is not a login role may still be there (NOLOGIN); nothing set.
+      expect(calls(before).filter((c) => c.what === 'jobs-fit')).toHaveLength(1);
+      expect(calls(before).filter((c) => c.what === 'alter' && c.psql?.v.jobs_role !== undefined)).toEqual([]);
     },
     CASE_MS,
   );
