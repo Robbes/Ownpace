@@ -203,8 +203,15 @@ describe('the catalog is the tasks: their retries and their time', () => {
     expect(read('packages/scheduler/src/pg-boss/job-runner.ts')).toContain('retryBackoff: true,');
   });
 
-  it('gives every run the hour the config gives every task', () => {
-    for (const queue of JOB_CATALOG) expect(queue.maxDurationSeconds, queue.name).toBe(Number(maxDuration![1]));
+  it('gives every run the hour the config gives every task, but the cutover, whose waits the hour never counted', () => {
+    // Trigger.dev 4.8.8 counts `maxDuration` on the run's CPU time, wall time less its
+    // pauses, and a `triggerAndWait` is a pause (`usage.pauseAsync`). A cutover waits for a
+    // pass already running on its migration, then for its own, then runs the gate; on
+    // pg-boss the wall clock counts, so the cutover gets one hour for each (0167 T6).
+    const hour = Number(maxDuration![1]);
+    for (const queue of JOB_CATALOG) {
+      expect(queue.maxDurationSeconds, queue.name).toBe(queue.name === 'run-cutover' ? 3 * hour : hour);
+    }
   });
 });
 
@@ -213,11 +220,9 @@ describe('what the runner adds to each queue (workplan 0167 T6)', () => {
     for (const queue of JOB_CATALOG) expect(queue.heartbeatSeconds, queue.name).toBe(30);
   });
 
-  it('asks for work every 2 s where somebody waits, every 10 s for the minute’s tick and 30 s for the rest', () => {
-    for (const queue of JOB_CATALOG) {
-      const every = queue.kind === 'on-demand' ? 2 : queue.name === 'managed-sync-tick' ? 10 : 30;
-      expect(queue.pollingIntervalSeconds, queue.name).toBe(every);
-    }
+  it('says nothing of how often a queue is asked for work: the runner asks every queue at one interval', () => {
+    // `PgBossJobRunner#work` takes a concurrency and no interval of its own (0167 T6).
+    for (const queue of JOB_CATALOG) expect(Object.keys(queue), queue.name).not.toContain('pollingIntervalSeconds');
   });
 
   it('works one run at a time, but the pass: the tick’s cap and one more, for the pass a cutover waits on', () => {

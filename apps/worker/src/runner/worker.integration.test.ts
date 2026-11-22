@@ -42,10 +42,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { PURGED_TABLES } from '@openmig/managed';
 import { JOB_CATALOG, PgBossProducer, type JobCatalogEntry, type RunStatus } from '@openmig/scheduler/pg-boss';
-import type { JobRunnerPort, RunContext } from '../jobs/run-context.ts';
+import type { JobRunnerPort, RunContext as JobRunContext } from '../jobs/run-context.ts';
 import { JOBS_SCHEMA, pgBossRunner } from './pg-boss-context.ts';
 import { JobWorker, RUN_ENTRIES } from './worker.ts';
 
@@ -219,6 +221,48 @@ function alive(pid: number): boolean {
   }
 }
 
+/** A process's peak resident memory so far, in MB (`VmHWM`), or null once it is gone. */
+function peakMb(pid: number): number | null {
+  try {
+    const kb = /^VmHWM:\s+(\d+) kB$/m.exec(readFileSync(`/proc/${pid}/status`, 'utf8'))?.[1];
+    return kb === undefined ? null : Number(kb) / 1024;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Watch the runs this process forks: every 20 ms, each child's queue (from the
+ * entry it runs) and its peak resident memory. Linux only, as the worker's
+ * container is; the peaks are read, not guessed.
+ */
+function watchRunMemory(): { stop(): Map<string, number> } {
+  const peaks = new Map<string, number>();
+  const sample = (): void => {
+    for (const entry of readdirSync('/proc')) {
+      if (!/^\d+$/.test(entry)) continue;
+      try {
+        const stat = readFileSync(`/proc/${entry}/stat`, 'utf8');
+        const ppid = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+        if (ppid !== process.pid) continue;
+        const queue = /runs\/([a-z-]+)\.ts/.exec(readFileSync(`/proc/${entry}/cmdline`, 'utf8'))?.[1];
+        const mb = peakMb(Number(entry));
+        if (queue && mb !== null) peaks.set(queue, Math.max(peaks.get(queue) ?? 0, mb));
+      } catch {
+        // The process ended between the listing and the read: its last sample stands.
+      }
+    }
+  };
+  const timer = setInterval(sample, 20);
+  return {
+    stop() {
+      clearInterval(timer);
+      sample();
+      return peaks;
+    },
+  };
+}
+
 /** The pg-boss table a queue's jobs are kept in. */
 async function jobTableOf(queue: string): Promise<string> {
   const { rows } = await admin.query<{ table_name: string }>(`SELECT table_name FROM ${JOBS_SCHEMA}.queue WHERE name = $1`, [
@@ -250,13 +294,10 @@ async function forgetBeats(): Promise<void> {
   await admin.query('DELETE FROM sync_tick_beat WHERE task = ANY($1::text[])', [[...BEATS]]);
 }
 
+/** Every row of this file's organisation, in every table the purge empties, in the purge's order. */
 async function forgetThisFilesRows(): Promise<void> {
-  for (const table of ['migration_discovery', 'app_event', 'scope_selection', 'run']) {
-    await admin.query(`DELETE FROM ${table} WHERE tenant_id = $1`, [TENANT]);
-  }
-  await admin.query('DELETE FROM mailbox_mapping WHERE tenant_id = $1', [TENANT]);
-  await admin.query('DELETE FROM mailbox WHERE tenant_id = $1', [TENANT]);
-  await admin.query('DELETE FROM connection WHERE tenant_id = $1', [TENANT]);
+  await admin.query('DELETE FROM app_event WHERE tenant_id = $1', [TENANT]);
+  for (const table of PURGED_TABLES) await admin.query(`DELETE FROM ${table} WHERE tenant_id = $1`, [TENANT]);
   await admin.query('DELETE FROM tenant WHERE id = $1', [TENANT]);
 }
 
@@ -416,6 +457,8 @@ describe('the worker starts on the jobs role, declares the catalog, answers its 
         },
         60_000,
       );
+      // The parent's own memory, started and idle: what the worker's limit keeps besides its runs.
+      process.stdout.write(`[memory] the worker's parent process, started: ${Math.round(peakMb(child.pid!) ?? 0)} MB peak resident\n`);
       child.kill('SIGTERM');
       expect(await exited, output).toBe(0);
       expect(output).toContain('[worker] SIGTERM: stopping.');
@@ -708,6 +751,72 @@ describe("a run's process", () => {
   }, 120_000);
 });
 
+describe("what a run's process holds in memory, for the worker's limit (0167, design point 8)", () => {
+  /** Measured here and said in the pull request, against `(MAX_PASSES_IN_FLIGHT + 3) × 512 MB + 256 MB`. */
+  const measured: Record<string, number> = {};
+  afterAll(() => {
+    process.stdout.write(`[memory] peak resident MB by queue: ${JSON.stringify(measured)}\n`);
+  });
+
+  it('a small job in its process: the tick, and a real count, each within a run’s 512 MB', async () => {
+    await seedDiscovery({
+      source: FOUND_SOURCE,
+      target: FOUND_TARGET,
+      sourceBox: FOUND_SOURCE_BOX,
+      targetBox: FOUND_TARGET_BOX,
+      mapping: FOUND_MAPPING,
+      url: 'https://cloud.example.invalid/remote.php/dav',
+      username: 'nobody',
+      password: 'not-a-password',
+    });
+    await forgetSchedules();
+    await startWorker({
+      catalog: catalogOf(WORKED, { 'managed-sync-tick': { kind: 'on-demand' } as Partial<JobCatalogEntry> }),
+    });
+    const watch = watchRunMemory();
+    const tick = await producer.enqueue('managed-sync-tick', {}, {});
+    const count = await producer.enqueue(
+      'run-discovery',
+      { tenantId: TENANT, mappingId: FOUND_MAPPING, domains: ['file'] },
+      { serializeBy: FOUND_MAPPING },
+    );
+    expect((await settled(tick.runId!, 120_000)).state).toBe('completed');
+    expect((await settled(count.runId!, 120_000)).state).toBe('completed');
+    const peaks = watch.stop();
+    for (const queue of ['managed-sync-tick', 'run-discovery']) {
+      expect(peaks.get(queue), `no sample of ${queue}'s process`).toBeGreaterThan(0);
+      measured[queue] = Math.round(peaks.get(queue)!);
+      expect(peaks.get(queue)!, queue).toBeLessThan(512);
+    }
+  }, 240_000);
+
+  it('a real pass in its process, its module and pools loaded, within a run’s 512 MB', async () => {
+    // A real pass over a source it cannot reach: everything a pass loads, and no copy. The
+    // peak of a copy is the pass's own measurement on Trigger.dev's small-1x (0150): V8's
+    // heap is capped at 410 MB here as it was there.
+    await startWorker({ catalog: catalogOf(['run-delta-sync']), realPass: true });
+    const watch = watchRunMemory();
+    const { runId } = await producer.enqueue(
+      'run-delta-sync',
+      { tenantId: TENANT, mappingId: FOUND_MAPPING, domains: ['file'] },
+      { serializeBy: FOUND_MAPPING },
+    );
+    await until(
+      'the pass’s first attempt to end',
+      async () => {
+        const s = await producer.status(runId!);
+        return s !== null && (s.state !== 'running' && s.state !== 'queued' ? s : null);
+      },
+      120_000,
+    );
+    await producer.cancel(runId!);
+    const peaks = watch.stop();
+    expect(peaks.get('run-delta-sync'), "no sample of the pass's process").toBeGreaterThan(0);
+    measured['run-delta-sync'] = Math.round(peaks.get('run-delta-sync')!);
+    expect(peaks.get('run-delta-sync')!).toBeLessThan(512);
+  }, 240_000);
+});
+
 describe("the tick's interlock across runners, its pg-boss half", () => {
   /** A runner port that records what the tick asks of it, named as either runner. */
   function recordingPort(name: 'trigger' | 'pg-boss'): { port: JobRunnerPort; enqueued: string[] } {
@@ -727,7 +836,7 @@ describe("the tick's interlock across runners, its pg-boss half", () => {
     };
   }
 
-  type TickRun = (payload: unknown, context: RunContext) => Promise<Record<string, unknown>>;
+  type TickRun = (payload: unknown, context: JobRunContext) => Promise<Record<string, unknown>>;
   let tick: TickRun;
   beforeAll(async () => {
     // Imported once its environment is set: it opens its pools as the system role when imported.

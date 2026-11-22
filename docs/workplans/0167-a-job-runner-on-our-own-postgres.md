@@ -36,6 +36,33 @@ and Trigger.dev runs every job. No migration in either chain.
   loads pg-boss) 194, `an-image-that-shipped-what-it-never-runs` (the worker's closure) 25,
   `runs-without-a-transpiler` (the fork paths) 5, the tick's two anchor tests 14.
 - **Mutations**, each restored (sha256 checked): 17, every one failing its test.
+- **The review of #2043, its points on the catalog's consumers (fixed here).** (1) `run-cutover`
+  gets three hours, not one: Trigger.dev 4.8.8 counts `maxDuration` on CPU time, wall time less its
+  pauses, and `triggerAndWait` is one (`usage.pauseAsync`), while pg-boss's limit is the wall clock
+  and a run that reaches it is not retried; the two catalog tests exempt it by name, with that
+  reason. (2) One list of "not retried", the runner's `NOT_RETRIED_ERROR_NAMES`:
+  `what-a-run-leaves.ts` keeps its two names private for its Trigger.dev mapping, and its exported
+  `failsOnceByName`/`FAILS_ONCE_NAMES` (this plan's entry above names them) are gone. (4) The
+  catalog's `pollingIntervalSeconds` is dropped, since `work` takes one interval for the whole
+  runner (#2040 has no option per queue). (5) The owners-pool guard's `valueImports` reads
+  `import { type X } from …` and `import {} from …` as a load, as Node keeps them. (6) The job's
+  and the runner's `RunContext` are imported under their own names where both meet. (7) The
+  CHANGELOG line and the worker README's `configure` sentence corrected.
+- **Concurrency, recorded, not redesigned, for alpha.16** (also ADR-0054's *Pending*): each queue
+  of a job somebody asks for is worked one run at a time across every organisation (Trigger.dev
+  runs a count per migration side by side, and bounds none of verification, confirmation, the
+  applies, the cutover and the rollback); and the worker may run `MAX_PASSES_IN_FLIGHT` + 17 runs
+  at once where the plane admits `MAX_PASSES_IN_FLIGHT` + 2. Follow-up: a worker-wide cap of
+  `MAX_PASSES_IN_FLIGHT` + 2.
+- **Memory, measured** (`worker.integration.test.ts`, peak resident, Node 22 here): the tick's
+  process 196 MB, a real count's 203 MB, a real pass's with its module and pools loaded 198 MB, the
+  worker's parent 120 MB. A copying pass peaked at 307 MiB on Trigger.dev's `small-1x` (0150). The
+  realistic peak, (`MAX_PASSES_IN_FLIGHT` + 1) passes, the three schedules of :23 (the tick, the
+  month's invoices, the purge) and one of each of the seven other on-demand kinds, with each pass
+  at 307 MB, each other run at 203 MB and the parent at 120 MB: 3,378 MB at a cap of 3 (the limit
+  is 3,328 MB: short by 50 MB) and 4,299 MB at 6 (4,864 MB: holds). With each pass at its 512 MB budget and each other
+  run at 256 MB, the formula that holds is (`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB + 2,816 MB:
+  4,864 MB at 3, 6,400 MB at 6.
 - **Next:** the API's doors, the operator's commands, the worker's service, then the switch (T7).
 
 **2026-11-22, later still: T6's first step, the job catalog and the jobs made runner-neutral.**

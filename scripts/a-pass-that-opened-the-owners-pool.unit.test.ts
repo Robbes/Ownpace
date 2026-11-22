@@ -1086,12 +1086,26 @@ function valueImports(file: string, text: string): string[] {
       const clause = node.importClause;
       if (clause === undefined) found.add(`${from}: (loaded)`);
       else if (!clause.isTypeOnly) {
-        if (clause.name) found.add(`${from}: default`);
-        const named = clause.namedBindings;
-        if (named && ts.isNamespaceImport(named)) found.add(`${from}: * as`);
-        if (named && ts.isNamedImports(named)) {
-          for (const el of named.elements) if (!el.isTypeOnly) found.add(`${from}: ${(el.propertyName ?? el.name).text}`);
+        let value = false;
+        if (clause.name) {
+          found.add(`${from}: default`);
+          value = true;
         }
+        const named = clause.namedBindings;
+        if (named && ts.isNamespaceImport(named)) {
+          found.add(`${from}: * as`);
+          value = true;
+        }
+        if (named && ts.isNamedImports(named)) {
+          for (const el of named.elements) {
+            if (el.isTypeOnly) continue;
+            found.add(`${from}: ${(el.propertyName ?? el.name).text}`);
+            value = true;
+          }
+        }
+        // `import { type X } from …` and `import {} from …` name no value, and are kept
+        // as a bare import under verbatimModuleSyntax: the module loads all the same.
+        if (!value) found.add(`${from}: (loaded)`);
       }
     } else if (ts.isCallExpression(node)) {
       const first = node.arguments[0];
@@ -2088,6 +2102,14 @@ describe("the run's context, which every task imports, loads the SDK and nothing
       './run-delta-sync.ts: import(…)',
     );
     expect(valueImports('shape.ts', `${shape}import './task-pools.ts';`)).toContain('./task-pools.ts: (loaded)');
+    // Under verbatimModuleSyntax an import whose names are all inline types, or that names
+    // none, is kept as a bare import, and the module loads: Node and esbuild both keep it.
+    expect(valueImports('shape.ts', `${shape}import { type X } from './run-delta-sync.ts';`)).toContain(
+      './run-delta-sync.ts: (loaded)',
+    );
+    expect(valueImports('shape.ts', `${shape}import {} from './task-pools.ts';`)).toContain('./task-pools.ts: (loaded)');
+    // Only `import type` is erased whole.
+    expect(valueImports('shape.ts', shape)).toEqual(Object.keys(RUN_CONTEXT_IMPORTS).sort());
   });
 });
 

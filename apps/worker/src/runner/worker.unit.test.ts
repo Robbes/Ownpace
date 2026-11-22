@@ -30,8 +30,7 @@ import {
   type RunStatus,
 } from '@openmig/scheduler/pg-boss';
 import { log } from '@openmig/shared';
-import { FAILS_ONCE_NAMES } from '../jobs/what-a-run-leaves.ts';
-import type { RunContext } from '../jobs/run-context.ts';
+import type { RunContext as JobRunContext } from '../jobs/run-context.ts';
 import { isPgBossRef, pgBossRunner, verdictOfStatus, WAIT_POLL_MS, type ProducerLike } from './pg-boss-context.ts';
 import { onPgBoss } from './serve-job.ts';
 import {
@@ -140,8 +139,10 @@ describe("a run's error settles it by name, as Trigger.dev 4.8.8 settles it", ()
     expect((zodError as Error).name).toBe('ZodError');
   });
 
-  it('every name a job fails once by is one the runner does not retry', () => {
-    for (const name of FAILS_ONCE_NAMES) expect(NOT_RETRIED_ERROR_NAMES.has(name)).toBe(true);
+  it('is one list, the runner’s: what a deliberate stop, a refused payload, the limit and the heap are named', () => {
+    expect([...NOT_RETRIED_ERROR_NAMES].sort()).toEqual(
+      ['AbortTaskRunError', 'RunNotRetried', 'RunOutOfMemory', 'RunTimedOut', 'ZodError'].sort(),
+    );
   });
 });
 
@@ -298,7 +299,7 @@ describe("a run in its process: the payload parsed first, the context made, the 
 
   it('hands the run its parsed payload, its pg-boss id and attempt, and the pg-boss runner; closes what it opened', async () => {
     const { producer, calls } = fakeProducer({ status: status('completed') });
-    let seen: RunContext | undefined;
+    let seen: JobRunContext | undefined;
     const served = onPgBoss(
       Schema,
       async (payload, context) => {

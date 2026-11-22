@@ -109,11 +109,16 @@ describe('the pass deadline and the runner ceiling', () => {
     expect(pass!.maxDurationSeconds * 1000).toBe(constantMs('PASS_HARD_LIMIT_MS'));
   });
 
-  it('gives every queue of the pg-boss runner the hour the config gives every task', () => {
+  it('gives every queue of the pg-boss runner the hour the config gives every task, the cutover by name excepted', () => {
     expect(JOB_CATALOG.length).toBeGreaterThan(0);
-    expect(JOB_CATALOG.filter((queue) => queue.maxDurationSeconds !== maxDurationSeconds()).map((queue) => queue.name)).toEqual(
-      [],
-    );
+    expect(JOB_CATALOG.filter((queue) => queue.maxDurationSeconds !== maxDurationSeconds()).map((queue) => queue.name)).toEqual([
+      // A cutover waits for a pass running ahead of it and for its own, then runs the gate.
+      // Trigger.dev's maxDuration never counted those waits (they are pauses of the run's
+      // CPU time); pg-boss's limit is the wall clock, so it has an hour for each (0167 T6).
+      'run-cutover',
+    ]);
+    const cutover = JOB_CATALOG.find((queue) => queue.name === 'run-cutover')!;
+    expect(cutover.maxDurationSeconds).toBe(3 * maxDurationSeconds());
   });
 
   it('reads a real number from the config rather than passing on absence', () => {

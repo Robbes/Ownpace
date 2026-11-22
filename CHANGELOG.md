@@ -11,17 +11,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The managed edition's worker for its jobs on pg-boss, which nothing starts yet** (workplan 0167
   T6; ADR-0054). `apps/worker/src/runner/main.ts` works the seventeen jobs, each run in a process of
   its own, with Trigger.dev's retries, time limit and memory, and refuses to start unless
-  `OWNPACE_JOB_RUNNER=pg-boss` and `JOBS_DATABASE_URL` are set. The sync tick on pg-boss also holds
+  `OWNPACE_JOB_RUNNER=pg-boss` and `JOBS_DATABASE_URL` are set; a cutover there has three hours,
+  as its waits for passes never counted on Trigger.dev. The sync tick on pg-boss also holds
   while a Trigger.dev tick from an earlier release still writes the shared beat. The worker's
   package now declares `pg` and `drizzle-orm`, which its jobs import. No migration, no compose
   change.
 
 ### Changed
 
-- **The managed edition's jobs no longer call Trigger.dev from their runs** (workplan 0167 T6;
-  ADR-0054). Each job's run takes a context that names the runner it is on, and the Trigger.dev
-  calls it made (enqueueing a pass, waiting for one, asking after a run and cancelling it) are made
-  there, as they were. Trigger.dev still runs every job under the same names, queues, machines and
+- **The managed edition's jobs call Trigger.dev through a context that names their runner**
+  (workplan 0167 T6; ADR-0054). Each job's run takes a context that names the runner it is on, and
+  the Trigger.dev calls three of them make (the tick enqueueing a pass, a cutover waiting for one,
+  the purge asking after a run and cancelling it) are made there, as they were. Trigger.dev still runs every job under the same names, queues, machines and
   retries; a catalog of the same seventeen jobs for the pg-boss runner is added, which nothing reads
   yet. The sync tick also writes a beat of its own runner each minute, and starts no pass while
   another runner's tick has beaten within the last 90 seconds; no migration.

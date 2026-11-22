@@ -31,7 +31,8 @@
 
 import { JOB_CATALOG, PgBossProducer, type RunOutcome, type RunStatus } from '@openmig/scheduler/pg-boss';
 import { log, type OrchestratorVerdict } from '@openmig/shared';
-import type { JobRunnerPort, RunContext, Settled } from '../jobs/run-context.ts';
+// The job's context, beside the runner's own `RunContext` (`@openmig/scheduler/pg-boss`).
+import type { JobRunnerPort, RunContext as JobRunContext, Settled } from '../jobs/run-context.ts';
 import type { DeltaSyncOutput } from '../jobs/final-sync.ts';
 
 /** pg-boss's schema, made by the bring-up and owned by `ownpace_jobs` (`deploy/compose/jobs-role.sql`). */
@@ -185,6 +186,6 @@ export function pgBossRunner(open: () => ProducerLike = producerFromEnv): PgBoss
 }
 
 /** A run's context on pg-boss: its id and attempt as the worker forked it, and its runner. */
-export function pgBossContext(run: { readonly runId: string; readonly attempt: number }, runner: PgBossRunner): RunContext {
+export function pgBossContext(run: { readonly runId: string; readonly attempt: number }, runner: PgBossRunner): JobRunContext {
   return { runId: run.runId, attempt: run.attempt, runner: runner.port };
 }

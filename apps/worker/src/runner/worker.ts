@@ -47,6 +47,8 @@ import {
   type JobCatalogEntry,
   type JobName,
   type PgBossJobRunnerOptions,
+  // The runner's context of a run, not the job's (`../jobs/run-context.ts`), which the entries make.
+  type RunContext as RunnerRunContext,
 } from '@openmig/scheduler/pg-boss';
 import { log } from '@openmig/shared';
 import { JOBS_SCHEMA } from './pg-boss-context.ts';
@@ -198,7 +200,7 @@ export class JobWorker {
       const concurrency = concurrencyOf(job, this.#opts.passesInFlight);
       await this.#runner.work<unknown, unknown>(
         job.name,
-        async (payload, ctx) => {
+        async (payload: unknown, ctx: RunnerRunContext) => {
           this.#going.add(ctx.runId);
           try {
             return await runInChild(entry.href, payload, {

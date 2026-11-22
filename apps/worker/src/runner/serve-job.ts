@@ -32,7 +32,8 @@
 import { writeFileSync } from 'node:fs';
 import type { ChildRunInfo } from '@openmig/scheduler/pg-boss';
 import { log } from '@openmig/shared';
-import type { RunContext } from '../jobs/run-context.ts';
+// The job's context, beside the runner's own `RunContext` (`@openmig/scheduler/pg-boss`).
+import type { RunContext as JobRunContext } from '../jobs/run-context.ts';
 import { pgBossContext, pgBossRunner, type ProducerLike } from './pg-boss-context.ts';
 
 /** The most a process may say of itself: taken first. */
@@ -62,7 +63,7 @@ export function preferredByTheOomKiller(path = '/proc/self/oom_score_adj'): bool
  */
 export function onPgBoss<P, R>(
   schema: PayloadSchema<P>,
-  run: (payload: P, context: RunContext) => Promise<R>,
+  run: (payload: P, context: JobRunContext) => Promise<R>,
   open?: () => ProducerLike,
 ): (payload: unknown, info: ChildRunInfo | undefined) => Promise<R> {
   return async (payload, info) => {

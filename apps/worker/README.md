@@ -38,9 +38,11 @@ TRIGGER_SECRET_KEY=tr_prod_...
 ```
 
 - **In-runner gotcha (0022 T3, learned live):** the platform injects the
-  host-perspective `TRIGGER_API_URL` into runners, so a call of the platform's
-  API from inside a runner (the tick's passes, a cutover's final sync) must
-  first `configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' })`.
+  host-perspective `TRIGGER_API_URL` into runners, so an enqueue from inside a
+  runner (the tick's passes, a cutover's final sync) first calls
+  `configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' })`.
+  The purge's `runs.retrieve` and `runs.cancel` are made without it, as they
+  always were.
 - **No task calls the SDK in its run (workplan 0167 T6).** Each task file
   exports its run, wrapped in `leavesAReference`, which takes a run context
   (`src/jobs/run-context.ts`): the run's id, its attempt and the runner it is
