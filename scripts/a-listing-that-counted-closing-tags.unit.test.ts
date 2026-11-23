@@ -96,6 +96,16 @@ describe('the probe counts what it says it counts', () => {
     }
   });
 
+  it('reads an answer that never closes its payload, or never ends a tag, in linear time (workplan 0163)', () => {
+    // The probe runs against whatever host the tester names. Both patterns it
+    // used scanned from every `<` to the end of such an answer: before the
+    // change these took 80 seconds. The bound is far above a linear read.
+    const started = performance.now();
+    expect(measure('<cal:calendar-data>'.repeat(60_000), 'calendar-data')).toEqual({ responses: 0, withData: 0, uids: 0 });
+    expect(measure('<'.repeat(200_000), 'calendar-data').responses).toBe(0);
+    expect(performance.now() - started).toBeLessThan(1500);
+  });
+
   it('counts contacts through the same shape', () => {
     const vcf = CALENDAR_WITH_DATA
       .replace(/calendar-data/g, 'address-data')
