@@ -1415,7 +1415,7 @@ describe('the new address, on a migration’s page (0168 §6.3, D5)', () => {
     mappingApiGet.mockResolvedValue(contacts('active', 3));
     renderHub();
     expect(
-      await screen.findByText('Your new address is used in contacts and calendars · Changed in the last pass: 3'),
+      await screen.findByText('Your new address is used in contacts, calendars and tasks · Changed in the last pass: 3'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Apply the new addresses here too' })).toBeNull();
   });

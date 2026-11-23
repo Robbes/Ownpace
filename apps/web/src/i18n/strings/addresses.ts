@@ -23,9 +23,12 @@ export const en = {
   'start.address.newNotAnAddress':
     'Your new account signs in as {login}, which is not an address. Type the address your new mail comes from.',
   'start.address.use': 'Use {new} in place of {old}?',
+  // Where the new account's login is not an address, nothing is proposed (N11).
+  'start.address.which': 'Which address takes the place of {old}?',
   'start.address.yes': 'Yes',
   'start.address.no': 'No, keep it as it is',
   'start.address.another': 'Another address…',
+  'start.address.this': 'This address',
   'start.address.newLabel': 'New address',
   'start.address.oldLabel': 'Old address',
   'start.address.goes': 'Where your new address goes',
@@ -35,6 +38,9 @@ export const en = {
   'start.address.goes.calendars.label': 'Calendars:',
   'start.address.goes.calendars':
     'events you organised list you as {new}, so you can still change them. Nobody gets an invitation or an update.',
+  // A pass changes a task's organiser as it changes an event's (0168 T4).
+  'start.address.goes.tasks.label': 'Tasks:',
+  'start.address.goes.tasks': 'tasks you organised list you as {new}, as your events do.',
   'start.address.goes.shares.label': 'Shared folders:',
   'start.address.goes.shares': 'the Sharing checklist suggests {new} for you. You still press each share yourself.',
   'start.address.not': 'Where it does not go, and why',
@@ -51,16 +57,26 @@ export const en = {
   'start.address.others.add': 'Add an address change',
   'start.address.others.remove': 'Remove',
   'start.address.already': 'Already in your organisation’s address changes',
+  // A row of the table that waits, confirmed with Start by whoever signs in (N12, D6).
+  'start.address.confirmAtStart': 'Confirm {old} → {new} when I press Start',
   'start.address.nothingYet':
     'Nothing is copied yet. You can change this until you press Start, and afterwards on your page.',
   'start.address.needAnswer': 'Answer the question first.',
+  'start.address.needOldAddress': 'Type each old address as an address, like name@example.org.',
   'start.address.needAddress': 'Type each new address as an address, like name@example.org.',
-  'start.address.saving': 'Saving…',
   'start.address.saveFailed': 'Not saved: {old}.',
   // On *Where does it go?*: the own domain being given up, which no list knows.
   'start.to.alsoChanging': 'I am also changing my address',
-  // On *Check, then start*: one line per changed address.
-  'start.check.address': '{old} becomes {new} in contacts, calendars and shares',
+  // On *Check, then start*: one line per changed address. Only a confirmed
+  // row changes anything (ADR-0055), so a row that waits says so (S1).
+  'start.check.address': '{old} becomes {new} in contacts, calendars, tasks and shares',
+  'start.check.address.forPerson':
+    '{old} becomes {new} in contacts, calendars, tasks and shares, confirmed by you for {person}',
+  'start.check.address.waitsFor': '{old} → {new} waits for {person} to confirm it, and changes nothing until then',
+  'start.check.address.waits': '{old} → {new} waits for a confirmation, and changes nothing until then',
+  // Start writes the step's rows first; one it could not write stops it.
+  'start.check.address.notStarted': 'Nothing was started. Press Back to change it on Your new address.',
+  'start.check.notNow.addresses': 'The address changes are saved only when you press Start.',
 
   // Afterwards (0168 §6.3).
   'addresses.heading': 'Addresses',
@@ -70,6 +86,8 @@ export const en = {
   'addresses.confirmed': 'Confirmed',
   'addresses.confirmedBy': 'Confirmed by {who}',
   'addresses.confirmedByFor': 'Confirmed by {who} for {person}',
+  // The reader confirmed it for somebody else (D6), said as the step says it.
+  'addresses.confirmedByYouFor': 'Confirmed by you for {person}',
   'addresses.waitingFor': 'Waiting for {person}',
   'addresses.waiting': 'Waiting for a confirmation',
   'addresses.confirm': 'Confirm',
@@ -79,8 +97,12 @@ export const en = {
   'addresses.save': 'Save',
   'addresses.cancel': 'Cancel',
   'addresses.add': 'Add',
+  // Why Save and Add cannot be pressed yet (N10).
+  'addresses.save.reason': 'Type the new address, like name@example.org.',
+  'addresses.add.reason': 'Type the old and the new address, each like name@example.org.',
   'addresses.notSaved': 'Not saved:',
-  'addresses.where': 'Used in contacts, calendars and shares. Mail is never changed.',
+  // A pass changes tasks as it changes events (0168 T4).
+  'addresses.where': 'Used in contacts, calendars, tasks and shares. Mail is never changed.',
   'addresses.fromFile': 'These come from {file}, and are changed in that file.',
   'addresses.table.heading': 'Address changes',
   'addresses.table.old': 'Old address',
@@ -88,18 +110,21 @@ export const en = {
   'addresses.table.person': 'Person',
   'addresses.table.setBy': 'Set by',
   'addresses.table.nobody': 'Nobody',
+  'addresses.peopleFailed': 'The people could not be read, so an address change cannot be linked to a person yet.',
   'addresses.theOld': 'the old address',
   'addresses.whereMore': 'Where a new address goes, and where it does not',
   'addresses.theNew': 'the new address',
-  'addresses.mapping.used': 'Your new address is used in contacts and calendars',
+  'addresses.mapping.used': 'Your new address is used in contacts, calendars and tasks',
   'addresses.mapping.lastPass': 'Changed in the last pass: {count}',
   'addresses.mapping.apply': 'Apply the new addresses here too',
   'addresses.mapping.apply.line':
     'This data type is past its switch, so a change to the address table waits for this press. Copies somebody edited on the new system are left as they are.',
   'addresses.mapping.applying': 'Applying…',
   'addresses.mapping.applied': 'The next pass applies the new addresses here.',
+  // On a verified row only (B2); the account's counts beside the headline.
   'addresses.confirmedList.changed': 'Matches, with your new address',
-  'addresses.confirmedList.older': 'Waiting for the next pass',
+  'addresses.confirmedList.changedCount': 'Copies with a new address: {count}',
+  'addresses.confirmedList.olderCount': 'Copies from before the latest address change: {count}',
   'addresses.sharing.fromTable': 'From your address changes',
   'addresses.grant.yours': 'Your new address: {new}. Is that right?',
   'addresses.grant.yes': 'Yes, that is right',
@@ -123,9 +148,11 @@ export const nl: Record<keyof typeof en, string> = {
   'start.address.newNotAnAddress':
     'Uw nieuwe account meldt zich aan als {login}, en dat is geen adres. Typ het adres waar uw nieuwe mail van komt.',
   'start.address.use': '{new} gebruiken in plaats van {old}?',
+  'start.address.which': 'Welk adres komt in de plaats van {old}?',
   'start.address.yes': 'Ja',
   'start.address.no': 'Nee, laat het zoals het is',
   'start.address.another': 'Een ander adres…',
+  'start.address.this': 'Dit adres',
   'start.address.newLabel': 'Nieuw adres',
   'start.address.oldLabel': 'Oud adres',
   'start.address.goes': 'Waar uw nieuwe adres komt',
@@ -135,6 +162,8 @@ export const nl: Record<keyof typeof en, string> = {
   'start.address.goes.calendars.label': "Agenda's:",
   'start.address.goes.calendars':
     'afspraken die u hebt gemaakt, noemen u {new}, zodat u ze kunt blijven wijzigen. Niemand krijgt een uitnodiging of een wijziging.',
+  'start.address.goes.tasks.label': 'Taken:',
+  'start.address.goes.tasks': 'taken die u hebt gemaakt, noemen u {new}, net als uw afspraken.',
   'start.address.goes.shares.label': 'Gedeelde mappen:',
   'start.address.goes.shares': 'de Deel-checklist stelt {new} voor u voor. Elk deelrecht zet u nog steeds zelf.',
   'start.address.not': 'Waar het niet komt, en waarom',
@@ -151,14 +180,22 @@ export const nl: Record<keyof typeof en, string> = {
   'start.address.others.add': 'Adreswijziging toevoegen',
   'start.address.others.remove': 'Weghalen',
   'start.address.already': 'Staat al in de adreswijzigingen van uw organisatie',
+  'start.address.confirmAtStart': '{old} → {new} bevestigen als ik op Starten druk',
+  // *Gemigreerd* for the migration's copying (GLOSSARY.md), and *Starten* as the button says it.
   'start.address.nothingYet':
-    'Er is nog niets gekopieerd. U kunt dit wijzigen tot u op Start drukt, en daarna op uw pagina.',
+    'Er is nog niets gemigreerd. U kunt dit wijzigen tot u op Starten drukt, en daarna op uw pagina.',
   'start.address.needAnswer': 'Beantwoord eerst de vraag.',
+  'start.address.needOldAddress': 'Typ elk oud adres als adres, zoals naam@example.org.',
   'start.address.needAddress': 'Typ elk nieuw adres als adres, zoals naam@example.org.',
-  'start.address.saving': 'Bezig met opslaan…',
   'start.address.saveFailed': 'Niet opgeslagen: {old}.',
   'start.to.alsoChanging': 'Ik krijg ook een ander adres',
-  'start.check.address': "{old} wordt {new} in contacten, agenda's en deelrechten",
+  'start.check.address': "{old} wordt {new} in contacten, agenda's, taken en deelrechten",
+  'start.check.address.forPerson':
+    "{old} wordt {new} in contacten, agenda's, taken en deelrechten, bevestigd door u voor {person}",
+  'start.check.address.waitsFor': '{old} → {new} wacht tot {person} het bevestigt, en verandert tot dan niets',
+  'start.check.address.waits': '{old} → {new} wacht op een bevestiging, en verandert tot dan niets',
+  'start.check.address.notStarted': 'Er is niets gestart. Druk op Terug en wijzig het bij Uw nieuwe adres.',
+  'start.check.notNow.addresses': 'De adreswijzigingen worden pas opgeslagen als u op Starten drukt.',
 
   'addresses.heading': 'Adressen',
   'addresses.none': 'Geen adreswijzigingen.',
@@ -167,6 +204,7 @@ export const nl: Record<keyof typeof en, string> = {
   'addresses.confirmed': 'Bevestigd',
   'addresses.confirmedBy': 'Bevestigd door {who}',
   'addresses.confirmedByFor': 'Bevestigd door {who} voor {person}',
+  'addresses.confirmedByYouFor': 'Bevestigd door u voor {person}',
   'addresses.waitingFor': 'Wacht op {person}',
   'addresses.waiting': 'Wacht op een bevestiging',
   'addresses.confirm': 'Bevestigen',
@@ -176,8 +214,10 @@ export const nl: Record<keyof typeof en, string> = {
   'addresses.save': 'Opslaan',
   'addresses.cancel': 'Annuleren',
   'addresses.add': 'Toevoegen',
+  'addresses.save.reason': 'Typ het nieuwe adres, zoals naam@example.org.',
+  'addresses.add.reason': 'Typ het oude en het nieuwe adres, elk zoals naam@example.org.',
   'addresses.notSaved': 'Niet opgeslagen:',
-  'addresses.where': "Gebruikt in contacten, agenda's en deelrechten. Mail wordt nooit gewijzigd.",
+  'addresses.where': "Gebruikt in contacten, agenda's, taken en deelrechten. Mail wordt nooit gewijzigd.",
   'addresses.fromFile': 'Deze komen uit {file} en worden in dat bestand gewijzigd.',
   'addresses.table.heading': 'Adreswijzigingen',
   'addresses.table.old': 'Oud adres',
@@ -185,10 +225,11 @@ export const nl: Record<keyof typeof en, string> = {
   'addresses.table.person': 'Persoon',
   'addresses.table.setBy': 'Ingesteld door',
   'addresses.table.nobody': 'Niemand',
+  'addresses.peopleFailed': 'De personen konden niet worden gelezen, dus een adreswijziging kan nog niet aan een persoon worden gekoppeld.',
   'addresses.theOld': 'het oude adres',
   'addresses.whereMore': 'Waar een nieuw adres komt, en waar niet',
   'addresses.theNew': 'het nieuwe adres',
-  'addresses.mapping.used': "Uw nieuwe adres wordt gebruikt in contacten en agenda's",
+  'addresses.mapping.used': "Uw nieuwe adres wordt gebruikt in contacten, agenda's en taken",
   'addresses.mapping.lastPass': 'Gewijzigd in de laatste ronde: {count}',
   'addresses.mapping.apply': 'De nieuwe adressen hier ook toepassen',
   'addresses.mapping.apply.line':
@@ -196,7 +237,8 @@ export const nl: Record<keyof typeof en, string> = {
   'addresses.mapping.applying': 'Bezig met toepassen…',
   'addresses.mapping.applied': 'De volgende ronde past de nieuwe adressen hier toe.',
   'addresses.confirmedList.changed': 'Klopt, met uw nieuwe adres',
-  'addresses.confirmedList.older': 'Wacht op de volgende ronde',
+  'addresses.confirmedList.changedCount': 'Kopieën met een nieuw adres: {count}',
+  'addresses.confirmedList.olderCount': 'Kopieën van vóór de laatste adreswijziging: {count}',
   'addresses.sharing.fromTable': 'Uit uw adreswijzigingen',
   'addresses.grant.yours': 'Uw nieuwe adres: {new}. Klopt dat?',
   'addresses.grant.yes': 'Ja, dat klopt',

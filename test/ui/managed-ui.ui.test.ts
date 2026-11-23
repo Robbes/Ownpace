@@ -1913,7 +1913,9 @@ describe("the app's own pages on a phone, in Dutch (0145 T8 (a))", () => {
  * YOUR NEW ADDRESS, ON A PHONE, IN DUTCH (workplan 0168 T7, §6.2). The same
  * flow, from a mailbox at an address nobody can take along: after
  * *Klaarzetten* the step *Uw nieuwe adres* asks before the check, fits the
- * phone, writes the Yes, and the check says one line for it.
+ * phone, and the check says one line for the Yes. Nothing is written before
+ * Start, so there is no fixture for a write: one made on Next would be a call
+ * with no fixture, and fail this.
  */
 describe('Start a migration, from an address nobody can take along, on a phone (0168 T7)', () => {
   it('asks for the new address between where it goes and the check, and the check says it', async () => {
@@ -1924,19 +1926,6 @@ describe('Start a migration, from an address nobody can take along, on a phone (
         { id: 'c0000000-0000-4000-8000-000000000001', role: 'source', kind: 'imap', displayName: 'Old mail', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { host: 'imap.gmail.com', port: '993', username: 'name@gmail.com' } },
         { id: 'c0000000-0000-4000-8000-000000000002', role: 'target', kind: 'soverin', displayName: 'New mail', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { username: 'first@example.org' } },
       ],
-    };
-    added['POST /api/address-changes'] = {
-      oldAddress: 'name@gmail.com',
-      oldKey: 'name@gmail.com',
-      newAddress: 'first@example.org',
-      state: 'confirmed',
-      setBy: 'owner@example.org',
-      setByYou: true,
-      confirmedBy: 'owner@example.org',
-      confirmedByYou: true,
-      createdAt: at,
-      confirmedAt: at,
-      person: { id: PERSON, displayName: 'Anna' },
     };
     Object.assign(FIXTURES, added);
     const missesBefore = apiMisses.length;
@@ -1965,8 +1954,9 @@ describe('Start a migration, from an address nobody can take along, on a phone (
       await page.getByRole('button', { name: 'Weghalen', exact: true }).click();
       await next('Volgende');
       await page.getByRole('heading', { level: 2, name: 'Controleren, dan starten' }).waitFor({ timeout: 15_000 });
+      // Anna is not the one signed in, who confirms it for her (0168 D6).
       await page
-        .getByText("name@gmail.com wordt first@example.org in contacten, agenda's en deelrechten")
+        .getByText("name@gmail.com wordt first@example.org in contacten, agenda's, taken en deelrechten, bevestigd door u voor Anna")
         .waitFor({ timeout: 10_000 });
       await expectItFitsAPhone(page, 'Start a migration, check, with the new address');
       expect(apiMisses.slice(missesBefore), 'the flow called endpoints with no fixture').toEqual([]);

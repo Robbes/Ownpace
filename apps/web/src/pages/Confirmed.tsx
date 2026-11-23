@@ -256,22 +256,40 @@ const SIDE_CELL =
 
 /**
  * A DECLARED CHANGE, NEVER A SILENT ONE (workplan 0168 §3.1, T5; ADR-0055):
- * an item written with the organisation's current address table is *Matches,
- * with your new address*; one written under an older table is *Waiting for
- * the next pass*, never a match. Read from the row's `address`, which the
- * confirmed list sets for an item that carries an address change and leaves
- * out for every other.
+ * a verified item written with the organisation's current address table is
+ * *Matches, with your new address*. The mark is said on a VERIFIED row only:
+ * on any other it would put *Matches* beside *Missing* or *Differs*, on the
+ * list people delete their originals by (the review's B2). The server sends
+ * no verified row today, so the account's address changes are said as counts
+ * beside the headline (`AddressCounts`), and the export carries each row's.
  */
 function AddressLine({ r }: { r: ConfirmedRowView }): React.ReactElement | null {
   const t = useT();
-  const address = (r as { readonly address?: unknown }).address;
-  if (address === 'changed') {
-    return <span className="block text-xs text-emerald-700">{t('addresses.confirmedList.changed')}</span>;
-  }
-  if (address === 'older') {
-    return <span className="block text-xs text-amber-800">{t('addresses.confirmedList.older')}</span>;
-  }
-  return null;
+  if (r.state !== 'verified' || r.address !== 'changed') return null;
+  return <span className="block text-xs text-emerald-700">{t('addresses.confirmedList.changed')}</span>;
+}
+
+/**
+ * THE ACCOUNT'S ADDRESS CHANGES, COUNTED (ADR-0055; workplan 0168 T5, §6.3):
+ * how many copies carry a new address under the table as it is now, and how
+ * many were copied before its latest change, from the list's own counts over
+ * every item (`addressChanges`), never tallied from the rows it was sent.
+ * Nought is not printed, as in the breakdown.
+ */
+function AddressCounts({ q }: { q: ConfirmedListQueue }): React.ReactElement | null {
+  const t = useT();
+  const { number } = useFormatters();
+  const counts = q.addressChanges;
+  if (counts === undefined || (counts.changed === 0 && counts.older === 0)) return null;
+  return (
+    <p className="mt-1 text-sm text-gray-700" data-address-counts>
+      {counts.changed > 0 && <span>{t('addresses.confirmedList.changedCount', { count: number(counts.changed) })}</span>}
+      {counts.changed > 0 && counts.older > 0 && <span className="text-gray-400"> · </span>}
+      {counts.older > 0 && (
+        <span className="text-amber-800">{t('addresses.confirmedList.olderCount', { count: number(counts.older) })}</span>
+      )}
+    </p>
+  );
 }
 
 function Row({ r }: { r: ConfirmedRowView }): React.ReactElement {
@@ -469,6 +487,7 @@ function Mapping({
           {t('confirmed.headline.of')} {number(q.total)} {t('confirmed.headline.rest')}
         </span>
       </p>
+      <AddressCounts q={q} />
       <Breakdown q={q} />
       <PassLine q={q} checked={checked} />
 

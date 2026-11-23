@@ -182,6 +182,12 @@ export interface SupportTenantDetail {
   /** Absent only from an API older than this screen — render nothing then. */
   readonly members: ReadonlyArray<SupportTenantMember>;
   readonly usage?: SupportTenantUsage;
+  /**
+   * The organisation's address changes, COUNTED (workplan 0168 D7): how many
+   * rows and how many confirmed. Never an address: the view behind it has no
+   * address column. Absent from an API older than this screen.
+   */
+  readonly addressChanges?: { readonly rows: number; readonly confirmed: number };
 }
 
 export interface SupportMigrationDetail {
