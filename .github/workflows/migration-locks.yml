@@ -79,21 +79,29 @@ jobs:
       # made executable, and its version must be the release named. The
       # musl builds, which are static, so neither needs the runner's libc.
       #
-      # WHERE THE SUMS COME FROM. The sha256 GitHub's release page shows for
-      # each asset of squawk's v2.73.0 (published 2026-11-15, past the
-      # three-day floor of CONTRIBUTING.md), and the same sum read from the
-      # downloaded bytes on 2026-11-21, without running them. squawk publishes
-      # no checksum file. The outside check ran squawk 2.66.0; this pins the
-      # newest release, which the pin watch keeps current
-      # (scripts/idp-pin-watch.mjs, its squawk row; Dependabot cannot see a
-      # URL in a `run:`). `a-pin-that-knows-it-is-behind` RUNS this `run:`
-      # under bash, with `curl` and `uname` stubbed, and fails if a wrong sum
-      # or another version does not stop it with nothing installed.
+      # WHERE THE SUMS COME FROM. squawk publishes no checksum file. Each sum
+      # is that of the `squawk` binary in squawk's own npm package for the
+      # same build, `@squawk-cli/linux-x64-musl` and
+      # `@squawk-cli/linux-arm64-musl` at 2.74.0, read on 2026-11-23, each
+      # package checked against the npm registry's integrity sum; the same
+      # reading at 2.73.0 gives, byte for byte, the two sums pinned before,
+      # which were those GitHub's release page showed for v2.73.0's assets and
+      # those of the bytes downloaded from it. So a run that passes here has
+      # two channels agreeing on the bytes: npm's package and the GitHub
+      # release this step downloads. v2.74.0 was published on 2026-11-23 at
+      # 00:26 UTC and is taken inside its three-day floor (CONTRIBUTING.md),
+      # on the owner's word of 2026-11-23: *"Pull pnpm, zizmor and squawk
+      # earlier. I waive unneeded days/waiting."* The outside check ran squawk
+      # 2.66.0; this pins the newest release, which the pin watch keeps
+      # current (scripts/idp-pin-watch.mjs, its squawk row; Dependabot cannot
+      # see a URL in a `run:`). `a-pin-that-knows-it-is-behind` RUNS this
+      # `run:` under bash, with `curl` and `uname` stubbed, and fails if a
+      # wrong sum or another version does not stop it with nothing installed.
       - name: Install squawk from its GitHub release, checked by its sha256
         env:
-          SQUAWK_VERSION: v2.73.0
-          SQUAWK_SHA256_X64: 2a512e96c913663b2b0a1a75ea1351e0605dcbaf2584112f16e93659fc7329e0
-          SQUAWK_SHA256_ARM64: ac74c0835a2e55b06445ed72c7da316cbe4c897d432a6d8e7445dd6efa02bb6e
+          SQUAWK_VERSION: v2.74.0
+          SQUAWK_SHA256_X64: ad69ad8c5dc3791a2cf30b8682ae80d626530e2842279ef4ec4fd75f0d104b69
+          SQUAWK_SHA256_ARM64: 02950a4dd427f99c1efdd447e9a87c4f7512994795c6350f5c206225d4d8a703
         run: |
           set -euo pipefail
           machine="$(uname -m)"
