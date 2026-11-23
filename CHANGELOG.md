@@ -14,6 +14,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The API says a jobs producer that never started when it closes it** (workplan 0163). Closing
+  the API's pg-boss producer while its start had failed dropped that failure without a word; the
+  press that made it was handed the failure, and the close now logs it once, at warn, through
+  `loggableError`, and stops nothing. Two other places an outside, read-only check named keep
+  their behaviour in plainer code: the appliance's queue of address-change writes keeps their order
+  with `Promise.allSettled`, and Cirrux's request for part URLs is written with `await`.
+
 - **A new address reaches `SENT-BY`, `DELEGATED-FROM`, `DELEGATED-TO` and `MEMBER` too, and an
   event that was already over keeps every address** (workplan 0168; ADR-0055, amended; the owner,
   2026-11-23: *"yes, since the new address will control the new events. Though perhapse we need
