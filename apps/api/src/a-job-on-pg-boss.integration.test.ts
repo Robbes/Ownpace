@@ -188,7 +188,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await closeJobRunner();
-  await worker?.stop({ graceful: false }).catch(() => undefined);
+  // Stopped here only, so a stop that fails fails the hook.
+  await worker?.stop({ graceful: false });
   await jobsDb?.end();
   __setPoolForTests(null);
   await driver?.end();

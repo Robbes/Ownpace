@@ -37,6 +37,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **Live's deploy from alpha.17 is reversible.** alpha.17's `deploy-live.sh` takes the copy
   without `--trigger`, notes that the release removes the plane from `managed.yml` (its volumes
   stay), and finds no migration and no changed pin it compares.
+- **The API says a jobs producer that never started when it closes it** (workplan 0163). Closing
+  the API's pg-boss producer while its start had failed dropped that failure without a word; the
+  press that made it was handed the failure, and the close now logs it once, at warn, through
+  `loggableError`, and stops nothing. Two other places an outside, read-only check named keep
+  their behaviour in plainer code: the appliance's queue of address-change writes keeps their order
+  with `Promise.allSettled`, and Cirrux's request for part URLs is written with `await`.
 
 ### Removed
 
