@@ -51,3 +51,4 @@ export * from './a-path-for-every-migration.ts';
 export * from './a-stop-per-data-type.ts';
 export * from './a-cutover-of-one-data-type.ts';
 export * from './an-ending-per-data-type.ts';
+export * from './address-change-store.ts';

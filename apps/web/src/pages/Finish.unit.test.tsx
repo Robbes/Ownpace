@@ -352,6 +352,22 @@ describe('the cutover order', () => {
     expect(screen.queryByText(STRINGS.en['permissions.heading.noMail'])).not.toBeInTheDocument();
   });
 
+  it('says in step 4 to turn on an automatic reply at the old provider, and only where mail waits', async () => {
+    // Ownpace sends nothing to anyone (workplan 0168 §2.1), so the reply is the
+    // person's own to turn on: guidance, never a write.
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    const { unmount } = renderScreen();
+    expect(await screen.findByText(STRINGS.en['finish.step4.autoreply'])).toBeInTheDocument();
+    unmount();
+
+    fetchStatus.mockResolvedValue(
+      statusReport('active', 0, [{ domain: 'calendar', phase: 'active', stopped: false, offers: ['end', 'keep'] }]),
+    );
+    renderScreen();
+    expect(await screen.findByText(`4. ${STRINGS.en['finish.step5.title']}`)).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['finish.step4.autoreply'])).not.toBeInTheDocument();
+  });
+
   it('underlines the links inside a step’s sentence, so they are not told apart by colour alone', async () => {
     fetchStatus.mockResolvedValue(statusReport('active', 2));
     renderScreen();

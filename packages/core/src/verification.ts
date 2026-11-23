@@ -123,6 +123,16 @@ export interface VerificationDeps {
   findExtraOnTarget(
     dataType: VerificationDomain
   ): Promise<Array<{ id: string; targetRef: string }>>;
+
+  /**
+   * The address table's part of this data type (ADR-0055; workplan 0168 T5):
+   * the table's digest now, how many copies carry a change under it, and the
+   * keys of those written under an older table. Optional: absent, the report
+   * says nothing about a table, exactly as before.
+   */
+  getAddressChanges?(
+    dataType: VerificationDomain
+  ): Promise<{ readonly digest: string | null; readonly changed: number; readonly olderKeys: ReadonlyArray<string> }>;
   
   // Bytes tracking
   getTotalBytesSource(dataType: VerificationDomain): Promise<number>;
@@ -565,9 +575,21 @@ async function verifyDataType(
   // Samples the target answered with a hash, of whichever version: none, from
   // a target that can hash, holds the gate (0149 T4, below).
   let hashedByTarget = 0;
+  // THE ADDRESS TABLE (ADR-0055; workplan 0168 T5). A copy written under a
+  // table that is no longer the table is NEVER a match: its hash agreeing with
+  // the ledger proves only that it is what we wrote then. Such a sample is
+  // counted as unavailable, waiting for the next pass, and said below.
+  const address = deps.getAddressChanges ? await deps.getAddressChanges(dataType) : undefined;
+  const older = new Set(address?.olderKeys ?? []);
+  let olderSampled = 0;
 
   // Compare samples by matching naturalKeyHash
   for (const sourceSample of sourceSamples) {
+    if (older.has(sourceSample.naturalKeyHash)) {
+      olderSampled++;
+      checksumUnavailable++;
+      continue;
+    }
     const targetSample = targetSamplesByHash.get(sourceSample.naturalKeyHash);
 
     if (targetSample) {
@@ -650,7 +672,13 @@ async function verifyDataType(
   // version, is an answer, so this is about the target answering at all. No
   // sample drawn at all is held too (`CHECKSUM_NOT_SAMPLED_*`, below): nothing
   // was compared there either.
-  const contentHeld = deps.targetCanHash(dataType) && sourceCount > 0 && hashedByTarget === 0;
+  const contentHeld =
+    deps.targetCanHash(dataType) &&
+    sourceCount > 0 &&
+    hashedByTarget === 0 &&
+    // Samples set aside as written under an older address table were never
+    // asked of the target; a run whose every sample was one held nothing back.
+    (olderSampled === 0 || olderSampled < sourceSamples.length);
 
   const status = contentHeld
     ? 'FAIL'
@@ -739,6 +767,17 @@ async function verifyDataType(
     });
   }
   
+  if (address && address.olderKeys.length > 0) {
+    issues.push({
+      id: `ADDRESS_OLDER_TABLE_${dataType}`,
+      severity: 'WARNING',
+      message:
+        `${address.olderKeys.length} ${dataType} item(s) carry an address change under an older address ` +
+        `table and wait for the next pass to be rewritten (ADR-0055). None of them is counted as a match` +
+        (olderSampled > 0 ? `; ${olderSampled} sampled item(s) were set aside for it.` : '.'),
+    });
+  }
+
   if (checksumMismatches > 0) {
     issues.push({
       id: `CHECKSUM_${dataType}`,
@@ -767,6 +806,9 @@ async function verifyDataType(
     checksumMatches,
     checksumMismatches,
     checksumUnavailable,
+    ...(address
+      ? { addressChanges: { digest: address.digest, changed: address.changed, older: address.olderKeys.length } }
+      : {}),
     totalBytesSource,
     totalBytesTarget,
     issues,

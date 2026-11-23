@@ -67,6 +67,11 @@ vi.mock('../services/mapping-service', () => ({
   },
 }));
 
+// The organisation's address changes (0168 §6.3) hold nothing here; their
+// section has a test of its own (`components/AddressChanges.unit.test.tsx`).
+vi.mock('../services/address-change-service', () => ({
+  fetchAddressChanges: vi.fn(async () => ({ rows: [], door: 'api', file: null })),
+}));
 vi.mock('../stores/auth-store', () => ({
   useAuthStore: () => auth,
 }));

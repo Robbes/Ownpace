@@ -254,6 +254,26 @@ function Legend({ q }: { q: ConfirmedListQueue }): React.ReactElement | null {
 const SIDE_CELL =
   'text-xs text-gray-600 [overflow-wrap:anywhere] sm:table-cell sm:py-2 sm:pr-3 sm:text-sm';
 
+/**
+ * A DECLARED CHANGE, NEVER A SILENT ONE (workplan 0168 §3.1, T5; ADR-0055):
+ * an item written with the organisation's current address table is *Matches,
+ * with your new address*; one written under an older table is *Waiting for
+ * the next pass*, never a match. Read from the row's `address`, which the
+ * confirmed list sets for an item that carries an address change and leaves
+ * out for every other.
+ */
+function AddressLine({ r }: { r: ConfirmedRowView }): React.ReactElement | null {
+  const t = useT();
+  const address = (r as { readonly address?: unknown }).address;
+  if (address === 'changed') {
+    return <span className="block text-xs text-emerald-700">{t('addresses.confirmedList.changed')}</span>;
+  }
+  if (address === 'older') {
+    return <span className="block text-xs text-amber-800">{t('addresses.confirmedList.older')}</span>;
+  }
+  return null;
+}
+
 function Row({ r }: { r: ConfirmedRowView }): React.ReactElement {
   const t = useT();
   const { dateTime } = useFormatters();
@@ -293,6 +313,7 @@ function Row({ r }: { r: ConfirmedRowView }): React.ReactElement {
         <span className={s.className} title={t(s.helpKey)}>
           {t(s.nameKey)}
         </span>
+        <AddressLine r={r} />
       </td>
       <td className="text-xs text-gray-600 sm:table-cell sm:py-2 sm:pr-3">{t(CLAIM[r.claim])}</td>
       <td className="text-xs text-gray-600 sm:table-cell sm:py-2 sm:pr-3">

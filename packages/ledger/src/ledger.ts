@@ -15,6 +15,7 @@ import {
   type MappingId,
   type SetupStepRow,
   type ShareGrantRow,
+  type ConfirmedAddressChangeRow,
   classifyFailure,
   isFailureCategory,
   nameOnRow,
@@ -440,6 +441,9 @@ export class PgLedger implements Ledger {
         // refusal has yet produced. It arrives as a refusal first, and gets
         // the plumbing then.
         repaired: record.repaired ?? null,
+        // The address table this copy was written under (ADR-0055), NULL when
+        // no address in it changed.
+        addressDigest: record.addressDigest ?? null,
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
@@ -514,6 +518,11 @@ export class PgLedger implements Ledger {
         // move undetectable. A caller that knows says so; one that does not
         // leaves the row alone.
         ...(record.collection !== undefined ? { collection: record.collection } : {}),
+        // Conditional on being SAID, and null is said: a rewrite after a row
+        // left the address table writes the source's bytes again, and its NULL
+        // is the fact (ADR-0055). A caller with nothing to say (mail, files,
+        // `record-version`) leaves the column as it was.
+        ...(record.addressDigest !== undefined ? { addressDigest: record.addressDigest } : {}),
         // Conditional for the same reason as `collection`: a caller with nothing
         // to say must not blank what we already knew, which would retire the
         // item's removal-report link.
@@ -1276,6 +1285,29 @@ export class PgLedger implements Ledger {
       ...(saved.decidedBy ? { decidedBy: saved.decidedBy } : {}),
       ...(saved.decidedAt ? { decidedAt: saved.decidedAt.toISOString() } : {}),
     };
+  }
+
+  /**
+   * The organisation's confirmed address changes, by old key (ADR-0055;
+   * workplan 0168 T2): what a pass applies to contacts and calendars (T4).
+   *
+   * By the statement's own tenant, beside row security, for the reason
+   * `namesOfKeys` gives: the appliance's ledger runs outside `withTenant`, so
+   * on its connection this filter is what keeps another organisation's rows
+   * out. A failed read throws: an empty table and an unreadable one are not
+   * the same answer (hard rule 9).
+   */
+  async listConfirmedAddressChanges(tenantId: TenantId): Promise<ReadonlyArray<ConfirmedAddressChangeRow>> {
+    const rows = await this.db
+      .select({
+        oldKey: schemaPg.addressChange.oldKey,
+        oldAddress: schemaPg.addressChange.oldAddress,
+        newAddress: schemaPg.addressChange.newAddress,
+      })
+      .from(schemaPg.addressChange)
+      .where(and(eq(schemaPg.addressChange.tenantId, tenantId), eq(schemaPg.addressChange.state, 'confirmed')))
+      .orderBy(schemaPg.addressChange.oldKey);
+    return rows.map((r) => ({ oldKey: r.oldKey, oldAddress: r.oldAddress, newAddress: r.newAddress }));
   }
 
   async listShareGrants(
@@ -2245,6 +2277,9 @@ export class PgLedger implements Ledger {
       // Same rule: absent stays absent, so a round-tripped record cannot blank
       // a name the row already holds.
       ...(row.displayName ? { displayName: row.displayName } : {}),
+      // The address table the copy was written under (ADR-0055); absent when
+      // NULL, so a round-tripped record says nothing and keeps the column.
+      ...(row.addressDigest ? { addressDigest: row.addressDigest } : {}),
       // Left off entirely when there is none, so "not recorded" stays
       // distinguishable from "recorded as empty".
       ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),

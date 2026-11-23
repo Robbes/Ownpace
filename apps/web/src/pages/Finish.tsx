@@ -628,6 +628,7 @@ const Finish: React.FC = () => {
                 {mailWaits && (
                 <Step n={4} title={t('finish.step4.title')} done={deliveryMoved[id]}>
                   <Hint className="" tone="body" label="more" text={t('finish.step4.body')} why={t('finish.step4.more')} />
+                  <p className="mt-1">{t('finish.step4.autoreply')}</p>
                   <p className="mt-1 text-amber-800">
                     <b>{t('finish.step4.warn.pre')}</b>
                     {t('finish.step4.warn.post')}

@@ -331,6 +331,14 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
       expect(MANAGED_ONLY_TABLES, `the derivation lost '${managedOnly}'`).toContain(managedOnly);
     }
 
+    // Whose old address an address change is (ADR-0055; workplan 0168 §7,
+    // managed migration 0063). The table of address changes itself is the
+    // shared chain's and the appliance's too; which PERSON a row is for is
+    // managed-only, because `person` is, and the appliance answers every row
+    // with `person: null` from `apps/selfhost/src/address-changes.ts`.
+    expect(MANAGED_ONLY_TABLES, "the derivation lost 'address_change_person'").toContain('address_change_person');
+    expect(MANAGED_ONLY_TABLES, "the shared chain's 'address_change' is not managed-only").not.toContain('address_change');
+
     // What a tester accepted (workplan 0139 T3, managed migration 0032). The
     // appliance has no terms and asks nobody; the record, its versions and the
     // check all live in `@openmig/managed` and the managed API.

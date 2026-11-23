@@ -111,6 +111,12 @@ tags:
       person has no state of its own, and changes nothing about a migration.
       The appliance answers `GET /people` in the same shapes, with one
       implicit person holding every migration it is configured with.
+  - name: Address changes
+    description: |
+      The organisation's table of addresses that change, old to new
+      (ADR-0055): applied to contacts' `EMAIL`, calendar `ORGANIZER` and
+      `ATTENDEE` and share grantees, never to mail. The appliance answers
+      `/address-changes` in the same shapes.
   - name: Operating
     description: The three decision queues, verification, and applying a deletion.
   - name: Decisions
@@ -3227,6 +3233,51 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/migrations/{mappingId}/address-changes/apply:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Migrations]
+      summary: Apply the new addresses here too
+      description: |
+        *Apply the new addresses here too* (ADR-0055; workplan 0168 §3.4,
+        D5). Past a data type's cutover the target is the person's live
+        system, so a change to the organisation's table of address changes
+        (`/api/address-changes`) reaches that data type's copies only once
+        someone presses this on the migration. Before the cutover the table
+        applies anyway, and the press changes nothing.
+
+        It records the CONFIRMED table as it is now, by its digest. The next
+        pass rewrites the contacts and events whose table moved and which the
+        person has not edited since (the copy's `If-Match`); an edited one is
+        left as the person has it. A later change to the table waits for a
+        press of its own. Pressing again for the same table records the same
+        digest. Mail is never changed.
+
+        **The appliance answers `POST /mappings/{mappingId}/address-changes/apply`
+        in the same shape**, recorded as the operator's press.
+      responses:
+        '200':
+          description: Recorded. The rows are counted, never named.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, applied, digest, rows]
+                properties:
+                  id: { type: string }
+                  applied: { type: boolean, enum: [true] }
+                  digest:
+                    type: string
+                    pattern: '^[0-9a-f]{64}$'
+                    description: The digest of the confirmed table the press was made for.
+                  rows:
+                    type: integer
+                    minimum: 0
+                    description: How many confirmed rows the table held.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /api/migrations/{mappingId}/cutover:
     parameters:
       - $ref: '#/components/parameters/MappingId'
@@ -4374,6 +4425,14 @@ paths:
                             The same line in Dutch, without the English developer
                             note; said on each read, never stored (UX sweep,
                             2026-10-17). The page shows it to a Dutch reader.
+                        granteeNewAddress:
+                          type: string
+                          description: >-
+                            The new address a confirmed row of the organisation's
+                            address table gives this grantee (ADR-0055; workplan 0168
+                            T6), for the page to propose, labelled as from the address
+                            changes. Absent when the table has none. Proposed, never
+                            pressed: a press still sends the address the page shows.
                         state: { type: string, enum: [open, applied, done_manual, skipped] }
                         stateReason: { type: string }
                         decidedBy: { type: string }
@@ -4550,6 +4609,15 @@ paths:
         address, or nothing is sent**: the 409 names exactly who is missing. An
         entry may repeat the source's own address unchanged; §6 asks for a
         person's judgement on the address, not for it to be different.
+
+        **A confirmed address change is such a confirmation** (ADR-0055
+        decision 7; workplan 0168 T6). A grantee left out of `confirmed`
+        whose old address has a confirmed row in the organisation's table
+        (`/api/address-changes`) is sent to that row's new address, matched on
+        the address's key, and is not named in the 409. An address in
+        `confirmed` wins over the row. A proposed row confirms nothing. The
+        press records how many grantees the table confirmed, never their
+        addresses.
 
         Which rows are in the folder is derived server-side with the same
         grouping rule the screen folds with, from `parentKey` alone — a caller
@@ -4751,6 +4819,14 @@ paths:
         `itemsFound`, what discovery found of the data type, where a count
         exists (absent, never 0, where none does), and `itemsAdopted`, what
         was left as it already was.
+
+        `report.addressChanges` (ADR-0055; workplan 0168 §6.3) is *Addresses
+        changed*: how many address changes the organisation confirmed, per
+        data type how many copies carry a new address and how many wait for
+        the next pass, and that mail was copied unchanged, with each sentence
+        in English and Dutch under `said`. Counts only, never an address.
+        Absent when the organisation confirmed no change and no copy carries
+        one.
       parameters:
         - { name: mappingId, in: path, required: true, schema: { type: string } }
       responses:
@@ -5115,6 +5191,21 @@ paths:
                     total:
                       type: integer
                       description: Every item in the account, including the ones `rows` does not carry.
+                    addressChanges:
+                      type: object
+                      description: |
+                        The address table's part of the account (ADR-0055; workplan
+                        0168 T5): the organisation's confirmed table's `digest` now,
+                        how many copies carry a change under it (`changed`), and how
+                        many under an older table (`older`). An older one is never
+                        `verified`: its row reads `differs`, marked `address: older`
+                        (*Waiting for the next pass*). A row changed under the table
+                        now is marked `address: changed` (*Matches, with your new
+                        address*). Counted over every item, as `byState` is.
+                      properties:
+                        digest: { type: [string, 'null'] }
+                        changed: { type: integer }
+                        older: { type: integer }
                     byState:
                       type: object
                       description: |
@@ -6228,6 +6319,185 @@ paths:
                           nullable: true
                         why: { type: string }
                         unconfigured: { type: boolean }
+
+  /api/address-changes:
+    get:
+      tags: [Address changes]
+      summary: The organisation's address changes, old to new
+      description: |
+        One table per organisation (ADR-0055, workplan 0168 §4.2): one row
+        per old address, oldest first, with its key, its new address, its
+        state and who set and confirmed it. Every migration of the
+        organisation reads the same table, so a family's copies agree about
+        one person's new address. Only a `confirmed` row reaches a writer; a
+        `proposed` one waits for a person.
+
+        Who set and who confirmed a row are said in the decision idiom
+        (`setBy`, `confirmedBy`): an address a person can read, or the
+        appliance's own word, never a sign-in's id. `setByYou` and
+        `confirmedByYou` say whether that was the asker.
+
+        **The appliance answers `GET /address-changes` in the same shape.**
+        On its own page (the Personal door) its rows are written by
+        `POST /address-changes`, and `door` is `page`. When its config
+        directory holds `address-changes.json` (the Organisation door), the
+        rows are that file's, `door` is `file`, `file` names it, and every
+        write is refused with `file_door`. The appliance has no people, so
+        `person` is always null there.
+
+        A read that fails answers 500 with a reference, never an empty table.
+      responses:
+        '200':
+          description: The table.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeTable' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Address changes]
+      summary: Add an address change
+      description: |
+        An old address and the new one it becomes. Without `confirm: true`
+        the row is `proposed`: it is shown, and reaches no copy until a person
+        confirms it. With it, the row is `confirmed` by the asker, in the
+        same press (a person confirming their own address on *Start a
+        migration*, or an admin confirming for a person, attributed).
+
+        The same old address with the same new address again changes nothing
+        and answers 200 with the row as it is (a `confirm: true` on a
+        `proposed` row confirms it). A different new address for an old
+        address already in the table is `already_changed`: change that row
+        instead.
+
+        On managed, `personId` links the row to a person of this
+        organisation (`address_change_person`, a managed row of its own);
+        it is optional. The appliance refuses a `personId`: it has one
+        implicit person. A row written through the appliance's page is
+        `confirmed` with `confirmedBy: operator`, whatever `confirm` says:
+        the person on its loopback page is its owner, as with its decisions.
+
+        Refusals are `{error, message, messageNl}`: the sentence in English
+        and in Dutch. Nothing was written.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAddressChange' }
+      responses:
+        '201':
+          description: Added.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChange' }
+        '200':
+          description: The same change was already in the table; nothing changed but a confirmation asked for.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChange' }
+        '400':
+          description: |
+            `not_an_address` (with `field`): the old or the new value is not
+            an address. `same_address`: the new address is the old one in
+            another spelling (the same key), so there is nothing to change.
+            Or a body that is not this shape.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`, managed only: this organisation has no such person.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: |
+            `already_changed`: the old address is in the table already, with
+            another new address; `row` is that row. `chained`: the new address
+            is an old address in the table, or the old address is another
+            row's new address, so the change would run on into another one;
+            `row` is the row to change instead (the table stores each old
+            address against its final new address, 0168 §1.2).
+            `file_door`, appliance only: the rows are `address-changes.json`'s,
+            and are changed in that file.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+
+  /api/address-changes/{oldKey}:
+    parameters:
+      - $ref: '#/components/parameters/AddressOldKey'
+    put:
+      tags: [Address changes]
+      summary: Change a row, confirm it, or send it back
+      description: |
+        Every field is optional; one absent is kept. `state: confirmed`
+        confirms the row as the asker (attributed); `state: proposed` sends
+        it back (*Not right?*), clearing who confirmed it. A new
+        `newAddress` without `state: confirmed` in the same body leaves the
+        row `proposed`: a confirmation is of one new address, not of
+        whatever the row says later. On managed, `personId` links the row to
+        a person, and `null` unlinks it. The old address is the row's
+        identity: changing it is a delete and an add.
+
+        Saying what the row already says changes nothing and answers 200.
+        The refusals are `POST`'s, in both languages. The appliance's page
+        keeps every row `confirmed` by `operator`, and refuses
+        `state: proposed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAddressChange' }
+      responses:
+        '200':
+          description: The row as it is now.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChange' }
+        '400':
+          description: '`not_an_address`, `same_address`, or a body that is not this shape.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: |
+            `address_change_not_found`: the table has no row for this key.
+            `person_not_found`, managed only.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+        '409':
+          description: '`chained`, naming the row; `file_door` on the appliance''s Organisation door.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+    delete:
+      tags: [Address changes]
+      summary: Delete a row
+      description: |
+        The row goes, with its link to a person. Copies already written under
+        it converge back to what the source says on the next pass (ADR-0055
+        decision 6), within the ordinary rules of a rewrite. Deleting a
+        person does not delete their rows: other people's copies depend on
+        them.
+      responses:
+        '200':
+          description: Deleted. The row as it was.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChange' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`address_change_not_found`: the table has no row for this key.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+        '409':
+          description: '`file_door`, appliance only.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
 
   /api/shared-addresses:
     get:
@@ -7388,6 +7658,17 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/SupportTenantMember' }
                   usage: { $ref: '#/components/schemas/SupportTenantUsage' }
+                  addressChanges:
+                    type: object
+                    description: |
+                      The organisation's address changes (ADR-0055), counted:
+                      how many rows, and how many of them are confirmed. Never
+                      an address (workplan 0168 D7). Read in the same
+                      transaction, and recorded by the same support read.
+                    required: [rows, confirmed]
+                    properties:
+                      rows: { type: integer, minimum: 0 }
+                      confirmed: { type: integer, minimum: 0 }
         '400':
           description: The id in the path is not a uuid.
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -8094,6 +8375,12 @@ components:
       required: true
       description: The migration's id.
       schema: { type: string, format: uuid }
+    AddressOldKey:
+      name: oldKey
+      in: path
+      required: true
+      description: The row's `oldKey`, from `GET /api/address-changes`, URL-encoded.
+      schema: { type: string }
     PersonId:
       name: personId
       in: path
@@ -8508,6 +8795,123 @@ components:
               type: integer
               description: Open steps needing an administrator — why a setup is stuck.
             complete: { type: boolean }
+    AddressChange:
+      type: object
+      description: |
+        One address that becomes another (ADR-0055, workplan 0168 §4.2). Its
+        identity is `oldKey`, unique in the organisation.
+      required: [oldAddress, oldKey, newAddress, state, setBy, setByYou, confirmedBy, confirmedByYou, createdAt, confirmedAt, person]
+      properties:
+        oldAddress:
+          type: string
+          maxLength: 254
+          description: The old address, as it was typed.
+        oldKey:
+          type: string
+          description: |
+            The key the old address is matched by (`addressKey`): lower case,
+            and for Gmail only, dots and a `+suffix` dropped and
+            `googlemail.com` read as `gmail.com`. The path segment of `PUT`
+            and `DELETE`.
+        newAddress:
+          type: string
+          maxLength: 254
+          description: The address it becomes, as it was typed.
+        state:
+          type: string
+          enum: [proposed, confirmed]
+          description: Only `confirmed` reaches a writer.
+        setBy:
+          type: [string, 'null']
+          description: |
+            Who added the row, in the decision idiom: a member's address on
+            managed, `operator` on the appliance's page,
+            `address-changes.json` for the appliance's file. Null when what
+            was stored names nobody a person could read. Never an id.
+        setByYou: { type: boolean, description: Whether the asker added it. Always false on the appliance. }
+        confirmedBy:
+          type: [string, 'null']
+          description: Who confirmed it, in the same idiom as `setBy`. Null while `proposed`.
+        confirmedByYou: { type: boolean, description: Whether the asker confirmed it. Always false on the appliance. }
+        createdAt: { type: string, format: date-time }
+        confirmedAt: { type: [string, 'null'], format: date-time, description: Null while `proposed`. }
+        person:
+          description: |
+            Managed only, and optional: the person whose old address it is.
+            Always null on the appliance.
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [id, displayName]
+              properties:
+                id: { type: string, format: uuid }
+                displayName: { type: string }
+    AddressChangeTable:
+      type: object
+      required: [rows, door, file]
+      properties:
+        rows:
+          type: array
+          items: { $ref: '#/components/schemas/AddressChange' }
+        door:
+          type: string
+          enum: [api, page, file]
+          description: |
+            Where the rows are written: `api` on managed, `page` on the
+            appliance's own page, `file` when the appliance reads
+            `address-changes.json` (read-only here).
+        file:
+          type: [string, 'null']
+          description: The file the rows come from when `door` is `file`; null otherwise.
+    CreateAddressChange:
+      type: object
+      required: [oldAddress, newAddress]
+      additionalProperties: false
+      properties:
+        oldAddress: { type: string, maxLength: 254 }
+        newAddress: { type: string, maxLength: 254 }
+        confirm:
+          type: boolean
+          default: false
+          description: Confirm it in the same press, as the asker.
+        personId:
+          type: [string, 'null']
+          format: uuid
+          description: Managed only. The person whose old address it is.
+    UpdateAddressChange:
+      type: object
+      additionalProperties: false
+      properties:
+        newAddress: { type: string, maxLength: 254 }
+        state: { type: string, enum: [proposed, confirmed] }
+        personId: { type: [string, 'null'], format: uuid, description: Managed only. }
+    AddressChangeRefusal:
+      type: object
+      description: |
+        A refusal of the address-change routes, in English and Dutch.
+        Nothing was written.
+      required: [error, message, messageNl]
+      properties:
+        error:
+          type: string
+          enum: [not_an_address, same_address, already_changed, chained, address_change_not_found, file_door, invalid_request]
+        message: { type: string }
+        messageNl: { type: string }
+        field:
+          type: string
+          enum: [oldAddress, newAddress]
+          description: With `not_an_address`, which value it was.
+        row:
+          type: object
+          description: With `already_changed` and `chained`, the row it names.
+          required: [oldAddress, oldKey, newAddress]
+          properties:
+            oldAddress: { type: string }
+            oldKey: { type: string }
+            newAddress: { type: string }
+        file:
+          type: string
+          description: With `file_door`, the file the rows are changed in.
     PersonMigration:
       type: object
       description: One of a person's migrations, and where it is.
@@ -9573,6 +9977,19 @@ components:
         checksumMismatches: { type: integer }
         checksumSampleSize: { type: integer }
         checksumUnavailable: { type: integer }
+        addressChanges:
+          type: object
+          description: |
+            The address table's part of this data type (ADR-0055; workplan 0168
+            T5), when the ledger keeps one: the organisation's confirmed table's
+            `digest` now, how many copies carry a change under it (`changed`),
+            and how many under an OLDER table (`older`). Those wait for the next
+            pass, and a sample of one is never a match: it counts in
+            `checksumUnavailable`, and an `ADDRESS_OLDER_TABLE_*` warning says so.
+          properties:
+            digest: { type: [string, 'null'] }
+            changed: { type: integer }
+            older: { type: integer }
         totalBytesSource: { type: integer }
         totalBytesTarget: { type: [integer, 'null'] }
         issues:

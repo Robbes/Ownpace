@@ -6,6 +6,9 @@
   texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
+  Still 1.0, edited in place again on 2026-11-23 (the owner, 2026-11-22, of workplan 0168's D8:
+  "1.0 ok"): §4.6 gains De adressen die veranderen, and §9 a row for them. privacy.md's briefing
+  has what changed and why.
   Still 1.0, edited in place on 2026-11-22 (the owner: "Option A, but keep the policy on 1.0,
   since no tester has yet accepted it"): §9's Serverlogs row has the background tasks follow
   the app's rule. privacy.md's briefing has what changed, why, and what was read again. The
@@ -28,7 +31,7 @@
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
 **Versie:** 1.0
-**Laatst bijgewerkt:** 2026-11-22
+**Laatst bijgewerkt:** 2026-11-23
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
 > te verklaren: de software draait op uw eigen infrastructuur, uw gegevens bereiken ons nooit,
@@ -411,6 +414,10 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
   van hen krijgt een e-mail van support@ownpace.eu die zegt wie hen voor welke organisatie
   uitnodigde en waar ze zich aanmelden; en nog eens alleen als u die opnieuw laat versturen. Van
   elk van die e-mails blijft een kopie in onze supportmailbox staan, zo lang als §9 zegt (§4.5).
+- **De adressen die veranderen.** Vertelt u ons dat een adres wordt vervangen door een nieuw, voor
+  uzelf of voor iemand die met u mee overstapt, dan bewaren we beide adressen en wie het
+  bevestigde, en gebruiken we ze alleen om die adressen te corrigeren in de contacten, agenda's en
+  delingen die we voor uw organisatie kopiëren. Uw e-mail wordt nooit gewijzigd.
 - **Mensen die een link melden** die ze kregen: zie §4.5.
 - **Correspondenten, en iedereen verder in uw e-mail, contacten en agenda's**: alleen wat §4.2
   per item bewaart. Hun naam of adres kan daar staan in een onderwerpregel, als naam van een
@@ -727,6 +734,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | Het migratieregister (§4.2), en wat elke migratie daarnaast bewaart, zoals de lijst van wat er gedeeld was (§4.6) | Tot u de migratie verwijdert; dan mee verwijderd. Anders tot uw gegevens worden gewist. |
 | De telling bij het controleren van uw migratie (§4.3) | Bij de migratie waarvoor ze is gedaan: tot u die migratie verwijdert, of tot uw gegevens worden gewist. |
 | Wat bij uw organisatie hoort en niet bij één migratie: de leden en uitnodigingen, de distributielijsten die een migratie vond, en het auditlog van wie wat deed en wanneer | Tot uw gegevens worden gewist, ook nadat u de migratie verwijdert die ze vond. |
+| De adressen die veranderen, voor uzelf en wie met u mee overstapt, en wie elke wijziging bevestigde (§4.6) | Tot u die wijziging verwijdert, of tot uw gegevens worden gewist. Het verwijderen van een persoon verwijdert haar niet. |
 | Welke versies van de Voorwaarden voor de Alpha, de servicevoorwaarden en deze verklaring elk lid heeft aanvaard, in welke taal, en wanneer (§4.4) | Tot uw gegevens worden gewist, ook nadat dat lid uw organisatie heeft verlaten, zodat vastgelegd blijft wie waarmee heeft ingestemd. |
 | De mensen voor wie u migreert: ieders naam, en een e-mailadres als u dat gaf (§4.6) | Tot u die persoon verwijdert, of tot uw gegevens worden gewist. Het verwijderen van een migratie verwijdert de persoon niet. |
 | Het overzicht van elke ronde: wanneer die liep, en wat die telde | Tijdens de Alpha: tot uw gegevens worden gewist. |

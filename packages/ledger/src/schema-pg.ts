@@ -304,6 +304,15 @@ export const mailboxMapping = pgTable(
      * refuses an UPDATE that changes it, for every role (§2 (c)).
      */
     testMarker: text('test_marker'),
+    /**
+     * The confirmed address table a person last pressed *Apply the new
+     * addresses here too* for (ADR-0055; workplan 0168 D5, migration 0073),
+     * with who and when. Past a data type's cutover a pass applies the table
+     * only while this is its digest now. NULL when nobody pressed it.
+     */
+    addressChangesAppliedDigest: text('address_changes_applied_digest'),
+    addressChangesAppliedBy: text('address_changes_applied_by'),
+    addressChangesAppliedAt: timestamp('address_changes_applied_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -676,6 +685,13 @@ export const item = pgTable(
      * old prose without its side is the exact mistake 0048 exists to undo.
      */
     lastErrorCategory: text('last_error_category'),
+    /**
+     * The digest of the confirmed address table (ADR-0055) this copy was
+     * written under, SHA-256 hex (`addressTableDigest`, migration 0072,
+     * workplan 0168). NULL when no address in it was changed: every mail and
+     * file row, and every row written before the column.
+     */
+    addressDigest: text('address_digest'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1061,6 +1077,34 @@ export const shareGrant = pgTable(
     isContainer: boolean('is_container'),
   },
   (t) => [uniqueIndex('uk_share_grant_identity').on(t.tenantId, t.mappingId, t.grantHash)],
+);
+
+/**
+ * The organisation's addresses that change, old to new (ADR-0055; workplan
+ * 0168 §4.2; migration 0071). One row per old address, by its matching key
+ * (`addressKey`). Only `confirmed` rows reach a writer. `setBy` and
+ * `confirmedBy` are the decision idiom: a sign-in subject on managed,
+ * `operator` or the file's name on the appliance. Which person a row is for is
+ * managed-only, `address_change_person` in `@openmig/managed`.
+ */
+export const addressChange = pgTable(
+  'address_change',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    oldKey: text('old_key').notNull(),
+    oldAddress: text('old_address').notNull(),
+    newAddress: text('new_address').notNull(),
+    state: text('state', { enum: ['proposed', 'confirmed'] })
+      .notNull()
+      .default('proposed'),
+    setBy: text('set_by').notNull(),
+    confirmedBy: text('confirmed_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.oldKey] })],
 );
 
 export const cutover = pgTable(

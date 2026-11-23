@@ -4,6 +4,42 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **A new address for one you cannot take along: declared once, applied to contacts, calendars and
+  shares, never to mail** (workplan 0168; ADR-0055). An organisation keeps one table of address
+  changes, old address to new, proposed or confirmed (`/api/address-changes`; on the appliance
+  `/address-changes`, with `address-changes.json` in the config directory as the Organisation
+  door). Support sees counts only. *Start a migration* gains the step *Your new address* between
+  *Where does it go?* and *Check, then start* where an address being left is one nobody can take
+  along (`NOT_TAKEN_ALONG` holds Google's two domains, the only ones whose sources could be read),
+  where the table already holds it, or where the person ticks *I am also changing my address*;
+  otherwise the flow keeps its six steps.
+  - Every contact, calendar and task pass applies the confirmed rows before the writer's repairs.
+    A card's new `EMAIL` goes first and the old one stays; an event's `ORGANIZER` and the family's
+    `ATTENDEE`s change; free text, display names, UIDs and an outside invitation never do.
+  - Each copy records the table it was written under (`item.address_digest`) and is rewritten once
+    when the table changes, leaving an adopted or edited copy alone. Past a data type's cutover a
+    change waits for *Apply the new addresses here too*.
+  - The confirmed list, the §20 report and the completion report say what was changed
+    (*Addresses changed*), and that mail was copied unchanged. The Sharing checklist's folder press
+    takes a confirmed row as a grantee's confirmation.
+  - The person's page, the team screen, a migration's page and the grant and progress pages show
+    the changes. English and Dutch; nothing sends mail.
+  - The managed gate and the appliance's e2e check the changed card and event on the target, the
+    seeded message byte for byte, and the copies converging back when the row is deleted.
+  - Ledger migrations 0071, 0072 and 0073 and managed migration 0063 make the next deploy one-way.
+
+### Changed
+
+- **The privacy policy names the addresses that change** (workplan 0168 T9 and D8; ADR-0055). §4.6
+  says both addresses and who confirmed the change are kept, and used only to correct those
+  addresses in what is copied, never mail; §9 says they are kept until the change is deleted or the
+  data is erased, and that deleting a person does not delete it. Still version 1.0, edited in
+  place, since no tester has accepted it, and dated 2026-11-23, in both languages. The Google and
+  Microsoft guides say what *Start a migration* does with an address that cannot come along, and
+  Finish step 4 says to turn on an automatic reply at the old provider.
+
 ## [0.2.0-alpha.16] - 2026-11-22
 
 The managed edition's background jobs now run on pg-boss, on the stack's own Postgres, in one

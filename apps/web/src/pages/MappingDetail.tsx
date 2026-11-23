@@ -27,6 +27,7 @@ import { Link, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pause } from 'lucide-react';
 import { isSelfHost } from '../services/edition.ts';
+import { MigrationAddresses } from '../components/MigrationAddresses.tsx';
 
 // The strip's refresh rule, shared with a person's lines (0154 T1 (b)).
 export { progressRefetchInterval, PROGRESS_POLL_ACTIVE_MS, PROGRESS_POLL_IDLE_MS } from '../services/progress-poll.ts';
@@ -429,6 +430,16 @@ const MappingDetail: React.FC = () => {
             ),
           })}
         </p>
+      )}
+      {/* THE NEW ADDRESS (0168 §6.3): used here where the table holds a
+          confirmed row, the last pass's count, and past the switch, a press. */}
+      {detail.data && (
+        <MigrationAddresses
+          mappingId={id}
+          lifecycle={lifecycle}
+          domains={detail.data.syncConfig.domains ?? []}
+          domainStatus={detail.data.domainStatus}
+        />
       )}
       {/* WHERE THE COPIES LAND (0153 open question 5, item 4): the folder
           chosen as *Put it in a folder of its own*, or the destination's own

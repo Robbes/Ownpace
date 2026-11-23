@@ -18,6 +18,7 @@ import type {
   RawMessage,
   SetupStepRow,
   ShareGrantRow,
+  ConfirmedAddressChangeRow,
   SourceConnector,
   SyncCursor,
   TargetEntry,
@@ -464,6 +465,9 @@ export class MemoryLedger implements Ledger {
       ...(record.targetVersion !== undefined ? { targetVersion: record.targetVersion } : {}),
       ...(record.collection !== undefined ? { collection: record.collection } : {}),
       ...(record.sourceRef !== undefined ? { sourceRef: record.sourceRef } : {}),
+      // Said, null included, as PgLedger's SET is (ADR-0055); a null digest
+      // leaves the field off, as a NULL column reads back.
+      ...(record.addressDigest !== undefined ? { addressDigest: record.addressDigest } : {}),
       // Conditional AND non-empty, exactly as the SQL is: `''` is what every
       // row written before 2026-09-12 holds, so PgLedger treats it as nothing
       // to say and lets a later pass repair the row. A fake that accepted a
@@ -741,6 +745,25 @@ export class MemoryLedger implements Ledger {
       .map((e) => e.at)
       .sort();
     return Promise.resolve(mine[mine.length - 1]);
+  }
+
+  /**
+   * The organisation's address changes (ADR-0055), set by tests. Only the
+   * `confirmed` ones are read, as the Pg ledger reads them.
+   */
+  readonly addressChanges: Array<
+    { tenantId: string; state: 'proposed' | 'confirmed' } & ConfirmedAddressChangeRow
+  > = [];
+
+  listConfirmedAddressChanges(
+    tenantId: LedgerRecord['tenantId'],
+  ): Promise<ReadonlyArray<ConfirmedAddressChangeRow>> {
+    return Promise.resolve(
+      this.addressChanges
+        .filter((r) => r.tenantId === tenantId && r.state === 'confirmed')
+        .map(({ oldKey, oldAddress, newAddress }) => ({ oldKey, oldAddress, newAddress }))
+        .sort((a, b) => (a.oldKey < b.oldKey ? -1 : a.oldKey > b.oldKey ? 1 : 0)),
+    );
   }
 
   /** The sharing queue's rows (ADR-0032), visible to tests. */

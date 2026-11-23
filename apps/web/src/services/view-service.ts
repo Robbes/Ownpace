@@ -25,6 +25,7 @@ import { z } from 'zod';
 import { DISCOVERY_DOMAINS, DOMAIN_STATES, MAPPING_LIFECYCLES, STAGES } from '@openmig/shared';
 import type { DiscoveryDomain, MappingLifecycle, Stage, ViewTime } from '@openmig/shared';
 import { linkClient as client } from './link-client.ts';
+import { LinkAddressChangesField } from './link-address-service.ts';
 
 const RowSchema = z.object({
   domain: z.enum(DISCOVERY_DOMAINS as unknown as [DiscoveryDomain, ...DiscoveryDomain[]]),
@@ -134,6 +135,8 @@ const PersonViewSchema = z.object({
     }),
   ),
   accounts: z.array(z.object({ ref: z.string(), grant: GrantSchema })),
+  // The person's own rows of the address changes (0168 §4.4), where sent.
+  addressChanges: LinkAddressChangesField,
 });
 export type PersonViewPayload = z.infer<typeof PersonViewSchema>;
 
