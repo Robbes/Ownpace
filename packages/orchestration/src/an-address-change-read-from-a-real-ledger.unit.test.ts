@@ -176,10 +176,12 @@ describe('the address table in a real ledger', () => {
     const list = await readConfirmedList({ source: driver, tenantId: TENANT, mappingId: MAPPING }, 'active' as never);
     expect(list.addressChanges).toEqual({ digest: NOW, changed: 1, older: 2 });
     expect(list.verified).toBe(2);
-    // In the list's own order, by item.
-    expect(list.rows.map((r) => [r.naturalKey, r.state, r.address, r.waitsFor])).toEqual([
-      ['k-older', 'differs', 'older', 'pass'],
+    // The list's own order is by item id, which the ledger draws at random:
+    // read by key.
+    const marked = list.rows.map((r) => [r.naturalKey, r.state, r.address, r.waitsFor] as const);
+    expect([...marked].sort((a, b) => String(a[0]).localeCompare(String(b[0])))).toEqual([
       ['k-never', 'differs', 'older', 'pass'],
+      ['k-older', 'differs', 'older', 'pass'],
     ]);
   });
 
