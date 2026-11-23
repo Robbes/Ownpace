@@ -174,7 +174,8 @@ describe('a card (D2)', () => {
   it('gains the new address first and preferred, and keeps the old one without its preference (Google’s shape)', () => {
     const r = applyAddressChanges('vcard', GOOGLE_CARD, TABLE);
     expect(r.changed).toBe(true);
-    expect(r.digest).toBe(addressTableDigest(TABLE));
+    // Per item (0168 S4): the card names Ana's old address and not Ben's.
+    expect(r.digest).toBe(addressTableDigest([ANA]));
     expect(r.body).toBe(
       crlf([
         'BEGIN:VCARD',
@@ -448,10 +449,20 @@ describe.each(KINDS)('properties of the change, over random %s bodies', (format,
     }
   });
 
-  it('records the table’s digest exactly when it changed something', () => {
+  it('records, exactly when it changed something, the digest of the rows that decided it (0168 S4)', () => {
+    // The digest is that of a part of the table which, applied alone, gives
+    // the same bytes: the rows this body names, never the whole table's.
+    const parts = [[ANA], [BEN], [ANA, BEN]];
     for (const seed of SEEDS) {
-      const r = applyAddressChanges(format, generate(rng(seed)), TABLE, ['ana@old.example.org']);
-      expect(r.digest, `seed ${seed}`).toBe(r.changed ? addressTableDigest(TABLE) : null);
+      const body = generate(rng(seed));
+      const r = applyAddressChanges(format, body, TABLE, ['ana@old.example.org']);
+      if (!r.changed) {
+        expect(r.digest, `seed ${seed}`).toBeNull();
+        continue;
+      }
+      const part = parts.find((p) => addressTableDigest(p) === r.digest);
+      expect(part, `seed ${seed}`).toBeDefined();
+      expect(applyAddressChanges(format, body, part!, ['ana@old.example.org']).body, `seed ${seed}`).toBe(r.body);
     }
   });
 });
@@ -464,5 +475,60 @@ describe('what a changed body still names', () => {
         if (/^ORGANIZER/i.test(l)) expect(l, `seed ${seed}`).not.toMatch(/:mailto:(ana@old|ben\.old@old)\.example\.org$/i);
       }
     }
+  });
+});
+
+describe('the digest a copy records is its own, not the table’s (0168 S4)', () => {
+  const CARLA = row('carla@stays.example.org', 'carla@example.org');
+  const OUT = row('outside@other.example.org', 'outside@example.org');
+  // An address no generated body names: the row for somebody else's migration.
+  const GRANDMA = row('grandma@old.example.org', 'grandma@example.org');
+  const UNIVERSE = [ANA, BEN, CARLA, OUT, GRANDMA];
+  const someOf = (r: () => number) => UNIVERSE.filter(() => r() < 0.5);
+
+  it.each(KINDS)('gives a %s the same bytes under any two tables that give it the same digest', (format, generate) => {
+    for (const seed of SEEDS) {
+      const r = rng(seed * 7919);
+      const body = generate(rng(seed));
+      for (let k = 0; k < 6; k += 1) {
+        const [t1, t2] = [someOf(r), someOf(r)];
+        const a = applyAddressChanges(format, body, t1, ['ana@old.example.org']);
+        const b = applyAddressChanges(format, body, t2, ['ana@old.example.org']);
+        if (a.digest === b.digest) expect(a.body, `seed ${seed} pair ${k}`).toBe(b.body);
+      }
+    }
+  });
+
+  it.each(KINDS)('leaves a %s’s digest and bytes alone when a row it never names is added', (format, generate) => {
+    for (const seed of SEEDS) {
+      const r = rng(seed * 104729);
+      const body = generate(rng(seed));
+      const table = someOf(r).filter((x) => x !== GRANDMA);
+      const without = applyAddressChanges(format, body, table, ['ana@old.example.org']);
+      const withIt = applyAddressChanges(format, body, [...table, GRANDMA], ['ana@old.example.org']);
+      expect(withIt.digest, `seed ${seed}`).toBe(without.digest);
+      expect(withIt.body, `seed ${seed}`).toBe(without.body);
+    }
+  });
+
+  it('counts the row that puts an organiser in the table: its going changes the guests and the digest', () => {
+    // Carla moved earlier, and organises as her new address; Ben is her guest.
+    const ev = crlf([
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VEVENT',
+      'UID:carla-lunch',
+      'ORGANIZER;CN=Carla:mailto:carla@example.org',
+      'ATTENDEE;CN=Ben:mailto:ben.old@old.example.org',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ]);
+    const both = applyAddressChanges('icalendar', ev, [BEN, CARLA]);
+    expect(both.body).toContain('ATTENDEE;CN=Ben:mailto:ben@example.org\r\n');
+    expect(both.digest).toBe(addressTableDigest([BEN, CARLA]));
+    // Without Carla's row, Carla is outside the table and her invitation is kept.
+    const benOnly = applyAddressChanges('icalendar', ev, [BEN]);
+    expect(benOnly.changed).toBe(false);
+    expect(benOnly.digest).toBeNull();
   });
 });

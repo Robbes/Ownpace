@@ -148,10 +148,10 @@ describe('contacts under the address table', () => {
     expect(first.created).toBe(3);
     expect(first.addressChanged).toBe(2);
     expect(t.bodies).toEqual(expected([ANA, BEN]));
-    const digest = addressTableDigest([ANA, BEN]);
+    // Per item (0168 S4): Ana's card records the digest of Ana's row alone.
     const ana = await ledger.find(TENANT, MAPPING, 'contact', contactNaturalKeyHash('c-ana'));
     const carla = await ledger.find(TENANT, MAPPING, 'contact', contactNaturalKeyHash('c-carla'));
-    expect(ana?.addressDigest).toBe(digest);
+    expect(ana?.addressDigest).toBe(addressTableDigest([ANA]));
     expect(carla?.addressDigest ?? null).toBeNull();
 
     const writes = t.writes;
@@ -167,11 +167,11 @@ describe('contacts under the address table', () => {
     await contactPass(ledger, t, changes([ANA]));
     const before = t.writes;
     const pass = await contactPass(ledger, t, changes([ANA, BEN]));
-    // Ana's card was written under a table that is no longer the table, so it
-    // is rewritten (same bytes, new digest); Ben's gains his new address;
-    // Carla's is untouched.
-    expect(pass.updated).toBe(2);
-    expect(t.writes - before).toBe(2);
+    // Per item (0168 S4): Ben's card gains his new address; Ana's names no
+    // address of Ben's row, so its digest and its bytes stay; Carla's is
+    // untouched.
+    expect(pass.updated).toBe(1);
+    expect(t.writes - before).toBe(1);
     expect(t.bodies).toEqual(expected([ANA, BEN]));
     const settled = t.writes;
     await contactPass(ledger, t, changes([ANA, BEN]));
@@ -251,16 +251,35 @@ describe('contacts under the address table', () => {
     await contactPass(ledger, t, changes([ANA]));
     const before = t.writes;
     const waiting = await contactPass(ledger, t, changes([ANA, BEN]), { cutover: true });
-    expect(waiting.addressChangesWaiting).toBe(2);
+    // Only Ben's card waits: Ana's names no address of Ben's row (0168 S4).
+    expect(waiting.addressChangesWaiting).toBe(1);
     expect(t.writes).toBe(before);
     expect(t.bodies.get('c-ben')).toBe(card('c-ben', 'ben@old.example.org'));
     const pressed = await contactPass(ledger, t, changes([ANA, BEN], true), { cutover: true });
-    expect(pressed.updated).toBe(2);
+    expect(pressed.updated).toBe(1);
     expect(t.bodies).toEqual(expected([ANA, BEN]));
     const settled = t.writes;
     const after = await contactPass(ledger, t, changes([ANA, BEN], true), { cutover: true });
     expect(t.writes).toBe(settled);
     expect(after.addressChangesWaiting).toBe(0);
+  });
+
+  it('touches no copy for a row added for somebody else, before the cutover or after it (0168 S4)', async () => {
+    // Grandma's row is for her own migration: no card here names her old address.
+    const GRANDMA = row('grandma@old.example.org', 'grandma@example.org');
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    await contactPass(ledger, t, changes([ANA, BEN]));
+    const writes = t.writes;
+    const before = await contactPass(ledger, t, changes([ANA, BEN, GRANDMA]));
+    expect(before.updated + before.created).toBe(0);
+    expect(t.writes).toBe(writes);
+    const after = await contactPass(ledger, t, changes([ANA, BEN]), { cutover: true });
+    expect(after.addressChangesWaiting).toBe(0);
+    const again = await contactPass(ledger, t, changes([ANA, BEN, GRANDMA]), { cutover: true });
+    expect(again.addressChangesWaiting).toBe(0);
+    expect(t.writes).toBe(writes);
+    expect(t.bodies).toEqual(expected([ANA, BEN]));
   });
 
   it('converges from any sequence of tables: after each change two passes leave exactly the table’s bytes, the second writing nothing', async () => {
