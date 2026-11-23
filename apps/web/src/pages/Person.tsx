@@ -443,11 +443,12 @@ const Person: React.FC = () => {
 
       {/* Addresses (0168 §6.3): this person's rows of the organisation's
           address changes. The appliance's one implicit person owns every
-          row, so it shows the whole table, read-only on its file door. */}
+          row, so it shows the whole table, under the person page's own
+          heading, read-only on its file door. */}
       <AddressChanges
         scope={
           person.implicit || selfHost
-            ? { kind: 'organisation' }
+            ? { kind: 'implicit' }
             : { kind: 'person', personId: person.id, personName: person.displayName ?? '', you: person.you }
         }
         canWrite

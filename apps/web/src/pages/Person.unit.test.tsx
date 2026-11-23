@@ -34,6 +34,7 @@ import {
   unmarkMyself,
 } from '../services/operating-service.ts';
 import { personLinkApi } from '../services/grant-link-service.ts';
+import { fetchAddressChanges } from '../services/address-change-service.ts';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../services/mapping-service', () => ({ mappingApi: { list: vi.fn(), pace: vi.fn() } }));
@@ -682,6 +683,36 @@ describe('the appliance’s one person (0153 T8)', () => {
     expect(screen.queryByRole('region', { name: /^For / })).not.toBeInTheDocument();
     expect(personLinkApi.list).not.toHaveBeenCalled();
     expect(personLinkApi.awaiting).not.toHaveBeenCalled();
+  });
+
+  it('heads its address changes Addresses, as every person’s page is, with no Person and no Not right? (0168 N13, S7)', async () => {
+    vi.mocked(fetchAddressChanges).mockResolvedValue({
+      rows: [
+        {
+          oldAddress: 'name@gmail.com',
+          oldKey: 'name@gmail.com',
+          newAddress: 'first@example.org',
+          state: 'confirmed',
+          setBy: 'operator',
+          setByYou: false,
+          confirmedBy: 'operator',
+          confirmedByYou: false,
+          createdAt: '2026-11-22T10:00:00.000Z',
+          confirmedAt: '2026-11-22T10:00:00.000Z',
+          person: null,
+        },
+      ],
+      door: 'page',
+      file: null,
+    });
+    renderAt('/people/implicit');
+    await answered();
+    const section = (await screen.findByRole('heading', { level: 2, name: 'Addresses' })).closest('section')!;
+    expect(await within(section).findByText('name@gmail.com → first@example.org')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Address changes' })).not.toBeInTheDocument();
+    expect(within(section).queryByText(/Person:/)).not.toBeInTheDocument();
+    expect(within(section).queryByRole('button', { name: /Not right\?/ })).not.toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: 'Delete name@gmail.com' })).toBeInTheDocument();
   });
 
   it('says its status could not be read, rather than that it has no migrations (hard rule 9)', async () => {
