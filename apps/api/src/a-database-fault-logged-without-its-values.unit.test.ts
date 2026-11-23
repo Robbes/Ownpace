@@ -12,19 +12,23 @@
  * this process, each bare and wrapped by Drizzle's session as the routes meet
  * them. Each is written to the log by `serverFault`, printed in full, and must
  * name nobody while keeping what diagnoses it.
+ *
+ * And the same errors handed straight to the shared `log`, as about fifty
+ * routes, jobs and the appliance hand theirs, without `serverFault`: the log
+ * itself reads every error through `loggableError`, at every level.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import type { Response } from 'express';
 import { Duplex } from 'node:stream';
-import { inspect } from 'node:util';
+import { formatWithOptions, inspect } from 'node:util';
 import pg from 'pg';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { CutoverRefused } from '@openmig/core';
 import { pgliteDriver, type LedgerConnection, type LedgerDriver } from '@openmig/ledger';
-import { log } from '@openmig/shared';
-import { loggableError, serverFault } from './server-fault.ts';
+import { log, loggableError, resetLogLevel, setLogLevel } from '@openmig/shared';
+import { serverFault } from './server-fault.ts';
 
 /** The person's values. None of them may reach the log. */
 const EMAIL = 'someone-s1@example.com';
@@ -272,5 +276,62 @@ describe('a database fault, as the log prints it (workplan 0168)', () => {
     // one is a sentence the program wrote for the person, and stays.
     const refused = new CutoverRefused('this migration has not been approved', 'approve it first');
     expect(loggableError(refused)).toBe(refused);
+  });
+});
+
+/** What the shared log prints for these arguments, as `console` prints them but in full. */
+function printedByTheLog(level: 'error' | 'warn' | 'info' | 'debug', ...args: unknown[]): string {
+  const lines: string[] = [];
+  const stream = level === 'error' || level === 'warn' ? level : 'log';
+  const spy = vi.spyOn(console, stream).mockImplementation((...printed: unknown[]) => {
+    lines.push(formatWithOptions({ depth: Infinity }, ...printed));
+  });
+  try {
+    log[level](...args);
+  } finally {
+    spy.mockRestore();
+  }
+  return lines.join('\n');
+}
+
+describe('the shared log, handed the error itself (workplan 0168)', () => {
+  beforeEach(() => setLogLevel('debug'));
+  afterEach(() => resetLogLevel());
+
+  it('prints no value from a real pg, Drizzle or PGlite error, at any level', async () => {
+    const faults = {
+      'pg, a unique key': await thrown(() =>
+        client.query('INSERT INTO person (email, name) VALUES ($1, $2)', [EMAIL, NAME]),
+      ),
+      'pg, an input the column could not take': await thrown(() =>
+        client.query('SELECT name FROM person WHERE id = $1', [EMAIL]),
+      ),
+      'Drizzle over pg': await thrown(() =>
+        drizzle(client).execute(sql`INSERT INTO person (email, name) VALUES (${EMAIL}, ${NAME})`),
+      ),
+      'PGlite, a failing row': await thrown(() =>
+        connection.query('INSERT INTO person (email, name, note) VALUES ($1, $2, $3)', [EMAIL, NAME, NOTE]),
+      ),
+      'PGlite, a value written into the statement': await thrown(() =>
+        connection.exec(`INSERT INTO person (email, name) VALUES ('${EMAIL}', '${NAME}')`),
+      ),
+    };
+
+    for (const [fault, error] of Object.entries(faults)) {
+      for (const level of ['error', 'warn', 'info', 'debug'] as const) {
+        const line = printedByTheLog(level, '[jobs] a run failed:', error);
+
+        expectNoValue(line);
+        // Printed, and still saying what failed.
+        expect(line, `${fault}, ${level}`).toContain('[jobs] a run failed:');
+        expect(line, `${fault}, ${level}`).toMatch(/code: '(23505|22P02|23514)'/);
+      }
+    }
+  });
+
+  it('prints an argument that is not an error as it is', () => {
+    const line = printedByTheLog('info', '[jobs] asked:', { params: ['kept as asked'] });
+
+    expect(line).toContain('kept as asked');
   });
 });

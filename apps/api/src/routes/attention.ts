@@ -78,7 +78,8 @@ import {
 } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
-import { loggableError, serverFault } from '../server-fault.ts';
+import { serverFault } from '../server-fault.ts';
+import { loggableError } from '@openmig/shared';
 
 /**
  * A list that could not be read, as the screen says it: which one, that the

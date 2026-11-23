@@ -14,6 +14,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `loggableError` now leaves those out of what it logs, as it already left out a request's body.
   The rest of the message, the error's code, its table, column and constraint names, the statement
   up to its first literal and the chain of causes still say what failed and where.
+- **Every log line prints a database error without its values, not only a route's 500** (workplan
+  0168). The shared `log` reads every error it is handed through `loggableError`, at every level, so
+  the places in the API, the job worker and the appliance that log an error themselves, and the job
+  runner's own error lines, print it the same way. The appliance answers a request it fails on with
+  a sentence and a reference, as the API does, instead of the error's message, which for a database
+  error carried the statement's values; the reference is in its log line and on its log page.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 

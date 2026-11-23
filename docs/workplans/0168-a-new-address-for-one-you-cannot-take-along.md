@@ -73,7 +73,11 @@ Proven:
   exact when two people share one name.
 - A database fault logs the driver's whole error, parameters included (`server-fault.ts`), on
   every route; the fix belongs in `loggableError`.
-  - Fixed since, in `loggableError` (`apps/api/src/server-fault.ts`; CHANGELOG, Unreleased).
+  - Fixed since, and central: the shared `log` prints every error through `loggableError`
+    (`packages/shared/src/loggable-error.ts`), the job runner logs through `log`, and the appliance
+    answers a 500 with a reference (CHANGELOG, Unreleased). A line that writes an error's message
+    into its own text still carries Drizzle's `params:`: 51 such lines are in files that reach the
+    database.
 - `SENT-BY`, `DELEGATED-FROM`/`-TO` and `MEMBER` keep their old addresses while `ORGANIZER` and
   `ATTENDEE` change (D3 names only those two): the owner's call.
 - **Where the build differs from §3 and D2 above:** a copy records the digest of the rows that
