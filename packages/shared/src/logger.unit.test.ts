@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { inspect } from 'node:util';
 import {
   log,
   parseLogLevel,
@@ -124,5 +125,63 @@ describe('configuration', () => {
     resetLogLevel();
     setLogLevel('debug');
     expect(getLogLevel()).toBe('debug');
+  });
+});
+
+describe('errors (workplan 0168)', () => {
+  // A database driver's error carries the statement's values; the real
+  // drivers' errors are printed through this in apps/api's
+  // `a-database-fault-logged-without-its-values`.
+  function capture(): unknown[][] {
+    const printed: unknown[][] = [];
+    vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => void printed.push(a));
+    return printed;
+  }
+
+  it('prints an error without the values it carries, and anything else as it is', () => {
+    const printed = capture();
+    const error = Object.assign(new Error('Failed query: select 1 where a = $1\nparams: value-s1'), {
+      query: 'select 1 where a = $1',
+      params: ['value-s1'],
+    });
+    const plain = { params: ['kept as asked'] };
+
+    log.error('[x] failed:', error, plain);
+
+    const [line, logged, asIs] = printed[0]!;
+    expect(line).toBe('[x] failed:');
+    expect(inspect(logged)).not.toContain('value-s1');
+    expect(inspect(logged)).toContain('select 1 where a = $1');
+    expect(asIs).toBe(plain);
+    // The caller's error as it was.
+    expect(error.params).toEqual(['value-s1']);
+  });
+
+  it('prints an error handed inside a plain object the same way, and the object as it was', () => {
+    const printed = capture();
+    const error = Object.assign(new Error('boom'), { params: ['value-s1'] });
+    const handed = { error, mappingId: 'm-1' };
+
+    log.error('[x] failed', handed);
+
+    const logged = printed[0]![1] as { error: unknown; mappingId: string };
+    expect(inspect(logged, { depth: Infinity })).not.toContain('value-s1');
+    expect(logged.mappingId).toBe('m-1');
+    expect(handed.error).toBe(error);
+  });
+
+  it('never throws for an error whose fields cannot be read, and prints none of it', () => {
+    const printed = capture();
+    const error = Object.defineProperty(Object.assign(new Error('boom'), { body: 'body-s1' }), 'odd', {
+      enumerable: true,
+      get() {
+        throw new Error('a getter that throws');
+      },
+    });
+
+    expect(() => log.error('[x] failed:', error)).not.toThrow();
+    const logged = printed[0]![1];
+    expect(typeof logged, 'the error was handed on as it was').toBe('string');
+    expect(logged).toBe('[an error whose fields could not be read, not printed]');
   });
 });

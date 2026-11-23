@@ -1947,8 +1947,10 @@ FIXTURE_RE="openmig-demo-(event|contact|file|task)-[0-9]+[.][a-z]+$"
 CANARY_RE="openmig-demo-event-.+-[13][.]ics$"
 # Fresh event 4 and contact a are the ADDRESS CANARY (workplan 0168 T8): read
 # off the target after the sync, and again after the row is deleted and the
-# next pass converges, so the apply half must never spend them either.
-ADDRESS_RE="openmig-demo-(event-.+-4[.]ics|contact-.+-a[.]vcf)$"
+# next pass converges, so the apply half must never spend them either. Nor
+# event 5, the past event (the owner, 2026-11-23), read off the target after
+# the sync to be the source's bytes.
+ADDRESS_RE="openmig-demo-(event-.+-[45][.]ics|contact-.+-a[.]vcf)$"
 HREF_EXPR="coalesce(source_ref_href, source_ref->>'href', '')"
 
 pick_disposable() {
@@ -2421,6 +2423,14 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   #   4. THE ROW, DELETED, CONVERGES BACK: the next pass rewrites both copies to
   #      what the source says, the digest goes back to NULL, and still nothing
   #      reaches the catcher.
+  #   5. THE PAST EVENT (the owner, 2026-11-23; ADR-0055), read before 4, while
+  #      the row stands: event 5 names the same old address as its organiser
+  #      and ended on 2025-01-07, before this stack's demo migration was made,
+  #      so it was over at the migration's start and the row does not reach
+  #      it. Its copy is the source's bytes, line for line (`--past-event`
+  #      reads the source's), but for the SCHEDULE-AGENT=CLIENT every copied
+  #      organiser and guest carries, and its ledger row carries no digest and
+  #      waits for none.
   #
   # Polled, as the task lane is: the sync that copied the item the apply half
   # waited for may not have reached these two yet.
@@ -2477,6 +2487,37 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
       echo "the address canary's event on the target does not carry the change as declared:"
       grep -iE '^(ORGANIZER|ATTENDEE|DESCRIPTION)[;:]' <<<"$event_copy" | sed 's/^/    /'
       fail_at "the event's ORGANIZER is not the new address with SCHEDULE-AGENT=CLIENT, or its attendee or description changed (0168 D3, D4, T8)"
+    fi
+
+    # 5. The past event, read here, before 4 deletes the row: the same pass
+    #    copied it while the row that names its organiser stood.
+    ADDR_PAST="openmig-demo-event-${BALANCE_TAG}-5.ics"
+    past_rows=0
+    i=0
+    while [ $i -lt "$PREP_POLLS" ]; do
+      past_rows="$(q "SELECT count(*) FROM item WHERE $TASK_SCOPE AND $HREF_EXPR LIKE '%${ADDR_PAST}' AND status IN ('copied','updated')")"
+      [ "${past_rows:-0}" -ge 1 ] && break
+      i=$((i + 1))
+      sleep "$POLL_SLEEP"
+    done
+    past_clean="$(q "SELECT count(*) FROM item WHERE $TASK_SCOPE AND $HREF_EXPR LIKE '%${ADDR_PAST}' AND status IN ('copied','updated') AND address_digest IS NULL AND address_digest_due IS NULL")"
+    past_copy="$(target_copy_of "$ADDR_PAST" "calendars/${TARGET_DAV_USER}/" || true)"
+    past_source="$("$SCRIPT_DIR/seed-demo-dav-content.sh" --past-event "$BALANCE_TAG" || true)"
+    past_unmarked="$(sed 's/;SCHEDULE-AGENT=CLIENT//' <<<"$past_copy")"
+    past_org="$(grep -i '^ORGANIZER[;:]' <<<"$past_copy" || true)"
+    if [ -z "$past_copy" ] || [ -z "$past_source" ]; then
+      [ -n "$past_copy" ] || echo "the past event's copy could not be read off the target (${past_rows:-0} ledger row(s) copied)"
+      [ -n "$past_source" ] || echo "the past event could not be read off the source (seed-demo-dav-content.sh --past-event)"
+      fail_at "the past event, event 5, is not on both accounts, so its staying as the source has it is unproven (ADR-0055)"
+    elif [ "${past_clean:-0}" = "1" ] && [ "$past_unmarked" = "$past_source" ] \
+         && grep -qiF "mailto:${ADDR_OLD}" <<<"$past_org" && grep -q 'SCHEDULE-AGENT=CLIENT' <<<"$past_org"; then
+      echo "prepare: the past event on the target is the source's bytes but for SCHEDULE-AGENT=CLIENT,"
+      echo "  organised by ${ADDR_OLD} as it was, and its ledger row carries no address digest"
+    else
+      echo "the past event on the target is not as the source has it, or its row carries a digest:"
+      echo "    rows with no digest and none due: ${past_clean:-?} of ${past_rows:-?}"
+      diff <(cat <<<"$past_source") <(cat <<<"$past_unmarked") | sed 's/^/    /' || true
+      fail_at "an event that was over at the migration's start was changed, or recorded under an address digest (the owner, 2026-11-23; ADR-0055)"
     fi
 
     # 4. Deleted, and converged back on the next pass, through the same doors.

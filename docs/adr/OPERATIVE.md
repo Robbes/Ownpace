@@ -800,16 +800,17 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail](./0055-a-new-address-is-a-declared-change.md)
 
-- **Built** (workplan 0168 T1–T9). A copy changes only once the organisation's table holds a
-  confirmed row; with none, every byte is the source's.
+- **Built** (workplan 0168): only a confirmed row changes a copy.
 - **One table per organisation**, `address_change`, in the shared chain under forced row security.
   Only an owner or an admin writes it, and only rows a person **confirmed** reach a writer; the
   machine never confirms. An admin may confirm for a person, attributed; the person confirms or
   sends back their own row, on their page or through their links (0168 D6).
-- **A pure function of source bytes and table** (`applyAddressChanges`), applied before
-  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, byte for byte.
+- **A pure function of source bytes, table and migration start** (`applyAddressChanges`), before
+  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, as is an event or task
+  over at that start (`mailbox_mapping.created_at`).
 - **Changed:** a vCard `EMAIL` gains the new address first and preferred, the old kept (D2); an old
-  `ORGANIZER` is replaced; an `ATTENDEE` only where the organiser is in the table or is the person (D3).
+  `ORGANIZER` is replaced; an old `ATTENDEE`, `SENT-BY`, `DELEGATED-*` or `MEMBER` address only where
+  the organiser is in the table or is the person (D3).
 - **Never changed:** mail, in any byte (D1); free text (D4); display names; UIDs; a card inside a
   card; an outside organiser's invitation.
 - **Declared, never silent:** each item records the digest of the rows that decided it

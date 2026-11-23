@@ -4,6 +4,119 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, later still: `SENT-BY`, `DELEGATED-*` and `MEMBER`, and what is over, decided and
+built, on `claude/ownpace-public-readiness-y7orc6-calendar-past`.** The owner, asked about the
+three parameters D3 had left as they were: *"yes, since the new address will control the new
+events. Though perhapse we need not change past-events we migrate."* The coordinating session
+advised leaving past events as the source has them and changing the rest, and the owner was told
+so. ADR-0055 is amended (decisions 2 to 4, its operative rules).
+
+- **The three parameters.** In an event or task whose organiser is in the table or is the person
+  (D3), an old address in an `ORGANIZER`'s or `ATTENDEE`'s `SENT-BY`, `DELEGATED-FROM`,
+  `DELEGATED-TO` or `MEMBER` gets the new one: each quoted value of a list, in its own quotes and
+  scheme spelling, every other byte kept. An outside invitation keeps them, as it keeps its guests
+  (`an-address-a-delegate-or-a-group-names.unit.test.ts`).
+- **What is over keeps every address.** A calendar object that was over at the migration's start
+  is copied byte for byte and records no digest (`calendar-object-over.ts`): an event by `DTEND`,
+  `DURATION` or its all-day date; a series once its `UNTIL` or `COUNT` is spent and no `RDATE` or
+  moved instance is still to come, never with an open-ended rule; a task done before the start,
+  by its `COMPLETED` time, else, `COMPLETED` or `CANCELLED` by its `STATUS`, by its
+  `LAST-MODIFIED` or else `DTSTAMP`; a journal entry by its `DTSTART`. The whole object is one
+  decision, and dates it cannot read are not over, nor is a done task with no such time. A `TZID` is read in its zone (an IANA name through `Intl`, any other
+  through the object's own `VTIMEZONE`, at the latest instant its offsets allow); a floating time,
+  and a date, in UTC. The repository's own content-line reader parses it: no dependency was added.
+- **The start** is the migration's creation, `mailbox_mapping.created_at`, read with its phases
+  (`readPathPhases`, `createdAt`) by both editions' passes and the managed builder. Chosen over its
+  first pass because it is one moment no pass and no press moves, never NULL, and on the row in
+  both editions from its first day, where the passes leave no record that lasts (`run` rows are
+  history). It is the draft's creation, shortly before *Start* is pressed, so an event that ended
+  in between still changes: the safe side.
+- **Converging.** A copy of a past event that alpha.17 changed goes back to the source's bytes by
+  the ordinary rewrite, past a cutover on the press. The start is in a calendar's cursor tag
+  (`+over:`), so a source that lists only what changed reads each calendar once more.
+- **Nothing waits for a past event.** Its digest and its due digest stay null, so the confirmed
+  list marks nothing, verification sets nothing aside (`ADDRESS_NOT_COMPARED` cannot count it),
+  and *Apply the new addresses here too* counts nothing for it
+  (`a-new-address-and-an-event-that-is-over.unit.test.ts`).
+- **The words.** *Your new address*, and the appliance's confirm page through the same list, say
+  *"Events that are already over: they keep the old address, as a record of what happened. So do
+  tasks completed or cancelled before the migration starts; a task you finish later still gets the
+  new address."*, in English and Dutch; the Google and Microsoft guides say it after their
+  paragraph on a new address. No feature matrix or known-limitations line names
+  the address change. The privacy policy's §4.6 and §7 stay true and were not edited: the
+  addresses are still used only to correct those in what we copy, now in fewer events, and a
+  progress link still shows the new address, never the old.
+- **A task must not flip** (the coordinating session's review, the same day). As first built, a
+  task was over once completed or cancelled, whenever that was, so one the person finished after
+  the start went back to the old organiser on the next pass. Now only a task done before the start
+  is over, and one open then stays changed (`calendar-object-over.unit.test.ts`, *a task is over
+  when it was done before the start*; `a-new-address-and-an-event-that-is-over.unit.test.ts`, *a
+  task the person finishes after the start*).
+- **E2E (managed).** Event 4, the organiser rewrite's canary, is dated January of next year, after
+  every run and so after the demo migration's start: unchanged. The seed adds event 5, organised by
+  the same old address and over on 2025-01-07; the gate holds its copy to the source's bytes but for
+  `SCHEDULE-AGENT=CLIENT` (the seeder's `--past-event`), and its ledger row to no digest. Not run:
+  the lane needs the shared runner.
+
+Proven: the unit tier of the packages touched (shared, core, orchestration, ledger, the web app)
+and the script guards, typecheck, lint and the docs checks; each rule with a test that fails with
+the rule mutated off. Not proven: anything against a running server.
+
+**2026-11-23, after #2070: `NOT_TAKEN_ALONG` holds Microsoft's, Apple's, Yahoo's and four
+Dutch and Belgian internet providers' domains, on
+`claude/ownpace-public-readiness-y7orc6-domains`.** Every provider's page was read on 2026-11-23,
+and `address-forms.ts` cites one page beside each group: 154 domains, Google 2, Microsoft 103,
+Apple 3, Yahoo 17, Ziggo 7, KPN 18, Telenet 1, Proximus 3.
+
+- **Only Thunderbird's ISP database names** 96 of Microsoft's (every country form but the three
+  `.co.uk` ones, with `windowslive.com` and `livemail.tw`) and 11 of Yahoo's country forms, and
+  the groups say so. Neither provider publishes a list: Microsoft's pages say its country domains
+  exist, *"such as .com and .co.uk"*, and Yahoo's give `@yahoo.co.uk` and `@yahoo.fr` as examples.
+  §6.1 and T1 asked for Microsoft's own list; there is none.
+- **Where a provider's page lists its domains, the list follows it**, and a domain only the ISP
+  database still names is left out, since it may have lapsed: Ziggo's `hahah.nl`, `ziggomail.com`,
+  `zinders.nl`, `zeggis.nl`, `zeggis.com`, `razcall.nl`, `razcall.com`, `multiweb.nl`, and
+  Proximus's `kidcity.be`. Ziggo's own page adds `a2000.nl`, which the database lacks.
+- **Kept, though the address can be kept at the provider** (the list only proposes, and the person
+  can say No): KPN sells *E-mail Only* within six months of leaving; Telenet's terms keep the
+  mailbox after the contract ends, and let Telenet delete one that sends nothing for two years
+  (its business page says 18 months); Proximus's terms keep it up to 18 months, free. Neither
+  says a Belgian rule requires it. Ziggo offers no way to keep one.
+- **Not added:** `onmicrosoft.com` (a tenant's name is a host under it, which a list of whole
+  domains holds only as a pattern; the guide keeps the tick for it), `passport.com` (Wikipedia
+  only), `pandora.be` and `yahoo.nl`/`yahoo.be` (no source found).
+- **The words:** the Microsoft guide, in both languages, says the step now comes by itself for
+  Microsoft's addresses, and keeps the tick for an `.onmicrosoft.com` name or any address the
+  step does not recognise; the Dutch is for the owner's check. The step says the provider the
+  list names (*"‹provider› keeps that address"*) and needed no change, nor did the Google guide,
+  the privacy policy (no domain in §4.6 or §9), the feature matrix or the site's *How it works*.
+- **Proof:** `address-forms.unit.test.ts` pins every entry by provider, proposes a Hotmail, a
+  Live and a Ziggo address, proposes nothing for eight lookalikes (`hotmail.example.com`,
+  `notgmail.com`, `mail.hotmail.com`, …) and refuses a pattern; `StartMigration.unit.test.tsx`
+  shows the step for `name@hotmail.com`, `name@live.nl` and `name@ziggo.nl` with no box ticked,
+  and not for `name@hotmail.example.com` or `name@notgmail.com`. A suffix match in place of the
+  exact lookup fails three of them; dropping `hotmail.com` fails the pin and both proposals.
+
+Sources, read 2026-11-23: Microsoft,
+[Subscription features in Outlook.com](https://support.microsoft.com/en-us/outlook/premium-features-in-outlook-com-for-microsoft-365-subscribers),
+[My username and password have stopped working](https://support.microsoft.com/en-us/accounts-billing/manage/my-username-and-password-have-stopped-working),
+[the recovery form's help](https://support.microsoft.com/en-us/accounts-billing/manage/help-with-the-microsoft-account-recovery-form);
+[Apple, 118230](https://support.apple.com/en-us/118230); Yahoo,
+[SLN2153](https://help.yahoo.com/kb/SLN2153.html), [SLN3407](https://help.yahoo.com/kb/SLN3407.html);
+Ziggo, [server settings](https://www.ziggo.nl/klantenservice/e-mail/serverinstellingen),
+[Ziggo Mail](https://www.ziggo.nl/klantenservice/e-mail/ziggo-mail); KPN,
+[e-mail settings](https://www.kpn.com/service/ugs/instellen-e-mail-laptop-pc),
+[E-mail Only](https://www.kpn.com/service/ugs/email-only-abonnement); Telenet,
+[Je e-mail](https://www2.telenet.be/residential/nl/klantenservice/internet/e-mail.html),
+[terms of 1 November 2024](https://www2.telenet.be/content/dam/www-telenet-touch/nl/klantenservice/downloads-(pdf)/telenet-residentieel-algemene-voorwaarden-1november2024.pdf),
+[business: takeover or cancellation](https://www2.telenet.be/business/nl/klantenservice/je-gegevens-aanpassen/verhuis-of-overname/verschil-tussen-overname-en-opzeg.html);
+Proximus, [Proximus mail](https://www.proximus.be/support/nl/id_sfaqr_mail_global/particulieren/support/internet/e-mails-en-website/problemen-met-je-mailbox/vragen-over-proximus-mail.html),
+[internet terms](https://www.proximus.be/dam/jcr:35ef9494-e322-46db-b5aa-6a90dcfa1f78/gtc-internet-aup-ss-slg-nl.pdf);
+Thunderbird's ISP database, `https://autoconfig.thunderbird.net/v1.1/‹domain›` for `hotmail.com`,
+`yahoo.com`, `ziggo.nl`, `kpnmail.nl` and `skynet.be`; Wikipedia,
+[Outlook.com](https://en.wikipedia.org/wiki/Outlook.com) and
+[Yahoo Mail](https://en.wikipedia.org/wiki/Yahoo_Mail).
+
 **2026-11-23, later: the follow-ups for alpha.18, on
 `claude/ownpace-public-readiness-y7orc6-0168-followups`.** Six of the seven defects found on the
 way are fixed and the API flag is added, each with a test that fails without its fix. The
@@ -48,7 +161,8 @@ Not done, and why:
   sells *E-mail Only* to keep one; Telenet and Proximus (skynet.be) keep the address free for at
   least 18 months, as Belgian rules require; Microsoft and Yahoo publish no list of their country
   domains. Where a provider sells a way to keep the address, the recommendation is to keep the
-  domain in the list: the list only proposes, and the person can still say No.
+  domain in the list: the list only proposes, and the person can still say No — *done on
+  `claude/ownpace-public-readiness-y7orc6-domains`, above, with what the pages said*.
 - **Past a cutover, a copy whose source changed and whose digest moved** is counted as waiting for
   the press, and the press never rewrites it, since that rewrite would also write the source's
   change, which "Stop overwriting" forbids after a cutover. **The owner's call:** (a) the press
@@ -128,7 +242,8 @@ Proven:
 
 - `NOT_TAKEN_ALONG` holds Google's two domains only. Microsoft's, Apple's, Yahoo's and the
   internet providers' each need a source this build could not read. Until then a person declares
-  such an address by ticking *I am also changing my address*, as the Microsoft guide says.
+  such an address by ticking *I am also changing my address*, as the Microsoft guide says —
+  *done on `claude/ownpace-public-readiness-y7orc6-domains`, above*.
 - A member's team screen shows the organisation's table, but a legacy `member` or `viewer` now
   reads only their own rows there, and their *Start* with a new address is refused; nobody is
   granted those roles during the alpha.
@@ -136,8 +251,15 @@ Proven:
   exact when two people share one name — *added for alpha.18 (`confirmedByThePerson`)*.
 - A database fault logs the driver's whole error, parameters included (`server-fault.ts`), on
   every route; the fix belongs in `loggableError`.
+  - Fixed since, and central: the shared `log` prints every error through `loggableError`
+    (`packages/shared/src/loggable-error.ts`), the job runner logs through `log`, and the appliance
+    answers a 500 with a reference (CHANGELOG, Unreleased). A line that writes an error's message
+    into its own text still carries Drizzle's `params:`: 51 such lines are in files that reach the
+    database.
 - `SENT-BY`, `DELEGATED-FROM`/`-TO` and `MEMBER` keep their old addresses while `ORGANIZER` and
-  `ATTENDEE` change (D3 names only those two): the owner's call.
+  `ATTENDEE` change (D3 names only those two): the owner's call — *decided 2026-11-23 and built for
+  alpha.18: they change with their line, and an event that was over at the migration's start keeps
+  every address (the entry above)*.
 - **Where the build differs from §3 and D2 above:** a copy records the digest of the rows that
   decided its bytes, not the table's, with `item.address_digest_due` beside it (§3.1); a rewrite
   needs a strong recorded version, and a copy deleted on the target is counted as gone (§3.3); the
@@ -307,7 +429,7 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The owner's decisions and ADR-0055 | owner | ✅ **Done 2026-11-22** | §9: D1–D10 answered as recommended on 2026-11-22 (D7 after rewording). ADR-0055 accepted the same day. |
-| T1 Address forms and the list of addresses nobody can take along | builder | ✅ **Done 2026-11-23** (#2067) | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moved there, no behaviour change. The list holds Google's two domains; the rest wait for their sources to be read (Status). |
+| T1 Address forms and the list of addresses nobody can take along | builder | ✅ **Done 2026-11-23** (#2067) | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moved there, no behaviour change. The list held Google's two domains at the landing; Microsoft's, Apple's, Yahoo's and four Dutch and Belgian internet providers' followed on 2026-11-23 (Status). |
 | T2 The table of address changes | builder | ✅ **Done 2026-11-23** (#2067) | §4, §5. `address_change` (ledger 0071), `item.address_digest` (0072), `address_change_person` (managed 0063), routes in both editions, `PURGED_TABLES`, Support's counts. Status 2026-11-22. |
 | T3 The change itself, as a pure function | builder | ✅ **Done 2026-11-23** (#2067) | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests; mail-path guard. |
 | T4 The writers apply it, and a changed table converges | builder | ✅ **Done 2026-11-23** (#2067) | §3. CardDAV, JMAP contacts and CalDAV writers; `item.address_digest`; `classifyKnownItem`. |

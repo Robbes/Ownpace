@@ -139,6 +139,7 @@ describe('every caller of the ledger door hands it the peak', () => {
   // own rollback (0128 T5, slice 5b), so its door is one of them.
   const ROOT = join(import.meta.dirname, '..', '..', '..');
   const DOORS = /\b(mappingLifecyclePort|applyMappingStatusChange|pathLifecyclePort|applyPathStatusChange)\(/;
+  const EVERY_DOOR = new RegExp(DOORS.source, 'g');
 
   function sources(dir: string, out: string[]): string[] {
     for (const name of readdirSync(dir)) {
@@ -170,7 +171,7 @@ describe('every caller of the ledger door hands it the peak', () => {
         .split('\n')
         .filter((line) => !/^\s*(\*|\/\/|\/\*|import)/.test(line))
         .join('\n');
-      const calls = [...code.matchAll(new RegExp(DOORS.source, 'g'))];
+      const calls = [...code.matchAll(EVERY_DOOR)];
       expect(calls.length, file).toBeGreaterThan(0);
       for (const call of calls) {
         expect(code.slice(call.index), `${file} calls ${call[1]} without the peak`).toMatch(

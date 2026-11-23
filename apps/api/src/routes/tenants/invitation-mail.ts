@@ -101,10 +101,12 @@ export async function mailInvitation(
 ): Promise<InvitationMailOutcome> {
   const where = appUrl();
   if (!where) {
-    // Why, for the operator: the person who pressed Invite hears `off`.
+    // Why, for the operator: the person who pressed Invite hears `off`. By the
+    // invitation's id, never the invitee's address (the privacy policy's
+    // *Server logs* names no invitation among what a log may hold).
     log.error(
-      `[members] WEB_URL is not set — invited ${invitation.email} but sent no email, ` +
-        'because it would have named no address to sign in at',
+      `[members] WEB_URL is not set — invitation ${invitation.memberId} was made but not mailed, ` +
+        'because the mail would have named no address to sign in at',
     );
     return 'off';
   }
@@ -117,7 +119,7 @@ export async function mailInvitation(
       .where(eq(tenant.id, tenantId)),
   );
   if (!organisation) {
-    log.error(`[members] invited ${invitation.email}, but organisation ${tenantId} is not there to name`);
+    log.error(`[members] invitation ${invitation.memberId} was made, but organisation ${tenantId} is not there to name`);
     return 'failed';
   }
   const locale = readTenantNotificationPrefs(organisation.settings).locale;
@@ -146,11 +148,11 @@ export async function mailInvitation(
   if (!perOrganisation.take(tenantId)) {
     log.warn(
       `[members] organisation ${tenantId} has sent ${INVITATION_MAILS_PER_DAY.max} invitation ` +
-        `mails today; ${invitation.email} was invited and not mailed`,
+        `mails today; invitation ${invitation.memberId} was made and not mailed`,
     );
     return 'limited';
   }
   perInvitation.take(invitation.memberId);
 
-  return tell(invitation.email, locale, event);
+  return tell(invitation.email, locale, event, `invitation ${invitation.memberId}`);
 }

@@ -73,6 +73,7 @@
 import { PgBoss } from 'pg-boss';
 import type { ConstructorOptions, Db, JobWithMetadata, QueueResult, SendOptions } from 'pg-boss';
 import pg from 'pg';
+import { log } from '@openmig/shared';
 import { runInChild } from './run-in-child.ts';
 import { RunSlots, workQueue, type ClaimedRun, type QueueSource, type Settlement } from './run-slots.ts';
 
@@ -394,9 +395,10 @@ abstract class PgBossClient {
     });
     // pg-boss reports trouble on an event; an unhandled 'error' event would kill
     // the process, and swallowing it would hide it (hard rule 9). It is logged
-    // verbatim; the operation that failed rejects on its own.
+    // whole but for the values a database error carries (the shared log,
+    // workplan 0168); the operation that failed rejects on its own.
     this.boss.on('error', (err: unknown) => {
-      console.error('[jobs] pg-boss error:', err);
+      log.error('[jobs] pg-boss error:', err);
     });
     this.pool = new pg.Pool({ connectionString: opts.connectionString, max: 2, application_name: poolName });
   }
@@ -431,7 +433,7 @@ abstract class PgBossClient {
       const refused = this.#refusal(version);
       await this.boss.stop({ graceful: false }).catch((err: unknown) => {
         // The refusal is the answer; a stop that failed is said beside it, never instead of it.
-        console.error('[jobs] pg-boss did not stop after refusing the schema:', err);
+        log.error('[jobs] pg-boss did not stop after refusing the schema:', err);
       });
       throw refused;
     }
@@ -806,7 +808,7 @@ export class PgBossJobRunner extends PgBossClient {
           void settled.finally(() => this.#going.delete(settled));
         },
         onError: (err: unknown) => {
-          console.error(`[jobs] working "${queue}":`, err);
+          log.error(`[jobs] working "${queue}":`, err);
         },
       }),
     );
