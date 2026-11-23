@@ -4,9 +4,10 @@
 # and no place is ignored.
 #
 # dependabot-cooldown finds every Dependabot entry whose cooldown is shorter than `days`, seven
-# unless set. Dependabot here waits three days (.github/dependabot.yml), the three days
-# CONTRIBUTING.md asks of every dependency, so the audit is held to three (workplan 0119,
-# 2026-11-21).
+# unless set (crates/zizmor/src/config/mod.rs at v1.33.1): its `default-days`, and since zizmor
+# 1.33.0 each `semver-*-days` it sets (audit/dependabot_cooldown.rs). Dependabot here waits three
+# days (.github/dependabot.yml), the three days CONTRIBUTING.md asks of every dependency, so the
+# audit is held to three (workplan 0119, 2026-11-21).
 rules:
   dependabot-cooldown:
     config:

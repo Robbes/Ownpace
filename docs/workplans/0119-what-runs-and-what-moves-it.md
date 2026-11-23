@@ -4,6 +4,51 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, night, later: the workflow audit runs zizmor 1.33.1, moved on purpose from 1.32.0,
+for alpha.19, inside its three-day floor on the owner's waiver.** The pin watch's summary issue
+(#1671) listed 1.33.1 behind 1.32.0. The owner, 2026-11-23: *"Pull pnpm, zizmor and squawk
+earlier. I waive unneeded days/waiting."* PyPI lists 1.33.0's upload at 2026-11-22 16:36 UTC and
+1.33.1's at 22:26 UTC, so the floor would have ended on 2026-11-25 at 22:26. On branch
+`claude/ownpace-public-readiness-y7orc6-zizmor-1331`, from `main` at `a788a223`; zizmor runs in CI
+alone, so nothing deployed changes.
+
+- **What moved.** `ZIZMOR_IMAGE` in `zizmor.yml` is `ghcr.io/zizmorcore/zizmor:1.33.1` by index
+  digest `ecd3ffe6158d…`, which holds linux/amd64 `e308cf58…`, linux/arm64 `d2ad79dd…` and two
+  attestation manifests. It was read on 2026-11-23 as the Docker-Content-Digest of the tag's
+  manifest on ghcr.io, whose body hashes to it; the same reading of 1.32.0 gives the digest it
+  replaces, `3014cc8f…`. The image's config blob was not read, as for 1.32.0.
+- **What 1.33.0 and 1.33.1 change**, read in their source against 1.32.0's: the three sdists on
+  PyPI, each checked against the SHA-256 PyPI lists. They carry no release notes (`docs/` is not
+  in them), so the code is the record. 1.33.0 adds one audit, `unsafe-checkout`
+  (`crates/zizmor/src/audit/dangerous_checkout.rs`, the default persona, high), on
+  `actions/checkout` given `allow-unsafe-pr-checkout`, which no workflow here sets.
+  `dependabot-cooldown` reads every entry, where 1.32.0 returned at the first that waited long
+  enough, and each `semver-major-days`, `semver-minor-days` and `semver-patch-days` an entry sets,
+  for npm and the other ecosystems with semver cooldowns; it flags an entry with no `cooldown:`
+  only when `days` is above Dependabot's own three. adhoc-packages, use-trusted-publishing and
+  github-env parse a `run:` body with each `${{ … }}` masked (`utils/run.rs`);
+  superfluous-actions names `robinraju/release-downloader`; undocumented-permissions passes over a
+  permission set to `none`; impostor-commit and ref-confusion, online audits this job does not
+  run, pass over a step a workflow lockfile covers. 1.33.1 reads a job whose `services:` is an
+  expression (`crates/github-actions-models/src/workflow/job.rs`).
+- **The guard's mirrors, read again** at v1.33.1: `audit/cache_poisoning.rs` (the release
+  triggers, `KNOWN_PUBLISHER_ACTIONS`' nineteen entries, the cache-aware actions) and
+  `audit/secrets_outside_env.rs` are v1.32.0's byte for byte; `CONFIG_CANDIDATES` in
+  `config/mod.rs` names the same four files, and `days` is still seven unless set; the exit codes
+  are the same (`main.rs`'s 1 and 3, the argument parser's 2, `FindingRegistry::exit_code`'s 11 to
+  14). `a-workflow-zizmor-would-flag` now holds each `semver-*-days` an entry sets to the three
+  days as well, with cases. `ZIZMOR` there and its comments, `docs/testing.md`, 0163's step 2,
+  `every-pr-check-is-classified`, and the comments of `.github/zizmor.yml`, the secrets report
+  and its guard say 1.33.1 or name its source.
+- **Its run here**, from PyPI's wheels for both versions in two virtual environments, as
+  `zizmor.yml` runs it (`--offline --config .github/zizmor.yml --no-ignores`, over the checkout):
+  1.32.0 and 1.33.1 each audit the same nineteen files and report `No findings to report. Good
+  job! (32 suppressed)`, and with `--persona auditor --format json-v1` each reports the same 32
+  findings at the same 40 places. So no workflow needed a change. On a copy of `.github/`,
+  `semver-patch-days: 1` on the npm entry, `default-days: 1` on the second entry and
+  `allow-unsafe-pr-checkout: true` on a checkout are three findings under 1.33.1 and none under
+  1.32.0.
+
 **2026-11-23, night: CI's migration lint takes Atlas v1.4.1, which is v1.4.0 relabelled, for
 alpha.19.** The pin watch's summary issue (#1671) listed v1.4.1 behind v1.4.0 on 2026-11-21. Docker
 Hub listed `1.4.1-community` on 2026-11-19 at 22:40 UTC, so its three-day floor ended on
