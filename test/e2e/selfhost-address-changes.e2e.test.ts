@@ -98,13 +98,20 @@ async function targetObject(home: string, uid: string): Promise<string | undefin
 /** Drive passes until `read` answers, or the wait runs out. */
 async function untilCopied(domain: string, read: () => Promise<string | undefined>): Promise<string> {
   const deadline = Date.now() + PASS_WAIT_MS;
+  // A pass refused while one runs is worth another try; the last refusal is said if the wait runs out.
+  let lastRefusal: unknown;
   while (Date.now() < deadline) {
     const found = await read();
     if (found !== undefined) return found;
-    await runPassNow(MAIN_MAPPING_ID).catch(() => undefined);
+    try {
+      await runPassNow(MAIN_MAPPING_ID);
+    } catch (err) {
+      lastRefusal = err;
+    }
     await new Promise((r) => setTimeout(r, 5000));
   }
-  throw new Error(`${domain}: the address canary did not reach the target in ${PASS_WAIT_MS}ms (last status: ${JSON.stringify(await getDomainStatus(domain))})`);
+  const refused = lastRefusal === undefined ? '' : `; last pass refused: ${lastRefusal instanceof Error ? lastRefusal.message : String(lastRefusal)}`;
+  throw new Error(`${domain}: the address canary did not reach the target in ${PASS_WAIT_MS}ms (last status: ${JSON.stringify(await getDomainStatus(domain))})${refused}`);
 }
 
 /** Every copy of a message on an IMAP account, with the SHA-256 of its raw bytes. */

@@ -12,19 +12,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   is said as the person's now reads *Confirmed by ‹name› for ‹person›*. Always false on the
   appliance, which has no person.
 
-### Security
+### Changed
 
-- **The test mail server's krb5 and zlib findings wait for Stalwart's next release; the Dockerfile
-  rules an outside check read stay as decided** (workplan 0166 T9; docs only). An outside,
-  read-only check of 2026-11-23 reported a high vulnerability with a fix in the Stalwart image the
-  integration tests and E2E (self-hosted) start. Today's image scan agrees: Debian's krb5 libraries
-  and `zlib1g` in `stalwartlabs/stalwart:v1.1.1` have fixes. No Stalwart release after v1.1.1
-  and no rebuild of it exists yet, so the pin cannot move. It moves by ADR-0022 when one comes,
-  and may be taken inside its three-day floor under the owner's waiver for alpha.18. Live never
-  runs this image. hadolint's rules on the GoAccess, PgBouncer and Postgres Dockerfiles stand: no
-  exact apk versions (the owner's answer of 2026-11-19), the pooler's two `USER` lines named as
-  upstream names them until that build goes, and no image `HEALTHCHECK` where compose gives the
-  probe.
+- **The API says a jobs producer that never started when it closes it** (workplan 0163). Closing
+  the API's pg-boss producer while its start had failed dropped that failure without a word; the
+  press that made it was handed the failure, and the close now logs it once, at warn, through
+  `loggableError`, and stops nothing. Two other places an outside, read-only check named keep
+  their behaviour in plainer code: the appliance's queue of address-change writes keeps their order
+  with `Promise.allSettled`, and Cirrux's request for part URLs is written with `await`.
+
 ### Fixed
 
 - **A copy deleted on the new system is counted as gone, never as the owner's edit and never made
@@ -51,6 +47,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   check again after the next pass.
 - **The appliance's answer to *Apply the new addresses here too* for a migration it does not
   hold has a sentence**, in English and Dutch, as managed's has (workplan 0168, found on the way).
+
+### Security
+
+- **The test mail server's krb5 and zlib findings wait for Stalwart's next release; the Dockerfile
+  rules an outside check read stay as decided** (workplan 0166 T9; docs only). An outside,
+  read-only check of 2026-11-23 reported a high vulnerability with a fix in the Stalwart image the
+  integration tests and E2E (self-hosted) start. Today's image scan agrees: Debian's krb5 libraries
+  and `zlib1g` in `stalwartlabs/stalwart:v1.1.1` have fixes. No Stalwart release after v1.1.1
+  and no rebuild of it exists yet, so the pin cannot move. It moves by ADR-0022 when one comes,
+  and may be taken inside its three-day floor under the owner's waiver for alpha.18. Live never
+  runs this image. hadolint's rules on the GoAccess, PgBouncer and Postgres Dockerfiles stand: no
+  exact apk versions (the owner's answer of 2026-11-19), the pooler's two `USER` lines named as
+  upstream names them until that build goes, and no image `HEALTHCHECK` where compose gives the
+  probe.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 
