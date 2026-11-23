@@ -21,10 +21,11 @@ which v1.1.1 wrote, opens as it was, and stalwart-cli v1.0.14 still reads its sc
 watch's Stalwart row compares the pin with the Alpine build's tags of its major, where v1.2.0-alpine
 is the newest. On `218de59b`, E2E (self-hosted) on Postgres (run 45273192768) and on PGlite (run
 45274141879) and E2E (managed) (run 45274950431) passed, one at a time. CI's integration tests did
-not: v1.2.0 refuses, as `invalidProperties`, the card the JMAP contact writer sends to
-`ContactCard/set`, which is v1.2.0's own `ContactCard/parse` of the vCard with the address book
-added, and which v1.1.1 took. So it does not merge until the writer meets v1.2.0, and the writer's
-refusals now name the properties a server refused.
+not, and found the one change of the release that needed code here: v1.2.0's `ContactCard/parse`
+maps each blob id to the list of cards the blob holds, where v1.1.1 mapped it to the card, and the
+JMAP contact writer, which spread it into its `ContactCard/set` create, was refused as
+`invalidProperties` naming the property `0`. The writer now reads either shape (`parsedCardOf`), and
+its refusals name the properties a server refused (the fix doc, "Moving the pin").
 
 **2026-11-23, evening: T6, Monday's scan read. No Trigger.dev image was left in it.** The weekly
 Security Scan, run 45227762752 on `main` at `ac4efadb` (#2084), was started by GitHub at

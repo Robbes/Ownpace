@@ -31,6 +31,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   comments in the API, the worker, the packages and the deploy scripts now say what runs since
   alpha.18 (pg-boss, in the `worker` service) and no longer point at files T9 removed, and the
   identity provider's pin-watch issue no longer says the gate drills Trigger.dev's database.
+- **The JMAP contact writer reads Stalwart v1.2.0's answer to `ContactCard/parse`** (workplan 0166
+  T9). v1.2.0 maps each blob id to the list of cards the blob holds, where v1.1.1 mapped it to the
+  one card; spread into the `ContactCard/set` create, the list was refused as `invalidProperties`.
+  The writer reads either shape and takes the card with the contact's own UID, refusing a blob
+  whose cards do not say which one it is. Its refusals now name the properties a server refused.
 
 ### Security
 

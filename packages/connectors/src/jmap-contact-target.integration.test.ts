@@ -34,7 +34,7 @@
  * guard that cannot fire where it matters is not the protection it looks like.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { JmapContactTarget } from './jmap-contact-target.ts';
 import { destroyJmapFixtures } from './__testing__/jmap-fixture-cleanup.ts';
 import type { RawContact, TargetEntry } from '@openmig/shared';
@@ -122,34 +122,6 @@ if (!BASE || !PASSWORD) {
         type: 'ContactCard',
         ids: written,
       });
-    }, 60_000);
-
-    // TEMPORARY (0166 T9): prints what Stalwart v1.2.0's ContactCard/parse
-    // returns and what its ContactCard/set refuses, to find the property it
-    // names. Test data only. Removed with the fix.
-    it('DEBUG 0166 T9: what v1.2.0 parses, and what its /set refuses', async () => {
-      const proto = JmapContactTarget.prototype as unknown as {
-        apiRequest: (...a: unknown[]) => Promise<unknown>;
-      };
-      const original = proto.apiRequest;
-      const seen: Array<{ method: unknown; args: unknown; using: unknown; result: unknown }> = [];
-      const spy = vi.spyOn(proto, 'apiRequest').mockImplementation(async function (this: unknown, ...a: unknown[]) {
-        const result = await original.apply(this, a);
-        seen.push({ method: a[0], args: a[1], using: a[2], result });
-        return result;
-      });
-      try {
-        const r = await target.upsertContact(bookId, raw(`${uid}-debug`));
-        written.push(r.targetId);
-        console.log('DEBUG-0166 upsert succeeded', JSON.stringify(r));
-      } catch (e) {
-        console.log('DEBUG-0166 upsert threw', String(e));
-      } finally {
-        spy.mockRestore();
-      }
-      for (const s of seen) {
-        if (String(s.method).startsWith('ContactCard/')) console.log('DEBUG-0166', JSON.stringify(s));
-      }
     }, 60_000);
 
     it('writes a contact and keys it by the vCard UID', async () => {

@@ -114,6 +114,12 @@ digest), upstream's changelog, and the source at both tags (a blobless fetch of 
     v1.2.0's list. `crates/jmap-proto/src/object/file_node.rs` is v1.1.1's, the FileNode capability
     still carries `supportedNodeTypes` (the session adds only `urn:ietf:params:jmap:mdn`), and
     JSCalendar still names one `recurrenceRule`;
+  - JMAP for Contacts: `ContactCard/parse` maps each blob id to the list of cards the blob holds,
+    where v1.1.1 mapped it to the one card. The contact writer spread that list into its
+    `ContactCard/set` create, which v1.2.0 refused as `invalidProperties` naming the property `0`;
+    CI's integration tests found it on 2026-11-23, and since then `parsedCardOf`
+    (`packages/connectors/src/jmap-contact-target.ts`) reads either shape. It is the one change of
+    the release that needed code here;
   - mail stored locally gets a `Return-Path` from its envelope sender. The message key leaves that
     header out (`packages/shared/src/generated-message-id.ts`), and the SMTPS test asserts by
     `toContain`;
