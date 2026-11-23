@@ -3302,7 +3302,7 @@ if [ -n "${ADDR_MAIL_OLD:-}" ]; then
       IMAP_USER="$1" IMAP_PASSWORD="$2" MESSAGE_ID='<seed-1@dev.local>' \
       node "${REPO_ROOT}/test/e2e/message-sha256.mjs"
   }
-  src_copies="$(mail_hash source@dev.local source_password)" || src_copies=""
+  src_copies="$(mail_hash source@dev.local "${STALWART_SOURCE_PASSWORD:-source_password}")" || src_copies=""
   dst_copies="$(mail_hash target@dev.local target_password)" || dst_copies=""
   src_sha="$(jq -r 'if length == 1 then .[0].sha256 else empty end' <<<"${src_copies:-[]}" 2>/dev/null || true)"
   dst_n="$(jq -r 'length' <<<"${dst_copies:-[]}" 2>/dev/null || echo 0)"

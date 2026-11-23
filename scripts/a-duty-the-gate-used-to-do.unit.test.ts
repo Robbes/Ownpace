@@ -228,6 +228,8 @@ const NOT_MAINTENANCE: Record<string, string> = {
   'own-addresses.sh': "the job's log: masks this machine's addresses",
   'ensure-env-secrets.sh': "fills the .env the gate restores; live's is the owner's (T1b, D8)",
   'env-upsert.sh': 'the same, one key at a time',
+  'seed-managed.sh':
+    "the demo tenants' seed, run again only by a failed run that set the demo mail source's password, so the demo connection keeps it (0163, 2026-11-23); live has no demo",
   'bootstrap-managed.sh': 'deploys main, with the demo: live moves by hand, from a tag (T1g, T6)',
   'smoke-managed.sh': 'the test itself',
   'redact-evidence.sh': "the job's evidence, before it is uploaded",

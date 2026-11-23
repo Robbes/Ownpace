@@ -2,7 +2,54 @@
 
 > **In one line:** Which scanners and checks CI should add so that what an outside, read-only check finds is caught before a merge: what runs today, what each finding is, and in what order to add Semgrep, osv-scanner, zizmor's secrets audit, gitleaks and the rest, each failing the build or only reporting.
 
-## Status — 2026-11-22 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23: nine passwords in the workflows, each now made per run; the demo's mail source's
+rotated.** On `claude/ownpace-public-readiness-y7orc6-ci-credentials`, from `main` at `db37bf49`.
+- **What was found.** An outside, read-only check of `5b51a82b` ran gitleaks 8.30.1 over the
+  pipeline files and their history, and reported at high severity "a secret sits in a build
+  automation file" at nine places, each there since 2026-11-19: `e2e.yml`'s top-level `env:`
+  (`SOURCE_IMAP_PASSWORD`, `TARGET_JMAP_PASSWORD`, `POSTGRES_PASSWORD`, `NEXTCLOUD_ADMIN_PASSWORD`,
+  `SOURCE_DAV_PASSWORD`, `TARGET_DAV_PASSWORD`), `e2e-managed.yml`'s source seed
+  (`SEED_IMAP_PASSWORD`) and `images.yml`'s database build check (`POSTGRES_PASSWORD`, twice).
+  All nine were still on `main` at `db37bf49`, on the same lines.
+- **The judgement.** Test credentials, not credentials to anything real. Eight were for
+  containers a run starts on 127.0.0.1 and removes, matching `setup-stalwart.sh`,
+  `setup-nextcloud-users.sh` and `dev.yml`'s defaults. The ninth opened `source@dev.local` on the
+  OTA stack's demo Stalwart, which keeps its data between runs and holds fixtures only. As with
+  §4.2's hits of 2026-11-20, `main`'s history keeps every value whatever is changed now. The
+  check's point stands all the same: a working file should name no credential, and one that lives
+  for one run is better. Our own gitleaks 8.30.1 with `.gitleaks.toml` finds none of the nine in
+  `main`'s workflow files (`no leaks found`, read on 2026-11-23): its generic rule wants more
+  entropy than `source_password` has, which is why T6's job never said so.
+- **The fix.** Each run makes its own, 24 bytes from `/dev/urandom` as hex, `::add-mask::`ed and
+  handed on through `$GITHUB_ENV`, before any step uses it. `e2e.yml`'s first step makes the six;
+  `setup-stalwart.sh` now reads `STALWART_SOURCE_PASSWORD` and `STALWART_TARGET_PASSWORD`, and
+  `dev.yml` reads `NEXTCLOUD_ADMIN_PASSWORD`, each with its old value as a developer's default (a
+  dev compose default is not a CI credential). `images.yml` makes its Postgres password in a step
+  of its own, and the `.env` and the root-initialised volume take it.
+- **The rotation.** `e2e-managed.yml` makes `STALWART_SOURCE_PASSWORD` before the bring-up.
+  `setup-stalwart.sh`'s recovery phase upserts `source@dev.local` with it through stalwart-cli,
+  whose upsert patches every mutable field of a matched account (`apply.rs` at v1.0.14), so the
+  old password stops working at the first run. `setup-managed-demo.sh`'s seeder,
+  `seed-managed.ts` (the demo connection the worker logs in with), the source seed and the
+  smoke's mail hash read the same variable. No owner step: a scheduled run and a dispatched one
+  each make their own, and runs queue. **The lock.** Stalwart v1.1.1 bans an address after 100
+  failed logins of one account in a day, for good (its `Security` defaults: `authBanRate` 100/1d,
+  no `authBanPeriod`), and the worker syncs the demo mapping every 15 minutes. A run that failed
+  after setting the account's password and before `seed-managed.sh` stored it would leave the
+  worker failing until the next run. So a step that runs only on a failed run tries one login with
+  the run's password and, if the account takes it, seeds the connection again; if it does not,
+  the run changed nothing on the account. The target keeps `target_password`, which no workflow
+  names.
+- **The test.** `scripts/a-password-a-workflow-spells-out.unit.test.ts`, a unit test and not
+  gitleaks, since gitleaks with this config passes `main`'s workflows. It fails any `env:` or
+  `with:` entry, in any workflow, whose name says password, secret, token or key and whose value
+  is a literal or an expression with a literal fallback, any `NAME=word` in a `run:` script with
+  such a name, and a credential written to `$GITHUB_ENV` unmasked. On `main`'s workflows it
+  failed with exactly the nine; on this branch it passes. `.gitleaks.toml` is unchanged.
+- **What proves it.** E2E (self-hosted) on Postgres and on PGlite, and E2E (managed), dispatched
+  on this branch; until then the workflows are unproven on the runner.
 
 **2026-11-22: T5's first rule that blocks, `run-shell-injection`, built; `react-href-var` waits on
 its time-outs.** On `claude/ownpace-alpha16-semgrep-blocking`, from `main` at `0683eb04`. It

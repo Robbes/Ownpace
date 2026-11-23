@@ -631,9 +631,25 @@ jobs:
       # names deploy/selfhost/.env as an env_file, without which compose will
       # not load the file at all, even for postgres alone (`env file … not
       # found`, compose v5.6.1, 2026-10-26). A throwaway for this runner gives
-      # both, as scripts/upgrade-drill.sh does for its run.
+      # both, as scripts/upgrade-drill.sh does for its run. The password is this
+      # run's own, made at random and masked (workplan 0163, Status of
+      # 2026-11-23: an outside, read-only check found the one this file spelled
+      # out), and handed through $GITHUB_ENV to the .env and to the volume the
+      # next step initialises as root, whose role must take the same one. Two
+      # steps: one that writes a .env writes no $GITHUB_ENV
+      # (a-credential-the-next-step-printed).
+      - name: This run's own Postgres password
+        run: |
+          set -euo pipefail
+          password="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
+          if [ "${#password}" != 48 ]; then
+            echo "::error::Could not make this run's Postgres password: ${#password} hex digits, not 48."
+            exit 1
+          fi
+          echo "::add-mask::${password}"
+          echo "BUILD_CHECK_POSTGRES_PASSWORD=${password}" >> "$GITHUB_ENV"
       - name: A throwaway .env for the appliance's compose file
-        run: printf 'POSTGRES_PASSWORD=build-check-only\n' > deploy/selfhost/.env
+        run: echo "POSTGRES_PASSWORD=${BUILD_CHECK_POSTGRES_PASSWORD}" > deploy/selfhost/.env
 
       - name: Compose builds each database's image where it is missing, and Postgres starts as uid 70
         run: |
@@ -686,7 +702,7 @@ jobs:
             project="$(docker compose -f "$file" config --format json | jq -r '.name')"
             volume="$(docker compose -f "$file" config --format json | jq -r '.volumes.pgdata.name')"
             docker volume create --label "com.docker.compose.project=${project}" --label com.docker.compose.volume=pgdata "$volume"
-            docker run -d --name root-initialised -e POSTGRES_USER="$role" -e POSTGRES_PASSWORD=build-check-only -e POSTGRES_DB="$db" -v "${volume}:/var/lib/postgresql" "$base"
+            docker run -d --name root-initialised -e POSTGRES_USER="$role" -e POSTGRES_PASSWORD="$BUILD_CHECK_POSTGRES_PASSWORD" -e POSTGRES_DB="$db" -v "${volume}:/var/lib/postgresql" "$base"
             # TCP: the entrypoint's temporary server, while it initialises, listens on the socket only.
             for attempt in $(seq 1 60); do
               if docker exec root-initialised pg_isready -q -h localhost -U "$role" -d "$db"; then
