@@ -56,6 +56,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   check again after the next pass.
 - **The appliance's answer to *Apply the new addresses here too* for a migration it does not
   hold has a sentence**, in English and Dutch, as managed's has (workplan 0168, found on the way).
+- **A database fault no longer writes a person's details into the server log** (workplan 0168).
+  Every route logged a failed statement's whole error beside its reference, and the drivers put
+  the statement's values in it: Postgres's `detail` quotes the key or the whole failing row
+  (`Key (email)=(…) already exists.`), a data exception's message quotes the input it refused,
+  PGlite adds the statement's `params`, and Drizzle repeats them in its message and stack.
+  `loggableError` now leaves those out of what it logs, as it already left out a request's body.
+  The rest of the message, the error's code, its table, column and constraint names, the statement
+  up to its first literal and the chain of causes still say what failed and where.
+- **Every log line prints a database error without its values, not only a route's 500** (workplan
+  0168). The shared `log` reads every error it is handed through `loggableError`, at every level, so
+  the places in the API, the job worker and the appliance that log an error themselves, and the job
+  runner's own error lines, print it the same way. The appliance answers a request it fails on with
+  a sentence and a reference, as the API does, instead of the error's message, which for a database
+  error carried the statement's values; the reference is in its log line and on its log page.
+- **An access request, an invitation and a mail that could not be sent are logged by id, not by
+  address** (workplan 0168). An outside, read-only check found the requester's, the invitee's and a
+  mail's recipient's address in the log lines themselves. Each line now names the access request or
+  the invitation by its id, or what the mail was about; a second knock while a request is still
+  open names nobody, since nothing on that anonymous path can read the queue for its id.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 

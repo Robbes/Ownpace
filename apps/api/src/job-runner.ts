@@ -41,8 +41,7 @@
 
 import type { PgBossProducer } from '@openmig/scheduler/pg-boss';
 import { getTriggerClient } from '@openmig/scheduler';
-import { log } from '@openmig/shared';
-import { loggableError } from './server-fault.ts';
+import { log, loggableError } from '@openmig/shared';
 
 export type JobRunnerName = 'trigger' | 'pg-boss';
 
