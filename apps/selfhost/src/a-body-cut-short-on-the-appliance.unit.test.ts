@@ -132,7 +132,13 @@ describe('a body the client cut short', () => {
         expect((await cutShort(path)).code).toBe('ECONNRESET');
         await vi.waitFor(
           () => {
-            const logged = failures.find((args) => args[0] === `[selfhost] PUT ${path} failed:`);
+            // The line names the request and the reference its answer gives
+            // (workplan 0168): `failed [ref 0a1b2c3d]:`.
+            const head = `[selfhost] PUT ${path} failed [ref `;
+            const logged = failures.find((args) => {
+              const first = String(args[0]);
+              return first.startsWith(head) && /^[0-9a-f]{8}\]:$/.test(first.slice(head.length));
+            });
             expect(logged, 'the request that failed was not logged').toBeDefined();
             expect((logged![1] as Error).message).toBe('aborted');
           },

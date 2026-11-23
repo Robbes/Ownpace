@@ -15,6 +15,8 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { formatWithOptions } from 'node:util';
+import { log } from '@openmig/shared';
 /**
  * Every message the transport was handed. The alternative — asserting on the
  * fixture we built ourselves — is a test of the fixture.
@@ -290,5 +292,34 @@ describe('the invitation mail says alpha, and links its texts, when the deployme
       email: INVITED.email,
       privacyPolicy: INVITED.privacyPolicy,
     });
+  });
+});
+
+/**
+ * The line a failed mail writes names what the mail was about, by its id, and
+ * not the address it was to (workplan 0168; an outside, read-only check found
+ * the address in the line).
+ */
+describe('the line a failed mail writes', () => {
+  it('names what the mail was about, never the address it was to', async () => {
+    __setChannelForTests(channel({ smtp: { host: '', port: 0 } }) as never);
+    const lines: string[] = [];
+    vi.spyOn(log, 'error').mockImplementation((...args: unknown[]) => {
+      lines.push(formatWithOptions({ depth: Infinity }, ...args));
+    });
+
+    const outcome = await tell(
+      'someone-s1@example.com',
+      'en',
+      EVENT,
+      'access request 01980000-e29b-41d4-a716-446655440001',
+    );
+
+    expect(outcome).toBe('failed');
+    const line = lines.join('\n');
+    expect(line).toContain(
+      '[access-notify] could not send the mail about access request 01980000-e29b-41d4-a716-446655440001:',
+    );
+    expect(line, 'the log named the address').not.toContain('someone-s1');
   });
 });
