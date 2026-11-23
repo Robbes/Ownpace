@@ -55,6 +55,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   since no tester has accepted it (the owner, 2026-11-22: *"1.0 ok"*), and dated 2026-11-23 in both
   languages. The Google and Microsoft guides say what *Start a migration* does with an address that
   cannot come along, and Finish step 4 says to turn on an automatic reply at the old provider.
+- **The web image's and the public site's nginx move to 1.31.9** (workplan 0119):
+  `nginx:1.31.9-alpine-slim`, Docker Hub's index of 2026-11-18, by tag and index digest in both
+  `apps/web/Dockerfile` and `deploy/compose/www.yml`. Of the image's 21 packages only nginx moves,
+  from 1.31.8-r1 to 1.31.9-r1, on the same Alpine 3.24.4 root filesystem; its environment,
+  entrypoint and command are as before. Dependabot's #2051 moved the web image's alone, which the
+  pin watch refuses, so both move here together.
+- **`@azure/msal-node` 7.2.3, jose 6.2.18, `@electric-sql/pglite` 0.5.17, TanStack Query 5.108.1,
+  lucide-react 1.76.0, testcontainers 12.2.2 and `@testing-library/user-event` 14.6.13** (from
+  7.2.2, 6.2.17, 0.5.16, 5.108.0, 1.75.0, 12.2.1 and 14.6.12, with React Query's devtools;
+  Dependabot's #2052, published on 2026-11-18 and 2026-11-19). msal-node signs the connectors in
+  to Microsoft 365 sources, and its 7.2.3 takes `@azure/msal-common` 16.17.0; jose reads the
+  identity provider's tokens in the API and the connectors' token provider; PGlite is the
+  appliance's database when it runs without Postgres; TanStack Query and lucide-react are the
+  web app's; testcontainers and user-event are test tools.
+- **`@testing-library/jest-dom` 8.0.0** (from 7.0.1; Dependabot's #2053, published on
+  2026-11-19), the matchers the web's tests use, in no shipped code. It still exports the
+  `vitest` entry the web's test setup imports.
 
 ## [0.2.0-alpha.16] - 2026-11-22
 
