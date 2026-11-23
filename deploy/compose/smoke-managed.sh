@@ -173,8 +173,9 @@ api_node() {
 
 # dockerfile_node [dockerfile] — `v<x.y.z>`, the Node version of the first
 # `FROM node:<x.y.z>-…` line of the API's Dockerfile: the Node image it builds
-# on, and the Node images.yml holds the tasks' prebuilt base to
-# (apps/worker/task-image, workplan 0119 §3 item 13). Exit 1 when it has none.
+# on, and so the worker's, whose FROM lines are the API's (until alpha.18, also
+# the Node images.yml held the tasks' prebuilt base to, apps/worker/task-image,
+# workplan 0119 §3 item 13). Exit 1 when it has none.
 dockerfile_node() {
   local line
   while IFS= read -r line; do
@@ -1163,10 +1164,12 @@ API_NODE_VERSION="${API_NODE_FOUND#* }"
 # `nonroot` tag names no version and which no scanner lists, pinned by a digest
 # that moves apart from the node tag. Asked here, on the image this stack runs,
 # a pin moved without the other stops the run with both versions named. The
-# managed tasks run the Node of the prebuilt base trigger.config.ts pins
-# (0119 §3 item 13), and the section on the tasks' image, after the runner
-# logs, holds the image the last deploy built to this same line: so the API
-# and the tasks cannot drift apart with every check green.
+# worker runs the Node of its own Dockerfile, whose FROM lines are the API's,
+# and worker_fit holds the worker this stack runs to the Node found here: so
+# the API and the jobs cannot drift apart with every check green. (Until
+# alpha.18 the managed tasks ran the Node of the prebuilt base
+# trigger.config.ts pinned, 0119 §3 item 13, and the section on the tasks'
+# image held it to this same line.)
 WANT_NODE="$(dockerfile_node)" || {
   echo "FATAL: $REPO_ROOT/apps/api/Dockerfile has no FROM node:<x.y.z>-… line, so which Node"
   echo "       the API should run cannot be told"
@@ -2265,8 +2268,9 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   echo "prepare: sync enqueue -> HTTP ${sync_out##*$'\n'}"
   echo "prepare: ${sync_out%$'\n'*}"
 
-  # Poll for the row the apply half needs. A sync is a Trigger.dev run: a runner
-  # container has to start before anything is written, so seconds, not instants.
+  # Poll for the row the apply half needs. A sync is a pg-boss run: the worker
+  # has to fetch it and fork its process before anything is written, so
+  # seconds, not instants.
   i=0
   while [ $i -lt "$PREP_POLLS" ]; do
     sleep "$POLL_SLEEP"
@@ -2299,7 +2303,7 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   #
   # Scoped to THIS run's tag, so a task row left by an earlier run cannot
   # answer for this one — the same rule the balance section works under.
-  # Polled rather than read once, because the sync is a Trigger.dev run and
+  # Polled rather than read once, because the sync is a run in the worker and
   # the calendar row the apply half waited for can land before the task one.
   TASK_TAGGED="$HREF_EXPR LIKE '%${BALANCE_TAG}%'"
   TASK_SCOPE="tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'"
@@ -3311,7 +3315,7 @@ worker_fit() {
   fi
 }
 
-# THE QUEUES, AS THE CATALOG NAMES THEM: the Trigger.dev task ids
+# THE QUEUES, AS THE CATALOG NAMES THEM: the task ids, as Trigger.dev knew them until alpha.18
 # (packages/scheduler/src/pg-boss/catalog.ts, JOB_CATALOG), one a line.
 catalog_queues() { # catalog_queues [catalog.ts] — the names; 1 and nothing when none can be read
   local f="${1:-${REPO_ROOT}/packages/scheduler/src/pg-boss/catalog.ts}" names
@@ -6984,7 +6988,7 @@ esac
 # button — and the CLI wants a Postgres URL the appliance does not have), so
 # the managed stack is the one place the whole chain runs for real: the door
 # (POST /api/migrations/{id}/cutover) asks the ledger before it enqueues
-# (#1026), the Trigger.dev job prepares — a final delta pass, then the §20
+# (#1026), the cutover job prepares — a final delta pass, then the §20
 # gate — and lands READY_FOR_CUTOVER, and a second press on a ready cutover
 # converges instead of failing it (#1024). The two ledger tables carry the
 # tenant policies since migration 0055 (#1027); that is asserted here on a
@@ -7175,13 +7179,14 @@ fi
 #
 # The sync tick, retention and the purge of closed organisations connect as
 # `ownpace_system` since workplan 0138 T3 step 2, and so do the split jobs'
-# list and every task's audit key: SYSTEM_DATABASE_URL, which set-task-env.sh
-# uploads in place of the owner's DATABASE_URL, deleted from the store. The
-# bring-up asked Postgres, before it uploaded the URL, that the role is no
+# list and every task's audit key: SYSTEM_DATABASE_URL, which the worker
+# service carries in place of the owner's DATABASE_URL (managed.yml;
+# set-task-env.sh uploaded it until alpha.18). The bring-up asked Postgres,
+# before the worker started with the URL, that the role is no
 # superuser, may create no role, belongs to no role and has no role belonging
 # to it, and refused otherwise, and cleared every setting on the role when it
-# set the password; this asks again at the end of the run, when every task
-# this deploy put on the plane has had its turn (a setting a run left on the
+# set the password; this asks again at the end of the run, when every job
+# this run put on its queue has had its turn (a setting a run left on the
 # role, `default_transaction_read_only = on` say, shows here as a count), and
 # asks whether the one job that runs every minute is still running:
 # the tick writes its beat at the end of every run it completes, as the system

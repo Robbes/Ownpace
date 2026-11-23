@@ -3,7 +3,7 @@
  * Migration Management Routes
  * 
  * CRUD operations for migrations, sync triggers, and run history.
- * Integrates with Trigger.dev for job orchestration.
+ * Its jobs go to pg-boss, through `enqueue-unless-held.ts`.
  */
 
 import { Router } from 'express';
@@ -4090,7 +4090,7 @@ router.post(
       const enqueue = await enqueueUnlessHeld(res, tenantId, pool);
       if (!enqueue) return;
 
-      // Enqueue the real Trigger.dev cutover task (id-only, tenant-scoped payload).
+      // Enqueue the real cutover job on pg-boss (id-only, tenant-scoped payload).
       const { taskId, payload } = resolveCutoverJob(tenantId, mappingId, body);
       const run = await enqueue(taskId, payload, {
         tags: [`tenant:${tenantId}`, `mapping:${mappingId}`, 'type:cutover'],

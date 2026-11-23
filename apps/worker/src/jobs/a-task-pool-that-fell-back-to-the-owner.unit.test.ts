@@ -155,7 +155,7 @@ describe('the audit key has a pool of its own, of one connection, on the system 
   });
 
   it("never reads the owner's DATABASE_URL in its place (0138 T3 step 2)", () => {
-    // A run no longer holds it (set-task-env.sh deletes it), and a fallback to
+    // A run no longer holds it (the worker service carries none), and a fallback to
     // it would put the key's pool back on a superuser wherever it is set.
     expect(() => openTaskPools({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER })).toThrow(/SYSTEM_DATABASE_URL/);
     expect(() => openTaskPools({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER })).toThrow(/never DATABASE_URL/);

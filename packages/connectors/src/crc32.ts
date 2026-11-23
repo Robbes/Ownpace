@@ -8,13 +8,13 @@
  *
  *     The requested module 'node:zlib' does not provide an export named 'crc32'
  *
- * — thirteen of them, on a stack whose own `package.json` asks for Node 24 and
- * gets it locally. The task images are built by the Trigger.dev CLI, which is
+ * — thirteen of them, on a stack whose own `package.json` asked for Node 24 and
+ * got it locally. The task images were built by the Trigger.dev CLI, which was
  * pinned to the SDK's version, on the base image of the runtime
- * `apps/worker/trigger.config.ts` names. It named none, so the CLI took its
- * default, which in 4.5.16 is Node 21. The config named `node-24` from then
- * (workplan 0146 T6), and `node-26` since 2026-10-31, and a version guard
- * holds it to the images' major. This
+ * `apps/worker/trigger.config.ts` named. It named none, so the CLI took its
+ * default, which in 4.5.16 was Node 21. The config named `node-24` from then
+ * (workplan 0146 T6), and `node-26` from 2026-10-31 until alpha.18 removed
+ * Trigger.dev (0167 T9). This
  * module stays anyway: a Node that lacks an export is not a thing to discover
  * on a deploy, the archive reader is the only caller, it needs twenty lines of
  * table lookup, and a checksum is the last place to want a platform

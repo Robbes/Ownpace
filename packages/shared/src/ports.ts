@@ -2677,8 +2677,9 @@ export interface ScheduleHandle {
 
 /**
  * Orchestration seam. The self-host edition implements this in-process (croner);
- * the managed edition swaps a Trigger.dev-backed impl. Implementations MUST be
- * single-flight per jobId (no overlapping runs — coalesce).
+ * the managed edition schedules its jobs on pg-boss (`@openmig/scheduler/pg-boss`),
+ * not through this port. Implementations MUST be single-flight per jobId (no
+ * overlapping runs — coalesce).
  */
 export interface Scheduler {
   /** Run `task` on a cron expression; coalesce overlapping runs. */

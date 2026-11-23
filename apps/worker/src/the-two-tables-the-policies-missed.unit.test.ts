@@ -15,7 +15,7 @@
  *
  * A source guard, because no test drives these entry points against a
  * non-superuser: the integration suites inject a store, and the task wrapper
- * needs a Trigger.dev runtime. The property is "which store is constructed",
+ * needs a runner (Trigger.dev's runtime until alpha.18). The property is "which store is constructed",
  * and the source says it plainly.
  */
 

@@ -172,7 +172,7 @@ export class FinalSyncNotFinished extends CutoverGateFailed {
 
 /**
  * What the task does with an error thrown by `prepareCutover`. Pure, so the
- * catch block's three answers are pinned without a Trigger.dev runtime.
+ * catch block's three answers are pinned without a runner.
  *
  * - A refusal (`CutoverRefused`) prepared nothing and wrote nothing: not a
  *   failed cutover, so it is not recorded as one, and not worth another
@@ -404,9 +404,9 @@ export const runCutoverRun = leavesAReference(
               // The pass the scheduler runs, on the migration's own queue, so a
               // scheduled pass already under way finishes first rather than
               // running beside this one (final-sync.ts). Through the run's own
-              // runner (run-context.ts): on Trigger.dev, the pass's task is
-              // loaded here and not at the top, since the task file opens its
-              // database pool when imported (the definition below).
+              // runner (run-context.ts), by the pass's task name, so its task
+              // file, which opens a database pool when imported, is never
+              // loaded here.
               // One data type's final sync is that data type's pass alone.
               const pass = await context.runner.enqueueAndWait(
                 'run-delta-sync',

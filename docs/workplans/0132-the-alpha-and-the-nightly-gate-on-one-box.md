@@ -4,6 +4,150 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, evening: live runs `v0.2.0-alpha.17`, one-way over alpha.16 by ledger migrations 0071
+to 0074 and managed migration 0063, on a copy of alpha.16's databases (T6, T9).** The owner
+deployed it on 2026-11-23 from 18:50, the day of its tag, pasting the sheet's checked blocks one at
+a time, and ran the checks after it the same evening. Times are UTC, on 2026-11-23 unless said. No
+values.
+
+- **The deploy log (T6 step 9).** 2026-11-23, `v0.2.0-alpha.17`: took at 19:11:57 UTC; one-way. The
+  tag is tag object `296ffa2e…` on `5b51a82b` (#2068, the fold), made at 09:27:39 by Release run
+  45146685430, which its message names with *Proved by: CI run #6113, Security Scan run #6259 on
+  main, windows-payload run #61* and the gate scan, run 45146930775. The owner waived its counted
+  nights, for this version alone (`WAIVER_VERSIONS`; 0146's Status, 2026-11-22, night, later); the
+  acceptance is the tag message's own line, *Nights waived by Robbes, in their words: "waived by
+  me"*, which block 6e cited in `deploys.log` at 19:22:40. alpha.17 carries workplan 0168, a new
+  address for one a person cannot take along, with its five migrations (#2067); the worker running
+  at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once, with its memory by a new rule; the web image and
+  the site on nginx 1.31.9; and the privacy policy's new text, still version 1.0 (0146's Status,
+  2026-11-23, morning, later, the fold).
+- **Why 0a stopped, and went on.** 0a read one acceptance of privacy 1.0 by someone who is not an
+  operator, in one organisation. alpha.17 changes the privacy text and keeps it at version 1.0,
+  which the sheet allows only while no tester has accepted 1.0. The owner said the acceptance is
+  their own test account, the sheet's own exception, so the deploy went on. The organisation is
+  not named here.
+- **The self-hosted runner, stopped for the deploy (R1).** At about 18:55, after a check that it
+  ran no job, so that no E2E run could start on the Docker daemon live shares while the deploy ran.
+  No job ran on the box until R2. #2085, in CI only, merged to `main` at 19:04:15, during the hold;
+  live runs from the tag, so it moved nothing there.
+- **Read-only checks first (0a to 0d), each as the sheet expects** but for 0a's one line above. 0a,
+  as the owner, not root: live's checkout at `v0.2.0-alpha.16`, clean; `deploys.log`'s last two
+  lines alpha.14's took one-way and alpha.16's took reversible (06:52:30); both box timers active;
+  the day's daily duties, 13:17:04 to 13:17:09, all eight passed, with the copy before alpha.14 on
+  day 2 of at most 7, kept; that copy with its 6 entries and its note `taken=2026-11-22T09:16:21Z`,
+  `before=v0.2.0-alpha.14` and `from=v0.2.0-alpha.12 (b4d11ee7…)`; the take's own dry run: that
+  copy not proven, so kept, and no second copy taken, nothing written, exit 0; and no hold open. 0b:
+  the tag object `296ffa2e…` on origin, a tag, on `5b51a82b`, version `0.2.0-alpha.17`, with its
+  Release run's and waiver's lines, and the owner's words beside `'v0.2.0-alpha.17'` in
+  `scripts/release-nights.mjs`. 0c, between the two tags: the five migrations added; the
+  Trigger.dev pin (v4.8.8), Zitadel v4.20.4, ClickHouse 26.8.37.168 and pg-boss 12.38.2 (its
+  schema 46) as they were; the jobs on pg-boss by `managed.yml`'s default; the bring-up's rule for
+  the worker's memory, 512 MB a run and 256 more; no unit, and none of the scripts the deploy and
+  these checks run, changed; nginx 1.31.9-alpine-slim by digest `5bfced78…`, the template's headers
+  unchanged and its `:key` map in 3 lines; the privacy text at version 1.0, last updated
+  2026-11-23, in English and Dutch; and pnpm 11.28.13 and Node 26 or later. 0d: the worker's keys
+  in live's `.env` as the sheet expects, the jobs' database password set and no job runner named,
+  room on the machine for the worker at alpha.17's rule, and 12 volumes of `ownpace-live`.
+- **The hold (T6 step 2)** went on at 18:55:16, by its own row, with 0 passes in flight. Block 2's
+  read, at about 19:00, was clean: one hold, 5 minutes old, 0 passes in flight. Then 2b:
+  `env-upsert.sh` set `WORKER_MEMORY` in live's `.env` to alpha.17's rule, which the bring-up reads,
+  on the owner's yes given that day; `WORKER_CPUS` was at the rule already. 2d, in the deploy shell
+  in the checkout: Node 26 and the pnpm the tag pins, and no job runner named in the shell.
+- **The dry run (block 3)**, at about 19:05, exited 0: the tag annotated on origin at `5b51a82b`;
+  the jobs on pg-boss now and after; the hold on and nothing in flight; compared with alpha.16, the
+  last deploy that took, one-way, naming the five migrations, all added; no `--trigger`, since
+  alpha.17's bring-up starts no Trigger.dev plane and nothing migrates its database (0167 T7); and
+  the take would keep the copy before alpha.14 and take no other.
+- **The copy before alpha.14, deleted by hand (block 3a, destructive, on the owner's word, given
+  that day).** It held alpha.12's databases and was not proven. Kept, a take would have kept it and
+  taken no copy of alpha.16's, so the only way back from alpha.17 would have been alpha.12's
+  databases, with everything since 2026-11-22 at 09:16 lost on them. At about 19:08, 3a read the
+  copy's note and its 6 entries, then deleted them: the directory left with 0 entries, at mode 700.
+  The take's dry run then said it would take the copy before v0.2.0-alpha.17: the app's database,
+  the sign-in service's database and the roles. 3b, the dry run again, at about 19:09: the same,
+  one-way, exit 0.
+- **The run (T6 steps 3 to 7).** From about 19:09, one run of alpha.16's `deploy-live.sh`, the
+  checkout's, the same file at alpha.17. The take, at 19:09:31, made the copy before
+  v0.2.0-alpha.17, `from=v0.2.0-alpha.16 (b657f86b…)`, 5 entries: the app's database, the sign-in
+  service's database and the roles; with the jobs on pg-boss, no task runner's database. The new
+  api applied ledger migrations 0071 to 0074 and managed migration 0063 at 19:10. *The deploy
+  took* at 19:11:57, one-way, exit 0, having answered every check of its own, with no NOTE.
+- **The checks after it, with the hold on (T6 step 7),** each as the sheet expects. 5: the deploy's
+  line, the checkout at `v0.2.0-alpha.17`, clean, and the copy with its 5 entries and its note
+  `taken=2026-11-23T19:09:31Z`, `before=v0.2.0-alpha.17`, `from=v0.2.0-alpha.16 (b657f86b…)`. 6a:
+  the api and the worker on the tag's commit, the jobs on pg-boss. 6b: the worker running and
+  healthy, at the size alpha.17's rule gives. 6c: the plane's 11 services exited, and kept, with
+  the 12 volumes 0d counted. 6d: `operator.sh jobs`: 17 queues, none failed, and the tick's lines in
+  the worker's log. 6e: the Release run and the waiver cited in `deploys.log`. 6f: ledger
+  migrations 0071 to 0074 and managed migration 0063 applied at 19:10, after 0070 and 0062 on
+  2026-11-22 at 09:19; `address_change` and `address_change_person` with 0 rows, row security on
+  and forced, 4 policies each; the new columns on `item` and `mailbox_mapping`, with no item
+  carrying an address digest and no migration with the addresses applied; their four checks added
+  `NOT VALID`; and the support view `support_tenant_address_changes`. 6g: both privacy pages, in
+  English and Dutch, served as the tag's build, `v0.2.0-alpha.17 · 5b51a82`, version 1.0, last
+  updated 2026-11-23, and `site/legal` the tag's. 6h: the web on nginx 1.31.9, healthy, started at
+  19:10:43; the `:key` map's 3 lines in the running config, as in the template; the app's five
+  headers as the template states them; and a probe for a made-up address answered 404, logged as
+  `:key`, without the address. 6i: `setup-zitadel.sh --count-organisations` found the provider
+  still accepting the provisioning token, with *organisations on this instance: 1, as it should
+  be*, exit 0; and the owner signed in, and the Support page opened.
+- **The runner back (R2), after 6i,** at about 19:25: `loaded active running`, started by its
+  unit's full name, as the sheets have done since alpha.16's (the entry below).
+- **The lift (T6 step 8).** The owner lifted the hold at 19:26:06, by the hold's own row (started
+  18:55:16), so the hold was on for 30 minutes 50 seconds. `live-pass-check.sh` was not run: the
+  only organisation on live is closed (0139 T7 (b)), so a pass there would answer
+  `account_closed`. The owner's check after the lift (7b) read `yes|0|-1|0`, no hold open and no
+  pass in flight; the box checks' timer having run 6 minutes before and running again within 4; and
+  the copy's directory with its 5 entries and its note, kept, since nothing has proven alpha.17. The
+  first E2E run on the box after it, E2E (self-hosted) on PGlite on #2086's head (run
+  45249100555), ran from 19:27:15 to 19:32:18, green.
+- **What is left (T9).** Nothing has proven alpha.17, and no pass can while the only organisation
+  on live is closed. So the copy before alpha.17 is kept to its day 6: it expires on 2026-11-29 at
+  18:09:31, 6 days less an hour after its take, its last day from 2026-11-28 at 18:09:31, on which
+  every take refuses but a deploy of alpha.16, the release it holds, and the daily duties of
+  2026-11-29 fail and mail; those of 2026-11-30, at 13:17, delete it. It holds alpha.16's
+  databases, so it is the way back from alpha.17, which its five migrations make one-way; the copy
+  before alpha.14, of alpha.12's, is gone. 7c, the daily duties on alpha.17's checkout passing with
+  the copy kept, is read on 2026-11-24 at 14:00.
+
+**2026-11-23, morning: live runs `v0.2.0-alpha.16`, reversible over alpha.14, its jobs on pg-boss
+and Trigger.dev's plane stopped (T6, T9).** The owner deployed it on 2026-11-23, the morning of its
+tag, from the sheet filled from the tag, running the blocks alone, and sent the checks after the
+lift, 7b and 7c, at about 07:00; no block was reported as stopped. So this entry has no hold times
+and none of block 6's readings. alpha.15, released on 2026-11-22, never ran on live (the entry of
+2026-11-22, after alpha.15's release), so this deploy took its changes too. Times are UTC, on
+2026-11-23 unless said. No values.
+
+- **The deploy log (T6 step 9).** 2026-11-23, `v0.2.0-alpha.16`: took at 06:52:30 UTC; reversible.
+  The tag is tag object `bcb7d82b…` on `b657f86b` (#2055, the fold), made at 06:24:46 by Release
+  run 45123378033, which its message names with *Proved by: CI run #6076, Security Scan run #6217
+  on main, windows-payload run #59* and the gate scan, run 45123595275. The owner waived its
+  counted nights, for this version alone (#2035); the acceptance is the tag message's own line,
+  *Nights waived by Robbes, in their words: "waived"* (0146's Status, 2026-11-23, morning).
+- **Reversible, by the deploy's own rule.** Between alpha.14 and alpha.16 no migration file moved,
+  and none of the three pins the deploy compares (Trigger.dev's, the identity provider's and
+  ClickHouse's). alpha.14's `deploy-live.sh`, the checkout's, ran it. alpha.16's bring-up runs the
+  jobs on pg-boss, in the `worker` container, and stops Trigger.dev's plane, which stays installed
+  with its volumes (0167).
+- **The copy before alpha.14, kept.** The take found it, taken on 2026-11-22 at 09:16:21 with 6
+  entries, alpha.12's databases and the task runner's, and not proven, since the only organisation
+  on live is closed and no pass can run (0139 T7 (b)); so it kept it and took no other.
+- **The checks after the lift (7b, 7c), as the owner sent them.** 7b, at about 06:59: no hold open
+  and no pass in flight (`0|-1|0`, the line's first field cut off in the paste); the box checks'
+  timer having run 8 minutes before and running again within a minute; and the copy's directory
+  with its 6 entries and its note unchanged. 7c ran before that day's daily duties, so it read the
+  run of 2026-11-22 at 13:17:39, passed, beside the deploy's line, the checkout at
+  `v0.2.0-alpha.16` and the copy unchanged. The duties of 2026-11-23, 13:17:04 to 13:17:09, ran all
+  eight on alpha.16's checkout and passed, the copy on day 2 of at most 7, kept, as alpha.17's 0a
+  read them (the entry above).
+- **The runner back (R2), after 7b.** R2's start of the runner's unit by a pattern left it stopped
+  (systemd: *unit globs expand to loaded units, so start will usually have no effect*). Started by
+  its unit's full name, read from systemd's own list, it ran again at about 07:04, and an E2E
+  (managed) run that had queued since 07:00 took it. The sheets since start it by its full name.
+- **What was left (T9).** With alpha.16 reversible, a deploy of alpha.14 was a way back beside the
+  copy, which held alpha.12's databases. alpha.17's deploy that evening deleted the copy on the
+  owner's word and took its own (the entry above).
+
 **2026-11-23: alpha.18 removes Trigger.dev's plane from both stacks (workplan 0167 T9).** The
 owner, 2026-11-23: *"i will remove trigger.dev, but the machine runs OTA and managed, so both have
 to be move out of triggerdev."* What this workplan says of the plane on either stack, its ports,

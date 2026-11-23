@@ -428,7 +428,7 @@ describe('second: an unscoped probe on the handle a store was given counts its o
 });
 
 describe('third: a pass on the pools its task opens runs as the application role, and all of it works there', () => {
-  /** The two URLs a run receives (set-task-env.sh), for this database: app_user's and the system role's. */
+  /** The two URLs a run receives (the worker service's, managed.yml), for this database: app_user's and the system role's. */
   const taskEnv = () => ({ APP_DATABASE_URL: asAppUser(PG_CONNECTION_STRING), SYSTEM_DATABASE_URL: asSystemRole(PG_CONNECTION_STRING) });
 
   /** The audit lines the task's sink printed, and what it warned. */

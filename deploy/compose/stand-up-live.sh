@@ -376,8 +376,8 @@ main() {
     refuse "HEAD (${head}) is at no tag named v…. ${RELEASE_SENTENCE}." \
       "Check out the release live is to run: git fetch --tags origin && git checkout --detach <tag>"
   fi
-  # The node this shell runs the bring-up's install and task deploy on
-  # (deploy-tasks.sh, from bootstrap-managed.sh): at least what the tag's
+  # The node this shell runs the bring-up's install on (and, until alpha.18,
+  # its task deploy, deploy-tasks.sh from bootstrap-managed.sh): at least what the tag's
   # package.json asks for, in deploy-live.sh's words (release_tag_node,
   # release-tag.sh). pnpm only warns below `engines`. Before the version is
   # read below, which needs node itself; the tags here are one commit's, HEAD.

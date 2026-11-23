@@ -9,7 +9,8 @@
  *
  * On self-host that is fine and is still what runs: one tenant, one appliance
  * process, so in-process IS the whole service. In managed it is close to no
- * limit at all — Trigger.dev runs every task run in its own process, so two
+ * limit at all — the worker runs every run in a process of its own (as
+ * Trigger.dev did), so two
  * passes for one tenant each hold a private full-size bucket, and the more the
  * service scales the more copies of the "limit" exist. The resource being
  * protected is shared and singular: SAD §13 specifies ONE multi-tenant Entra

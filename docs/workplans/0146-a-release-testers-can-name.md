@@ -4,6 +4,57 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, night: `v0.2.0-alpha.18` is released, its nights waived (T2, T4).** Read from
+GitHub on 2026-11-23. Times are UTC.
+
+- **C is `2c32fa7d`**, the squash of #2089, the fold, merged on 2026-11-23 at 20:01:09. Its tree is
+  that of #2089's head, `f0298e75`. On C, all green: CI run 45254945282 (20:01:12 to 20:32:03,
+  `ci-complete` included), Security Scan run 45254945493, Images run 45254945508, Semgrep run
+  45254945901, Dockerfile lint run 45254945277 and Nextcloud's second major, run 45254945254. C did
+  not move: nothing merged to `main` between the fold and the tag.
+- **In the counted nights' place**, waived for alpha.18 (*"ill waive the waiting for alpha 18, also
+  the 3day limit for LCM, so we could take newer verrsion more early."*, #2069), dispatched on
+  `main` at C, all green: E2E (self-hosted) on Postgres, run 45254963195 (20:01:19 to 20:06:40),
+  then on PGlite, run 45255980050 (20:07:05 to 20:11:22), and E2E (managed), on pg-boss, run
+  45256793178 (20:11:38 to 20:17:34), one at a time, each once the run before it had ended green;
+  beside them Security Scan with the image scans, run 45255130134 (22 jobs: 19 images listed and
+  scanned, none past its end of life, where alpha.17's C had 28 before the plane's nine left with
+  0167 T9), and `windows-payload.yml` run 45255135478 (win-x64).
+- **Release.** The owner ran it from their own account, first as a preflight alone: run
+  45264120403 (`mode` `preflight`, 20:54:11 to 20:55:02), which refused nothing. Then Release run
+  45264370415 (`mode` `release`), with `waive_nights` set to *"waived"*, in one attempt: its
+  preflight passed (20:55:42 to 20:56:29), and it waited at its approve job until the owner
+  approved in the `release` environment (the job ran 20:57:56 to 20:58:01); then the gate scan of C
+  (run 45264815130, on `release-gate/v0.2.0-alpha.18`, 20:58:20 to 20:59:25) and the tag (21:00:12)
+  succeeded. The publish job's Security Scan on the tag, run 45265198837 (21:00:34 to 21:01:39),
+  made the release with its body and SBOM; the images, run 45265540451 (21:02:30 to 21:03:39), and
+  the Windows zip, run 45265526188 (21:02:25 to 21:04:18), both on the tag, were green; and verify
+  passed (21:04:34 to 21:05:19).
+- **The two attaches, through the runner's own `gh`** (#1977): `bom.json` (1,630,146 bytes, with
+  the release at 21:01:33) and `ownpace-appliance-win-x64-v0.2.0-alpha.18.zip` (50,118,139 bytes,
+  21:04:11), both uploaded by `github-actions[bot]`. Verify, which reads both, passed. The release's
+  body is said once (1,049 characters).
+- **The tag.** `v0.2.0-alpha.18` is tag object `4d7cc879…` on `2c32fa7d`, made by
+  `github-actions[bot]` at 21:00:12. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/45264370415*, *Proved by: CI run #6199, Security
+  Scan run #6350 on main, windows-payload run #63; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/45264815130* and *Nights waived by Robbes, in
+  their words: "waived"*.
+- **The image scan after the tag** (`docs/release.md` §4) ran on `main` at `a788a223`: Security Scan
+  run 45273322579, dispatched by hand, 21:48:02 to 21:50:54, 22 jobs, green. §4 asks for it on
+  `main` at C, and `main` had moved past C: #2090, at 21:17:45, moves CI's migration lint to Atlas
+  v1.4.1 for alpha.19, in `ci.yml` alone, and #2092, at 21:45:44, changes code comments and the
+  pin-watch issue's text alone. Neither changes a Dockerfile, an image pin, a compose file or the
+  lockfile, and the scan ran before any merge that moves one, so it read C's images, as alpha.16's
+  did after #2067 (that day's entry below). It listed and scanned 19 images, none past its end of
+  life and none without a report, alpha.18's release images among them, with the counts per tier of
+  Monday's run (0166's Status, 2026-11-23, evening): production-public 0 critical and 10 high,
+  production-internal 0 and 4, shipped 0 and 4, test-only 6 and 366. Every image's issue was left as
+  it was.
+- **The freeze ended with the tag.** The first merge after it was #2090, as `548f388e`.
+- **Live's deploy** from alpha.17 follows, by the owner, from the sheet filled from this tag
+  (one-way: ledger migration 0075, as the fold's entry below says); 0132's Status will record it.
+
 **2026-11-23, evening: the fold for `v0.2.0-alpha.18` (T2).** `package.json` and the API
 contract say `0.2.0-alpha.18`, `scripts/release-line.json` lists it, and everything under
 [Unreleased] moves to its section, dated 2026-11-23, under a summary; [Unreleased] stays, empty.

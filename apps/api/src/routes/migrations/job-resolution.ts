@@ -1,8 +1,8 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * Pure resolution of a sync/cutover API request into the Trigger.dev task id +
- * id-only payload to enqueue. Kept free of the trigger client / router imports
+ * Pure resolution of a sync/cutover API request into the task id + id-only
+ * payload to enqueue on pg-boss. Kept free of the producer and router imports
  * so it is cheaply unit-testable. Payloads carry ids only — never message
  * content (§12/§17); the worker loads connections/credentials filtered by
  * tenant, and as `app_user`, under row security, since workplan 0138 T1.
@@ -157,7 +157,7 @@ export const DISCOVERY_JOIN_WINDOW_SECONDS = 15 * 60;
  *
  *  - `idempotencyKey`: *is this the same count?* The migration, its last
  *    change, and the domains asked for. A reload asks the same question, so
- *    Trigger.dev answers with the run already started instead of a new one,
+ *    the runner hands back the run already started instead of a new one,
  *    for `DISCOVERY_JOIN_WINDOW`. A migration edited since asks a new
  *    question, because the answer may differ.
  *  - `concurrencyKey`: *may two counts of this migration run at once?* Never.

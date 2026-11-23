@@ -230,8 +230,8 @@ export async function driftOfOrganisation(
 
 /**
  * What a run of this schedule reads of its payload: nothing (ADR-0054;
- * workplan 0167 T6). Trigger.dev hands a schedule's run its
- * `ScheduledTaskPayload`, which this run never reads.
+ * workplan 0167 T6). Its schedule hands it an empty one (`worker.ts`); until
+ * alpha.18, Trigger.dev handed it a `ScheduledTaskPayload`, which no run read.
  */
 export const DriftDetectJobSchema = z.strictObject({});
 

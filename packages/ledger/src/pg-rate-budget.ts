@@ -5,13 +5,13 @@
  *
  * ## Why Postgres and not Redis
  *
- * There IS a Redis in the managed stack — `trigger-redis` — and it is
- * Trigger.dev's private datastore. Putting our rate state in another product's
- * internal store couples our correctness to its upgrade and eviction policy,
- * which the SAD is careful to keep at arm's length (§12: the orchestrator sees
- * job metadata, nothing else). Adding a SECOND Redis means new infrastructure,
- * a new failure domain and a new thing to back up, for state that is one small
- * row per (tenant, provider).
+ * There WAS a Redis in the managed stack until alpha.18 — `trigger-redis` —
+ * and it was Trigger.dev's private datastore. Putting our rate state in
+ * another product's internal store would have coupled our correctness to its
+ * upgrade and eviction policy, which the SAD is careful to keep at arm's length
+ * (§12: the orchestrator sees job metadata, nothing else). Adding a Redis of
+ * our own means new infrastructure, a new failure domain and a new thing to
+ * back up, for state that is one small row per (tenant, provider).
  *
  * Postgres is already there, already transactional, and already the thing that
  * must be up for a sync to run at all. The cost argument settles it: an acquire

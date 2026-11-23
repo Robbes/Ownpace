@@ -6,6 +6,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **pnpm 11.29.0** (workplan 0119; the pin watch's #2088), from alpha.18's 11.28.13, in
+  `package.json`'s `packageManager`, which CI and the images read. npm published it on 2026-11-22
+  at 13:58 UTC; it is taken inside its three-day floor, on the owner's word of 2026-11-23:
+  *"Pull pnpm, zizmor and squawk earlier. I waive unneeded days/waiting."* `pnpm install`, frozen
+  and not, leaves the lockfile as it was. pnpm 12 is npm's latest; a new major is the owner's call.
+- **CI's migration lint moves to Atlas v1.4.1** (workplan 0119), from alpha.18's v1.4.0. Docker
+  Hub published it on 2026-11-19 at 22:40 UTC, and it is taken after its three-day floor. Each
+  architecture is checked by the SHA-256 of `/atlas` in the release's community image on Docker
+  Hub. v1.4.1 is v1.4.0 relabelled: the same upstream commit, build date, Go, flags and
+  dependencies, in a file of the same size; only the version it prints differs. Nothing deployed
+  changes.
 - **CI's migration report moves to squawk 2.74.0** (workplan 0119; the pin watch's #1671), from
   alpha.18's 2.73.0. npm published it on 2026-11-23 at 00:26 UTC; it is taken inside its three-day
   floor, on the owner's word of 2026-11-23: *"Pull pnpm, zizmor and squawk earlier. I waive
@@ -13,12 +24,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   squawk's own npm package for that build, whose 2.73.0 gives, byte for byte, the sums pinned
   before. Over every file of both migration chains it reports what 2.73.0 reported, line for line.
   The report fails nothing, and nothing deployed changes.
-- **CI's migration lint moves to Atlas v1.4.1** (workplan 0119), from alpha.18's v1.4.0. Docker
-  Hub published it on 2026-11-19 at 22:40 UTC, and it is taken after its three-day floor. Each
-  architecture is checked by the SHA-256 of `/atlas` in the release's community image on Docker
-  Hub. v1.4.1 is v1.4.0 relabelled: the same upstream commit, build date, Go, flags and
-  dependencies, in a file of the same size; only the version it prints differs. Nothing deployed
-  changes.
+
+### Fixed
+
+- **Text that still described Trigger.dev in the present tense** (workplan 0167, after T9). Code
+  comments in the API, the worker, the packages and the deploy scripts now say what runs since
+  alpha.18 (pg-boss, in the `worker` service) and no longer point at files T9 removed, and the
+  identity provider's pin-watch issue no longer says the gate drills Trigger.dev's database.
 
 ## [0.2.0-alpha.18] - 2026-11-23
 
