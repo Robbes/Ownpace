@@ -48,6 +48,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   each calendar again once (past a data type's cutover, after *Apply the new addresses here too*).
   *Your new address* and the Google and Microsoft guides say so in English and Dutch, and the
   managed gate seeds a past event whose copy must be the source's bytes.
+- **The step *Your new address* asks by itself when the new account's address is on another
+  domain, and about every `.onmicrosoft.com` address** (workplan 0168; the owner's decisions of
+  2026-11-23: *"(b) Ask if login differs"* and *"Yes, any .onmicrosoft.com"*). An old address that
+  is not on the list is asked about when the new account's login is an address on another domain,
+  never when that login is under `onmicrosoft.com`, and the step says the new address is on
+  another domain, with *Choose No if ‹new› is only temporary, until your own domain moves.*, in
+  English and Dutch. No answer is chosen for the person; a login on the old address's own domain
+  asks nothing new, and *I am also changing my address* works as before. Beside the list of whole
+  domains, one rule names Microsoft for any host under `onmicrosoft.com`, a Microsoft 365
+  tenant's own domain, read on whole labels, so `notonmicrosoft.com` and `onmicrosoft.com`
+  itself are not. The Microsoft guide, in both languages, no longer sends anybody to the box for
+  an `.onmicrosoft.com` name, says when the step asks by itself, and names the country domains
+  local versions, as the owner worded the Dutch.
 
 ### Fixed
 
