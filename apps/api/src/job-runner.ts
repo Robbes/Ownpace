@@ -42,6 +42,7 @@
 import type { PgBossProducer } from '@openmig/scheduler/pg-boss';
 import { getTriggerClient } from '@openmig/scheduler';
 import { log } from '@openmig/shared';
+import { loggableError } from './server-fault.ts';
 
 export type JobRunnerName = 'trigger' | 'pg-boss';
 
@@ -128,8 +129,15 @@ export async function closeJobRunner(): Promise<void> {
     stopOnSignal = null;
   }
   if (!made) return;
-  const client = await made.catch(() => null);
-  if (client) await client.stop({ graceful: false, timeoutMs: 5_000 });
+  let client: PgBossProducer;
+  try {
+    client = await made;
+  } catch (err) {
+    // The press that made it was handed this failure; the close has nothing to stop.
+    log.warn('[jobs] the producer being closed had failed to start, so there was nothing to stop:', loggableError(err));
+    return;
+  }
+  await client.stop({ graceful: false, timeoutMs: 5_000 });
 }
 
 /**

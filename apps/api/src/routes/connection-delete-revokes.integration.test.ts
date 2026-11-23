@@ -325,11 +325,9 @@ describe('DELETE /api/connections/:id revokes the grant it lets go of', () => {
     const holder = await pool.connect();
     try {
       await holder.query('SELECT pg_advisory_lock($1)', [LOCK]);
-      const press = () =>
-        request
-          .delete(`/api/connections/${RACED_CONN}`)
-          .set('Authorization', `Bearer ${token(TENANT)}`)
-          .then((res) => res);
+      // Sent at once, and awaited with the other below.
+      const press = async () =>
+        await request.delete(`/api/connections/${RACED_CONN}`).set('Authorization', `Bearer ${token(TENANT)}`);
 
       // The first press has deleted the row and waits, uncommitted, in its record.
       const first = press();

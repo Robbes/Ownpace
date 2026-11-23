@@ -134,8 +134,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   releasePass();
-  await producer?.stop({ graceful: false }).catch(() => undefined);
-  await worker?.stop({ graceful: false }).catch(() => undefined);
+  // Stopped here only, so a stop that fails fails the hook.
+  await producer?.stop({ graceful: false });
+  await worker?.stop({ graceful: false });
   if (admin) {
     await admin.query('DELETE FROM platform_pause WHERE id = $1', [HOLD]);
     await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
@@ -270,7 +271,7 @@ describe('operator.sh jobs, the whole verb, as ownpace_jobs on pgboss', () => {
   }, 60_000);
 
   afterAll(async () => {
-    await onPgboss?.stop({ graceful: false }).catch(() => undefined);
+    await onPgboss?.stop({ graceful: false });
     if (owner) {
       if (made?.schema) await owner.query(`DROP SCHEMA IF EXISTS ${JOBS_SCHEMA} CASCADE`);
       if (made?.role) {
