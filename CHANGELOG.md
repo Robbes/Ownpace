@@ -20,6 +20,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   runner's own error lines, print it the same way. The appliance answers a request it fails on with
   a sentence and a reference, as the API does, instead of the error's message, which for a database
   error carried the statement's values; the reference is in its log line and on its log page.
+- **An access request, an invitation and a mail that could not be sent are logged by id, not by
+  address** (workplan 0168). An outside, read-only check found the requester's, the invitee's and a
+  mail's recipient's address in the log lines themselves. Each line now names the access request or
+  the invitation by its id, or what the mail was about; a second knock while a request is still
+  open names nobody, since nothing on that anonymous path can read the queue for its id.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 

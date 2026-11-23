@@ -31,6 +31,8 @@ import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
+import { formatWithOptions } from 'node:util';
+import { log } from '@openmig/shared';
 
 const SENT: Array<{ to: readonly string[]; subject: string; body: string }> = [];
 vi.mock('@openmig/connectors', async (importOriginal) => {
@@ -366,5 +368,31 @@ describe('the day’s allowance', () => {
     expect(outcomes.filter((o) => o === 'sent')).toHaveLength(20);
     expect(outcomes[20]).toBe('limited');
     expect(SENT).toHaveLength(20);
+  });
+});
+
+/**
+ * An invitation's log lines name it by its id, never the invited address
+ * (workplan 0168; an outside, read-only check found the address in them). The
+ * privacy policy's *Server logs* names no invitation among what a log may hold.
+ */
+describe("an invitation's log lines", () => {
+  it('name the invitation by its id, and not the address it was made for', async () => {
+    delete process.env.WEB_URL;
+    const lines: string[] = [];
+    const capture = (...args: unknown[]) => void lines.push(formatWithOptions({ depth: Infinity }, ...args));
+    const spies = [vi.spyOn(log, 'error').mockImplementation(capture), vi.spyOn(log, 'warn').mockImplementation(capture)];
+
+    let res: Awaited<ReturnType<typeof invite>>;
+    try {
+      res = await invite('someone-s1@example.com');
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+
+    expect(res.body.notified).toBe('off');
+    const line = lines.join('\n');
+    expect(line).toContain(`[members] WEB_URL is not set — invitation ${res.body.id as string} was made but not mailed`);
+    expect(line, 'the log named the invited address').not.toContain('someone-s1');
   });
 });

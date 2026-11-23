@@ -194,13 +194,18 @@ export function memberInvitedEvent(
  * real, and an exception here would report a completed grant as a failure —
  * which is the 0030 T4 rollback rule in the same shape: a mail server being
  * down must not make a thing that happened look like a thing that did not.
+ *
+ * `about` names what the mail is about by its own id (`access request …`,
+ * `invitation …`), for the line a failure writes. Never the address: a log is
+ * no place for it (the privacy policy's *Server logs*).
  */
 export async function tell(
   to: string,
   locale: NotificationLocale,
   event: NotificationEvent,
+  about?: string,
 ): Promise<TellOutcome> {
-  return tellMessage(to, locale, renderEvent(event, locale));
+  return tellMessage(to, locale, renderEvent(event, locale), about);
 }
 
 /**
@@ -212,6 +217,7 @@ export async function tellMessage(
   to: string,
   locale: NotificationLocale,
   message: NotificationMessage,
+  about?: string,
 ): Promise<TellOutcome> {
   const { config } = envChannel();
   if (!config.enabled) {
@@ -231,8 +237,9 @@ export async function tellMessage(
     return 'sent';
   } catch (error) {
     // Loudly, because nobody is watching this log and the operator's screen is
-    // about to say `failed` with no reason on it.
-    log.error(`[access-notify] could not tell ${to}:`, error);
+    // about to say `failed` with no reason on it. By what the mail was about,
+    // not by whom it was to (`tell`).
+    log.error(`[access-notify] could not send the mail${about ? ` about ${about}` : ''}:`, error);
     return 'failed';
   }
 }
