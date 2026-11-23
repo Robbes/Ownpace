@@ -28,7 +28,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { RawContact } from '@openmig/shared';
-import { JmapContactTarget, extractUidFromVcard } from './jmap-contact-target.ts';
+import { JmapContactTarget, extractUidFromVcard, setErrorText } from './jmap-contact-target.ts';
 
 /**
  * The session document this writer connects against.
@@ -501,5 +501,19 @@ describe('address books', () => {
     // no display name.
     const set = calls.find((c) => c.method === 'AddressBook/set')!;
     expect((set.args.create as Record<string, { name: string }>)['0']!.name).toBe('colleagues');
+  });
+});
+
+describe('setErrorText: a refusal says what it refused', () => {
+  it('names the properties an invalidProperties refusal lists, before its description', () => {
+    expect(
+      setErrorText({ type: 'invalidProperties', properties: ['media', 'vCardProps'], description: 'Invalid property.' }),
+    ).toBe('invalidProperties (properties: media, vCardProps) - Invalid property.');
+  });
+
+  it('reads as before when the server names no property, and says so when it sent no error at all', () => {
+    expect(setErrorText({ type: 'forbidden', description: 'no' })).toBe('forbidden - no');
+    expect(setErrorText({ type: 'invalidProperties', properties: [] })).toBe('invalidProperties');
+    expect(setErrorText(undefined)).toBe('no id returned');
   });
 });

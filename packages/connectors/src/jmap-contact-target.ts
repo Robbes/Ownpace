@@ -123,13 +123,31 @@ interface CardGetResponse {
   readonly notFound?: ReadonlyArray<string>;
 }
 
+/**
+ * A JMAP SetError (RFC 8620 §5.3). `properties` names, for `invalidProperties`,
+ * the properties the server refused: without it in the message, a refusal of
+ * one property of a card reads the same as a refusal of all of them.
+ */
+interface SetError {
+  readonly type: string;
+  readonly description?: string;
+  readonly properties?: ReadonlyArray<string>;
+}
+
 interface CardSetResponse {
   readonly created?: Record<string, { id: string }>;
   readonly updated?: Record<string, unknown>;
   readonly destroyed?: ReadonlyArray<string>;
-  readonly notCreated?: Record<string, { type: string; description?: string }>;
-  readonly notUpdated?: Record<string, { type: string; description?: string }>;
-  readonly notDestroyed?: Record<string, { type: string; description?: string }>;
+  readonly notCreated?: Record<string, SetError>;
+  readonly notUpdated?: Record<string, SetError>;
+  readonly notDestroyed?: Record<string, SetError>;
+}
+
+/** A SetError as a message tail: its type, the properties it names, its description. */
+export function setErrorText(failure: SetError | undefined): string {
+  if (!failure) return 'no id returned';
+  const named = failure.properties?.length ? ` (properties: ${failure.properties.join(', ')})` : '';
+  return `${failure.type}${named}` + (failure.description ? ` - ${failure.description}` : '');
 }
 
 interface AddressBookGetResponse {
@@ -364,8 +382,7 @@ export class JmapContactTarget implements ContactTargetWriter, TargetReindexer {
       if (found) return found.id;
     }
     throw new Error(
-      `Could not create address book '${wanted}': ${failure?.type ?? 'no id returned'}` +
-        (failure?.description ? ` - ${failure.description}` : ''),
+      `Could not create address book '${wanted}': ${setErrorText(failure)}`,
     );
   }
 
@@ -433,8 +450,7 @@ export class JmapContactTarget implements ContactTargetWriter, TargetReindexer {
         }
       }
       throw new Error(
-        `ContactCard/set refused ${uid}: ${failure?.type ?? 'no id returned'}` +
-          (failure?.description ? ` - ${failure.description}` : ''),
+        `ContactCard/set refused ${uid}: ${setErrorText(failure)}`,
       );
     }
 
@@ -514,8 +530,7 @@ export class JmapContactTarget implements ContactTargetWriter, TargetReindexer {
       // `notUpdated`, not as a transport error. Not looking is how a rewrite
       // that did nothing gets counted as an update.
       throw new Error(
-        `ContactCard/set could not update ${targetId} (${uid}): ${failure.type}` +
-          (failure.description ? ` - ${failure.description}` : ''),
+        `ContactCard/set could not update ${targetId} (${uid}): ${setErrorText(failure)}`,
       );
     }
 
@@ -803,8 +818,7 @@ export class JmapContactTarget implements ContactTargetWriter, TargetReindexer {
     const failure = response.notDestroyed?.[targetId];
     if (failure) {
       throw new Error(
-        `ContactCard/set could not destroy ${targetId}: ${failure.type}` +
-          (failure.description ? ` - ${failure.description}` : ''),
+        `ContactCard/set could not destroy ${targetId}: ${setErrorText(failure)}`,
       );
     }
     if (!response.destroyed?.includes(targetId)) {
