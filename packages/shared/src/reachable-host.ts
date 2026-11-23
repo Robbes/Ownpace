@@ -27,7 +27,7 @@
  * `fetch`, unchanged, and `reachableHost` hands a host back as typed.
  *
  * NOT A GLOBAL DISPATCHER. The same processes also call their own services by
- * compose name (Trigger.dev, the identity provider, the status page), and those
+ * compose name (the identity provider, the status page), and those
  * must keep working. So the rule rides only the requests that go to a host a
  * tenant gave us: the clients that do are the callers of `tenantFetch`.
  *
@@ -46,9 +46,10 @@ import type { Dispatcher, buildConnector as UndiciBuildConnector } from 'undici'
 // every other request in the process, in both editions, would then go through
 // a different client than the one it was written against. These three modules
 // carry no such side effect; `lib/global.js`, which undici's index and its own
-// `fetch` both load, is the one that does. Static imports, so the task bundle
-// (esbuild, through the Trigger.dev CLI) carries them; a `require` built at run
-// time it cannot see. Their types are in `undici-internals.d.ts`, beside this
+// `fetch` both load, is the one that does. Static imports, so a bundle carries
+// them (Trigger.dev's CLI bundled the tasks with esbuild until alpha.18; the
+// worker now runs the source as it is); a `require` built at run time a
+// bundler cannot see. Their types are in `undici-internals.d.ts`, beside this
 // file, which the root TypeScript program includes; undici ships none for
 // these paths.
 //

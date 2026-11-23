@@ -10,9 +10,9 @@
  * stack, by compose name. The API switches the rule on at its own start-up;
  * this is the task runtime's half.
  *
- * This repository gives the tasks no start-up hook. Trigger.dev can load an
- * `init.ts` from the tasks' directory, but its own build decides that, and
- * nothing here could prove the file was loaded: a rule that silently stayed
+ * This repository gives the tasks no start-up hook. Until alpha.18, Trigger.dev
+ * could load an `init.ts` from the tasks' directory, but its own build decided
+ * that, and nothing here could prove the file was loaded: a rule that silently stayed
  * off would look exactly like one that is on. So every task module imports
  * this, and `scripts/a-rule-nothing-switched-on.unit.test.ts` holds that each
  * one does. The clients read the rule when they connect, so the rule is on

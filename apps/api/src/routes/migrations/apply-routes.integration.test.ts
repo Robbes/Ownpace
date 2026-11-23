@@ -383,7 +383,7 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
         [TENANT, MAPPING, R_OLD],
       );
       // Not joined ⇒ the route evaluates and tries to enqueue — which this
-      // file's Trigger.dev mock makes die. A 502 here IS the proof: a joined
+      // file's mock of the pg-boss producer makes die. A 502 here IS the proof: a joined
       // receipt would have answered 200 before ever reaching the enqueue.
       const res = await request
         .post(`/api/migrations/${MAPPING}/moves/${R_OLD}/apply`)

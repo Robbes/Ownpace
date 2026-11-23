@@ -15,7 +15,7 @@
  * 3. **Work each queue** with its concurrency: one at a time, the pass
  *    `MAX_PASSES_IN_FLIGHT` and one more; and never more than
  *    `MAX_PASSES_IN_FLIGHT` + 2 runs at once across every queue
- *    (`runsAtOnceFor`), as Trigger.dev's plane admits. A run past either limit
+ *    (`runsAtOnceFor`), as Trigger.dev's plane admitted until alpha.18. A run past either limit
  *    is not fetched and waits in its queue: it neither fails nor spends an
  *    attempt, and no kind of run is put ahead of another. The handler forks the queue's entry
  *    with `{ payload, runId, attempt }` and the run's `signal`, which the
@@ -101,8 +101,8 @@ export const DEFAULT_MAX_PASSES_IN_FLIGHT = 3;
 
 /**
  * The most runs the worker runs at once, every queue together:
- * `MAX_PASSES_IN_FLIGHT` + 2, the limit Trigger.dev's plane admits on the
- * stack (`deploy/compose/plane-limit.sh`), one slot above the tick's cap for
+ * `MAX_PASSES_IN_FLIGHT` + 2, the limit Trigger.dev's plane admitted on the
+ * stack until alpha.18, one slot above the tick's cap for
  * the tick and one for a cutover's final sync. A run past it is not fetched:
  * it waits in its queue, at the attempt it had, and a stop leaves it there.
  * The worker's memory limit is sized for exactly this many runs

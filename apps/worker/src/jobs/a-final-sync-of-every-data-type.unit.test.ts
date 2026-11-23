@@ -22,7 +22,7 @@
  *    both doors, without building mail it never used.
  *
  * The task bodies are read as text where no runtime can reach them (a
- * Trigger.dev run waiting on another), as `a-domain-the-dispatchers-forgot`
+ * run waiting on another, which needs the runner and its database), as `a-domain-the-dispatchers-forgot`
  * reads the dispatchers. The gate itself, against a real ledger, is in
  * `a-cutover-without-mail.integration.test.ts`.
  */
@@ -455,8 +455,8 @@ describe('the doors, read as text', () => {
   it("the final sync is run-delta-sync, waited for on the migration's own queue", () => {
     const cutover = code('run-cutover.ts');
 
-    // Through the run's own runner (workplan 0167 T6): on Trigger.dev, the
-    // pass's triggerAndWait (run-context.ts).
+    // Through the run's own runner (workplan 0167 T6, run-context.ts): on
+    // Trigger.dev, until alpha.18, the pass's triggerAndWait.
     expect(cutover).toMatch(
       /context\.runner\.enqueueAndWait\(\s*'run-delta-sync',\s*\{ tenantId, mappingId, \.\.\.\(domain !== undefined \? \{ domains: \[domain\] \} : \{\}\) \}/,
     );

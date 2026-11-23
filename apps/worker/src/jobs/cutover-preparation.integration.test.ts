@@ -3,7 +3,8 @@
 /**
  * The cutover job body, driven against a real ledger.
  *
- * `prepareCutover` is the extracted body of the `run-cutover` Trigger.dev task.
+ * `prepareCutover` is the extracted body of the `run-cutover` job (a Trigger.dev
+ * task until alpha.18).
  * It was previously inlined in the task's `run`, which made it untestable — and
  * it showed: the job walked READY_FOR_CUTOVER -> CUTOVER_IN_PROGRESS ->
  * COMPLETED with no approval anywhere, under a comment reading "in real

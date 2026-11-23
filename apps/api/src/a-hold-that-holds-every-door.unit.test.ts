@@ -43,7 +43,7 @@
  *     already under way enqueues nothing, and is answered as before while a
  *     hold is open: *Start* on an active migration, a running verification, a
  *     queued receipt, a running confirmation. Discovery's join is not the
- *     route's but Trigger.dev's (an idempotency key, applied inside the
+ *     route's but the runner's (an idempotency key, applied inside the
  *     enqueue), so a discovery press is refused even when it would only have
  *     joined a count begun earlier.
  */

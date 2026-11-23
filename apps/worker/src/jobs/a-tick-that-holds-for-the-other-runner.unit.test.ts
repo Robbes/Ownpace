@@ -3,7 +3,7 @@
 /**
  * A TICK THAT HOLDS FOR THE OTHER RUNNER (ADR-0054; workplan 0167 T6).
  *
- * While the managed edition's jobs can run on Trigger.dev or on pg-boss, two
+ * While the managed edition's jobs could run on Trigger.dev or on pg-boss (until alpha.18), two
  * runners left running at once would run two sync ticks, and each runner
  * serialises a migration's passes on its own queue only: two passes on one
  * migration, two writers. The procedures stop one runner before they start the
@@ -25,8 +25,8 @@
  *    the run needs a database, a runner and a queue;
  *    `a-system-role-that-is-not-the-owner` runs it against Postgres.
  *
- * Only the Trigger.dev runner exists yet, so only its half runs: it holds
- * while the pg-boss tick beats.
+ * Only the pg-boss runner is left since alpha.18, so only its half runs: it
+ * holds while a Trigger.dev tick beats.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';

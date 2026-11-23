@@ -507,8 +507,8 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 /**
  * What a run of this schedule reads of its payload: nothing (ADR-0054;
- * workplan 0167 T6). Trigger.dev hands a schedule's run its
- * `ScheduledTaskPayload`, which this run never reads.
+ * workplan 0167 T6). Its schedule hands it an empty one (`worker.ts`); until
+ * alpha.18, Trigger.dev handed it a `ScheduledTaskPayload`, which no run read.
  */
 export const InvoicePushJobSchema = z.strictObject({});
 
@@ -531,8 +531,9 @@ export const managedInvoicePushRun = leavesAReference(
       log.info(`[invoice-push] nothing is pushed: ${stop.said}`);
       return { pushing: false, reason: stop.reason } as const;
     }
-    // Each key named, so the guard on the task environment sees every one of
-    // them and holds set-task-env.sh to uploading it.
+    // Each key named, so the guard on the worker's environment sees every one
+    // of them and holds managed.yml's `worker` service to carrying it
+    // (`scripts/a-knob-the-tasks-can-never-see`).
     const moneybird = moneybirdFromEnv({
       MONEYBIRD_API_TOKEN: process.env.MONEYBIRD_API_TOKEN,
       MONEYBIRD_ADMINISTRATION_ID: process.env.MONEYBIRD_ADMINISTRATION_ID,

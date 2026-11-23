@@ -11,7 +11,7 @@
  *
  * It is a real graph walk (not a grep of one file), so it catches transitive
  * regressions — e.g. importing `@openmig/scheduler` (the package index, which
- * re-exports the Trigger.dev client) instead of `@openmig/scheduler/in-process`.
+ * re-exported the Trigger.dev client until alpha.18) instead of `@openmig/scheduler/in-process`.
  * It resolves only `@openmig/*` and relative imports (the code we own); bare
  * third-party specifiers are checked against the forbidden list but not walked.
  */
@@ -56,14 +56,14 @@ function forbiddenReason(spec: string): string | null {
   if (/(^|\/)(pricing|tenant-pricing|usage-metering|invoice|invoice-generation)(\/|$)/.test(spec)) {
     return 'pricing/metering module (managed-only — an appliance has an owner, not customers)';
   }
-  // The scheduler index re-exports the Trigger.dev client — self-host must use
-  // the trigger-free `/in-process` subpath instead.
+  // The scheduler index re-exported the Trigger.dev client until alpha.18;
+  // self-host still uses the `/in-process` subpath alone.
   if (spec === '@openmig/scheduler' || spec === '@openmig/scheduler/index') {
     return 'scheduler package index (use @openmig/scheduler/in-process)';
   }
-  // ADR-0054: the managed edition's jobs move to pg-boss, and the appliance
-  // keeps its in-process scheduler. pg-boss is managed orchestration as
-  // Trigger.dev is, so neither it nor the subpath that wraps it is reachable.
+  // ADR-0054: the managed edition's jobs moved to pg-boss, and the appliance
+  // keeps its in-process scheduler. pg-boss is managed orchestration, as
+  // Trigger.dev was, so neither it nor the subpath that wraps it is reachable.
   if (/^pg-boss(\/|$)/.test(spec)) return 'pg-boss (managed orchestration, ADR-0054)';
   if (/^@openmig\/scheduler\/pg-boss(\/|$)/.test(spec)) {
     return 'the managed job runner (ADR-0054; use @openmig/scheduler/in-process)';

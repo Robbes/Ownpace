@@ -12,7 +12,7 @@
  *
  * So the largest file a migration could move was bounded by the RUNNER'S RAM,
  * not by anything about the file, the customer or the provider. On the managed
- * stack no machine preset is set at all, which means Trigger.dev's smallest
+ * stack no machine preset was set at all, which meant Trigger.dev's smallest
  * default. A file above that ceiling did not fail politely: the process was
  * killed, mid-pass, with no run event and no failure-queue row — the pass
  * simply stopped existing, which from a customer's side is the migration
