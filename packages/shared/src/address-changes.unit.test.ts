@@ -532,3 +532,147 @@ describe('the digest a copy records is its own, not the table’s (0168 S4)', ()
     expect(benOnly.digest).toBeNull();
   });
 });
+
+describe('a card inside a card (the review’s B1)', () => {
+  /** vCard 2.1's AGENT: the agent's own card, on the lines after it. */
+  const AGENT_CARD = crlf([
+    'BEGIN:VCARD',
+    'VERSION:2.1',
+    'N:Boss;Big',
+    'FN:Big Boss',
+    'AGENT:',
+    'BEGIN:VCARD',
+    'VERSION:2.1',
+    'N:Assistant;Ben',
+    'EMAIL;INTERNET:ben.old@old.example.org',
+    'END:VCARD',
+    'EMAIL;INTERNET;PREF:ana@old.example.org',
+    'END:VCARD',
+  ]);
+
+  it('changes the outer card’s own EMAIL and passes the agent’s card through as it stands (2.1’s AGENT)', () => {
+    const r = applyAddressChanges('vcard', AGENT_CARD, TABLE);
+    expect(r.body).toBe(
+      crlf([
+        'BEGIN:VCARD',
+        'VERSION:2.1',
+        'N:Boss;Big',
+        'FN:Big Boss',
+        'AGENT:',
+        'BEGIN:VCARD',
+        'VERSION:2.1',
+        'N:Assistant;Ben',
+        'EMAIL;INTERNET:ben.old@old.example.org',
+        'END:VCARD',
+        'EMAIL;TYPE=pref;INTERNET:ana@example.org',
+        'EMAIL;INTERNET:ana@old.example.org',
+        'END:VCARD',
+      ]),
+    );
+    // Decided by Ana's row alone: Ben's address is the agent's card's.
+    expect(r.digest).toBe(addressTableDigest([ANA]));
+    expect(applyAddressChanges('vcard', r.body, TABLE).body).toBe(r.body);
+  });
+
+  it('drops no byte of a nested card with nothing to change', () => {
+    const body = crlf(['BEGIN:VCARD', 'VERSION:3.0', 'FN:First', 'BEGIN:VCARD', 'FN:x', 'END:VCARD', 'END:VCARD']);
+    const r = applyAddressChanges('vcard', body, TABLE);
+    expect(r).toEqual({ body, changed: false, digest: null });
+  });
+
+  it('passes a card whose END:VCARD is missing through whole, the card after it included', () => {
+    const body = crlf([
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'FN:First',
+      'UID:first',
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'FN:Second',
+      'EMAIL:ben.old@old.example.org',
+      'UID:second',
+      'END:VCARD',
+    ]);
+    expect(applyAddressChanges('vcard', body, TABLE)).toEqual({ body, changed: false, digest: null });
+  });
+
+  it('over random cards that carry an agent’s card, keeps every line of the agent’s card and drops none of the outer card’s', () => {
+    for (const seed of SEEDS) {
+      const r = rng(seed * 31);
+      const agent = [
+        'BEGIN:VCARD',
+        'VERSION:2.1',
+        `N:${pick(r, ADDRESSES)}`,
+        `EMAIL;INTERNET${r() < 0.5 ? ';PREF' : ''}:${pick(r, ADDRESSES)}`,
+        'END:VCARD',
+      ];
+      // The outer card as its logical lines, so the agent never lands inside a folded one.
+      const outer = unfolded(randomCard(r));
+      // The agent goes in after the outer card's FN, as `AGENT:` and its card.
+      const at = outer.findIndex((l) => /^FN:/.test(l)) + 1;
+      const body = `${[...outer.slice(0, at), 'AGENT:', ...agent, ...outer.slice(at)].join('\r\n')}\r\n`;
+      const out = applyAddressChanges('vcard', body, TABLE).body;
+      const lines = unfolded(out);
+      const start = lines.indexOf('AGENT:');
+      expect(lines.slice(start + 1, start + 1 + agent.length), `seed ${seed}`).toEqual(agent);
+      // Every line of the source that is not the outer card's own EMAIL is in the result, in order.
+      const keptOf = (t: string) => unfolded(t).filter((l) => !/^([\w-]+\.)?EMAIL[;:]/i.test(l) || agent.includes(l));
+      expect(keptOf(out), `seed ${seed}`).toEqual(keptOf(body));
+      expect(applyAddressChanges('vcard', out, TABLE).body, `seed ${seed}`).toBe(out);
+    }
+  });
+});
+
+describe('the line a card gains (the review’s S7 and N1)', () => {
+  it('carries no PID, ALTID or PROP-ID: the new address is a property of its own', () => {
+    const card = crlf([
+      'BEGIN:VCARD',
+      'VERSION:4.0',
+      'FN:Ana',
+      'EMAIL;PID=1.1;ALTID=1;PROP-ID=e1;TYPE=home:ana@old.example.org',
+      'CLIENTPIDMAP:1;urn:uuid:3df403f4-5924-4bb7-b077-3c711d9eb34b',
+      'UID:u',
+      'END:VCARD',
+    ]);
+    const r = applyAddressChanges('vcard', card, TABLE);
+    expect(r.body).toBe(
+      crlf([
+        'BEGIN:VCARD',
+        'VERSION:4.0',
+        'FN:Ana',
+        'EMAIL;PREF=1;TYPE=home:ana@example.org',
+        'EMAIL;PID=1.1;ALTID=1;PROP-ID=e1;TYPE=home:ana@old.example.org',
+        'CLIENTPIDMAP:1;urn:uuid:3df403f4-5924-4bb7-b077-3c711d9eb34b',
+        'UID:u',
+        'END:VCARD',
+      ]),
+    );
+  });
+
+  it('takes the preference off every old line whose new address it gains, so only the new one is preferred', () => {
+    const card = crlf([
+      'BEGIN:VCARD',
+      'VERSION:4.0',
+      'FN:Ana',
+      'EMAIL;PREF=2:ana@hotmail.example.org',
+      'EMAIL;PREF=1:ana.x@gmail.com',
+      'UID:u',
+      'END:VCARD',
+    ]);
+    const t = [row('ana@hotmail.example.org', 'ana@example.org'), row('anax@gmail.com', 'ana@example.org')];
+    const r = applyAddressChanges('vcard', card, t);
+    expect(r.body).toBe(
+      crlf([
+        'BEGIN:VCARD',
+        'VERSION:4.0',
+        'FN:Ana',
+        'EMAIL;PREF=1:ana@example.org',
+        'EMAIL:ana@hotmail.example.org',
+        'EMAIL:ana.x@gmail.com',
+        'UID:u',
+        'END:VCARD',
+      ]),
+    );
+    expect(applyAddressChanges('vcard', r.body, t).body).toBe(r.body);
+  });
+});

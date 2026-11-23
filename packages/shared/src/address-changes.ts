@@ -406,35 +406,76 @@ function rowFor(t: AddressTable, address: string, decided: Decided): ConfirmedAd
 // ---------------------------------------------------------------------------
 // vCard (D2)
 
+const BEGIN_VCARD = /^BEGIN:VCARD\s*$/i;
+const END_VCARD = /^END:VCARD\s*$/i;
+
+/**
+ * Every top-level card of a body, its EMAIL lines changed (D2).
+ *
+ * A CARD INSIDE A CARD IS PART OF THE OUTER ONE (the review's B1). vCard 2.1
+ * lets `AGENT:` carry another card on the lines after it, and a first card
+ * whose `END:VCARD` is missing looks the same: a `BEGIN:VCARD` while a card is
+ * open. Taking that as the start of a new card dropped the outer card's head
+ * (its `BEGIN`, `VERSION`, `N`, `FN`), even where no address was in the table.
+ * Now the outer card runs to the `END:VCARD` that closes it, every line of a
+ * card nested in it passes through as it stands (it is another person's
+ * card, the value of the outer card's `AGENT`), and only the outer card's own
+ * lines change. A card that never closes is passed through whole. No byte is
+ * ever dropped.
+ */
 function changeVcard(body: string, t: AddressTable, decided: Decided): string {
   const lines = linesOf(body);
   const out: string[] = [];
-  let card: { readonly start: number; readonly lines: Line[] } | null = null;
+  let card: Line[] | null = null;
+  let depth = 0;
   for (const line of lines) {
-    if (/^BEGIN:VCARD\s*$/i.test(line.logical)) {
-      card = { start: out.length, lines: [line] };
-      continue;
-    }
+    const begin = BEGIN_VCARD.test(line.logical);
     if (card === null) {
-      out.push(...line.span);
+      if (begin) {
+        card = [line];
+        depth = 1;
+      } else out.push(...line.span);
       continue;
     }
-    card.lines.push(line);
-    if (/^END:VCARD\s*$/i.test(line.logical)) {
-      out.push(...changeCard(card.lines, t, decided));
-      card = null;
+    card.push(line);
+    if (begin) depth += 1;
+    else if (END_VCARD.test(line.logical)) {
+      depth -= 1;
+      if (depth === 0) {
+        out.push(...changeCard(card, t, decided));
+        card = null;
+      }
     }
   }
-  // An unterminated card is passed through as it stands.
-  if (card !== null) for (const l of card.lines) out.push(...l.span);
+  // An unterminated card is passed through as it stands, with what it holds.
+  if (card !== null) for (const l of card) out.push(...l.span);
   return out.join('');
 }
 
-/** One card, `BEGIN:VCARD` to `END:VCARD`, with its EMAIL lines changed. */
+/** Parameters that name one property, never two: the added line carries none of them (the review's S7). */
+const IDENTITY_PARAMETERS: ReadonlySet<string> = new Set(['PID', 'ALTID', 'PROP-ID']);
+
+/** One card, `BEGIN:VCARD` to its own `END:VCARD`, with its own EMAIL lines changed. */
 function changeCard(lines: ReadonlyArray<Line>, t: AddressTable, decided: Decided): string[] {
-  const version = lines.map((l) => /^VERSION:\s*(\S+)/i.exec(l.logical)?.[1]).find((v) => v !== undefined);
+  // Which lines are the card's own: not a card nested in it, nor its edges.
+  let depth = 0;
+  const own = lines.map((l) => {
+    if (BEGIN_VCARD.test(l.logical)) {
+      depth += 1;
+      return false;
+    }
+    if (END_VCARD.test(l.logical)) {
+      depth -= 1;
+      return false;
+    }
+    return depth === 1;
+  });
+  const version = lines
+    .map((l, i) => (own[i] ? /^VERSION:\s*(\S+)/i.exec(l.logical)?.[1] : undefined))
+    .find((v) => v !== undefined);
   const v4 = version !== undefined && version.startsWith('4');
-  const emails = lines.map((l) => {
+  const emails = lines.map((l, i) => {
+    if (!own[i]) return null;
     const p = parse(l.logical);
     return p !== null && p.name === 'EMAIL' ? p : null;
   });
@@ -443,15 +484,24 @@ function changeCard(lines: ReadonlyArray<Line>, t: AddressTable, decided: Decide
 
   // The new addresses this card gains, in the order their old lines stand.
   const gained: { readonly row: ConfirmedAddressChange; readonly from: Property }[] = [];
+  const gainedKeys = new Set<string>();
   const losing = new Set<number>();
   emails.forEach((p, i) => {
     if (!p) return;
     const row = rowFor(t, addressIn(p.value).address, decided);
     if (!row) return;
     const newKey = addressKey(row.newAddress);
-    if (present.has(newKey)) return;
-    present.add(newKey);
-    gained.push({ row, from: p });
+    if (!gainedKeys.has(newKey)) {
+      // The card already lists the new address: it gains nothing.
+      if (present.has(newKey)) return;
+      present.add(newKey);
+      gainedKeys.add(newKey);
+      gained.push({ row, from: p });
+    }
+    // EVERY old line of an address the card gains loses its preference, not
+    // only the first: two old addresses that both become the new one would
+    // otherwise leave a second preferred line beside the new one (the
+    // review's N1).
     losing.add(i);
   });
   if (gained.length === 0) return lines.flatMap((l) => [...l.span]);
@@ -461,7 +511,14 @@ function changeCard(lines: ReadonlyArray<Line>, t: AddressTable, decided: Decide
   lines.forEach((line, i) => {
     if (i === firstEmail) {
       gained.forEach(({ row, from }, k) => {
-        const kept = from.params.filter((x) => !isPreference(x, v4)).map(withoutPrefType);
+        // The old line's parameters, but never its preference and never the
+        // ones that name ONE property: lines sharing an ALTID are one value in
+        // several forms (RFC 6350 §5.4), a PID is one property for a sync to
+        // merge by (§5.5, §7), and PROP-ID is JSContact's key for it (RFC
+        // 9555). Copied, the new line and the old one would read as one.
+        const kept = from.params
+          .filter((x) => !isPreference(x, v4) && !IDENTITY_PARAMETERS.has(paramKey(x)))
+          .map(withoutPrefType);
         const params = kept.filter((x) => x !== '');
         if (k === 0) params.unshift(v4 ? 'PREF=1' : 'TYPE=pref');
         const { scheme } = addressIn(from.value);
