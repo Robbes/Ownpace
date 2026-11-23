@@ -6392,7 +6392,8 @@ paths:
         the person on its loopback page is its owner, as with its decisions.
 
         On managed, only an owner or an admin adds a row (0168 §4.4, D6).
-        A table holds at most 300 rows.
+        A table holds at most 300 rows (`ADDRESS_CHANGE_ROWS_MAX`, the
+        appliance's `address-changes.json` too).
 
         Every write is recorded in the audit log, in the write's own
         transaction: who, the row by reference (its key as the audit
