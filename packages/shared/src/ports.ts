@@ -1820,6 +1820,21 @@ export interface Ledger {
    */
   listConfirmedAddressChanges?(tenantId: TenantId): Promise<ReadonlyArray<ConfirmedAddressChangeRow>>;
   /**
+   * Record the source version of a copy that is unchanged, on a row that
+   * predates the version column (`classifyKnownItem`'s `record-version`).
+   * That column alone, and `updated_at`: nothing was written to the target,
+   * so `last_synced_at`, which the usage meter reads as the copy's last write,
+   * does not move (workplan 0168, found on the way). Optional, as
+   * `markAddressChangeDue` is: a ledger without it is given `recordUpdate`.
+   */
+  recordSourceVersion?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    naturalKeyHash: string,
+    sourceVersion: string,
+  ): Promise<void>;
+  /**
    * Record the change one copy waits for, or clear it with null (workplan
    * 0168 S3; `LedgerRecord.addressDigestDue`). That column alone: no other
    * column moves, `last_synced_at` included, since nothing was written to the
