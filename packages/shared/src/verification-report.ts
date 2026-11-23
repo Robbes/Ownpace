@@ -110,13 +110,15 @@ export interface DataTypeVerification {
   checksumUnavailable: number;
 
   /**
-   * The address table's part of this data type (ADR-0055; workplan 0168 T5),
-   * when the ledger keeps one: the table's digest now, named; how many copies
-   * carry a change under it; and how many under an OLDER table. Those are
-   * waiting for the next pass, and a sample of one is never a match: it is
-   * counted in `checksumUnavailable` and said as an issue.
+   * The address table's part of this data type (ADR-0055; workplan 0168 T5,
+   * S3), when the ledger keeps one: the table's digest now, named; how many
+   * copies carry a change and wait for none; and how many wait for a change
+   * (`older`), with what they wait for: the next pass, or past the data
+   * type's cutover the press (`waitsFor`). A sample of one that waits is
+   * never a match: it is counted in `checksumUnavailable` and said as an
+   * issue, and a sample of nothing else holds the gate.
    */
-  addressChanges?: { digest: string | null; changed: number; older: number };
+  addressChanges?: { digest: string | null; changed: number; older: number; waitsFor?: 'pass' | 'press' };
   
   // Bytes.
   //

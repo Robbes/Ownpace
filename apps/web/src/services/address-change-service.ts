@@ -15,7 +15,8 @@
 
 import axios, { type AxiosInstance } from 'axios';
 import { z } from 'zod';
-import { isSelfHost, operatingBaseUrl } from './edition.ts';
+import { addressTableDigestInput } from '@openmig/shared';
+import { isSelfHost, mappingPath, operatingBaseUrl } from './edition.ts';
 import { onUnauthorized } from './api.ts';
 import { rememberFault } from './recent-errors.ts';
 
@@ -102,9 +103,28 @@ export async function deleteAddressChange(oldKey: string): Promise<AddressChange
 }
 
 /**
- * *Apply the new addresses here too* (0168 D5): past a data type's cutover, a
- * changed table reaches that migration only on this press. Managed only.
+ * The press digest of the table a page shows (workplan 0168 S5 (d)): the
+ * SHA-256, in hex, of its CONFIRMED rows as `addressTableDigestInput` writes
+ * them, which is what both editions' servers compare (`addressTablePressDigest`),
+ * taken with the browser's own SHA-256.
  */
-export async function applyAddressChangesHere(mappingId: string): Promise<unknown> {
-  return (await client.post(`/migrations/${encodeURIComponent(mappingId)}/address-changes/apply`)).data;
+export async function pressDigestOf(
+  rows: ReadonlyArray<Pick<AddressChange, 'oldKey' | 'newAddress' | 'state'>>,
+): Promise<string> {
+  const confirmed = rows.filter((r) => r.state === 'confirmed');
+  const bytes = new TextEncoder().encode(addressTableDigestInput(confirmed));
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * *Apply the new addresses here too* (0168 D5): past a data type's cutover, a
+ * changed table reaches that migration only on this press. Both editions, on
+ * each one's own path (`mappingPath`, as the decisions are: managed
+ * `/api/migrations/{id}/…`, the appliance `/mappings/{id}/…`), naming the
+ * table the page showed by its press digest: a table that moved since is
+ * refused with 409, in the reader's language (S5 (d)).
+ */
+export async function applyAddressChangesHere(mappingId: string, digest: string): Promise<unknown> {
+  return (await client.post(`${mappingPath(mappingId)}/address-changes/apply`, { digest })).data;
 }

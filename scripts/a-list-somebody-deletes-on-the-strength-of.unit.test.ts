@@ -416,17 +416,26 @@ describe('the headline is assembled in one place', () => {
       // string constant, and copying the tag would have been the drift the
       // scheme exists to prevent. So the tags moved to a module that imports
       // nothing — which this guard should re-check if it ever grows an import.
+      //
+      // `address-digest-due.ts` joined it on 2026-11-23 the same way (workplan
+      // 0168 S3): a copy a change of the address table waits for is never a
+      // match, and the list asks that of the two digests a row carries. The
+      // predicate lived beside the address change, which hashes; it moved to a
+      // module that imports nothing, rather than be copied here.
+      './address-digest-due.ts',
       './discovery.ts',
       './fingerprint-scheme.ts',
       './ports.ts',
     ]);
     // The new dependency is only safe while it stays pure, so say so here
     // rather than trusting it.
-    const scheme = source('packages/shared/src/fingerprint-scheme.ts');
-    expect(
-      [...scheme.matchAll(/^import .*? from '([^']+)';$/gm)].map((m) => m[1]!),
-      'fingerprint-scheme.ts grew an import, and confirmed-list.ts depends on it having none',
-    ).toEqual([]);
+    for (const pure of ['fingerprint-scheme.ts', 'address-digest-due.ts']) {
+      const text = source(`packages/shared/src/${pure}`);
+      expect(
+        [...text.matchAll(/^import .*? from '([^']+)';$/gm)].map((m) => m[1]!),
+        `${pure} grew an import, and confirmed-list.ts depends on it having none`,
+      ).toEqual([]);
+    }
     expect(/\bawait\b|\basync\b/.test(src), 'confirmed-list.ts became asynchronous').toBe(false);
   });
 });

@@ -16,7 +16,10 @@
  *   table gains the new address on a line of its own, put before the card's
  *   first `EMAIL` and marked preferred (`PREF=1`; in a vCard 2.1 or 3.0,
  *   which has no `PREF` parameter, `TYPE=pref`). The old line stays and loses
- *   its preference. A card that already lists the new address gets nothing.
+ *   its preference. A card that already lists the new address gains no line:
+ *   that address's own line takes the preference instead, where no gained
+ *   line has it, so mail goes to the new address there too (the data-path
+ *   review's N2).
  * - **iCalendar `ORGANIZER` (D3).** Its address is replaced when it is an old
  *   address in the table. `CN` and every other parameter are kept.
  * - **iCalendar `ATTENDEE` (D3).** Its address is replaced when it is an old
@@ -40,14 +43,34 @@
  * - An empty table is the identity, byte for byte.
  * - `f(f(x)) = f(x)`: a table is refused when a new address is itself an old
  *   address of the table (`chained`), so a changed address never matches
- *   again, and a card that already lists its new address gains nothing.
+ *   again, and a card that already lists its new address, preferred, gains
+ *   nothing.
  *
  * A rewritten line is emitted unfolded, as `neutraliseScheduling` emits one:
  * a long line is legal (75 octets is a SHOULD) and servers re-fold it.
+ *
+ * ## The digest a copy records (0168 §3.1, S4)
+ *
+ * Per item: the digest of the confirmed rows that decided the body's bytes
+ * (each row whose old address a line names, and each row that puts an
+ * event's organiser in the table), or null when nothing changed. Two tables
+ * that agree on those rows give the body the same bytes, so a pass rewrites a
+ * copy only when a row that copy names came, went or changed its new address.
+ * The account's own addresses (`ownKeys`) are the migration's, not the
+ * table's, and are not in it.
  */
 
 import { createHash } from 'node:crypto';
 import { addressKey, isAddress } from './address-forms.ts';
+// The digests a copy records and waits for, in a module that imports nothing,
+// so the confirmed list can ask them and stay pure (its own guard says why).
+import { ADDRESS_DIGEST_OF_NO_CHANGE } from './address-digest-due.ts';
+export {
+  ADDRESS_DIGEST_OF_NO_CHANGE,
+  addressDigestDue,
+  guardsAnAddressRewrite,
+  waitsForAnAddressChange,
+} from './address-digest-due.ts';
 
 /** One confirmed row of the organisation's table (0168 §4.2). */
 export type ConfirmedAddressChange = {
@@ -68,7 +91,12 @@ export interface AppliedAddressChanges {
   readonly body: string;
   /** Whether any line was rewritten or added. */
   readonly changed: boolean;
-  /** The digest of the table that changed it, or null when nothing changed (`item.address_digest`). */
+  /**
+   * The digest of the confirmed rows that decided this body's bytes, or null
+   * when nothing changed (`item.address_digest`; workplan 0168 S4). Per item,
+   * not per table: a row for somebody else's address is not in it, so a row
+   * added for one person changes only the copies that name that person.
+   */
   readonly digest: string | null;
 }
 
@@ -94,6 +122,8 @@ export interface AddressTable {
   readonly byOldKey: ReadonlyMap<string, ConfirmedAddressChange>;
   /** Every key the table knows, old and new: whom "the organiser is in the table" means. */
   readonly members: ReadonlySet<string>;
+  /** The rows each of those keys belongs to, as its old address or its new one. */
+  readonly holders: ReadonlyMap<string, ReadonlyArray<ConfirmedAddressChange>>;
 }
 
 /**
@@ -104,11 +134,21 @@ export interface AddressTable {
  */
 export function addressTableDigest(rows: ReadonlyArray<ConfirmedAddressChange>): string | null {
   if (rows.length === 0) return null;
+  return createHash('sha256').update(addressTableDigestInput(rows)).digest('hex');
+}
+
+/**
+ * The text a table's digest is the SHA-256 of, in UTF-8: a header line, then
+ * one line per row sorted by old key, `["<old key>","<new address>"]`. Pure,
+ * so a page can hash it with the browser's own SHA-256 and send the press
+ * digest of the table it showed (workplan 0168 S5 (d)); every digest here is
+ * of this text, so the two cannot disagree.
+ */
+export function addressTableDigestInput(
+  rows: ReadonlyArray<Pick<ConfirmedAddressChange, 'oldKey' | 'newAddress'>>,
+): string {
   const sorted = [...rows].sort((a, b) => (a.oldKey < b.oldKey ? -1 : a.oldKey > b.oldKey ? 1 : 0));
-  const h = createHash('sha256');
-  h.update('ownpace-address-table-v1\n');
-  for (const r of sorted) h.update(`${JSON.stringify([r.oldKey, r.newAddress])}\n`);
-  return h.digest('hex');
+  return `ownpace-address-table-v1\n${sorted.map((r) => `${JSON.stringify([r.oldKey, r.newAddress])}\n`).join('')}`;
 }
 
 /**
@@ -120,8 +160,25 @@ export function addressTableDigest(rows: ReadonlyArray<ConfirmedAddressChange>):
  * what the source says. Never written on an item.
  */
 export function addressTablePressDigest(rows: ReadonlyArray<ConfirmedAddressChange>): string {
-  return addressTableDigest(rows) ?? createHash('sha256').update('ownpace-address-table-v1\n').digest('hex');
+  return addressTableDigest(rows) ?? ADDRESS_DIGEST_OF_NO_CHANGE;
 }
+
+/**
+ * A press of *Apply the new addresses here too* refused because the table
+ * moved since the page showed it (workplan 0168 D5, S5 (d)): a row added or
+ * changed after the page rendered would otherwise reach the person's live
+ * data unseen. Both editions answer 409 with it, in both languages.
+ */
+export const ADDRESS_TABLE_MOVED = {
+  en: 'The address changes changed since this page showed them, so nothing was applied. Look at them again, then press again.',
+  nl: 'De adreswijzigingen zijn veranderd sinds deze pagina ze liet zien, dus er is niets toegepast. Bekijk ze opnieuw en druk dan nog een keer.',
+} as const;
+
+/** A press that does not say which table it was shown: 400, in both languages. */
+export const ADDRESS_PRESS_NAMES_NO_TABLE = {
+  en: 'This press does not say which address changes it was shown, so nothing was applied. Reload the page and press again.',
+  nl: 'Deze knop zegt niet welke adreswijzigingen hij liet zien, dus er is niets toegepast. Laad de pagina opnieuw en druk nog een keer.',
+} as const;
 
 /**
  * The new address a confirmed row gives an address, or undefined when the
@@ -181,11 +238,14 @@ export function prepareAddressTable(rows: ReadonlyArray<ConfirmedAddressChange>)
     }
   }
   const members = new Set<string>();
+  const holders = new Map<string, ConfirmedAddressChange[]>();
   for (const r of rows) {
-    members.add(r.oldKey);
-    members.add(addressKey(r.newAddress));
+    for (const key of new Set([r.oldKey, addressKey(r.newAddress)])) {
+      members.add(key);
+      holders.set(key, [...(holders.get(key) ?? []), r]);
+    }
   }
-  return { rows, digest: addressTableDigest(rows), byOldKey, members };
+  return { rows, digest: addressTableDigest(rows), byOldKey, members, holders };
 }
 
 /**
@@ -207,8 +267,20 @@ export function applyAddressChanges(
 ): AppliedAddressChanges {
   const t = isPrepared(table) ? table : prepareAddressTable(table);
   if (t.rows.length === 0) return { body, changed: false, digest: null };
-  const out = format === 'vcard' ? changeVcard(body, t) : changeIcalendar(body, t, new Set(ownKeys));
-  return out === body ? { body, changed: false, digest: null } : { body: out, changed: true, digest: t.digest };
+  // THE DIGEST IS PER ITEM (workplan 0168 S4). Every row the change consulted
+  // and found is recorded here: each old address a line names, and each row
+  // that puts an event's organiser in the table. Those rows, and only those,
+  // decide the output, so two tables that agree on them give the same bytes,
+  // and the digest of them is what the item records. A row for an address
+  // this body never names is not in it, and adding, changing or removing that
+  // row leaves this copy's digest, and so the copy, alone. The table's own
+  // digest stays for the reports (`AddressTable.digest`).
+  const decided = new Map<string, ConfirmedAddressChange>();
+  const out =
+    format === 'vcard' ? changeVcard(body, t, decided) : changeIcalendar(body, t, new Set(ownKeys), decided);
+  return out === body
+    ? { body, changed: false, digest: null }
+    : { body: out, changed: true, digest: addressTableDigest([...decided.values()]) };
 }
 
 function isPrepared(t: AddressTable | ReadonlyArray<ConfirmedAddressChange>): t is AddressTable {
@@ -226,23 +298,52 @@ interface Line {
   readonly eol: string;
 }
 
-function linesOf(text: string): Line[] {
+/**
+ * A vCard property whose value is quoted-printable (`ENCODING=QUOTED-PRINTABLE`,
+ * or vCard 2.1's bare `QUOTED-PRINTABLE`), read off its first line.
+ */
+const QUOTED_PRINTABLE = /^[^:]*;(ENCODING=)?"?QUOTED-PRINTABLE"?[;:]/i;
+
+/**
+ * The body's logical lines. `quotedPrintable` is for a vCard: there a
+ * quoted-printable value that ends in `=` goes on on the next physical line
+ * (a soft line break, RFC 2045 §6.7), whatever that line reads like, so a
+ * note's next line that reads `EMAIL:…` is the note's, never an address to
+ * change (the data-path review's N4). Its bytes are kept as they stand.
+ */
+function linesOf(text: string, quotedPrintable = false): Line[] {
   const physical = text.split(/(?<=\n)/);
   const out: Line[] = [];
   let i = 0;
   while (i < physical.length) {
     const span = [physical[i]!];
     let j = i + 1;
-    while (j < physical.length && /^[ \t]/.test(physical[j]!)) {
-      span.push(physical[j]!);
-      j += 1;
-    }
+    const unfold = () => {
+      while (j < physical.length && /^[ \t]/.test(physical[j]!)) {
+        span.push(physical[j]!);
+        j += 1;
+      }
+    };
+    unfold();
+    const folded = span.length;
     const logical = span
       .map((l) => l.replace(/\r?\n$/, ''))
       .map((l, k) => (k === 0 ? l : l.slice(1)))
       .join('');
+    if (quotedPrintable && QUOTED_PRINTABLE.test(logical)) {
+      while (j < physical.length && /=\r?\n$/.test(span[span.length - 1]!)) {
+        span.push(physical[j]!);
+        j += 1;
+        unfold();
+      }
+    }
+    // A soft line break's lines are the value's, read as one with the first.
+    const value = span
+      .slice(folded)
+      .map((l) => l.replace(/\r?\n$/, ''))
+      .join('');
     const last = span[span.length - 1]!;
-    out.push({ span, logical, eol: /\r\n$/.test(last) ? '\r\n' : /\n$/.test(last) ? '\n' : '' });
+    out.push({ span, logical: logical + value, eol: /\r\n$/.test(last) ? '\r\n' : /\n$/.test(last) ? '\n' : '' });
     i = j;
   }
   return out;
@@ -313,70 +414,148 @@ function addressIn(value: string): { readonly scheme: string; readonly address: 
   return m ? { scheme: m[1]!, address: m[2]!.trim() } : { scheme: '', address: value.trim() };
 }
 
-/** The row an address belongs to, or undefined. */
-function rowFor(t: AddressTable, address: string): ConfirmedAddressChange | undefined {
-  return address === '' ? undefined : t.byOldKey.get(addressKey(address));
+/** The rows a body's change was decided by, by old key (`applyAddressChanges`). */
+type Decided = Map<string, ConfirmedAddressChange>;
+
+/** The row an address belongs to, or undefined; a row found is one the change was decided by. */
+function rowFor(t: AddressTable, address: string, decided: Decided): ConfirmedAddressChange | undefined {
+  const row = address === '' ? undefined : t.byOldKey.get(addressKey(address));
+  if (row) decided.set(row.oldKey, row);
+  return row;
 }
 
 // ---------------------------------------------------------------------------
 // vCard (D2)
 
-function changeVcard(body: string, t: AddressTable): string {
-  const lines = linesOf(body);
+const BEGIN_VCARD = /^BEGIN:VCARD\s*$/i;
+const END_VCARD = /^END:VCARD\s*$/i;
+
+/**
+ * Every top-level card of a body, its EMAIL lines changed (D2).
+ *
+ * A CARD INSIDE A CARD IS PART OF THE OUTER ONE (the review's B1). vCard 2.1
+ * lets `AGENT:` carry another card on the lines after it, and a first card
+ * whose `END:VCARD` is missing looks the same: a `BEGIN:VCARD` while a card is
+ * open. Taking that as the start of a new card dropped the outer card's head
+ * (its `BEGIN`, `VERSION`, `N`, `FN`), even where no address was in the table.
+ * Now the outer card runs to the `END:VCARD` that closes it, every line of a
+ * card nested in it passes through as it stands (it is another person's
+ * card, the value of the outer card's `AGENT`), and only the outer card's own
+ * lines change. A card that never closes is passed through whole. No byte is
+ * ever dropped.
+ */
+function changeVcard(body: string, t: AddressTable, decided: Decided): string {
+  const lines = linesOf(body, true);
   const out: string[] = [];
-  let card: { readonly start: number; readonly lines: Line[] } | null = null;
+  let card: Line[] | null = null;
+  let depth = 0;
   for (const line of lines) {
-    if (/^BEGIN:VCARD\s*$/i.test(line.logical)) {
-      card = { start: out.length, lines: [line] };
-      continue;
-    }
+    const begin = BEGIN_VCARD.test(line.logical);
     if (card === null) {
-      out.push(...line.span);
+      if (begin) {
+        card = [line];
+        depth = 1;
+      } else out.push(...line.span);
       continue;
     }
-    card.lines.push(line);
-    if (/^END:VCARD\s*$/i.test(line.logical)) {
-      out.push(...changeCard(card.lines, t));
-      card = null;
+    card.push(line);
+    if (begin) depth += 1;
+    else if (END_VCARD.test(line.logical)) {
+      depth -= 1;
+      if (depth === 0) {
+        out.push(...changeCard(card, t, decided));
+        card = null;
+      }
     }
   }
-  // An unterminated card is passed through as it stands.
-  if (card !== null) for (const l of card.lines) out.push(...l.span);
+  // An unterminated card is passed through as it stands, with what it holds.
+  if (card !== null) for (const l of card) out.push(...l.span);
   return out.join('');
 }
 
-/** One card, `BEGIN:VCARD` to `END:VCARD`, with its EMAIL lines changed. */
-function changeCard(lines: ReadonlyArray<Line>, t: AddressTable): string[] {
-  const version = lines.map((l) => /^VERSION:\s*(\S+)/i.exec(l.logical)?.[1]).find((v) => v !== undefined);
+/** Parameters that name one property, never two: the added line carries none of them (the review's S7). */
+const IDENTITY_PARAMETERS: ReadonlySet<string> = new Set(['PID', 'ALTID', 'PROP-ID']);
+
+/** One card, `BEGIN:VCARD` to its own `END:VCARD`, with its own EMAIL lines changed. */
+function changeCard(lines: ReadonlyArray<Line>, t: AddressTable, decided: Decided): string[] {
+  // Which lines are the card's own: not a card nested in it, nor its edges.
+  let depth = 0;
+  const own = lines.map((l) => {
+    if (BEGIN_VCARD.test(l.logical)) {
+      depth += 1;
+      return false;
+    }
+    if (END_VCARD.test(l.logical)) {
+      depth -= 1;
+      return false;
+    }
+    return depth === 1;
+  });
+  const version = lines
+    .map((l, i) => (own[i] ? /^VERSION:\s*(\S+)/i.exec(l.logical)?.[1] : undefined))
+    .find((v) => v !== undefined);
   const v4 = version !== undefined && version.startsWith('4');
-  const emails = lines.map((l) => {
+  const emails = lines.map((l, i) => {
+    if (!own[i]) return null;
     const p = parse(l.logical);
     return p !== null && p.name === 'EMAIL' ? p : null;
   });
-  const present = new Set<string>();
-  for (const p of emails) if (p) present.add(addressKey(addressIn(p.value).address));
+  // Each address the card lists, and the first of its lines.
+  const listed = new Map<string, number>();
+  emails.forEach((p, i) => {
+    if (!p) return;
+    const key = addressKey(addressIn(p.value).address);
+    if (!listed.has(key)) listed.set(key, i);
+  });
 
   // The new addresses this card gains, in the order their old lines stand.
   const gained: { readonly row: ConfirmedAddressChange; readonly from: Property }[] = [];
+  const gainedKeys = new Set<string>();
+  // The first lines of new addresses the card already lists, in the same order.
+  const listedNew: number[] = [];
   const losing = new Set<number>();
   emails.forEach((p, i) => {
     if (!p) return;
-    const row = rowFor(t, addressIn(p.value).address);
+    const row = rowFor(t, addressIn(p.value).address, decided);
     if (!row) return;
     const newKey = addressKey(row.newAddress);
-    if (present.has(newKey)) return;
-    present.add(newKey);
-    gained.push({ row, from: p });
+    const already = listed.get(newKey);
+    if (already !== undefined) {
+      // The card already lists the new address: it gains no line, and that
+      // address's own line takes the preference the old one loses (the
+      // review's N2), as a gained line would have it (D2).
+      if (!listedNew.includes(already)) listedNew.push(already);
+    } else if (!gainedKeys.has(newKey)) {
+      gainedKeys.add(newKey);
+      gained.push({ row, from: p });
+    }
+    // EVERY old line of an address the card gains or lists loses its
+    // preference, not only the first: two old addresses that both become the
+    // new one would otherwise leave a second preferred line beside the new one
+    // (the review's N1).
     losing.add(i);
   });
-  if (gained.length === 0) return lines.flatMap((l) => [...l.span]);
+  if (gained.length === 0 && listedNew.length === 0) return lines.flatMap((l) => [...l.span]);
+  // One line takes the preference: the first gained line, or, where the card
+  // gains none and none of the new addresses it lists is preferred already,
+  // the first of them. So a second application, which finds the gained line
+  // listed and preferred, moves nothing.
+  const preferredHere =
+    gained.length === 0 && !listedNew.some((i) => preferredFirst(emails[i]!, v4)) ? listedNew[0] : undefined;
 
   const firstEmail = emails.findIndex((p) => p !== null);
   const out: string[] = [];
   lines.forEach((line, i) => {
     if (i === firstEmail) {
       gained.forEach(({ row, from }, k) => {
-        const kept = from.params.filter((x) => !isPreference(x, v4)).map(withoutPrefType);
+        // The old line's parameters, but never its preference and never the
+        // ones that name ONE property: lines sharing an ALTID are one value in
+        // several forms (RFC 6350 §5.4), a PID is one property for a sync to
+        // merge by (§5.5, §7), and PROP-ID is JSContact's key for it (RFC
+        // 9555). Copied, the new line and the old one would read as one.
+        const kept = from.params
+          .filter((x) => !isPreference(x, v4) && !IDENTITY_PARAMETERS.has(paramKey(x)))
+          .map(withoutPrefType);
         const params = kept.filter((x) => x !== '');
         if (k === 0) params.unshift(v4 ? 'PREF=1' : 'TYPE=pref');
         const { scheme } = addressIn(from.value);
@@ -392,9 +571,22 @@ function changeCard(lines: ReadonlyArray<Line>, t: AddressTable): string[] {
       out.push(`${render({ ...p, params })}${line.eol}`);
       return;
     }
+    if (p && i === preferredHere && !preferredFirst(p, v4)) {
+      // `PREF=1` in a vCard 4.0, in place of a lower preference; before 4.0,
+      // `TYPE=pref` as a gained line carries it.
+      const params = v4 ? ['PREF=1', ...p.params.filter((x) => paramKey(x) !== 'PREF')] : ['TYPE=pref', ...p.params];
+      out.push(`${render({ ...p, params })}${line.eol}`);
+      return;
+    }
     out.push(...line.span);
   });
   return out;
+}
+
+/** A line already preferred first: `PREF=1` in a vCard 4.0; before it, any preference. */
+function preferredFirst(p: Property, v4: boolean): boolean {
+  if (v4) return p.params.some((x) => paramKey(x) === 'PREF' && paramValue(x).trim() === '1');
+  return p.params.some((x) => isPreference(x, false) || hasPrefType(x));
 }
 
 /** A `PREF` parameter, or in a vCard before 4.0 a bare `PREF` or a `TYPE` that says only `pref`. */
@@ -427,7 +619,7 @@ function withoutPrefType(param: string): string {
 
 const SCHEDULED = /^(VEVENT|VTODO|VJOURNAL)$/i;
 
-function changeIcalendar(body: string, t: AddressTable, ownKeys: ReadonlySet<string>): string {
+function changeIcalendar(body: string, t: AddressTable, ownKeys: ReadonlySet<string>, decided: Decided): string {
   const lines = linesOf(body);
   const out: string[] = [];
   // Components nest (VCALENDAR > VEVENT > VALARM). The scheduled component a
@@ -452,7 +644,7 @@ function changeIcalendar(body: string, t: AddressTable, ownKeys: ReadonlySet<str
     else if (end !== undefined) {
       stack.pop();
       if (stack.length === 0) {
-        out.push(...changeComponent(component, t, ownKeys));
+        out.push(...changeComponent(component, t, ownKeys, decided));
         component = null;
       }
     }
@@ -462,7 +654,12 @@ function changeIcalendar(body: string, t: AddressTable, ownKeys: ReadonlySet<str
 }
 
 /** One VEVENT, VTODO or VJOURNAL, with its ORGANIZER and, where D3 says so, its ATTENDEEs changed. */
-function changeComponent(lines: ReadonlyArray<Line>, t: AddressTable, ownKeys: ReadonlySet<string>): string[] {
+function changeComponent(
+  lines: ReadonlyArray<Line>,
+  t: AddressTable,
+  ownKeys: ReadonlySet<string>,
+  decided: Decided,
+): string[] {
   // Which lines sit inside a VALARM (or any sub-component): those are not the event's own.
   let depth = 0;
   const own = lines.map((l, i) => {
@@ -482,13 +679,16 @@ function changeComponent(lines: ReadonlyArray<Line>, t: AddressTable, ownKeys: R
   // The organiser's addresses, as the source has them.
   const organiser = props.find((p) => p !== null && p.name === 'ORGANIZER') ?? null;
   const organiserKeys = organiser === null ? [] : addressesOf(organiser).map(addressKey);
+  // The rows that put the organiser in the table decide whether its guests
+  // change, so they are rows this body's change was decided by too.
+  for (const k of organiserKeys) for (const r of t.holders.get(k) ?? []) decided.set(r.oldKey, r);
   const inside = organiserKeys.some((k) => t.members.has(k) || ownKeys.has(k));
 
   const out: string[] = [];
   lines.forEach((line, i) => {
     const p = props[i] ?? null;
     const touches = p !== null && (p.name === 'ORGANIZER' || (p.name === 'ATTENDEE' && inside));
-    const changed = p !== null && touches ? replaceAddress(p, t) : null;
+    const changed = p !== null && touches ? replaceAddress(p, t, decided) : null;
     if (changed === null) out.push(...line.span);
     else out.push(`${render(changed)}${line.eol}`);
   });
@@ -505,12 +705,12 @@ function addressesOf(p: Property): string[] {
 }
 
 /** The property with each old address in its value and its `EMAIL=` replaced, or null when none was old. */
-function replaceAddress(p: Property, t: AddressTable): Property | null {
+function replaceAddress(p: Property, t: AddressTable, decided: Decided): Property | null {
   let changed = false;
   let value = p.value;
   const v = addressIn(p.value);
   if (v.scheme !== '' || isAddress(v.address)) {
-    const row = rowFor(t, v.address);
+    const row = rowFor(t, v.address, decided);
     if (row) {
       value = `${v.scheme}${row.newAddress}`;
       changed = true;
@@ -518,7 +718,7 @@ function replaceAddress(p: Property, t: AddressTable): Property | null {
   }
   const params = p.params.map((x) => {
     if (paramKey(x) !== 'EMAIL') return x;
-    const row = rowFor(t, paramValue(x));
+    const row = rowFor(t, paramValue(x), decided);
     if (!row) return x;
     changed = true;
     const eq = x.indexOf('=');

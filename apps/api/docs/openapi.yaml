@@ -3254,8 +3254,26 @@ paths:
         press of its own. Pressing again for the same table records the same
         digest. Mail is never changed.
 
+        The body names the table the page showed, by its press digest
+        (`digest`: the SHA-256, in hex, of the confirmed rows sorted by old key,
+        or of no rows at all): a row added or changed after the page rendered
+        is never applied to the person's live data unseen (workplan 0168 S5).
+        A table that moved since is refused with 409, and nothing is recorded.
+
         **The appliance answers `POST /mappings/{mappingId}/address-changes/apply`
         in the same shape**, recorded as the operator's press.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [digest]
+              properties:
+                digest:
+                  type: string
+                  pattern: '^[0-9a-f]{64}$'
+                  description: The press digest of the confirmed table the page showed.
       responses:
         '200':
           description: Recorded. The rows are counted, never named.
@@ -3275,6 +3293,17 @@ paths:
                     type: integer
                     minimum: 0
                     description: How many confirmed rows the table held.
+        '400':
+          description: The body names no table (`digest_required`), in English and Dutch. Nothing was recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, message, messageNl]
+                properties:
+                  error: { type: string, enum: [digest_required] }
+                  message: { type: string }
+                  messageNl: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: This organisation has no such migration, in English and in Dutch.
@@ -3287,6 +3316,26 @@ paths:
                   error: { type: string, enum: ['Not found'] }
                   message: { type: string }
                   messageNl: { type: string }
+        '409':
+          description: |
+            The table moved since the page showed it (`address_table_moved`), in
+            English and Dutch. Nothing was recorded; `digest` is the table's
+            press digest now, for a page that shows the table again.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, message, messageNl, digest, rows]
+                properties:
+                  error: { type: string, enum: [address_table_moved] }
+                  message: { type: string }
+                  messageNl: { type: string }
+                  digest:
+                    type: string
+                    pattern: '^[0-9a-f]{64}$'
+                  rows:
+                    type: integer
+                    minimum: 0
 
   /api/migrations/{mappingId}/cutover:
     parameters:

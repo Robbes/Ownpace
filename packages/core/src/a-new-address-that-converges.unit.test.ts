@@ -148,10 +148,10 @@ describe('contacts under the address table', () => {
     expect(first.created).toBe(3);
     expect(first.addressChanged).toBe(2);
     expect(t.bodies).toEqual(expected([ANA, BEN]));
-    const digest = addressTableDigest([ANA, BEN]);
+    // Per item (0168 S4): Ana's card records the digest of Ana's row alone.
     const ana = await ledger.find(TENANT, MAPPING, 'contact', contactNaturalKeyHash('c-ana'));
     const carla = await ledger.find(TENANT, MAPPING, 'contact', contactNaturalKeyHash('c-carla'));
-    expect(ana?.addressDigest).toBe(digest);
+    expect(ana?.addressDigest).toBe(addressTableDigest([ANA]));
     expect(carla?.addressDigest ?? null).toBeNull();
 
     const writes = t.writes;
@@ -167,11 +167,11 @@ describe('contacts under the address table', () => {
     await contactPass(ledger, t, changes([ANA]));
     const before = t.writes;
     const pass = await contactPass(ledger, t, changes([ANA, BEN]));
-    // Ana's card was written under a table that is no longer the table, so it
-    // is rewritten (same bytes, new digest); Ben's gains his new address;
-    // Carla's is untouched.
-    expect(pass.updated).toBe(2);
-    expect(t.writes - before).toBe(2);
+    // Per item (0168 S4): Ben's card gains his new address; Ana's names no
+    // address of Ben's row, so its digest and its bytes stay; Carla's is
+    // untouched.
+    expect(pass.updated).toBe(1);
+    expect(t.writes - before).toBe(1);
     expect(t.bodies).toEqual(expected([ANA, BEN]));
     const settled = t.writes;
     await contactPass(ledger, t, changes([ANA, BEN]));
@@ -203,7 +203,7 @@ describe('contacts under the address table', () => {
     expect(t.bodies).toEqual(expected([]));
   });
 
-  it('leaves a copy the person edited since alone, makes it adopted, and counts it ever after', async () => {
+  it('leaves a copy the person edited since alone, makes it adopted, and never says its source changed when only the table did', async () => {
     const ledger = new MemoryLedger();
     const t = new Target();
     await contactPass(ledger, t, changes([ANA]));
@@ -213,8 +213,11 @@ describe('contacts under the address table', () => {
     expect(t.bodies.get('c-ben')).toBe(card('c-ben', 'ben@old.example.org'));
     const ben = await ledger.find(TENANT, MAPPING, 'contact', contactNaturalKeyHash('c-ben'));
     expect(ben?.status).toBe('adopted');
+    // The review's N5: the source did not change, so it is not counted as a
+    // change at the source on every pass after (it was, as changedButAdopted).
     const next = await contactPass(ledger, t, changes([ANA, BEN]));
-    expect(next.changedButAdopted).toBe(1);
+    expect(next.changedButAdopted).toBe(0);
+    expect(next.updated + next.created).toBe(0);
     expect(t.bodies.get('c-ben')).toBe(card('c-ben', 'ben@old.example.org'));
   });
 
@@ -227,8 +230,10 @@ describe('contacts under the address table', () => {
     const ana = await ledger.find(TENANT, MAPPING, 'contact', contactNaturalKeyHash('c-ana'));
     expect(ana?.status).toBe('adopted');
     expect(ana?.addressDigest ?? null).toBeNull();
+    // Left alone, and not counted as changed at the source (N5): it did not change.
     const next = await contactPass(ledger, t, changes([ANA]));
-    expect(next.changedButAdopted).toBe(1);
+    expect(next.changedButAdopted).toBe(0);
+    expect(next.updated + next.created).toBe(0);
     expect(t.bodies.get('c-ana')).toBe('the person’s own card');
   });
 
@@ -251,16 +256,69 @@ describe('contacts under the address table', () => {
     await contactPass(ledger, t, changes([ANA]));
     const before = t.writes;
     const waiting = await contactPass(ledger, t, changes([ANA, BEN]), { cutover: true });
-    expect(waiting.addressChangesWaiting).toBe(2);
+    // Only Ben's card waits: Ana's names no address of Ben's row (0168 S4).
+    expect(waiting.addressChangesWaiting).toBe(1);
     expect(t.writes).toBe(before);
     expect(t.bodies.get('c-ben')).toBe(card('c-ben', 'ben@old.example.org'));
     const pressed = await contactPass(ledger, t, changes([ANA, BEN], true), { cutover: true });
-    expect(pressed.updated).toBe(2);
+    expect(pressed.updated).toBe(1);
     expect(t.bodies).toEqual(expected([ANA, BEN]));
     const settled = t.writes;
     const after = await contactPass(ledger, t, changes([ANA, BEN], true), { cutover: true });
     expect(t.writes).toBe(settled);
     expect(after.addressChangesWaiting).toBe(0);
+  });
+
+  it('touches no copy for a row added for somebody else, before the cutover or after it (0168 S4)', async () => {
+    // Grandma's row is for her own migration: no card here names her old address.
+    const GRANDMA = row('grandma@old.example.org', 'grandma@example.org');
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    await contactPass(ledger, t, changes([ANA, BEN]));
+    const writes = t.writes;
+    const before = await contactPass(ledger, t, changes([ANA, BEN, GRANDMA]));
+    expect(before.updated + before.created).toBe(0);
+    expect(t.writes).toBe(writes);
+    const after = await contactPass(ledger, t, changes([ANA, BEN]), { cutover: true });
+    expect(after.addressChangesWaiting).toBe(0);
+    const again = await contactPass(ledger, t, changes([ANA, BEN, GRANDMA]), { cutover: true });
+    expect(again.addressChangesWaiting).toBe(0);
+    expect(t.writes).toBe(writes);
+    expect(t.bodies).toEqual(expected([ANA, BEN]));
+  });
+
+  it('records the digest of the card it classified by, so a fetch that adds an address costs no rewrite on every pass (S8)', async () => {
+    // A source whose fetch carries an old address its listing does not: what
+    // `ContactSource.fetch` forbids, and the review's E3.
+    const listing = contactSource();
+    const source = {
+      ...listing,
+      listFolders: listing.listFolders,
+      listSince: listing.listSince,
+      fetch: async (listed: { item: Contact; vcard: string }) => ({
+        item: listed.item,
+        vcard: listed.vcard.replace('UID:', 'EMAIL:ben@old.example.org\r\nUID:'),
+      }),
+    } as unknown as ContactSource;
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    const pass = () =>
+      runContactSync({
+        sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        source,
+        target: contactTarget(t),
+        ledger,
+        addressChanges: changes([BEN]),
+      });
+    const writes: number[] = [];
+    for (let k = 0; k < 4; k += 1) {
+      const p = await pass();
+      writes.push(p.created + p.updated);
+    }
+    expect(writes).toEqual([3, 0, 0, 0]);
   });
 
   it('converges from any sequence of tables: after each change two passes leave exactly the table’s bytes, the second writing nothing', async () => {

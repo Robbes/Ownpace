@@ -38,6 +38,7 @@ import {
   ConfirmationStore,
   PgLedger,
   RunStore,
+  readAddressChangeWaitsFor,
   withTenant,
   type LedgerDriver,
   type PgDatabase,
@@ -49,6 +50,7 @@ import {
   budgetPauseToReason,
   confirmedListCsv,
   confirmedListOf,
+  type AddressChangeWaitsFor,
   type BudgetPause,
   type ConfirmationPassState,
   type ConfirmedListQueue,
@@ -101,8 +103,12 @@ export const CONFIRMED_ROWS_SHOWN = 1000;
 export async function walkConfirmedRows(
   scope: ConfirmedListScope,
   visit: (row: ConfirmedRowView) => void | Promise<void>,
-  /** The address table's digest now (ADR-0055), read once for the walk; `currentAddressDigest`. */
-  addressDigest?: string | null,
+  /**
+   * What a copy that waits for an address change waits for, per data type,
+   * read once for the walk (`addressWaitsForOf`; ADR-0055, workplan 0168 S3).
+   * Given, every row is marked by the address table; absent, none is.
+   */
+  addressWaitsFor?: (domain: string) => AddressChangeWaitsFor,
 ): Promise<void> {
   let after: string | undefined;
   for (;;) {
@@ -112,7 +118,7 @@ export async function walkConfirmedRows(
         mappingId: scope.mappingId,
         batch: PAGE,
         ...(after ? { after } : {}),
-        ...(addressDigest !== undefined ? { addressTableDigest: addressDigest } : {}),
+        ...(addressWaitsFor !== undefined ? { addressWaitsFor } : {}),
       }),
     );
     if (page.length === 0) return;
@@ -135,6 +141,7 @@ export async function walkConfirmedRows(
         ...(row.displayName ? { displayName: row.displayName } : {}),
         confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
         ...(row.address ? { address: row.address } : {}),
+        ...(row.waitsFor ? { waitsFor: row.waitsFor } : {}),
       });
     }
     after = last;
@@ -152,6 +159,17 @@ export async function currentAddressDigest(scope: ConfirmedListScope): Promise<s
     new PgLedger(db).listConfirmedAddressChanges(scope.tenantId),
   );
   return addressTableDigest(rows);
+}
+
+/**
+ * What a copy that waits for an address change waits for, per data type of
+ * this migration (`readAddressChangeWaitsFor`; workplan 0168 D5, S3): the next
+ * pass, or the press past its cutover. Read once per read of the list.
+ */
+export async function addressWaitsForOf(scope: ConfirmedListScope): Promise<(domain: string) => AddressChangeWaitsFor> {
+  return withTenant(scope.source, scope.tenantId, (db: PgDatabase) =>
+    readAddressChangeWaitsFor(db, scope.tenantId, scope.mappingId),
+  );
 }
 
 /**
@@ -256,7 +274,7 @@ export async function readConfirmedList(
 ): Promise<ConfirmedListQueue> {
   const addressDigest = await currentAddressDigest(scope);
   const list = confirmedListOf<ConfirmedRowView>({ limit: CONFIRMED_ROWS_SHOWN, addressDigest });
-  await walkConfirmedRows(scope, (row) => list.add(row), addressDigest);
+  await walkConfirmedRows(scope, (row) => list.add(row), await addressWaitsForOf(scope));
   const shaped = list.result();
   const pass = await latestConfirmationPass(scope);
   return {
@@ -309,7 +327,7 @@ export async function streamConfirmedListCsv(
       batch.push(row);
       if (batch.length >= PAGE) await flush();
     },
-    await currentAddressDigest(scope),
+    await addressWaitsForOf(scope),
   );
   await flush();
 }

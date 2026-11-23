@@ -1,12 +1,15 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * VERIFICATION AND THE ADDRESS TABLE (workplan 0168 T5; ADR-0055 decision 5).
+ * VERIFICATION AND THE ADDRESS TABLE (workplan 0168 T5, S2, S11; ADR-0055
+ * decision 5).
  *
  * The §20 report says how many copies of a data type carry a declared address
- * change and names the table's digest. A copy written under an older table is
- * never a match: its sample is set aside, counted as unavailable, and said as
- * a warning, whatever its hash says.
+ * change and names the table's digest. A copy a change waits for is never a
+ * match: its sample is set aside, counted as unavailable, and said as a
+ * warning, whatever its hash says, in a person's words (no decision's number),
+ * with what it waits for. A sample every item of which waits holds the gate,
+ * as no sample drawn does: nothing was compared (S2).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -53,8 +56,11 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps {
   } as VerificationDeps;
 }
 
-const withTable = (olderKeys: string[]) =>
-  deps({ getAddressChanges: async () => ({ digest: DIGEST, changed: 2, olderKeys }) });
+const withTable = (olderKeys: string[], waitsFor?: 'pass' | 'press', over: Partial<VerificationDeps> = {}) =>
+  deps({
+    getAddressChanges: async () => ({ digest: DIGEST, changed: 2, olderKeys, ...(waitsFor ? { waitsFor } : {}) }),
+    ...over,
+  });
 
 describe('verification under the address table', () => {
   it('names the digest and counts the copies changed under it', async () => {
@@ -64,16 +70,53 @@ describe('verification under the address table', () => {
     expect(result.contacts.issues.find((i) => i.id.startsWith('ADDRESS_'))).toBeUndefined();
   });
 
-  it('never counts a copy under an older table as a match, and says so', async () => {
-    const result = await runVerification(withTable(['bbb']));
+  it('never counts a copy a change waits for as a match, and says so in a person’s words', async () => {
+    const result = await runVerification(withTable(['bbb'], 'pass'));
     const c = result.contacts;
-    expect(c.addressChanges).toEqual({ digest: DIGEST, changed: 2, older: 1 });
+    expect(c.addressChanges).toEqual({ digest: DIGEST, changed: 2, older: 1, waitsFor: 'pass' });
     expect(c.checksumMatches).toBe(2);
     expect(c.checksumUnavailable).toBe(1);
     expect(c.checksumMatches + c.checksumMismatches + c.checksumUnavailable).toBe(c.checksumSampleSize);
     const issue = c.issues.find((i) => i.id === 'ADDRESS_OLDER_TABLE_contacts');
     expect(issue?.severity).toBe('WARNING');
-    expect(issue?.message).toMatch(/older address table/);
+    expect(issue?.message).toMatch(/wait for an address change to reach them, which the next pass writes/);
+    // No decision's number in a person's sentence (the screens' review S11).
+    expect(issue?.message).not.toMatch(/ADR/);
+  });
+
+  it('says a copy past the switch waits for the press, never for the next pass', async () => {
+    const result = await runVerification(withTable(['bbb'], 'press'));
+    const issue = result.contacts.issues.find((i) => i.id === 'ADDRESS_OLDER_TABLE_contacts');
+    expect(issue?.message).toMatch(/Apply the new addresses here too/);
+    expect(issue?.message).not.toMatch(/next pass/);
+    expect(result.contacts.addressChanges?.waitsFor).toBe('press');
+  });
+
+  it('holds the gate when every sample waits for an address change: nothing was compared (S2)', async () => {
+    const result = await runVerification(withTable(['aaa', 'bbb', 'ccc'], 'pass'));
+    const c = result.contacts;
+    expect(c.checksumMatches).toBe(0);
+    expect(c.status).toBe('FAIL');
+    expect(result.canProceedToCutover).toBe(false);
+    const held = c.issues.find((i) => i.id === 'ADDRESS_NOT_COMPARED_contacts');
+    expect(held?.severity).toBe('ERROR');
+    expect(held?.message).toMatch(/the next pass/);
+    // Not the connection's sentence: the target was never asked.
+    expect(c.issues.find((i) => i.id === 'CHECKSUM_NOT_COMPARED_contacts')).toBeUndefined();
+  });
+
+  it('names the press when every sample past the switch waits for one', async () => {
+    const result = await runVerification(withTable(['aaa', 'bbb', 'ccc'], 'press'));
+    expect(result.contacts.status).toBe('FAIL');
+    expect(result.contacts.issues.find((i) => i.id === 'ADDRESS_NOT_COMPARED_contacts')?.message).toMatch(
+      /Apply the new addresses here too/,
+    );
+  });
+
+  it('lets the counts decide for a target with no way to hash, as for no sample drawn there', async () => {
+    const result = await runVerification(withTable(['aaa', 'bbb', 'ccc'], 'pass', { targetCanHash: () => false }));
+    expect(result.contacts.status).toBe('PASS');
+    expect(result.contacts.issues.find((i) => i.id === 'ADDRESS_NOT_COMPARED_contacts')).toBeUndefined();
   });
 
   it('says nothing about a table when the reader keeps none, exactly as before', async () => {

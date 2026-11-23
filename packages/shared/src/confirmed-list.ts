@@ -22,7 +22,8 @@
 
 import { CONTAINER_FINGERPRINT_VERSION } from './fingerprint-scheme.ts';
 import type { DiscoveryDomain } from './discovery.ts';
-import type { LedgerRecord } from './ports.ts';
+import type { AddressChangeWaitsFor, LedgerRecord } from './ports.ts';
+import { waitsForAnAddressChange } from './address-digest-due.ts';
 
 /**
  * The kinds of evidence that can ever stand behind a row.
@@ -190,13 +191,15 @@ function noRowsYet(): Record<RowState, number> {
 }
 
 /**
- * What a row says about the address table (ADR-0055; workplan 0168 T5).
+ * What a row says about the address table (ADR-0055; workplan 0168 T5, S3).
  *
- * - `changed`: the copy was written with an address changed, under the table
- *   as it is now. A match is a match *with your new address*.
- * - `older`: it was written under a table that is no longer the table, and a
- *   pass has not rewritten it yet. It is never a match: until then the copy
- *   does not say what the table says it should.
+ * - `changed`: the copy was written with an address changed, and the last
+ *   pass that looked at it found it carries what the table says. A match is a
+ *   match *with your new address*.
+ * - `older`: a pass found it should carry another change than the one it was
+ *   written with (`item.address_digest_due`), a row added, changed or gone,
+ *   and nothing has written it since. It is never a match: until then the copy
+ *   does not say what the table says it should. `waitsFor` says for what.
  */
 export type AddressMark = 'changed' | 'older';
 
@@ -204,8 +207,14 @@ export type AddressMark = 'changed' | 'older';
 export interface ConfirmedRow {
   readonly state: RowState;
   readonly claim: ClaimKind;
-  /** The address table's word on this row, when a table changed it (ADR-0055). Absent otherwise. */
+  /** The address table's word on this row, when a table changed it or a change waits (ADR-0055). Absent otherwise. */
   readonly address?: AddressMark;
+  /**
+   * What an `older` row waits for: the next pass, or, past its data type's
+   * cutover with no press for the table as it is, *Apply the new addresses
+   * here too* (workplan 0168 D5; the screens' review S4). Only with `older`.
+   */
+  readonly waitsFor?: AddressChangeWaitsFor;
 }
 
 /**
@@ -295,24 +304,40 @@ export function rowFor(args: {
    */
   readonly contentHash: string | null;
   /**
-   * The address table the copy was written under (`item.address_digest`) and
-   * the table's digest now (ADR-0055; workplan 0168 T5). Absent where the
-   * caller has no table to say anything with; then no row is marked.
+   * The address table's word on the copy (ADR-0055; workplan 0168 T5, S3):
+   * the digest it was written under (`item.address_digest`), the change a
+   * pass found it waits for (`item.address_digest_due`), and what that waits
+   * for. Absent where the caller has no table to say anything with; then no
+   * row is marked.
    */
-  readonly addressDigest?: { readonly item: string | null; readonly table: string | null };
+  readonly addressDigest?: {
+    readonly item: string | null;
+    readonly due?: string | null;
+    readonly waitsFor?: AddressChangeWaitsFor;
+  };
 }): ConfirmedRow {
   const row = rowBeforeTheAddressTable(args);
   const digest = args.addressDigest;
-  // Only a copy WE wrote with an address changed carries a mark. The
-  // customer's own bytes, a removed copy and one never placed say nothing
-  // about a table, and neither does a row the table did not touch.
-  if (!digest || digest.item === null) return row;
+  // Only a copy WE wrote carries a mark. The customer's own bytes, a removed
+  // copy and one never placed say nothing about a table.
+  if (!digest) return row;
   if (!PLACED_BY_US.has(args.status)) return row;
-  if (digest.item === digest.table) return { ...row, address: 'changed' };
-  // Written under an older table: NEVER a match (ADR-0055 decision 5). A
-  // re-read that agrees with the ledger proves only that the copy is what we
-  // wrote then, and what we wrote then is not what the table says now.
-  return { ...row, state: row.state === 'verified' ? 'differs' : row.state, address: 'older' };
+  // A CHANGE WAITS FOR IT: NEVER a match (ADR-0055 decision 5; 0168 S3),
+  // whether it was written with a change or with none. A re-read that agrees
+  // with the ledger proves only that the copy is what we wrote then, and what
+  // we wrote then is not what the table says now. A copy written before a row
+  // was added for an address it names used to read as a match here, because
+  // it carried no digest at all.
+  if (waitsForAnAddressChange(digest.item, digest.due)) {
+    return {
+      ...row,
+      state: row.state === 'verified' ? 'differs' : row.state,
+      address: 'older',
+      waitsFor: digest.waitsFor ?? 'pass',
+    };
+  }
+  // A row the table did not touch says nothing about one.
+  return digest.item === null ? row : { ...row, address: 'changed' };
 }
 
 /** The statuses of a copy this product wrote and still stands behind. */

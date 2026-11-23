@@ -16,6 +16,8 @@ import {
   type SetupStepRow,
   type ShareGrantRow,
   type ConfirmedAddressChangeRow,
+  type AddressChangesCounted,
+  ADDRESS_DIGEST_OF_NO_CHANGE,
   classifyFailure,
   isFailureCategory,
   nameOnRow,
@@ -444,6 +446,9 @@ export class PgLedger implements Ledger {
         // The address table this copy was written under (ADR-0055), NULL when
         // no address in it changed.
         addressDigest: record.addressDigest ?? null,
+        // And the change it waits for (0168 S3), NULL on a first copy: a copy
+        // just written carries what the table says.
+        addressDigestDue: record.addressDigestDue ?? null,
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
@@ -523,6 +528,9 @@ export class PgLedger implements Ledger {
         // is the fact (ADR-0055). A caller with nothing to say (mail, files,
         // `record-version`) leaves the column as it was.
         ...(record.addressDigest !== undefined ? { addressDigest: record.addressDigest } : {}),
+        // The same rule for the change it waits for (0168 S3): a rewrite says
+        // null, since the copy it wrote carries what the table says.
+        ...(record.addressDigestDue !== undefined ? { addressDigestDue: record.addressDigestDue } : {}),
         // Conditional for the same reason as `collection`: a caller with nothing
         // to say must not blank what we already knew, which would retire the
         // item's removal-report link.
@@ -1308,6 +1316,65 @@ export class PgLedger implements Ledger {
       .where(and(eq(schemaPg.addressChange.tenantId, tenantId), eq(schemaPg.addressChange.state, 'confirmed')))
       .orderBy(schemaPg.addressChange.oldKey);
     return rows.map((r) => ({ oldKey: r.oldKey, oldAddress: r.oldAddress, newAddress: r.newAddress }));
+  }
+
+  /**
+   * The change one copy waits for, or null to clear it (workplan 0168 S3).
+   * This column and `updated_at`, nothing else: `last_synced_at` is when a
+   * copy was last WRITTEN to the target, which the billing meter reads, and
+   * nothing was.
+   */
+  async markAddressChangeDue(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    naturalKeyHash: string,
+    due: string | null,
+  ): Promise<void> {
+    await this.db
+      .update(schemaPg.item)
+      .set({ addressDigestDue: due, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+        ),
+      );
+  }
+
+  /**
+   * One data type's copies, counted against the address table (workplan 0168
+   * S5): those that carry a change, and those that wait for one, with or
+   * without a strong version to guard its write. Over every copy we wrote and
+   * stand behind, whatever the last pass listed. By the statement's own
+   * tenant, beside row security, as `listConfirmedAddressChanges`.
+   */
+  async countAddressChanges(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<AddressChangesCounted> {
+    const due = sql`(${schemaPg.item.addressDigestDue} IS NOT NULL AND ${schemaPg.item.addressDigestDue} IS DISTINCT FROM coalesce(${schemaPg.item.addressDigest}, ${ADDRESS_DIGEST_OF_NO_CHANGE}))`;
+    const guarded = sql`(${schemaPg.item.targetVersion} IS NOT NULL AND ${schemaPg.item.targetVersion} <> '' AND ${schemaPg.item.targetVersion} NOT LIKE 'W/%')`;
+    const [row] = await this.db
+      .select({
+        changed: sql`count(*) FILTER (WHERE ${schemaPg.item.addressDigest} IS NOT NULL AND NOT ${due})`.mapWith(Number),
+        waiting: sql`count(*) FILTER (WHERE ${due} AND ${guarded})`.mapWith(Number),
+        unguarded: sql`count(*) FILTER (WHERE ${due} AND NOT ${guarded})`.mapWith(Number),
+      })
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          inArray(schemaPg.item.status, ['copied', 'updated', 'deleted_source']),
+          or(isNotNull(schemaPg.item.addressDigest), isNotNull(schemaPg.item.addressDigestDue)),
+        ),
+      );
+    return { changed: row?.changed ?? 0, waiting: row?.waiting ?? 0, unguarded: row?.unguarded ?? 0 };
   }
 
   async listShareGrants(
@@ -2280,6 +2347,8 @@ export class PgLedger implements Ledger {
       // The address table the copy was written under (ADR-0055); absent when
       // NULL, so a round-tripped record says nothing and keeps the column.
       ...(row.addressDigest ? { addressDigest: row.addressDigest } : {}),
+      // And the change it waits for (0168 S3), by the same rule.
+      ...(row.addressDigestDue ? { addressDigestDue: row.addressDigestDue } : {}),
       // Left off entirely when there is none, so "not recorded" stays
       // distinguishable from "recorded as empty".
       ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),

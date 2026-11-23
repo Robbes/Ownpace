@@ -19,6 +19,7 @@ import type {
   SetupStepRow,
   ShareGrantRow,
   ConfirmedAddressChangeRow,
+  AddressChangesCounted,
   SourceConnector,
   SyncCursor,
   TargetEntry,
@@ -34,6 +35,8 @@ import {
   nameOnRow,
   type FailureSide,
   type FailureCategory,
+  guardsAnAddressRewrite,
+  waitsForAnAddressChange,
 } from '@openmig/shared';
 
 /**
@@ -270,6 +273,8 @@ export class MemoryLedger implements Ledger {
   private readonly rows = new Map<string, LedgerRecord>();
   /** Test helper: how often each read was asked, and for how many keys in all. */
   readonly reads = { find: 0, findMany: 0, keysAskedInBatches: 0 };
+  /** Writes a test may want to count. */
+  readonly writes = { addressChangeDue: 0 };
 
   private key(r: Pick<LedgerRecord, 'tenantId' | 'mappingId' | 'itemType' | 'naturalKeyHash'>): string {
     return `${r.tenantId}\u0000${r.mappingId}\u0000${r.itemType}\u0000${r.naturalKeyHash}`;
@@ -468,6 +473,8 @@ export class MemoryLedger implements Ledger {
       // Said, null included, as PgLedger's SET is (ADR-0055); a null digest
       // leaves the field off, as a NULL column reads back.
       ...(record.addressDigest !== undefined ? { addressDigest: record.addressDigest } : {}),
+      // And the change it waits for (0168 S3), by the same rule.
+      ...(record.addressDigestDue !== undefined ? { addressDigestDue: record.addressDigestDue } : {}),
       // Conditional AND non-empty, exactly as the SQL is: `''` is what every
       // row written before 2026-09-12 holds, so PgLedger treats it as nothing
       // to say and lets a later pass repair the row. A fake that accepted a
@@ -764,6 +771,44 @@ export class MemoryLedger implements Ledger {
         .map(({ oldKey, oldAddress, newAddress }) => ({ oldKey, oldAddress, newAddress }))
         .sort((a, b) => (a.oldKey < b.oldKey ? -1 : a.oldKey > b.oldKey ? 1 : 0)),
     );
+  }
+
+  /**
+   * Mirrors `PgLedger.markAddressChangeDue`: that field alone (0168 S3).
+   * Counted, so a test can say a pass that had nothing due wrote nothing.
+   */
+  markAddressChangeDue(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+    due: string | null,
+  ): Promise<void> {
+    this.writes.addressChangeDue += 1;
+    const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
+    const existing = this.rows.get(k);
+    if (existing) this.rows.set(k, { ...existing, addressDigestDue: due });
+    return Promise.resolve();
+  }
+
+  /** Mirrors `PgLedger.countAddressChanges` (0168 S5). */
+  countAddressChanges(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+  ): Promise<AddressChangesCounted> {
+    let changed = 0;
+    let waiting = 0;
+    let unguarded = 0;
+    for (const r of this.rows.values()) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId || r.itemType !== domain) continue;
+      if (r.status !== 'copied' && r.status !== 'updated' && r.status !== 'deleted_source') continue;
+      if (waitsForAnAddressChange(r.addressDigest, r.addressDigestDue)) {
+        if (guardsAnAddressRewrite(r.targetVersion)) waiting += 1;
+        else unguarded += 1;
+      } else if (r.addressDigest) changed += 1;
+    }
+    return Promise.resolve({ changed, waiting, unguarded });
   }
 
   /** The sharing queue's rows (ADR-0032), visible to tests. */

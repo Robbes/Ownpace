@@ -118,7 +118,11 @@ export const en = {
   'addresses.mapping.lastPass': 'Changed in the last pass: {count}',
   'addresses.mapping.apply': 'Apply the new addresses here too',
   'addresses.mapping.apply.line':
-    'This data type is past its switch, so a change to the address table waits for this press. Copies somebody edited on the new system are left as they are.',
+    'Past the switch, a change to the address table reaches this migration only when somebody presses this. Waiting for it: {count}. Copies somebody edited on the new system are left as they are.',
+  // Copies an address change should reach with no version to guard the write
+  // (workplan 0168 S1): left as they are, and said.
+  'addresses.mapping.unguarded':
+    'Not changed: {count}, with no version to guard the write. An edit made on the new system could not be told apart from our copy, so they are left as they are.',
   'addresses.mapping.applying': 'Applying…',
   'addresses.mapping.applied': 'The next pass applies the new addresses here.',
   // On a verified row only (B2); the account's counts beside the headline.
@@ -233,7 +237,9 @@ export const nl: Record<keyof typeof en, string> = {
   'addresses.mapping.lastPass': 'Gewijzigd in de laatste ronde: {count}',
   'addresses.mapping.apply': 'De nieuwe adressen hier ook toepassen',
   'addresses.mapping.apply.line':
-    'Dit gegevenstype is al overgestapt, dus een wijziging in de adreswijzigingen wacht op deze knop. Kopieën die iemand in het nieuwe systeem heeft bewerkt, blijven zoals ze zijn.',
+    'Na de overstap bereikt een wijziging in de adreswijzigingen deze migratie pas als iemand hierop drukt. Wachten hierop: {count}. Kopieën die iemand in het nieuwe systeem heeft bewerkt, blijven zoals ze zijn.',
+  'addresses.mapping.unguarded':
+    'Niet gewijzigd: {count}, zonder versie om het schrijven te bewaken. Een bewerking in het nieuwe systeem is dan niet te onderscheiden van onze kopie, dus blijven ze zoals ze zijn.',
   'addresses.mapping.applying': 'Bezig met toepassen…',
   'addresses.mapping.applied': 'De volgende ronde past de nieuwe adressen hier toe.',
   'addresses.confirmedList.changed': 'Klopt, met uw nieuwe adres',
