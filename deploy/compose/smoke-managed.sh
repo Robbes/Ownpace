@@ -2437,12 +2437,34 @@ card_line_preferred() { # card_line_preferred <card> <EMAIL line>
   fi
 }
 
-target_copy_of() { # target_copy_of <href needle>
-  local path
-  path="$(q "SELECT regexp_replace(coalesce(target_ref->>'id', ''), '^[a-zA-Z]+://[^/]*', '') FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $HREF_EXPR LIKE '%$1' AND status IN ('copied','updated') LIMIT 1")"
-  [ -n "$path" ] || return 1
-  curl -fsS -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" "${NC}${path}" 2>/dev/null \
-    | tr -d '\r' \
+# A copy's bytes as the target serves them, its lines unfolded (0168 T8).
+# THE LEDGER KEEPS A DAV COPY'S ID RELATIVE TO ITS COLLECTION
+# (`targetIdRelativeTo` in the writers), so it is no path on its own: each
+# collection under the target account's home (<home> under remote.php/dav/)
+# is asked for it, and the first that has it answers. An id that is already a
+# path or a URL is read as one.
+target_copy_of() { # target_copy_of <href needle> <home under remote.php/dav/>
+  local id home col
+  id="$(q "SELECT coalesce(target_ref->>'id', '') FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $HREF_EXPR LIKE '%$1' AND status IN ('copied','updated') LIMIT 1")"
+  [ -n "$id" ] || return 1
+  case "$id" in
+    *://*) target_copy_at "$(sed -E 's|^[a-zA-Z]+://[^/]*||' <<<"$id")"; return ;;
+    /*) target_copy_at "$id"; return ;;
+  esac
+  home="/remote.php/dav/$2"
+  while IFS= read -r col; do
+    [ -n "$col" ] && [ "${col%/}" != "${home%/}" ] || continue
+    target_copy_at "${col%/}/${id}" && return 0
+  done < <(curl -fsS -X PROPFIND -H 'Depth: 1' -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" "${NC}${home}" 2>/dev/null \
+             | grep -oE '<([A-Za-z0-9]+:)?href>[^<]*</([A-Za-z0-9]+:)?href>' \
+             | sed -E 's#</?([A-Za-z0-9]+:)?href>##g')
+  return 1
+}
+target_copy_at() { # target_copy_at <absolute path>: its lines, unfolded; non-zero when it cannot be read
+  local body
+  body="$(curl -fsS -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" "${NC}$1" 2>/dev/null)" || return 1
+  [ -n "$body" ] || return 1
+  tr -d '\r' <<<"$body" \
     | awk 'NR > 1 && /^[ \t]/ { line = line substr($0, 2); next } NR > 1 { print line } { line = $0 } END { if (NR) print line }'
 }
 
@@ -2746,7 +2768,7 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
       echo "prepare: the address canary's two copies are recorded under the address table"
     fi
 
-    card_copy="$(target_copy_of "$ADDR_CARD" || true)"
+    card_copy="$(target_copy_of "$ADDR_CARD" "addressbooks/users/${TARGET_DAV_USER}/" || true)"
     card_emails="$(grep -i '^EMAIL[;:]' <<<"$card_copy" || true)"
     card_first="$(awk 'NR==1' <<<"$card_emails")"
     if [ -z "$card_copy" ]; then
@@ -2760,7 +2782,7 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
       fail_at "the card's EMAIL lines are not the new address first, marked preferred as its version marks it ($(card_pref_mark "$card_copy")), with the old one kept (0168 D2, T8)"
     fi
 
-    event_copy="$(target_copy_of "$ADDR_EVENT" || true)"
+    event_copy="$(target_copy_of "$ADDR_EVENT" "calendars/${TARGET_DAV_USER}/" || true)"
     event_org="$(grep -i '^ORGANIZER[;:]' <<<"$event_copy" || true)"
     event_att="$(grep -i '^ATTENDEE[;:]' <<<"$event_copy" || true)"
     event_desc="$(grep -i '^DESCRIPTION[;:]' <<<"$event_copy" || true)"
@@ -2792,8 +2814,8 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
       i=$((i + 1))
       sleep "$POLL_SLEEP"
     done
-    card_back="$(target_copy_of "$ADDR_CARD" || true)"
-    event_back_org="$(target_copy_of "$ADDR_EVENT" | grep -i '^ORGANIZER[;:]' || true)"
+    card_back="$(target_copy_of "$ADDR_CARD" "addressbooks/users/${TARGET_DAV_USER}/" || true)"
+    event_back_org="$(target_copy_of "$ADDR_EVENT" "calendars/${TARGET_DAV_USER}/" | grep -i '^ORGANIZER[;:]' || true)"
     if [ "${addr_left:-2}" = "0" ] && [ -n "$card_back" ] && ! grep -qiF "$ADDR_OWN" <<<"$card_back" \
        && grep -qiF "mailto:${ADDR_OLD}" <<<"$event_back_org" && grep -q 'SCHEDULE-AGENT=CLIENT' <<<"$event_back_org"; then
       echo "prepare: with the row deleted, the next pass put both copies back as the source has them"
