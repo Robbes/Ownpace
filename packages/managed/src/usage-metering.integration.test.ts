@@ -401,9 +401,13 @@ describe('Usage Metering - Integration', () => {
     });
 
     it('counts a pass once however often the task retried, because nothing is written', async () => {
-      // A Trigger.dev retry re-enters the SAME task run and closes the SAME
-      // run row. Idempotency is structural here: there is no second row to
-      // add, and no upsert whose key could be got wrong.
+      // A retry is the pass run again from the top: pg-boss hands the same job
+      // back at its next attempt, and the pass opens a run row of its own
+      // (startRun), the attempt that failed having closed its own, or left it
+      // open if it was killed, which bills nothing. So each attempt's seconds
+      // are in one row, read once. Idempotency is structural here: nothing is
+      // written, so there is no second row of the meter's to add, and no
+      // upsert whose key could be got wrong.
       await seedRun(TEST_TENANT_ID, { seconds: 1800 });
 
       const first = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);

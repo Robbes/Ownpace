@@ -111,7 +111,8 @@ if (!SYSTEM_DATABASE_URL) {
   throw new Error(
     'SYSTEM_DATABASE_URL is required: managed-sync-tick spans organisations as the system role, ownpace_system, ' +
       'and never as the database owner (DATABASE_URL), which no run holds. ' +
-      'deploy/compose/set-task-env.sh uploads it (workplan 0138 T3 step 2).',
+      'The worker service carries it (deploy/compose/managed.yml), and the bring-up readies the role before ' +
+        'it starts the worker (system_role_ready, deploy/compose/bootstrap-managed.sh; workplan 0138 T3 step 2).',
   );
 }
 const pool = new Pool({ connectionString: SYSTEM_DATABASE_URL });

@@ -42,6 +42,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   comments in the API, the worker, the packages and the deploy scripts now say what runs since
   alpha.18 (pg-boss, in the `worker` service) and no longer point at files T9 removed, and the
   identity provider's pin-watch issue no longer says the gate drills Trigger.dev's database.
+- **Refusals that sent the operator to a script T9 removed** (workplan 0167, after T9). The
+  worker's refusals without `APP_DATABASE_URL` or `SYSTEM_DATABASE_URL` (the per-tenant jobs' pools,
+  the sync tick, retention and the purge) now say the worker service carries it and the bring-up
+  readies the system role first, where they said `set-task-env.sh` uploads it; a pass's refusal
+  without a Cirrux client says to set `CIRRUX_OAUTH_CLIENT_ID` in `.env` and bring the stack up
+  again. `deploy-live.sh`'s refusal of a listed host, the smoke's refusal of an API on another Node
+  and `setup-zitadel.sh`'s advice on a provider that cannot be reached no longer name Trigger.dev's
+  tasks, their base image or their account.
 
 ## [0.2.0-alpha.18] - 2026-11-23
 

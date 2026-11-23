@@ -12,6 +12,16 @@ identity provider's pin-watch issue says what the gate's restore drill proves. D
 comparing mentions stay; printed and thrown text is left as it is. Comments and that issue text
 only: no behaviour changes.
 
+**2026-11-23, latest, after that: the printed and thrown text it left, for alpha.19.** The five
+refusals in the worker's jobs that said `set-task-env.sh` uploads `APP_DATABASE_URL` or
+`SYSTEM_DATABASE_URL` now say the worker service carries it (`managed.yml`) and the bring-up readies
+the role before it starts the worker (`system_role_ready`); the Cirrux Drive refusal says to bring
+the stack up again, and its test reads that; `deploy-live.sh`, `smoke-managed.sh` and
+`setup-zitadel.sh` each lose one line about Trigger.dev's tasks; and the usage meter's retry test
+says what a retry is on pg-boss, a run row of its own. Left as they are: `rehearse-capacity.sh`'s
+three lines for a runner other than pg-boss, which `on_pg_boss` never reaches, and the lines that
+name Trigger.dev's runner containers to prove none starts. Text only: no behaviour changes.
+
 **2026-11-23: T9, Trigger.dev removed from the managed edition, for alpha.18.** On branch
 `claude/ownpace-public-readiness-y7orc6-0167-t9`, from alpha.17 (`5b51a82b`). The owner's word,
 2026-11-23, verbatim: *"i will remove trigger.dev, but the machine runs OTA and managed, so both

@@ -169,7 +169,7 @@ export function openTaskPools(env: TaskEnv = process.env, options: TaskPoolOptio
     throw new Error(
       'APP_DATABASE_URL is required: a per-tenant task reads and writes tenant data as app_user, under ' +
         'row security, and never DATABASE_URL in its place, which is the database owner. ' +
-        'deploy/compose/set-task-env.sh uploads it (workplan 0138 T1).',
+        "The managed stack's worker service carries it (deploy/compose/managed.yml; workplan 0138 T1).",
     );
   }
   const systemUrl = env.SYSTEM_DATABASE_URL?.trim();
@@ -178,7 +178,9 @@ export function openTaskPools(env: TaskEnv = process.env, options: TaskPoolOptio
       "SYSTEM_DATABASE_URL is required, for the audit key's pool alone: app_user may not read deployment_key " +
         '(ledger migration 0062), so without it every audit line this task writes would be lost ' +
         '(workplan 0138 T1 part 5). It is the system role, ownpace_system, never DATABASE_URL, the database ' +
-        'owner, which no run holds (workplan 0138 T3 step 2). deploy/compose/set-task-env.sh uploads it.',
+        'owner, which no run holds (workplan 0138 T3 step 2). The worker service carries it ' +
+        '(deploy/compose/managed.yml), and the bring-up readies the role before it starts the worker ' +
+        '(system_role_ready, deploy/compose/bootstrap-managed.sh).',
     );
   }
 
