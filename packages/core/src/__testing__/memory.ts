@@ -459,8 +459,10 @@ export class MemoryLedger implements Ledger {
     // could therefore watch a relocation or a confirmed deletion evaporate on
     // an ordinary update and call that correct — or, worse, pass because the
     // state it needed had quietly gone.
+    // A copy written is no longer left after the switch (0075), as PgLedger's SET.
+    const { addressLeft: _wasLeft, ...notLeft } = existing;
     const merged: LedgerRecord = {
-      ...existing,
+      ...(record.addressDigestDue === null ? notLeft : existing),
       contentHash: record.contentHash,
       sizeBytes: record.sizeBytes,
       status: record.status ?? 'updated',
@@ -793,8 +795,9 @@ export class MemoryLedger implements Ledger {
   }
 
   /**
-   * Mirrors `PgLedger.markAddressChangeDue`: that field alone (0168 S3).
-   * Counted, so a test can say a pass that had nothing due wrote nothing.
+   * Mirrors `PgLedger.markAddressChangeDue`: that field, and whether the copy
+   * is left after the switch (0168 S3; 0075). Counted, so a test can say a
+   * pass that had nothing due wrote nothing.
    */
   markAddressChangeDue(
     tenantId: LedgerRecord['tenantId'],
@@ -802,11 +805,15 @@ export class MemoryLedger implements Ledger {
     domain: LedgerRecord['itemType'],
     naturalKeyHash: string,
     due: string | null,
+    left?: boolean,
   ): Promise<void> {
     this.writes.addressChangeDue += 1;
     const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
     const existing = this.rows.get(k);
-    if (existing) this.rows.set(k, { ...existing, addressDigestDue: due });
+    if (existing) {
+      const { addressLeft: _wasLeft, ...rest } = existing;
+      this.rows.set(k, { ...rest, addressDigestDue: due, ...(due !== null && left === true ? { addressLeft: true } : {}) });
+    }
     return Promise.resolve();
   }
 
@@ -819,15 +826,17 @@ export class MemoryLedger implements Ledger {
     let changed = 0;
     let waiting = 0;
     let unguarded = 0;
+    let left = 0;
     for (const r of this.rows.values()) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId || r.itemType !== domain) continue;
       if (r.status !== 'copied' && r.status !== 'updated' && r.status !== 'deleted_source') continue;
       if (waitsForAnAddressChange(r.addressDigest, r.addressDigestDue)) {
-        if (guardsAnAddressRewrite(r.targetVersion)) waiting += 1;
+        if (r.addressLeft === true) left += 1;
+        else if (guardsAnAddressRewrite(r.targetVersion)) waiting += 1;
         else unguarded += 1;
       } else if (r.addressDigest) changed += 1;
     }
-    return Promise.resolve({ changed, waiting, unguarded });
+    return Promise.resolve({ changed, waiting, unguarded, left });
   }
 
   /** The sharing queue's rows (ADR-0032), visible to tests. */

@@ -1473,13 +1473,16 @@ export interface ConfirmedListQueue {
    * its digest now, how many copies carry a change under it, and how many
    * under an older table (never a match): waiting for the next pass or the
    * press, save `unguarded`, which have no version to guard the write and
-   * which nothing changes (0168, found on the way).
+   * which nothing changes (0168, found on the way), and `left`, whose source
+   * changed after the switch and which no press rewrites (ADR-0055 decision
+   * 6). Those two keep the old address and are checked as plain copies.
    */
   readonly addressChanges?: {
     readonly digest: string | null;
     readonly changed: number;
     readonly older: number;
     readonly unguarded?: number;
+    readonly left?: number;
   };
   readonly truncated?: boolean;
   readonly lastPass: ConfirmationPassState;

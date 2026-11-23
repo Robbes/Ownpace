@@ -117,14 +117,18 @@ export interface DataTypeVerification {
    * type's cutover the press (`waitsFor`). A sample of one that waits is
    * never a match: it is counted in `checksumUnavailable` and said as an
    * issue, and a sample of nothing else holds the gate. Of `older`,
-   * `unguarded` have no version to guard the write: no pass and no press
-   * reaches them, and `waitsFor` is what the rest wait for (0168).
+   * `unguarded` have no version to guard the write, and `left` were changed
+   * at the source after the switch (ADR-0055 decision 6): no pass and no
+   * press reaches either, so they keep the old address, are sampled and
+   * compared as plain copies (the bytes as copied), and never hold the gate
+   * (the owner, 2026-11-23). `waitsFor` is what the rest wait for (0168).
    */
   addressChanges?: {
     digest: string | null;
     changed: number;
     older: number;
     unguarded?: number;
+    left?: number;
     waitsFor?: 'pass' | 'press';
   };
   

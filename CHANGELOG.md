@@ -12,6 +12,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   is said as the person's now reads *Confirmed by ‹name› for ‹person›*. Always false on the
   appliance, which has no person.
 
+### Changed
+
+- **Copies that cannot be guarded no longer hold the switch** (the owner's decision of 2026-11-23;
+  workplan 0168; ADR-0055, amended). A copy with no version to guard a rewrite keeps the old
+  address, since no pass and no press changes it, and a verification sample made only of such
+  copies held the cutover for good. Verification now checks such a copy as a plain copy, which
+  must still equal what was copied, counts it apart and never holds the cutover on it alone. The
+  Check page, the confirmed list, the migration's page and the report say *N items keep the old
+  address, because the new system offers no safe way to update them*, in English and Dutch. An
+  item truly waiting for a pass or the press still holds as before.
+- **After the switch, a copy changed in the old account is left, and said as left** (the owner's
+  decision of 2026-11-23, option (b); workplan 0168; ADR-0055, amended). Past a data type's
+  cutover a change at the old account overwrites no copy, so the press never rewrites such a copy,
+  yet one whose address rows moved too was counted as waiting for it. A pass now records it as
+  left (ledger migration `0075_the_copy_left_after_the_switch`, additive), and the confirmed list,
+  the migration's page, the Check page and the report count it apart, *changed in your old account
+  after the switch, not updated*, in English and Dutch. It never counts as waiting, the press never
+  claims it, and it holds nothing.
+
 ### Fixed
 
 - **A copy deleted on the new system is counted as gone, never as the owner's edit and never made

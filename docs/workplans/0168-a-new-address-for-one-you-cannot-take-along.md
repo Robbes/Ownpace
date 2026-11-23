@@ -4,6 +4,49 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, later still: the owner's two decisions on copies nothing changes, built, on
+`claude/ownpace-public-readiness-y7orc6-0168-unguarded`** (cut from the follow-ups' branch). Two
+of the follow-ups' *Not done* items were the owner's call; both are decided and built, each rule
+with tests that fail without it (ADR-0055 decisions 5 and 6, amended; its Amendment log).
+
+- **1. Copies that cannot be guarded do not hold the switch.** The owner took the advice: *"i
+  think i take on what you adviced."* A copy with no strong version to guard a rewrite keeps the
+  old address, since no pass and no press changes it. Verification now checks it as a plain copy
+  (its sample is compared with the bytes as copied, so a real difference still fails it), counts
+  and names it apart (`addressChanges.unguarded`, `ADDRESS_UNGUARDED_*`), and never holds the
+  cutover on it alone; an item truly waiting for a pass or the press is still set aside and still
+  holds (`ADDRESS_NOT_COMPARED_*`). The confirmed list keeps such a row's own state, verified when
+  it matches, and says `unguarded`. The Check page, the confirmed list, the migration's page and
+  the report say *N items keep the old address, because the new system offers no safe way to
+  update them*, in English and Dutch (`verification-a-change-under-an-older-table.unit.test.ts`,
+  `a-match-under-an-older-address-table.unit.test.ts`, `Verify.unit.test.tsx`,
+  `Confirmed.unit.test.tsx`, `MappingDetail.unit.test.tsx`).
+- **2. After the switch, a copy whose source changed is left, and said as left: option (b).** The
+  owner: *"2) b."* Past a data type's cutover such a copy is counted `changedAfterCutover` and
+  never rewritten ("Stop overwriting", ADR-0048), and the press never rewrites it either. A pass
+  now records it as left with the change it waits for (`item.address_left_at`, ledger
+  `0075_the_copy_left_after_the_switch`, additive; set by `markAddressChangeDue`'s `left`, cleared
+  when the copy is written or nothing is due). Every reader counts it apart, never as waiting:
+  the pass (`addressChangesLeft`, in `lastPass`), verification (`leftKeys`, `addressChanges.left`,
+  `ADDRESS_LEFT_*`, compared as a plain copy, never held), the confirmed list (`left`), the report
+  and the migration's page, where the press's *Waiting for it* leaves it out. The words: *changed
+  in your old account after the switch, not updated*, in English and Dutch
+  (`a-copy-changed-at-the-source-after-the-switch.unit.test.ts`). Option (c), rewriting only the
+  address lines in the new account's copy, was not chosen and is not built.
+
+Left alone, as asked: the calendar rule on past events, `SENT-BY` and the other parameters, and the
+domain list (`NOT_TAKEN_ALONG`), which other branches build; and the digest of an event and the
+own addresses (the follow-ups' last *Not done* item).
+
+Evidence: the two new unit files fail on the follow-ups' head (11 of their 20 tests) and pass
+here; the unit tier, typecheck, lint and the docs checks on the branch's head; the SQL readers
+and the new column on Postgres through `scripts/local-pg.sh`
+(`a-copy-left-after-the-switch.integration.test.ts`, with `a-copy-no-pass-changes.integration.test.ts`
+again), and on PGlite (`an-address-change-read-from-a-real-ledger.unit.test.ts`). **E2E
+(managed)** is for the coordinating session to dispatch: it should show the confirmed-rows run
+green as before, every copy of the run carrying a strong version, so `unguarded` and `left`
+absent from the report and the Check page's address lines unchanged.
+
 **2026-11-23, later: the follow-ups for alpha.18, on
 `claude/ownpace-public-readiness-y7orc6-0168-followups`.** Six of the seven defects found on the
 way are fixed and the API flag is added, each with a test that fails without its fix. The
