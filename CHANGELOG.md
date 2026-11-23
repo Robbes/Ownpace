@@ -20,6 +20,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `loggableError`, and stops nothing. Two other places an outside, read-only check named keep
   their behaviour in plainer code: the appliance's queue of address-change writes keeps their order
   with `Promise.allSettled`, and Cirrux's request for part URLs is written with `await`.
+- **The step *Your new address* comes by itself for Microsoft's, Apple's and Yahoo's addresses,
+  and for Ziggo's, KPN's, Telenet's and Proximus's, not only for Google's** (workplan 0168;
+  ADR-0055). `NOT_TAKEN_ALONG` holds 154 domains, each group beside the provider's page it was
+  read from on 2026-11-23. Microsoft and Yahoo publish no list of their country forms
+  (`hotmail.nl`, `live.be`, `yahoo.de`, …), so most of those rest on Thunderbird's ISP database,
+  and say so. Each domain is matched whole, so `hotmail.example.com` proposes nothing; a domain
+  whose provider lets the address be kept, for a fee or for a while, stays on the list, since the
+  step only proposes. The Microsoft guide keeps *I am also changing my address* for an
+  `.onmicrosoft.com` name, or any address the step does not recognise.
 
 ### Fixed
 
