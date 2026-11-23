@@ -28,18 +28,9 @@
  *               (its `build:`), and no registry serves it (Postgres without
  *               gosu since workplan 0146 T15, deploy/compose/postgres, and
  *               the appliance's since T15b, deploy/selfhost/postgres;
- *               Trigger.dev's webapp and supervisor without the files nothing
- *               here runs since 0146 T16, under the names `trigger.dev` and
- *               `supervisor` the pulled images had; the Docker socket proxy,
- *               upstream's v0.6.0 on a current HAProxy, since 2026-10-30,
- *               deploy/compose/docker-socket-proxy, under the name
- *               `docker-socket-proxy` the pulled image had; the dashboard's TLS
- *               front, Caddy's image without curl, since 2026-10-31,
- *               deploy/compose/caddy, under the name `caddy` the pulled
- *               image had; Trigger.dev's Redis without the Debian packages
- *               nothing here runs, as uid 999, since 2026-11-07,
- *               deploy/compose/redis, under the name `redis` the pulled
- *               image had; the pooler, edoburu's image with five Alpine
+ *               Trigger.dev's five builds, its webapp, supervisor, socket
+ *               proxy, TLS front and Redis, until alpha.18 removed them;
+ *               the pooler, edoburu's image with five Alpine
  *               packages at the versions that carry their fixes, since
  *               2026-11-13, deploy/compose/pgbouncer, under the name
  *               `pgbouncer` the pulled image had), so its leg builds that
@@ -54,21 +45,13 @@
  *               is on an Alpine past its end of life), so its leg builds that
  *               directory for linux/arm64 and scans what it built
  *               (`context`); the Dockerfile must be there;
- *             - the tasks' image (`trigger-task-base`): the prebuilt base
- *               apps/worker/trigger.config.ts pins by tag and index digest
- *               (`TASK_BASE_IMAGE`, the pin watch's `taskBasePin`; workplan
- *               0119 §3 item 13, since 2026-11-06), pulled as published, since
- *               a deploy adds nothing to it but the task code; where the
- *               config names no base of its own, the one the pinned
- *               Trigger.dev CLI names for the tasks' runtime (the pin watch's
- *               `cliBaseImage`);
+ *             - (the tasks' image, `trigger-task-base`, until alpha.18
+ *               removed Trigger.dev, workplan 0167 T9);
  *             - Ownpace's own three images, at `:edge` (what main publishes,
  *               which the OTA stack builds every night) and at the newest
  *               release tag (what live runs: it builds the tag it deploys).
  *           The FROM bases of apps/*\/Dockerfile (node, distroless, nginx)
- *           are inside Ownpace's images and are not scanned twice; the tasks'
- *           base is an image of its own, built from
- *           apps/worker/task-image/Dockerfile and published by images.yml.
+ *           are inside Ownpace's images and are not scanned twice.
  *           www.yml's nginx is, because the site runs it as it is.
  *           Each carries its `tier` (`IMAGE_TIERS`, below), and a name with
  *           none fails the list.
@@ -134,30 +117,8 @@
  * for a name that changes, and the alerts it left open (`trivy-image-nextcloud`,
  * `-stalwart`, `-mailpit`) stay open until the owner dismisses them as used in tests.
  *
- * THE TASKS' IMAGE KEEPS THE NAME IT HAD, `trigger-task-base`, and with it
- * its SARIF category, so its alerts stay in one place in code scanning. It
- * is the prebuilt base since 2026-11-06 (workplan 0119 §3 item 13), read
- * from GHCR by the digest the config pins: the bytes the OTA stack and live
- * pull, before the task code, its `node_modules` and its index are copied in.
- * Trigger.dev's CLI writes no instruction into that base, so nothing is built
- * here. Trivy's SARIF gives an operating-system package's finding the image's
- * repository as its location (`ToPathUri` in its `pkg/report/sarif.go`, read
- * at v0.76.1) and writes no fingerprint, so the first scan that reads the
- * base moves every Debian alert from `library/node` (the API's Node image,
- * under whose repository the leg built the deploy's stage until then) to
- * `robbes/ownpace-task-base`: those of the old base close, once, and the
- * distroless base's open under it.
- *
- * What the base leaves out is npm packages only: the bundled task code, and
- * the externals the CLI installs with `npm i` at a deploy (`pg`,
- * `@electric-sql/pglite`). Their own versions are the ones installed here, so
- * the repository scan of the lockfile reads them; the packages npm resolves
- * under them, with no lockfile, neither scan reads. A Trigger.dev instance can
- * name other base images for its deploys (the webapp's `DEPLOY_BASE_IMAGES`
- * and `DEPLOY_BUILD_BASE_IMAGES`, which the CLI builds on when the instance
- * sends them, `applyServerBaseImages` read at 4.7.6), and `managed.yml`, which
- * hands its Trigger.dev services only the keys it lists, sets neither. The
- * guard holds that.
+ * THE TASKS' IMAGE, `trigger-task-base`, was scanned here, under its own
+ * SARIF category, until alpha.18 removed Trigger.dev (workplan 0167 T9).
  *
  * A floating tag (`busybox:1.38`) is scanned as the registry serves it
  * today, which need not be what the box pulled last. The summary says which.
@@ -174,7 +135,7 @@ import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPOSE_FILES, TASK_BASE_LINE, cliBaseImage, keepIssue, parseRef, readImages, realNet, repoReader, tagsOf, taskBasePin } from './idp-pin-watch.mjs';
+import { COMPOSE_FILES, keepIssue, parseRef, readImages, realNet, repoReader, tagsOf } from './idp-pin-watch.mjs';
 import { compareSemVer, parseSemVer } from './release-names-agree.mjs';
 import { publishedAt } from './release-verify.mjs';
 
@@ -187,15 +148,6 @@ export const SCRIPT_DIRS = ['deploy/compose', 'deploy/selfhost'];
 /** Where Ownpace's own images are published, and which: images.yml's matrix. */
 export const OWNPACE_REGISTRY = 'ghcr.io/robbes';
 export const OWNPACE_IMAGES = ['api', 'web', 'selfhost', 'worker'];
-
-/**
- * The tasks' image: its name (and so its SARIF category, `trivy-image-trigger-task-base`,
- * unchanged since 2026-10-22), and the deploy config that pins it.
- */
-export const TASK_IMAGE = 'trigger-task-base';
-export const TASK_CONFIG = 'apps/worker/trigger.config.ts';
-/** What the tasks' prebuilt base is built from (images.yml's `task-base` leg). */
-export const TASK_BASE_DOCKERFILE = 'apps/worker/task-image/Dockerfile';
 
 /** Every image issue's title starts with this, and ends with the image's name. */
 export const ISSUE_PREFIX = "An image's operating system is past its end of life: ";
@@ -269,32 +221,22 @@ export const IMAGE_TIERS = {
   'ownpace-worker-edge': 'production-internal',
   'ownpace-worker-release': 'production-internal',
   // managed.yml's services that bootstrap-managed.sh's phase_app starts by name
-  // on live, published on loopback or not at all: the ledger's and Trigger.dev's
-  // databases (POSTGRES_BIND empty), the pooler, Trigger.dev's plane, its
-  // object store and its registry (127.0.0.1 only).
+  // on live, published on loopback or not at all: the ledger's database
+  // (POSTGRES_BIND empty) and the pooler. (Trigger.dev's plane, its stores,
+  // its registry, its socket proxy and its TLS front were scanned here until
+  // alpha.18 removed them, workplan 0167 T9: redis, trigger.dev,
+  // clickhouse-server, registry, docker-socket-proxy, supervisor, minio,
+  // caddy, and the tasks' base, trigger-task-base. Their SARIF categories
+  // stop being uploaded, and their alerts stay open in code scanning until
+  // they are closed there: workplan 0166.)
   'postgres-managed': 'production-internal',
   pgbouncer: 'production-internal',
-  redis: 'production-internal',
-  'trigger.dev': 'production-internal',
-  'clickhouse-server': 'production-internal',
-  registry: 'production-internal',
-  'docker-socket-proxy': 'production-internal',
-  supervisor: 'production-internal',
-  minio: 'production-internal',
-  // The Trigger.dev dashboard's TLS front (trigger-tls), not a public one: a
-  // certificate no public CA signs (`tls internal`), on loopback, or on the mesh
-  // address TRIGGER_TLS_BIND names; live's is opened on localhost or through a
-  // tunnel (stand-up-live.sh).
-  caddy: 'production-internal',
   // The identity provider's one-shot chown, which the bring-up runs with
   // `compose run` (managed.yml's zitadel-machinekey, profile `init`).
   busybox: 'production-internal',
   // site-visits.sh, the daily duty that counts the visits to live's site
   // (box-duties.sh): no network, no port.
   goaccess: 'production-internal',
-  // The image live's task runs run in: the prebuilt base trigger.config.ts
-  // pins, to which each deploy of the tasks adds the task code and nothing else.
-  'trigger-task-base': 'production-internal',
   // The appliance: its image and its Postgres (deploy/selfhost/compose.yml).
   'postgres-selfhost': 'shipped',
   'ownpace-selfhost-edge': 'shipped',
@@ -399,7 +341,7 @@ function buildContext(repo, dir, image) {
 
 /**
  * Every image the stacks run, once each, in a stable order: the compose files,
- * the scripts, the tasks' base image, and Ownpace's own. Each has the name its
+ * the scripts, and Ownpace's own. Each has the name its
  * scan, its SARIF category, its artifact and its issue carry, the reference
  * Trivy pulls (or, for the one with `build`, the base its leg builds on and
  * the local tag it builds under), and where it comes from.
@@ -444,26 +386,6 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     if (image.context) return { name, tier, ref: image.ref, where: image.where.join(', '), floating: false, context: image.context };
     return { name, tier, ref: image.ref, where: image.where.join(', '), floating: isFloating(image) };
   });
-
-  // The tasks' image: the prebuilt base the config pins (0119 §3 item 13),
-  // pulled as published, since a deploy adds only the task code to it. Where
-  // the config names no base of its own, the CLI's, for the runtime the
-  // config asks for. The name stays, and so does the SARIF category.
-  const config = need(repo, TASK_CONFIG);
-  let base;
-  let where;
-  if (TASK_BASE_LINE.test(config)) {
-    base = taskBasePin(config).ref;
-    where = `${TASK_CONFIG}'s TASK_BASE_IMAGE: the prebuilt base the tasks run on, built from ${TASK_BASE_DOCKERFILE} by images.yml on main`;
-  } else {
-    const runtime = /\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1];
-    if (!runtime) throw new Error(`${TASK_CONFIG} names no runtime`);
-    const cli = JSON.parse(need(repo, 'apps/worker/package.json')).dependencies?.['@trigger.dev/sdk'];
-    if (!/^\d+\.\d+\.\d+$/.test(cli ?? '')) throw new Error(`apps/worker's @trigger.dev/sdk is ${cli}, not a version`);
-    base = await cliBaseImage(net, cli, runtime);
-    where = `trigger.dev ${cli}'s BASE_IMAGE['${runtime}'], which the CLI builds the tasks on when ${TASK_CONFIG} names no base`;
-  }
-  entries.push({ name: TASK_IMAGE, tier: tierOf(TASK_IMAGE), ref: base, where, floating: false });
 
   // Ownpace's own: what main publishes, and the newest release.
   const release = newestReleaseTag(await net.lsRemote(upstream));
@@ -779,9 +701,7 @@ export function eoslIssue(image, report) {
   const body = [
     `\`${image.ref}\` (${image.where}) runs on **${os}**, which its distribution no longer supports: Trivy's report for it says \`EOSL\`, end of service life. Its packages get no more security fixes, so what the scan finds in them from now on stays open whatever else moves.`,
     '',
-    image.name === TASK_IMAGE && image.where.startsWith(TASK_CONFIG)
-      ? `This is the tasks' prebuilt base, built from \`${TASK_BASE_DOCKERFILE}\` by images.yml on main and pinned in \`${TASK_CONFIG}\` (\`TASK_BASE_IMAGE\`). The way out is a supported distroless base in that Dockerfile, whose FROM lines Dependabot moves with \`apps/api/Dockerfile\`'s; once main has published the base built from it, the pin watch lists \`TASK_BASE_IMAGE\` behind, and it moves in a pull request of its own, with E2E (managed) dispatched on its branch. Live takes it from a release tag.`
-      : image.context
+    image.context
       ? `This image is built here, from \`${image.context}/Dockerfile\`, and its base is the \`FROM\` there. The way out is a supported base in that file, by exact tag and digest. Dependabot moves that pin, a new line of the base included, in a pull request of its own (\`.github/dependabot.yml\`), and the pull request's checks build the image; read the base's release notes before merging it. An image of \`managed.yml\` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner's call.`
       : 'The way out is the same image on a supported base: a newer tag of it once upstream has moved its base, or another variant of it. The pin watch (`.github/workflows/idp-pin-watch.yml`) says when a newer tag exists. The move goes in a pull request like any pin, with its release notes read; an image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner\'s call.',
     ...(image.floating
@@ -947,7 +867,7 @@ async function main(argv, env) {
   const [command, ...rest] = argv;
   if (command === 'list') {
     const upstream = env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}.git` : 'origin';
-    const images = await imagesToScan(repoReader(root), realNet(root), { upstream });
+    const images = await imagesToScan(repoReader(root), realNet(), { upstream });
     for (const image of images) console.error(`${image.name.padEnd(28)} ${image.tier.padEnd(20)} ${shortRef(image.ref)}  (${image.where})`);
     console.log(`images=${JSON.stringify(images)}`);
     return 0;

@@ -168,6 +168,13 @@ export type PassPhases = {
    * is its digest now. Absent when nobody pressed it.
    */
   readonly addressChangesApplied?: string;
+  /**
+   * When the migration was made (`MigrationPhases.createdAt`): its start, for
+   * the address table, which leaves an event that was over by then as the
+   * source has it (the owner, 2026-11-23). Absent from a reader that does not
+   * know of it, and then no event is over.
+   */
+  readonly createdAt?: Date;
 } | null;
 
 /**

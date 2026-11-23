@@ -125,19 +125,22 @@ export function passesInFlightFrom(raw: string | undefined): number {
   return n;
 }
 
+/** What the switch says when an old `.env` still names Trigger.dev (0167 T9); the API says the same (`job-runner.ts`). */
+export const TRIGGER_REMOVED =
+  'OWNPACE_JOB_RUNNER is "trigger", but Trigger.dev was removed in alpha.18, so remove the key from the .env or set it to "pg-boss".';
+
 /**
  * Why this process may not start, in one sentence, or null when it may: the
- * switch must name pg-boss, and the jobs' URL must be set. Unset or empty is
- * `trigger`; any other value is refused as the switch's own rule says.
+ * switch must name pg-boss, unset or empty included, and the jobs' URL must be
+ * set. `trigger` is refused since alpha.18, which removed Trigger.dev, so an
+ * old `.env` fails loudly rather than silently; any other value is refused as
+ * the switch's own rule says.
  */
 export function refusalToStart(env: NodeJS.ProcessEnv): string | null {
   const raw = env.OWNPACE_JOB_RUNNER?.trim() ?? '';
-  const runner = raw === '' ? 'trigger' : raw;
-  if (runner !== 'trigger' && runner !== 'pg-boss') {
-    return `OWNPACE_JOB_RUNNER is ${JSON.stringify(raw)}, and may only be "trigger" or "pg-boss" (unset or empty is "trigger").`;
-  }
-  if (runner !== 'pg-boss') {
-    return `OWNPACE_JOB_RUNNER is "${runner}", so the jobs run on Trigger.dev and this worker, which runs them on pg-boss, does not start.`;
+  if (raw === 'trigger') return TRIGGER_REMOVED;
+  if (raw !== '' && raw !== 'pg-boss') {
+    return `OWNPACE_JOB_RUNNER is ${JSON.stringify(raw)}, and may only be "pg-boss" (unset or empty is "pg-boss").`;
   }
   if (!env.JOBS_DATABASE_URL?.trim()) {
     return 'JOBS_DATABASE_URL is not set, so this worker has no jobs schema to work; it is the ownpace_jobs role\'s URL, through PgBouncer.';

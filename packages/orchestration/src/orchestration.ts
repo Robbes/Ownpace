@@ -115,12 +115,17 @@ function addressCountsOf(result: {
   readonly addressChanged?: number;
   readonly addressChangesWaiting?: number;
   readonly addressChangesUnguarded?: number;
+  readonly addressChangesLeft?: number;
   readonly goneFromTarget?: number;
-}): Pick<DomainSyncResult, 'addressChanged' | 'addressChangesWaiting' | 'addressChangesUnguarded' | 'goneFromTarget'> {
+}): Pick<
+  DomainSyncResult,
+  'addressChanged' | 'addressChangesWaiting' | 'addressChangesUnguarded' | 'addressChangesLeft' | 'goneFromTarget'
+> {
   return {
     ...(result.addressChanged !== undefined ? { addressChanged: result.addressChanged } : {}),
     ...(result.addressChangesWaiting !== undefined ? { addressChangesWaiting: result.addressChangesWaiting } : {}),
     ...(result.addressChangesUnguarded !== undefined ? { addressChangesUnguarded: result.addressChangesUnguarded } : {}),
+    ...(result.addressChangesLeft !== undefined ? { addressChangesLeft: result.addressChangesLeft } : {}),
     ...(result.goneFromTarget !== undefined ? { goneFromTarget: result.goneFromTarget } : {}),
   };
 }
@@ -187,6 +192,8 @@ export interface DomainSyncResult {
   addressChangesWaiting?: number;
   /** Copies an address change should reach that have no version to guard the write: left as they are (S1). */
   addressChangesUnguarded?: number;
+  /** Copies an address change should reach whose source changed after the switch: left, never waiting (ADR-0055 decision 6). */
+  addressChangesLeft?: number;
   /** Rewrites that found no copy on the target: not re-created (arch §11.1; B2). */
   goneFromTarget?: number;
   failed: number;
@@ -550,8 +557,11 @@ export async function runAllDomains(
   // THE ADDRESS TABLE (ADR-0055; workplan 0168 §4.3), read once at the start
   // of each contact, calendar and task pass, inside its `try`: a table the
   // ledger refuses is that data type's failure, never an empty table. The
-  // press past a cutover (D5) is the migration's own, read with its phases.
+  // press past a cutover (D5) is the migration's own, read with its phases,
+  // and so is its start, before which an event that was over keeps its
+  // addresses (the owner, 2026-11-23).
   const addressChangesOf = async (passLedger: Ledger) => {
+    const phases = await phasesNow();
     const changes = await addressChangesForPass(
       passLedger,
       tenantId,
@@ -559,7 +569,8 @@ export async function runAllDomains(
         config.source as unknown as Record<string, unknown>,
         config.target as unknown as Record<string, unknown>,
       ),
-      (await phasesNow())?.addressChangesApplied,
+      phases?.addressChangesApplied,
+      phases?.createdAt,
     );
     return changes ? { addressChanges: changes } : {};
   };
@@ -998,7 +1009,14 @@ export async function runAllDomains(
         log.warn(
           `[Worker] ${domain}: ${outcome.addressChangesUnguarded} item(s) were not changed for a new ` +
             'address: no version was recorded to guard the write, so an edit somebody made there could ' +
-            'not be told apart from our copy. Left as they are; they are never counted as a match.',
+            'not be told apart from our copy. They keep the old address and are checked as copied.',
+        );
+      }
+      if (outcome.addressChangesLeft) {
+        log.info(
+          `[Worker] ${domain}: ${outcome.addressChangesLeft} item(s) were changed at the source after the ` +
+            'cutover and are not updated, the new address included: Apply the new addresses here too ' +
+            'leaves them as they are (ADR-0055 decision 6).',
         );
       }
       if (outcome.goneFromTarget) {

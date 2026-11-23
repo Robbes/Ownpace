@@ -7,10 +7,12 @@
  * stack, and on the way it keeps that stack alive. Two of its steps are not
  * tests at all. `setup-zitadel.sh` runs the identity provider's provisioning
  * token's clock: the token lives seven days and every run replaces it in its
- * last three, and nothing else renews it. `trigger-version.sh drill` dumps the
- * Trigger.dev database (the account, the project and its API keys, the
- * deployments and the encrypted task environment, none of which can be rebuilt
- * without a person and a browser) and proves the dump loads. Live, the second
+ * last three, and nothing else renews it. `dump-idp.sh --drill` dumps the
+ * identity provider's database (every sign-in account and the provider's own
+ * configuration, which cannot be rebuilt without each person) and proves the
+ * dump loads into a throwaway database; until alpha.18 the drill was
+ * `trigger-version.sh drill`, on Trigger.dev's database, which alpha.18
+ * removed with Trigger.dev (workplan 0167 T9). Live, the second
  * stack on the same machine (0132 D7), is never touched by CI (T1g), so it had
  * neither: four days without a manual run of `setup-zitadel.sh` and live's
  * token could leave its window, and past its deadline no successor can be
@@ -56,12 +58,13 @@
  *   is not maintenance (the gate's own plumbing, the deploy of `main`, the
  *   tests, the evidence). An unclassified command fails, so a new step is
  *   classified by whoever adds it. Today the maintenance commands are
- *   `setup-zitadel.sh` and `trigger-version.sh drill`. The first has a form
+ *   `setup-zitadel.sh` and `dump-idp.sh --drill`. The first has a form
  *   for live that `box-duties.sh` must run: `setup-zitadel.sh --token-only`
  *   (only the clock, since the rest reconciles the provider's configuration,
  *   which a timer must not do behind the owner's back). The drill has none,
- *   and the table says why: `box-duties.sh` must not name `trigger-version.sh`
- *   at all, and the drill it used to run never runs. The rule reads scripts;
+ *   and the table says why: `box-duties.sh` must not name `dump-idp.sh` (the
+ *   drill refuses live anyway), nor `trigger-version.sh`, whose drill it used
+ *   to run and which alpha.18 removed. The rule reads scripts;
  *   a duty written inline in a `run:` block is not seen, and the table's own
  *   comment says so.
  *
@@ -210,13 +213,14 @@ const MAINTENANCE: Record<string, { live: string | null; why: string }> = {
       "the provisioning token's clock: the token lives seven days and every run replaces it in its last three. " +
       "For live only the clock runs; the rest reconciles the provider's configuration, which a timer must not do (0135).",
   },
-  'trigger-version.sh drill': {
-    // The test stack only (workplan 0139, rec-drill (a), 2026-09-28): on live
-    // it kept a daily dump of the task runner's database, which the privacy
-    // policy's §9 does not allow. Live's copy of that database is part of the
-    // copy before a Trigger.dev upgrade (copy-before-update.sh --trigger).
+  'dump-idp.sh': {
+    // `dump-idp.sh --drill` (the reader keeps only a bare word as the
+    // subcommand). The test stack only (workplan 0139, rec-drill (a),
+    // 2026-09-28): a daily dump on live is a copy the privacy policy's §9 does
+    // not allow, and the drill refuses live. It replaced `trigger-version.sh
+    // drill` when alpha.18 removed Trigger.dev and its database (0167 T9).
     live: null,
-    why: 'the Trigger.dev database dumped and restored into a throwaway, on the test stack; never on live, which keeps no daily copy',
+    why: "the identity provider's database dumped and restored into a throwaway, on the test stack; never on live, which keeps no daily copy",
   },
 };
 
@@ -231,6 +235,8 @@ const NOT_MAINTENANCE: Record<string, string> = {
   'bootstrap-managed.sh': 'deploys main, with the demo: live moves by hand, from a tag (T1g, T6)',
   'smoke-managed.sh': 'the test itself',
   'redact-evidence.sh': "the job's evidence, before it is uploaded",
+  'remove-trigger-plane.sh':
+    "removes by name what Trigger.dev's plane left on the OTA stack (0167 T9): once, idempotent after; live's is the owner's pasted step, not a duty",
 };
 
 /**
@@ -313,14 +319,14 @@ describe("the rule: which of the gate's commands maintain the stack", () => {
       'echo "prerequisites in deploy/compose/deploy-tasks.sh: create the account"',
       '. deploy/compose/env-read.sh',
       'out="$(./deploy/compose/setup-zitadel.sh 2>&1)" || { printf "%s" "$out"; exit 1; }',
-      './deploy/compose/trigger-version.sh drill',
+      './deploy/compose/dump-idp.sh --drill',
       'cp "${PERSIST_DIR}/.env" deploy/compose/.env && ./deploy/compose/env-upsert.sh deploy/compose/.env A=b',
       'if ./deploy/compose/own-addresses.sh --mask deploy/compose/.env; then :; fi',
     ].join('\n');
     expect(invocationsIn('t', run).map((i) => `${i.script}${i.sub ? ` ${i.sub}` : ''}`)).toEqual([
       'env-read.sh',
       'setup-zitadel.sh',
-      'trigger-version.sh drill',
+      'dump-idp.sh',
       'env-upsert.sh',
       'own-addresses.sh',
     ]);
@@ -351,9 +357,12 @@ describe("the rule: which of the gate's commands maintain the stack", () => {
     ).toEqual([]);
   });
 
-  it('today the maintenance commands are setup-zitadel.sh and trigger-version.sh drill', () => {
+  it("today the maintenance commands are setup-zitadel.sh and dump-idp.sh's drill", () => {
     const maintenance = [...new Set(found.flatMap((i) => (classify(i)?.maintenance ? [classify(i)?.key] : [])))];
-    expect(maintenance.sort()).toEqual(['setup-zitadel.sh', 'trigger-version.sh drill']);
+    expect(maintenance.sort()).toEqual(['dump-idp.sh', 'setup-zitadel.sh']);
+    // The gate's drill is the identity provider's, not Trigger.dev's (0167 T9).
+    expect(code(read(GATE_REL))).toMatch(/^\s*\.\/deploy\/compose\/dump-idp\.sh --drill\s*$/m);
+    expect(code(read(GATE_REL))).not.toMatch(/trigger-version\.sh/);
   });
 });
 
@@ -375,9 +384,9 @@ describe('box-duties.sh runs every maintenance command that has a form for live,
     ).not.toEqual([]);
   });
 
-  it('no drill duty on live: it names trigger-version.sh nowhere in its code, and no maintenance command without a form for live', () => {
-    expect(code(text), 'box-duties.sh runs trigger-version.sh: the drill is the test stack\'s (0139, rec-drill (a))').not.toMatch(
-      /trigger-version\.sh/,
+  it('no drill duty on live: it names neither drill in its code, and no maintenance command without a form for live', () => {
+    expect(code(text), 'box-duties.sh runs a drill: the drill is the test stack\'s (0139, rec-drill (a))').not.toMatch(
+      /trigger-version\.sh|dump-idp\.sh/,
     );
     for (const [key, m] of Object.entries(MAINTENANCE)) {
       if (m.live) continue;
@@ -440,6 +449,7 @@ const DUTY_STUB = [
   '  "setup-zitadel.sh --token-only") duty=token ;;',
   '  "copy-before-update.sh expire") duty=copies ;;',
   '  "trigger-version.sh drill") duty=drill ;;',
+  '  "dump-idp.sh --drill") duty=drill ;;',
   '  "exposure-check.sh") duty=exposure ;;',
   '  "setup-zitadel.sh --count-organisations") duty=organisations ;;',
   '  "www-live.sh check") duty=site ;;',
@@ -473,10 +483,12 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   chmodSync(join(compose, 'box-duties.sh'), 0o755);
-  // trigger-version.sh too, so that a drill run by mistake is seen, not missed.
+  // trigger-version.sh and dump-idp.sh too, so that a drill run by mistake is
+  // seen, not missed.
   for (const f of [
     'setup-zitadel.sh',
     'trigger-version.sh',
+    'dump-idp.sh',
     'copy-before-update.sh',
     'exposure-check.sh',
     'www-live.sh',
@@ -747,7 +759,7 @@ describe('box-duties.sh keeps to live, and to what it may print', () => {
   it('no duty runs the drill on live: the test stack drills, live keeps no daily copy (0139, rec-drill (a))', () => {
     const r = runDuties(stage());
     expect(r.status, r.out).toBe(0);
-    expect(r.asked.map((a) => a[0] ?? '').filter((a) => a.startsWith('trigger-version.sh')), r.out).toEqual([]);
+    expect(r.asked.map((a) => a[0] ?? '').filter((a) => /^(trigger-version|dump-idp)\.sh/.test(a)), r.out).toEqual([]);
     expect(r.out).not.toMatch(/\bdrill\b/);
   });
 

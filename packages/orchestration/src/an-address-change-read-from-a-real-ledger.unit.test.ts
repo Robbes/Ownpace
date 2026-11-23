@@ -174,14 +174,15 @@ describe('the address table in a real ledger', () => {
 
   it('names the digest on the confirmed list, counts both kinds, and never calls one a change waits for a match', async () => {
     const list = await readConfirmedList({ source: driver, tenantId: TENANT, mappingId: MAPPING }, 'active' as never);
-    // `k-never` has no version to guard the write: counted apart (0168, found on the way).
+    // `k-never` has no version to guard the write: counted apart (0168, found
+    // on the way), and checked as a plain copy, so it is verified as copied
+    // (the owner, 2026-11-23; ADR-0055 decision 5).
     expect(list.addressChanges).toEqual({ digest: NOW, changed: 1, older: 2, unguarded: 1 });
-    expect(list.verified).toBe(2);
+    expect(list.verified).toBe(3);
     // The list's own order is by item id, which the ledger draws at random:
     // read by key.
     const marked = list.rows.map((r) => [r.naturalKey, r.state, r.address, r.waitsFor] as const);
     expect([...marked].sort((a, b) => String(a[0]).localeCompare(String(b[0])))).toEqual([
-      ['k-never', 'differs', 'older', 'unguarded'],
       ['k-older', 'differs', 'older', 'pass'],
     ]);
   });
@@ -201,7 +202,7 @@ describe('the address table in a real ledger', () => {
 
   it('counts them for the pass, apart by whether a version guards the write (S1, S5)', async () => {
     const counted = await withTenant(driver, TENANT, (db) => new PgLedger(db).countAddressChanges(TENANT, MAPPING, 'contact'));
-    expect(counted).toEqual({ changed: 1, waiting: 1, unguarded: 1 });
+    expect(counted).toEqual({ changed: 1, waiting: 1, unguarded: 1, left: 0 });
   });
 
   it('records a press of Apply the new addresses here too, and the phases a pass reads hand it back', async () => {
@@ -223,7 +224,7 @@ describe('the address table in a real ledger', () => {
     expect(counted).toEqual({
       rows: 2,
       digest: NOW,
-      byDomain: [{ domain: 'contact', changed: 1, older: 2, unguarded: 1, waitsFor: 'pass' }],
+      byDomain: [{ domain: 'contact', changed: 1, older: 2, unguarded: 1, left: 0, waitsFor: 'pass' }],
     });
   });
 
@@ -241,8 +242,10 @@ describe('the address table in a real ledger', () => {
       );
       expect((await waitsFor())('contact')).toBe('press');
       const list = await readConfirmedList({ source: driver, tenantId: TENANT, mappingId: MAPPING }, 'cutover' as never);
-      // `k-never`, with no version to guard the write, waits for neither (0168).
-      expect(list.rows.map((r) => r.waitsFor).sort()).toEqual(['press', 'unguarded']);
+      // `k-never`, with no version to guard the write, waits for neither
+      // (0168), and is verified as copied, so not among the rows sent.
+      expect(list.rows.map((r) => r.waitsFor).sort()).toEqual(['press']);
+      expect(list.addressChanges?.unguarded).toBe(1);
       await q(`DELETE FROM address_change WHERE tenant_id = $1 AND old_key = 'dora@old.example.org'`, [TENANT]);
       expect((await waitsFor())('contact')).toBe('pass');
     } finally {

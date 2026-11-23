@@ -1,6 +1,6 @@
 # ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail
 
-- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; built 2026-11-23 (0168 T1–T9, #2067), and amended that day by the landing's review: a copy records the digest of the rows that decided it, a rewrite needs a strong recorded version, and the press names the table it was shown (decisions 3 to 6); again for alpha.18 (5, 6).
+- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; built 2026-11-23 (0168 T1–T9, #2067), and amended that day three times: by the landing's review (decisions 3 to 6), for alpha.18 (3 to 6), and by the owner's two decisions on copies nothing changes (5, 6). See the Amendment log.
 - **Date:** 2026-11-22
 - **Deciders:** owner
 - **Relates to:** [ADR-0005](./0005-idempotency-ledger-nondestructive.md) (re-runs converge),
@@ -14,26 +14,27 @@
 
 ## Operative rules
 
-- **Built** (workplan 0168 T1–T9). A copy changes only once the organisation's table holds a
-  confirmed row; with none, every byte is the source's.
+- **Built** (workplan 0168): only a confirmed row changes a copy.
 - **One table per organisation**, `address_change`, in the shared chain under forced row security.
-  Only an owner or an admin writes it, and only rows a person **confirmed** reach a writer; the
+  Only an owner or admin writes it, and only rows a person **confirmed** reach a writer; the
   machine never confirms. An admin may confirm for a person, attributed; the person confirms or
   sends back their own row, on their page or through their links (0168 D6).
-- **A pure function of source bytes and table** (`applyAddressChanges`), applied before
-  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, byte for byte.
+- **A pure function of source bytes, table and migration start** (`applyAddressChanges`), before
+  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, as is an event or task
+  over at that start (`mailbox_mapping.created_at`).
 - **Changed:** a vCard `EMAIL` gains the new address first and preferred, the old kept (D2); an old
-  `ORGANIZER` is replaced; an `ATTENDEE` only where the organiser is in the table or is the person (D3).
+  `ORGANIZER` is replaced; an old `ATTENDEE`, `SENT-BY`, `DELEGATED-*` or `MEMBER` address only where
+  the organiser is in the table or is the person (D3).
 - **Never changed:** mail, in any byte (D1); free text (D4); display names; UIDs; a card inside a
   card; an outside organiser's invitation.
 - **Declared, never silent:** each item records the digest of the rows that decided it
-  (`item.address_digest`); verification and the confirmed list count and name it; an older digest,
-  or a change a copy still waits for (`item.address_digest_due`), is never a match. Every write of
-  the table is audited by reference, never by address.
+  (`item.address_digest`), counted and named by verification and the confirmed list; a change still
+  to come (`item.address_digest_due`) is never a match. A copy nothing will change (`unguarded`,
+  `left`) is checked as copied, said apart, and holds nothing. Writes are audited.
 - **A changed table converges** by a rewrite guarded by `If-Match` with a strong version, else
-  the copy is left and said as left. A copy deleted on the target is counted gone, never remade
-  (decision 6). Past a cutover only on a person's press, for the table they were shown (D5).
-  Silence (ADR-0043) holds.
+  the copy is left and said as left. A copy deleted on the target is never remade (decision 6).
+  Past a cutover only on a person's press, for the table shown (D5), never for a copy whose source
+  changed after it. Silence (ADR-0043) holds.
 - **Shares:** a confirmed row is ADR-0032 §6's confirmation; each press still sends its address.
   Support shows counts only (D7); erasure purges both tables (`PURGED_TABLES`).
 
@@ -60,29 +61,46 @@ break.
 1. **One table of address changes per organisation**, old to new, in the shared ledger chain
    (`address_change`, forced row security). Only rows a person **confirmed** reach a writer. The
    machine may propose rows, and never confirms one.
-2. **The change is a pure function of the source bytes and the table**
-   (`applyAddressChanges`, `packages/shared`), applied by the contact and calendar writers before
-   their existing repairs and before `neutraliseScheduling`. An empty table is the identity, byte
-   for byte.
+2. **The change is a pure function of the source bytes and the table**, and for a calendar object
+   of the migration's start too (decision 4; `applyAddressChanges`, `packages/shared`), applied by
+   the contact and calendar writers before their existing repairs and before
+   `neutraliseScheduling`. An empty table is the identity, byte for byte.
 3. **What it changes:**
    - a vCard `EMAIL` that is an old address gains the new one, first and preferred, and the old line
      is kept (a card that already lists the new address prefers that line where it is, and the
      added line carries no `PID`, `ALTID` or `PROP-ID`);
    - an `ORGANIZER` that is an old address is replaced;
-   - an `ATTENDEE` is replaced only in events whose organiser is in the table or is the person.
+   - an `ATTENDEE` is replaced only in events whose organiser is in the table or is the person;
+   - in those events, an old address in an `ORGANIZER`'s or `ATTENDEE`'s `SENT-BY`,
+     `DELEGATED-FROM`, `DELEGATED-TO` or `MEMBER` gets the new one, each value of a list in its own
+     quotes and scheme spelling (amended 2026-11-23; the owner: *"yes, since the new address will
+     control the new events"*). An `ATTENDEE` left as it was keeps them.
 4. **What it never changes:**
    - mail, in any header or byte;
    - free text (`SUMMARY`, `DESCRIPTION`, `LOCATION`, `NOTE`);
    - display names;
    - UIDs;
    - a card inside a card;
-   - an outside organiser's invitation.
+   - an outside organiser's invitation;
+   - a calendar object that was over at the migration's start, `mailbox_mapping.created_at`, one
+     moment no pass and no press moves: an event whose last occurrence ended before it, a series
+     with an `UNTIL` or `COUNT` spent and no `RDATE` or moved instance still to come, a task done
+     before it, a journal entry dated before it. The whole object is one decision, and dates that
+     cannot be read are not over. Its bytes are decided by no row, so its digest is null (amended
+     2026-11-23; the owner: *"Though perhapse we need not change past-events we migrate."*).
+   - A task is done before the start when its `COMPLETED` time is; without one, when its `STATUS`
+     is `COMPLETED` or `CANCELLED` and its `LAST-MODIFIED`, else its `DTSTAMP`, is. With no such
+     time, or one that cannot be read, it is not over. So a task open at the start changes and
+     stays changed when it is finished later: nothing goes back during a migration (the same day's
+     review).
 5. **It is declared, never silent.** Each item records the digest of the confirmed rows that
    decided its bytes (`item.address_digest`), and a pass that did not write it records the digest
    it should carry (`item.address_digest_due`). Verification and the confirmed list count changed
    items and name the digest, an item a change still waits for is never reported as a match, and
    a sample in which every item waits holds the cutover. An item with no version to guard its
    rewrite is said apart from those that wait (`unguarded`): no pass and no press changes it.
+   *Amended 2026-11-23 by the owner (Amendment log):* such an item is checked as a plain copy,
+   counted and named apart, and never holds the cutover on its own.
 6. **A changed table converges** through the ordinary rewrite, with every rule a rewrite keeps:
    - an adopted item is left alone;
    - the write carries `If-Match` with a strong recorded version, and without one the item is left
@@ -92,14 +110,39 @@ break.
      whose HEAD finds nothing, for a source change as for an address change, and a failed rewrite
      is retried as that rewrite, never as a create;
    - a source that lists only what changed reads a collection again when its table moves, and for
-     a calendar or task when the account's own addresses move, since they decide its guests.
+     a calendar or task when the account's own addresses move, since they decide its guests; the
+     migration's start is in a calendar's tag too (decision 4), which never moves, so a calendar
+     read before 2026-11-23 is read once more and its past events go back to the source's bytes.
 
    After a data type's cutover, it waits for a person's press, which names the table the page
-   showed (workplan 0168 D5).
+   showed (workplan 0168 D5). *Amended 2026-11-23 by the owner (Amendment log):* a copy whose
+   source changed after the cutover is left as it is and said as left (`left`): the press never
+   rewrites it, and it never counts as waiting.
 7. **Shares:** a confirmed row counts as ADR-0032 §6's confirmation of a grantee's address. Each
    press still sends its address. Nothing else in ADR-0032 changes.
 8. **Silence holds:** ADR-0043's rule is unchanged, and the managed gate proves it on a changed
    event.
+
+## Amendment log
+
+- **2026-11-23** — **Copies that cannot be guarded do not hold the switch** (the owner, workplan
+  0168, on the follow-ups' advice: *"i think i take on what you adviced."*). A copy with no strong
+  version to guard a rewrite is changed by no pass and no press, so it keeps the old address. A
+  verification sample of only those held the cutover for good, with no remedy. Now verification
+  checks it as a plain copy, which must still equal the bytes as copied, counts and names it apart
+  (`unguarded`, `ADDRESS_UNGUARDED_*`), and never holds the cutover on it alone; an item truly
+  waiting for a pass or the press still holds as before. The words: *N items keep the old address,
+  because the new system offers no safe way to update them.* Record: decision 5.
+- **2026-11-23** — **After the switch, a copy whose source changed is left, and said as left**
+  (the owner, workplan 0168: *"2) b."*). Past a data type's cutover a change at the source
+  overwrites no copy (ADR-0048, *"Stop overwriting"*). A copy whose address rows moved too was
+  counted as waiting for the press, which never rewrites it, since that rewrite would carry the
+  source's change. Now a pass records it as left (`item.address_left_at`, ledger 0075), and every
+  reader counts it apart (`left`, `addressChangesLeft`, `ADDRESS_LEFT_*`): the press never claims
+  or rewrites it, it never holds the cutover, and it never counts as waiting. It is checked as a
+  plain copy. Option (c), rewriting only the address lines in the new account's copy, was not
+  chosen. The words: *changed in your old account after the switch, not updated.* Record:
+  decision 6.
 
 ## Consequences
 

@@ -4,6 +4,107 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, later still: the owner's two decisions on copies nothing changes, built, on
+`claude/ownpace-public-readiness-y7orc6-0168-unguarded`** (cut from the follow-ups' branch). Two
+of the follow-ups' *Not done* items were the owner's call; both are decided and built, each rule
+with tests that fail without it (ADR-0055 decisions 5 and 6, amended; its Amendment log).
+
+- **1. Copies that cannot be guarded do not hold the switch.** The owner took the advice: *"i
+  think i take on what you adviced."* A copy with no strong version to guard a rewrite keeps the
+  old address, since no pass and no press changes it. Verification now checks it as a plain copy
+  (its sample is compared with the bytes as copied, so a real difference still fails it), counts
+  and names it apart (`addressChanges.unguarded`, `ADDRESS_UNGUARDED_*`), and never holds the
+  cutover on it alone; an item truly waiting for a pass or the press is still set aside and still
+  holds (`ADDRESS_NOT_COMPARED_*`). The confirmed list keeps such a row's own state, verified when
+  it matches, and says `unguarded`. The Check page, the confirmed list, the migration's page and
+  the report say *N items keep the old address, because the new system offers no safe way to
+  update them*, in English and Dutch (`verification-a-change-under-an-older-table.unit.test.ts`,
+  `a-match-under-an-older-address-table.unit.test.ts`, `Verify.unit.test.tsx`,
+  `Confirmed.unit.test.tsx`, `MappingDetail.unit.test.tsx`).
+- **2. After the switch, a copy whose source changed is left, and said as left: option (b).** The
+  owner: *"2) b."* Past a data type's cutover such a copy is counted `changedAfterCutover` and
+  never rewritten ("Stop overwriting", ADR-0048), and the press never rewrites it either. A pass
+  now records it as left with the change it waits for (`item.address_left_at`, ledger
+  `0075_the_copy_left_after_the_switch`, additive; set by `markAddressChangeDue`'s `left`, cleared
+  when the copy is written or nothing is due). Every reader counts it apart, never as waiting:
+  the pass (`addressChangesLeft`, in `lastPass`), verification (`leftKeys`, `addressChanges.left`,
+  `ADDRESS_LEFT_*`, compared as a plain copy, never held), the confirmed list (`left`), the report
+  and the migration's page, where the press's *Waiting for it* leaves it out. The words: *changed
+  in your old account after the switch, not updated*, in English and Dutch
+  (`a-copy-changed-at-the-source-after-the-switch.unit.test.ts`). Option (c), rewriting only the
+  address lines in the new account's copy, was not chosen and is not built.
+
+Left alone, as asked: the calendar rule on past events, `SENT-BY` and the other parameters, and the
+domain list (`NOT_TAKEN_ALONG`), which other branches build; and the digest of an event and the
+own addresses (the follow-ups' last *Not done* item).
+
+Evidence: the two new unit files fail on the follow-ups' head (11 of their 20 tests) and pass
+here; the unit tier, typecheck, lint and the docs checks on the branch's head; the SQL readers
+and the new column on Postgres through `scripts/local-pg.sh`
+(`a-copy-left-after-the-switch.integration.test.ts`, with `a-copy-no-pass-changes.integration.test.ts`
+again), and on PGlite (`an-address-change-read-from-a-real-ledger.unit.test.ts`). **E2E
+(managed)** should show the confirmed-rows run green as before, every copy of the run carrying a
+strong version, so `unguarded` and `left` absent from the report and the Check page's address
+lines unchanged.
+
+**2026-11-23, later still: `SENT-BY`, `DELEGATED-*` and `MEMBER`, and what is over, decided and
+built, on `claude/ownpace-public-readiness-y7orc6-calendar-past`.** The owner, asked about the
+three parameters D3 had left as they were: *"yes, since the new address will control the new
+events. Though perhapse we need not change past-events we migrate."* The advice was to leave
+past events as the source has them and to change the rest, and the owner was told so. ADR-0055 is
+amended (decisions 2 to 4, its operative rules).
+
+- **The three parameters.** In an event or task whose organiser is in the table or is the person
+  (D3), an old address in an `ORGANIZER`'s or `ATTENDEE`'s `SENT-BY`, `DELEGATED-FROM`,
+  `DELEGATED-TO` or `MEMBER` gets the new one: each quoted value of a list, in its own quotes and
+  scheme spelling, every other byte kept. An outside invitation keeps them, as it keeps its guests
+  (`an-address-a-delegate-or-a-group-names.unit.test.ts`).
+- **What is over keeps every address.** A calendar object that was over at the migration's start
+  is copied byte for byte and records no digest (`calendar-object-over.ts`): an event by `DTEND`,
+  `DURATION` or its all-day date; a series once its `UNTIL` or `COUNT` is spent and no `RDATE` or
+  moved instance is still to come, never with an open-ended rule; a task done before the start,
+  by its `COMPLETED` time, else, `COMPLETED` or `CANCELLED` by its `STATUS`, by its
+  `LAST-MODIFIED` or else `DTSTAMP`; a journal entry by its `DTSTART`. The whole object is one
+  decision, and dates it cannot read are not over, nor is a done task with no such time. A `TZID` is read in its zone (an IANA name through `Intl`, any other
+  through the object's own `VTIMEZONE`, at the latest instant its offsets allow); a floating time,
+  and a date, in UTC. The repository's own content-line reader parses it: no dependency was added.
+- **The start** is the migration's creation, `mailbox_mapping.created_at`, read with its phases
+  (`readPathPhases`, `createdAt`) by both editions' passes and the managed builder. Chosen over its
+  first pass because it is one moment no pass and no press moves, never NULL, and on the row in
+  both editions from its first day, where the passes leave no record that lasts (`run` rows are
+  history). It is the draft's creation, shortly before *Start* is pressed, so an event that ended
+  in between still changes: the safe side.
+- **Converging.** A copy of a past event that alpha.17 changed goes back to the source's bytes by
+  the ordinary rewrite, past a cutover on the press. The start is in a calendar's cursor tag
+  (`+over:`), so a source that lists only what changed reads each calendar once more.
+- **Nothing waits for a past event.** Its digest and its due digest stay null, so the confirmed
+  list marks nothing, verification sets nothing aside (`ADDRESS_NOT_COMPARED` cannot count it),
+  and *Apply the new addresses here too* counts nothing for it
+  (`a-new-address-and-an-event-that-is-over.unit.test.ts`).
+- **The words.** *Your new address*, and the appliance's confirm page through the same list, say
+  *"Events that are already over: they keep the old address, as a record of what happened. So do
+  tasks completed or cancelled before the migration starts; a task you finish later still gets the
+  new address."*, in English and Dutch; the Google and Microsoft guides say it after their
+  paragraph on a new address. No feature matrix or known-limitations line names
+  the address change. The privacy policy's §4.6 and §7 stay true and were not edited: the
+  addresses are still used only to correct those in what we copy, now in fewer events, and a
+  progress link still shows the new address, never the old.
+- **A task must not flip** (found in review, the same day). As first built, a
+  task was over once completed or cancelled, whenever that was, so one the person finished after
+  the start went back to the old organiser on the next pass. Now only a task done before the start
+  is over, and one open then stays changed (`calendar-object-over.unit.test.ts`, *a task is over
+  when it was done before the start*; `a-new-address-and-an-event-that-is-over.unit.test.ts`, *a
+  task the person finishes after the start*).
+- **E2E (managed).** Event 4, the organiser rewrite's canary, is dated January of next year, after
+  every run and so after the demo migration's start: unchanged. The seed adds event 5, organised by
+  the same old address and over on 2025-01-07; the gate holds its copy to the source's bytes but for
+  `SCHEDULE-AGENT=CLIENT` (the seeder's `--past-event`), and its ledger row to no digest. Not run:
+  the lane needs the shared runner.
+
+Proven: the unit tier of the packages touched (shared, core, orchestration, ledger, the web app)
+and the script guards, typecheck, lint and the docs checks; each rule with a test that fails with
+the rule mutated off. Not proven: anything against a running server.
+
 **2026-11-23, after #2070: `NOT_TAKEN_ALONG` holds Microsoft's, Apple's, Yahoo's and four
 Dutch and Belgian internet providers' domains, on
 `claude/ownpace-public-readiness-y7orc6-domains`.** Every provider's page was read on 2026-11-23,
@@ -193,8 +294,15 @@ Proven:
   exact when two people share one name — *added for alpha.18 (`confirmedByThePerson`)*.
 - A database fault logs the driver's whole error, parameters included (`server-fault.ts`), on
   every route; the fix belongs in `loggableError`.
+  - Fixed since, and central: the shared `log` prints every error through `loggableError`
+    (`packages/shared/src/loggable-error.ts`), the job runner logs through `log`, and the appliance
+    answers a 500 with a reference (CHANGELOG, Unreleased). A line that writes an error's message
+    into its own text still carries Drizzle's `params:`: 51 such lines are in files that reach the
+    database.
 - `SENT-BY`, `DELEGATED-FROM`/`-TO` and `MEMBER` keep their old addresses while `ORGANIZER` and
-  `ATTENDEE` change (D3 names only those two): the owner's call.
+  `ATTENDEE` change (D3 names only those two): the owner's call — *decided 2026-11-23 and built for
+  alpha.18: they change with their line, and an event that was over at the migration's start keeps
+  every address (the entry above)*.
 - **Where the build differs from §3 and D2 above:** a copy records the digest of the rows that
   decided its bytes, not the table's, with `item.address_digest_due` beside it (§3.1); a rewrite
   needs a strong recorded version, and a copy deleted on the target is counted as gone (§3.3); the

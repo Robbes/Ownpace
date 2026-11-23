@@ -115,14 +115,15 @@ type JobsConnection = (env: Readonly<Record<string, string | undefined>>) => { r
  * `jobsConnectionString`: a given URL as the jobs role, else the owner's URL
  * with the jobs role and its password in its place). A URL that cannot be
  * composed is left out, and `cancelRun` then refuses in its own sentence,
- * which the close logs. In trigger mode nothing is added, and operator-jobs.ts,
- * which loads pg-boss, is not loaded.
+ * which the close logs. A switch it may not hold (`trigger`, since alpha.18)
+ * throws its own sentence before operator-jobs.ts, which loads pg-boss, is
+ * loaded.
  */
 export async function cancelEnvForTheClose(
   env: NodeJS.ProcessEnv,
   connection: () => Promise<JobsConnection> = async () => (await import('./operator-jobs.ts')).jobsConnectionString,
 ): Promise<NodeJS.ProcessEnv> {
-  if (jobRunner(env) !== 'pg-boss') return env;
+  jobRunner(env);
   const made = (await connection())(env);
   return 'url' in made ? { ...env, JOBS_DATABASE_URL: made.url } : env;
 }

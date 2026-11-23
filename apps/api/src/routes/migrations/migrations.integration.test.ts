@@ -19,11 +19,19 @@ import jwt from 'jsonwebtoken';
 // Mock the Trigger.dev client so the real sync/cutover endpoints can be tested
 // without a live orchestrator: capture the enqueue call and return a stub run.
 const { triggerMock } = vi.hoisted(() => ({
-  triggerMock: vi.fn(async () => ({ id: 'run_mock_test' })),
+  triggerMock: vi.fn(async (..._asked: unknown[]) => ({ id: 'run_mock_test' })),
 }));
-vi.mock('@openmig/scheduler', () => ({
-  getTriggerClient: () => ({ tasks: { trigger: triggerMock } }),
-}));
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+});
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../../__testing__/a-queue-stand-in.ts')).aQueueStandIn(
+    await importOriginal(),
+    async (taskId: string, payload: Record<string, unknown>, options: Readonly<Record<string, unknown>>) =>
+      (await triggerMock(taskId, payload, options)).id,
+  ),
+);
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {

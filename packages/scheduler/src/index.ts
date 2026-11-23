@@ -4,4 +4,3 @@ export const packageName = '@openmig/scheduler';
 
 export * from './single-flight.ts';
 export * from './scheduler.ts';
-export * from './trigger-client.ts';

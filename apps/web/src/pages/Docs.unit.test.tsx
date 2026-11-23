@@ -741,6 +741,16 @@ describe('a renderer that keeps a guide\'s shape (0148 T6 (b)), on fixtures', ()
     expect([...container.querySelectorAll('p')].map((p) => p.textContent)).toContain('Before the table:');
   });
 
+  it('reads a long run of spaces after a dash under a row with a pipe in linear time (workplan 0163)', () => {
+    // Two `\s*` side by side at the delimiter row's end made this line
+    // quadratic: before the change it took 4 seconds. Not a table, so a
+    // paragraph; the bound is far above a linear read.
+    const started = performance.now();
+    const { container } = renderFixture(`a | b\n-${' '.repeat(60_000)}x`);
+    expect(container.querySelector('table')).toBeNull();
+    expect(performance.now() - started).toBeLessThan(1500);
+  });
+
   it('renders a blockquote, with a lazy line and the blocks inside it', () => {
     const { container } = renderFixture(SHAPES);
     const quote = container.querySelector('blockquote')!;

@@ -31,6 +31,8 @@
  * the ASCII this returns.
  */
 
+import { asciiLower } from './xml-elements.ts';
+
 /**
  * The header section as one latin1 string, bounded at the blank line.
  *
@@ -54,17 +56,23 @@ export function headerValue(rfc822: Uint8Array, name: string): string | undefine
   return headerValueIn(headerSection(rfc822), name);
 }
 
-/** The same read, over a section already decoded. */
+/**
+ * The same read, over a section already decoded: the first line that starts
+ * with `name`, then `[ \t]*:`, as `^name[ \t]*:(.*)$` with the `i` and `m` flags
+ * read it, a line at a time and with no pattern built from `name` (workplan
+ * 0163). Field names are ASCII (§3.6.8), so only A to Z fold.
+ */
 export function headerValueIn(section: string, name: string): string | undefined {
   const unfolded = section.replace(/\r?\n[ \t]+/g, ' ');
-  const pattern = new RegExp(`^${escapeForPattern(name)}[ \\t]*:(.*)$`, 'im');
-  const value = pattern.exec(unfolded)?.[1]?.trim();
-  return value && value.length > 0 ? value : undefined;
-}
-
-/** A field name as a literal — a caller's string is never a pattern. */
-function escapeForPattern(name: string): string {
-  return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wanted = asciiLower(name);
+  for (const line of unfolded.split(/[\r\n\u2028\u2029]/)) {
+    if (asciiLower(line.slice(0, name.length)) !== wanted) continue;
+    const colon = /^[ \t]*:/.exec(line.slice(name.length));
+    if (colon === null) continue;
+    const value = line.slice(name.length + colon[0].length).trim();
+    return value.length > 0 ? value : undefined;
+  }
+  return undefined;
 }
 
 /**

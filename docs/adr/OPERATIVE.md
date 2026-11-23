@@ -27,7 +27,7 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0004: Orchestration via Trigger.dev (managed) + in-process scheduler (self-host)](./0004-orchestration-triggerdev-and-inprocess.md)
 
-- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance; on managed **pg-boss** on our own Postgres ([ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md), in force since workplan 0167 T7), with self-hosted Trigger.dev kept installed and stopped as the fallback.
+- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance; on managed **pg-boss** on our own Postgres ([ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md), in force since workplan 0167 T7); self-hosted Trigger.dev is removed from the managed edition (alpha.18, workplan 0167 T9).
 - The orchestrator never sees content: task payloads carry ids only; bytes move inside the task process (SAD §17).
 
 ## [ADR-0005: Idempotency via a ledger; non-destructive by default](./0005-idempotency-ledger-nondestructive.md)
@@ -776,9 +776,10 @@ live in [README.md](./README.md), the register.
 ## [ADR-0054: The managed edition's jobs run on pg-boss, on our own Postgres](./0054-the-managed-editions-jobs-run-on-pg-boss.md)
 
 - **The managed edition's jobs run on pg-boss** (in force since workplan 0167 T7), each on a
-  queue named by its Trigger.dev task id, through `PgBossJobRunner` at
-  `@openmig/scheduler/pg-boss`, which the appliance may not reach. The switch is
-  `OWNPACE_JOB_RUNNER`, `pg-boss` by `managed.yml`'s default.
+  queue named by the task id it had on Trigger.dev, through `PgBossJobRunner` at
+  `@openmig/scheduler/pg-boss`, which the appliance may not reach. The switch
+  `OWNPACE_JOB_RUNNER` keeps its reader: unset, empty or `pg-boss`; `trigger` is refused in one
+  sentence, since alpha.18.
 - **pg-boss is pinned exactly, and the runner runs only on its release's schema version**
   (`scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts`).
 - **Its schema `pgboss` is owned by `ownpace_jobs`**, no superuser and no grant on the ledger,
@@ -791,32 +792,34 @@ live in [README.md](./README.md), the register.
 - **A run settles as Trigger.dev 4.8.8 settles it**, decided by the error's name: an hour,
   three for a cutover (§2's table).
 - **The operator sees the work through `operator.sh jobs`**; there is no dashboard.
-- **Trigger.dev's plane is kept installed and stopped**, in profile `trigger`, its volumes the
-  way back (`OWNPACE_JOB_RUNNER=trigger`); removed only on the owner's word.
+- **Trigger.dev's plane is removed** (alpha.18, workplan 0167 T9): what a stack kept of it goes
+  by name only, its containers in the bring-up's `plane` phase and its volumes by
+  `remove-trigger-plane.sh --yes`, on live on the owner's word.
 - **A job carries ids only** (ADR-0004). Self-host keeps its in-process scheduler. The rules in
   full: *In force from workplan 0167 T7*, below.
 
 ## [ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail](./0055-a-new-address-is-a-declared-change.md)
 
-- **Built** (workplan 0168 T1–T9). A copy changes only once the organisation's table holds a
-  confirmed row; with none, every byte is the source's.
+- **Built** (workplan 0168): only a confirmed row changes a copy.
 - **One table per organisation**, `address_change`, in the shared chain under forced row security.
-  Only an owner or an admin writes it, and only rows a person **confirmed** reach a writer; the
+  Only an owner or admin writes it, and only rows a person **confirmed** reach a writer; the
   machine never confirms. An admin may confirm for a person, attributed; the person confirms or
   sends back their own row, on their page or through their links (0168 D6).
-- **A pure function of source bytes and table** (`applyAddressChanges`), applied before
-  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, byte for byte.
+- **A pure function of source bytes, table and migration start** (`applyAddressChanges`), before
+  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, as is an event or task
+  over at that start (`mailbox_mapping.created_at`).
 - **Changed:** a vCard `EMAIL` gains the new address first and preferred, the old kept (D2); an old
-  `ORGANIZER` is replaced; an `ATTENDEE` only where the organiser is in the table or is the person (D3).
+  `ORGANIZER` is replaced; an old `ATTENDEE`, `SENT-BY`, `DELEGATED-*` or `MEMBER` address only where
+  the organiser is in the table or is the person (D3).
 - **Never changed:** mail, in any byte (D1); free text (D4); display names; UIDs; a card inside a
   card; an outside organiser's invitation.
 - **Declared, never silent:** each item records the digest of the rows that decided it
-  (`item.address_digest`); verification and the confirmed list count and name it; an older digest,
-  or a change a copy still waits for (`item.address_digest_due`), is never a match. Every write of
-  the table is audited by reference, never by address.
+  (`item.address_digest`), counted and named by verification and the confirmed list; a change still
+  to come (`item.address_digest_due`) is never a match. A copy nothing will change (`unguarded`,
+  `left`) is checked as copied, said apart, and holds nothing. Writes are audited.
 - **A changed table converges** by a rewrite guarded by `If-Match` with a strong version, else
-  the copy is left and said as left. A copy deleted on the target is counted gone, never remade
-  (decision 6). Past a cutover only on a person's press, for the table they were shown (D5).
-  Silence (ADR-0043) holds.
+  the copy is left and said as left. A copy deleted on the target is never remade (decision 6).
+  Past a cutover only on a person's press, for the table shown (D5), never for a copy whose source
+  changed after it. Silence (ADR-0043) holds.
 - **Shares:** a confirmed row is ADR-0032 §6's confirmation; each press still sends its address.
   Support shows counts only (D7); erasure purges both tables (`PURGED_TABLES`).

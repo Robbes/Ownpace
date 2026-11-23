@@ -1,0 +1,366 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+
+/**
+ * A NEW ADDRESS AND AN EVENT THAT IS OVER (the owner, 2026-11-23; ADR-0055;
+ * workplan 0168).
+ *
+ * *"Though perhapse we need not change past-events we migrate."* On the real
+ * calendar pass, over the memory ledger and a target that keeps every body it
+ * is given and answers `If-Match` as a DAV server does: an event that was over
+ * at the migration's start (`AddressChangesForPass.migrationStart`) arrives as
+ * the source has it, records no digest, and waits for nothing, before the
+ * cutover or after it, whatever the table does; the event still to come
+ * changes as before. And a copy written before 2026-11-23, when a past event
+ * changed too, converges back to the source's bytes by the ordinary rewrite,
+ * or waits for a person's press past the cutover, as any changed table does,
+ * also from a source that lists only what changed: the start is in a
+ * calendar's cursor tag (`addressTableTag`), so each collection is read again
+ * once. A task open at the start changes, and stays changed when the person
+ * finishes it later: the next pass never puts the old organiser back.
+ *
+ * Addresses are `example.org` only.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { addressTableTag, runCalendarSync, runTaskSync, type AddressChangesForPass } from './dav-sync.ts';
+import { MemoryCursorStore, MemoryLedger } from './__testing__/memory.ts';
+import {
+  addressKey,
+  addressTableDigest,
+  asMappingId,
+  asTenantId,
+  naturalKeyForCalendar,
+  naturalKeyForTask,
+  prepareAddressTable,
+  waitsForAnAddressChange,
+  ADDRESS_DIGEST_OF_NO_CHANGE,
+  type CalendarEvent,
+  type CalendarSource,
+  type CalendarTargetWriter,
+  type ConfirmedAddressChange,
+  type UpsertOptions,
+} from '@openmig/shared';
+
+const TENANT = asTenantId('43333333-3333-4333-8333-333333333333');
+const MAPPING = asMappingId('44444444-4444-4444-8444-444444444444');
+const START = new Date('2026-11-23T10:00:00Z');
+
+function row(oldAddress: string, newAddress: string): ConfirmedAddressChange {
+  return { oldKey: addressKey(oldAddress), oldAddress, newAddress };
+}
+const ANA = row('ana@old.example.org', 'ana@example.org');
+const BEN = row('ben@old.example.org', 'ben@example.org');
+
+/** The pass's table, under the migration's start; `start: null` for a pass that knew none, as before 2026-11-23. */
+function changes(rows: ConfirmedAddressChange[], { start = START as Date | null, pastCutoverApplies = false } = {}): AddressChangesForPass {
+  return {
+    table: prepareAddressTable(rows),
+    ownKeys: [],
+    ...(pastCutoverApplies ? { pastCutoverApplies } : {}),
+    ...(start !== null ? { migrationStart: start } : {}),
+  };
+}
+
+/** Ana's event, with Ben as her guest, on the day given. */
+function event(uid: string, day: string): string {
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTART:${day}T090000Z`,
+    `DTEND:${day}T100000Z`,
+    'ORGANIZER;CN=Ana:mailto:ana@old.example.org',
+    'ATTENDEE;CN=Ben;DELEGATED-FROM="mailto:ana@old.example.org":mailto:ben@old.example.org',
+    'SUMMARY:the family meets',
+    'END:VEVENT',
+    'END:VCALENDAR',
+    '',
+  ].join('\r\n');
+}
+
+/** Last year's meeting, over at the start, and next month's, still to come. */
+const EVENTS: Array<[string, string]> = [
+  ['e-past', '20251124'],
+  ['e-ahead', '20261221'],
+];
+
+function item(uid: string): CalendarEvent {
+  return { uid, type: 'event', summary: uid, start: '2026-01-01T00:00:00Z', etag: `"${uid}-1"`, sourcePath: `/cal/${uid}.ics` } as unknown as CalendarEvent;
+}
+
+function calendarSource(): CalendarSource {
+  return {
+    listFolders: async () => [{ path: '/cal/', name: 'Calendar' }],
+    listSince: async () => ({
+      items: EVENTS.map(([uid, day]) => ({ item: item(uid), icalendar: event(uid, day) })),
+      nextCursor: { value: '1' },
+      removed: [],
+    }),
+  } as unknown as CalendarSource;
+}
+
+/** A target that keeps what it is given, and refuses an overwrite whose If-Match is stale. */
+class Target {
+  readonly bodies = new Map<string, string>();
+  readonly etags = new Map<string, number>();
+  writes = 0;
+  put(uid: string, body: string, options?: UpsertOptions) {
+    if (options?.overwrite) {
+      if (options.expectedTargetVersion !== undefined && options.expectedTargetVersion !== `"${this.etags.get(uid)}"`) {
+        return { targetId: uid, created: false, conflicted: true };
+      }
+      this.writes += 1;
+      this.bodies.set(uid, body);
+      this.etags.set(uid, (this.etags.get(uid) ?? 0) + 1);
+      return { targetId: uid, created: false, updated: true, targetVersion: `"${this.etags.get(uid)}"` };
+    }
+    if (this.bodies.has(uid)) return { targetId: uid, created: false, adopted: true };
+    this.writes += 1;
+    this.bodies.set(uid, body);
+    this.etags.set(uid, 1);
+    return { targetId: uid, created: true, targetVersion: '"1"' };
+  }
+}
+
+function pass(ledger: MemoryLedger, t: Target, addressChanges: AddressChangesForPass, { cutover = false } = {}) {
+  return runCalendarSync({
+    sourceIsAuthorityOnExistence: !cutover,
+    stillTheAuthority: async () => !cutover,
+    tenantId: TENANT,
+    mappingId: MAPPING,
+    source: calendarSource(),
+    target: {
+      ensureCalendar: async (folder: { path: string }) => folder.path,
+      upsertCalendarEvent: async (_c: string, raw: { item: CalendarEvent; icalendar: string }, options?: UpsertOptions) =>
+        t.put(raw.item.uid, raw.icalendar, options),
+    } as unknown as CalendarTargetWriter,
+    ledger,
+    addressChanges,
+  });
+}
+
+const rowOf = (ledger: MemoryLedger, uid: string) => ledger.find(TENANT, MAPPING, 'calendar', naturalKeyForCalendar(item(uid)));
+
+describe('an event that was over at the migration’s start', () => {
+  it('arrives as the source has it, records no digest and waits for nothing; the event to come changes', async () => {
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    const first = await pass(ledger, t, changes([ANA, BEN]));
+    expect(first.created).toBe(2);
+    expect(first.addressChanged).toBe(1);
+    expect(t.bodies.get('e-past')).toBe(event('e-past', '20251124'));
+    expect(t.bodies.get('e-ahead')).toContain('\r\nORGANIZER;CN=Ana:mailto:ana@example.org\r\n');
+    expect(t.bodies.get('e-ahead')).toContain('DELEGATED-FROM="mailto:ana@example.org":mailto:ben@example.org\r\n');
+
+    const past = await rowOf(ledger, 'e-past');
+    expect(past?.addressDigest ?? null).toBeNull();
+    expect(past?.addressDigestDue ?? null).toBeNull();
+    // What the confirmed list, verification and the report ask of a copy.
+    expect(waitsForAnAddressChange(past?.addressDigest, past?.addressDigestDue)).toBe(false);
+    expect((await rowOf(ledger, 'e-ahead'))?.addressDigest).toBe(addressTableDigest([ANA, BEN]));
+    expect(await ledger.countAddressChanges(TENANT, MAPPING, 'calendar')).toEqual({
+      changed: 1,
+      waiting: 0,
+      unguarded: 0,
+      left: 0,
+    });
+
+    const writes = t.writes;
+    const again = await pass(ledger, t, changes([ANA, BEN]));
+    expect(t.writes).toBe(writes);
+    expect(again.addressChanged).toBe(0);
+  });
+
+  it('is never reached by a row that comes or goes, before the cutover or after it', async () => {
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    await pass(ledger, t, changes([ANA]));
+    // Ben's row comes: only the event to come is rewritten.
+    const added = await pass(ledger, t, changes([ANA, BEN]));
+    expect(added.updated).toBe(1);
+    expect(t.bodies.get('e-past')).toBe(event('e-past', '20251124'));
+    // Past the cutover, a table that changes again waits for a press, for the event to come alone.
+    const waiting = await pass(ledger, t, changes([BEN]), { cutover: true });
+    expect(waiting.addressChangesWaiting).toBe(1);
+    const past = await rowOf(ledger, 'e-past');
+    expect(past?.addressDigestDue ?? null).toBeNull();
+    expect(waitsForAnAddressChange(past?.addressDigest, past?.addressDigestDue)).toBe(false);
+    expect((await ledger.countAddressChanges(TENANT, MAPPING, 'calendar')).waiting).toBe(1);
+    // Pressed: the event to come follows the table; the past event is still the source's.
+    const pressed = await pass(ledger, t, changes([BEN], { pastCutoverApplies: true }), { cutover: true });
+    expect(pressed.updated).toBe(1);
+    expect(t.bodies.get('e-past')).toBe(event('e-past', '20251124'));
+  });
+});
+
+describe('a copy of a past event written before 2026-11-23, when it changed too', () => {
+  it('converges back to the source’s bytes on the next pass, once', async () => {
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    // As alpha.17 wrote it: the table applied, no start known.
+    await pass(ledger, t, changes([ANA, BEN], { start: null }));
+    expect(t.bodies.get('e-past')).toContain('\r\nORGANIZER;CN=Ana:mailto:ana@example.org\r\n');
+    expect((await rowOf(ledger, 'e-past'))?.addressDigest).toBe(addressTableDigest([ANA, BEN]));
+
+    const next = await pass(ledger, t, changes([ANA, BEN]));
+    expect(next.updated).toBe(1);
+    expect(t.bodies.get('e-past')).toBe(event('e-past', '20251124'));
+    expect((await rowOf(ledger, 'e-past'))?.addressDigest ?? null).toBeNull();
+    const writes = t.writes;
+    await pass(ledger, t, changes([ANA, BEN]));
+    expect(t.writes).toBe(writes);
+  });
+
+  it('past the cutover, waits for a person’s press as any changed table does, then goes back', async () => {
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    await pass(ledger, t, changes([ANA, BEN], { start: null }));
+    const waiting = await pass(ledger, t, changes([ANA, BEN]), { cutover: true });
+    expect(waiting.addressChangesWaiting).toBe(1);
+    expect((await rowOf(ledger, 'e-past'))?.addressDigestDue).toBe(ADDRESS_DIGEST_OF_NO_CHANGE);
+    const pressed = await pass(ledger, t, changes([ANA, BEN], { pastCutoverApplies: true }), { cutover: true });
+    expect(pressed.updated).toBe(1);
+    expect(t.bodies.get('e-past')).toBe(event('e-past', '20251124'));
+    const past = await rowOf(ledger, 'e-past');
+    expect(waitsForAnAddressChange(past?.addressDigest, past?.addressDigestDue)).toBe(false);
+  });
+});
+
+describe('from a source that lists only what changed', () => {
+  it('names the start in a calendar’s cursor tag, and only where the table has a row', () => {
+    const tag = addressTableTag(changes([ANA, BEN]), 'icalendar');
+    expect(tag).toContain(`+over:${START.toISOString()}`);
+    expect(addressTableTag(changes([ANA, BEN], { start: null }), 'icalendar')).not.toContain('+over:');
+    // A card is never over, and an empty table with no press keeps its cursors as they were.
+    expect(addressTableTag(changes([ANA, BEN]), 'vcard')).not.toContain('+over:');
+    expect(addressTableTag(changes([]), 'icalendar')).toBe('');
+  });
+
+  it('reads each calendar again once under the start, so a past event changed before 2026-11-23 goes back, then reads incrementally', async () => {
+    const ledger = new MemoryLedger();
+    const cursors = new MemoryCursorStore();
+    const t = new Target();
+    const asked: Array<string | undefined> = [];
+    // Everything on a first reading; past the cursor it issued, nothing, as nothing changes there.
+    const source = {
+      listFolders: async () => [{ path: '/cal/', name: 'Calendar' }],
+      listSince: async (_folder: unknown, cursor: { value: string } | undefined) => {
+        asked.push(cursor?.value);
+        if (cursor !== undefined && cursor.value !== 'seq-2') throw new Error(`a cursor this source never issued: ${cursor.value}`);
+        return {
+          items: cursor === undefined ? EVENTS.map(([uid, day]) => ({ item: item(uid), icalendar: event(uid, day) })) : [],
+          nextCursor: { value: 'seq-2' },
+          removed: [],
+        };
+      },
+    } as unknown as CalendarSource;
+    const run = (addressChanges: AddressChangesForPass) =>
+      runCalendarSync({
+        sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        source,
+        target: {
+          ensureCalendar: async (folder: { path: string }) => folder.path,
+          upsertCalendarEvent: async (_c: string, raw: { item: CalendarEvent; icalendar: string }, options?: UpsertOptions) =>
+            t.put(raw.item.uid, raw.icalendar, options),
+        } as unknown as CalendarTargetWriter,
+        ledger,
+        cursors,
+        addressChanges,
+      });
+
+    // As alpha.17 copied it: the table applied, no start known.
+    await run(changes([ANA, BEN], { start: null }));
+    expect(t.bodies.get('e-past')).toContain('\r\nORGANIZER;CN=Ana:mailto:ana@example.org\r\n');
+    // Under the start the tag moved, so the calendar is read from the beginning, and the past event goes back.
+    const back = await run(changes([ANA, BEN]));
+    expect(asked).toEqual([undefined, undefined]);
+    expect(back.updated).toBe(1);
+    expect(t.bodies.get('e-past')).toBe(event('e-past', '20251124'));
+    // The pass after it reads incrementally again, and writes nothing.
+    const writes = t.writes;
+    await run(changes([ANA, BEN]));
+    expect(asked).toEqual([undefined, undefined, 'seq-2']);
+    expect(t.writes).toBe(writes);
+  });
+});
+
+describe('a task the person finishes after the start', () => {
+  /** Ana's task, with Ben as its guest, as the source holds it: open, or done at the time given. */
+  function todo(done?: string): string {
+    return [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VTODO',
+      'UID:t-milk',
+      `DTSTAMP:${done ?? '20261101T080000Z'}`,
+      `LAST-MODIFIED:${done ?? '20261101T080000Z'}`,
+      ...(done === undefined ? ['STATUS:NEEDS-ACTION'] : ['STATUS:COMPLETED', `COMPLETED:${done}`]),
+      'ORGANIZER;CN=Ana:mailto:ana@old.example.org',
+      'ATTENDEE;CN=Ben;DELEGATED-FROM="mailto:ana@old.example.org":mailto:ben@old.example.org',
+      'SUMMARY:buy milk',
+      'END:VTODO',
+      'END:VCALENDAR',
+      '',
+    ].join('\r\n');
+  }
+
+  it('keeps the new address on the next pass, and is never put back to the old one: a task must not flip', async () => {
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    let held = { body: todo(), version: 1 };
+    const source = {
+      listFolders: async () => [{ path: '/tasks/', name: 'Tasks' }],
+      listSince: async () => ({
+        items: [
+          {
+            item: { ...item('t-milk'), etag: `"t-milk-${held.version}"`, sourcePath: '/tasks/t-milk.ics' },
+            icalendar: held.body,
+          },
+        ],
+        nextCursor: { value: String(held.version) },
+        removed: [],
+      }),
+    } as unknown as CalendarSource;
+    const run = () =>
+      runTaskSync({
+        sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        source,
+        target: {
+          ensureCalendar: async (folder: { path: string }) => folder.path,
+          upsertCalendarEvent: async (_c: string, raw: { item: CalendarEvent; icalendar: string }, options?: UpsertOptions) =>
+            t.put(raw.item.uid, raw.icalendar, options),
+        } as unknown as CalendarTargetWriter,
+        ledger,
+        addressChanges: changes([ANA, BEN]),
+      });
+    const rowNow = () => ledger.find(TENANT, MAPPING, 'task', naturalKeyForTask(item('t-milk')));
+
+    // Open at the start: it changes.
+    await run();
+    expect(t.bodies.get('t-milk')).toContain('\r\nORGANIZER;CN=Ana:mailto:ana@example.org\r\n');
+    expect((await rowNow())?.addressDigest).toBe(addressTableDigest([ANA, BEN]));
+
+    // Done at the source the day after the start: copied again as done, still at the new address.
+    held = { body: todo('20261124T080000Z'), version: 2 };
+    const done = await run();
+    expect(done.updated).toBe(1);
+    expect(t.bodies.get('t-milk')).toContain('\r\nSTATUS:COMPLETED\r\n');
+    expect(t.bodies.get('t-milk')).toContain('\r\nORGANIZER;CN=Ana:mailto:ana@example.org\r\n');
+    expect(t.bodies.get('t-milk')).not.toContain('mailto:ana@old.example.org');
+    const after = await rowNow();
+    expect(after?.addressDigest).toBe(addressTableDigest([ANA, BEN]));
+    expect(waitsForAnAddressChange(after?.addressDigest, after?.addressDigestDue)).toBe(false);
+
+    // And the pass after it leaves it there.
+    const writes = t.writes;
+    await run();
+    expect(t.writes).toBe(writes);
+  });
+});

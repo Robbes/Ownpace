@@ -11,7 +11,6 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schemaTask, queue } from '@trigger.dev/sdk';
 import { and, eq } from 'drizzle-orm';
 import {
   autoApplyRelocations,
@@ -28,7 +27,7 @@ import {
 import { budgetPauseToReason, HALT_IN_WORDS } from '@openmig/shared';
 import { passStepBefore, whyThisDataTypeStops, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
 import { leavesAReference, planeErrorFor, planeErrorForEach, type RecordedFailure } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import { announceFirstCopy } from './the-first-copy-email.ts';
 import type {
   TenantId,
@@ -217,15 +216,21 @@ const { tenant: pool } = openTaskPools();
 // What it still owes billing is one field: `domainSeconds` in `run.stats`,
 // which is where the per-domain grain went when the per-domain rows left.
 
-// Concurrency 1, partitioned by `concurrencyKey: mappingId` at trigger time
-// (the sync tick sets it): one running delta sync per mapping, ever — a slow
-// pass serializes the next one instead of overlapping it (0022 T2).
-const deltaSyncQueue = queue({ name: 'delta-sync', concurrencyLimit: 1 });
+// One running pass per mapping, ever: the queue is `singleton`, serialised by
+// the mapping's id, which the sync tick and every door pass (the job catalog,
+// `@openmig/scheduler/pg-boss`; 0022 T2). A slow pass serialises the next one
+// instead of overlapping it.
+//
+// THE MACHINE A COPY PASS RUNS ON (workplan 0143 T1 step 2): half a CPU and
+// 512 MB, of which V8 gets 410. Trigger.dev's `small-1x`, named on this task
+// until alpha.18 (0167 T9); on pg-boss the catalog's `maxOldSpaceMb` caps each
+// run's heap, and the worker container is sized per run from it. Measured
+// 2026-09-28 on the owner's Dropbox pass: 307 MiB at its peak, copying a
+// 409 MB file, and 120 to 160 MiB while it was not copying (0150, Status).
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const runDeltaSyncRun = leavesAReference(
   'run-delta-sync',
@@ -304,8 +309,8 @@ export const runDeltaSyncRun = leavesAReference(
         trigger: 'schedule',
         // The orchestrator's own id for this run. It used to be left unset —
         // "wire it when the v4 task model lands" — and v4 is what we run now
-        // (`ctx.run.id`, read from @trigger.dev/core's TaskRunContext rather
-        // than guessed, in run-context.ts; on pg-boss, the job's id).
+        // (the pg-boss job's id, as the worker forked the run, never
+        // guessed; run-context.ts).
         //
         // It is not bookkeeping. Without a handle, a row that says `running`
         // is an unfalsifiable claim: the erasure quiesce (0085 T8) cannot ask
@@ -630,6 +635,7 @@ export const runDeltaSyncRun = leavesAReference(
             addressChanged?: number;
             addressChangesWaiting?: number;
             addressChangesUnguarded?: number;
+            addressChangesLeft?: number;
             goneFromTarget?: number;
             /**
              * Rewrites not sent because the copy still lists guests the target
@@ -927,6 +933,7 @@ export const runDeltaSyncRun = leavesAReference(
           // log as the change after cutover is: counts only, never an address.
           const waiting = result.addressChangesWaiting ?? 0;
           const unguarded = result.addressChangesUnguarded ?? 0;
+          const left = result.addressChangesLeft ?? 0;
           const gone = result.goneFromTarget ?? 0;
           if (waiting > 0) {
             await withTenant(pool, tenantId, async (db) => {
@@ -949,8 +956,23 @@ export const runDeltaSyncRun = leavesAReference(
                 'warn',
                 `${domain}: ${unguarded} item(s) were not changed for a new address: no version was recorded ` +
                   'to guard the write, so an edit somebody made at the new system could not be told apart from ' +
-                  'our copy. They were left as they are, and none of them counts as a match.',
+                  'our copy. They keep the old address, and are checked as copied.',
                 { domain, addressChangesUnguarded: unguarded },
+              );
+            });
+          }
+          if (left > 0) {
+            // Changed at the source after the switch (the owner, 2026-11-23;
+            // ADR-0055 decision 6): left, never waiting for the press.
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'info',
+                `${domain}: ${left} item(s) were changed in the old account after the switch, and are not ` +
+                  'updated, the new address included. Apply the new addresses here too leaves them as they ' +
+                  'are. Nothing failed.',
+                { domain, addressChangesLeft: left },
               );
             });
           }
@@ -1236,20 +1258,3 @@ export const runDeltaSyncRun = leavesAReference(
     }
   },
 );
-
-// Register the job with Trigger.dev
-export const runDeltaSync = schemaTask({
-  id: 'run-delta-sync',
-  description: 'Delta Sync',
-  schema: DeltaSyncJobSchema,
-  queue: deltaSyncQueue,
-  // THE MACHINE A COPY PASS RUNS ON (workplan 0143 T1 step 2): half a CPU and
-  // 512 MB, of which V8 gets 410. Named here because this task copies, for
-  // the tick, *Sync now*, `/start` and a cutover's final sync alike.
-  // Measured 2026-09-28 on the owner's Dropbox pass, the first after #1328:
-  // 307 MiB at its peak, copying a 409 MB file, and 120 to 160 MiB while it
-  // was not copying (0150, Status). Mail's worst case (0143 §3: four bodies
-  // held whole) is not measured yet; that is 0143 T9.
-  machine: 'small-1x',
-  run: onTriggerDev(runDeltaSyncRun),
-});

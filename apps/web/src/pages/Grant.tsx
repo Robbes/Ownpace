@@ -123,6 +123,7 @@ import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
 import AlphaGoogleLine from '../components/AlphaGoogleLine.tsx';
+import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import { TARGET_CARDS } from '../components/front-door-cards.ts';
 import { scopeWordKeys } from '../i18n/google-scope-words.ts';
 
@@ -331,6 +332,10 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
         </a>
       </p>
       <p className="mt-3 text-sm text-gray-500">{t('grant.withdraw')}</p>
+      {/* Its own line: the one above lists what a person accepts (0145 T9 (b)). */}
+      <p className="mt-3 text-sm text-gray-500">
+        <AccessibilityLink className="underline" />
+      </p>
     </>
   );
 };
@@ -547,6 +552,10 @@ const Grant: React.FC = () => {
             </a>
           </p>
           <p className="mt-3 text-sm text-gray-500">{t('grant.withdraw')}</p>
+          {/* Its own line: the one above lists what a person accepts (0145 T9 (b)). */}
+          <p className="mt-3 text-sm text-gray-500">
+            <AccessibilityLink className="underline" />
+          </p>
         </>
       )}
 

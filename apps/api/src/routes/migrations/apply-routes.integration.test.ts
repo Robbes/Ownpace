@@ -5,12 +5,12 @@
 // What is covered: the synchronous ledger-side refusals over HTTP — including
 // the one that matters most, the flag DEFAULTING to off — the joined-receipt
 // short-circuit (which answers before evaluate or enqueue, so it needs no
-// Trigger.dev backend), the receipt mapper over every row shape, the
+// job queue), the receipt mapper over every row shape, the
 // enqueue-death landing (a receipt is never left `queued` pointing at a job
 // that was never queued), and the scope/auth guards.
 //
 // The live enqueue itself follows the discovery and verify suites' precedent:
-// it needs a Trigger.dev backend this environment does not run, and mocking a
+// it needs a job queue this environment does not run, and mocking a
 // SUCCESSFUL enqueue would only assert the mock. The failure branch is a
 // different animal — there the mock is nothing but the fault injector, and
 // everything asserted (the 502, the receipt landing `failed`, the mapper's
@@ -28,23 +28,21 @@ import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
 import { DISCOVERY_DOMAINS } from '@openmig/shared';
 
-// Trigger.dev, replaced by a client whose every enqueue THROWS. Two reasons:
+// The job queue (pg-boss's producer), replaced by one whose every enqueue THROWS. Two reasons:
 // it makes the enqueue-failure landing testable (the one branch of the
 // destructive route the refusal tests never reach), and it turns any
-// accidental enqueue in this file into a loud failure instead of an HTTP call
-// to whatever happens to listen on localhost:3000. Everything else the API
+// accidental enqueue in this file into a loud failure instead of a connection
+// to whatever jobs database happens to be configured. Everything else the API
 // pulls from the scheduler package stays real.
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const real = await importOriginal<typeof import('@openmig/scheduler')>();
-  const failing = {
-    tasks: {
-      trigger: async () => {
-        throw new Error('no Trigger.dev backend in this environment (deliberate)');
-      },
-    },
-  } as unknown as ReturnType<typeof real.getTriggerClient>;
-  return { ...real, getTriggerClient: () => failing };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), () => {
+    throw new Error('no job queue in this environment (deliberate)');
+  }),
+);
 
 const PG = process.env.TEST_DATABASE_URL;
 if (!PG) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
@@ -265,7 +263,7 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
 
     it('an enqueue that dies lands the receipt failed and answers 502 — never left queued', async () => {
       // Every ledger gate permits this item, so the route inserts a queued
-      // receipt and calls Trigger.dev — which this file makes throw. The
+      // receipt and enqueues on the job queue — which this file makes throw. The
       // property under test is the landing: a poller must never be left
       // waiting on a job that was never queued, about a REMOVAL of all
       // things, and the failure must carry its reason (hard rule 9).
@@ -274,7 +272,7 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
         .set(auth);
       expect(res.status).toBe(502);
       expect(res.body.error).toBe('Could not queue the removal');
-      expect(res.body.message).toMatch(/no Trigger\.dev backend/);
+      expect(res.body.message).toMatch(/no job queue in this environment/);
 
       const receipt = await request
         .get(`/api/migrations/${MAPPING}/deletions/${HASH_QUEUEFAIL}/receipt`)

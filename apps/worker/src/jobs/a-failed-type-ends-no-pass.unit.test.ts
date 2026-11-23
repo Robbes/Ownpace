@@ -36,7 +36,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
-import { AbortTaskRunError } from '@trigger.dev/sdk';
+import { RunNotRetried } from './what-a-run-leaves.ts';
 import { PassAbortError, withFailureSide } from '@openmig/core';
 import { createPgliteDb, runMigrations, type LedgerDriver } from '@openmig/ledger';
 import { setAppEventSink, type AppEvent } from '@openmig/shared';
@@ -137,7 +137,7 @@ let runPass: (payload: unknown, context: RunContext) => Promise<unknown>;
 
 /** A pass asks nothing of the runner it runs on: each question it might ask fails the case. */
 const NOTHING_ASKED: JobRunnerPort = {
-  name: 'trigger',
+  name: 'pg-boss',
   enqueue: () => Promise.reject(new Error('a pass enqueues nothing')),
   enqueueAndWait: () => Promise.reject(new Error('a pass waits for nothing')),
   verdict: () => Promise.reject(new Error('a pass asks after no run')),
@@ -307,7 +307,7 @@ describe('a pass whose calendar fails', () => {
     // The pass failed, so the plane retries it as it always did: an ordinary
     // error, naming calendar with that reference, and none of the words.
     expect(thrown).toBeInstanceOf(Error);
-    expect(thrown).not.toBeInstanceOf(AbortTaskRunError);
+    expect(thrown).not.toBeInstanceOf(RunNotRetried);
     expect((thrown as Error).message).toBe(
       `calendar sync failed (target_refused). Reference ${calendar.last_error_reference}.`,
     );
@@ -378,7 +378,7 @@ describe('a pass in which two data types fail', () => {
     expect(calendarRef).not.toBe(emailRef);
 
     expect(thrown).toBeInstanceOf(Error);
-    expect(thrown).not.toBeInstanceOf(AbortTaskRunError);
+    expect(thrown).not.toBeInstanceOf(RunNotRetried);
     expect((thrown as Error).message).toBe(
       `calendar sync failed (target_refused). Reference ${calendarRef}. ` +
         `email sync failed (network). Reference ${emailRef}.`,
@@ -411,7 +411,7 @@ describe('a pass in which two data types fail', () => {
 
     expect(called()).toEqual(['contact', 'calendar', 'task', 'email', 'file']);
     const rows = await statusRows();
-    expect(thrown).toBeInstanceOf(AbortTaskRunError);
+    expect(thrown).toBeInstanceOf(RunNotRetried);
     expect((thrown as Error).message).toBe(
       `calendar sync stopped itself after items failed in a row (${rows.calendar!.last_error_category}). ` +
         `Reference ${rows.calendar!.last_error_reference}. ` +

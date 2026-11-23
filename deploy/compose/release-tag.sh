@@ -54,7 +54,7 @@
 # AND THE NODE THAT INSTALLS IT (workplan 0119, the move to Node 26 in
 # alpha.4). deploy-live.sh runs `pnpm install --frozen-lockfile`, the task
 # deploy and the site build on this host, and stand-up-live.sh's bring-up runs
-# the install and the task deploy (deploy-tasks.sh): all on the node first on
+# the install (and, until alpha.18, the task deploy): all on the node first on
 # the PATH of the shell the script runs in. pnpm only warns when that node is
 # below the release's `engines` (`WARN Unsupported engine`; the repository
 # sets no engineStrict, the owner's to decide) and installs all the same, and

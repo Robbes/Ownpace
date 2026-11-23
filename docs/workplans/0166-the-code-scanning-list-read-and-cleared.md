@@ -82,6 +82,18 @@ for alpha.18, on another branch.
     decision.**
 - **No new check,** since nothing was fixed: the guards above hold the state as decided.
 
+**2026-11-23: alpha.18 removes Trigger.dev's plane, and nine image categories stop (workplan 0167
+T9).** The images leave Security Scan's list with the plane: `trigger.dev`, `supervisor`,
+`clickhouse-server`, `minio`, `redis`, `registry`, `docker-socket-proxy`, `caddy` and
+`trigger-task-base`. Their `trivy-image-<name>` categories get no newer analysis, so, by §2's rule,
+their open alerts stay open: code scanning closes an alert only on a newer analysis of the same
+category. Nothing was dismissed. What closes them is the owner's, once alpha.18 is on `main`: on
+the tool status page, delete each of the nine configurations, as for the three test-only images on
+2026-11-03 (§2's table, its new row). Until then they count in the open list, and T6's reading of
+Monday's scan should leave them out. §3's rows that wait on a Trigger.dev release (`turbo-stream`,
+`deepmerge-ts`, the webapp's Debian 12 packages) have no image left to move; they go with the
+categories.
+
 **2026-11-21, last: the branch image scans of T3 and T4, and two findings §1 does not have.**
 - **T3** (#2015, Security Scan run 44932855500 on its branch): `postgres-managed` and
   `postgres-selfhost` read 0 critical and 0 high; CVE-2026-86144 is gone from both.
@@ -407,6 +419,7 @@ newer analysis of the same category no longer finds it.
 | `trivy-image-nextcloud`, `trivy-image-stalwart`, `trivy-image-mailpit` | 2026-11-03, when test-only images left code scanning (#1800) | closed: the owner dismissed 294 alerts as *used in tests* (245 and 49; Mailpit had none) and deleted the three configurations on the tool status page | done |
 | `trigger-task-base`'s old findings under `library/node` | 2026-11-06, when the leg moved from building the deploy's `base` stage to pulling the prebuilt base | not stale: the category is the same, so its first upload of the prebuilt base closed them | done |
 | Semgrep's 204 under the two ReDoS rules | not stopped: the same category, its rules kept whole | should be closed since 16:06 UTC | T1 checks it |
+| `trivy-image-trigger.dev`, `-supervisor`, `-clickhouse-server`, `-minio`, `-redis`, `-registry`, `-docker-socket-proxy`, `-caddy`, `-trigger-task-base` | alpha.18, when Trigger.dev's plane left `managed.yml` and the image list (workplan 0167 T9) | open: no newer analysis comes | the owner deletes the nine configurations on the tool status page once alpha.18 is on `main`; not dismissed |
 
 Every other image category uploaded in run 44878860013, and the image list has had the same 26
 names in every image run since the first, on 2026-10-22 (runs 39809564949, 40174770235,

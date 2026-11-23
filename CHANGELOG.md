@@ -11,9 +11,46 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   it through their own link, and the team screen reads it: a confirmation by somebody whose name
   is said as the person's now reads *Confirmed by ‹name› for ‹person›*. Always false on the
   appliance, which has no person.
+- **An accessibility statement on the site, in English and in Dutch** (workplan 0145 T9 (b)):
+  `accessibility.html` and `nl/toegankelijkheid.html`, linked from every page's footer, from
+  under the app's sign-in page, from its menu, and from the foot of a grant link's page and of a
+  progress link's page, where the managed service also links its privacy policy (an appliance,
+  its owner's service under their own policy, does not). It says
+  the app aims for WCAG 2.2 level AA and does not yet meet it in full, that no independent audit
+  has been done, what it covers (the site, the app at app.ownpace.eu with the pages a link opens,
+  and the appliance's same screens), what 0145 and the screen sweep (0159) did, the gaps still
+  open (a new screen is not announced; *Check*'s help is a hover text), what has not been
+  checked (VoiceOver and TalkBack, 200% zoom, in-app browsers, axe and WebKit in CI), and to write
+  to support@ownpace.eu, answered within five working days, as the privacy policy says. Its
+  *Last reviewed* date is held to the last twelve months by
+  `site/an-accessibility-statement.unit.test.ts`. The owner read both texts and chose to publish
+  them as they are.
 
 ### Changed
 
+- **`OWNPACE_JOB_RUNNER` keeps its reader, and an old `.env` fails loudly** (workplan 0167 T9).
+  Unset, empty or `pg-boss` runs; `trigger` is refused by the bring-up, the deploy, the API, the
+  worker and `operator.sh` in one sentence: *"OWNPACE_JOB_RUNNER is "trigger", but Trigger.dev was
+  removed in alpha.18, so remove the key from the .env or set it to "pg-boss"."* Any other value is
+  refused as before.
+- **The bring-up's phases are `preflight env data demo plane app smoke`.** The new `plane` phase
+  removes what is left of the plane's containers on the stack, by their Compose labels, and never
+  a volume; the smoke checks that no container of the plane is left, at its start and its end.
+- **The plane's volumes go only by name, on the owner's word:** `deploy/compose/remove-trigger-plane.sh`
+  lists them, says what `--yes` would remove, and with `--yes` removes the eleven volumes and three
+  networks of this checkout's project, and nothing else; it refuses while a plane container is left
+  or the switch says `trigger`. E2E (managed) runs it on the OTA stack after each bring-up; on live
+  it is the owner's step after alpha.18 is proven (docs/managed-bring-up.md, "Trigger.dev's plane,
+  removed").
+- **The gate's restore drill is the identity provider's database:** `dump-idp.sh --drill` dumps
+  it, restores the dump into a database of its own and compares its table counts, in place of the
+  drill of Trigger.dev's database.
+- **`copy-before-update.sh take --trigger` is refused**: there is no task runner's database to
+  copy. A kept copy that holds one keeps it, is deleted and expires as any copy, and nothing
+  restores it. `rotate-db-passwords.sh --with-trigger-stores` is refused the same way.
+- **Live's deploy from alpha.17 is reversible.** alpha.17's `deploy-live.sh` takes the copy
+  without `--trigger`, notes that the release removes the plane from `managed.yml` (its volumes
+  stay), and finds no migration and no changed pin it compares.
 - **The API says a jobs producer that never started when it closes it** (workplan 0163). Closing
   the API's pg-boss producer while its start had failed dropped that failure without a word; the
   press that made it was handed the failure, and the close now logs it once, at warn, through
@@ -29,6 +66,65 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   whose provider lets the address be kept, for a fee or for a while, stays on the list, since the
   step only proposes. The Microsoft guide keeps *I am also changing my address* for an
   `.onmicrosoft.com` name, or any address the step does not recognise.
+- **A new address reaches `SENT-BY`, `DELEGATED-FROM`, `DELEGATED-TO` and `MEMBER` too, and an
+  event that was already over keeps every address** (workplan 0168; ADR-0055, amended; the owner,
+  2026-11-23: *"yes, since the new address will control the new events. Though perhapse we need
+  not change past-events we migrate."*). In an event or task whose organiser is in the table or is
+  the account's own, an old address in those parameters gets the new one, each value of a list in
+  its own quotes and scheme spelling; an invitation from outside keeps them, as it keeps its
+  guests. A calendar object that was over at the migration's start, when the migration was made,
+  is copied as the source has it and records no address digest, so nothing waits for it: an event
+  that ended before it, read in its own time zone (a floating time in UTC); a series whose `UNTIL`
+  or `COUNT` was spent, never one without an end, and not while an added date or a moved instance
+  is still to come; a task completed or cancelled before it, by its `COMPLETED` time, else by when
+  it was last changed, so a task finished later keeps the new address; a journal entry dated
+  before it. Dates that cannot be read are not over, so such an object changes, as every one did
+  before. A copy of a
+  past event that alpha.17 changed goes back to the source's bytes on the next pass, which reads
+  each calendar again once (past a data type's cutover, after *Apply the new addresses here too*).
+  *Your new address* and the Google and Microsoft guides say so in English and Dutch, and the
+  managed gate seeds a past event whose copy must be the source's bytes.
+- **The privacy policy says a request for access is logged by its reference** (§4.5, both
+  languages, still version 1.0; workplan 0168). The log names a request and our decision on it by
+  the request's reference since #2077, never by the address it gives, and the policy now says so.
+  It also says in words what a comment beside it kept for the next version: the sign-in service
+  logs the address a person registers with when they arrive from the mail that grants them access.
+- **Copies that cannot be guarded no longer hold the switch** (the owner's decision of 2026-11-23;
+  workplan 0168; ADR-0055, amended). A copy with no version to guard a rewrite keeps the old
+  address, since no pass and no press changes it, and a verification sample made only of such
+  copies held the cutover for good. Verification now checks such a copy as a plain copy, which
+  must still equal what was copied, counts it apart and never holds the cutover on it alone. The
+  Check page, the confirmed list, the migration's page and the report say *N items keep the old
+  address, because the new system offers no safe way to update them*, in English and Dutch. An
+  item truly waiting for a pass or the press still holds as before.
+- **After the switch, a copy changed in the old account is left, and said as left** (the owner's
+  decision of 2026-11-23, option (b); workplan 0168; ADR-0055, amended). Past a data type's
+  cutover a change at the old account overwrites no copy, so the press never rewrites such a copy,
+  yet one whose address rows moved too was counted as waiting for it. A pass now records it as
+  left (ledger migration `0075_the_copy_left_after_the_switch`, additive), and the confirmed list,
+  the migration's page, the Check page and the report count it apart, *changed in your old account
+  after the switch, not updated*, in English and Dutch. It never counts as waiting, the press never
+  claims it, and it holds nothing.
+
+### Removed
+
+- **Self-hosted Trigger.dev, from the managed edition** (workplan 0167 T9; ADR-0054). The owner,
+  2026-11-23: *"i will remove trigger.dev, but the machine runs OTA and managed, so both have to be
+  move out of triggerdev."* alpha.16 moved every job to pg-boss and kept the plane stopped as the
+  way back; alpha.18 removes it. Gone: the `@trigger.dev/*` packages and the `trigger.dev` CLI (and
+  the pnpm overrides and release-age exclusions only their dependencies needed), the task wrappers
+  in `apps/worker/src/jobs`, `trigger.config.ts`, the task image and its base
+  (`apps/worker/task-image`), the API's Trigger.dev client paths; in `deploy/compose/managed.yml`
+  the eleven services of profile `trigger` (trigger-db, trigger-redis, trigger-api, clickhouse,
+  trigger-registry, trigger-docker-proxy, trigger-supervisor, minio, minio-init, trigger-tls,
+  trigger-tls-init), their three networks, their volumes and every `TRIGGER_*` key; the scripts
+  that only served the plane (`deploy-tasks.sh`, `set-task-env.sh`, `trigger-version.sh`,
+  `trigger-credentials.sh`, `plane-tokens.sh`, `plane-limit.sh`, `reset-trigger.sh`, the login
+  helpers, the supervisor, ClickHouse, Redis, Caddy and socket-proxy configuration); the bring-up's
+  phases `trigger`, `account`, `login` and `tasks`; the images `ownpace-task-base`, the socket
+  proxy, Caddy and Redis from `images.yml`, Security Scan and Dependabot; the pin watch's rows for
+  Trigger.dev, ClickHouse and the tasks' Node and base, which close their issues once; E2E
+  (managed)'s `job_runner` input, its Trigger.dev drill and its `TRIGGER_*` environment.
 
 ### Fixed
 
@@ -56,6 +152,43 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   check again after the next pass.
 - **The appliance's answer to *Apply the new addresses here too* for a migration it does not
   hold has a sentence**, in English and Dutch, as managed's has (workplan 0168, found on the way).
+- **A database fault no longer writes a person's details into the server log** (workplan 0168).
+  Every route logged a failed statement's whole error beside its reference, and the drivers put
+  the statement's values in it: Postgres's `detail` quotes the key or the whole failing row
+  (`Key (email)=(…) already exists.`), a data exception's message quotes the input it refused,
+  PGlite adds the statement's `params`, and Drizzle repeats them in its message and stack.
+  `loggableError` now leaves those out of what it logs, as it already left out a request's body.
+  The rest of the message, the error's code, its table, column and constraint names, the statement
+  up to its first literal and the chain of causes still say what failed and where.
+- **Every log line prints a database error without its values, not only a route's 500** (workplan
+  0168). The shared `log` reads every error it is handed through `loggableError`, at every level, so
+  the places in the API, the job worker and the appliance that log an error themselves, and the job
+  runner's own error lines, print it the same way. The appliance answers a request it fails on with
+  a sentence and a reference, as the API does, instead of the error's message, which for a database
+  error carried the statement's values; the reference is in its log line and on its log page.
+- **An access request, an invitation and a mail that could not be sent are logged by id, not by
+  address** (workplan 0168). An outside, read-only check found the requester's, the invitee's and a
+  mail's recipient's address in the log lines themselves. Each line now names the access request or
+  the invitation by its id, or what the mail was about; a second knock while a request is still
+  open names nobody, since nothing on that anonymous path can read the queue for its id.
+
+### Security
+
+- **A DAV server's answer is read in time linear in its length** (workplan 0163, 2026-11-23). The
+  CalDAV and CardDAV readers, the 207 reader the DAV targets share, the reading of a DAV server's
+  refusal, the Google sync measurement and the DAV target probe took an element out with a pattern of
+  the shape `<name…>([\s\S]*?)</name>`. On an answer that opens the element many times and never
+  closes it, that pattern scans from every opening tag to the end: time quadratic in the answer's
+  length, with nothing capping it. Crafted answers under 1 MB held a test for 15 to 94 seconds
+  where they now take milliseconds. The server is whatever host a person names, so a hostile one
+  could hold a worker that long. They are now read a tag at a time (`elementsIn`, in
+  `@openmig/shared`), and what each reader finds in well-formed tags is unchanged.
+- **The guides' table reader no longer slows on a long run of spaces.** The delimiter-row pattern
+  had two `\s*` side by side at its end. It read only the guides the web app ships, so this is a
+  fix in kind, not one anybody could reach.
+- **Three more patterns no longer build a regular expression from a value**: a calendar
+  invitation's `CN` and `EMAIL`, a mail header by its name, and a WebDAV error's conditions by the
+  root's prefix. Each was linear and reads as before.
 
 ### Security
 

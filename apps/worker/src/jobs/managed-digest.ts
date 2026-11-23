@@ -50,11 +50,10 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schedules } from '@trigger.dev/sdk';
 import type { Pool } from 'pg';
 import { sql, type SQL } from 'drizzle-orm';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
 import { PgLedger, PgDecisionStore, readGraceEndedWithoutAChoice, tenantScopedDb, withTenant } from '@openmig/ledger';
 import { log, createNotifier, asTenantId, asMappingId } from '@openmig/shared';
@@ -202,9 +201,8 @@ export function digestLedgerOn(pool: Pool, organisations: () => Promise<readonly
 export const DigestJobSchema = z.strictObject({});
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const managedDigestRun = leavesAReference(
   'managed-digest',
@@ -255,12 +253,3 @@ export const managedDigestRun = leavesAReference(
     return summary;
   },
 );
-
-export const managedDigest = schedules.task({
-  id: 'managed-digest',
-  // 08:00 UTC. Morning on purpose: a summary that lands at 03:00 is read
-  // twelve hours late, and the whole point is reaching somebody before their
-  // day starts.
-  cron: '0 8 * * *',
-  run: onTriggerDev(managedDigestRun),
-});

@@ -143,22 +143,17 @@ vi.mock('./middleware/auth.ts', async (importOriginal) => {
   };
 });
 
-const { enqueued } = vi.hoisted(() => ({ enqueued: [] as string[] }));
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (taskId: string) => {
-          enqueued.push(taskId);
-          return Promise.resolve({ id: `run-${enqueued.length}` });
-        },
-      },
-      runs: { cancel: () => Promise.resolve() },
-    }),
-  };
+const { enqueued } = vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+  return { enqueued: [] as string[] };
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('./__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (taskId: string) => {
+    enqueued.push(taskId);
+    return `run-${enqueued.length}`;
+  }),
+);
 
 // The ledger's apply gates are not this file's subject (see the hold's guard).
 vi.mock('@openmig/core', async (importOriginal) => {
@@ -693,7 +688,7 @@ describe('the sweep: every door that starts work asks whether the organisation i
   it('the one enqueue reads the close before it hands anything back', () => {
     const text = code(join(SRC, THE_ENQUEUE));
     const readAt = text.indexOf('readOrganisationClosure(');
-    const enqueueAt = text.indexOf('tasks.trigger(');
+    const enqueueAt = text.indexOf('producer.enqueue(');
     expect(readAt, 'enqueueUnlessHeld does not read the close').toBeGreaterThan(-1);
     expect(enqueueAt).toBeGreaterThan(readAt);
   });

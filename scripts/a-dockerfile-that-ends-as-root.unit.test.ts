@@ -56,8 +56,11 @@
  * Dockerfile this file finds (`dockerfiles()` is the report's, so the two
  * read the same files), with `.hadolint.yaml`, and writes each file's
  * findings to the job's summary, a finding EXCEPTIONS or KNOWN_FINDINGS
- * explain marked known with its reason. It becomes blocking after the two
- * Trigger.dev Dockerfiles have had their pass. So this also holds, each rule
+ * explain marked known with its reason. It was to become blocking after the
+ * two Trigger.dev Dockerfiles had had their pass; alpha.18 removed both
+ * (workplan 0167 T9), with the dashboard's TLS front, the Docker socket proxy,
+ * Trigger.dev's Redis and the tasks' base, so that condition is gone and the
+ * switch is a pull request of its own. So this also holds, each rule
  * broken on purpose below as well, on the real file where there is one:
  *
  *  7. THE IMAGE IS HADOLINT'S BY A RELEASE TAG AND ITS INDEX DIGEST, the
@@ -73,8 +76,9 @@
  *     report, run against a stubbed `docker`, exits 0 on every finding, and
  *     on a pull request whatever happened, and 1 on a push or a dispatch only
  *     when a Dockerfile went unlinted;
- * 10. THE WORKFLOW SAYS WHEN IT BECOMES BLOCKING, naming both Trigger.dev
- *     Dockerfiles;
+ * 10. THE WORKFLOW SAYS HOW IT BECOMES BLOCKING: its header says the
+ *     condition it waited for went with Trigger.dev in alpha.18, and that
+ *     the switch is a pull request of its own;
  * 11. THE REPORT LINTS EVERY DOCKERFILE THIS FILE FINDS, after one pull, one
  *     sandboxed run each, and calls known exactly what EXCEPTIONS (by
  *     hadolint's code for the rule, RULE_CODES) or KNOWN_FINDINGS explain.
@@ -120,15 +124,9 @@ export const KNOWN = [
   'apps/selfhost/Dockerfile',
   'apps/web/Dockerfile',
   'apps/worker/Dockerfile',
-  'apps/worker/task-image/Dockerfile',
-  'deploy/compose/caddy/Dockerfile',
-  'deploy/compose/docker-socket-proxy/Dockerfile',
   'deploy/compose/goaccess/Dockerfile',
   'deploy/compose/pgbouncer/Dockerfile',
   'deploy/compose/postgres/Dockerfile',
-  'deploy/compose/redis/Dockerfile',
-  'deploy/compose/supervisor/Dockerfile',
-  'deploy/compose/trigger.dev/Dockerfile',
   'deploy/selfhost/postgres/Dockerfile',
   'packages/testing/fixtures/stalwart/Dockerfile',
 ] as const;
@@ -396,8 +394,8 @@ const JOB = 'hadolint';
  * moves it, since a release can bring new rules.
  */
 const HADOLINT = 'hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d';
-/** The two Dockerfiles whose pass turns the job blocking. */
-const TRIGGER_DEV = ['deploy/compose/trigger.dev/Dockerfile', 'deploy/compose/supervisor/Dockerfile'] as const;
+/** What the header says of the switch to blocking, since alpha.18 removed the two Dockerfiles it waited for. */
+const BLOCKING = ['IT WAS TO BECOME BLOCKING', 'alpha.18', 'a pull request of its own'] as const;
 
 interface Step {
   readonly uses?: string;
@@ -476,8 +474,9 @@ export function jobProblems(text: string): string[] {
   const images = [...text.matchAll(/hadolint\/hadolint:[^\s'"]+/g)].map((m) => m[0]);
   if (images.length !== 1) out.push(`the workflow names a hadolint image ${images.length} times, not once: ${images.join(', ')}`);
   const header = text.slice(0, Math.max(0, text.search(/^name:/m)));
-  if (!header.includes('IT BECOMES BLOCKING')) out.push('the header does not say when the job becomes blocking (IT BECOMES BLOCKING after …)');
-  for (const file of TRIGGER_DEV) if (!header.includes(file)) out.push(`the header does not name ${file}, whose pass turns the job blocking`);
+  for (const words of BLOCKING) {
+    if (!header.replace(/\n# ?/g, ' ').includes(words)) out.push(`the header does not say how the job becomes blocking (${words})`);
+  }
   return out;
 }
 
@@ -551,8 +550,8 @@ describe('hadolint in CI, report only (workplan 0119, the owner’s decision of 
     expect(mutate(step, '        run: node scripts/hadolint-report.mjs || true\n')).toMatch(/not the one `node scripts\/hadolint-report\.mjs`/);
     expect(mutate('runs-on: ubuntu-24.04', 'runs-on: self-hosted')).toMatch(/not a GitHub-hosted ubuntu runner/);
     expect(mutate('  pull_request:\n', '')).toMatch(/it does not run on pull_request/);
-    expect(mutate('IT BECOMES BLOCKING', 'IT TURNS')).toMatch(/does not say when the job becomes blocking/);
-    expect(mutate(TRIGGER_DEV[1], 'deploy/compose/supervisor')).toMatch(/does not name deploy\/compose\/supervisor\/Dockerfile/);
+    expect(mutate('IT WAS TO BECOME BLOCKING', 'IT TURNS')).toMatch(/does not say how the job becomes blocking \(IT WAS TO BECOME BLOCKING\)/);
+    expect(mutate('pull request of its', 'change of its')).toMatch(/does not say how the job becomes blocking \(a pull request of its own\)/);
   });
 
   it('is not in ci.yml, so ci-complete never waits for it, and docs/testing.md does not require it', () => {
@@ -608,7 +607,7 @@ describe("the hadolint report, run against a stubbed docker (11, and 9's exit)",
     run({ root: REPO_ROOT, env: { HADOLINT_IMAGE: image, GITHUB_EVENT_NAME: event, ...env }, docker: s.docker, wait: s.wait, uid: 1001, gid: 118 });
 
   it('pulls the workflow’s image once, then lints each Dockerfile this file finds, one sandboxed run each', async () => {
-    expect(files.length).toBeGreaterThan(10);
+    expect(files.length).toBeGreaterThanOrEqual(KNOWN.length);
     const s = stub(lintsAll);
     const out = await at('pull_request', s);
     expect(s.calls[0]).toEqual(['pull', '--quiet', image]);
@@ -706,33 +705,39 @@ describe("the hadolint report, run against a stubbed docker (11, and 9's exit)",
   });
 
   it('calls known exactly what EXCEPTIONS or KNOWN_FINDINGS explain, with the reason, and names a known one hadolint did not report', () => {
-    const [proxy, supervisor] = ['deploy/compose/docker-socket-proxy/Dockerfile', TRIGGER_DEV[1]];
-    expect(knownAs(supervisor, 'DL3066')).toEqual({ by: 'EXCEPTIONS, numeric-user', why: EXCEPTIONS[supervisor]!['numeric-user'] });
-    expect(knownAs(supervisor, 'DL4006')?.by).toBe('EXCEPTIONS, pipefail');
-    expect(knownAs(proxy, 'DL3064')).toEqual({ by: 'KNOWN_FINDINGS', why: KNOWN_FINDINGS[proxy]!['DL3064'] });
-    expect(knownAs(proxy, 'DL3059')).toBeNull();
+    // The pooler's exception is the real one; KNOWN_FINDINGS is empty since
+    // alpha.18 removed the Dockerfiles it held (workplan 0167 T9), so a table
+    // of the same shape stands in for it, on another real Dockerfile.
+    expect(KNOWN_FINDINGS).toEqual({});
+    const [goaccess, pooler] = ['deploy/compose/goaccess/Dockerfile', 'deploy/compose/pgbouncer/Dockerfile'];
+    const known = { [goaccess]: { DL3064: 'a stand-in reason, read and left as it stands, for this case alone' } };
+    expect(knownAs(pooler, 'DL3066')).toEqual({ by: 'EXCEPTIONS, numeric-user', why: EXCEPTIONS[pooler]!['numeric-user'] });
+    expect(knownAs(goaccess, 'DL3064', EXCEPTIONS, known)).toEqual({ by: 'KNOWN_FINDINGS', why: known[goaccess]!.DL3064 });
+    expect(knownAs(goaccess, 'DL3064')).toBeNull();
+    expect(knownAs(goaccess, 'DL3059', EXCEPTIONS, known)).toBeNull();
     expect(knownAs('apps/api/Dockerfile', 'DL3066')).toBeNull();
-    expect(knownAs(supervisor, 'constructor')).toBeNull();
+    expect(knownAs(pooler, 'constructor')).toBeNull();
     const finding = (code: string, line: number) => ({ code, line, level: 'warning', message: `${code} | <here>` });
-    const out = report({
-      image,
-      event: 'push',
-      files: [proxy, supervisor],
-      results: [
-        { file: proxy, findings: [finding('DL3064', 120)] },
-        { file: supervisor, findings: [finding('DL3059', 10), finding('DL3066', 242)] },
-      ],
-    });
+    const withRun = (findings: Array<{ file: string; findings: ReturnType<typeof finding>[] }>) =>
+      report({ image, event: 'push', files: [goaccess, pooler], results: findings, known });
+    const out = withRun([
+      { file: goaccess, findings: [finding('DL3064', 120)] },
+      { file: pooler, findings: [finding('DL3059', 10), finding('DL3066', 24)] },
+    ]);
     expect(out.code).toBe(0);
-    expect(out.markdown).toContain(`| \`${supervisor}\` | 2 | 1 | 1 |`);
-    expect(out.markdown).toContain('| 242 | [DL3066](https://github.com/hadolint/hadolint/wiki/DL3066) | warning | DL3066 \\| &lt;here&gt; | EXCEPTIONS, numeric-user |');
+    expect(out.markdown).toContain(`| \`${pooler}\` | 2 | 1 | 1 |`);
+    expect(out.markdown).toContain('| 24 | [DL3066](https://github.com/hadolint/hadolint/wiki/DL3066) | warning | DL3066 \\| &lt;here&gt; | EXCEPTIONS, numeric-user |');
     expect(out.markdown).toContain('| 10 | [DL3059](https://github.com/hadolint/hadolint/wiki/DL3059) | warning | DL3059 \\| &lt;here&gt; |  |');
-    expect(out.markdown).toContain(`- **EXCEPTIONS, numeric-user**: ${EXCEPTIONS[supervisor]!['numeric-user']}`);
-    const unreported = out.markdown.split('### Known, and not reported this run')[1] ?? '';
-    expect(unreported).toContain(`\`${supervisor}\`: DL4006 (EXCEPTIONS, pipefail) is known, and hadolint did not report it here`);
+    expect(out.markdown).toContain(`- **EXCEPTIONS, numeric-user**: ${EXCEPTIONS[pooler]!['numeric-user']}`);
     expect(out.markdown).toContain(`| 120 | [DL3064](https://github.com/hadolint/hadolint/wiki/DL3064) | warning | DL3064 \\| &lt;here&gt; | KNOWN_FINDINGS |`);
-    expect(unreported, 'the proxy’s DL3064 was reported').not.toContain(`\`${proxy}\`: DL3064`);
-    expect(unreported, 'the proxy has no exception since 2026-11-20').not.toContain(`\`${proxy}\`: DL30`);
     expect(out.markdown).toContain('**3 findings in 2 Dockerfiles linted of 2: 2 known, 1 to read.**');
+    const reported = (out.markdown.split('### Known, and not reported this run')[1] ?? '');
+    expect(reported, 'both known findings were reported').not.toContain(`\`${goaccess}\`: DL3064`);
+    // A known one hadolint did not report is named.
+    const quiet = withRun([{ file: goaccess, findings: [] }, { file: pooler, findings: [finding('DL3059', 10)] }]);
+    const unreported = quiet.markdown.split('### Known, and not reported this run')[1] ?? '';
+    expect(unreported).toContain(`\`${pooler}\`: DL3066 (EXCEPTIONS, numeric-user) is known, and hadolint did not report it here`);
+    expect(unreported).toContain(`\`${goaccess}\`: DL3064 (KNOWN_FINDINGS) is known, and hadolint did not report it here`);
   });
+
 });

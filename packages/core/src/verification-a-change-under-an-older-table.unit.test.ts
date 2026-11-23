@@ -128,14 +128,21 @@ describe('verification under the address table', () => {
 });
 
 /**
- * NO VERSION TO GUARD THE WRITE (workplan 0168 S1, and its finding on the
- * way). A copy that waits with no strong target version is left as it is by
- * every pass and every press. It was said to wait for "the next pass" all the
- * same; now it is said apart, and a sample of only those is never told to
- * check again after a pass.
+ * NO VERSION TO GUARD THE WRITE (workplan 0168 S1; the owner's decision of
+ * 2026-11-23, ADR-0055 decision 5: "i think i take on what you adviced").
+ * A copy that waits with no strong target version is left as it is by every
+ * pass and every press, so it keeps the old address for good. Verification
+ * checks it as a plain copy (it must still equal the bytes as copied), counts
+ * and names it apart, and never holds the cutover on it alone: a sample of
+ * only those held it for good, with no remedy.
  */
-describe('copies no pass changes, with no version to guard the write', () => {
-  const unguardedTable = (olderKeys: string[], unguardedKeys: string[], waitsFor?: 'pass' | 'press') =>
+describe('copies that cannot be guarded do not hold the switch', () => {
+  const unguardedTable = (
+    olderKeys: string[],
+    unguardedKeys: string[],
+    waitsFor?: 'pass' | 'press',
+    over: Partial<VerificationDeps> = {},
+  ) =>
     deps({
       getAddressChanges: async () => ({
         digest: DIGEST,
@@ -144,6 +151,7 @@ describe('copies no pass changes, with no version to guard the write', () => {
         unguardedKeys,
         ...(waitsFor ? { waitsFor } : {}),
       }),
+      ...over,
     });
 
   it('counts them apart, and says only the rest wait for the next pass', async () => {
@@ -151,25 +159,116 @@ describe('copies no pass changes, with no version to guard the write', () => {
     const c = result.contacts;
     expect(c.addressChanges).toEqual({ digest: DIGEST, changed: 2, older: 2, unguarded: 1, waitsFor: 'pass' });
     expect(c.issues.find((i) => i.id === 'ADDRESS_OLDER_TABLE_contacts')?.message).toMatch(/^1 contacts item\(s\) wait/);
-    const left = c.issues.find((i) => i.id === 'ADDRESS_UNGUARDED_contacts');
-    expect(left?.severity).toBe('WARNING');
-    expect(left?.message).toMatch(/^1 contacts item\(s\) do not carry an address change and are left as they are/);
-    expect(left?.message).not.toMatch(/next pass/);
+    const kept = c.issues.find((i) => i.id === 'ADDRESS_UNGUARDED_contacts');
+    expect(kept?.severity).toBe('WARNING');
+    expect(kept?.message).toMatch(/^1 contacts item\(s\) keep the old address, because the new system offers no safe way/);
+    expect(kept?.message).not.toMatch(/next pass/);
   });
 
-  it('says nothing waits when every one of them is unguarded', async () => {
-    const result = await runVerification(unguardedTable(['bbb'], ['bbb']));
+  it('checks an unguarded copy as a plain copy: its sample is compared, not set aside', async () => {
+    const result = await runVerification(unguardedTable(['aaa', 'bbb'], ['bbb'], 'pass'));
     const c = result.contacts;
-    expect(c.addressChanges).toEqual({ digest: DIGEST, changed: 2, older: 1, unguarded: 1 });
-    expect(c.issues.find((i) => i.id === 'ADDRESS_OLDER_TABLE_contacts')).toBeUndefined();
-    expect(c.issues.find((i) => i.id === 'ADDRESS_UNGUARDED_contacts')).toBeDefined();
+    // `aaa` waits for a pass and is set aside; `bbb` and `ccc` are compared.
+    expect(c.checksumMatches).toBe(2);
+    expect(c.checksumUnavailable).toBe(1);
   });
 
-  it('never tells a held sample of only those to check again after the next pass', async () => {
+  it('never holds the cutover on a sample made only of unguarded copies', async () => {
     const result = await runVerification(unguardedTable(['aaa', 'bbb', 'ccc'], ['aaa', 'bbb', 'ccc'], 'pass'));
-    const held = result.contacts.issues.find((i) => i.id === 'ADDRESS_NOT_COMPARED_contacts');
-    expect(result.contacts.status).toBe('FAIL');
-    expect(held?.message).toMatch(/No pass changes them/);
-    expect(held?.message).not.toMatch(/next pass/);
+    const c = result.contacts;
+    expect(c.checksumMatches).toBe(3);
+    expect(c.status).toBe('PASS');
+    expect(result.canProceedToCutover).toBe(true);
+    expect(c.issues.find((i) => i.id === 'ADDRESS_NOT_COMPARED_contacts')).toBeUndefined();
+    expect(c.issues.find((i) => i.id === 'ADDRESS_OLDER_TABLE_contacts')).toBeUndefined();
+    expect(c.addressChanges).toEqual({ digest: DIGEST, changed: 2, older: 3, unguarded: 3 });
+    expect(c.issues.find((i) => i.id === 'ADDRESS_UNGUARDED_contacts')?.message).toMatch(
+      /^3 contacts item\(s\) keep the old address.*3 sampled item\(s\) were compared that way\.$/,
+    );
+  });
+
+  it('still finds an unguarded copy that differs from the bytes as copied', async () => {
+    const result = await runVerification(
+      unguardedTable(['aaa', 'bbb', 'ccc'], ['bbb'], 'pass', {
+        getTargetSamples: async (_d, _count, hashes) =>
+          LEDGER.filter((e) => (hashes ?? []).includes(e.naturalKeyHash)).map((e) =>
+            e.naturalKeyHash === 'bbb' ? { ...e, content: 'card1:9' } : e,
+          ),
+      }),
+    );
+    expect(result.contacts.checksumMismatches).toBe(1);
+    expect(result.contacts.issues.find((i) => i.id === 'CHECKSUM_contacts')?.severity).toBe('ERROR');
+  });
+
+  it('still holds when the rest of the sample truly waits for a pass', async () => {
+    // `aaa` and `ccc` wait for a pass, `bbb` is unguarded: one compared, so not
+    // held on "nothing compared" — and an item truly waiting still never matches.
+    const held = await runVerification(unguardedTable(['aaa', 'ccc'], [], 'pass'));
+    expect(held.contacts.checksumMatches).toBe(1);
+    const all = await runVerification(unguardedTable(['aaa', 'bbb', 'ccc'], ['bbb'], 'pass', {
+      getSourceSamples: async () => LEDGER.filter((e) => e.naturalKeyHash !== 'bbb'),
+    }));
+    expect(all.contacts.status).toBe('FAIL');
+    expect(all.contacts.issues.find((i) => i.id === 'ADDRESS_NOT_COMPARED_contacts')?.message).toMatch(/the next pass/);
+  });
+});
+
+/**
+ * CHANGED AT THE SOURCE AFTER THE SWITCH (the owner's decision of
+ * 2026-11-23, option (b): "2) b."; ADR-0055 decision 6). Past a cutover such a
+ * copy is never rewritten, by a pass or by the press ("Stop overwriting",
+ * ADR-0048). It used to be counted as waiting for the press, for good. It is
+ * now counted apart (`left`), compared as a plain copy, never waiting, and
+ * never holding anything.
+ */
+describe('copies changed at the source after the switch are left, and said as left', () => {
+  const leftTable = (olderKeys: string[], leftKeys: string[], unguardedKeys: string[] = []) =>
+    deps({
+      getAddressChanges: async () => ({
+        digest: DIGEST,
+        changed: 2,
+        olderKeys,
+        leftKeys,
+        ...(unguardedKeys.length > 0 ? { unguardedKeys } : {}),
+        // As the reader says it: nothing else waits, so no `waitsFor`.
+      }),
+    });
+
+  it('counts them apart, never as waiting for the press', async () => {
+    const result = await runVerification(leftTable(['bbb'], ['bbb']));
+    const c = result.contacts;
+    expect(c.addressChanges).toEqual({ digest: DIGEST, changed: 2, older: 1, left: 1 });
+    expect(c.issues.find((i) => i.id === 'ADDRESS_OLDER_TABLE_contacts')).toBeUndefined();
+    const left = c.issues.find((i) => i.id === 'ADDRESS_LEFT_contacts');
+    expect(left?.severity).toBe('WARNING');
+    expect(left?.message).toMatch(/^1 contacts item\(s\) were changed in the old account after the switch and are not updated/);
+    expect(left?.message).not.toMatch(/Apply the new addresses here too/);
+  });
+
+  it('compares them as plain copies and never holds the cutover on them', async () => {
+    const result = await runVerification(leftTable(['aaa', 'bbb', 'ccc'], ['aaa', 'bbb', 'ccc']));
+    expect(result.contacts.checksumMatches).toBe(3);
+    expect(result.contacts.status).toBe('PASS');
+    expect(result.contacts.issues.find((i) => i.id === 'ADDRESS_NOT_COMPARED_contacts')).toBeUndefined();
+  });
+
+  it('keeps left and unguarded apart from each other and from what waits', async () => {
+    const result = await runVerification(
+      deps({
+        getAddressChanges: async () => ({
+          digest: DIGEST,
+          changed: 0,
+          olderKeys: ['aaa', 'bbb', 'ccc'],
+          unguardedKeys: ['bbb'],
+          leftKeys: ['ccc'],
+          waitsFor: 'press',
+        }),
+      }),
+    );
+    const c = result.contacts;
+    expect(c.addressChanges).toEqual({ digest: DIGEST, changed: 0, older: 3, unguarded: 1, left: 1, waitsFor: 'press' });
+    expect(c.issues.find((i) => i.id === 'ADDRESS_OLDER_TABLE_contacts')?.message).toMatch(/^1 contacts item\(s\) wait/);
+    expect(c.checksumMatches).toBe(2);
+    expect(c.checksumUnavailable).toBe(1);
   });
 });

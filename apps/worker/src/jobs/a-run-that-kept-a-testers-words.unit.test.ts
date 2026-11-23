@@ -23,10 +23,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { PassAbortError } from '@openmig/core';
 import { setAppEventSink, type AppEvent } from '@openmig/shared';
-import { leavesAReference, outcomesForThePlane, planeErrorFor } from './what-a-run-leaves.ts';
+import { leavesAReference, outcomesForThePlane, planeErrorFor, RunNotRetried } from './what-a-run-leaves.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -102,23 +101,12 @@ describe('a failed run’s error', () => {
 
   it('keeps a task’s own verdict a verdict: not retried, recorded as a warning, and without its words', async () => {
     const { events } = watch();
-    const error = await planeErrorFor(new AbortTaskRunError(`Cutover refused for ${ADDRESS}`), {
+    const error = await planeErrorFor(new RunNotRetried(`Cutover refused for ${ADDRESS}`), {
       task: 'run-cutover',
     });
-    expect(error).toBeInstanceOf(AbortTaskRunError);
+    expect(error).toBeInstanceOf(RunNotRetried);
     expect(error.message).toMatch(/^run-cutover ended, and is not retried \([a-z_]+\)\. Reference [0-9a-f]{8}\.$/);
     expect(events.map((e) => [e.level, e.event])).toEqual([['warn', 'task.run-cutover.failed']]);
-  });
-
-  it('keeps a refusal from Trigger.dev’s own API unretried, as its executor would, and records it as an error', async () => {
-    const { events } = watch();
-    const refusal = Object.assign(new Error(`Task not found for ${ADDRESS}`), { name: 'TriggerApiError', status: 404 });
-    const error = await planeErrorFor(refusal, { task: 'run-cutover' });
-    expect(error).toBeInstanceOf(AbortTaskRunError);
-    expect(error.message).not.toContain(ADDRESS);
-    expect(events.map((e) => e.level)).toEqual(['error']);
-    const busy = Object.assign(new Error('Too many requests'), { name: 'TriggerApiError', status: 429 });
-    expect(await planeErrorFor(busy, { task: 'run-cutover' })).not.toBeInstanceOf(AbortTaskRunError);
   });
 
   it('keeps a pass that stopped itself from being retried, and says so without the last item’s words', async () => {
@@ -126,7 +114,7 @@ describe('a failed run’s error', () => {
     const error = await planeErrorFor(new PassAbortError(`email: 25 items failed in a row. Last error: ${WORDS}`), {
       task: 'run-delta-sync',
     });
-    expect(error).toBeInstanceOf(AbortTaskRunError);
+    expect(error).toBeInstanceOf(RunNotRetried);
     expect(error.message).toMatch(/^run-delta-sync stopped itself after items failed in a row /);
     expect(error.message).not.toContain('Belastingdienst');
   });
@@ -237,15 +225,8 @@ describe('discovery’s output', () => {
   });
 });
 
-describe('the run’s logs', () => {
-  it('stay in the container’s output: the config turns Trigger.dev’s console interceptor off', () => {
-    const config = readFileSync(join(HERE, '../../trigger.config.ts'), 'utf8')
-      .split('\n')
-      .filter((line) => !/^\s*\/\//.test(line))
-      .join('\n');
-    expect(config).toMatch(/^ {2}disableConsoleInterceptor: true,$/m);
-  });
-});
+/** A job's id, as its run names it to leavesAReference. */
+const ID = /\nexport const \w+Run = leavesAReference\(\n {2}'([a-z-]+)',/;
 
 /** Every task file under src/jobs, without its comment lines. */
 function taskFiles(): Array<{ file: string; code: string }> {
@@ -258,7 +239,7 @@ function taskFiles(): Array<{ file: string; code: string }> {
         .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
         .join('\n'),
     }))
-    .filter(({ code }) => /\n {2}id: '[a-z-]+',/.test(code));
+    .filter(({ code }) => ID.test(code));
 }
 
 /**
@@ -267,11 +248,11 @@ function taskFiles(): Array<{ file: string; code: string }> {
  */
 const runNameOf = (id: string): string => `${id.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())}Run`;
 
-/** A task file's run, from its declaration to the `run:` of the definition that calls it. */
+/** A task file's run, from its declaration to the end of the statement. */
 function runBodyOf(code: string): string {
-  const id = /\n {2}id: '([a-z-]+)',/.exec(code)![1]!;
+  const id = ID.exec(code)![1]!;
   const from = code.indexOf(`\nexport const ${runNameOf(id)} = leavesAReference(`);
-  return from === -1 ? '' : code.slice(from, code.indexOf('\n  run: ', from));
+  return from === -1 ? '' : code.slice(from, code.indexOf('\n);\n', from));
 }
 
 describe('every task', () => {
@@ -285,22 +266,16 @@ describe('every task', () => {
   });
 
   it.each(tasks.map((t) => [t.file, t.code] as const))('%s runs inside leavesAReference, under its own id', (_file, code) => {
-    const id = /\n {2}id: '([a-z-]+)',/.exec(code)![1]!;
-    const runs = code.match(/\n {2}run: /g) ?? [];
-    expect(runs).toHaveLength(1);
-    // Its run, exported for either runner (workplan 0167 T6), is the file's one
-    // leavesAReference, and the definition calls it through onTriggerDev with
-    // the context made from Trigger.dev's own, and does nothing else.
+    const id = ID.exec(code)![1]!;
+    // Its run (workplan 0167 T6) is the file's one leavesAReference, which the
+    // worker's entry for its queue serves (`the-catalog-is-the-jobs`).
     const run = runNameOf(id);
     expect(code).toContain(`\nexport const ${run} = leavesAReference(\n  '${id}',\n  async (`);
     expect(code.split('leavesAReference(')).toHaveLength(2);
-    expect(code).toMatch(new RegExp(`\\n {2}run: onTriggerDev\\(${run}[,)]`));
   });
 
-  it.each(tasks.map((t) => [t.file, t.code] as const))('%s does not use the SDK’s logger', (_file, code) => {
-    for (const statement of code.match(/import \{[^}]*\} from '@trigger\.dev\/sdk';/g) ?? []) {
-      expect(statement).not.toMatch(/\blogger\b/);
-    }
+  it.each(tasks.map((t) => [t.file, t.code] as const))('%s uses no runner’s logger, only the shared log', (_file, code) => {
+    expect(code).not.toMatch(/@trigger\.dev\//);
     expect(code).not.toMatch(/\blogger\.(log|info|warn|error|debug)\(/);
   });
 

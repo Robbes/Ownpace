@@ -404,12 +404,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
   GitHub-hosted runners, it also scans every container image the stacks run:
   the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
-  images the scripts name, the tasks' image, and Ownpace's three images at `:edge` and at the
-  newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). The tasks' image,
-  `trigger-task-base`, is the prebuilt base `apps/worker/trigger.config.ts` pins
-  (`TASK_BASE_IMAGE`), read from GHCR as published, since a task deploy adds the task code to it
-  and nothing else (on the base image the pinned Trigger.dev CLI names when the config names
-  none). A leg that builds an image a script or a compose file builds
+  images the scripts name, and Ownpace's images at `:edge` and at the
+  newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). (Until alpha.18 it
+  also scanned the Trigger.dev tasks' image, `trigger-task-base`, and the plane's images.) A leg that builds an image a script or a compose file builds
   here checks out under `src/`: Trivy reads a `.trivyignore` and a `trivy.yaml` from its working
   directory unless told otherwise, so on that leg too it reads none of the repository's, and a file
   at the root can never drop a finding from code scanning. Report only: each image's findings go to code scanning under
@@ -422,11 +419,13 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   configuration behind in code scanning with its alerts open; delete it on the code scanning tool
   status page (the Security tab, Code scanning, Tool status). An image a compose file builds here,
   `localhost/<name>` from `<name>/Dockerfile` beside it (the Postgres of `managed.yml` and
-  `dev.yml`, the appliance's, and Trigger.dev's webapp and supervisor in `managed.yml`), has no
+  `dev.yml`, and the appliance's), has no
   registry to be read from: its leg checks the commit out under
   `src/`, builds the directory natively on GitHub's arm64 runner and scans what it built, under
-  the name the pulled image had (`postgres-managed`, `postgres-selfhost`, `trigger.dev`,
-  `supervisor`).
+  the name the pulled image had (`postgres-managed`, `postgres-selfhost`). The legs of the images
+  alpha.18 removed (`trigger.dev`, `supervisor`, `trigger-task-base` and the plane's pulled ones)
+  leave their `trivy-image-<name>` configurations, and their alerts, in code scanning until
+  someone deletes them there.
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
   `[self-hosted, linux, arm64]` (the machine); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a
@@ -436,22 +435,24 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   step as `integration-tests`, see below) since it drives `setup-stalwart.sh`'s provisioning phase.
 - `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the machine: the managed-edition
   gate, run against a long-lived configured stack, so it does not prove bring-up from scratch.
-  **In both job runners** (ADR-0054; workplan 0167 T7). Which one is read as the bring-up reads
-  it: `.env`'s `OWNPACE_JOB_RUNNER`, else `managed.yml`'s default for it, `pg-boss` since the
-  switch is on, else `trigger`. So a scheduled run, or a dispatch whose `job_runner` input is
-  empty (its default), runs pg-boss on a stack whose `.env` does not say otherwise; the input
-  set to `trigger` runs Trigger.dev's plane, the fallback, and `pg-boss` names the default. A
-  value it is given sets the mode for that run only:
-  it is written into the checkout's `.env` after the persisted copy is saved. On `pg-boss`, the
-  workflow skips the Trigger.dev plane's drill and its two keys. `smoke-managed.sh` then skips
-  each section that asks the plane, printing one line that names the section and the mode:
-  the object store and the TLS front, the runner-log capture, the registry and the Docker proxy,
-  ClickHouse, the runner logs and the tasks' image. In their place it checks:
+  The jobs run on pg-boss, in the `worker` service (ADR-0054); alpha.18 removed Trigger.dev's
+  plane and the `job_runner` input that chose it (workplan 0167 T9). After the bring-up it runs
+  **the restore drill on the identity provider's database**, `dump-idp.sh --drill`: a dump of
+  the provider's database (`zitadel`), restored with `pg_restore --exit-on-error` into a database
+  of its own beside it, `<db>_drill`, whose table counts must equal the live database's (at
+  least ten tables) and whose event store, `eventstore.events2`, must hold rows and no more than
+  the live one; the drill database and the dump are removed whatever happens, and on live the
+  drill is refused. It replaces the drill that dumped and restored Trigger.dev's own database,
+  the one database whose loss the gate used to prove survivable: the identity provider's is the
+  database the stacks cannot rebuild from anything else (who can sign in). Then it runs
+  `remove-trigger-plane.sh --yes`, which removes by name whatever Trigger.dev's plane left on the
+  OTA stack (its volumes and networks), and on every run after the first says there is nothing
+  to remove. `smoke-managed.sh` checks:
+  - no container of Trigger.dev's plane is on the stack, by the Compose labels, at its start and
+    again at its end;
   - every job in `pgboss.job` since the smoke's start completed, read by queue (the catalog's
-    names), and at least one the run asked for. *No job ran* fails, as *no runner at all* does on
-    Trigger.dev;
+    names), and at least one the run asked for. *No job ran* fails;
   - each `runId` it followed is a pg-boss job that completed;
-  - no `runner-*` container started on the stack's network;
   - `ownpace_jobs` is fit and owns `pgboss`;
   - the worker runs the API's Node as uid 65532, with no shell and its health 200, and holds
     no owner's URL;
@@ -459,13 +460,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 
   The worker's log from the start is kept as `smoke-managed-<run>-worker.log` and redacted with
   the rest of the evidence. `scripts/smoke-managed-verdict.unit.test.ts` runs each of these
-  branches against stubs, and the switch-on's E2E (managed) run is the first on a real stack.
-  **In both runners, the stack's memory** is sampled from the smoke's start with
+  branches against stubs. **The stack's memory** is sampled from the smoke's start with
   `docker stats --no-stream`, every 15 s (`SMOKE_MEM_EVERY`), for the containers named after
-  the compose project and this stack's `runner-*` containers. Before the verdict the smoke prints
-  each container's highest value and when it was sampled, the Trigger.dev runs as one line, and
-  the sum. Only the used part of each reading is kept, never the limit, which for a container with
-  no cap is the host's memory. The readout never decides the verdict.
+  the compose project. Before the verdict the smoke prints each container's highest value and
+  when it was sampled, and the sum. Only the used part of each reading is kept, never the limit,
+  which for a container with no cap is the host's memory. The readout never decides the verdict.
 - **Before a release tag, and so before a deploy to live** (workplan 0141 T14): the newest
   two *scheduled* runs of `e2e-managed.yml` on `main` both ran the commit being tagged and are green on every attempt,
   with no night missing, and the four scheduled `e2e.yml` runs of those nights ran it and are
@@ -494,15 +493,13 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `id.ownpace.eu`, answers 404. A port the front answers by itself, listed in the repository
   variable `EXPOSURE_PROBE_FRONT_PORTS`, is a note behind two tripwires: PostgreSQL's handshake,
   and a TLS hello with no server name, which fails on a certificate from Caddy's own local CA,
-  the Trigger.dev dashboard's. Its log names names and ports, never an address.
+  the one the Trigger.dev dashboard's TLS front presented until alpha.18. Its log names names and ports, never an address.
 - `idp-pin-watch.yml` — weekly (Mondays 06:23 UTC) and on dispatch, on a GitHub-hosted runner:
   every pin Dependabot cannot see, each against its upstream. The
   identity provider's pin in `managed.yml` against upstream's newest release of the same major;
-  Trigger.dev against the newest tag both its images carry (`trigger-version.sh probe`);
-  ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
-  newest security release, while `trigger.config.ts` names no base of its own (it names the
-  prebuilt base, so that row reports current); `packageManager` against the newest pnpm of its
-  major; and the TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
+  `packageManager` against the newest pnpm of its major; and the TypeScript split's exit. (The
+  rows for Trigger.dev, ClickHouse and the tasks' Node went with alpha.18: each now reports
+  current once, with a sentence that says why, so its issue closes, and then nothing.) Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
   busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy and the osv-scanner the scan
@@ -514,11 +511,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   digest of the channel each action ran before, `latest` and `buildx-stable-1`), the hadolint
   image `hadolint.yml` runs (against Docker Hub's tags of its shape and major), the Semgrep image
   `semgrep.yml` runs (the same way), the zizmor image `zizmor.yml` runs (against ghcr.io's tags of
-  its shape and major), the squawk release `migration-locks.yml` installs (against upstream's git
-  tags), and the tasks'
-  prebuilt base `trigger.config.ts` pins (against main's `edge` by each platform's layers, since
-  its digest moves on every merge while its layers do not: behind when they differ, or when the
-  pinned index or its signature is gone) share one summary issue; another image a script there
+  its shape and major), and the squawk release `migration-locks.yml` installs (against upstream's
+  git tags) share one summary issue (the MinIO row in it, and the tasks' prebuilt base's, went
+  with alpha.18); another image a script there
   runs is not compared (none today: `db-roles.sh` reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
   rebuild under the same tag is the image scan's to report. The exception is `www.yml`'s nginx,
   which is compared with `apps/web/Dockerfile`'s FROM by tag and digest, so a digest-only move of
@@ -540,30 +535,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `deploy/compose/postgres` and `deploy/selfhost/postgres`, and checks each runs as uid 70
   without gosu; it publishes nothing. The appliance's starts on the
   volume an existing appliance has, one the official image initialised as root, and must read
-  back the row written there. And `build (trigger, amd64)` and `build (trigger, arm64)` build
-  `deploy/compose/trigger.dev` and `deploy/compose/supervisor`, upstream's Trigger.dev images with
-  files deleted that never run here, natively on each platform, after checking the base's user,
-  command and entrypoint are the ones the Dockerfiles read, and check the result keeps upstream's
-  user, command, entrypoint and working directory. Each removal fails the
-  build by name when its path is not there, and each Dockerfile refuses another release than its
-  `read_at`, so the pull request of a Trigger.dev move is red there until the Dockerfiles are
-  read again. The build job's fourth leg, `build (task-base)`, is the managed tasks' prebuilt
-  base, `apps/worker/task-image/Dockerfile`: on a pull request that
-  touches its directory it builds for amd64, then starts the image as the Trigger.dev CLI's
-  runtime stage starts it (`dumb-init node`, as `node`, with the API image's Node and the CLI's
-  eight rejected intermediates in its bundle) and checks no shell starts in it; on `main` it is
-  published for both platforms as `ghcr.io/robbes/ownpace-task-base:edge` and `sha-<commit>`
-  and signed by digest. A tag builds none. `apps/worker/trigger.config.ts` names one of them by its
-  `sha-<commit>` tag and index digest (`TASK_BASE_IMAGE`), and the job
-  `task-base pin` checks that pin on a pull request: it pulls it anonymously for both platforms,
-  checks its revision label is the commit its tag names, starts it to read its Node (a warning, not
-  a failure, when it is not `apps/api/Dockerfile`'s, since the base built at a new Node is
-  published only after the pull request that moves it merges), and verifies its signature with
-  cosign by digest against `images.yml`'s identity on `refs/heads/main`. Held by
-  `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts`, which also runs the installed
-  CLI's own Containerfile writer on the config and fails when it writes a step a shell-less base
-  cannot run, runs the pin job's step against a stand-in docker, jq and cosign, and runs the
-  managed smoke's question to the image the last deploy built (its Node the API's, and no shell).
+  back the row written there. `pgbouncer` builds the pooler's image the same way. (Until alpha.18
+  the workflow also built Trigger.dev's webapp and supervisor, the plane's socket proxy, TLS front
+  and Redis, and the tasks' prebuilt base, with a job that checked its pin; they went with the
+  plane, workplan 0167 T9.)
 - `script-images.yml` — the images a script builds for itself (today GoAccess, which
   `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`): an
   arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
@@ -577,8 +552,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   finding that guard's EXCEPTIONS or `KNOWN_FINDINGS` explain (both in
   `scripts/hadolint-report.mjs`) marked known with its reason. No finding fails it. A Dockerfile
   left unlinted is a warning on a pull request and fails the run on a push or a dispatch, where
-  the run is the record. It becomes blocking after the two Trigger.dev Dockerfiles have had their
-  pass.
+  the run is the record. It was to become blocking after the two Trigger.dev Dockerfiles had had
+  their pass; alpha.18 removed them, so that condition is met, and making it blocking is the
+  owner's step.
   Held by `scripts/a-dockerfile-that-ends-as-root.unit.test.ts`, which runs the report against a
   stubbed docker.
 - `semgrep.yml` — on every pull request, on a push to `main` and on dispatch, on a GitHub-hosted
@@ -694,8 +670,8 @@ against recorded runs, that `abandoned` one among them, and every event and chan
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost|task-base)`, `build (postgres)`, `build (trigger, amd64|arm64)` or
-`task-base pin` from `images.yml`, nor `DAV suites on the second Nextcloud major` from `nextcloud-second-major.yml`,
+`build (api|web|selfhost|worker)`, `build (postgres)` or `build (pgbouncer, amd64|arm64)`
+from `images.yml`, nor `DAV suites on the second Nextcloud major` from `nextcloud-second-major.yml`,
 nor `Build (deploy/compose/goaccess)` from `script-images.yml`, nor `zizmor` from `zizmor.yml`.
 None is reported at all on some
 pull requests —
@@ -704,8 +680,9 @@ and the other four workflows have a `paths:` filter — so a docs-only PR blocks
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
 `SCOPE:` comment above `ci-complete` in `ci.yml`. Nor `hadolint (report only)` from
 `hadolint.yml`, for another reason: it reports on every pull request, but it is report only and
-passes whatever hadolint finds, so requiring it would gate nothing. It turns blocking, and is
-required then, after the two Trigger.dev Dockerfiles have had their pass. `Semgrep` from
+passes whatever hadolint finds, so requiring it would gate nothing. It was to turn blocking, and
+be required then, after the two Trigger.dev Dockerfiles had had their pass; alpha.18 removed
+them, so the owner may turn it now. `Semgrep` from
 `semgrep.yml` is to be required, by the same rule turned round: it reports on every pull request,
 with no `paths:` filter, and since workplan 0163 T5 one of its rules blocks.
 
@@ -756,26 +733,26 @@ What has **no** dedicated test, stated here so it is a fact in the repo rather
 than a rediscovery. This list is the honest complement to the coverage above;
 each entry is a candidate for a workplan, not a promise.
 
-- **The Trigger.dev task wrappers** (`apps/worker/src/jobs/*.ts`, fourteen
-  task files when checked), which run the jobs in trigger mode only.
+- **The jobs' run entries end to end against real providers** (`apps/worker/src/jobs/*.ts`).
   The logic inside them is tested through extracted seams —
   `packages/orchestration/src/sync-due.unit.test.ts` proves the tick's
   due-evaluation, `cutover-preparation.integration.test.ts` drives
   `prepareCutover`'s body against a real ledger, the colocated suites in
   `jobs/` drive exported pieces such as `buildTask` and `runDigest`, and
-  apply/verify logic lives in `@openmig/core` with its own suites — but the
-  `schemaTask` wrappers themselves (payload schemas, `configure()` wiring,
-  error paths) execute only in live smokes (`deploy/compose/smoke-managed.sh`,
-  which `e2e-managed.yml` runs nightly). On the pg-boss runner (workplan 0167
-  T6) the same runs are wrapped by `apps/worker/src/runner/`, and that wrapper
+  apply/verify logic lives in `@openmig/core` with its own suites — and the
+  runs against real mail and DAV servers execute only in live smokes
+  (`deploy/compose/smoke-managed.sh`, which `e2e-managed.yml` runs nightly).
+  The runner that wraps them, `apps/worker/src/runner/` (workplan 0167 T6),
   is tested: `worker.integration.test.ts` runs the worker against a real
   Postgres, each job in its own process, and holds the payload schemas (a
   refused payload fails once), the run context (a pass enqueued by the tick's
   schedule, a cutover's wait, the purge's verdicts), the error paths (a
   process killed from outside failed once, a worker that died retried, a time limit, a cancel, a
   stop) and a real `run-discovery`;
-  `worker.unit.test.ts` holds that every queue has its entry. What stays live
-  only is the Trigger.dev half, `onTriggerDev`, which runs in trigger mode, the fallback.
+  `worker.unit.test.ts` holds that every queue has its entry, and
+  `the-catalog-is-the-jobs.unit.test.ts` that the catalog and the run entries
+  are one for one. (Until alpha.18 the Trigger.dev task wrappers around the
+  same entries were live-only; alpha.18 removed them, workplan 0167 T9.)
 - **Web pages with no jsdom suite of their own**: `Invitations`, `NotFound`,
   `RedirectUris`. (`ReportProblem` is covered by
   `a-report-that-reaches-a-person.unit.test.tsx`; every other page has a

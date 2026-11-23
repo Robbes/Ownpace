@@ -25,7 +25,8 @@
  * - **Readiness** on pg-boss reads the shared beat, `managed-sync-tick`, and
  *   not the pg-boss runner's own.
  *
- * Trigger.dev is never asked: the SDK's client throws if anything reaches it.
+ * Trigger.dev is gone since alpha.18 (workplan 0167 T9): nothing here stands
+ * in for it.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -84,12 +85,6 @@ vi.mock('./middleware/auth.ts', async (importOriginal) => {
   };
 });
 
-vi.mock('@openmig/scheduler', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  getTriggerClient: () => {
-    throw new Error('Trigger.dev was asked, on pg-boss.');
-  },
-}));
 
 const { default: migrationRoutes } = await import('./routes/migrations/index.ts');
 const { cancelRun, closeJobRunner } = await import('./job-runner.ts');

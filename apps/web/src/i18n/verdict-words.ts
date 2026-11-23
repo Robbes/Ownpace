@@ -57,17 +57,21 @@ export function issueSentence(
   }
   // A new address (workplan 0168; the screens' review S11): what the copies
   // wait for decides the sentence, the press past the switch, else the pass.
-  // Those with no version to guard the write wait for neither, and are said
-  // apart (0168, found on the way).
+  // Those with no version to guard the write, and those changed in the old
+  // account after the switch, wait for neither: they keep the old address,
+  // are checked as copied, and are said apart (the owner, 2026-11-23;
+  // ADR-0055 decisions 5 and 6).
   const press = d.addressChanges?.waitsFor === 'press';
   const older = d.addressChanges?.older ?? 0;
   const unguarded = Math.min(d.addressChanges?.unguarded ?? 0, older);
-  if (is('ADDRESS_OLDER_TABLE') && older - unguarded > 0) {
-    return { key: press ? 'verify.issue.addressOlderPress' : 'verify.issue.addressOlder', n: older - unguarded };
+  const left = Math.min(d.addressChanges?.left ?? 0, older - unguarded);
+  const waiting = older - unguarded - left;
+  if (is('ADDRESS_OLDER_TABLE') && waiting > 0) {
+    return { key: press ? 'verify.issue.addressOlderPress' : 'verify.issue.addressOlder', n: waiting };
   }
   if (is('ADDRESS_UNGUARDED') && unguarded > 0) return { key: 'verify.issue.addressUnguarded', n: unguarded };
+  if (is('ADDRESS_LEFT') && left > 0) return { key: 'verify.issue.addressLeft', n: left };
   if (is('ADDRESS_NOT_COMPARED')) {
-    if (older > 0 && unguarded === older) return { key: 'verify.issue.addressNotComparedUnguarded' };
     return { key: press ? 'verify.issue.addressNotComparedPress' : 'verify.issue.addressNotCompared' };
   }
   return null;

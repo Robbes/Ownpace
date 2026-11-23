@@ -283,6 +283,7 @@ interface AddressCounts {
   readonly addressChanged: number;
   readonly addressChangesWaiting: number;
   readonly addressChangesUnguarded: number;
+  readonly addressChangesLeft?: number;
   readonly addressChangesCarried?: number;
 }
 
@@ -1127,6 +1128,17 @@ export interface DomainSyncResult {
    */
   readonly addressChangesUnguarded?: number;
   /**
+   * Copies an address change should reach whose source changed after the
+   * data type's cutover (the owner, 2026-11-23, option (b); ADR-0055
+   * decision 6). The press never rewrites them, since that rewrite would
+   * carry the source's later change too ("Stop overwriting", ADR-0048), so
+   * they are left as they are and said apart: "changed in your old account
+   * after the switch, not updated". Never in `addressChangesWaiting`, and
+   * never in `addressChangesUnguarded`. Read from the ledger when the pass
+   * ends, as those are.
+   */
+  readonly addressChangesLeft?: number;
+  /**
    * Copies of this data type that carry an address change and wait for none,
    * read from the ledger when the pass ends: whether the table changes this
    * migration's copies at all (the migration page's line, S12 of the screens'
@@ -1419,6 +1431,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   let addressChanged = 0;
   let addressChangesWaiting = 0;
   let addressChangesUnguarded = 0;
+  let addressChangesLeft = 0;
   let goneFromTarget = 0;
   let moved = 0;
   // Rewrites REFUSED because somebody edited our copy in the new system.
@@ -2105,13 +2118,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // table says loses a mark an earlier pass left. Only on our own
           // copies: an adopted, failed or removed one is no match either way.
           const addressMoved = digestNow !== undefined && (known.addressDigest ?? null) !== digestNow;
-          const settleAddressDue = async (): Promise<void> => {
+          // `left`: the copy is left because its source changed after the
+          // switch (the owner, 2026-11-23, option (b); ADR-0055 decision 6),
+          // recorded with the mark so every reader counts it apart, never as
+          // waiting for the press, which never rewrites it.
+          const settleAddressDue = async (left = false): Promise<void> => {
             if (digestNow === undefined || !ledger.markAddressChangeDue) return;
             if (known.status !== 'copied' && known.status !== 'updated' && known.status !== 'deleted_source') return;
             const due = addressMoved ? addressDigestDue(digestNow) : null;
-            if ((known.addressDigestDue ?? null) === due) return;
+            const leftNow = due !== null && left;
+            if ((known.addressDigestDue ?? null) === due && (known.addressLeft === true) === leftNow) return;
             await timed(phases, 'ledgerWriteMs', () =>
-              ledger.markAddressChangeDue!(tenantId, mappingId, domain, key, due),
+              ledger.markAddressChangeDue!(tenantId, mappingId, domain, key, due, leftNow),
             );
           };
           // A COPY WHOSE REWRITE FAILED (workplan 0168 B2, and its finding on
@@ -2157,8 +2175,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             // reading the container output at that moment never learned — and
             // had no way to say "dealt with, stop telling me".
             movedByTheLoop.add(key);
-            // Left where it is, so whatever its table says is not on it either.
-            await settleAddressDue();
+            // Left where it is, so whatever its table says is not on it either,
+            // and a copy left after the switch stays said as left.
+            await settleAddressDue(known.addressLeft === true);
             if (!decided(known, collectionPath)) {
               await timed(phases, 'ledgerWriteMs', () =>
                 ledger.recordMove(tenantId, mappingId, domain, key, collectionPath),
@@ -2251,9 +2270,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             // owner, 2026-10-05: "Stop overwriting"). Counted, before any
             // fetch, and the source version is left where it was: see
             // `DomainSyncResult.changedAfterCutover`. A change of its rows
-            // waits with it, and is marked (S3).
+            // is marked (S3) as LEFT, never as waiting: the press never
+            // rewrites this copy either, since that rewrite would carry the
+            // source's change too (the owner, 2026-11-23: "2) b."; ADR-0055
+            // decision 6). Option (c), rewriting only the address lines in
+            // the new account's copy, was not chosen.
             changedAfterCutover += 1;
-            await settleAddressDue();
+            if (addressMoved) addressChangesLeft += 1;
+            await settleAddressDue(true);
             return;
           }
           if (action === 'left-behind') {
@@ -3374,9 +3398,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           addressChanged,
           addressChangesWaiting: waitsForAPress ? counted.waiting : 0,
           addressChangesUnguarded: counted.unguarded,
+          ...(counted.left !== undefined ? { addressChangesLeft: counted.left } : {}),
           addressChangesCarried: counted.changed,
         }
-      : { addressChanged, addressChangesWaiting, addressChangesUnguarded };
+      : { addressChanged, addressChangesWaiting, addressChangesUnguarded, addressChangesLeft };
   }
 
   return {

@@ -1,63 +1,49 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * A VARIABLE A TASK READS AND NOBODY UPLOADS.
+ * A VARIABLE A JOB READS AND NOBODY HANDS IT.
  *
- * Trigger.dev task containers inherit NOTHING from compose. The only way a
- * value reaches one is `set-task-env.sh` uploading it to the project
- * environment — which is why that script exists, and why its own header says
- * "a value only in this file and never uploaded is a value the digest will
- * never see."
+ * A container inherits nothing from Compose but what its service names. Until
+ * alpha.18 the jobs ran as Trigger.dev tasks, and the only way a value reached
+ * one was `set-task-env.sh` uploading it; three variables were read by tasks
+ * and uploaded by nobody (`LEDGER_RETENTION_DAYS`, the operator's override in
+ * `retention.ts`; the plane's in-network address; and `LOG_LEVEL`). Each had a
+ * working default, so nothing was broken. **What was broken is that setting
+ * them did nothing, silently**: a knob that is missing gets reported, a knob
+ * that is ignored gets believed.
  *
- * Three variables were read by tasks and uploaded by nobody:
- *
- *   LEDGER_RETENTION_DAYS       `retention.ts` calls it the operator override,
- *                               and on managed there was nowhere to put it.
- *   TRIGGER_API_URL_IN_NETWORK  the escape hatch beside the compose-network
- *                               default that makes due ticks work at all.
- *   LOG_LEVEL                   raising a task's logging was impossible.
- *
- * Each has a working default, so nothing was broken. **What was broken is that
- * setting them did nothing, silently** — which is the worse of the two
- * failures: a knob that is missing gets reported, a knob that is ignored gets
- * believed.
+ * Since alpha.18 (workplan 0167 T9, ADR-0054) the jobs run in managed.yml's
+ * `worker` service, and the same rule holds of its `environment:`: every
+ * `process.env.X` a job or the runner reads is a name that service hands it,
+ * or an exemption here with the reason it arrives another way.
  *
  * Same class as `every-service-somebody-starts` and the `${VAR:?}` parity rule:
- * two files that must agree, and nothing comparing them. This is the third
- * instance found the same night, which is the argument for looking rather than
- * for any one of the three.
+ * two files that must agree, and nothing comparing them.
  *
  * THE LIMIT, written down rather than discovered: this reads
- * `apps/worker/src/jobs/*.ts` only. A variable a job reaches through a package
- * — `LOG_LEVEL`, read inside `packages/shared` — is invisible to it. That one
- * is uploaded now because the sweep that found the other two also found it by
- * hand, and it would not be caught again by this rule. Widening the scan to
- * every package a task can reach means resolving the import graph, and a guard
- * that models its subject is a guard that goes stale; the jobs directory is
- * where the reads that matter are written.
+ * `apps/worker/src/jobs/*.ts` and `apps/worker/src/runner/*.ts` only. A
+ * variable a job reaches through a package (`LOG_LEVEL`, read inside
+ * `packages/shared`) is invisible to it; that one is named by hand, and held
+ * below by name. Widening the scan to every package a job can reach means
+ * resolving the import graph, and a guard that models its subject is a guard
+ * that goes stale.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
-import { join, dirname, basename } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const setTaskEnv = readFileSync(join(REPO_ROOT, 'deploy/compose/set-task-env.sh'), 'utf8');
-const JOBS = join(REPO_ROOT, 'apps/worker/src/jobs');
+const DIRS = ['apps/worker/src/jobs', 'apps/worker/src/runner'];
 
-/**
- * Variables the platform injects, or that only a test sets. Each needs its
- * reason here rather than a silent pass.
- */
-const NOT_UPLOADED: Record<string, string> = {
-  TRIGGER_SECRET_KEY: 'injected into every run by the Trigger.dev platform itself',
-  TRIGGER_API_URL: 'injected by the platform; the deploy CLI sets it for the build',
-  TEST_DATABASE_URL: 'testcontainers publishes it; no task run ever reads it',
+/** Variables only a test sets, each with its reason rather than a silent pass. */
+const NOT_HANDED: Record<string, string> = {
+  TEST_DATABASE_URL: 'testcontainers publishes it; no run in the worker reads it',
 };
 
-/** Every `process.env.X` a job reads, excluding its tests. */
+/** Every `process.env.X` the files of a directory read, excluding their tests. */
 export function envReadsIn(dir: string): Array<{ file: string; name: string }> {
   const out: Array<{ file: string; name: string }> = [];
   for (const entry of readdirSync(dir)) {
@@ -70,127 +56,52 @@ export function envReadsIn(dir: string): Array<{ file: string; name: string }> {
   return out;
 }
 
-describe('every variable a scheduled task reads is one somebody uploads', () => {
-  const reads = envReadsIn(JOBS);
+const managed = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
+const worker = (parseYaml(managed) as { services: Record<string, { environment?: Record<string, unknown> }> }).services[
+  'worker'
+];
+const workerEnv = new Set(Object.keys(worker?.environment ?? {}));
+
+describe('every variable a job reads is one the worker service hands it', () => {
+  const reads = DIRS.flatMap((d) => envReadsIn(join(REPO_ROOT, d)).map((r) => ({ ...r, dir: d })));
   const names = [...new Set(reads.map((r) => r.name))].sort();
 
-  it('found the jobs and their reads, rather than passing on an empty list', () => {
+  it('found the jobs, their reads and the service, rather than comparing two empty lists', () => {
     expect(names.length).toBeGreaterThan(1);
     expect(reads.length).toBeGreaterThan(names.length);
     // The one every job that spans organisations needs (the system role's,
-    // workplan 0138 T3 step 2; the owner's DATABASE_URL until then). If this
-    // is missing the scan is looking at nothing, whatever else it reports.
+    // workplan 0138 T3 step 2). If this is missing the scan is looking at nothing.
     expect(names).toContain('SYSTEM_DATABASE_URL');
-  });
-
-  /**
-   * The two shapes an upload actually takes, and nothing else.
-   *
-   *   SYSTEM_DATABASE_URL: process.env.TASK_SYSTEM_DATABASE_URL   the required object
-   *   "SMTP_HOST"                                   the optional list
-   *
-   * NOT a bare mention. The first version matched only the quoted form and
-   * therefore missed every required variable — and a matcher loosened to the
-   * bare name would have passed on the PROSE two lines above the list, which
-   * now names all three of the variables this rule exists for. A rule its own
-   * documentation satisfies is not a rule.
-   *
-   * Nor the list of names the script DELETES (workplan 0138 T3 step 2):
-   * `const OWNER_NAMES = ["DATABASE_URL", "DIRECT_DATABASE_URL"]` quotes the
-   * owner's names in the optional list's own shape, and a job that read
-   * `DATABASE_URL` again passed here on the line that takes it away.
-   */
-  const uploaded = setTaskEnv.replace(/^\s*const OWNER_NAMES = \[[^\]\n]*\];\s*$/m, '');
-  const uploads = (name: string) =>
-    new RegExp(`"${name}"|\\b${name}\\s*:\\s*process\\.env\\.`).test(uploaded);
-
-  it.each(names)('set-task-env.sh uploads %s', (name) => {
-    if (NOT_UPLOADED[name]) return;
-    expect(
-      uploads(name),
-      `${basename(JOBS)}/* reads process.env.${name} inside a task container, which\n` +
-        'inherits nothing from compose — so unless set-task-env.sh uploads it, setting\n' +
-        'it in .env does nothing at all, silently. Add it to the optional list there,\n' +
-        'or add it to NOT_UPLOADED with the reason it arrives another way.',
-    ).toBe(true);
-  });
-
-  it('every exemption names a variable something still reads', () => {
-    const everywhere = readdirSync(JOBS)
-      .filter((f) => f.endsWith('.ts'))
-      .map((f) => readFileSync(join(JOBS, f), 'utf8'))
-      .join('\n');
-    for (const name of Object.keys(NOT_UPLOADED)) {
-      expect(everywhere, `${name} is exempted and nothing reads it`).toContain(name);
-    }
-  });
-});
-
-/**
- * AND THE WORKER SEES WHAT THE TASKS SEE (workplan 0167 T7). While both
- * runners exist, a job runs either as a Trigger.dev task, with what
- * set-task-env.sh uploads, or in managed.yml's `worker` service, with what
- * that service's `environment:` names. A knob in one and not the other is a
- * knob that works on one runner only, and the switch between them would
- * change what a job reads without a word. So every variable the script
- * uploads, by the name a task reads, is in the worker's environment under the
- * same name, and so is every `process.env.X` a job reads that the script
- * uploads.
- */
-describe('the worker service names every variable the tasks are uploaded', () => {
-  const managed = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
-  const worker = (parseYaml(managed) as { services: Record<string, { environment?: Record<string, unknown> }> }).services['worker'];
-  const workerEnv = new Set(Object.keys(worker?.environment ?? {}));
-  const body = setTaskEnv.slice(setTaskEnv.indexOf("node -e '"));
-  const required = [...(/const variables = \{([\s\S]*?)\};/.exec(body)?.[1] ?? '').matchAll(/^\s*([A-Z_][A-Z0-9_]*):/gm)].map((m) => m[1]!);
-  const optional = [...(/for \(const name of \[([\s\S]*?)\]\) \{/.exec(body)?.[1] ?? '').matchAll(/"([A-Z_][A-Z0-9_]*)"/g)].map((m) => m[1]!);
-  const uploadedNames = [...new Set([...required, ...optional])].sort();
-
-  it('read the upload and the service, rather than comparing two empty lists', () => {
-    expect(required).toEqual(['SYSTEM_DATABASE_URL', 'APP_DATABASE_URL', 'SECRET_ENCRYPTION_KEY']);
-    expect(optional.length).toBeGreaterThan(30);
     expect(workerEnv.size).toBeGreaterThan(30);
   });
 
-  it.each(uploadedNames)('the worker service names %s', (name) => {
-    expect(workerEnv.has(name), `set-task-env.sh uploads ${name} to the tasks, and managed.yml's worker service does not name it`).toBe(true);
-  });
-
-  it('and every variable a job reads that the tasks are uploaded', () => {
-    const missing = [...new Set(envReadsIn(JOBS).map((r) => r.name))].filter((n) => uploadedNames.includes(n) && !workerEnv.has(n));
-    expect(missing).toEqual([]);
-  });
-});
-
-/**
- * The upload runs as `node -e '…'` — a SINGLE-QUOTED shell argument. An
- * apostrophe anywhere inside it closes the quote, and the rest of the file is
- * then parsed as shell.
- *
- * Not hypothetical: adding the comment that documents the three variables above
- * wrote "the operator's override" into that block and broke the script at a
- * line 60 further down, which `bash -n` reported as a syntax error near an
- * unrelated `(`. A trap that punishes ordinary English prose in a file whose
- * every other line is prose deserves a rule rather than a scar.
- */
-describe('the embedded node script survives being written in English', () => {
-  const start = setTaskEnv.indexOf("node -e '");
-  const block = setTaskEnv.slice(start + "node -e '".length, setTaskEnv.indexOf("\n'", start));
-
-  it('found the block, rather than checking an empty string', () => {
-    expect(start).toBeGreaterThan(-1);
-    expect(block).toContain('envvars');
-  });
-
-  it("contains no apostrophe, because one would close the shell's quote", () => {
-    const offending = block
-      .split('\n')
-      .map((line, i) => ({ line, n: i + 1 }))
-      .filter(({ line }) => line.includes("'"));
+  it.each(names)("managed.yml's worker service names %s", (name) => {
+    if (NOT_HANDED[name]) return;
+    const where = reads.filter((r) => r.name === name).map((r) => `${r.dir}/${r.file}`);
     expect(
-      offending.map(({ line, n }) => `+${n}: ${line.trim()}`),
-      "an apostrophe inside node -e '…' ends the argument; the rest of the file\n" +
-        'is then parsed as shell, and the error names a line far from the cause.',
-    ).toEqual([]);
+      workerEnv.has(name),
+      `${where.join(', ')} reads process.env.${name}, and the worker container inherits\n` +
+        "nothing from Compose but what its service's environment names, so setting it in .env\n" +
+        "does nothing at all, silently. Name it in managed.yml's worker service, or add it to\n" +
+        'NOT_HANDED with the reason it arrives another way.',
+    ).toBe(true);
+  });
+
+  it('the three that were once read and handed by nobody are named', () => {
+    // LEDGER_RETENTION_DAYS and LOG_LEVEL; the third, the plane's in-network
+    // address, went with the plane (workplan 0167 T9).
+    for (const name of ['LEDGER_RETENTION_DAYS', 'LOG_LEVEL']) expect(workerEnv.has(name), name).toBe(true);
+    expect(workerEnv.has('TRIGGER_API_URL_IN_NETWORK')).toBe(false);
+  });
+
+  it('every exemption names a variable something still reads', () => {
+    const everywhere = DIRS.flatMap((d) =>
+      readdirSync(join(REPO_ROOT, d))
+        .filter((f) => f.endsWith('.ts'))
+        .map((f) => readFileSync(join(REPO_ROOT, d, f), 'utf8')),
+    ).join('\n');
+    for (const name of Object.keys(NOT_HANDED)) {
+      expect(everywhere, `${name} is exempted and nothing reads it`).toContain(name);
+    }
   });
 });

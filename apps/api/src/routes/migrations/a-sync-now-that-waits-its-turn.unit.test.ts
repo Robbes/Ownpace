@@ -11,7 +11,9 @@
  * did not wait for the mapping's scheduled pass.
  *
  * The real `POST /:mappingId/sync` over a real (in-process) ledger, with only
- * the Trigger.dev client replaced by a recorder.
+ * the jobs' producer replaced by a recorder (pg-boss since alpha.18, where the
+ * key is the queue's singleton key, `serializeBy`; Trigger.dev's client until
+ * then, workplan 0167 T9).
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
@@ -44,20 +46,16 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
 const { enqueued } = vi.hoisted(() => ({
   enqueued: [] as Array<{ taskId: string; options: Record<string, unknown> }>,
 }));
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (taskId: string, _payload: unknown, options: Record<string, unknown>) => {
-          enqueued.push({ taskId, options });
-          return Promise.resolve({ id: `run-${enqueued.length}` });
-        },
-      },
-    }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (taskId: string, _payload: unknown, options: Record<string, unknown>) => {
+      enqueued.push({ taskId, options });
+      return `run-${enqueued.length}`;
+  }),
+);
 
 const { default: migrationRoutes } = await import('./index.ts');
 
@@ -120,8 +118,8 @@ describe('POST /:mappingId/sync', () => {
     expect(enqueued).toHaveLength(1);
     expect(enqueued[0]!.taskId).toBe('run-delta-sync');
     expect(
-      enqueued[0]!.options.concurrencyKey,
-      'a manual pass without concurrencyKey lands on the base delta-sync queue, shared by every\n' +
+      enqueued[0]!.options.serializeBy,
+      'a manual pass without its key (concurrencyKey, serializeBy on pg-boss) is not serialised by\n' +
         'tenant, and runs beside the scheduled pass on the same mapping',
     ).toBe(MAPPING);
     expect(enqueued[0]!.options.tags).toEqual([`tenant:${TENANT}`, `mapping:${MAPPING}`]);

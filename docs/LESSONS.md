@@ -29,19 +29,14 @@ reading a file drops off its entry by itself.
 
 ### `.github/dependabot.yml`
 
-- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
-- [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
-- [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
-- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [a-worker-image-on-the-apis-base](../scripts/a-worker-image-on-the-apis-base.unit.test.ts) — A WORKER IMAGE ON ANOTHER BASE THAN THE API'S (workplan 0167 T7).
 - [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `.github/workflows/ci.yml`
@@ -97,12 +92,10 @@ reading a file drops off its entry by itself.
 - [a-secret-kept-where-its-job-is](../scripts/a-secret-kept-where-its-job-is.unit.test.ts) — A SECRET KEPT WHERE ITS JOB IS (workplan 0163 T1; the owner's decision D2 of 2026-11-20: move the secrets into GitHub environments, and D7, which took the O365 lane and its seven secrets out).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
-- [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
-- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 - [two-nights-read-from-the-record](../scripts/two-nights-read-from-the-record.unit.test.ts) — TWO NIGHTS READ FROM THE RECORD: the nights a release tag waits for were counted by a person reading two `gh run list` commands, and on 2026-10-06 the alpha was tagged on one green night of two (workplan 0141 T14).
 
 ### `.github/workflows/e2e.yml`
@@ -142,20 +135,15 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/images.yml`
 
-- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
-- [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
-- [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
-- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
 
@@ -256,7 +244,6 @@ reading a file drops off its entry by itself.
 ### `SECURITY.md`
 
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
-- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `TRADEMARK.md`
@@ -270,7 +257,6 @@ reading a file drops off its entry by itself.
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
-- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [a-worker-image-on-the-apis-base](../scripts/a-worker-image-on-the-apis-base.unit.test.ts) — A WORKER IMAGE ON ANOTHER BASE THAN THE API'S (workplan 0167 T7).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
@@ -331,6 +317,10 @@ reading a file drops off its entry by itself.
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
 - [runs-without-a-transpiler](../scripts/runs-without-a-transpiler.unit.test.ts) — The API image runs `node apps/api/src/index.ts`.
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
+
+### `apps/api/src/job-runner.ts`
+
+- [a-plane-removed](../scripts/a-plane-removed.unit.test.ts) — A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
 
 ### `apps/api/src/knock-limit.ts`
 
@@ -799,6 +789,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `apps/web/src/services/accessibility-link.ts`
+
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+
 ### `apps/web/src/services/api.ts`
 
 - [a-sentence-two-files-must-agree-on](../scripts/a-sentence-two-files-must-agree-on.unit.test.ts) — A SENTENCE TWO FILES MUST AGREE ON, AND NOTHING MADE THEM.
@@ -869,22 +863,16 @@ reading a file drops off its entry by itself.
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-worker-image-on-the-apis-base](../scripts/a-worker-image-on-the-apis-base.unit.test.ts) — A WORKER IMAGE ON ANOTHER BASE THAN THE API'S (workplan 0167 T7).
+- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
 
 ### `apps/worker/package.json`
 
-- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
-- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-ledger-that-outlived-its-mail-server](../scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts) — A LEDGER THAT OUTLIVED ITS MAIL SERVER (workplan 0119; the owner's choice of 2026-11-20, quoted in ADR-0022's update of that date).
-- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
-- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
-- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
-- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
-- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
 ### `apps/worker/src/cli/index.ts`
 
@@ -1013,6 +1001,10 @@ reading a file drops off its entry by itself.
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
+### `apps/worker/src/jobs/what-a-run-leaves.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+
 ### `apps/worker/src/runner/__testing__/a-pass-stand-in.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -1025,7 +1017,7 @@ reading a file drops off its entry by itself.
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [a-worker-image-on-the-apis-base](../scripts/a-worker-image-on-the-apis-base.unit.test.ts) — A WORKER IMAGE ON ANOTHER BASE THAN THE API'S (workplan 0167 T7).
-- [a-worker-that-carries-no-superuser](../scripts/a-worker-that-carries-no-superuser.unit.test.ts) — A WORKER THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0167 T7), the twin of `a-run-that-carries-no-superuser` for the job worker.
+- [a-worker-that-carries-no-superuser](../scripts/a-worker-that-carries-no-superuser.unit.test.ts) — A WORKER THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0167 T7), the twin, for the job worker, of `a-run-that-carries-no-superuser`, which held Trigger.dev's task environment and went with it in alpha.18 (0167 T9).
 - [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
 
 ### `apps/worker/src/runner/pg-boss-context.ts`
@@ -1036,25 +1028,7 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/runner/worker.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
-
-### `apps/worker/task-image/Dockerfile`
-
-- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
-- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
-- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
-
-### `apps/worker/trigger.config.ts`
-
-- [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
-- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
-- [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
-- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
-- [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
-- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
-- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
+- [a-plane-removed](../scripts/a-plane-removed.unit.test.ts) — A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
 
 ### `deploy/compose/bootstrap-managed.sh`
 
@@ -1066,10 +1040,9 @@ reading a file drops off its entry by itself.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-network-the-tenant-cannot-see](../scripts/a-network-the-tenant-cannot-see.unit.test.ts) — A NETWORK THE TENANT CANNOT SEE (workplan 0136 T4's guard, built for its first bullet, the socket proxy, on 2026-11-02): until then every container of the stack, every task run included, could ask the Docker API to start a container.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
-- [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
-- [a-plane-kept-and-stopped](../scripts/a-plane-kept-and-stopped.unit.test.ts) — A PLANE KEPT INSTALLED AND STOPPED (workplan 0167 T7; ADR-0054).
-- [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
+- [a-plane-removed](../scripts/a-plane-removed.unit.test.ts) — A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
@@ -1079,12 +1052,11 @@ reading a file drops off its entry by itself.
 - [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
-- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -1096,12 +1068,10 @@ reading a file drops off its entry by itself.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
-- [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-catcher-only-where-it-catches](../scripts/the-catcher-only-where-it-catches.unit.test.ts) — THE CATCHER ONLY WHERE IT CATCHES (workplan 0133 T3 (b), the owner's D5).
 - [the-check-postgres-never-made](../scripts/the-check-postgres-never-made.unit.test.ts) — A CREDENTIAL CHECK THAT POSTGRES NEVER MADE.
-- [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 - [the-volume-a-recipe-forgot-to-prepare](../scripts/the-volume-a-recipe-forgot-to-prepare.unit.test.ts) — A RECIPE THAT DELETES WHAT ONLY ONE PHASE KNOWS HOW TO RESTORE.
@@ -1125,16 +1095,8 @@ reading a file drops off its entry by itself.
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
-### `deploy/compose/caddy/Dockerfile`
-
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
-- [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
-- [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
-- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
-
 ### `deploy/compose/check-env-agreement.sh`
 
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
@@ -1147,7 +1109,6 @@ reading a file drops off its entry by itself.
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-retention-the-bring-up-states](../scripts/a-retention-the-bring-up-states.unit.test.ts) — A RETENTION THE BRING-UP STATES (workplan 0134 T1).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
-- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
@@ -1157,7 +1118,6 @@ reading a file drops off its entry by itself.
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
@@ -1176,7 +1136,6 @@ reading a file drops off its entry by itself.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
-- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
@@ -1184,23 +1143,6 @@ reading a file drops off its entry by itself.
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
-
-### `deploy/compose/deploy-tasks.sh`
-
-- [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
-- [a-bundle-built-from-a-stale-install](../scripts/a-bundle-built-from-a-stale-install.unit.test.ts) — A BUNDLE BUILT FROM A STALE INSTALL (workplan 0150 T8; the owner, 2026-09-28: *"yes, make deploy-tasks.sh run pnpm install"*).
-- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
-- [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
-- [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
-- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
-- [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
-- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
-- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
-- [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
-- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
-- [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
 ### `deploy/compose/dev.ci.yml`
 
@@ -1221,19 +1163,9 @@ reading a file drops off its entry by itself.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
-### `deploy/compose/docker-socket-proxy/Dockerfile`
-
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
-- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
-
-### `deploy/compose/docker-socket-proxy/system_files/usr/local/bin/docker-entrypoint.sh`
-
-- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
-- [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
-
 ### `deploy/compose/dump-idp.sh`
 
+- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
@@ -1250,11 +1182,10 @@ reading a file drops off its entry by itself.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
-- [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts) — A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
 
@@ -1271,13 +1202,12 @@ reading a file drops off its entry by itself.
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-ledger-that-outlived-its-mail-server](../scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts) — A LEDGER THAT OUTLIVED ITS MAIL SERVER (workplan 0119; the owner's choice of 2026-11-20, quoted in ADR-0022's update of that date).
 - [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
-- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-plane-removed](../scripts/a-plane-removed.unit.test.ts) — A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
@@ -1285,7 +1215,7 @@ reading a file drops off its entry by itself.
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 - [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
@@ -1301,7 +1231,6 @@ reading a file drops off its entry by itself.
 - [the-catcher-only-where-it-catches](../scripts/the-catcher-only-where-it-catches.unit.test.ts) — THE CATCHER ONLY WHERE IT CATCHES (workplan 0133 T3 (b), the owner's D5).
 - [the-role-that-was-not-there](../scripts/the-role-that-was-not-there.unit.test.ts) — THE ROLE THAT WAS NOT THERE LOOKED EXACTLY LIKE THE WRONG PASSWORD.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
-- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
@@ -1311,7 +1240,6 @@ reading a file drops off its entry by itself.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
-- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -1319,14 +1247,13 @@ reading a file drops off its entry by itself.
 - [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
-- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/exposure-check.sh`
 
@@ -1367,13 +1294,11 @@ reading a file drops off its entry by itself.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
-- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
-- [a-plane-kept-and-stopped](../scripts/a-plane-kept-and-stopped.unit.test.ts) — A PLANE KEPT INSTALLED AND STOPPED (workplan 0167 T7; ADR-0054).
+- [a-plane-removed](../scripts/a-plane-removed.unit.test.ts) — A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-switch-the-operator-read-otherwise](../scripts/a-switch-the-operator-read-otherwise.unit.test.ts) — A SWITCH THE OPERATOR READ OTHERWISE (workplan 0167 T7; ADR-0054).
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
@@ -1390,20 +1315,18 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
-- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 
 ### `deploy/compose/managed.env.example`
 
-- [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
-- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
+- [a-plane-removed](../scripts/a-plane-removed.unit.test.ts) — A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -1426,7 +1349,7 @@ reading a file drops off its entry by itself.
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
@@ -1436,15 +1359,11 @@ reading a file drops off its entry by itself.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
-- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
 
 ### `deploy/compose/managed.yml`
 
-- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
-- [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
-- [a-clickhouse-without-the-files-its-pin-needs](../scripts/a-clickhouse-without-the-files-its-pin-needs.unit.test.ts) — A CLICKHOUSE WITHOUT THE FILES ITS PIN NEEDS (workplan 0119 §3 item 9, option 2; the review of 2026-11-02).
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts) — A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
@@ -1464,17 +1383,16 @@ reading a file drops off its entry by itself.
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
-- [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
+- [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A JOB READS AND NOBODY HANDS IT.
 - [a-ledger-that-outlived-its-mail-server](../scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts) — A LEDGER THAT OUTLIVED ITS MAIL SERVER (workplan 0119; the owner's choice of 2026-11-20, quoted in ADR-0022's update of that date).
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-network-the-tenant-cannot-see](../scripts/a-network-the-tenant-cannot-see.unit.test.ts) — A NETWORK THE TENANT CANNOT SEE (workplan 0136 T4's guard, built for its first bullet, the socket proxy, on 2026-11-02): until then every container of the stack, every task run included, could ask the Docker API to start a container.
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
 - [a-notice-before-a-password](../scripts/a-notice-before-a-password.unit.test.ts) — A NOTICE BEFORE A PASSWORD (workplan 0135 T5, for 0139 T4).
-- [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
-- [a-plane-kept-and-stopped](../scripts/a-plane-kept-and-stopped.unit.test.ts) — A PLANE KEPT INSTALLED AND STOPPED (workplan 0167 T7; ADR-0054).
+- [a-plane-removed](../scripts/a-plane-removed.unit.test.ts) — A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -1489,7 +1407,6 @@ reading a file drops off its entry by itself.
 - [a-retention-the-bring-up-states](../scripts/a-retention-the-bring-up-states.unit.test.ts) — A RETENTION THE BRING-UP STATES (workplan 0134 T1).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-second-factor-for-the-keys](../scripts/a-second-factor-for-the-keys.unit.test.ts) — A SECOND FACTOR OFFERED, AND A LOCK AFTER TEN WRONG PASSWORDS (workplan 0135 T4).
@@ -1497,24 +1414,20 @@ reading a file drops off its entry by itself.
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
-- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-switch-the-operator-read-otherwise](../scripts/a-switch-the-operator-read-otherwise.unit.test.ts) — A SWITCH THE OPERATOR READ OTHERWISE (workplan 0167 T7; ADR-0054).
-- [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 - [a-worker-image-on-the-apis-base](../scripts/a-worker-image-on-the-apis-base.unit.test.ts) — A WORKER IMAGE ON ANOTHER BASE THAN THE API'S (workplan 0167 T7).
-- [a-worker-that-carries-no-superuser](../scripts/a-worker-that-carries-no-superuser.unit.test.ts) — A WORKER THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0167 T7), the twin of `a-run-that-carries-no-superuser` for the job worker.
+- [a-worker-that-carries-no-superuser](../scripts/a-worker-that-carries-no-superuser.unit.test.ts) — A WORKER THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0167 T7), the twin, for the job worker, of `a-run-that-carries-no-superuser`, which held Trigger.dev's task environment and went with it in alpha.18 (0167 T9).
 - [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts) — AN ALERT SOMEONE READS (workplan 0142 T1).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
-- [an-object-store-with-a-maintainer](../scripts/an-object-store-with-a-maintainer.unit.test.ts) — AN OBJECT STORE WITH A MAINTAINER (workplan 0146 T7; the owner, 2026-10-23: *"T7 no, fix already within the alpha"*).
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -1542,7 +1455,6 @@ reading a file drops off its entry by itself.
 - [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
 - [the-role-that-was-not-there](../scripts/the-role-that-was-not-there.unit.test.ts) — THE ROLE THAT WAS NOT THERE LOOKED EXACTLY LIKE THE WRONG PASSWORD.
 - [the-state-that-lived-in-a-nameless-volume](../scripts/the-state-that-lived-in-a-nameless-volume.unit.test.ts) — STATE IN A NAMELESS VOLUME IS STATE NOBODY CAN FIND AGAIN.
-- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [zitadel-image-matches-postgres](../scripts/zitadel-image-matches-postgres.unit.test.ts) — The identity provider and the database it initialises into are pinned in the same file, and they are not independent.
@@ -1577,10 +1489,9 @@ reading a file drops off its entry by itself.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/pgbouncer/Dockerfile`
@@ -1593,18 +1504,6 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/pgbouncer/setup-auth.sql`
 
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
-
-### `deploy/compose/plane-limit.sh`
-
-- [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
-- [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
-- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
-
-### `deploy/compose/plane-tokens.sh`
-
-- [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
-- [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
-- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 
 ### `deploy/compose/postgres/Dockerfile`
 
@@ -1622,13 +1521,6 @@ reading a file drops off its entry by itself.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [redact-evidence](../scripts/redact-evidence.unit.test.ts) — The redactor, tested against the log it actually has to clean (workplan 0084 T5).
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
-
-### `deploy/compose/redis/Dockerfile`
-
-- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
-- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/compose/refuse-live-env.sh`
 
@@ -1649,22 +1541,24 @@ reading a file drops off its entry by itself.
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
-### `deploy/compose/reset-demo-mail.sh`
+### `deploy/compose/remove-trigger-plane.sh`
 
-- [a-ledger-that-outlived-its-mail-server](../scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts) — A LEDGER THAT OUTLIVED ITS MAIL SERVER (workplan 0119; the owner's choice of 2026-11-20, quoted in ADR-0022's update of that date).
-
-### `deploy/compose/reset-trigger.sh`
-
-- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
+- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-network-the-tenant-cannot-see](../scripts/a-network-the-tenant-cannot-see.unit.test.ts) — A NETWORK THE TENANT CANNOT SEE (workplan 0136 T4's guard, built for its first bullet, the socket proxy, on 2026-11-02): until then every container of the stack, every task run included, could ask the Docker API to start a container.
+- [a-plane-removed](../scripts/a-plane-removed.unit.test.ts) — A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
+
+### `deploy/compose/reset-demo-mail.sh`
+
+- [a-ledger-that-outlived-its-mail-server](../scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts) — A LEDGER THAT OUTLIVED ITS MAIL SERVER (workplan 0119; the owner's choice of 2026-11-20, quoted in ADR-0022's update of that date).
 
 ### `deploy/compose/rotate-db-passwords.sh`
 
 - [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts) — A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
-- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
 
@@ -1690,25 +1584,6 @@ reading a file drops off its entry by itself.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
-
-### `deploy/compose/set-task-env.sh`
-
-- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
-- [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
-- [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
-- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
-- [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
-- [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
-- [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
-- [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
-- [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
-- [a-worker-that-carries-no-superuser](../scripts/a-worker-that-carries-no-superuser.unit.test.ts) — A WORKER THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0167 T7), the twin of `a-run-that-carries-no-superuser` for the job worker.
-- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
-- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
-- [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
-- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
-- [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
 ### `deploy/compose/setup-managed-demo.sh`
 
@@ -1740,7 +1615,7 @@ reading a file drops off its entry by itself.
 - [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
@@ -1762,7 +1637,7 @@ reading a file drops off its entry by itself.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
@@ -1796,8 +1671,6 @@ reading a file drops off its entry by itself.
 - [a-restart-nobody-in-the-run-asked-for](../scripts/a-restart-nobody-in-the-run-asked-for.unit.test.ts) — A RESTART NOBODY IN THE RUN ASKED FOR, AND A VERDICT THAT BLAMED WHICHEVER CHECK WAS RUNNING (E2E (managed) #195, 2026-09-23).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-sync-the-gate-pressed-on-free](../scripts/a-sync-the-gate-pressed-on-free.unit.test.ts) — A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
-- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
-- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, which 0070's trigger guarantees, and this guard warns of any update that names it before the merge (workplan 0162 T1, §3; the owner's §2…
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
@@ -1819,7 +1692,6 @@ reading a file drops off its entry by itself.
 - [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
 - [the-moment-pressed](../scripts/the-moment-pressed.unit.test.ts) — THE MOMENT, PRESSED (workplan 0104 T2, final stage).
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
-- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/stack-kind.sh`
 
@@ -1832,10 +1704,10 @@ reading a file drops off its entry by itself.
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-ledger-that-outlived-its-mail-server](../scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts) — A LEDGER THAT OUTLIVED ITS MAIL SERVER (workplan 0119; the owner's choice of 2026-11-20, quoted in ADR-0022's update of that date).
+- [a-plane-removed](../scripts/a-plane-removed.unit.test.ts) — A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
@@ -1844,7 +1716,7 @@ reading a file drops off its entry by itself.
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 - [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
@@ -1864,20 +1736,11 @@ reading a file drops off its entry by itself.
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
-- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
-- [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
-
-### `deploy/compose/supervisor/Dockerfile`
-
-- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
-- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
-- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
 ### `deploy/compose/support-read-prune.sh`
 
@@ -1888,52 +1751,6 @@ reading a file drops off its entry by itself.
 
 - [a-disk-that-says-it-is-filling](../scripts/a-disk-that-says-it-is-filling.unit.test.ts) — A DISK THAT SAYS IT IS FILLING, AND DUTIES THAT SAY THEY FAILED (workplan 0142 T3).
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
-
-### `deploy/compose/trigger-cli-lib.sh`
-
-- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
-- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
-- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
-- [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
-
-### `deploy/compose/trigger-credentials.sh`
-
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
-- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
-- [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
-- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
-
-### `deploy/compose/trigger-magic-link.sh`
-
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
-- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
-- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
-
-### `deploy/compose/trigger-remember-token.sh`
-
-- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
-- [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
-- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
-
-### `deploy/compose/trigger-version.sh`
-
-- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
-- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
-- [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
-- [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
-- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
-- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
-- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
-
-### `deploy/compose/trigger.dev/Dockerfile`
-
-- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
-- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
-- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
 ### `deploy/compose/www-live.sh`
 
@@ -1972,7 +1789,6 @@ reading a file drops off its entry by itself.
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
-- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12a).
@@ -1991,7 +1807,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/zitadel-network-alias.sh`
 
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 
 ### `deploy/selfhost/README.md`
@@ -2031,6 +1847,7 @@ reading a file drops off its entry by itself.
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
+- [a-network-the-tenant-cannot-see](../scripts/a-network-the-tenant-cannot-see.unit.test.ts) — A NETWORK THE TENANT CANNOT SEE (workplan 0136 T4's guard, built for its first bullet, the socket proxy, on 2026-11-02): until then every container of the stack, every task run included, could ask the Docker API to start a container.
 - [a-privilege-no-service-uses](../scripts/a-privilege-no-service-uses.unit.test.ts) — A PRIVILEGE NO SERVICE USES (workplan 0119, 2026-11-03; the owner, the same day: "make base images more lean/small and more hardened").
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
@@ -2153,7 +1970,6 @@ reading a file drops off its entry by itself.
 
 ### `docs/ending-the-alpha.md`
 
-- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
@@ -2208,7 +2024,6 @@ reading a file drops off its entry by itself.
 
 ### `docs/managed-bring-up.md`
 
-- [a-clickhouse-without-the-files-its-pin-needs](../scripts/a-clickhouse-without-the-files-its-pin-needs.unit.test.ts) — A CLICKHOUSE WITHOUT THE FILES ITS PIN NEEDS (workplan 0119 §3 item 9, option 2; the review of 2026-11-02).
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
@@ -2235,7 +2050,6 @@ reading a file drops off its entry by itself.
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
-- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
@@ -2293,7 +2107,6 @@ reading a file drops off its entry by itself.
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 
@@ -2710,7 +2523,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/ledger/src/retention.ts`
 
-- [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
+- [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A JOB READS AND NOBODY HANDS IT.
 - [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 
 ### `packages/ledger/src/schema-pg.ts`
@@ -2736,7 +2549,6 @@ reading a file drops off its entry by itself.
 
 ### `packages/managed/migrations/0033_a_system_role_that_is_not_the_owner.sql`
 
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 
 ### `packages/managed/src/books-read-back.ts`
@@ -3137,10 +2949,6 @@ reading a file drops off its entry by itself.
 - [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 
-### `packages/testing/fixtures/stalwart/config.json`
-
-- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
-
 ### `packages/testing/src/nextcloud-image.ts`
 
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
@@ -3206,7 +3014,6 @@ reading a file drops off its entry by itself.
 ### `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
-- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 
 ### `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 
@@ -3227,10 +3034,6 @@ reading a file drops off its entry by itself.
 ### `scripts/a-sentence-two-files-must-agree-on.unit.test.ts`
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
-
-### `scripts/a-service-that-phones-home.unit.test.ts`
-
-- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
 
 ### `scripts/a-stack-that-names-its-mode.unit.test.ts`
 
@@ -3316,7 +3119,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/every-service-somebody-starts.unit.test.ts`
 
-- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
 
 ### `scripts/exposure-check.unit.test.ts`
 
@@ -3421,7 +3224,6 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
-- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
 ### `scripts/idp-wiring.unit.test.ts`
 
@@ -3548,7 +3350,6 @@ reading a file drops off its entry by itself.
 ### `scripts/rotate-db-passwords.unit.test.ts`
 
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
-- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 
 ### `scripts/runs-without-a-transpiler.unit.test.ts`
 
@@ -3851,27 +3652,10 @@ Reads:
 - `apps/selfhost/Dockerfile`
 - `apps/web/Dockerfile`
 - `apps/worker/Dockerfile`
-- `apps/worker/task-image/Dockerfile`
 - `deploy/selfhost/compose.yml`
 - `scripts/an-api-image-with-nothing-to-exec.unit.test.ts`
 - `scripts/an-appliance-with-nothing-to-exec.unit.test.ts`
 - `scripts/package-appliance.mjs`
-
-### [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts)
-
-A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
-
-Reads:
-
-- `.github/dependabot.yml`
-- `.github/workflows/images.yml`
-- `apps/worker/package.json`
-- `deploy/compose/docker-socket-proxy/system_files/usr/local/bin/docker-entrypoint.sh`
-- `deploy/compose/managed.yml`
-- `deploy/compose/redis/Dockerfile`
-- `deploy/compose/supervisor/Dockerfile`
-- `deploy/compose/trigger.dev/Dockerfile`
-- `scripts/a-service-that-phones-home.unit.test.ts`
 
 ### [a-blip-that-failed-a-gate](../scripts/a-blip-that-failed-a-gate.unit.test.ts)
 
@@ -3899,24 +3683,6 @@ Reads:
 - `apps/api/src/index.ts`
 - `apps/web/src/pages/Login.tsx`
 - `deploy/compose/setup-zitadel.sh`
-
-### [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts)
-
-A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
-
-Reads:
-
-- `deploy/compose/deploy-tasks.sh`
-- `deploy/compose/managed.env.example`
-- `deploy/compose/managed.yml`
-
-### [a-bundle-built-from-a-stale-install](../scripts/a-bundle-built-from-a-stale-install.unit.test.ts)
-
-A BUNDLE BUILT FROM A STALE INSTALL (workplan 0150 T8; the owner, 2026-09-28: *"yes, make deploy-tasks.sh run pnpm install"*).
-
-Reads:
-
-- `deploy/compose/deploy-tasks.sh`
 
 ### [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts)
 
@@ -3972,15 +3738,6 @@ Reads:
 
 - `packages/orchestration/src/source-face-builders.ts`
 - `packages/shared/src/google-native-coverage.ts`
-
-### [a-clickhouse-without-the-files-its-pin-needs](../scripts/a-clickhouse-without-the-files-its-pin-needs.unit.test.ts)
-
-A CLICKHOUSE WITHOUT THE FILES ITS PIN NEEDS (workplan 0119 §3 item 9, option 2; the review of 2026-11-02).
-
-Reads:
-
-- `deploy/compose/managed.yml`
-- `docs/managed-bring-up.md`
 
 ### [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts)
 
@@ -4058,7 +3815,6 @@ Reads:
 - `apps/api/src/routes/migrations/index.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
-- `deploy/compose/set-task-env.sh`
 - `packages/orchestration/src/account-qualification.ts`
 - `packages/orchestration/src/build-deps-from-mapping.ts`
 - `packages/orchestration/src/deployment-application.ts`
@@ -4117,7 +3873,6 @@ Reads:
 - `deploy/compose/jobs-role.sql`
 - `deploy/compose/operator.sh`
 - `deploy/compose/seed-managed.sh`
-- `deploy/compose/set-task-env.sh`
 - `docs/operator-runbook.md`
 - `docs/rls-guide.md`
 - `scripts/a-sentence-two-files-must-agree-on.unit.test.ts`
@@ -4306,7 +4061,6 @@ Reads:
 - `deploy/compose/setup-managed-demo.sh`
 - `deploy/compose/shipped-passwords.sh`
 - `deploy/compose/stack-kind.sh`
-- `deploy/compose/trigger-cli-lib.sh`
 - `deploy/selfhost/setup-stalwart.sh`
 
 ### [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts)
@@ -4373,7 +4127,6 @@ Reads:
 
 - `apps/api/src/scripts/live-pass.ts`
 - `apps/worker/src/jobs/managed-sync-tick.ts`
-- `apps/worker/trigger.config.ts`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/live-pass-check.sh`
@@ -4482,15 +4235,9 @@ Reads:
 - `apps/selfhost/Dockerfile`
 - `apps/web/Dockerfile`
 - `apps/worker/Dockerfile`
-- `apps/worker/task-image/Dockerfile`
-- `deploy/compose/caddy/Dockerfile`
-- `deploy/compose/docker-socket-proxy/Dockerfile`
 - `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/pgbouncer/Dockerfile`
 - `deploy/compose/postgres/Dockerfile`
-- `deploy/compose/redis/Dockerfile`
-- `deploy/compose/supervisor/Dockerfile`
-- `deploy/compose/trigger.dev/Dockerfile`
 - `deploy/selfhost/postgres/Dockerfile`
 - `docs/testing.md`
 - `packages/testing/fixtures/stalwart/Dockerfile`
@@ -4581,6 +4328,7 @@ Reads:
 - `deploy/compose/box-checks.sh`
 - `deploy/compose/box-duties.sh`
 - `deploy/compose/copy-before-update.sh`
+- `deploy/compose/dump-idp.sh`
 - `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
@@ -4591,12 +4339,12 @@ Reads:
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/redact-evidence.sh`
 - `deploy/compose/refuse-live-env.sh`
+- `deploy/compose/remove-trigger-plane.sh`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/smoke-managed.sh`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/support-read-prune.sh`
-- `deploy/compose/trigger-version.sh`
 - `deploy/compose/www-live.sh`
 - `docs/managed-bring-up.md`
 
@@ -4683,7 +4431,6 @@ Reads:
 - `deploy/compose/shipped-passwords.sh`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
-- `deploy/compose/trigger-cli-lib.sh`
 - `deploy/compose/www-live.sh`
 - `deploy/compose/www.yml`
 
@@ -4724,7 +4471,6 @@ Reads:
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `apps/web/Dockerfile`
-- `deploy/compose/caddy/Dockerfile`
 - `deploy/compose/db-roles.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/dev.yml`
@@ -4767,10 +4513,7 @@ Reads:
 - `.github/workflows/e2e-managed.yml`
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
-- `apps/worker/package.json`
-- `apps/worker/task-image/Dockerfile`
-- `apps/worker/trigger.config.ts`
-- `deploy/compose/managed.env.example`
+- `apps/worker/Dockerfile`
 - `deploy/compose/managed.yml`
 - `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/release-tag.sh`
@@ -4909,12 +4652,11 @@ Reads:
 
 ### [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts)
 
-A VARIABLE A TASK READS AND NOBODY UPLOADS.
+A VARIABLE A JOB READS AND NOBODY HANDS IT.
 
 Reads:
 
 - `deploy/compose/managed.yml`
-- `deploy/compose/set-task-env.sh`
 - `packages/ledger/src/retention.ts`
 
 ### [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts)
@@ -5023,19 +4765,6 @@ Reads:
 - `apps/api/src/access-log.ts`
 - `apps/web/nginx.conf.template`
 - `apps/web/src/services/problem-report-service.ts`
-
-### [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts)
-
-A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
-
-Reads:
-
-- `deploy/compose/deploy-tasks.sh`
-- `deploy/compose/env-read.sh`
-- `deploy/compose/env-upsert.sh`
-- `deploy/compose/job-runner.sh`
-- `deploy/compose/trigger-remember-token.sh`
-- `packages/testing/fixtures/stalwart/config.json`
 
 ### [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts)
 
@@ -5166,8 +4895,11 @@ A NETWORK THE TENANT CANNOT SEE (workplan 0136 T4's guard, built for its first b
 
 Reads:
 
+- `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/managed.yml`
+- `deploy/compose/remove-trigger-plane.sh`
 - `deploy/compose/www.yml`
+- `deploy/selfhost/compose.yml`
 
 ### [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts)
 
@@ -5212,17 +4944,6 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
 
-### [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts)
-
-A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
-
-Reads:
-
-- `.github/dependabot.yml`
-- `.github/workflows/images.yml`
-- `deploy/compose/caddy/Dockerfile`
-- `deploy/compose/managed.yml`
-
 ### [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts)
 
 A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -5252,12 +4973,12 @@ Reads:
 - `apps/worker/src/jobs/run-verification.ts`
 - `apps/worker/src/jobs/stopping-a-pass.ts`
 - `apps/worker/src/jobs/task-pools.ts`
+- `apps/worker/src/jobs/what-a-run-leaves.ts`
 - `apps/worker/src/runner/__testing__/a-pass-stand-in.ts`
 - `apps/worker/src/runner/__testing__/a-worker-to-kill.ts`
 - `apps/worker/src/runner/main.ts`
 - `apps/worker/src/runner/pg-boss-context.ts`
 - `apps/worker/src/runner/worker.ts`
-- `deploy/compose/set-task-env.sh`
 - `docs/rls-guide.md`
 - `packages/ledger/src/direct-url.ts`
 - `packages/orchestration/src/build-deps-from-mapping.ts`
@@ -5270,7 +4991,6 @@ A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 
 Reads:
 
-- `apps/worker/trigger.config.ts`
 - `packages/scheduler/src/pg-boss/catalog.ts`
 - `packages/shared/src/pass-deadline.ts`
 
@@ -5289,14 +5009,12 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/pgbouncer/setup-auth.sql`
-- `deploy/compose/reset-trigger.sh`
 - `deploy/compose/rotate-db-passwords.sh`
 - `deploy/compose/shipped-passwords.sh`
 - `deploy/compose/stand-up-live.sh`
 - `docs/managed-bring-up.md`
 - `docs/operator-runbook.md`
 - `packages/ledger/migrations/0001_baseline.sql`
-- `scripts/rotate-db-passwords.unit.test.ts`
 
 ### [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts)
 
@@ -5334,8 +5052,6 @@ Reads:
 - `.github/workflows/semgrep.yml`
 - `.github/workflows/zizmor.yml`
 - `AGENTS.md`
-- `apps/worker/package.json`
-- `apps/worker/trigger.config.ts`
 - `deploy/compose/dev.yml`
 - `deploy/compose/dump-idp.sh`
 - `deploy/compose/goaccess/Dockerfile`
@@ -5344,9 +5060,6 @@ Reads:
 - `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/smoke-managed.sh`
-- `deploy/compose/supervisor/Dockerfile`
-- `deploy/compose/trigger-version.sh`
-- `deploy/compose/trigger.dev/Dockerfile`
 - `deploy/compose/www.yml`
 - `deploy/selfhost/setup-stalwart.sh`
 - `docs/adr/0022-imap-dependency-security-strategy.md`
@@ -5373,35 +5086,21 @@ Reads:
 - `docs/managed-bring-up.md`
 - `docs/operator-runbook.md`
 
-### [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts)
+### [a-plane-removed](../scripts/a-plane-removed.unit.test.ts)
 
-A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
-
-Reads:
-
-- `deploy/compose/bootstrap-managed.sh`
-- `deploy/compose/deploy-tasks.sh`
-- `deploy/compose/plane-limit.sh`
-
-### [a-plane-kept-and-stopped](../scripts/a-plane-kept-and-stopped.unit.test.ts)
-
-A PLANE KEPT INSTALLED AND STOPPED (workplan 0167 T7; ADR-0054).
+A PLANE REMOVED, AND WHAT IT LEFT REMOVED BY NAME (workplan 0167 T9; ADR-0054).
 
 Reads:
 
+- `apps/api/src/job-runner.ts`
+- `apps/worker/src/runner/worker.ts`
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/env-read.sh`
 - `deploy/compose/job-runner.sh`
+- `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
-
-### [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts)
-
-THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
-
-Reads:
-
-- `deploy/compose/bootstrap-managed.sh`
-- `deploy/compose/deploy-tasks.sh`
-- `deploy/compose/plane-tokens.sh`
+- `deploy/compose/remove-trigger-plane.sh`
+- `deploy/compose/stack-kind.sh`
 
 ### [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts)
 
@@ -5415,6 +5114,7 @@ Reads:
 - `apps/web/Dockerfile`
 - `apps/web/src/pages/Grant.tsx`
 - `apps/web/src/pages/Grant.unit.test.tsx`
+- `apps/web/src/services/accessibility-link.ts`
 - `apps/web/src/services/legal-links.ts`
 - `apps/web/src/services/tester-guide-link.ts`
 - `apps/web/vite.config.ts`
@@ -5549,7 +5249,6 @@ Reads:
 - `.github/workflows/e2e-managed.yml`
 - `.github/workflows/e2e.yml`
 - `deploy/compose/bootstrap-managed.sh`
-- `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
@@ -5726,7 +5425,6 @@ Reads:
 
 - `.github/workflows/security-scan.yml`
 - `apps/selfhost/Dockerfile`
-- `apps/worker/trigger.config.ts`
 - `docs/release.md`
 - `scripts/fixtures/release/ghcr-ownpace-selfhost-0.2.0-alpha.1-index.json`
 - `scripts/fixtures/release/release-v0.1.0-rc.1.json`
@@ -5849,7 +5547,6 @@ Reads:
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
-- `deploy/compose/set-task-env.sh`
 - `deploy/compose/setup-managed-demo.sh`
 - `deploy/compose/smoke-managed.sh`
 - `deploy/selfhost/compose.dev.yml`
@@ -5857,26 +5554,6 @@ Reads:
 - `deploy/selfhost/compose.pglite.yml`
 - `deploy/selfhost/compose.yml`
 - `deploy/selfhost/selfhost.env.example`
-
-### [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts)
-
-A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
-
-Reads:
-
-- `deploy/compose/check-env-agreement.sh`
-- `deploy/compose/db-roles.sh`
-- `deploy/compose/deploy-tasks.sh`
-- `deploy/compose/env-read.sh`
-- `deploy/compose/job-runner.sh`
-- `deploy/compose/managed.yml`
-- `deploy/compose/own-addresses.sh`
-- `deploy/compose/set-task-env.sh`
-- `deploy/compose/stack-kind.sh`
-- `deploy/compose/trigger-cli-lib.sh`
-- `docs/rls-guide.md`
-- `packages/managed/migrations/0033_a_system_role_that_is_not_the_owner.sql`
-- `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
 
 ### [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts)
 
@@ -5966,7 +5643,6 @@ Reads:
 - `deploy/compose/box-duties.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/managed.yml`
-- `deploy/compose/set-task-env.sh`
 - `deploy/compose/support-read-prune.sh`
 - `docs/managed-bring-up.md`
 - `docs/operator-runbook.md`
@@ -6204,18 +5880,6 @@ Reads:
 - `deploy/compose/stand-up-live.sh`
 - `packages/shared/src/notifications.ts`
 
-### [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts)
-
-A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
-
-Reads:
-
-- `SECURITY.md`
-- `deploy/compose/managed.yml`
-- `deploy/compose/rotate-db-passwords.sh`
-- `deploy/compose/www.yml`
-- `docs/ending-the-alpha.md`
-
 ### [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts)
 
 A progress link opens counts and states, and nothing that names anything.
@@ -6242,15 +5906,11 @@ Reads:
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/db-roles.sh`
 - `deploy/compose/deploy-live.sh`
-- `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
-- `deploy/compose/plane-limit.sh`
-- `deploy/compose/plane-tokens.sh`
-- `deploy/compose/set-task-env.sh`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
 - `packages/managed/migrations/0033_a_system_role_that_is_not_the_owner.sql`
@@ -6314,17 +5974,6 @@ Reads:
 
 - `pnpm-workspace.yaml`
 
-### [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts)
-
-A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
-
-Reads:
-
-- `.github/dependabot.yml`
-- `.github/workflows/images.yml`
-- `deploy/compose/docker-socket-proxy/system_files/usr/local/bin/docker-entrypoint.sh`
-- `deploy/compose/managed.yml`
-
 ### [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts)
 
 A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
@@ -6348,37 +5997,6 @@ Reads:
 - `packages/shared/src/credential-fields.ts`
 - `packages/shared/src/front-door.ts`
 - `packages/shared/src/target-domains.ts`
-
-### [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts)
-
-A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
-
-Reads:
-
-- `.github/dependabot.yml`
-- `.github/workflows/images.yml`
-- `apps/api/Dockerfile`
-- `apps/worker/package.json`
-- `apps/worker/task-image/Dockerfile`
-- `apps/worker/trigger.config.ts`
-- `deploy/compose/deploy-tasks.sh`
-- `deploy/compose/smoke-managed.sh`
-- `deploy/compose/trigger-cli-lib.sh`
-
-### [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts)
-
-A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
-
-Reads:
-
-- `apps/worker/package.json`
-- `deploy/compose/bootstrap-managed.sh`
-- `deploy/compose/deploy-live.sh`
-- `deploy/compose/deploy-tasks.sh`
-- `deploy/compose/live-pass-check.sh`
-- `deploy/compose/smoke-managed.sh`
-- `deploy/compose/stand-up-live.sh`
-- `docs/managed-bring-up.md`
 
 ### [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts)
 
@@ -6415,17 +6033,6 @@ Reads:
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
 
-### [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts)
-
-`TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
-
-Reads:
-
-- `.github/workflows/e2e-managed.yml`
-- `deploy/compose/deploy-tasks.sh`
-- `deploy/compose/set-task-env.sh`
-- `deploy/compose/trigger-remember-token.sh`
-
 ### [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts)
 
 One file, two parsers, and nothing checked that they agreed.
@@ -6436,7 +6043,6 @@ Reads:
 - `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.env.example`
-- `deploy/compose/set-task-env.sh`
 
 ### [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts)
 
@@ -6600,13 +6206,16 @@ Reads:
 
 ### [a-worker-that-carries-no-superuser](../scripts/a-worker-that-carries-no-superuser.unit.test.ts)
 
-A WORKER THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0167 T7), the twin of `a-run-that-carries-no-superuser` for the job worker.
+A WORKER THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0167 T7), the twin, for the job worker, of `a-run-that-carries-no-superuser`, which held Trigger.dev's task environment and went with it in alpha.18 (0167 T9).
 
 Reads:
 
 - `apps/worker/src/runner/main.ts`
 - `deploy/compose/managed.yml`
-- `deploy/compose/set-task-env.sh`
+
+### [a-workflow-key-left-empty](../scripts/a-workflow-key-left-empty.unit.test.ts)
+
+A WORKFLOW KEY LEFT EMPTY (workplan 0167 T9).
 
 ### [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts)
 
@@ -6741,7 +6350,6 @@ Reads:
 - `apps/worker/src/jobs/run-delta-sync.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
-- `deploy/compose/set-task-env.sh`
 - `deploy/selfhost/compose.dev.yml`
 - `deploy/selfhost/compose.drill.yml`
 - `deploy/selfhost/compose.pglite.yml`
@@ -6821,15 +6429,7 @@ AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 01
 
 Reads:
 
-- `.github/dependabot.yml`
-- `.github/workflows/images.yml`
 - `apps/selfhost/Dockerfile`
-- `apps/worker/task-image/Dockerfile`
-- `apps/worker/trigger.config.ts`
-- `deploy/compose/docker-socket-proxy/system_files/usr/local/bin/docker-entrypoint.sh`
-- `deploy/compose/managed.yml`
-- `deploy/compose/redis/Dockerfile`
-- `deploy/compose/trigger.dev/Dockerfile`
 
 ### [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts)
 
@@ -6857,17 +6457,13 @@ Reads:
 - `.github/workflows/security-scan.yml`
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
-- `apps/worker/package.json`
-- `apps/worker/trigger.config.ts`
-- `deploy/compose/caddy/Dockerfile`
+- `apps/worker/Dockerfile`
 - `deploy/compose/db-roles.sh`
 - `deploy/compose/dev.yml`
-- `deploy/compose/docker-socket-proxy/Dockerfile`
 - `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
 - `deploy/compose/pgbouncer/Dockerfile`
 - `deploy/compose/postgres/Dockerfile`
-- `deploy/compose/redis/Dockerfile`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/www.yml`
 - `deploy/selfhost/compose.yml`
@@ -6943,14 +6539,6 @@ Reads:
 - `deploy/compose/www.yml`
 - `docs/incident-runbook.md`
 
-### [an-object-store-with-a-maintainer](../scripts/an-object-store-with-a-maintainer.unit.test.ts)
-
-AN OBJECT STORE WITH A MAINTAINER (workplan 0146 T7; the owner, 2026-10-23: *"T7 no, fix already within the alpha"*).
-
-Reads:
-
-- `deploy/compose/managed.yml`
-
 ### [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts)
 
 AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
@@ -6980,13 +6568,11 @@ Reads:
 
 ### [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts)
 
-The three scripts a managed bring-up cannot get wrong, tested.
+The scripts a managed bring-up cannot get wrong, tested.
 
 Reads:
 
-- `apps/worker/package.json`
 - `deploy/compose/bootstrap-managed.sh`
-- `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
@@ -6994,12 +6580,10 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
+- `deploy/compose/remove-trigger-plane.sh`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/shipped-passwords.sh`
 - `deploy/compose/stack-kind.sh`
-- `deploy/compose/trigger-cli-lib.sh`
-- `deploy/compose/trigger-credentials.sh`
-- `deploy/compose/trigger-magic-link.sh`
 - `deploy/compose/zitadel-network-alias.sh`
 - `scripts/every-service-somebody-starts.unit.test.ts`
 
@@ -7167,23 +6751,14 @@ ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
-- `deploy/compose/copy-before-update.sh`
 - `deploy/compose/deploy-live.sh`
-- `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
-- `deploy/compose/plane-limit.sh`
-- `deploy/compose/plane-tokens.sh`
 - `deploy/compose/rehearse-capacity.sh`
-- `deploy/compose/reset-trigger.sh`
-- `deploy/compose/set-task-env.sh`
+- `deploy/compose/remove-trigger-plane.sh`
 - `deploy/compose/setup-managed-demo.sh`
 - `deploy/compose/stand-up-live.sh`
-- `deploy/compose/trigger-credentials.sh`
-- `deploy/compose/trigger-magic-link.sh`
-- `deploy/compose/trigger-remember-token.sh`
-- `deploy/compose/trigger-version.sh`
 
 ### [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts)
 
@@ -7304,7 +6879,6 @@ Reads:
 - `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/stack-kind.sh`
-- `deploy/compose/trigger-version.sh`
 - `docs/managed-bring-up.md`
 - `docs/operator-runbook.md`
 
@@ -7362,7 +6936,6 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/shipped-passwords.sh`
 - `deploy/compose/stack-kind.sh`
-- `deploy/compose/trigger-version.sh`
 
 ### [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts)
 
@@ -7431,7 +7004,6 @@ PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
-- `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/db-roles.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.env.example`
@@ -7439,7 +7011,6 @@ Reads:
 - `deploy/compose/rotate-db-passwords.sh`
 - `deploy/compose/seed-managed.sh`
 - `deploy/compose/shipped-passwords.sh`
-- `deploy/compose/stand-up-live.sh`
 - `deploy/compose/zitadel-db-password.sh`
 - `docs/managed-bring-up.md`
 - `docs/rls-guide.md`
@@ -7504,7 +7075,6 @@ Reads:
 - `deploy/compose/redact-evidence.sh`
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/smoke-managed.sh`
-- `deploy/compose/trigger-version.sh`
 - `packages/core/src/apply-deletion.ts`
 - `packages/scheduler/src/pg-boss/catalog.ts`
 - `test/e2e/no-workspace-imports.unit.test.ts`
@@ -7613,13 +7183,10 @@ THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md
 Reads:
 
 - `apps/worker/src/runner/pg-boss-context.ts`
-- `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/deploy-live.sh`
-- `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/jobs-role.sql`
 - `deploy/compose/managed.yml`
-- `deploy/compose/reset-trigger.sh`
-- `deploy/compose/set-task-env.sh`
+- `deploy/compose/remove-trigger-plane.sh`
 - `deploy/compose/stand-up-live.sh`
 - `docs/ending-the-alpha.md`
 - `packages/scheduler/package.json`
@@ -7636,7 +7203,6 @@ Reads:
 - `apps/web/Dockerfile`
 - `apps/worker/src/jobs/run-delta-sync.ts`
 - `deploy/compose/managed.yml`
-- `deploy/compose/set-task-env.sh`
 - `docs/README.md`
 - `docs/ending-the-alpha.md`
 - `docs/workplans/0109-the-invoice-speaks-tiers.md`
@@ -7791,12 +7357,8 @@ THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
-- `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/managed.env.example`
-- `deploy/compose/set-task-env.sh`
-- `deploy/compose/trigger-cli-lib.sh`
-- `deploy/compose/trigger-credentials.sh`
 - `deploy/compose/zitadel-db-password.sh`
 
 ### [the-state-that-lived-in-a-nameless-volume](../scripts/the-state-that-lived-in-a-nameless-volume.unit.test.ts)
@@ -7828,22 +7390,6 @@ Reads:
 ### [toolchain-split](../scripts/toolchain-split.unit.test.ts)
 
 The two TypeScripts are crossed ON PURPOSE.
-
-### [trigger-version](../scripts/trigger-version.unit.test.ts)
-
-The Trigger.dev control plane's backup, and the version it is a backup FOR.
-
-Reads:
-
-- `.github/workflows/e2e-managed.yml`
-- `apps/worker/package.json`
-- `deploy/compose/env-read.sh`
-- `deploy/compose/managed.env.example`
-- `deploy/compose/managed.yml`
-- `deploy/compose/supervisor/Dockerfile`
-- `deploy/compose/trigger-version.sh`
-- `deploy/compose/trigger.dev/Dockerfile`
-- `scripts/idp-pin-watch.mjs`
 
 ### [two-draws-that-could-agree-by-accident](../scripts/two-draws-that-could-agree-by-accident.unit.test.ts)
 
@@ -7891,17 +7437,13 @@ Reads:
 
 - `deploy/compose/box-checks.sh`
 - `deploy/compose/env-read.sh`
-- `deploy/compose/env-upsert.sh`
 - `deploy/compose/exposure-check.sh`
 - `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/operator.sh`
-- `deploy/compose/reset-trigger.sh`
+- `deploy/compose/remove-trigger-plane.sh`
 - `deploy/compose/seed-managed.sh`
-- `deploy/compose/smoke-managed.sh`
 - `deploy/compose/stack-kind.sh`
-- `deploy/compose/trigger-credentials.sh`
-- `deploy/compose/trigger-magic-link.sh`
 - `deploy/compose/www.yml`
 - `scripts/exposure-check.unit.test.ts`
 

@@ -75,7 +75,6 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schedules } from '@trigger.dev/sdk';
 import type { Pool } from 'pg';
 import { withTenant } from '@openmig/ledger';
 import { log, renderEvent, type MoneyToGiveBackEvent, type TenantId } from '@openmig/shared';
@@ -118,7 +117,7 @@ import {
   type SlowDown,
 } from '@openmig/managed';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
 
 /** The most drafts one run takes to Moneybird. */
@@ -514,9 +513,8 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 export const InvoicePushJobSchema = z.strictObject({});
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const managedInvoicePushRun = leavesAReference(
   'managed-invoice-push',
@@ -613,10 +611,3 @@ export const managedInvoicePushRun = leavesAReference(
     return result;
   },
 );
-
-export const managedInvoicePush = schedules.task({
-  id: 'managed-invoice-push',
-  // Every hour at :41 UTC, eighteen minutes after the month task's :23.
-  cron: '41 * * * *',
-  run: onTriggerDev(managedInvoicePushRun),
-});

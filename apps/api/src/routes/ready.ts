@@ -183,11 +183,10 @@ export interface SchedulerReadiness {
  * `up` when the tick's beat is under five minutes old (`readTickBeat`); `down`
  * when it is older, missing, or cannot be read. `off` is "not configured
  * here": a deployment whose runner is not configured runs no tick, and its
- * beat would never come. Which runner is `OWNPACE_JOB_RUNNER`'s (0167 T6):
- * Trigger.dev without `TRIGGER_SECRET_KEY`, or pg-boss without
- * `JOBS_DATABASE_URL`, is `off`. Either runner's tick writes the same shared
- * beat, `managed-sync-tick`, so the status page's row reads one beat whichever
- * runs. A switch set to a value it may not hold is `down`, said in the log.
+ * beat would never come: pg-boss without `JOBS_DATABASE_URL` (0167 T6). The
+ * tick writes the shared beat, `managed-sync-tick`, which the status page's
+ * row reads. A switch set to a value it may not hold, `trigger` among them
+ * since alpha.18 (0167 T9), is `down`, said in the log.
  */
 export async function schedulerReadiness(now: Date = new Date()): Promise<SchedulerReadiness> {
   let runner: JobRunnerName;
@@ -197,9 +196,7 @@ export async function schedulerReadiness(now: Date = new Date()): Promise<Schedu
     log.error('[ready] the job runner is not one this API knows:', error);
     return { scheduler: 'down' };
   }
-  const configured =
-    runner === 'trigger' ? process.env.TRIGGER_SECRET_KEY?.trim() : process.env.JOBS_DATABASE_URL?.trim();
-  if (!configured) return { scheduler: 'off' };
+  if (runner !== 'pg-boss' || !process.env.JOBS_DATABASE_URL?.trim()) return { scheduler: 'off' };
   try {
     return { scheduler: await readTickBeat(drizzle(pool()), now) };
   } catch (error) {

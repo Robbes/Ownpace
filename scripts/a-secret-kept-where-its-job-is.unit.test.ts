@@ -10,21 +10,24 @@
  * job of every workflow, a workflow added on a branch included. A secret kept
  * in a GitHub environment reaches only a job that names that environment, and
  * the environment's own rules, set in Settings, say which branches may run
- * such a job. Two secrets are left, one job each:
+ * such a job. One secret is left, for one job:
  *
- *  - `TRIGGER_ACCESS_TOKEN`, the Trigger.dev CLI's token, which
- *    `e2e-managed.yml`'s one job, `e2e-managed`, deploys with;
  *  - `EXPOSURE_PROBE_HOST`, the machine's own address, which
  *    `exposure-probe.yml`'s `probe` asks from outside.
  *
- * Each job names its environment (`KEPT`, below), and the secret is read in
+ * There were two until alpha.18: `TRIGGER_ACCESS_TOKEN`, the Trigger.dev CLI's
+ * token, which `e2e-managed.yml`'s `e2e-managed` deployed the tasks with.
+ * alpha.18 removed Trigger.dev (workplan 0167 T9), and no workflow reads that
+ * secret any more (`GONE`, below); the owner may delete it in Settings.
+ *
+ * The job names its environment (`KEPT`, below), and the secret is read in
  * that job alone, never in a workflow's top-level `env:`, which no environment
  * reaches, and never by any other job or workflow. Moving the secret is the
  * owner's part, in Settings; until then the job still reads the repository's
  * secret, and GitHub makes the environment the first time a job names it, so
  * this holds the same before and after the move.
  *
- * Only these two. A secret added later is zizmor's `secrets-outside-env`
+ * Only this one. A secret added later is zizmor's `secrets-outside-env`
  * audit's to report (0163 §5, step 2, report only by D2), not this guard's to
  * refuse.
  */
@@ -41,11 +44,13 @@ const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
 
 /** Each secret left, the one job that reads it, and the environment that job names. */
 const KEPT = [
-  { secret: 'TRIGGER_ACCESS_TOKEN', workflow: `${WORKFLOWS}/e2e-managed.yml`, job: 'e2e-managed', environment: 'e2e-managed' },
   { secret: 'EXPOSURE_PROBE_HOST', workflow: `${WORKFLOWS}/exposure-probe.yml`, job: 'probe', environment: 'exposure-probe' },
 ] as const;
 
 type Kept = (typeof KEPT)[number];
+
+/** Secrets no workflow reads any more, and why (workplan 0167 T9). */
+const GONE = [{ secret: 'TRIGGER_ACCESS_TOKEN', why: 'the Trigger.dev CLI’s token; alpha.18 removed Trigger.dev' }] as const;
 
 interface Job {
   readonly environment?: unknown;
@@ -94,10 +99,17 @@ const workflows = (): Array<{ path: string; text: string }> =>
     .filter((f) => /\.ya?ml$/.test(f))
     .map((f) => ({ path: `${WORKFLOWS}/${f}`, text: read(`${WORKFLOWS}/${f}`) }));
 
-describe('the two secrets left, each kept in the environment of the one job that reads it (workplan 0163 T1)', () => {
+describe('the secret left, kept in the environment of the one job that reads it (workplan 0163 T1)', () => {
   it.each(KEPT)('$secret is read by $workflow’s $job alone, which names the environment $environment', (kept) => {
     expect(keptProblems(read(kept.workflow), kept)).toEqual([]);
     expect(elsewhere(kept, workflows()), `${kept.secret} is read outside ${kept.workflow}`).toEqual([]);
+  });
+
+  it.each(GONE)('$secret is read by no workflow: $why', ({ secret }) => {
+    const left = workflows()
+      .filter((f) => reads(secret).test(f.text))
+      .map((f) => f.path);
+    expect(left).toEqual([]);
   });
 
   it('reads secrets.NAME and secrets[\'NAME\'] alike, and no secret whose name only starts the same', () => {
@@ -109,23 +121,24 @@ describe('the two secrets left, each kept in the environment of the one job that
   });
 
   it('refuses each way a secret could leave its job’s environment, by a change to the real file', () => {
-    const [trigger, probe] = KEPT;
-    const managed = read(trigger.workflow);
+    const [probe] = KEPT;
     const exposure = read(probe.workflow);
     const mutate = (text: string, kept: Kept, from: string | RegExp, to: string): string => {
       const next = text.replace(from, to);
       expect(next, String(from)).not.toBe(text);
       return keptProblems(next, kept).join('\n');
     };
-    expect(mutate(managed, trigger, '    environment: e2e-managed\n', '')).toMatch(/names the environment undefined, not `e2e-managed`/);
-    expect(mutate(managed, trigger, '    environment: e2e-managed\n', '    environment: production\n')).toMatch(/names the environment "production"/);
-    expect(mutate(managed, trigger, '    environment: e2e-managed\n', '    environment:\n      name: e2e-managed\n')).toBe('');
     expect(mutate(exposure, probe, '    environment: exposure-probe\n', '')).toMatch(/names the environment undefined, not `exposure-probe`/);
-    // The token read in the workflow's own env again, as it was before.
-    const moved = managed.replace(/\n {6}TRIGGER_ACCESS_TOKEN: \$\{\{ secrets\.TRIGGER_ACCESS_TOKEN \}\}/, '').replace(/^env:\n/m, 'env:\n  TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}\n');
-    expect(moved).not.toBe(managed);
-    expect(keptProblems(moved, trigger).join('\n')).toMatch(/reads TRIGGER_ACCESS_TOKEN in its top-level env:, which no environment reaches/);
-    expect(keptProblems(moved, trigger).join('\n')).toMatch(/no longer reads TRIGGER_ACCESS_TOKEN/);
+    expect(mutate(exposure, probe, '    environment: exposure-probe\n', '    environment: production\n')).toMatch(/names the environment "production"/);
+    expect(mutate(exposure, probe, '    environment: exposure-probe\n', '    environment:\n      name: exposure-probe\n')).toBe('');
+    // The secret read in the workflow's own env instead of the job's.
+    const line = /\n {10}EXPOSURE_PROBE_HOST: \$\{\{ secrets\.EXPOSURE_PROBE_HOST \}\}/;
+    expect(line.test(exposure), `${probe.workflow} reads the secret on a line this case knows`).toBe(true);
+    const top = /^env:\n/m.test(exposure) ? exposure.replace(/^env:\n/m, 'env:\n  HOST: ${{ secrets.EXPOSURE_PROBE_HOST }}\n') : exposure.replace(/^jobs:\n/m, 'env:\n  HOST: ${{ secrets.EXPOSURE_PROBE_HOST }}\njobs:\n');
+    const moved = top.replace(line, '');
+    expect(moved).not.toBe(exposure);
+    expect(keptProblems(moved, probe).join('\n')).toMatch(/reads EXPOSURE_PROBE_HOST in its top-level env:, which no environment reaches/);
+    expect(keptProblems(moved, probe).join('\n')).toMatch(/no longer reads EXPOSURE_PROBE_HOST/);
     // A second job in the same workflow reading it.
     const second = `${exposure}  another:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo "$HOST"\n        env:\n          HOST: \${{ secrets.EXPOSURE_PROBE_HOST }}\n`;
     expect(exposure.endsWith('\n'), `${probe.workflow} does not end in a newline, so the job above would not be one of its jobs`).toBe(true);

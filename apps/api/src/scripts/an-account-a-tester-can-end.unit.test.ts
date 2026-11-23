@@ -46,10 +46,12 @@ const NOBODY = '0139c700-e29b-41d4-a716-446655440004';
 const NOW = new Date('2026-09-27T12:00:00.000Z');
 const OPERATOR = 'op-subject-0139c7';
 const OWNER = 'owner-subject-0139c7';
-/** The orchestrator reference of an organisation's pass, by its status. */
-const refOf = (tenantId: string, status: string) => `run_${tenantId.slice(-4)}_${status}`;
+const STATUS_DIGIT: Readonly<Record<string, string>> = { running: '1', queued: '2', succeeded: '3' };
+/** The orchestrator reference of an organisation's pass, by its status: a pg-boss job id, a UUID. */
+const refOf = (tenantId: string, status: string) =>
+  `0139c700-0000-4000-8000-${tenantId.slice(-4)}0000000${STATUS_DIGIT[status]}`;
 /** The passes of an organisation that are in flight, which a close asks to stop. */
-const inFlight = (tenantId: string) => [refOf(tenantId, 'queued'), refOf(tenantId, 'running')];
+const inFlight = (tenantId: string) => [refOf(tenantId, 'queued'), refOf(tenantId, 'running')].sort();
 
 let driver: LedgerDriver;
 /**
@@ -73,10 +75,19 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
 
 /** The orchestrator the button asks, as the route reaches it. */
 const buttonCancels: string[] = [];
-vi.mock('@openmig/scheduler', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@openmig/scheduler')>()),
-  getTriggerClient: () => ({ runs: { cancel: async (ref: string) => void buttonCancels.push(ref) } }),
-}));
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+});
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../__testing__/a-queue-stand-in.ts')).aQueueStandIn(
+    await importOriginal(),
+    () => {
+      throw new Error('nothing here enqueues');
+    },
+    (ref: string) => void buttonCancels.push(ref),
+  ),
+);
 
 const { default: tenantRoutes } = await import('../routes/tenants/index.ts');
 const app = express();

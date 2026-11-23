@@ -200,7 +200,10 @@ const Question: React.FC<{
 /**
  * WHERE A NEW ADDRESS GOES, AND WHERE IT DOES NOT (0168 §6.2), in the words
  * of the step: on *Start a migration*, and on the appliance's confirm page.
- * A pass changes tasks as it changes events (0168 T4), so they are named.
+ * A pass changes tasks as it changes events (0168 T4), so they are named. An
+ * event that is already over, and a task done before the migration starts,
+ * keep the old address (the owner, 2026-11-23; ADR-0055), and the step says
+ * so; a task finished later still gets the new one.
  */
 export const WhereItGoes: React.FC<{ oldAddress: string; newAddress: string }> = ({ oldAddress, newAddress }) => {
   const t = useT();
@@ -228,6 +231,7 @@ export const WhereItGoes: React.FC<{ oldAddress: string; newAddress: string }> =
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-gray-700 break-words">
           <Item label={t('start.address.not.mail.label')} text={t('start.address.not.mail', { new: shownNew })} />
           <Item label={t('start.address.not.invitations.label')} text={t('start.address.not.invitations')} />
+          <Item label={t('start.address.not.past.label')} text={t('start.address.not.past')} />
           <Item label={t('start.address.not.text.label')} text={t('start.address.not.text')} />
         </ul>
       </div>

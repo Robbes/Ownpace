@@ -6,6 +6,10 @@
   texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
+  Still 1.0, edited in place once more on 2026-11-23 (the owner, 2026-11-23: "Yes, draft it"):
+  §4.5's last lines say a request for access is logged by its reference, not by its address, and
+  that the inlogdienst logs the address a person registers with from the mail that grants them
+  access. The owner read it: "it stays version 1.0: ok". privacy.md's briefing has why.
   Still 1.0, edited in place again on 2026-11-23 (the owner, 2026-11-22, of workplan 0168's D8:
   "1.0 ok"): §4.6 gains De adressen die veranderen, with who changed each and that this stays
   in the audit log by reference; §9 a row for them; and §7's line on progress links says a
@@ -275,8 +279,10 @@ foutcodes. NetBird houdt daarnaast een eigen log bij van elk verzoek; §7 zegt w
 Logs zijn zo geschreven dat **toegangsgegevens en berichtinhoud er niet in voorkomen**. Vrij van
 namen zijn ze niet. Mislukt een stap van een migratie, dan komt de fouttekst van de aanbieder
 zelf in het log van het proces dat de fout tegenkwam, naast een referentie, zodat we u ermee
-kunnen helpen; die tekst kan een map, een bestand of een adres noemen. En een aanvraag voor
-toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit erover.
+kunnen helpen; die tekst kan een map, een bestand of een adres noemen. Een aanvraag voor
+toegang, en ons besluit erover, worden gelogd met de referentie van de aanvraag, niet met het
+e-mailadres dat erin staat. De inlogdienst logt wel het adres waarmee u zich registreert, als u
+via de mail komt die u toegang geeft.
 
 <!-- ONE MORE SUCH LINE, ONCE alpha.3 RUNS (workplan 0095 T6; the owner, 2026-10-29, accepted it
      with the grant link that fills in the address). The grant mail's link carries the granted
@@ -285,9 +291,9 @@ toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit ero
      login v1) logs "login hint invalid" at info level with that address for every hint that
      matches no account yet, which is everybody the button is for, in its own container log on
      our machine, kept as §9's Server logs row says. Same person, same purpose and same
-     machine as the grant line above, and "not free of names" covers it, so 1.0 stays true. At
-     the next version, the sentence above gains: "and the sign-in service logs the address you
-     register with when you arrive from the mail that grants you access" / NL to match. -->
+     machine as the grant line above, and "not free of names" covers it, so 1.0 stays true. The
+     paragraph above says it in words since 2026-11-23, when its request line was narrowed to
+     the request's reference and so no longer covered it. -->
 
 <!-- NOT YET TRUE ON live: nothing counts yet. The owner, 2026-10-05, verbatim: "go with GoAccess
      on the logs and the sentence. id and status we skip for now, no netbird api tokens..." It
@@ -601,9 +607,9 @@ daartoe verplicht.
 ## 8. Waar het staat, en waar niet
 
 <!-- NOT YET TRUE ON live (the owner, 2026-09-28, ops-telemetry (a): switch it off everywhere).
-     The negative below holds once the task runner's usage reports are off
-     (TRIGGER_TELEMETRY_DISABLED on live and the test stack) and Zitadel, ClickHouse and MinIO
-     are checked and switched off too. -->
+     The negative below holds once Zitadel is checked and switched off too. The task runner's
+     usage reports, ClickHouse and MinIO were in this list until alpha.18 removed Trigger.dev's
+     plane from the managed edition (workplan 0167 T9). -->
 
 De dienst draait in de **Europese Unie**. Eén partij in de tabel hierboven zit daarbuiten: onze
 e-mailaanbieder, Proton AG, zit in **Zwitserland**. De Europese Commissie heeft besloten dat

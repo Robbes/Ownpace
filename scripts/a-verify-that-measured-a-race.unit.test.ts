@@ -246,16 +246,17 @@ describe('it waits for the pass, rather than enqueuing and hoping', () => {
 
   it('tells a pass that never started apart from one still running', () => {
     // Three states, three remedies: no ledger row at all means the enqueue
-    // never became a runner (the failure the runner-proxy section exists to
-    // explain), `running` means the budget was short, and `failed` means the
+    // was accepted and never ran (the worker's jobs on pg-boss say why; until
+    // alpha.18 removed Trigger.dev it could also be a run that never became a
+    // runner), `running` means the budget was short, and `failed` means the
     // verify below is about to describe what a failed pass left behind.
-    expect(syncCode).toContain('never became a runner');
+    expect(syncCode).toContain('the enqueue was accepted and never ran');
     expect(syncCode).toMatch(/still '\$status' after/);
     expect(syncCode).toMatch(/the pass ended '\$status'/);
   });
 
   it('follows the pass it asked for, by the orchestrator id and not by a clock', () => {
-    // `runId` in the response is `ctx.run.id`, which run-delta-sync stores on
+    // `runId` in the response is the job's id (`context.runId`), which run-delta-sync stores on
     // the ledger row. Read from the worker rather than retyped: if that field
     // stops being written, this guard fails here instead of leaving a poll
     // that matches nothing until its budget runs out, every run, quietly.
@@ -264,12 +265,14 @@ describe('it waits for the pass, rather than enqueuing and hoping', () => {
     // worker writes THAT id onto the ledger row it opens. Either half going
     // quiet would leave a poll matching nothing until its budget ran out —
     // every run, silently, and reported as "still running".
-    // The route's `run` is what the one enqueue hands back, and that is the
-    // SDK's own trigger: the orchestrator's run handle, not a copy of it.
+    // The route's `run` is what the one enqueue hands back, and that is
+    // pg-boss's own job id (Trigger.dev's run handle until alpha.18, workplan
+    // 0167 T9), not a copy of it.
     expect(syncRoute).toContain('await pressSyncNow(');
     expect(read(SYNC_NOW_PATH)).toContain('const run = await enqueue(');
     expect(read(SYNC_NOW_PATH)).toContain('return { run, taskId }');
-    expect(read(ENQUEUE_PATH)).toContain('getTriggerClient().tasks.trigger(');
+    expect(read(ENQUEUE_PATH)).toContain('enqueued = await producer.enqueue(');
+    expect(read(ENQUEUE_PATH)).toContain('return { id: enqueued.runId, joined: enqueued.joined };');
     expect(syncRoute).toContain('runId: run.id');
     expect(startRunCall).toContain('orchestratorRef');
     expect(syncCode).toContain(".runId // empty");

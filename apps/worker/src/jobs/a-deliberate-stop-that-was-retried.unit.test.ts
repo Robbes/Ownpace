@@ -11,7 +11,7 @@
  * and the only way to halt them was `docker stop` on the worker containers.
  *
  * Retrying was pointless by construction: the pass had just proven the same
- * thing twenty-five times. `AbortTaskRunError` fails the run once and the sync
+ * thing twenty-five times. `RunNotRetried` fails the run once and the sync
  * tick's failing-backoff ladder spaces the next attempts out — the layer built
  * for that.
  *
@@ -36,11 +36,10 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { PassAbortError } from '@openmig/core';
 import { settlementFor } from '@openmig/scheduler/pg-boss';
 import * as whatARunLeaves from './what-a-run-leaves.ts';
-import { planeErrorFor } from './what-a-run-leaves.ts';
+import { planeErrorFor, RunNotRetried } from './what-a-run-leaves.ts';
 
 const where = { task: 'run-delta-sync' };
 
@@ -57,7 +56,7 @@ describe('a pass that stopped on purpose', () => {
   it('fails the task once instead of retrying it', async () => {
     quiet();
     const mapped = await planeErrorFor(new PassAbortError('25 items failed in a row'), where);
-    expect(mapped).toBeInstanceOf(AbortTaskRunError);
+    expect(mapped).toBeInstanceOf(RunNotRetried);
   });
 
   it('says the pass stopped itself, with its category and reference, in place of the last item’s words', async () => {
@@ -82,7 +81,7 @@ describe('everything else still gets another go', () => {
     // is in the container's output, under the reference this one carries.
     quiet();
     const mapped = await planeErrorFor(new Error('Connection terminated unexpectedly'), where);
-    expect(mapped).not.toBeInstanceOf(AbortTaskRunError);
+    expect(mapped).not.toBeInstanceOf(RunNotRetried);
     expect(mapped.name).toBe('Error');
     expect(mapped.message).toMatch(/^run-delta-sync failed \([a-z_]+\)\. Reference [0-9a-f]{8}\.$/);
   });
@@ -93,15 +92,15 @@ describe('everything else still gets another go', () => {
     // retries.
     quiet();
     const lookalike = new Error('upstream said: PassAbortError: 25 items failed in a row');
-    expect(await planeErrorFor(lookalike, where)).not.toBeInstanceOf(AbortTaskRunError);
+    expect(await planeErrorFor(lookalike, where)).not.toBeInstanceOf(RunNotRetried);
   });
 
   it('does not reshape a non-Error throw into an abort', async () => {
     // A library that throws a string or a plain object must not become an
     // abort on its way past.
     quiet();
-    expect(await planeErrorFor('boom', where)).not.toBeInstanceOf(AbortTaskRunError);
-    expect(await planeErrorFor({ code: 'ECONNRESET' }, where)).not.toBeInstanceOf(AbortTaskRunError);
+    expect(await planeErrorFor('boom', where)).not.toBeInstanceOf(RunNotRetried);
+    expect(await planeErrorFor({ code: 'ECONNRESET' }, where)).not.toBeInstanceOf(RunNotRetried);
   });
 
   it('is idempotent: an error it made is handed back as it is', async () => {
@@ -125,23 +124,23 @@ describe('on the pg-boss runner, settled by its own list of names (workplan 0167
   it('reads each error the plane is handed as the plane does: a deliberate stop once, everything else again', async () => {
     quieter();
     const stopped = await planeErrorFor(new PassAbortError('25 items failed in a row'), where);
-    const verdict = await planeErrorFor(new AbortTaskRunError('Cutover refused'), { task: 'run-cutover' });
+    const verdict = await planeErrorFor(new RunNotRetried('Cutover refused'), { task: 'run-cutover' });
     const ordinary = await planeErrorFor(new Error('Connection terminated unexpectedly'), where);
     for (const error of [stopped, verdict]) {
-      expect(error).toBeInstanceOf(AbortTaskRunError);
+      expect(error).toBeInstanceOf(RunNotRetried);
       expect(settlementFor(crossed(error))).toBe('deadletter');
     }
-    expect(ordinary).not.toBeInstanceOf(AbortTaskRunError);
+    expect(ordinary).not.toBeInstanceOf(RunNotRetried);
     expect(settlementFor(crossed(ordinary))).toBe('failed');
   });
 
-  it('keeps a task’s own RunNotRetried a verdict, as its own AbortTaskRunError is: not retried', async () => {
-    // Thrown by a job in place of AbortTaskRunError once Trigger.dev is gone
+  it('keeps a task’s own RunNotRetried a verdict, as its own RunNotRetried is: not retried', async () => {
+    // Thrown by a job in place of RunNotRetried once Trigger.dev is gone
     // (ADR-0054, T9): the plane's error still fails the run once.
     quieter();
     const own = Object.assign(new Error('Rollback refused'), { name: 'RunNotRetried' });
     const mapped = await planeErrorFor(own, { task: 'run-rollback' });
-    expect(mapped).toBeInstanceOf(AbortTaskRunError);
+    expect(mapped).toBeInstanceOf(RunNotRetried);
     expect(settlementFor(crossed(mapped))).toBe('deadletter');
     expect(mapped.message).toMatch(/^run-rollback ended, and is not retried \([a-z_]+\)\. Reference [0-9a-f]{8}\.$/);
   });
@@ -152,6 +151,6 @@ describe('on the pg-boss runner, settled by its own list of names (workplan 0167
     // itself, before the run (`apps/worker/src/runner/serve-job.ts`).
     quieter();
     const zod = Object.assign(new Error('[]'), { name: 'ZodError' });
-    expect(await planeErrorFor(zod, where)).not.toBeInstanceOf(AbortTaskRunError);
+    expect(await planeErrorFor(zod, where)).not.toBeInstanceOf(RunNotRetried);
   });
 });

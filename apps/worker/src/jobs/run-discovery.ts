@@ -16,9 +16,8 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schemaTask, queue } from '@trigger.dev/sdk';
 import { leavesAReference, outcomesForThePlane } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import type { Pool } from 'pg';
 import { discoverSource } from '@openmig/core';
 import type {
@@ -256,18 +255,14 @@ export async function domainsToCount(
   return [...(await enabledDomains(scopePool, tenantId, mappingId))];
 }
 
-/**
- * One count per migration at a time, partitioned by the `concurrencyKey` the
- * API sets (`discoveryTriggerOptions`) — the shape `run-delta-sync` uses for
- * passes. Every reload of the confirm screen used to start a count beside the
- * running one (2026-09-22).
- */
-export const discoveryQueue = queue({ name: 'run-discovery', concurrencyLimit: 1 });
+// One count per migration at a time: the queue is `singleton`, serialised by
+// the key the API sets (`discoveryTriggerOptions`), as `run-delta-sync`'s
+// passes are (the job catalog). Every reload of the confirm screen used to
+// start a count beside the running one (2026-09-22).
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const runDiscoveryRun = leavesAReference(
   'run-discovery',
@@ -296,15 +291,3 @@ export const runDiscoveryRun = leavesAReference(
     return { outcomes };
   },
 );
-
-export const runDiscovery = schemaTask({
-  id: 'run-discovery',
-  description: 'Pre-sync discovery (read-only counts)',
-  schema: DiscoveryJobSchema,
-  queue: discoveryQueue,
-  // THE MACHINE A COUNT RUNS ON (workplan 0143 T1 step 2): it lists
-  // everything a migration holds, so it names its own, as a pass does. Its
-  // peak is not measured yet; that is 0143 T9.
-  machine: 'small-1x',
-  run: onTriggerDev(runDiscoveryRun),
-});
