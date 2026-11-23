@@ -2344,6 +2344,21 @@ at_a_paid_pace() { # at_a_paid_pace <token> <label>
   fi
 }
 
+# THE DEMO NEXTCLOUD, AS THIS SCRIPT REACHES IT FROM OUTSIDE THE STACK. Read
+# here, before the address changes this run declares, because that section is
+# the first to read the target (0168 T8): it reads the target account's own
+# address and its copies off it, and a `$NC` set only further down left both
+# curling a bare path. The export archive (0148 T9) and the Nextcloud door
+# further down use the same `$NC`.
+nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
+# THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST is the failure this
+# reads .env to avoid: an operator who binds the DAV backend to a private mesh
+# address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
+# every assertion below curling a loopback address nothing listens on any more,
+# and the gate would report a target failure that is really a moved port.
+nc_host="$(smoke_env_value NEXTCLOUD_BIND)"
+NC="http://${nc_host:-localhost}:${nc_port:-8083}"
+
 # ---------- the address changes this run declares (workplan 0168 T8; ADR-0055) ----------
 #
 # Each organisation's table of address changes is written through the product's
@@ -2407,6 +2422,21 @@ address_changes_left_behind() { # address_changes_left_behind <token> <label>
 
 # A copy on the demo target, by the path its ledger row records, unfolded
 # (RFC 5545 §3.1, RFC 6350 §3.2) so an address a server folded reads whole.
+# How a card's version marks its preferred line (0168 D2): vCard 4.0 has the
+# PREF parameter (RFC 6350 §5.3); 2.1 and 3.0 have none, and mark it with
+# TYPE=pref (RFC 2426 §3.3.2), which is what the change writes there.
+card_pref_mark() { # card_pref_mark <card>
+  if grep -qiE '^VERSION:4[.]0$' <<<"$1"; then echo 'PREF=1'; else echo 'TYPE=pref'; fi
+}
+card_line_preferred() { # card_line_preferred <card> <EMAIL line>
+  local params="${2%%:*}"
+  if [ "$(card_pref_mark "$1")" = 'PREF=1' ]; then
+    grep -qiE '(^|;)PREF=1(;|$)' <<<"$params"
+  else
+    grep -qiE '(^|;)TYPE=([^;]*,)?pref(,[^;]*)?(;|$)' <<<"$params"
+  fi
+}
+
 target_copy_of() { # target_copy_of <href needle>
   local path
   path="$(q "SELECT regexp_replace(coalesce(target_ref->>'id', ''), '^[a-zA-Z]+://[^/]*', '') FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $HREF_EXPR LIKE '%$1' AND status IN ('copied','updated') LIMIT 1")"
@@ -2721,13 +2751,13 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
     card_first="$(awk 'NR==1' <<<"$card_emails")"
     if [ -z "$card_copy" ]; then
       fail_at "the address canary's card is not on the target, so the change to it is unproven (0168 T8)"
-    elif grep -qiF "$ADDR_OWN" <<<"$card_first" && grep -qi 'PREF=1' <<<"$card_first" \
+    elif grep -qiF "$ADDR_OWN" <<<"$card_first" && card_line_preferred "$card_copy" "$card_first" \
          && grep -qiF "$ADDR_OLD" <<<"$card_emails"; then
-      echo "prepare: the card on the target has ${ADDR_OWN} first and preferred, and keeps ${ADDR_OLD}"
+      echo "prepare: the card on the target has ${ADDR_OWN} first and preferred ($(card_pref_mark "$card_copy")), and keeps ${ADDR_OLD}"
     else
       echo "the address canary's card on the target does not carry the change as declared:"
       sed 's/^/    /' <<<"$card_emails"
-      fail_at "the card's EMAIL lines are not the new address first with PREF=1 and the old one kept (0168 D2, T8)"
+      fail_at "the card's EMAIL lines are not the new address first, marked preferred as its version marks it ($(card_pref_mark "$card_copy")), with the old one kept (0168 D2, T8)"
     fi
 
     event_copy="$(target_copy_of "$ADDR_EVENT" || true)"
@@ -4800,17 +4830,9 @@ else
   echo "archive at a path on the server: no row stored ($archive_rows_before -> $archive_rows_after)"
 fi
 
-# THE DEMO NEXTCLOUD, AS THIS SCRIPT REACHES IT FROM OUTSIDE THE STACK. Read
-# here, before the export archive, because that section is now the first to
-# write to it (0148 T9); the Nextcloud door further down uses the same `$NC`.
-nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
-# THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST is the failure this
-# reads .env to avoid: an operator who binds the DAV backend to a private mesh
-# address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
-# every assertion below curling a loopback address nothing listens on any more,
-# and the gate would report a target failure that is really a moved port.
-nc_host="$(smoke_env_value NEXTCLOUD_BIND)"
-NC="http://${nc_host:-localhost}:${nc_port:-8083}"
+# THE DEMO NEXTCLOUD is `$NC`, read before the address changes this run
+# declares (0168 T8), the first section to read the target; the export
+# archive below and the Nextcloud door further down use the same one.
 
 # AND THE PROOF BACK: AN EXPORT READ FROM THE DESTINATION'S OWN FILES
 # (0148 T9, D11).

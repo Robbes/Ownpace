@@ -150,7 +150,14 @@ describe('a new address on the appliance, through address-changes.json', () => {
     const card = await untilCopied('contacts', () => targetObject(`/remote.php/dav/addressbooks/users/${DAV_TARGET_USER}/`, CARD_UID));
     const emails = unfold(card).filter((l) => /^EMAIL[;:]/i.test(l));
     expect(emails[0]?.toLowerCase(), emails.join('\n')).toMatch(new RegExp(`:${NEW.replace('.', '\\.')}$`));
-    expect(emails[0], emails.join('\n')).toMatch(/PREF=1/i);
+    // How the card's version marks its preferred line (0168 D2): vCard 4.0 has
+    // the PREF parameter (RFC 6350 §5.3); 2.1 and 3.0 have none and mark it with
+    // TYPE=pref (RFC 2426 §3.3.2), which is what the change writes there.
+    const version = /^VERSION:(\S+)$/im.exec(unfold(card).join('\n'))?.[1];
+    const params = (emails[0] ?? '').split(':')[0] ?? '';
+    expect(params, emails.join('\n')).toMatch(
+      version === '4.0' ? /(^|;)PREF=1(;|$)/i : /(^|;)TYPE=([^;]*,)?pref(,[^;]*)?(;|$)/i,
+    );
     expect(emails.some((l) => l.toLowerCase().endsWith(`:${OLD}`)), emails.join('\n')).toBe(true);
   }, PASS_WAIT_MS + 30000);
 
