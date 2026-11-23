@@ -4,25 +4,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
-### Removed
+### Added
 
-- **Self-hosted Trigger.dev, from the managed edition** (workplan 0167 T9; ADR-0054). The owner,
-  2026-11-23: *"i will remove trigger.dev, but the machine runs OTA and managed, so both have to be
-  move out of triggerdev."* alpha.16 moved every job to pg-boss and kept the plane stopped as the
-  way back; alpha.18 removes it. Gone: the `@trigger.dev/*` packages and the `trigger.dev` CLI (and
-  the pnpm overrides and release-age exclusions only their dependencies needed), the task wrappers
-  in `apps/worker/src/jobs`, `trigger.config.ts`, the task image and its base
-  (`apps/worker/task-image`), the API's Trigger.dev client paths; in `deploy/compose/managed.yml`
-  the eleven services of profile `trigger` (trigger-db, trigger-redis, trigger-api, clickhouse,
-  trigger-registry, trigger-docker-proxy, trigger-supervisor, minio, minio-init, trigger-tls,
-  trigger-tls-init), their three networks, their volumes and every `TRIGGER_*` key; the scripts
-  that only served the plane (`deploy-tasks.sh`, `set-task-env.sh`, `trigger-version.sh`,
-  `trigger-credentials.sh`, `plane-tokens.sh`, `plane-limit.sh`, `reset-trigger.sh`, the login
-  helpers, the supervisor, ClickHouse, Redis, Caddy and socket-proxy configuration); the bring-up's
-  phases `trigger`, `account`, `login` and `tasks`; the images `ownpace-task-base`, the socket
-  proxy, Caddy and Redis from `images.yml`, Security Scan and Dependabot; the pin watch's rows for
-  Trigger.dev, ClickHouse and the tasks' Node and base, which close their issues once; E2E
-  (managed)'s `job_runner` input, its Trigger.dev drill and its `TRIGGER_*` environment.
+- **An address change says whether its own person confirmed it** (workplan 0168, its follow-ups).
+  Each row of `/api/address-changes` carries `confirmedByThePerson`, true when the person confirmed
+  it through their own link, and the team screen reads it: a confirmation by somebody whose name
+  is said as the person's now reads *Confirmed by ‹name› for ‹person›*. Always false on the
+  appliance, which has no person.
 
 ### Changed
 
@@ -49,6 +37,53 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **Live's deploy from alpha.17 is reversible.** alpha.17's `deploy-live.sh` takes the copy
   without `--trigger`, notes that the release removes the plane from `managed.yml` (its volumes
   stay), and finds no migration and no changed pin it compares.
+
+### Removed
+
+- **Self-hosted Trigger.dev, from the managed edition** (workplan 0167 T9; ADR-0054). The owner,
+  2026-11-23: *"i will remove trigger.dev, but the machine runs OTA and managed, so both have to be
+  move out of triggerdev."* alpha.16 moved every job to pg-boss and kept the plane stopped as the
+  way back; alpha.18 removes it. Gone: the `@trigger.dev/*` packages and the `trigger.dev` CLI (and
+  the pnpm overrides and release-age exclusions only their dependencies needed), the task wrappers
+  in `apps/worker/src/jobs`, `trigger.config.ts`, the task image and its base
+  (`apps/worker/task-image`), the API's Trigger.dev client paths; in `deploy/compose/managed.yml`
+  the eleven services of profile `trigger` (trigger-db, trigger-redis, trigger-api, clickhouse,
+  trigger-registry, trigger-docker-proxy, trigger-supervisor, minio, minio-init, trigger-tls,
+  trigger-tls-init), their three networks, their volumes and every `TRIGGER_*` key; the scripts
+  that only served the plane (`deploy-tasks.sh`, `set-task-env.sh`, `trigger-version.sh`,
+  `trigger-credentials.sh`, `plane-tokens.sh`, `plane-limit.sh`, `reset-trigger.sh`, the login
+  helpers, the supervisor, ClickHouse, Redis, Caddy and socket-proxy configuration); the bring-up's
+  phases `trigger`, `account`, `login` and `tasks`; the images `ownpace-task-base`, the socket
+  proxy, Caddy and Redis from `images.yml`, Security Scan and Dependabot; the pin watch's rows for
+  Trigger.dev, ClickHouse and the tasks' Node and base, which close their issues once; E2E
+  (managed)'s `job_runner` input, its Trigger.dev drill and its `TRIGGER_*` environment.
+
+### Fixed
+
+- **A copy deleted on the new system is counted as gone, never as the owner's edit and never made
+  again** (workplan 0168, found on the way; ADR-0055, amended). A rewrite of a JMAP file that was
+  no longer there threw, so the item failed and its retry made the file again. A DAV rewrite
+  refused with 412 was always read as an edit, though `If-Match` is refused the same way when
+  nothing is there, so a copy the person deleted was marked as theirs and never reported missing.
+  One HEAD now tells the two apart, and a HEAD that cannot say fails the item and writes nothing.
+- **A rewrite that failed is retried as that rewrite** (workplan 0168, found on the way). Only a
+  failed address rewrite was; a failed rewrite of a change at the old system took the create path
+  on its retry, which adopted our own copy as the target's, so later changes never reached it, or
+  made a deleted one again.
+- **Recording a copy's source version no longer counts it as copied again on Billing** (workplan
+  0168, found on the way). A copy from before the version column, seen unchanged, had its version
+  stored by the path that also stamps the copy's last write, which the usage meter reads, so it
+  counted again, at its whole size, in that month. Only the version is written now.
+- **A change to the account's own addresses reaches its events** (workplan 0168, found on the
+  way). They decide whether an event's guests change, but a calendar's cursor was stored under the
+  address table alone, so a source that lists only what changed never read those events again.
+- **A copy with no version to guard its new address is said as left, never as waiting for the
+  next pass** (workplan 0168, found on the way). No pass and no press rewrites such a copy. The
+  confirmed list's row now says `unguarded`, verification counts it apart and warns about it in
+  its own words in English and Dutch, and a sample of only those copies is no longer told to
+  check again after the next pass.
+- **The appliance's answer to *Apply the new addresses here too* for a migration it does not
+  hold has a sentence**, in English and Dutch, as managed's has (workplan 0168, found on the way).
 
 ## [0.2.0-alpha.17] - 2026-11-23
 

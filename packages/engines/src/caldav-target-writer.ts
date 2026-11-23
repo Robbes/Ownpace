@@ -55,7 +55,7 @@ import {
 } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
 import { NOT_THIS_PLACE, isNamed, discoverHomeSet, type CollectionAt } from './dav-home-set.ts';
-import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
+import { readEtag, readVersion, ownershipOf, ifMatchFor, goneOrEdited } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
 
@@ -534,6 +534,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         true,
         options.expectedTargetVersion,
       );
+      // The copy is gone from the target (`goneOrEdited`): counted as such,
+      // never re-created and never marked as the owner's edit.
+      if (written.gone) return { targetId: written.path, created: false, goneFromTarget: true };
       if (written.conflicted) {
         // Nothing was written. Reported, not thrown: this is a fact about
         // ownership, not a failure to migrate, and throwing would spend one of
@@ -1238,6 +1241,17 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     return uid;
   }
 
+  /** One HEAD of a path, with this writer's credentials (`goneOrEdited`). */
+  private headOf(path: string): Promise<{ readonly status: number }> {
+    return this.requestWithRetry({
+      method: 'HEAD',
+      url: this.buildUrl(path),
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+  }
+
   /**
    * The ETag the target currently reports for an object, or undefined.
    *
@@ -1263,7 +1277,14 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     uid: string,
     overwrite = false,
     expectedTargetVersion?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean; alreadyHeld?: boolean; keptForGuests?: boolean }> {
+  ): Promise<{
+    path: string;
+    etag?: string;
+    conflicted?: boolean;
+    gone?: boolean;
+    alreadyHeld?: boolean;
+    keptForGuests?: boolean;
+  }> {
     // Generate event filename from UID
     const filename = `${uid}.ics`;
     const eventPath = `${calendarId}${filename}`;
@@ -1383,7 +1404,13 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // precondition sent gets the same answer: not written, and not reported as
     // a rewrite.
     if (response.status === 412) {
-      if (overwrite) return { path: eventPath, conflicted: true };
+      // Or the event is gone: a deleted copy answers `If-Match` with 412 too
+      // (`goneOrEdited`), and is not the owner's edit.
+      if (overwrite) {
+        return (await goneOrEdited(() => this.headOf(eventPath), eventPath)) === 'gone'
+          ? { path: eventPath, gone: true }
+          : { path: eventPath, conflicted: true };
+      }
       const held = await this.uidAlreadyHeldAt(calendarId, raw, uid);
       if (held !== undefined) return { path: held, alreadyHeld: true };
       throw withFailureCategory(

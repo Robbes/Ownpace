@@ -126,3 +126,50 @@ describe('verification under the address table', () => {
   });
 
 });
+
+/**
+ * NO VERSION TO GUARD THE WRITE (workplan 0168 S1, and its finding on the
+ * way). A copy that waits with no strong target version is left as it is by
+ * every pass and every press. It was said to wait for "the next pass" all the
+ * same; now it is said apart, and a sample of only those is never told to
+ * check again after a pass.
+ */
+describe('copies no pass changes, with no version to guard the write', () => {
+  const unguardedTable = (olderKeys: string[], unguardedKeys: string[], waitsFor?: 'pass' | 'press') =>
+    deps({
+      getAddressChanges: async () => ({
+        digest: DIGEST,
+        changed: 2,
+        olderKeys,
+        unguardedKeys,
+        ...(waitsFor ? { waitsFor } : {}),
+      }),
+    });
+
+  it('counts them apart, and says only the rest wait for the next pass', async () => {
+    const result = await runVerification(unguardedTable(['aaa', 'bbb'], ['bbb'], 'pass'));
+    const c = result.contacts;
+    expect(c.addressChanges).toEqual({ digest: DIGEST, changed: 2, older: 2, unguarded: 1, waitsFor: 'pass' });
+    expect(c.issues.find((i) => i.id === 'ADDRESS_OLDER_TABLE_contacts')?.message).toMatch(/^1 contacts item\(s\) wait/);
+    const left = c.issues.find((i) => i.id === 'ADDRESS_UNGUARDED_contacts');
+    expect(left?.severity).toBe('WARNING');
+    expect(left?.message).toMatch(/^1 contacts item\(s\) do not carry an address change and are left as they are/);
+    expect(left?.message).not.toMatch(/next pass/);
+  });
+
+  it('says nothing waits when every one of them is unguarded', async () => {
+    const result = await runVerification(unguardedTable(['bbb'], ['bbb']));
+    const c = result.contacts;
+    expect(c.addressChanges).toEqual({ digest: DIGEST, changed: 2, older: 1, unguarded: 1 });
+    expect(c.issues.find((i) => i.id === 'ADDRESS_OLDER_TABLE_contacts')).toBeUndefined();
+    expect(c.issues.find((i) => i.id === 'ADDRESS_UNGUARDED_contacts')).toBeDefined();
+  });
+
+  it('never tells a held sample of only those to check again after the next pass', async () => {
+    const result = await runVerification(unguardedTable(['aaa', 'bbb', 'ccc'], ['aaa', 'bbb', 'ccc'], 'pass'));
+    const held = result.contacts.issues.find((i) => i.id === 'ADDRESS_NOT_COMPARED_contacts');
+    expect(result.contacts.status).toBe('FAIL');
+    expect(held?.message).toMatch(/No pass changes them/);
+    expect(held?.message).not.toMatch(/next pass/);
+  });
+});

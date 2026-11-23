@@ -10,6 +10,62 @@ check of the task base (`release-verify.mjs`) are gone with it; `images.yml` bui
 `database` and `pgbouncer`. Live's deploy from alpha.17 is reversible by the deploy's own rule: no
 migration, and no pin it compares moves (0167's Status).
 
+**2026-11-23, later: alpha.18's counted nights are waived, in the owner's words, before its fold.**
+The owner, on 2026-11-23, after alpha.17's tag: *"ill waive the waiting for alpha 18, also the 3day
+limit for LCM, so we could take newer verrsion more early."* So `v0.2.0-alpha.18` joins
+`WAIVER_VERSIONS` in `scripts/release-nights.mjs`, beside alpha.3 to alpha.17, with those words.
+The two guards that read the list name it, with `v0.2.0-alpha.19` now the version a waiver is
+refused for, and `docs/release.md` lists it. With the new line taken out, both list guards fail (2
+of 119); with it, 119 of 119 pass. It lands before alpha.18's fold, so C carries the list. The same
+words waive the three-day floor for alpha.18's updates, one release at a time: a release taken
+inside its floor for alpha.18 says so in its own pull request and quotes them (for npm, as a
+`minimumReleaseAgeExclude` entry for that version alone, as alpha.14's Trigger.dev 4.8.8 was
+taken). The floor itself stays as CONTRIBUTING.md sets it, for every release after alpha.18.
+
+**2026-11-23, morning, last: `v0.2.0-alpha.17` is released, its nights waived (T2, T4).** Read from
+GitHub on 2026-11-23. Times are UTC.
+
+- **C is `5b51a82b`**, the squash of #2068, the fold, merged on 2026-11-23 at 08:26:44. Its tree is
+  that of #2068's head, `b09c5080`. On C, all green: CI run 45138668264 (08:26:47 to 09:19:42,
+  `ci-complete` included), Security Scan run 45138668524, Images run 45138668322, Semgrep run
+  45138668331, Dockerfile lint run 45138668521 and Nextcloud's second major, run 45138668534. C did
+  not move: nothing merged to `main` between the fold and the tag.
+- **In the counted nights' place**, waived for alpha.17 (*"Continue working on alpha 17, I waive the
+  waitings for that one, so I can roll that one out possibly also tomorrow."*, #2059), dispatched on
+  `main` at C, all green: E2E (managed), on pg-boss, run 45138701547 (08:27:01 to 08:32:52), then
+  E2E (self-hosted) on Postgres, run 45139539074 (08:33:14 to 08:38:26), and on PGlite, run
+  45140291976 (08:38:43 to 08:43:19), one at a time, each once the run before it had ended green;
+  beside them Security Scan with the image scans, run 45138706147 (31 jobs), and
+  `windows-payload.yml` run 45138710152 (win-x64).
+- **Release.** The owner ran it from their own account, first as a preflight alone: run
+  45146513643 (`mode` `preflight`, 09:23:02 to 09:23:46), which refused nothing. Then Release run
+  45146685430 (`mode` `release`), with `waive_nights` set to *"waived by me"*, in one attempt: its
+  preflight passed (09:24:13 to 09:24:58), and it waited at its approve job until the owner
+  approved in the `release` environment (the job ran 09:25:23 to 09:25:26); then the gate scan of C
+  (run 45146930775, on `release-gate/v0.2.0-alpha.17`, 09:25:45 to 09:26:47) and the tag (09:27:39)
+  succeeded. The publish job's Security Scan on the tag, run 45147275459 (09:28:01 to 09:29:03),
+  made the release with its body and SBOM; the images, run 45147474870 (09:29:24 to 09:30:28), and
+  the Windows zip, run 45147487456 (09:29:29 to 09:31:07), both on the tag, were green; and verify
+  passed (09:31:39 to 09:32:37).
+- **The two attaches, through the runner's own `gh`** (#1977): `bom.json` (2,058,075 bytes, with
+  the release at 09:28:59) and `ownpace-appliance-win-x64-v0.2.0-alpha.17.zip` (50,097,652 bytes,
+  09:31:00), both uploaded by `github-actions[bot]`. Verify, which reads both, passed. The release's
+  body is said once (1,049 characters).
+- **The tag.** `v0.2.0-alpha.17` is tag object `296ffa2e…` on `5b51a82b`, made by
+  `github-actions[bot]` at 09:27:39. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/45146685430*, *Proved by: CI run #6113, Security
+  Scan run #6259 on main, windows-payload run #61; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/45146930775* and *Nights waived by Robbes, in
+  their words: "waived by me"*.
+- **The image scan after the tag**, Security Scan run 45149289024 (`image_scans`, dispatched on
+  `main` at C, 09:41:11 to 09:44:45, 31 jobs), was green: 28 images listed and scanned, the release
+  images now alpha.17's, and the report left every image's issue as it was. `main` had not moved, so
+  it read C's tree, as `docs/release.md` §4 asks.
+- **The freeze ended with the tag.** This record is the first merge after C.
+- **Live's deploy** from alpha.16 follows, by the owner, from the sheet filled from this tag
+  (one-way: ledger migrations 0071 to 0074 and managed migration 0063, as the fold's entry below
+  says); 0132's Status records it.
+
 **2026-11-23, morning, later: the fold for `v0.2.0-alpha.17` (T2).** `package.json` and the API
 contract say `0.2.0-alpha.17`, `scripts/release-line.json` lists it, and everything under
 [Unreleased] moves to its section, dated 2026-11-23, under a summary; [Unreleased] stays, empty.

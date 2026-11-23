@@ -816,9 +816,9 @@ live in [README.md](./README.md), the register.
   (`item.address_digest`); verification and the confirmed list count and name it; an older digest,
   or a change a copy still waits for (`item.address_digest_due`), is never a match. Every write of
   the table is audited by reference, never by address.
-- **A changed table converges** by a rewrite that needs a strong recorded version, sent as
-  `If-Match` (without one the copy is left and counted); adopted copies stay, tombstones stay, a
-  copy deleted on the target is never made again. Past a data type's cutover only on a person's
-  press, for the table they were shown (D5). Silence (ADR-0043) holds.
+- **A changed table converges** by a rewrite guarded by `If-Match` with a strong version, else
+  the copy is left and said as left. A copy deleted on the target is counted gone, never remade
+  (decision 6). Past a cutover only on a person's press, for the table they were shown (D5).
+  Silence (ADR-0043) holds.
 - **Shares:** a confirmed row is ADR-0032 §6's confirmation; each press still sends its address.
   Support shows counts only (D7); erasure purges both tables (`PURGED_TABLES`).

@@ -174,13 +174,14 @@ describe('the address table in a real ledger', () => {
 
   it('names the digest on the confirmed list, counts both kinds, and never calls one a change waits for a match', async () => {
     const list = await readConfirmedList({ source: driver, tenantId: TENANT, mappingId: MAPPING }, 'active' as never);
-    expect(list.addressChanges).toEqual({ digest: NOW, changed: 1, older: 2 });
+    // `k-never` has no version to guard the write: counted apart (0168, found on the way).
+    expect(list.addressChanges).toEqual({ digest: NOW, changed: 1, older: 2, unguarded: 1 });
     expect(list.verified).toBe(2);
     // The list's own order is by item id, which the ledger draws at random:
     // read by key.
     const marked = list.rows.map((r) => [r.naturalKey, r.state, r.address, r.waitsFor] as const);
     expect([...marked].sort((a, b) => String(a[0]).localeCompare(String(b[0])))).toEqual([
-      ['k-never', 'differs', 'older', 'pass'],
+      ['k-never', 'differs', 'older', 'unguarded'],
       ['k-older', 'differs', 'older', 'pass'],
     ]);
   });
@@ -193,6 +194,7 @@ describe('the address table in a real ledger', () => {
       digest: NOW,
       changed: 1,
       olderKeys: ['k-never', 'k-older'],
+      unguardedKeys: ['k-never'],
       waitsFor: 'pass',
     });
   });
@@ -239,7 +241,8 @@ describe('the address table in a real ledger', () => {
       );
       expect((await waitsFor())('contact')).toBe('press');
       const list = await readConfirmedList({ source: driver, tenantId: TENANT, mappingId: MAPPING }, 'cutover' as never);
-      expect(list.rows.map((r) => r.waitsFor)).toEqual(['press', 'press']);
+      // `k-never`, with no version to guard the write, waits for neither (0168).
+      expect(list.rows.map((r) => r.waitsFor).sort()).toEqual(['press', 'unguarded']);
       await q(`DELETE FROM address_change WHERE tenant_id = $1 AND old_key = 'dora@old.example.org'`, [TENANT]);
       expect((await waitsFor())('contact')).toBe('pass');
     } finally {

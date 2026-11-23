@@ -4,6 +4,69 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, later: the follow-ups for alpha.18, on
+`claude/ownpace-public-readiness-y7orc6-0168-followups`.** Six of the seven defects found on the
+way are fixed and the API flag is added, each with a test that fails without its fix. The
+domain list did not move, and one defect waits for the owner's call.
+
+- **A copy deleted on the target is counted gone, whichever rewrite finds it.** The JMAP file
+  writer answers `goneFromTarget` where it threw (`jmap-file-target.unit.test.ts`, three cases).
+  A DAV rewrite refused with 412 is told from an edit by one HEAD (`goneOrEdited`,
+  `dav-target-version.ts`): 404/410 is gone, 2xx is an edit, anything else fails the item; the
+  chunked MOVE's 404 says gone too (`target-edit-protection.unit.test.ts`, *a rewrite whose target
+  copy was deleted*, all three writers). The pass reports `goneFromTarget` with no table as well.
+- **A failed rewrite is retried as that rewrite**, by the rules of the rewrite it was (a source
+  change's, the cutover's included), never as a create; not after a relocation
+  (`a-failed-rewrite-is-retried-as-a-rewrite.unit.test.ts`).
+- **`record-version` writes the version alone** (`Ledger.recordSourceVersion`), so the usage meter
+  no longer reads it as a copy; proven on Postgres through `scripts/local-pg.sh`
+  (`a-version-recorded-is-not-a-copy.integration.test.ts`, `packages/managed`).
+- **The account's own addresses are in a calendar's cursor tag** (`addressTableTag`, `+own:`), so a
+  change to them reads the calendar again and its guests follow
+  (`a-new-address-on-a-source-that-lists-only-what-changed.unit.test.ts`). Cards' tags are
+  unchanged.
+- **A copy with no version to guard its rewrite is said as left, never as waiting**: the confirmed
+  list's row says `unguarded` and the summary counts them; verification names them
+  (`unguardedKeys`), counts them apart (`addressChanges.unguarded`), warns with
+  `ADDRESS_UNGUARDED_*`, and stops telling a held sample of only those to check again after a pass;
+  the Check page says both in English and Dutch. Both SQL readers proven on Postgres
+  (`a-copy-no-pass-changes.integration.test.ts`).
+- **The appliance's apply 404** says `NO_SUCH_MIGRATION_HERE` in both languages, as managed does.
+- **`confirmedByThePerson`** on every row of `/api/address-changes` (OpenAPI too); the team screen
+  reads it instead of comparing names.
+
+Not done, and why:
+
+- **`NOT_TAKEN_ALONG` still holds Google's two domains.** This build could not read one provider
+  page either: support.microsoft.com, support.apple.com, help.yahoo.com, www.ziggo.nl,
+  www.kpn.com, www.proximus.be and www2.telenet.be, and every fallback tried (Wikipedia, the web
+  archive, Thunderbird's autoconfig), are refused by this environment's network. Search excerpts
+  were found for each group, but they are not the pages and are not cited. The next build needs
+  those hosts allowed. What the excerpts suggest, to check against the pages: Ziggo keeps
+  ziggo.nl, quicknet.nl, home.nl, casema.nl, upcmail.nl, chello.nl and a2000.nl, and offers no way
+  to keep one after leaving; KPN keeps kpnmail.nl, planet.nl, hetnet.nl, xs4all.nl and others, and
+  sells *E-mail Only* to keep one; Telenet and Proximus (skynet.be) keep the address free for at
+  least 18 months, as Belgian rules require; Microsoft and Yahoo publish no list of their country
+  domains. Where a provider sells a way to keep the address, the recommendation is to keep the
+  domain in the list: the list only proposes, and the person can still say No.
+- **Past a cutover, a copy whose source changed and whose digest moved** is counted as waiting for
+  the press, and the press never rewrites it, since that rewrite would also write the source's
+  change, which "Stop overwriting" forbids after a cutover. **The owner's call:** (a) the press
+  rewrites such a copy, source change included, guarded by `If-Match`; or (b) it is left and
+  counted apart from those the press reaches. Nothing changed here.
+- **A held sample of copies with no version to guard the write** holds the cutover with no remedy
+  in the product (now said as such). Whether such copies should hold the gate is the owner's call.
+- **The digest of an event still leaves out the own addresses** where they decide: in a series
+  whose override has an organiser in the table, an own-address change moves the bytes and not the
+  digest. Folding them in would rewrite, once, every event the account organised that a row
+  changed; left for a decision with the press question above.
+
+Evidence: the unit tier, typecheck, lint and the docs checks on the branch's head; the two
+Postgres files above through `scripts/local-pg.sh`. **E2E (managed)** is for the coordinating
+session to dispatch: it should show the same confirmed-rows run as #507, green, with
+`goneFromTarget` absent from a pass that deleted nothing, and the Check page's address lines
+unchanged for copies with a strong version.
+
 **2026-11-23: landed whole, in one pull request (#2067), with the review's fixes; the Dutch waits
 for the owner's check.** The seven branches of 2026-11-22 (T1–T9) were merged onto alpha.16's C
 and reviewed by three readers at once: the engine's data path; the table, its routes and their
@@ -70,7 +133,7 @@ Proven:
   reads only their own rows there, and their *Start* with a new address is refused; nobody is
   granted those roles during the alpha.
 - The team screen tells a person's own confirmation from an admin's by name; an API flag would be
-  exact when two people share one name.
+  exact when two people share one name — *added for alpha.18 (`confirmedByThePerson`)*.
 - A database fault logs the driver's whole error, parameters included (`server-fault.ts`), on
   every route; the fix belongs in `loggableError`.
 - `SENT-BY`, `DELEGATED-FROM`/`-TO` and `MEMBER` keep their old addresses while `ORGANIZER` and
@@ -83,15 +146,17 @@ Proven:
   prefers that line where it is (D2). ADR-0055 says each.
 - Found on the way, outside this landing's fixes:
   - a rewrite of a file that is gone throws and its retry takes the create path
-    (`jmap-file-target.ts`), and so does a failed rewrite of a source change (`domain-sync.ts`);
-  - `record-version` bumps `last_synced_at`, which the usage meter reads as a copy again;
-  - a 412 on a copy deleted on a DAV target reads as an edit, so it is counted as adopted;
+    (`jmap-file-target.ts`), and so does a failed rewrite of a source change (`domain-sync.ts`)
+    — *fixed for alpha.18, above*;
+  - `record-version` bumps `last_synced_at`, which the usage meter reads as a copy again — *fixed*;
+  - a 412 on a copy deleted on a DAV target reads as an edit, so it is counted as adopted — *fixed*;
   - past a cutover, a copy whose source changed and whose digest moved is counted as waiting for
-    the press, which never rewrites it;
-  - a change to the account's own addresses changes no copy's digest, so it rewrites nothing;
+    the press, which never rewrites it — *the owner's call, above*;
+  - a change to the account's own addresses changes no copy's digest, so it rewrites nothing —
+    *fixed in the cursor's tag; one narrow case left, above*;
   - copies with no version to guard a rewrite are still called waiting for the next pass in the
-    confirmed list's reading, Verify and §20's words;
-  - the appliance's apply 404 carries a code and no sentence.
+    confirmed list's reading, Verify and §20's words — *fixed*;
+  - the appliance's apply 404 carries a code and no sentence — *fixed*.
 
 
 **2026-11-22: T9 drafted by a builder, for the owner's check.** The privacy policy gains the §4.6

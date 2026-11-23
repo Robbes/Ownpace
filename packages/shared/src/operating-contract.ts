@@ -1471,9 +1471,16 @@ export interface ConfirmedListQueue {
   /**
    * The address table's part of the account (ADR-0055; workplan 0168 T5):
    * its digest now, how many copies carry a change under it, and how many
-   * under an older table (never a match, *Waiting for the next pass*).
+   * under an older table (never a match): waiting for the next pass or the
+   * press, save `unguarded`, which have no version to guard the write and
+   * which nothing changes (0168, found on the way).
    */
-  readonly addressChanges?: { readonly digest: string | null; readonly changed: number; readonly older: number };
+  readonly addressChanges?: {
+    readonly digest: string | null;
+    readonly changed: number;
+    readonly older: number;
+    readonly unguarded?: number;
+  };
   readonly truncated?: boolean;
   readonly lastPass: ConfirmationPassState;
   /** Why the last pass stopped early, when it did (0090 T4). */

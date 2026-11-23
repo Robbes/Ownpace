@@ -233,9 +233,11 @@ describe('CalDAV overwrite', () => {
     // hold — the same false-green shape as the original bug, one layer down.
     // It threw; since workplan 0149 T3 a 412 on a rewrite is the owner's copy
     // refusing to be replaced, whether `If-Match` asked or not: `conflicted`,
-    // which the sync loop counts and never writes over.
+    // which the sync loop counts and never writes over. The copy is there
+    // (the HEAD that tells an edit from a deletion finds it, 0168).
     const client = {
-      async request() {
+      async request(o: { method: string }) {
+        if (o.method === 'HEAD') return { status: 200, body: '', headers: {} };
         return { status: 412, body: '', headers: {} };
       },
     } as unknown as HttpClient;

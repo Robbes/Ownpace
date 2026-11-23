@@ -373,5 +373,70 @@ describe('calendars, on a source that lists only what changed', () => {
     await pass([]);
     expect(t.bodies.get('e-lunch')).toBe(source0);
   });
+
+  it('reads the calendar again when the account’s own addresses change, so its guests follow (0168, found on the way)', async () => {
+    // Ana's event; the row for Ben is confirmed from the start. Whether Ben
+    // changes depends on whether Ana is one of the account's own addresses
+    // (D3), and the source lists nothing new when that changes.
+    const cal = new Incremental<[string, string]>();
+    cal.put('/cal/', 'e-lunch', ['ana@old.example.org', 'ben@old.example.org']);
+    const ledger = new MemoryLedger();
+    const cursors = new MemoryCursorStore();
+    const t = new Target();
+    const source: CalendarSource = {
+      listFolders: async () => [{ path: '/cal/', name: 'Calendar' }],
+      listSince: async (folder: { path: string }, cursor?: SyncCursor) => {
+        const { uids, next } = cal.list(folder.path, cursor);
+        return {
+          items: uids.map(([uid, [o, g]]) => ({
+            item: { uid, type: 'event', summary: uid, start: '2026-12-06T12:00:00Z', etag: `"${uid}"`, sourcePath: `/cal/${uid}.ics` } as unknown as CalendarEvent,
+            icalendar: event(uid, o, g),
+          })),
+          nextCursor: next,
+          removed: [],
+        };
+      },
+    } as unknown as CalendarSource;
+    const target = {
+      ensureCalendar: async (folder: { path: string }) => folder.path,
+      upsertCalendarEvent: async (_c: string, raw: { item: CalendarEvent; icalendar: string }, options?: UpsertOptions) =>
+        t.put(raw.item.uid, raw.icalendar, options),
+    } as unknown as CalendarTargetWriter;
+    const pass = (ownKeys: string[]) =>
+      runCalendarSync({
+        sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        source,
+        target,
+        ledger,
+        cursors,
+        addressChanges: { table: prepareAddressTable([BEN]), ownKeys },
+      });
+
+    const source0 = event('e-lunch', 'ana@old.example.org', 'ben@old.example.org');
+    await pass(['someone@example.org']);
+    expect(t.bodies.get('e-lunch')).toBe(source0);
+
+    // Ana's address becomes one of the account's own: read again, and Ben follows.
+    let from = cal.listings.length;
+    await pass(OWN);
+    expect(cal.listings.slice(from).map((l) => l.cursor)).toEqual([undefined]);
+    expect(t.bodies.get('e-lunch')).toContain('ATTENDEE;CN=Ben:mailto:ben@example.org\r\n');
+
+    // The same own addresses in another order: read incrementally, nothing written.
+    const writes = t.writes;
+    from = cal.listings.length;
+    await pass([...OWN].reverse());
+    expect(cal.listings.slice(from).every((l) => l.cursor !== undefined && l.uids.length === 0)).toBe(true);
+    expect(t.writes).toBe(writes);
+
+    // And taken away again: read again, and the event goes back to the source's bytes.
+    from = cal.listings.length;
+    await pass(['someone@example.org']);
+    expect(cal.listings.slice(from).map((l) => l.cursor)).toEqual([undefined]);
+    expect(t.bodies.get('e-lunch')).toBe(source0);
+  });
 });
 
