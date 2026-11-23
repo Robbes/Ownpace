@@ -7,6 +7,7 @@
  * The abstraction is at the function level, parameterizing the loop with domain-specific injections.
  */
 
+import { createHash } from 'node:crypto';
 import { applyTargetFolderPrefix,
   passClock,
   type PassClock,
@@ -123,11 +124,34 @@ function changed(
  * Empty for the empty table with no press, which is every migration whose
  * organisation never confirmed a row: its cursors are stored exactly as they
  * always were.
+ *
+ * For a calendar or task, the account's own addresses too (`ownKeys`), while
+ * the table has a row: they decide whether an event's guests change (D3), so
+ * a change to them is a change to what the table does to that collection.
+ * Without them in the tag, a source that lists only what changed never listed
+ * those events again, and an own address added or taken away rewrote nothing
+ * (workplan 0168, found on the way). A card is not decided by them, and its
+ * tag leaves them out.
  */
-export function addressTableTag(changes: AddressChangesForPass): string {
+export function addressTableTag(
+  changes: AddressChangesForPass,
+  format: 'vcard' | 'icalendar' = 'vcard',
+): string {
   const press = changes.pastCutoverApplies === true;
   if (changes.table.digest === null && !press) return '';
-  return `${changes.table.digest ?? 'none'}${press ? '+applied' : ''}`;
+  const own =
+    format === 'icalendar' && changes.table.digest !== null && changes.ownKeys.length > 0
+      ? `+own:${ownKeysDigest(changes.ownKeys)}`
+      : '';
+  return `${changes.table.digest ?? 'none'}${press ? '+applied' : ''}${own}`;
+}
+
+/** The account's own address keys, in any order, as one short digest for a cursor's tag. */
+function ownKeysDigest(ownKeys: ReadonlyArray<string>): string {
+  return createHash('sha256')
+    .update([...new Set(ownKeys)].sort().join('\n'))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 /** How a tagged cursor starts. Followed by the tag, a `|`, and the source's own cursor. */
@@ -161,9 +185,10 @@ const READ_UNDER = 'ownpace-address-table:';
 function cursorsUnderTheTable(
   cursors: CursorStore | undefined,
   changes: AddressChangesForPass | undefined,
+  format: 'vcard' | 'icalendar',
 ): CursorStore | undefined {
   if (!cursors || !changes) return cursors;
-  const tag = addressTableTag(changes);
+  const tag = addressTableTag(changes, format);
   return {
     async get(tenantId, mappingId, folderPath) {
       const held = await cursors.get(tenantId, mappingId, folderPath);
@@ -234,7 +259,7 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     target,
     ledger,
     // Each cursor read under the table it was stored under (`cursorsUnderTheTable`).
-    cursors: cursorsUnderTheTable(cursors, deps.addressChanges),
+    cursors: cursorsUnderTheTable(cursors, deps.addressChanges, 'icalendar'),
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
@@ -348,7 +373,7 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     target,
     ledger,
     // Each cursor read under the table it was stored under (`cursorsUnderTheTable`).
-    cursors: cursorsUnderTheTable(cursors, deps.addressChanges),
+    cursors: cursorsUnderTheTable(cursors, deps.addressChanges, 'icalendar'),
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
@@ -428,7 +453,7 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     target,
     ledger,
     // Each cursor read under the table it was stored under (`cursorsUnderTheTable`).
-    cursors: cursorsUnderTheTable(cursors, deps.addressChanges),
+    cursors: cursorsUnderTheTable(cursors, deps.addressChanges, 'vcard'),
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),

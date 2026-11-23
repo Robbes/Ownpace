@@ -264,6 +264,8 @@ export class ConfirmationStore {
         // change a pass found it waits for (0168 S3).
         addressDigest: schemaPg.item.addressDigest,
         addressDigestDue: schemaPg.item.addressDigestDue,
+        // Whether a rewrite of it could be guarded (0168, found on the way).
+        targetVersion: schemaPg.item.targetVersion,
       })
       .from(schemaPg.item)
       .where(
@@ -314,6 +316,7 @@ export class ConfirmationStore {
                 item: r.addressDigest ?? null,
                 due: r.addressDigestDue ?? null,
                 waitsFor: args.addressWaitsFor(r.domain),
+                targetVersion: r.targetVersion ?? null,
               },
             }
           : {}),

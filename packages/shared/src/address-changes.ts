@@ -193,6 +193,16 @@ export const ADDRESS_TABLE_MOVED = {
   nl: 'De adreswijzigingen zijn veranderd sinds deze pagina ze liet zien, dus er is niets toegepast. Bekijk ze opnieuw en druk dan nog een keer.',
 } as const;
 
+/**
+ * A press for a migration this edition does not hold: 404, in both languages,
+ * from both editions (the appliance's carried a code and no sentence; 0168,
+ * found on the way).
+ */
+export const NO_SUCH_MIGRATION_HERE = {
+  en: 'There is no such migration here.',
+  nl: 'Deze migratie bestaat hier niet.',
+} as const;
+
 /** A press that does not say which table it was shown: 400, in both languages. */
 export const ADDRESS_PRESS_NAMES_NO_TABLE = {
   en: 'This press does not say which address changes it was shown, so nothing was applied. Reload the page and press again.',

@@ -2114,19 +2114,33 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               ledger.markAddressChangeDue!(tenantId, mappingId, domain, key, due),
             );
           };
-          // A COPY WHOSE ADDRESS REWRITE FAILED (workplan 0168 B2). A failure
-          // keeps the row's target id, its version and its digest, so its
-          // retry is that rewrite again, by the same rules, and never the
-          // create path: that path made a fresh copy of a card the person had
-          // deleted on the target, one pass after a failed rewrite. Only when
-          // the source is unchanged; a failed rewrite of a source change is
-          // retried as it always was.
-          const retriesAnAddressRewrite =
+          // A COPY WHOSE REWRITE FAILED (workplan 0168 B2, and its finding on
+          // the way). A failure keeps the row's target id, its version, its
+          // source version and its digest, so its retry is that rewrite
+          // again, by the same rules, and never the create path: that path
+          // made a fresh copy of a card the person had deleted on the target,
+          // one pass after a failed rewrite, or adopted our own copy as the
+          // target's. A failed first copy has no target id and is retried as
+          // a create, as it always was.
+          //
+          // Which rewrite is told by what moved: the address rows alone, so an
+          // address rewrite (by `rewrite-addresses`' rules), or else a source
+          // change (by `rewrite`'s, the cutover's included).
+          //
+          // Not a failed write after a relocation (`movedToNaturalKeyHash`): its
+          // target id names the copy the relocation removed, and that write
+          // is a create, as `relocated-away` says.
+          const retriesARewrite =
             action === 'retry-failed' &&
+            known.status === 'failed' &&
             known.targetId !== '' &&
-            addressMoved &&
-            (version === undefined || known.sourceVersion === undefined || known.sourceVersion === version);
+            known.movedToNaturalKeyHash === undefined;
+          const sourceMoved =
+            version !== undefined && known.sourceVersion !== undefined && known.sourceVersion !== version;
+          const retriesAnAddressRewrite = retriesARewrite && !sourceMoved && addressMoved;
+          const retriesASourceRewrite = retriesARewrite && !retriesAnAddressRewrite;
           const addressRewrite = action === 'rewrite-addresses' || retriesAnAddressRewrite;
+          const sourceRewrite = action === 'rewrite' || retriesASourceRewrite;
           if (action === 'moved') {
             // The source shows this item somewhere else. Do NOTHING to the
             // target: writing it into the new collection would leave the old
@@ -2189,10 +2203,17 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           if (action === 'record-version') {
             // Unchanged as far as we can tell, but the row predates the
             // version column. Store it — one small UPDATE, no fetch and no
-            // target write — so the next genuine edit is detectable.
-            await timed(phases, 'ledgerWriteMs', () =>
-              ledger.recordUpdate({ ...known, sourceVersion: version }),
-            );
+            // target write — so the next genuine edit is detectable. That
+            // column alone where the ledger can: `recordUpdate` also stamps
+            // the copy's last write, which the usage meter read as another
+            // copy (workplan 0168, found on the way).
+            await timed(phases, 'ledgerWriteMs', async () => {
+              if (ledger.recordSourceVersion && version !== undefined) {
+                await ledger.recordSourceVersion(tenantId, mappingId, domain, key, version);
+              } else {
+                await ledger.recordUpdate({ ...known, sourceVersion: version });
+              }
+            });
             await settleAddressDue();
             skipped += 1;
             return;
@@ -2225,7 +2246,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             await settleAddressDue();
             return;
           }
-          if (action === 'rewrite' && !sourceIsAuthorityOnExistence) {
+          if (sourceRewrite && !sourceIsAuthorityOnExistence) {
             // AFTER CUTOVER A CHANGE AT THE OLD SYSTEM OVERWRITES NOTHING (the
             // owner, 2026-10-05: "Stop overwriting"). Counted, before any
             // fetch, and the source version is left where it was: see
@@ -2280,7 +2301,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // `recordUpdate` below turns the tombstone back into a live row.
           // Either way the ledger row already exists.
           hasExistingRow = true;
-          if (action === 'rewrite' || addressRewrite) rewriteOf = known;
+          if (sourceRewrite || addressRewrite) rewriteOf = known;
           // Kept for after the write, where nothing written means the mark
           // must still be settled (guests a target would mail).
           settleAfterNoWrite = settleAddressDue;
@@ -3373,6 +3394,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     ...(address
       ? { ...address, goneFromTarget }
       : { addressChanged, addressChangesWaiting }),
+    // A rewrite of a source change finds a deleted copy too (workplan 0168,
+    // found on the way): said with no address table as well, when it happened.
+    ...(!address && goneFromTarget > 0 ? { goneFromTarget } : {}),
     conflicted,
     keptForGuests,
     needsDecision,

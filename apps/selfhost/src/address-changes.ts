@@ -180,6 +180,7 @@ function answer(row: StoredAddressChange): AddressChange {
     setByYou: false,
     confirmedBy: saidBy(row.confirmedBy, none),
     confirmedByYou: false,
+    confirmedByThePerson: false,
     createdAt: row.createdAt,
     confirmedAt: row.confirmedAt,
     person: null,

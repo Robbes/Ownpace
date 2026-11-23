@@ -112,6 +112,45 @@ describe('the confirmed list and the address table', () => {
   });
 });
 
+/**
+ * NO VERSION TO GUARD THE WRITE (workplan 0168 S1, and its finding on the
+ * way). A copy that waits with no strong target version is left as it is by
+ * every pass and every press, so it waits for neither, and says so.
+ */
+describe('a copy no pass changes, in the confirmed list', () => {
+  const waiting = (targetVersion: string | null | undefined, waitsFor: 'pass' | 'press' = 'pass') =>
+    real.rowFor({
+      domain: 'contact',
+      status: 'copied',
+      answer: MATCH,
+      contentHash: 'card1:x',
+      addressDigest: { item: MINE, due: OTHER, waitsFor, ...(targetVersion !== undefined ? { targetVersion } : {}) },
+    });
+
+  it.each([
+    ['no version', null],
+    ['an empty one', ''],
+    ['a weak one', 'W/abc'],
+  ] as const)('says unguarded for a copy with %s, never the next pass or the press', (_name, version) => {
+    expect(waiting(version).waitsFor).toBe('unguarded');
+    expect(waiting(version, 'press').waitsFor).toBe('unguarded');
+    expect(waiting(version).address).toBe('older');
+    expect(real.countsAsVerified(waiting(version))).toBe(false);
+  });
+
+  it('says what the rest waits for when the version can guard the write, or was not read', () => {
+    expect(waiting('abc').waitsFor).toBe('pass');
+    expect(waiting('abc', 'press').waitsFor).toBe('press');
+    expect(waiting(undefined).waitsFor).toBe('pass');
+  });
+
+  it('counts them apart in the list', () => {
+    const list = real.confirmedListOf({ addressDigest: TABLE });
+    for (const r of [waiting(null), waiting('abc'), waiting(null)]) list.add(r);
+    expect(list.result().addressChanges).toEqual({ digest: TABLE, changed: 0, older: 3, unguarded: 2 });
+  });
+});
+
 describe('the mutation that drops the check of the mark', () => {
   it('fails these claims', async () => {
     const source = readFileSync(new URL('./confirmed-list.ts', import.meta.url), 'utf8');
@@ -122,7 +161,8 @@ describe('the mutation that drops the check of the mark', () => {
     const mutated = source
       .replace(rule, '  if (false) {')
       .replace("from './fingerprint-scheme.ts'", `from '${here('fingerprint-scheme.ts')}'`)
-      .replace("from './address-changes.ts'", `from '${here('address-changes.ts')}'`);
+      .replace("from './address-changes.ts'", `from '${here('address-changes.ts')}'`)
+      .replace("from './address-digest-due.ts'", `from '${here('address-digest-due.ts')}'`);
     const dir = mkdtempSync(join(tmpdir(), 'confirmed-list-mutant-'));
     try {
       const file = join(dir, 'confirmed-list.ts');

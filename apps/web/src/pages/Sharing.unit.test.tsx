@@ -543,6 +543,7 @@ describe('a grantee from the address changes (workplan 0168 T6, §2.4)', () => {
     setByYou: true,
     confirmedBy: state === 'confirmed' ? 'admin@example.org' : null,
     confirmedByYou: false,
+    confirmedByThePerson: false,
     createdAt: '2026-11-22T10:00:00Z',
     confirmedAt: state === 'confirmed' ? '2026-11-22T10:00:00Z' : null,
     person: null,

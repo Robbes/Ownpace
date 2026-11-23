@@ -37,7 +37,7 @@ import {
 import { davRefusalBody, STREAMED_REQUEST_INIT, withFailureCategory } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
-import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
+import { readEtag, readVersion, ownershipOf, ifMatchFor, goneOrEdited } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import {
   ChunkSlicer,
@@ -102,6 +102,8 @@ interface UploadOutcome {
   path: string;
   etag?: string;
   conflicted?: boolean;
+  /** A rewrite found no copy at the path: deleted on the target (`goneOrEdited`). */
+  gone?: boolean;
   contentHash?: string;
   alreadyHeld?: boolean;
 }
@@ -345,6 +347,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     // natural key — is unchanged and nothing is deleted.
     if (options?.overwrite) {
       const written = await this.uploadFile(raw, true, options.expectedTargetVersion);
+      if (written.gone) return { targetId: written.path, created: false, goneFromTarget: true };
       if (written.conflicted) {
         return { targetId: written.path, created: false, conflicted: true };
       }
@@ -1109,7 +1112,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       // nothing was written and it is the owner's now. A refusal with no
       // precondition sent is answered the same.
       if (response.status === 412) {
-        if (overwrite) return { path: filePath, conflicted: true };
+        if (overwrite) return this.goneOrEditedAt(filePath);
         return this.heldAtPath(filePath);
       }
       if (response.status === 413) {
@@ -1174,7 +1177,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       // `If-Match` is the owner's file now (0149 T3), and a create is asked
       // about. No digest: the server refused the bytes, so the hasher saw a
       // body the target does not hold, and the adoption hashes the source.
-      if (overwrite) return { path: filePath, conflicted: true };
+      if (overwrite) return this.goneOrEditedAt(filePath);
       return this.heldAtPath(filePath);
     }
     if (response.status === 413) {
@@ -1398,14 +1401,15 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       // The answers the single PUT gives to the same refusals. No digest: the
       // file was not assembled, and an adoption hashes the source.
       if (moved.status === 412) {
-        if (overwrite) return { path: filePath, conflicted: true };
+        if (overwrite) return await this.goneOrEditedAt(filePath);
         return await this.heldAtPath(filePath, 'MOVE');
       }
       // A tagged `If` on a destination that is not there answers 404 naming
       // it, where `If-Match` on the PUT answers 412: the file we wrote is gone,
-      // which is the owner's doing as much as an edit is (0149 T3).
+      // the owner's doing, and counted as gone rather than as their edit
+      // (0149 T3; 0168, found on the way).
       if (moved.status === 404 && overwrite && ifMatch !== undefined && (await this.isGone(filePath))) {
-        return { path: filePath, conflicted: true };
+        return { path: filePath, gone: true };
       }
       throw new Error(
         `MOVE failed for ${filePath} (assembling ${pieces} pieces, Nextcloud chunked upload) with ` +
@@ -1420,6 +1424,27 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    * Is the file at this path gone? Only a confident 404 says yes; anything
    * that cannot answer says no, and the caller then throws what it had.
    */
+  /**
+   * A rewrite refused with 412: the file is gone or it was edited
+   * (`goneOrEdited`, workplan 0168). A deleted file answers `If-Match` with
+   * 412 too, and is not the owner's edit.
+   */
+  private async goneOrEditedAt(filePath: string): Promise<UploadOutcome> {
+    const verdict = await goneOrEdited(() => this.headOf(filePath), filePath);
+    return verdict === 'gone' ? { path: filePath, gone: true } : { path: filePath, conflicted: true };
+  }
+
+  /** One HEAD of a root-relative path, with this writer's credentials. */
+  private headOf(filePath: string): Promise<{ readonly status: number }> {
+    return this.requestWithRetry({
+      method: 'HEAD',
+      url: this.buildUrl(filePath),
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+  }
+
   private async isGone(filePath: string): Promise<boolean> {
     try {
       return !(await this.hasItem(filePath));
