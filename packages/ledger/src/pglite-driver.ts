@@ -61,6 +61,9 @@ import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 import * as schemaPg from './schema-pg.ts';
 import { log } from '@openmig/shared';
 import { assertRoleName, type LedgerConnection, type LedgerDriver } from './driver.ts';
+// Every Drizzle failure, and every one sent through this driver, is thrown
+// without the values its message would say (workplan 0168).
+import { rethrowWithoutValues } from './driver-errors.ts';
 import type { PgDatabase } from './db-types.ts';
 
 export interface PgliteDriverOptions {
@@ -170,16 +173,15 @@ export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
       let released = false;
       return {
         query: async <R>(text: string, params?: readonly unknown[]) => {
-          const result = await db.query<R extends object ? R : never>(
-            text,
-            params as unknown[] | undefined,
-          );
+          const result = await db
+            .query<R extends object ? R : never>(text, params as unknown[] | undefined)
+            .catch(rethrowWithoutValues);
           return { rows: result.rows as R[] };
         },
         // PGlite's own simple-protocol entry point: multiple statements, no
         // parameters. `query()` above is the extended protocol and rejects them.
         exec: async (sql: string) => {
-          await db.exec(sql);
+          await db.exec(sql).catch(rethrowWithoutValues);
         },
         db: drizzlePglite(db, { schema: schemaPg }) as unknown as PgDatabase,
         release: (err?: Error) => {

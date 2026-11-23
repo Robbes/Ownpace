@@ -105,6 +105,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the migration's page, the Check page and the report count it apart, *changed in your old account
   after the switch, not updated*, in English and Dutch. It never counts as waiting, the press never
   claims it, and it holds nothing.
+- **The step *Your new address* asks by itself when the new account's address is on another
+  domain, and about every `.onmicrosoft.com` address** (workplan 0168; the owner's decisions of
+  2026-11-23: *"(b) Ask if login differs"* and *"Yes, any .onmicrosoft.com"*). An old address that
+  is not on the list is asked about when the new account's login is an address on another domain,
+  never when that login is under `onmicrosoft.com`, and the step says the new address is on
+  another domain, with *Choose No if ‹new› is only temporary, until your own domain moves.*, in
+  English and Dutch. No answer is chosen for the person; a login on the old address's own domain
+  asks nothing new, and *I am also changing my address* works as before. Beside the list of whole
+  domains, one rule names Microsoft for any host under `onmicrosoft.com`, a Microsoft 365
+  tenant's own domain, read on whole labels, so `notonmicrosoft.com` and `onmicrosoft.com`
+  itself are not. The Microsoft guide, in both languages, no longer sends anybody to the box for
+  an `.onmicrosoft.com` name, says when the step asks by itself, and names the country domains
+  local versions, as the owner worded the Dutch.
 
 ### Removed
 
@@ -171,6 +184,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   mail's recipient's address in the log lines themselves. Each line now names the access request or
   the invitation by its id, or what the mail was about; a second knock while a request is still
   open names nobody, since nothing on that anonymous path can read the queue for its id.
+- **A database error's own message says no value, so a line that writes it into its own text
+  prints none** (workplan 0168). Lines in the API, the job worker and the appliance that write
+  `${err.message}` into their text hand the log a string it cannot read again, and Drizzle's message
+  ends `params: <values>`. The ledger now throws a database error without them where it leaves the
+  ledger: every Drizzle statement's failure, on `pg` or PGlite, and every statement its drivers send.
+  The error keeps its class and `code`, a Drizzle error's `cause` is still the driver's error with
+  its `code` and `constraint`, and the original is kept behind it. `pg` used without the ledger, by
+  the job runner and pg-boss, the operator's commands and the measuring tool, is not read so; only a
+  data exception's message can carry a value there.
+- **A mail server's refusal is logged without the address it refused** (workplan 0168). nodemailer
+  names the recipient in the server's reply, which it also appends to its message, and in `rejected`
+  and `rejectedErrors`, and the mail channel logs that error beside its line. `loggableError` now
+  drops those lists and an `envelope`, and writes `[redacted]` for every address in the reply and
+  the message, keeping the error's code, status and command.
+- **The appliance's line for a request that failed keeps its path as the API's access log does**
+  (workplan 0168). A row of the address changes is named by its old address,
+  `/address-changes/<key>`, and the line printed it; it now writes `:key`, and a query string as
+  `?...`, by `loggableUrl`, which moves from the API into `@openmig/shared`.
 
 ### Security
 
@@ -189,6 +220,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **Three more patterns no longer build a regular expression from a value**: a calendar
   invitation's `CN` and `EMAIL`, a mail header by its name, and a WebDAV error's conditions by the
   root's prefix. Each was linear and reads as before.
+- **No workflow names a password any more; each run makes its own** (workplan 0163, Status of
+  2026-11-23). An outside, read-only check found nine in the pipeline files: six for E2E
+  (self-hosted)'s throwaway Stalwart, Nextcloud and Postgres, two for the image workflow's database
+  build check, and the password of the demo's mail source on the OTA stack. Each was a test
+  credential, not a credential to anything real, but each run now makes its own at random, masks
+  it and hands it on through `$GITHUB_ENV`. The demo's mail source keeps its data between runs, so
+  its password is rotated: the nightly gate sets a new one on the account at each bring-up, and the
+  old one no longer opens it. `setup-stalwart.sh` reads `STALWART_SOURCE_PASSWORD` and
+  `STALWART_TARGET_PASSWORD`, and `deploy/compose/dev.yml` reads `NEXTCLOUD_ADMIN_PASSWORD`; each
+  keeps its old value as a developer's default. A guard fails any workflow that sets a credential
+  to a literal.
 
 ### Security
 

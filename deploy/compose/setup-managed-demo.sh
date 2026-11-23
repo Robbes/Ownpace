@@ -123,9 +123,12 @@ STALWART_JMAP_PORT="${STALWART_JMAP_PORT:-18081}" \
 STALWART_IMAPS_PORT="${STALWART_IMAPS_PORT:-1994}" \
   "${REPO_ROOT}/deploy/selfhost/setup-stalwart.sh"
 # Fixed demo accounts provisioned above (see setup-stalwart.sh's PLAN_FILE):
-#   Tenant A: source@dev.local / source_password  ->  target@dev.local / target_password
+#   Tenant A: source@dev.local / STALWART_SOURCE_PASSWORD, else source_password
+#             ->  target@dev.local / target_password
 #   Tenant B: shared@dev.local / shared_password  ->  target-shared@dev.local / target-shared_password
-# seed-managed.ts's DEMO_TENANTS credentials must match these exactly.
+# seed-managed.ts's DEMO_TENANTS credentials must match these exactly; it reads
+# STALWART_SOURCE_PASSWORD too. The nightly gate gives each run its own
+# (e2e-managed.yml; workplan 0163, 2026-11-23).
 
 echo "[setup-managed-demo] Provisioning demo Nextcloud accounts (DAV source+target)..."
 NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER}" \
@@ -223,7 +226,7 @@ SEED_IMAP_HOST="$seed_imap_host" \
 SEED_IMAP_PORT="${STALWART_IMAPS_PORT:-1994}" \
 SEED_IMAP_TLS=true \
 SEED_IMAP_USER=source@dev.local \
-SEED_IMAP_PASSWORD=source_password \
+SEED_IMAP_PASSWORD="${STALWART_SOURCE_PASSWORD:-source_password}" \
 SEED_COUNT="${SEED_MAIL_COUNT:-5}" \
 SEED_ONLY_IF_EMPTY=true \
   node "${REPO_ROOT}/test/e2e/seed-imap-source.mjs"
