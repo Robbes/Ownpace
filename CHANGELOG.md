@@ -6,6 +6,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **pnpm 11.29.0** (workplan 0119; the pin watch's #2088), from alpha.18's 11.28.13, in
+  `package.json`'s `packageManager`, which CI and the images read. npm published it on 2026-11-22
+  at 13:58 UTC; it is taken inside its three-day floor, on the owner's word of 2026-11-23:
+  *"Pull pnpm, zizmor and squawk earlier. I waive unneeded days/waiting."* `pnpm install`, frozen
+  and not, leaves the lockfile as it was. pnpm 12 is npm's latest; a new major is the owner's call.
 - **CI's migration lint moves to Atlas v1.4.1** (workplan 0119), from alpha.18's v1.4.0. Docker
   Hub published it on 2026-11-19 at 22:40 UTC, and it is taken after its three-day floor. Each
   architecture is checked by the SHA-256 of `/atlas` in the release's community image on Docker

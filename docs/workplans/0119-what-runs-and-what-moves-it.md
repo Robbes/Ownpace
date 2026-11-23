@@ -49,6 +49,12 @@ alone, so nothing deployed changes.
   `allow-unsafe-pr-checkout: true` on a checkout are three findings under 1.33.1 and none under
   1.32.0.
 
+**2026-11-23, night: pnpm 11.29.0 inside its three-day floor, on the owner's word, for
+alpha.19.** The owner, 2026-11-23, after alpha.18's tag: *"Pull pnpm, zizmor and squawk earlier.
+I waive unneeded days/waiting."* `packageManager` moves from 11.28.13 to 11.29.0 (npm, 2026-11-22
+at 13:58 UTC), and `pnpm install`, frozen and not, leaves the lockfile as it was (#2088). zizmor
+and squawk move in pull requests of their own.
+
 **2026-11-23, night: CI's migration lint takes Atlas v1.4.1, which is v1.4.0 relabelled, for
 alpha.19.** The pin watch's summary issue (#1671) listed v1.4.1 behind v1.4.0 on 2026-11-21. Docker
 Hub listed `1.4.1-community` on 2026-11-19 at 22:40 UTC, so its three-day floor ended on
