@@ -26,7 +26,11 @@ set -euo pipefail
 # (docs/stalwart-integration-fix.md, "Moving the pin").
 #
 # Uses ONLY the official image (no custom build — docs/stalwart-integration-fix.md's own
-# "Verified Image" finding: a custom image provided no benefit over the official one).
+# "Verified Image" finding: a custom image provided no benefit over the official one), in
+# its Alpine build since 2026-11-23 (ADR-0022's update of that date): the same v1.1.1, built
+# from the same upstream revision, with the same entrypoint, user (uid and gid 2000), paths
+# and healthcheck, on Alpine 3.24 instead of Debian 13, whose krb5 and zlib carried fixes
+# the Debian build lacked. A volume the Debian build wrote opens as it was.
 #
 # Requires: docker, curl, and stalwart-cli on PATH (or STALWART_CLI_PATH set). Install the
 # release CI runs (docs/stalwart-integration-fix.md, "Provisioning"), by its own installer:
@@ -106,7 +110,7 @@ set -euo pipefail
 # `scripts/a-service-that-phones-home.unit.test.ts` pins the version they were read at, and
 # docs/managed-bring-up.md, "Nothing phones home", names them.
 
-IMAGE="stalwartlabs/stalwart:v1.1.1"
+IMAGE="stalwartlabs/stalwart:v1.1.1-alpine"
 CONTAINER="${STALWART_CONTAINER:-ownpace-dev-stalwart}"
 VOLUME="${STALWART_VOLUME:-ownpace-dev-stalwart-data}"
 CONFIG_VOLUME="${STALWART_CONFIG_VOLUME:-ownpace-dev-stalwart-config}"

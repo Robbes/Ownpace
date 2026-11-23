@@ -6,13 +6,13 @@ two-phase run proved on the new tag first — see "Moving the pin" below. DO NOT
 accounts/domains/listeners in config.json. DO NOT skip the shadow-pass tests. Prior sessions
 repeatedly re-fabricated the config below; this file is the corrected ground truth.
 
-## Verified Image: stalwartlabs/stalwart:v1.1.1 (official, no custom image needed)
+## Verified Image: stalwartlabs/stalwart:v1.1.1-alpine (official, no custom image needed)
 
 **Finding**: The custom image `stalwart-test-custom:latest` provides NO benefit over the official
 image. It was previously thought to contain workarounds for config or listener issues, but those
 were solving non-problems. The official image (`stalwartlabs/stalwart:v0.16.10`, then v0.16.27,
-and v1.1.1 now: what is proved on it is under "Moving the pin") works correctly when used with the
-proper two-phase startup pattern.
+then v1.1.1, and v1.1.1's Alpine build `v1.1.1-alpine` now: what is proved on each is under "Moving
+the pin") works correctly when used with the proper two-phase startup pattern.
 
 **Dockerfile inspection** (from prior session):
 ```
@@ -53,6 +53,35 @@ the same change:
 Before it merges: the CI `integration-tests` job, then E2E (self-hosted) and E2E (managed). A tag
 that cannot open the OTA demo's volume needs that volume and the demo's ledger reset once, by hand,
 before E2E (managed): the move to v1.1.1 below says how.
+
+**v1.1.1 → v1.1.1-alpine (2026-11-23, ADR-0022's update of that date; workplan 0166 T9).** Why:
+an outside, read-only check of 2026-11-23, and that day's image scan, read Debian 13.7's krb5
+libraries (`libgssapi-krb5-2`, `libk5crypto3`, `libkrb5-3`, `libkrb5support0` at
+1.21.3-5+deb13u1, fixed in +deb13u2) and `zlib1g` (CVE-2026-85091, fixed in -1+deb13u1) in
+v1.1.1's Debian build, which no release or rebuild had carried by then. Asked whether to wait for the
+next release or take the Alpine build, the owner answered: *"Stalwart: in alpha 19"*. What was
+read, through Docker Hub's registry, each blob checked against its digest, nothing run:
+- **The tag:** `v1.1.1-alpine`, index `sha256:53ce86ed…` (linux/amd64 `3889aa2e…`, linux/arm64
+  `08627ff0…`), pushed on 2026-11-16 at 11:47:19 UTC beside the Debian build, so its three-day floor
+  ended on 2026-11-19.
+- **The same release:** both builds' configs carry the same `org.opencontainers.image.revision`
+  (`3adead91…`), entrypoint (`/usr/local/bin/stalwart`), command (`--config
+  /etc/stalwart/config.json`), working directory, user `stalwart`, volumes (`/etc/stalwart`,
+  `/var/lib/stalwart`), ports and healthcheck (`curl` on `/healthz/live`), for linux/amd64 and
+  linux/arm64. So `defaults.rs` and what it downloads are v1.1.1's, upstream's changelog and
+  `UPGRADING/` have nothing between the two, and `scripts/jmap-target-spike.ts` has no new version
+  to read.
+- **The user and the paths:** `stalwart` is uid and gid 2000 in both builds' `/etc/passwd`, and
+  `/etc/stalwart` and `/var/lib/stalwart` are 2000:2000 in both. A volume the Debian build wrote,
+  the OTA demo's included, opens as it was: no reset.
+- **What the container is asked to run:** `setup-stalwart.sh` runs `curl` in it, its readiness
+  probe, and nothing else; the Alpine build carries curl 8.23.0 and BusyBox's `sh`.
+- **The base:** Alpine 3.24, 32 packages, no krb5, and zlib 1.3.2-r1, the build Alpine fixed
+  CVE-2026-85091 in. It is another C library (musl), which the CI `integration-tests` job (the
+  two-phase run, in Testcontainers), E2E (self-hosted) and E2E (managed) prove before it merges.
+- **After the answer:** Stalwart pushed v1.2.0 and its Alpine build on 2026-11-23 at 18:25 UTC,
+  another minor, for the procedure above, and not before 2026-11-26 at 18:25 UTC. The pin watch
+  compares the pin with the Alpine build's tags of its major, so it lists it.
 
 **v0.16.27 → v1.1.1 (2026-11-20, ADR-0022's update of that date; workplan 0119).** Why: the scan
 of v0.16.27 reads brotli 1.1.0-2 (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and
@@ -194,7 +223,7 @@ the database and are provisioned via stalwart-cli — never in config.json. Mail
   wall).
 
 ## Two-phase startup (required — provisioning and serving cannot share one process)
-Phase 1 (provisioning): image stalwartlabs/stalwart:v1.1.1, config.json mounted, data volume,
+Phase 1 (provisioning): image stalwartlabs/stalwart:v1.1.1-alpine, config.json mounted, data volume,
   STALWART_RECOVERY_MODE=1 + STALWART_RECOVERY_ADMIN=admin:<pw>. Recovery mode exposes only the
   management API (mail listeners suspended). Provision via stalwart-cli, then STOP the container.
 Phase 2 (serving): new container, SAME config.json, SAME data volume, NO recovery env vars →

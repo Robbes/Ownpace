@@ -20,7 +20,7 @@ All project documentation lives here.
   documents; once a task lands, its outcome is captured in the workplan Status block and the
   design note is kept for the reasoning trail.
 - **`stalwart-integration-fix.md`** — the authoritative operational reference for the Stalwart
-  Testcontainers setup, at the pinned v1.1.1 (two-phase startup, provisioning, TLS-only listeners,
+  Testcontainers setup, at the pinned v1.1.1, its Alpine build (two-phase startup, provisioning, TLS-only listeners,
   hard-won rules).
   Read it before touching anything Stalwart-related; do not re-litigate its settled findings.
 - **`testing.md`** — canonical testing doc (pyramid, how to run, CI mapping).

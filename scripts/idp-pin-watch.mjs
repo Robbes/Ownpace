@@ -50,7 +50,8 @@
  *                      its line saying that Dependabot reads that one too; the
  *                      busybox copies in the scripts, www.yml's nginx against
  *                      apps/web/Dockerfile's, Stalwart's copies and the newest
- *                      release of their minor line, the GoAccess release
+ *                      release of their build (`-alpine` since 2026-11-23) and
+ *                      major (their minor line while 0.x), the GoAccess release
  *                      site-visits.sh builds against upstream's git tags,
  *                      the Trivy the Security
  *                      Scan installs from its GitHub release and checks by
@@ -1583,14 +1584,17 @@ export async function routineRows(repo, net) {
   }]);
 
   // Stalwart: a test fixture, never on live, but its copies drift together.
+  // Since 2026-11-23 its Alpine build (ADR-0022): the tag ends in `-alpine`,
+  // and the row compares it with the newest tag of that shape, never the
+  // Debian build's, within its major (within its minor while it was 0.x).
   jobs.push(['stalwartlabs/stalwart', 'the testing fixtures, setup-stalwart.sh', async () => {
     const pins = new Set();
     for (const file of STALWART_FILES) {
-      for (const m of (repo.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v\d+\.\d+\.\d+)/g)) pins.add(m[1]);
+      for (const m of (repo.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v\d+\.\d+\.\d+(?:-alpine)?)/g)) pins.add(m[1]);
     }
     if (pins.size === 0) throw new Error('no file names a Stalwart pin');
     const pin = [...pins].sort(compareParts);
-    const newest = newestLike(pin[0], await tagsFor('stalwartlabs/stalwart'), 2);
+    const newest = newestLike(pin[0], await tagsFor('stalwartlabs/stalwart'), /^v0\./.test(pin[0]) ? 2 : 1);
     const state = pin.length > 1 ? 'behind' : stateOf(pin[0], newest);
     // AGENTS.md: "Change the pinned Stalwart version only on the owner's
     // decision, recorded in ADR-0022". An agent reading the summary issue is

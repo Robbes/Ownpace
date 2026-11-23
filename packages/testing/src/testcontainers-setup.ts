@@ -527,7 +527,7 @@ async function startStalwart(): Promise<{
   // Use Docker-managed NAMED VOLUME (not host bind mount) for consistent UID/permissions
   // The source is the Docker volume name, which Docker handles with proper permissions
   // CRITICAL: Attach log consumer BEFORE start() to capture ALL logs from container creation
-  const containerA = await new GenericContainer('stalwartlabs/stalwart:v1.1.1')
+  const containerA = await new GenericContainer('stalwartlabs/stalwart:v1.1.1-alpine')
     .withBindMounts([
       { source: STALWART_DATA_VOLUME, target: '/opt/stalwart/data' },
     ])
@@ -741,7 +741,7 @@ async function startStalwart(): Promise<{
   // Phase 2: Normal mode container (no recovery mode env vars)
   // Uses SAME bind mount approach as Phase 1 (host path -> container path)
   // withUser('root') sidesteps any UID/permission issues with the bind-mounted directory
-  const containerBBuilder = new GenericContainer('stalwartlabs/stalwart:v1.1.1')
+  const containerBBuilder = new GenericContainer('stalwartlabs/stalwart:v1.1.1-alpine')
     .withBindMounts([
       { source: STALWART_DATA_VOLUME, target: '/opt/stalwart/data' },
     ])

@@ -324,8 +324,11 @@ const MAILPIT =
  * interface).
  */
 const NEXTCLOUD = 'nextcloud:35';
-/** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
-const STALWART = 'stalwartlabs/stalwart:v1.1.1';
+/**
+ * The demo's Stalwart, outside every compose file; its fetches were read at v1.1.1, and its Alpine
+ * build (2026-11-23) is the same upstream revision, `3adead91`, so the same `defaults.rs`.
+ */
+const STALWART = 'stalwartlabs/stalwart:v1.1.1-alpine';
 /**
  * The site's visit count, outside every compose file (`site-visits.sh`); read
  * at the tag `v1.12` (`ef3c4f3c`), and since 2026-10-25 (#1675) built from that

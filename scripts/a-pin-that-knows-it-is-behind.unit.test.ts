@@ -958,7 +958,7 @@ function registry(newer: Record<string, string> = {}): Stubs {
       if (image.digest) digests.set(`${registryOf(image.repo).name}:${image.tag}`, image.digest);
     }
   }
-  for (const file of STALWART_FILES) for (const m of (REAL.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v[\d.]+)/g)) pins.set('stalwartlabs/stalwart', [m[1]!]);
+  for (const file of STALWART_FILES) for (const m of (REAL.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v[\d.]+(?:-alpine)?)/g)) pins.set('stalwartlabs/stalwart', [m[1]!]);
   // The second Nextcloud major's leg names its own tag, beside the demo's major the compose files run.
   const second = secondMajorPin(REAL.read(NEXTCLOUD_SECOND_MAJOR_WORKFLOW)!);
   pins.set(registryOf(second.repo).name, [...(pins.get(registryOf(second.repo).name) ?? []), second.tag]);
@@ -1156,7 +1156,7 @@ describe('the routine pins, in one summary issue', () => {
   it('holds the copies together: www.yml with the web image, the scripts with the compose busybox, Stalwart with itself', async () => {
     const www = REAL.read('deploy/compose/www.yml')!.replace(/image: nginx:\S+/, 'image: nginx:1.1-alpine');
     const smoke = REAL.read('deploy/compose/smoke-managed.sh')!.replace(/busybox:[0-9][\w.-]*/, 'busybox:1.2');
-    const fixture = REAL.read('deploy/selfhost/setup-stalwart.sh')!.replace(/stalwartlabs\/stalwart:v[\d.]+/, `stalwartlabs/stalwart:${STALWART_IN_LINE}`);
+    const fixture = REAL.read('deploy/selfhost/setup-stalwart.sh')!.replace(/stalwartlabs\/stalwart:v[\d.]+(?:-alpine)?/, `stalwartlabs/stalwart:${STALWART_IN_LINE}`);
     const repo = withFiles({ 'deploy/compose/www.yml': www, 'deploy/compose/smoke-managed.sh': smoke, 'deploy/selfhost/setup-stalwart.sh': fixture });
     const { rows } = await routineRows(repo, fakeNet(registry()));
     const state = Object.fromEntries(rows.map((r) => [r.name, r.state]));
@@ -1169,12 +1169,17 @@ describe('the routine pins, in one summary issue', () => {
   /** AGENTS.md: it moves "only on the owner's decision, recorded in ADR-0022". The issue says whose call. */
   const STALWART_RULE = "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
   /**
-   * Another tag of the pin's own minor line, which the row compares within
-   * (`newestLike(..., 2)`), derived from the pin so these cases hold when it
-   * moves: until 2026-11-20 they named v0.16 tags, and a pin on v1.1 compared
-   * with v0.16.999 reads as current, not behind.
+   * Another tag of the pin's own minor line and shape, which the row compares
+   * within (its major since v1, its minor while it was 0.x), derived from the
+   * pin so these cases hold when it moves: until 2026-11-20 they named v0.16
+   * tags, and a pin on v1.1 compared with v0.16.999 reads as current, not
+   * behind; since 2026-11-23 the pin is the Alpine build, and the tag ends as
+   * it does.
    */
-  const STALWART_IN_LINE = (/stalwartlabs\/stalwart:(v\d+\.\d+)\.\d+/.exec(REAL.read('deploy/selfhost/setup-stalwart.sh')!)?.[1] ?? 'v?') + '.999';
+  const STALWART_IN_LINE = (() => {
+    const m = /stalwartlabs\/stalwart:(v\d+\.\d+)\.\d+(-alpine)?/.exec(REAL.read('deploy/selfhost/setup-stalwart.sh')!);
+    return `${m?.[1] ?? 'v?'}.999${m?.[2] ?? ''}`;
+  })();
 
   it("compares the GoAccess release the visit count builds with upstream's git tags, two-part and three-part, and holds the image's name to it (#1675)", async () => {
     expect(GOACCESS_RELEASE).toMatch(/^v\d+\.\d+/);
@@ -1206,6 +1211,20 @@ describe('the routine pins, in one summary issue', () => {
     for (const doc of ['docs/stalwart-integration-fix.md', 'docs/adr/0022-imap-dependency-security-strategy.md']) {
       expect(REAL.read(doc), `${doc} is gone`).not.toBeNull();
     }
+  });
+
+  it("compares the Alpine build with the Alpine build's tags of its major alone (ADR-0022, 2026-11-23)", async () => {
+    const pin = /stalwartlabs\/stalwart:(v\d+\.\d+\.\d+(?:-alpine)?)/.exec(REAL.read('deploy/selfhost/setup-stalwart.sh')!)![1]!;
+    expect(pin).toMatch(/^v\d+\.\d+\.\d+-alpine$/);
+    const major = Number(/^v(\d+)/.exec(pin)![1]);
+    const rowWith = async (tag: string) =>
+      (await routineRows(REAL, fakeNet(registry({ 'stalwartlabs/stalwart': tag })))).rows.find((r) => r.name === 'stalwartlabs/stalwart')!;
+    // The Debian build's newer tag, another major's Alpine build and a channel are never newer.
+    for (const other of [`v${major}.99.0`, `v${major + 1}.0.0-alpine`, 'latest-alpine']) {
+      expect(await rowWith(other), other).toMatchObject({ state: 'current', pin, newest: pin });
+    }
+    // A newer minor of its own major is, past the minor line the row kept while it was 0.x.
+    expect(await rowWith(`v${major}.99.0-alpine`)).toMatchObject({ state: 'behind', newest: `v${major}.99.0-alpine`, notes: [STALWART_RULE] });
   });
 
   // No pin of the compose files is held by its digest alone since alpha.18
