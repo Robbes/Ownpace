@@ -10,8 +10,11 @@
  *    many the last pass changed (`addressChanged`). Not on every migration of
  *    an organisation that confirmed a row for somebody else (the screens'
  *    review S12).
- *  - The copies left as they are for want of a version to guard the write
- *    (`addressChangesUnguarded`, the data-path review's S1).
+ *  - The copies that keep the old address for want of a version to guard the
+ *    write (`addressChangesUnguarded`, the data-path review's S1), and those
+ *    changed in the old account after the switch (`addressChangesLeft`; the
+ *    owner, 2026-11-23, option (b); ADR-0055 decision 6). The press reaches
+ *    neither, so neither is in what it offers to apply.
  *  - PAST THE SWITCH, A PRESS (D5): *Apply the new addresses here too*,
  *    wherever copies wait for it (`addressChangesWaiting`), in both editions,
  *    and never once the migration is done, when no pass runs to apply it. On
@@ -69,10 +72,11 @@ export const MigrationAddresses: React.FC<{
   const carried = lastPassSum(rows, 'addressChangesCarried') ?? 0;
   const waiting = lastPassSum(rows, 'addressChangesWaiting') ?? 0;
   const unguarded = lastPassSum(rows, 'addressChangesUnguarded') ?? 0;
+  const left = lastPassSum(rows, 'addressChangesLeft') ?? 0;
   const used = carried > 0 || (changedLastPass ?? 0) > 0;
   // The press needs the table this page read: its digest is what it sends.
   const pressable = waiting > 0 && lifecycle !== 'done' && table.data !== undefined;
-  if (!used && !pressable && unguarded === 0) return null;
+  if (!used && !pressable && unguarded === 0 && left === 0) return null;
   const apply = async () => {
     if (!table.data) return;
     setApplying(true);
@@ -98,6 +102,11 @@ export const MigrationAddresses: React.FC<{
         </p>
       )}
       {unguarded > 0 && <p className="mt-1">{t('addresses.mapping.unguarded', { count: number(unguarded) })}</p>}
+      {left > 0 && (
+        <p className="mt-1" data-address-left>
+          {t('addresses.mapping.left', { count: number(left) })}
+        </p>
+      )}
       {pressable && (
         <div className="mt-2">
           <p>{t('addresses.mapping.apply.line', { count: number(waiting) })}</p>

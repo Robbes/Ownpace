@@ -300,7 +300,7 @@ describe('a series and its overridden instances are one decision', () => {
 });
 
 /**
- * A TASK MUST NOT FLIP (the coordinating session, 2026-11-23). A task is over
+ * A TASK MUST NOT FLIP (found in review, 2026-11-23). A task is over
  * only when it was done before the start, so one open at the start changes,
  * and stays changed when the person finishes it later: the next pass never
  * puts the old organiser back.

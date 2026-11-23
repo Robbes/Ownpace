@@ -529,8 +529,11 @@ export class PgLedger implements Ledger {
         // `record-version`) leaves the column as it was.
         ...(record.addressDigest !== undefined ? { addressDigest: record.addressDigest } : {}),
         // The same rule for the change it waits for (0168 S3): a rewrite says
-        // null, since the copy it wrote carries what the table says.
-        ...(record.addressDigestDue !== undefined ? { addressDigestDue: record.addressDigestDue } : {}),
+        // null, since the copy it wrote carries what the table says. And a
+        // copy written is no longer one left after the switch (0075).
+        ...(record.addressDigestDue !== undefined
+          ? { addressDigestDue: record.addressDigestDue, ...(record.addressDigestDue === null ? { addressLeftAt: null } : {}) }
+          : {}),
         // Conditional for the same reason as `collection`: a caller with nothing
         // to say must not blank what we already knew, which would retire the
         // item's removal-report link.
@@ -1347,9 +1350,9 @@ export class PgLedger implements Ledger {
 
   /**
    * The change one copy waits for, or null to clear it (workplan 0168 S3).
-   * This column and `updated_at`, nothing else: `last_synced_at` is when a
-   * copy was last WRITTEN to the target, which the billing meter reads, and
-   * nothing was.
+   * This column, `address_left_at` with it (0075), and `updated_at`, nothing
+   * else: `last_synced_at` is when a copy was last WRITTEN to the target,
+   * which the billing meter reads, and nothing was.
    */
   async markAddressChangeDue(
     tenantId: TenantId,
@@ -1357,10 +1360,15 @@ export class PgLedger implements Ledger {
     domain: DiscoveryDomain,
     naturalKeyHash: string,
     due: string | null,
+    left?: boolean,
   ): Promise<void> {
+    // Left after the switch (0075; ADR-0055 decision 6): kept from the pass
+    // that first left it, cleared whenever the copy is not left, or nothing
+    // is due.
+    const leftAt = due !== null && left === true ? sql`coalesce(${schemaPg.item.addressLeftAt}, now())` : null;
     await this.db
       .update(schemaPg.item)
-      .set({ addressDigestDue: due, updatedAt: sql`now()` })
+      .set({ addressDigestDue: due, addressLeftAt: leftAt, updatedAt: sql`now()` })
       .where(
         and(
           eq(schemaPg.item.tenantId, tenantId),
@@ -1388,8 +1396,11 @@ export class PgLedger implements Ledger {
     const [row] = await this.db
       .select({
         changed: sql`count(*) FILTER (WHERE ${schemaPg.item.addressDigest} IS NOT NULL AND NOT ${due})`.mapWith(Number),
-        waiting: sql`count(*) FILTER (WHERE ${due} AND ${guarded})`.mapWith(Number),
-        unguarded: sql`count(*) FILTER (WHERE ${due} AND NOT ${guarded})`.mapWith(Number),
+        // Left after the switch first (0075; ADR-0055 decision 6): neither
+        // waiting nor unguarded, whatever its version.
+        waiting: sql`count(*) FILTER (WHERE ${due} AND ${schemaPg.item.addressLeftAt} IS NULL AND ${guarded})`.mapWith(Number),
+        unguarded: sql`count(*) FILTER (WHERE ${due} AND ${schemaPg.item.addressLeftAt} IS NULL AND NOT ${guarded})`.mapWith(Number),
+        left: sql`count(*) FILTER (WHERE ${due} AND ${schemaPg.item.addressLeftAt} IS NOT NULL)`.mapWith(Number),
       })
       .from(schemaPg.item)
       .where(
@@ -1401,7 +1412,12 @@ export class PgLedger implements Ledger {
           or(isNotNull(schemaPg.item.addressDigest), isNotNull(schemaPg.item.addressDigestDue)),
         ),
       );
-    return { changed: row?.changed ?? 0, waiting: row?.waiting ?? 0, unguarded: row?.unguarded ?? 0 };
+    return {
+      changed: row?.changed ?? 0,
+      waiting: row?.waiting ?? 0,
+      unguarded: row?.unguarded ?? 0,
+      left: row?.left ?? 0,
+    };
   }
 
   async listShareGrants(
@@ -2376,6 +2392,8 @@ export class PgLedger implements Ledger {
       ...(row.addressDigest ? { addressDigest: row.addressDigest } : {}),
       // And the change it waits for (0168 S3), by the same rule.
       ...(row.addressDigestDue ? { addressDigestDue: row.addressDigestDue } : {}),
+      // And whether a pass left it after the switch (0075).
+      ...(row.addressLeftAt ? { addressLeft: true } : {}),
       // Left off entirely when there is none, so "not recorded" stays
       // distinguishable from "recorded as empty".
       ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),

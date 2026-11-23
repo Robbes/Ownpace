@@ -159,7 +159,12 @@ describe('an event that was over at the migration’s start', () => {
     // What the confirmed list, verification and the report ask of a copy.
     expect(waitsForAnAddressChange(past?.addressDigest, past?.addressDigestDue)).toBe(false);
     expect((await rowOf(ledger, 'e-ahead'))?.addressDigest).toBe(addressTableDigest([ANA, BEN]));
-    expect(await ledger.countAddressChanges(TENANT, MAPPING, 'calendar')).toEqual({ changed: 1, waiting: 0, unguarded: 0 });
+    expect(await ledger.countAddressChanges(TENANT, MAPPING, 'calendar')).toEqual({
+      changed: 1,
+      waiting: 0,
+      unguarded: 0,
+      left: 0,
+    });
 
     const writes = t.writes;
     const again = await pass(ledger, t, changes([ANA, BEN]));

@@ -635,6 +635,7 @@ export const runDeltaSyncRun = leavesAReference(
             addressChanged?: number;
             addressChangesWaiting?: number;
             addressChangesUnguarded?: number;
+            addressChangesLeft?: number;
             goneFromTarget?: number;
             /**
              * Rewrites not sent because the copy still lists guests the target
@@ -932,6 +933,7 @@ export const runDeltaSyncRun = leavesAReference(
           // log as the change after cutover is: counts only, never an address.
           const waiting = result.addressChangesWaiting ?? 0;
           const unguarded = result.addressChangesUnguarded ?? 0;
+          const left = result.addressChangesLeft ?? 0;
           const gone = result.goneFromTarget ?? 0;
           if (waiting > 0) {
             await withTenant(pool, tenantId, async (db) => {
@@ -954,8 +956,23 @@ export const runDeltaSyncRun = leavesAReference(
                 'warn',
                 `${domain}: ${unguarded} item(s) were not changed for a new address: no version was recorded ` +
                   'to guard the write, so an edit somebody made at the new system could not be told apart from ' +
-                  'our copy. They were left as they are, and none of them counts as a match.',
+                  'our copy. They keep the old address, and are checked as copied.',
                 { domain, addressChangesUnguarded: unguarded },
+              );
+            });
+          }
+          if (left > 0) {
+            // Changed at the source after the switch (the owner, 2026-11-23;
+            // ADR-0055 decision 6): left, never waiting for the press.
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'info',
+                `${domain}: ${left} item(s) were changed in the old account after the switch, and are not ` +
+                  'updated, the new address included. Apply the new addresses here too leaves them as they ' +
+                  'are. Nothing failed.',
+                { domain, addressChangesLeft: left },
               );
             });
           }
