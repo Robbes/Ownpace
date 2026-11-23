@@ -43,16 +43,16 @@ here; the unit tier, typecheck, lint and the docs checks on the branch's head; t
 and the new column on Postgres through `scripts/local-pg.sh`
 (`a-copy-left-after-the-switch.integration.test.ts`, with `a-copy-no-pass-changes.integration.test.ts`
 again), and on PGlite (`an-address-change-read-from-a-real-ledger.unit.test.ts`). **E2E
-(managed)** is for the coordinating session to dispatch: it should show the confirmed-rows run
-green as before, every copy of the run carrying a strong version, so `unguarded` and `left`
-absent from the report and the Check page's address lines unchanged.
+(managed)** should show the confirmed-rows run green as before, every copy of the run carrying a
+strong version, so `unguarded` and `left` absent from the report and the Check page's address
+lines unchanged.
 
 **2026-11-23, later still: `SENT-BY`, `DELEGATED-*` and `MEMBER`, and what is over, decided and
 built, on `claude/ownpace-public-readiness-y7orc6-calendar-past`.** The owner, asked about the
 three parameters D3 had left as they were: *"yes, since the new address will control the new
-events. Though perhapse we need not change past-events we migrate."* The coordinating session
-advised leaving past events as the source has them and changing the rest, and the owner was told
-so. ADR-0055 is amended (decisions 2 to 4, its operative rules).
+events. Though perhapse we need not change past-events we migrate."* The advice was to leave
+past events as the source has them and to change the rest, and the owner was told so. ADR-0055 is
+amended (decisions 2 to 4, its operative rules).
 
 - **The three parameters.** In an event or task whose organiser is in the table or is the person
   (D3), an old address in an `ORGANIZER`'s or `ATTENDEE`'s `SENT-BY`, `DELEGATED-FROM`,
@@ -89,7 +89,7 @@ so. ADR-0055 is amended (decisions 2 to 4, its operative rules).
   the address change. The privacy policy's §4.6 and §7 stay true and were not edited: the
   addresses are still used only to correct those in what we copy, now in fewer events, and a
   progress link still shows the new address, never the old.
-- **A task must not flip** (the coordinating session's review, the same day). As first built, a
+- **A task must not flip** (found in review, the same day). As first built, a
   task was over once completed or cancelled, whenever that was, so one the person finished after
   the start went back to the old organiser on the next pass. Now only a task done before the start
   is over, and one open then stays changed (`calendar-object-over.unit.test.ts`, *a task is over

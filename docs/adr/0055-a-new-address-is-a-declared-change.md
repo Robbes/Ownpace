@@ -16,7 +16,7 @@
 
 - **Built** (workplan 0168): only a confirmed row changes a copy.
 - **One table per organisation**, `address_change`, in the shared chain under forced row security.
-  Only an owner or an admin writes it, and only rows a person **confirmed** reach a writer; the
+  Only an owner or admin writes it, and only rows a person **confirmed** reach a writer; the
   machine never confirms. An admin may confirm for a person, attributed; the person confirms or
   sends back their own row, on their page or through their links (0168 D6).
 - **A pure function of source bytes, table and migration start** (`applyAddressChanges`), before
