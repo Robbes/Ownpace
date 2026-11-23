@@ -184,8 +184,20 @@ beforeAll(async () => {
   jobs = new pg.Pool({ connectionString: urlOf(ADMIN_URL, { user: ROLE, password: PASSWORD }), max: 2 });
 }, 60_000);
 
+/**
+ * Stop a runner the tests may have stopped already. A second stop ends its
+ * pool again, which pg refuses in these words; any other failure fails the hook.
+ */
+async function stopAgain(r: { stop(opts: { graceful?: boolean }): Promise<void> }): Promise<void> {
+  try {
+    await r.stop({ graceful: false });
+  } catch (err) {
+    if (!(err instanceof Error && err.message === 'Called end on pool more than once')) throw err;
+  }
+}
+
 afterAll(async () => {
-  for (const r of runners) await r.stop({ graceful: false }).catch(() => undefined);
+  for (const r of runners) await stopAgain(r);
   await jobs?.end();
   if (admin) {
     await admin.query(`DROP DATABASE IF EXISTS ${COPY_DB} WITH (FORCE)`);
