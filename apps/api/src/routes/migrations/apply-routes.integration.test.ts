@@ -5,12 +5,12 @@
 // What is covered: the synchronous ledger-side refusals over HTTP — including
 // the one that matters most, the flag DEFAULTING to off — the joined-receipt
 // short-circuit (which answers before evaluate or enqueue, so it needs no
-// Trigger.dev backend), the receipt mapper over every row shape, the
+// job queue), the receipt mapper over every row shape, the
 // enqueue-death landing (a receipt is never left `queued` pointing at a job
 // that was never queued), and the scope/auth guards.
 //
 // The live enqueue itself follows the discovery and verify suites' precedent:
-// it needs a Trigger.dev backend this environment does not run, and mocking a
+// it needs a job queue this environment does not run, and mocking a
 // SUCCESSFUL enqueue would only assert the mock. The failure branch is a
 // different animal — there the mock is nothing but the fault injector, and
 // everything asserted (the 502, the receipt landing `failed`, the mapper's
@@ -263,7 +263,7 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
 
     it('an enqueue that dies lands the receipt failed and answers 502 — never left queued', async () => {
       // Every ledger gate permits this item, so the route inserts a queued
-      // receipt and calls Trigger.dev — which this file makes throw. The
+      // receipt and enqueues on the job queue — which this file makes throw. The
       // property under test is the landing: a poller must never be left
       // waiting on a job that was never queued, about a REMOVAL of all
       // things, and the failure must carry its reason (hard rule 9).
@@ -272,7 +272,7 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
         .set(auth);
       expect(res.status).toBe(502);
       expect(res.body.error).toBe('Could not queue the removal');
-      expect(res.body.message).toMatch(/no Trigger\.dev backend/);
+      expect(res.body.message).toMatch(/no job queue in this environment/);
 
       const receipt = await request
         .get(`/api/migrations/${MAPPING}/deletions/${HASH_QUEUEFAIL}/receipt`)
