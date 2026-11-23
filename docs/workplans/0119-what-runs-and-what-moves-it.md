@@ -4,6 +4,29 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, evening: what alpha.18 moves, and what moves for live from alpha.17.** The fold for
+`v0.2.0-alpha.18` (0146's entry of the same day) carries what `main` merged after alpha.17's C,
+`5b51a82b`: ‹PENDING: 18› pull requests (0146's entry lists them). For live, from alpha.17 (live
+since ‹PENDING: alpha.17's deploy›):
+
+- Trigger.dev's plane leaves `managed.yml` (#2083, the entry below): its eleven services, their
+  three networks and every `TRIGGER_*` key, so nine services are left. It was stopped since
+  alpha.16; alpha.18's bring-up removes its containers by their labels, and its volumes and
+  networks stay until `remove-trigger-plane.sh --yes` (0167's Status). Its images leave the
+  scans, and the task base and the socket proxy's, Caddy's and Redis's builds leave `images.yml`;
+- npm: the `@trigger.dev/*` packages and the CLI leave, with the overrides and release-age
+  exclusions only they needed (#2083); Dependabot's npm group moves imapflow 2.12.2 and nodemailer
+  10.6.1 for the connectors, undici 8.13.0 for the managed edition's check of the hosts it is
+  asked to reach, and TanStack Query 5.108.2, with its devtools, and lucide-react 1.77.0 in the web
+  bundle, each past its three-day floor (#2086);
+- in CI only, `github/codeql-action/upload-sarif` 4.39.4 (#2085);
+- ledger migration 0075, additive (#2080).
+
+So live's deploy from alpha.17 is one-way by the deploy's own rule (0146's entry). Not moved: the
+identity provider (Zitadel `v4.20.4`), Postgres, PgBouncer, Gatus, Mailpit, Nextcloud, nginx and
+pg-boss (`12.38.2`) pins. MinIO's `latest` leaves with the plane; Atlas v1.4.1 still wants a later
+branch.
+
 **2026-11-23, later: what alpha.18 removes — Trigger.dev's plane, and every pin and watch that was
 only its (workplan 0167 T9).** The owner, 2026-11-23: *"i will remove trigger.dev, but the machine
 runs OTA and managed, so both have to be move out of triggerdev."* On branch
