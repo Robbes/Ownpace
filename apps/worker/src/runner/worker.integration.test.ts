@@ -468,7 +468,11 @@ describe('the worker starts on the jobs role, declares the catalog, answers its 
         'the worker to answer /health with 200',
         async () => {
           if (child.exitCode !== null) throw new Error(`main.ts exited ${child.exitCode}:\n${output}`);
-          const r = await fetch('http://127.0.0.1:3002/health').catch(() => null);
+          // Until the worker listens, the port refuses; any other failure fails the wait.
+          const r = await fetch('http://127.0.0.1:3002/health').catch((err: unknown) => {
+            if ((err as { cause?: { code?: unknown } }).cause?.code === 'ECONNREFUSED') return null;
+            throw err;
+          });
           return r?.status === 200;
         },
         60_000,

@@ -274,7 +274,7 @@ export class MemoryLedger implements Ledger {
   /** Test helper: how often each read was asked, and for how many keys in all. */
   readonly reads = { find: 0, findMany: 0, keysAskedInBatches: 0 };
   /** Writes a test may want to count. */
-  readonly writes = { addressChangeDue: 0 };
+  readonly writes = { addressChangeDue: 0, recordUpdate: 0, sourceVersion: 0 };
 
   private key(r: Pick<LedgerRecord, 'tenantId' | 'mappingId' | 'itemType' | 'naturalKeyHash'>): string {
     return `${r.tenantId}\u0000${r.mappingId}\u0000${r.itemType}\u0000${r.naturalKeyHash}`;
@@ -432,6 +432,7 @@ export class MemoryLedger implements Ledger {
    * let a caller bug pass here and fail only against Postgres.
    */
   recordUpdate(record: LedgerRecord): Promise<LedgerRecord> {
+    this.writes.recordUpdate += 1;
     const k = this.key(record);
     if (!this.rows.has(k)) {
       return Promise.reject(
@@ -771,6 +772,24 @@ export class MemoryLedger implements Ledger {
         .map(({ oldKey, oldAddress, newAddress }) => ({ oldKey, oldAddress, newAddress }))
         .sort((a, b) => (a.oldKey < b.oldKey ? -1 : a.oldKey > b.oldKey ? 1 : 0)),
     );
+  }
+
+  /**
+   * Mirrors `PgLedger.recordSourceVersion`: that field alone, so the copy's
+   * last write does not move (0168, found on the way).
+   */
+  recordSourceVersion(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+    sourceVersion: string,
+  ): Promise<void> {
+    this.writes.sourceVersion += 1;
+    const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
+    const existing = this.rows.get(k);
+    if (existing) this.rows.set(k, { ...existing, sourceVersion });
+    return Promise.resolve();
   }
 
   /**

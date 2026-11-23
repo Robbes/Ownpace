@@ -48,7 +48,7 @@ import {
 } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
 import { NOT_THIS_PLACE, isNamed, discoverHomeSet, type CollectionAt } from './dav-home-set.ts';
-import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
+import { readEtag, readVersion, ownershipOf, ifMatchFor, goneOrEdited } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
@@ -259,6 +259,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         true,
         options.expectedTargetVersion,
       );
+      if (written.gone) return { targetId: written.path, created: false, goneFromTarget: true };
       if (written.conflicted) {
         return { targetId: written.path, created: false, conflicted: true };
       }
@@ -841,6 +842,17 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     return uid;
   }
 
+  /** One HEAD of a path, with this writer's credentials (`goneOrEdited`). */
+  private headOf(path: string): Promise<{ readonly status: number }> {
+    return this.requestWithRetry({
+      method: 'HEAD',
+      url: this.buildUrl(path),
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+  }
+
   /** See the same method in caldav-target-writer.ts. */
   private async currentEtag(path: string): Promise<string | undefined> {
     const response = await this.requestWithRetry({
@@ -860,7 +872,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     uid: string,
     overwrite = false,
     expectedTargetVersion?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean; alreadyHeld?: boolean }> {
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean; gone?: boolean; alreadyHeld?: boolean }> {
     // Generate contact filename from UID
     const filename = `${uid}.vcf`;
     const contactPath = `${folderId}${filename}`;
@@ -906,7 +918,13 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     // card is no longer the one we wrote, so nothing was written and it is the
     // owner's now. A refusal with no precondition sent is answered the same.
     if (response.status === 412) {
-      if (overwrite) return { path: contactPath, conflicted: true };
+      // Or the card is gone: a deleted copy answers `If-Match` with 412 too
+      // (`goneOrEdited`), and is not the owner's edit.
+      if (overwrite) {
+        return (await goneOrEdited(() => this.headOf(contactPath), contactPath)) === 'gone'
+          ? { path: contactPath, gone: true }
+          : { path: contactPath, conflicted: true };
+      }
       const held = await this.findContactByNaturalKey(folderId, uid);
       if (held !== undefined) return { path: held, alreadyHeld: true };
       throw withFailureCategory(
