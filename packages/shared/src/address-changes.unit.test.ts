@@ -697,6 +697,63 @@ describe('a card inside a card (the review’s B1)', () => {
   });
 });
 
+describe('a quoted-printable value (the review’s N4)', () => {
+  // vCard 2.1, as an old phone or Outlook writes it: a value that ends in `=`
+  // goes on on the next line, which is the note's, whatever it reads like.
+  const QP_CARD = crlf([
+    'BEGIN:VCARD',
+    'VERSION:2.1',
+    'N:Old;Ana',
+    'NOTE;ENCODING=QUOTED-PRINTABLE:Write to=0D=0A=',
+    'EMAIL:ana@old.example.org=0D=0Aabout the move',
+    'EMAIL;INTERNET;PREF:ana@old.example.org',
+    'END:VCARD',
+  ]);
+
+  it('never reads the note’s next line as an address, and changes the card’s own EMAIL', () => {
+    const r = applyAddressChanges('vcard', QP_CARD, TABLE);
+    expect(r.body).toBe(
+      crlf([
+        'BEGIN:VCARD',
+        'VERSION:2.1',
+        'N:Old;Ana',
+        'NOTE;ENCODING=QUOTED-PRINTABLE:Write to=0D=0A=',
+        'EMAIL:ana@old.example.org=0D=0Aabout the move',
+        'EMAIL;TYPE=pref;INTERNET:ana@example.org',
+        'EMAIL;INTERNET:ana@old.example.org',
+        'END:VCARD',
+      ]),
+    );
+    expect(applyAddressChanges('vcard', r.body, TABLE).body).toBe(r.body);
+  });
+
+  it('reads 2.1’s bare QUOTED-PRINTABLE too, over several soft line breaks, and keeps a note that names only old addresses as it is', () => {
+    const card = crlf([
+      'BEGIN:VCARD',
+      'VERSION:2.1',
+      'N:Old;Ana',
+      'NOTE;CHARSET=UTF-8;QUOTED-PRINTABLE:first=',
+      'EMAIL:ana@old.example.org=',
+      'EMAIL:ben.old@old.example.org',
+      'END:VCARD',
+    ]);
+    expect(applyAddressChanges('vcard', card, TABLE)).toEqual({ body: card, changed: false, digest: null });
+  });
+
+  it('ends the value at a line that does not end in =', () => {
+    const card = crlf([
+      'BEGIN:VCARD',
+      'VERSION:2.1',
+      'NOTE;ENCODING=QUOTED-PRINTABLE:one line',
+      'EMAIL:ana@old.example.org',
+      'END:VCARD',
+    ]);
+    expect(applyAddressChanges('vcard', card, TABLE).body).toContain(
+      '\r\nNOTE;ENCODING=QUOTED-PRINTABLE:one line\r\nEMAIL;TYPE=pref:ana@example.org\r\nEMAIL:ana@old.example.org\r\n',
+    );
+  });
+});
+
 describe('the line a card gains (the review’s S7 and N1)', () => {
   it('carries no PID, ALTID or PROP-ID: the new address is a property of its own', () => {
     const card = crlf([

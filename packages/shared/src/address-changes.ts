@@ -339,23 +339,52 @@ interface Line {
   readonly eol: string;
 }
 
-function linesOf(text: string): Line[] {
+/**
+ * A vCard property whose value is quoted-printable (`ENCODING=QUOTED-PRINTABLE`,
+ * or vCard 2.1's bare `QUOTED-PRINTABLE`), read off its first line.
+ */
+const QUOTED_PRINTABLE = /^[^:]*;(ENCODING=)?"?QUOTED-PRINTABLE"?[;:]/i;
+
+/**
+ * The body's logical lines. `quotedPrintable` is for a vCard: there a
+ * quoted-printable value that ends in `=` goes on on the next physical line
+ * (a soft line break, RFC 2045 §6.7), whatever that line reads like, so a
+ * note's next line that reads `EMAIL:…` is the note's, never an address to
+ * change (the data-path review's N4). Its bytes are kept as they stand.
+ */
+function linesOf(text: string, quotedPrintable = false): Line[] {
   const physical = text.split(/(?<=\n)/);
   const out: Line[] = [];
   let i = 0;
   while (i < physical.length) {
     const span = [physical[i]!];
     let j = i + 1;
-    while (j < physical.length && /^[ \t]/.test(physical[j]!)) {
-      span.push(physical[j]!);
-      j += 1;
-    }
+    const unfold = () => {
+      while (j < physical.length && /^[ \t]/.test(physical[j]!)) {
+        span.push(physical[j]!);
+        j += 1;
+      }
+    };
+    unfold();
+    const folded = span.length;
     const logical = span
       .map((l) => l.replace(/\r?\n$/, ''))
       .map((l, k) => (k === 0 ? l : l.slice(1)))
       .join('');
+    if (quotedPrintable && QUOTED_PRINTABLE.test(logical)) {
+      while (j < physical.length && /=\r?\n$/.test(span[span.length - 1]!)) {
+        span.push(physical[j]!);
+        j += 1;
+        unfold();
+      }
+    }
+    // A soft line break's lines are the value's, read as one with the first.
+    const value = span
+      .slice(folded)
+      .map((l) => l.replace(/\r?\n$/, ''))
+      .join('');
     const last = span[span.length - 1]!;
-    out.push({ span, logical, eol: /\r\n$/.test(last) ? '\r\n' : /\n$/.test(last) ? '\n' : '' });
+    out.push({ span, logical: logical + value, eol: /\r\n$/.test(last) ? '\r\n' : /\n$/.test(last) ? '\n' : '' });
     i = j;
   }
   return out;
@@ -457,7 +486,7 @@ const END_VCARD = /^END:VCARD\s*$/i;
  * ever dropped.
  */
 function changeVcard(body: string, t: AddressTable, decided: Decided): string {
-  const lines = linesOf(body);
+  const lines = linesOf(body, true);
   const out: string[] = [];
   let card: Line[] | null = null;
   let depth = 0;
