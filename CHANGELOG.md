@@ -55,6 +55,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   one card; spread into the `ContactCard/set` create, the list was refused as `invalidProperties`.
   The writer reads either shape and takes the card with the contact's own UID, refusing a blob
   whose cards do not say which one it is. Its refusals now name the properties a server refused.
+- **The sync count counts a retried pass once** (workplan 0121, after 0167). On pg-boss each
+  attempt of a pass opens a run row of its own, so a pass that failed once and was retried
+  counted as two sync operations in `/api/billing/usage` and in what an invoice freezes. The
+  count now goes by the job, `orchestrator_ref`; compute hours still count each attempt's
+  seconds, and no price reads the count.
 
 ### Security
 

@@ -369,15 +369,21 @@ describe('Usage Metering - Integration', () => {
         kind?: string;
         finished?: boolean;
         domainSeconds?: Record<string, number>;
+        /** The job's id, as the delta pass records it; a retry's attempts share it. */
+        orchestratorRef?: string;
+        status?: 'succeeded' | 'failed';
+        /** Minutes after the day's 10:00 the attempt started. */
+        minute?: number;
       },
     ) {
-      const startedAt = new Date(Date.UTC(2026, 6, opts.dayOfMonth ?? 15, 10, 0, 0));
+      const startedAt = new Date(Date.UTC(2026, 6, opts.dayOfMonth ?? 15, 10, opts.minute ?? 0, 0));
       await db.insert(runTable).values({
         tenantId,
         mappingId: TEST_MAPPING_ID,
         kind: (opts.kind ?? 'incremental') as 'incremental',
         trigger: 'schedule',
-        status: 'succeeded',
+        status: opts.status ?? 'succeeded',
+        ...(opts.orchestratorRef ? { orchestratorRef: opts.orchestratorRef } : {}),
         stats: opts.domainSeconds ? { domainSeconds: opts.domainSeconds } : {},
         startedAt,
         createdAt: startedAt,
@@ -414,6 +420,22 @@ describe('Usage Metering - Integration', () => {
       const second = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
       expect(second).toEqual(first);
       expect(second.passCount).toBe(1);
+    });
+
+    it('counts a pass the job runner retried once, and bills each attempt its own seconds', async () => {
+      // pg-boss hands a failed job back under the same id, and each attempt
+      // opens a run row of its own: the first closed `failed`, the retry
+      // `succeeded`. One pass, one sync operation; two attempts on the machine.
+      await seedRun(TEST_TENANT_ID, { seconds: 600, status: 'failed', orchestratorRef: 'job-1', minute: 0 });
+      await seedRun(TEST_TENANT_ID, { seconds: 1200, orchestratorRef: 'job-1', minute: 15 });
+      // Another job, another pass.
+      await seedRun(TEST_TENANT_ID, { seconds: 1800, orchestratorRef: 'job-2', minute: 45 });
+      // A row with no job id (a full copy's) counts as itself.
+      await seedRun(TEST_TENANT_ID, { seconds: 0, kind: 'initial_copy', minute: 90 });
+
+      const usage = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      expect(usage.passCount).toBe(3);
+      expect(usage.computeHours).toBeCloseTo(1, 6);
     });
 
     it('bills the initial copy, which the old meter never wrote a row for', async () => {
