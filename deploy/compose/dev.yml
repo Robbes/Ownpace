@@ -52,7 +52,8 @@ services:
     environment:
       SQLITE_DATABASE: nextcloud
       NEXTCLOUD_ADMIN_USER: admin
-      NEXTCLOUD_ADMIN_PASSWORD: admin_dev_pw
+      # A developer's default; E2E (self-hosted) gives its run's own (workplan 0163).
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-admin_dev_pw}
       NEXTCLOUD_TRUSTED_DOMAINS: "localhost nextcloud"
     ports:
       # Overridable, same pattern as postgres above — the e2e workflow picks a free

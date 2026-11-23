@@ -55,6 +55,13 @@ set -euo pipefail
 #                                reach it from another machine on that mesh. Never
 #                                0.0.0.0 on a machine with a public name.
 #   STALWART_RECOVERY_PASSWORD  recovery-mode admin password (default provision_password)
+#   STALWART_SOURCE_PASSWORD    source@dev.local's password (default source_password)
+#   STALWART_TARGET_PASSWORD    target@dev.local's password (default target_password)
+#                                The defaults are a developer's. E2E (self-hosted) and the
+#                                OTA stack's nightly give their run's own (workplan 0163,
+#                                2026-11-23). On a Stalwart whose data volume is kept, the
+#                                upsert below sets the account's password to the one given,
+#                                so the one before it stops working.
 #   STALWART_CLI_URL            URL stalwart-cli itself connects to for provisioning
 #                                (default: the published JMAP port, on the address it is
 #                                published on, 127.0.0.1 unless STALWART_BIND says
@@ -107,6 +114,16 @@ NETWORK="${STALWART_NETWORK:-ownpace_dev-network}"
 JMAP_PORT="${STALWART_JMAP_PORT:-18080}"
 IMAPS_PORT="${STALWART_IMAPS_PORT:-1993}"
 RECOVERY_PASSWORD="${STALWART_RECOVERY_PASSWORD:-provision_password}"
+SOURCE_PASSWORD="${STALWART_SOURCE_PASSWORD:-source_password}"
+TARGET_PASSWORD="${STALWART_TARGET_PASSWORD:-target_password}"
+# Into a JSON string below: a password with a quote, a backslash or a control
+# character would need escaping, so it is refused rather than mangled.
+for given in "$SOURCE_PASSWORD" "$TARGET_PASSWORD"; do
+  if [[ "$given" == *[\\\"[:cntrl:]]* ]]; then
+    echo "[setup-stalwart] STALWART_SOURCE_PASSWORD and STALWART_TARGET_PASSWORD take no quote, backslash or control character." >&2
+    exit 1
+  fi
+done
 # Which address the two ports are published on, and so the address this host
 # asks them on: a publish that moved and a caller that stayed at localhost is a
 # "never came up" that blames Stalwart for a moved port. Every interface
@@ -220,10 +237,10 @@ wait_for_jmap "Recovery listener"
 wait_for_cli_url
 
 echo "[setup-stalwart] Provisioning accounts..."
-cat > "$PLAN_FILE" <<'PLAN'
+cat > "$PLAN_FILE" <<PLAN
 {"@type":"upsert","object":"Domain","matchOn":["name"],"value":{"dom-a":{"name":"dev.local"}}}
-{"@type":"upsert","object":"Account","matchOn":["name"],"value":{"source":{"@type":"User","name":"source","domainId":"#dom-a","credentials":{"0":{"@type":"Password","secret":"source_password"}},"roles":{"@type":"User"},"permissions":{"@type":"Inherit"},"encryptionAtRest":{"@type":"Disabled"}}}}
-{"@type":"upsert","object":"Account","matchOn":["name"],"value":{"target":{"@type":"User","name":"target","domainId":"#dom-a","credentials":{"0":{"@type":"Password","secret":"target_password"}},"roles":{"@type":"User"},"permissions":{"@type":"Inherit"},"encryptionAtRest":{"@type":"Disabled"}}}}
+{"@type":"upsert","object":"Account","matchOn":["name"],"value":{"source":{"@type":"User","name":"source","domainId":"#dom-a","credentials":{"0":{"@type":"Password","secret":"${SOURCE_PASSWORD}"}},"roles":{"@type":"User"},"permissions":{"@type":"Inherit"},"encryptionAtRest":{"@type":"Disabled"}}}}
+{"@type":"upsert","object":"Account","matchOn":["name"],"value":{"target":{"@type":"User","name":"target","domainId":"#dom-a","credentials":{"0":{"@type":"Password","secret":"${TARGET_PASSWORD}"}},"roles":{"@type":"User"},"permissions":{"@type":"Inherit"},"encryptionAtRest":{"@type":"Disabled"}}}}
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"shared":{"@type":"User","name":"shared","domainId":"#dom-a","credentials":{"0":{"@type":"Password","secret":"shared_password"}},"roles":{"@type":"User"},"permissions":{"@type":"Inherit"},"encryptionAtRest":{"@type":"Disabled"}}}}
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"target-shared":{"@type":"User","name":"target-shared","domainId":"#dom-a","credentials":{"0":{"@type":"Password","secret":"target-shared_password"}},"roles":{"@type":"User"},"permissions":{"@type":"Inherit"},"encryptionAtRest":{"@type":"Disabled"}}}}
 PLAN
@@ -260,5 +277,6 @@ wait_for_jmap "Normal-mode server"
 echo "[setup-stalwart] Ready."
 echo "[setup-stalwart]   JMAP:  http://${HOST_ADDR}:${JMAP_PORT}/.well-known/jmap  (or http://stalwart:8080 from ${NETWORK})"
 echo "[setup-stalwart]   IMAPS: ${HOST_ADDR}:${IMAPS_PORT} (TLS, self-signed cert; or stalwart:993 from ${NETWORK})"
-echo "[setup-stalwart]   Accounts: source@dev.local/source_password, target@dev.local/target_password,"
+echo "[setup-stalwart]   Accounts: source@dev.local and target@dev.local (STALWART_SOURCE_PASSWORD, STALWART_TARGET_PASSWORD,"
+echo "[setup-stalwart]             else source_password and target_password),"
 echo "[setup-stalwart]             shared@dev.local/shared_password, target-shared@dev.local/target-shared_password"

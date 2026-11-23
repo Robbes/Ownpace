@@ -496,6 +496,32 @@ jobs:
           cp deploy/compose/.env "${PERSIST_DIR}/.env"
           echo "persisted to ${PERSIST_DIR}/.env so the next run reuses these exact values"
 
+      # THE DEMO'S MAIL SOURCE GETS A NEW PASSWORD EACH RUN (workplan 0163,
+      # Status of 2026-11-23). An outside, read-only check found the one this
+      # file spelled out, for source@dev.local on the demo Stalwart. That
+      # Stalwart keeps its data between runs, so the old one was rotated, not
+      # only moved: the bring-up's setup-stalwart.sh, in its recovery phase,
+      # upserts the account with STALWART_SOURCE_PASSWORD through
+      # stalwart-cli, which sets this one and ends the one before it. The
+      # same value reaches setup-managed-demo.sh's seeder, seed-managed.ts
+      # (the demo connection the worker logs in with), the source seed below
+      # and the smoke, through $GITHUB_ENV, masked. No owner step: a scheduled
+      # run and a dispatched one each make their own, and runs queue
+      # (`concurrency` above), so no run sees another's. The target keeps the
+      # demo's own password, which no workflow names.
+      # scripts/a-password-a-workflow-spells-out.unit.test.ts holds this.
+      - name: This run's own password for the demo's mail source
+        id: demo-source-password
+        run: |
+          set -euo pipefail
+          value="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
+          if [ "${#value}" != 48 ]; then
+            echo "::error::Could not make this run's password for the demo's mail source: ${#value} hex digits, not 48."
+            exit 1
+          fi
+          echo "::add-mask::${value}"
+          echo "STALWART_SOURCE_PASSWORD=${value}" >> "$GITHUB_ENV"
+
       - name: Bring the stack up
         # Through bootstrap-managed.sh rather than an inline copy of the run
         # order, for two reasons.
@@ -584,7 +610,7 @@ jobs:
           SEED_IMAP_PORT: ${{ vars.MANAGED_STALWART_IMAPS_PORT || '1994' }}
           SEED_IMAP_TLS: 'true'
           SEED_IMAP_USER: source@dev.local
-          SEED_IMAP_PASSWORD: source_password
+          SEED_IMAP_PASSWORD: ${{ env.STALWART_SOURCE_PASSWORD }}
           SEED_COUNT: '3'
           SEED_ONLY_IF_EMPTY: 'true'
         run: node test/e2e/seed-imap-source.mjs
@@ -763,6 +789,42 @@ jobs:
           path: managed-evidence/
           retention-days: 7
           if-no-files-found: warn
+
+      # A RUN THAT FAILED AFTER IT SET THE PASSWORD, BEFORE IT STORED IT. The
+      # bring-up sets the account's new password (setup-managed-demo.sh) a few
+      # minutes before seed-managed.sh stores it in the demo connection. A run
+      # that fails in between leaves the worker, which syncs the demo mapping
+      # every 15 minutes, logging in with the password before. Stalwart bans
+      # an address after 100 failed logins of one account in a day, for good
+      # (v1.1.1's Security defaults: authBanRate 100/1d, no authBanPeriod),
+      # and a ban would fail the next run, on main or any branch. So when the
+      # account takes this run's password, the connection is seeded again
+      # (idempotent: the demo connections are upserted). When it does not,
+      # this run changed nothing on the account, and the stored one still
+      # matches. One login is tried, never more. The step decides inside its
+      # own run whether this run made a password, as every step here does (no
+      # `if:` reads another step's outcome; smoke-managed-verdict.unit.test.ts).
+      - name: The demo connection keeps the mail source's password, on a failed run too
+        if: failure()
+        env:
+          IMAP_HOST: 127.0.0.1
+          IMAP_PORT: ${{ vars.MANAGED_STALWART_IMAPS_PORT || '1994' }}
+          IMAP_TLS: 'true'
+          IMAP_USER: source@dev.local
+          IMAP_PASSWORD: ${{ env.STALWART_SOURCE_PASSWORD }}
+          MESSAGE_ID: '<seed-1@dev.local>'
+        run: |
+          set -euo pipefail
+          if [ -z "${IMAP_PASSWORD:-}" ]; then
+            echo "This run made no password for the demo's mail source before it failed, so it changed nothing on the account."
+            exit 0
+          fi
+          if node test/e2e/message-sha256.mjs >/dev/null; then
+            echo "The demo's mail source takes this run's password; storing it in the demo connection again."
+            ./deploy/compose/seed-managed.sh
+          else
+            echo "The demo's mail source does not take this run's password, so this run did not change it, and the demo connection's still matches."
+          fi
 
       - name: What the smoke actually concluded, where a log tail can reach it
         if: always()

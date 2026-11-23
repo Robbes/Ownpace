@@ -220,6 +220,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **Three more patterns no longer build a regular expression from a value**: a calendar
   invitation's `CN` and `EMAIL`, a mail header by its name, and a WebDAV error's conditions by the
   root's prefix. Each was linear and reads as before.
+- **No workflow names a password any more; each run makes its own** (workplan 0163, Status of
+  2026-11-23). An outside, read-only check found nine in the pipeline files: six for E2E
+  (self-hosted)'s throwaway Stalwart, Nextcloud and Postgres, two for the image workflow's database
+  build check, and the password of the demo's mail source on the OTA stack. Each was a test
+  credential, not a credential to anything real, but each run now makes its own at random, masks
+  it and hands it on through `$GITHUB_ENV`. The demo's mail source keeps its data between runs, so
+  its password is rotated: the nightly gate sets a new one on the account at each bring-up, and the
+  old one no longer opens it. `setup-stalwart.sh` reads `STALWART_SOURCE_PASSWORD` and
+  `STALWART_TARGET_PASSWORD`, and `deploy/compose/dev.yml` reads `NEXTCLOUD_ADMIN_PASSWORD`; each
+  keeps its old value as a developer's default. A guard fails any workflow that sets a credential
+  to a literal.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 
