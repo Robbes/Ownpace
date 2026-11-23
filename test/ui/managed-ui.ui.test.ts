@@ -947,7 +947,10 @@ describe('the migrations list', () => {
  * What Start a migration asks for, answered as the API would: Anna's saved mail
  * account and a saved Soverin, what this deployment serves, and the create,
  * the count and the start of one migration. The caller adds them to FIXTURES
- * and takes them out after, so no other case sees them.
+ * and takes them out after, so no other case sees them. Anna's own domain
+ * comes along, so her Soverin account signs in on it: a login on another
+ * domain would have *Your new address* ask about her address (workplan 0168,
+ * the owner's decision (b)), and these cases walk the six screens without it.
  */
 function startFlowFixtures(): { NEW: string; added: Record<string, unknown> } {
   const NEW = 'a0000000-0000-4000-8000-0000000000d9';
@@ -971,7 +974,7 @@ function startFlowFixtures(): { NEW: string; added: Record<string, unknown> } {
     'GET /api/connections': {
       connections: [
         { id: 'c0000000-0000-4000-8000-000000000001', role: 'source', kind: 'imap', displayName: 'Anna mail', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { host: 'imap.example.nl', port: '993', username: 'anna@example.nl' } },
-        { id: 'c0000000-0000-4000-8000-000000000002', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { username: 'anna@soverin.net' } },
+        { id: 'c0000000-0000-4000-8000-000000000002', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { username: 'anna@example.nl' } },
       ],
     },
     'GET /api/provider-accounts': {
@@ -1961,6 +1964,62 @@ describe('Start a migration, from an address nobody can take along, on a phone (
       await expectItFitsAPhone(page, 'Start a migration, check, with the new address');
       expect(apiMisses.slice(missesBefore), 'the flow called endpoints with no fixture').toEqual([]);
       expectClean(l, 'Start a migration with a new address on a phone');
+      await page.close();
+    } finally {
+      for (const key of Object.keys(added)) delete FIXTURES[key];
+    }
+  });
+});
+
+/**
+ * A NEW LOGIN ON ANOTHER DOMAIN, ON A PHONE, IN DUTCH (workplan 0168; the
+ * owner, 2026-11-23, decision (b)). An address at an own domain, leaving for
+ * an account that signs in on another: the step asks by itself, says the new
+ * address is on another domain with the owner's hint, fits the phone, and a
+ * No goes on to the check with nothing written.
+ */
+describe('Start a migration, from an own domain to a login on another domain, on a phone (0168)', () => {
+  it('asks by itself, with the hint, and a No writes nothing', async () => {
+    const { added } = startFlowFixtures();
+    const at = new Date(Date.now() + 60_000).toISOString();
+    added['GET /api/connections'] = {
+      connections: [
+        { id: 'c0000000-0000-4000-8000-000000000001', role: 'source', kind: 'imap', displayName: 'Old mail', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { host: 'imap.example.nl', port: '993', username: 'name@example.nl' } },
+        { id: 'c0000000-0000-4000-8000-000000000002', role: 'target', kind: 'soverin', displayName: 'New mail', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { username: 'first@example.org' } },
+      ],
+    };
+    Object.assign(FIXTURES, added);
+    const missesBefore = apiMisses.length;
+    try {
+      const l = await open(`/start?person=${PERSON}`, { locale: 'nl', phone: true });
+      const page = l.page;
+      const next = (name: string) => page.getByRole('button', { name, exact: true }).click();
+      await page.getByRole('radio', { name: 'Anna' }).waitFor({ timeout: 15_000 });
+      await next('Volgende');
+      await page.getByRole('checkbox', { name: 'Een andere mailaanbieder' }).check({ timeout: 10_000 });
+      await next('Volgende');
+      await page.getByRole('heading', { level: 2, name: 'Wat wilt u migreren?' }).waitFor({ timeout: 10_000 });
+      await next('Volgende');
+      await page.getByText('name@example.nl').first().waitFor({ timeout: 10_000 });
+      await next('Volgende');
+      await page.getByRole('heading', { level: 2, name: 'Waar gaat het naartoe?' }).waitFor({ timeout: 10_000 });
+      expect(await page.getByRole('checkbox', { name: 'Ik krijg ook een ander adres' }).isChecked()).toBe(false);
+      await page.getByText('Stap 5 van 7').waitFor({ timeout: 10_000 });
+      await next('Klaarzetten');
+      await page.getByRole('heading', { level: 2, name: 'Uw nieuwe adres' }).waitFor({ timeout: 15_000 });
+      await page
+        .getByText(
+          'first@example.org staat op een ander domein dan name@example.nl. Kies Nee als first@example.org maar tijdelijk is, tot uw eigen domein meekomt.',
+        )
+        .waitFor({ timeout: 10_000 });
+      expect(await page.getByRole('radio', { checked: true }).count(), 'no answer is chosen for the person').toBe(0);
+      await expectItFitsAPhone(page, 'Start a migration, your new address, a login on another domain');
+      await page.getByRole('radio', { name: 'Nee, laat het zoals het is', exact: true }).check();
+      await next('Volgende');
+      await page.getByRole('heading', { level: 2, name: 'Controleren, dan starten' }).waitFor({ timeout: 15_000 });
+      expect(await page.getByText(/ wordt first@example\.org in contacten/).count()).toBe(0);
+      expect(apiMisses.slice(missesBefore), 'the flow called endpoints with no fixture').toEqual([]);
+      expectClean(l, 'Start a migration with a login on another domain on a phone');
       await page.close();
     } finally {
       for (const key of Object.keys(added)) delete FIXTURES[key];

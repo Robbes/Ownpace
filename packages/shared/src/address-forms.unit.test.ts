@@ -8,11 +8,21 @@
  * one, and every card and event of the second would be given the first's new
  * address. So only Gmail is folded, and every other domain keeps its dots and
  * its `+`. The list is pinned entry by entry, with the date its sources were
- * read, so an entry added without a source shows up here.
+ * read, so an entry added without a source shows up here. The one rule beside
+ * it, a Microsoft 365 tenant's own domain under `onmicrosoft.com`, is read on
+ * whole labels, so a lookalike never matches.
  */
 
 import { describe, it, expect } from 'vitest';
-import { NOT_TAKEN_ALONG, addressKey, cannotTakeAlong, isAddress } from './address-forms.ts';
+import {
+  NOT_TAKEN_ALONG,
+  UNDER_ONMICROSOFT,
+  addressKey,
+  cannotTakeAlong,
+  domainOf,
+  isAddress,
+  isMicrosoftTenantDomain,
+} from './address-forms.ts';
 
 describe('the key of an address', () => {
   it.each([
@@ -203,4 +213,69 @@ describe('the domains nobody can take along', () => {
   it('is frozen, so no caller adds a domain without a source', () => {
     expect(Object.isFrozen(NOT_TAKEN_ALONG)).toBe(true);
   });
+});
+
+describe('the one rule beside the list: a Microsoft 365 tenant’s own domain', () => {
+  // The owner, 2026-11-23: "Yes, any .onmicrosoft.com", one suffix rule beside
+  // the list, matched on a whole label, so a lookalike never matches.
+  it.each([
+    'someone@contoso.onmicrosoft.com',
+    'someone@contoso.mail.onmicrosoft.com',
+    'Some.One+x@Contoso.OnMicrosoft.COM',
+  ])('says %s stays with Microsoft, as the list says of outlook.com', (address) => {
+    expect(cannotTakeAlong(address)).toEqual({ provider: 'Microsoft' });
+    expect(cannotTakeAlong(address)).toEqual(cannotTakeAlong('someone@outlook.com'));
+  });
+
+  it.each([
+    'someone@onmicrosoft.com',
+    'someone@notonmicrosoft.com',
+    'someone@onmicrosoft.com.example.com',
+    'someone@onmicrosoft.co',
+    'someone@contosoonmicrosoft.com',
+    'someone@.onmicrosoft.com',
+    'someone@contoso..onmicrosoft.com',
+  ])('says nothing of %s, which only looks like a tenant’s domain', (address) => {
+    expect(cannotTakeAlong(address)).toBeNull();
+  });
+
+  it('reads a domain on whole labels, one label or more before onmicrosoft.com', () => {
+    expect(isMicrosoftTenantDomain('contoso.onmicrosoft.com')).toBe(true);
+    expect(isMicrosoftTenantDomain('contoso.mail.onmicrosoft.com')).toBe(true);
+    for (const d of ['onmicrosoft.com', 'notonmicrosoft.com', 'onmicrosoft.com.example.com', 'onmicrosoft.co', '']) {
+      expect(isMicrosoftTenantDomain(d), d).toBe(false);
+    }
+  });
+
+  it('names the provider the list’s Microsoft entries name', () => {
+    const named = new Set(NOT_TAKEN_ALONG.filter((e) => e.domain.startsWith('hotmail.')).map((e) => e.provider));
+    expect([...named]).toEqual([UNDER_ONMICROSOFT.provider]);
+  });
+
+  it('leaves the list whole domains: none of its entries is the parent or a host under it', () => {
+    expect(NOT_TAKEN_ALONG.some((e) => e.domain === UNDER_ONMICROSOFT.parent)).toBe(false);
+    for (const { domain } of NOT_TAKEN_ALONG) expect(isMicrosoftTenantDomain(domain), domain).toBe(false);
+  });
+
+  it('is frozen, so no caller widens it', () => {
+    expect(Object.isFrozen(UNDER_ONMICROSOFT)).toBe(true);
+  });
+});
+
+describe('the domain of an address', () => {
+  it.each([
+    ['Name@Example.ORG', 'example.org'],
+    ['  someone@contoso.onmicrosoft.com  ', 'contoso.onmicrosoft.com'],
+    // No Gmail fold: the domain as it follows the `@`.
+    ['Some.One+x@GoogleMail.com', 'googlemail.com'],
+  ])('reads %j as %s', (address, domain) => {
+    expect(domainOf(address)).toBe(domain);
+  });
+
+  it.each(['', 'nobody', 'a@b@c', 'name@', '+x@gmail.com', 'na me@example.org'])(
+    'reads no domain in %j, which is not an address',
+    (value) => {
+      expect(domainOf(value)).toBeNull();
+    },
+  );
 });

@@ -35,6 +35,18 @@
  * still names is left out: it may have lapsed and belong to somebody else.
  * Every domain is written in full and matched whole, so a lookalike such as
  * `hotmail.example.com` never matches.
+ *
+ * ## One rule beside the list
+ *
+ * A Microsoft 365 tenant's own domain is a host under `onmicrosoft.com`
+ * (`contoso.onmicrosoft.com`), one per organisation, so no list of whole
+ * domains can hold them all. They are the one rule beside the list,
+ * `UNDER_ONMICROSOFT` (the owner, 2026-11-23: *"Yes, any .onmicrosoft.com"*),
+ * read on whole labels: at least one label before `.onmicrosoft.com`, so
+ * `onmicrosoft.com` itself, `notonmicrosoft.com` and
+ * `onmicrosoft.com.example.com` never match. Its source is cited beside it,
+ * as the list's are. The list itself stays whole domains, and nothing else
+ * is matched by a suffix.
  */
 
 /** Gmail's two spellings of one domain. */
@@ -73,6 +85,16 @@ function folded(name: string, domain: string): { readonly name: string; readonly
 export function isAddress(address: string): boolean {
   const p = partsOf(address);
   return p !== null && folded(p.name, p.domain).name !== '';
+}
+
+/**
+ * The domain of an address, lower case, as it follows the `@`, or null when
+ * the value is not an address (`isAddress`). No Gmail fold: `googlemail.com`
+ * stays itself.
+ */
+export function domainOf(address: string): string | null {
+  const p = partsOf(address);
+  return p === null || !isAddress(address) ? null : p.domain;
 }
 
 /**
@@ -231,15 +253,60 @@ export const NOT_TAKEN_ALONG: ReadonlyArray<NotTakenAlong> = Object.freeze([
   ...servedBy('Proximus', ['proximus.be', 'skynet.be', 'belgacom.net']),
 ]);
 
+/**
+ * ONE SUFFIX RULE BESIDE THE LIST: A MICROSOFT 365 TENANT'S OWN DOMAIN (the
+ * owner, 2026-11-23: *"Yes, any .onmicrosoft.com"*, *"One suffix rule beside
+ * the list, matched on a whole label, so a lookalike never matches"*). Its
+ * provider is the one the list's Microsoft entries name.
+ *
+ * Microsoft Support, "What's the difference between a Microsoft account and a
+ * work or school account?",
+ * https://support.microsoft.com/en-us/accounts-billing/manage/what-s-the-difference-between-a-microsoft-account-and-a-work-or-school-account,
+ * read 2026-11-23: "When you first sign up for a Microsoft business product
+ * like Microsoft 365 for business, you get an email address that ends with
+ * .onmicrosoft.com. You can use that address or customize it by adding your
+ * own domain". Microsoft Support, "What is my user ID and why do I need it for
+ * Office 365 for business?",
+ * https://support.microsoft.com/en-us/office/lifecycle/what-is-my-user-id-and-why-do-i-need-it-for-office-365-for-business,
+ * read 2026-11-23: "The domain part of the user ID is either the
+ * onmicrosoft.com domain that you chose when you signed up for Microsoft 365
+ * for business or another domain—for example, your organization’s custom
+ * domain". NEITHER PAGE SAYS WHETHER THAT DOMAIN CAN BE REMOVED. Microsoft's
+ * admin pages on domains, which support.microsoft.com now sends to
+ * learn.microsoft.com or docs.microsoft.com, could not be read from the
+ * build's network that day; workplan 0168's Status block says so.
+ */
+export const UNDER_ONMICROSOFT: Readonly<{ readonly parent: string; readonly provider: string }> = Object.freeze({
+  parent: 'onmicrosoft.com',
+  provider: 'Microsoft',
+});
+
+/**
+ * Whether a domain is one Microsoft 365 tenant's, a host under
+ * `onmicrosoft.com` (`UNDER_ONMICROSOFT`), read on whole labels: one label or
+ * more before `.onmicrosoft.com`, none of them empty. So
+ * `contoso.onmicrosoft.com` and `contoso.mail.onmicrosoft.com` are, and
+ * `onmicrosoft.com` itself, `notonmicrosoft.com`,
+ * `onmicrosoft.com.example.com` and `onmicrosoft.co` are not.
+ */
+export function isMicrosoftTenantDomain(domain: string): boolean {
+  const d = domain.trim().toLowerCase();
+  const suffix = `.${UNDER_ONMICROSOFT.parent}`;
+  return d.endsWith(suffix) && d.slice(0, -suffix.length).split('.').every((label) => label !== '');
+}
+
 const BY_DOMAIN: ReadonlyMap<string, NotTakenAlong> = new Map(NOT_TAKEN_ALONG.map((e) => [e.domain, e]));
 
 /**
  * Whether an address belongs to a provider that keeps it, and which one, or
- * null when it does not or is not an address. Only the domain is read.
+ * null when it does not or is not an address. Only the domain is read: a
+ * domain on the list, matched whole, or a host under `onmicrosoft.com`
+ * (`UNDER_ONMICROSOFT`).
  */
 export function cannotTakeAlong(address: string): { readonly provider: string } | null {
   const p = partsOf(address);
   if (p === null) return null;
   const entry = BY_DOMAIN.get(p.domain);
-  return entry ? { provider: entry.provider } : null;
+  if (entry !== undefined) return { provider: entry.provider };
+  return isMicrosoftTenantDomain(p.domain) ? { provider: UNDER_ONMICROSOFT.provider } : null;
 }
