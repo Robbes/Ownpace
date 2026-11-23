@@ -9,7 +9,7 @@
   Still 1.0, edited in place once more on 2026-11-23 (the owner, 2026-11-23: "Yes, draft it"):
   §4.5's last lines say a request for access is logged by its reference, not by its address, and
   that the inlogdienst logs the address a person registers with from the mail that grants them
-  access. privacy.md's briefing has why.
+  access. The owner read it: "it stays version 1.0: ok". privacy.md's briefing has why.
   Still 1.0, edited in place again on 2026-11-23 (the owner, 2026-11-22, of workplan 0168's D8:
   "1.0 ok"): §4.6 gains De adressen die veranderen, with who changed each and that this stays
   in the audit log by reference; §9 a row for them; and §7's line on progress links says a

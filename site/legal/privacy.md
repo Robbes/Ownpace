@@ -13,8 +13,8 @@
   What changed: §4.5's last lines say a request for access and our decision on it are logged by
   the request's reference, not by the address it gives, and that the sign-in service does log the
   address a person registers with when they arrive from the mail that grants them access, which
-  the comment below that paragraph had kept for the next version. The Last updated line stays
-  2026-11-23.
+  the comment below that paragraph had kept for the next version. The owner read the words,
+  2026-11-23, verbatim: "it stays version 1.0: ok". The Last updated line stays 2026-11-23.
 
   Still 1.0, edited in place again on 2026-11-23, in both languages. The owner, 2026-11-22 at
   about 22:33 UTC, of workplan 0168's D8 (the policy's lines for a new address go in before the
