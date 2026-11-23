@@ -4,6 +4,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **A database fault no longer writes a person's details into the server log** (workplan 0168).
+  Every route logged a failed statement's whole error beside its reference, and the drivers put
+  the statement's values in it: Postgres's `detail` quotes the key or the whole failing row
+  (`Key (email)=(…) already exists.`), a data exception's message quotes the input it refused,
+  PGlite adds the statement's `params`, and Drizzle repeats them in its message and stack.
+  `loggableError` now leaves those out of what it logs, as it already left out a request's body.
+  The rest of the message, the error's code, its table, column and constraint names, the statement
+  up to its first literal and the chain of causes still say what failed and where.
+
 ## [0.2.0-alpha.17] - 2026-11-23
 
 A person who leaves an address they cannot take along, a Gmail address for one, now declares the

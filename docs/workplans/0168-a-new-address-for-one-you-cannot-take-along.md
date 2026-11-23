@@ -73,6 +73,7 @@ Proven:
   exact when two people share one name.
 - A database fault logs the driver's whole error, parameters included (`server-fault.ts`), on
   every route; the fix belongs in `loggableError`.
+  - Fixed since, in `loggableError` (`apps/api/src/server-fault.ts`; CHANGELOG, Unreleased).
 - `SENT-BY`, `DELEGATED-FROM`/`-TO` and `MEMBER` keep their old addresses while `ORGANIZER` and
   `ATTENDEE` change (D3 names only those two): the owner's call.
 - **Where the build differs from §3 and D2 above:** a copy records the digest of the rows that
