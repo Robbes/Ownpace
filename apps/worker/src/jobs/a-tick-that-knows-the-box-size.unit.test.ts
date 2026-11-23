@@ -355,8 +355,8 @@ describe('the tick applies it', () => {
     expect(count('mapWithConcurrency(toEnqueue,')).toBe(1);
     expect(count('mapWithConcurrency(toRead,')).toBe(1);
     expect(count('mapWithConcurrency(')).toBe(2);
-    // Through the run's own runner (workplan 0167 T6): the SDK's trigger is
-    // the Trigger.dev runner's (run-context.ts), and the tick names it nowhere.
+    // Through the run's own runner (workplan 0167 T6; run-context.ts): the
+    // tick enqueues through the runner it is handed, and names none itself.
     expect(count('context.runner.enqueue(')).toBe(1);
     expect(at('context.runner.enqueue(')).toBeGreaterThan(enqueue);
     expect(count('.trigger(')).toBe(0);

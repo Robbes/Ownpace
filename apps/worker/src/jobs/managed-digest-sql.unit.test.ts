@@ -42,8 +42,8 @@ let DIGEST_RECIPIENTS_SQL: string;
 let DIGEST_MAPPINGS_SQL: string;
 let PARAMS: unknown[][];
 
-// The import is the job's whole module graph, the Trigger.dev SDK and the
-// ledger among it, loaded cold inside this hook. On main's self-hosted runner,
+// The import is the job's whole module graph, the ledger among it (and the
+// Trigger.dev SDK until alpha.18), loaded cold inside this hook. On main's self-hosted runner,
 // with the rest of the unit project running beside it, that took longer than
 // vitest's default 10 s for a hook (2026-09-24, on d323435), and the file failed
 // having asserted nothing. A minute, as the suites that open a database in

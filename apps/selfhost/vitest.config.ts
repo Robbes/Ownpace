@@ -9,9 +9,9 @@ import { aliases } from '../../vitest.aliases.ts';
 // only the root scripts:
 //
 // 1. This file carried its own alias map with no subpath pins, including a bare
-//    '@openmig/scheduler' → the package INDEX. That is the one module self-host
-//    must never load (it re-exports the Trigger.dev client — AGENTS.md hard rule
-//    5), and as a prefix match it also broke the legitimate
+//    '@openmig/scheduler' → the package INDEX. That was the one module self-host
+//    must never load (it re-exported the Trigger.dev client until alpha.18 —
+//    AGENTS.md hard rule 5), and as a prefix match it also broke the legitimate
 //    '@openmig/scheduler/in-process' import with ENOTDIR. Nine of seventeen
 //    files failed. The shared map pins the subpath ahead of the bare entry.
 //

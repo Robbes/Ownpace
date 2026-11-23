@@ -115,7 +115,7 @@ function asSystemRole(url: string): string {
   return parsed.toString();
 }
 
-/** The two URLs a run receives (set-task-env.sh), for this database. */
+/** The two URLs a run receives (the worker service's, managed.yml), for this database. */
 const taskEnv = () => ({ APP_DATABASE_URL: asAppUser(PG_CONNECTION_STRING), SYSTEM_DATABASE_URL: asSystemRole(PG_CONNECTION_STRING) });
 
 const P = '0138e000-e29b-41d4-a716-4466554400';

@@ -22,7 +22,7 @@
  *     operator knows the drain is done, and having to count it in SQL is how
  *     somebody deploys over a live pass.
  *
- * Read as text: this is a Trigger.dev scheduled task whose body needs a
+ * Read as text: this is a scheduled job (a Trigger.dev task until alpha.18) whose body needs a
  * database, a runner and a queue to execute, and what is asserted is the ORDER
  * of two statements, which no runtime call can observe.
  */

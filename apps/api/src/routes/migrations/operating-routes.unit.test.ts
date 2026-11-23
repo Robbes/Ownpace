@@ -113,7 +113,7 @@ describe('route registration', () => {
   it('exposes apply ONLY as evaluate-then-queue — the removal itself never runs here', () => {
     // The one destructive operation (workplan 0017 T4). The POST answers the
     // ledger-side gates synchronously and QUEUES a permitted removal; the
-    // target call lives in the worker behind Trigger.dev (ADR-0004), and the
+    // target call lives in the worker, behind its queue (ADR-0004, ADR-0054), and the
     // receipt is what a poller reads. No route in this edition performs a
     // removal on the request thread.
     const got = routes().filter((r) => r.path.includes('apply') || r.path.includes('receipt'))
@@ -132,7 +132,7 @@ describe('route registration', () => {
       // DESTROY nothing — they CREATE shares, the same synchronous OCS call
       // the per-row decision route has made since 0052, bounded by the
       // checklist a human curates. If checklists ever reach worker scale,
-      // these are the routes that move behind Trigger.dev — deliberately,
+      // these are the routes that move into the worker — deliberately,
       // not by a test quietly widening.
       'POST /:mappingId/sharing/apply-all',
       'POST /:mappingId/sharing/apply-folder',

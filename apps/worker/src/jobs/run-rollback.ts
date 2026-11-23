@@ -25,7 +25,8 @@
  *
  * DNS restore is deferred (verify-only DNS — the operator reverts MX by hand).
  *
- * Trigger: Manual (user-initiated) — the Trigger.dev dashboard. No API route
+ * Trigger: Manual (operator-initiated) — `./deploy/compose/operator.sh jobs run
+ * run-rollback '<json>'` (the Trigger.dev dashboard until alpha.18). No API route
  * enqueues it, on purpose: the API is prepare-only for cutovers, and nothing
  * there executes one either (workplan 0101 T5).
  */
