@@ -25,7 +25,10 @@ not, and found the one change of the release that needed code here: v1.2.0's `Co
 maps each blob id to the list of cards the blob holds, where v1.1.1 mapped it to the card, and the
 JMAP contact writer, which spread it into its `ContactCard/set` create, was refused as
 `invalidProperties` naming the property `0`. The writer now reads either shape (`parsedCardOf`), and
-its refusals name the properties a server refused (the fix doc, "Moving the pin").
+its refusals name the properties a server refused (the fix doc, "Moving the pin"). On the fix's
+head, `b3cde606`, CI's integration tests passed on both architectures, and E2E (self-hosted) on
+Postgres (run 45285771678) and on PGlite (run 45286646969) and E2E (managed) (run 45287379785)
+passed again, one at a time.
 
 **2026-11-23, evening: T6, Monday's scan read. No Trigger.dev image was left in it.** The weekly
 Security Scan, run 45227762752 on `main` at `ac4efadb` (#2084), was started by GitHub at
