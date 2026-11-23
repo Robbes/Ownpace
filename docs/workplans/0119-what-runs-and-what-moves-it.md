@@ -4,6 +4,19 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, night: squawk 2.74.0 inside its three-day floor, on the owner's word, for alpha.19.**
+The owner, 2026-11-23, after alpha.18's tag: *"Pull pnpm, zizmor and squawk earlier. I waive
+unneeded days/waiting."* The Migration locks workflow moves from v2.73.0 to v2.74.0 (npm, 2026-11-23
+at 00:26 UTC; the pin watch's #1671). squawk publishes no checksum file, so each sum is that of the
+`squawk` binary in squawk's npm package for the same build, `@squawk-cli/linux-x64-musl` and
+`@squawk-cli/linux-arm64-musl`, each package first checked against the registry's own integrity sum.
+The same reading at 2.73.0 gives, byte for byte, the two sums pinned before, which were those of the
+GitHub release's assets. Both builds, run over every file of both chains with the report's
+arguments, print the same 438 lines; `--help` differs in one subcommand's description. So the report
+reads as it did, and each run of the workflow proves that the GitHub release's bytes are npm's: the
+first, on the pull request's head `97b51841`, downloaded both v2.74.0 assets from the release and
+found the two sums pinned, and `squawk (report only)` passed.
+
 **2026-11-23, night: pnpm 11.29.0 inside its three-day floor, on the owner's word, for
 alpha.19.** The owner, 2026-11-23, after alpha.18's tag: *"Pull pnpm, zizmor and squawk earlier.
 I waive unneeded days/waiting."* `packageManager` moves from 11.28.13 to 11.29.0 (npm, 2026-11-22

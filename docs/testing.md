@@ -600,7 +600,7 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   which runs the report against a stubbed docker.
 - `migration-locks.yml` — on a pull request and a push to `main` that touch either migration chain,
   the workflow or its script, and on dispatch, on a GitHub-hosted runner, never a required check
-  (workplan 0165): squawk 2.73.0, the static musl build from its GitHub release, checked by its
+  (workplan 0165): squawk 2.74.0, the static musl build from its GitHub release, checked by its
   sha256 for both architectures before it runs, over every file of both chains, one run per file,
   each read as one transaction (`--assume-in-transaction`, as `runMigrations` applies it) on
   Postgres 18. `squawk (report only)` lists in its summary every finding in a migration file the
