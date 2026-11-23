@@ -586,6 +586,8 @@ async function loadDomainConnections(
   phaseOf: PathPhaseOf;
   /** A test migration's marker (migration 0070, workplan 0162), or null. */
   testMarker: string | null;
+  /** When the migration was made, read with its phases: its start, for the address table (ADR-0055). */
+  createdAt?: Date;
 }> {
   return withTenant(pool, tenantId, async (txDb) => {
     const mappingRows = await txDb
@@ -697,6 +699,7 @@ async function loadDomainConnections(
         | null,
       phaseOf: phases.phaseOf,
       testMarker: mapping.testMarker,
+      ...(phases.createdAt !== undefined ? { createdAt: phases.createdAt } : {}),
     };
   });
 }
@@ -836,6 +839,8 @@ export async function buildDomainDepsFromMapping(
     // source it builds in `MarkedOnly` when it is set, so every reader of
     // this mapping's calendar, contacts, files or tasks sees the marked set.
     testMarker,
+    // Its start, for the address table: an event over by then keeps its addresses.
+    createdAt,
   } = await loadDomainConnections(pool, tenantId, mappingId);
   // THE FOUR NON-MAIL FACES GET THE TENANT'S BUDGET TOO (2026-09-07).
   // Until today only `buildDepsFromMapping` built one, so every calendar,
@@ -881,7 +886,8 @@ export async function buildDomainDepsFromMapping(
   // THE ADDRESS TABLE, read once at the start of this data type's pass
   // (ADR-0055; workplan 0168 §4.3), for the three data types it reaches.
   // Files and mail never get one. The press past a cutover (D5) is read with
-  // it, from the migration's own row.
+  // it, from the migration's own row, and the migration's start with its
+  // phases: an event or task over by then keeps every address.
   const addressChanges =
     domain === 'calendar' || domain === 'task' || domain === 'contact'
       ? await addressChangesForPass(
@@ -889,6 +895,7 @@ export async function buildDomainDepsFromMapping(
           tenantId,
           accountAddressesOf(src.config, src.creds, tgt.config, tgt.creds),
           await withTenant(pool, tenantId, (txDb) => readAddressChangesApplied(txDb, tenantId, mappingId)),
+          createdAt,
         )
       : undefined;
   const withAddressChanges = addressChanges ? { addressChanges } : {};

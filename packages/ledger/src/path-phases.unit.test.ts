@@ -17,7 +17,7 @@ import { pgliteDriver } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import { withTenant } from './db.ts';
 import type { LedgerDriver } from './driver.ts';
-import { readPathPhases } from './path-phases.ts';
+import { readPathPhases, recordAddressChangesApplied } from './path-phases.ts';
 
 // UUID family 0128b000-…, unused elsewhere in the repo.
 const TENANT = '0128b000-e29b-41d4-a716-446655440001';
@@ -143,6 +143,17 @@ describe("every data type's phase, while none has a phase of its own", () => {
     await place('active');
     await query(`UPDATE mailbox_mapping SET grant_withdrawn_at = now() WHERE id = $1`, [MAPPING]);
     expect((await read(TENANT, MAPPING))!.grantWithdrawnAt).toBeInstanceOf(Date);
+  });
+
+  it('says when the migration was made, the one moment a pass, a press or a status never moves (ADR-0055)', async () => {
+    // The address table leaves an event that was over by then as the source has it (the owner, 2026-11-23).
+    await query(`UPDATE mailbox_mapping SET created_at = '2026-11-02T08:15:00Z' WHERE id = $1`, [MAPPING]);
+    const made = new Date('2026-11-02T08:15:00Z');
+    expect((await read(TENANT, MAPPING))!.createdAt).toEqual(made);
+    await place('cutover', { copies: true, minutesPastTheEnd: -5 });
+    await withTenant(driver, TENANT, (db) => recordAddressChangesApplied(db, TENANT, MAPPING, 'a'.repeat(64), 'operator'));
+    await place('active');
+    expect((await read(TENANT, MAPPING))!.createdAt).toEqual(made);
   });
 
   it('answers null for a migration that is gone, or that another organisation owns', async () => {
