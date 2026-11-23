@@ -25,8 +25,6 @@ export declare function endingOf(tag: string): string;
 export declare function byHandNote(dockerfile: string, pin: string, newest: string): string;
 export declare const STALWART_FILES: string[];
 export declare const GOACCESS_DOCKERFILE: string;
-export declare const SOCKET_PROXY_DOCKERFILE: string;
-export declare const SOCKET_PROXY_UPSTREAM: string;
 export declare const LINES: Record<string, number>;
 export declare const COSIGN_FILES: string[];
 export declare const ATLAS_WORKFLOW: string;
@@ -119,7 +117,7 @@ export interface Row {
   pin?: string;
   newest?: string;
   state: State;
-  /** What the table shows instead of the state, when the state reads wrong (the TypeScript split; ClickHouse `intended`, or `ahead` of Trigger.dev's pin). */
+  /** What the table shows instead of the state, when the state reads wrong (the TypeScript split). */
   shown?: string;
   notes?: string[];
   error?: string;
@@ -127,6 +125,7 @@ export interface Row {
   /** Text whose absence from the open issue's body means something new: a comment, not only an edit. */
   news?: string | string[];
   update?: string | ((fresh: string[]) => string);
+  /** The comment a current row closes its open issue with; a removed row's says why (`removedRow`). */
   closing?: string;
 }
 
@@ -149,8 +148,6 @@ export interface Net {
   /** `git ls-remote <url> HEAD`: the repository's newest commit on its default branch. */
   head(url: string): Promise<string>;
   npm(args: string[]): Promise<string>;
-  /** `trigger-version.sh probe <pin>`: the tags above it both images carry, newest first. */
-  probe(pin: string): Promise<string>;
 }
 
 /** The checkout: a file's text, or null when it is not there; a directory's names. */
@@ -181,10 +178,6 @@ export declare function readImages(text: string): Image[];
 export declare function dockerfileBase(text: string): Omit<Image, 'line'>;
 /** `<base tag>-<12 hex of the SHA-256 of the instruction lines>`: the tag a compose file gives the image it builds. */
 export declare function builtTag(text: string): string;
-/** The Trigger.dev images built here (0146 T16), each with the ghcr image its Dockerfile builds on. */
-export declare const TRIGGER_BUILDS: Record<string, string>;
-/** Throws unless each built Trigger.dev image's FROM is its ghcr image at the pin. */
-export declare function triggerBuildsAt(repo: Repo, pin: string): void;
 /** A compose file's `localhost/<name>` image, built from `<name>/Dockerfile` beside it; null for a pulled one. */
 export declare function builtImage(
   repo: Repo,
@@ -193,35 +186,20 @@ export declare function builtImage(
 ): { context: string; dockerfile: string; base: Omit<Image, 'line'>; tag: string } | null;
 export declare function registryOf(repo: string): { host: string; name: string };
 export declare function registryTags(net: Net, repo: string): Promise<string[]>;
-export declare function nodeVersionOf(net: Net, image: string): Promise<string>;
 export declare function registryDigest(net: Net, repo: string, tag: string): Promise<string>;
 export declare function stepsUsing(
   workflow: string,
   action: string,
 ): Array<{ sha: string; version: string; with: Record<string, string> }>;
 export declare function actionDefault(actionYml: string, input: string): string;
-export declare function fileInTgz(tgz: Buffer, path: string): string;
-export declare function baseImageOf(buildImageJs: string, runtime: string): string;
-export declare function cliBaseImage(net: Net, version: string, runtime: string): Promise<string>;
-export declare function securityFloor(index: unknown, major: number): { version: string; date: string };
-export declare function readTriggerPin(compose: string, workerManifest: string): string;
-export declare function triggerBody(result: Pick<PinResult, 'pin' | 'newest'>): string;
-export declare function clickhouseSupport(securityMd: string, tag: string): string;
-/** A difference from Trigger.dev's ClickHouse pin that is on purpose, for this exact pair of `tag@digest` (0119 §3 item 9), or null. */
-export declare const CLICKHOUSE_INTENDED: { ours: string; theirs: string; why: string } | null;
 
 export declare function zitadelRow(repo: Repo, net: Net): Promise<Row>;
-export declare function triggerRow(repo: Repo, net: Net): Promise<Row>;
-export declare function clickhouseRow(repo: Repo, net: Net, trigger: Row): Promise<Row>;
-export declare function taskNodeRow(repo: Repo, net: Net): Promise<Row>;
-/** The tasks' base against main's `edge`, by each platform's layers (0119 §3 item 13). */
-export declare function taskBaseRow(repo: Repo, net: Net): Promise<Row>;
-/** Each platform's layer digests in one index of the tasks' base. */
-export declare function taskBaseLayers(net: Net, repo: string, digest: string): Promise<Record<'amd64' | 'arm64', string[]>>;
 export declare function pnpmRow(repo: Repo, net: Net): Promise<Row>;
 export declare function typescriptRow(repo: Repo, net: Net): Promise<Row>;
 export declare function routineRows(repo: Repo, net: Net): Promise<{ rows: Row[]; status: string[] }>;
 export declare function summaryOf(rows: Row[], status: string[]): Row;
+/** A row for a pin that went with Trigger.dev in alpha.18 (workplan 0167 T9): current, with the sentence its open issue is closed with. */
+export declare function removedRow(what: string): { pin: string; newest: string; state: 'current'; closing: string };
 
 export declare function keepIssue(
   result: PinResult | Row,
@@ -230,20 +208,9 @@ export declare function keepIssue(
 ): 'opened' | 'updated' | 'unchanged' | 'closed' | 'untouched';
 export declare function watch(repo: Repo, net: Net): Promise<Report>;
 export declare function table(report: Report): string;
-export declare function realNet(root: string): Net;
+export declare function realNet(): Net;
 export declare function repoReader(root: string): Repo;
 export declare const NODE_RELEASE_KEYS_FILE: string;
 export declare const NODE_RELEASE_KEYS_NOTE: string;
 export declare function releaseKeysPin(text: string | null): { repo: string; commit: string; path: string; blob: string };
 export declare function gitBlobId(bytes: Uint8Array): string;
-
-/** The tasks' prebuilt base, as `apps/worker/trigger.config.ts` pins it (workplan 0119 §3 item 13). */
-export declare const TASK_BASE_CONFIG: string;
-/** The config's line, `const TASK_BASE_IMAGE = '<ref>';`, capturing the ref. */
-export declare const TASK_BASE_LINE: RegExp;
-/** The ref's one shape: the GHCR repository, `sha-<7 hex>`, and the index digest. */
-export declare const TASK_BASE_REF: RegExp;
-export declare const TASK_BASE_ARCHES: Array<'amd64' | 'arm64'>;
-export declare const TASK_BASE_NOTE: string;
-/** The config's pin of the tasks' base, with the commit its tag names; throws for any other shape, or a line missing or there twice. */
-export declare function taskBasePin(config: string): Omit<Image, 'line'> & { commit: string };

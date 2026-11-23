@@ -150,7 +150,7 @@ fi
 touch "$ENV_FILE"
 
 # VALUE RULES. Every consumer of this file sources it with `set -a; . .env`
-# (deploy-tasks.sh, set-task-env.sh, the e2e workflow), so the file is not just
+# (the bring-up, the e2e workflow; deploy-tasks.sh and set-task-env.sh until alpha.18), so the file is not just
 # read as data — it is EXECUTED by a shell. A value containing a quote, a
 # backtick, a `$` or whitespace either changes meaning on the way in or runs as
 # a command, and compose's own parser would disagree with the shell about which

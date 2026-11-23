@@ -3,8 +3,8 @@
 // Integration tests for the 0013 discovery/confirm API routes: GET /api/scope-manifest,
 // GET/POST /api/migrations/:id/discovery|discover|start, and the paused-sync guard. Runs against
 // Testcontainers Postgres (pnpm test:integration). The happy-path /discover + /sync ENQUEUE is a
-// thin string-id call to Trigger.dev (covered by the T3 job unit test); here we cover the paths
-// that don't require a live Trigger.dev.
+// thin string-id call to the job queue (pg-boss since alpha.18; covered by the unit tests); here we
+// cover the paths that don't require a jobs database, which this file does not configure.
 //
 // UUID Family: e0d15000-e29b-41d4-a716-4466554400xx
 
@@ -162,13 +162,13 @@ describe('discovery/confirm routes (0013 T4/T5)', () => {
 
     // Activation also enqueues the FIRST pass, so a quarter-hourly cadence is
     // how often the sync repeats rather than how long the first one waits.
-    // There is no live Trigger.dev here (see the file header), so what this
+    // There is no jobs database here (see the file header), so what this
     // proves is the shape that matters either way: the attempt is made, its
     // outcome rides back on the answer, and it does NOT cost the activation —
     // the mapping is active above, and the tick still picks it up.
     expect(res.body.firstRun).toBeDefined();
     if (res.body.firstRun.queued === false) {
-      expect(res.body.firstRun.reason).toContain('TRIGGER_API_URL');
+      expect(res.body.firstRun.reason).toContain('JOBS_DATABASE_URL');
     } else {
       expect(typeof res.body.firstRun.runId).toBe('string');
     }

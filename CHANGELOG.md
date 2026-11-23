@@ -4,6 +4,52 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Removed
+
+- **Self-hosted Trigger.dev, from the managed edition** (workplan 0167 T9; ADR-0054). The owner,
+  2026-11-23: *"i will remove trigger.dev, but the machine runs OTA and managed, so both have to be
+  move out of triggerdev."* alpha.16 moved every job to pg-boss and kept the plane stopped as the
+  way back; alpha.18 removes it. Gone: the `@trigger.dev/*` packages and the `trigger.dev` CLI (and
+  the pnpm overrides and release-age exclusions only their dependencies needed), the task wrappers
+  in `apps/worker/src/jobs`, `trigger.config.ts`, the task image and its base
+  (`apps/worker/task-image`), the API's Trigger.dev client paths; in `deploy/compose/managed.yml`
+  the eleven services of profile `trigger` (trigger-db, trigger-redis, trigger-api, clickhouse,
+  trigger-registry, trigger-docker-proxy, trigger-supervisor, minio, minio-init, trigger-tls,
+  trigger-tls-init), their three networks, their volumes and every `TRIGGER_*` key; the scripts
+  that only served the plane (`deploy-tasks.sh`, `set-task-env.sh`, `trigger-version.sh`,
+  `trigger-credentials.sh`, `plane-tokens.sh`, `plane-limit.sh`, `reset-trigger.sh`, the login
+  helpers, the supervisor, ClickHouse, Redis, Caddy and socket-proxy configuration); the bring-up's
+  phases `trigger`, `account`, `login` and `tasks`; the images `ownpace-task-base`, the socket
+  proxy, Caddy and Redis from `images.yml`, Security Scan and Dependabot; the pin watch's rows for
+  Trigger.dev, ClickHouse and the tasks' Node and base, which close their issues once; E2E
+  (managed)'s `job_runner` input, its Trigger.dev drill and its `TRIGGER_*` environment.
+
+### Changed
+
+- **`OWNPACE_JOB_RUNNER` keeps its reader, and an old `.env` fails loudly** (workplan 0167 T9).
+  Unset, empty or `pg-boss` runs; `trigger` is refused by the bring-up, the deploy, the API, the
+  worker and `operator.sh` in one sentence: *"OWNPACE_JOB_RUNNER is "trigger", but Trigger.dev was
+  removed in alpha.18, so remove the key from the .env or set it to "pg-boss"."* Any other value is
+  refused as before.
+- **The bring-up's phases are `preflight env data demo plane app smoke`.** The new `plane` phase
+  removes what is left of the plane's containers on the stack, by their Compose labels, and never
+  a volume; the smoke checks that no container of the plane is left, at its start and its end.
+- **The plane's volumes go only by name, on the owner's word:** `deploy/compose/remove-trigger-plane.sh`
+  lists them, says what `--yes` would remove, and with `--yes` removes the eleven volumes and three
+  networks of this checkout's project, and nothing else; it refuses while a plane container is left
+  or the switch says `trigger`. E2E (managed) runs it on the OTA stack after each bring-up; on live
+  it is the owner's step after alpha.18 is proven (docs/managed-bring-up.md, "Trigger.dev's plane,
+  removed").
+- **The gate's restore drill is the identity provider's database:** `dump-idp.sh --drill` dumps
+  it, restores the dump into a database of its own and compares its table counts, in place of the
+  drill of Trigger.dev's database.
+- **`copy-before-update.sh take --trigger` is refused**: there is no task runner's database to
+  copy. A kept copy that holds one keeps it, is deleted and expires as any copy, and nothing
+  restores it. `rotate-db-passwords.sh --with-trigger-stores` is refused the same way.
+- **Live's deploy from alpha.17 is reversible.** alpha.17's `deploy-live.sh` takes the copy
+  without `--trigger`, notes that the release removes the plane from `managed.yml` (its volumes
+  stay), and finds no migration and no changed pin it compares.
+
 ## [0.2.0-alpha.17] - 2026-11-23
 
 A person who leaves an address they cannot take along, a Gmail address for one, now declares the

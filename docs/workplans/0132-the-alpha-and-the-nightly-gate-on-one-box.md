@@ -2,7 +2,16 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-22 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23: alpha.18 removes Trigger.dev's plane from both stacks (workplan 0167 T9).** The
+owner, 2026-11-23: *"i will remove trigger.dev, but the machine runs OTA and managed, so both have
+to be move out of triggerdev."* What this workplan says of the plane on either stack, its ports,
+its TLS front, its dashboard, its tokens and its share of the box, is the record of alpha.1 to
+alpha.17 from here. On the OTA stack the gate removes what is left of it after each bring-up
+(`remove-trigger-plane.sh --yes` in E2E (managed)); on live, alpha.18's bring-up removes its
+containers and the owner removes its volumes once alpha.18 is proven
+(docs/managed-bring-up.md, "Trigger.dev's plane, removed").
 
 **2026-11-22, a read of the identity provider waits about a minute:** `setup-zitadel.sh` and
 `smoke-managed.sh` now ask a read that got no answer six times, waiting 2, 4, 8, 16 and 32

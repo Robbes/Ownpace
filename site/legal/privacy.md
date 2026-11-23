@@ -7,6 +7,19 @@
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
 
+  Still 1.0, and no word changed, read again on 2026-11-23 for alpha.18 (workplan 0167 T9: the
+  owner, 2026-11-23, "i will remove trigger.dev, but the machine runs OTA and managed, so both
+  have to be move out of triggerdev."). The published text never named Trigger.dev, ClickHouse
+  or MinIO; it says "background tasks", which run on pg-boss in the worker since alpha.16. What
+  the notes below said would hold "once Trigger.dev and its database are removed" now holds on a
+  stack from the moment its owner runs deploy/compose/remove-trigger-plane.sh --yes: §4.1 and
+  §11's "settings of the background tasks" are the worker's alone; §9's records of the
+  background tasks are pg-boss's alone (Trigger.dev's kept database is one of the volumes that
+  script removes, on live once alpha.18 is proven); a copy before an update taken by an earlier
+  release may still hold a dump of Trigger.dev's database, and goes as any copy does (at most
+  7 days, §9), with nothing that restores it; §8's negative no longer depends on ClickHouse,
+  MinIO or the task runner's usage reports, which no longer run.
+
   Still 1.0, edited in place again on 2026-11-23, in both languages. The owner, 2026-11-22 at
   about 22:33 UTC, of workplan 0168's D8 (the policy's lines for a new address go in before the
   step that asks for one is shown, and under 1.0 while no tester has accepted it), verbatim:
@@ -1276,9 +1289,9 @@ Beyond what this policy names, we give your data to others only where the law ob
 ## 8. Where it is, and where it is not
 
 <!-- NOT YET TRUE ON live (the owner, 2026-09-28, ops-telemetry (a): switch it off everywhere).
-     The negative below holds once the task runner's usage reports are off
-     (TRIGGER_TELEMETRY_DISABLED on live and the test stack) and Zitadel, ClickHouse and MinIO
-     are checked and switched off too. -->
+     The negative below holds once Zitadel is checked and switched off too. The task runner's
+     usage reports, ClickHouse and MinIO were in this list until alpha.18 removed Trigger.dev's
+     plane from the managed edition (workplan 0167 T9). -->
 
 The service runs in the **European Union**. One party in the table above is outside it: our
 mail provider, Proton AG, is in **Switzerland**. The European Commission has decided that

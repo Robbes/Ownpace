@@ -37,9 +37,8 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import { PgRateBudget, plainDb } from '@openmig/ledger';
 import { openTaskPools } from './task-pools.ts';
 import {
@@ -79,9 +78,8 @@ export const ConfirmationJobSchema = z.object({
 const { tenant: pool } = openTaskPools();
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const runConfirmationRun = leavesAReference(
   'run-confirmation',
@@ -168,9 +166,3 @@ export const runConfirmationRun = leavesAReference(
     return { started: true as const, runId: result.runId, tally: result.tally };
   },
 );
-
-export const runConfirmationTask = schemaTask({
-  id: 'run-confirmation',
-  schema: ConfirmationJobSchema,
-  run: onTriggerDev(runConfirmationRun),
-});

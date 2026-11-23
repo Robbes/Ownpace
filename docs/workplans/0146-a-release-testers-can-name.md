@@ -4,6 +4,12 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23: alpha.18 removes Trigger.dev (workplan 0167 T9).** The task image, its base
+(`ownpace-task-base`, T10 and 0119 §3 item 13), the plane's builds here (T16) and the release's
+check of the task base (`release-verify.mjs`) are gone with it; `images.yml` builds `build`,
+`database` and `pgbouncer`. Live's deploy from alpha.17 is reversible by the deploy's own rule: no
+migration, and no pin it compares moves (0167's Status).
+
 **2026-11-23, morning, later: the fold for `v0.2.0-alpha.17` (T2).** `package.json` and the API
 contract say `0.2.0-alpha.17`, `scripts/release-line.json` lists it, and everything under
 [Unreleased] moves to its section, dated 2026-11-23, under a summary; [Unreleased] stays, empty.

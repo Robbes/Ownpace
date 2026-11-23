@@ -9,7 +9,7 @@
 #
 # WHAT THIS FILE DOES NOT SEE is scripts/idp-pin-watch.mjs's (workplan 0146 T8): every image
 # line of deploy/compose's managed.yml, dev.yml and www.yml, the busybox and GoAccess copies in
-# its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy and the osv-scanner the scan runs, the
+# its scripts, `packageManager`, the Trivy and the osv-scanner the scan runs, the
 # gitleaks ci.yml's gitleaks job runs (2026-11-21), the cosign images.yml and release.yml name, the Atlas release ci.yml's migration-lint downloads
 # by URL and checks by its sha256 (2026-11-01), the stalwart-cli release ci.yml, e2e.yml and
 # e2e-managed.yml install the same way, the binfmt and BuildKit images images.yml's build job
@@ -18,11 +18,7 @@
 # this, and keeps an issue open while one is behind. This file moves cosign-installer, and the
 # cosign it installs only while no step names one.
 # The ones of those this file sees too are the databases' build, whose pin is the FROM of
-# deploy/compose/postgres/Dockerfile (its entry below), the Docker socket proxy's since
-# 2026-10-30, the FROM of deploy/compose/docker-socket-proxy/Dockerfile (its entry below), the
-# dashboard's TLS front's since 2026-10-31, the FROM of deploy/compose/caddy/Dockerfile (its
-# entry below), Trigger.dev's Redis's since 2026-11-07, the FROM of
-# deploy/compose/redis/Dockerfile (its entry below), and the pooler's since 2026-11-13, the FROM
+# deploy/compose/postgres/Dockerfile (its entry below), and the pooler's since 2026-11-13, the FROM
 # of deploy/compose/pgbouncer/Dockerfile (its entry below). The appliance's PostgreSQL is a build
 # too since 0146 T15b, and its pin, the FROM of deploy/selfhost/postgres/Dockerfile, is this
 # file's alone (its entry below): the pin watch reads neither deploy/selfhost/compose.yml nor
@@ -60,19 +56,6 @@ updates:
       # admits a stable 7.1; delete this with the split.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
-      # The Trigger.dev SDK moves with the Trigger.dev image or not at all: the two
-      # compose defaults, managed.env.example and every @trigger.dev/* manifest
-      # must agree, the bring-up and bootstrap-managed.unit.test.ts refuse when they
-      # do not, and an upgrade is a one-way schema migration on the persistent
-      # stack. Dependabot moved the SDK alone on 2026-08-24 and every managed run
-      # died at the bring-up.
-      # deploy/compose/trigger-version.sh moves every one of them. Workplan 0119 T1.
-      - dependency-name: "@trigger.dev/*"
-      # The deploy CLI is that same version under an unscoped name (apps/worker's
-      # devDependency since 2026-11-02, from the lockfile rather than `npx`), so
-      # the pattern above does not match it, and the weekly group would move it
-      # alone. trigger-version.sh moves it with the rest.
-      - dependency-name: "trigger.dev"
     groups:
       # One PR/week for routine minor+patch bumps across dev + prod deps.
       minor-and-patch:
@@ -117,10 +100,6 @@ updates:
   # three `FROM node:` lines are (scripts/an-appliance-with-nothing-to-exec),
   # so a pull request that moves the digest in one directory and not the other
   # fails until both move.
-  # apps/worker/task-image is the tasks' prebuilt base (workplan 0119 §3 item
-  # 13): its two FROM lines are apps/api/Dockerfile's two, and
-  # scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts holds them
-  # equal, so it is in this group and moves in the same pull request.
   # apps/worker is the job worker's image (workplan 0167 T7), on the same two
   # FROM lines, held equal by scripts/a-worker-image-on-the-apis-base.unit.test.ts,
   # and in the group for the same reason.
@@ -132,7 +111,6 @@ updates:
       - "/apps/web"
       - "/apps/selfhost"
       - "/apps/worker"
-      - "/apps/worker/task-image"
     schedule:
       interval: weekly
       day: monday
@@ -238,94 +216,6 @@ updates:
         update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore(postgres)
-
-  # The Trigger.dev supervisor's Docker socket proxy
-  # (deploy/compose/docker-socket-proxy/Dockerfile, workplan 0119, 2026-10-30):
-  # Tecnativa's docker-socket-proxy v0.6.0 on the newest HAProxy of the line
-  # that release chose, which managed.yml builds as
-  # `localhost/docker-socket-proxy:<tag>-<12 hex>`, the hex being the hash of
-  # the Dockerfile's instructions. So this pull request, a newer 3.4 or a new
-  # digest in the FROM, fails scripts/a-tag-upstream-never-rebuilds.unit.test.ts
-  # until managed.yml's image line moves too; the failure prints the `sed` that
-  # moves it. Push that to the pull request's branch, read HAProxy's notes for
-  # the release, and dispatch E2E (managed) on it: every task run starts
-  # through this proxy. Patches and digests only: another HAProxy line is the
-  # owner's call, taken with a release of docker-socket-proxy (its header).
-  - package-ecosystem: docker
-    cooldown:
-      default-days: 3
-    directory: "/deploy/compose/docker-socket-proxy"
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Etc/UTC
-    open-pull-requests-limit: 1
-    ignore:
-      - dependency-name: haproxy
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
-    commit-message:
-      prefix: chore(socket-proxy)
-
-  # The Trigger.dev dashboard's TLS front (deploy/compose/caddy/Dockerfile,
-  # workplan 0119, 2026-10-31): Caddy's official image with curl removed, and
-  # the libraries only curl pulled in, which managed.yml builds as
-  # `localhost/caddy:<tag>-<12 hex>`, the hex being the hash of the
-  # Dockerfile's instructions. This pull request, a newer Caddy 2 or a new
-  # digest in the FROM, fails twice on purpose. Its build stops with "re-read
-  # the header", because the RUN checks the packages it removes at the versions
-  # the header read and `caddy version` at the FROM's release: read the new
-  # image's packages and its scan, and move those with the header. That moves
-  # the name, and scripts/a-package-the-front-never-runs.unit.test.ts fails
-  # until managed.yml's image line moves too; the failure prints the `sed`.
-  # Push both to the pull request's branch, and dispatch E2E (managed) on it.
-  # Every Caddy 2 release and digest: Caddy keeps no older minor line, so its
-  # fixes ship in the newest release, and the pin watch compares within 2 too.
-  # A major is the owner's.
-  - package-ecosystem: docker
-    cooldown:
-      default-days: 3
-    directory: "/deploy/compose/caddy"
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Etc/UTC
-    open-pull-requests-limit: 1
-    ignore:
-      - dependency-name: caddy
-        update-types: ["version-update:semver-major"]
-    commit-message:
-      prefix: chore(caddy)
-
-  # Trigger.dev's Redis (deploy/compose/redis/Dockerfile, workplan 0119 §3 item
-  # 11, 2026-11-07): Redis's official image with the eleven Debian packages
-  # nothing here runs purged, run as uid 999 from its first process, which
-  # managed.yml builds as `localhost/redis:<tag>-<12 hex>`, the hex being the
-  # hash of the Dockerfile's instructions. This pull request, a newer Redis 7.4
-  # or a new digest in the FROM, builds on its own when the base still has the
-  # eleven and nothing new depends on them; a new release stops the build at its
-  # last RUN, which asks redis-server for the FROM's release: read the new
-  # image's packages and scan, and move that release and the header. A changed
-  # instruction moves the name, and scripts/an-essential-nothing-runs.unit.test.ts
-  # fails until managed.yml's image line moves too; the failure prints the
-  # `sed`. Push both to the pull request's branch, and dispatch E2E (managed) on
-  # it: Trigger.dev's queues are in it. A major is the owner's (0119 §3 item 3).
-  - package-ecosystem: docker
-    cooldown:
-      default-days: 3
-    directory: "/deploy/compose/redis"
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Etc/UTC
-    open-pull-requests-limit: 1
-    ignore:
-      - dependency-name: redis
-        update-types: ["version-update:semver-major"]
-    commit-message:
-      prefix: chore(redis)
 
   # The pooler (deploy/compose/pgbouncer/Dockerfile, workplan 0119, 2026-11-13,
   # for alpha.8): edoburu's PgBouncer image with five Alpine packages at the

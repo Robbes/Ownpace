@@ -20,7 +20,7 @@ resumes.
 | Entry point | Where | Who uses it |
 |---|---|---|
 | `rollback` CLI subcommand | `apps/worker/src/cli/cutover-commands.ts` | an operator at a terminal — self-host, or managed |
-| `run-rollback` job | `apps/worker/src/jobs/run-rollback.ts` | managed: on pg-boss with `operator.sh jobs run`, in trigger mode from Trigger.dev's dashboard; it is the door that can also notify |
+| `run-rollback` job | `apps/worker/src/jobs/run-rollback.ts` | managed: on pg-boss with `operator.sh jobs run`; it is the door that can also notify |
 
 Neither is reachable from the API or the web UI, on purpose: the API is prepare-only for cutovers
 (`POST …/cutover` verifies and stops at `READY_FOR_CUTOVER`), and nothing there executes one either.
@@ -121,13 +121,11 @@ The `run-rollback` job takes `{ tenantId, mappingId, reason, options }`, where `
 `restoreDns` / `dnsDomain` / `notifyUsers`. `restoreDns: true` logs the manual-step reminder — it
 does not perform a restore. `notifyUsers: true` sends the rollback notice (EN or NL, per
 `NOTIFY_LOCALE`) and refuses up front if the channel is unconfigured, as described in step 6.
-Nothing in the repository enqueues it: the operator starts it by hand, in one of two ways,
-depending on which runner the stack's jobs run on (`OWNPACE_JOB_RUNNER`).
+Nothing in the repository enqueues it: the operator starts it by hand.
 
 #### Managed (pg-boss)
 
-`OWNPACE_JOB_RUNNER=pg-boss`, `managed.yml`'s default (ADR-0054): there is no dashboard. From the
-stack's checkout:
+The jobs run on pg-boss (ADR-0054), which has no dashboard. From the stack's checkout:
 
 ```sh
 ./deploy/compose/operator.sh jobs run run-rollback \
@@ -138,13 +136,9 @@ It prints the run's id; follow it with `./deploy/compose/operator.sh jobs show <
 refusal with `jobs failures run-rollback`. While the operator's hold is open it starts nothing
 unless given `--despite-hold`. The payload is checked only for being a JSON object here; the job's
 own schema refuses a wrong one, and that run fails once, not retried. The commands are in
-[operator-runbook.md](./operator-runbook.md#the-jobs-on-pg-boss-seeing-and-steering-them-pg-boss-mode-only).
-
-#### Managed (Trigger.dev, the fallback)
-
-`OWNPACE_JOB_RUNNER=trigger` in the stack's `.env`, the way back (Trigger.dev's plane is kept
-installed and stopped otherwise): start `run-rollback` from the Trigger.dev dashboard's Test runs,
-with the payload above.
+[operator-runbook.md](./operator-runbook.md#the-jobs-on-pg-boss-seeing-and-steering-them).
+Until alpha.18 a stack could also run it on Trigger.dev, from that dashboard's Test runs; alpha.18
+removed the plane (workplan 0167 T9).
 
 ## Audit trail
 

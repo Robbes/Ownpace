@@ -28,23 +28,21 @@ import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
 import { DISCOVERY_DOMAINS } from '@openmig/shared';
 
-// Trigger.dev, replaced by a client whose every enqueue THROWS. Two reasons:
+// The job queue (pg-boss's producer), replaced by one whose every enqueue THROWS. Two reasons:
 // it makes the enqueue-failure landing testable (the one branch of the
 // destructive route the refusal tests never reach), and it turns any
-// accidental enqueue in this file into a loud failure instead of an HTTP call
-// to whatever happens to listen on localhost:3000. Everything else the API
+// accidental enqueue in this file into a loud failure instead of a connection
+// to whatever jobs database happens to be configured. Everything else the API
 // pulls from the scheduler package stays real.
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const real = await importOriginal<typeof import('@openmig/scheduler')>();
-  const failing = {
-    tasks: {
-      trigger: async () => {
-        throw new Error('no Trigger.dev backend in this environment (deliberate)');
-      },
-    },
-  } as unknown as ReturnType<typeof real.getTriggerClient>;
-  return { ...real, getTriggerClient: () => failing };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), () => {
+    throw new Error('no job queue in this environment (deliberate)');
+  }),
+);
 
 const PG = process.env.TEST_DATABASE_URL;
 if (!PG) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');

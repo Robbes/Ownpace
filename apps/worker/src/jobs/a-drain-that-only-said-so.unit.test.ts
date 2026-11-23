@@ -91,15 +91,15 @@ describe('the sync tick honours an operator hold', () => {
   });
 
   it('returns without enqueueing anything', () => {
-    // The whole branch, from the check to its return. `runDeltaSync.trigger`
-    // must not appear inside it.
+    // The whole branch, from the check to its return. No enqueue may appear
+    // inside it.
     const start = TICK.indexOf('if (hold) {');
     expect(start, 'the hold branch is no longer recognisable').toBeGreaterThan(-1);
     const end = TICK.indexOf(ENUMERATION, start);
     const branch = TICK.slice(start, end);
     expect(branch, 'the held tick must return before enqueueing').toContain('return summary;');
     expect(
-      branch.includes('runDeltaSync.trigger'),
+      branch.includes('.enqueue('),
       'a held tick must enqueue nothing',
     ).toBe(false);
   });

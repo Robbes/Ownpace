@@ -2,8 +2,8 @@
 
 - **Status:** **Accepted 2026-11-22** by the owner (workplan 0167 T4), in place of self-hosted
   Trigger.dev; supersedes ADR-0004's managed half. **In force since workplan 0167 T7**, which
-  turns the switch on (`managed.yml`'s default for `OWNPACE_JOB_RUNNER` is `pg-boss`); Trigger.dev
-  is kept installed and stopped as the fallback.
+  turns the switch on (`managed.yml`'s default for `OWNPACE_JOB_RUNNER` is `pg-boss`). Trigger.dev
+  was kept installed and stopped as the fallback until alpha.18 removed it (workplan 0167 T9).
 - **Date:** 2026-11-22
 - **Deciders:** owner. The spike was approved earlier that day; after it: *"Put in the successful
   spike (replace triggerdev)."*
@@ -23,9 +23,10 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - **The managed edition's jobs run on pg-boss** (in force since workplan 0167 T7), each on a
-  queue named by its Trigger.dev task id, through `PgBossJobRunner` at
-  `@openmig/scheduler/pg-boss`, which the appliance may not reach. The switch is
-  `OWNPACE_JOB_RUNNER`, `pg-boss` by `managed.yml`'s default.
+  queue named by the task id it had on Trigger.dev, through `PgBossJobRunner` at
+  `@openmig/scheduler/pg-boss`, which the appliance may not reach. The switch
+  `OWNPACE_JOB_RUNNER` keeps its reader: unset, empty or `pg-boss`; `trigger` is refused in one
+  sentence, since alpha.18.
 - **pg-boss is pinned exactly, and the runner runs only on its release's schema version**
   (`scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts`).
 - **Its schema `pgboss` is owned by `ownpace_jobs`**, no superuser and no grant on the ledger,
@@ -38,8 +39,9 @@
 - **A run settles as Trigger.dev 4.8.8 settles it**, decided by the error's name: an hour,
   three for a cutover (§2's table).
 - **The operator sees the work through `operator.sh jobs`**; there is no dashboard.
-- **Trigger.dev's plane is kept installed and stopped**, in profile `trigger`, its volumes the
-  way back (`OWNPACE_JOB_RUNNER=trigger`); removed only on the owner's word.
+- **Trigger.dev's plane is removed** (alpha.18, workplan 0167 T9): what a stack kept of it goes
+  by name only, its containers in the bring-up's `plane` phase and its volumes by
+  `remove-trigger-plane.sh --yes`, on live on the owner's word.
 - **A job carries ids only** (ADR-0004). Self-host keeps its in-process scheduler. The rules in
   full: *In force from workplan 0167 T7*, below.
 
@@ -290,3 +292,11 @@ operative rules above say them in short; these are the rules in full:
   measured 120 MB. A run claimed as a stop goes back to its queue at its attempt, or, where
   its queue's policy refuses it back, is run under its claim, as pg-boss's own give-back runs it.
   The *In force* bullet on the +17 stands as the record of alpha.16.
+- **2026-11-23 (workplan 0167 T9, alpha.18):** Trigger.dev is removed from the managed edition, on
+  the owner's word: *"i will remove trigger.dev, but the machine runs OTA and managed, so both have
+  to be move out of triggerdev."* The operative bullet on the plane says it is removed, and how
+  what a stack kept of it goes: its containers in the bring-up's `plane` phase, by their labels;
+  its volumes only by `deploy/compose/remove-trigger-plane.sh --yes`, which E2E (managed) runs on
+  the OTA stack and the owner runs on live once alpha.18 is proven. The switch keeps its reader so
+  that an old `.env` with `trigger` fails loudly. The *In force* section's T8 bullet stands as the
+  record of alpha.16 and alpha.17.

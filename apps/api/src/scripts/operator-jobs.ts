@@ -2,7 +2,7 @@
 
 /**
  * `operator.sh jobs`: THE OPERATOR'S VIEW OF THE JOBS, AND THEIR HAND ON THEM,
- * WHEN THEY RUN ON PG-BOSS (ADR-0054; workplan 0167 T6).
+ * ON PG-BOSS (ADR-0054; workplan 0167 T6).
  *
  *   ./deploy/compose/operator.sh jobs
  *   ./deploy/compose/operator.sh jobs failures [<task>] [--limit <n>]
@@ -10,10 +10,10 @@
  *   ./deploy/compose/operator.sh jobs cancel <run-id>
  *   ./deploy/compose/operator.sh jobs run <task> '<json>' [--despite-hold]
  *
- * On Trigger.dev the operator sees and steers the runs on its dashboard: the
- * Runs page, Test runs, and a `run-rollback` started there by hand, since
- * nothing in the repository enqueues one (docs/rollback-mechanisms.md). pg-boss
- * has no dashboard, so these are that page here:
+ * pg-boss has no dashboard, so these are where the operator sees and steers
+ * the runs, and starts a `run-rollback` by hand, since nothing in the
+ * repository enqueues one (docs/rollback-mechanisms.md). Trigger.dev's
+ * dashboard did this until alpha.18, which removed it (0167 T9):
  *
  * - `jobs`: per queue, the catalog's seventeen, the runs queued, active and
  *   failed, and the keys of the active singleton runs (a migration's id).
@@ -24,15 +24,15 @@
  *   `message` and nothing else of it, the attempt, the tags and the time in
  *   UTC.
  * - `jobs show` and `jobs cancel`: one run, by its id alone, as
- *   `orchestrator_ref` holds it (`status`, `cancel`). A `run_…` ref is
+ *   `orchestrator_ref` holds it (`status`, `cancel`). A `run_…` ref was
  *   Trigger.dev's and is refused before pg-boss is asked.
  * - `jobs run`: put a run on a queue by hand, through the runner's
  *   producer-only client, which never migrates, supervises, schedules or
  *   makes a queue. The door for `run-rollback` and for "run the digest now".
  *
- * IN TRIGGER MODE (`OWNPACE_JOB_RUNNER` unset, empty or `trigger`) every one of
- * them says in one sentence that the jobs run on Trigger.dev, and exits 1:
- * nothing here may enqueue onto a pg-boss that no worker is working.
+ * AN OLD `.env` THAT STILL SAYS `OWNPACE_JOB_RUNNER=trigger` is refused by
+ * every one of them, in the switch's own sentence (Trigger.dev was removed in
+ * alpha.18), and exits 1.
  *
  * AS `ownpace_jobs`, NEVER THE OWNER. pg-boss's schema belongs to that role
  * alone (deploy/compose/jobs-role.sql). `JOBS_DATABASE_URL` when it is set, as
@@ -99,7 +99,7 @@ export const JOBS_USAGE = `Usage (pg-boss mode only):
   operator.sh jobs cancel <run-id>
   operator.sh jobs run <task> '<json>' [--despite-hold]
 
-<task> is a queue's name, its Trigger.dev task's id: ${JOB_CATALOG.map((j) => j.name).join(', ')}.`;
+<task> is a queue's name: ${JOB_CATALOG.map((j) => j.name).join(', ')}.`;
 
 export type JobsCommand =
   | { readonly kind: 'overview' }
@@ -124,12 +124,13 @@ const refused = (sentence: string): JobsReport => ({ lines: [sentence], exitCode
 /**
  * Which runner the jobs run on (alpha.16's switch), read by the API's own
  * parser, `jobRunner()` in job-runner.ts: `OWNPACE_JOB_RUNNER`, trimmed, unset
- * or empty meaning `trigger`, and any other value refused in its one sentence.
+ * or empty meaning `pg-boss`, `trigger` refused since alpha.18, and any other
+ * value refused in its one sentence.
  * `operator.sh` hands this the answer `job-runner.sh` gives, as Compose hands
  * the containers theirs.
  */
 export function jobRunnerOf(env: Readonly<Record<string, string | undefined>>):
-  | { readonly runner: 'trigger' | 'pg-boss' }
+  | { readonly runner: 'pg-boss' }
   | { readonly error: string } {
   try {
     return { runner: jobRunner(env) };
@@ -137,10 +138,6 @@ export function jobRunnerOf(env: Readonly<Record<string, string | undefined>>):
     return { error: (e as Error).message };
   }
 }
-
-/** The one sentence every `jobs` command says in trigger mode. */
-export const ON_TRIGGER_DEV =
-  'The jobs on this stack run on Trigger.dev (OWNPACE_JOB_RUNNER is not pg-boss), so see them on its dashboard: these commands are for pg-boss mode only.';
 
 function catalogEntry(task: string): JobCatalogEntry | undefined {
   return (JOB_CATALOG as readonly JobCatalogEntry[]).find((j) => j.name === task);
@@ -152,7 +149,7 @@ function unknownTask(task: string): string {
 
 function runIdRefusal(runId: string): string | null {
   if (runId.startsWith('run_')) {
-    return `"${runId}" is a Trigger.dev run's ref, not a pg-boss run's id: look it up on Trigger.dev's dashboard.`;
+    return `"${runId}" is a Trigger.dev run's ref, from before alpha.16, not a pg-boss run's id.`;
   }
   if (!RUN_ID.test(runId)) return `"${runId}" is not a run's id: a pg-boss run's id is a UUID.`;
   return null;
@@ -472,7 +469,6 @@ export async function runJobsVerb(
 ): Promise<JobsReport> {
   const mode = jobRunnerOf(env);
   if ('error' in mode) return refused(mode.error);
-  if (mode.runner === 'trigger') return refused(ON_TRIGGER_DEV);
   const command = parseJobsCommand(args);
   if ('error' in command) return refused(command.error);
   const connection = jobsConnectionString(env);

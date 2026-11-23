@@ -69,20 +69,16 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
     getDbPool: () => driver,
   };
 });
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (taskId: string, payload: Record<string, unknown>, options: Record<string, unknown>) => {
-          enqueued.push({ taskId, payload, options });
-          return Promise.resolve({ id: `run-${enqueued.length}` });
-        },
-      },
-    }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (taskId: string, payload: Record<string, unknown>, options: Record<string, unknown>) => {
+      enqueued.push({ taskId, payload, options });
+      return `run-${enqueued.length}`;
+  }),
+);
 
 const { startWhenGranted } = await import('./start-when-granted.ts');
 const { default: migrationRoutes } = await import('./index.ts');
@@ -207,7 +203,7 @@ describe('a grant lands on a migration of a person whose move was started', () =
       {
         taskId: 'run-delta-sync',
         payload: { tenantId: TENANT, mappingId: DRAFT },
-        options: { tags: [`tenant:${TENANT}`, `mapping:${DRAFT}`], concurrencyKey: DRAFT },
+        options: { tags: [`tenant:${TENANT}`, `mapping:${DRAFT}`], serializeBy: DRAFT },
       },
     ]);
   });

@@ -53,12 +53,13 @@ vi.mock('@openmig/managed', async (importOriginal) => {
   return { ...actual, LEGAL_DRAFTS: texts.drafts };
 });
 
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({ tasks: { trigger: vi.fn(async () => ({ id: 'run_mock' })) } }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+});
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) => {
+  const { aQueueStandIn, aRunId } = await import('../__testing__/a-queue-stand-in.ts');
+  return aQueueStandIn(await importOriginal(), () => aRunId(1));
 });
 // Nothing here connects anywhere: the creates' probes answer at once.
 vi.mock('@openmig/orchestration/probe-connection', async (importOriginal) => {

@@ -40,36 +40,28 @@ name: E2E (managed)
 # ------------------------------------------------------------------------------
 # WHY THIS RUNS AGAINST A LONG-LIVED STACK, AND DOES NOT `down -v`
 # ------------------------------------------------------------------------------
-# The managed stack's Trigger.dev instance cannot be bootstrapped unattended.
-# `deploy-tasks.sh` documents the one-time steps and they need a human: create
-# an account and project through the dashboard's magic-link login (the link is
-# printed into the trigger-api service's log because no mail server is configured),
-# copy TRIGGER_PROJECT_REF and a `tr_prod_` secret key into `.env`, run a CLI
-# login once per machine, and set the task runtime environment variables in the
-# dashboard — the deployed tasks run in their OWN containers and inherit
-# nothing.
-#
-# So a nightly that tore the stack down would destroy that setup and need a
-# person to rebuild it before the next run. **The naive `down -v` this workflow
-# does not do would break the gate permanently, and the failure would look like
-# a broken test rather than a missing account.** Instead the Trigger.dev half
-# persists between runs, and the run recreates the halves it owns: the API, the
-# web app, the worker image and the seed.
+# Until alpha.18 the managed stack's Trigger.dev instance could not be
+# bootstrapped unattended: an account and a project made through its dashboard,
+# a CLI login, the task environment set by hand. That is gone with Trigger.dev
+# (workplan 0167 T9); what still persists between runs is the stack's own
+# state: its .env (the secrets the identity provider and the databases were
+# made with), the databases, and the identity provider's instance. A nightly
+# that tore the stack down would make each of those again, which proves a
+# different thing; the run recreates the halves it owns: the API, the web app,
+# the worker image and the seed.
 #
 # What that costs, stated rather than discovered later: **this gate does not
 # prove bring-up from scratch.** It proves the application works against a
-# configured stack. Somebody changing `managed.yml`'s Trigger.dev services
-# still has to verify those by hand.
+# configured stack.
 #
 # ------------------------------------------------------------------------------
 # WHAT GREEN IS ALLOWED TO MEAN (0084 T7)
 # ------------------------------------------------------------------------------
 #   1. Every service the run touches is HEALTHY, not merely started.
-#   2. A task deployed and RAN — an enqueue became a runner container on this
-#      machine. 0018 T5's lesson: a green CI says nothing about that. On a
-#      stack whose jobs run on pg-boss (the `job_runner` input, workplan 0167
-#      T7): the jobs the run asked for completed in pg-boss, worked by the
-#      worker, and no runner container started.
+#   2. A job RAN — 0018 T5's lesson: a green CI says nothing about that. The
+#      jobs the run asked for completed in pg-boss, worked by the worker
+#      (workplan 0167), no runner container started, and no container of
+#      Trigger.dev's plane is left on the stack (T9).
 #   3. Verify reached a terminal state, and apply reached `applied` or
 #      `refused`. A refusal is a legitimate pass — the gates said no, and said
 #      why.
@@ -98,24 +90,6 @@ on:
     # watch now checks how old a run is instead of trusting the clock.
     - cron: '30 3 * * *'
   workflow_dispatch:
-    inputs:
-      # WHICH RUNNER WORKS THE JOBS, FOR THIS RUN ONLY (ADR-0054, workplan
-      # 0167 T7). Empty, the default, runs what the stack says: the persisted
-      # .env's OWNPACE_JOB_RUNNER, else managed.yml's default, `pg-boss` since
-      # the switch is on. `trigger`, self-hosted Trigger.dev, is the fallback,
-      # its plane kept installed and stopped; `pg-boss` names the default. Any
-      # other value is refused by the step that reads it. A string and not a
-      # choice, so that empty can be given: a choice always sends one of its
-      # options. Non-empty, it is written
-      # into this checkout's .env after the persisted copy is saved, so it
-      # reaches the bring-up and the smoke and never the next run: a scheduled
-      # run has no input and runs what the persisted .env says. Passed to the
-      # steps through `env:`, never into a `run:` script.
-      job_runner:
-        description: "Which runner works the stack's jobs in this run, not persisted: pg-boss or trigger; empty runs the stack's own (its .env, else managed.yml's default, pg-boss)"
-        type: string
-        required: false
-        default: ""
 
 concurrency:
   group: ${{ github.workflow }}
@@ -124,8 +98,9 @@ concurrency:
   cancel-in-progress: false
 
 # Read-only (workplan 0119, 2026-11-19): the checkout is the one step here
-# that uses the token; the Trigger.dev token below is a secret of the job's
-# environment, `e2e-managed`, which this does not touch. Until then this file named no permissions, so
+# that uses the token. (The Trigger.dev token, a secret of the job's
+# environment `e2e-managed`, went with Trigger.dev in alpha.18; the owner may
+# delete the secret, TRIGGER_ACCESS_TOKEN.) Until then this file named no permissions, so
 # the job ran on whatever the repository's settings give the default token.
 # Held by scripts/a-token-the-job-never-asked-for.unit.test.ts.
 permissions:
@@ -154,21 +129,6 @@ jobs:
     environment: e2e-managed
     timeout-minutes: 60
     env:
-      # THE CLI's OWN DOCUMENTED ANSWER FOR CI (0084 T6, run #5's follow-up,
-      # 2026-08-18) — a Personal Access Token, not a restored session file.
-      # `deploy` reads this directly, before ever touching a profile file (see
-      # trigger-cli-lib.sh's comment for the exact source). Mint one at the
-      # self-hosted instance's own dashboard, Account -> Personal Access Tokens
-      # (or reuse an existing `tr_pat_…`), then add it as a secret of this
-      # job's environment: Settings -> Environments -> e2e-managed ->
-      # Environment secrets, named TRIGGER_ACCESS_TOKEN. It is read here, in
-      # the job, not in the workflow's env above, which no environment
-      # reaches. Empty here is fine — everything still falls back to the
-      # restored-session-file path below when it is unset.
-      TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
-      # Required alongside it: unset, the CLI's env-var login path defaults to
-      # the SAAS cloud (api.trigger.dev), not this self-hosted instance.
-      TRIGGER_API_URL: http://localhost:3090
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -264,24 +224,10 @@ jobs:
           fi
 
       - name: Restore the one-time setup (checkout's own clean would destroy it)
-        # The CLI login is the SAME class of gap as .env, found one phase later
-        # (run #4, 2026-08-18): `bootstrap-managed.sh`'s `login` phase correctly
-        # reported "not logged in", using the whoami check fixed to be trustworthy
-        # earlier the same day — so this is not that bug recurring. The owner HAD
-        # already logged in by hand, on this machine, hours earlier, against this
-        # exact project (the `account` phase found the persisted .env's project ref
-        # and did nothing, so no reset happened in between). Whether the job's
-        # actual $HOME differs from the interactive shell's, or the session simply
-        # never had anywhere to persist FROM before this fix existed, is not fully
-        # settled — and does not need to be: restoring the file explicitly, the same
-        # way as .env, is correct either way.
-        #
-        # `xdgAppPaths("trigger").config()` — read from the installed CLI's own
-        # dependency rather than assumed — resolves to `${XDG_CONFIG_HOME:-$HOME/.config}/trigger`.
-        # This does NOT make login automatable: creating the account and project
-        # is still the one step that opens a browser (0084 T6). This only lets a
-        # login already performed once survive to the next run, exactly as the
-        # account/project's credentials already do via `.env`.
+        # The persisted .env, restored into the checkout (actions/checkout
+        # cleans ignored files). Until alpha.18 the deploy CLI's login was
+        # restored here too, the same way; it went with Trigger.dev (workplan
+        # 0167 T9).
         run: |
           set -euo pipefail
           # A repository VARIABLE is passed verbatim: GitHub does not expand
@@ -330,19 +276,12 @@ jobs:
           else
             echo "nothing persisted yet at ${PERSIST_DIR} — the next step explains what to do"
           fi
-          TRIGGER_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/trigger"
-          if [ -f "${PERSIST_DIR}/trigger-cli-config.json" ]; then
-            mkdir -p "${TRIGGER_CONFIG_DIR}"
-            cp "${PERSIST_DIR}/trigger-cli-config.json" "${TRIGGER_CONFIG_DIR}/config.json"
-            echo "restored the deploy CLI's login from ${PERSIST_DIR}"
-          else
-            echo "no persisted CLI login at ${PERSIST_DIR}/trigger-cli-config.json yet"
-          fi
 
       - name: Mask this machine's own addresses for the rest of the job
         # THIS LOG IS PUBLIC, AND THE .env JUST RESTORED NAMES THE MACHINE IT
-        # RUNS ON: every *_BIND a laptop or a front reaches, TRIGGER_TLS_HOST,
-        # the dashboard's origins, Nextcloud's trusted domains. None of them is
+        # RUNS ON: every *_BIND a laptop or a front reaches, TRIGGER_TLS_HOST
+        # and the dashboard's origins where a .env from before alpha.18 still
+        # holds them, Nextcloud's trusted domains. None of them is
         # a secret, so GitHub hid none of them, and runs printed them on every
         # night and more on every failure: a PORTS column, a dashboard note,
         # "External DAV ready at", the deploy CLI's links, a curl that could not
@@ -360,40 +299,27 @@ jobs:
           ./deploy/compose/own-addresses.sh --mask deploy/compose/.env
 
       - name: Which runner works this run's jobs (OWNPACE_JOB_RUNNER)
-        # ONE RULE, THE BRING-UP'S AND THE SMOKE'S (workplan 0167 T7): the
-        # dispatch's input when there is one, else what deploy/compose/
-        # job-runner.sh, the scripts' one reader, answers (the restored .env's
-        # OWNPACE_JOB_RUNNER, else managed.yml's default for it, else
-        # `trigger`); any other value is refused. Read here, before anything is
-        # written, so the steps for Trigger.dev's plane can be left out on a
-        # stack whose plane is stopped. The input itself is written into the
-        # checkout's .env further down, after the persisted copy is saved.
-        # The answer goes into a file of this run's, $RUNNER_TEMP/job-runner,
-        # read by the steps that need it, never into $GITHUB_OUTPUT: a step
-        # that reads a .env writes neither of the files the runner prints
+        # ONE RULE, THE BRING-UP'S AND THE SMOKE'S (workplan 0167 T7 and T9):
+        # what deploy/compose/job-runner.sh, the scripts' one reader, answers
+        # (the restored .env's OWNPACE_JOB_RUNNER, else managed.yml's default):
+        # pg-boss, and `trigger`, Trigger.dev's, refused since alpha.18 removed
+        # it, as any other value is. The answer goes into a file of this run's,
+        # $RUNNER_TEMP/job-runner, never into $GITHUB_OUTPUT: a step that reads
+        # a .env writes neither of the files the runner prints
         # (scripts/a-credential-the-next-step-printed.unit.test.ts).
         # scripts/smoke-managed-verdict.unit.test.ts runs this step and the
         # smoke's smoke_job_runner on the same files and holds them to one answer.
-        env:
-          JOB_RUNNER_INPUT: ${{ inputs.job_runner }}
         run: |
           set -euo pipefail
           . deploy/compose/env-read.sh
           SCRIPT_DIR=deploy/compose
           . deploy/compose/job-runner.sh
-          if [ -n "${JOB_RUNNER_INPUT:-}" ]; then
-            case "$JOB_RUNNER_INPUT" in
-              trigger|pg-boss) mode="$JOB_RUNNER_INPUT"; from="this dispatch's input" ;;
-              *) echo "::error::This dispatch's job_runner is '${JOB_RUNNER_INPUT}', and a stack's jobs run on 'trigger' or 'pg-boss' (empty runs the stack's own)."; exit 1 ;;
-            esac
-          else
-            if ! job_runner_mode deploy/compose deploy/compose/.env; then
-              echo "::error::${JOB_RUNNER_WHY}"
-              exit 1
-            fi
-            mode="$JOB_RUNNER"
-            from="the restored .env, else managed.yml's default (job-runner.sh)"
+          if ! job_runner_mode deploy/compose deploy/compose/.env; then
+            echo "::error::${JOB_RUNNER_WHY}"
+            exit 1
           fi
+          mode="$JOB_RUNNER"
+          from="the restored .env, else managed.yml's default (job-runner.sh)"
           echo "this run's jobs run on ${mode} (${from})"
           printf '%s\n' "$mode" >"$RUNNER_TEMP/job-runner"
 
@@ -402,34 +328,20 @@ jobs:
         # minutes later inside the smoke, pointing at a task that never
         # deployed. Rule 9: name the fix.
         #
-        # ONLY the two a human must obtain. Everything else managed.yml
-        # requires is filled by the next step, from the repo's own sources —
-        # see there for why this list shrank.
-        #
-        # On pg-boss (workplan 0167 T7) the plane is stopped and its two keys
-        # are not asked for: the .env itself still is.
+        # Only the .env itself: everything managed.yml requires is filled by
+        # the next step, from the repo's own sources. Trigger.dev's two keys,
+        # which a human had to obtain, went with it in alpha.18 (workplan 0167 T9).
         run: |
-          JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"
           ENV_FILE=deploy/compose/.env
           missing=()
           [ -f "$ENV_FILE" ] || missing+=("$ENV_FILE itself")
-          if [ "$JOB_RUNNER" = trigger ]; then
-            for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY; do
-              grep -qE "^${key}=." "$ENV_FILE" 2>/dev/null || missing+=("$key")
-            done
-          else
-            echo "the Trigger.dev plane's two keys: not asked, this run's jobs run on ${JOB_RUNNER}"
-          fi
           if [ ${#missing[@]} -gt 0 ]; then
             . deploy/compose/env-read.sh
             COMPOSE_PROJECT="$(compose_project deploy/compose)"
             PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
             echo "::error::This runner has never had the managed stack set up: missing ${missing[*]}."
-            echo "The Trigger.dev half cannot be bootstrapped unattended — see the ONE-TIME"
-            echo "prerequisites in deploy/compose/deploy-tasks.sh: create the account and project"
-            echo "through the dashboard, put TRIGGER_PROJECT_REF and the tr_prod_ key in"
-            echo "deploy/compose/.env, run the CLI login once, and set the task environment"
-            echo "variables in the dashboard. Then re-run this workflow."
+            echo "Bring it up once by hand (docs/managed-bring-up.md), which writes"
+            echo "deploy/compose/.env. Then re-run this workflow."
             echo ""
             echo "IMPORTANT — this checkout's own copy will not survive the next run:"
             echo "actions/checkout cleans ignored files (.env among them) before every checkout."
@@ -441,7 +353,7 @@ jobs:
             echo "directory from the .env's PGBOUNCER_AUTH_PASSWORD, and mounts it from there."
             exit 1
           fi
-          echo "the two a human has to obtain are present"
+          echo "the persisted .env is present"
 
       - name: Fill in everything the repo already knows how to supply
         # WHY THIS STEP EXISTS. managed.yml interpolates the WHOLE file before
@@ -584,19 +496,6 @@ jobs:
           # userlist as the gate's. PERSIST_DIR is the one from the top of this step.
           cp deploy/compose/.env "${PERSIST_DIR}/.env"
           echo "persisted to ${PERSIST_DIR}/.env so the next run reuses these exact values"
-
-      - name: This run's job runner, in this checkout's .env only
-        # After the copy above, so the persisted .env keeps what it had and
-        # the next run, scheduled or dispatched, starts from that (workplan
-        # 0167 T7). The checkout's own .env is the one the bring-up and the
-        # smoke read, and the next run's checkout removes it. Only when a
-        # dispatch gave the input: a scheduled run runs the persisted value.
-        if: inputs.job_runner != ''
-        run: |
-          set -euo pipefail
-          JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"
-          ./deploy/compose/env-upsert.sh deploy/compose/.env "OWNPACE_JOB_RUNNER=${JOB_RUNNER}"
-          echo "OWNPACE_JOB_RUNNER=${JOB_RUNNER} for this run, in the checkout's .env; the persisted .env is as it was"
 
       - name: Bring the stack up
         # Through bootstrap-managed.sh rather than an inline copy of the run
@@ -778,29 +677,33 @@ jobs:
           esac
           echo "pooler in front, migrations direct"
 
-      # A BACKUP NOBODY HAS RESTORED IS A HOPE. `triggerdb` holds the one thing
-      # on this machine that cannot be rebuilt unattended — the account, the
-      # project, its API keys, the worker group, the deployed-task records —
-      # and the webapp migrates its own schema on boot, so a version bump is
-      # one way and the documented rollback restores IMAGES, not schema.
+      # A BACKUP NOBODY HAS RESTORED IS A HOPE (workplan 0119 §3 item 2). The
+      # identity provider's database holds the one thing on this stack that
+      # cannot be rebuilt unattended: its instance, its organisation, its
+      # project and the people who sign in. Zitadel migrates its schema one way
+      # when a newer version starts, so a pin move is one way, and the way
+      # back is a dump (dump-idp.sh, taken by hand before each move until now).
       #
-      # The drill dumps it, restores the dump into a THROWAWAY database and
-      # compares, then drops the throwaway. The live database is never touched:
-      # `restore` is the only thing that drops it, and it refuses without
-      # --yes. Cheap (seconds) and it is the only thing that can tell us the
-      # dump would actually load — the self-hosted appliance has had a
-      # Backup/Restore Drill since §22.1 and the managed plane had none.
-      - name: Backup/Restore drill for the Trigger.dev control plane
-        # Only where the plane runs: on pg-boss it is stopped, its volumes
-        # kept, and there is no running triggerdb to dump (workplan 0167 T7).
+      # The drill dumps it, reads the dump back, restores it into a THROWAWAY
+      # database on the same server and compares, then drops the throwaway and
+      # the dump. The provider's database is never touched. Until alpha.18 the
+      # drill was Trigger.dev's database's (trigger-version.sh drill), which
+      # went with Trigger.dev (workplan 0167 T9).
+      - name: Backup/Restore drill for the identity provider's database
         run: |
           set -euo pipefail
-          JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"
-          if [ "$JOB_RUNNER" != trigger ]; then
-            echo "the Trigger.dev control plane's drill: skipped, this run's jobs run on ${JOB_RUNNER} and its plane is stopped"
-            exit 0
-          fi
-          ./deploy/compose/trigger-version.sh drill
+          ./deploy/compose/dump-idp.sh --drill
+
+      # THE PLANE'S VOLUMES, REMOVED ONCE (workplan 0167 T9). The bring-up's
+      # plane phase removed what was left of Trigger.dev's containers; its
+      # volumes and networks stay until removed by name, which this does, and
+      # says nothing to remove on every run after. Never `down -v`. After the
+      # bring-up, which refuses OWNPACE_JOB_RUNNER=trigger, so it runs on a
+      # stack whose jobs are on pg-boss.
+      - name: Trigger.dev's plane, removed by name (its volumes and networks)
+        run: |
+          set -euo pipefail
+          ./deploy/compose/remove-trigger-plane.sh --yes
 
       - name: The acceptance smoke (verify + apply, through real runners)
         # 0020 T5's script. It mints a seeded-member token, drives verify and
@@ -928,12 +831,10 @@ jobs:
           # machine's addresses. `docker ps --format '{{.Names}} {{.Ports}}'`
           # on the machine itself shows them to whoever needs them. No COMMAND
           # either: zitadel's carries its `--masterkey`.
-          # `--profile trigger`: since the flip, Trigger.dev's plane is in that
-          # profile, and a `ps` without it would not list the plane in a
-          # trigger-mode run. In a pg-boss run the plane is stopped, so the
-          # profile adds nothing that runs.
-          docker compose $MANAGED_COMPOSE --profile trigger ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}' || true
-          health=$(docker compose $MANAGED_COMPOSE --profile trigger ps --format '{{.Name}} {{.Health}}' 2>/dev/null || true)
+          # (`--profile trigger` until alpha.18, for Trigger.dev's plane; gone
+          # with it, workplan 0167 T9.)
+          docker compose $MANAGED_COMPOSE ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}' || true
+          health=$(docker compose $MANAGED_COMPOSE ps --format '{{.Name}} {{.Health}}' 2>/dev/null || true)
           echo '--- no healthcheck defined (this gate cannot speak for these) ---'
           echo "$health" | awk 'NF==1 && $1!=""' || true
           echo '--- unhealthy ---'

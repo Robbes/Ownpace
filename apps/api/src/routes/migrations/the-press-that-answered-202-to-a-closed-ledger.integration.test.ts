@@ -2,7 +2,7 @@
 
 /**
  * The press that answered 202 to a closed ledger — through the real Express
- * app, on Postgres, with the Trigger.dev client mocked.
+ * app, on Postgres, with the job queue's producer stood in for.
  *
  * `POST /api/migrations/:mappingId/cutover` used to enqueue the preparation
  * without reading the cutover ledger. A press on a cutover under way or on a
@@ -33,11 +33,19 @@ import type { CutoverState } from '@openmig/core';
 
 // The real enqueue is the one thing this test must not do: capture it.
 const { triggerMock } = vi.hoisted(() => ({
-  triggerMock: vi.fn(async () => ({ id: 'run_mock_door' })),
+  triggerMock: vi.fn(async (..._asked: unknown[]) => ({ id: 'run_mock_door' })),
 }));
-vi.mock('@openmig/scheduler', () => ({
-  getTriggerClient: () => ({ tasks: { trigger: triggerMock } }),
-}));
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+});
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../../__testing__/a-queue-stand-in.ts')).aQueueStandIn(
+    await importOriginal(),
+    async (taskId: string, payload: Record<string, unknown>, options: Readonly<Record<string, unknown>>) =>
+      (await triggerMock(taskId, payload, options)).id,
+  ),
+);
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {

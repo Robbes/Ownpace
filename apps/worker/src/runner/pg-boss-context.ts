@@ -8,10 +8,10 @@
  * `@openmig/scheduler/pg-boss`'s producer, the client that enqueues, reads and
  * cancels and never migrates, schedules, supervises or works a queue.
  *
- * ONLY THE WORKER'S RUN ENTRIES IMPORT THIS (`./runs/*.ts`). Every Trigger.dev
- * task imports `run-context.ts`, which loads the SDK's two calls and nothing
- * else, so no Trigger.dev task loads pg-boss
- * (`scripts/a-pass-that-opened-the-owners-pool`, its rule on pg-boss).
+ * ONLY THE WORKER'S RUN ENTRIES IMPORT THIS (`./runs/*.ts`). Every job
+ * imports `run-context.ts`, which holds types only, so no job module loads
+ * pg-boss by itself (`scripts/a-pass-that-opened-the-owners-pool`, its rule on
+ * pg-boss).
  *
  * THE PRODUCER IS OPENED WHEN A RUN FIRST ASKS, AND CLOSED WHEN IT ENDS. Most
  * runs never ask (eleven of the seventeen jobs ask nothing), so they open no

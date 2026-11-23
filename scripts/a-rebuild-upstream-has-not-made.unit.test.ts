@@ -707,7 +707,7 @@ describe('managed.yml runs that build, by the name its instructions give it', ()
     expect(problems(/^(\s*build: \.\/pgbouncer\n)\s*pull_policy: never\n/m, '$1')).toEqual([expect.stringContaining('not never')]);
     expect(problems(/^(\s*build: \.\/pgbouncer\n)/m, '$1    user: "0"\n')).toEqual([expect.stringContaining('sets user: 0')]);
     expect(problems(/test: \["CMD-SHELL", "PGPASSWORD=[^\n]*psql[^\n]*\]/, 'test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-p", "6432"]')).toEqual([expect.stringContaining('no longer runs psql')]);
-    expect(problems(/^(\s*image: )localhost\/redis:\S+$/m, `$1${NAME}:${builtTag(dockerfile)}`)).toEqual(expect.arrayContaining([expect.stringContaining("runs the pooler's build too")]));
+    expect(problems(/^(\s*image: )localhost\/postgres:\S+$/m, `$1${NAME}:${builtTag(dockerfile)}`)).toEqual(expect.arrayContaining([expect.stringContaining("runs the pooler's build too")]));
   });
 });
 

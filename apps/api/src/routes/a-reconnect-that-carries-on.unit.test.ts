@@ -144,21 +144,17 @@ const { enqueued, plane } = vi.hoisted(() => ({
   enqueued: [] as Array<{ taskId: string; payload: Record<string, unknown>; options: Record<string, unknown> }>,
   plane: { down: false },
 }));
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (taskId: string, payload: Record<string, unknown>, options: Record<string, unknown>) => {
-          if (plane.down) return Promise.reject(new Error('connect ECONNREFUSED: the plane is not there'));
-          enqueued.push({ taskId, payload, options });
-          return Promise.resolve({ id: `run-of-${String(payload.mappingId)}` });
-        },
-      },
-    }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (taskId: string, payload: Record<string, unknown>, options: Record<string, unknown>) => {
+      if (plane.down) throw new Error('connect ECONNREFUSED: the plane is not there');
+      enqueued.push({ taskId, payload, options });
+      return `run-of-${String(payload.mappingId)}`;
+  }),
+);
 
 // Nothing here reaches a provider: the probe answers at once.
 const probe = vi.hoisted(() => ({ ok: true }));
@@ -368,7 +364,7 @@ describe('a reconnect that stores its credential carries on what was failing on 
       expect(taskId).toBe('run-delta-sync');
       expect(payload).toEqual({ tenantId: TENANT, mappingId: payload.mappingId });
       expect(
-        options.concurrencyKey,
+        options.serializeBy,
         'a pass pressed without the migration’s own partition runs beside its scheduled pass',
       ).toBe(payload.mappingId);
       expect(options.tags).toEqual([`tenant:${TENANT}`, `mapping:${String(payload.mappingId)}`]);

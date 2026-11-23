@@ -6,10 +6,10 @@
  * `apps/api/src/index.ts`.
  *
  * It refuses to start, with one sentence on stderr and exit 1, unless the
- * switch names pg-boss (`OWNPACE_JOB_RUNNER=pg-boss`) and the jobs' URL is set
- * (`JOBS_DATABASE_URL`, the `ownpace_jobs` role through PgBouncer). So the
- * worker's service may be in the stack while Trigger.dev runs the jobs: it
- * does nothing but say why. Then it works the jobs (`./worker.ts`) until
+ * switch names pg-boss (`OWNPACE_JOB_RUNNER` unset, empty or `pg-boss`; an old
+ * `.env`'s `trigger` is refused since alpha.18, which removed Trigger.dev) and
+ * the jobs' URL is set (`JOBS_DATABASE_URL`, the `ownpace_jobs` role through
+ * PgBouncer). Then it works the jobs (`./worker.ts`) until
  * SIGTERM or SIGINT, stops as `JobWorker#stop` says, and exits 0.
  */
 

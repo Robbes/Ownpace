@@ -526,7 +526,7 @@ describe("the room: counted by the tick's own rule, and stricter than Sync now",
       for (const source of [
         'apps/worker/src/jobs/managed-sync-tick.ts',
         'packages/managed/src/usage-metering.ts',
-        'apps/worker/trigger.config.ts',
+        'packages/scheduler/src/pg-boss/catalog.ts',
       ]) {
         expect(existsSync(join(REPO_ROOT, source)), source).toBe(true);
       }
@@ -540,23 +540,18 @@ describe("the room: counted by the tick's own rule, and stricter than Sync now",
       const kinds = [...script.matchAll(/kind IN \(([^)]*)\)/g)].map((m) => m[1]);
       expect(kinds.length, 'no count of passes by kind in the script').toBeGreaterThanOrEqual(3);
       for (const list of kinds) expect(list).toBe(BILLABLE_RUN_KINDS.map((k) => `'${k}'`).join(', '));
-      // run-delta-sync sets no retry of its own, so the config's default is
-      // its: the attempts, and a wait for the last retry longer than its backoff.
-      const config = readFileSync(join(REPO_ROOT, 'apps/worker/trigger.config.ts'), 'utf8');
-      expect(value('ATTEMPTS')).toBe(Number(/maxAttempts: (\d+)/.exec(config)?.[1]));
-      // And pg-boss's, from the catalog every queue is made from (workplan
-      // 0167): one number of attempts for every queue, and no retry waits
-      // longer than its cap. The catalog lands with the jobs on the runner
-      // (#2043); from then on this holds the two runners to one count.
-      const catalogFile = join(REPO_ROOT, 'packages/scheduler/src/pg-boss/catalog.ts');
-      if (existsSync(catalogFile)) {
-        const catalog = readFileSync(catalogFile, 'utf8');
-        expect(value('ATTEMPTS')).toBe(Number(/^\s*attempts: (\d+),$/m.exec(catalog)?.[1]));
-        expect(value('RETRY_GRACE_SECONDS')).toBeGreaterThan(Number(/^\s*retryDelayMaxSeconds: (\d+),$/m.exec(catalog)?.[1]));
-      }
-      expect(value('RETRY_GRACE_SECONDS') * 1000).toBeGreaterThan(
-        Number(/maxTimeoutInMs: ([\d_]+)/.exec(config)?.[1]?.replaceAll('_', '')),
-      );
+      // run-delta-sync's attempts and retry waits are pg-boss's, from the
+      // catalog every queue is made from (workplan 0167; Trigger.dev's
+      // config held them until alpha.18 removed it, T9): one number of
+      // attempts for every queue, and a wait for the last retry longer than
+      // the longest retry delay.
+      const catalog = readFileSync(join(REPO_ROOT, 'packages/scheduler/src/pg-boss/catalog.ts'), 'utf8');
+      const attempts = /^\s*attempts: (\d+),$/m.exec(catalog)?.[1];
+      const retryCap = /^\s*retryDelayMaxSeconds: (\d+),$/m.exec(catalog)?.[1];
+      expect(attempts, 'the catalog names no attempts').toBeDefined();
+      expect(retryCap, 'the catalog names no retry cap').toBeDefined();
+      expect(value('ATTEMPTS')).toBe(Number(attempts));
+      expect(value('RETRY_GRACE_SECONDS')).toBeGreaterThan(Number(retryCap));
     },
     PGLITE_CASE_MS,
   );

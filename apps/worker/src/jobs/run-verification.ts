@@ -24,9 +24,8 @@
 import './refuse-internal-addresses.ts';
 import type { Pool } from 'pg';
 import { z } from 'zod';
-import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import { eq } from 'drizzle-orm';
 import { asTenantId, asMappingId, log } from '@openmig/shared';
 import { organisationStillOpen, withTenant } from '@openmig/ledger';
@@ -160,17 +159,10 @@ export async function verifyForTheOwner(
 }
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const runVerificationRun = leavesAReference(
   'run-verification',
   async (payload: z.infer<typeof VerificationJobSchema>, _context: RunContext) => verifyForTheOwner(pool, payload),
 );
-
-export const runVerificationTask = schemaTask({
-  id: 'run-verification',
-  schema: VerificationJobSchema,
-  run: onTriggerDev(runVerificationRun),
-});
