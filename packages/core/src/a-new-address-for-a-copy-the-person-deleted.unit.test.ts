@@ -83,7 +83,10 @@ class Target {
   creates = 0;
   /** Throw on the next overwrite, once: a transient refusal. */
   failNextOverwrite = false;
-  constructor(private readonly shape: 'jmap' | 'dav-strong' | 'dav-none') {}
+  private readonly shape: 'jmap' | 'dav-strong' | 'dav-none';
+  constructor(shape: 'jmap' | 'dav-strong' | 'dav-none') {
+    this.shape = shape;
+  }
   private version(uid: string): { targetVersion?: string } {
     return this.shape === 'dav-none' ? {} : { targetVersion: `"${this.etags.get(uid) ?? 0}"` };
   }

@@ -76,7 +76,10 @@ function source(benVersion = '1'): ContactSource {
 class Target {
   readonly bodies = new Map<string, string>();
   readonly etags = new Map<string, number>();
-  constructor(private readonly versions: 'strong' | 'weak' | 'none') {}
+  private readonly versions: 'strong' | 'weak' | 'none';
+  constructor(versions: 'strong' | 'weak' | 'none') {
+    this.versions = versions;
+  }
   private version(uid: string): { targetVersion?: string } {
     const n = this.etags.get(uid) ?? 0;
     if (this.versions === 'none') return {};
