@@ -7,6 +7,15 @@
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
 
+  Still 1.0, edited in place once more on 2026-11-23, in both languages. Asked on 2026-11-23
+  whether §4.5's line on a request for access should say less now that the log names a request
+  by its reference, never by its address (workplan 0168, #2077), the owner chose: "Yes, draft it".
+  What changed: §4.5's last lines say a request for access and our decision on it are logged by
+  the request's reference, not by the address it gives, and that the sign-in service does log the
+  address a person registers with when they arrive from the mail that grants them access, which
+  the comment below that paragraph had kept for the next version. The Last updated line stays
+  2026-11-23.
+
   Still 1.0, edited in place again on 2026-11-23, in both languages. The owner, 2026-11-22 at
   about 22:33 UTC, of workplan 0168's D8 (the policy's lines for a new address go in before the
   step that asks for one is shown, and under 1.0 while no tester has accepted it), verbatim:
@@ -961,8 +970,9 @@ its own log of each request; §7 says what it holds. Logs are written so that
 **credentials and message content do not appear in them.** They are not free of names, though.
 When a step of a migration fails, the provider's own error text is written to the log of the
 process that met it, beside a reference, so that we can help you with it; that text can name a
-folder, a file or an address. And a request for access is logged with the email address it
-gives, as is our decision on it.
+folder, a file or an address. A request for access, and our decision on it, are logged by the
+request's reference, not by the email address it gives. The sign-in service does log the address
+you register with when you arrive from the mail that grants you access.
 
 <!-- ONE MORE SUCH LINE, ONCE alpha.3 RUNS (workplan 0095 T6; the owner, 2026-10-29, accepted it
      with the grant link that fills in the address). The grant mail's link carries the granted
@@ -971,9 +981,9 @@ gives, as is our decision on it.
      login v1) logs "login hint invalid" at info level with that address for every hint that
      matches no account yet, which is everybody the button is for, in its own container log on
      our machine, kept as §9's Server logs row says. Same person, same purpose and same
-     machine as the grant line above, and "not free of names" covers it, so 1.0 stays true. At
-     the next version, the sentence above gains: "and the sign-in service logs the address you
-     register with when you arrive from the mail that grants you access" / NL to match. -->
+     machine as the grant line above, and "not free of names" covers it, so 1.0 stays true. The
+     paragraph above says it in words since 2026-11-23, when its request line was narrowed to
+     the request's reference and so no longer covered it. -->
 
 <!-- NOT YET TRUE ON live: nothing counts yet. The owner, 2026-10-05, verbatim: "go with GoAccess
      on the logs and the sentence. id and status we skip for now, no netbird api tokens..." It
