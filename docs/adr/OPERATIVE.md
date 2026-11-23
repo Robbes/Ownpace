@@ -783,8 +783,11 @@ live in [README.md](./README.md), the register.
   (`scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts`).
 - **Its schema `pgboss` is owned by `ownpace_jobs`**, no superuser and no grant on the ledger,
   made by the bring-up and by neither chain; reached through PgBouncer, polling, never LISTEN.
-- **The `worker` container works the jobs**: a process per run, its heap capped, the container's
-  CPUs and memory capped. One pass per mapping; discovery joins its run; a cutover waits.
+- **The `worker` container works the jobs**: a process per run, its heap capped; half a CPU and
+  512 MB a run, and 256 MB for itself. One pass per mapping; discovery joins its run; a cutover
+  waits. **At most
+  `MAX_PASSES_IN_FLIGHT` + 2 runs at once, every queue together**: a run past it waits in its
+  queue (`run-slots.ts`).
 - **A run settles as Trigger.dev 4.8.8 settles it**, decided by the error's name: an hour,
   three for a cutover (§2's table).
 - **The operator sees the work through `operator.sh jobs`**; there is no dashboard.

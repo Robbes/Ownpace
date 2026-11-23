@@ -4,7 +4,105 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-22, latest: the switch on, the managed edition's jobs on pg-boss by default (T7's last part, T8 built).**
+**2026-11-22, latest: the worker's limit on runs at once, and its memory lowered to match (the T9 row's alpha.17 part).**
+On branch `claude/ownpace-pgboss-worker-cap`, from `main` as it stood while alpha.16 was tagged. The
+owner was told the plan and decided, 2026-11-22 at about 18:55 UTC: *"Ok, makes sense, go ahead."*
+The owner waived alpha.17's waiting, so it may deploy on live the same day as alpha.16.
+
+- **The limit, and where it is counted.** At most `MAX_PASSES_IN_FLIGHT` + 2 runs at once, every
+  queue together (`runsAtOnceFor` in `apps/worker/src/runner/worker.ts`, passed to
+  `PgBossJobRunner` as `runsAtOnce`). The count is the runner's, in the worker, the one process
+  that forks the runs (`packages/scheduler/src/pg-boss/run-slots.ts`): a slot is taken BEFORE a
+  fetch, given back at once by a fetch that found nothing, and by a run once it has settled.
+  - *Why not pg-boss's `work()`.* Its loops fetch whenever they are idle. A run it had already
+    claimed cannot be handed back safely: `restore()` returns it at the same attempt, and the
+    settlement `work()` then writes for it is fenced on that attempt, so it can land on the next
+    claim of it. So each queue is worked on pg-boss's public `fetch`, `touch`, `complete` and
+    `fail`, with the same beat (half the heartbeat), the same attempt fence and the same kill
+    margin. A run not to be retried is failed with its attempt limit first brought down to its
+    attempt, in one transaction under the same fence, which is what `work()`'s per-job
+    `deadletter` writes; pg-boss has no public call for it. A claim that lands after a stop is put
+    back as `restore()` writes it, fenced, before its run starts; where its queue's policy refuses
+    it back (23505: a stately queue's one `created` place taken), it runs under its own claim, as
+    pg-boss's own give-back runs one.
+  - *A run past the limit* is not fetched. It stays `created` in its queue: no attempt spent, its
+    time limit not counting (pg-boss counts it from the fetch), nothing settled, and a stop leaves
+    it there for the next worker. Trigger.dev's plane does the same at its environment limit: a
+    run past it stays QUEUED and is dequeued when a run ends.
+  - *Who goes first.* A queue that finds every slot taken waits in line; a freed slot goes to the
+    first in line, and a queue goes to the back each time it asks again, so the queues take turns
+    and a queue with many runs waiting does not take every slot that frees. No kind of run is put
+    ahead of another, as on Trigger.dev, where every run counts against the environment's limit.
+  - *Must anything never wait?* No, and so nothing is reserved. The tick waiting at the limit only
+    defers passes that could not start anyway, and its queue holds at most one waiting. A
+    cutover's final sync can wait while the cutover holds its own slot, as the plane's supervisor
+    keeps a waiting run's slot; it cannot deadlock: the cutover is the one run that waits for
+    another, one at a time (its queue's concurrency is 1), and every other run ends within its
+    hour, freeing a slot. The passes' queue takes at most `MAX_PASSES_IN_FLIGHT` + 1, so one slot
+    is always left to the other queues. A reserved slot would differ from Trigger.dev and leave
+    the stack one run short of its limit whenever no cutover runs; if a cutover's waits ever
+    reach its own wait budget, the cutover hears a pass not settled, as today.
+- **The memory, from the measured runs.** At the limit the worst case is `MAX_PASSES_IN_FLIGHT` + 2
+  runs and the parent, every run at its budget: `small-1x`'s 512 MB, which every queue alike is
+  sized to (V8's heap capped at 410 MB of it, the catalog's `maxOldSpaceMb`), a pass or not. So
+  (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 120 MB:
+  - at 3: 5 × 512 + 120 = 2,680 MB; measured, 4 × 307 + 203 + 120 = 1,551 MB;
+  - at 6: 8 × 512 + 120 = 4,216 MB; measured, 7 × 307 + 203 + 120 = 2,472 MB.
+  - The rule is now (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 256 MB: 2,816 MB at 3 and 4,352 MB
+    at 6, each 136 MB over that worst case, from 4,864 MB and 6,400 MB. The CPU rule,
+    0.5 × (`MAX_PASSES_IN_FLIGHT` + 2), is unchanged: it is already half a CPU for each run the
+    limit admits, `small-1x`'s share.
+  - Changed in `managed.yml` (default `2816m`), `managed.env.example`, the bring-up's
+    `WORKER_MEMORY` rule and its fit checks' sentences, `a-worker-image-on-the-apis-base` and
+    `docs/managed-bring-up.md`, whose memory bullet said the pg-boss figures were still to come;
+    it now says the passes' share holds in both modes, and that the resident figure without the
+    plane is not measured.
+- **A stack that pinned the old values.** A stack at 6 that pinned alpha.16's sizes holds
+  `WORKER_CPUS=4` (the rule at 6, as before) and `WORKER_MEMORY=6400m`. A `.env` value wins, as in
+  Compose; the bring-up accepts it, checks it against the host as before, and says, in one line,
+  once a bring-up: `WORKER_MEMORY 6400m, from .env, is above the rule's 4352m for
+  MAX_PASSES_IN_FLIGHT 6 (the worker runs at most 8 runs at once), and is kept as set. To take the
+  rule: ./deploy/compose/env-upsert.sh <the .env> WORKER_MEMORY=4352m`. A value below the rule is
+  kept too, said as a warning.
+- **After review, the same day: four fixes and three nits** (the coordinator's review of this
+  branch).
+  - *The memory rule held one run at 256 MB*, a budget no queue's heap cap holds it to: every queue
+    has `small-1x`'s 410 MB heap, so every run counts at 512 MB, and at the limit the first rule,
+    (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB, was 120 MB short of the worst case. Now 256 MB more, as
+    above. `a-worker-image-on-the-apis-base` reads the per-run budget from the catalog and the
+    limit from the worker (`runsAtOnceFor`), and holds the rule and `managed.yml`'s default to that
+    worst case: the first rule put back fails it, `at 1: … expected -120 to be greater than or
+    equal to 0`.
+  - *A claim its stately queue refused back.* The give-back's `state = 'created'` meets the stately
+    index (`job_i3`, one `created` run a key) when another run holds that place: 23505. It was said
+    and left, and the claim waited active and unbeaten for the heartbeat sweep, which spent an
+    attempt. Now, as pg-boss's own `#giveBack` does, the refused claim stays the worker's and runs,
+    on its slot and under its own attempt, inside the stop.
+  - *The give-back, against Postgres* (`job-runner.integration.test.ts`, the stop coming inside the
+    runner's fetch once it has claimed): `created` again at the claim's `retry_count`, `started_on`
+    NULL, and the next worker completes it at attempt 1; on a stately queue, a retry claimed beside
+    a waiting run is refused back, runs at its own attempt, 2, and the waiting run is left for the
+    next worker. Without `started_on = NULL` the first fails (the start left set, and the next
+    worker completes it at attempt 2); without the 23505 handling the second does (the claim never
+    runs). The in-memory stand-in of `run-slots.unit.test.ts` now counts attempts as pg-boss does,
+    and its give-back test fails when the give-back leaves the start set.
+  - *Nits.* `managed.yml`'s stop comment says what a stop now does; a pg-boss bring-up says the
+    worker's size once, where its trigger and app phases each said it and the second called a size
+    the first exported "from .env" (`a whole pg-boss bring-up … says the worker's size once`, which
+    fails with the size said in both); the worker's stop test holds its passes 4 s, not 1.5, so none
+    ends before the stop.
+  - *Evidence.* Unit: `bootstrap-managed` 148, `a-worker-image-on-the-apis-base` 9, `run-slots` 10;
+    with every guard that reads a file changed here, 151 files and 5,671 tests, all passed.
+    Integration, against `scripts/local-pg.sh` (PostgreSQL 16, and this machine's Node 22.22, not
+    26): `job-runner` 31 passed, `worker` 24 passed and 1 skipped (the harness's Nextcloud).
+    Typecheck and lint clean. Each mutation above restored byte for byte (`cmp`).
+- **Not moved:** no migration file in either chain, no pin (Trigger.dev, Zitadel, ClickHouse,
+  pg-boss's version and its schema version). `deploy-live.sh`'s own comparison of this branch
+  over `main` reads *reversible* (the PR's evidence).
+- **Not proved here:** a real stack. That is E2E (managed) on this branch.
+- **Next:** E2E (managed) on this branch; then alpha.17; then the rest of T9 on the owner's word.
+
+**2026-11-22, the switch on, the managed edition's jobs on pg-boss by default (T7's last part, T8 built).**
 On branch `claude/ownpace-pgboss-flip`, from `main` with the seven open alpha.16 branches merged in
 order (the runner's gaps, the worker, the API's doors, the operator's commands, the worker's image,
 the bring-up and the deploy, the smoke and the gate) and the privacy policy's *Server logs* row
@@ -1152,7 +1250,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, merged as #2043 (`2f86401c`); the worker built on `claude/ownpace-pgboss-worker-process`; the API's doors, cancels and readiness on the switch built on `claude/ownpace-pgboss-api-doors`; the operator's commands built on `claude/ownpace-pgboss-operator-jobs` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. The API's step (the Status entry "the API's doors on the switch") reads `OWNPACE_JOB_RUNNER` in `apps/api/src/job-runner.ts`: on `pg-boss` every door enqueues through one producer on `JOBS_DATABASE_URL`, a close cancels by the pg-boss id, and readiness reads the shared beat; on `trigger`, unset or empty, nothing changes and no pg-boss module loads. Its second step, the worker (the Status entry "the worker on pg-boss, inert until started"), built on `claude/ownpace-pgboss-worker-process`: `apps/worker/src/runner/`, the seventeen jobs worked one process per run, the pg-boss half of the run context and of the tick's interlock; nothing starts it yet. The operator's commands, `operator.sh jobs` (overview, failures, show, cancel, run, refused while the hold is open unless `--despite-hold`), built on `claude/ownpace-pgboss-operator-jobs` (the Status entry of 2026-11-22, later still, T6's operator commands). |
 | T7 The worker service, and the switch on | builder, owner | 🟡 **Built 2026-11-22**: the role and schema (#2041); the worker's image and service, the bring-up and the deploy, the smoke and the gate on their branches; the switch on, built on `claude/ownpace-pgboss-flip`. Done when that pull request merges and E2E (managed) passes in both modes | A worker service in `managed.yml`, its CPUs and memory from `MAX_PASSES_IN_FLIGHT` by the owner's rule, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. The image (`apps/worker/Dockerfile`, on the API's two images) and the service in profile `jobs`, with the api's `JOBS_DATABASE_URL` and `OWNPACE_JOB_RUNNER`, are built (the Status entry of 2026-11-22, the worker's image). ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. The gate's part (the Status entry of 2026-11-22, the smoke and the gate): `smoke-managed.sh` and `e2e-managed.yml` read `OWNPACE_JOB_RUNNER` as the bring-up does; on `pg-boss` each Trigger.dev section is skipped with one line, and the jobs in `pgboss.job`, the worker, its log and `ownpace_jobs` are checked in their place; a dispatch's `job_runner` input sets one run's mode without persisting it. Trigger mode unchanged. The worker's memory limit stays `(MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2,816 MB` for alpha.16 (the owner, 2026-11-22 at about 18:55 UTC: *"Ok, makes sense, go ahead."*). |
 | T8 Trigger.dev's services stopped | builder, owner | 🟡 **Built 2026-11-22**, with the switch on `claude/ownpace-pgboss-flip` | In pg-boss mode the bring-up stops the plane in order, in profile `trigger`, its volumes kept as the way back (`OWNPACE_JOB_RUNNER=trigger`). Stopped on a stack when it is deployed at alpha.16. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: alpha.16 keeps the plane installed and stopped. |
-| T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: not in alpha.16; its pull requests start once the switch's has merged. The owner, 2026-11-22 at about 18:55 UTC, on the worker's memory: *"Ok, makes sense, go ahead."*: alpha.17 also adds a worker-wide limit of `MAX_PASSES_IN_FLIGHT` + 2 runs at once, as Trigger.dev admits today, then lowers the worker's memory limit from what the runs measured. |
+| T9 Trigger.dev removed | owner | 🟡 **Its alpha.17 part built 2026-11-22**; the removal not started | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: not in alpha.16; its pull requests start once the switch's has merged. The owner, 2026-11-22 at about 18:55 UTC, on the worker's memory: *"Ok, makes sense, go ahead."*: alpha.17 also adds a worker-wide limit of `MAX_PASSES_IN_FLIGHT` + 2 runs at once, as Trigger.dev admits today, then lowers the worker's memory limit from what the runs measured. **That part is built** (the Status entry of 2026-11-22, the worker's limit): at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once, a run past it waiting in its queue; the memory rule `(MAX_PASSES_IN_FLIGHT + 2) x 512 MB + 256 MB`, 2,816 MB at 3 and 4,352 MB at 6; done when its pull request merges and E2E (managed) passes. |
 
 ## 1. Why, and what was asked
 

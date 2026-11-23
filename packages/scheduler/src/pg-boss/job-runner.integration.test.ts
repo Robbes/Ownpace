@@ -14,6 +14,10 @@
  * time limit and lost claim, names that decide a retry, and the bounded
  * failures read.
  *
+ * Last, the worker's limit on runs at once (the T9 row's alpha.17 part): a
+ * claim that lands as the stop comes, given back at its attempt, and run
+ * where its stately queue refuses it back.
+ *
  * Point 7's PgBouncer half is this same file run with `TEST_DATABASE_URL`
  * pointing at a PgBouncer in transaction mode: every test then talks to
  * Postgres through it. The workplan records both runs.
@@ -24,6 +28,7 @@ import { fork, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import type { PgBoss } from 'pg-boss';
 import {
   PgBossJobRunner,
   PgBossProducer,
@@ -1056,5 +1061,121 @@ describe('the review of #2040: what a client asks of pg-boss, and what it never 
       await admin.query(`DROP FUNCTION ${SCHEMA}.r8_note()`);
       await admin.query(`DROP TABLE ${SCHEMA}.r8_seen`);
     }
+  }, 60_000);
+});
+
+describe("the worker's limit on runs at once: a claim that lands as the stop comes (0167, the T9 row's alpha.17 part)", () => {
+  type Claim = { id: string; retryCount: number };
+  type Fetch = (name: string, options?: object) => Promise<Claim[]>;
+
+  /** The pg-boss a client holds: what its queue loops fetch from, and what a test may fetch and fail on. */
+  const bossOf = (client: PgBossJobRunner | PgBossProducer): PgBoss => (client as unknown as { boss: PgBoss }).boss;
+
+  /**
+   * Has `r` stop from inside its next fetch that claims a run, so the claim
+   * reaches the queue's loop after the stop, as one does when a stop comes
+   * while a fetch is under way. Resolves with the claim and the stop.
+   */
+  function stopOnItsNextClaim(r: PgBossJobRunner): Promise<{ claim: Claim; stopped: Promise<void> }> {
+    const boss = bossOf(r) as unknown as { fetch: Fetch };
+    const fetch: Fetch = boss.fetch.bind(boss);
+    return new Promise((resolve) => {
+      boss.fetch = async (name, options) => {
+        const jobs = await fetch(name, options);
+        const [job] = jobs;
+        if (job !== undefined) {
+          boss.fetch = fetch;
+          resolve({ claim: { id: job.id, retryCount: job.retryCount }, stopped: r.stop() });
+        }
+        return jobs;
+      };
+    });
+  }
+
+  async function rowOf(queue: string, runId: string): Promise<unknown> {
+    const { rows } = await jobsPool.query(
+      `SELECT state, retry_count, started_on, heartbeat_on FROM ${SCHEMA}.job WHERE name = $1 AND id = $2::uuid`,
+      [queue, runId],
+    );
+    return rows[0];
+  }
+
+  it('is put back in its queue at the attempt it had, never started, and the next worker completes it at its first attempt', async () => {
+    const queue = 'l1-given-back';
+    const spec: QueueSpec = { name: queue, policy: 'singleton', heartbeatSeconds: 10 };
+    const r = newRunner();
+    await r.start([spec]);
+    const attempts: Array<[string, number]> = [];
+    const handler = async (_p: unknown, ctx: { runId: string; attempt: number }): Promise<string> => {
+      attempts.push([ctx.runId, ctx.attempt]);
+      return 'ran';
+    };
+    const stopping = stopOnItsNextClaim(r);
+    await r.work(queue, handler);
+    const { runId } = await r.enqueue(queue, { mappingId: 'l1' }, { serializeBy: 'l1' });
+    const { claim, stopped } = await stopping;
+    await stopped;
+
+    expect(claim).toEqual({ id: runId, retryCount: 0 });
+    expect(attempts).toEqual([]);
+    // `created` again, at the claim's retry_count, and unstarted: its next claim is the same attempt.
+    expect(await rowOf(queue, runId!)).toEqual({ state: 'created', retry_count: claim.retryCount, started_on: null, heartbeat_on: null });
+
+    const next = newRunner();
+    await next.start([spec]);
+    await next.work(queue, handler);
+    expect(await settled(next, queue, runId!)).toMatchObject({ state: 'completed', attempt: 1, output: { value: 'ran' } });
+    expect(attempts).toEqual([[runId, 1]]);
+    await next.stop();
+  }, 60_000);
+
+  it('runs under its claim where its stately queue refuses it back, as pg-boss runs a claim it cannot give back', async () => {
+    const queue = 'l2-stately-kept';
+    // Retried at once, so the first attempt's failure leaves a run waiting to be claimed again now.
+    const spec: QueueSpec = { name: queue, policy: 'stately', heartbeatSeconds: 10, retryDelaySeconds: 0, retryDelayMaxSeconds: 0 };
+    const r = newRunner();
+    await r.start([spec]);
+    const p = newProducer([spec]);
+    await p.start();
+    // A: its first attempt claimed and failed, so it waits as `retry`; B: sent after, waiting as
+    // `created`. A stately queue holds one of each.
+    const a = await r.enqueue(queue, { n: 'a' });
+    const [first] = (await bossOf(p).fetch(queue)) as unknown as Claim[];
+    expect(first?.id).toBe(a.runId);
+    await bossOf(p).fail(queue, [{ id: first!.id, retryCount: first!.retryCount }], { name: 'Error', message: 'its first attempt failed' });
+    const b = await r.enqueue(queue, { n: 'b' });
+    expect(b.runId).not.toBeNull();
+    expect(await rowOf(queue, a.runId!)).toMatchObject({ state: 'retry', retry_count: 0 });
+
+    const attempts: Array<[string, number]> = [];
+    const handler = async (_p: unknown, ctx: { runId: string; attempt: number }): Promise<string> => {
+      attempts.push([ctx.runId, ctx.attempt]);
+      return 'ran';
+    };
+    const stopping = stopOnItsNextClaim(r);
+    await r.work(queue, handler);
+    const { claim, stopped } = await stopping;
+    await stopped;
+
+    // The loop claimed A, its second attempt, as the stop came. Put back as `created`, A would take
+    // B's place (job_i3: one `created` per key on a stately queue), so pg-boss refuses it: 23505.
+    // The claim stayed this worker's, and ran, inside the stop, at its own attempt.
+    expect(claim).toEqual({ id: a.runId, retryCount: 1 });
+    expect(attempts).toEqual([[a.runId, 2]]);
+    // Read through the producer: the runner is stopped.
+    expect(await p.status(a.runId!)).toMatchObject({ state: 'completed', attempt: 2, output: { value: 'ran' } });
+    expect(await p.status(b.runId!)).toMatchObject({ state: 'queued', attempt: 1 });
+
+    // B was left as it waited, for the next worker.
+    const next = newRunner();
+    await next.start([spec]);
+    await next.work(queue, handler);
+    expect(await settled(next, queue, b.runId!)).toMatchObject({ state: 'completed', attempt: 1 });
+    expect(attempts).toEqual([
+      [a.runId, 2],
+      [b.runId, 1],
+    ]);
+    await next.stop();
+    await p.stop();
   }, 60_000);
 });

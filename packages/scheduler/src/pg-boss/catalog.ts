@@ -41,20 +41,21 @@
  *   it (`deploy/compose/plane-limit.sh`). How often an idle worker asks for
  *   work is the runner's, one interval for every queue.
  *
- * NOT TRIGGER.DEV'S CONCURRENCY, AND KNOWN NOT TO BE (alpha.16; ADR-0054,
- * 0167). Two differences, kept for this release and recorded there:
+ * THE WORKER'S LIMIT ON RUNS AT ONCE (alpha.17; ADR-0054, 0167). Each queue
+ * above has its own concurrency, which adds up to `MAX_PASSES_IN_FLIGHT` + 17.
+ * The worker also holds every queue together to `MAX_PASSES_IN_FLIGHT` + 2
+ * runs at once, the plane's limit (`plane-limit.sh`), counted before each
+ * fetch (`./run-slots.ts`): a run past it waits in its queue, as a run past
+ * the plane's limit stays queued, and the queues take turns at a slot that
+ * frees.
+ *
+ * NOT TRIGGER.DEV'S CONCURRENCY, AND KNOWN NOT TO BE (ADR-0054, 0167).
  *  - **One of each job asked for at a time, across every organisation.**
  *    Trigger.dev runs one count per migration and counts of different
  *    migrations side by side, and puts no limit on verification,
  *    confirmation, the two applies, the cutover and the rollback. Here each of
  *    those queues is worked one run at a time on the one worker: a second
  *    organisation's count, or a second cutover, waits for the first.
- *  - **More runs at once than the plane admits.** The plane caps the stack at
- *    `MAX_PASSES_IN_FLIGHT` + 2 runs (`plane-limit.sh`). Here every queue has
- *    its own concurrency, so the worker may run the passes
- *    (`MAX_PASSES_IN_FLIGHT` + 1) and one of each other queue, sixteen, at
- *    once: `MAX_PASSES_IN_FLIGHT` + 17. A worker-wide cap of
- *    `MAX_PASSES_IN_FLIGHT` + 2 is a recorded follow-up.
  *
  * DATA ONLY. It imports nothing, so whoever reads it loads no pg-boss. Each
  * entry is a `QueueSpec` as `PgBossJobRunner#start` takes it, with what a
@@ -62,8 +63,8 @@
  * source, ids, crons, keys, retries and time limit
  * (`apps/worker/src/jobs/the-catalog-is-the-tasks.unit.test.ts`).
  *
- * NOTHING READS IT AT RUN TIME YET: Trigger.dev runs every job until workplan
- * 0167 T7 turns the switch on.
+ * The worker reads it at start (`apps/worker/src/runner/worker.ts`), in
+ * pg-boss mode, `managed.yml`'s default since workplan 0167 T7.
  */
 
 /** What every run of every queue gets, as `trigger.config.ts` gives every task. */

@@ -32,7 +32,10 @@
  *    the api are healthy, with a stop grace period;
  * 6. its CPUs and memory follow the owner's rule from MAX_PASSES_IN_FLIGHT
  *    (3 when unset): the defaults are the rule at 3, and the example and the
- *    service's comment state the rule;
+ *    service's comment state the rule; and the memory holds the worst case at
+ *    the worker's limit on runs at once, read from the worker and the catalog:
+ *    every run at the 512 MB budget small-1x gives every queue alike, and the
+ *    worker's own process (alpha.17's first rule held one run at 256 MB);
  * 7. the switch: the api and the worker both read `OWNPACE_JOB_RUNNER`,
  *    `pg-boss` by default since the switch is on (workplan 0167 T7), and the
  *    example names it.
@@ -45,6 +48,8 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { JOB_CATALOG } from '../packages/scheduler/src/pg-boss/catalog.ts';
+import { runsAtOnceFor } from '../apps/worker/src/runner/worker.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string): string => readFileSync(join(ROOT, p), 'utf8');
@@ -148,9 +153,46 @@ type Service = {
 };
 type Compose = { services: Record<string, Service> };
 
-/** The owner's rule, from the cap on passes in flight. */
+/**
+ * The owner's rule, from the cap on passes in flight. The worker runs at most
+ * that cap + 2 runs at once (alpha.17, workplan 0167), so both are per run:
+ * half a CPU and 512 MB each, and 256 MB more of memory for the worker's own
+ * process and the room beside it. Before the limit (alpha.16) the memory was
+ * (cap + 1) x 512 MB + 2,816 MB, for every queue at its own concurrency.
+ */
 export const workerCpus = (passes: number): number => 0.5 * (passes + 2);
-export const workerMemoryMb = (passes: number): number => (passes + 1) * 512 + 2816;
+export const workerMemoryMb = (passes: number): number => (passes + 2) * 512 + 256;
+/** alpha.16's rule, which the service must no longer state. */
+const workerMemoryMbBeforeTheLimit = (passes: number): number => (passes + 1) * 512 + 2816;
+
+/**
+ * A run's budget: `small-1x`'s 512 MB, of which V8 gets 410, the catalog's
+ * `maxOldSpaceMb` (`apps/worker/src/jobs/a-machine-every-task-names`). Every
+ * queue has that heap, so every run counts at 512 MB, a pass or not; a queue
+ * given more heap than small-1x's share is a run this rule was not sized for,
+ * and is refused here rather than counted at 512.
+ */
+const SMALL_1X = { memoryMb: 512, heapMb: 410 } as const;
+/** The worker's own process, measured (workplan 0167): 120 MB. */
+const PARENT_MB = 120;
+
+function runBudgetMb(queue: string, maxOldSpaceMb: number): number {
+  if (maxOldSpaceMb > SMALL_1X.heapMb) {
+    throw new Error(
+      `${queue}'s heap of ${maxOldSpaceMb} MB is above small-1x's ${SMALL_1X.heapMb}: its run's budget is not ` +
+        `${SMALL_1X.memoryMb} MB, and the worker's memory rule must be worked out again`,
+    );
+  }
+  return SMALL_1X.memoryMb;
+}
+
+/**
+ * The most the worker holds at its limit: as many runs as it runs at once
+ * (`runsAtOnceFor`), each at the largest budget a queue of the catalog has,
+ * and its own process.
+ */
+const worstCaseMb = (passes: number): number =>
+  runsAtOnceFor(passes) * Math.max(...JOB_CATALOG.map((job) => runBudgetMb(job.name, job.maxOldSpaceMb))) + PARENT_MB;
 
 /** What is wrong with managed.yml's worker service; empty when nothing is. */
 export function serviceProblems(text: string): string[] {
@@ -236,9 +278,28 @@ describe("managed.yml's worker service: defined, not started, sized by the owner
     expect(serviceProblems(managed)).toEqual([]);
   });
 
-  it('the rule, at 3 (the OTA stack) and at 6 (live)', () => {
-    expect([workerCpus(3), workerMemoryMb(3)]).toEqual([2.5, 4864]);
-    expect([workerCpus(6), workerMemoryMb(6)]).toEqual([4, 6400]);
+  it('the rule, at 3 (the OTA stack) and at 6', () => {
+    expect([workerCpus(3), workerMemoryMb(3)]).toEqual([2.5, 2816]);
+    expect([workerCpus(6), workerMemoryMb(6)]).toEqual([4, 4352]);
+    expect([workerMemoryMbBeforeTheLimit(3), workerMemoryMbBeforeTheLimit(6)]).toEqual([4864, 6400]);
+  });
+
+  it('holds the worst case at the limit: every run at the budget the catalog gives every queue alike, and the worker itself', () => {
+    // Read, not assumed: one heap for every queue (small-1x's share), and the worker's own limit.
+    expect(new Set(JOB_CATALOG.map((job) => job.maxOldSpaceMb))).toEqual(new Set([SMALL_1X.heapMb]));
+    for (const cap of [1, 3, 6, 12]) {
+      expect(runsAtOnceFor(cap), `at ${cap}`).toBe(cap + 2);
+      expect(worstCaseMb(cap), `at ${cap}`).toBe((cap + 2) * SMALL_1X.memoryMb + PARENT_MB);
+      expect(workerMemoryMb(cap) - worstCaseMb(cap), `at ${cap}: the rule leaves this over the worst case`).toBeGreaterThanOrEqual(0);
+      // The room the comments and the docs state: 136 MB.
+      expect(workerMemoryMb(cap) - worstCaseMb(cap), `at ${cap}`).toBe(136);
+    }
+    // managed.yml's own default holds it at 3, whatever the rule above says.
+    const memoryDefault = /\$\{WORKER_MEMORY:-(\d+)m\}/.exec(managed);
+    expect(memoryDefault, `${MANAGED} has no \${WORKER_MEMORY:-<n>m}`).not.toBeNull();
+    expect(Number(memoryDefault![1])).toBeGreaterThanOrEqual(worstCaseMb(3));
+    // A queue whose heap outgrew small-1x's share is not counted at 512 MB: it stops this rule.
+    expect(() => runBudgetMb('a-bigger-run', SMALL_1X.heapMb + 1)).toThrow(/must be worked out again/);
   });
 
   it('the example and the service state the rule and name the knobs', () => {
@@ -248,7 +309,11 @@ describe("managed.yml's worker service: defined, not started, sized by the owner
     for (const [file, raw] of [[EXAMPLE, example], [MANAGED, managed]] as const) {
       const text = raw.replace(/\n\s*#\s*/g, ' ').replace(/\s+/g, ' ');
       expect(text, file).toMatch(/0\.5 x \(MAX_PASSES_IN_FLIGHT \+ 2\)/);
-      expect(text, file).toMatch(/\(MAX_PASSES_IN_FLIGHT \+ 1\) x 512 MB \+ 2,816 MB/);
+      expect(text, file).toMatch(/\(MAX_PASSES_IN_FLIGHT \+ 2\) x 512 MB \+ 256 MB/);
+      // Every statement of it says the 256 MB: without it the rule holds the runs and not the worker.
+      expect(text, file).not.toMatch(/\(MAX_PASSES_IN_FLIGHT \+ 2\) x 512 MB(?! \+ 256 MB)/);
+      expect(text, file).not.toMatch(/\(MAX_PASSES_IN_FLIGHT \+ 1\) x 512 MB \+ 2,816 MB/);
+      expect(text, file).toMatch(/MAX_PASSES_IN_FLIGHT \+ 2 runs at once/);
       expect(text, file).toMatch(/never more than (the host's|this machine's) CPU count/);
     }
   });
@@ -265,7 +330,9 @@ describe("managed.yml's worker service: defined, not started, sized by the owner
       ['a port', at('    stop_grace_period: 60s\n', '    stop_grace_period: 60s\n    ports:\n      - "127.0.0.1:3002:3002"\n'), /publishes or exposes a port/],
       ['before the migrations', at('      api:\n        condition: service_healthy\n    networks:', '      api:\n        condition: service_started\n    networks:'), /does not wait for api/],
       ['the cpus off the rule', at('${WORKER_CPUS:-2.5}', '${WORKER_CPUS:-0.5}'), /cpus is \$\{WORKER_CPUS:-0.5\}/],
-      ['the memory off the rule', at('${WORKER_MEMORY:-4864m}', '${WORKER_MEMORY:-3328m}'), /mem_limit is/],
+      ['the memory off the rule', at('${WORKER_MEMORY:-2816m}', '${WORKER_MEMORY:-3328m}'), /mem_limit is/],
+      ["alpha.16's memory, before the limit", at('${WORKER_MEMORY:-2816m}', `\${WORKER_MEMORY:-${workerMemoryMbBeforeTheLimit(3)}m}`), /mem_limit is \$\{WORKER_MEMORY:-4864m\}/],
+      ['the runs held and not the worker', at('${WORKER_MEMORY:-2816m}', '${WORKER_MEMORY:-2560m}'), /mem_limit is \$\{WORKER_MEMORY:-2560m\}/],
       ['the switch off by default', at('      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}\n      NODE_ENV: production\n', '      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-trigger}\n      NODE_ENV: production\n'), /the worker's OWNPACE_JOB_RUNNER/],
       ['no grace', at('    stop_grace_period: 60s\n', ''), /no stop_grace_period/],
     ];

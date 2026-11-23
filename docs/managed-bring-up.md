@@ -148,13 +148,17 @@ are **not** product-named and keep their names; nothing above touches them.
   machine, use the formula beside it in `managed.env.example`:
   (the memory the stacks may use ÷ 1.2 − both stacks' resident services − the
   other stack's cap × 0.5 GB − the nightly's 2 GB) ÷ 0.5 GB.
-  **These figures were worked out for Trigger.dev, trigger mode.** In pg-boss
-  mode, the default, the plane's containers are stopped and the passes run in
-  the worker, whose memory limit is a ceiling, not a reservation (*The worker's
-  size*, below; about 120 MB idle). The figures for pg-boss mode are measured
-  again in the cutover's rehearsal (E2E (managed), which prints each
-  container's highest memory use in both runners) before this bullet gives
-  them.
+  **These figures were worked out for Trigger.dev, trigger mode, and the
+  passes' share holds in pg-boss mode, the default, too.** There the plane's
+  containers are stopped and every run is a process of the worker, which runs
+  at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once across all its queues, as the
+  plane admits; a run past that waits in its queue. Its memory limit is
+  (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 256 MB, the same half GB a run and
+  256 MB for the worker itself: 2,816 MB at 3 and 4,352 MB at 6 (*The
+  worker's size*, below). It is a ceiling, not a
+  reservation (about 120 MB idle). The 4 GB of resident services above
+  includes the plane's, which pg-boss mode stops; the figure without them has
+  not been measured, so the sizing above errs high there.
 - **CPU: half a CPU per pass in flight**, beside the resident services: at 6 and
   3, that is 4.5 CPUs for passes. The resident services' own figure is still to
   be measured on the machine; until then these numbers are estimates, not
@@ -874,16 +878,32 @@ api applies the migrations the jobs read); when the run replaced the api's
 container, it recreates the worker too. Its health is `GET
 http://127.0.0.1:3002/health` inside its container, which answers 200 once the
 runner runs; `managed.yml`'s healthcheck asks it every 30 s, and the app phase
-waits on it. A stop gives the running passes 60 s to settle; a run cut off is
-picked up again by its heartbeat.
+waits on it. A stop gives the runs going 45 s to finish, then kills what is
+left and fails it to be retried, all inside the service's 60 s; a run cut off
+past that is picked up again by its heartbeat.
 
 **The worker's size.** `.env`'s `WORKER_CPUS` and `WORKER_MEMORY` when it sets
 them; otherwise the bring-up works them out from this stack's
 `MAX_PASSES_IN_FLIGHT` and hands them to Compose for that run, without writing
 `.env`: 0.5 × (`MAX_PASSES_IN_FLIGHT` + 2) CPUs and
-(`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB + 2,816 MB, from the worker's measured
-peak (#2048). That is 2.5 and `4864m` at the default cap of 3, and 4 and
-`6400m` at live's 6. Docker refuses a `cpus` above the host's CPU count, and a
+(`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 256 MB: half a CPU and 512 MB for each
+of the runs the worker runs at once, at most `MAX_PASSES_IN_FLIGHT` + 2, and
+256 MB for the worker itself. At that limit, with every run at its budget, the
+memory holds: every run at the 512 MB budget `small-1x` gives every queue
+alike, a pass or not (V8's heap is capped at 410 MB of it on every queue; a pass
+measured 307 MB, another run 203 MB), and the worker's own process (120 MB
+measured), with 136 MB to spare. That is 2.5 and `2816m` at the default cap of
+3, and 4 and `4352m` at 6. A value `.env` sets is the one used, as in Compose.
+One above the rule (alpha.16's rule was (`MAX_PASSES_IN_FLIGHT` + 1) × 512 MB +
+2,816 MB, `6400m` at 6) is kept, and the bring-up says so in one line, once a
+bring-up:
+
+```text
+WORKER_MEMORY 6400m, from .env, is above the rule's 4352m for MAX_PASSES_IN_FLIGHT 6 (the worker runs at most 8 runs at once), and is kept as set. To take the rule: ./deploy/compose/env-upsert.sh <the .env> WORKER_MEMORY=4352m
+```
+
+One below the rule is kept too, and said as a warning: a run at its budget
+may not fit. Docker refuses a `cpus` above the host's CPU count, and a
 memory limit above the host's memory is one no host can give, so the bring-up
 refuses either, in one sentence, before the plane stops and before the worker
 starts. A line that passes names no number of the host's (the gate's log is
@@ -896,8 +916,10 @@ the one `env-upsert.sh … WORKER_CPUS=… WORKER_MEMORY=…` that keeps the siz
 **A stack whose `MAX_PASSES_IN_FLIGHT` is not 3 sets `WORKER_CPUS` and
 `WORKER_MEMORY` in its `.env`**, from the rule above, so that every compose call
 agrees, the bring-up's and a hand `docker compose` alike: the values the
-bring-up works out hold only for its own calls. Live, at 6, sets
-`WORKER_CPUS=4` and `WORKER_MEMORY=6400m`.
+bring-up works out hold only for its own calls. A stack at 6 sets
+`WORKER_CPUS=4` and `WORKER_MEMORY=4352m`; one whose `.env` still holds
+alpha.16's `6400m` at 6 works as it is, and takes the rule with
+`./deploy/compose/env-upsert.sh deploy/compose/.env WORKER_MEMORY=4352m`.
 
 **A comment where the worker reads a value.** A `.env` line such as
 `LEDGER_RETENTION_DAYS=  # days` (spaces or a tab, then `#`) is empty to bash,
@@ -4492,8 +4514,8 @@ No script can do these. The script checks each one before it changes anything.
    the script*, step 6, settles it.
 
    **`MAX_PASSES_IN_FLIGHT=6`** is live's cap on passes running at once. In
-   pg-boss mode the worker is sized from it (*The two runners*): live sets
-   `WORKER_CPUS=4` and `WORKER_MEMORY=6400m` in its `.env` beside it. In trigger
+   pg-boss mode the worker is sized from it (*The two runners*): a stack at 6
+   sets `WORKER_CPUS=4` and `WORKER_MEMORY=4352m` in its `.env` beside it. In trigger
    mode the bring-up sets live's task plane to it plus two, 8. The OTA stack
    runs with 6 as well while it is the only stack on the machine. Once live is
    stood up, put the OTA stack back to 3, from its own checkout, in a shell with

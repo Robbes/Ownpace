@@ -652,14 +652,22 @@ describe('what a run asks of its runner, on pg-boss', () => {
     // cutover's catch still runs (run-cutover.ts: FinalSyncNotFinished) instead of a RunTimedOut.
     await startWorker({ catalog: catalogOf(WORKED, { 'run-cutover': { maxDurationSeconds: 30 } }) });
     const mapping = randomUUID();
-    await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping, holdMs: 60_000 }, { serializeBy: mapping });
-    await until('the pass ahead to start', async () => (await attemptsOf(mapping)).length === 1, 30_000);
-    const cutover = await producer.enqueue('run-cutover', { tenantId: TENANT, mappingId: mapping }, {});
-    const done = await settled(cutover.runId!, 60_000);
-    expect(done.state, JSON.stringify(done.output)).toBe('completed');
-    expect(done.attempt).toBe(1);
-    const { settled: waited } = (done.output as { value: { settled: { ok: boolean; error: { name: string } } } }).value;
-    expect(waited).toMatchObject({ ok: false, error: { name: 'FinalSyncTimedOut' } });
+    const pass = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping, holdMs: 60_000 }, { serializeBy: mapping });
+    try {
+      await until('the pass ahead to start', async () => (await attemptsOf(mapping)).length === 1, 30_000);
+      const cutover = await producer.enqueue('run-cutover', { tenantId: TENANT, mappingId: mapping }, {});
+      const done = await settled(cutover.runId!, 60_000);
+      expect(done.state, JSON.stringify(done.output)).toBe('completed');
+      expect(done.attempt).toBe(1);
+      const { settled: waited } = (done.output as { value: { settled: { ok: boolean; error: { name: string } } } }).value;
+      expect(waited).toMatchObject({ ok: false, error: { name: 'FinalSyncTimedOut' } });
+    } finally {
+      // The pass holds a minute, past this test. Left running, the stop kills it after its grace
+      // and pg-boss retries it, and a later test's worker runs it in one of that worker's slots:
+      // on CI it took one of the three the limit test below counts on, and that test never saw
+      // three of its own runs start. Cancelled, it is never retried.
+      await producer.cancel(pass.runId!);
+    }
   }, 120_000);
 
   it("the purge's verdict: live while it waits or runs, finished once it ended or is gone, unknown for a Trigger.dev ref", async () => {
@@ -685,6 +693,69 @@ describe('what a run asks of its runner, on pg-boss', () => {
     } finally {
       await runner.close();
     }
+  }, 120_000);
+});
+
+describe("the worker's limit on runs at once (0167, the T9 row's alpha.17 part)", () => {
+  // MAX_PASSES_IN_FLIGHT 1: the limit is 3 runs at once. The passes' queue is given room for 4, so
+  // the worker's limit, not the queue's, is what holds the fourth back.
+  const ROOMY = { 'run-delta-sync': { concurrency: { passesInFlightPlus: 3 } } } as const;
+
+  async function passes(n: number, holdMs: number): Promise<Array<{ key: string; runId: string }>> {
+    const sent: Array<{ key: string; runId: string }> = [];
+    for (let i = 0; i < n; i += 1) {
+      const key = randomUUID();
+      const { runId } = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: key, holdMs }, { serializeBy: key });
+      sent.push({ key, runId: runId! });
+    }
+    return sent;
+  }
+
+  async function startedOf(sent: ReadonlyArray<{ key: string }>): Promise<number> {
+    let n = 0;
+    for (const { key } of sent) n += (await attemptsOf(key)).length;
+    return n;
+  }
+
+  it('with the limit reached the next run waits in its queue, starts when one ends, and none fails or is tried again', async () => {
+    const worker = await startWorker({ passesInFlight: 1, catalog: catalogOf(['run-delta-sync'], ROOMY) });
+    expect(worker.runner.runsNow.limit).toBe(3);
+    const sent = await passes(4, 4000);
+    await until('three runs to start', async () => (await startedOf(sent)) === 3, 30_000);
+    // Two polling intervals and more: the fourth is still not fetched.
+    await sleep(2000);
+    expect(await startedOf(sent)).toBe(3);
+    const statuses = await Promise.all(sent.map((r) => producer.status(r.runId)));
+    const waiting = statuses.filter((s) => s?.state === 'queued');
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0]).toMatchObject({ attempt: 1, startedAt: null });
+    expect(worker.runner.runsNow.inUse).toBe(3);
+
+    const all = await Promise.all(sent.map((r) => settled(r.runId, 60_000)));
+    for (const s of all) expect(s).toMatchObject({ state: 'completed', attempt: 1 });
+    // The fourth started only once one of the first three had finished.
+    const attempts = (await Promise.all(sent.map((r) => attemptsOf(r.key)))).map((a) => a[0]!);
+    const last = attempts.reduce((a, b) => (a.started_at > b.started_at ? a : b));
+    const firstEnd = Math.min(...attempts.filter((a) => a !== last).map((a) => a.finished_at!.getTime()));
+    expect(last.started_at.getTime()).toBeGreaterThanOrEqual(firstEnd);
+    for (const a of attempts) expect(a.attempt).toBe(1);
+  }, 120_000);
+
+  it('a stop leaves a run waiting for a slot in its queue, unclaimed and at its first attempt, for the next worker', async () => {
+    const worker = await startWorker({ passesInFlight: 1, catalog: catalogOf(['run-delta-sync'], ROOMY) });
+    // Held long enough that none of the first three ends before the stop, on a slow machine too:
+    // one that did would free a slot, and the fourth could start before the stop came.
+    const sent = await passes(4, 4000);
+    await until('three runs to start', async () => (await startedOf(sent)) === 3, 30_000);
+    await worker.stop();
+    const statuses = await Promise.all(sent.map((r) => producer.status(r.runId)));
+    expect(statuses.filter((s) => s?.state === 'completed')).toHaveLength(3);
+    const left = statuses.filter((s) => s?.state !== 'completed');
+    expect(left).toHaveLength(1);
+    expect(left[0]).toMatchObject({ state: 'queued', attempt: 1, startedAt: null });
+
+    await startWorker({ passesInFlight: 1, catalog: catalogOf(['run-delta-sync'], ROOMY) });
+    expect(await settled(left[0]!.runId, 60_000)).toMatchObject({ state: 'completed', attempt: 1 });
   }, 120_000);
 });
 

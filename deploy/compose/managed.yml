@@ -2283,26 +2283,32 @@ services:
     read_only: true
     tmpfs: [/tmp]
     # THE OWNER'S RULE FOR ITS SIZE (workplan 0167, 2026-11-22), from the cap
-    # on passes this stack runs at once, MAX_PASSES_IN_FLIGHT (3 when unset):
-    #   cpus      = 0.5 x (MAX_PASSES_IN_FLIGHT + 2), and never more than the
-    #               host's CPU count, since Docker refuses a container more
-    #               CPUs than the machine has;
-    #   mem_limit = (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2,816 MB: the passes
-    #               at their peak (one more than the cap, 307 MB measured each),
-    #               the three :23 schedules and one of each other on-demand
-    #               kind (203 MB each) and the parent (120 MB), with room, since
-    #               a run the kernel kills for memory is not retried.
-    # The defaults are the OTA stack's, at 3: 2.5 CPUs and 4,864 MB. Live, at
-    # 6, sets WORKER_CPUS=4 and WORKER_MEMORY=6400m in its .env. Compose cannot
+    # on passes this stack runs at once, MAX_PASSES_IN_FLIGHT (3 when unset).
+    # The worker runs at most MAX_PASSES_IN_FLIGHT + 2 runs at once, every
+    # queue together, as Trigger.dev's plane admits (a run past that waits in
+    # its queue), so the size is per run:
+    #   cpus      = 0.5 x (MAX_PASSES_IN_FLIGHT + 2), half a CPU a run, and
+    #               never more than the host's CPU count, since Docker refuses
+    #               a container more CPUs than the machine has;
+    #   mem_limit = (MAX_PASSES_IN_FLIGHT + 2) x 512 MB + 256 MB: at the limit,
+    #               every run at its 512 MB budget, which small-1x gives every
+    #               queue alike (V8's heap capped at 410 MB of it, the
+    #               catalog's maxOldSpaceMb; a pass measured 307 MB, another run
+    #               203 MB), and the parent (120 MB measured), 136 MB to spare,
+    #               since a run the kernel kills for memory is not retried.
+    # The defaults are the OTA stack's, at 3: 2.5 CPUs and 2,816 MB. At 6 the
+    # rule is 4 CPUs and 4,352 MB; a .env that sets more (alpha.16's 6400m at
+    # 6) is kept, and the bring-up says so. Compose cannot
     # compare a value with the host's CPUs, so the bring-up checks
     # WORKER_CPUS against them before it starts this service. Each run's child
     # raises its own /proc/self/oom_score_adj, so at the limit the kernel takes
     # a run, not the worker that settles it.
     cpus: ${WORKER_CPUS:-2.5}
-    mem_limit: ${WORKER_MEMORY:-4864m}
-    # A stop gives the running passes a minute to settle (the runner stops its
-    # workers and lets pg-boss mark what was active) before Docker kills it; a
-    # run cut off is picked up again by its heartbeat and converges.
+    mem_limit: ${WORKER_MEMORY:-2816m}
+    # A stop gives the runs going this minute: the worker fetches nothing more,
+    # lets them finish for 45 s, then kills each run's process still alive and
+    # fails its run to be retried, and stops. A run Docker cuts off past the
+    # minute is failed by pg-boss's heartbeat sweep and retried, and converges.
     stop_grace_period: 60s
     environment:
       # THE SWITCH, read by the api, this worker, the scripts and the E2E
