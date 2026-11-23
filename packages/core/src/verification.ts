@@ -138,6 +138,8 @@ export interface VerificationDeps {
     readonly olderKeys: ReadonlyArray<string>;
     /** Of `olderKeys`, those with no version to guard a rewrite: nothing reaches them (0168). */
     readonly unguardedKeys?: ReadonlyArray<string>;
+    /** Of `olderKeys`, those left because their source changed after the switch (ADR-0055 decision 6). */
+    readonly leftKeys?: ReadonlyArray<string>;
     /** What the rest wait for: the next pass, or past the data type's cutover the press (workplan 0168 D5). */
     readonly waitsFor?: AddressChangeWaitsFor;
   }>;
@@ -589,19 +591,33 @@ async function verifyDataType(
   // of the target, counted as unavailable, and said below.
   const address = deps.getAddressChanges ? await deps.getAddressChanges(dataType) : undefined;
   const older = new Set(address?.olderKeys ?? []);
-  // Of those, the copies no pass and no press reaches: no version to guard
-  // the write (S1). Said apart, never as waiting (0168, found on the way).
+  //
+  // NOTHING COMES FOR TWO OF THEM (the owner, 2026-11-23; ADR-0055 decisions
+  // 5 and 6): a copy with no version to guard the write (S1), and one whose
+  // source changed after the switch, which the press never rewrites. Each
+  // keeps the old address for good, so each is CHECKED AS A PLAIN COPY: it
+  // must still equal the bytes as copied, which is what the ledger holds. It
+  // is counted and said apart, and never holds the cutover on its own: a
+  // sample of only those held it for good, with no remedy in the product.
   const unguarded = new Set(address?.unguardedKeys ?? []);
+  const left = new Set(address?.leftKeys ?? []);
+  // Those a pass or the press will still change: never a match meanwhile.
   let olderSampled = 0;
   let unguardedSampled = 0;
+  let leftSampled = 0;
 
   // Compare samples by matching naturalKeyHash
   for (const sourceSample of sourceSamples) {
     if (older.has(sourceSample.naturalKeyHash)) {
-      olderSampled++;
-      if (unguarded.has(sourceSample.naturalKeyHash)) unguardedSampled++;
-      checksumUnavailable++;
-      continue;
+      if (unguarded.has(sourceSample.naturalKeyHash)) {
+        unguardedSampled++;
+      } else if (left.has(sourceSample.naturalKeyHash)) {
+        leftSampled++;
+      } else {
+        olderSampled++;
+        checksumUnavailable++;
+        continue;
+      }
     }
     const targetSample = targetSamplesByHash.get(sourceSample.naturalKeyHash);
 
@@ -743,22 +759,19 @@ async function verifyDataType(
   } else if (contentHeld && allWaitForAnAddress) {
     // Every sample waits for an address change (S2): nothing was asked of the
     // target, so nothing was compared. Held, with the remedy that applies.
-    // When every one of them has no version to guard the write, no pass and
-    // no press changes them, and saying "check again after the next pass"
-    // promised what will not happen (0168, found on the way).
+    // Only copies a pass or the press will still change are set aside: one
+    // that keeps the old address for good was compared as a plain copy above
+    // (the owner, 2026-11-23), so this always has a remedy.
     issues.push({
       id: `ADDRESS_NOT_COMPARED_${dataType}`,
       severity: 'ERROR',
       message:
         `Every one of the ${sourceSamples.length} sampled ${dataType} item(s) waits for an address ` +
         `change to reach it, so no content was compared. The cutover is held. ` +
-        (unguardedSampled === olderSampled
-          ? 'No pass changes them: they have no version on the new system to guard the write, so they ' +
-            'are left as they are.'
-          : 'Check again after ' +
-            (address?.waitsFor === 'press'
-              ? 'pressing Apply the new addresses here too, on the migration\'s page, and the pass after it.'
-              : 'the next pass.')),
+        'Check again after ' +
+        (address?.waitsFor === 'press'
+          ? 'pressing Apply the new addresses here too, on the migration\'s page, and the pass after it.'
+          : 'the next pass.'),
     });
   } else if (contentHeld) {
     // Samples were drawn, and the target, which can hash, answered not one of
@@ -804,13 +817,16 @@ async function verifyDataType(
   }
   
   const unguardedCount = address ? Math.min(address.unguardedKeys?.length ?? 0, address.olderKeys.length) : 0;
-  const waitingCount = address ? address.olderKeys.length - unguardedCount : 0;
+  const leftCount = address
+    ? Math.min(address.leftKeys?.length ?? 0, address.olderKeys.length - unguardedCount)
+    : 0;
+  const waitingCount = address ? address.olderKeys.length - unguardedCount - leftCount : 0;
   if (address && waitingCount > 0) {
     // Said in a person's words: what they wait for, and no decision's number
     // (the screens' review S11). Past the data type's cutover a change waits
     // for a person's press, never for "the next pass" (D5; S4). Only those a
     // pass or the press reaches: the rest are said below (0168).
-    const waitingSampled = olderSampled - unguardedSampled;
+    const waitingSampled = olderSampled;
     issues.push({
       id: `ADDRESS_OLDER_TABLE_${dataType}`,
       severity: 'WARNING',
@@ -825,17 +841,33 @@ async function verifyDataType(
   }
   if (unguardedCount > 0) {
     // NO VERSION TO GUARD THE WRITE (workplan 0168 S1, and its finding on the
-    // way). These were said to wait for the next pass, which leaves them as
-    // they are, as the press does: a rewrite needs `If-Match` with a strong
-    // version, or the person's own edit could be overwritten.
+    // way). No pass and no press changes them: a rewrite needs `If-Match`
+    // with a strong version, or the person's own edit could be overwritten.
+    // They keep the old address, are checked as plain copies, and never hold
+    // the cutover on their own (the owner, 2026-11-23: "i think i take on
+    // what you adviced"; ADR-0055 decision 5).
     issues.push({
       id: `ADDRESS_UNGUARDED_${dataType}`,
       severity: 'WARNING',
       message:
-        `${unguardedCount} ${dataType} item(s) do not carry an address change and are left as they are: ` +
-        'the new system gave no version to guard the write, so no pass changes them. ' +
-        'None of them is counted as a match' +
-        (unguardedSampled > 0 ? `; ${unguardedSampled} sampled item(s) were set aside for it.` : '.'),
+        `${unguardedCount} ${dataType} item(s) keep the old address, because the new system offers no ` +
+        'safe way to update them: it gave no version to guard the write. They are checked as copied' +
+        (unguardedSampled > 0 ? `; ${unguardedSampled} sampled item(s) were compared that way.` : '.'),
+    });
+  }
+  if (leftCount > 0) {
+    // CHANGED AT THE SOURCE AFTER THE SWITCH (the owner, 2026-11-23: "2) b.";
+    // ADR-0055 decision 6). Past the cutover a change at the source
+    // overwrites no copy (ADR-0048, "Stop overwriting"), so the press, whose
+    // rewrite would carry that change too, never rewrites these. Left as
+    // they are, checked as plain copies, and never waiting.
+    issues.push({
+      id: `ADDRESS_LEFT_${dataType}`,
+      severity: 'WARNING',
+      message:
+        `${leftCount} ${dataType} item(s) were changed in the old account after the switch and are not ` +
+        'updated, the new address included. They are checked as copied' +
+        (leftSampled > 0 ? `; ${leftSampled} sampled item(s) were compared that way.` : '.'),
     });
   }
 
@@ -874,6 +906,7 @@ async function verifyDataType(
             changed: address.changed,
             older: address.olderKeys.length,
             ...(unguardedCount > 0 ? { unguarded: unguardedCount } : {}),
+            ...(leftCount > 0 ? { left: leftCount } : {}),
             ...(address.waitsFor !== undefined && waitingCount > 0
               ? { waitsFor: address.waitsFor === 'press' ? ('press' as const) : ('pass' as const) }
               : {}),

@@ -266,6 +266,8 @@ export class ConfirmationStore {
         addressDigestDue: schemaPg.item.addressDigestDue,
         // Whether a rewrite of it could be guarded (0168, found on the way).
         targetVersion: schemaPg.item.targetVersion,
+        // Left after the switch, its source changed (0075; ADR-0055 decision 6).
+        addressLeftAt: schemaPg.item.addressLeftAt,
       })
       .from(schemaPg.item)
       .where(
@@ -317,6 +319,7 @@ export class ConfirmationStore {
                 due: r.addressDigestDue ?? null,
                 waitsFor: args.addressWaitsFor(r.domain),
                 targetVersion: r.targetVersion ?? null,
+                left: r.addressLeftAt !== null,
               },
             }
           : {}),

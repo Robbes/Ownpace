@@ -699,6 +699,13 @@ export const item = pgTable(
      * `addressDigest`. NULL when nothing is due.
      */
     addressDigestDue: text('address_digest_due'),
+    /**
+     * When a pass past the data type's cutover first left this copy as it is
+     * because its source changed after the switch, while an address change
+     * was due for it (migration 0075; ADR-0055 decision 6, the owner's (b) of
+     * 2026-11-23). Counted apart as left, never as waiting. NULL otherwise.
+     */
+    addressLeftAt: timestamp('address_left_at', { withTimezone: true }),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

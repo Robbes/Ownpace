@@ -61,6 +61,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   each calendar again once (past a data type's cutover, after *Apply the new addresses here too*).
   *Your new address* and the Google and Microsoft guides say so in English and Dutch, and the
   managed gate seeds a past event whose copy must be the source's bytes.
+- **The privacy policy says a request for access is logged by its reference** (§4.5, both
+  languages, still version 1.0; workplan 0168). The log names a request and our decision on it by
+  the request's reference since #2077, never by the address it gives, and the policy now says so.
+  It also says in words what a comment beside it kept for the next version: the sign-in service
+  logs the address a person registers with when they arrive from the mail that grants them access.
+- **Copies that cannot be guarded no longer hold the switch** (the owner's decision of 2026-11-23;
+  workplan 0168; ADR-0055, amended). A copy with no version to guard a rewrite keeps the old
+  address, since no pass and no press changes it, and a verification sample made only of such
+  copies held the cutover for good. Verification now checks such a copy as a plain copy, which
+  must still equal what was copied, counts it apart and never holds the cutover on it alone. The
+  Check page, the confirmed list, the migration's page and the report say *N items keep the old
+  address, because the new system offers no safe way to update them*, in English and Dutch. An
+  item truly waiting for a pass or the press still holds as before.
+- **After the switch, a copy changed in the old account is left, and said as left** (the owner's
+  decision of 2026-11-23, option (b); workplan 0168; ADR-0055, amended). Past a data type's
+  cutover a change at the old account overwrites no copy, so the press never rewrites such a copy,
+  yet one whose address rows moved too was counted as waiting for it. A pass now records it as
+  left (ledger migration `0075_the_copy_left_after_the_switch`, additive), and the confirmed list,
+  the migration's page, the Check page and the report count it apart, *changed in your old account
+  after the switch, not updated*, in English and Dutch. It never counts as waiting, the press never
+  claims it, and it holds nothing.
 - **The step *Your new address* asks by itself when the new account's address is on another
   domain, and about every `.onmicrosoft.com` address** (workplan 0168; the owner's decisions of
   2026-11-23: *"(b) Ask if login differs"* and *"Yes, any .onmicrosoft.com"*). An old address that

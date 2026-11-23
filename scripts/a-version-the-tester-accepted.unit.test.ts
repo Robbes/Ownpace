@@ -137,10 +137,18 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // these words reach a stack counts for them, and only the owner's own and test accounts can hold
   // one. From the first tester's acceptance on, a change of words takes a new number (1.1); the
   // pins of earlier words are in git, with the texts.
+  // PRIVACY RE-PINNED UNDER 1.0 once more on 2026-11-23 (the owner, verbatim: "it stays version
+  // 1.0: ok"): §4.5's last lines say a request for access, and our decision on it, are logged by
+  // the request's reference, not by the address it gives (the log does so since #2077), and that
+  // the sign-in service logs the address a person registers with when they arrive from the mail
+  // that grants them access. No tester had accepted any version, so the number stays 1.0, edited
+  // in place, as on 2026-10-14, 2026-10-21, 2026-11-22 and earlier on 2026-11-23. Only the two
+  // privacy pins move. As before, an acceptance of 1.0 recorded before these words reach a stack
+  // counts for them, and only the owner's own and test accounts can hold one.
   'alpha.md@1.0': 'acc56aaf5e570d53687793a4e6951ae5732c5ce7273328a5ac5ed4201785018c',
   'alpha.nl.md@1.0': 'bf9a41a1679f8ee912c8e611b52eb4daf93f0e4042f8c708c476dea99cfd4bfb',
-  'privacy.md@1.0': 'bbf6edf558432e35d8ee37e93784371d6e55df183e0a1264fc0a5ebbcd8d89d0',
-  'privacy.nl.md@1.0': '70da6f4f590432d33a77734982905807faadc2c092120f800ef83fab5b73608c',
+  'privacy.md@1.0': 'a7efcd8b7aea50799dde27399f428d15e5f33b31600bdc293b5dd2be34b8a53f',
+  'privacy.nl.md@1.0': '1707b5d8cfaed53dd6bb0aab23bcbd28823eb129337f570b83e15f99b963014e',
   'terms.md@1.0': 'b743e1286302fcbc0ab0570f0e3b5afd7bc86a82de3d2d55233e9517ccc90633',
   'terms.nl.md@1.0': '7024556d073d4f12216250c1c0183223304721d2631f244707e46d523f1cc47a',
 };
