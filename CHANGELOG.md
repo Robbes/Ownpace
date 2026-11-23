@@ -7,11 +7,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Security
 
 - **The test mail server runs Stalwart v1.1.1's Alpine build** (workplan 0166 T9; ADR-0022, the
-  owner's decision of 2026-11-23: *"Stalwart: in alpha 19"*). The integration tests, E2E
-  (self-hosted) and the OTA demo start `stalwartlabs/stalwart:v1.1.1-alpine`: the same release,
-  built from the same upstream revision, with the same user, paths and healthcheck, on Alpine 3.24,
-  which carries no krb5 and zlib 1.3.2-r1, where the Debian build's krb5 libraries and `zlib1g`
-  had fixes it lacked. A volume the Debian build wrote opens as it was, so the demo needs no reset.
+  owner's decision of 2026-11-23: *"Stalwart: in alpha 19"*). Development, the integration tests,
+  both E2E workflows and the OTA demo start `stalwartlabs/stalwart:v1.1.1-alpine`: the same
+  release, built from the same upstream revision, with the same user, paths and healthcheck, on
+  Alpine 3.24, which carries no krb5 and zlib 1.3.2-r1, where the Debian build lacked Debian's
+  fixes for its krb5 libraries and `zlib1g`. A volume the Debian build wrote opens as it was, so
+  the demo needs no reset.
   The pin watch now compares the pin with Stalwart's Alpine tags of its major, so it lists v1.2.0,
   pushed the same day, for the owner's next decision. Live never runs this image.
 

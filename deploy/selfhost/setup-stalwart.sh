@@ -29,8 +29,9 @@ set -euo pipefail
 # "Verified Image" finding: a custom image provided no benefit over the official one), in
 # its Alpine build since 2026-11-23 (ADR-0022's update of that date): the same v1.1.1, built
 # from the same upstream revision, with the same entrypoint, user (uid and gid 2000), paths
-# and healthcheck, on Alpine 3.24 instead of Debian 13, whose krb5 and zlib carried fixes
-# the Debian build lacked. A volume the Debian build wrote opens as it was.
+# and healthcheck, on Alpine 3.24 instead of Debian 13: no krb5, and zlib 1.3.2-r1, where
+# the Debian build lacked Debian's fixes for both. A volume the Debian build wrote opens as
+# it was, and its BusyBox has the `sh`, `echo` and `chmod` the config step below runs.
 #
 # Requires: docker, curl, and stalwart-cli on PATH (or STALWART_CLI_PATH set). Install the
 # release CI runs (docs/stalwart-integration-fix.md, "Provisioning"), by its own installer:

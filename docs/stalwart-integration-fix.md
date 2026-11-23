@@ -74,8 +74,12 @@ read, through Docker Hub's registry, each blob checked against its digest, nothi
 - **The user and the paths:** `stalwart` is uid and gid 2000 in both builds' `/etc/passwd`, and
   `/etc/stalwart` and `/var/lib/stalwart` are 2000:2000 in both. A volume the Debian build wrote,
   the OTA demo's included, opens as it was: no reset.
-- **What the container is asked to run:** `setup-stalwart.sh` runs `curl` in it, its readiness
-  probe, and nothing else; the Alpine build carries curl 8.23.0 and BusyBox's `sh`.
+- **What the container is asked to run, besides Stalwart:** `setup-stalwart.sh` runs `/bin/sh -c`
+  with `echo` and `chmod`, as root, to seed the config volume, and `curl`, its readiness probe;
+  Testcontainers' `Wait.forListeningPorts()` runs `/bin/sh -c` with `cat`, `awk` and `grep`, or
+  `nc`. The Alpine build has each, for linux/amd64 and linux/arm64: curl 8.23.0, and the rest from
+  BusyBox 1.37.0. It has no `bash`, the wait's third probe; the wait runs its three together, and
+  one that succeeds is enough.
 - **The base:** Alpine 3.24, 32 packages, no krb5, and zlib 1.3.2-r1, the build Alpine fixed
   CVE-2026-85091 in. It is another C library (musl), which the CI `integration-tests` job (the
   two-phase run, in Testcontainers), E2E (self-hosted) and E2E (managed) prove before it merges.
