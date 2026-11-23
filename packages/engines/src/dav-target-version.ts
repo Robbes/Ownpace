@@ -121,3 +121,28 @@ export function ownershipOf(
   const bare = isWeakVersion(expected) ? expected.slice(WEAK.length) : expected;
   return bare === current ? 'ours' : 'changed';
 }
+
+/**
+ * Why a rewrite's `If-Match` was refused with 412: the copy is GONE, or it was
+ * EDITED (workplan 0168, found on the way).
+ *
+ * RFC 9110 §13.1.1 evaluates `If-Match` as false when there is no current
+ * representation, so a copy the person deleted on the target answers 412
+ * exactly as one they edited does. Read as an edit, a deleted copy was marked
+ * adopted, said as the person's own, and verification never reported it
+ * missing. One HEAD tells the two apart, as `removeDavObject`'s 412 does: 404
+ * or 410 is gone, 2xx is there and changed. A HEAD that cannot say throws, so
+ * the item fails and its retry asks again; nothing was written either way.
+ */
+export async function goneOrEdited(
+  head: () => Promise<{ readonly status: number }>,
+  path: string,
+): Promise<'gone' | 'edited'> {
+  const response = await head();
+  if (response.status === 404 || response.status === 410) return 'gone';
+  if (response.status >= 200 && response.status < 300) return 'edited';
+  throw new Error(
+    `The rewrite of ${path} was refused with 412, and the HEAD that should say whether the copy ` +
+      `was edited or deleted failed with status ${response.status}. Nothing was written.`,
+  );
+}

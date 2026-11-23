@@ -163,13 +163,14 @@ describe('a rewrite at a target that mails guests', () => {
   });
 
   it('goes on to the PUT when the copy is gone, which then finds nothing to match', async () => {
-    // Nobody is left to mail. The If-Match decides, as it always has.
+    // Nobody is left to mail. The If-Match decides, as it always has, and its
+    // 412 on a copy that is not there is the copy gone, not an edit (0168).
     const t = target(undefined);
 
     const result = await rewrite(writer(t.client, true));
 
     expect(t.sent('PUT')).toHaveLength(1);
-    expect(result).toMatchObject({ conflicted: true });
+    expect(result).toMatchObject({ goneFromTarget: true });
   });
 
   it('writes nothing when the copy cannot be read, and throws rather than guessing', async () => {
