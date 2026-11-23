@@ -662,14 +662,25 @@ describe('a new address in what the check found (workplan 0168)', () => {
   });
 
   /**
-   * NO VERSION TO GUARD THE WRITE (0168, found on the way). These copies were
-   * said to wait for the next pass, which never changes them. Said apart, and
-   * a sample of only those is never told to check again after a pass.
+   * NO VERSION TO GUARD THE WRITE, AND CHANGED AFTER THE SWITCH (the owner,
+   * 2026-11-23; ADR-0055 decisions 5 and 6). Neither waits for anything: they
+   * keep the old address, are checked as copied, and are said apart, in the
+   * person's language, never as waiting and never as holding the switch.
    */
   it.each([
-    ['en', '1 contacts items wait for an address change, which the next pass makes', '2 contacts items do not have the new address and are left as they are', 'Every sampled calendar item is without its new address'],
-    ['nl', '1 items (contacten) wachten op een adreswijziging, die de volgende ronde doorvoert', '2 items (contacten) hebben het nieuwe adres niet en blijven zoals ze zijn', 'Elk item (agenda) uit de steekproef mist zijn nieuwe adres'],
-  ] as const)('says the copies no pass changes apart from those that wait, in %s', async (locale, waiting, unguarded, notCompared) => {
+    [
+      'en',
+      '1 contacts items wait for an address change, which the next pass makes',
+      '2 contacts items keep the old address: the new system offers no safe way to update them',
+      '3 calendar items were changed in your old account after the switch, and are not updated',
+    ],
+    [
+      'nl',
+      '1 items (contacten) wachten op een adreswijziging, die de volgende ronde doorvoert',
+      '2 items (contacten) houden het oude adres: het nieuwe systeem biedt geen veilige manier om ze bij te werken',
+      '3 items (agenda) zijn na de overstap in uw oude account gewijzigd en worden niet bijgewerkt',
+    ],
+  ] as const)('says the copies nothing changes apart from those that wait, in %s', async (locale, waiting, unguarded, left) => {
     const report: VerificationResult = {
       ...REPORT,
       contacts: found('contacts', {
@@ -678,9 +689,9 @@ describe('a new address in what the check found (workplan 0168)', () => {
         issues: [issue('ADDRESS_OLDER_TABLE_contacts', 'WARNING', OLDER), issue('ADDRESS_UNGUARDED_contacts', 'WARNING', 'x')],
       }),
       calendar: found('calendar', {
-        status: 'FAIL',
-        addressChanges: { digest: null, changed: 0, older: 3, unguarded: 3 },
-        issues: [issue('ADDRESS_NOT_COMPARED_calendar', 'ERROR', NOT_COMPARED)],
+        status: 'PASS',
+        addressChanges: { digest: null, changed: 0, older: 3, left: 3 },
+        issues: [issue('ADDRESS_LEFT_calendar', 'WARNING', 'y')],
       }),
     };
     window.localStorage.setItem('ownpace.locale', locale);
@@ -698,8 +709,8 @@ describe('a new address in what the check found (workplan 0168)', () => {
     await screen.findByRole('link', { name: 'mapping-1' });
     expect(shown(waiting)).toHaveLength(1);
     expect(shown(unguarded)).toHaveLength(1);
-    expect(shown(notCompared)).toHaveLength(1);
-    expect(shown(locale === 'en' ? 'check again after the next pass' : 'verifieer opnieuw na de volgende ronde')).toEqual([]);
+    expect(shown(left)).toHaveLength(1);
+    expect(shown(locale === 'en' ? 'Apply the new addresses here too' : 'De nieuwe adressen hier ook toepassen')).toEqual([]);
   });
 });
 

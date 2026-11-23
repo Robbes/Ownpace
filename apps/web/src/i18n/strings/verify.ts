@@ -76,11 +76,14 @@ export const en = {
   'verify.issue.addressNotComparedPress':
     'Every sampled {type} item waits for an address change, so nothing was compared, and that blocks the switch. Press Apply the new addresses here too on the migration’s page, then check again after the next pass.',
   // No version to guard the write: no pass and no press changes these
-  // (workplan 0168 S1, and its finding on the way).
+  // (workplan 0168 S1). Checked as copied, and never holding the switch (the
+  // owner, 2026-11-23; ADR-0055 decision 5).
   'verify.issue.addressUnguarded':
-    '{n} {type} items do not have the new address and are left as they are: the new system gave no version to guard the change, so no pass makes it. None of them counts as a match.',
-  'verify.issue.addressNotComparedUnguarded':
-    'Every sampled {type} item is without its new address, so nothing was compared, and that blocks the switch. The new system gave no version to guard the change, so no pass makes it.',
+    '{n} {type} items keep the old address: the new system offers no safe way to update them. They were checked as copied, and do not block the switch.',
+  // Changed at the old account after the switch: no press rewrites these
+  // (the owner, 2026-11-23; ADR-0055 decision 6).
+  'verify.issue.addressLeft':
+    '{n} {type} items were changed in your old account after the switch, and are not updated. They were checked as copied, and do not block anything.',
   'verify.verdict.PASS': 'Passed',
   'verify.verdict.WARN': 'Passed, with warnings',
   'verify.verdict.FAIL': 'Did not pass',
@@ -160,9 +163,9 @@ export const nl: Record<keyof typeof en, string> = {
   'verify.issue.addressNotComparedPress':
     'Elk item ({type}) uit de steekproef wacht op een adreswijziging, dus is er niets vergeleken, en dat houdt de overstap tegen. Druk op de pagina van de migratie op De nieuwe adressen hier ook toepassen en verifieer opnieuw na de volgende ronde.',
   'verify.issue.addressUnguarded':
-    '{n} items ({type}) hebben het nieuwe adres niet en blijven zoals ze zijn: het nieuwe systeem gaf geen versie om de wijziging te bewaken, dus geen ronde voert die door. Geen ervan telt als overeenkomend.',
-  'verify.issue.addressNotComparedUnguarded':
-    'Elk item ({type}) uit de steekproef mist zijn nieuwe adres, dus is er niets vergeleken, en dat houdt de overstap tegen. Het nieuwe systeem gaf geen versie om de wijziging te bewaken, dus geen ronde voert die door.',
+    '{n} items ({type}) houden het oude adres: het nieuwe systeem biedt geen veilige manier om ze bij te werken. Ze zijn gecontroleerd zoals ze zijn gekopieerd en houden de overstap niet tegen.',
+  'verify.issue.addressLeft':
+    '{n} items ({type}) zijn na de overstap in uw oude account gewijzigd en worden niet bijgewerkt. Ze zijn gecontroleerd zoals ze zijn gekopieerd en houden niets tegen.',
   'verify.verdict.PASS': 'Geslaagd',
   'verify.verdict.WARN': 'Geslaagd, met waarschuwingen',
   'verify.verdict.FAIL': 'Niet geslaagd',

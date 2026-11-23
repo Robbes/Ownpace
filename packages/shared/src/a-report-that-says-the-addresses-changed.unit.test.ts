@@ -80,7 +80,7 @@ describe('Addresses changed', () => {
     expect(said.lines[1]!.nl).not.toContain('volgende ronde');
   });
 
-  it('says the copies left as they are with no version to guard the write, apart from those that wait', () => {
+  it('says the copies that keep the old address, with no safe way to update them, apart from those that wait', () => {
     const said = addressChangesSaid({
       rows: 1,
       digest: 'd'.repeat(64),
@@ -90,12 +90,25 @@ describe('Addresses changed', () => {
       ],
     });
     expect(said.lines[1]).toEqual({
-      en: 'Calendars: 0 copies carry a new address. 2 wait for the next pass. 1 was not changed, with no version to guard the write.',
-      nl: "Agenda's: 0 kopieën hebben een nieuw adres. 2 wachten op de volgende ronde. 1 is niet gewijzigd, zonder versie om het schrijven te bewaken.",
+      en: 'Calendars: 0 copies carry a new address. 2 wait for the next pass. 1 keeps the old address, because the new system offers no safe way to update it.',
+      nl: "Agenda's: 0 kopieën hebben een nieuw adres. 2 wachten op de volgende ronde. 1 houdt het oude adres, omdat het nieuwe systeem geen veilige manier biedt om die bij te werken.",
     });
     expect(said.lines[2]).toEqual({
-      en: 'Tasks: 2 copies carry a new address. 2 were not changed, with no version to guard the write.',
-      nl: 'Taken: 2 kopieën hebben een nieuw adres. 2 zijn niet gewijzigd, zonder versie om het schrijven te bewaken.',
+      en: 'Tasks: 2 copies carry a new address. 2 keep the old address, because the new system offers no safe way to update them.',
+      nl: 'Taken: 2 kopieën hebben een nieuw adres. 2 houden het oude adres, omdat het nieuwe systeem geen veilige manier biedt om ze bij te werken.',
+    });
+  });
+
+  it('says the copies changed in the old account after the switch apart, never as waiting for the press', () => {
+    // The owner, 2026-11-23: "2) b." (ADR-0055 decision 6).
+    const said = addressChangesSaid({
+      rows: 1,
+      digest: 'd'.repeat(64),
+      byDomain: [{ domain: 'contact', changed: 1, older: 3, unguarded: 0, left: 2, waitsFor: 'press' }],
+    });
+    expect(said.lines[1]).toEqual({
+      en: 'Contacts: 1 copy carries a new address. 1 waits for somebody to press Apply the new addresses here too. 2 were changed in your old account after the switch, and are not updated.',
+      nl: 'Contacten: 1 kopie heeft een nieuw adres. 1 wacht tot iemand drukt op De nieuwe adressen hier ook toepassen. 2 zijn na de overstap in uw oude account gewijzigd en worden niet bijgewerkt.',
     });
   });
 

@@ -1097,6 +1097,13 @@ export interface LedgerRecord {
    * record means nothing to say, as `addressDigest`.
    */
   readonly addressDigestDue?: string | null;
+  /**
+   * Read only: a pass past the data type's cutover left this copy because its
+   * source changed after the switch, while a change was due for it
+   * (`item.address_left_at`, ledger migration 0075; ADR-0055 decision 6).
+   * Written through `markAddressChangeDue`'s `left`, never through a record.
+   */
+  readonly addressLeft?: boolean;
   readonly contentHash: string;
   readonly targetId: string;
   /** ISO 8601 timestamp the row was first recorded. */
@@ -1846,6 +1853,13 @@ export interface Ledger {
     domain: DiscoveryDomain,
     naturalKeyHash: string,
     due: string | null,
+    /**
+     * The copy is left because its source changed after the data type's
+     * cutover (ADR-0055 decision 6, the owner's (b) of 2026-11-23): recorded
+     * with `due`, and cleared whenever this is called without it. Absent
+     * reads as not left.
+     */
+    left?: boolean,
   ): Promise<void>;
   /**
    * The address table's part of one data type of one migration, counted over
@@ -3005,6 +3019,13 @@ export interface AddressChangesInLedger {
    */
   readonly unguardedKeys?: ReadonlyArray<string>;
   /**
+   * Of `olderKeys`, those left because their source changed after the data
+   * type's cutover (`item.address_left_at`; ADR-0055 decision 6, the owner's
+   * (b) of 2026-11-23): no press rewrites them, so they wait for nothing.
+   * Disjoint from `unguardedKeys`. Absent reads as none.
+   */
+  readonly leftKeys?: ReadonlyArray<string>;
+  /**
    * What they wait for: the next pass, or, past this data type's cutover
    * with no press for the table as it is, *Apply the new addresses here too*
    * (workplan 0168 D5). Absent when none waits.
@@ -3018,9 +3039,11 @@ export interface AddressChangesInLedger {
  * cutover a person's press. One copy of the confirmed list can also say
  * `unguarded`: it has no version to guard the write, so neither reaches it and
  * it is left as it is (S1; 0168, found on the way). The counts say that one
- * apart, as `unguarded`, and never as what the rest waits for.
+ * apart, as `unguarded`, and never as what the rest waits for. And `left`:
+ * its source changed after the data type's cutover, so no press rewrites it
+ * (ADR-0055 decision 6, the owner's (b) of 2026-11-23); counted apart too.
  */
-export type AddressChangeWaitsFor = 'pass' | 'press' | 'unguarded';
+export type AddressChangeWaitsFor = 'pass' | 'press' | 'unguarded' | 'left';
 
 /** `Ledger.countAddressChanges`' answer: one data type of one migration, counted. */
 export interface AddressChangesCounted {
@@ -3030,6 +3053,12 @@ export interface AddressChangesCounted {
   readonly waiting: number;
   /** Copies that wait for a change with no version to guard the write: left as they are (S1). */
   readonly unguarded: number;
+  /**
+   * Copies that wait for a change and are left because their source changed
+   * after the cutover (`item.address_left_at`; ADR-0055 decision 6). Counted
+   * in neither `waiting` nor `unguarded`. Absent reads as none.
+   */
+  readonly left?: number;
 }
 
 /**
@@ -3175,6 +3204,8 @@ export interface PassMetrics {
   readonly addressChangesWaiting?: number;
   /** Copies left as they are for want of a version to guard the write (`DomainSyncResult.addressChangesUnguarded`). */
   readonly addressChangesUnguarded?: number;
+  /** Copies left because their source changed after the switch (`DomainSyncResult.addressChangesLeft`; ADR-0055 decision 6). */
+  readonly addressChangesLeft?: number;
   /** Copies that carry an address change and wait for none (`DomainSyncResult.addressChangesCarried`). */
   readonly addressChangesCarried?: number;
 }

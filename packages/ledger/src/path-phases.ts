@@ -312,6 +312,8 @@ export interface AddressChangesInDomain {
   readonly older: number;
   /** Of `older`, those with no version to guard the write, left as they are (S1). */
   readonly unguarded: number;
+  /** Of `older`, those left because their source changed after the switch (0075; ADR-0055 decision 6). Disjoint from `unguarded`. */
+  readonly left: number;
   /**
    * What the rest of `older` waits for: the next pass, or, past this data
    * type's cutover with no press for the table as it is, *Apply the new
@@ -380,7 +382,8 @@ export async function readAddressChangesForReport(
       domain: schemaPg.item.domain,
       changed: sql`count(*) FILTER (WHERE ${schemaPg.item.addressDigest} IS NOT NULL AND NOT ${ADDRESS_CHANGE_DUE_SQL})`.mapWith(Number),
       older: sql`count(*) FILTER (WHERE ${ADDRESS_CHANGE_DUE_SQL})`.mapWith(Number),
-      unguarded: sql`count(*) FILTER (WHERE ${ADDRESS_CHANGE_DUE_SQL} AND NOT ${GUARDED_SQL})`.mapWith(Number),
+      unguarded: sql`count(*) FILTER (WHERE ${ADDRESS_CHANGE_DUE_SQL} AND ${schemaPg.item.addressLeftAt} IS NULL AND NOT ${GUARDED_SQL})`.mapWith(Number),
+      left: sql`count(*) FILTER (WHERE ${ADDRESS_CHANGE_DUE_SQL} AND ${schemaPg.item.addressLeftAt} IS NOT NULL)`.mapWith(Number),
     })
     .from(schemaPg.item)
     .where(
@@ -402,7 +405,8 @@ export async function readAddressChangesForReport(
       changed: mine.changed,
       older: mine.older,
       unguarded: mine.unguarded,
-      ...(mine.older > mine.unguarded ? { waitsFor: waitsFor(domain) } : {}),
+      left: mine.left,
+      ...(mine.older > mine.unguarded + mine.left ? { waitsFor: waitsFor(domain) } : {}),
     });
   }
   return { rows: rows.length, digest, byDomain };
