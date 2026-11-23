@@ -692,6 +692,13 @@ export const item = pgTable(
      * file row, and every row written before the column.
      */
     addressDigest: text('address_digest'),
+    /**
+     * The digest this copy should carry under the confirmed address table the
+     * last pass that looked at it read, when that pass did not write it
+     * (migration 0074; workplan 0168 S3): never a match while it differs from
+     * `addressDigest`. NULL when nothing is due.
+     */
+    addressDigestDue: text('address_digest_due'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

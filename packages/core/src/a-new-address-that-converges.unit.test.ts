@@ -203,7 +203,7 @@ describe('contacts under the address table', () => {
     expect(t.bodies).toEqual(expected([]));
   });
 
-  it('leaves a copy the person edited since alone, makes it adopted, and counts it ever after', async () => {
+  it('leaves a copy the person edited since alone, makes it adopted, and never says its source changed when only the table did', async () => {
     const ledger = new MemoryLedger();
     const t = new Target();
     await contactPass(ledger, t, changes([ANA]));
@@ -213,8 +213,11 @@ describe('contacts under the address table', () => {
     expect(t.bodies.get('c-ben')).toBe(card('c-ben', 'ben@old.example.org'));
     const ben = await ledger.find(TENANT, MAPPING, 'contact', contactNaturalKeyHash('c-ben'));
     expect(ben?.status).toBe('adopted');
+    // The review's N5: the source did not change, so it is not counted as a
+    // change at the source on every pass after (it was, as changedButAdopted).
     const next = await contactPass(ledger, t, changes([ANA, BEN]));
-    expect(next.changedButAdopted).toBe(1);
+    expect(next.changedButAdopted).toBe(0);
+    expect(next.updated + next.created).toBe(0);
     expect(t.bodies.get('c-ben')).toBe(card('c-ben', 'ben@old.example.org'));
   });
 
@@ -227,8 +230,10 @@ describe('contacts under the address table', () => {
     const ana = await ledger.find(TENANT, MAPPING, 'contact', contactNaturalKeyHash('c-ana'));
     expect(ana?.status).toBe('adopted');
     expect(ana?.addressDigest ?? null).toBeNull();
+    // Left alone, and not counted as changed at the source (N5): it did not change.
     const next = await contactPass(ledger, t, changes([ANA]));
-    expect(next.changedButAdopted).toBe(1);
+    expect(next.changedButAdopted).toBe(0);
+    expect(next.updated + next.created).toBe(0);
     expect(t.bodies.get('c-ana')).toBe('the person’s own card');
   });
 

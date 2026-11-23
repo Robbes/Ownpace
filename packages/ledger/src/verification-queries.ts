@@ -6,11 +6,18 @@
  * All queries are Postgres-only (ADR-0016).
  */
 
-import { addressTableDigest, type AddressChangesInLedger, type TenantId, type MappingId } from '@openmig/shared';
+import {
+  addressTableDigest,
+  waitsForAnAddressChange,
+  type AddressChangesInLedger,
+  type TenantId,
+  type MappingId,
+} from '@openmig/shared';
+import { readAddressChangeWaitsFor } from './path-phases.ts';
 import { createPgDb } from './db.ts';
 import type { PgDatabase } from './db-types.ts';
 import * as schema from './schema-pg.ts';
-import { eq, and, sql, ne, inArray, isNotNull } from 'drizzle-orm';
+import { eq, and, sql, ne, inArray, isNotNull, or } from 'drizzle-orm';
 import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
@@ -206,7 +213,7 @@ export function createLedgerVerificationReader(
     },
 
     async addressChangesOf(tenantId, mappingId, domain) {
-      // The table as it is now, confirmed rows only (ADR-0055).
+      // The table as it is now, confirmed rows only (ADR-0055), named by the report.
       const rows = await db
         .select({
           oldKey: schema.addressChange.oldKey,
@@ -216,27 +223,36 @@ export function createLedgerVerificationReader(
         .from(schema.addressChange)
         .where(and(eq(schema.addressChange.tenantId, tenantId), eq(schema.addressChange.state, 'confirmed')));
       const digest = addressTableDigest(rows);
-      // Every copy we wrote with an address changed. A copy the customer owns,
-      // one removed, or one never placed is not ours to stand behind.
+      // Every copy we wrote that carries a change or waits for one. A copy the
+      // customer owns, one removed, or one never placed is not ours to stand
+      // behind. A copy's digest is its own (0168 S4), so it is no longer
+      // compared with the table's: the pass's own word, the change it found a
+      // copy waits for, is what makes it older (S3), with a digest or without.
       const items = await db
-        .select({ naturalKeyHash: schema.item.naturalKeyHash, addressDigest: schema.item.addressDigest })
+        .select({
+          naturalKeyHash: schema.item.naturalKeyHash,
+          addressDigest: schema.item.addressDigest,
+          addressDigestDue: schema.item.addressDigestDue,
+        })
         .from(schema.item)
         .where(
           and(
             eq(schema.item.tenantId, tenantId),
             eq(schema.item.mappingId, mappingId),
             eq(schema.item.domain, domain),
-            isNotNull(schema.item.addressDigest),
+            or(isNotNull(schema.item.addressDigest), isNotNull(schema.item.addressDigestDue)),
             inArray(schema.item.status, ['copied', 'updated', 'deleted_source']),
           ),
         );
       let changed = 0;
       const olderKeys: string[] = [];
       for (const it of items) {
-        if (it.addressDigest === digest) changed += 1;
-        else olderKeys.push(it.naturalKeyHash);
+        if (waitsForAnAddressChange(it.addressDigest, it.addressDigestDue)) olderKeys.push(it.naturalKeyHash);
+        else if (it.addressDigest !== null) changed += 1;
       }
-      return { digest, changed, olderKeys };
+      // What they wait for, read as a pass reads it (D5).
+      const waitsFor = olderKeys.length > 0 ? (await readAddressChangeWaitsFor(db, tenantId, mappingId))(domain) : undefined;
+      return { digest, changed, olderKeys, ...(waitsFor !== undefined ? { waitsFor } : {}) };
     },
   };
 }

@@ -5,14 +5,21 @@
  * ADR-0055), on PGlite with both chains' shared migrations applied:
  *
  *  - `item.address_digest` round-trips through `PgLedger`, and a NULL said on
- *    a rewrite is written;
- *  - the confirmed list names the table's digest and counts the copies
- *    changed under it and under an older one, and an older one is never a
- *    match;
+ *    a rewrite is written; so does `item.address_digest_due` (ledger 0074),
+ *    and the pass's narrow mark moves that column alone;
+ *  - the confirmed list names the table's digest and counts the copies that
+ *    carry a change and those a change waits for (S3), and one a change waits
+ *    for is never a match, a copy written with no change included;
  *  - the verification reader says the same, with the older keys;
+ *  - the ledger counts them for the pass, split by whether a version guards
+ *    the write (S1, S5);
  *  - a press of *Apply the new addresses here too* records the table's press
- *    digest, which the phases every pass reads hand back;
+ *    digest, which the phases every pass reads hand back, and past a cutover
+ *    a waiting copy waits for the press until one covers the table;
  *  - the completion report's counts come from the same rows.
+ *
+ * A copy's digest is its own since S4, so "older" is the pass's mark, not a
+ * digest that differs from the table's (as this file's first version had it).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -21,6 +28,7 @@ import {
   applyNewAddressesHere,
   createLedgerVerificationReader,
   createPgliteDb,
+  readAddressChangeWaitsFor,
   readAddressChangesForReport,
   readPathPhases,
   runMigrations,
@@ -60,7 +68,9 @@ const ROWS = [
   { oldKey: addressKey('ben@old.example.org'), oldAddress: 'ben@old.example.org', newAddress: 'ben@example.org' },
 ];
 const NOW = addressTableDigest(ROWS)!;
-const OLDER = addressTableDigest(ROWS.slice(0, 1))!;
+// What each copy records since S4: the digest of the rows that decided it.
+const ANA_ONLY = addressTableDigest(ROWS.slice(0, 1))!;
+const BEN_ONLY = addressTableDigest(ROWS.slice(1))!;
 
 beforeAll(async () => {
   driver = (await createPgliteDb({})).driver;
@@ -99,18 +109,23 @@ beforeAll(async () => {
      VALUES ($1,'carla@old.example.org','carla@old.example.org','carla@example.org','proposed','operator')`,
     [TENANT],
   );
-  // Three contacts the target answered as matching: one changed under the
-  // table now, one under an older table, one the table never touched.
-  for (const [key, digest] of [
-    ['k-now', NOW],
-    ['k-older', OLDER],
-    ['k-none', null],
+  // Contacts the target answered as matching: one that carries Ana's change
+  // as the table says; one a pass found should carry Ben's row too (waiting,
+  // with a strong version); one written with no change before Ben's row came
+  // for an address it names (waiting, S3's case, with no version: S1); and one
+  // the table never touched.
+  for (const [key, digest, due, version] of [
+    ['k-now', ANA_ONLY, null, '"etag-1"'],
+    ['k-older', ANA_ONLY, NOW, '"etag-2"'],
+    ['k-never', null, BEN_ONLY, null],
+    ['k-none', null, null, '"etag-4"'],
   ] as const) {
     await q(
       `INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash,
-                         content_hash, status, confirmed_answer, confirmed_at, address_digest)
-       VALUES ($1,$2,'contact','/book/',$3,$3,'card1:x','copied','match',now(),$4)`,
-      [TENANT, MAPPING, key, digest],
+                         content_hash, status, confirmed_answer, confirmed_at, address_digest,
+                         address_digest_due, target_version)
+       VALUES ($1,$2,'contact','/book/',$3,$3,'card1:x','copied','match',now(),$4,$5,$6)`,
+      [TENANT, MAPPING, key, digest, due, version],
     );
   }
 }, 120_000);
@@ -125,33 +140,64 @@ describe('the address table in a real ledger', () => {
     expect(rows).toEqual(ROWS);
   });
 
-  it('round-trips item.address_digest, and writes a NULL a rewrite says', async () => {
+  it('round-trips item.address_digest and its due mark, and writes a NULL a rewrite says', async () => {
     await withTenant(driver, TENANT, async (db) => {
       const ledger = new PgLedger(db);
       const row = (await ledger.find(TENANT, MAPPING, 'contact', 'k-older'))!;
-      expect(row.addressDigest).toBe(OLDER);
-      // A record that says nothing keeps the column.
-      await ledger.recordUpdate({ ...row, addressDigest: undefined });
-      expect((await ledger.find(TENANT, MAPPING, 'contact', 'k-older'))!.addressDigest).toBe(OLDER);
+      expect(row.addressDigest).toBe(ANA_ONLY);
+      expect(row.addressDigestDue).toBe(NOW);
+      // A record that says nothing keeps both columns.
+      await ledger.recordUpdate({ ...row, addressDigest: undefined, addressDigestDue: undefined });
+      const kept = (await ledger.find(TENANT, MAPPING, 'contact', 'k-older'))!;
+      expect([kept.addressDigest, kept.addressDigestDue]).toEqual([ANA_ONLY, NOW]);
       // A rewrite after the row left the table says null, and null is written.
-      await ledger.recordUpdate({ ...row, addressDigest: null });
-      expect((await ledger.find(TENANT, MAPPING, 'contact', 'k-older'))!.addressDigest).toBeUndefined();
-      await ledger.recordUpdate({ ...row, addressDigest: OLDER });
+      await ledger.recordUpdate({ ...row, addressDigest: null, addressDigestDue: null });
+      const rewritten = (await ledger.find(TENANT, MAPPING, 'contact', 'k-older'))!;
+      expect([rewritten.addressDigest, rewritten.addressDigestDue]).toEqual([undefined, undefined]);
+      await ledger.recordUpdate({ ...row, addressDigest: ANA_ONLY, addressDigestDue: NOW });
     });
   });
 
-  it('names the digest on the confirmed list, counts both kinds, and never calls an older one a match', async () => {
+  it('marks what a copy waits for in that column alone, never its last write to the target (S3)', async () => {
+    const synced = async () =>
+      (await q(`SELECT last_synced_at, address_digest, address_digest_due FROM item WHERE natural_key_hash = 'k-none'`))
+        .rows[0];
+    const before = await synced();
+    await withTenant(driver, TENANT, (db) => new PgLedger(db).markAddressChangeDue(TENANT, MAPPING, 'contact', 'k-none', BEN_ONLY));
+    const marked = await synced();
+    expect(marked?.address_digest_due).toBe(BEN_ONLY);
+    expect(marked?.address_digest).toBeNull();
+    expect(marked?.last_synced_at).toEqual(before?.last_synced_at);
+    await withTenant(driver, TENANT, (db) => new PgLedger(db).markAddressChangeDue(TENANT, MAPPING, 'contact', 'k-none', null));
+    expect((await synced())?.address_digest_due).toBeNull();
+  });
+
+  it('names the digest on the confirmed list, counts both kinds, and never calls one a change waits for a match', async () => {
     const list = await readConfirmedList({ source: driver, tenantId: TENANT, mappingId: MAPPING }, 'active' as never);
-    expect(list.addressChanges).toEqual({ digest: NOW, changed: 1, older: 1 });
+    expect(list.addressChanges).toEqual({ digest: NOW, changed: 1, older: 2 });
     expect(list.verified).toBe(2);
-    expect(list.rows.map((r) => [r.naturalKey, r.state, r.address])).toEqual([['k-older', 'differs', 'older']]);
+    // In the list's own order, by item.
+    expect(list.rows.map((r) => [r.naturalKey, r.state, r.address, r.waitsFor])).toEqual([
+      ['k-older', 'differs', 'older', 'pass'],
+      ['k-never', 'differs', 'older', 'pass'],
+    ]);
   });
 
   it('gives verification the same account, with the older keys', async () => {
     const answer = await withTenant(driver, TENANT, (db) =>
       createLedgerVerificationReader({ db }).addressChangesOf(TENANT, MAPPING, 'contact'),
     );
-    expect(answer).toEqual({ digest: NOW, changed: 1, olderKeys: ['k-older'] });
+    expect({ ...answer, olderKeys: [...answer.olderKeys].sort() }).toEqual({
+      digest: NOW,
+      changed: 1,
+      olderKeys: ['k-never', 'k-older'],
+      waitsFor: 'pass',
+    });
+  });
+
+  it('counts them for the pass, apart by whether a version guards the write (S1, S5)', async () => {
+    const counted = await withTenant(driver, TENANT, (db) => new PgLedger(db).countAddressChanges(TENANT, MAPPING, 'contact'));
+    expect(counted).toEqual({ changed: 1, waiting: 1, unguarded: 1 });
   });
 
   it('records a press of Apply the new addresses here too, and the phases a pass reads hand it back', async () => {
@@ -170,6 +216,32 @@ describe('the address table in a real ledger', () => {
 
   it('counts the completion report’s Addresses changed from the same rows', async () => {
     const counted = await withTenant(driver, TENANT, (db) => readAddressChangesForReport(db, TENANT, MAPPING));
-    expect(counted).toEqual({ rows: 2, digest: NOW, byDomain: [{ domain: 'contact', changed: 1, older: 1 }] });
+    expect(counted).toEqual({
+      rows: 2,
+      digest: NOW,
+      byDomain: [{ domain: 'contact', changed: 1, older: 2, unguarded: 1, waitsFor: 'pass' }],
+    });
+  });
+
+  it('past the cutover, says a waiting copy waits for the press until a press covers the table as it is (D5)', async () => {
+    const waitsFor = () => withTenant(driver, TENANT, (db) => readAddressChangeWaitsFor(db, TENANT, MAPPING));
+    await q(`UPDATE mailbox_mapping SET status = 'cutover' WHERE id = $1`, [MAPPING]);
+    try {
+      // The press above was for the table as it is: the next pass writes them.
+      expect((await waitsFor())('contact')).toBe('pass');
+      // The table moves: they wait for a press of their own.
+      await q(
+        `INSERT INTO address_change (tenant_id, old_key, old_address, new_address, state, set_by, confirmed_by, confirmed_at)
+         VALUES ($1,'dora@old.example.org','dora@old.example.org','dora@example.org','confirmed','operator','operator',now())`,
+        [TENANT],
+      );
+      expect((await waitsFor())('contact')).toBe('press');
+      const list = await readConfirmedList({ source: driver, tenantId: TENANT, mappingId: MAPPING }, 'cutover' as never);
+      expect(list.rows.map((r) => r.waitsFor)).toEqual(['press', 'press']);
+      await q(`DELETE FROM address_change WHERE tenant_id = $1 AND old_key = 'dora@old.example.org'`, [TENANT]);
+      expect((await waitsFor())('contact')).toBe('pass');
+    } finally {
+      await q(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [MAPPING]);
+    }
   });
 });

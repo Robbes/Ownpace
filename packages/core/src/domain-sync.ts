@@ -28,6 +28,9 @@ import {
   type TenantId,
   type MappingId,
   DEFAULT_CONCURRENCY,
+  addressDigestDue,
+  guardsAnAddressRewrite,
+  type AddressChangesCounted,
 } from '@openmig/shared';
 import { log, isLevelEnabled, type DiscardedListing, type PassMetrics } from '@openmig/shared';
 import { newAppEvent, recordAppEvent } from '@openmig/shared';
@@ -178,6 +181,9 @@ export function quietSkip(
     row.deletionReportedAt === undefined &&
     row.deletionTrashedAt === undefined &&
     row.movedToCollection === undefined &&
+    // A copy marked as waiting for an address change (0168 S3) is asked about
+    // afresh: the mark may have to go, now that the table says otherwise.
+    (addressDigestNow === undefined || (row.addressDigestDue ?? null) === null) &&
     classifyKnownItem(row, sourceVersion, collection, addressDigestNow) === 'skip'
   );
 }
@@ -272,7 +278,15 @@ async function timed<T>(
   }
 }
 
-function summarise(phases: PhaseTiming, scanned: number): PassMetrics {
+/** The address table's counts a pass carries in its metrics (workplan 0168 S5), when it had a table. */
+interface AddressCounts {
+  readonly addressChanged: number;
+  readonly addressChangesWaiting: number;
+  readonly addressChangesUnguarded: number;
+  readonly addressChangesCarried?: number;
+}
+
+function summarise(phases: PhaseTiming, scanned: number, address?: AddressCounts): PassMetrics {
   const wallMs = Math.max(Date.now() - phases.startedAt, 1);
   const busy =
     phases.fetchMs + phases.upsertMs + phases.ledgerReadMs + phases.ledgerWriteMs + phases.hashMs;
@@ -289,6 +303,10 @@ function summarise(phases: PhaseTiming, scanned: number): PassMetrics {
     collectionListingMs: phases.collectionListingMs,
     collectionsOpened: phases.collectionsOpened,
     ...(phases.firstWriteAt !== undefined ? { firstWriteAfterMs: phases.firstWriteAt - phases.startedAt } : {}),
+    // The address table's counts, so a data type's `lastPass` says them in
+    // both editions (workplan 0168 S5): the migration page offers the press
+    // on `addressChangesWaiting`. Only a pass that had a table says any.
+    ...(address ?? {}),
   };
 }
 
@@ -527,15 +545,24 @@ export function classifyKnownItem(
   }
 
   // THE ADDRESS TABLE MOVED (ADR-0055; workplan 0168 §3.3). The copy was
-  // written under another table than the one it would get now: a row came,
-  // went, or changed its new address. Ahead of the version rules, because the
-  // source is unchanged and they would answer `skip`, so a new row would reach
-  // nothing already copied. The source having changed too is the same rewrite.
-  // Every rule a rewrite keeps holds: an adopted copy is the customer's and is
-  // left alone and counted; the write carries `If-Match`; a tombstone was
-  // answered above and never reaches here.
-  if (addressDigestNow !== undefined && (known.addressDigest ?? null) !== addressDigestNow) {
-    if (known.status === 'adopted') return 'leave-adopted';
+  // written under other rows than the ones that decide it now: a row it names
+  // came, went, or changed its new address. Ahead of the version rules,
+  // because the source is unchanged and they would answer `skip`, so a new
+  // row would reach nothing already copied. The source having changed too is
+  // the same rewrite. Every rule a rewrite keeps holds: the write carries
+  // `If-Match` (and without a version to send there is none, S1); a tombstone
+  // was answered above and never reaches here.
+  //
+  // NOT FOR AN ADOPTED COPY (the review's N5). Its bytes are the customer's,
+  // it records no digest, and its digest "moving" said nothing about the
+  // source: answered `leave-adopted` here, it was counted as changed on the
+  // source on every pass that listed it. The version rules below answer it
+  // as they always did: left alone, and counted only when the source changed.
+  if (
+    addressDigestNow !== undefined &&
+    known.status !== 'adopted' &&
+    (known.addressDigest ?? null) !== addressDigestNow
+  ) {
     if (sourceVersion !== undefined && known.sourceVersion !== undefined && known.sourceVersion !== sourceVersion) {
       return 'rewrite';
     }
@@ -1083,9 +1110,37 @@ export interface DomainSyncResult {
   /**
    * Copies whose address table moved past the data type's cutover, left as
    * the person has them until someone presses *Apply the new addresses here
-   * too* (D5). Counted every pass, as `changedAfterCutover` is.
+   * too* (D5). Read from the ledger when the pass ends (`Ledger.
+   * countAddressChanges`), not from what the pass listed: a source that lists
+   * only what changed shows a pass none of them, and the press is offered on
+   * this count (workplan 0168 S5). Zero before the cutover, and once a press
+   * covers the table as it is.
    */
   readonly addressChangesWaiting?: number;
+  /**
+   * Copies an address change should reach that carry no version to guard the
+   * write (workplan 0168 §3.4, S1): rows written before ledger 0023, a server
+   * that answers a PUT with no ETag or a weak one, a JMAP card whose read-back
+   * failed. Left as they are, before the cutover and after it, and never a
+   * match; said as "not changed: no version to guard the write". Read from the
+   * ledger when the pass ends, as `addressChangesWaiting` is.
+   */
+  readonly addressChangesUnguarded?: number;
+  /**
+   * Copies of this data type that carry an address change and wait for none,
+   * read from the ledger when the pass ends: whether the table changes this
+   * migration's copies at all (the migration page's line, S12 of the screens'
+   * review).
+   */
+  readonly addressChangesCarried?: number;
+  /**
+   * Rewrites that found no copy on the target: somebody deleted it there
+   * (`UpsertResult.goneFromTarget`; workplan 0168 B2). Not re-created, by
+   * arch §11.1 ("Target-side deletions are deliberately not repaired"), and
+   * never a failure that a retry would create again: verification reports
+   * the copy missing on the target, and the row is left as it was.
+   */
+  readonly goneFromTarget?: number;
   /**
    * Items that failed THIS pass and will be retried on the next one.
    *
@@ -1363,6 +1418,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   let changedAfterCutover = 0;
   let addressChanged = 0;
   let addressChangesWaiting = 0;
+  let addressChangesUnguarded = 0;
+  let goneFromTarget = 0;
   let moved = 0;
   // Rewrites REFUSED because somebody edited our copy in the new system.
   let conflicted = 0;
@@ -1983,6 +2040,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
        * data that is safely on the target.
        */
       let hasExistingRow = false;
+      /** What this copy waits for, settled when a write sends nothing (0168 S3). */
+      let settleAfterNoWrite: (() => Promise<void>) | undefined;
 
       // Ledger fast-path: already migrated -> usually skip without fetching.
       //
@@ -2039,6 +2098,35 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             );
           }
           const action = classifyKnownItem(known, version, collectionPath, digestNow);
+          // WHAT THIS COPY WAITS FOR (workplan 0168 S3). A copy we wrote whose
+          // rows moved, and that this pass leaves as it is, is marked with the
+          // digest it should carry, so the confirmed list, verification and
+          // the report never read it as a match; one that carries what the
+          // table says loses a mark an earlier pass left. Only on our own
+          // copies: an adopted, failed or removed one is no match either way.
+          const addressMoved = digestNow !== undefined && (known.addressDigest ?? null) !== digestNow;
+          const settleAddressDue = async (): Promise<void> => {
+            if (digestNow === undefined || !ledger.markAddressChangeDue) return;
+            if (known.status !== 'copied' && known.status !== 'updated' && known.status !== 'deleted_source') return;
+            const due = addressMoved ? addressDigestDue(digestNow) : null;
+            if ((known.addressDigestDue ?? null) === due) return;
+            await timed(phases, 'ledgerWriteMs', () =>
+              ledger.markAddressChangeDue!(tenantId, mappingId, domain, key, due),
+            );
+          };
+          // A COPY WHOSE ADDRESS REWRITE FAILED (workplan 0168 B2). A failure
+          // keeps the row's target id, its version and its digest, so its
+          // retry is that rewrite again, by the same rules, and never the
+          // create path: that path made a fresh copy of a card the person had
+          // deleted on the target, one pass after a failed rewrite. Only when
+          // the source is unchanged; a failed rewrite of a source change is
+          // retried as it always was.
+          const retriesAnAddressRewrite =
+            action === 'retry-failed' &&
+            known.targetId !== '' &&
+            addressMoved &&
+            (version === undefined || known.sourceVersion === undefined || known.sourceVersion === version);
+          const addressRewrite = action === 'rewrite-addresses' || retriesAnAddressRewrite;
           if (action === 'moved') {
             // The source shows this item somewhere else. Do NOTHING to the
             // target: writing it into the new collection would leave the old
@@ -2055,6 +2143,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             // reading the container output at that moment never learned — and
             // had no way to say "dealt with, stop telling me".
             movedByTheLoop.add(key);
+            // Left where it is, so whatever its table says is not on it either.
+            await settleAddressDue();
             if (!decided(known, collectionPath)) {
               await timed(phases, 'ledgerWriteMs', () =>
                 ledger.recordMove(tenantId, mappingId, domain, key, collectionPath),
@@ -2091,6 +2181,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             );
           }
           if (action === 'skip') {
+            // A mark an earlier pass left, which the table no longer bears out.
+            await settleAddressDue();
             skipped += 1;
             return;
           }
@@ -2101,6 +2193,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             await timed(phases, 'ledgerWriteMs', () =>
               ledger.recordUpdate({ ...known, sourceVersion: version }),
             );
+            await settleAddressDue();
             skipped += 1;
             return;
           }
@@ -2108,20 +2201,38 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             changedButAdopted += 1;
             return;
           }
-          if (action === 'rewrite-addresses' && !sourceIsAuthorityOnExistence && !addressRewritePastCutover) {
+          if (addressRewrite && !guardsAnAddressRewrite(known.targetVersion)) {
+            // NO VERSION TO GUARD THE WRITE (workplan 0168 §3.4, S1). An
+            // address rewrite reaches only a copy the person has not edited,
+            // and only `If-Match` with the version we recorded can tell: a row
+            // written before ledger 0023, a server that gave no ETag or a weak
+            // one, a JMAP card that could not be read back. The rewrite of a
+            // SOURCE change keeps 0149 D3's trade-off; this one is not that,
+            // and it waits on nothing the person did, so the copy is left as
+            // it is and counted, before the cutover and after it alike. Never
+            // a match meanwhile (the mark), and never a create.
+            addressChangesUnguarded += 1;
+            await settleAddressDue();
+            return;
+          }
+          if (addressRewrite && !sourceIsAuthorityOnExistence && !addressRewritePastCutover) {
             // PAST THE CUTOVER, A CHANGED ADDRESS TABLE WAITS FOR A PERSON
             // (ADR-0055, workplan 0168 D5). The copy is live data now; it is
             // rewritten only once someone presses *Apply the new addresses
-            // here too* on this migration. Counted, before any fetch.
+            // here too* on this migration. Counted, before any fetch, and
+            // marked, so it is never a match meanwhile (S3).
             addressChangesWaiting += 1;
+            await settleAddressDue();
             return;
           }
           if (action === 'rewrite' && !sourceIsAuthorityOnExistence) {
             // AFTER CUTOVER A CHANGE AT THE OLD SYSTEM OVERWRITES NOTHING (the
             // owner, 2026-10-05: "Stop overwriting"). Counted, before any
             // fetch, and the source version is left where it was: see
-            // `DomainSyncResult.changedAfterCutover`.
+            // `DomainSyncResult.changedAfterCutover`. A change of its rows
+            // waits with it, and is marked (S3).
             changedAfterCutover += 1;
+            await settleAddressDue();
             return;
           }
           if (action === 'left-behind') {
@@ -2169,7 +2280,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // `recordUpdate` below turns the tombstone back into a live row.
           // Either way the ledger row already exists.
           hasExistingRow = true;
-          if (action === 'rewrite' || action === 'rewrite-addresses') rewriteOf = known;
+          if (action === 'rewrite' || addressRewrite) rewriteOf = known;
+          // Kept for after the write, where nothing written means the mark
+          // must still be settled (guests a target would mail).
+          settleAfterNoWrite = settleAddressDue;
         }
       }
 
@@ -2445,8 +2559,24 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // source version NOT advanced, since the change was not applied. So
         // the next pass asks again, and goes through the day the target no
         // longer mails guests.
+        if (result.goneFromTarget && rewriteOf) {
+          // THE COPY IS NOT ON THE TARGET ANY MORE (workplan 0168 B2): the
+          // rewrite found nothing to rewrite, so somebody deleted it there.
+          // Not re-created, by arch §11.1 ("Target-side deletions are
+          // deliberately not repaired"), and not a failure either, whose
+          // retry would take the create path and make it again. The row is
+          // left exactly as it was; verification reports the copy missing.
+          goneFromTarget += 1;
+          log.warn(
+            `[sync] ${domain}: item ${naturalKeyHash.slice(0, 12)} was to be rewritten, but its copy is ` +
+              'no longer on the target: somebody deleted it there. Not re-created; it counts as missing ' +
+              'on the target.',
+          );
+          return;
+        }
         if (result.keptForGuests) {
           keptForGuests += 1;
+          await settleAfterNoWrite?.();
           log.warn(
             `[sync] ${domain}: item ${naturalKeyHash.slice(0, 12)} changed on the source, but its copy ` +
               'on the target still lists guests, and that target emails each guest a rewrite takes ' +
@@ -2508,7 +2638,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // it changed nothing. Not on an adopted copy: its bytes are the
           // target's own, and none of ours were written.
           ...(fetched.addressDigest !== undefined && !result.adopted
-            ? { addressDigest: fetched.addressDigest }
+            ? { addressDigest: fetched.addressDigest, addressDigestDue: null }
             : {}),
         };
 
@@ -3203,6 +3333,31 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     );
   }
 
+  // THE ADDRESS TABLE'S COUNTS, FROM THE LEDGER (workplan 0168 S5). A source
+  // that lists only what changed shows a pass none of the copies that wait:
+  // they were read, and marked, by the pass after the table moved. So what
+  // waits, and what has no version to guard its write, is counted over every
+  // copy of this data type when the pass ends, and the migration page and the
+  // report say the same numbers whichever pass ran last. A ledger that cannot
+  // count leaves the pass's own counts of what it saw.
+  let address: AddressCounts | undefined;
+  if (addressDigestNow) {
+    const counted: AddressChangesCounted | undefined = ledger.countAddressChanges
+      ? await ledger.countAddressChanges(tenantId, mappingId, domain)
+      : undefined;
+    // Waiting means waiting for a press: past the cutover, with none for the
+    // table as it is. Before the cutover, or once pressed, a pass writes them.
+    const waitsForAPress = !sourceIsAuthorityOnExistence && !addressRewritePastCutover;
+    address = counted
+      ? {
+          addressChanged,
+          addressChangesWaiting: waitsForAPress ? counted.waiting : 0,
+          addressChangesUnguarded: counted.unguarded,
+          addressChangesCarried: counted.changed,
+        }
+      : { addressChanged, addressChangesWaiting, addressChangesUnguarded };
+  }
+
   return {
     collectionsListed: folders.length,
     scanned,
@@ -3215,8 +3370,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     heldAtCeiling,
     changedButAdopted,
     changedAfterCutover,
-    addressChanged,
-    addressChangesWaiting,
+    ...(address
+      ? { ...address, goneFromTarget }
+      : { addressChanged, addressChangesWaiting }),
     conflicted,
     keptForGuests,
     needsDecision,
@@ -3252,7 +3408,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           },
         }
       : {}),
-    metrics: summarise(phases, scanned),
+    metrics: summarise(phases, scanned, address),
   };
 }
 

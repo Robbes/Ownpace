@@ -439,14 +439,27 @@ describe('ownership, on a transport with no ETag', () => {
     expect(calls.some((c) => c.method === 'ContactCard/set')).toBe(false);
   });
 
-  it('refuses to rewrite a card that is not on the target at all', async () => {
+  it('says a card to rewrite is gone from the target, and creates nothing in its place (workplan 0168 B2)', async () => {
     responders['ContactCard/get'] = () => ({ list: [] });
-    // Falling through to a create would be convenient and wrong: the caller
-    // believes this item was already copied, and quietly disagreeing hides
-    // whatever made that false.
-    await expect(
-      target().upsertContact('book-1', rawContact('card-1'), { overwrite: true }),
-    ).rejects.toThrow(/no card with that UID is on the target/);
+    // Falling through to a create would be convenient and wrong, and so was
+    // the throw this answered with: it became a failed row, whose retry took
+    // the create path and made the card the person had deleted again.
+    const result = await target().upsertContact('book-1', rawContact('card-1'), { overwrite: true });
+    expect(result).toEqual({ targetId: '', created: false, goneFromTarget: true });
+    expect(calls.some((c) => c.method === 'ContactCard/set')).toBe(false);
+  });
+
+  it('says a card gone between the look and the read is gone, not edited (workplan 0168 B2)', async () => {
+    responders['ContactCard/get'] = (args) => (Array.isArray(args.ids) ? { list: [] } : { list: [stored] });
+    responders['ContactCard/set'] = () => {
+      throw new Error('nothing may be written for a card that is gone');
+    };
+    const result = await target().upsertContact('book-1', rawContact('card-1'), {
+      overwrite: true,
+      expectedTargetVersion: 'v1',
+    });
+    expect(result.goneFromTarget).toBe(true);
+    expect(result.conflicted).toBeUndefined();
   });
 });
 

@@ -26,7 +26,7 @@
  * phase is believed: it runs no pass, and its phase says the rest.
  */
 
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import {
   pathRunsNow,
   phasesOfThePaths,
@@ -37,6 +37,9 @@ import {
   type PathRow,
   addressTableDigest,
   addressTablePressDigest,
+  sourceStillDecides,
+  ADDRESS_DIGEST_OF_NO_CHANGE,
+  type AddressChangeWaitsFor,
 } from '@openmig/shared';
 import * as schemaPg from './schema-pg.ts';
 import type { PgDatabase } from './db-types.ts';
@@ -275,57 +278,107 @@ export async function applyNewAddressesHere(
   return recorded ? { digest, rows: rows.length } : null;
 }
 
-/** One data type's copies carrying an address change (ADR-0055), counted. */
+/** One data type's copies carrying an address change, or waiting for one (ADR-0055), counted. */
 export interface AddressChangesInDomain {
   readonly domain: 'contact' | 'calendar' | 'task';
-  /** Written under the table as it is now. */
+  /** Carry a change, and the last pass that looked found them as the table says. */
   readonly changed: number;
-  /** Written under an older table, waiting for the next pass. */
+  /** Wait for a change a pass found should reach them (`item.address_digest_due`): never a match. */
   readonly older: number;
+  /** Of `older`, those with no version to guard the write, left as they are (S1). */
+  readonly unguarded: number;
+  /**
+   * What the rest of `older` waits for: the next pass, or, past this data
+   * type's cutover with no press for the table as it is, *Apply the new
+   * addresses here too* (D5). Absent when none waits for either.
+   */
+  readonly waitsFor?: AddressChangeWaitsFor;
 }
 
-/**
- * The address table's part of one migration, for its completion report
- * (ADR-0055; workplan 0168 §6.3): how many confirmed rows the organisation's
- * table holds, its digest, and per data type how many copies we wrote carry a
- * change. Counts only, never an address. A data type with none is left out.
- */
-export async function readAddressChangesForReport(
-  db: PgDatabase,
-  tenantId: string,
-  mappingId: string,
-): Promise<{ readonly rows: number; readonly digest: string | null; readonly byDomain: AddressChangesInDomain[] }> {
-  const rows = await db
+/** The organisation's confirmed rows, as a pass reads them, by old key. */
+async function confirmedRowsOf(db: PgDatabase, tenantId: string) {
+  return db
     .select({
       oldKey: schemaPg.addressChange.oldKey,
       oldAddress: schemaPg.addressChange.oldAddress,
       newAddress: schemaPg.addressChange.newAddress,
     })
     .from(schemaPg.addressChange)
-    .where(and(eq(schemaPg.addressChange.tenantId, tenantId), eq(schemaPg.addressChange.state, 'confirmed')));
+    .where(and(eq(schemaPg.addressChange.tenantId, tenantId), eq(schemaPg.addressChange.state, 'confirmed')))
+    .orderBy(schemaPg.addressChange.oldKey);
+}
+
+/**
+ * WHAT A WAITING COPY WAITS FOR, per data type of one migration (ADR-0055;
+ * workplan 0168 D5; the screens' review S4, S11): the next pass, or, past the
+ * data type's cutover with no press for the confirmed table as it is, *Apply
+ * the new addresses here too*. Read as a pass reads it: the data type's phase
+ * (`sourceStillDecides`) and the press against the table's press digest. One
+ * answer for the confirmed list, verification and the report, so none of
+ * them says "the next pass" of a copy that waits for a person.
+ */
+export async function readAddressChangeWaitsFor(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+): Promise<(domain: string) => AddressChangeWaitsFor> {
+  const phases = await readPathPhases(db, tenantId, mappingId);
+  if (phases === null) return () => 'pass';
+  const pressCovers =
+    phases.addressChangesApplied !== undefined &&
+    phases.addressChangesApplied === addressTablePressDigest(await confirmedRowsOf(db, tenantId));
+  return (domain) => (!pressCovers && !sourceStillDecides(phases, domain) ? 'press' : 'pass');
+}
+
+/** A copy that waits for a change, in SQL: `waitsForAnAddressChange` of its two columns. */
+export const ADDRESS_CHANGE_DUE_SQL = sql`(${schemaPg.item.addressDigestDue} IS NOT NULL AND ${schemaPg.item.addressDigestDue} IS DISTINCT FROM coalesce(${schemaPg.item.addressDigest}, ${ADDRESS_DIGEST_OF_NO_CHANGE}))`;
+
+/** A copy whose recorded version can guard a write, in SQL: `guardsAnAddressRewrite`. */
+const GUARDED_SQL = sql`(${schemaPg.item.targetVersion} IS NOT NULL AND ${schemaPg.item.targetVersion} <> '' AND ${schemaPg.item.targetVersion} NOT LIKE 'W/%')`;
+
+/**
+ * The address table's part of one migration, for its completion report
+ * (ADR-0055; workplan 0168 §6.3, S3): how many confirmed rows the
+ * organisation's table holds, its digest, and per data type how many copies
+ * we wrote carry a change, how many wait for one, and for what. Counts only,
+ * never an address. A data type with none is left out.
+ */
+export async function readAddressChangesForReport(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+): Promise<{ readonly rows: number; readonly digest: string | null; readonly byDomain: AddressChangesInDomain[] }> {
+  const rows = await confirmedRowsOf(db, tenantId);
   const digest = addressTableDigest(rows);
   const counted = await db
     .select({
       domain: schemaPg.item.domain,
-      addressDigest: schemaPg.item.addressDigest,
-      n: sql`count(*)`.mapWith(Number),
+      changed: sql`count(*) FILTER (WHERE ${schemaPg.item.addressDigest} IS NOT NULL AND NOT ${ADDRESS_CHANGE_DUE_SQL})`.mapWith(Number),
+      older: sql`count(*) FILTER (WHERE ${ADDRESS_CHANGE_DUE_SQL})`.mapWith(Number),
+      unguarded: sql`count(*) FILTER (WHERE ${ADDRESS_CHANGE_DUE_SQL} AND NOT ${GUARDED_SQL})`.mapWith(Number),
     })
     .from(schemaPg.item)
     .where(
       and(
         eq(schemaPg.item.tenantId, tenantId),
         eq(schemaPg.item.mappingId, mappingId),
-        isNotNull(schemaPg.item.addressDigest),
+        or(isNotNull(schemaPg.item.addressDigest), isNotNull(schemaPg.item.addressDigestDue)),
         inArray(schemaPg.item.status, ['copied', 'updated', 'deleted_source']),
       ),
     )
-    .groupBy(schemaPg.item.domain, schemaPg.item.addressDigest);
+    .groupBy(schemaPg.item.domain);
+  const waitsFor = await readAddressChangeWaitsFor(db, tenantId, mappingId);
   const byDomain: AddressChangesInDomain[] = [];
   for (const domain of ['contact', 'calendar', 'task'] as const) {
-    const mine = counted.filter((c) => c.domain === domain);
-    const changed = mine.filter((c) => c.addressDigest === digest).reduce((n, c) => n + c.n, 0);
-    const older = mine.filter((c) => c.addressDigest !== digest).reduce((n, c) => n + c.n, 0);
-    if (changed + older > 0) byDomain.push({ domain, changed, older });
+    const mine = counted.find((c) => c.domain === domain);
+    if (!mine || mine.changed + mine.older === 0) continue;
+    byDomain.push({
+      domain,
+      changed: mine.changed,
+      older: mine.older,
+      unguarded: mine.unguarded,
+      ...(mine.older > mine.unguarded ? { waitsFor: waitsFor(domain) } : {}),
+    });
   }
   return { rows: rows.length, digest, byDomain };
 }

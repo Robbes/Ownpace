@@ -579,6 +579,15 @@ export interface UpsertResult {
    */
   readonly keptForGuests?: boolean;
   /**
+   * The rewrite found NO COPY on the target: somebody deleted it there
+   * (workplan 0168 B2). Nothing was written, and nothing was created in its
+   * place: arch §11.1 leaves a deletion on the target as it is, and reports it
+   * as missing. Set only on the overwrite path. Not an error, and not thrown:
+   * a thrown one became a failed row, whose retry took the create path and
+   * made the copy again.
+   */
+  readonly goneFromTarget?: boolean;
+  /**
    * True when an item WE had already copied was rewritten because the source
    * version changed — the shadow-sync update path (§11.1, "the source is
    * authoritative for content").
@@ -1063,12 +1072,23 @@ export interface LedgerRecord {
   readonly repaired?: string;
   /**
    * THE ADDRESS TABLE THIS COPY WAS WRITTEN UNDER (ADR-0055; workplan 0168
-   * §3.1, T4): `addressTableDigest` of the confirmed rows that changed an
-   * address in it, or null when none did. Absent from a record means nothing
-   * to say: `recordUpdate` then keeps what the row holds. Null means "written
-   * with no change", and is written. Never set for mail or files.
+   * §3.1, T4, S4): `addressTableDigest` of the confirmed rows that decided its
+   * bytes, or null when no address in it changed. Absent from a record means
+   * nothing to say: `recordUpdate` then keeps what the row holds. Null means
+   * "written with no change", and is written. Never set for mail or files.
    */
   readonly addressDigest?: string | null;
+  /**
+   * THE CHANGE THIS COPY WAITS FOR (workplan 0168 §3.1, S3; ledger migration
+   * 0074): set by a pass that found the copy should carry another digest and
+   * did not write it (past the cutover without a press, no version to guard
+   * the write, a source change after the cutover, guests a target would
+   * mail), to `addressDigestDue` of what it should carry. Null once a pass
+   * writes the copy, or finds it carries what the table says. A copy for
+   * which `waitsForAnAddressChange` holds is never a match. Absent from a
+   * record means nothing to say, as `addressDigest`.
+   */
+  readonly addressDigestDue?: string | null;
   readonly contentHash: string;
   readonly targetId: string;
   /** ISO 8601 timestamp the row was first recorded. */
@@ -1791,6 +1811,32 @@ export interface Ledger {
    * Optional, as `findMany` is: a ledger without it has no table.
    */
   listConfirmedAddressChanges?(tenantId: TenantId): Promise<ReadonlyArray<ConfirmedAddressChangeRow>>;
+  /**
+   * Record the change one copy waits for, or clear it with null (workplan
+   * 0168 S3; `LedgerRecord.addressDigestDue`). That column alone: no other
+   * column moves, `last_synced_at` included, since nothing was written to the
+   * target. Optional, as the table is: a ledger without it marks nothing.
+   */
+  markAddressChangeDue?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    naturalKeyHash: string,
+    due: string | null,
+  ): Promise<void>;
+  /**
+   * The address table's part of one data type of one migration, counted over
+   * every copy we wrote and stand behind (`copied`, `updated`,
+   * `deleted_source`), whatever the last pass listed (workplan 0168 S5): a
+   * source that lists only what changed shows a pass few items, and these are
+   * the numbers the migration's page and its report say. Counts, never
+   * addresses. Optional: a ledger without it, and the pass counts what it saw.
+   */
+  countAddressChanges?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<AddressChangesCounted>;
   /** Every sharing-queue row for one mapping, checklist order (open first, then by label). */
   listShareGrants(tenantId: TenantId, mappingId: MappingId): Promise<ReadonlyArray<ShareGrantRow>>;
   /**
@@ -2923,9 +2969,31 @@ export interface LedgerVerificationReader {
 
 /** What `LedgerVerificationReader.addressChangesOf` answers. Counts and keys, never addresses. */
 export interface AddressChangesInLedger {
+  /** The confirmed table's digest now, named in the report. */
   readonly digest: string | null;
+  /** Copies that carry a change and wait for none. */
   readonly changed: number;
+  /** The keys of the copies that wait for a change (`waitsForAnAddressChange`): never a match. */
   readonly olderKeys: ReadonlyArray<string>;
+  /**
+   * What they wait for: the next pass, or, past this data type's cutover
+   * with no press for the table as it is, *Apply the new addresses here too*
+   * (workplan 0168 D5). Absent when none waits.
+   */
+  readonly waitsFor?: AddressChangeWaitsFor;
+}
+
+/** What a copy whose address change has not reached it waits for (workplan 0168 D5, S4 of the screens' review). */
+export type AddressChangeWaitsFor = 'pass' | 'press';
+
+/** `Ledger.countAddressChanges`' answer: one data type of one migration, counted. */
+export interface AddressChangesCounted {
+  /** Copies that carry a change and wait for none. */
+  readonly changed: number;
+  /** Copies that wait for a change and hold a strong version: a pass may write them (`If-Match`). */
+  readonly waiting: number;
+  /** Copies that wait for a change with no version to guard the write: left as they are (S1). */
+  readonly unguarded: number;
 }
 
 /**
@@ -3062,6 +3130,17 @@ export interface PassMetrics {
   readonly collectionsOpened?: number;
   /** From the pass's start to its first write that created or updated an item. Absent when none did. */
   readonly firstWriteAfterMs?: number;
+  // THE ADDRESS TABLE'S COUNTS (ADR-0055; workplan 0168 S5), so a data type's
+  // `lastPass` says them in both editions. Only a contact, calendar or task
+  // pass that had a table says any; counts, never addresses.
+  /** Copies this pass wrote with an address changed. */
+  readonly addressChanged?: number;
+  /** Copies that wait for *Apply the new addresses here too*, past the cutover (`DomainSyncResult.addressChangesWaiting`). */
+  readonly addressChangesWaiting?: number;
+  /** Copies left as they are for want of a version to guard the write (`DomainSyncResult.addressChangesUnguarded`). */
+  readonly addressChangesUnguarded?: number;
+  /** Copies that carry an address change and wait for none (`DomainSyncResult.addressChangesCarried`). */
+  readonly addressChangesCarried?: number;
 }
 
 export interface MigrationStatusStore {
