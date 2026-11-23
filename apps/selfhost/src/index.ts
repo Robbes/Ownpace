@@ -1187,9 +1187,6 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     log.info(`[selfhost] scheduled ${m.config.mappingId} (${cron})`);
   };
 
-  // Startup: ensure records, fire read-only discovery in the background, and schedule
-  // only mappings that are already 'active'. Paused (draft) mappings wait for the operator
-  // to confirm on the page (0013 T7).
   // The table of address changes every tenant starts with (0168 §7; the
   // review's findings 5 and 7): the file's, or, through the page, the first
   // tenant's that holds a row, once the rows a removed file set are gone. One
@@ -1206,6 +1203,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         "address change(s) it set were deleted; this appliance's own page writes them from now on",
     );
   }
+  // Startup: ensure records, fire read-only discovery in the background, and schedule
+  // only mappings that are already 'active'. Paused (draft) mappings wait for the operator
+  // to confirm on the page (0013 T7).
   const addressTablesSeeded = new Set<string>();
   for (const m of mappings) {
     await ensureRecordsFor(m);

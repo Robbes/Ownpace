@@ -246,10 +246,7 @@ async function copyToTheOthers(driver: LedgerDriver, from: string, table: readon
 const WRITING = new WeakMap<LedgerDriver, Promise<unknown>>();
 function oneAtATime<T>(driver: LedgerDriver, work: () => Promise<T>): Promise<T> {
   const next = (WRITING.get(driver) ?? Promise.resolve()).then(work, work);
-  WRITING.set(
-    driver,
-    next.catch(() => undefined),
-  );
+  WRITING.set(driver, next.catch(() => undefined));
   return next;
 }
 
