@@ -2251,6 +2251,43 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     expect(screen.getByText("You are leaving name@old.example.org. Your new account's address is first@example.org.")).toBeInTheDocument();
   });
 
+  // Not Google's alone since 2026-11-23: Microsoft's, Apple's, Yahoo's and the
+  // Dutch and Belgian internet providers' domains are on the list too, so the
+  // step comes without the box being ticked.
+  it.each([
+    ['name@hotmail.com', 'Microsoft'],
+    ['name@live.nl', 'Microsoft'],
+    ['name@ziggo.nl', 'Ziggo'],
+  ])('asks about %s, an address %s keeps, with no box ticked', async (from, provider) => {
+    accounts(from);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my address' })).not.toBeChecked();
+    expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    expect(
+      screen.getByText(
+        `You are leaving ${from}. ${provider} keeps that address, so it cannot come with you. Your new account's address is first@example.org.`,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: `Use first@example.org in place of ${from}?` })).toBeInTheDocument();
+  });
+
+  it.each(['name@hotmail.example.com', 'name@notgmail.com'])(
+    'is not there for %s, which only looks like a domain on the list',
+    async (from) => {
+      accounts(from);
+      const user = userEvent.setup();
+      renderAt();
+      await toWhere(user);
+      expect(screen.getByText('Step 5 of 6')).toBeInTheDocument();
+      await user.click(setUp());
+      await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    },
+  );
+
   it('takes another address, waits for one typed, and writes nothing on No', async () => {
     accounts('name@gmail.com');
     const user = userEvent.setup();
