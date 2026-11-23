@@ -622,6 +622,16 @@ export const runDeltaSyncRun = leavesAReference(
              */
             changedAfterCutover?: number;
             /**
+             * The address table's counts (ADR-0055; workplan 0168 S5),
+             * carried and said as `changedAfterCutover` is; `metrics` carries
+             * them to the data type's lastPass. Contact, calendar and task
+             * only, and only with a table.
+             */
+            addressChanged?: number;
+            addressChangesWaiting?: number;
+            addressChangesUnguarded?: number;
+            goneFromTarget?: number;
+            /**
              * Rewrites not sent because the copy still lists guests the target
              * would mail (workplan 0160). Calendar and task only.
              */
@@ -910,6 +920,49 @@ export const runDeltaSyncRun = leavesAReference(
                   'as the new system has them: after cutover a change there no longer overwrites a copy ' +
                   'here. Nothing failed; new items are still copied.',
                 { domain, changedAfterCutover: changed },
+              );
+            });
+          }
+          // The address table's counts (ADR-0055; workplan 0168 S5), in the run
+          // log as the change after cutover is: counts only, never an address.
+          const waiting = result.addressChangesWaiting ?? 0;
+          const unguarded = result.addressChangesUnguarded ?? 0;
+          const gone = result.goneFromTarget ?? 0;
+          if (waiting > 0) {
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'info',
+                `${domain}: ${waiting} item(s) wait for a change of the address table past the cutover, and ` +
+                  'were left as the new system has them. They change only when somebody presses Apply the ' +
+                  'new addresses here too on the migration. Nothing failed.',
+                { domain, addressChangesWaiting: waiting },
+              );
+            });
+          }
+          if (unguarded > 0) {
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'warn',
+                `${domain}: ${unguarded} item(s) were not changed for a new address: no version was recorded ` +
+                  'to guard the write, so an edit somebody made at the new system could not be told apart from ' +
+                  'our copy. They were left as they are, and none of them counts as a match.',
+                { domain, addressChangesUnguarded: unguarded },
+              );
+            });
+          }
+          if (gone > 0) {
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'warn',
+                `${domain}: ${gone} item(s) were to be rewritten, but their copies are no longer at the new ` +
+                  'system: somebody deleted them there. They were not made again, and count as missing there.',
+                { domain, goneFromTarget: gone },
               );
             });
           }

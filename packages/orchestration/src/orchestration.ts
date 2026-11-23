@@ -107,6 +107,24 @@ function recordPassMetrics(
   }
 }
 
+/**
+ * The address table's counts of a contact, calendar or task pass, as the
+ * outcome carries them (workplan 0168 S5): only those the pass said.
+ */
+function addressCountsOf(result: {
+  readonly addressChanged?: number;
+  readonly addressChangesWaiting?: number;
+  readonly addressChangesUnguarded?: number;
+  readonly goneFromTarget?: number;
+}): Pick<DomainSyncResult, 'addressChanged' | 'addressChangesWaiting' | 'addressChangesUnguarded' | 'goneFromTarget'> {
+  return {
+    ...(result.addressChanged !== undefined ? { addressChanged: result.addressChanged } : {}),
+    ...(result.addressChangesWaiting !== undefined ? { addressChangesWaiting: result.addressChangesWaiting } : {}),
+    ...(result.addressChangesUnguarded !== undefined ? { addressChangesUnguarded: result.addressChangesUnguarded } : {}),
+    ...(result.goneFromTarget !== undefined ? { goneFromTarget: result.goneFromTarget } : {}),
+  };
+}
+
 export interface DomainSyncResult {
   domain: DiscoveryDomain;
   /**
@@ -159,6 +177,18 @@ export interface DomainSyncResult {
    * owner, 2026-10-05: "Stop overwriting"; `DomainSyncResult.changedAfterCutover`).
    */
   changedAfterCutover?: number;
+  /**
+   * THE ADDRESS TABLE'S COUNTS (ADR-0055; workplan 0168 S5), carried as
+   * `changedAfterCutover` is, and said in the run log below. Copies written
+   * this pass with an address changed.
+   */
+  addressChanged?: number;
+  /** Copies past the cutover that wait for *Apply the new addresses here too* (D5), over the whole data type. */
+  addressChangesWaiting?: number;
+  /** Copies an address change should reach that have no version to guard the write: left as they are (S1). */
+  addressChangesUnguarded?: number;
+  /** Rewrites that found no copy on the target: not re-created (arch §11.1; B2). */
+  goneFromTarget?: number;
   failed: number;
   /** Failures that have run out of automatic retries and need an owner decision. */
   needsDecision?: number;
@@ -655,6 +685,11 @@ export async function runAllDomains(
             conflicted: result.conflicted,
             keptForGuests: result.keptForGuests,
             deletions: result.deletions.length,
+            ...addressCountsOf(result),
+            // Where the pass's time went, and what lastPass says (0168 S5):
+            // recorded by markCompleted below, which this outcome never
+            // carried, so the appliance's data types had no lastPass at all.
+            metrics: result.metrics,
           };
         } finally {
           await built.close();
@@ -686,6 +721,8 @@ export async function runAllDomains(
             moved: result.moved,
             conflicted: result.conflicted,
             deletions: result.deletions.length,
+            ...addressCountsOf(result),
+            metrics: result.metrics,
           };
         } finally {
           await built.close();
@@ -733,6 +770,8 @@ export async function runAllDomains(
             conflicted: result.conflicted,
             keptForGuests: result.keptForGuests,
             deletions: result.deletions.length,
+            ...addressCountsOf(result),
+            metrics: result.metrics,
           };
         } finally {
           await built.close();
@@ -772,6 +811,8 @@ export async function runAllDomains(
             moved: result.moved,
             conflicted: result.conflicted,
             deletions: result.deletions.length,
+            // As the three branches above: the pass's metrics, for lastPass.
+            metrics: result.metrics,
           };
           // Auto-apply (ADR-0031, accepted 2026-08-16): only after a completed
           // pass, only when the mapping opted in, and only through the same
@@ -939,6 +980,32 @@ export async function runAllDomains(
           `[Worker] ${domain}: ${outcome.changedAfterCutover} item(s) changed on the source after ` +
             'cutover and were left as the destination has them: after cutover a change there no ' +
             'longer overwrites a copy here. New items are still copied.',
+        );
+      }
+      // The address table's counts (ADR-0055; workplan 0168 S5), said as the
+      // change after cutover is: counts only, never an address.
+      if (outcome.addressChanged) {
+        log.info(`[Worker] ${domain}: ${outcome.addressChanged} item(s) written with a new address (ADR-0055).`);
+      }
+      if (outcome.addressChangesWaiting) {
+        log.info(
+          `[Worker] ${domain}: ${outcome.addressChangesWaiting} item(s) wait for a change of the address ` +
+            'table past the cutover, and were left as the destination has them. They change only when ' +
+            'somebody presses Apply the new addresses here too on the migration.',
+        );
+      }
+      if (outcome.addressChangesUnguarded) {
+        log.warn(
+          `[Worker] ${domain}: ${outcome.addressChangesUnguarded} item(s) were not changed for a new ` +
+            'address: no version was recorded to guard the write, so an edit somebody made there could ' +
+            'not be told apart from our copy. Left as they are; they are never counted as a match.',
+        );
+      }
+      if (outcome.goneFromTarget) {
+        log.warn(
+          `[Worker] ${domain}: ${outcome.goneFromTarget} item(s) were to be rewritten, but their copies ` +
+            'are no longer on the target: somebody deleted them there. Not re-created (§11.1); they ' +
+            'count as missing on the target.',
         );
       }
       if (outcome.deletions) {
