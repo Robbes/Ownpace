@@ -73,7 +73,9 @@
  * rendering what the provider wrote, and the provider wrote the quote.
  */
 
-const GDATA_ERRORS = /<errors\b[^>]*xmlns="http:\/\/schemas\.google\.com\/g\/2005"/;
+import { elementsIn } from './xml-elements.ts';
+
+const GDATA_ERRORS = /<errors\b[^<>]*xmlns="http:\/\/schemas\.google\.com\/g\/2005"/;
 
 /**
  * Sabre's namespace, and the prefix this document happens to bind it to.
@@ -100,9 +102,16 @@ function decodeEntities(s: string): string {
   );
 }
 
+/**
+ * What stands between the first `<tag>` and the `</tag>` after it. Read a tag at
+ * a time, in time linear in the body's length (`elementsIn`, workplan 0163),
+ * not with `<tag>([\s\S]*?)</tag>`, which a body that opens the tag many times
+ * and never closes it made quadratic. `tag` is compared as written, also where
+ * its prefix came from the body.
+ */
 function text(body: string, tag: string): string {
-  const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(body);
-  return decodeEntities(m?.[1] ?? '').trim();
+  const found = elementsIn(body, (t) => t === tag, (t) => t === `/${tag}`, true)[0];
+  return decodeEntities(found?.text ?? '').trim();
 }
 
 /** `a — b`, or whichever of the two the document actually carried. */

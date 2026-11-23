@@ -1446,10 +1446,22 @@ describe('the new address, on a migration’s page (0168 §6.3, D5)', () => {
     expect(screen.queryByRole('button', { name: PRESS })).toBeNull();
   });
 
-  it('says how many copies were left as they are for want of a version to guard the write (S1)', async () => {
+  it('says how many copies keep the old address for want of a version to guard the write (S1)', async () => {
     mappingApiGet.mockResolvedValue(contacts('active', { addressChangesUnguarded: 2 }));
     renderHub();
-    expect(await screen.findByText(/^Not changed: 2, with no version to guard the write\./)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/^Keep the old address: 2\. The new system offers no safe way to update them/),
+    ).toBeInTheDocument();
+  });
+
+  it('says the copies changed in the old account after the switch apart, and never offers the press for them', async () => {
+    // The owner, 2026-11-23: "2) b." (ADR-0055 decision 6).
+    mappingApiGet.mockResolvedValue(contacts('cutover', { addressChangesCarried: 1, addressChangesLeft: 2 }));
+    renderHub();
+    expect(
+      await screen.findByText(/^Changed in your old account after the switch, not updated: 2\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: PRESS })).toBeNull();
   });
 
   it.each([false, true])(

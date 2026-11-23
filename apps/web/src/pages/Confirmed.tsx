@@ -281,13 +281,46 @@ function AddressCounts({ q }: { q: ConfirmedListQueue }): React.ReactElement | n
   const { number } = useFormatters();
   const counts = q.addressChanges;
   if (counts === undefined || (counts.changed === 0 && counts.older === 0)) return null;
+  // Of the older copies, those nothing will change, said apart and never as
+  // waiting (the owner, 2026-11-23; ADR-0055 decisions 5 and 6): no safe way
+  // to update them on the new system, or changed in the old account after
+  // the switch.
+  const unguarded = Math.min(counts.unguarded ?? 0, counts.older);
+  const left = Math.min(counts.left ?? 0, counts.older - unguarded);
+  const older = counts.older - unguarded - left;
+  const parts: React.ReactElement[] = [];
+  if (counts.changed > 0) {
+    parts.push(<span key="changed">{t('addresses.confirmedList.changedCount', { count: number(counts.changed) })}</span>);
+  }
+  if (older > 0) {
+    parts.push(
+      <span key="older" className="text-amber-800">
+        {t('addresses.confirmedList.olderCount', { count: number(older) })}
+      </span>,
+    );
+  }
+  if (unguarded > 0) {
+    parts.push(
+      <span key="unguarded" data-address-unguarded>
+        {t('addresses.confirmedList.unguardedCount', { count: number(unguarded) })}
+      </span>,
+    );
+  }
+  if (left > 0) {
+    parts.push(
+      <span key="left" data-address-left>
+        {t('addresses.confirmedList.leftCount', { count: number(left) })}
+      </span>,
+    );
+  }
   return (
     <p className="mt-1 text-sm text-gray-700" data-address-counts>
-      {counts.changed > 0 && <span>{t('addresses.confirmedList.changedCount', { count: number(counts.changed) })}</span>}
-      {counts.changed > 0 && counts.older > 0 && <span className="text-gray-400"> · </span>}
-      {counts.older > 0 && (
-        <span className="text-amber-800">{t('addresses.confirmedList.olderCount', { count: number(counts.older) })}</span>
-      )}
+      {parts.map((part, i) => (
+        <React.Fragment key={part.key}>
+          {i > 0 && <span className="text-gray-400"> · </span>}
+          {part}
+        </React.Fragment>
+      ))}
     </p>
   );
 }

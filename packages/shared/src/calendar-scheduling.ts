@@ -256,12 +256,11 @@ function guestNote(logical: string): string {
   }
   const head = colon === -1 ? logical : logical.slice(0, colon);
   const value = colon === -1 ? '' : logical.slice(colon + 1).trim();
-  const param = (key: string): string =>
-    (new RegExp(`;${key}=(?:"([^"]*)"|([^;:]*))`, 'i').exec(head)?.slice(1).find((v) => v !== undefined) ?? '').trim();
-  const name = param('CN');
+  const param = (pattern: RegExp): string => (pattern.exec(head)?.slice(1).find((v) => v !== undefined) ?? '').trim();
+  const name = param(/;CN=(?:"([^"]*)"|([^;:]*))/i);
   // A mailto: value is the address. Any other value (a urn:uuid:, say) is
   // not one, and RFC 7986's EMAIL parameter, where the source gave it, is.
-  const address = /^mailto:/i.test(value) ? value.slice('mailto:'.length).trim() : param('EMAIL') || value;
+  const address = /^mailto:/i.test(value) ? value.slice('mailto:'.length).trim() : param(/;EMAIL=(?:"([^"]*)"|([^;:]*))/i) || value;
   // A source that wrote the address as the name too is named once.
   const who =
     name && address && name.toLowerCase() !== address.toLowerCase()

@@ -198,8 +198,11 @@ function noRowsYet(): Record<RowState, number> {
  *   match *with your new address*.
  * - `older`: a pass found it should carry another change than the one it was
  *   written with (`item.address_digest_due`), a row added, changed or gone,
- *   and nothing has written it since. It is never a match: until then the copy
- *   does not say what the table says it should. `waitsFor` says for what.
+ *   and nothing has written it since. It is never a match while something
+ *   comes for it: until then the copy does not say what the table says it
+ *   should. `waitsFor` says for what. Two wait for nothing and keep the old
+ *   address for good (the owner, 2026-11-23): `unguarded` and `left`. Those
+ *   are checked as plain copies, the bytes as copied, and keep their state.
  */
 export type AddressMark = 'changed' | 'older';
 
@@ -214,7 +217,8 @@ export interface ConfirmedRow {
    * cutover with no press for the table as it is, *Apply the new addresses
    * here too* (workplan 0168 D5; the screens' review S4); or nothing, for a
    * copy with no version to guard the write (`unguarded`, S1), which neither
-   * reaches. Only with `older`.
+   * reaches, or for one whose source changed after the switch (`left`,
+   * ADR-0055 decision 6), which no press rewrites. Only with `older`.
    */
   readonly waitsFor?: AddressChangeWaitsFor;
 }
@@ -324,6 +328,13 @@ export function rowFor(args: {
      * the row says what `waitsFor` says.
      */
     readonly targetVersion?: string | null;
+    /**
+     * The copy is left because its source changed after the data type's
+     * cutover (`item.address_left_at`; ADR-0055 decision 6, the owner's (b)
+     * of 2026-11-23): no press rewrites it, so it waits for nothing and says
+     * `left`. Absent reads as not left.
+     */
+    readonly left?: boolean;
   };
 }): ConfirmedRow {
   const row = rowBeforeTheAddressTable(args);
@@ -339,12 +350,20 @@ export function rowFor(args: {
   // was added for an address it names used to read as a match here, because
   // it carried no digest at all.
   if (waitsForAnAddressChange(digest.item, digest.due)) {
+    // NOTHING COMES FOR TWO OF THEM (the owner, 2026-11-23; ADR-0055
+    // decisions 5 and 6). A copy left because its source changed after the
+    // switch, and one with no version to guard the write, keep the old
+    // address for good: no pass and no press changes them. Each is checked
+    // as a plain copy, the bytes as copied, and says why it keeps the old
+    // address; it is never held as waiting.
+    if (digest.left === true) return { ...row, address: 'older', waitsFor: 'left' };
     const unguarded = digest.targetVersion !== undefined && !guardsAnAddressRewrite(digest.targetVersion ?? undefined);
+    if (unguarded) return { ...row, address: 'older', waitsFor: 'unguarded' };
     return {
       ...row,
       state: row.state === 'verified' ? 'differs' : row.state,
       address: 'older',
-      waitsFor: unguarded ? 'unguarded' : (digest.waitsFor ?? 'pass'),
+      waitsFor: digest.waitsFor ?? 'pass',
     };
   }
   // A row the table did not touch says nothing about one.
@@ -584,6 +603,8 @@ export interface ConfirmedList<Row extends ConfirmedRow = ConfirmedRow> {
     readonly changed: number;
     readonly older: number;
     readonly unguarded?: number;
+    /** Of `older`, those left because their source changed after the switch (ADR-0055 decision 6). */
+    readonly left?: number;
   };
 }
 
@@ -623,6 +644,7 @@ export function confirmedListOf<Row extends ConfirmedRow>(options?: {
   let addressChanged = 0;
   let addressOlder = 0;
   let addressUnguarded = 0;
+  let addressLeft = 0;
   const rows: Row[] = [];
   const byState = noRowsYet();
   let verified = 0;
@@ -638,6 +660,7 @@ export function confirmedListOf<Row extends ConfirmedRow>(options?: {
       else if (row.address === 'older') {
         addressOlder += 1;
         if (row.waitsFor === 'unguarded') addressUnguarded += 1;
+        else if (row.waitsFor === 'left') addressLeft += 1;
       }
       if (countsAsVerified(row)) {
         verified += 1;
@@ -658,6 +681,7 @@ export function confirmedListOf<Row extends ConfirmedRow>(options?: {
               changed: addressChanged,
               older: addressOlder,
               ...(addressUnguarded > 0 ? { unguarded: addressUnguarded } : {}),
+              ...(addressLeft > 0 ? { left: addressLeft } : {}),
             },
           }
         : {}),

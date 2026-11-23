@@ -235,6 +235,7 @@ export function createLedgerVerificationReader(
           addressDigest: schema.item.addressDigest,
           addressDigestDue: schema.item.addressDigestDue,
           targetVersion: schema.item.targetVersion,
+          addressLeftAt: schema.item.addressLeftAt,
         })
         .from(schema.item)
         .where(
@@ -251,15 +252,19 @@ export function createLedgerVerificationReader(
       // Of those, the ones no pass and no press reaches: no version to guard
       // the write (S1; 0168, found on the way).
       const unguardedKeys: string[] = [];
+      // And the ones left because their source changed after the switch,
+      // which no press rewrites (0075; ADR-0055 decision 6, the owner's (b)).
+      const leftKeys: string[] = [];
       for (const it of items) {
         if (waitsForAnAddressChange(it.addressDigest, it.addressDigestDue)) {
           olderKeys.push(it.naturalKeyHash);
-          if (!guardsAnAddressRewrite(it.targetVersion ?? undefined)) unguardedKeys.push(it.naturalKeyHash);
+          if (it.addressLeftAt !== null) leftKeys.push(it.naturalKeyHash);
+          else if (!guardsAnAddressRewrite(it.targetVersion ?? undefined)) unguardedKeys.push(it.naturalKeyHash);
         } else if (it.addressDigest !== null) changed += 1;
       }
       // What the rest wait for, read as a pass reads it (D5).
       const waitsFor =
-        olderKeys.length > unguardedKeys.length
+        olderKeys.length > unguardedKeys.length + leftKeys.length
           ? (await readAddressChangeWaitsFor(db, tenantId, mappingId))(domain)
           : undefined;
       return {
@@ -267,6 +272,7 @@ export function createLedgerVerificationReader(
         changed,
         olderKeys,
         ...(unguardedKeys.length > 0 ? { unguardedKeys } : {}),
+        ...(leftKeys.length > 0 ? { leftKeys } : {}),
         ...(waitsFor !== undefined ? { waitsFor } : {}),
       };
     },

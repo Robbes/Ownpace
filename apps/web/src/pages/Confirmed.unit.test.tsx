@@ -883,6 +883,23 @@ describe('a declared address change, never a silent one (workplan 0168 §3.1, T5
     expect(counts).toHaveTextContent('Copies with a new address: 6 · Copies from before the latest address change: 1');
   });
 
+  it('says the copies that keep the old address apart from those that wait, never as older (the owner, 2026-11-23)', async () => {
+    show(
+      queue({
+        verified: 9,
+        total: 10,
+        rows: [row({ domain: 'contact', naturalKey: 'uid-4', state: 'differs', address: 'older' })],
+        addressChanges: { digest: 'd1', changed: 6, older: 4, unguarded: 2, left: 1 },
+      }),
+    );
+    const counts = await screen.findByText((_, el) => el?.hasAttribute('data-address-counts') === true);
+    expect(counts).toHaveTextContent(
+      'Copies with a new address: 6 · Copies from before the latest address change: 1 · ' +
+        'Keep the old address: 2. The new system offers no safe way to update them. · ' +
+        'Changed in your old account after the switch, not updated: 1',
+    );
+  });
+
   it('says no count where no copy carries a change, and none where no table was read', async () => {
     show(queue({ verified: 1, total: 1, addressChanges: { digest: null, changed: 0, older: 0 } }));
     await screen.findByText('Every item was re-read and matched. Nothing needs your attention.');

@@ -115,7 +115,10 @@ describe('the confirmed list and the address table', () => {
 /**
  * NO VERSION TO GUARD THE WRITE (workplan 0168 S1, and its finding on the
  * way). A copy that waits with no strong target version is left as it is by
- * every pass and every press, so it waits for neither, and says so.
+ * every pass and every press, so it waits for neither, and says so. It keeps
+ * the old address for good, so it is checked as a plain copy: a re-read that
+ * matches the bytes as copied is verified (the owner, 2026-11-23; ADR-0055
+ * decision 5).
  */
 describe('a copy no pass changes, in the confirmed list', () => {
   const waiting = (targetVersion: string | null | undefined, waitsFor: 'pass' | 'press' = 'pass') =>
@@ -135,7 +138,34 @@ describe('a copy no pass changes, in the confirmed list', () => {
     expect(waiting(version).waitsFor).toBe('unguarded');
     expect(waiting(version, 'press').waitsFor).toBe('unguarded');
     expect(waiting(version).address).toBe('older');
-    expect(real.countsAsVerified(waiting(version))).toBe(false);
+    expect(real.countsAsVerified(waiting(version))).toBe(true);
+  });
+
+  it('is not verified when the re-read differs from the bytes as copied', () => {
+    const differs = real.rowFor({
+      domain: 'contact',
+      status: 'copied',
+      answer: { onTarget: true, comparison: 'differ' },
+      contentHash: 'card1:x',
+      addressDigest: { item: MINE, due: OTHER, waitsFor: 'pass', targetVersion: null },
+    });
+    expect(differs).toMatchObject({ state: 'differs', address: 'older', waitsFor: 'unguarded' });
+  });
+
+  it('says left for a copy whose source changed after the switch, whatever its version, and checks it as copied', () => {
+    const left = (targetVersion: string | null) =>
+      real.rowFor({
+        domain: 'contact',
+        status: 'copied',
+        answer: MATCH,
+        contentHash: 'card1:x',
+        addressDigest: { item: MINE, due: OTHER, waitsFor: 'press', targetVersion, left: true },
+      });
+    expect(left('abc')).toMatchObject({ state: 'verified', address: 'older', waitsFor: 'left' });
+    expect(left(null)).toMatchObject({ state: 'verified', address: 'older', waitsFor: 'left' });
+    const list = real.confirmedListOf({ addressDigest: TABLE });
+    for (const r of [left('abc'), waiting(null), waiting('abc')]) list.add(r);
+    expect(list.result().addressChanges).toEqual({ digest: TABLE, changed: 0, older: 3, unguarded: 1, left: 1 });
   });
 
   it('says what the rest waits for when the version can guard the write, or was not read', () => {

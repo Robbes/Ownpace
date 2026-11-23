@@ -75,8 +75,8 @@ function capped(words: string): string | undefined {
  * start tag declares, and where that tag ends. Only an XML declaration and
  * comments may come before it, so a page that merely CONTAINS an error
  * document somewhere is not one. The prefix's character class leaves out `.`,
- * which is legal in an XML name and a metacharacter in the pattern built from it
- * below.
+ * which is legal in an XML name and was a metacharacter in the pattern once
+ * built from it below.
  */
 const XML_ROOT =
   /^\s*(?:<\?xml[^>]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<(?:([A-Za-z_][A-Za-z0-9_-]*):)?([A-Za-z_][A-Za-z0-9_-]*)\b([^>]*)>/;
@@ -104,8 +104,18 @@ function xmlErrorWords(body: string): string | undefined {
   if (name !== 'error' || !declares(attributes, prefix, 'DAV:')) return undefined;
   const sabre = sabreRefusalWords(body);
   if (sabre) return sabre;
-  const inner = new RegExp(`<${prefix === undefined ? '' : `${prefix}:`}([A-Za-z][A-Za-z0-9-]*)\\b`, 'g');
-  const names = [...body.slice(tag.length).matchAll(inner)].map((m) => m[1] ?? '');
+  // Each `<p:name\b` after the root's tag, as `matchAll` of that pattern found them, with the
+  // prefix compared as written rather than built into a pattern (workplan 0163).
+  const rest = body.slice(tag.length);
+  const lead = `<${prefix === undefined ? '' : `${prefix}:`}`;
+  const word = /[A-Za-z][A-Za-z0-9-]*\b/y;
+  const names: string[] = [];
+  for (let at = rest.indexOf(lead); at !== -1; ) {
+    word.lastIndex = at + lead.length;
+    const m = word.exec(rest);
+    if (m) names.push(m[0]);
+    at = rest.indexOf(lead, m ? word.lastIndex : at + 1);
+  }
   const conditions = [...new Set(names.filter((n) => n !== 'error'))];
   return conditions.length > 0 ? conditions.map((n) => `DAV:${n}`).join(', ') : 'DAV:error';
 }
