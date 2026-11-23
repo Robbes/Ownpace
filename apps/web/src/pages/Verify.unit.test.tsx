@@ -595,6 +595,69 @@ describe('what the check found, in the reader’s words (owner, 2026-10-18)', ()
     expect(core).toMatch(/'NOT_VERIFIABLE',[^;]*TARGET_UNREAD,\s*\);/);
     expect(core).toContain('id: `MISSING_${dataType}`');
     expect(core).toContain('id: `CHECKSUM_${dataType}`');
+    // The two about a new address (workplan 0168).
+    expect(core).toContain('id: `ADDRESS_OLDER_TABLE_${dataType}`');
+    expect(core).toContain('id: `ADDRESS_NOT_COMPARED_${dataType}`');
+  });
+});
+
+/**
+ * A NEW ADDRESS IN WHAT THE CHECK FOUND (workplan 0168; the screens' review
+ * S11, S4). The finding about copies an address change waits for reached a
+ * Dutch reader in English, with a decision's number in it. Now each of the
+ * two is a client sentence in both languages, saying what the copies wait
+ * for: the next pass, or past the switch the press.
+ */
+describe('a new address in what the check found (workplan 0168)', () => {
+  const issue = (id: string, severity: 'ERROR' | 'WARNING', message: string) => ({ id, severity, message });
+  const OLDER = '2 contacts item(s) wait for an address change to reach them, which past the switch happens only when somebody presses Apply the new addresses here too, on the migration\'s page. None of them is counted as a match.';
+  const NOT_COMPARED = 'Every one of the 3 sampled calendar item(s) waits for an address change to reach it, so no content was compared. The cutover is held. Check again after the next pass.';
+  const found = (dataType: string, change: Record<string, unknown>) =>
+    ({ ...(domainFor(dataType) as object), ...change }) as never;
+  const REPORT: VerificationResult = {
+    ...RESULT,
+    overallStatus: 'FAIL',
+    canProceedToCutover: false,
+    contacts: found('contacts', {
+      status: 'PASS',
+      addressChanges: { digest: null, changed: 1, older: 2, waitsFor: 'press' },
+      issues: [issue('ADDRESS_OLDER_TABLE_contacts', 'WARNING', OLDER)],
+    }),
+    calendar: found('calendar', {
+      status: 'FAIL',
+      addressChanges: { digest: null, changed: 0, older: 3, waitsFor: 'pass' },
+      issues: [issue('ADDRESS_NOT_COMPARED_calendar', 'ERROR', NOT_COMPARED)],
+    }),
+  };
+
+  async function renderIn(locale: 'en' | 'nl') {
+    window.localStorage.setItem('ownpace.locale', locale);
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-11-23T12:00:00Z',
+      finishedAt: '2026-11-23T12:03:00Z',
+      report: { 'mapping-1': REPORT },
+    });
+    render(
+      <LocaleProvider>
+        <MemoryRouter><Verify /></MemoryRouter>
+      </LocaleProvider>,
+    );
+    await screen.findByRole('link', { name: 'mapping-1' });
+  }
+
+  const shown = (text: string) => screen.queryAllByText(text, { exact: false }).filter((el) => el.closest('details') === null);
+
+  it.each([
+    ['en', '2 contacts items wait for an address change. Past the switch it is made only when somebody presses Apply the new addresses here too', 'Every sampled calendar item waits for an address change'],
+    ['nl', '2 items (contacten) wachten op een adreswijziging. Na de overstap gebeurt dat pas als iemand', 'Elk item (agenda) uit de steekproef wacht op een adreswijziging'],
+  ] as const)('says both in %s, with what the copies wait for, and no decision’s number', async (locale, older, notCompared) => {
+    await renderIn(locale);
+    expect(shown(older)).toHaveLength(1);
+    expect(shown(notCompared)).toHaveLength(1);
+    // The server's English stays in the closed fold, where a support thread can quote it.
+    expect(shown('None of them is counted as a match')).toEqual([]);
+    expect(screen.queryAllByText(/ADR-\d{4}/).filter((el) => el.closest('details') === null)).toEqual([]);
   });
 });
 

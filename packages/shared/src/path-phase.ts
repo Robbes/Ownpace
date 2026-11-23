@@ -160,6 +160,14 @@ export type PassPhases = {
    * from a reader that does not know of it, which builds as before.
    */
   readonly testMarker?: string;
+  /**
+   * The confirmed address table a person last pressed *Apply the new
+   * addresses here too* for on this migration (`mailbox_mapping.
+   * address_changes_applied_digest`, migration 0073; ADR-0055, workplan 0168
+   * D5). Past a data type's cutover a pass applies the table only while this
+   * is its digest now. Absent when nobody pressed it.
+   */
+  readonly addressChangesApplied?: string;
 } | null;
 
 /**

@@ -95,6 +95,7 @@
 import React from 'react';
 import { useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { YourNewAddress } from '../components/YourNewAddress.tsx';
 import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import type { DiscoveryDomain } from '@openmig/shared';
 import { grantApi, type GrantSubject, type PersonGrantSubject } from '../services/grant-service.ts';
@@ -415,6 +416,9 @@ const Grant: React.FC = () => {
 
       {subject.data && isPersonSubject(subject.data) && link && (
         <PersonGrant data={subject.data} link={link} />
+      )}
+      {subject.data && isPersonSubject(subject.data) && link && (
+        <YourNewAddress door="grant" link={link} changes={subject.data.addressChanges} queryKey={['grant', link]} />
       )}
 
       {subject.data && !isPersonSubject(subject.data) && (

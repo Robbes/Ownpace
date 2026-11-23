@@ -236,6 +236,20 @@ export const MigrationReport: React.FC<{
         </p>
       </section>
 
+      {/* ADDRESSES CHANGED (0168 §6.3, the review's S8): the report's own
+          sentences, in the reader's language, as the download says them in
+          English. Counts only, never an address. */}
+      {report.addressChanges && (
+        <section data-address-changes>
+          <H className={heading}>{report.addressChanges.said.heading[locale]}</H>
+          <ul className="mt-1 space-y-1 text-sm text-gray-700">
+            {report.addressChanges.said.lines.map((line, i) => (
+              <li key={i}>{line[locale]}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {report.sharing && (
         <section>
           <H className={heading}>{t('migrationReport.sharing.heading')}</H>

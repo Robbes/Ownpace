@@ -46,6 +46,7 @@ import {
   PgMigrationStatusStore,
   readPathPhases,
   readShareGate,
+  readAddressChangesForReport,
   ShareListWithoutMigration,
   type PgDatabase,
 } from '@openmig/ledger';
@@ -61,6 +62,7 @@ import {
   sourceStillDecides,
   type DiscoveryDomain,
   type GroupDecisionAccepted,
+  withGranteesNewAddress,
 } from '@openmig/shared';
 import {
   readConfirmedList,
@@ -463,6 +465,10 @@ router.get(
         },
         // The checklist's closing state (ADR-0032, 0052 T6b) — same rows the
         // Sharing screen shows, so the document and the page cannot disagree.
+        // The addresses that changed (ADR-0055; workplan 0168 §6.3): counts only.
+        addressChanges: await withTenantDb(s.tenantId, pool(), (db) =>
+          readAddressChangesForReport(db, s.tenantId, s.mappingId),
+        ),
         sharing: summariseSharing(
           await withLedger(s.tenantId, (l) =>
             l.listShareGrants(s.tenantId as TenantId, s.mappingId as MappingId),
@@ -649,16 +655,19 @@ router.get('/:mappingId/sharing', authenticate, async (req: AuthenticatedRequest
   try {
     const s = await scope(req, res);
     if (!s) return;
-    const grants = await withLedger(s.tenantId, (l) =>
-      l.listShareGrants(s.tenantId as TenantId, s.mappingId as MappingId),
-    );
+    const { grants, addressChanges } = await withLedger(s.tenantId, async (l) => ({
+      grants: await l.listShareGrants(s.tenantId as TenantId, s.mappingId as MappingId),
+      addressChanges: (await l.listConfirmedAddressChanges?.(s.tenantId as TenantId)) ?? [],
+    }));
     res.json({
       migrationStatus: s.lifecycle,
       summary: summariseShareGrants(grants),
       // Each row's line in Dutch beside the stored English (UX sweep,
       // 2026-10-17): said on every read, never stored, so the refusal that
-      // quotes the English keeps quoting what it always did.
-      grants: grants.map((g) => ({ ...g, verdictTargetNl: verdictTargetFor(g, 'nl') })),
+      // quotes the English keeps quoting what it always did. And the new
+      // address a confirmed address change gives its grantee, for the page to
+      // propose (ADR-0055; workplan 0168 T6).
+      grants: grants.map((g) => withGranteesNewAddress({ ...g, verdictTargetNl: verdictTargetFor(g, 'nl') }, addressChanges)),
       ...closed(s.lifecycle),
     });
   } catch (error) {
@@ -914,6 +923,8 @@ router.post(
             onError: (m: string, err: unknown) => log.error(m, err),
             isCutOver,
             confirmed,
+            // A confirmed address change is a grantee's confirmation (ADR-0055).
+            addressChanges: (await l.listConfirmedAddressChanges?.(s.tenantId as TenantId)) ?? [],
             ...(createShare ? { createShare } : {}),
           },
           parentKey,

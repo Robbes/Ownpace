@@ -67,6 +67,17 @@ vi.mock('../services/mapping-service', () => ({
   },
 }));
 
+// The organisation's address changes (0168 §6.3) hold nothing here; their
+// section has a test of its own (`components/AddressChanges.unit.test.tsx`).
+vi.mock('../services/address-change-service', () => ({
+  fetchAddressChanges: vi.fn(async () => ({ rows: [], door: 'api', file: null })),
+}));
+// Whose address a row is, chosen from the organisation's people (0168, S6):
+// nobody yet, so the picker offers *Nobody* alone, and no request leaves.
+vi.mock('../services/operating-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/operating-service.ts')>()),
+  fetchPeople: vi.fn(async () => ({ people: [], unassigned: [] })),
+}));
 vi.mock('../stores/auth-store', () => ({
   useAuthStore: () => auth,
 }));

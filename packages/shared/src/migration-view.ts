@@ -376,7 +376,9 @@ export function viewTimeOf(input: {
  * the same counts and states and nothing more. The one addition is what makes
  * *Take my grant back* per account: the migrations that read one Google
  * account are grouped, and the group is named by an opaque `ref`, never by
- * the address, because this page, like a migration's, carries no address.
+ * the address, because this page, like a migration's, names no account by its
+ * address. The one address it carries is the person's own new address
+ * (`addressChanges`, workplan 0168 §4.4), so they can say whether it is right.
  */
 export interface PersonView {
   /** What tells this answer from a migration's, as the grant page's `kind` does. */

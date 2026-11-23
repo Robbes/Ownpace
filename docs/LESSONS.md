@@ -2931,6 +2931,10 @@ reading a file drops off its entry by itself.
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
+### `packages/shared/src/address-digest-due.ts`
+
+- [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
+
 ### `packages/shared/src/carddav-query.ts`
 
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
@@ -4969,6 +4973,7 @@ Reads:
 
 - `apps/web/src/i18n/strings.ts`
 - `packages/core/src/domain-sync.ts`
+- `packages/shared/src/address-digest-due.ts`
 - `packages/shared/src/confirmed-list.ts`
 - `packages/shared/src/fingerprint-scheme.ts`
 - `packages/shared/src/ports.ts`

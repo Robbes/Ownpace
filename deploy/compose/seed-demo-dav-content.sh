@@ -478,8 +478,18 @@ if [ "$REMOVE_ONLY" = "1" ]; then
     # the account organises it; dav() sends Schedule-Reply: F, which stops it.
     own_spec=""
     [ "$n" = "1" ] && own_spec="${CAL}openmig-demo-event-${SUFFIX}3.ics"
+    # The address canary, event 4 and contact a (workplan 0168 T8), seeded once
+    # per set with event 3, and taken back the same way: 404 is success.
+    addr_event_spec=""
+    addr_contact_spec=""
+    if [ "$n" = "1" ]; then
+      addr_event_spec="${CAL}openmig-demo-event-${SUFFIX}4.ics"
+      addr_contact_spec="${ABK}openmig-demo-contact-${SUFFIX}a.vcf"
+    fi
     for spec in "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" \
                 ${own_spec:+"$own_spec"} \
+                ${addr_event_spec:+"$addr_event_spec"} \
+                ${addr_contact_spec:+"$addr_contact_spec"} \
                 ${dir_spec:+"$dir_spec"} \
                 ${task_spec:+"$task_spec"} \
                 "${ABK}openmig-demo-contact-${SUFFIX}${n}.vcf" \
@@ -799,6 +809,44 @@ END:VEVENT
 END:VCALENDAR")
     echo "[seed-dav] event ${SUFFIX}3: HTTP ${code} (organised by ${ORGANISER_USER}'s own address ${OWN_ORGANISER}, on ${OWN_YEAR}-01-06)"
     case "$code" in 201|204) ;; *) fail "calendar PUT ${SUFFIX}3 (the organiser canary) returned ${code}" ;; esac
+
+    # THE ADDRESS CANARY (workplan 0168 T8; ADR-0055). An event and a card that
+    # name an address the person is leaving, `openmig-old-<tag>@example.invalid`.
+    # The smoke confirms a row that changes it to ${OWN_ORGANISER}, the target
+    # account's own address, before the sync. On the source the event's
+    # organiser is a stranger, so nothing schedules here; on the target its
+    # changed organiser is the account itself, the case a server schedules for,
+    # so its copy must carry SCHEDULE-AGENT=CLIENT or the canary attendee hears
+    # of it. The card's EMAIL is the old address and nothing else. Free text
+    # names the old address too, and must come through unchanged.
+    code=$(dav PUT "${CAL}openmig-demo-event-${SUFFIX}4.ics" 'text/calendar; charset=utf-8' \
+"BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//OpenMigrate//demo//EN
+BEGIN:VEVENT
+UID:openmig-demo-event-${SUFFIX}4
+DTSTAMP:20260101T000000Z
+DTSTART:${OWN_YEAR}0107T100000Z
+DTEND:${OWN_YEAR}0107T110000Z
+SUMMARY:Ownpace demo event ${SUFFIX}4
+DESCRIPTION:Organised from openmig-old-${TAG}@example.invalid\, which is changing.
+STATUS:CONFIRMED
+ORGANIZER;CN=Someone Moving:mailto:openmig-old-${TAG}@example.invalid
+ATTENDEE;CN=Migration Canary;PARTSTAT=NEEDS-ACTION:mailto:openmig-attendee-${TAG}@example.invalid
+END:VEVENT
+END:VCALENDAR")
+    echo "[seed-dav] event ${SUFFIX}4: HTTP ${code} (organised by openmig-old-${TAG}@example.invalid, the address canary)"
+    case "$code" in 201|204) ;; *) fail "calendar PUT ${SUFFIX}4 (the address canary) returned ${code}" ;; esac
+    code=$(dav PUT "${ABK}openmig-demo-contact-${SUFFIX}a.vcf" 'text/vcard; charset=utf-8' \
+"BEGIN:VCARD
+VERSION:3.0
+UID:openmig-demo-contact-${SUFFIX}a
+FN:Someone Moving ${SUFFIX}a
+N:Moving;Someone;;;
+EMAIL;TYPE=INTERNET:openmig-old-${TAG}@example.invalid
+END:VCARD")
+    echo "[seed-dav] contact ${SUFFIX}a: HTTP ${code} (EMAIL openmig-old-${TAG}@example.invalid, the address canary)"
+    case "$code" in 201|204) ;; *) fail "contact PUT ${SUFFIX}a (the address canary) returned ${code}" ;; esac
   fi
 fi
 
@@ -845,6 +893,9 @@ fi
 if [ -n "$OWN_ORGANISER" ]; then
   [ "$(count "$CAL" "openmig-demo-event-${SUFFIX}3")" -ge 1 ] \
     || fail "the organiser canary, event ${SUFFIX}3, is not in the source (0141 T9 (b))"
+  [ "$(count "$CAL" "openmig-demo-event-${SUFFIX}4")" -ge 1 ] \
+    && [ "$(count "$ABK" "openmig-demo-contact-${SUFFIX}a")" -ge 1 ] \
+    || fail "the address canary, event ${SUFFIX}4 and contact ${SUFFIX}a, is not in the source (0168 T8)"
 fi
 
 # The heredoc below stays QUOTED. It contains `$POSTGRES_USER`, `$POSTGRES_DB`

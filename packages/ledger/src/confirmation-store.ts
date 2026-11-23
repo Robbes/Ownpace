@@ -28,6 +28,7 @@ import {
   needsTargetRead,
   rowFor,
   storedAnswerFor,
+  type AddressChangeWaitsFor,
   type ConfirmedRow,
   type DiscoveryDomain,
   type LedgerRecord,
@@ -233,6 +234,14 @@ export class ConfirmationStore {
     batch?: number;
     /** Resume after this item id, the same sayable keyset `itemsToConfirm` takes. */
     after?: string;
+    /**
+     * What a copy that waits for an address change waits for, per data type
+     * (`readAddressChangeWaitsFor`; ADR-0055, workplan 0168 T5, S3), read once
+     * by the caller for the whole walk. Given, each row is marked by the
+     * change it carries and the one a pass found it waits for, and a copy that
+     * waits is never a match. Absent, no row is marked.
+     */
+    addressWaitsFor?: (domain: string) => AddressChangeWaitsFor;
   }): Promise<ConfirmedListRow[]> {
     const base = this.db
       .select({
@@ -251,6 +260,10 @@ export class ConfirmationStore {
         // the scheme that produced it, and that is what decides whether the row
         // says "by hash" or "by the container's parts" (0042 T7 (c)).
         contentHash: schemaPg.item.contentHash,
+        // The address table the copy was written under (ADR-0055), and the
+        // change a pass found it waits for (0168 S3).
+        addressDigest: schemaPg.item.addressDigest,
+        addressDigestDue: schemaPg.item.addressDigestDue,
       })
       .from(schemaPg.item)
       .where(
@@ -295,6 +308,15 @@ export class ConfirmationStore {
         status,
         answer,
         contentHash: r.contentHash,
+        ...(args.addressWaitsFor !== undefined
+          ? {
+              addressDigest: {
+                item: r.addressDigest ?? null,
+                due: r.addressDigestDue ?? null,
+                waitsFor: args.addressWaitsFor(r.domain),
+              },
+            }
+          : {}),
       });
       return {
         ...row,

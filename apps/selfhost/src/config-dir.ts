@@ -10,7 +10,7 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseMappingConfigJson, type MappingConfig } from '@openmig/shared';
+import { ADDRESS_CHANGES_FILE, parseMappingConfigJson, type MappingConfig } from '@openmig/shared';
 
 /**
  * Deterministic UUID from a seed string.
@@ -74,8 +74,10 @@ export interface LoadedMapping {
  * the offending path if any file is invalid — fail fast, never skip silently.
  */
 export function loadConfigDir(dir: string): LoadedMapping[] {
+  // `address-changes.json` is the Organisation door's table of address
+  // changes (workplan 0168 §7), not a mapping: `address-changes.ts` reads it.
   const files = readdirSync(dir)
-    .filter((f) => f.endsWith('.json'))
+    .filter((f) => f.endsWith('.json') && f !== ADDRESS_CHANGES_FILE)
     .sort();
 
   const loaded: LoadedMapping[] = [];

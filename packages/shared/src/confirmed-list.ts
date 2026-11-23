@@ -22,7 +22,8 @@
 
 import { CONTAINER_FINGERPRINT_VERSION } from './fingerprint-scheme.ts';
 import type { DiscoveryDomain } from './discovery.ts';
-import type { LedgerRecord } from './ports.ts';
+import type { AddressChangeWaitsFor, LedgerRecord } from './ports.ts';
+import { waitsForAnAddressChange } from './address-digest-due.ts';
 
 /**
  * The kinds of evidence that can ever stand behind a row.
@@ -189,10 +190,31 @@ function noRowsYet(): Record<RowState, number> {
   return { ...NO_ROWS_YET };
 }
 
+/**
+ * What a row says about the address table (ADR-0055; workplan 0168 T5, S3).
+ *
+ * - `changed`: the copy was written with an address changed, and the last
+ *   pass that looked at it found it carries what the table says. A match is a
+ *   match *with your new address*.
+ * - `older`: a pass found it should carry another change than the one it was
+ *   written with (`item.address_digest_due`), a row added, changed or gone,
+ *   and nothing has written it since. It is never a match: until then the copy
+ *   does not say what the table says it should. `waitsFor` says for what.
+ */
+export type AddressMark = 'changed' | 'older';
+
 /** One row, with its evidence named rather than implied. */
 export interface ConfirmedRow {
   readonly state: RowState;
   readonly claim: ClaimKind;
+  /** The address table's word on this row, when a table changed it or a change waits (ADR-0055). Absent otherwise. */
+  readonly address?: AddressMark;
+  /**
+   * What an `older` row waits for: the next pass, or, past its data type's
+   * cutover with no press for the table as it is, *Apply the new addresses
+   * here too* (workplan 0168 D5; the screens' review S4). Only with `older`.
+   */
+  readonly waitsFor?: AddressChangeWaitsFor;
 }
 
 /**
@@ -280,6 +302,55 @@ export function rowFor(args: {
    * 0042 T7 (c) exists to stop the list from saying. There are two callers;
    * both hold the value; the compiler names any third.
    */
+  readonly contentHash: string | null;
+  /**
+   * The address table's word on the copy (ADR-0055; workplan 0168 T5, S3):
+   * the digest it was written under (`item.address_digest`), the change a
+   * pass found it waits for (`item.address_digest_due`), and what that waits
+   * for. Absent where the caller has no table to say anything with; then no
+   * row is marked.
+   */
+  readonly addressDigest?: {
+    readonly item: string | null;
+    readonly due?: string | null;
+    readonly waitsFor?: AddressChangeWaitsFor;
+  };
+}): ConfirmedRow {
+  const row = rowBeforeTheAddressTable(args);
+  const digest = args.addressDigest;
+  // Only a copy WE wrote carries a mark. The customer's own bytes, a removed
+  // copy and one never placed say nothing about a table.
+  if (!digest) return row;
+  if (!PLACED_BY_US.has(args.status)) return row;
+  // A CHANGE WAITS FOR IT: NEVER a match (ADR-0055 decision 5; 0168 S3),
+  // whether it was written with a change or with none. A re-read that agrees
+  // with the ledger proves only that the copy is what we wrote then, and what
+  // we wrote then is not what the table says now. A copy written before a row
+  // was added for an address it names used to read as a match here, because
+  // it carried no digest at all.
+  if (waitsForAnAddressChange(digest.item, digest.due)) {
+    return {
+      ...row,
+      state: row.state === 'verified' ? 'differs' : row.state,
+      address: 'older',
+      waitsFor: digest.waitsFor ?? 'pass',
+    };
+  }
+  // A row the table did not touch says nothing about one.
+  return digest.item === null ? row : { ...row, address: 'changed' };
+}
+
+/** The statuses of a copy this product wrote and still stands behind. */
+const PLACED_BY_US: ReadonlySet<LedgerRecord['status']> = new Set<LedgerRecord['status']>([
+  'copied',
+  'updated',
+  'deleted_source',
+]);
+
+function rowBeforeTheAddressTable(args: {
+  readonly domain: DiscoveryDomain;
+  readonly status: LedgerRecord['status'];
+  readonly answer: TargetAnswer;
   readonly contentHash: string | null;
 }): ConfirmedRow {
   const { domain, status, answer, contentHash } = args;
@@ -489,6 +560,13 @@ export interface ConfirmedList<Row extends ConfirmedRow = ConfirmedRow> {
    * describe the first two hundred rows as if they were the account.
    */
   readonly byState: Readonly<Record<RowState, number>>;
+  /**
+   * The address table's part of the account (ADR-0055; workplan 0168 T5):
+   * the table's digest, named, and how many rows carry a change under it
+   * (`changed`) or under an older one (`older`, never a match). Counted over
+   * every row, as `byState` is. Absent when the caller had no table to read.
+   */
+  readonly addressChanges?: { readonly digest: string | null; readonly changed: number; readonly older: number };
 }
 
 /**
@@ -514,11 +592,18 @@ export interface ConfirmedList<Row extends ConfirmedRow = ConfirmedRow> {
 export function confirmedListOf<Row extends ConfirmedRow>(options?: {
   /** Keep at most this many non-verified rows. Absent means keep every one. */
   readonly limit?: number;
+  /**
+   * The address table's digest now, to name beside the counts (ADR-0055).
+   * Absent means no table was read, and the list says nothing about one.
+   */
+  readonly addressDigest?: string | null;
 }): {
   add(row: Row): void;
   result(): ConfirmedList<Row>;
 } {
   const limit = options?.limit;
+  let addressChanged = 0;
+  let addressOlder = 0;
   const rows: Row[] = [];
   const byState = noRowsYet();
   let verified = 0;
@@ -530,6 +615,8 @@ export function confirmedListOf<Row extends ConfirmedRow>(options?: {
       // Tallied before the early return below, so the breakdown covers the
       // verified rows the screen never receives as well as the ones it does.
       byState[row.state] += 1;
+      if (row.address === 'changed') addressChanged += 1;
+      else if (row.address === 'older') addressOlder += 1;
       if (countsAsVerified(row)) {
         verified += 1;
         return;
@@ -542,6 +629,9 @@ export function confirmedListOf<Row extends ConfirmedRow>(options?: {
       total,
       rows,
       byState,
+      ...(options?.addressDigest !== undefined
+        ? { addressChanges: { digest: options.addressDigest, changed: addressChanged, older: addressOlder } }
+        : {}),
       ...(dropped > 0 ? { truncated: true } : {}),
     }),
   };
@@ -644,7 +734,12 @@ export function confirmedListCsv(rows: readonly ConfirmedRowView[]): string {
   // room for both, and the person doing the reconciling needs the identifier to
   // search their old account with AND the name to recognise. Dropping either
   // would make this document worse than the screen it is exported from.
-  const header = ['domain', 'collection', 'item', 'name', 'state', 'claim', 'checked_at'];
+  //
+  // `address` LAST, so a reader of the earlier columns finds them where they
+  // were: the row's address mark (ADR-0055; workplan 0168 T5), `changed` or
+  // `older`, and empty where no address change touched the copy. The screen
+  // says these as counts; this file says them per item (the review's S8).
+  const header = ['domain', 'collection', 'item', 'name', 'state', 'claim', 'checked_at', 'address'];
   const lines = [header.map(csvField).join(',')];
   for (const r of rows) {
     lines.push(
@@ -659,6 +754,7 @@ export function confirmedListCsv(rows: readonly ConfirmedRowView[]): string {
         r.state,
         r.claim,
         r.confirmedAt ?? '',
+        r.address ?? '',
       ]
         .map(csvField)
         .join(','),

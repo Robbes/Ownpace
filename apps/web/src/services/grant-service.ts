@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 import type { Locale } from '../i18n/strings.ts';
 import { linkClient as client } from './link-client.ts';
+import { LinkAddressChangesField } from './link-address-service.ts';
 
 const SubjectSchema = z.object({
   organisation: z.string(),
@@ -91,6 +92,8 @@ const PersonSubjectSchema = z.object({
     )
     .min(1),
   expiresAt: z.string(),
+  // The person's own rows of the address changes (0168 §4.4), where sent.
+  addressChanges: LinkAddressChangesField,
 });
 export type PersonGrantSubject = z.infer<typeof PersonSubjectSchema>;
 

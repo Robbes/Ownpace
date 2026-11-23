@@ -37,7 +37,14 @@
  * address, and names that instead. A refusal, never a wrong match.
  */
 
-import { NO_NAMED_ACCOUNT, anotherAccount, reasonPair, unconfirmedAccount } from '@openmig/shared';
+import {
+  NO_NAMED_ACCOUNT,
+  addressKey,
+  anotherAccount,
+  isAddress,
+  reasonPair,
+  unconfirmedAccount,
+} from '@openmig/shared';
 
 /**
  * What the link's consent asks beside the data: who signed in. Asked in the
@@ -85,19 +92,12 @@ export function accountInIdToken(idToken: unknown, clientId: string): string | n
 
 /**
  * One account's address in the form Google treats as the same account, or null
- * when the value is not an address at all.
+ * when the value is not an address at all. The fold is `addressKey`'s
+ * (`@openmig/shared`, workplan 0168 T1), where it moved so the address table
+ * matches on the same key.
  */
 export function googleAccountKey(address: string): string | null {
-  const parts = address.trim().toLowerCase().split('@');
-  if (parts.length !== 2) return null;
-  let [name, domain] = parts as [string, string];
-  if (name === '' || domain === '' || /\s/.test(name + domain)) return null;
-  if (domain === 'googlemail.com') domain = 'gmail.com';
-  if (domain === 'gmail.com') {
-    name = name.split('+')[0]!.replace(/\./g, '');
-    if (name === '') return null;
-  }
-  return `${name}@${domain}`;
+  return isAddress(address) ? addressKey(address) : null;
 }
 
 /**
