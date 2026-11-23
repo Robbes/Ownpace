@@ -2,7 +2,79 @@
 
 > **In one line:** Which scanners and checks CI should add so that what an outside, read-only check finds is caught before a merge: what runs today, what each finding is, and in what order to add Semgrep, osv-scanner, zizmor's secrets audit, gitleaks and the rest, each failing the build or only reporting.
 
-## Status — 2026-11-22 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23: the outside check's 25 ReDoS places read again; six quadratic on what a remote
+server sends, now linear.** On `claude/ownpace-public-readiness-y7orc6-redos`, from `main` at
+`db37bf49`. An outside, read-only check at `5b51a82b`, with Semgrep 1.178.0, listed 25 places as
+regular expressions that can be slow (CWE-1333).
+- **Reproduced, all 25, on `db37bf49`,** with Semgrep 1.178.0 and the two rules taken from Semgrep's
+  rules repository, since the registry refused this session's network: 8 are `detect-redos` and
+  17 `detect-non-literal-regexp`. The same two rules also report eight places outside the 25 and
+  outside tests, all in `scripts/` (`migration-locks-report.mjs:74`, `release-names-agree.mjs:58`
+  and `:149`, `workplan-index.mjs:150`, `nginx-config.mjs:141`, `release-preflight.mjs:177`,
+  `release-verify.mjs:174` and `:175`), which were not read here.
+- **How each was read.** The input's source, then a crafted input at three lengths, timed. The §4.3
+  reading of 2026-11-20 ("none needs a fix"), and `semgrep.yml`'s "every spot outside the tests was
+  read as fed a constant or an escaped value", were too broad: `detect-non-literal-regexp` also
+  flags patterns built from a fixed name, and six of those were quadratic.
+
+  | Place | Input | Super-linear | Done |
+  | --- | --- | --- | --- |
+  | `caldav-source.ts:1048`, `carddav-source.ts:496` | a DAV server's PROPFIND answer | yes, quadratic | `elementsIn` |
+  | `dav-multistatus.ts:30`, `:62` | a DAV target's 207 answer | yes, quadratic | `elementsIn`; a tag at a time |
+  | `dav-refusal.ts:104` | a DAV server's refusal | yes, quadratic | `elementsIn` |
+  | `measure-google-sync.ts:295` | Google's CalDAV answer | yes, quadratic | `elementsIn` |
+  | `scripts/dav-target-probe.mjs:225` | the host a tester names | yes, quadratic | `elementsIn` |
+  | `Docs.tsx:282` | the guides the web app ships | yes, quadratic | the end is `(?:\|\s*)?$` |
+  | `calendar-scheduling.ts:260` | an invitation | no | two literal patterns |
+  | `mail-headers.ts:60` | a mail's headers | no | a line at a time |
+  | `remote-refusal.ts:107` | a DAV server's refusal | no | `indexOf`, the prefix as written |
+  | `takeout-archive-reader.ts:546` | the uploaded archive's file names | no (escaped, anchored) | left |
+  | `failure-answer.ts:160` | a provider's error text | no | left |
+  | `reachable-host.ts:324` | an operator's setting | no (`{0,61}`) | left |
+  | `unreadable-body.ts:87` | a body parser's error type | no | left |
+  | `exposure-probe.mjs:335`, `:342` | an issuer and a redirect host | no | left |
+  | `measure-google-sync.ts:267` | its own output, against fixed shapes | no | left |
+  | `idp-pin-watch.mjs` ×6, `llms-docs.mjs:85` | this repository's files, pinned upstream files | no | left |
+
+- **What changed.** `@openmig/shared` gains `xml-elements.ts`: `elementsIn` reads a body a tag at
+  a time (`<` to the next `>`, no `<` or `>` inside) and each caller says in code which tag opens
+  and which closes, so no pattern is built from a name. An element runs to the first closing tag
+  after its opening one, as the lazy pattern did, and when none follows, the read stops. Two
+  literal patterns in the same files got `[^<>]*` for `[^>]*`: `GDATA_ERRORS` in `dav-refusal.ts`
+  (a crafted body of 100,000 `<errors ` took 94 s) and `A_CALENDAR` in `measure-google-sync.ts`;
+  the caldav and carddav `href` pattern too, and the probe's `<response` count. Neither rule
+  flagged them.
+- **Behaviour.** A differential run, kept out of the repository, of 300,000 random bodies of
+  well-formed tags against each original pattern (the 207 reader, the CalDAV and CardDAV home
+  sets, the refusal's text, the Google measurement's elements and the probe's count) and 300,000
+  header sections, found no difference.
+  The one kind of difference is a `<` inside a tag, which XML does not allow: the patterns'
+  `[^>]*` crossed it. Names compare as the `i` flag without `u` did: only A to Z fold.
+  `TABLE_DELIMITER`'s new end was compared exhaustively over seven characters and on 2,000,000
+  random lines: the same answers.
+- **Evidence.** Each place that was quadratic has a test of a crafted input with a bound of 1.5 s.
+  Run against `db37bf49`'s code they took 4 s (the guides' table), 15 s (the Google measurement),
+  19 s and 22 s (CalDAV, CardDAV), 21 s (a Sabre refusal), 23 s and 30 s (the 207 reader), 80 s
+  (the probe) and 94 s (Google's refusal). Run against this change, milliseconds. Every test that
+  was there before passes on both.
+- **What Semgrep says now** on the changed files: `detect-non-literal-regexp` at
+  `measure-google-sync.ts:267` (left, above) and at a test of `Docs.tsx` that was there before;
+  `detect-redos` at `TABLE_DELIMITER`, whose repeated group starts with a literal `|`, which
+  Semgrep's analysis does not credit. It is linear now (80,000 spaces in under 1 ms).
+- **Why the rest were left.** Each is linear on what reaches it, by its shape or by timing: every
+  repetition starts at a literal the item before it cannot match (`failure-answer`'s `\`, the
+  hosts' `.`, a path's `/`), or a quantifier is bounded (`{0,61}`), or the pattern is anchored over
+  an escaped name (`takeout`). `takeout-archive-reader.ts` stays as it is, because a rewrite with
+  `toLowerCase` would compare a non-ASCII name differently from the `i` flag. The scripts and the
+  shapes read this repository's own text, and a rewrite there would be churn.
+- **The guard.** Not built. D3 keeps both ReDoS rules from blocking, and they still report on
+  `main`: the places left above, the eight outside the 25, and the tests. Both rules flag a
+  pattern's shape, not what reaches it, so neither could block cleanly as they stand. If the owner
+  revisits D3, the step is a separate pull request, after the eight are read, that turns `never`
+  off and `blocks` on for `detect-non-literal-regexp` in `RULES` once it reports nothing on
+  `main`.
 
 **2026-11-22: T5's first rule that blocks, `run-shell-injection`, built; `react-href-var` waits on
 its time-outs.** On `claude/ownpace-alpha16-semgrep-blocking`, from `main` at `0683eb04`. It
