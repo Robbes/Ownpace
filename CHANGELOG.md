@@ -24,6 +24,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   squawk's own npm package for that build, whose 2.73.0 gives, byte for byte, the sums pinned
   before. Over every file of both migration chains it reports what 2.73.0 reported, line for line.
   The report fails nothing, and nothing deployed changes.
+- **The workflow audit runs zizmor 1.33.1, moved on purpose from 1.32.0** (workplan 0119; the pin
+  watch's #1671). `zizmor.yml` pins it by tag and index digest, read on ghcr.io on 2026-11-23.
+  PyPI lists the release on 2026-11-22 at 22:26 UTC, so it is taken inside its three-day floor, on
+  the owner's word of 2026-11-23: *"Pull pnpm, zizmor and squawk earlier. I waive unneeded
+  days/waiting."* 1.33.0 adds one audit, `unsafe-checkout`, which flags `actions/checkout` given
+  `allow-unsafe-pr-checkout`, and `dependabot-cooldown` now reads every Dependabot entry, where
+  1.32.0 stopped at the first that waited long enough, and each `semver-*-days` an entry sets;
+  1.33.1 reads a job whose `services:` is an expression. On this tree 1.33.1 finds nothing, as
+  1.32.0 does, in the same nineteen files, and its auditor persona reports the same 32 findings.
+  `a-workflow-zizmor-would-flag` now holds each `semver-*-days` a Dependabot entry sets to the
+  three days as well. Nothing deployed changes.
 
 ### Fixed
 

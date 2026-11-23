@@ -45,7 +45,11 @@ import { pathToFileURL } from 'node:url';
 /** The audit this reads, and the only one it lists. */
 export const AUDIT = 'secrets-outside-env';
 
-/** What zizmor's exit codes say (docs/usage.md, "Exit codes", at v1.32.0). */
+/**
+ * What zizmor's exit codes say (docs/usage.md, "Exit codes", at v1.32.0), the
+ * same at v1.33.1 by its source: crates/zizmor/src/main.rs gives 1 and 3,
+ * registry.rs 11 to 14, and its argument parser 2.
+ */
 export const EXIT_MEANINGS = Object.freeze({
   0: 'found nothing',
   1: 'stopped on an error',
@@ -57,7 +61,7 @@ export const EXIT_MEANINGS = Object.freeze({
   14: 'found findings, the highest of them high',
 });
 
-/** The exit zizmor gives when this is the highest severity among its findings (`FindingRegistry::exit_code`, v1.32.0). */
+/** The exit zizmor gives when this is the highest severity among its findings (`FindingRegistry::exit_code` in crates/zizmor/src/registry.rs, v1.32.0 and v1.33.1). */
 export const SEVERITY_EXIT = Object.freeze({ Informational: 11, Low: 12, Medium: 13, High: 14 });
 
 /** The words for an exit code, including one zizmor does not document. */
