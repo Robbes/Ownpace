@@ -62,6 +62,61 @@ Proven: the unit tier of the packages touched (shared, core, orchestration, ledg
 and the script guards, typecheck, lint and the docs checks; each rule with a test that fails with
 the rule mutated off. Not proven: anything against a running server.
 
+**2026-11-23, after #2070: `NOT_TAKEN_ALONG` holds Microsoft's, Apple's, Yahoo's and four
+Dutch and Belgian internet providers' domains, on
+`claude/ownpace-public-readiness-y7orc6-domains`.** Every provider's page was read on 2026-11-23,
+and `address-forms.ts` cites one page beside each group: 154 domains, Google 2, Microsoft 103,
+Apple 3, Yahoo 17, Ziggo 7, KPN 18, Telenet 1, Proximus 3.
+
+- **Only Thunderbird's ISP database names** 96 of Microsoft's (every country form but the three
+  `.co.uk` ones, with `windowslive.com` and `livemail.tw`) and 11 of Yahoo's country forms, and
+  the groups say so. Neither provider publishes a list: Microsoft's pages say its country domains
+  exist, *"such as .com and .co.uk"*, and Yahoo's give `@yahoo.co.uk` and `@yahoo.fr` as examples.
+  §6.1 and T1 asked for Microsoft's own list; there is none.
+- **Where a provider's page lists its domains, the list follows it**, and a domain only the ISP
+  database still names is left out, since it may have lapsed: Ziggo's `hahah.nl`, `ziggomail.com`,
+  `zinders.nl`, `zeggis.nl`, `zeggis.com`, `razcall.nl`, `razcall.com`, `multiweb.nl`, and
+  Proximus's `kidcity.be`. Ziggo's own page adds `a2000.nl`, which the database lacks.
+- **Kept, though the address can be kept at the provider** (the list only proposes, and the person
+  can say No): KPN sells *E-mail Only* within six months of leaving; Telenet's terms keep the
+  mailbox after the contract ends, and let Telenet delete one that sends nothing for two years
+  (its business page says 18 months); Proximus's terms keep it up to 18 months, free. Neither
+  says a Belgian rule requires it. Ziggo offers no way to keep one.
+- **Not added:** `onmicrosoft.com` (a tenant's name is a host under it, which a list of whole
+  domains holds only as a pattern; the guide keeps the tick for it), `passport.com` (Wikipedia
+  only), `pandora.be` and `yahoo.nl`/`yahoo.be` (no source found).
+- **The words:** the Microsoft guide, in both languages, says the step now comes by itself for
+  Microsoft's addresses, and keeps the tick for an `.onmicrosoft.com` name or any address the
+  step does not recognise; the Dutch is for the owner's check. The step says the provider the
+  list names (*"‹provider› keeps that address"*) and needed no change, nor did the Google guide,
+  the privacy policy (no domain in §4.6 or §9), the feature matrix or the site's *How it works*.
+- **Proof:** `address-forms.unit.test.ts` pins every entry by provider, proposes a Hotmail, a
+  Live and a Ziggo address, proposes nothing for eight lookalikes (`hotmail.example.com`,
+  `notgmail.com`, `mail.hotmail.com`, …) and refuses a pattern; `StartMigration.unit.test.tsx`
+  shows the step for `name@hotmail.com`, `name@live.nl` and `name@ziggo.nl` with no box ticked,
+  and not for `name@hotmail.example.com` or `name@notgmail.com`. A suffix match in place of the
+  exact lookup fails three of them; dropping `hotmail.com` fails the pin and both proposals.
+
+Sources, read 2026-11-23: Microsoft,
+[Subscription features in Outlook.com](https://support.microsoft.com/en-us/outlook/premium-features-in-outlook-com-for-microsoft-365-subscribers),
+[My username and password have stopped working](https://support.microsoft.com/en-us/accounts-billing/manage/my-username-and-password-have-stopped-working),
+[the recovery form's help](https://support.microsoft.com/en-us/accounts-billing/manage/help-with-the-microsoft-account-recovery-form);
+[Apple, 118230](https://support.apple.com/en-us/118230); Yahoo,
+[SLN2153](https://help.yahoo.com/kb/SLN2153.html), [SLN3407](https://help.yahoo.com/kb/SLN3407.html);
+Ziggo, [server settings](https://www.ziggo.nl/klantenservice/e-mail/serverinstellingen),
+[Ziggo Mail](https://www.ziggo.nl/klantenservice/e-mail/ziggo-mail); KPN,
+[e-mail settings](https://www.kpn.com/service/ugs/instellen-e-mail-laptop-pc),
+[E-mail Only](https://www.kpn.com/service/ugs/email-only-abonnement); Telenet,
+[Je e-mail](https://www2.telenet.be/residential/nl/klantenservice/internet/e-mail.html),
+[terms of 1 November 2024](https://www2.telenet.be/content/dam/www-telenet-touch/nl/klantenservice/downloads-(pdf)/telenet-residentieel-algemene-voorwaarden-1november2024.pdf),
+[business: takeover or cancellation](https://www2.telenet.be/business/nl/klantenservice/je-gegevens-aanpassen/verhuis-of-overname/verschil-tussen-overname-en-opzeg.html);
+Proximus, [Proximus mail](https://www.proximus.be/support/nl/id_sfaqr_mail_global/particulieren/support/internet/e-mails-en-website/problemen-met-je-mailbox/vragen-over-proximus-mail.html),
+[internet terms](https://www.proximus.be/dam/jcr:35ef9494-e322-46db-b5aa-6a90dcfa1f78/gtc-internet-aup-ss-slg-nl.pdf);
+Thunderbird's ISP database, `https://autoconfig.thunderbird.net/v1.1/‹domain›` for `hotmail.com`,
+`yahoo.com`, `ziggo.nl`, `kpnmail.nl` and `skynet.be`; Wikipedia,
+[Outlook.com](https://en.wikipedia.org/wiki/Outlook.com) and
+[Yahoo Mail](https://en.wikipedia.org/wiki/Yahoo_Mail).
+
 **2026-11-23, later: the follow-ups for alpha.18, on
 `claude/ownpace-public-readiness-y7orc6-0168-followups`.** Six of the seven defects found on the
 way are fixed and the API flag is added, each with a test that fails without its fix. The
@@ -106,7 +161,8 @@ Not done, and why:
   sells *E-mail Only* to keep one; Telenet and Proximus (skynet.be) keep the address free for at
   least 18 months, as Belgian rules require; Microsoft and Yahoo publish no list of their country
   domains. Where a provider sells a way to keep the address, the recommendation is to keep the
-  domain in the list: the list only proposes, and the person can still say No.
+  domain in the list: the list only proposes, and the person can still say No — *done on
+  `claude/ownpace-public-readiness-y7orc6-domains`, above, with what the pages said*.
 - **Past a cutover, a copy whose source changed and whose digest moved** is counted as waiting for
   the press, and the press never rewrites it, since that rewrite would also write the source's
   change, which "Stop overwriting" forbids after a cutover. **The owner's call:** (a) the press
@@ -186,7 +242,8 @@ Proven:
 
 - `NOT_TAKEN_ALONG` holds Google's two domains only. Microsoft's, Apple's, Yahoo's and the
   internet providers' each need a source this build could not read. Until then a person declares
-  such an address by ticking *I am also changing my address*, as the Microsoft guide says.
+  such an address by ticking *I am also changing my address*, as the Microsoft guide says —
+  *done on `claude/ownpace-public-readiness-y7orc6-domains`, above*.
 - A member's team screen shows the organisation's table, but a legacy `member` or `viewer` now
   reads only their own rows there, and their *Start* with a new address is refused; nobody is
   granted those roles during the alpha.
@@ -367,7 +424,7 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The owner's decisions and ADR-0055 | owner | ✅ **Done 2026-11-22** | §9: D1–D10 answered as recommended on 2026-11-22 (D7 after rewording). ADR-0055 accepted the same day. |
-| T1 Address forms and the list of addresses nobody can take along | builder | ✅ **Done 2026-11-23** (#2067) | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moved there, no behaviour change. The list holds Google's two domains; the rest wait for their sources to be read (Status). |
+| T1 Address forms and the list of addresses nobody can take along | builder | ✅ **Done 2026-11-23** (#2067) | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moved there, no behaviour change. The list held Google's two domains at the landing; Microsoft's, Apple's, Yahoo's and four Dutch and Belgian internet providers' followed on 2026-11-23 (Status). |
 | T2 The table of address changes | builder | ✅ **Done 2026-11-23** (#2067) | §4, §5. `address_change` (ledger 0071), `item.address_digest` (0072), `address_change_person` (managed 0063), routes in both editions, `PURGED_TABLES`, Support's counts. Status 2026-11-22. |
 | T3 The change itself, as a pure function | builder | ✅ **Done 2026-11-23** (#2067) | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests; mail-path guard. |
 | T4 The writers apply it, and a changed table converges | builder | ✅ **Done 2026-11-23** (#2067) | §3. CardDAV, JMAP contacts and CalDAV writers; `item.address_digest`; `classifyKnownItem`. |
