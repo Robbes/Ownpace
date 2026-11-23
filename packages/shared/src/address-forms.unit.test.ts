@@ -92,11 +92,87 @@ describe('the key of an address', () => {
 });
 
 describe('the domains nobody can take along', () => {
-  it('holds exactly the entries whose sources were read on 2026-11-22', () => {
-    expect(NOT_TAKEN_ALONG).toEqual([
-      { domain: 'gmail.com', provider: 'Google' },
-      { domain: 'googlemail.com', provider: 'Google' },
-    ]);
+  /**
+   * Every domain, by provider and in the list's order, as its sources were
+   * read: Google's on 2026-11-22, the rest on 2026-11-23 (`address-forms.ts`
+   * names each group's page; workplan 0168's Status block lists them).
+   */
+  const READ: ReadonlyArray<readonly [provider: string, domains: ReadonlyArray<string>]> = [
+    ['Google', ['gmail.com', 'googlemail.com']],
+    [
+      'Microsoft',
+      [
+        'outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'hotmail.co.uk', 'live.co.uk', 'outlook.co.uk',
+        'windowslive.com', 'outlook.at', 'outlook.be', 'outlook.cl', 'outlook.cz', 'outlook.de', 'outlook.dk',
+        'outlook.es', 'outlook.fr', 'outlook.hu', 'outlook.ie', 'outlook.in', 'outlook.it', 'outlook.jp',
+        'outlook.kr', 'outlook.lv', 'outlook.my', 'outlook.ph', 'outlook.pt', 'outlook.sa', 'outlook.sg',
+        'outlook.sk', 'outlook.co.id', 'outlook.co.il', 'outlook.co.th', 'outlook.com.ar', 'outlook.com.au',
+        'outlook.com.br', 'outlook.com.gr', 'outlook.com.tr', 'outlook.com.vn', 'hotmail.be', 'hotmail.ca',
+        'hotmail.cl', 'hotmail.cz', 'hotmail.de', 'hotmail.dk', 'hotmail.es', 'hotmail.fi', 'hotmail.fr',
+        'hotmail.gr', 'hotmail.hu', 'hotmail.it', 'hotmail.lt', 'hotmail.lv', 'hotmail.my', 'hotmail.nl',
+        'hotmail.no', 'hotmail.ph', 'hotmail.rs', 'hotmail.se', 'hotmail.sg', 'hotmail.sk', 'hotmail.co.id',
+        'hotmail.co.il', 'hotmail.co.in', 'hotmail.co.jp', 'hotmail.co.kr', 'hotmail.co.th', 'hotmail.co.za',
+        'hotmail.com.ar', 'hotmail.com.au', 'hotmail.com.br', 'hotmail.com.hk', 'hotmail.com.tr',
+        'hotmail.com.tw', 'hotmail.com.vn', 'live.at', 'live.be', 'live.ca', 'live.cl', 'live.cn', 'live.de',
+        'live.dk', 'live.fi', 'live.fr', 'live.hk', 'live.ie', 'live.in', 'live.it', 'live.jp', 'live.nl',
+        'live.no', 'live.ru', 'live.se', 'live.co.jp', 'live.co.kr', 'live.co.za', 'live.com.ar', 'live.com.au',
+        'live.com.mx', 'live.com.my', 'live.com.ph', 'live.com.pt', 'live.com.sg', 'livemail.tw',
+      ],
+    ],
+    ['Apple', ['icloud.com', 'me.com', 'mac.com']],
+    [
+      'Yahoo',
+      [
+        'yahoo.com', 'myyahoo.com', 'yahoo.co.uk', 'yahoo.fr', 'ymail.com', 'rocketmail.com', 'yahoo.ca',
+        'yahoo.de', 'yahoo.it', 'yahoo.es', 'yahoo.se', 'yahoo.co.in', 'yahoo.co.nz', 'yahoo.com.au',
+        'yahoo.com.ar', 'yahoo.com.br', 'yahoo.com.mx',
+      ],
+    ],
+    ['Ziggo', ['ziggo.nl', 'quicknet.nl', 'home.nl', 'casema.nl', 'upcmail.nl', 'chello.nl', 'a2000.nl']],
+    [
+      'KPN',
+      [
+        'kpnmail.nl', 'kpnplanet.nl', 'planet.nl', 'wxs.nl', 'hetnet.nl', 'freeler.nl', 'snelnet.net', 'on.nl',
+        'onsbrabantnet.nl', 'onsmail.nl', 'onsnet.nu', 'onsneteindhoven.nl', 'onsnetnuenen.nl', 'xs4all.nl',
+        'telfort.nl', 'tip.nl', 'tiscali.nl', 'tiscalimail.nl',
+      ],
+    ],
+    ['Telenet', ['telenet.be']],
+    ['Proximus', ['proximus.be', 'skynet.be', 'belgacom.net']],
+  ];
+
+  it('holds exactly the entries whose sources were read on 2026-11-22 and 2026-11-23', () => {
+    const entries = READ.flatMap(([provider, domains]) => domains.map((domain) => ({ domain, provider })));
+    expect(NOT_TAKEN_ALONG).toEqual(entries);
+  });
+
+  // The owner's request named Gmail, Live and Hotmail, and families moving
+  // together; a Dutch household's internet provider is the other case.
+  it.each([
+    ['someone@hotmail.com', 'Microsoft'],
+    ['Someone@Live.nl', 'Microsoft'],
+    ['someone@ziggo.nl', 'Ziggo'],
+  ])('proposes %s, an address %s keeps', (address, provider) => {
+    expect(cannotTakeAlong(address)).toEqual({ provider });
+  });
+
+  // Each domain is matched whole: a domain that only looks like one on the
+  // list, or a host under one, is somebody else's.
+  it.each([
+    'someone@hotmail.example.com',
+    'someone@notgmail.com',
+    'someone@hotmail.com.example.org',
+    'someone@live.nl.example.org',
+    'someone@ziggo.nl.example.org',
+    'someone@mail.hotmail.com',
+    'someone@my.icloud.com',
+    'someone@hotmail',
+  ])('proposes nothing for %s, which only looks like a domain on the list', (address) => {
+    expect(cannotTakeAlong(address)).toBeNull();
+  });
+
+  it('names each domain in full, never a pattern', () => {
+    for (const { domain } of NOT_TAKEN_ALONG) expect(domain, domain).toMatch(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/);
   });
 
   it('holds each domain once, in lower case', () => {
