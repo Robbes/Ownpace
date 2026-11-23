@@ -2438,18 +2438,22 @@ card_line_preferred() { # card_line_preferred <card> <EMAIL line>
 }
 
 # A copy's bytes as the target serves them, its lines unfolded (0168 T8).
-# THE LEDGER KEEPS A DAV COPY'S ID RELATIVE TO ITS COLLECTION
-# (`targetIdRelativeTo` in the writers), so it is no path on its own: each
-# collection under the target account's home (<home> under remote.php/dav/)
-# is asked for it, and the first that has it answers. An id that is already a
-# path or a URL is read as one.
+# THE LEDGER KEEPS A DAV COPY'S ID RELATIVE TO THE WRITER'S DAV ROOT, with a
+# leading slash (`targetIdRelativeTo` in the writers): `/addressbooks/users/
+# <user>/<book>/<file>`, which is no server path on its own. So it is read
+# under /remote.php/dav first, then as a path. An id that is a URL is read as
+# its path, and a bare one is asked of each collection under the target
+# account's home (<home> under remote.php/dav/).
 target_copy_of() { # target_copy_of <href needle> <home under remote.php/dav/>
   local id home col
   id="$(q "SELECT coalesce(target_ref->>'id', '') FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $HREF_EXPR LIKE '%$1' AND status IN ('copied','updated') LIMIT 1")"
   [ -n "$id" ] || return 1
   case "$id" in
     *://*) target_copy_at "$(sed -E 's|^[a-zA-Z]+://[^/]*||' <<<"$id")"; return ;;
-    /*) target_copy_at "$id"; return ;;
+    /remote.php/*) target_copy_at "$id"; return ;;
+    /*) target_copy_at "/remote.php/dav${id}" || target_copy_at "/remote.php/dav/$2${id#/}" || target_copy_at "$id" && return 0
+        echo "target_copy_of: the target serves no copy at the ledger's id ${id}, read under /remote.php/dav, under the home $2, or as a path" >&2
+        return 1 ;;
   esac
   home="/remote.php/dav/$2"
   while IFS= read -r col; do
@@ -2458,6 +2462,7 @@ target_copy_of() { # target_copy_of <href needle> <home under remote.php/dav/>
   done < <(curl -fsS -X PROPFIND -H 'Depth: 1' -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" "${NC}${home}" 2>/dev/null \
              | grep -oE '<([A-Za-z0-9]+:)?href>[^<]*</([A-Za-z0-9]+:)?href>' \
              | sed -E 's#</?([A-Za-z0-9]+:)?href>##g')
+  echo "target_copy_of: no collection under ${home} serves the ledger's id ${id}" >&2
   return 1
 }
 target_copy_at() { # target_copy_at <absolute path>: its lines, unfolded; non-zero when it cannot be read
