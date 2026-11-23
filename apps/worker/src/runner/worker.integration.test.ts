@@ -652,14 +652,22 @@ describe('what a run asks of its runner, on pg-boss', () => {
     // cutover's catch still runs (run-cutover.ts: FinalSyncNotFinished) instead of a RunTimedOut.
     await startWorker({ catalog: catalogOf(WORKED, { 'run-cutover': { maxDurationSeconds: 30 } }) });
     const mapping = randomUUID();
-    await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping, holdMs: 60_000 }, { serializeBy: mapping });
-    await until('the pass ahead to start', async () => (await attemptsOf(mapping)).length === 1, 30_000);
-    const cutover = await producer.enqueue('run-cutover', { tenantId: TENANT, mappingId: mapping }, {});
-    const done = await settled(cutover.runId!, 60_000);
-    expect(done.state, JSON.stringify(done.output)).toBe('completed');
-    expect(done.attempt).toBe(1);
-    const { settled: waited } = (done.output as { value: { settled: { ok: boolean; error: { name: string } } } }).value;
-    expect(waited).toMatchObject({ ok: false, error: { name: 'FinalSyncTimedOut' } });
+    const pass = await producer.enqueue('run-delta-sync', { tenantId: TENANT, mappingId: mapping, holdMs: 60_000 }, { serializeBy: mapping });
+    try {
+      await until('the pass ahead to start', async () => (await attemptsOf(mapping)).length === 1, 30_000);
+      const cutover = await producer.enqueue('run-cutover', { tenantId: TENANT, mappingId: mapping }, {});
+      const done = await settled(cutover.runId!, 60_000);
+      expect(done.state, JSON.stringify(done.output)).toBe('completed');
+      expect(done.attempt).toBe(1);
+      const { settled: waited } = (done.output as { value: { settled: { ok: boolean; error: { name: string } } } }).value;
+      expect(waited).toMatchObject({ ok: false, error: { name: 'FinalSyncTimedOut' } });
+    } finally {
+      // The pass holds a minute, past this test. Left running, the stop kills it after its grace
+      // and pg-boss retries it, and a later test's worker runs it in one of that worker's slots:
+      // on CI it took one of the three the limit test below counts on, and that test never saw
+      // three of its own runs start. Cancelled, it is never retried.
+      await producer.cancel(pass.runId!);
+    }
   }, 120_000);
 
   it("the purge's verdict: live while it waits or runs, finished once it ended or is gone, unknown for a Trigger.dev ref", async () => {
