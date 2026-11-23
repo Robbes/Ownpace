@@ -709,7 +709,12 @@ export function confirmedListCsv(rows: readonly ConfirmedRowView[]): string {
   // room for both, and the person doing the reconciling needs the identifier to
   // search their old account with AND the name to recognise. Dropping either
   // would make this document worse than the screen it is exported from.
-  const header = ['domain', 'collection', 'item', 'name', 'state', 'claim', 'checked_at'];
+  //
+  // `address` LAST, so a reader of the earlier columns finds them where they
+  // were: the row's address mark (ADR-0055; workplan 0168 T5), `changed` or
+  // `older`, and empty where no address change touched the copy. The screen
+  // says these as counts; this file says them per item (the review's S8).
+  const header = ['domain', 'collection', 'item', 'name', 'state', 'claim', 'checked_at', 'address'];
   const lines = [header.map(csvField).join(',')];
   for (const r of rows) {
     lines.push(
@@ -724,6 +729,7 @@ export function confirmedListCsv(rows: readonly ConfirmedRowView[]): string {
         r.state,
         r.claim,
         r.confirmedAt ?? '',
+        r.address ?? '',
       ]
         .map(csvField)
         .join(','),

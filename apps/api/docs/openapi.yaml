@@ -5198,10 +5198,11 @@ paths:
                         0168 T5): the organisation's confirmed table's `digest` now,
                         how many copies carry a change under it (`changed`), and how
                         many under an older table (`older`). An older one is never
-                        `verified`: its row reads `differs`, marked `address: older`
-                        (*Waiting for the next pass*). A row changed under the table
-                        now is marked `address: changed` (*Matches, with your new
-                        address*). Counted over every item, as `byState` is.
+                        `verified`: its row reads `differs`, marked `address: older`.
+                        A row changed under the table now is marked `address:
+                        changed`. Counted over every item, as `byState` is; the
+                        screen says these two counts beside `verified`, and a mark
+                        only on a verified row.
                       properties:
                         digest: { type: [string, 'null'] }
                         changed: { type: integer }
@@ -5263,6 +5264,18 @@ paths:
                             format: date-time
                             nullable: true
                             description: When the destination was asked. `null` = never.
+                          address:
+                            type: string
+                            enum: [changed, older]
+                            description: |
+                              The address table's word on this row (ADR-0055;
+                              workplan 0168 T5), absent where no address change
+                              touched the copy. `changed`: written with a new
+                              address under the organisation's table as it is
+                              now. `older`: written under an earlier table, and
+                              never `verified`. It says what the copy was
+                              written under, not that the row matches: read it
+                              beside `state`.
                     lastPass:
                       type: object
                       required: [state]
@@ -5308,6 +5321,10 @@ paths:
 
         Bounded by nothing, and streamed rather than assembled, so a
         family-sized account does not have to fit in memory to be downloaded.
+
+        Its columns are `domain`, `collection`, `item`, `name`, `state`,
+        `claim`, `checked_at` and `address`, the row's address mark (`changed`,
+        `older`, or empty), as the list's `rows[].address` says it.
 
         Written for a spreadsheet: a UTF-8 BOM (without one Excel reads the file
         in the local codepage and every accented name arrives as mojibake), CRLF

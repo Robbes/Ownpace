@@ -238,9 +238,28 @@ describe('the export is the whole account', () => {
   });
 
   it('names its columns once, from the same renderer that fills them', () => {
+    // `address` last (workplan 0168 T5, the review's S8): the earlier columns
+    // stay where a reader of an older export finds them.
     expect(lines(confirmedListCsv([]))).toEqual([
-      'domain,collection,item,name,state,claim,checked_at',
+      'domain,collection,item,name,state,claim,checked_at,address',
     ]);
+  });
+
+  it('says the address mark of each row, and leaves the cell empty where no address change touched the copy', () => {
+    // The screen says the account's address changes as two counts; the file
+    // a person reconciles against says them for each item (ADR-0055).
+    const csv = confirmedListCsv([
+      row('verified', { naturalKey: 'uid-1', address: 'changed' }),
+      row('differs', { naturalKey: 'uid-2', address: 'older' }),
+      row('missing', { naturalKey: 'uid-3' }),
+    ]);
+    const cells = lines(csv).slice(1).map((line) => line.split(','));
+    expect(cells.map((c) => [c[2], c[4], c[7]])).toEqual([
+      ['uid-1', 'verified', 'changed'],
+      ['uid-2', 'differs', 'older'],
+      ['uid-3', 'missing', ''],
+    ]);
+    expect(cells.every((c) => c.length === 8)).toBe(true);
   });
 
   it('writes an empty checked_at rather than the word null', () => {
