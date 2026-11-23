@@ -53,6 +53,7 @@ const AddressChangeSchema = z.object({
   setByYou: z.boolean(),
   confirmedBy: z.string().nullable(),
   confirmedByYou: z.boolean(),
+  confirmedByThePerson: z.boolean(),
   createdAt: z.string(),
   confirmedAt: z.string().nullable(),
   person: z.object({ id: z.string(), displayName: z.string() }).nullable(),

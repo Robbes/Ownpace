@@ -73,7 +73,8 @@ function source(): ContactSource {
  * A target in one of three shapes:
  *  - `jmap`: the JMAP contact writer's contract, a rewrite of a card that is
  *    not there answers `goneFromTarget`;
- *  - `dav-strong`: `If-Match` on every rewrite, so a missing resource is a 412;
+ *  - `dav-strong`: `If-Match` on every rewrite, so a missing resource is a 412,
+ *    which the writer's HEAD tells from an edit: gone from the target (0168);
  *  - `dav-none`: no ETag ever given, so a rewrite carries no precondition and
  *    a PUT to a missing resource makes it.
  */
@@ -98,7 +99,7 @@ class Target {
       }
       if (!this.bodies.has(uid)) {
         if (this.shape === 'jmap') return { targetId: '', created: false, goneFromTarget: true };
-        if (this.shape === 'dav-strong') return { targetId: uid, created: false, conflicted: true };
+        if (this.shape === 'dav-strong') return { targetId: uid, created: false, goneFromTarget: true };
         // dav-none: a PUT with no precondition makes the resource.
         this.creates += 1;
       } else if (this.shape !== 'dav-none' && options.expectedTargetVersion !== `"${this.etags.get(uid)}"`) {
@@ -168,13 +169,15 @@ describe('a new address for a copy the person deleted on the target', () => {
     expect(t.bodies.has('c-ben')).toBe(false);
   });
 
-  it('on DAV with a strong ETag, meets the 412 and leaves it as it is', async () => {
-    const { t, pass } = harness('dav-strong');
+  it('on DAV with a strong ETag, meets the 412, counts it as gone, never as adopted', async () => {
+    const { t, pass, ben } = harness('dav-strong');
     await pass(changes([]));
     t.bodies.delete('c-ben');
     const creates = t.creates;
     const first = await pass(changes([BEN]));
-    expect(first.conflicted).toBe(1);
+    expect(first.goneFromTarget).toBe(1);
+    expect(first.conflicted).toBe(0);
+    expect((await ben()).status).toBe('copied');
     await pass(changes([BEN]));
     expect(t.creates).toBe(creates);
     expect(t.bodies.has('c-ben')).toBe(false);

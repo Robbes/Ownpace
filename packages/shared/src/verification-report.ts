@@ -116,9 +116,17 @@ export interface DataTypeVerification {
    * (`older`), with what they wait for: the next pass, or past the data
    * type's cutover the press (`waitsFor`). A sample of one that waits is
    * never a match: it is counted in `checksumUnavailable` and said as an
-   * issue, and a sample of nothing else holds the gate.
+   * issue, and a sample of nothing else holds the gate. Of `older`,
+   * `unguarded` have no version to guard the write: no pass and no press
+   * reaches them, and `waitsFor` is what the rest wait for (0168).
    */
-  addressChanges?: { digest: string | null; changed: number; older: number; waitsFor?: 'pass' | 'press' };
+  addressChanges?: {
+    digest: string | null;
+    changed: number;
+    older: number;
+    unguarded?: number;
+    waitsFor?: 'pass' | 'press';
+  };
   
   // Bytes.
   //

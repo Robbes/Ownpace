@@ -57,11 +57,17 @@ export function issueSentence(
   }
   // A new address (workplan 0168; the screens' review S11): what the copies
   // wait for decides the sentence, the press past the switch, else the pass.
+  // Those with no version to guard the write wait for neither, and are said
+  // apart (0168, found on the way).
   const press = d.addressChanges?.waitsFor === 'press';
-  if (is('ADDRESS_OLDER_TABLE') && (d.addressChanges?.older ?? 0) > 0) {
-    return { key: press ? 'verify.issue.addressOlderPress' : 'verify.issue.addressOlder', n: d.addressChanges!.older };
+  const older = d.addressChanges?.older ?? 0;
+  const unguarded = Math.min(d.addressChanges?.unguarded ?? 0, older);
+  if (is('ADDRESS_OLDER_TABLE') && older - unguarded > 0) {
+    return { key: press ? 'verify.issue.addressOlderPress' : 'verify.issue.addressOlder', n: older - unguarded };
   }
+  if (is('ADDRESS_UNGUARDED') && unguarded > 0) return { key: 'verify.issue.addressUnguarded', n: unguarded };
   if (is('ADDRESS_NOT_COMPARED')) {
+    if (older > 0 && unguarded === older) return { key: 'verify.issue.addressNotComparedUnguarded' };
     return { key: press ? 'verify.issue.addressNotComparedPress' : 'verify.issue.addressNotCompared' };
   }
   return null;

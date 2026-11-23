@@ -8,6 +8,7 @@
 
 import {
   addressTableDigest,
+  guardsAnAddressRewrite,
   waitsForAnAddressChange,
   type AddressChangesInLedger,
   type TenantId,
@@ -233,6 +234,7 @@ export function createLedgerVerificationReader(
           naturalKeyHash: schema.item.naturalKeyHash,
           addressDigest: schema.item.addressDigest,
           addressDigestDue: schema.item.addressDigestDue,
+          targetVersion: schema.item.targetVersion,
         })
         .from(schema.item)
         .where(
@@ -246,13 +248,27 @@ export function createLedgerVerificationReader(
         );
       let changed = 0;
       const olderKeys: string[] = [];
+      // Of those, the ones no pass and no press reaches: no version to guard
+      // the write (S1; 0168, found on the way).
+      const unguardedKeys: string[] = [];
       for (const it of items) {
-        if (waitsForAnAddressChange(it.addressDigest, it.addressDigestDue)) olderKeys.push(it.naturalKeyHash);
-        else if (it.addressDigest !== null) changed += 1;
+        if (waitsForAnAddressChange(it.addressDigest, it.addressDigestDue)) {
+          olderKeys.push(it.naturalKeyHash);
+          if (!guardsAnAddressRewrite(it.targetVersion ?? undefined)) unguardedKeys.push(it.naturalKeyHash);
+        } else if (it.addressDigest !== null) changed += 1;
       }
-      // What they wait for, read as a pass reads it (D5).
-      const waitsFor = olderKeys.length > 0 ? (await readAddressChangeWaitsFor(db, tenantId, mappingId))(domain) : undefined;
-      return { digest, changed, olderKeys, ...(waitsFor !== undefined ? { waitsFor } : {}) };
+      // What the rest wait for, read as a pass reads it (D5).
+      const waitsFor =
+        olderKeys.length > unguardedKeys.length
+          ? (await readAddressChangeWaitsFor(db, tenantId, mappingId))(domain)
+          : undefined;
+      return {
+        digest,
+        changed,
+        olderKeys,
+        ...(unguardedKeys.length > 0 ? { unguardedKeys } : {}),
+        ...(waitsFor !== undefined ? { waitsFor } : {}),
+      };
     },
   };
 }
