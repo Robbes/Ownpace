@@ -23,7 +23,7 @@
 import { CONTAINER_FINGERPRINT_VERSION } from './fingerprint-scheme.ts';
 import type { DiscoveryDomain } from './discovery.ts';
 import type { AddressChangeWaitsFor, LedgerRecord } from './ports.ts';
-import { waitsForAnAddressChange } from './address-changes.ts';
+import { waitsForAnAddressChange } from './address-digest-due.ts';
 
 /**
  * The kinds of evidence that can ever stand behind a row.
