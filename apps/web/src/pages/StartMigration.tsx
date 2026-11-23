@@ -66,11 +66,13 @@ import {
   deleteAddressChange,
   fetchAddressChanges,
   updateAddressChange,
+  type AddressChange,
 } from '../services/address-change-service.ts';
 import {
   AddressStep,
   addressProposals,
   type AddressAnswer,
+  type AddressFailure,
   type OtherChange,
 } from '../components/AddressStep.tsx';
 import {
@@ -166,6 +168,42 @@ export interface Who {
    * never holds that password (0108).
    */
   readonly someoneElse: boolean;
+}
+
+/**
+ * A row the address step wrote at a Start that went no further (0168 §6.2,
+ * B1): which kind of change it was, so another Start changes it rather than
+ * adds it again, and only takes back what this flow itself wrote.
+ */
+interface WrittenHere {
+  readonly old: string;
+  /** `asked` and `other` were added here; `existing` was the table's, confirmed here. */
+  readonly kind: 'asked' | 'other' | 'existing';
+}
+
+/** One change Start writes for the address step. */
+interface PlannedChange {
+  readonly key: string;
+  readonly old: string;
+  readonly new: string;
+  /** Written confirmed by whoever presses Start; otherwise waiting for a confirmation. */
+  readonly confirm: boolean;
+  readonly kind: 'asked' | 'other' | 'existing';
+  /** The table's own row, for a change of kind `existing`. */
+  readonly row?: AddressChange;
+}
+
+/**
+ * One line of *Check, then start* about an address (0168 §6.2): it becomes
+ * the new one, confirmed by the one pressing for the person (D6), or it waits
+ * for a confirmation, the person's where there is one, and changes nothing.
+ */
+export interface AddressCheckLine {
+  readonly key: string;
+  readonly old: string;
+  readonly new: string;
+  readonly said: 'becomes' | 'becomesFor' | 'waitsFor' | 'waits';
+  readonly person?: string;
 }
 
 /**
@@ -534,81 +572,158 @@ const StartMigration: React.FC = () => {
     .map((type) => accounts.signed(destinationOf(type)))
     .find((signed) => signed !== undefined);
   const newLogin = newAccount === undefined ? '' : (newAccount.mailLogin || newAccount.username).trim();
+  // What this flow wrote at a Start that went no further (a row refused, or
+  // no migration started), by old key. A row it added stays asked as it was
+  // answered, so Back and another Start change that row rather than add it
+  // twice, and only a No to it (or its *Others* row removed) deletes it. A
+  // row of the table it confirmed goes back to waiting when its tick is taken
+  // off. Nothing else is ever deleted here (B1).
+  const [writtenHere, setWrittenHere] = React.useState<Readonly<Record<string, WrittenHere>>>({});
+  const addedHere = new Set(
+    Object.entries(writtenHere)
+      .filter(([, w]) => w.kind !== 'existing')
+      .map(([key]) => key),
+  );
   const proposals = addressProposals({
     sources: routes.map((r) => r.sourceUsername),
     newLogin,
     declared: alsoChanging,
     table: addressTable.data?.rows ?? [],
     personId: who.personId,
+    addedHere,
   });
   const showAddress = proposals.asked.length > 0 || proposals.existing.length > 0 || alsoChanging;
   const steps: ReadonlyArray<Step> = showAddress ? WITH_ADDRESS : STEPS;
   const [answers, setAnswers] = React.useState<Readonly<Record<string, AddressAnswer>>>({});
   const [others, setOthers] = React.useState<ReadonlyArray<OtherChange>>([]);
-  const [savingAddresses, setSavingAddresses] = React.useState(false);
-  const [addressFailures, setAddressFailures] = React.useState<ReadonlyArray<{ old: string; why: string }>>([]);
-  // What this flow wrote, by old key, so going back and answering again
-  // changes the row rather than adding a second one or leaving one behind.
-  const [writtenHere, setWrittenHere] = React.useState<Readonly<Record<string, string>>>({});
-  /** The changes this flow will write, or has: each one's old and new address. */
-  const addressChanges = [
-    ...proposals.asked.flatMap((p) => {
+  const [confirmExisting, setConfirmExisting] = React.useState<Readonly<Record<string, boolean>>>({});
+  const [addressFailures, setAddressFailures] = React.useState<ReadonlyArray<AddressFailure>>([]);
+  // Once a migration has started, the way back to the step closes: its rows
+  // were written with that Start, and are changed on the person's page.
+  const [startedAny, setStartedAny] = React.useState(false);
+  /**
+   * WHO CONFIRMS (0168 §4.4, D6). Whoever signs in to the accounts confirms
+   * the person's own rows with Start: their own, or, for a person who has no
+   * page of their own, as an owner or admin confirming for them, which the
+   * server attributes. A person who connects by a link confirms on their own
+   * page, so their rows are written waiting for them.
+   */
+  const confirmsOwn = !who.someoneElse;
+  const forYourself = who.personId !== null && people.some((p) => p.id === who.personId && p.you);
+  /** A row of the table this flow may confirm (N12): one that waits, or one it confirmed itself. */
+  const confirmable = (r: AddressChange): boolean =>
+    confirmsOwn && (r.state === 'proposed' || writtenHere[r.oldKey]?.kind === 'existing');
+  /** What Start writes: each question answered with an address, each *Others* row, and each row of the table ticked. */
+  const plannedChanges: ReadonlyArray<PlannedChange> = [
+    ...proposals.asked.flatMap((p): PlannedChange[] => {
       const a = answers[addressKey(p.old)];
       if (a === undefined || a.choice === 'no') return [];
       const next = a.choice === 'yes' ? proposals.newAddress : a.typed.trim();
-      return next === undefined || next === '' ? [] : [{ old: p.old, new: next, own: true }];
+      return next === undefined || next === ''
+        ? []
+        : [{ key: addressKey(p.old), old: p.old, new: next, confirm: confirmsOwn, kind: 'asked' }];
     }),
     ...others
       .filter((o) => o.old.trim() !== '' || o.new.trim() !== '')
-      .map((o) => ({ old: o.old.trim(), new: o.new.trim(), own: false })),
+      .map((o): PlannedChange => ({
+        key: addressKey(o.old),
+        old: o.old.trim(),
+        new: o.new.trim(),
+        confirm: false,
+        kind: 'other',
+      })),
+    ...proposals.existing
+      .filter((r) => confirmable(r) && confirmExisting[r.oldKey] === true)
+      .map((r): PlannedChange => ({
+        key: r.oldKey,
+        old: r.oldAddress,
+        new: r.newAddress,
+        confirm: true,
+        kind: 'existing',
+        row: r,
+      })),
   ];
-  /** What *Check, then start* says: every change written here, and this person's rows already in the table. */
-  const addressLines = [
-    ...proposals.existing.map((r) => ({ old: r.oldAddress, new: r.newAddress })),
-    ...addressChanges.map((c) => ({ old: c.old, new: c.new })),
+  /**
+   * WHAT *Check, then start* SAYS (0168 §6.2): a row that will be confirmed
+   * *becomes*, said as confirmed for the person where somebody else confirms
+   * it (D6); a row that will be written waiting, or waits already, waits for a
+   * confirmation and changes nothing until then, since only a confirmed row
+   * reaches a writer (ADR-0055). Never *becomes* for a row that waits (S1).
+   */
+  const addressLines: ReadonlyArray<AddressCheckLine> = [
+    ...proposals.existing
+      .filter((r) => !(confirmable(r) && confirmExisting[r.oldKey] === true))
+      .map((r): AddressCheckLine => {
+        const waits = r.state === 'proposed' || writtenHere[r.oldKey]?.kind === 'existing';
+        if (!waits) return { key: r.oldKey, old: r.oldAddress, new: r.newAddress, said: 'becomes' };
+        return r.person === null
+          ? { key: r.oldKey, old: r.oldAddress, new: r.newAddress, said: 'waits' }
+          : { key: r.oldKey, old: r.oldAddress, new: r.newAddress, said: 'waitsFor', person: r.person.displayName };
+      }),
+    ...plannedChanges.map((c): AddressCheckLine => {
+      if (c.confirm) {
+        return forYourself || personName === ''
+          ? { key: c.key, old: c.old, new: c.new, said: 'becomes' }
+          : { key: c.key, old: c.old, new: c.new, said: 'becomesFor', person: personName };
+      }
+      return c.kind === 'asked' && personName !== ''
+        ? { key: c.key, old: c.old, new: c.new, said: 'waitsFor', person: personName }
+        : { key: c.key, old: c.old, new: c.new, said: 'waits' };
+    }),
   ];
 
   /**
-   * LEAVING THE STEP WRITES THE ROWS (0168 §6.2): the person's own as
-   * confirmed by whoever pressed, unless they connect by a link and confirm
-   * on their own page (§4.4); somebody else's as proposed. A row written
-   * here before is changed, never added again; one answered *No* since is
-   * deleted. A refusal is said, in the server's words, and the screen stays.
+   * START WRITES THE ROWS (0168 §6.2), before any migration starts, and only
+   * then: *"Nothing is copied yet. You can change this until you press
+   * Start"* (S5). The person's own rows confirmed by whoever signs in, or
+   * waiting for a person who connects by a link (§4.4); an *Others* row
+   * waiting for its person; a ticked row of the table confirmed. A row this
+   * flow wrote before is changed, never added again; one it added that was
+   * answered No since is deleted, and one of the table it confirmed is sent
+   * back to waiting. A refusal is said, in the server's words and in both
+   * languages, and nothing starts. Never throws: every press is caught.
    */
-  const saveAddresses = async (): Promise<boolean> => {
-    setSavingAddresses(true);
-    const failures: Array<{ old: string; why: string }> = [];
-    const written: Record<string, string> = { ...writtenHere };
+  const writeAddresses = async (): Promise<boolean> => {
+    const failures: AddressFailure[] = [];
+    const written: Record<string, WrittenHere> = { ...writtenHere };
     const personId = made.personId ?? who.personId ?? undefined;
+    const planned = new Set(plannedChanges.map((c) => c.key));
     try {
-      const wanted = new Set(addressChanges.map((c) => addressKey(c.old)));
-      for (const [key, old] of Object.entries(writtenHere)) {
-        if (wanted.has(key)) continue;
+      for (const [key, w] of Object.entries(writtenHere)) {
+        if (planned.has(key)) continue;
         try {
-          await deleteAddressChange(key);
-          delete written[key];
+          if (w.kind === 'existing') {
+            // Confirmed here at a Start that went no further, and untick since.
+            await updateAddressChange(key, { state: 'proposed' });
+            delete written[key];
+          } else if (w.kind === 'other' || answers[key]?.choice === 'no') {
+            await deleteAddressChange(key);
+            delete written[key];
+          }
         } catch (error) {
-          failures.push({ old, why: serverMessage(error) });
+          failures.push({ old: w.old, why: serverMessage(error) });
         }
       }
-      for (const c of addressChanges) {
-        const key = addressKey(c.old);
-        const confirm = c.own && !who.someoneElse;
+      for (const c of plannedChanges) {
         try {
-          if (written[key] !== undefined) {
-            await updateAddressChange(key, {
-              newAddress: c.new,
-              ...(confirm ? { state: 'confirmed' as const } : {}),
+          const before = written[c.key];
+          if (c.kind === 'existing') {
+            await updateAddressChange(c.key, {
+              state: 'confirmed',
+              ...(c.row?.person === null && personId !== undefined ? { personId } : {}),
             });
+            written[c.key] = { old: c.old, kind: 'existing' };
+          } else if (before !== undefined && before.kind !== 'existing') {
+            await updateAddressChange(c.key, { newAddress: c.new, ...(c.confirm ? { state: 'confirmed' as const } : {}) });
           } else {
             await createAddressChange({
               oldAddress: c.old,
               newAddress: c.new,
-              ...(confirm ? { confirm: true } : {}),
-              ...(c.own && personId !== undefined ? { personId } : {}),
+              ...(c.confirm ? { confirm: true } : {}),
+              ...(c.kind === 'asked' && personId !== undefined ? { personId } : {}),
             });
+            written[c.key] = { old: c.old, kind: c.kind };
           }
-          written[key] = c.old;
         } catch (error) {
           failures.push({ old: c.old, why: serverMessage(error) });
         }
@@ -616,11 +731,12 @@ const StartMigration: React.FC = () => {
     } finally {
       setWrittenHere(written);
       setAddressFailures(failures);
-      setSavingAddresses(false);
       void queryClient.invalidateQueries({ queryKey: ['address-changes'] });
     }
     return failures.length === 0;
   };
+  /** Whether a change of the step is not in the table yet: said beside *Not now*, which writes none. */
+  const addressesUnsaved = plannedChanges.some((c) => writtenHere[c.key] === undefined);
 
   // THE WORDS FOR A MIGRATION: *"{person} — {provider} to {destination}"*
   // (T4, *Underneath*), and on the check screen its data types, from and to.
@@ -843,8 +959,14 @@ const StartMigration: React.FC = () => {
       }
       case 'address': {
         if (proposals.asked.some((p) => answers[addressKey(p.old)] === undefined)) return t('start.address.needAnswer');
-        const typedWrong = addressChanges.some((c) => !isAddress(c.old) || !isAddress(c.new));
-        return typedWrong ? t('start.address.needAddress') : undefined;
+        // An old address typed wrong is said as an old one (N3); *Another
+        // address…* with nothing typed is no answer yet.
+        if (plannedChanges.some((c) => !isAddress(c.old))) return t('start.address.needOldAddress');
+        const anotherEmpty = proposals.asked.some((p) => {
+          const a = answers[addressKey(p.old)];
+          return a?.choice === 'another' && a.typed.trim() === '';
+        });
+        return anotherEmpty || plannedChanges.some((c) => !isAddress(c.new)) ? t('start.address.needAddress') : undefined;
       }
       default:
         return undefined;
@@ -912,12 +1034,21 @@ const StartMigration: React.FC = () => {
               onAnswer={(key, answer) => setAnswers((prev) => ({ ...prev, [key]: answer }))}
               others={others}
               onOthers={setOthers}
+              confirmable={confirmable}
+              confirmExisting={confirmExisting}
+              onConfirmExisting={(key, on) => setConfirmExisting((prev) => ({ ...prev, [key]: on }))}
               failures={addressFailures}
             />
           )}
           {step === 'check' && (
             <CheckStep
               addressLines={addressLines}
+              addressFailures={addressFailures}
+              // The step's rows are written by Start, and only until a
+              // migration has started: after that its answers cannot change.
+              {...(showAddress && !startedAny ? { beforeStart: writeAddresses } : {})}
+              addressesUnsaved={addressesUnsaved}
+              onAnyStarted={() => setStartedAny(true)}
               planned={planned}
               made={made}
               titles={titles}
@@ -979,8 +1110,9 @@ const StartMigration: React.FC = () => {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         {/* Once anything is made the way back closes, except from the check
-            to the address step: going there writes nothing twice. */}
-        {back !== undefined && (!madeAny || back === 'address') ? (
+            to the address step, which writes nothing (Start writes its rows),
+            until a migration has started. */}
+        {back !== undefined && (!madeAny || (back === 'address' && !startedAny)) ? (
           <button
             type="button"
             onClick={() => setStep(back)}
@@ -1001,12 +1133,6 @@ const StartMigration: React.FC = () => {
               // is no way back (the UX sweep, 2026-10-17).
               onClick={() => {
                 if (step === 'to') return void setUp();
-                if (step === 'address') {
-                  void saveAddresses().then((saved) => {
-                    if (saved) setStep('check');
-                  });
-                  return;
-                }
                 // Leaving *Who is it for?* settles its answer, the member's
                 // own person too: the people read again on a later screen
                 // (a window refocused) cannot change whom this is for.
@@ -1016,17 +1142,11 @@ const StartMigration: React.FC = () => {
                 }
                 setStep(next);
               }}
-              disabled={notYet !== undefined || settingUp || savingAddresses}
+              disabled={notYet !== undefined || settingUp}
               aria-describedby={notYet !== undefined ? reasonId : step === 'to' ? setUpLineId : undefined}
               className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {settingUp
-                ? t('start.to.settingUp')
-                : savingAddresses
-                  ? t('start.address.saving')
-                  : step === 'to'
-                    ? t('start.to.setUp')
-                    : t('account.next')}
+              {settingUp ? t('start.to.settingUp') : step === 'to' ? t('start.to.setUp') : t('account.next')}
             </button>
             {notYet !== undefined && (
               <p id={reasonId} className="mt-2 text-sm text-gray-600">
@@ -2628,8 +2748,31 @@ export const CheckStep: React.FC<{
   /** A migration whose account its person connects by a link, and has not yet. */
   awaitsGrant?: (m: PlannedMigration) => boolean;
   /** One line per changed address (0168 §6.2): the rule, never a count discovery could not have. */
-  addressLines?: ReadonlyArray<{ readonly old: string; readonly new: string }>;
-}> = ({ planned, made, titles, onStarted, personName = '', awaitsGrant = () => false, addressLines = [] }) => {
+  addressLines?: ReadonlyArray<AddressCheckLine>;
+  /**
+   * Writes the address step's rows (0168 §6.2), awaited before any migration
+   * starts; false when a row could not be written, and then nothing starts.
+   */
+  beforeStart?: () => Promise<boolean>;
+  /** The rows the last Start could not write, with the server's words. */
+  addressFailures?: ReadonlyArray<AddressFailure>;
+  /** Whether a change of the address step is not written yet: *Not now* says it is not. */
+  addressesUnsaved?: boolean;
+  /** Told once any migration has started, so the way back to the address step closes. */
+  onAnyStarted?: () => void;
+}> = ({
+  planned,
+  made,
+  titles,
+  onStarted,
+  personName = '',
+  awaitsGrant = () => false,
+  addressLines = [],
+  beforeStart,
+  addressFailures = [],
+  addressesUnsaved = false,
+  onAnyStarted,
+}) => {
   const { t, locale } = useLocale();
   const queryClient = useQueryClient();
   const waitsId = React.useId();
@@ -2695,6 +2838,12 @@ export const CheckStep: React.FC<{
    */
   const start = async (only?: ReadonlyArray<string>) => {
     setStarting(true);
+    // The address step's rows first, and only now (0168 §6.2): a row that
+    // cannot be written stops the start, so nothing is copied without it.
+    if (beforeStart !== undefined && !(await beforeStart())) {
+      setStarting(false);
+      return;
+    }
     const now = new Set(started);
     const failed: Record<string, string> = {};
     for (const m of counted) {
@@ -2710,7 +2859,28 @@ export const CheckStep: React.FC<{
     setStarted(now);
     setStartFailed(failed);
     setStarting(false);
+    if (now.size > 0) onAnyStarted?.();
     if (Object.keys(failed).length === 0) onStarted();
+  };
+  /** *Done*, where only exports were set up: it ends the flow as Start would, the address step's rows written first. */
+  const done = async () => {
+    setStarting(true);
+    const saved = beforeStart === undefined || (await beforeStart());
+    setStarting(false);
+    if (saved) onStarted();
+  };
+  const addressLine = (line: AddressCheckLine): string => {
+    const words = { old: line.old, new: line.new, person: line.person ?? '' };
+    switch (line.said) {
+      case 'becomes':
+        return t('start.check.address', words);
+      case 'becomesFor':
+        return t('start.check.address.forPerson', words);
+      case 'waitsFor':
+        return t('start.check.address.waitsFor', words);
+      case 'waits':
+        return t('start.check.address.waits', words);
+    }
   };
 
   return (
@@ -2719,7 +2889,9 @@ export const CheckStep: React.FC<{
       {addressLines.length > 0 && (
         <ul className="space-y-1 text-sm text-gray-700 break-words" data-address-lines>
           {addressLines.map((line) => (
-            <li key={line.old}>{t('start.check.address', { old: line.old, new: line.new })}</li>
+            <li key={line.key} data-address-line={line.said}>
+              {addressLine(line)}
+            </li>
           ))}
         </ul>
       )}
@@ -2786,6 +2958,18 @@ export const CheckStep: React.FC<{
           onStart={(only) => void start(only)}
         />
       )}
+      {/* A row Start could not write (0168 §6.2): which, and why, in the
+          server's words; nothing started, and Back leads to the step. */}
+      {addressFailures.length > 0 && (
+        <div role="alert" className="text-sm text-red-800 break-words" data-address-failures>
+          {addressFailures.map((f) => (
+            <p key={f.old}>
+              <span className="font-medium">{t('start.address.saveFailed', { old: f.old })}</span> {f.why}
+            </p>
+          ))}
+          <p className="mt-1">{t('start.check.address.notStarted')}</p>
+        </div>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         {/* NOT NOW (the UX sweep, 2026-10-17): the way back closed once the
             migrations were made, and Start was the only way on. They are on
@@ -2804,6 +2988,10 @@ export const CheckStep: React.FC<{
                 {t('start.check.notNow.line', { person: personName })}
               </p>
             )}
+            {/* Not now writes none of the address step's rows: Start does. */}
+            {addressesUnsaved && (
+              <p className="mt-1 max-w-xs text-sm text-gray-600">{t('start.check.notNow.addresses')}</p>
+            )}
           </div>
         ) : (
           <span />
@@ -2813,8 +3001,9 @@ export const CheckStep: React.FC<{
           {onlyExports ? (
             <button
               type="button"
-              onClick={onStarted}
-              className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
+              onClick={() => void done()}
+              disabled={starting}
+              className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('start.check.done')}
             </button>
