@@ -731,9 +731,9 @@ that trusted domains cannot work when the real fault was a provider LISTENING on
 one port and stamping another into its issuer.
 
 If nothing reaches it, the instance has to be initialised again. That destroys
-the provider's own database and nothing else — no Ownpace data, no Trigger.dev
-account — and this script rebuilds the project, the application and the client
-id from scratch afterwards:
+the provider's own database and nothing else — no Ownpace data — and this script
+rebuilds the project, the application and the client id from scratch
+afterwards:
 
     docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
     docker compose -f ${SCRIPT_DIR}/managed.yml exec -T postgres sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'

@@ -100,9 +100,9 @@ describe('the pass refuses by the same facts, before anything is built', () => {
     );
   });
 
-  it('refuses without a client, naming the variable and where the tasks get it', () => {
+  it('refuses without a client, naming the variable and where the worker gets it', () => {
     expect(() => cirruxDriveDepsFor({} as never, 't', { creds: GRANTED, id: 'c' }, NO_CLIENT)).toThrow(
-      /CIRRUX_OAUTH_CLIENT_ID[\s\S]*set-task-env\.sh/,
+      /CIRRUX_OAUTH_CLIENT_ID is not set for the worker[\s\S]*deploy\/compose\/\.env and bring the stack up again/,
     );
   });
 

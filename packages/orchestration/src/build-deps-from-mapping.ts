@@ -1029,9 +1029,9 @@ export function cirruxDriveDepsFor(
   const client = cirruxDeploymentClient(env);
   if (!client) {
     throw new Error(
-      'This deployment has no Cirrux client (CIRRUX_OAUTH_CLIENT_ID is not set for the tasks), so no ' +
-        'file can be written to Cirrux Drive. Set it in deploy/compose/.env and run set-task-env.sh, or ' +
-        'send the files to another destination.',
+      'This deployment has no Cirrux client (CIRRUX_OAUTH_CLIENT_ID is not set for the worker), so no ' +
+        'file can be written to Cirrux Drive. Set it in deploy/compose/.env and bring the stack up again, ' +
+        'or send the files to another destination.',
     );
   }
   if (!hasCirruxDriveGrant(tgt.creds)) throw cirruxDriveNotConnected();
