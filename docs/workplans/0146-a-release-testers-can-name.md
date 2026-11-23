@@ -4,6 +4,47 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, morning, later: the fold for `v0.2.0-alpha.17` (T2).** `package.json` and the API
+contract say `0.2.0-alpha.17`, `scripts/release-line.json` lists it, and everything under
+[Unreleased] moves to its section, dated 2026-11-23, under a summary; [Unreleased] stays, empty.
+alpha.17 carries what `main` merged after alpha.16's C, `b657f86b`, the commit its tag names: 4
+pull requests, merged on 2026-11-23 from 06:31 to 07:59 UTC, after the tag. One of them, #2057,
+carries Dependabot's #2052 and #2053 as they were and #2051's move in both pins. The move changes one
+entry's words: the migrations that made *the next deploy* one-way now make live's deploy from
+alpha.16 one-way.
+
+- workplan 0168, a new address for one you cannot take along, its seven branches landed as one
+  with the three reviews' fixes, superseding #2061 to #2066 and carrying #2056's documents (#2067);
+- the records of alpha.16's release, with alpha.17's counted nights waived in the owner's words
+  (#2059);
+- nginx 1.31.9 in the web image and the public site together, Dependabot's npm group and jest-dom
+  8 (#2057);
+- the worker's limit on runs at once, `MAX_PASSES_IN_FLIGHT` + 2, and its memory lowered to match,
+  with the worker test that left a pass running past itself fixed (#2060).
+
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`.
+- **In the nights' place,** waived for alpha.17 (*"Continue working on alpha 17, I waive the
+  waitings for that one, so I can roll that one out possibly also tomorrow."*, #2059): E2E
+  (managed) and E2E (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at a
+  time, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** C's checks, its push runs and its Windows smoke, the image scans, and
+  the three E2E lanes at C, one at a time; then the Release run, which the owner starts from their
+  own account, with `commit` set to C and `waive_nights` set to the reason in their own words, and
+  the approval in the `release` environment.
+- **Live's deploy** goes from alpha.16, which live runs since 2026-11-23 at 06:52:30 UTC (0132's
+  Status). It is **one-way** by the deploy's own rule: between alpha.16's C and this one, ledger
+  migrations `0071_the_addresses_that_change`, `0072_the_table_an_item_was_written_under`,
+  `0073_the_addresses_applied_after_cutover` and `0074_the_change_a_copy_waits_for` and managed
+  migration `0063_whose_address_changes` are added, all additive, while the Trigger.dev
+  (`v4.8.8`), identity-provider (Zitadel `v4.20.4`) and ClickHouse (`26.8.37.168`) pins are as they
+  were, so the take needs no `--trigger`. live still keeps the copy alpha.14's deploy took
+  (2026-11-22 at 09:16:21 UTC, alpha.12's databases, not proven, since no pass can run while live's
+  only organisation is closed); while it is there a take keeps it and takes no other, so the
+  deploy's sheet asks the owner whether to delete it first, so that the take copies alpha.16's
+  databases. The worker's memory: alpha.17's rule gives 4,352 MB at live's 6, where live's `.env`
+  pins alpha.16's 6,400 MB; the bring-up keeps a larger pinned value and says so, and the sheet
+  sets the rule's.
+
 **2026-11-23, morning: `v0.2.0-alpha.16` is released, its nights waived (T2, T4).** Read from
 GitHub on 2026-11-23. Times are UTC.
 
