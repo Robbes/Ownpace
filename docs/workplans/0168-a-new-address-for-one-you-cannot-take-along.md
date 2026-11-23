@@ -139,8 +139,11 @@ Proven:
   - Fixed since, and central: the shared `log` prints every error through `loggableError`
     (`packages/shared/src/loggable-error.ts`), the job runner logs through `log`, and the appliance
     answers a 500 with a reference (CHANGELOG, Unreleased). A line that writes an error's message
-    into its own text still carries Drizzle's `params:`: 51 such lines are in files that reach the
-    database.
+    into its own text gets it without values too: the ledger throws a database error so
+    (`errorWithoutValues`; `packages/ledger/src/driver-errors.ts`), but not from `pg` used without
+    the ledger (the job runner's and pg-boss's queries, the operator's commands, the measuring
+    tool), where only a data exception's message can carry a value. A mail server's refusal is
+    logged without the address, and the appliance's failure line keeps its path by `loggableUrl`.
 - `SENT-BY`, `DELEGATED-FROM`/`-TO` and `MEMBER` keep their old addresses while `ORGANIZER` and
   `ATTENDEE` change (D3 names only those two): the owner's call.
 - **Where the build differs from §3 and D2 above:** a copy records the digest of the rows that
