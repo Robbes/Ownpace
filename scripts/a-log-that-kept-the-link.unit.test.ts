@@ -36,6 +36,13 @@
  * router decodes a percent escape before it matches, so `/%67rant/<link>`
  * opens the grant page as well. nginx writes `$request_uri` as it came, so
  * each letter of a route word may be its escape, and every pattern reads it so.
+ *
+ * AND AN ADDRESS CHANGE'S KEY (workplan 0168's review, finding 2). A row of the
+ * table of address changes is named by its old address in the path, so
+ * confirming Kid's row wrote `PUT /api/address-changes/kid.name%40gmail.com`
+ * into both logs, where the operator is to see counts, never an address (0168
+ * §5, D7). Both write `:key` for it now, held to one answer here too. Those
+ * are API paths, never a page, so the problem report's page is not asked.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -165,6 +172,27 @@ const REQUESTS = [
   '/%67rants/abc',
 ];
 
+/** API paths that name an address change by its key, the old address (0168's review, finding 2). */
+const KEY_REQUESTS = [
+  '/api/address-changes/kid.name%40gmail.com',
+  '/api/address-changes/kid.name@gmail.com',
+  '/api/address-changes/Kid.Name%2Bx%40googlemail.com?y=1',
+  '/API/Address-Changes/kid%40example.org',
+  '/api/%61ddress-changes/kid%40example.org',
+  '/api/address%2Dchanges/kid%40example.org',
+  // The link's own door to a person's row: the link and the key both go.
+  '/api/grant/q7Rk-link/address-changes/kid%40example.org',
+  '/api/view/v13w-link/address-changes/kid%40example.org/x',
+  // A request in absolute form.
+  'http://app.example.test/api/address-changes/kid%40example.org',
+  // The routes that name no key keep their words.
+  '/api/address-changes',
+  '/api/address-changes/',
+  '/api/migrations/m-1/address-changes/apply',
+  '/api/migrations/m-1/address-changes/apply?x=1',
+  '/api/migrations/m-1/address-changes/applying',
+];
+
 const REFERERS = [
   '',
   'https://app.example.test/grant/q7Rk-link?from=mail',
@@ -187,13 +215,40 @@ const REFERERS = [
 ];
 
 describe("the web image's access log", () => {
-  it('reads the four maps it writes the log from', () => {
+  it('reads the five maps it writes the log from', () => {
     expect(MAPS.map((m) => `${m.source} -> ${m.target}`)).toEqual([
       'request_uri -> ownpace_log_uri_path',
-      'ownpace_log_uri_path -> ownpace_log_uri',
+      'ownpace_log_uri_path -> ownpace_log_uri_linkless',
+      'ownpace_log_uri_linkless -> ownpace_log_uri',
       'http_referer -> ownpace_log_referer_path',
       'ownpace_log_referer_path -> ownpace_log_referer',
     ]);
+  });
+
+  it.each(KEY_REQUESTS)('logs %s exactly as the API does', (uri) => {
+    expect(nginxLogs(uri).ownpace_log_uri).toBe(loggableUrl(uri));
+  });
+
+  it('keeps no address of an address change, in either log, and keeps the route as it came', () => {
+    for (const uri of KEY_REQUESTS) {
+      for (const logged of [nginxLogs(uri).ownpace_log_uri!, loggableUrl(uri)]) {
+        expect(logged, uri).not.toMatch(/@|%40|kid|q7Rk|v13w|y=1|x=1/i);
+      }
+    }
+    expect(loggableUrl('/api/address-changes/kid.name%40gmail.com')).toBe('/api/address-changes/:key');
+    expect(nginxLogs('/API/Address-Changes/kid%40example.org').ownpace_log_uri).toBe('/API/Address-Changes/:key');
+    expect(nginxLogs('/api/grant/q7Rk-link/address-changes/kid%40example.org').ownpace_log_uri).toBe(
+      '/api/grant/:link/address-changes/:key',
+    );
+    expect(nginxLogs('/api/migrations/m-1/address-changes/apply').ownpace_log_uri).toBe(
+      '/api/migrations/m-1/address-changes/apply',
+    );
+  });
+
+  it('drops the key without regard to case (~*), as the link', () => {
+    const keyRules = MAPS.flatMap((m) => m.regexes).filter((r) => /<ownpace_key_route>/.test(r.pattern.source));
+    expect(keyRules).toHaveLength(1);
+    expect(keyRules[0]!.caseless).toBe(true);
   });
 
   it.each(REQUESTS)('logs %s exactly as the API does', (uri) => {
