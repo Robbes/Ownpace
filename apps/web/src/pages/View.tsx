@@ -563,7 +563,11 @@ const View: React.FC = () => {
       {person && (
         <>
           <p className="mt-8 text-sm text-gray-500">{t('view.until', { date: dateTime(person.expiresAt) })}</p>
-          <p className="mt-1 text-sm text-gray-500">{t('view.readOnly')}</p>
+          {/* Not "only numbers" when the page shows the person's new address
+              (0168 §4.4): the one thing on it that is not a count or a state. */}
+          <p className="mt-1 text-sm text-gray-500">
+            {t((person.addressChanges?.length ?? 0) > 0 ? 'addresses.view.readOnly' : 'view.readOnly')}
+          </p>
         </>
       )}
 

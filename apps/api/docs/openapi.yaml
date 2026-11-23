@@ -3585,7 +3585,12 @@ paths:
         For a person's link the answer is per Google account (`kind:
         person`, `PersonGrantPage`): each account their migrations read, what
         its one consent asks for, where each of its migrations goes, and
-        whether it is connected already.
+        whether it is connected already. It also carries `addressChanges`
+        (workplan 0168 §4.4, D6): the rows of the organisation's address
+        changes linked to this person, and nobody else's, for the page to ask
+        *Your new address: ‹address›. Is that right?*; `PUT
+        /api/grant/{link}/address-changes/{oldKey}` takes the answer. A
+        migration's own link names no person, and its answer carries none.
       security: []
       responses:
         '200':
@@ -3770,6 +3775,99 @@ paths:
             The link could not be checked just now. The body is
             `{error, message, messageNl}`.
 
+  /api/grant/{link}/address-changes/{oldKey}:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        description: |
+          The whole credential, one path segment. Only a person's link,
+          `p.<id>.<secret>`, reaches a row: a migration's `<id>.<secret>`
+          names no person, so every row is a 404 through it.
+        schema: { type: string }
+      - name: oldKey
+        in: path
+        required: true
+        description: The row's `oldKey`, as this link's page read it (`LinkAddressChange`), URL-encoded.
+        schema: { type: string }
+    put:
+      tags: [Grant links]
+      summary: The person's answer about their own new address
+      description: |
+        The answer to *Your new address: ‹address›. Is that right?* on the
+        grant page (workplan 0168 §4.4, D6): `confirmed` is *Yes, that is
+        right*, the person's own confirmation; `proposed` is *Not right?*,
+        which sends a confirmed row back, so that it changes nothing until it
+        is confirmed again.
+
+        Answers to a LINK, not to a session, like every route of this page.
+        It reaches only the rows linked to the link's own person
+        (`addressChanges` on `GET /api/grant/{link}`), and changes only their
+        state, through the one writer of the table and under the
+        organisation's lock: two presses at once are one after the other, and
+        the second changes nothing. Saying what the row already says writes
+        nothing and answers 200.
+
+        The confirmation is stored as the person's (`person:` and their id,
+        never a member's subject), so the organisation's routes say it as
+        theirs: `confirmedBy` is the person's name, and `confirmedByYou` is
+        true for the member that person is (`AddressChange`).
+
+        A link `GET /api/grant/{link}` refuses is refused here in the same
+        words, by the same check: unknown, forged, expired, revoked, already
+        used, the progress page's link, or an organisation that was closed.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LinkAddressChangeAnswer' }
+      responses:
+        '200':
+          description: The row as the link shows it now.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LinkAddressChange' }
+        '400':
+          description: |
+            `invalid_request`: the body is not `{state}` alone, with `state`
+            `confirmed` or `proposed`. A body that names anything else, such
+            as `newAddress` or `personId`, is refused whole. The body is
+            `{error, message, messageNl}`, in English and in Dutch. Nothing
+            was written.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+        '401':
+          description: |
+            The link was refused, as by `GET /api/grant/{link}`: one sentence
+            for every way a link can fail. The body is
+            `{error, message, messageNl}`, in English and in Dutch.
+        '404':
+          description: |
+            `address_change_not_found`: no row with this key is linked to the
+            link's person. A row linked to somebody else, or to nobody, is
+            answered in exactly the words of one that does not exist. The
+            body is `{error, message, messageNl}`, in English and in Dutch.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+        '409':
+          description: |
+            `account_closed` (`AccountClosed`): the organisation that sent the
+            link was closed (workplan 0085 T2), as every route of this page
+            answers, with the sentence in English and in Dutch (`messageNl`,
+            `reasonNl`). Nothing was written.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountClosed' }
+        '500':
+          description: Ours; nothing the person did. Nothing was written.
+        '503':
+          description: |
+            The link could not be checked just now. The body is
+            `{error, message, messageNl}`.
+
   /api/grant/{link}/report:
     parameters:
       - name: link
@@ -3925,6 +4023,14 @@ paths:
         person`, `PersonProgressPage`), each with the same counts and states,
         grouped by the Google account it reads under an opaque `ref`, never
         the address.
+
+        One exception, on a person's page only (workplan 0168 §4.4, D6, the
+        owner's decision of 2026-11-22): `addressChanges`, the rows of the
+        organisation's address changes linked to this person, and nobody
+        else's, each with its old and new address and its state, so that
+        somebody who has only links can confirm their new address, or send it
+        back, with `PUT /api/view/{link}/address-changes/{oldKey}`. Nothing
+        else on the page names an address.
 
         Since workplan 0154 T8 each row also says its stage and what
         discovery found (`ProgressRow`), and each migration when its check
@@ -4083,6 +4189,84 @@ paths:
             `reasonNl` says it in Dutch.
         '500':
           description: Ours; nothing the person did.
+
+  /api/view/{link}/address-changes/{oldKey}:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        description: |
+          The whole credential, one path segment. Only a person's link,
+          `p.<id>.<secret>`, reaches a row: a migration's `<id>.<secret>`
+          names no person, so every row is a 404 through it.
+        schema: { type: string }
+      - name: oldKey
+        in: path
+        required: true
+        description: The row's `oldKey`, as this link's page read it (`LinkAddressChange`), URL-encoded.
+        schema: { type: string }
+    put:
+      tags: [Grant links]
+      summary: The person's answer about their own new address, on their progress page
+      description: |
+        The same answer as `PUT /api/grant/{link}/address-changes/{oldKey}`,
+        on the progress page (workplan 0168 §4.4, D6), where a person whose
+        grant link is used up or expired still reaches their rows:
+        `confirmed` is *Yes, that is right*; `proposed` is *Not right?*,
+        which sends a confirmed row back.
+
+        It reaches only the rows linked to the link's own person
+        (`addressChanges` on `GET /api/view/{link}`), and changes only their
+        state, through the one writer of the table and under the
+        organisation's lock. The confirmation is stored as the person's, and
+        said as theirs (`AddressChange`).
+
+        A link `GET /api/view/{link}` refuses is refused here in the same
+        words, by the same check: unknown, forged, expired, revoked, or the
+        grant page's link. Like the progress page, and like the
+        organisation's own address-change routes, it is not refused for a
+        closed organisation: a row starts no pass and uses no access.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LinkAddressChangeAnswer' }
+      responses:
+        '200':
+          description: The row as the link shows it now.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LinkAddressChange' }
+        '400':
+          description: |
+            `invalid_request`: the body is not `{state}` alone, with `state`
+            `confirmed` or `proposed`. A body that names anything else is
+            refused whole. The body is `{error, message, messageNl}`, in
+            English and in Dutch. Nothing was written.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+        '401':
+          description: |
+            The link was refused, as by `GET /api/view/{link}`: one sentence
+            for every way a link can fail. The body is
+            `{error, message, messageNl}`, in English and in Dutch.
+        '404':
+          description: |
+            `address_change_not_found`: no row with this key is linked to the
+            link's person. A row linked to somebody else, or to nobody, is
+            answered in exactly the words of one that does not exist. The
+            body is `{error, message, messageNl}`, in English and in Dutch.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
+        '500':
+          description: Ours; nothing the person did. Nothing was written.
+        '503':
+          description: |
+            The link could not be checked just now. The body is
+            `{error, message, messageNl}`.
 
   /api/view/{link}/report:
     parameters:
@@ -8831,7 +9015,12 @@ components:
         setByYou: { type: boolean, description: Whether the asker added it. Always false on the appliance. }
         confirmedBy:
           type: [string, 'null']
-          description: Who confirmed it, in the same idiom as `setBy`. Null while `proposed`.
+          description: |
+            Who confirmed it, in the same idiom as `setBy`. On managed, the
+            person's name when the row's person confirmed it themselves
+            through their grant or progress link (workplan 0168 §4.4): stored
+            as `person:` and their id, said as the name, never as the id.
+            Null while `proposed`.
         confirmedByYou: { type: boolean, description: Whether the asker confirmed it. Always false on the appliance. }
         createdAt: { type: string, format: date-time }
         confirmedAt: { type: [string, 'null'], format: date-time, description: Null while `proposed`. }
@@ -8846,6 +9035,43 @@ components:
               properties:
                 id: { type: string, format: uuid }
                 displayName: { type: string }
+    LinkAddressChange:
+      type: object
+      description: |
+        One of the person's own address changes, as their grant or progress
+        link shows it (workplan 0168 §4.4, D6): only a row linked to the
+        link's person, and nothing about who set or confirmed it.
+      required: [oldKey, oldAddress, newAddress, state]
+      additionalProperties: false
+      properties:
+        oldKey:
+          type: string
+          description: The row's `oldKey`, as `AddressChange` has it; the path segment of the link's `PUT`.
+        oldAddress:
+          type: string
+          description: The old address, as it was typed; at most 254 characters.
+        newAddress:
+          type: string
+          description: The address it becomes, which the page asks about; at most 254 characters.
+        state:
+          type: string
+          enum: [proposed, confirmed]
+          description: Only `confirmed` reaches a writer; a `proposed` row changes nothing yet.
+    LinkAddressChangeAnswer:
+      type: object
+      description: |
+        What a person's link may say about their own row: its state, and
+        nothing else (workplan 0168 §4.4, D6).
+      required: [state]
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          enum: [confirmed, proposed]
+          description: |
+            `confirmed`: *Yes, that is right*, the person's own confirmation.
+            `proposed`: *Not right?*, a confirmed row sent back, which then
+            changes nothing until it is confirmed again.
     AddressChangeTable:
       type: object
       required: [rows, door, file]
@@ -9093,9 +9319,10 @@ components:
       description: |
         What a PERSON'S grant link opens (ADR-0035, amended 2026-09-29;
         workplan 0153 T5 (b)): who is asking, once, then each Google account
-        the person's migrations read. No migration id, no tenant id, no client
-        id: the authorize call names the account.
-      required: [kind, organisation, accounts, expiresAt]
+        the person's migrations read, and the person's own address changes
+        (workplan 0168 §4.4). No migration id, no tenant id, no client id: the
+        authorize call names the account.
+      required: [kind, organisation, accounts, expiresAt, addressChanges]
       properties:
         kind: { type: string, enum: [person] }
         organisation: { type: string }
@@ -9144,6 +9371,13 @@ components:
                         account: { type: string, nullable: true }
                     granted: { type: boolean }
         expiresAt: { type: string, format: date-time }
+        addressChanges:
+          type: array
+          description: |
+            The rows of the organisation's address changes linked to this
+            person, oldest first, and nobody else's (workplan 0168 §4.4, D6).
+            Empty when none is.
+          items: { $ref: '#/components/schemas/LinkAddressChange' }
     ProgressReport:
       type: object
       required: [mappings]
@@ -9194,9 +9428,11 @@ components:
         What a PERSON'S progress link opens (ADR-0035, amended 2026-09-29;
         workplan 0153 T5 (b), slice 3): every migration of theirs, with the
         counts and states a migration's own page shows and nothing more. No
-        mapping id, no tenant id, no address: the Google account a migration
-        reads is named by an opaque `ref`, which a withdrawal sends back.
-      required: [kind, organisation, expiresAt, migrations, accounts]
+        mapping id, no tenant id, no account's address: the Google account a
+        migration reads is named by an opaque `ref`, which a withdrawal sends
+        back. The one exception is `addressChanges` (workplan 0168 §4.4, D6):
+        the person's own address changes, to confirm or send back.
+      required: [kind, organisation, expiresAt, migrations, accounts, addressChanges]
       properties:
         kind: { type: string, enum: [person] }
         organisation: { type: string }
@@ -9244,6 +9480,13 @@ components:
                     required: [state]
                     properties:
                       state: { type: string, enum: [none] }
+        addressChanges:
+          type: array
+          description: |
+            The rows of the organisation's address changes linked to this
+            person, oldest first, and nobody else's (workplan 0168 §4.4, D6).
+            Empty when none is.
+          items: { $ref: '#/components/schemas/LinkAddressChange' }
     ProgressRow:
       type: object
       description: |

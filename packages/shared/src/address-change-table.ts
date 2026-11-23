@@ -382,14 +382,52 @@ export function parseAddressChangesFile(text: string, file: string = ADDRESS_CHA
 }
 
 /**
+ * A PERSON'S OWN CONFIRMATION, THROUGH THEIR LINK (workplan 0168 §4.4, D6;
+ * ADR-0035): how it is stored in `confirmed_by`. Managed only, since only
+ * managed has people and their links.
+ *
+ * `person:` and the person's id. The decision idiom stores a sign-in's
+ * subject, and a link carries none: the person holding it has no account. Nor
+ * is it the member who issued the link, or the member the person may also be,
+ * whose subject would be said as that member's address: the person is who
+ * confirmed. So the stored value names the person, and is said as the
+ * person's name (`saidBy`), never as the id. No column changes for it:
+ * `confirmed_by` is free text, and its CHECK asks only that a confirmed row
+ * says somebody (ledger 0071).
+ */
+export const CONFIRMED_BY_PERSON = 'person:';
+
+/** The `confirmed_by` of a confirmation through this person's own link. */
+export function confirmedByPerson(personId: string): string {
+  return `${CONFIRMED_BY_PERSON}${personId}`;
+}
+
+/** The person a stored `confirmed_by` names when they confirmed through their own link, or null. */
+export function personWhoConfirmed(stored: string | null): string | null {
+  if (stored === null || !stored.startsWith(CONFIRMED_BY_PERSON)) return null;
+  const id = stored.slice(CONFIRMED_BY_PERSON.length);
+  return id === '' ? null : id;
+}
+
+/**
  * Who set or confirmed a row, as a person may read it (the decision idiom,
  * `Decisions.tsx`'s "by" rule): an address, or the appliance's own words.
  * `labelOf` turns a stored subject into the member's address on managed, and
  * a stored value it cannot say is null, never the id.
+ *
+ * A person's own confirmation through their link (`CONFIRMED_BY_PERSON`) is
+ * said as `labelOf` names that person: their name, which is no address. A
+ * label that is the stored value or the bare id is not said either.
  */
 export function saidBy(stored: string | null, labelOf: (stored: string) => string | null): string | null {
   if (stored === null) return null;
   if (stored === ADDRESS_CHANGE_OPERATOR || stored === ADDRESS_CHANGES_FILE) return stored;
   const label = labelOf(stored);
-  return label !== null && label.includes('@') ? label : null;
+  if (label === null) return null;
+  const person = personWhoConfirmed(stored);
+  if (person !== null) {
+    const name = label.trim();
+    return name === '' || name === stored || name === person ? null : name;
+  }
+  return label.includes('@') ? label : null;
 }

@@ -9,12 +9,14 @@
  * link is the credential, so this goes through `linkClient`, never the
  * signed-in client.
  *
- * WRITTEN AGAINST A SHAPE NO ROUTE SERVES YET: the person's payload of
- * `GET /api/grant/{link}` and `GET /api/view/{link}` carrying
- * `addressChanges` (their rows: `oldKey`, `oldAddress`, `newAddress`,
- * `state`), and `PUT /api/{grant|view}/{link}/address-changes/{oldKey}` with
- * `{ state }` answering the row. The field is optional, so until a server
- * sends it the pages say nothing about an address.
+ * The person's payload of `GET /api/grant/{link}` and `GET /api/view/{link}`
+ * carries `addressChanges`: the rows linked to this person and nobody else's,
+ * each `oldKey`, `oldAddress`, `newAddress` and `state`
+ * (`apps/api/src/routes/link-address-changes.ts`, `LinkAddressChange` in
+ * `openapi.yaml`). `PUT /api/{grant|view}/{link}/address-changes/{oldKey}`
+ * takes `{ state }` and nothing else, and answers the row in the same shape.
+ * The field is optional here, so a server a release behind, which does not
+ * send it, leaves the pages saying nothing about an address.
  */
 
 import { z } from 'zod';
@@ -31,7 +33,11 @@ export type LinkAddressChange = z.infer<typeof LinkAddressChangeSchema>;
 /** The person's rows, where the payload carries them; absent from a server that does not. */
 export const LinkAddressChangesField = z.array(LinkAddressChangeSchema).optional();
 
-/** *Yes* confirms the row; *Not right?* sends it back to proposed, for whoever set it up. */
+/**
+ * *Yes* confirms the row as the person's own; *Not right?* sends a confirmed
+ * one back to proposed, where it changes nothing and waits for whoever set it
+ * up. Answers the row as it is now.
+ */
 export async function answerAddressChangeByLink(
   door: 'grant' | 'view',
   link: string,
