@@ -25,8 +25,9 @@
  *     one key); cancelled, killed within a heartbeat; at a stop, given its
  *     grace, then killed and retried;
  *  6. the tick's interlock across runners, its pg-boss half: held under the
- *     other runner's beat, and under a shared beat somebody else wrote; not
- *     under its own; and two runners left running start nothing.
+ *     other runner's beat (Trigger.dev's, which an alpha.17 plane could still
+ *     have written; alpha.18 removed that runner, workplan 0167 T9), and under
+ *     a shared beat somebody else wrote; not under its own.
  *
  * THE JOBS ROLE is made by `deploy/compose/jobs-role.sql`, the bring-up's own
  * file (#2041), run here as it is; the password is set after, as the bring-up
@@ -962,8 +963,8 @@ describe("what a run's process holds in memory, for the worker's limit (0167, de
 });
 
 describe("the tick's interlock across runners, its pg-boss half", () => {
-  /** A runner port that records what the tick asks of it, named as either runner. */
-  function recordingPort(name: 'trigger' | 'pg-boss'): { port: JobRunnerPort; enqueued: string[] } {
+  /** A runner port that records what the tick asks of it. */
+  function recordingPort(name: 'pg-boss'): { port: JobRunnerPort; enqueued: string[] } {
     const enqueued: string[] = [];
     return {
       enqueued,
@@ -1064,28 +1065,6 @@ describe("the tick's interlock across runners, its pg-boss half", () => {
       expect(after).toBeGreaterThan(before);
       expect((await beatOf('managed-sync-tick-pg-boss'))!.getTime()).toBe(after);
     }
-  });
-
-  it('two runners left running start nothing, and nobody writes the shared beat', async () => {
-    await forgetBeats();
-    await beat('managed-sync-tick', 200);
-    const shared = await beatOf('managed-sync-tick');
-    const onTrigger = recordingPort('trigger');
-    const onPgBoss = recordingPort('pg-boss');
-    // Trigger.dev's tick runs first and writes both of its beats.
-    const first = await tick({}, { runner: onTrigger.port });
-    expect(first.anotherRunner).toBeUndefined();
-    // Then they alternate, as two schedules on one minute do.
-    for (let i = 0; i < 2; i++) {
-      expect(await tick({}, { runner: onPgBoss.port })).toMatchObject({ anotherRunner: 'trigger', triggered: 0 });
-      expect(await tick({}, { runner: onTrigger.port })).toMatchObject({ anotherRunner: 'pg-boss', triggered: 0 });
-    }
-    expect(onPgBoss.enqueued).toEqual([]);
-    const sharedAfterFirst = await beatOf('managed-sync-tick');
-    expect(sharedAfterFirst!.getTime()).toBeGreaterThan(shared!.getTime());
-    // Since the first tick, nobody: the status page's Scheduled syncs goes red.
-    expect((await beatOf('managed-sync-tick-pg-boss'))!.getTime()).toBeGreaterThan(sharedAfterFirst!.getTime());
-    expect((await beatOf('managed-sync-tick-trigger'))!.getTime()).toBeGreaterThan(sharedAfterFirst!.getTime());
   });
 
   it("the pg-boss tick in its own process, under the worker, holds under a shared beat somebody else wrote", async () => {

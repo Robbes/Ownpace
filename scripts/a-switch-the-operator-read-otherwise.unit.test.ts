@@ -18,8 +18,9 @@
  *
  * What holds: for every verb, `operator.sh` asks job-runner.sh, the scripts'
  * one reader of the switch, and hands its answer to the command, so an empty
- * `.env` is pg-boss, `trigger` is trigger, and a value that is neither stops it
- * before Node runs.
+ * `.env` is pg-boss, and any other value stops it before Node runs: `trigger`,
+ * the way back until alpha.18 removed Trigger.dev (workplan 0167 T9), with the
+ * sentence that says so, and a value that is neither with its own.
  *
  * Run with stand-ins for `docker` (the published port) and `pnpm` (prints the
  * value it was handed).
@@ -71,19 +72,28 @@ describe("operator.sh reads the switch as the containers are told it (0167 T7)",
     expect(run('', ['jobs']).out).toContain('handed OWNPACE_JOB_RUNNER=pg-boss');
   });
 
-  it('trigger, the way back, is trigger', () => {
-    expect(run('OWNPACE_JOB_RUNNER=trigger\n', ['jobs']).out).toContain('handed OWNPACE_JOB_RUNNER=trigger');
-  });
+  it.each([['jobs'], ['close'], ['list']])(
+    'trigger, from an old .env, stops `%s` before Node runs: Trigger.dev was removed in alpha.18 (0167 T9)',
+    (verb) => {
+      const r = run('OWNPACE_JOB_RUNNER=trigger\n', [verb]);
+      expect(r.status).toBe(1);
+      expect(r.out).toMatch(
+        /FATAL: OWNPACE_JOB_RUNNER in .* is trigger, but Trigger\.dev was removed in alpha\.18, so remove the key from the \.env or set it to pg-boss; nothing has run\./,
+      );
+      expect(r.out).not.toContain('handed');
+    },
+  );
 
   it('a value that is neither stops it before Node runs', () => {
     const r = run('OWNPACE_JOB_RUNNER=both\n', ['jobs']);
     expect(r.status).toBe(1);
-    expect(r.out).toMatch(/FATAL: OWNPACE_JOB_RUNNER in .* is neither trigger nor pg-boss/);
+    expect(r.out).toMatch(/FATAL: OWNPACE_JOB_RUNNER in .* is not pg-boss/);
+    expect(r.out).not.toContain('both');
     expect(r.out).not.toContain('handed');
   });
 
-  it('every other verb is handed the same answer: close cancels on that runner', () => {
+  it('every other verb is handed the same answer: close cancels on pg-boss', () => {
     expect(run('OWNPACE_JOB_RUNNER=\n', ['close']).out).toContain('handed OWNPACE_JOB_RUNNER=pg-boss');
-    expect(run('OWNPACE_JOB_RUNNER=trigger\n', ['list']).out).toContain('handed OWNPACE_JOB_RUNNER=trigger');
+    expect(run('OWNPACE_JOB_RUNNER=pg-boss\n', ['list']).out).toContain('handed OWNPACE_JOB_RUNNER=pg-boss');
   });
 });

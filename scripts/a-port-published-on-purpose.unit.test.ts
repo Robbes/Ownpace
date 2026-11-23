@@ -49,14 +49,14 @@
  * A BIND IS ONE IPv4 ADDRESS, AND THE BRING-UP SAYS SO BEFORE COMPOSE DOES.
  * The review of the build found three values that pass everything until the
  * first run that reads the key, and none of them names it: a NAME (the owner
- * was told to copy `TRIGGER_TLS_HOST`, which may be one) fails every compose
+ * was told to copy a host setting, which may be one) fails every compose
  * command against the file with `invalid IP address`; `0.0.0.0` renders beside
  * the fixed loopback publish and the container cannot bind; `KEY=  # note`
  * hands Compose the note. `bootstrap-managed.sh`'s `load_env` refuses all
- * three, naming the key, and the cases below run it for real. The same review
- * found the script's own advice for opening the dashboard from a laptop
- * without the bind, so that advice, and a note when the host is set and the
- * bind is not, are pinned here too.
+ * three, naming the key, and the cases below run it for real. (The same review
+ * found the script's advice for opening Trigger.dev's dashboard from a laptop
+ * without its bind; the dashboard, its two binds and that note went with the
+ * plane in alpha.18, workplan 0167 T9, and the last block here holds that.)
  *
  * AND THE READERS READ WHAT A REGRESSION WOULD WRITE. The first version found
  * Stalwart's publishes only as a double-quoted `-p "…"`, and the seeder case
@@ -206,8 +206,6 @@ const NAMED = {
   'managed.yml': [
     'POSTGRES_BIND',
     'API_BIND',
-    'TRIGGER_BIND',
-    'TRIGGER_TLS_BIND',
     'ZITADEL_BIND',
     'WEB_BIND',
     'STATUS_BIND',
@@ -333,7 +331,7 @@ function runBootstrapFunction(
 }
 
 describe('the bring-up refuses a bind that is not an address, before Compose does', () => {
-  // A bind takes an IPv4 address. A NAME (`TRIGGER_TLS_HOST` may be one) fails
+  // A bind takes an IPv4 address. A NAME (a host setting may be one) fails
   // every compose command against the file with `invalid IP address`, the
   // gate's bring-up and teardown included. `0.0.0.0` renders beside the fixed
   // loopback publish of the same port, and the container then cannot bind at
@@ -372,7 +370,7 @@ describe('the bring-up refuses a bind that is not an address, before Compose doe
     ['STATUS_BIND', '::', 'every interface'],
     ['MAILPIT_BIND', '[::]', 'every interface'],
     ['ZITADEL_BIND', 'machine.example.net', 'not an IPv4 address'],
-    ['TRIGGER_TLS_BIND', 'localhost', 'not an IPv4 address'],
+    ['POSTGRES_BIND', 'localhost', 'not an IPv4 address'],
     ['WWW_BIND', '256.1.1.1', 'not an IPv4 address'],
     ['API_BIND', '010.0.0.1', 'not an IPv4 address'],
     ['NEXTCLOUD_BIND', '100.64.0', 'not an IPv4 address'],
@@ -403,44 +401,22 @@ describe('the bring-up refuses a bind that is not an address, before Compose doe
   });
 });
 
-describe('the bring-up says the dashboard needs TRIGGER_TLS_BIND to leave the machine', () => {
-  // trigger-tls publishes on loopback unless TRIGGER_TLS_BIND adds an address.
-  // An operator who follows the script's own advice, TRIGGER_TLS_HOST and the
-  // https origins, gets a dashboard the laptop never reaches, and the magic
-  // link the account step prints goes nowhere.
-  it("phase_env's advice and the decisions it lists name the bind", () => {
-    const env = shellFunction(BOOTSTRAP, 'phase_env');
-    const advice = env.slice(env.indexOf('TRIGGER_TLS_HOST=localhost —'));
-    expect(advice.slice(0, advice.indexOf('\n  fi')), 'the localhost advice').toContain('TRIGGER_TLS_BIND');
-    const decisions = env.slice(env.indexOf('<<EOF'), env.indexOf('\nEOF'));
-    expect(decisions, 'the decisions a new .env asks for').toContain('TRIGGER_TLS_BIND');
-  });
-
-  const FN = 'note_dashboard_on_this_machine_only';
-  const noteFor = (lines: readonly string[]) => runBootstrapFunction(FN, lines, FN);
-
-  it('is said on every phase that reads the .env, not only on the first', () => {
-    expect(shellFunction(BOOTSTRAP, FN), `bootstrap-managed.sh has no ${FN}()`).not.toBe('');
-    expect(shellFunction(BOOTSTRAP, 'load_env')).toContain(`\n  ${FN}\n`);
-  });
-
-  it('notes an off-machine TRIGGER_TLS_HOST with no bind, and names the bind', () => {
-    const r = noteFor(['TRIGGER_TLS_HOST=192.0.2.20', 'TRIGGER_TLS_BIND=']);
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toContain('TRIGGER_TLS_BIND');
-    // The gate's log is public, and this is the machine's mesh address.
-    expect(r.stdout).not.toContain('192.0.2.20');
-  });
-
-  it.each([
-    [['TRIGGER_TLS_HOST=localhost', 'TRIGGER_TLS_BIND=']],
-    [['TRIGGER_TLS_HOST=127.0.0.1']],
-    [['TRIGGER_TLS_BIND=']],
-    [['TRIGGER_TLS_HOST=192.0.2.20', 'TRIGGER_TLS_BIND=192.0.2.20']],
-  ])('says nothing when the dashboard is meant for this machine, or already bound: %j', (lines) => {
-    const r = noteFor(lines);
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toBe('');
+describe("Trigger.dev's two binds went with its plane (workplan 0167 T9)", () => {
+  // trigger-api published on TRIGGER_BIND and its TLS front on TRIGGER_TLS_BIND,
+  // and the bring-up noted a dashboard host with no bind. alpha.18 removed the
+  // plane; a bind left in the example, the file or the bring-up is a setting
+  // that does nothing, and a call left to the note's function fails every phase.
+  it('neither managed.yml nor the example names them, and the bring-up says nothing of the dashboard', () => {
+    const example = readFileSync(join(COMPOSE, 'managed.env.example'), 'utf8');
+    const yml = read('deploy/compose/managed.yml');
+    for (const key of ['TRIGGER_BIND', 'TRIGGER_TLS_BIND']) {
+      expect(example, `managed.env.example still lists ${key}`).not.toMatch(new RegExp(`^${key}=`, 'm'));
+      expect(yml, `managed.yml still publishes through ${key}`).not.toContain(`\${${key}`);
+    }
+    expect(BOOTSTRAP, 'bootstrap-managed.sh still names the dashboard note').not.toContain(
+      'note_dashboard_on_this_machine_only',
+    );
+    expect(BOOTSTRAP).not.toContain('TRIGGER_TLS_BIND');
   });
 });
 

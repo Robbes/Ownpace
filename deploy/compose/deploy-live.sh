@@ -89,13 +89,13 @@
 # (a), 2026-09-28; 0132 T6 step 4). Right before the checkout, after every
 # refusal, with the hold on and nothing in flight, it runs
 #
-#   copy-before-update.sh take [--trigger] <tag>
+#   copy-before-update.sh take <tag>
 #
 # the checkout's own copy, which dumps the app's database, the sign-in
 # service's database and the roles, each read back, into
-# ~/.persistent/<project>/copy-before-update; with --trigger, which this passes
-# when the tag moves the Trigger.dev pin in managed.yml over anything the
-# comparison below names (or cannot compare), the task runner's database too.
+# ~/.persistent/<project>/copy-before-update. (Until alpha.18 it passed
+# --trigger too, for the task runner's database, when the tag moved the
+# Trigger.dev pin; alpha.18 removed Trigger.dev, workplan 0167 T9.)
 # A copy whose update is not proven yet is kept instead, and no second one is
 # taken: after a deploy that did not take it is still the copy of what ran
 # before. A take that fails or refuses (a copy of a proven update still there:
@@ -213,18 +213,18 @@
 #       only the build makes would otherwise pass the dry run and fail the
 #       deploy after the checkout.
 #
-# EITHER RUNNER (workplan 0167 T7). The jobs run on Trigger.dev's plane or on
-# the worker (pg-boss), by OWNPACE_JOB_RUNNER, read by job-runner.sh for this
-# checkout (what runs now) and for the tag (what its bring-up will run), each
-# said with where it came from. A tag whose managed.yml has no switch runs the
-# one runner it has. In pg-boss mode: the drain also counts pg-boss's jobs
-# created, retrying or active outside the schedule queues and its own
-# `__pgboss__*` queues; a tag whose bring-up runs pg-boss takes the copy
-# without --trigger; on a stack on pg-boss, a tag without the plane's lines is
-# not one-way by itself, and a move of pg-boss's version or schema version is.
-# A tag without the plane onto a stack still on it is refused: switch to
-# pg-boss with the bring-up first. Before the checkout of a tag that defines no
-# worker, the worker is stopped and removed.
+# THE RUNNER (workplan 0167 T7 and T9). The jobs run on the worker (pg-boss),
+# the only runner since alpha.18 removed Trigger.dev. OWNPACE_JOB_RUNNER is
+# read by job-runner.sh for this checkout (what runs now) and for the tag
+# (what its bring-up will run), each said with where it came from; `trigger`
+# in live's .env is refused before anything moves, in one sentence, and so is
+# a tag from before alpha.16, whose managed.yml has no switch and whose
+# bring-up would start Trigger.dev's plane. The drain also counts pg-boss's
+# jobs created, retrying or active outside the schedule queues and its own
+# `__pgboss__*` queues; a move of pg-boss's version or schema version is
+# one-way; a tag that takes the plane's lines out of managed.yml, or puts
+# alpha.16's and alpha.17's stopped plane back (the way back to alpha.17), is
+# not one-way by itself.
 #
 # ONE-WAY OR REVERSIBLE (0146 T5). Before the checkout moves, and again at the
 # end, it says whether the deploy can be undone by deploying a tag this stack
@@ -237,10 +237,12 @@
 #       first deploy by this script, it is the only one).
 #
 # It is ONE-WAY when, between any of them and the new tag, a file in either
-# migration chain was added, changed or removed, or the Trigger.dev,
-# identity-provider or ClickHouse image pin in managed.yml moved: the API
-# refuses an older build against a migrated schema (migrate.ts), both planes
-# migrate their own schemas one way (0119, 0135), and ClickHouse writes parts
+# migration chain was added, changed or removed, or the identity-provider
+# image pin in managed.yml moved, or, between two releases that both carry
+# Trigger.dev's plane (alpha.16 and alpha.17, where it is stopped), its pin or
+# ClickHouse's: the API refuses an older build against a migrated schema
+# (migrate.ts), both planes migrate their own schemas one way (0119, 0135),
+# and ClickHouse writes parts
 # its older release cannot read (26.3 and later over 26.2, 26.8 since the
 # owner's decision of 2026-11-02; once 26.7 or later has rotated a system log
 # table, a server older than 26.3 does not start on the volume at all: 0119 §3
@@ -346,9 +348,6 @@ STACK_RUNNER=''
 STACK_RUNNER_FROM=''
 TAG_RUNNER=''
 TAG_RUNNER_FROM=''
-# Set once worker_gone_before_checkout has stopped the worker, so that a
-# refusal after it does not say the stack is as it was.
-WORKER_GONE=''
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 # Plain progress for every compose call here and in the bring-up it starts:
@@ -389,13 +388,7 @@ refuse() {
   printf '[deploy-live] refused: %s\n' "$1" >&2
   shift
   [ "$#" -eq 0 ] || printf '  %s\n' "$@" >&2
-  if [ -n "$WORKER_GONE" ]; then
-    # worker_gone_before_checkout stopped and removed it, and the checkout did
-    # not happen: say so, and how to start it again (workplan 0167 T7).
-    printf '[deploy-live] The checkout is as it was. The stack is not: its worker was stopped and removed before the checkout; ./deploy/compose/bootstrap-managed.sh --only app starts it again.\n' >&2
-  else
-    printf '[deploy-live] The checkout and the stack are as they were.\n' >&2
-  fi
+  printf '[deploy-live] The checkout and the stack are as they were.\n' >&2
   exit 1
 }
 usage() {
@@ -709,7 +702,7 @@ main() {
   if [ -n "$dirty" ]; then
     refuse "the working tree is not clean. Live runs what the tag holds, and a checkout would carry these across or stop on them:" \
       "$dirty" \
-      "Look at each (git status, git diff).$(task_deploy_sentence "$STACK_RUNNER" '; discard that with git checkout -- apps/worker/package.json.')"
+      "Look at each (git status, git diff)."
   fi
 
   # ---- The tag: a release ---------------------------------------------------------
@@ -776,15 +769,6 @@ main() {
   TAG_RUNNER="$JOB_RUNNER"
   TAG_RUNNER_FROM="$JOB_RUNNER_FROM"
   say "the jobs run on ${STACK_RUNNER} here now (from ${STACK_RUNNER_FROM}); ${tag}'s bring-up will run them on ${TAG_RUNNER} (from ${TAG_RUNNER_FROM})"
-  # A TAG WITHOUT THE PLANE ONTO A STACK STILL ON IT (alpha.17 onto trigger
-  # mode). Its bring-up names no plane service, so nothing would stop the
-  # plane, and its supervisor would go on running the old tasks against the
-  # new schema beside the tag's worker: two runners. Refused before anything
-  # moves.
-  if [ "$STACK_RUNNER" = "$JOB_RUNNER_TRIGGER" ] && [ -z "$(trigger_pin "$commit")$(image_pins "$commit" 'clickhouse\/clickhouse-server')" ]; then
-    refuse "${tag}'s managed.yml has no Trigger.dev plane, and this stack's jobs still run on it (${JOB_RUNNER_KEY}=${JOB_RUNNER_TRIGGER}): switch to pg-boss with the bring-up first, then deploy." \
-      "With the hold on and the drain done: ./deploy/compose/env-upsert.sh deploy/compose/.env ${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}, then ./deploy/compose/bootstrap-managed.sh --from data, which stops the plane in order and starts the worker (docs/managed-bring-up.md, The two runners). Then run this again."
-  fi
 
   # ---- The site at this tag: its own project, a port, no blank in its texts --------
   if [ "$site" = on ]; then
@@ -860,11 +844,6 @@ main() {
   # run it answers the same question and writes nothing.
   local -a copy_args=(take)
   [ -z "$dry_run" ] || copy_args+=(--dry-run)
-  if [ "$TAG_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
-    say "no --trigger: ${tag}'s bring-up runs the jobs on pg-boss, so it starts no Trigger.dev plane and nothing migrates triggerdb (workplan 0167 T7)."
-  elif trigger_moves "$commit" "${bases[@]}"; then
-    copy_args+=(--trigger)
-  fi
   copy_args+=("$tag")
   say "the copy before the update: copy-before-update.sh ${copy_args[*]}"
   "${SCRIPT_DIR}/copy-before-update.sh" "${copy_args[@]}" ||
@@ -874,9 +853,6 @@ main() {
   # ---- --dry-run stops here, before anything moves ---------------------------------
   if [ -n "$dry_run" ]; then
     echo
-    if ! job_runner_has_service "$(git -C "$REPO_ROOT" show "${commit}:deploy/compose/managed.yml" 2>/dev/null)" worker; then
-      say "dry run: ${tag}'s managed.yml defines no worker, so a deploy would stop and remove this stack's worker, if it has one, before the checkout."
-    fi
     say "dry run: a deploy of ${tag} now would be ${verdict}."
     if [ "$verdict" = one-way ]; then
       say "dry run: after it, the way back is forward, or the copy the deploy takes right before its checkout, until day 6 (copy-before-update.sh; the operator runbook's The copy before an update). Run this again without --dry-run to deploy it."
@@ -896,12 +872,6 @@ main() {
   # reader when the tag has none of its own (app_headers_check).
   local started_at
   started_at="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-  # A tag whose managed.yml defines no worker (alpha.14, alpha.15) would leave
-  # this one running beside the plane its bring-up starts: nothing runs
-  # --remove-orphans. So it goes first, while this checkout still knows it.
-  if ! job_runner_has_service "$(git -C "$REPO_ROOT" show "${commit}:deploy/compose/managed.yml" 2>/dev/null)" worker; then
-    worker_gone_before_checkout "$tag"
-  fi
   say "checking out ${tag}"
   git -C "$REPO_ROOT" -c advice.detachedHead=false checkout -q --detach "refs/tags/${tag}" ||
     refuse "git checkout --detach ${tag} failed (above)."
@@ -911,11 +881,7 @@ main() {
 
   say "installing the tag's dependencies"
   if ! (cd "$REPO_ROOT" && pnpm install --frozen-lockfile); then
-    if [ "$TAG_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
-      did_not_take "$deploy_log" "$tag" "$commit" "$verdict" "pnpm install --frozen-lockfile failed (above). The tag's own scripts run from this checkout's node_modules."
-    else
-      did_not_take "$deploy_log" "$tag" "$commit" "$verdict" "pnpm install --frozen-lockfile failed (above). The task deploy builds from this checkout's node_modules."
-    fi
+    did_not_take "$deploy_log" "$tag" "$commit" "$verdict" "pnpm install --frozen-lockfile failed (above). The tag's own scripts run from this checkout's node_modules."
   fi
 
   # The tag's own bring-up. GIT_SHA is `git rev-parse HEAD` inside it, which is
@@ -1038,7 +1004,7 @@ main() {
     say "NOTE: git could not read the working tree after the deploy (above); the next deploy asks again."
   elif [ -n "$dirty" ]; then
     say "NOTE: the deploy left the working tree changed, and the next deploy refuses that:" "$dirty" \
-      "Look at it (git diff).$(task_deploy_sentence "$TAG_RUNNER" .)"
+      "Look at it (git diff)."
   fi
 }
 
@@ -1113,51 +1079,6 @@ compose_reports_project() {
   sed -n 's/^name:[[:space:]]*//p' <<<"$cfg"
 }
 
-# task_deploy_sentence <runner> <end> — the sentence about the task deploy's
-# change to apps/worker/package.json, with <end> after it, in trigger mode;
-# nothing in pg-boss mode, where no task is deployed (workplan 0167 T7).
-task_deploy_sentence() {
-  [ "${1:-}" != "$JOB_RUNNER_PGBOSS" ] || return 0
-  printf " The task deploy is known to strip apps/worker/package.json's last newline%s" "${2:-.}"
-}
-
-# worker_gone_before_checkout <tag> — the worker stopped (its grace period
-# lets a run's child finish or be killed) and removed, before the checkout of
-# a tag whose managed.yml defines none. With this checkout's Compose, its
-# profile named, when this managed.yml defines it; otherwise by the container
-# name managed.yml gives it, <project>-worker. Refuses, before the checkout,
-# when it could not be done. The hold is on and the drain was done, so no run
-# is cut short.
-worker_gone_before_checkout() {
-  local tag="$1" ids
-  local -a worker_compose=("${COMPOSE[@]}" --profile jobs)
-  if job_runner_has_service "$(cat "${SCRIPT_DIR}/managed.yml" 2>/dev/null)" worker; then
-    ids="$("${worker_compose[@]}" ps -a -q worker)" ||
-      refuse "could not ask Compose whether this stack has a worker (above), and ${tag} defines none: it would keep running beside the plane ${tag} starts. Nothing was checked out."
-    if [ -z "$ids" ]; then
-      say "${tag} defines no worker, and this stack has none: nothing to stop"
-      return 0
-    fi
-    "${worker_compose[@]}" stop worker ||
-      refuse "the worker did not stop (above), and ${tag} defines none. Nothing was checked out."
-    "${worker_compose[@]}" rm -f worker >/dev/null ||
-      refuse "the worker stopped and was not removed (above), and ${tag} defines none. Nothing was checked out."
-  else
-    ids="$(docker ps -a -q --filter "name=^${COMPOSE_PROJECT}-worker\$")" ||
-      refuse "could not ask Docker whether this stack has a worker (above), and ${tag} defines none. Nothing was checked out."
-    if [ -z "$ids" ]; then
-      say "${tag} defines no worker, and this stack has none: nothing to stop"
-      return 0
-    fi
-    docker stop -t 60 "${COMPOSE_PROJECT}-worker" >/dev/null ||
-      refuse "the worker did not stop (above), and ${tag} defines none. Nothing was checked out."
-    docker rm "${COMPOSE_PROJECT}-worker" >/dev/null ||
-      refuse "the worker stopped and was not removed (above), and ${tag} defines none. Nothing was checked out."
-  fi
-  WORKER_GONE=1
-  say "the worker stopped and removed before the checkout: ${tag}'s managed.yml defines none, so nothing after it would stop it, and its runs and the plane's never overlap (workplan 0167 T7)"
-}
-
 # One line, `superuser|open holds|age of the open hold in seconds|passes in
 # flight|pg-boss jobs waiting`, read as the owner over the postgres container's
 # own socket. Reads only. The in-flight count is the tick's own
@@ -1218,29 +1139,6 @@ comparison_bases() {
         out(c[i], t[i], "a deploy that did not take (deploys.log), whose bring-up may have migrated the database")
       out(head, head_name, (took_c == "" && n == 0) ? "this checkout'"'"'s HEAD (deploys.log records no deploy yet)" : "this checkout'"'"'s HEAD")
     }' "$log"
-}
-
-# trigger_moves <new> <base>… — true when the Trigger.dev pin in managed.yml
-# at <new> is not the one at every base (each a comparison_bases line), or
-# cannot be compared with one: the copy before the update then holds the task
-# runner's database too. The error errs towards taking it.
-trigger_moves() {
-  local new="$1" entry base new_pins old_pins
-  shift
-  # In pg-boss mode the tag's bring-up stops the plane: nothing migrates
-  # triggerdb (workplan 0167 T7).
-  [ "$TAG_RUNNER" != "$JOB_RUNNER_PGBOSS" ] || return 1
-  new_pins="$(trigger_pin "$new")" || new_pins=''
-  [ -n "$new_pins" ] || return 0
-  for entry in "$@"; do
-    base="${entry%%$'\t'*}"
-    [ -n "$base" ] || continue
-    [ "$base" != - ] || return 0
-    git -C "$REPO_ROOT" cat-file -e "${base}^{commit}" 2>/dev/null || return 0
-    old_pins="$(trigger_pin "$base")" || old_pins=''
-    [ "$old_pins" = "$new_pins" ] || return 0
-  done
-  return 1
 }
 
 # trigger_pin <commit> — the Trigger.dev version managed.yml at that commit
@@ -1313,20 +1211,26 @@ differences() {
       *) echo "changes ${file}" ;;
     esac
   done <<<"$changed"
-  # THE PLANE TAKEN OUT (workplan 0167 T7). A tag whose managed.yml has
-  # neither the Trigger.dev nor the ClickHouse line, over one that had both,
-  # removes the plane: on a stack whose jobs run on pg-boss its services are
-  # stopped already, and their volumes stay, so that is no one-way move by
-  # itself. A `note:` line, which compare_releases says and does not count.
-  # Where neither has them, there is nothing to compare.
+  # THE PLANE TAKEN OUT, OR PUT BACK STOPPED (workplan 0167 T7 and T9). A tag
+  # whose managed.yml has neither the Trigger.dev nor the ClickHouse line,
+  # over one that had them (alpha.18 over alpha.17), removes the plane; one
+  # that has them over one that had none (alpha.17 over alpha.18, the way
+  # back) puts it back in profile `trigger`, stopped, and its bring-up starts
+  # none of it. The jobs run on pg-boss either way, so neither is a one-way
+  # move by itself. A `note:` line, which compare_releases says and does not
+  # count. Where neither has them, there is nothing to compare; where both
+  # have them, their pins are compared as before.
   local plane_old plane_new
   plane_old="$(trigger_pin "$base")$(image_pins "$base" 'clickhouse\/clickhouse-server')"
   plane_new="$(trigger_pin "$new")$(image_pins "$new" 'clickhouse\/clickhouse-server')"
   local -a pinned=('Trigger.dev' 'identity provider:zitadel\/zitadel' 'ClickHouse:clickhouse\/clickhouse-server')
   if [ -z "$plane_old" ] && [ -z "$plane_new" ]; then
     pinned=('identity provider:zitadel\/zitadel')
-  elif [ -n "$plane_old" ] && [ -z "$plane_new" ] && [ "$STACK_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
-    echo "note: removes the Trigger.dev plane from managed.yml (its volumes stay); this stack's jobs run on pg-boss, so its services are stopped already"
+  elif [ -n "$plane_old" ] && [ -z "$plane_new" ]; then
+    echo "note: removes the Trigger.dev plane from managed.yml; the bring-up removes its stopped containers, and its volumes stay until remove-trigger-plane.sh removes them"
+    pinned=('identity provider:zitadel\/zitadel')
+  elif [ -z "$plane_old" ] && [ -n "$plane_new" ]; then
+    echo "note: puts Trigger.dev's plane back in managed.yml, in profile trigger and stopped; its bring-up runs the jobs on pg-boss and starts none of it"
     pinned=('identity provider:zitadel\/zitadel')
   fi
   # PG-BOSS'S OWN SCHEMA (workplan 0167 T7): pg-boss migrates it forward when
@@ -1415,7 +1319,7 @@ compare_releases() {
     say "  The API refuses an older build against a migrated schema, the Trigger.dev and identity-provider planes migrate their own schemas one way (workplan 0146 T5), and ClickHouse writes parts its older release cannot read (0119 §3 item 9)."
     say "  The way back, if this tag misbehaves, is forward: a fix, a new tag, this script. The copy this script takes right before its checkout (copy-before-update.sh) is the only other, until day 6."
     if grep -q '^  moves the ClickHouse pin ' <<<"$(printf '%s\n' "${over[@]}")"; then
-      say "  That copy holds no ClickHouse volume, and this tag moves the ClickHouse pin: copy the volume by hand before this deploy, as docs/managed-bring-up.md (Moving ClickHouse, on live) says, or the way back starts the older ClickHouse on parts it cannot read."
+      say "  That copy holds no ClickHouse volume, and this tag moves the ClickHouse pin: copy the volume by hand before this deploy, as the docs/managed-bring-up.md of a release that still carried ClickHouse (alpha.17 or before; Moving ClickHouse, on live) says, or the way back starts the older ClickHouse on parts it cannot read."
     fi
   else
     say "reversible: over each of those, ${tag} adds, changes or removes no migration file in either chain, and moves none of the Trigger.dev, identity-provider and ClickHouse pins in managed.yml, nor pg-boss's version or schema version."

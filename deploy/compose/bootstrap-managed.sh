@@ -5,26 +5,17 @@
 # more than once, and each time the notes were a little out of date. This is
 # those notes as a program: every step that a machine can do, done; every step
 # that genuinely needs a person, STOPPED at, with the exact thing to click and
-# the exact command to resume. Nothing is left as "and then configure Trigger".
+# the exact command to resume. Nothing is left as "and then configure it".
 #
-# WHAT IT CANNOT DO, STATED UP FRONT. The self-hosted Trigger.dev webapp signs
-# you in by magic link and has no admin API, so creating the account,
-# organisation and project is a human step and there is no version of this
-# script that removes it. What the script does instead is make it the ONLY
-# one: it finds the magic link for you (trigger-magic-link.sh), and it reads
-# the project ref and production key back out of the instance afterwards
-# (trigger-credentials.sh) rather than asking you to transcribe them.
-#
-# EITHER RUNNER (workplan 0167 T7). OWNPACE_JOB_RUNNER, read by job-runner.sh,
-# says whether the jobs run on Trigger.dev's plane (`trigger`) or in the worker
-# on pg-boss (`pg-boss`). In pg-boss mode there is no human step: the trigger
-# phase checks the worker can start (its size from MAX_PASSES_IN_FLIGHT, its
-# CPU cap and memory limit against the host's, no comment where it reads a
-# value), then stops
-# the plane in order and keeps its volumes; account, login and tasks are
-# skipped; the app phase builds api, web and worker, asks the system role, and
-# starts the worker after the api, recreated whenever the api was. In trigger
-# mode a worker is stopped and removed first, and all else is as below.
+# NO HUMAN STEP SINCE ALPHA.18 (workplan 0167 T9). The jobs run in the
+# `worker` service on pg-boss (ADR-0054); Trigger.dev, whose webapp signed you
+# in by magic link and had no admin API, was removed, and with it the phases
+# that needed a person (account, login) and the ones that served its plane
+# (trigger, tasks). The `plane` phase in their place removes what a stack
+# that ran the plane still has of its containers, by name, and says which of
+# its volumes are left; it never removes a volume (remove-trigger-plane.sh
+# does, by name, when it is asked to). OWNPACE_JOB_RUNNER=trigger in .env is
+# refused before any phase runs, in one sentence (job-runner.sh).
 #
 # IDEMPOTENT AND RESUMABLE. Every phase checks whether it is already done. Run
 # it again after a `git pull`, after a reboot, after fixing whatever it stopped
@@ -32,7 +23,7 @@
 # exits 2 (not 1: "your turn" is not a failure) and prints the resume command.
 #
 #   ./bootstrap-managed.sh                 run every phase, in order
-#   ./bootstrap-managed.sh --from tasks    resume from a phase
+#   ./bootstrap-managed.sh --from app      resume from a phase
 #   ./bootstrap-managed.sh --only smoke    run exactly one phase
 #   ./bootstrap-managed.sh --list          the phases, in order
 #   ./bootstrap-managed.sh --with-demo     also provision the demo backend and
@@ -53,7 +44,7 @@
 # document; neither is meant to be read without the other existing.
 #
 # NO XTRACE (workplan 0132 T2). This reads every value in .env, and its data
-# and trigger phases set the database roles' passwords with db-roles.sh, which
+# and app phases set the database roles' passwords with db-roles.sh, which
 # nothing that sources it may run under `set -x`. Tracing prints every value a
 # command is given, so it is refused before anything is read, as
 # rotate-db-passwords.sh refuses it.
@@ -101,7 +92,7 @@ IDP_READY_TIMEOUT="${IDP_READY_TIMEOUT:-300}"
 ZITADEL_PULL_TIMEOUT="${ZITADEL_PULL_TIMEOUT:-600}"
 
 # What a log line looks like when it is reporting that something FAILED, across
-# every image this stack runs: logfmt (Zitadel, Trigger.dev, Caddy), JSON, bare
+# every image this stack runs: logfmt (Zitadel), JSON, bare
 # uppercase severities (Postgres `FATAL:`), Go panics, Node errors, Python
 # tracebacks.
 #
@@ -113,16 +104,17 @@ ZITADEL_PULL_TIMEOUT="${ZITADEL_PULL_TIMEOUT:-600}"
 # a valid ERE for grep and a valid regex for the test that applies it to real
 # captured log lines. A test that re-types the pattern tests its own copy.
 FATAL_LINE_RE='level=(error|fatal)|"level":"(error|fatal)"|(^|[^A-Za-z])(FATAL|PANIC|ERROR)([^A-Za-z]|$)|panic:|(^|[ |])Error:|Traceback \(most recent call last\)'
-# shellcheck source=trigger-cli-lib.sh
-. "${SCRIPT_DIR}/trigger-cli-lib.sh"
-# WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054): OWNPACE_JOB_RUNNER,
-# `trigger` or `pg-boss`, read by the one reader every script here uses. The
-# phases that differ by it (trigger, account, login, app, tasks) ask it after
-# load_env, through runner_mode below, and every one they skip says so.
+# THE JOB RUNNER'S SWITCH (workplan 0167 T7 and T9, ADR-0054): OWNPACE_JOB_RUNNER,
+# read by the one reader every script here uses. pg-boss is the only runner;
+# `trigger` is refused, before any phase runs, in one sentence.
 # shellcheck source=deploy/compose/job-runner.sh
 . "${SCRIPT_DIR}/job-runner.sh"
 
-PHASES=(preflight env data demo trigger account login app tasks smoke)
+PHASES=(preflight env data demo plane app smoke)
+# The phases alpha.18 removed with Trigger.dev (workplan 0167 T9). Named in
+# --from or --only, they are refused in one sentence that says so, rather than
+# "no phase called".
+REMOVED_PHASES=(trigger account login tasks)
 WITH_DEMO=0
 NO_SMOKE=0
 ACCEPT_DEFAULTS=0
@@ -145,13 +137,20 @@ done
 known_phase() {
   local p
   for p in "${PHASES[@]}"; do [ "$p" = "$1" ] && return 0; done
+  for p in "${REMOVED_PHASES[@]}"; do
+    if [ "$p" = "$1" ]; then
+      echo "bootstrap-managed.sh: the phase '$1' went with Trigger.dev in alpha.18 (workplan 0167 T9); the jobs run in the worker, which the app phase starts. Phases: ${PHASES[*]}" >&2
+      return 1
+    fi
+  done
   echo "bootstrap-managed.sh: no phase called '$1'. Phases: ${PHASES[*]}" >&2
   return 1
 }
 [ -n "$FROM" ] && known_phase "$FROM"
 [ -n "$ONLY" ] && known_phase "$ONLY"
-# A value of the switch that is neither mode stops the bring-up here, before
-# any phase runs, in one sentence (job-runner.sh).
+# A value of the switch other than pg-boss (`trigger` among them, since
+# alpha.18) stops the bring-up here, before any phase runs, in one sentence
+# (job-runner.sh).
 if ! job_runner_mode "$SCRIPT_DIR" "$ENV_FILE"; then
   echo "!!! ${JOB_RUNNER_WHY}" >&2
   exit 1
@@ -269,14 +268,6 @@ load_env() {
   # provider. A date still ahead is kept (seed_pat_expiry, env-read.sh).
   seed_pat_expiry "$ENV_FILE" ||
     die "the provisioning token's first date could not be written into ${ENV_FILE} (above)."
-  # THE GROUP OF THE HOST'S DOCKER SOCKET, for the same reason and at the same
-  # place (workplan 0119, 2026-11-20): managed.yml requires DOCKER_SOCKET_GID,
-  # trigger-docker-proxy's group_add, and a `--from` run skips the env phase.
-  # Read from the socket on every run (seed_docker_socket_gid, env-read.sh), so
-  # live's first deploy of a checkout that carries it writes it with no step of
-  # the owner's.
-  seed_docker_socket_gid "$ENV_FILE" ||
-    die "the Docker socket's group could not be written into ${ENV_FILE} (above)."
   # THE JOBS ROLE'S PASSWORD, for the same reason and at the same place
   # (ADR-0054, workplan 0167 T7's first part): the data phase sets
   # JOBS_DB_PASSWORD on `ownpace_jobs` on every run (jobs_role_ready), and
@@ -305,9 +296,9 @@ load_env() {
   # managed.yml — including ones that never touch the service that is missing
   # it. The resulting message names a service the operator was not thinking
   # about, which reads as "that service is broken" rather than "your .env is
-  # incomplete". Seen live on the machine, 2026-08-18: an `exec` into trigger-db
-  # failed on pgbouncer's PGBOUNCER_AUTH_PASSWORD, and the honest reading of
-  # that error was that Trigger.dev was down. It was not.
+  # incomplete". Seen live on the machine, 2026-08-18: an `exec` into one
+  # service failed on pgbouncer's PGBOUNCER_AUTH_PASSWORD, and the honest
+  # reading of that error was that the service was down. It was not.
   #
   # So: check once, here, where every compose-using phase passes through, and
   # name the actual fix.
@@ -320,7 +311,6 @@ load_env() {
   note_relay_to_nowhere
   note_status_page_probes_itself
   note_site_row_half_configured
-  note_dashboard_on_this_machine_only
 
   # Before Compose reads the file: a bind that is a name fails `config` below
   # with Compose's words and no key, and `0.0.0.0` passes it and fails at `up`.
@@ -378,7 +368,7 @@ seed_jobs_db_password() {
 # IP there. Three mistakes pass everything until the first bring-up that reads
 # the key, and none of them names the key:
 #
-#   a NAME (TRIGGER_TLS_HOST may be one, and a bind "set to the same address"
+#   a NAME (a host key may be one, and a bind "set to the same address"
 #   copies it): Compose refuses the whole file, `invalid IP address: …`, so
 #   every compose command fails, the gate's bring-up and teardown included;
 #
@@ -500,10 +490,10 @@ web_url_is_real() { # web_url_is_real <WEB_URL>
 #
 # POSTGRES_PASSWORD (the owner, who passes every row-security policy),
 # APP_DB_PASSWORD (every organisation's rows, through the API),
-# CLICKHOUSE_PASSWORD and MINIO_ROOT_PASSWORD (Trigger.dev's event store and
-# its large payloads), and TRIGGER_DB_PASSWORD (Trigger.dev's own database:
-# its accounts, API keys, deployments and encrypted task environment). Each
-# is a value anybody can read in this repository
+# and ZITADEL_DB_PASSWORD where shipped-passwords.sh lists it. (Trigger.dev's
+# three, CLICKHOUSE_PASSWORD, MINIO_ROOT_PASSWORD and TRIGGER_DB_PASSWORD,
+# went with its plane in alpha.18.) Each is a value anybody can read in this
+# repository
 # when it is empty (compose's default then applies), a change-me… value, or
 # one of compose's or the migration's defaults: shipped-passwords.sh lists
 # them, once, for this, ensure-env-secrets.sh and rotate-db-passwords.sh.
@@ -520,23 +510,16 @@ web_url_is_real() { # web_url_is_real <WEB_URL>
 #
 # BY KEY, NEVER BY VALUE: each line says which key, and whether it is empty
 # or holds a published value.
-#
-# TRIGGER_DB_PASSWORD since 2026-10-05 (0132 T2, step B). It was split off
-# while the OTA stack's trigger_db_data held managed.yml's fallback and its
-# .env had no value: refusing it then would have stopped the nightly gate.
-# The owner ran rotate-db-passwords.sh --rotate --with-trigger-stores there
-# (step A) on 2026-10-05, which wrote a generated value to that .env.
 SHIPPED_PASSWORDS_NOTED=0
 refuse_shipped_passwords() {
   # shellcheck source=deploy/compose/shipped-passwords.sh
   . "${SCRIPT_DIR}/shipped-passwords.sh"
-  local entry key volume value app_role trigger_found=0
+  local entry key volume value app_role
   local -a found=()
   for entry in "${SHIPPED_PASSWORD_KEYS[@]}"; do
     read -r key volume <<<"$entry"
     value="$(shipped_password_bare "$(env_get "$key")")"
     shipped_password "$value" || continue
-    [ "$volume" = trigger_db_data ] && trigger_found=1
     if [ -z "$value" ]; then
       found+=("${key}: empty, so compose's default applies, and this repository publishes it")
     else
@@ -558,14 +541,10 @@ refuse_shipped_passwords() {
       # nothing there: its --sync and --rotate refuse live.
       echo "!!! This .env has a ${STACK_KIND_KEY} line: live's. Live's values are its own (workplan 0132 D8), and rotate-db-passwords.sh only checks them there." >&2
       echo "!!!   ./deploy/compose/rotate-db-passwords.sh --check says what opens, and changes nothing." >&2
-      echo "!!!   Workplan 0132 T2 steps 3 and 4 change a role's password, and its paragraph on ClickHouse and MinIO says how those change:" >&2
-      echo "!!!   by hand, within live's hold (T6). Before live's volumes exist, stand-up-live.sh generates them." >&2
-      if [ "$trigger_found" = 1 ]; then
-        echo "!!!   TRIGGER_DB_PASSWORD: before live's Trigger.dev account exists, ./deploy/compose/reset-trigger.sh --yes removes that database, and stand-up-live.sh then sets a new password." >&2
-      fi
+      echo "!!!   Workplan 0132 T2 steps 3 and 4 change a role's password: by hand, within live's hold (T6). Before live's volumes exist, stand-up-live.sh generates them." >&2
     else
-      echo "!!! Postgres and trigger-db keep the password their volumes were made with, and ClickHouse and MinIO take a new one only with their containers. On a stack that has them, change them together:" >&2
-      echo "!!!   ./deploy/compose/rotate-db-passwords.sh --check, then --rotate --with-trigger-stores at a quiet time." >&2
+      echo "!!! Postgres keeps the password its volume was made with. On a stack that has it, change the roles together:" >&2
+      echo "!!!   ./deploy/compose/rotate-db-passwords.sh --check, then --rotate at a quiet time." >&2
       echo "!!!   docs/managed-bring-up.md, \"Changing the database passwords\", is the procedure." >&2
       echo "!!! A new stack, before its volumes exist: ./deploy/compose/ensure-env-secrets.sh generates them." >&2
       echo "!!! A developer's own stack runs on localhost, where this is a note (workplan 0132 T2, D4)." >&2
@@ -696,8 +675,8 @@ note_mail_goes_nowhere_real() {
   note "  person will receive one — grants, declines and access requests alike."
   note "  Read what it caught:  http://localhost:$(env_or MAILPIT_PORT 3127)"
   note "  For real delivery, point SMTP_HOST at a relay and set NOTIFY_TO to an"
-  note "  address somebody reads, then re-run ./deploy/compose/set-task-env.sh"
-  note "  so the task containers see it too."
+  note "  address somebody reads, then bring the stack up again so the worker"
+  note "  sees it too."
 }
 
 # A RELAY THAT CANNOT DELIVER TO AN ADDRESS NOBODY OWNS (workplan 0133 T3 (c)).
@@ -724,7 +703,7 @@ note_relay_to_nowhere() {
         note "  to a real relay (${smtp}), which refuses or bounces it: the owner"
         note "  would never hear that somebody asked for access. Set a real address:"
         note "    ./deploy/compose/env-upsert.sh ${name}=<an address>"
-        note "  then re-run ./deploy/compose/set-task-env.sh for the tasks."
+        note "  then bring the stack up again, so the worker reads it too."
         ;;
     esac
   done
@@ -827,41 +806,6 @@ note_site_row_half_configured() {
   fi
 }
 
-# A DASHBOARD NAMED FOR THE LAPTOP AND PUBLISHED FOR THIS MACHINE.
-#
-# trigger-tls publishes on 127.0.0.1, and on TRIGGER_TLS_BIND's address too
-# when that is set (workplan 0132 T3). TRIGGER_TLS_HOST names the address the
-# browser uses, but it does not publish anything: with a host that is not this
-# machine's loopback and no bind, the certificate and the origins are right,
-# the magic link is printed, and nothing answers it from the laptop.
-#
-# The value is not printed. It is this machine's mesh address, and the gate's
-# log is public.
-#
-# A NOTE, NOT A REFUSAL: a dashboard reached through an SSH tunnel is a
-# legitimate way to work, and the stack is fine either way.
-DASHBOARD_NOTE_SAID=0
-note_dashboard_on_this_machine_only() {
-  [ "${DASHBOARD_NOTE_SAID:-0}" = "1" ] && return 0
-  local host bind
-  host="$(env_get TRIGGER_TLS_HOST)"
-  bind="$(env_get TRIGGER_TLS_BIND)"
-  case "$host" in
-    '' | localhost | 127.0.0.1) return 0 ;;
-  esac
-  [ -z "$bind" ] || return 0
-  DASHBOARD_NOTE_SAID=1
-
-  note "THE TRIGGER.DEV DASHBOARD ANSWERS ON THIS MACHINE ONLY. TRIGGER_TLS_HOST"
-  note "  names another address, and TRIGGER_TLS_BIND is empty, so trigger-tls"
-  note "  publishes on 127.0.0.1 alone. To open it from that address, set"
-  note "  TRIGGER_TLS_BIND to the IP address TRIGGER_TLS_HOST names (a bind takes"
-  note "  an IP address, never a name), then recreate the service:"
-  note "      ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_TLS_BIND=<that address>"
-  note "      docker compose -f deploy/compose/managed.yml up -d trigger-tls"
-  note "  docs/managed-bring-up.md, \"Which address a port answers on\"."
-}
-
 # THE `zitadel` ROLE'S PASSWORD, ASKED BEFORE THE CONTAINER IS STARTED.
 #
 # Zitadel finds an existing role, logs `user already exists, skipping
@@ -883,7 +827,7 @@ note_dashboard_on_this_machine_only() {
 # fixing one would have left the other lying. There is now one, and it is the
 # same script the refusal below tells you to run.
 # EVERY DOCKER NETWORK ON THIS MACHINE LIES INSIDE THE RULE'S RANGES (workplan
-# 0136 T1 (b)). The managed API and tasks refuse a host a tester types when it
+# 0136 T1 (b)). The managed API and jobs refuse a host a tester types when it
 # resolves inside the ranges in packages/shared/src/reachable-host.ts, and that
 # rule holds no range of its own for Docker's networks: with Docker's built-in
 # address pools they lie inside the private ranges. A daemon set to hand out
@@ -1005,9 +949,9 @@ explain_failure() { # explain_failure <service> [service...]
     local full
     full="$("${COMPOSE[@]}" logs "$svc" 2>&1 || true)"
     # THROUGH THE ADDRESS FILTER BEFORE ANY OF IT IS PRINTED. The gate's log is
-    # public, and these logs name this machine: the TLS front logs its site
-    # address, TRIGGER_TLS_HOST, at every start and every renewal (E2E
-    # (managed) #77, #199), an access log names the mesh peers it served, and
+    # public, and these logs name this machine: a TLS front logs its site
+    # address at every start and every renewal (Trigger.dev's did, until
+    # alpha.18: E2E (managed) #77, #199), an access log names the mesh peers it served, and
     # the web's ends each line with the visitor's own address, which NetBird
     # passes on (ops-trust-proxy (b)): own_address_redact takes all three out.
     # A here-string, not a pipe, for the reason given below.
@@ -1158,8 +1102,8 @@ phase_preflight() {
   [ -d "${REPO_ROOT}/node_modules" ] ||
     die "dependencies are not installed — run: pnpm install --frozen-lockfile"
 
-  # Disk. A managed stack is roughly ten images plus ClickHouse and MinIO
-  # volumes; running out halfway through the build and the `up` leaves a stack that is
+  # Disk. A managed stack is a handful of images and their volumes; running
+  # out halfway through the build and the `up` leaves a stack that is
   # partly built and wholly confusing.
   local free_gb
   free_gb="$(df -Pk "${REPO_ROOT}" | awk 'NR==2 {print int($4/1024/1024)}')"
@@ -1249,35 +1193,9 @@ phase_env() {
 
   "${SCRIPT_DIR}/ensure-env-secrets.sh"
 
-  # DEPLOY_IMAGE_PLATFORM is the setting that cannot be fixed later without a
-  # redeploy, and the one whose failure is worst: task images built for the
-  # wrong architecture produce runners that die at exec in under a second with
-  # AutoRemove deleting the evidence. managed.env.example ships linux/amd64,
-  # so on an arm64 box the DEFAULT is wrong — this is not a hypothetical.
-  # deploy-tasks.sh checks the same thing and refuses; here we fix it, because
-  # here we are the thing that owns the file.
-  if [ "${SKIP_PLATFORM_CHECK:-0}" != "1" ]; then
-    local host_platform=""
-    case "$(uname -m)" in
-      x86_64) host_platform="linux/amd64" ;;
-      aarch64 | arm64) host_platform="linux/arm64" ;;
-    esac
-    if [ -n "$host_platform" ]; then
-      local configured
-      configured="$(env_get DEPLOY_IMAGE_PLATFORM)"
-      if [ "$configured" != "$host_platform" ]; then
-        "${SCRIPT_DIR}/env-upsert.sh" "$ENV_FILE" "DEPLOY_IMAGE_PLATFORM=${host_platform}"
-        note "DEPLOY_IMAGE_PLATFORM was '${configured:-unset}', this host is $(uname -m) — set to ${host_platform}"
-      else
-        note "DEPLOY_IMAGE_PLATFORM=${host_platform} matches this host"
-      fi
-    fi
-  fi
-
   # The values a human must decide. Left as shipped they are not broken on a
   # developer's own stack on localhost, so this reports rather than refuses.
-  # The five database passwords (SHIPPED_PASSWORD_KEYS, trigger-db's among
-  # them) are ensure-env-secrets.sh's to generate while their volumes do not
+  # The database passwords (SHIPPED_PASSWORD_KEYS) are ensure-env-secrets.sh's to generate while their volumes do not
   # exist; one still shipped here has a volume already,
   # and on a real address every phase from data on refuses it (load_env,
   # refuse_shipped_passwords). The demo Nextcloud's admin is the demo's.
@@ -1297,18 +1215,7 @@ phase_env() {
     note "  Fine for a developer's own stack on localhost. On a real address (WEB_URL"
     note "  https, not localhost) every phase from 'data' on refuses the database ones."
     note "  On a stack whose volumes exist, docs/managed-bring-up.md, \"Changing the"
-    note "  database passwords\", changes them with the database and the stores."
-  fi
-
-  local host
-  host="$(env_get TRIGGER_TLS_HOST)"
-  if [ "$host" = "localhost" ]; then
-    note "TRIGGER_TLS_HOST=localhost — the dashboard will only be usable FROM this"
-    note "  machine. To reach it from your laptop, set TRIGGER_TLS_HOST (and the"
-    note "  https half of TRIGGER_APP_ORIGIN / TRIGGER_LOGIN_ORIGIN) to the address"
-    note "  the browser actually uses, and TRIGGER_TLS_BIND to that same IP address,"
-    note "  which publishes the port there (a bind takes an IP, never a name). Then"
-    note "  re-run --from trigger."
+    note "  database passwords\", changes them with the database."
   fi
 
   # The file has just been created, so NONE of the decisions above have been
@@ -1321,9 +1228,8 @@ phase_env() {
 
     ${ENV_FILE} has just been created. Read it before anything uses it —
     the passwords, the public URLs (CORS_ORIGIN / WEB_URL / API_URL), the
-    prices in PRICING_* (integer CENTS), TRIGGER_TLS_HOST, the *_BIND
-    addresses (TRIGGER_TLS_BIND beside TRIGGER_TLS_HOST, WEB_BIND and
-    ZITADEL_BIND where a public name is routed here), and NODE_ENV
+    prices in PRICING_* (integer CENTS), the *_BIND addresses (WEB_BIND
+    and ZITADEL_BIND where a public name is routed here), and NODE_ENV
     (production, as copied; development on a test stack) are decisions, not
     defaults. docs/managed-bring-up.md, phase 2, says what each one costs.
 
@@ -1372,7 +1278,7 @@ database_roles_match_env() {
   . "${SCRIPT_DIR}/db-roles.sh"
   db_roles_init "$ENV_FILE" || die "the checkout's compose project could not be read (above)."
   # Only characters a URL carries as they are: managed.yml puts both values in
-  # a database URL, as stand-up-live.sh and the tasks phase hold their
+  # a database URL, as stand-up-live.sh and the app phase hold their
   # passwords to. Checked before either role changes. A value Compose reads
   # otherwise than this script (a dollar, a space) would set a role to what
   # no container presents.
@@ -1400,54 +1306,6 @@ database_roles_proven() {
     die "${DB_ROLES_APP} and ${DB_ROLES_OWNER} were set to .env's values, and one does not open with it where the stack connects (above). No value is printed."
   fi
   note "${DB_ROLES_APP} and ${DB_ROLES_OWNER} open with .env's values over the stack's network and through the pooler"
-}
-
-# ---------------------------------------------------------------------------
-# TRIGGER-DB'S ROLE MATCHES .env, ON EVERY RUN (workplan 0132 T2, step A).
-#
-# trigger-db keeps the password its volume was made with, as postgres does.
-# rotate-db-passwords.sh --rotate --with-trigger-stores changes the role and
-# .env together. Two things can leave them apart: a rotation whose putting
-# back could not reach trigger-db, and a gate run that started during a
-# rotation and copied an older .env back over the persisted one. trigger-api
-# presents .env's value, so it would then fail at its migration on every run,
-# while the data phase had put the two roles right.
-#
-# So the trigger phase sets the role to .env's value once trigger-db is
-# healthy and before trigger-api starts: over trigger-db's own socket as
-# `trigger`, which the image trusts there, with db-roles.sh's
-# db_roles_trigger_set, the function rotate-db-passwords.sh --sync
-# --with-trigger-stores uses. The value goes by name, as the two roles' do.
-# Then it proves the value over the stack's network, as trigger-api asks. An
-# empty key gives managed.yml's fallback, as it gives trigger-api; on a real
-# address load_env has refused that already (step B), as for the two roles.
-# On the OTA stack, whose trigger-db holds .env's value since the owner's
-# rotation, this sets the role to the value it already has.
-#
-# scripts/a-password-the-repository-knows.unit.test.ts, (e), runs the phase
-# against a docker stub that keeps the role's password, and holds the order:
-# trigger-db up, the role set, the proof, then trigger-api.
-trigger_db_role_matches_env() {
-  local value rc=0
-  # shellcheck source=deploy/compose/db-roles.sh
-  . "${SCRIPT_DIR}/db-roles.sh"
-  # shellcheck source=deploy/compose/shipped-passwords.sh
-  . "${SCRIPT_DIR}/shipped-passwords.sh"
-  db_roles_init "$ENV_FILE" || die "the checkout's compose project could not be read (above)."
-  value="$(db_roles_env TRIGGER_DB_PASSWORD "$SHIPPED_TRIGGER_DB")"
-  # managed.yml puts it in trigger-api's DATABASE_URL and DIRECT_URL.
-  [[ "$value" =~ ^[A-Za-z0-9._~-]+$ ]] ||
-    die "TRIGGER_DB_PASSWORD holds a character a URL does not carry as it is, and managed.yml puts it in trigger-api's database URL. trigger-db's role was not changed. Use hex (openssl rand -hex 24), as stand-up-live.sh and rotate-db-passwords.sh make. Its value is not printed."
-  if ! db_roles_trigger_set "$value"; then
-    die "could not set trigger-db's ${DB_ROLES_TRIGGER_ROLE} to .env's TRIGGER_DB_PASSWORD: ${DB_ROLES_WHY}. No value is printed."
-  fi
-  db_roles_trigger_ask "$value" || rc=$?
-  value=''
-  case "$rc" in
-    0) note "trigger-db's ${DB_ROLES_TRIGGER_ROLE} holds .env's TRIGGER_DB_PASSWORD (set over its socket) and opens with it over the stack's network" ;;
-    1) die "trigger-db's ${DB_ROLES_TRIGGER_ROLE} was set to .env's TRIGGER_DB_PASSWORD and refuses it over the stack's network. No value is printed." ;;
-    *) die "trigger-db's ${DB_ROLES_TRIGGER_ROLE} was set to .env's TRIGGER_DB_PASSWORD, and could not be asked over the stack's network (${DB_ROLES_WHY})." ;;
-  esac
 }
 
 # ---------------------------------------------------------------------------
@@ -1817,7 +1675,7 @@ phase_demo() {
   say demo "demo mail + DAV backends, and the two demo tenants"
   load_env
 
-  # Before the api starts and before set-task-env.sh uploads, so both read it.
+  # Before the api and the worker start, so both read it.
   admit_demo_hosts
   load_env
 
@@ -1830,94 +1688,64 @@ phase_demo() {
 }
 
 # ---------------------------------------------------------------------------
-# THE TWO RUNNERS (workplan 0167 T7, ADR-0054). Until alpha.17 removes
-# Trigger.dev, managed.yml carries both: the plane's eleven services, and the
-# `worker` service that runs the jobs on pg-boss. OWNPACE_JOB_RUNNER says which
-# one runs, and never both at once: the bring-up in one mode stops the other's
-# first. The compose calls that touch either name its profile (`trigger`,
-# `jobs`), which is harmless while a service has none and needed once it has
-# (the flip puts the plane in `trigger` and takes the worker out of `jobs`).
-COMPOSE_PLANE=("${COMPOSE[@]}" --profile trigger)
-COMPOSE_WORKER=("${COMPOSE[@]}" --profile jobs)
-# How long the plane's runner containers get to finish after the supervisor
-# stops, and how often they are counted. A drained stack has none.
-PLANE_RUNNERS_TIMEOUT="${PLANE_RUNNERS_TIMEOUT:-300}"
-PLANE_RUNNERS_INTERVAL="${PLANE_RUNNERS_INTERVAL:-5}"
+# THE PLANE, REMOVED (workplan 0167 T9, ADR-0054). Trigger.dev's eleven
+# services stood in managed.yml, in profile `trigger`, stopped, from alpha.16
+# to alpha.17, and left it in alpha.18. A stack that ran them still has their
+# containers, stopped, until something removes them: Compose leaves a
+# container whose service a file stops naming (an orphan), and this bring-up
+# does not run `up --remove-orphans`, which would remove every container of the
+# project the file does not name, not only these. So the plane phase removes
+# exactly these, by the project's and the service's labels, and nothing else.
+# Never a volume: `docker rm` without -v leaves even anonymous ones, and the
+# plane's named volumes are remove-trigger-plane.sh's, by name, when it is
+# asked to (docs/managed-bring-up.md, "Trigger.dev's plane, removed").
+PLANE_SERVICES=(trigger-supervisor trigger-api trigger-tls trigger-tls-init clickhouse trigger-registry
+  trigger-docker-proxy minio minio-init trigger-redis trigger-db)
 
-# runner_mode — sets JOB_RUNNER_MODE from job-runner.sh's reader, or stops.
-JOB_RUNNER_MODE=''
+# runner_mode — the switch read again after load_env, or stops; pg-boss is the only answer.
 runner_mode() {
   job_runner_mode "$SCRIPT_DIR" "$ENV_FILE" || die "$JOB_RUNNER_WHY"
-  JOB_RUNNER_MODE="$JOB_RUNNER"
 }
 
-# worker_stop_and_remove <why> — the worker stopped (its stop_grace_period lets
-# a run's child finish or be killed) and removed, when this checkout's
-# managed.yml defines it and a container of it exists. Trigger mode runs it
-# before the plane starts, so the two runners never run side by side; the
-# worker's own interlock holds the tick meanwhile anyway.
-worker_stop_and_remove() {
-  local why="$1" ids
-  if ! job_runner_has_service "$(cat "${SCRIPT_DIR}/managed.yml")" worker; then
-    note "managed.yml here defines no worker service, so there is no worker to stop (${why})"
-    return 0
-  fi
-  ids="$("${COMPOSE_WORKER[@]}" ps -a -q worker)" ||
-    die "could not ask Compose whether the worker exists (${why}; its words are above). The plane was not started."
+# plane_containers — the ids of this project's containers of the plane's
+# services, running or not, one per line, or nothing. 1 when Docker could not
+# be asked.
+plane_containers() {
+  local svc ids out=''
+  for svc in "${PLANE_SERVICES[@]}"; do
+    ids="$(docker ps -a -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" \
+      --filter "label=com.docker.compose.service=${svc}")" || return 1
+    [ -z "$ids" ] || out="${out}${ids}"$'\n'
+  done
+  printf '%s' "$out"
+}
+
+# plane_containers_removed — what is left of the plane's containers on this
+# stack, stopped (a running one first, the supervisor before the rest, so
+# nothing new is dequeued) and removed. Its volumes are left as they are, and
+# said, with the one command that removes them.
+plane_containers_removed() {
+  local ids svc running
+  ids="$(plane_containers)" || die "could not ask Docker for the plane's containers (above); nothing was removed."
   if [ -z "$ids" ]; then
-    note "no worker container (${why})"
-    return 0
+    note "no container of Trigger.dev's plane on ${COMPOSE_PROJECT}: nothing to remove"
+  else
+    for svc in "${PLANE_SERVICES[@]}"; do
+      running="$(docker ps -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" \
+        --filter "label=com.docker.compose.service=${svc}")" || die "could not ask Docker whether ${svc} runs (above); nothing was removed."
+      [ -z "$running" ] || docker stop -t 30 $running >/dev/null || die "${svc} did not stop (above); nothing was removed."
+    done
+    # shellcheck disable=SC2086 # one id a line, each its own argument
+    docker rm $ids >/dev/null || die "the plane's containers did not all go (above). Its volumes are as they were."
+    note "Trigger.dev's plane: its $(wc -l <<<"$ids") container(s) removed, as orphans of a managed.yml that no longer names them (workplan 0167 T9); no volume was touched"
   fi
-  "${COMPOSE_WORKER[@]}" stop worker || die "the worker did not stop (${why}; Compose's words are above). The plane was not started."
-  "${COMPOSE_WORKER[@]}" rm -f worker >/dev/null || die "the worker stopped and was not removed (${why}; above). The plane was not started."
-  note "the worker stopped and removed (${why}), so its runs and the plane's never overlap"
-}
-
-# plane_runners — the names of the plane's runner containers on this stack's
-# network, one per line, or nothing. 1 when Docker could not be asked.
-plane_runners() {
-  local names
-  names="$(docker ps --filter "network=${COMPOSE_PROJECT}_ownpace-network" --format '{{.Names}}')" || return 1
-  awk '/^runner-/' <<<"$names"
-}
-
-# plane_stop_in_order — pg-boss mode's trigger phase: the plane stopped, if it
-# runs, in job-runner.sh's order. `stop`, never `rm -v`: its volumes are the
-# way back (OWNPACE_JOB_RUNNER=trigger, then this bring-up). Nothing here
-# migrates triggerdb, deploys a task or starts a plane service.
-plane_stop_in_order() {
-  local running svc waited=0 left
-  # Running, or restarting: a crash-looping container (the supervisor, say)
-  # that was left would come back beside the worker.
-  running="$("${COMPOSE_PLANE[@]}" ps --status running --status restarting --format '{{.Service}}')" ||
-    die "could not ask Compose which of the plane's services run (its words are above); nothing was stopped."
-  local -a up=()
-  for svc in "${JOB_RUNNER_PLANE_FIRST[@]}" "${JOB_RUNNER_PLANE_REST[@]}"; do
-    grep -qxF "$svc" <<<"$running" && up+=("$svc")
-  done
-  if [ "${#up[@]}" -eq 0 ]; then
-    note "none of the plane's services runs: nothing to stop (its volumes are where they were)"
-    return 0
+  local left
+  left="$("${SCRIPT_DIR}/remove-trigger-plane.sh" --list 2>/dev/null)" || left=''
+  if [ -n "$left" ]; then
+    note "the plane's volumes are still on this machine, kept until they are removed by name:"
+    printf '      %s\n' $left
+    note "  ./deploy/compose/remove-trigger-plane.sh says what it would remove; with --yes it removes them, one way"
   fi
-  if grep -qxF trigger-supervisor <<<"$running"; then
-    "${COMPOSE_PLANE[@]}" stop trigger-supervisor || die "trigger-supervisor did not stop (above); the rest of the plane was left running."
-    note "trigger-supervisor stopped: nothing new is dequeued"
-  fi
-  while :; do
-    left="$(plane_runners)" || die "could not ask Docker for the plane's runner containers (above); the rest of the plane was left running."
-    [ -n "$left" ] || break
-    if [ "$waited" -ge "$PLANE_RUNNERS_TIMEOUT" ]; then
-      die "$(wc -l <<<"$left") runner container(s) of the plane still on ${COMPOSE_PROJECT}_ownpace-network after ${waited}s with the supervisor stopped. A Trigger.dev run is still going: the drain was not done. The rest of the plane was left running; wait for it, then run this again."
-    fi
-    sleep "$PLANE_RUNNERS_INTERVAL"
-    waited=$((waited + PLANE_RUNNERS_INTERVAL))
-  done
-  note "no runner container on ${COMPOSE_PROJECT}_ownpace-network"
-  for svc in "${JOB_RUNNER_PLANE_REST[@]}"; do
-    grep -qxF "$svc" <<<"$running" || continue
-    "${COMPOSE_PLANE[@]}" stop "$svc" || die "${svc} did not stop (above); the services after it in the order were left running."
-  done
-  note "the plane stopped, in order, its containers kept as Exited and its volumes kept: ${up[*]}"
 }
 
 # worker_sized — the worker's CPU cap and memory limit, as Compose will hand
@@ -1926,7 +1754,7 @@ plane_stop_in_order() {
 # the compose calls after it, never written to .env. managed.yml's defaults
 # are the sizing for the default cap of 3 passes; a stack that runs more
 # needs more. The worker runs at most MAX_PASSES_IN_FLIGHT + 2
-# runs at once (the runner's limit, as Trigger.dev's plane admits), so the
+# runs at once (the runner's limit, as Trigger.dev's plane admitted), so the
 # rules are per run: 0.5 x (MAX_PASSES_IN_FLIGHT + 2) CPUs, a half CPU a run,
 # Trigger.dev's small-1x; and (MAX_PASSES_IN_FLIGHT + 2) x 512 MB + 256 MB,
 # which holds at the limit with every run at its 512 MB budget (small-1x's,
@@ -1937,12 +1765,10 @@ plane_stop_in_order() {
 # as a warning. Read after load_env, from the environment, as Compose reads
 # them (bash has taken the quotes off).
 #
-# SAID ONCE PER BRING-UP. A pg-boss bring-up sizes the worker twice
-# (worker_ready_to_start): in the trigger phase, before the plane stops, and
-# in the app phase, before the worker starts. Both work the size out, since
-# the app phase reads .env again and an empty `WORKER_MEMORY=` line takes
-# away what the first exported; only the first says it, where the second
-# would repeat each line and call a size the first exported "from .env".
+# SAID ONCE PER BRING-UP. Each sizing works the size out, since a phase
+# reads .env again and an empty `WORKER_MEMORY=` line takes away what an
+# earlier one exported; only the first says it, where a second would repeat
+# each line and call a size the first exported "from .env".
 WORKER_CPUS_RULE=''
 WORKER_MEMORY_RULE=''
 WORKER_SIZE_SAID=''
@@ -2069,7 +1895,7 @@ worker_memory_fit() {
 # comment; Compose hands the container the comment itself as the value, even
 # over a ${KEY:-default}. alpha.1 to alpha.15's examples shipped
 # LEDGER_RETENTION_DAYS, LEDGER_RUN_RETENTION_DAYS, LOG_LEVEL and
-# TRIGGER_API_URL_IN_NETWORK that way, so old .env files carry them, and the
+# TRIGGER_API_URL_IN_NETWORK (gone since alpha.18) that way, so old .env files carry them, and the
 # worker reads them from Compose (the retention job would throw on every run).
 # The keys are the ones managed.yml's worker service names; each is named, with
 # its fix, and .env is never rewritten here.
@@ -2097,9 +1923,7 @@ worker_env_fit() {
 
 # worker_ready_to_start — everything about the worker that can be refused
 # before it starts: its size, its CPU cap against the host's, and the values
-# it would receive. Run in pg-boss mode before the plane stops (phase_trigger),
-# so a cutover that cannot start the worker leaves the plane running, and
-# again right before the worker starts (phase_app), for --from or --only app.
+# it would receive. Run right before the worker starts (phase_app).
 worker_ready_to_start() {
   worker_sized
   worker_cpus_fit
@@ -2122,369 +1946,21 @@ worker_ready_to_start() {
 # Compose would have decided, so no update leaves the worker's output behind.
 worker_up() {
   local before="${1:-}" after="${2:-}"
-  local -a compose_before=("${COMPOSE[@]}")
-  COMPOSE=("${COMPOSE_WORKER[@]}")
   if [ -n "$before" ] && [ "$after" != "$before" ]; then
     note "the api container was replaced by this run: recreating the worker with it, so its output goes with the api's (privacy §9)"
     "${COMPOSE[@]}" up -d --wait --force-recreate worker || explain_failure worker
   else
     up_wait worker
   fi
-  COMPOSE=("${compose_before[@]}")
   note "worker up and healthy: the jobs run on pg-boss"
 }
 
 # ---------------------------------------------------------------------------
-phase_trigger() {
-  say trigger "the Trigger.dev plane"
+phase_plane() {
+  say plane "Trigger.dev's plane, removed in alpha.18: what is left of its containers"
   load_env
   runner_mode
-  # PG-BOSS MODE (workplan 0167 T7): the plane stopped, in order, if it runs,
-  # and nothing else. Its volumes are kept, so OWNPACE_JOB_RUNNER=trigger and
-  # this bring-up start it again, at the same version, from what it held.
-  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
-    note "pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}): the jobs run in the worker, so the plane is stopped, not started; nothing migrates triggerdb"
-    # Before anything stops: a worker that could not start would leave the
-    # plane stopped and no runner at all.
-    worker_ready_to_start
-    plane_stop_in_order
-    return 0
-  fi
-  # TRIGGER MODE: the worker goes first, so the two runners never run side by
-  # side (the way back from pg-boss: OWNPACE_JOB_RUNNER=trigger, then this).
-  note "trigger mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_TRIGGER}): the jobs run on the plane"
-  worker_stop_and_remove "trigger mode"
-
-  # ONE VERSION NUMBER, TWO PLACES, AND THEY MUST AGREE (0018 T0).
-  #
-  # managed.yml runs the webapp and the supervisor at ${TRIGGER_IMAGE_TAG}, and
-  # the deploy CLI runs at the @trigger.dev/sdk version in
-  # apps/worker/package.json. Its own comment records this drifting twice
-  # already, and the reason it matters is that "the 4.5.x family is
-  # SDK-compatible" is a hope, not a deploy story.
-  #
-  # Checked rather than corrected: which way to reconcile is a judgement about
-  # what to run, and the two directions have different consequences. The .env
-  # at this checkout's version recreates the webapp and the supervisor at it:
-  # both are built here from Dockerfiles whose FROM is that version (workplan
-  # 0146 T16), and their builds refuse any other. The .env's own version needs
-  # the checkout that pins it, which moves the images and the SDK the tasks are
-  # built with together: a move forward is `trigger-version.sh pin`, an older
-  # version is the release that pinned it, never a pin backwards. The SDK alone
-  # is neither. Naming both is the useful thing a script can do here.
-  local sdk_version tag_version compose_default newest
-  sdk_version="$(node -p "require('${REPO_ROOT}/apps/worker/package.json').dependencies['@trigger.dev/sdk']")"
-  # The fallback is managed.yml's own default, read the way trigger-version.sh's
-  # repo_tag reads it (here-strings, not pipes: see no-pipeline-its-own-consumer-
-  # can-kill). A copy of the number here said v4.5.9 while the images defaulted
-  # to v4.5.16, so an .env without the key failed on a drift that was not there.
-  # A miss is NAMED: under `set -e` a bare failing grep ends the bring-up here
-  # with no word about why.
-  compose_default="$(grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}' "${SCRIPT_DIR}/managed.yml")" \
-    || die "managed.yml carries no \${TRIGGER_IMAGE_TAG:-v…} default, so there is no image version to compare apps/worker's SDK with"
-  compose_default="$(sed 's/.*:-//;s/}//' <<<"$(head -1 <<<"$compose_default")")"
-  tag_version="${TRIGGER_IMAGE_TAG:-$compose_default}"
-  if [ "${tag_version#v}" != "$sdk_version" ]; then
-    echo "!!! Trigger.dev version drift (0018 T0):" >&2
-    echo "!!!   images:  ${tag_version}   (TRIGGER_IMAGE_TAG, or managed.yml's default when unset)" >&2
-    echo "!!!   SDK/CLI: ${sdk_version}   (apps/worker/package.json)" >&2
-    echo "!!! These run the same protocol and are only compatible by coincidence when they differ." >&2
-    echo "!!! Reconcile, in whichever direction you mean:" >&2
-    echo "!!!   ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_IMAGE_TAG=v${sdk_version}" >&2
-    echo "!!!     then re-run this phase — the webapp and supervisor are recreated at this checkout's version" >&2
-    # Forward is a move of this checkout; backward is the checkout that pinned
-    # it: a pin backwards keeps this version's removals and read_at.
-    newest="$(sort -V <<<"${tag_version#v}"$'\n'"${sdk_version}")"
-    newest="${newest##*$'\n'}"
-    if [ "$newest" = "${tag_version#v}" ]; then
-      echo "!!!   or move this checkout to ${tag_version}: ./deploy/compose/trigger-version.sh pin ${tag_version}," >&2
-      echo "!!!     then pnpm install and the pull request docs/managed-bring-up.md describes (Upgrading Trigger.dev)." >&2
-    else
-      echo "!!!   or run the checkout that pinned ${tag_version}: the release before the move, or a revert of" >&2
-      echo "!!!     the move's commit (docs/managed-bring-up.md, Upgrading Trigger.dev, Rolling back). Never" >&2
-      echo "!!!     trigger-version.sh pin backwards: this checkout's Dockerfiles were read for its own version." >&2
-    fi
-    echo "!!!   Not the SDK alone: both images are built from this checkout's Dockerfiles (workplan" >&2
-    echo "!!!     0146 T16), whose FROM is this checkout's version, and they refuse to build another." >&2
-    exit 1
-  fi
-  note "Trigger.dev images and SDK agree at ${sdk_version}"
-  # trigger-api and trigger-supervisor run builds of upstream's images with
-  # files deleted that never run here (workplan 0146 T16), named after the
-  # version and the hash of their Dockerfiles. The up_wait calls below build
-  # each where its name is missing, and nothing else: never `up --build`.
-  note "trigger-api and trigger-supervisor are local builds of upstream's ${tag_version} (deploy/compose/trigger.dev, deploy/compose/supervisor), built where the machine does not have them yet"
-  # trigger-docker-proxy is a build here too since 2026-10-30 (workplan 0119):
-  # upstream's docker-socket-proxy release on a current HAProxy of its line,
-  # named after the hash of its Dockerfile's instructions. The up_wait below
-  # builds it where its name is missing, and nothing else does.
-  note "trigger-docker-proxy is a local build of upstream's docker-socket-proxy on a current HAProxy (deploy/compose/docker-socket-proxy), built where the machine does not have it yet"
-  # trigger-tls is a build here too since 2026-10-31 (workplan 0119): Caddy's
-  # official image at its pinned digest with curl removed, named after the hash
-  # of its Dockerfile's instructions. The up_wait below builds it where its
-  # name is missing, and nothing else does.
-  note "trigger-tls is a local build of Caddy's image without curl (deploy/compose/caddy), built where the machine does not have it yet"
-  # trigger-redis is a build here too since 2026-11-07 (workplan 0119 §3 item
-  # 11): Redis's official image at its pinned digest with the Debian packages
-  # nothing here runs purged, run as uid 999 from its first process, named
-  # after the hash of its Dockerfile's instructions. The up_wait below builds
-  # it where its name is missing, and nothing else does.
-  note "trigger-redis is a local build of Redis's image without the Debian packages nothing here runs, as uid 999 (deploy/compose/redis), built where the machine does not have it yet"
-  # THE SUPERVISOR COMES UP LAST, AND NOT ONLY FOR ORDERING.
-  #
-  # trigger-api bootstraps a worker group and writes its token into the SHARED
-  # volume (TRIGGER_BOOTSTRAP_WORKER_TOKEN_PATH). It writes it as **root, mode
-  # 0600**. trigger-supervisor reads that same file as **node**, so on a FRESH
-  # trigger_shared volume the supervisor cannot open its own credential:
-  #
-  #   Unable to read worker token from file: EACCES: permission denied,
-  #   open '/home/node/shared/worker_token'
-  #
-  # and it crash-loops. That is not cosmetic — a stack without a supervisor
-  # dequeues nothing, so every run sits EXECUTING forever while the rest of the
-  # stack reports healthy. It only shows up on a fresh volume, which is exactly
-  # when nobody is looking for it: first install, or after a `down -v`.
-  #
-  # Fixed by OWNERSHIP, not mode: the token is a credential, and root bypasses
-  # permissions anyway, so chown lets the supervisor read it without making it
-  # world-readable. Same failure shape as pgbouncer's userlist.txt — 0600 by one
-  # uid, read by another — which is the second time this stack has been bitten
-  # by a secret file whose writer and reader are different users.
-  #
-  # trigger-db first, on its own, and its role set to .env's value before
-  # trigger-api starts and presents that value (trigger_db_role_matches_env).
-  up_wait trigger-db
-  trigger_db_role_matches_env
-  # minio-init is a one-shot that makes MinIO's `packets` bucket and exits 0
-  # (0146 T7). `--wait` takes that exit as done, not as a container that
-  # stopped, because trigger-api waits for it with
-  # service_completed_successfully. It is named here so a failure prints its log.
-  # trigger-tls-init is the same (2026-11-19, workplan 0119): it gives
-  # trigger-tls's volumes to uid 65532, and trigger-tls waits for it.
-  up_wait trigger-redis clickhouse minio minio-init trigger-registry \
-    trigger-docker-proxy trigger-api trigger-tls-init trigger-tls
-  # mc's own last line from the one-shot, which names the bucket: the run's
-  # record that `packets` is there. A note, not a verdict: up_wait above has
-  # already failed this phase if minio-init did not exit 0, so a log that
-  # cannot be read leaves the note empty and stops nothing. Through the
-  # address filter before it is printed, as every container log this script
-  # prints (explain_failure): mc's line names no address today, and the gate's
-  # log is public.
-  local init_line
-  init_line="$("${COMPOSE[@]}" logs --no-color --no-log-prefix --tail 1 minio-init 2>&1 || true)"
-  if [ -n "$init_line" ]; then init_line="$(own_address_redact "$ENV_FILE" <<<"$init_line")"; fi
-  note "minio-init: ${init_line}"
-
-  local waited=0
-  until "${COMPOSE[@]}" exec -T -u 0 trigger-api \
-          test -f /home/node/shared/worker_token >/dev/null 2>&1; do
-    if [ "$waited" -ge 60 ]; then
-      echo "!!! trigger-api has not written /home/node/shared/worker_token after ${waited}s." >&2
-      echo "!!! The supervisor cannot start without it. Check that bootstrap is on:" >&2
-      echo "!!!   ${COMPOSE[*]} logs --no-color trigger-api 2>&1 | grep -i bootstrap" >&2
-      exit 1
-    fi
-    sleep 3
-    waited=$((waited + 3))
-  done
-  "${COMPOSE[@]}" exec -T -u 0 trigger-api \
-    chown node:node /home/node/shared/worker_token >/dev/null 2>&1 || true
-  note "worker token present and readable by the supervisor"
-
-  up_wait trigger-supervisor
-  note "all Trigger.dev services healthy"
-  # Named, not printed, unless it is loopback: on the reference machine the
-  # dashboard's origin is its mesh address, and this line ran on every gate.
-  note "dashboard: $(shown_origin "${TRIGGER_APP_ORIGIN:-https://localhost:3443}" TRIGGER_APP_ORIGIN)"
-  note "api: $(shown_origin "${TRIGGER_API_ORIGIN:-http://localhost:3090}" TRIGGER_API_ORIGIN)"
-}
-
-# ---------------------------------------------------------------------------
-phase_account() {
-  say account "the account, organisation and project — the one human step"
-  load_env
-  runner_mode
-  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
-    note "skipped: pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}). The jobs run in the worker, so no Trigger.dev project is needed or asked for."
-    return 0
-  fi
-
-  # Already done? Then say so and move on. This is what makes re-running the
-  # whole script after a reboot cost nothing.
-  if [ -n "$(env_get TRIGGER_PROJECT_REF)" ] && [ -n "$(env_get TRIGGER_SECRET_KEY)" ]; then
-    note "TRIGGER_PROJECT_REF and TRIGGER_SECRET_KEY are already in .env — nothing to do"
-    return 0
-  fi
-
-  # Perhaps the project exists and only .env is behind (a re-clone, a rotated
-  # file). Ask the instance before asking the person.
-  local probe rc=0
-  probe="$("${SCRIPT_DIR}/trigger-credentials.sh" --write 2>&1)" || rc=$?
-  if [ "$rc" -eq 0 ]; then
-    note "found an existing project on this instance and wrote its credentials to .env"
-    "${COMPOSE[@]}" up -d api >/dev/null 2>&1 || true
-    return 0
-  fi
-  # It failed. Show WHY before assuming the reason is "no project yet" — a
-  # schema mismatch or an unreachable database says something quite different,
-  # and swallowing it here is how an operator ends up creating a second project
-  # to fix a problem that was never about projects.
-  printf '%s\n' "$probe" | sed 's/^/    /'
-
-  cat <<EOF
-
-    This instance has no project yet. It cannot be created without you:
-    the self-hosted dashboard signs in by magic link and has no admin API.
-
-    1. Open  $(shown_origin "${TRIGGER_APP_ORIGIN:-https://localhost:3443}" TRIGGER_APP_ORIGIN)
-       It serves a SELF-SIGNED certificate. Accept the warning — this is the
-       trigger-tls front, and it exists because the dashboard's session cookie
-       is Secure in production mode, so plain http works only from localhost.
-
-    2. Type the email address the account should belong to. Press "Continue".
-       No mail is sent (there is no mail server); the link goes to the log.
-
-    3. Fetch the link:
-         ./deploy/compose/trigger-magic-link.sh
-       Open it in the SAME browser. Links are single-use — if one is spent,
-       ask for another and re-run that command.
-
-    4. The dashboard now asks for an organisation name, then a project name.
-       Both are yours to choose; nothing in this repository depends on either.
-       (Suggestion: organisation "Ownpace", project "ownpace".)
-
-    5. That is all. Do NOT hand-copy the project ref or the API key —
-       the resume command below reads both out of the instance and checks
-       their shape before writing them.
-
-EOF
-  your_turn account
-}
-
-# ---------------------------------------------------------------------------
-phase_login() {
-  say login "the deploy CLI, once per machine"
-  load_env
-  runner_mode
-  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
-    note "skipped: pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}). No task is deployed to Trigger.dev, so its deploy CLI is not logged in."
-    return 0
-  fi
-  local cli_version profile url origin
-  cli_version="$(node -p "require('${REPO_ROOT}/apps/worker/package.json').dependencies['@trigger.dev/sdk']")"
-  profile="${TRIGGER_CLI_PROFILE:-$TRIGGER_CLI_PROFILE_DEFAULT}"
-  url="http://localhost:${TRIGGER_PORT:-3090}"
-  # Computed BEFORE the refusals so both branches print the same sentence, and
-  # so the resolved name and its origin cannot be described by two expressions
-  # that disagree.
-  origin="$(trigger_cli_profile_origin)"
-
-  # THE CLI IS THE LOCKFILE'S, SO IT IS INSTALLED BEFORE IT IS ASKED ANYTHING
-  # (workplan 0119, 2026-11-02). It is apps/worker's devDependency, run with
-  # `pnpm -C apps/worker exec trigger` (trigger-cli-lib.sh), where it used to
-  # be fetched by `npx -y` at run time. In a checkout pulled without an install
-  # there is no `trigger` to run: `whoami` would read as "not logged in", and
-  # the login line below would fail the same way. Preflight only checks that
-  # node_modules exists, and does not run with --from, which is how live's
-  # stand-up and every resume reach this phase. So this phase installs, the
-  # way deploy-tasks.sh does in the tasks phase; with nothing changed it takes
-  # seconds. Not with TRIGGER_ACCESS_TOKEN set: nothing here runs the CLI then.
-  if [ -z "${TRIGGER_ACCESS_TOKEN:-}" ]; then
-    command -v pnpm >/dev/null 2>&1 ||
-      die "pnpm is not on PATH, and the deploy CLI is installed with it: npm install -g $(node -p "require('${REPO_ROOT}/package.json').packageManager")"
-    note "installing this checkout's packages, the deploy CLI among them (pnpm install --frozen-lockfile)"
-    (cd "${REPO_ROOT}" && pnpm install --frozen-lockfile) ||
-      die "pnpm install --frozen-lockfile failed; the log above says why."
-    trigger_cli_installed "$cli_version" ||
-      die "the deploy CLI in apps/worker is not ${cli_version}, the @trigger.dev/sdk version apps/worker pins."
-  fi
-
-  if trigger_cli_logged_in "$cli_version" "$profile"; then
-    # SAY WHICH ANSWER THIS IS. `trigger_cli_logged_in` short-circuits on
-    # TRIGGER_ACCESS_TOKEN without validating it — deliberately, since `whoami`
-    # structurally cannot see that variable — so on CI this phase reports
-    # success for a token it never checked. e2e-managed then printed "already
-    # logged in" and died three steps later inside `deploy` with "Invalid or
-    # Missing Access Token", because the token was a PAT minted against a
-    # Trigger.dev instance that had since been destroyed.
-    #
-    # The trust is fine; claiming to have verified it is not. A phase that says
-    # what it actually established costs one line and saves reading the deploy
-    # log to find out what "logged in" meant (hard rule 9).
-    if [ -n "${TRIGGER_ACCESS_TOKEN:-}" ]; then
-      note "trusting TRIGGER_ACCESS_TOKEN — NOT verified here; a stale one fails inside deploy"
-    else
-      note "already logged in (profile ${profile}, CLI ${cli_version})"
-    fi
-    return 0
-  fi
-
-  # --no-browser, BECAUSE THE BROWSER IS USUALLY ON ANOTHER MACHINE. From CLI
-  # 4.8.3 a login that can open a browser itself (Linux with xdg-open, macOS)
-  # waits for the approval on this machine's 127.0.0.1, and the page sends the
-  # approving browser there: a browser on a laptop gets no code, the login
-  # times out after ten minutes, and `login --code` refuses it. With
-  # --no-browser the page shows a code to paste, wherever the browser runs
-  # (managed-bring-up.md, step 7; workplan 0119, 2026-10-31).
-  cat <<EOF
-
-    The deploy CLI is not logged in on this machine under the profile
-    '${profile}'. Run this yourself, from the checkout's root — it prints an
-    address to open in a browser, on this machine or another, and waits for
-    the code the page shows, which is why the script does not run it for you:
-
-      ${TRIGGER_CLI_SHOWN} login -a ${url} --profile ${profile} --no-browser
-
-    The CLI is apps/worker's, ${cli_version}, from the lockfile: this phase
-    installed it just now.
-
-    Note the address is the PLAIN http api origin, not the https front. The
-    CLI follows the server-advertised API origin and must not meet a
-    self-signed certificate on the way (0018 T5: deploys died with a bare
-    "Connection error" when it did).
-
-EOF
-
-  # THE PROFILE NAME IS A SETTING, and until this said so an operator already
-  # logged in under another name had nothing to go on: they ran the command
-  # above with the name they knew, it succeeded, and this phase refused again.
-  local present
-  present="$(trigger_cli_profiles_present)"
-  if [ -n "$present" ]; then
-    cat <<EOF
-    This machine IS logged in under:
-
-$(printf '      %s\n' $present)
-    The profile name is a SETTING, and these are two different facts:
-
-      in use    '${profile}' — ${origin}
-      default   '${TRIGGER_CLI_PROFILE_DEFAULT}'
-
-    It is read from this shell's environment, or from:
-      ${ENV_FILE}
-
-    If one of the above is the account you want, point the setting at it
-    instead of logging in a second time:
-
-      ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_CLI_PROFILE=<name>
-
-EOF
-  else
-    cat <<EOF
-    The profile name is a SETTING, and these are two different facts:
-
-      in use    '${profile}' — ${origin}
-      default   '${TRIGGER_CLI_PROFILE_DEFAULT}'
-
-    It is read from this shell's environment, or from ${ENV_FILE}.
-    So if you are already logged in under a different one, set that here
-    rather than logging in again:
-
-      ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_CLI_PROFILE=<name>
-
-EOF
-  fi
-  your_turn login
+  plane_containers_removed
 }
 
 # ---------------------------------------------------------------------------
@@ -2744,12 +2220,7 @@ phase_app() {
   say app "api, web, and anything else not yet running"
   load_env
   runner_mode
-  # Trigger mode: a worker left from pg-boss mode goes first (phase_trigger
-  # removed it already on a whole run; `--only app` starts here).
-  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_TRIGGER" ]; then
-    worker_stop_and_remove "trigger mode"
-  fi
-  # Before the API and the tasks, which connect to hosts a tester types.
+  # Before the API and the worker, which connect to hosts a tester types.
   check_docker_networks
   # Nextcloud is in managed.yml for the demo only, and a bare `up -d` would
   # start it — publishing an admin panel whose password is `change-me-…` by
@@ -2782,13 +2253,8 @@ phase_app() {
     # there when it matters" — so it can come up anywhere in this list.
     gatus
   )
-  # The plane, in trigger mode only (workplan 0167 T7). In pg-boss mode the
-  # worker is started on its own, after the api and the system role's
-  # question, below.
-  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_TRIGGER" ]; then
-    services+=(trigger-db trigger-redis clickhouse minio minio-init trigger-registry
-      trigger-docker-proxy trigger-api trigger-tls-init trigger-tls trigger-supervisor)
-  fi
+  # The worker is started on its own, after the api and the system role's
+  # question, below (workplan 0167 T7).
   [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)
   # Every notification a stack with `SMTP_HOST=mailpit` sends lands in the
   # catcher and is readable in a browser, and the demo's Nextcloud is pointed
@@ -2870,16 +2336,10 @@ phase_app() {
   # GIT_SHA so `GET /version` answers with a commit rather than "unknown"; it
   # is a build argument only, so the `up` below needs none.
   # scripts/a-database-started-as-root.unit.test.ts holds this.
-  # In pg-boss mode the worker's image is built with them: it runs the api's
-  # Node, from the same checkout (its profile named, which is harmless once it
-  # has none).
-  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_TRIGGER" ]; then
-    GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
-      "${COMPOSE[@]}" build api web || die "the api and web images did not build (compose's words are above); nothing was started or recreated."
-  else
-    GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
-      "${COMPOSE[@]}" --profile jobs build api web worker || die "the api, web and worker images did not build (compose's words are above); nothing was started or recreated."
-  fi
+  # The worker's image is built with them: it runs the api's Node, from the
+  # same checkout.
+  GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
+    "${COMPOSE[@]}" build api web worker || die "the api, web and worker images did not build (compose's words are above); nothing was started or recreated."
   # Which api container ran before this `up`, so that a replaced one takes the
   # worker with it (worker_up).
   local api_before api_after
@@ -2887,15 +2347,12 @@ phase_app() {
   up_wait "${services[@]}"
   api_after="$("${COMPOSE[@]}" ps -q api 2>/dev/null | awk 'NR==1')" || api_after=''
   note "up and healthy: ${services[*]}"
-  # PG-BOSS MODE: the worker after the api, once the system role it connects
-  # as for the jobs across organisations is asked and readied, as the tasks
-  # phase asks it before an upload in trigger mode; then its CPU cap is held
+  # The worker after the api, once the system role it connects as for the
+  # jobs across organisations is asked and readied; then its CPU cap is held
   # to the host's.
-  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
-    system_role_ready
-    worker_ready_to_start
-    worker_up "$api_before" "$api_after"
-  fi
+  system_role_ready
+  worker_ready_to_start
+  worker_up "$api_before" "$api_after"
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
   # What the rule for a host a tenant gives us admits by name (workplan 0136
   # T2): the demo's targets on the gate's stack, nothing on live.
@@ -2903,13 +2360,14 @@ phase_app() {
 }
 
 # ---------------------------------------------------------------------------
-# THE SYSTEM ROLE, ASKED BEFORE ITS URL GOES TO EVERY RUN (workplan 0138 T3
-# step 2).
+# THE SYSTEM ROLE, ASKED BEFORE THE WORKER THAT CARRIES ITS URL STARTS
+# (workplan 0138 T3 step 2).
 #
-# The Trigger.dev jobs that span organisations (the sync tick, retention, the
-# purge), the split jobs' list of organisations and every task's audit key
-# connect as `ownpace_system` through SYSTEM_DATABASE_URL, which set-task-env.sh
-# uploads to the environment every run of every task receives. Managed
+# The jobs that span organisations (the sync tick, retention, the purge), the
+# split jobs' list of organisations and every job's audit key connect as
+# `ownpace_system` through SYSTEM_DATABASE_URL, which the worker service
+# carries for every run (managed.yml; until alpha.18 set-task-env.sh uploaded
+# it to Trigger.dev's task environment). Managed
 # migration 0033 creates the role with no superuser bit, no right to create a
 # role or a database, BYPASSRLS, and no password; the api applies it when it
 # starts (the app phase), so it exists by now.
@@ -2918,7 +2376,7 @@ phase_app() {
 # cluster-global, and anyone with the owner's socket can ALTER one or make it a
 # member of the owner. So the catalog is asked here, every bring-up, and
 # anything but a fit role stops the bring-up before a password is set and
-# before set-task-env.sh uploads the URL: a superuser, a role that may create
+# before the worker starts with the URL: a superuser, a role that may create
 # roles or databases or replicate, a member of any role (whose rights it takes
 # with SET ROLE), a role any other is a member of (which takes ITS rights the
 # same way: app_user would read every organisation's rows), one without
@@ -2927,14 +2385,14 @@ phase_app() {
 # ensure-env-secrets.sh generated, is set on it over the database's socket,
 # every setting on the role is cleared in the same transaction (an ordinary
 # role may set its own, and every run holds its URL), and the password is
-# proven where the tasks connect: over the stack's network and through the
+# proven where the worker connects: over the stack's network and through the
 # pooler. Every run sets it again, so .env is the one place it lives, as it is
 # for the other secrets there.
 #
 # scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts RUNS this
-# function and phase_tasks below, as written here, against stand-ins, and holds
-# this order: fit, set, prove, the upload, the deploy, the owner names
-# forgotten; and that an unfit role or an unasked question stops it first.
+# function as written here, against stand-ins, and holds this order: fit,
+# set, prove, then the worker; and that an unfit role or an unasked question
+# stops it first.
 system_role_ready() {
   local pw rc=0 role channel asked why verdict
   pw="$(env_get SYSTEM_DB_PASSWORD)"
@@ -2949,17 +2407,17 @@ system_role_ready() {
     pw="$(env_get SYSTEM_DB_PASSWORD)"
   fi
   [ -n "$pw" ] || die "SYSTEM_DB_PASSWORD is still empty in ${ENV_FILE} after ensure-env-secrets.sh (above)."
-  # set-task-env.sh puts it in a URL as it is, as managed.yml does the others.
+  # managed.yml puts it in the worker's URL as it is, as it does the others.
   [[ "$pw" =~ ^[A-Za-z0-9._~-]+$ ]] ||
-    die "SYSTEM_DB_PASSWORD holds a character a URL does not carry as it is, and set-task-env.sh puts it in SYSTEM_DATABASE_URL. Use hex (openssl rand -hex 24); its value is not printed."
+    die "SYSTEM_DB_PASSWORD holds a character a URL does not carry as it is, and managed.yml puts it in the worker's SYSTEM_DATABASE_URL. Use hex (openssl rand -hex 24); its value is not printed."
   # shellcheck source=deploy/compose/db-roles.sh
   . "${SCRIPT_DIR}/db-roles.sh"
   db_roles_init "$ENV_FILE" || die "the checkout's compose project could not be read (above)."
   db_roles_system_fit || rc=$?
   case "$rc" in
     0) ;;
-    1) die "REFUSED, before its password is set or its URL uploaded: ${DB_ROLES_WHY}. Every run of every task would receive this role's URL (workplan 0138 T3 step 2). Put it back as managed migration 0033 made it (docs/managed-bring-up.md, 'The system role'), then run this again." ;;
-    *) die "could not ask Postgres what ${DB_ROLES_SYSTEM} may do, so its URL is not uploaded: ${DB_ROLES_WHY}" ;;
+    1) die "REFUSED, before its password is set or the worker starts with its URL: ${DB_ROLES_WHY}. Every run of every job would receive this role's URL (workplan 0138 T3 step 2). Put it back as managed migration 0033 made it (docs/managed-bring-up.md, 'The system role'), then run this again." ;;
+    *) die "could not ask Postgres what ${DB_ROLES_SYSTEM} may do, so the worker is not started with its URL: ${DB_ROLES_WHY}" ;;
   esac
   note "${DB_ROLES_SYSTEM}: no superuser, may create no role or database, a member of no role and no role a member of it, BYPASSRLS (workplan 0138 T3 step 2)"
   db_roles_system_set "$pw" || die "could not set ${DB_ROLES_SYSTEM}'s password: ${DB_ROLES_WHY}"
@@ -2971,50 +2429,11 @@ system_role_ready() {
       case "$asked" in 0) verdict='opens' ;; 1) verdict='REFUSED' ;; *) verdict='could not be asked' ;; esac
       echo "!!!   ${role} over the ${channel}: ${verdict}${why:+ (${why})}" >&2
     done <<<"$DB_ROLES_PROOF"
-    die "${DB_ROLES_SYSTEM} does not open with SYSTEM_DB_PASSWORD where the tasks connect (above); its URL is not uploaded."
+    die "${DB_ROLES_SYSTEM} does not open with SYSTEM_DB_PASSWORD where the worker connects (above); the worker is not started with its URL."
   fi
   note "${DB_ROLES_SYSTEM} opens with SYSTEM_DB_PASSWORD over the network and through the pooler, with no setting left on it"
 }
 
-# ---------------------------------------------------------------------------
-phase_tasks() {
-  say tasks "the system role, task environment variables, the plane's limit, the deploy, then the owner names forgotten"
-  load_env
-  runner_mode
-  if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then
-    note "skipped: pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}). The jobs ship in the worker's image, built and started by the app phase; nothing is uploaded to or deployed on Trigger.dev."
-    return 0
-  fi
-  [ -n "$(env_get TRIGGER_PROJECT_REF)" ] ||
-    die "TRIGGER_PROJECT_REF is not set — the 'account' phase has not been completed."
-
-  # The role the jobs across organisations connect as, asked and readied
-  # before its URL is uploaded (above).
-  system_role_ready
-
-  # Env before deploy, deliberately. Task containers inherit NOTHING from
-  # compose; a deploy that lands before the environment exists runs once
-  # against no database and fails in a way that reads like a broken task.
-  "${SCRIPT_DIR}/set-task-env.sh"
-  # THE PLANE'S LIMIT (workplan 0143 T1 step 3, open question 9): the tick's
-  # cap plus two, set before the deploy, because the deploy is what carries
-  # it into the run queue. Read back, and said.
-  "${SCRIPT_DIR}/plane-limit.sh"
-  # THE PLANE'S TOKENS (the same step, the half plane-limit.sh cannot fix):
-  # a worker that died mid-run leaves its id in the queue's concurrency set
-  # forever, and when the leaks equal the limit nothing dequeues. Released
-  # before the deploy, so a bring-up that lowers the limit never inherits a
-  # queue jammed by runs from months ago (E2E managed #247/#248).
-  "${SCRIPT_DIR}/plane-tokens.sh"
-  "${SCRIPT_DIR}/deploy-tasks.sh"
-  # The names the database owner went up under (DATABASE_URL until 0138 T3
-  # step 2, DIRECT_DATABASE_URL until step 1), deleted from the store only now,
-  # after a deploy that went through: the tasks deployed before step 2 read
-  # DATABASE_URL, and a deploy that fails (a build, the registry, the plane)
-  # stops the bring-up above, leaving those tasks the URL they still read.
-  # This run uploads nothing, and fails when the list still holds either.
-  "${SCRIPT_DIR}/set-task-env.sh" --forget-owner-names
-}
 
 # ---------------------------------------------------------------------------
 phase_smoke() {
@@ -3049,13 +2468,9 @@ done
 echo
 echo "=== done."
 if [ "$WITH_DEMO" -eq 1 ] && [ "$NO_SMOKE" -eq 0 ]; then
-  if [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
-    echo "    A green smoke means an enqueue became a run in the worker on this machine (pg-boss mode)."
-  else
-    echo "    A green smoke means an enqueue became a runner container on this machine."
-  fi
+  echo "    A green smoke means an enqueue became a run in the worker on this machine."
 else
-  echo "    Nothing has proven a task actually RUNS here. Before trusting this stack,"
+  echo "    Nothing has proven a job actually RUNS here. Before trusting this stack,"
   echo "    run the smoke against a demo stack, or watch the first real sync through."
 fi
 echo "    The prose companion, including what to do when a step fails:"

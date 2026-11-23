@@ -32,7 +32,7 @@
 #                               kept; on live it says so and writes nothing
 #                               (0134 T1: stack_may_be_live)
 #   dump-idp.sh and             on live write only into that copy's
-#   trigger-version.sh          directory, and trigger-version.sh refuses its
+#   trigger-version.sh          directory (trigger-version.sh until alpha.18), and it refused its
 #                               drill there (0139: stack_may_be_live)
 #   setup-zitadel.sh            refuses, on live, a run that would add a
 #                               sign-in provider while any of its keys holds

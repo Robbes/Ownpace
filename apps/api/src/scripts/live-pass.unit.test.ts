@@ -69,25 +69,21 @@ const { enqueued, unreachable } = vi.hoisted(() => ({
   enqueued: [] as Array<{ taskId: string; payload: unknown; options: unknown }>,
   unreachable: { on: false },
 }));
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (taskId: string, payload: unknown, options: unknown) => {
-          if (unreachable.on) {
-            return Promise.reject(
-              Object.assign(new Error(`connect ECONNREFUSED ${UNREACHABLE_AT}:3030`), { code: 'ECONNREFUSED' }),
-            );
-          }
-          enqueued.push({ taskId, payload, options });
-          return Promise.resolve({ id: `run_test${enqueued.length}` });
-        },
-      },
-    }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (taskId: string, payload: unknown, options: unknown) => {
+      if (unreachable.on) {
+        return Promise.reject(
+          Object.assign(new Error(`connect ECONNREFUSED ${UNREACHABLE_AT}:3030`), { code: 'ECONNREFUSED' }),
+        );
+      }
+      enqueued.push({ taskId, payload, options });
+      return `run_test${enqueued.length}`;
+  }),
+);
 
 const { default: migrationRoutes } = await import('../routes/migrations/index.ts');
 const { main, press } = await import('./live-pass.ts');
@@ -172,7 +168,7 @@ describe('the script presses Sync now the same way the button does', () => {
     expect(enqueued[1]).toEqual({
       taskId: 'run-delta-sync',
       payload: { tenantId: TENANT, mappingId: MAPPING },
-      options: { concurrencyKey: MAPPING, tags: [`tenant:${TENANT}`, `mapping:${MAPPING}`] },
+      options: { serializeBy: MAPPING, tags: [`tenant:${TENANT}`, `mapping:${MAPPING}`] },
     });
     expect(await visits(), 'a machine checking a release is not a person checking: no visit').toBe(0);
   });

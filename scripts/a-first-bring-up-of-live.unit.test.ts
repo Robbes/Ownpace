@@ -10,7 +10,8 @@
  * not take. Until `deploy/compose/stand-up-live.sh` the first bring-up was
  * eighteen steps in a research note and in 0132's task rows, several of them
  * easy to get wrong in a way nothing would report: a port the OTA stack
- * already uses, the Trigger.dev CLI profile both stacks would share, a
+ * already uses, the Trigger.dev CLI profile both stacks would share (until
+ * alpha.18), a
  * database password left at the value this repository publishes (the
  * migration creates `app_user` with `app_password` unless the role exists
  * first), the demo seeded onto live, production names routed after the
@@ -53,22 +54,23 @@
  *   only warns below `engines`.
  *
  *   The order is the plan's: the passwords, then preflight, env and data,
- *   the rendered DOCKER_RUNNER_NETWORKS, `app_user` created from
- *   APP_DB_PASSWORD before anything migrates, the password check on live's
- *   own network (the controls open, the three published values do not),
- *   and only then `--from trigger`.
+ *   `app_user` created from APP_DB_PASSWORD before anything migrates, the
+ *   password check on live's own network (the controls open, the three
+ *   published values do not), and only then `--from plane`. (alpha.18
+ *   removed Trigger.dev, workplan 0167 T9: the rendered
+ *   DOCKER_RUNNER_NETWORKS, the two stops for its account and login and the
+ *   task deploy's `apps/worker/package.json` went with it.)
  *
- *   The two stops exit 2 and say what to do and to run it again with
- *   `--resume`, which asks each step whether it is done (no state file):
- *   no password is generated twice and `app_user` is not created twice.
+ *   A stop exits 3 and says what to do and to run it again with `--resume`,
+ *   which asks each step whether it is done (no state file): no password is
+ *   generated twice and `app_user` is not created twice.
  *
- *   After the app and the tasks it runs the checks (`/api/version` names the
- *   tag's commit and version, `/api/ready`, `/api/auth/mode`, NODE_ENV, the
- *   issuer at id.ownpace.eu, live's networks, `exposure-check.sh`), and any
- *   failure exits 3 without logging. It puts back `apps/worker/package.json`
- *   when only its last newline changed, appends the first `deploys.log` line
- *   (took, one-way), copies the timer's units, and prints what is left to the
- *   owner.
+ *   After the app and the worker it runs the checks (`/api/version` names
+ *   the tag's commit and version, `/api/ready`, `/api/auth/mode`, NODE_ENV,
+ *   the issuer at id.ownpace.eu, live's networks, `exposure-check.sh`), and
+ *   any failure exits 3 without logging. It appends the first `deploys.log`
+ *   line (took, one-way), copies the timer's units, and prints what is left
+ *   to the owner.
  *
  * HOW IT RUNS. Each case builds `~/ownpace-live` under a HOME of its own: a
  * real git repository with a bare origin, whose release tag carries the
@@ -102,7 +104,6 @@ import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { switchedTo } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -121,17 +122,15 @@ const OTA_FRONT = '192.0.2.20';
 /** Live's ports: none is the OTA stack's, and none can turn up by chance in what it prints. */
 const PORTS: Record<string, string> = {
   POSTGRES_PORT: '45432',
-  TRIGGER_PORT: '43090',
-  TRIGGER_TLS_PORT: '43443',
   ZITADEL_PORT: '43126',
   API_PORT: '43001',
   WEB_PORT: '43123',
   STATUS_PORT: '43124',
-  REGISTRY_PORT: '45000',
   MAILPIT_PORT: '43127',
 };
-// The five a volume keeps, and the jobs role's (ADR-0054), which the bring-up sets on every run.
-const PASSWORD_KEYS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD', 'TRIGGER_DB_PASSWORD', 'JOBS_DB_PASSWORD'];
+// The two a volume keeps, and the jobs role's (ADR-0054), which the bring-up sets on every run.
+// (Trigger.dev's three, ClickHouse's, MinIO's and trigger-db's, went with it in alpha.18, workplan 0167 T9.)
+const PASSWORD_KEYS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'JOBS_DB_PASSWORD'];
 
 const tempDirs: string[] = [];
 // The temp folders are many and full; under a loaded full run a synchronous
@@ -159,23 +158,12 @@ const LIVE_ENV: Record<string, string> = {
   NOTIFY_FROM: 'sender-q6@example.test',
   NOTIFY_TO: 'operator-q6@example.test',
   MAILPIT_BIND: '',
-  TRIGGER_APP_ORIGIN: `https://localhost:${PORTS.TRIGGER_TLS_PORT}`,
-  TRIGGER_LOGIN_ORIGIN: `https://localhost:${PORTS.TRIGGER_TLS_PORT}`,
-  TRIGGER_API_ORIGIN: `http://127.0.0.1:${PORTS.TRIGGER_PORT}`,
-  TRIGGER_CLI_PROFILE: 'live-plane-q9',
-  CLICKHOUSE_USER: 'default',
-  CLICKHOUSE_PASSWORD: 'change-me-clickhouse',
-  MINIO_ROOT_USER: 'admin',
-  MINIO_ROOT_PASSWORD: 'change-me-minio',
-  TRIGGER_DB_PASSWORD: '',
   JOBS_DB_PASSWORD: '',
   OWNPACE_REACHABLE_HOSTS: '',
   // The most days a dump taken before a deploy is kept (0134, 2026-09-28).
   BACKUP_RETENTION_DAYS: '7',
   POSTGRES_BIND: '',
   API_BIND: '',
-  TRIGGER_BIND: '',
-  TRIGGER_TLS_BIND: '',
   ZITADEL_BIND: FRONT,
   WEB_BIND: FRONT,
   STATUS_BIND: FRONT,
@@ -208,7 +196,6 @@ const OTA_ENV: Record<string, string> = {
   WEB_URL: 'https://app.ota.example.test',
   WEB_BIND: OTA_FRONT,
   ZITADEL_BIND: OTA_FRONT,
-  TRIGGER_CLI_PROFILE: 'openmig',
 };
 
 const envText = (vars: Record<string, string | undefined>): string =>
@@ -233,7 +220,6 @@ const PRIVATE_VALUES = [
   FRONT,
   OTA_FRONT,
   ...Object.values(PORTS),
-  'live-plane-q9',
   'owner-q7@example.test',
   'smtp.example.test',
   'sender-q6@example.test',
@@ -241,12 +227,12 @@ const PRIVATE_VALUES = [
 ];
 
 /**
- * The kernel's ephemeral range as Linux ships it, and live's nine ports
+ * The kernel's ephemeral range as Linux ships it, and live's six ports
  * reserved in it: some one by one, some as a range (the fixture's
  * /proc/sys/net/ipv4, STAND_UP_LIVE_PROC_NET_DIR).
  */
 const EPHEMERAL_RANGE = '32768\t60999\n';
-const RESERVED = '43001,43090,43123-43127,43443,45000,45432';
+const RESERVED = '43001,43123-43127,45432';
 /** The same, and the 41xxx ports the cases on the OTA stack's ports use, which are about those alone. */
 const OTA_CASES_RESERVED = `${RESERVED},41000-41999\n`;
 
@@ -276,9 +262,6 @@ case "$1" in
       ls)
         echo "ownpace-live_ownpace-network"
         [ -n "\${STUB_NO_STATUS_NET:-}" ] || echo "ownpace-live_status-probe"
-        [ -n "\${STUB_NO_STORE_NET:-}" ] || echo "ownpace-live_trigger-event-store"
-        [ -n "\${STUB_NO_SOCKET_NET:-}" ] || echo "ownpace-live_trigger-docker-socket"
-        [ -n "\${STUB_NO_REGISTRY_NET:-}" ] || echo "ownpace-live_trigger-task-images"
         exit 0
         ;;
       inspect)
@@ -324,8 +307,8 @@ case "$1" in
     project="$(value COMPOSE_PROJECT_NAME)"
     case "$1" in
       config)
-        printf 'name: %s\\nservices:\\n  postgres:\\n    environment:\\n      POSTGRES_PASSWORD: %s\\n  trigger-supervisor:\\n    environment:\\n      DOCKER_RUNNER_NETWORKS: %s\\n' \\
-          "$project" "$(value POSTGRES_PASSWORD)" "\${STUB_RUNNER_NETWORK:-\${project}_ownpace-network}"
+        printf 'name: %s\\nservices:\\n  postgres:\\n    environment:\\n      POSTGRES_PASSWORD: %s\\n' \\
+          "$project" "$(value POSTGRES_PASSWORD)"
         exit 0
         ;;
       exec)
@@ -430,7 +413,9 @@ exit ${exitVar ? `"\${${exitVar}:-0}"` : '0'}
 
 /**
  * The bring-up, as a stand-in committed in the tag: it records its arguments,
- * makes the volumes a phase would, and stops where STUB_TRIGGER_STOP says.
+ * makes the volume the data phase would, and, from the plane phase on, exits
+ * with STUB_BOOTSTRAP_EXIT (2 is a stop for the owner, which since alpha.18 it
+ * never makes: workplan 0167 T9).
  */
 const BOOTSTRAP_STUB = `#!/usr/bin/env bash
 printf 'bootstrap %s\\n' "$*" >>"$STUB_LOG"
@@ -444,24 +429,7 @@ case "$*" in
     volume postgres_data
     exit "\${STUB_BOOTSTRAP_ONLY_EXIT:-0}"
     ;;
-  "--from trigger")
-    volume trigger_db_data; volume clickhouse_data_v2; volume minio_data_v2
-    if [ "\${STUB_TRIGGER_STOP:-}" = account ]; then
-      echo '--- Your turn. When you have done the above, carry on with:'
-      echo '      ./deploy/compose/bootstrap-managed.sh --from account'
-      exit 2
-    fi
-    grep -q '^TRIGGER_PROJECT_REF=.' "$env_file" || printf 'TRIGGER_PROJECT_REF=proj_live\\nTRIGGER_SECRET_KEY=tr_prod_live\\n' >>"$env_file"
-    if [ "\${STUB_TRIGGER_STOP:-}" = login ]; then
-      echo '--- Your turn. When you have done the above, carry on with:'
-      echo '      ./deploy/compose/bootstrap-managed.sh --from login'
-      exit 2
-    fi
-    worker="$here/../../apps/worker/package.json"
-    case "\${STUB_WORKER:-}" in
-      newline) printf '%s' "$(cat "$worker")" >"$worker" ;;
-      content) printf '{ "changed": true }\\n' >"$worker" ;;
-    esac
+  "--from plane")
     exit "\${STUB_BOOTSTRAP_EXIT:-0}"
     ;;
 esac
@@ -553,7 +521,7 @@ function writeExec(path: string, text: string): void {
   chmodSync(path, 0o755);
 }
 
-const WORKER_PACKAGE = `${JSON.stringify({ name: '@openmig/worker', dependencies: { '@trigger.dev/sdk': '4.5.16' } }, null, 2)}\n`;
+const WORKER_PACKAGE = `${JSON.stringify({ name: '@openmig/worker', dependencies: { 'pg-boss': '12.38.2' } }, null, 2)}\n`;
 
 function stage(opts: StageOptions = {}): Stage {
   const root = mkdtempSync(join(tmpdir(), 'stand-up-live-'));
@@ -582,7 +550,6 @@ function stage(opts: StageOptions = {}): Stage {
     'env-read.sh',
     'stack-kind.sh',
     'shipped-passwords.sh',
-    'trigger-cli-lib.sh',
     'deploy-live.sh',
     'box-duties.sh',
     'copy-before-update.sh',
@@ -596,14 +563,7 @@ function stage(opts: StageOptions = {}): Stage {
   copyFileSync(join(COMPOSE_DIR, 'env-upsert.sh'), join(compose, 'env-upsert.real.sh'));
   chmodSync(join(compose, 'env-upsert.real.sh'), 0o755);
   writeExec(join(compose, 'env-upsert.sh'), UPSERT_WRAPPER);
-  // A first bring-up on Trigger.dev's plane, with its two stops for the
-  // owner, as these cases were written for: since the flip managed.yml's
-  // default is pg-boss, so the stage's copy defaults to trigger. The cases of
-  // the two runners set their own (workplan 0167 T7).
-  const managed = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8').replace(
-    /\$\{OWNPACE_JOB_RUNNER:-[^}]*\}/g,
-    '${OWNPACE_JOB_RUNNER:-trigger}',
-  );
+  const managed = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8');
   writeFileSync(join(compose, 'managed.yml'), opts.managedYml ? opts.managedYml(managed) : managed);
   copyFileSync(join(COMPOSE_DIR, 'www.yml'), join(compose, 'www.yml'));
   for (const unit of UNITS) {
@@ -1032,7 +992,7 @@ describe("refused before anything changes: a node on this shell's PATH below wha
     (version) => {
       const s = stage({ tag: { engines: '>=26' } });
       const fine = nodeSaying(s, version);
-      const r = run(s, [], { PATH: `${fine.dir}:${s.env.PATH}`, STUB_TRIGGER_STOP: 'account' });
+      const r = run(s, [], { PATH: `${fine.dir}:${s.env.PATH}`, STUB_BOOTSTRAP_EXIT: '2' });
       expectPassed(r, "the node first on this shell's PATH");
       expect(r.out).toContain(`[stand-up-live] Node: ${fine.node} is ${version}, and ${TAG} asks for >=26 (engines in its package.json)`);
     },
@@ -1044,7 +1004,7 @@ describe("refused before anything changes: a node on this shell's PATH below wha
     () => {
       const s = stage();
       const old = nodeSaying(s, 'v24.11.1');
-      const r = run(s, [], { PATH: `${old.dir}:${s.env.PATH}`, STUB_TRIGGER_STOP: 'account' });
+      const r = run(s, [], { PATH: `${old.dir}:${s.env.PATH}`, STUB_BOOTSTRAP_EXIT: '2' });
       expectPassed(r, "the node first on this shell's PATH");
       expect(r.out).toContain(`[stand-up-live] Node: ${TAG} asks for none (no engines in its package.json), so the node on this shell's PATH is not checked`);
     },
@@ -1088,8 +1048,9 @@ describe('refused before anything changes: a live that stands, or is half-built'
     () => {
       // Only live's own name counts: the daemon holds both stacks.
       const s = stage({ volumes: ['ownpace-managed_postgres_data'] });
-      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
-      expect(r.status, r.out).toBe(2);
+      const r = run(s, [], { STUB_BOOTSTRAP_EXIT: '2' });
+      expect(r.status, r.out).toBe(3);
+      expect(r.out).toContain('[stand-up-live] every refusal passed');
     },
     CASE_MS,
   );
@@ -1134,7 +1095,7 @@ describe("the machine keeps a container's output with the container: Docker's de
     'taken: %s',
     (driver) => {
       const s = stage();
-      expectPassed(run(s, [], { STUB_LOG_DRIVER: driver, STUB_TRIGGER_STOP: 'account' }), "Docker's log driver");
+      expectPassed(run(s, [], { STUB_LOG_DRIVER: driver, STUB_BOOTSTRAP_EXIT: '2' }), "Docker's log driver");
     },
     CASE_MS,
   );
@@ -1145,7 +1106,7 @@ describe("live's TRUST_PROXY: the proxies in front of its api, 2, or 3 where Net
     "taken: 3, the value the bring-up's check names when NetBird's cluster adds a hop",
     () => {
       const s = stage({ env: { TRUST_PROXY: '3' } });
-      expectPassed(run(s, [], { STUB_TRIGGER_STOP: 'account' }), 'TRUST_PROXY');
+      expectPassed(run(s, [], { STUB_BOOTSTRAP_EXIT: '2' }), 'TRUST_PROXY');
     },
     CASE_MS,
   );
@@ -1246,7 +1207,7 @@ describe("live's sign-in page offers email and password only: a sign-in provider
           IDP_READ_ATTEMPTS: '6',
         },
       });
-      expectPassed(run(s, [], { STUB_TRIGGER_STOP: 'account' }), /IDP_|sign-in provider/);
+      expectPassed(run(s, [], { STUB_BOOTSTRAP_EXIT: '2' }), /IDP_|sign-in provider/);
     },
     CASE_MS,
   );
@@ -1270,14 +1231,8 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     ['STATUS_BIND empty', { STATUS_BIND: '' }, 'STATUS_BIND'],
     ['POSTGRES_BIND set', { POSTGRES_BIND: FRONT, EXPOSURE_ALLOW: `${FRONT},${OTA_FRONT}` }, 'POSTGRES_BIND'],
     ['API_BIND set', { API_BIND: FRONT }, 'API_BIND'],
-    ['TRIGGER_BIND set', { TRIGGER_BIND: FRONT }, 'TRIGGER_BIND'],
     ['a bind that is a name', { WEB_BIND: 'front-q3.example.test' }, 'WEB_BIND', 'front-q3.example.test'],
     ['a bind on every interface', { STATUS_BIND: '0.0.0.0' }, 'STATUS_BIND'],
-    ["TRIGGER_API_ORIGIN not on TRIGGER_PORT", { TRIGGER_API_ORIGIN: 'http://127.0.0.1:3090' }, 'TRIGGER_API_ORIGIN'],
-    ['TRIGGER_APP_ORIGIN not on TRIGGER_TLS_PORT', { TRIGGER_APP_ORIGIN: 'https://localhost:3443' }, 'TRIGGER_APP_ORIGIN'],
-    ['TRIGGER_LOGIN_ORIGIN not on TRIGGER_TLS_PORT', { TRIGGER_LOGIN_ORIGIN: 'https://localhost' }, 'TRIGGER_LOGIN_ORIGIN'],
-    ['TRIGGER_CLI_PROFILE the default', { TRIGGER_CLI_PROFILE: 'openmig' }, 'TRIGGER_CLI_PROFILE'],
-    ['TRIGGER_CLI_PROFILE empty', { TRIGGER_CLI_PROFILE: '' }, 'TRIGGER_CLI_PROFILE'],
     ["EXPOSURE_ALLOW without live's front", { EXPOSURE_ALLOW: OTA_FRONT }, 'EXPOSURE_ALLOW'],
     ["EXPOSURE_ALLOW without the OTA stack's", { EXPOSURE_ALLOW: FRONT }, 'EXPOSURE_ALLOW'],
     ['WEB_URL not the production name', { WEB_URL: 'http://localhost:3123' }, 'WEB_URL'],
@@ -1315,9 +1270,6 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     ["a port the OTA stack uses by default", { WEB_PORT: '3123' }, 'WEB_PORT'],
     ['two of live\'s ports the same', { STATUS_PORT: PORTS.WEB_PORT }, 'STATUS_PORT'],
     ['a password a URL cannot carry as it is', { POSTGRES_PASSWORD: 'abc@def-q5' }, 'POSTGRES_PASSWORD', 'abc@def-q5'],
-    // minio-init puts it in MC_HOST_store, where mc takes a ':' for the start
-    // of a session token and the bucket is never made (0146 T7, review).
-    ["a MinIO password with a ':', which mc would split", { MINIO_ROOT_PASSWORD: 'abc:def-q6' }, 'MINIO_ROOT_PASSWORD', 'abc:def-q6'],
   ];
 
   it.each(CASES)(
@@ -1368,7 +1320,7 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     ["live's MAILPIT_PORT the TRIGGER_PORT the OTA stack's .env sets", { MAILPIT_PORT: '41090' }, { ...OTA_ENV, TRIGGER_PORT: '41090' }, 'MAILPIT_PORT'],
     ["live's STATUS_PORT the OTA stack's NEXTCLOUD_PORT, by default", { STATUS_PORT: '8083' }, OTA_ENV, 'STATUS_PORT'],
     ["live's API_PORT the site's WWW_PORT, www.yml's default", { API_PORT: '3125' }, OTA_ENV, 'API_PORT'],
-    ["live's REGISTRY_PORT a *_PORT only the OTA stack's .env names", { REGISTRY_PORT: '41555' }, { ...OTA_ENV, SOMETHING_ELSE_PORT: '41555' }, 'REGISTRY_PORT'],
+    ["live's MAILPIT_PORT a *_PORT only the OTA stack's .env names", { MAILPIT_PORT: '41555' }, { ...OTA_ENV, SOMETHING_ELSE_PORT: '41555' }, 'MAILPIT_PORT'],
   ] as const)(
     'a port the OTA stack uses under another key, with nothing listening on it: %s',
     (_label, env, otaEnv, key) => {
@@ -1433,8 +1385,8 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     'a port something on the machine already listens on',
     () => {
       const s = stage();
-      const r = run(s, [], { STUB_LISTENING: PORTS.REGISTRY_PORT! });
-      expectRefused(s, r, '- REGISTRY_PORT', 'reads');
+      const r = run(s, [], { STUB_LISTENING: PORTS.MAILPIT_PORT! });
+      expectRefused(s, r, '- MAILPIT_PORT', 'reads');
       expect(r.out).toMatch(/in use/);
       expectNothingLeaked(s, r.out);
     },
@@ -1479,11 +1431,10 @@ describe("refused before anything changes: live's .env, key by key, never a valu
 
   it.each([
     ['APP_DB_PASSWORD', { APP_DB_PASSWORD: 'app_password', POSTGRES_PASSWORD: 'f00d'.repeat(12) }, 'ownpace-live_postgres_data', /0132 T2/],
-    ['TRIGGER_DB_PASSWORD', { TRIGGER_DB_PASSWORD: '', POSTGRES_PASSWORD: 'f00d'.repeat(12), APP_DB_PASSWORD: 'beef'.repeat(12) }, 'ownpace-live_trigger_db_data', /reset-trigger\.sh/],
   ] as const)(
     'a published %s whose volume exists already: the volume keeps what it was given',
     (key, env, volume, remedy) => {
-      const s = stage({ env, volumes: ['ownpace-live_postgres_data', 'ownpace-live_trigger_db_data'] });
+      const s = stage({ env, volumes: ['ownpace-live_postgres_data'] });
       const before = envNow(s);
       const r = run(s, ['--resume']);
       expectRefused(s, r, `- ${key}`, 'reads', before);
@@ -1498,12 +1449,12 @@ describe("refused before anything changes: live's .env, key by key, never a valu
 it(
   "an empty JOBS_DB_PASSWORD with live's volumes there is generated, not refused: no volume keeps it, the data phase sets it every run",
   () => {
-    const own = { POSTGRES_PASSWORD: 'f00d'.repeat(12), APP_DB_PASSWORD: 'beef'.repeat(12), CLICKHOUSE_PASSWORD: 'cafe'.repeat(12), MINIO_ROOT_PASSWORD: 'face'.repeat(12), TRIGGER_DB_PASSWORD: 'fade'.repeat(12) };
+    const own = { POSTGRES_PASSWORD: 'f00d'.repeat(12), APP_DB_PASSWORD: 'beef'.repeat(12) };
     const s = stage({
       env: { ...own, JOBS_DB_PASSWORD: '' },
-      volumes: ['ownpace-live_postgres_data', 'ownpace-live_trigger_db_data', 'ownpace-live_clickhouse_data_v2', 'ownpace-live_minio_data_v2'],
+      volumes: ['ownpace-live_postgres_data'],
     });
-    const r = run(s, ['--resume'], { STUB_TRIGGER_STOP: 'account' });
+    const r = run(s, ['--resume'], { STUB_BOOTSTRAP_EXIT: '2' });
     expect(r.out).toContain('[stand-up-live] every refusal passed');
     expect(r.out).toContain('generated JOBS_DB_PASSWORD on this machine');
     expect(valueOf(s, 'JOBS_DB_PASSWORD')).toMatch(/^[0-9a-f]{48}$/);
@@ -1515,8 +1466,13 @@ it(
 );
 
 /** Past every refusal, as far as the first stop (exit 2), with nothing said about `what`. */
+/**
+ * Every refusal passed: it went on to the bring-up, which the case stops at
+ * its plane phase (STUB_BOOTSTRAP_EXIT 2), so nothing past it runs.
+ */
 function expectPassed(r: { status: number; out: string }, what: string | RegExp): void {
-  expect(r.status, r.out).toBe(2);
+  expect(r.status, r.out).toBe(3);
+  expect(r.out).toContain('[stand-up-live] stopped: bootstrap-managed.sh --from plane stopped for you (exit 2)');
   expect(r.out).toContain('[stand-up-live] every refusal passed');
   if (typeof what === 'string') expect(r.out).not.toContain(what);
   else expect(r.out).not.toMatch(what);
@@ -1574,7 +1530,7 @@ describe("live's BACKUP_RETENTION_DAYS is the most days a dump taken before a de
     'taken: %s, on the alpha',
     (_label, days) => {
       const s = stage({ env: { BACKUP_RETENTION_DAYS: days, OWNPACE_STAGE: 'alpha' } });
-      expectPassed(run(s, [], { STUB_TRIGGER_STOP: 'account' }), 'BACKUP_RETENTION_DAYS');
+      expectPassed(run(s, [], { STUB_BOOTSTRAP_EXIT: '2' }), 'BACKUP_RETENTION_DAYS');
     },
     CASE_MS,
   );
@@ -1637,7 +1593,7 @@ describe("live's mail goes through a real relay from its first day, and no catch
     'taken: %s',
     (_label, env) => {
       const s = stage({ env });
-      expectPassed(run(s, [], { STUB_TRIGGER_STOP: 'account' }), /- (SMTP_|NOTIFY_)/);
+      expectPassed(run(s, [], { STUB_BOOTSTRAP_EXIT: '2' }), /- (SMTP_|NOTIFY_)/);
     },
     CASE_MS,
   );
@@ -1653,7 +1609,7 @@ describe('EXPOSURE_ALLOW is read by exposure-check.sh itself, so the list it tak
     'taken: %s',
     (_label, env, otaEnv) => {
       const s = stage({ env, otaEnv });
-      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
+      const r = run(s, [], { STUB_BOOTSTRAP_EXIT: '2' });
       expectPassed(r, '- EXPOSURE_ALLOW');
       expect(called(s, 'exposure-check').some((l) => l.endsWith(' --from -')), 'exposure-check.sh was not asked').toBe(true);
       expectNothingLeaked(s, r.out);
@@ -1683,7 +1639,7 @@ describe("EXPOSURE_NOT_OURS, the owner's containers that are not Ownpace's, is r
     'taken: two names of containers that are not Ownpace\'s',
     () => {
       const s = stage({ env: { EXPOSURE_NOT_OURS: 'someones-app,notes-db' } });
-      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
+      const r = run(s, [], { STUB_BOOTSTRAP_EXIT: '2' });
       expectPassed(r, /- EXPOSURE_(ALLOW|NOT_OURS)/);
       expectNothingLeaked(s, r.out);
     },
@@ -1865,7 +1821,7 @@ describe("a port live publishes in the kernel's ephemeral range is refused until
     'taken: %s',
     (_label, proc, env) => {
       const s = stage({ proc, env });
-      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
+      const r = run(s, [], { STUB_BOOTSTRAP_EXIT: '2' });
       expectPassed(r, /ephemeral|ip_local_/);
       expectNothingLeaked(s, r.out);
     },
@@ -1879,29 +1835,31 @@ describe("a port live publishes in the kernel's ephemeral range is refused until
 
 describe('the first bring-up: the stops, the resume, the checks and the first log line', () => {
   it(
-    'runs in the plan\'s order, stops twice for the owner, resumes by asking each step, and ends with the checks and one line',
+    'runs in the plan\'s order, resumes by asking each step after a stop, and ends with the checks and one line',
     () => {
       const s = stage();
 
-      // ---- The first run: stops for the dashboard (exit 2) ----
-      const first = run(s, [], { STUB_TRIGGER_STOP: 'account' });
-      expect(first.status, first.out).toBe(2);
+      // ---- The first run: the bring-up stops at its plane phase (since
+      // alpha.18 it has no account or login to stop for; a stop is a stop) ----
+      const first = run(s, [], { STUB_BOOTSTRAP_EXIT: '2' });
+      expect(first.status, first.out).toBe(3);
 
-      // The passwords: generated on the machine, six of them, 48 hex each,
+      // The passwords: generated on the machine, three of them, 48 hex each,
       // all different, written into the persisted file through the link.
       const secrets = PASSWORD_KEYS.map((k) => valueOf(s, k));
       for (const [i, v] of secrets.entries()) expect(v, PASSWORD_KEYS[i]).toMatch(/^[0-9a-f]{48}$/);
-      expect(new Set(secrets).size).toBe(6);
+      expect(new Set(secrets).size).toBe(3);
       expect(lstatSync(join(s.compose, '.env')).isSymbolicLink(), 'the link was replaced by a file').toBe(true);
-      expect(called(s, 'openssl')).toEqual(Array(6).fill('openssl rand -hex 24'));
+      expect(called(s, 'openssl')).toEqual(Array(3).fill('openssl rand -hex 24'));
       // Through env-upsert.sh, on stdin: no KEY=VALUE on its command line.
       expect(called(s, 'env-upsert')).toEqual([`env-upsert --stdin ${join(s.compose, '.env')}`]);
       // In the same write, the provider's organisation is named Ownpace before
       // its first start, the owner's answer of 2026-10-17 (0135 open question 8).
       expect(valueOf(s, 'ZITADEL_ORG_NAME')).toBe('Ownpace');
 
-      // The order: passwords, preflight, env, data, the runner network,
-      // app_user, the password check, then --from trigger.
+      // The order: passwords, preflight, env, data, app_user, the password
+      // check, then --from plane. (The runner network's check went with
+      // Trigger.dev's supervisor in alpha.18, workplan 0167 T9.)
       const order = calls(s)
         .map((l) =>
           l.startsWith('env-upsert ')
@@ -1918,7 +1876,7 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
         )
         .filter(Boolean)
         .filter((x, i, a) => a[i - 1] !== x);
-      expect(order).toEqual(['passwords', '--only preflight', '--only env', 'config', '--only data', 'postgres', 'dbcheck', '--from trigger']);
+      expect(order).toEqual(['passwords', '--only preflight', '--only env', '--only data', 'postgres', 'dbcheck', '--from plane']);
 
       // app_user, from APP_DB_PASSWORD, on psql's stdin, before anything migrates.
       const sql = readFileSync(s.sqlLog, 'utf8');
@@ -1938,44 +1896,34 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
         expect(d).toContain('psql -h postgres ');
       }
 
-      // What it said: the dashboard, the tunnel's shape, the magic link, and
-      // to run it again with --resume, not bootstrap's own resume line.
-      expect(first.out).toMatch(/trigger-magic-link\.sh/);
-      expect(first.out).toMatch(/ssh -N -L <TRIGGER_TLS_PORT>:127\.0\.0\.1:<TRIGGER_TLS_PORT>/);
+      // What it said: to run it again with --resume, not bootstrap's own
+      // resume line, and no Trigger.dev account, login or tunnel to make.
       expect(first.out).toContain('./deploy/compose/stand-up-live.sh --resume');
+      expect(first.out).not.toMatch(/trigger-magic-link|TRIGGER_TLS_PORT|Your turn: live's own Trigger\.dev account/);
       expect(deployLines(s)).toEqual([]);
       expectNothingLeaked(s, first.out, secrets);
 
       // ---- Run again without --resume: live's database exists now ----
-      const bare = run(s, [], { STUB_TRIGGER_STOP: 'login' });
+      const bare = run(s, []);
       expect(bare.status, bare.out).toBe(1);
       expect(bare.out).toMatch(/--resume/);
       expect(called(s, 'bootstrap').length).toBe(4);
 
-      // ---- The resume: stops for the CLI login (exit 2) ----
-      const second = run(s, ['--resume'], { STUB_TRIGGER_STOP: 'login' });
-      expect(second.status, second.out).toBe(2);
-      expect(second.out).toMatch(/login/);
-      expect(second.out).toContain('./deploy/compose/stand-up-live.sh --resume');
+      // ---- The resume: the plane's leftovers, the app and the worker, the checks, the log ----
+      const third = run(s, ['--resume']);
+      expect(third.status, third.out).toBe(0);
       // Nothing generated twice, app_user not created twice.
-      expect(called(s, 'openssl')).toHaveLength(6);
+      expect(called(s, 'openssl')).toHaveLength(3);
       expect(PASSWORD_KEYS.map((k) => valueOf(s, k))).toEqual(secrets);
       expect(readFileSync(s.sqlLog, 'utf8').match(/CREATE ROLE/g)).toHaveLength(1);
       expect(called(s, 'bootstrap').slice(4)).toEqual([
         'bootstrap --only preflight',
         'bootstrap --only env',
         'bootstrap --only data',
-        'bootstrap --from trigger',
+        'bootstrap --from plane',
       ]);
-      expectNothingLeaked(s, second.out, secrets);
-
-      // ---- The last resume: the app, the tasks, the checks, the log ----
-      const third = run(s, ['--resume'], { STUB_WORKER: 'newline' });
-      expect(third.status, third.out).toBe(0);
-
-      // apps/worker/package.json lost only its newline, and got it back.
+      // The checkout is as the tag left it: nothing changed apps/worker/package.json.
       expect(git(s.root, s.work, 'status', '--porcelain')).toBe('');
-      expect(third.out).toMatch(/apps\/worker\/package\.json/);
 
       // The checks.
       expect(called(s, 'curl').slice(-4)).toEqual([
@@ -2053,11 +2001,11 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
     () => {
       const own = 'a1b2'.repeat(12);
       const s = stage({ env: { POSTGRES_PASSWORD: own, ZITADEL_ORG_NAME: 'Ownpace Alpha' } });
-      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
-      expect(r.status, r.out).toBe(2);
+      const r = run(s, [], { STUB_BOOTSTRAP_EXIT: '2' });
+      expect(r.status, r.out).toBe(3);
       expect(valueOf(s, 'POSTGRES_PASSWORD')).toBe(own);
       expect(valueOf(s, 'ZITADEL_ORG_NAME')).toBe('Ownpace Alpha');
-      expect(called(s, 'openssl')).toHaveLength(5);
+      expect(called(s, 'openssl')).toHaveLength(2);
       expectNothingLeaked(s, r.out, [own]);
     },
     CASE_MS,
@@ -2066,23 +2014,22 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
 
 describe('after it began, a step that fails stops it, says so, and logs nothing', () => {
   type Breakage = [string, NodeJS.ProcessEnv, RegExp, ((s: Stage) => void)?];
-  const BEFORE_TRIGGER: Breakage[] = [
+  const BEFORE_PLANE: Breakage[] = [
     ['the first half of the bring-up fails', { STUB_BOOTSTRAP_ONLY_EXIT: '1' }, /bootstrap-managed\.sh --only preflight failed/],
-    ['DOCKER_RUNNER_NETWORKS renders to another stack\'s network', { STUB_RUNNER_NETWORK: 'other_ownpace-network' }, /DOCKER_RUNNER_NETWORKS/],
     ['the database cannot be asked', { STUB_PSQL_FAIL: '1' }, /app_user/],
     ['the control does not open, so the check tells nothing', { STUB_DB_DOWN: '1' }, /CONTROL FAILED/],
     ['a published password opens', { STUB_DB_ALSO: 'openmigrate:change-me-openmigrate' }, /OPENS: openmigrate/],
   ];
 
-  it.each(BEFORE_TRIGGER)(
-    '%s: stopped before --from trigger',
+  it.each(BEFORE_PLANE)(
+    '%s: stopped before --from plane',
     (_label, extra, why) => {
       const s = stage();
-      const r = run(s, [], { STUB_TRIGGER_STOP: 'account', ...extra });
+      const r = run(s, [], { STUB_BOOTSTRAP_EXIT: '2', ...extra });
       expect(r.status, r.out).toBe(3);
       expect(r.out).toMatch(why);
       expect(r.out).toContain('./deploy/compose/stand-up-live.sh --resume');
-      expect(called(s, 'bootstrap')).not.toContain('bootstrap --from trigger');
+      expect(called(s, 'bootstrap')).not.toContain('bootstrap --from plane');
       expect(deployLines(s)).toEqual([]);
       expectNothingLeaked(s, r.out, PASSWORD_KEYS.map((k) => valueOf(s, k)).filter(Boolean));
     },
@@ -2094,18 +2041,18 @@ describe('after it began, a step that fails stops it, says so, and logs nothing'
     () => {
       const s = stage({ volumes: ['ownpace-live_postgres_data'], env: { POSTGRES_PASSWORD: 'f00d'.repeat(12), APP_DB_PASSWORD: 'beef'.repeat(12) } });
       writeFileSync(join(s.state, 'app_user_password'), 'app_password');
-      const r = run(s, ['--resume'], { STUB_TRIGGER_STOP: 'account' });
+      const r = run(s, ['--resume'], { STUB_BOOTSTRAP_EXIT: '2' });
       expect(r.status, r.out).toBe(3);
       expect(r.out).toMatch(/CONTROL FAILED/);
       expect(r.out).toMatch(/OPENS: app_user/);
       expect(readFileSync(s.sqlLog, 'utf8')).not.toMatch(/CREATE ROLE/);
-      expect(called(s, 'bootstrap')).not.toContain('bootstrap --from trigger');
+      expect(called(s, 'bootstrap')).not.toContain('bootstrap --from plane');
     },
     CASE_MS,
   );
 
-  const AFTER_TRIGGER: Breakage[] = [
-    ['the bring-up fails', { STUB_BOOTSTRAP_EXIT: '1' }, /bootstrap-managed\.sh --from trigger failed/],
+  const AFTER_PLANE: Breakage[] = [
+    ['the bring-up fails', { STUB_BOOTSTRAP_EXIT: '1' }, /bootstrap-managed\.sh --from plane failed/],
     ['/api/version names another commit', {}, /\/api\/version names commit/, (s) => answer(s, 'app.ownpace.eu/api/version', 200, { version: VERSION, commit: 'unknown' })],
     ['/api/version names another version', {}, /\/api\/version names version/, (s) => answer(s, 'app.ownpace.eu/api/version', 200, { version: '0.2.0-alpha.0', commit: s.commit })],
     ['/api/ready answers 503', {}, /\/api\/ready/, (s) => answer(s, 'app.ownpace.eu/api/ready', 503, { status: 'down' })],
@@ -2114,39 +2061,24 @@ describe('after it began, a step that fails stops it, says so, and logs nothing'
     ['NODE_ENV in the api is development', { STUB_NODE_ENV: 'development' }, /NODE_ENV/],
     ['the issuer is another', {}, /issuer/, (s) => answer(s, 'id.ownpace.eu/.well-known/openid-configuration', 200, { issuer: 'https://id.ota.example.test' })],
     ["live's status-probe network is missing", { STUB_NO_STATUS_NET: '1' }, /status-probe/],
-    ["live's ClickHouse network is missing", { STUB_NO_STORE_NET: '1' }, /trigger-event-store/],
-    ["live's socket proxy network is missing", { STUB_NO_SOCKET_NET: '1' }, /trigger-docker-socket/],
-    ["live's registry network is missing", { STUB_NO_REGISTRY_NET: '1' }, /trigger-task-images/],
     ["a live container on the OTA stack's network", { STUB_ON_OTA_NET: 'ownpace-live-api' }, /ownpace-live-api/],
     ['the exposure check finds a port', { STUB_EXPOSURE_EXIT: '1' }, /exposure check/],
   ];
 
-  it.each(AFTER_TRIGGER)(
+  it.each(AFTER_PLANE)(
     '%s: stopped after the bring-up, with the checkout clean again',
     (_label, extra, why, prep) => {
       const s = stage();
       prep?.(s);
-      const r = run(s, [], { STUB_WORKER: 'newline', ...extra });
+      const r = run(s, [], extra);
       expect(r.status, r.out).toBe(3);
       expect(r.out).toMatch(why);
       expect(r.out).toContain('./deploy/compose/stand-up-live.sh --resume');
       expect(r.out).not.toMatch(/ownpace-live stands/);
       expect(deployLines(s)).toEqual([]);
       expect(called(s, 'systemctl')).toEqual([]);
-      expect(git(s.root, s.work, 'status', '--porcelain'), 'the newline was not put back').toBe('');
+      expect(git(s.root, s.work, 'status', '--porcelain'), 'the checkout is not as the tag left it').toBe('');
       expectNothingLeaked(s, r.out, PASSWORD_KEYS.map((k) => valueOf(s, k)).filter(Boolean));
-    },
-    CASE_MS,
-  );
-
-  it(
-    'apps/worker/package.json changed beyond its newline is left alone, and said',
-    () => {
-      const s = stage();
-      const r = run(s, [], { STUB_WORKER: 'content' });
-      expect(r.status, r.out).toBe(0);
-      expect(git(s.root, s.work, 'status', '--porcelain')).toContain('apps/worker/package.json');
-      expect(r.out).toMatch(/NOTE: apps\/worker\/package\.json changed beyond its last newline/);
     },
     CASE_MS,
   );
@@ -2205,19 +2137,15 @@ describe('env-upsert.sh --stdin', () => {
   });
 });
 
-describe('a first bring-up of live in either runner (workplan 0167 T7)', () => {
-  /** managed.yml that hands the switch to its containers, defaulting to <runner>, as alpha.16's does. */
-  const switched = switchedTo;
-
+describe('a first bring-up of live since alpha.18 removed Trigger.dev (workplan 0167 T9)', () => {
   it(
-    'pg-boss mode: said before the bring-up, and a stop of the bring-up is never taken for the Trigger.dev account',
+    'a stop of the bring-up is said as one, and never as a Trigger.dev account or login to make',
     () => {
-      const s = stage({ managedYml: switched('pg-boss') });
-      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
+      const s = stage();
+      const r = run(s, [], { STUB_BOOTSTRAP_EXIT: '2' });
       expect(r.status, r.out).toBe(3);
-      expect(r.out).toMatch(/pg-boss mode \(OWNPACE_JOB_RUNNER=pg-boss\): the bring-up stops the Trigger\.dev plane, asks for no account or login/);
-      expect(r.out).toMatch(/stopped: bootstrap-managed\.sh --from trigger stopped for you \(exit 2\): do what it asks above\./);
-      expect(r.out).toMatch(/In pg-boss mode it has no Trigger\.dev account or login to stop for/);
+      expect(r.out).toMatch(/stopped: bootstrap-managed\.sh --from plane stopped for you \(exit 2\): do what it asks above\./);
+      expect(r.out).toMatch(/It has no Trigger\.dev account or login to stop for since alpha\.18/);
       expect(r.out).not.toMatch(/Your turn: live's own Trigger\.dev account/);
       expect(deployLines(s)).toEqual([]);
     },
@@ -2225,43 +2153,35 @@ describe('a first bring-up of live in either runner (workplan 0167 T7)', () => {
   );
 
   it(
-    "pg-boss mode: the plane's three networks, which a pg-boss stand-up never makes, are not asked for; trigger mode still asks",
+    "the plane's three networks are never asked for: a stand-up of alpha.18 makes none",
     () => {
-      const missing = { STUB_NO_STORE_NET: '1', STUB_NO_SOCKET_NET: '1', STUB_NO_REGISTRY_NET: '1' };
-      const pg = stage({ managedYml: switched('pg-boss') });
-      const r = run(pg, [], missing);
+      const s = stage();
+      const r = run(s);
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/ownpace-live stands/);
       expect(r.out).not.toMatch(/trigger-event-store|trigger-docker-socket|trigger-task-images/);
-      const tr = stage({ managedYml: switched('trigger') });
-      const t = run(tr, [], missing);
-      expect(t.status, t.out).toBe(3);
-      expect(t.out).toMatch(/the network ownpace-live_trigger-event-store is not there/);
     },
     CASE_MS,
   );
 
-  it(
-    'trigger mode: the account stop is the account stop, as before',
-    () => {
-      const s = stage({ managedYml: switched('trigger') });
-      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
-      expect(r.status, r.out).toBe(2);
-      expect(r.out).toMatch(/Your turn: live's own Trigger\.dev account/);
-      expect(r.out).not.toMatch(/pg-boss/);
-    },
-    CASE_MS,
-  );
-
-  it(
-    'a value of the switch that is neither stops it before the bring-up',
-    () => {
-      const s = stage({ managedYml: switched('trigger'), env: { OWNPACE_JOB_RUNNER: 'both' } });
+  it.each([
+    ['trigger, from an old .env', 'trigger', /stopped: OWNPACE_JOB_RUNNER in .* is trigger, but Trigger\.dev was removed in alpha\.18, so remove the key from the \.env or set it to pg-boss/],
+    ['a value that is not pg-boss', 'both', /stopped: OWNPACE_JOB_RUNNER in .* is not pg-boss/],
+  ])(
+    'a switch of %s stops it before the plane and the app',
+    (_label, value, why) => {
+      const s = stage({ env: { OWNPACE_JOB_RUNNER: value } });
       const r = run(s, []);
       expect(r.status, r.out).toBe(3);
-      expect(r.out).toMatch(/stopped: OWNPACE_JOB_RUNNER in .* is neither trigger nor pg-boss/);
-      expect(called(s, 'bootstrap')).not.toContain('bootstrap --from trigger');
+      expect(r.out).toMatch(why);
+      expect(called(s, 'bootstrap')).not.toContain('bootstrap --from plane');
     },
     CASE_MS,
   );
+
+  it('no script of Trigger.dev is named, run or needed by the tag it stands up', () => {
+    const text = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8');
+    const code = text.split('\n').filter((l) => !/^\s*#/.test(l));
+    expect(code.filter((l) => /trigger-cli-lib|set-task-env|deploy-tasks|trigger-magic-link|trigger-credentials|--from trigger/.test(l))).toEqual([]);
+  });
 });

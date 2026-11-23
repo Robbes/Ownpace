@@ -50,12 +50,12 @@ describe('the masterkey is generated at the length the provider demands', () => 
     expect(SECRETS).toMatch(/ensure ZITADEL_MASTERKEY 16\b/);
   });
 
-  it('refuses to rotate it, like the other key that encrypts a live store', () => {
+  it('refuses to rotate it: the key encrypts a live store', () => {
     // Replacing it on an instance that holds accounts strands them. The file
-    // already learned this lesson once, for TRIGGER_ENCRYPTION_KEY.
+    // learned this lesson first for TRIGGER_ENCRYPTION_KEY, which went with
+    // Trigger.dev in alpha.18 (workplan 0167 T9).
     const guard = /needs_rotation_procedure\(\)[\s\S]*?\n}/.exec(SECRETS)?.[0] ?? '';
-    expect(guard).toContain('ZITADEL_MASTERKEY');
-    expect(guard).toContain('TRIGGER_ENCRYPTION_KEY');
+    expect(guard).toContain('ZITADEL_MASTERKEY) return 0');
   });
 });
 

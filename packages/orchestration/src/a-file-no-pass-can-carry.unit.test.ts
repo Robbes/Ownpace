@@ -63,10 +63,14 @@ describe('the managed file pass', () => {
     );
   });
 
-  it('gets the setting uploaded to the tasks', () => {
-    const script = readFileSync(join(ROOT, 'deploy', 'compose', 'set-task-env.sh'), 'utf8');
-    expect(script).toContain('LARGEST_FILE_MB="${LARGEST_FILE_MB:-}"');
-    expect(script).toMatch(/"LEDGER_RUN_RETENTION_DAYS", "LARGEST_FILE_MB",/);
+  it('gets the setting from the worker service (set-task-env.sh uploaded it to the tasks until alpha.18, 0167 T9)', () => {
+    const compose = readFileSync(join(ROOT, 'deploy', 'compose', 'managed.yml'), 'utf8');
+    const start = compose.indexOf('\n  worker:\n');
+    expect(start, 'managed.yml has no worker service').toBeGreaterThan(-1);
+    const rest = compose.slice(start + 1);
+    const next = rest.slice(1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
+    const block = next === -1 ? rest : rest.slice(0, next + 1);
+    expect(block).toContain('LARGEST_FILE_MB: ${LARGEST_FILE_MB:-}');
   });
 });
 

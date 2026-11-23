@@ -47,7 +47,8 @@
 # ONCE A DAY, at its first run from 07:00 UTC, or now with --summary: "Daily
 # summary", numbers only. Free space; the duties' last run and last pass,
 # their timer, and the provisioning token's date (ZITADEL_PAT_EXPIRY); the
-# size of every database in each stack's postgres and trigger-db, live's and
+# size of every database in each stack's postgres (trigger-db's too until
+# alpha.18, which removed Trigger.dev), live's and
 # the OTA stack's (managed.yml's own name); the five largest volumes of the two
 # stacks; on live, the rows of run, run_event, item and app_event, the age of
 # the sync tick's beat (0142 T2), and the copy before an update: none, kept
@@ -63,8 +64,8 @@
 # could not be sent leaves its state as it was, so the next run sends it again
 # (the summary, an hour later).
 #
-# HOW IT READS THE DATABASES. `docker exec` into each stack's postgres and
-# trigger-db containers, found by their compose labels (the project and the
+# HOW IT READS THE DATABASES. `docker exec` into each stack's postgres
+# container, found by their compose labels (the project and the
 # service, never a container's name), psql over the container's own socket as
 # the owner the image created, the way deploy-live.sh's db_read asks. It sends
 # SELECTs only and composes no connection string; docs/rls-guide.md §2 lists
@@ -520,11 +521,10 @@ psql_in() {
   docker exec -i "$1" sh -c 'psql -X -q -At -F "|" -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 }
 
-# db_sizes <project> — sets DB_LINE: each database in the stack's postgres and
-# trigger-db, in MB.
+# db_sizes <project> — sets DB_LINE: each database in the stack's postgres, in MB.
 db_sizes() {
   local p="$1" svc sizes parts=() joined=''
-  for svc in postgres trigger-db; do
+  for svc in postgres; do
     if ! container "$p" "$svc"; then
       parts+=("${svc}: not read")
       PROBLEMS+=("the databases of ${p}'s ${svc}")

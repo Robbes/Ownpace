@@ -607,9 +607,9 @@ daartoe verplicht.
 ## 8. Waar het staat, en waar niet
 
 <!-- NOT YET TRUE ON live (the owner, 2026-09-28, ops-telemetry (a): switch it off everywhere).
-     The negative below holds once the task runner's usage reports are off
-     (TRIGGER_TELEMETRY_DISABLED on live and the test stack) and Zitadel, ClickHouse and MinIO
-     are checked and switched off too. -->
+     The negative below holds once Zitadel is checked and switched off too. The task runner's
+     usage reports, ClickHouse and MinIO were in this list until alpha.18 removed Trigger.dev's
+     plane from the managed edition (workplan 0167 T9). -->
 
 De dienst draait in de **Europese Unie**. Eén partij in de tabel hierboven zit daarbuiten: onze
 e-mailaanbieder, Proton AG, zit in **Zwitserland**. De Europese Commissie heeft besloten dat

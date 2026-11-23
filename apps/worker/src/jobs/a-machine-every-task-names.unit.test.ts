@@ -17,6 +17,8 @@
  * On the pg-boss runner (workplan 0167 T6) a run is a process of the worker's,
  * with V8's heap capped at what the machine gave it, which is the catalog's
  * `maxOldSpaceMb` on every queue. Its CPU is the worker container's to cap.
+ * Trigger.dev, where `small-1x` was named in `trigger.config.ts` and on the
+ * two tasks, went in alpha.18 (0167 T9); the budget stays `small-1x`'s.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -25,42 +27,17 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JOB_CATALOG } from '@openmig/scheduler/pg-boss';
 
-/** The preset the owner chose, and the caps are counted in (0143, open question 7). */
-const CHOSEN = 'small-1x';
-
 /** What V8 gets of the chosen machine's 512 MB, as the task that copies says where it names it. */
 const ITS_HEAP_MB = 410;
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/** The options of the task `id` defines, as written: from its id to its `run`. */
-function optionsOf(file: string, id: string): string {
-  const src = readFileSync(join(here, file), 'utf8');
-  const start = src.indexOf(`id: '${id}',`);
-  expect(start, `no task '${id}' in ${file}`).toBeGreaterThan(-1);
-  return src.slice(start, src.indexOf('run:', start));
-}
-
 describe('the machine every task runs on', () => {
-  it('is named in the config, as the default', () => {
-    // Read, not imported: the config sits beside `src`, where the runtime's
-    // own guard (`runs-without-a-transpiler`) does not look for files.
-    const src = readFileSync(join(here, '..', '..', 'trigger.config.ts'), 'utf8');
-    const at = src.indexOf('export default defineConfig({');
-    expect(at, 'the config is not defined where it was').toBeGreaterThan(-1);
-    expect(src.slice(at)).toContain(`machine: '${CHOSEN}',`);
-  });
-
-  it('is named again by the task that copies', () => {
-    expect(optionsOf('run-delta-sync.ts', 'run-delta-sync')).toContain(`machine: '${CHOSEN}',`);
-  });
-
-  it('is named again by the task that lists everything a migration holds', () => {
-    expect(optionsOf('run-discovery.ts', 'run-discovery')).toContain(`machine: '${CHOSEN}',`);
+  it('is named again by the task that copies, in the words the budget is counted in', () => {
+    expect(readFileSync(join(here, 'run-delta-sync.ts'), 'utf8')).toContain(`512 MB, of which V8 gets ${ITS_HEAP_MB}.`);
   });
 
   it('caps every queue of the pg-boss runner at the heap the machine gives a run (workplan 0167 T6)', () => {
-    expect(optionsOf('run-delta-sync.ts', 'run-delta-sync')).toContain(`512 MB, of which V8 gets ${ITS_HEAP_MB}.`);
     expect(JOB_CATALOG).toHaveLength(17);
     expect(JOB_CATALOG.filter((queue) => queue.maxOldSpaceMb !== ITS_HEAP_MB).map((queue) => queue.name)).toEqual([]);
   });

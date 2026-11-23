@@ -58,14 +58,11 @@
  *    its lines, would reach `docker run` as part of the reference, and every
  *    check of live's passwords would fail. (`db-roles.sh` stops at the
  *    reference since 2026-10-22.)
- *  - the tasks' image registry (`registry`, since 2026-11-13) carries its
- *    exact version and its index digest too, and the comment above it names
- *    that digest. An exact tag is no float by `isFloating`, and it moved all
- *    the same: Docker Hub builds its official images again under the same
- *    tag when their base moves. `registry:3.1.2`, by tag alone from
- *    2026-10-22, was rebuilt on 2026-11-05, so the stacks kept the copy they
- *    pulled first while the image scan, which pulls on a hosted runner, read
- *    the rebuild, and its report did not describe what ran.
+ *  - until alpha.18, the tasks' image registry (`registry`, since
+ *    2026-11-13) carried its exact version and index digest too, and the
+ *    comment above it named that digest: Docker Hub rebuilt `registry:3.1.2`
+ *    under the same tag on 2026-11-05. alpha.18 removed it with Trigger.dev's
+ *    plane, and Redis and Caddy with it (workplan 0167 T9).
  *
  * `deploy/compose/db-roles.sh` asks with the postgres image `managed.yml`
  * runs, read from that file; `rotate-db-passwords.unit.test.ts` holds it there.
@@ -99,39 +96,6 @@ const NAMED_FLOATS: Readonly<Record<string, string>> = {
 
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 
-/**
- * What is wrong with the comment above a service whose image is pinned by
- * digest: it names the digest the line carries, by its first twelve hex
- * digits, and linux/amd64 and linux/arm64, the platforms read in it. A
- * digest moved without its comment would leave another image's push date,
- * Alpine release and binary beside it (`an-object-store-with-a-maintainer`
- * holds MinIO's the same way).
- */
-function pinCommentProblems(yml: string, service: string): string[] {
-  const start = yml.indexOf(`\n  ${service}:\n`);
-  if (start < 0) return [`no service ${service} to read the comment of`];
-  // The service's own lines, up to the comment or the name of the next one.
-  const rest = yml.slice(start + 1);
-  const end = rest.search(/\n {2}[#\w]/);
-  const image = readImages(end < 0 ? rest : rest.slice(0, end))[0];
-  if (!image || !DIGEST.test(image.digest)) return [`${service} (${image?.ref ?? 'no image'}) carries no index digest for its comment to name`];
-  const above: string[] = [];
-  for (const line of yml.slice(0, start).split('\n').reverse()) {
-    if (!/^\s*#/.test(line)) break;
-    above.push(line);
-  }
-  const comment = above.reverse().join('\n');
-  const short = image.digest.slice('sha256:'.length, 'sha256:'.length + 12);
-  const problems: string[] = [];
-  if (!comment.includes(short)) {
-    problems.push(`the comment above ${service} does not name the digest it carries (${short}…): read the new image, then say what it is`);
-  }
-  for (const platform of ['linux/amd64', 'linux/arm64']) {
-    if (!comment.includes(platform)) problems.push(`the comment above ${service} does not say its index holds ${platform}`);
-  }
-  return problems;
-}
-
 describe('no image line of the deploy/compose stacks floats within its line', () => {
   const lines = COMPOSE_FILES.flatMap((file) => readImages(read(file)).map((image) => ({ file, ...pinned(file, image) })));
 
@@ -139,7 +103,7 @@ describe('no image line of the deploy/compose stacks floats within its line', ()
     // A reader that matches nothing passes everything below.
     expect(COMPOSE_FILES).toEqual(['deploy/compose/managed.yml', 'deploy/compose/dev.yml', 'deploy/compose/www.yml']);
     for (const file of COMPOSE_FILES) expect(lines.some((l) => l.file === file), `no image line in ${file}`).toBe(true);
-    for (const repo of ['postgres', 'redis', 'caddy', 'nextcloud', 'nginx', 'registry']) {
+    for (const repo of ['postgres', 'nextcloud', 'nginx']) {
       expect(lines.some((l) => l.repo === repo), `no ${repo} image line`).toBe(true);
     }
   });
@@ -168,9 +132,9 @@ describe('no image line of the deploy/compose stacks floats within its line', ()
 
   it('the stores and fronts carry their exact version and their index digest', () => {
     // How many numbers an exact version of each has: PostgreSQL's releases are
-    // `18.6` since version 10, so `18` is its line; `7.4` is Redis's. The
-    // registry is the tasks' image store (`trigger-registry`, 2026-11-13).
-    const EXACT: Readonly<Record<string, number>> = { postgres: 2, redis: 3, caddy: 3, nextcloud: 3, nginx: 3, registry: 3 };
+    // `18.6` since version 10, so `18` is its line. (Redis, Caddy and the
+    // tasks' registry went with Trigger.dev's plane in alpha.18.)
+    const EXACT: Readonly<Record<string, number>> = { postgres: 2, nextcloud: 3, nginx: 3 };
     for (const [repo, numbers] of Object.entries(EXACT)) {
       for (const line of lines.filter((l) => l.repo === repo)) {
         const where = `${line.file}:${line.line} (${line.ref})`;
@@ -178,21 +142,6 @@ describe('no image line of the deploy/compose stacks floats within its line', ()
         expect(line.digest, `${where} carries no index digest`).toMatch(DIGEST);
       }
     }
-  });
-
-  it("the comment above the registry's pin names the digest it carries, and the two platforms read in it", () => {
-    const managed = read('deploy/compose/managed.yml');
-    expect(pinCommentProblems(managed, 'trigger-registry')).toEqual([]);
-    // The rule itself: a digest moved without its comment, a platform dropped
-    // from the comment, a tag alone, and a service that is not there.
-    const pin = /^( +image: registry:[\w.-]+)@sha256:[0-9a-f]{64}$/m.exec(managed);
-    expect(pin, 'managed.yml pins no registry by tag and digest to mutate').not.toBeNull();
-    const [whole, tagged] = [pin![0], pin![1]!];
-    const moved = managed.replace(whole, `${tagged}@sha256:${'0'.repeat(64)}`);
-    expect(pinCommentProblems(moved, 'trigger-registry')).toEqual([expect.stringMatching(/does not name the digest it carries \(000000000000…\)/)]);
-    expect(pinCommentProblems(managed.replaceAll('linux/arm64', 'arm64'), 'trigger-registry')).toEqual([expect.stringMatching(/does not say its index holds linux\/arm64/)]);
-    expect(pinCommentProblems(managed.replace(whole, tagged), 'trigger-registry')).toEqual([expect.stringMatching(/carries no index digest/)]);
-    expect(pinCommentProblems(managed, 'no-such-service')).toEqual([expect.stringMatching(/no service no-such-service/)]);
   });
 });
 
@@ -219,7 +168,7 @@ describe('every outside image a Dockerfile of this repository builds on carries 
   it('found the three images and their bases, and the Dockerfiles nothing in apps/ builds', () => {
     expect(dockerfiles).toEqual(expect.arrayContaining(['apps/api/Dockerfile', 'apps/selfhost/Dockerfile', 'apps/web/Dockerfile']));
     expect(dockerfiles).toEqual(expect.arrayContaining(apps));
-    expect(dockerfiles).toEqual(expect.arrayContaining(['deploy/compose/caddy/Dockerfile', 'packages/testing/fixtures/stalwart/Dockerfile']));
+    expect(dockerfiles).toEqual(expect.arrayContaining(['deploy/compose/postgres/Dockerfile', 'packages/testing/fixtures/stalwart/Dockerfile']));
     expect(bases.filter((b) => b.file === 'apps/web/Dockerfile').map((b) => parseRef(b.ref).repo)).toEqual(['node', 'nginx']);
     expect(bases.filter((b) => b.file === 'packages/testing/fixtures/stalwart/Dockerfile').map((b) => parseRef(b.ref).repo)).toEqual(['stalwartlabs/stalwart']);
   });

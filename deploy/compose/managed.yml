@@ -6,8 +6,6 @@
 # - PostgreSQL (ledger database) behind PgBouncer
 # - The job worker (`worker`): the seventeen jobs on pg-boss, in the schema
 #   `pgboss` that the role `ownpace_jobs` owns
-# - Trigger.dev's plane (the eleven services in profile `trigger`), kept
-#   installed and stopped as the way back; it starts only in trigger mode
 # - Zitadel (the identity provider, ADR-0042)
 # - Ownpace API
 # - Web application
@@ -24,25 +22,21 @@
 # script's header) — deploy/compose/setup-managed-demo.sh does this for you,
 # joined to this stack's network so the worker reaches it by name.
 #
-# WHICH RUNNER THE JOBS RUN ON (ADR-0054, workplan 0167 T7). OWNPACE_JOB_RUNNER
-# is `pg-boss` or `trigger`, and its default here is `pg-boss`: the api and the
-# worker both carry it with that default, and the scripts read the same answer
-# through job-runner.sh. In pg-boss mode a plain `up` starts the worker and
-# none of Trigger.dev's plane, because each of the plane's eleven services
-# (trigger-db, trigger-redis, trigger-api, clickhouse, trigger-registry,
+# WHICH RUNNER THE JOBS RUN ON (ADR-0054, workplan 0167 T7 and T9). pg-boss,
+# the only one: the api and the worker carry OWNPACE_JOB_RUNNER with the
+# default `pg-boss`. Trigger.dev's plane, its eleven services (trigger-db,
+# trigger-redis, trigger-api, clickhouse, trigger-registry,
 # trigger-docker-proxy, trigger-supervisor, minio, minio-init, trigger-tls,
-# trigger-tls-init) is in profile `trigger`. minio is among them because only
-# trigger-api uses it (its OBJECT_STORE_* keys). The fallback is
-# OWNPACE_JOB_RUNNER=trigger in the .env and the bring-up, which names the
-# plane's services (a named service starts whatever its profile) and starts
-# them from their kept volumes at the same version.
-# A profile does not stop interpolation: Compose reads every service's required
-# keys, the plane's TRIGGER_* keys among them, in either mode, so those keys are
-# still generated (scripts/managed-env-contract.unit.test.ts). And a service
-# outside the profile that `depends_on` one inside it says `required: false`
-# (the api on trigger-api), or every Compose call without the profile refuses
-# the file. The plane's volumes and networks stay declared: they are the way
-# back. scripts/a-plane-kept-and-stopped.unit.test.ts holds all of this.
+# trigger-tls-init), stood here in profile `trigger`, stopped, from alpha.16 to
+# alpha.17, and alpha.18 removed them with their volumes, networks and
+# TRIGGER_* keys. A stack that ran them keeps their stopped containers as
+# orphans, which the bring-up's `plane` phase removes by their Compose labels
+# (it never runs `up --remove-orphans`); the volumes are removed only by
+# `remove-trigger-plane.sh`, by name, never by a
+# `down -v` (docs/managed-bring-up.md, "Trigger.dev's plane, removed").
+# An old `.env` that still says OWNPACE_JOB_RUNNER=trigger is refused by the
+# api, the worker and the bring-up, each in one sentence, never ignored.
+# scripts/a-plane-removed.unit.test.ts holds all of this.
 #
 # Pinned project `name` below is load-bearing, not cosmetic: without it, `docker compose`
 # derives the resource-name prefix from the CURRENT DIRECTORY'S BASENAME ("compose"), so on a
@@ -73,7 +67,7 @@
 # firewall rules for it, so a host firewall's input rules do not close it. Seven ports here were
 # published that way until workplan 0132 T3. On a machine with two stacks it is worse than "reachable from
 # outside": a container reaches every port the host publishes through its network's gateway, so
-# each stack's containers could reach the other's Postgres, API and Trigger.dev API.
+# each stack's containers could reach the other's Postgres and API.
 #
 # So each published port has two entries. The first is `127.0.0.1`, fixed, because the bring-up,
 # the smoke, the deploy CLI and the seed ask these ports on localhost from the host. The second is
@@ -96,7 +90,7 @@
 name: ownpace-managed
 #
 # THE STORES AND THE TLS FRONT BY EXACT VERSION AND DIGEST (2026-10-22, workplan 0119 §4).
-# postgres, trigger-db, trigger-redis, trigger-tls and nextcloud floated within their lines until
+# postgres, nextcloud (and, until alpha.18, Trigger.dev's stores) floated within their lines until
 # then (`postgres:18-alpine`, `caddy:2-alpine`, ...), so that they would take their patches, and
 # nothing ever pulled them: Compose pulls only an image the machine does not have, so both
 # stacks ran whatever copy was pulled first, and nothing said which. Each now moves by a
@@ -105,7 +99,7 @@ name: ownpace-managed
 # (scripts/idp-pin-watch.mjs) says when a newer tag is listed, and the weekly image scan
 # (scripts/image-scan.mjs) counts the findings a newer package fixes, which is when a rebuild of
 # the same tag is worth its new digest. db-roles.sh asks with this file's first postgres image.
-# postgres and trigger-db run a build of the official image since 2026-10-26 (workplan 0146 T15):
+# postgres runs a build of the official image since 2026-10-26 (workplan 0146 T15):
 # their pin is deploy/compose/postgres/Dockerfile's FROM, by tag and digest, which Dependabot does
 # read (its own entry), and the name below carries a hash of that file's instructions, so a
 # changed Dockerfile is a name the machine does not have yet, and a pull request that changes one
@@ -113,39 +107,6 @@ name: ownpace-managed
 # builds it only where that name is missing, and only if nothing asks for a build: `up --build`
 # builds every service in its scope that has a `build:`, dependencies included, so
 # bootstrap-managed.sh builds `api web` by name and runs `up` without it.
-# trigger-api and trigger-supervisor run a local build too since workplan 0146 T16: upstream's
-# image, whose pin is the FROM of deploy/compose/trigger.dev/Dockerfile and
-# deploy/compose/supervisor/Dockerfile by tag and digest, with files deleted that never run here
-# and, since 2026-11-02, pnpm 10.34.9 in place of upstream's 10.33.2; since 2026-11-03 also
-# a goose release's binary (v3.29.0's; v3.30.1's since 2026-11-13) and, until Trigger.dev v4.8.5,
-# four packages at the release that fixes each (the webapp's; a fifth, effect, from 2026-11-06),
-# and systeminformation's (the supervisor's), fetched by the hash their publisher published.
-# Their names start with the Trigger.dev version, TRIGGER_IMAGE_TAG or its default, as before, and
-# end in the hash of the Dockerfile's instructions; `trigger-version.sh pin` moves both, and
-# nothing builds them while the machine has the name. Dependabot reads neither Dockerfile, on
-# purpose: Trigger.dev moves by `trigger-version.sh` only.
-# trigger-docker-proxy runs a local build too since 2026-10-30 (workplan 0119): Tecnativa's
-# docker-socket-proxy v0.6.0 (v0.5.0 until 2026-11-20) on a current HAProxy of its line, whose
-# pin is the FROM of deploy/compose/docker-socket-proxy/Dockerfile by tag and digest, which
-# Dependabot reads (its own entry, patches and digests only). Its name ends in the hash of that
-# file's instructions, as the databases' does, and a pull request that changes them fails
-# a-tag-upstream-never-rebuilds until the name moves with it. `up` builds it where the name is
-# missing.
-# trigger-tls runs a local build too since 2026-10-31 (workplan 0119): Caddy's official image at
-# its pinned digest with curl removed, whose pin is the FROM of deploy/compose/caddy/Dockerfile by
-# tag and digest, which Dependabot reads (its own entry, never a major). Its name ends in the hash
-# of that file's instructions, and a pull request that changes them fails
-# a-package-the-front-never-runs until the name moves with it. `up` builds it where it is missing.
-# Since 2026-11-19 it runs as uid 65532, and trigger-tls-init, the same build as root, gives its
-# two volumes to that user before it starts.
-# trigger-redis runs a local build too since 2026-11-07 (workplan 0119 §3 item 11, for alpha.6):
-# Redis's official image at its pinned digest with the eleven Debian packages nothing here runs
-# purged (thirteen since 2026-11-08, for alpha.7: libsystemd0 and libudev1 too), run as uid 999
-# from its first process, whose pin is the FROM of
-# deploy/compose/redis/Dockerfile by tag and digest, which Dependabot reads (its own entry, never
-# a major). Its name ends in the hash of that file's instructions, and a pull request that changes
-# them fails an-essential-nothing-runs until the name moves with it. `up` builds it where it is
-# missing.
 # pgbouncer runs a local build too since 2026-11-13 (workplan 0119, for alpha.8): edoburu's image
 # at its pinned digest with five Alpine packages at the versions that carry their fixes (libpq,
 # postgresql18-client, musl, musl-utils and zlib: 79 high findings on 2026-11-13, in a base
@@ -160,8 +121,8 @@ name: ownpace-managed
 # CONTAINER OUTPUT, CAPPED BY SIZE (2026-10-21). Docker's default driver,
 # json-file, keeps everything a container writes, with no limit of age or size,
 # until the container is removed, and a service whose image and settings do not
-# change keeps its container for months: the databases, the Trigger.dev plane
-# and the identity provider are recreated only when a deploy changes them. So
+# change keeps its container for months: the database and the identity
+# provider are recreated only when a deploy changes them. So
 # every service below writes json-file with the appliance's cap
 # (deploy/selfhost/compose.yml): five files of 20 MB, at most 100 MB a service
 # and 1.8 GB a stack. The output still goes with the container, so privacy
@@ -170,22 +131,20 @@ name: ownpace-managed
 # on purpose: site-visits.sh counts the site's visits from the whole of its log
 # on every run. A job's run on pg-boss is a child process of the worker and
 # writes through it, so its lines are the worker's and go with the worker's
-# container, which every update of the service replaces. In trigger mode a task
-# run's container is Trigger.dev's, not a service here, and writes with the
-# daemon's driver until its run ends.
+# container, which every update of the service replaces.
 # scripts/a-month-of-container-output.unit.test.ts holds every service to it.
 #
 # HOW THE CONTAINERS RUN (2026-11-03, workplan 0119; the owner, 2026-11-03:
 # "more hardened"). Every service sets `no-new-privileges`: a process in it
 # cannot gain a privilege by running a setuid binary or one with a file
 # capability. Nothing here needs that: the services that change user
-# (ClickHouse's `clickhouse su`, Apache's workers, Nextcloud's su) do it as
+# (Apache's workers, Nextcloud's su) do it as
 # root, with a system call, and the rest never change user. All but
-# two drop every capability (`cap_drop: [ALL]`) and add back only what their
+# one drop every capability (`cap_drop: [ALL]`) and add back only what their
 # own start-up does as root, each named beside the service with the reason;
-# a service that runs as another user from its first process adds none. The two
-# that keep Docker's default set, trigger-api and nextcloud, say why beside
-# them. Seven that write nothing outside their volumes start with a read-only
+# a service that runs as another user from its first process adds none. The one
+# that keeps Docker's default set, nextcloud, says why beside it (trigger-api
+# was the other until alpha.18). Seven that write nothing outside their volumes start with a read-only
 # root, with /tmp (and /run) in memory where they write there. Each set was
 # measured on the service's own image, its start and a restart on the volume it
 # wrote, where the image could be pulled, and read from the image's Dockerfile
@@ -193,8 +152,7 @@ name: ownpace-managed
 # the table). An `exec` into a service has the same capabilities as the service:
 # a repair that needs root's powers there is `exec --privileged -u 0`. A job's
 # run on pg-boss is a process inside the worker, so the worker's settings are
-# its own. In trigger mode task runs are Trigger.dev's containers, not services
-# here, and none of this reaches them.
+# its own.
 # scripts/a-privilege-no-service-uses.unit.test.ts holds every service to it.
 x-logging: &logging
   driver: json-file
@@ -361,980 +319,6 @@ services:
     networks:
       - ownpace-network
 
-  # Trigger.dev Backend
-  trigger-db:
-    # The same build as postgres above.
-    image: localhost/postgres:18.7-alpine-6adabb723757
-    build: ./postgres
-    pull_policy: never
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
-    profiles: ["trigger"]
-    restart: unless-stopped
-    logging: *logging
-    # HOW IT RUNS (see the header): as postgres above, uid 70, no capability.
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    cap_add: []
-    environment:
-      POSTGRES_USER: trigger
-      # From .env (workplan 0132 T2), and only at this volume's first
-      # initialisation: Postgres keeps the password a role was created with.
-      # The fallback is the literal every stack used before this key existed,
-      # kept as the four other database passwords keep compose's defaults, so
-      # that an empty key on localhost is a note, not a compose error. On a
-      # real address the bring-up refuses it, empty or published (load_env,
-      # shipped-passwords.sh; step B): the refusal is the bring-up's, not
-      # compose's.
-      # ensure-env-secrets.sh generates the key while trigger_db_data does not
-      # exist, and stand-up-live.sh for live. On a volume that exists,
-      # rotate-db-passwords.sh --rotate --with-trigger-stores sets the role and
-      # .env together, and the bring-up's trigger phase sets the role to
-      # .env's value on every run, before it brings trigger-api up with that
-      # value.
-      # Hex, or another value safe in a URL: it is part of trigger-api's
-      # DATABASE_URL below.
-      POSTGRES_PASSWORD: ${TRIGGER_DB_PASSWORD:-trigger_password}
-      POSTGRES_DB: triggerdb
-    volumes:
-      - trigger_db_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trigger"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - ownpace-network
-
-  # Trigger.dev's queues and locks, on Redis 7.4, the line the owner chose
-  # (workplan 0119 §3 item 3). On Debian 12 since 2026-10-21, not Alpine: the
-  # 7.4 Alpine images are built on Alpine 3.21, whose security support ends on
-  # 2026-11-01, and Debian 12's LTS runs to 2028-06-30. Pinned by tag and
-  # digest since 2026-10-22 (0119 §4): it floated within 7.4, and nothing pulled
-  # it. A build of the official image since 2026-11-07 (workplan 0119 §3 item
-  # 11, for alpha.6; the owner: "Redis purge in 6"):
-  # deploy/compose/redis/Dockerfile purges the eleven Debian packages nothing
-  # here runs or loads, the webapp's list (thirteen since 2026-11-08, for
-  # alpha.7: libsystemd0 and libudev1, which only four of the eleven needed),
-  # and runs Redis as uid and gid 999
-  # from its first process, so the entrypoint never takes its root branch,
-  # whose setpriv is util-linux's. Its header says what was read, why the name
-  # carries the hash of its instructions, and how it moves: the pin is its FROM,
-  # by tag and digest, which Dependabot reads (its own entry, never a major).
-  # Compose builds it on the first `up` that finds no image of this name.
-  # `never`: no registry serves this name, so `docker compose pull` passes it
-  # by, and `up` builds it without asking one. Upstream's image ran Redis as
-  # uid 999 too, and its entrypoint chowned what in /data was not 999's at
-  # every start, so redis_data carries over in either direction.
-  # It holds the run queues: on live it changes only at a deploy, and
-  # deploy-live.sh refuses one without the hold or with a pass still in flight.
-  trigger-redis:
-    image: localhost/redis:7.4.12-bookworm-65e47a4df92f
-    build: ./redis
-    pull_policy: never
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
-    profiles: ["trigger"]
-    restart: unless-stopped
-    logging: *logging
-    # HOW IT RUNS (see the header): uid 999 from its first process, so no capability.
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - ownpace-network
-
-  trigger-api:
-    # ONE tag for webapp and supervisor, pinned to the exact @trigger.dev/sdk
-    # version in apps/worker (0018 T0 — check package.json when bumping either;
-    # the 4.5.x family is SDK-compatible, but "probably compatible" is not a
-    # deploy story). The old hardcoded v4.5.4 pin claimed to match an SDK that
-    # had moved to 4.5.7 — and the v4.5.7 pin then repeated the same drift
-    # when the SDK moved to 4.5.9.
-    #
-    # BUILT HERE, FROM UPSTREAM'S IMAGE WITH FILES DELETED THAT NEVER RUN
-    # (workplan 0146 T16, the owner's "Both" of 2026-10-26):
-    # deploy/compose/trigger.dev/Dockerfile, whose FROM is the pin, by tag and
-    # digest, takes out the depot and esbuild binaries, node's copy of pnpm and
-    # the tar in root's (only pnpm's node-gyp needs it; the owner, 2026-10-27),
-    # since 2026-10-31 the rest of node-gyp's tree in root's copy and npm
-    # (Node's, which nothing here runs; tar's one risk again), and says why
-    # nothing here runs them. Since 2026-11-02 root's pnpm is 10.34.9 in place
-    # of upstream's 10.33.2, installed by the sha512 npm published, with
-    # packageManager rewritten to name it (hygiene, not a security fix; its
-    # header says why). From 2026-10-30 it also replaced dompurify's files, and
-    # from 2026-11-03 four more packages' (effect's from 2026-11-06), each by
-    # the release of the same major that fixes it; since Trigger.dev v4.8.5
-    # upstream ships those releases itself, and both swaps are gone (its
-    # header, WHAT UPSTREAM NOW SHIPS FIXED). Since 2026-11-03 it also removes
-    # TypeScript 7's native compiler, which nothing here runs, and replaces
-    # goose v3.27.1, which the entrypoint runs, with a goose release's binary
-    # from GitHub by its SHA-256: v3.29.0's until 2026-11-13, and since then
-    # v3.30.1's, built on Go 1.27.4 and golang.org/x/net v0.62.0, past the two
-    # highs the image scan read in v3.29.0's, and taken before its three-day
-    # floor on the owner's waiver of 2026-11-13, "Waive all waiting time."
-    # (its header, WHAT IS REPLACED: GOOSE);
-    # so its build reaches github.com as well as the npm registry. From
-    # 2026-11-14 until Trigger.dev v4.8.8, whose own override takes
-    # cross-spawn 7.0.6 in its place, it also removed cross-spawn 5.1.0
-    # (CVE-2024-21538) and spawndamnit's link to it (its header, WHAT UPSTREAM
-    # NOW SHIPS FIXED). Since 2026-11-20 connect-node, the one requirer of undici
-    # 5.29.0, links the store's undici 6.29.1 in its place, and undici 5.29.0
-    # and its @fastify/busboy 2.1.1 go, six highs that only their next major
-    # fixes; nothing is fetched for it (its header, WHAT IS RELINKED: UNDICI).
-    # Since
-    # 2026-11-06 its last RUN as root purges eleven Debian packages nothing
-    # here runs or loads, apt, libapt-pkg6.0, util-linux's eight and
-    # e2fsprogs, which depends on two of them (workplan 0119
-    # §3 item 11; since 2026-11-08, for alpha.7, libsystemd0 and libudev1
-    # too, which only four of those needed; its header says why, and
-    # scripts/an-essential-nothing-runs.unit.test.ts holds the list), so
-    # nothing in trigger-api can run apt. The name
-    # is the version (the .env's TRIGGER_IMAGE_TAG, or the default) and the
-    # hash of that file's instructions; the build argument only refuses a
-    # .env naming another version than the file builds. `trigger-version.sh pin` moves the FROM and
-    # the name together. `never`: no registry serves the name (postgres says
-    # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
-    # which one the Dockerfile may delete:
-    # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.8}-c8ebb4044c16
-    build:
-      context: ./trigger.dev
-      args:
-        TRIGGER_IMAGE_TAG: ${TRIGGER_IMAGE_TAG:-}
-    pull_policy: never
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-api
-    profiles: ["trigger"]
-    restart: unless-stopped
-    logging: *logging
-    # HOW IT RUNS (see the header): no-new-privileges, and Docker's default
-    # capabilities, on purpose. It runs as root, chowns the shared volume, and its
-    # entrypoint copies files into directories node owns and writes the worker
-    # token there, and its image cannot be run outside the stack to measure more.
-    security_opt: ["no-new-privileges:true"]
-    user: root
-    command: sh -c "chown -R node:node /home/node/shared && exec ./scripts/entrypoint.sh"
-    environment:
-      # Database
-      # trigger-db's password, the same variable and fallback as there.
-      DATABASE_URL: postgresql://trigger:${TRIGGER_DB_PASSWORD:-trigger_password}@trigger-db:5432/triggerdb
-      DIRECT_URL: postgresql://trigger:${TRIGGER_DB_PASSWORD:-trigger_password}@trigger-db:5432/triggerdb
-      # Auth secrets — fail-closed (0020 T2): these gate the trigger dashboard,
-      # its magic-link login and its stored env vars. The old hardcoded
-      # fallbacks were committed to a public repository, i.e. not secrets.
-      # Generate each: openssl rand -hex 16   (32 hex chars)
-      SESSION_SECRET: ${TRIGGER_SESSION_SECRET:?generate with openssl rand -hex 16 and set in .env}
-      MAGIC_LINK_SECRET: ${TRIGGER_MAGIC_LINK_SECRET:?generate with openssl rand -hex 16 and set in .env}
-      ENCRYPTION_KEY: ${TRIGGER_ENCRYPTION_KEY:?generate with openssl rand -hex 16 and set in .env}
-      LOGIN_SECRET: ${TRIGGER_LOGIN_SECRET:?generate with openssl rand -hex 16 and set in .env}
-      MANAGED_WORKER_SECRET: ${TRIGGER_MANAGED_WORKER_SECRET:?generate with openssl rand -hex 16 and set in .env}
-      # Origins
-      APP_ORIGIN: ${TRIGGER_APP_ORIGIN:-http://localhost:3090}
-      LOGIN_ORIGIN: ${TRIGGER_LOGIN_ORIGIN:-http://localhost:3090}
-      # The API origin the server ADVERTISES, and the deploy CLI follows it for
-      # every call after login, its image build's indexer included. Loopback by
-      # number, never `localhost`: the CLI (4.5.16, normalizeApiUrlForBuild)
-      # rewrites `localhost` to host.docker.internal for the build and maps that
-      # name to the machine's first non-loopback IPv4 address, where this port
-      # does not answer (0132 T3 (a) publishes it on 127.0.0.1). The build runs
-      # on the host's network (deploy-tasks.sh, `--network host`), so 127.0.0.1
-      # is this port. Not read from .env: no stack deploys from anywhere else,
-      # and an old `.env` naming localhost must not put the failure back.
-      API_ORIGIN: http://127.0.0.1:${TRIGGER_PORT:-3090}
-      # Redis
-      REDIS_HOST: trigger-redis
-      REDIS_PORT: 6379
-      REDIS_TLS_DISABLED: "true"
-      # Registry (for task deployments). `localhost` is correct from BOTH
-      # consumers' point of view: the CLI pushes from the host, and the
-      # supervisor's runners pull through the HOST's docker daemon — and the
-      # trigger-registry service publishes on 127.0.0.1:${REGISTRY_PORT} below.
-      DEPLOY_REGISTRY_HOST: localhost:${REGISTRY_PORT:-5000}
-      DEPLOY_REGISTRY_NAMESPACE: trigger
-      # The architecture task images are built FOR — decided SERVER-side and
-      # handed to the deploying CLI (deployment.imagePlatform; no CLI flag).
-      # Upstream defaults to linux/amd64, which on the arm64 machine produced
-      # images whose runners died at exec ("exec format error") in under a
-      # second, with AutoRemove destroying the evidence — the 2026-08-01 T5
-      # hunt. MUST match the host that runs the supervisor's containers:
-      # uname -m x86_64 → linux/amd64, aarch64 → linux/arm64 (set in .env).
-      DEPLOY_IMAGE_PLATFORM: ${DEPLOY_IMAGE_PLATFORM:-linux/amd64}
-      # Object storage (for large payloads) — the minio service below; one
-      # pair of env vars so the two sides cannot disagree.
-      OBJECT_STORE_BASE_URL: http://minio:9000
-      OBJECT_STORE_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
-      OBJECT_STORE_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-very-safe-password}
-      # ClickHouse — REAL, not the placeholder-URL hack that used to live here.
-      # That hack (a syntactically valid URL + SKIP_CLICKHOUSE_MIGRATIONS +
-      # events-in-postgres) survived webapp BOOT, but v4.5.7's dashboard
-      # genuinely queries ClickHouse for the environment metrics page, and the
-      # resulting ECONNREFUSED became an unhandledRejection that killed the
-      # whole webapp process — confirmed live on the machine, 2026-08-01, taking
-      # the supervisor's session down with it. The clickhouse service below is
-      # the reference stack's own; goose migrations run at entrypoint.
-      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:-password}@clickhouse:8123?secure=false
-      RUN_REPLICATION_CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:-password}@clickhouse:8123
-      # Realtime streams - disabled, using v1 (Redis) instead
-      REALTIME_STREAMS_DEFAULT_VERSION: v1
-      # Bootstrap
-      TRIGGER_BOOTSTRAP_ENABLED: "1"
-      TRIGGER_BOOTSTRAP_WORKER_GROUP_NAME: bootstrap
-      TRIGGER_BOOTSTRAP_WORKER_TOKEN_PATH: /home/node/shared/worker_token
-      # Misc
-      PORT: 3000
-      APP_LOG_LEVEL: info
-      # A CLI LOGIN LAPSES AFTER 90 DAYS UNUSED, NOT 7. The owner, 2026-11-13:
-      # "90, admin off, MFA no." From Trigger.dev v4.8.4 the token a CLI or MCP
-      # login mints stops working after this many days without use (default
-      # 7; 0 turns it off). Each use renews it; a lapsed one is only replaced,
-      # by a new login (docs/managed-bring-up.md, step 7). Each token keeps the
-      # value it was minted with, and those minted before v4.8.4 never lapse.
-      # Live's deploys can be more than 7 days apart.
-      CLI_LOGIN_IDLE_TIMEOUT_DAYS: "90"
-      # NO ADMIN API (Trigger.dev v4.8.4). The owner, 2026-11-13: "90, admin
-      # off, MFA no." Off, every /admin/api route answers 404, whatever the
-      # credential. Nothing here calls it. The admin dashboard has its own
-      # switch, which this leaves alone.
-      ADMIN_API_ENABLED: "false"
-      # NOTHING GOES TO TRIGGER.DEV'S ANALYTICS, OR PRISMA'S (privacy §8; the
-      # owner, 2026-09-28, ops-telemetry (a): "Switch it off everywhere";
-      # workplan 0139). Three reports, read at v4.5.16, and upstream documents
-      # one switch:
-      #
-      # - TRIGGER_TELEMETRY_DISABLED stops the SERVER's PostHog client
-      #   (app/services/telemetry.server.ts): the user identified by id, email
-      #   and name at every sign-in (services/postAuth.server.ts), and each
-      #   user, organisation and project created. Any value will do, upstream
-      #   says not an empty one.
-      # - It does not stop the DASHBOARD's. The root loader hands the browser
-      #   POSTHOG_PROJECT_KEY, which defaults to Trigger.dev's own project key
-      #   (app/env.server.ts), and app/hooks/usePostHog.ts starts PostHog and
-      #   identifies the signed-in user by id and email whenever it is not
-      #   empty. The empty string is the one value that stops it.
-      # - Nor PRISMA's. The entrypoint above runs `prisma migrate deploy` at
-      #   every start (docker/scripts/entrypoint.sh; prisma 6.14.0), and the
-      #   Prisma CLI sends a checkpoint to checkpoint.prisma.io for every
-      #   command it runs: version, OS, architecture, Node, CI, the command,
-      #   hashes of the project's and the CLI's paths, the schema's providers
-      #   and a stored random signature (packages/cli/src/CLI.ts,
-      #   utils/checkpoint.ts; checkpoint-client 1.1.33). CHECKPOINT_DISABLE is
-      #   the only thing either checks.
-      #
-      # Written here rather than read from .env, so no machine's .env can empty
-      # them. Every other key this service sets is in the guard's WEBAPP_KEYS,
-      # each with the reason it reaches no third party, and a key that is not
-      # fails it until somebody has read what it does at the pinned version.
-      # `scripts/a-service-that-phones-home.unit.test.ts` holds all of it.
-      TRIGGER_TELEMETRY_DISABLED: "1"
-      POSTHOG_PROJECT_KEY: ""
-      CHECKPOINT_DISABLE: "1"
-      # PNPM IS NEVER FETCHED AT A START (workplan 0146 T16). Every pnpm the
-      # entrypoint runs is corepack's copy in the image, root's here (`user:
-      # root`); the build deletes node's. Without a copy for the user that
-      # runs, corepack downloads pnpm from the npm registry, unannounced and
-      # unscanned, at every start; with this it refuses, and the start fails
-      # with "Network access disabled by the environment" instead. Corepack
-      # reads it before any fetch (corepack 0.36.0, Node 24.22.1's and
-      # 24.22.3's, the same file: corepack.cjs:13142).
-      COREPACK_ENABLE_NETWORK: "0"
-    ports:
-      # Plain HTTP, and the deploy CLI and its image build ask it on 127.0.0.1
-      # (API_ORIGIN above), so TRIGGER_BIND stays empty on a real box. See the
-      # header.
-      - "127.0.0.1:${TRIGGER_PORT:-3090}:3000"
-      - "${TRIGGER_BIND:-127.0.0.1}:${TRIGGER_PORT:-3090}:3000"
-    volumes:
-      - trigger_shared:/home/node/shared
-    depends_on:
-      trigger-db:
-        condition: service_healthy
-      trigger-redis:
-        condition: service_healthy
-      clickhouse:
-        condition: service_healthy
-      # The bucket its packets go to, made before it serves (minio-init).
-      minio-init:
-        condition: service_completed_successfully
-    # LIVENESS, deliberately — not a named endpoint (0084 T7.1).
-    #
-    # `fetch` resolves on ANY http response, 404 included, and rejects only
-    # when nothing is listening. That is exactly the question worth asking here
-    # ("is this process serving?") and it cannot be wrong about a health path
-    # that moves between releases — which a probe on `/healthcheck` could be,
-    # silently, on the next image bump.
-    #
-    # `node` rather than curl or wget: this is a Node application image, so the
-    # runtime the entrypoint itself uses is the one binary certainly present.
-    # The appliance's own healthcheck uses the same shape.
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "node -e \"fetch('http://127.0.0.1:3000/').then(()=>process.exit(0)).catch(()=>process.exit(1))\"",
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      # The webapp runs migrations before it serves. Generous on purpose: a
-      # start_period too short turns a slow boot into a failed bring-up.
-      start_period: 120s
-    networks:
-      - ownpace-network
-      # ClickHouse's one network, which only this service shares with it: see
-      # `trigger-event-store` at the bottom of this file. The entrypoint's
-      # goose migrations and every CLICKHOUSE_URL above go over it.
-      - trigger-event-store
-
-  # Task-event store the webapp actually queries (see the CLICKHOUSE comment
-  # above), with its own <16GB-RAM tuning file.
-  #
-  # PINNED BY DIGEST, TO THE IMAGE TRIGGER.DEV ITSELF RUNS. This was
-  # `bitnamilegacy/clickhouse:latest` until 2026-08-24 — the one floating
-  # dependency in a stack that pins everything else — and `latest` had
-  # resolved to 25.5.2.47. Upgrading Trigger.dev to v4.5.12 then died in its
-  # own ClickHouse migration, on a machine that had been fine for weeks:
-  #
-  #   goose run: ERROR 040_create_task_events_search_v2.sql:
-  #     INDEX idx_search_text search_text TYPE text(tokenizer = 'ngrams',
-  #       preprocessor = lowerUTF8(search_text))
-  #   Code: 80. DB::Exception: Only literals can be skip index arguments.
-  #
-  # v4.5.12 writes a FUNCTION as a skip-index argument; 25.5 only accepts
-  # literals. The webapp crash-looped and the plane was down until the tag
-  # went back. `managed.env.example` carried "4.5.11 has an outage" from
-  # August with no cause recorded — very likely this, unrecognised because it
-  # presents as a Trigger.dev failure rather than a ClickHouse-version one.
-  #
-  # `bitnamilegacy` is what its name says: Bitnami stopped publishing there,
-  # and its newest ClickHouse is 25.7.5. It can never reach what upstream
-  # needs, so this followed THEIR pin exactly — same image, same digest, as
-  # read from trigger.dev's own docker/docker-compose.yml at v4.5.12. What
-  # they test against is the only version this stack has evidence about.
-  #
-  # AHEAD OF THEIR PIN ON PURPOSE: option 2 of workplan 0119 §3 item 9, the
-  # owner's decision of 2026-11-02. Trigger.dev v4.8.3 still pins 26.2.19.43
-  # (and v4.8.5 and v4.8.8 do too: their docker/ compose is v4.8.3's),
-  # a line ClickHouse no longer supports, and CVE-2026-116366 (critical: code
-  # execution with no password) has no 26.2 fix. 26.8.36.3-lts carried it
-  # first. Read release by release from 26.3 to 26.8, and every 26.8 patch note to
-  # 26.8.34.13, against v4.8.3's 55 migrations (numbered to 056; v4.8.5 adds
-  # none and changes none), its queries
-  # and the settings it passes (docs/managed-bring-up.md, "Moving
-  # ClickHouse"): one change stops a schema on an EMPTY volume (from 26.7 an
-  # AggregatingMergeTree refuses migration 022's errors_v1 at CREATE), and
-  # clickhouse-merge-tree.xml, below, restores 26.2's rule. The data moves
-  # ONE WAY: 26.3 and later write parts 26.2 cannot read (Trigger.dev's JSON
-  # and Array columns), and once 26.7 or later has rotated a system log table
-  # a server older than 26.3 does not start on the volume at all, so the way
-  # back is the volume copy taken first.
-  #
-  # 26.8.37.168-LTS SINCE 2026-11-14, a patch of the same LTS line, from
-  # 26.8.36.3-lts (d426d2f6…). By its index digest a5670285…, which Docker
-  # Hub pushed as 26.8.37.168 on 2026-11-14 at 10:18 UTC, linux/amd64
-  # (3b517f84…) and linux/arm64 (48262cca…), read off both with every blob
-  # checked against its sha256 and nothing run: its Ubuntu 22.04 base carries
-  # apt and libapt-pkg6.0 2.4.15ubuntu0.1, past CVE-2026-109518, the two
-  # highs the image scan of 2026-11-14 read in 26.8.36.3, which nothing here
-  # reached (nothing in this container runs apt). Taken inside its three-day
-  # floor, which ends 2026-11-17 10:18 UTC and is waived for alpha.9. Between
-  # the two tags, 137 backported pull requests and 30 commits of the release
-  # branch's own: none changes how a part, a skip index or a table's metadata
-  # is written, or a default the two files below set, so 26.8.36.3 reads what
-  # this writes and pinning it back is the way back (read in the source; no
-  # downgrade was run). The pin watch records the difference
-  # (CLICKHOUSE_INTENDED in scripts/idp-pin-watch.mjs) and says so again when
-  # either side moves.
-  clickhouse:
-    image: clickhouse/clickhouse-server:26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-clickhouse
-    profiles: ["trigger"]
-    restart: unless-stopped
-    logging: *logging
-    # HOW IT RUNS (see the header): the entrypoint starts as root, makes and chowns
-    # the data and log directories (CHOWN), reads a tree that is not root's when a
-    # directory's owner differs, as on a copy restored by root (DAC_READ_SEARCH), and
-    # becomes uid 101 with `clickhouse su` (SETUID, SETGID). The server itself runs
-    # with no capability either way, so SYS_NICE, IPC_LOCK and NET_ADMIN are not
-    # added: it never had them under the default set.
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_READ_SEARCH, SETGID, SETUID]
-    # Upstream's, and not decoration: ClickHouse opens a lot of files and the
-    # default soft limit is where that shows up as corruption-looking errors.
-    ulimits:
-      nofile:
-        soft: 262144
-        hard: 262144
-    environment:
-      # The official image's names. Bitnami used CLICKHOUSE_ADMIN_USER /
-      # _ADMIN_PASSWORD; passing those here would start an instance with the
-      # DEFAULT credentials while every consumer used the configured ones.
-      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-password}
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-    volumes:
-      # A NEW VOLUME, and the old one is left alone (hard rule 2). Bitnami
-      # kept its data under /bitnami/clickhouse; the official image reads
-      # /var/lib/clickhouse. Pointing the old volume at the new path would
-      # hand ClickHouse a directory laid out by a different vendor. So this
-      # starts empty — the task-EVENT store is derived from the run records in
-      # triggerdb, so what is lost is dashboard history, not the ability to
-      # run anything — and `clickhouse_data` remains on disk until somebody
-      # deliberately removes it:
-      #     docker volume rm <project>_clickhouse_data
-      - clickhouse_data_v2:/var/lib/clickhouse
-      - clickhouse_logs:/var/log/clickhouse-server
-      - ./clickhouse-override.xml:/etc/clickhouse-server/config.d/override.xml:ro
-      # Also upstream's, and it arrives with the pin rather than after it: a
-      # fresh empty volume has no accumulated ceiling, and ClickHouse's own
-      # eleven system log tables would start filling it from the first boot.
-      - ./clickhouse-disable-system-logs.xml:/etc/clickhouse-server/config.d/disable-system-logs.xml:ro
-      # And no crash report to ClickHouse, Inc. (workplan 0139, 2026-09-28):
-      # the config.xml this image ships turns them ON, and this file turns
-      # them off again. Its header has the detail.
-      - ./clickhouse-no-crash-reports.xml:/etc/clickhouse-server/config.d/no-crash-reports.xml:ro
-      # 26.2's MergeTree rules where 26.8 changed them (0119 §3 item 9, 2026-11-02):
-      # an AggregatingMergeTree with a column outside its ORDER BY is accepted
-      # again, without which migration 022 stops trigger-api on an empty volume,
-      # and no automatic column statistics are written. It travels with the pin:
-      # a 26.2 or 26.3 server does not start with it. Its header has the sources;
-      # a-clickhouse-without-the-files-its-pin-needs holds both files to the pin.
-      - ./clickhouse-merge-tree.xml:/etc/clickhouse-server/config.d/merge-tree.xml:ro
-      # 26.2's date parsing on insert, in the default profile (the same item).
-      # One file into users.d, never the directory: the image's entrypoint
-      # writes users.d/default-user.xml at every start. Its header has why.
-      - ./clickhouse-users-profile.xml:/etc/clickhouse-server/users.d/profile.xml:ro
-    healthcheck:
-      test: ["CMD", "clickhouse-client", "--host", "localhost", "--port", "9000", "--user", "${CLICKHOUSE_USER:-default}", "--password", "${CLICKHOUSE_PASSWORD:-password}", "--query", "SELECT 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    # ON ONE NETWORK, WHICH ONLY ITS ONE CLIENT SHARES (2026-11-01, workplan
-    # 0119 §3 item 9). Not ownpace-network: see `trigger-event-store` at the
-    # bottom of this file for why, and what reaches it now.
-    networks:
-      - trigger-event-store
-
-  # Where `trigger deploy` pushes task images and the host's docker daemon
-  # pulls them from (0018 T3). Bound to 127.0.0.1 ON PURPOSE: both consumers
-  # sit on this host (the CLI pushes from it, the supervisor's runners pull
-  # through its daemon), docker treats localhost registries as trusted-HTTP,
-  # and not publishing on the LAN is what lets this run without auth — an
-  # unauthenticated registry on 0.0.0.0 would be an open image-push endpoint
-  # for the whole network. A production deployment brings its own registry.
-  #
-  # `registry:3` since 2026-09-06 (0119 §3). The 2 line stopped at 2.8.3 in
-  # February 2025. What 3.0 changed that could matter here, checked against
-  # the image's own default config (cmd/registry/config-dev.yml, v2.8.3 vs
-  # v3.1.1): the config file moved to /etc/distribution/config.yml — this
-  # service mounts none and runs the image default either way; the default
-  # blob-descriptor cache is in-memory instead of a redis that was never
-  # there; the storage driver and its layout under /var/lib/registry are the
-  # same, so `registry_data` carries over; and schema-1 manifests are
-  # refused, which nothing since Docker 20 pushes. The CLI pushes OCI images
-  # to it and the supervisor's daemon pulls them — neither cares which line
-  # answers. Upstream's own compose still says `registry:2`; the managed gate
-  # (deploy-tasks.sh pushes, the smoke runs a task) is the proof for this one.
-  # 3.1.2 (2026-10-21) changes none of that: config-dev.yml, the filesystem
-  # driver and tracing/ are as they were at v3.1.1, and its security fix is in
-  # the registry's client, which only a pull-through cache uses.
-  #
-  # BY TAG AND INDEX DIGEST SINCE 2026-11-13 (workplan 0119), by tag alone
-  # until then. Docker Hub builds its official images again under the same
-  # tag when their base moves, and nothing here pulls an image the machine
-  # already has, so the stacks kept the copy they pulled first, while
-  # the image scan read the tag as Docker Hub served it on the day of each
-  # scan. Which copy that was is unread: Docker Hub keeps a tag's last push
-  # alone, and nothing recorded the image a stack ran. The digest is
-  # 82f6ff4a7f98…, the index Docker Hub serves for `3.1.2`, last pushed
-  # 2026-11-11 at 23:38 UTC, when riscv64's image landed; its linux/amd64
-  # (52b489ad8e6f…) and linux/arm64 (f3d00d4a9323…) images are the rebuild
-  # of 2026-11-05. Read off both, every blob checked against its sha256 and
-  # nothing run: Alpine 3.24.4 with 17 packages, and bin/registry is
-  # distribution v3.1.2 at commit 3220848f, built with Go 1.26.8: upstream's
-  # release file, which the image's build checks by its sha256. The image's
-  # Dockerfile has not moved since 2026-09-24, when it took v3.1.2, so every
-  # build of this tag carries that binary and a rebuild moves the Alpine
-  # under it. NOT A SECURITY FIX: the image scan of 2026-11-13 read the tag,
-  # which named this index, at 0 findings in Alpine's packages and 8 high in
-  # bin/registry (go-jose 4.1.4, klauspost/compress 1.18.4, golang.org/x/net
-  # 0.59.0 and Go 1.26.8), and those stay until distribution releases:
-  # v3.1.2 is its newest tag. A rebuild or a release moves by a pull request
-  # with the new digest read the same way;
-  # `scripts/a-float-nothing-ever-pulled.unit.test.ts` holds the digest, and
-  # this comment to it.
-  trigger-registry:
-    image: registry:3.1.2@sha256:82f6ff4a7f982960c8aa51617fea3aabc485df6e55cce80d22deb1de36f1bc3c
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-registry
-    profiles: ["trigger"]
-    restart: unless-stopped
-    logging: *logging
-    # HOW IT RUNS (see the header): root, writing only its own volume, so no
-    # capability; read-only, with /tmp in memory.
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    cap_add: []
-    read_only: true
-    tmpfs: [/tmp]
-    ports:
-      - "127.0.0.1:${REGISTRY_PORT:-5000}:5000"
-    volumes:
-      - registry_data:/var/lib/registry
-    # ON ONE NETWORK, WHICH NOTHING ELSE SHARES (2026-11-14, workplan 0136 T4).
-    # Not ownpace-network: see `trigger-task-images` at the bottom of this file
-    # for why, and how the CLI and the host's daemon still reach it.
-    networks:
-      - trigger-task-images
-
-  # The supervisor talks to docker through this proxy rather than holding the
-  # raw socket: the whitelist below is exactly what running task containers
-  # needs (create/manage containers, pull images, attach networks) and nothing
-  # more — no exec into other containers, no volume deletion, no swarm.
-  #
-  # Only the supervisor reaches it (2026-11-02, workplan 0136 T4's first
-  # bullet). It publishes no port and has no authentication, and with POST,
-  # CONTAINERS and NETWORKS whoever reaches it can start a container on any
-  # network of the machine, so it is on one network, which the supervisor
-  # alone shares: see its networks below, and `trigger-docker-socket` at the
-  # bottom of this file.
-  #
-  # Built here since 2026-10-30 (workplan 0119): Tecnativa's docker-socket-proxy
-  # at its release v0.6.0 since 2026-11-20 (v0.5.0 before), its Dockerfile,
-  # haproxy.cfg and entrypoint as they are at that tag, on the newest HAProxy
-  # of the same line, 3.4.8 since 2026-11-22 (3.4.7 before), instead of the
-  # 3.4.2 that v0.5.0's image was built on in July and never rebuilt (0
-  # critical and 6 high findings on 2026-10-29, all 6 fixed in newer Alpine
-  # packages). The environment below is upstream's interface, unchanged, and
-  # v0.6.0 allows and refuses under it what v0.5.0 did.
-  # deploy/compose/docker-socket-proxy/Dockerfile says what changed (the
-  # base, which upstream's v0.6.0 upgrades while it builds and this one does
-  # not, and since 2026-11-20 the user it ends as: HAProxy's uid 99 in place
-  # of upstream's root), why the name carries the hash of its instructions,
-  # and how it moves.
-  # `never`, as for the databases: no registry serves this name.
-  trigger-docker-proxy:
-    image: localhost/docker-socket-proxy:3.4.8-alpine-0950ae008aa4
-    build: ./docker-socket-proxy
-    pull_policy: never
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
-    profiles: ["trigger"]
-    restart: unless-stopped
-    logging: *logging
-    # HOW IT RUNS (see the header): as the image's user, HAProxy's own uid 99,
-    # not root (since 2026-11-20, workplan 0119), with no capability. The
-    # socket is root's and a group's at mode 0660, and the container reaches
-    # it through that group, added below: its id is the host's own, read from
-    # the socket by seed_docker_socket_gid (env-read.sh), which
-    # ensure-env-secrets.sh and every bootstrap-managed.sh run write into .env,
-    # never typed. Unset, Compose refuses: there is no fallback to root or to
-    # no group. Read-only; the entrypoint writes haproxy.cfg to /tmp and
-    # HAProxy its pidfile to /run, both tmpfs. /run is mounted as uid 99's:
-    # a tmpfs over a directory of the image takes that directory's owner,
-    # root's for /run, and HAProxy as 99 then stops with `Cannot create
-    # pidfile /run/haproxy.pid` (images.yml's first run as 99, 2026-11-20).
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    cap_add: []
-    group_add:
-      - "${DOCKER_SOCKET_GID:?the group id of /var/run/docker.sock; deploy/compose/ensure-env-secrets.sh or bootstrap-managed.sh writes it from the socket}"
-    read_only: true
-    tmpfs: [/tmp, "/run:uid=99,gid=99,mode=0755"]
-    environment:
-      CONTAINERS: 1
-      IMAGES: 1
-      NETWORKS: 1
-      VOLUMES: 1
-      POST: 1
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    # ON ONE NETWORK, WHICH ONLY ITS ONE CLIENT SHARES (2026-11-02, workplan
-    # 0136 T4). Not ownpace-network: see `trigger-docker-socket` at the bottom
-    # of this file for why, and what reaches it now.
-    networks:
-      - trigger-docker-socket
-
-  # The component that actually EXECUTES deployed tasks (0018 T0/T3): it
-  # authenticates to trigger-api with the bootstrap worker token the webapp
-  # writes to the shared volume (TRIGGER_BOOTSTRAP_* above), dequeues runs,
-  # and starts one container per run via the docker proxy, the one service
-  # that shares the proxy's network (`trigger-docker-socket`). Without it, a
-  # deployed task is dequeued by nobody — which is exactly what this stack
-  # was before 0018: bootstrap env vars with no consumer.
-  trigger-supervisor:
-    # Built here as trigger-api is (deploy/compose/supervisor/Dockerfile):
-    # upstream's image without root's copy of pnpm, with node's pnpm 10.34.9 in
-    # place of 10.33.2 (since 2026-11-02), without node-gyp's tree (tar was in
-    # it) in node's, and without npm (from 2026-11-03 until v4.8.5, which
-    # ships 5.33.19 itself, it also put systeminformation 5.33.19 in place of
-    # 5.31.7); from 2026-11-14 until v4.8.8, whose own override takes 7.0.6
-    # in its place, also without cross-spawn 5.1.0 (CVE-2024-21538) and the
-    # links pnpm made to it (its header, CROSS-SPAWN 5.1.0). No `user:`, so
-    # it runs as the image's node, whose copy its CMD runs and the Dockerfile
-    # keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.8}-f21dbbd335dd
-    build:
-      context: ./supervisor
-      args:
-        TRIGGER_IMAGE_TAG: ${TRIGGER_IMAGE_TAG:-}
-    pull_policy: never
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-supervisor
-    profiles: ["trigger"]
-    restart: unless-stopped
-    logging: *logging
-    # HOW IT RUNS (see the header): node from its first process, so no capability.
-    # The task runs it starts are Trigger.dev's containers, made through the
-    # proxy with Trigger.dev's own settings: none of this applies to them.
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    cap_add: []
-    environment:
-      TRIGGER_API_URL: http://trigger-api:3000
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://trigger-api:3000/otel
-      TRIGGER_WORKER_TOKEN: file:///home/node/shared/worker_token
-      MANAGED_WORKER_SECRET: ${TRIGGER_MANAGED_WORKER_SECRET:?generate with openssl rand -hex 16 and set in .env}
-      TRIGGER_WORKLOAD_API_DOMAIN: trigger-supervisor
-      TRIGGER_WORKLOAD_API_PORT_EXTERNAL: 8020
-      # A name that resolves only on `trigger-docker-socket`, which this
-      # service shares with the proxy and nothing else does.
-      DOCKER_HOST: tcp://trigger-docker-proxy:2375
-      # Run containers join THIS network, so tasks reach postgres, stalwart
-      # and nextcloud by the same names the worker container uses. The value
-      # is the REAL network name, and compose prefixes the project's name, so
-      # it is built from that name too (workplan 0132 T1, D9). It was written
-      # out as the OTA stack's, and under any other project the task runs
-      # would have joined the OTA stack's network, where `postgres` is the OTA
-      # stack's database.
-      DOCKER_RUNNER_NETWORKS: ${COMPOSE_PROJECT_NAME}_ownpace-network
-      DOCKER_REGISTRY_URL: localhost:${REGISTRY_PORT:-5000}
-      # As trigger-api's: a start without its copy of pnpm fails, never fetches one.
-      COREPACK_ENABLE_NETWORK: "0"
-    volumes:
-      - trigger_shared:/home/node/shared
-    depends_on:
-      trigger-api:
-        condition: service_started
-      trigger-docker-proxy:
-        condition: service_started
-    # The workload API the runners themselves connect to — a runner's own log
-    # names it (`TRIGGER_SUPERVISOR_API_DOMAIN: trigger-supervisor`,
-    # `TRIGGER_SUPERVISOR_API_PORT: 8020`), so a supervisor not serving on it is
-    # a supervisor no task can execute through. Same liveness shape as the
-    # webapp above.
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "node -e \"fetch('http://127.0.0.1:8020/').then(()=>process.exit(0)).catch(()=>process.exit(1))\"",
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
-    networks:
-      # The runners reach the workload API above here, as trigger-supervisor,
-      # and this service reaches trigger-api and the world here.
-      - ownpace-network
-      # The socket proxy's one network, which only this service shares with
-      # it: see `trigger-docker-socket` at the bottom of this file. DOCKER_HOST
-      # above goes over it, and nothing else does.
-      - trigger-docker-socket
-
-  # Object store for large task payloads/outputs. trigger-api has pointed at
-  # http://minio:9000 since the stack was written — the service just never
-  # existed, so anything over the inline payload limit failed. Same
-  # credentials as the OBJECT_STORE_* values above.
-  #
-  # CHAINGUARD'S MAINTAINED MINIO, BY THE OWNER'S ANSWER OF 2026-10-23 (0146
-  # T7: "T7 no, fix already within the alpha"). Until then this was
-  # `bitnamilegacy/minio:2025.5.24-debian-12-r5` by digest: frozen, from a
-  # repository Docker Hub labels "no longer updated", and Security Scan #4726
-  # read 26 critical and 259 high findings in it on 2026-10-23, 206 of them
-  # fixed in a newer package that would never reach it. MinIO's own image is
-  # gone from Docker Hub and its repository is no longer maintained. This is
-  # the same server built by Chainguard from its maintained fork
-  # (`chainguard-forks/minio`), which Trivy read 0 critical / 0 high the same
-  # day, and it is what Trigger.dev's own development compose runs
-  # (docker/docker-compose.yml at v4.7.6). 0119 §3 item 5 has the comparison.
-  #
-  # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
-  # nothing else, rebuilt about daily, so this is `latest` by an index digest:
-  # 59953701f8f8…, dated 2026-11-16 19:32 UTC in its configs and pushed as
-  # `latest` on 2026-11-17 at 04:03 UTC, with linux/amd64 and linux/arm64 in
-  # it, taken that day for alpha.11, inside its three-day floor (which ends
-  # 2026-11-20 04:03 UTC), on the owner's waiver of 2026-11-17 ("I waive all
-  # waiting time included the nights."). It carries two security fixes, in
-  # glibc 2.44-r20, built from the 2.44 release branch two commits on from
-  # -r19's: a double free after an allocation failure in regcomp and regexec
-  # (CVE-2026-100290), and a double null terminator in the wide scanf's %s and
-  # %[ (CVE-2026-115819). Of glibc's files only libc.so.6's code and
-  # ldconfig's changed. bash, which minio-init runs as /bin/sh, and coreutils
-  # load it; minio and mc are static and load no glibc. The server moves to
-  # the fork's RELEASE.2026-11-16T00-11-40Z at commit ee9fee07, Wolfi's
-  # `minio` 0.20261116.001140-r0, and its code does not: with the release
-  # name, commit, pseudo-version and build time swapped back, each binary
-  # equals -r1's (RELEASE.2026-11-12T01-15-23Z, at a60e2a7b) but for its two
-  # build ids, on both architectures, and `go version -m`, read off each
-  # without running it, differs in the main module alone: the 254 others and
-  # Go 1.27.4 are as before. `mc` is the same file byte for byte
-  # (0.20250813.083541-r29, at commit 7394ce0d); bash is /bin/sh, as before.
-  # Also moved: libacl1 2.4.0-r6 and libselinux 3.11-r3, rebuilt with GCC
-  # 16.2.0-r4, their code the same; libsepol 3.11-r4, from the same source with
-  # its scanner regenerated (a newer flex, by its symbols); and ncurses
-  # 6.6.20261114, its code the same and 23 terminfo entries updated. That is 9
-  # of the image's 23 packages (their apk databases, both architectures); 5 of
-  # its 11 layers on amd64 and 4 on arm64 are the same blobs, and each config
-  # differs in its dates and layer ids alone. The fork's releases since
-  # RELEASE.2026-09-22T19-25-18Z, in d88920d6a50b… (2026-10-22, #1692), differ
-  # from it in go.mod and go.sum, CI scripts, the Makefile's tidy check, two
-  # debugging tools under docs/ and one test file up to
-  # RELEASE.2026-11-12T01-15-23Z, so no line under cmd/ or internal/ that the
-  # server is built from changed; this one builds to the same code (the
-  # binaries, above), its source not read. One build lies between
-  # 634c989a2f10… (taken 2026-11-14 for alpha.9, #1904) and this one, never
-  # taken: 1ec745a06a98… (pushed 2026-11-16 15:08 UTC), this one but for the
-  # ncurses update.
-  # The weekly pin watch (idp-pin-watch.mjs) says when `latest` has moved
-  # on; a move is a pull request with the new digest's scan read and E2E
-  # (managed) on its branch. Trigger.dev's own digest from its move of
-  # 2026-09-28 still resolved on 2026-10-24, so an old digest stays pullable
-  # for weeks at least; if the free image goes, build the fork's tag here
-  # (0119 §3 item 5).
-  #
-  # NOT A TAG SWAP. Each difference was read off the image itself (its config
-  # and last layer, both architectures) and Chainguard's locked config
-  # (chainguard-images/images, images/minio/locked_config.json):
-  #   - the entrypoint is the bare `/usr/bin/minio`, with no arguments, so the
-  #     command below names `server /data`;
-  #   - it runs as 65532, not Bitnami's 1001, and keeps its data in /data, not
-  #     /bitnami/minio/data;
-  #   - the image ships /data root-owned with mode 0777, and /data/.minio.sys
-  #     owned by 65532. Docker gives a NEW named volume the ownership, mode
-  #     and contents of the image's directory the first time it is mounted
-  #     there, so the volume below is writable by 65532 as it comes, with no
-  #     chown step. (zitadel-machinekey exists because the mount point
-  #     Zitadel's volume got was root's, which its non-root user could not
-  #     write.)
-  #   - there is no MINIO_DEFAULT_BUCKETS. That was a Bitnami convenience;
-  #     minio-init below makes `packets`.
-  # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
-  minio:
-    image: chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
-    profiles: ["trigger"]
-    restart: unless-stopped
-    logging: *logging
-    # HOW IT RUNS (see the header): uid 65532 from its first process, so no capability.
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    cap_add: []
-    command: ["server", "/data"]
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-very-safe-password}
-      # NO RELEASE CHECK AT START (workplan 0139, 2026-09-28; read again at the
-      # fork's RELEASE.2026-09-22T19-25-18Z, the same code at
-      # RELEASE.2026-10-23T20-06-51Z and RELEASE.2026-11-12T01-15-23Z). At
-      # every start this MinIO asks dl.min.io for its newest release, and its
-      # User-Agent carries the OS, the architecture, `docker`, its version and
-      # the CPU's count, vendor and model (cmd/server-main.go,
-      # cmd/common-main.go, cmd/update.go). `off` here is the one thing that
-      # skips it. Its call-home to SUBNET already ships off
-      # (internal/config/callhome/callhome.go), and is written out so a stored
-      # setting cannot turn it on: the environment wins over MinIO's own
-      # config. `scripts/a-service-that-phones-home.unit.test.ts`.
-      MINIO_UPDATE: "off"
-      MINIO_CALLHOME_ENABLE: "off"
-      # The health check's alias. `mc ready` asks the server's own health
-      # endpoint with an anonymous client (cmd/ready-main.go,
-      # cmd/client-admin.go at mc's RELEASE.2025-08-13T08-35-41Z), so it
-      # carries no password. 127.0.0.1 and not localhost: no name to resolve
-      # (a-healthcheck-that-asked-the-wrong-address).
-      MC_HOST_local: http://127.0.0.1:9000
-    volumes:
-      # A NEW VOLUME, and the old one is left alone (hard rule 2). Bitnami's
-      # layout under /bitnami/minio/data, owned by 1001, is not handed to
-      # another vendor's image at another path. So the store starts empty:
-      # after the drain a Trigger.dev upgrade needs anyway, what is lost is old
-      # runs' large payloads and outputs, read only by the dashboard, a replay
-      # and `runs.retrieve`, which hands back `payload` undefined and does not
-      # throw; ours reads only a run's status flags (0119 §3 item 5, What
-      # moving costs). `minio_data` stays on disk until somebody deliberately
-      # removes it, read-only checks first (0146 T7):
-      #     docker volume rm <project>_minio_data
-      - minio_data_v2:/data
-    # Upstream's probe (docker/docker-compose.yml at v4.7.6), run by the mc
-    # this image carries. `--config-dir` because mc writes a config on first
-    # use and /tmp is the one directory certainly writable by 65532 (1777 in
-    # the image). Generous start_period: under `up -d --wait` a probe that is
-    # too eager fails the bring-up.
-    healthcheck:
-      test: ["CMD", "mc", "--config-dir", "/tmp/mc", "ready", "local"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - ownpace-network
-
-  # THE `packets` BUCKET, made before trigger-api starts and made again,
-  # harmlessly, on every `up` (`--ignore-existing`). Trigger.dev v4.7.6 makes
-  # no bucket: every packet key's first segment is `packets`, and a store
-  # without it answers each write with NoSuchBucket. Bitnami's image made it
-  # from MINIO_DEFAULT_BUCKETS; this one does not, so a one-shot does, as
-  # upstream's development compose does with `minio-init`.
-  #
-  # The SAME pinned image as the store, which carries mc, so there is one
-  # image to pin, scan and move. The pair stays in this container's
-  # environment and goes into mc's alias inside it (MC_HOST_<alias>, as
-  # rotate-db-passwords.sh asks the store), never into this file as a URL or
-  # onto a command line. `mc mb` reaches no update check: mc asks dl.min.io
-  # only when run with no command (cmd/main.go at RELEASE.2025-08-13T08-35-41Z).
-  # mc reads a ':' in the password as the start of a session token
-  # (hostKeyTokens, cmd/config.go), so such a password stops the bring-up
-  # here: the values ensure-env-secrets.sh and rotate-db-passwords.sh make are
-  # hex, and stand-up-live.sh refuses any other character.
-  #
-  # A DEPENDENCY, NOT A `compose run`. trigger-api waits for it with
-  # `service_completed_successfully`, and that condition is what lets
-  # `up -d --wait` treat its exit 0 as done rather than as a container that
-  # stopped: compose reads it for every service another depends on that way
-  # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
-  # bring-up names it beside `minio` all the same, so a failure prints its log.
-  minio-init:
-    image: chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
-    profiles: ["trigger"]
-    restart: "no"
-    logging: *logging
-    # HOW IT RUNS (see the header): uid 65532, no capability; read-only, with
-    # mc's config directory in memory.
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    cap_add: []
-    read_only: true
-    tmpfs: [/tmp]
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - 'MC_HOST_store="http://$${MINIO_ROOT_USER}:$${MINIO_ROOT_PASSWORD}@minio:9000" exec mc --config-dir /tmp/mc mb --ignore-existing store/packets'
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-very-safe-password}
-    depends_on:
-      minio:
-        condition: service_healthy
-    networks:
-      - ownpace-network
-
-  # TLS front for the trigger dashboard (0020 T3) — the hand-run Caddy sidecar
-  # from the 2026-08-01 live bring-up, folded in. The dashboard's
-  # production-mode Secure cookies make login unusable over plain http from
-  # anything but localhost, so browsers go through this https front:
-  #   TRIGGER_APP_ORIGIN / TRIGGER_LOGIN_ORIGIN = https://<TRIGGER_TLS_HOST>:<TRIGGER_TLS_PORT>
-  # while the API origin the server advertises stays plain http on
-  # 127.0.0.1 — the deploy CLI follows it and must not hit a self-signed
-  # certificate (deploys died with a bare "Connection error" when it did).
-  # The two rules baked into trigger-tls.Caddyfile: a concrete host as the
-  # site address (else Caddy has no certificate to present) and default_sni
-  # (IP-connecting browsers send no SNI). Set TRIGGER_TLS_HOST in .env to the
-  # address browsers actually use (e.g. the machine's VPN IP).
-  #
-  # Built here since 2026-10-31 (workplan 0119): Caddy's official image at the
-  # digest it ran before, with curl removed and the libraries only curl pulled
-  # in, which carried the image's one critical finding and two of its highs.
-  # Nothing here runs curl in it: no healthcheck, no exec, and the smoke asks
-  # the front from the host. deploy/compose/caddy/Dockerfile says what it
-  # removes, why the name carries the hash of its instructions, how it moves,
-  # and why it runs as uid 65532. `never`, as for the databases: no registry
-  # serves this name.
-  trigger-tls:
-    image: localhost/caddy:2.11.9-alpine-9c1f752119a3
-    build: ./caddy
-    pull_policy: never
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
-    profiles: ["trigger"]
-    restart: unless-stopped
-    logging: *logging
-    # HOW IT RUNS (see the header): as uid and gid 65532 from its first process,
-    # the image's USER since 2026-11-19, with no capability, writing only its two
-    # volumes, which trigger-tls-init gives it first. It binds 3443, which needs
-    # none, and no-new-privileges stays: the binary's file capability,
-    # cap_net_bind_service, is permitted and not effective in Caddy 2.11.9's
-    # image (`+p`), and the kernel starts such a binary whatever the bounding set
-    # holds. Until then it ran as root and kept NET_BIND_SERVICE, for 2.11.7's
-    # `+ep`: the kernel refuses a binary whose effective file capability the
-    # bounding set lacks (`exec /usr/bin/caddy: operation not permitted`). Not
-    # read-only: not measured since Caddy stopped installing its local CA into
-    # the image's trust store at start (skip_install_trust), which was why.
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    cap_add: []
-    environment:
-      TRIGGER_TLS_HOST: ${TRIGGER_TLS_HOST:-localhost}
-    ports:
-      # The dashboard. To open it from a laptop over the mesh, set
-      # TRIGGER_TLS_BIND to this machine's mesh IP address, the one
-      # TRIGGER_TLS_HOST names (an IP, never a name; docs/managed-bring-up.md,
-      # "Addressing the dashboard"). The smoke keeps asking 127.0.0.1. See the
-      # header.
-      - "127.0.0.1:${TRIGGER_TLS_PORT:-3443}:3443"
-      - "${TRIGGER_TLS_BIND:-127.0.0.1}:${TRIGGER_TLS_PORT:-3443}:3443"
-    volumes:
-      - ./trigger-tls.Caddyfile:/etc/caddy/Caddyfile:ro
-      - trigger_tls_data:/data
-      - trigger_tls_config:/config
-    depends_on:
-      trigger-api:
-        condition: service_started
-      # Its two volumes given to 65532 first (trigger-tls-init, below).
-      trigger-tls-init:
-        condition: service_completed_successfully
-    networks:
-      - ownpace-network
-
-  # Gives trigger-tls's two volumes to the user it runs as, uid and gid 65532,
-  # before it starts (2026-11-19, workplan 0119). On a stack that ran the front
-  # as root, trigger_tls_data (the CA `tls internal` minted, and its
-  # certificate) and trigger_tls_config are root's, the keys at mode 0600 in
-  # directories at mode 0700, so 65532 could not read the CA and the front
-  # would not start. This gives both to 65532 once, and the CA and a browser's
-  # exception for its certificate stay; at every `up` after that it changes
-  # nothing, and on a new volume it finds the image's own directories. A
-  # one-shot, as minio-init is: trigger-tls waits for it with
-  # service_completed_successfully, which `up --wait` takes as done. The same
-  # build as trigger-tls, as root. Going back to a tag that ran the front as
-  # root needs the two given back to root first (docs/managed-bring-up.md, "The
-  # dashboard's TLS front is a build here too").
-  trigger-tls-init:
-    image: localhost/caddy:2.11.9-alpine-9c1f752119a3
-    build: ./caddy
-    pull_policy: never
-    container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls-init
-    profiles: ["trigger"]
-    restart: "no"
-    logging: *logging
-    # HOW IT RUNS (see the header): root, for one chown (CHOWN) through
-    # directories that are 65532's at mode 0700 once it has run
-    # (DAC_READ_SEARCH). Read-only, with no network: it changes the owner of the
-    # two volumes' files and nothing else.
-    user: "0:0"
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_READ_SEARCH]
-    read_only: true
-    network_mode: none
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - 'mkdir -p /data/caddy /config/caddy && chown -R 65532:65532 /data/caddy /config/caddy && echo "trigger_tls_data and trigger_tls_config are 65532:65532"'
-    volumes:
-      - trigger_tls_data:/data
-      - trigger_tls_config:/config
-
   # The identity provider (ADR-0042).
   #
   # WHAT THIS IS FOR. Until it existed, the path from stranger to signed-in
@@ -1411,8 +395,9 @@ services:
     # three facts above were re-read at v4.19.1: the defaults still ship
     # `LoginV2.Required: true`, and the admin SMTP handler and `zitadel ready`
     # are unchanged. The OTA instance's `zitadel` database was dumped by hand
-    # before the gate's run applied this: the gate drills Trigger.dev's
-    # database, not the identity provider's.
+    # before the gate's run applied this: the gate drilled Trigger.dev's
+    # database then, not the identity provider's (it drills the identity
+    # provider's since alpha.18, workplan 0167 T9).
     #
     # v4.19.2 (2026-09-28) since 2026-09-28, owner go (workplan 0135, open
     # question 12), found by the weekly pin watch the day it was tagged. Three
@@ -2014,12 +999,12 @@ services:
       # would stop excluding each other — silently, and only under load.
       DIRECT_DATABASE_URL: postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}
       # THE JOB RUNNER'S SWITCH AND ITS DATABASE (ADR-0054, workplan 0167 T7),
-      # the same two values the worker service below gets. `trigger` (unset or
-      # empty) sends every job to Trigger.dev as before; `pg-boss` enqueues it
-      # on the jobs' queues as ownpace_jobs, the role that owns pg-boss's schema
-      # and nothing else. Empty password rather than `:?` for the reason the
-      # worker's says: the bring-up generates the key before its first Compose
-      # call. `pg-boss` by default (see the header); `trigger` is the fallback.
+      # the same two values the worker service below gets. The api enqueues
+      # every job on the jobs' queues as ownpace_jobs, the role that owns
+      # pg-boss's schema and nothing else. Empty password rather than `:?` for
+      # the reason the worker's says: the bring-up generates the key before its
+      # first Compose call. `pg-boss`, the only value the api starts with since
+      # alpha.18 (see the header); `trigger` stops its start in one sentence.
       OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}
       JOBS_DATABASE_URL: postgresql://ownpace_jobs:${JOBS_DB_PASSWORD:-}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
       # Fail-closed (0020 T2): with the tenant-membership gate, JWT_SECRET is
@@ -2051,13 +1036,6 @@ services:
       # pins a URL that key rotation can move underneath you — see
       # `getJWKS` in apps/api/src/middleware/auth.ts.
       JWT_JWKS_URI: ${JWT_JWKS_URI:-}
-      TRIGGER_API_URL: http://trigger-api:3000
-      # The project environment's secret key (tr_prod_...), minted by the
-      # instance's OWN dashboard — which is why it cannot be `:?`-required:
-      # the first `compose up` has to happen before the key can exist. Until
-      # it is set, every enqueue fails loudly by name (trigger-client.ts) and
-      # lands the run/receipt row `failed`; nothing hangs (0018 T1).
-      TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-}
       MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
       # The deployment's own identity for QUALIFIED VIES checks (workplan
       # 0111 T2) — the ones that come back with a consultation number, which
@@ -2112,13 +1090,13 @@ services:
       # secret into a wizard and rotating it is one edit rather than one per
       # connection. A connection that carries its own pair still wins.
       #
-      # The WORKER needs them too, and gets them from set-task-env.sh — a task
-      # container inherits nothing from compose, which is why they are in both
-      # places and why that script names them.
+      # The WORKER needs them too, and its service below names them as this
+      # one does (until alpha.18 set-task-env.sh uploaded them to Trigger.dev's
+      # tasks, which inherited nothing from compose).
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       # The deployment's own Dropbox app (2026-09-02), the same rule and the
-      # same second place: set-task-env.sh carries them to the worker.
+      # same second place: the worker's service names them too.
       DROPBOX_OAUTH_CLIENT_ID: ${DROPBOX_OAUTH_CLIENT_ID:-}
       DROPBOX_OAUTH_CLIENT_SECRET: ${DROPBOX_OAUTH_CLIENT_SECRET:-}
       # The deployment's own Entra registration (workplan 0114), same rule and
@@ -2132,8 +1110,7 @@ services:
       # public client with no secret, registered by Cirrux by hand with this
       # deployment's exact callback. Unset, a Cirrux account's Drive is a
       # measured no and no screen offers Connect Cirrux Drive. The worker
-      # refreshes the Drive sign-in on every pass, so set-task-env.sh carries
-      # it there too.
+      # refreshes the Drive sign-in on every pass, so its service names it too.
       CIRRUX_OAUTH_CLIENT_ID: ${CIRRUX_OAUTH_CLIENT_ID:-}
       API_URL: ${API_URL:-http://localhost:3001}
       # Where the API reads the status page's own endpoint list, for the
@@ -2225,8 +1202,8 @@ services:
       # THE RULE FOR A HOST A TENANT GIVES US (workplan 0136 T1, T2): the API
       # refuses to connect to an address inside this service's own network, but
       # for these exact names. The gate's stack names its demo targets
-      # (`nextcloud,stalwart`); live leaves it empty. set-task-env.sh uploads
-      # the same list to the tasks. A list the API cannot read stops its start.
+      # (`nextcloud,stalwart`); live leaves it empty. The worker's service hands
+      # it the same list. A list the API cannot read stops its start.
       # `scripts/a-rule-nothing-switched-on.unit.test.ts`.
       OWNPACE_REACHABLE_HOSTS: ${OWNPACE_REACHABLE_HOSTS:-}
     ports:
@@ -2237,25 +1214,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      # Trigger.dev's API, in profile `trigger`: started first when the plane
-      # runs (OWNPACE_JOB_RUNNER=trigger and `--profile trigger`), and not
-      # required when it does not, so an `up` in pg-boss mode leaves it out
-      # instead of refusing the api.
-      trigger-api:
-        condition: service_started
-        required: false
     networks:
       - ownpace-network
 
   # THE JOB WORKER (ADR-0054, workplan 0167 T7): pg-boss on the ledger's
-  # Postgres, in place of Trigger.dev, behind the switch OWNPACE_JOB_RUNNER
-  # (`pg-boss`, this file's default, or `trigger`, the fallback). It has no
-  # profile, so a bare `up` starts it, and the bring-up in pg-boss mode builds
-  # it with the api and the web app from the release's GIT_SHA and starts it
-  # after the api (worker_up). In trigger mode the bring-up stops and removes
-  # it before the plane starts, so one execution plane runs the jobs; started
-  # by hand there, it exits at once in one sentence, since its switch is not
-  # `pg-boss`. Nothing depends on it.
+  # Postgres, in place of Trigger.dev, which alpha.18 removed (T9). It has no
+  # profile, so a bare `up` starts it, and the bring-up builds it with the api
+  # and the web app from the release's GIT_SHA and starts it after the api
+  # (worker_up). Nothing depends on it.
   #
   # The process (`apps/worker/src/runner/main.ts`, by Node directly, as the API
   # runs its entry) refuses to start, exit 1 with one sentence on stderr,
@@ -2311,10 +1277,10 @@ services:
     # minute is failed by pg-boss's heartbeat sweep and retried, and converges.
     stop_grace_period: 60s
     environment:
-      # THE SWITCH, read by the api, this worker, the scripts and the E2E
-      # workflow: `trigger` or `pg-boss`; unset or empty in code is `trigger`,
-      # and any other value is refused with one sentence. This file's default
-      # is `pg-boss` (see the header).
+      # THE SWITCH, read by the api, this worker and the scripts: `pg-boss`,
+      # unset or empty included; `trigger` is refused since alpha.18 with one
+      # sentence that says Trigger.dev was removed, and any other value with
+      # one of its own (see the header).
       OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}
       NODE_ENV: production
       # THE JOBS' OWN ROLE, ownpace_jobs, which owns pg-boss's schema `pgboss`
@@ -2331,22 +1297,19 @@ services:
       # are, unencoded. Empty, the role answers "password authentication
       # failed", by name.
       JOBS_DATABASE_URL: postgresql://ownpace_jobs:${JOBS_DB_PASSWORD:-}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
-      # WHAT set-task-env.sh UPLOADS TO THE TASKS TODAY, under the same names,
-      # composed the same way, so a job reads the same environment on either
-      # runner. NEVER THE OWNER: no DATABASE_URL, no DIRECT_DATABASE_URL, and
+      # WHAT set-task-env.sh UPLOADED TO TRIGGER.DEV'S TASKS until alpha.18,
+      # under the same names, composed the same way, so a job read the same
+      # environment on either runner. NEVER THE OWNER: no DATABASE_URL, no DIRECT_DATABASE_URL, and
       # no value built from POSTGRES_USER or POSTGRES_PASSWORD under any name
-      # (scripts/a-worker-that-carries-no-superuser.unit.test.ts, the twin of
-      # a-run-that-carries-no-superuser for the tasks). The system role by the
+      # (scripts/a-worker-that-carries-no-superuser.unit.test.ts; its twin for
+      # Trigger.dev's tasks went with them in alpha.18). The system role by the
       # name managed migration 0033 makes it under, with SYSTEM_DB_PASSWORD,
       # empty rather than required for the reason above.
       SYSTEM_DATABASE_URL: postgresql://ownpace_system:${SYSTEM_DB_PASSWORD:-}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
       APP_DATABASE_URL: postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
       SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:-}
-      # The rest are optional, as the script's are: it uploads only what is
-      # set, and Compose passes an empty key as empty. Every reader a job
-      # reaches takes empty as unset, but for one: the tick's and the
-      # cutover's `?? 'http://trigger-api:3000'`, so that one carries the
-      # same default here.
+      # The rest are optional: Compose passes an empty key as empty, and every
+      # reader a job reaches takes empty as unset.
       OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-}
       OAUTH2_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET:-}
       OAUTH2_REFRESH_TOKEN: ${OAUTH2_REFRESH_TOKEN:-}
@@ -2372,7 +1335,6 @@ services:
       LARGEST_FILE_MB: ${LARGEST_FILE_MB:-}
       MAX_PASSES_IN_FLIGHT: ${MAX_PASSES_IN_FLIGHT:-}
       MAX_PASSES_PER_ORGANISATION: ${MAX_PASSES_PER_ORGANISATION:-}
-      TRIGGER_API_URL_IN_NETWORK: ${TRIGGER_API_URL_IN_NETWORK:-http://trigger-api:3000}
       LOG_LEVEL: ${LOG_LEVEL:-}
       OWNPACE_REACHABLE_HOSTS: ${OWNPACE_REACHABLE_HOSTS:-}
       OWNPACE_STAGE: ${OWNPACE_STAGE:-}
@@ -2966,149 +1928,6 @@ networks:
   status-probe:
     driver: bridge
     internal: true
-  # TWO MEMBERS, AND NO WAY OUT: ClickHouse and its one client, trigger-api
-  # (2026-11-01, workplan 0119 §3 item 9). CVE-2026-116366 (GHSA-qhgw-ghp3-xh36,
-  # critical, CWE-190, published 2026-10-30) lets "an unauthenticated user with
-  # network access" run code on a ClickHouse server, and it is fixed only in
-  # 26.3.62.3-lts, 26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The
-  # clickhouse service above ran 26.2, which ClickHouse's SECURITY.md lists as
-  # unsupported, so no fix will come for it, and Trigger.dev still pins it at
-  # v4.8.3 (and at v4.8.5 and v4.8.8). The pin is 26.8.36.3-lts from the owner's decision of 2026-11-02
-  # (§3 item 9, option 2), 26.8.37.168-lts since 2026-11-14 (the clickhouse
-  # service above), and this network stays as it is. Who can
-  # reach the server is this file's, and until this network it was everybody:
-  # every service on ownpace-network, the internet-facing ones included (the
-  # web app, the API, the identity provider, the demo Nextcloud), and every
-  # task run, which the supervisor starts on ownpace-network
-  # (DOCKER_RUNNER_NETWORKS).
-  #
-  # Now a name that resolves only here. trigger-api is the one service that
-  # talks to ClickHouse over a network: its CLICKHOUSE_URL and
-  # RUN_REPLICATION_CLICKHOUSE_URL, the readers upstream points at the first
-  # when their own URL is unset (the runs list, events, queries: env.server.ts
-  # at v4.8.3), and its entrypoint's goose migrations, which stop its start
-  # when they cannot reach the server. Everything else that asks ClickHouse
-  # anything runs clickhouse-client inside its container and needs no network:
-  # the health check above, and `docker compose exec` in rotate-db-passwords.sh
-  # and in docs/ending-the-alpha.md's checks. Task runs send their metrics to
-  # trigger-api (/otel), and trigger-api writes them.
-  #
-  # `internal`: no route off the machine either. ClickHouse needs none: its
-  # crash reports are switched off (clickhouse-no-crash-reports.xml), and the
-  # schema Trigger.dev migrates (internal-packages/clickhouse/schema at v4.8.3)
-  # names no URL, S3, remote or dictionary source. trigger-api still reaches
-  # the world, and publishes its port, over ownpace-network, as gatus does
-  # beside status-probe. `scripts/a-store-every-container-could-reach.unit.test.ts`
-  # holds the members, the flag and ClickHouse's one network; the smoke asks
-  # ClickHouse from trigger-api, and finds no such name from the API container.
-  #
-  # What this stops: a plain request to ClickHouse from any other container,
-  # or one forged through the web app, the API, Zitadel or Nextcloud (an
-  # SSRF). They have no name and no route to it. The other way in was the
-  # Docker API: trigger-docker-proxy has POST, NETWORKS and CONTAINERS and no
-  # authentication, and until 2026-11-02 it was on ownpace-network, so code
-  # running in any container there, every task run included, could attach
-  # itself or a new container to this network through it (workplan 0136 §1,
-  # "What shares the network"). Since then the proxy is on
-  # `trigger-docker-socket`, below, with the supervisor alone. What this
-  # still does not stop is code that already runs inside trigger-supervisor
-  # or trigger-api, or on the host, or inside the other stack's
-  # trigger-supervisor, which can ask its own proxy to attach a container
-  # here: one Docker daemon serves both stacks, and each stack's proxy can
-  # start a container on any network of the machine (workplan 0132 §1;
-  # accepted by 0136 D6). While the other stack runs a checkout from before
-  # 2026-11-02, its proxy is still on its own ownpace-network, so every
-  # container there can do the same.
-  trigger-event-store:
-    driver: bridge
-    internal: true
-  # TWO MEMBERS, AND NO WAY OUT: the Docker socket proxy and its one client,
-  # trigger-supervisor (2026-11-02, workplan 0136 T4's first bullet, built
-  # ahead of the rest of T4 for CVE-2026-116366). The proxy holds the host's
-  # Docker socket and lets through, with no authentication, what the
-  # supervisor needs to start a task run: create and start containers, pull
-  # images, attach networks (its environment, above). Whoever can reach it can
-  # therefore start a container on any network of the machine, or one that
-  # mounts the host's files, which is control of the host. Until this network
-  # that was everybody on ownpace-network: the web app, the API, the identity
-  # provider and the demo Nextcloud, which answer the internet, and every task
-  # run, which the supervisor starts there (DOCKER_RUNNER_NETWORKS). One of
-  # those routes led to ClickHouse, which an attached container could then
-  # reach on trigger-event-store above.
-  #
-  # Now a name that resolves only here. The supervisor is the one service that
-  # talks to the Docker API: its DOCKER_HOST names the proxy, and nothing else
-  # in this file does. Its task runs never get DOCKER_HOST: the supervisor of
-  # Trigger.dev v4.8.3 hands a run its own workload API (8020) and
-  # trigger-api's /otel, and nothing about Docker (apps/supervisor,
-  # workloadManager/docker.ts); trigger-api runs no Docker client. The
-  # supervisor keeps ownpace-network, where the runners reach its workload API
-  # and it reaches trigger-api and the world; DOCKER_RUNNER_NETWORKS does not
-  # name this network, so no task run joins it.
-  #
-  # `internal`: no route off the machine either. The proxy needs none: every
-  # server its haproxy.cfg names is the socket it mounts, with no resolver,
-  # mailer or log host, and the daemon behind the socket, not the proxy, pulls
-  # the images a run needs. The proxy publishes no port.
-  # `scripts/a-network-the-tenant-cannot-see.unit.test.ts` holds the members,
-  # the flag and the proxy's one network; the smoke asks the proxy from the
-  # supervisor, and finds no such name from the API container.
-  #
-  # What this stops: a request to the Docker API from any other container,
-  # whether made by code a task runs or forged through the web app, the API,
-  # Zitadel or Nextcloud. What it does not stop: code that already runs inside
-  # trigger-supervisor can still ask the proxy anything its environment
-  # allows, and each stack's proxy can still start a container on the other
-  # stack's networks (workplan 0132 §1; accepted by 0136 D6). The rest of 0136
-  # T4, Trigger.dev's plane on a network of its own and the host's firewall
-  # rule, is still to come.
-  trigger-docker-socket:
-    driver: bridge
-    internal: true
-  # ONE MEMBER, REACHED BY THE HOST ALONE: the task images' registry
-  # (2026-11-14, workplan 0136 T4's registry, built ahead of the rest of T4 as
-  # the socket proxy was). The registry takes pushes and serves pulls with no
-  # authentication, and what made that safe was that only this host reached it
-  # (its comment above). Until this network it was on ownpace-network, so every
-  # container there could push images to it and pull them by name: the web app,
-  # the API, the identity provider and the demo Nextcloud, which answer the
-  # internet, and every task run, which the supervisor starts on ownpace-network
-  # (DOCKER_RUNNER_NETWORKS). These are the images the host's Docker daemon
-  # starts task runs from. And its binary is built with Go 1.26.8, whose
-  # net/http has CVE-2026-78667 (GO-2026-6609, fixed in Go 1.26.9): a Range
-  # header with many small ranges makes ServeContent spend excessive CPU, and
-  # the registry serves every blob that way to whoever asks. distribution has
-  # not released since v3.1.2, so the fix waits for upstream.
-  #
-  # Nobody addresses the registry by name. The CLI pushes from the host to
-  # localhost:${REGISTRY_PORT} (trigger-api's DEPLOY_REGISTRY_HOST, which it
-  # hands the CLI; deploy-tasks.sh builds on the host's network), and the host's
-  # daemon pulls a run's image from the same address (the supervisor's
-  # DOCKER_REGISTRY_URL, which names the image it asks the daemon to start).
-  # Both are the host's loopback, where the registry's port is published, and
-  # neither is a container on a network of this file. No service waits for it
-  # in depends_on.
-  #
-  # NOT `internal`, unlike the three above. The published port is the
-  # registry's only way in, and 0136 T4 ("Published ports") reads that Docker
-  # publishes no port for a container whose only network is internal; that
-  # reading is not tried here. So the registry keeps a route off the machine,
-  # as it had on ownpace-network, and uses none: it is configured with no
-  # proxy, notification endpoint or token service.
-  # `scripts/a-network-the-tenant-cannot-see.unit.test.ts` holds the member,
-  # the port's loopback binding and that nothing names the registry as a host.
-  # The gate pushes through the port (deploy-tasks.sh), the smoke runs a task
-  # whose image the daemon pulls through it, and the smoke finds no such name
-  # from the API container.
-  #
-  # What this stops: a push, a pull or CVE-2026-78667's request from any other
-  # container, whether made by code a task runs or forged through the web app,
-  # the API, Zitadel or Nextcloud. What it does not stop: code on the host,
-  # which reaches the loopback port, and the socket proxy's reach. Each stack's
-  # proxy can still start a container on any network of the machine, this one
-  # included (workplan 0132 §1; accepted by 0136 D6).
-  trigger-task-images:
-    driver: bridge
 
 volumes:
   gatus_data:
@@ -3117,20 +1936,10 @@ volumes:
   # The identity provider's first-init provisioning token (ADR-0042).
   zitadel_machinekey:
   postgres_data:
-  trigger_db_data:
-  redis_data:
-  trigger_shared:
-  registry_data:
-  # The object store since 0146 T7, Chainguard's MinIO at /data. Not declared:
-  # the Bitnami-era `minio_data`, which nothing mounts any more and which
-  # stays on disk until removed by hand (the minio service above says how).
-  minio_data_v2:
   # Accounts, calendars, address books and files of the DAV backend.
   nextcloud_data:
-  trigger_tls_data:
-  trigger_tls_config:
-  # Kept, not reused: the Bitnami-era event store. Safe to remove once
-  # nobody wants the old dashboard history.
-  clickhouse_data:
-  clickhouse_data_v2:
-  clickhouse_logs:
+  # Trigger.dev's ten volumes (trigger_db_data, redis_data, trigger_shared,
+  # registry_data, minio_data_v2, trigger_tls_data, trigger_tls_config,
+  # clickhouse_data, clickhouse_data_v2, clickhouse_logs) left this file with
+  # its plane in alpha.18 (workplan 0167 T9). Compose never removes a volume
+  # a file stops declaring; remove-trigger-plane.sh removes them, by name.

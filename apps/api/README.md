@@ -20,11 +20,10 @@ same operating contract in-process (`apps/selfhost`, ADR-0026).
   payments (`POST /api/billing/webhooks/mollie` is the one webhook the API
   serves).
 - Jobs execute in the managed edition's **worker on pg-boss** (ADR-0054,
-  workplan 0167), `managed.yml`'s default (`OWNPACE_JOB_RUNNER=pg-boss`): the
-  API only enqueues and cancels, through `src/job-runner.ts`. In trigger mode,
-  the fallback (`OWNPACE_JOB_RUNNER=trigger`, or unset outside compose), they
-  execute as **deployed Trigger.dev tasks** (ADR-0004, workplan 0022), enqueued
-  via `@openmig/scheduler`'s `trigger-client`.
+  workplan 0167): the API only enqueues and cancels, through
+  `src/job-runner.ts`. Until alpha.18 they could also run as self-hosted
+  Trigger.dev tasks (ADR-0004, workplan 0022); alpha.18 removed that
+  (workplan 0167 T9), and with it `@openmig/scheduler`'s `trigger-client`.
 
 ## Quick start (from source, against the compose stack)
 
@@ -72,20 +71,11 @@ JWT_AUDIENCE=...                      #   takes precedence over JWT_SECRET when 
 MOLLIE_API_KEY=...                    # billing; mocked in tests
 ```
 
-Enqueueing jobs on Trigger.dev, in trigger mode only (read by `@openmig/scheduler`,
-the SDK's own names — one env contract shared with `deploy-tasks.sh`):
-
-```bash
-TRIGGER_API_URL=http://localhost:3090   # the self-hosted trigger instance
-TRIGGER_SECRET_KEY=tr_prod_...          # the project environment's secret key
-```
-
-Which runner the jobs go to (`src/job-runner.ts`): `OWNPACE_JOB_RUNNER` is
-`trigger` (also when unset or empty) or `pg-boss`, and any other value stops the
-start. `deploy/compose/managed.yml` hands the API `pg-boss` unless the stack's
-`.env` says `trigger`. On pg-boss the API enqueues and cancels through a producer on
-`JOBS_DATABASE_URL`, the role `ownpace_jobs` through PgBouncer, and never needs
-the two variables above:
+The jobs' queue (`src/job-runner.ts`): `OWNPACE_JOB_RUNNER` may be unset, empty
+or `pg-boss`. `trigger`, from an old `.env`, stops the start in one sentence
+that says Trigger.dev was removed in alpha.18, and any other value stops it too.
+The API enqueues and cancels through a producer on `JOBS_DATABASE_URL`, the role
+`ownpace_jobs` through PgBouncer:
 
 ```bash
 OWNPACE_JOB_RUNNER=pg-boss

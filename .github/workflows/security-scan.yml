@@ -722,8 +722,8 @@ jobs:
   # The job above scans the repository's FILES (`scan-type: fs`). Until
   # 2026-10-22 nothing looked inside a container image, so an operating system
   # past its end of life, or a CVE in an image whose tag never moved, was
-  # reported by nothing: Trigger.dev's `redis:7-alpine` runs on Alpine 3.21,
-  # which leaves support on 2026-11-01, and somebody reading release pages
+  # reported by nothing: Trigger.dev's `redis:7-alpine` ran on Alpine 3.21,
+  # which left support on 2026-11-01, and somebody reading release pages
   # found it. The pin watch (idp-pin-watch.yml) says when a newer tag exists;
   # these three jobs say what is inside the one that runs.
   #
@@ -779,19 +779,12 @@ jobs:
   # its alerts open, and is deleted by hand on the code scanning tool status
   # page (the Security tab, Code scanning, Tool status).
   #
-  # THE TASKS' IMAGE IS THE PREBUILT BASE, PULLED (workplan 0119 §3 item 13,
-  # 2026-11-06). apps/worker/trigger.config.ts names it by tag and index
-  # digest (`TASK_BASE_IMAGE`): ghcr.io/robbes/ownpace-task-base, which
-  # images.yml builds from apps/worker/task-image/Dockerfile and publishes from
-  # main, and to which a task deploy adds the task code and nothing else. So
-  # its leg reads it from GHCR like any other image, under the name, and so
-  # the category, it always had, `trigger-task-base`. From workplan 0146 T10
-  # (2026-10-25) until then the leg built the `base` stage a deploy built,
-  # from the config's own layers on the API's Node image (`image-scan.mjs
-  # containerfile`, gone with it), under that image's repository, which is
-  # where Trivy's SARIF put each Debian finding (`library/node`); the first scan
-  # of the prebuilt base puts them under `robbes/ownpace-task-base`, so the old
-  # ones close once.
+  # THE TASKS' IMAGE, `trigger-task-base`, and Trigger.dev's plane's images
+  # (trigger.dev, supervisor, clickhouse-server, redis, minio, registry,
+  # docker-socket-proxy, caddy) were scanned here until alpha.18 removed
+  # Trigger.dev (workplan 0167 T9). Their categories stop being uploaded, and
+  # their alerts stay open until closed on the code scanning tool status page,
+  # as below (workplan 0166).
   #
   # AN IMAGE NO REGISTRY SERVES IS BUILT, NOT PULLED (#1675, 2026-10-25). A
   # script's `localhost/<name>` image is built by that script from
@@ -806,20 +799,15 @@ jobs:
   # AN IMAGE NO REGISTRY SERVES IS BUILT, NOT PULLED (workplan 0146 T15,
   # 2026-10-26). A compose file's `localhost/<name>` image is built by compose
   # from `<name>/Dockerfile` beside the file (Postgres without gosu:
-  # deploy/compose/postgres, which managed.yml's postgres and trigger-db and
-  # dev.yml's postgres run, and deploy/selfhost/postgres, the appliance's
+  # deploy/compose/postgres, which managed.yml's postgres and dev.yml's
+  # postgres run, and deploy/selfhost/postgres, the appliance's
   # since T15b), so the list gives its leg a `context`. That leg
   # checks out this commit under `src/`, builds the directory natively on
   # GitHub's arm64 runner (free on a public repository; ci.yml's integration
   # tests use it) under the reference the compose file runs, and Trivy reads
   # it from that runner's Docker only. The name, and so the category and the
   # issue, stays the one the pulled image had (`postgres-managed`,
-  # `postgres-selfhost`). Since 0146 T16 managed.yml's trigger-api and
-  # trigger-supervisor are such builds too (deploy/compose/trigger.dev and
-  # deploy/compose/supervisor), scanned as built under the names the pulled
-  # images had (`trigger.dev`, `supervisor`); their removals and read_at fail
-  # the leg's build by name when a pin moves a path or the release, and the
-  # webapp's build has to fit in the leg's 30 minutes with its scan. The
+  # `postgres-selfhost`). The
   # checkout is never the working directory, which the Trivy step and `trivy
   # convert` share with every other leg: Trivy reads a `.trivyignore` or a
   # `trivy.yaml` there on its own, and one at the repository's root would drop
@@ -849,9 +837,7 @@ jobs:
           package-manager-cache: false # a tag runs this workflow: no cache restored (zizmor cache-poisoning)
       # The compose files' image lines, read with the pin watch's reader (a
       # `${VAR:-default}` as its default, a digest kept), the images the
-      # scripts name, the tasks' image (the prebuilt base trigger.config.ts
-      # pins, by its digest; on the pinned Trigger.dev CLI's base when the
-      # config names none), and Ownpace's three at `:edge` and
+      # scripts name, and Ownpace's own at `:edge` and
       # at the newest release tag, which is what live runs: it builds the tag
       # it deploys; an image a script or a compose file builds here carries
       # its `context`. Each carries its `tier`, and a name without one fails

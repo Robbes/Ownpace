@@ -11,8 +11,8 @@
  * CHOWN, DAC_OVERRIDE, FOWNER, FSETID, KILL, SETGID, SETUID, SETPCAP,
  * NET_BIND_SERVICE, NET_RAW, SYS_CHROOT, MKNOD, AUDIT_WRITE and SETFCAP, on the
  * stack testers use and on the one that runs their migrations. Most of them
- * never used one. A process that took over the registry, the mail catcher or
- * the socket proxy could chown, open raw sockets and make device nodes; one
+ * never used one. A process that took over the pooler, the mail catcher or
+ * the status page could chown, open raw sockets and make device nodes; one
  * that took over a service started as another user could become root again
  * through any setuid binary its image carried (the Redis image carried `su`,
  * `mount` and `passwd`, and since its purge of 2026-11-07 still carries
@@ -29,7 +29,7 @@
  *    capability beyond it fails, and so does one it no longer adds, so the list
  *    stays the record of what runs (`CAP_` and case are read as Compose reads
  *    them);
- *  - a service that keeps Docker's default set (`trigger-api`, `nextcloud`)
+ *  - a service that keeps Docker's default set (`nextcloud`)
  *    sets neither `cap_drop` nor `cap_add`, so a half-made change is a
  *    decision recorded here rather than one found on live;
  *  - a read-only root is in the policy with the directories it keeps in
@@ -50,16 +50,14 @@
  * the table in the guide says whether it was measured on the service's own
  * image (its start and a restart on the volume it wrote, then one capability
  * fewer) or read from its Dockerfile. Two findings shaped the lists more than
- * any rule: Caddy 2.11.7's binary carried `cap_net_bind_service` as an
- * effective file capability, and the kernel refuses to start a binary whose
- * effective file capability the bounding set lacks, so `trigger-tls` kept
- * NET_BIND_SERVICE although it binds 3443 (since 2026-11-19 it runs as uid
- * 65532 and keeps none: 2.11.9's capability is not effective, and
- * `trigger-tls-init` gives it its volumes); and Redis's entrypoint, while it
- * started as root, `find`s through append-only directories that are uid 999's
- * and mode 0700, so without DAC_READ_SEARCH its first restart on its own
- * volume failed. Since 2026-11-07 Redis's image is built here and runs as uid
- * 999 from its first process (deploy/compose/redis), and keeps no capability.
+ * any rule, both in Trigger.dev's plane, which alpha.18 removed (workplan 0167
+ * T9): Caddy 2.11.7's binary carried `cap_net_bind_service` as an effective
+ * file capability, and the kernel refuses to start a binary whose effective
+ * file capability the bounding set lacks, so the plane's TLS front kept
+ * NET_BIND_SERVICE although it bound a high port; and Redis's entrypoint,
+ * while it started as root, `find`ed through append-only directories that
+ * were uid 999's and mode 0700, so without DAC_READ_SEARCH its first restart
+ * on its own volume failed.
  *
  * THE RULE THE FIRST VERSION DID NOT HAVE (the review of 2026-11-03). The
  * lists were measured on each service's START, and the shape of the files was
@@ -75,9 +73,9 @@
  * fail. Before this change (`319a2d34`), every service of the three files
  * failed the first rule.
  *
- * WHAT THIS DOES NOT HOLD. The task runs: Trigger.dev's supervisor makes them
- * through the socket proxy with its own settings, and no compose file here
- * describes them. `deploy/compose/dev.yml`, which only a developer runs. And
+ * WHAT THIS DOES NOT HOLD. `deploy/compose/dev.yml`, which only a developer
+ * runs. (Until alpha.18 the task runs too: Trigger.dev's supervisor made them
+ * through its socket proxy with its own settings.) And
  * whether a list is enough: that is E2E (managed), which brings up every
  * service of `managed.yml`.
  */
@@ -110,17 +108,6 @@ export const POLICIES: Readonly<Record<string, Readonly<Record<string, Policy>>>
   [MANAGED]: {
     postgres: { caps: [] },
     pgbouncer: { caps: [], readOnly: ['/tmp'] },
-    'trigger-db': { caps: [] },
-    'trigger-redis': { caps: [] },
-    'trigger-api': { caps: 'docker-default' },
-    clickhouse: { caps: ['CHOWN', 'DAC_READ_SEARCH', 'SETGID', 'SETUID'] },
-    'trigger-registry': { caps: [], readOnly: ['/tmp'] },
-    'trigger-docker-proxy': { caps: [], readOnly: ['/tmp', '/run'] },
-    'trigger-supervisor': { caps: [] },
-    minio: { caps: [] },
-    'minio-init': { caps: [], readOnly: ['/tmp'] },
-    'trigger-tls': { caps: [] },
-    'trigger-tls-init': { caps: ['CHOWN', 'DAC_READ_SEARCH'], readOnly: [] },
     zitadel: { caps: [] },
     'zitadel-machinekey': { caps: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER'], readOnly: [] },
     api: { caps: [] },
@@ -537,26 +524,7 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
       why: "the appliance's rootless chown of a bound host directory (docs/selfhost-quickstart.md), a one-off that adds both with --cap-add",
     },
   },
-  'trigger-db': { psql: PSQL, pg_dump: PSQL },
   pgbouncer: { psql: NONE('SHOW POOLS and SHOW VERSION on its own admin console, as uid 70') },
-  'trigger-redis': {
-    'redis-cli': NONE('a client over TCP; reads and writes no file'),
-    find: NONE("the guide's check, as uid 999, that every file in /data is uid 999's, which uid 999 reads"),
-  },
-  clickhouse: {
-    'clickhouse-client': NONE('a client over TCP; reads and writes no file'),
-    sed: {
-      needs: ['DAC_READ_SEARCH'],
-      why: "the guide reads the server's preprocessed config under /var/lib/clickhouse, uid 101's, as root: the service keeps DAC_READ_SEARCH",
-    },
-  },
-  minio: { mc: NONE('as uid 65532, with its config directory in /tmp') },
-  'trigger-tls-init': {
-    chown: {
-      needs: ['CHOWN', 'DAC_READ_SEARCH'],
-      why: "the guide's way back to a tag that ran the front as root: the two volumes given back to root, as the service's own command gives them to 65532",
-    },
-  },
   'zitadel-machinekey': {
     '(its command)': { needs: ['CHOWN', 'FOWNER'], why: 'its own command: chown the volume to the identity provider, then chmod 700 what it no longer owns' },
     cat: {
@@ -580,12 +548,6 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
     '/nodejs/bin/node': NONE("the image's node, as uid 65532: its --version, its uid and its own /health on loopback"),
     $shell: NONE('each shell the check expects not to find, so that it fails to start, which needs no capability'),
   },
-  'trigger-supervisor': { node: NONE('the image\'s node, as node') },
-  // images.yml's build (docker-socket-proxy) reads, as uid 99, the uids and groups of the proxy's own processes (workplan 0119, 2026-11-20).
-  'trigger-docker-proxy': {
-    grep: NONE("reads the uids in /proc/[0-9]*/status, under `sh -c` for the glob, as uid 99, which reads its own processes' status"),
-    sed: NONE("prints pid 1's groups from /proc/1/status, as uid 99, which owns pid 1"),
-  },
   web: { wget: NONE("asks its own nginx over 127.0.0.1, as nginx (uid 101), and writes nothing") },
   // Distroless since 2026-11-06 (workplan 0119 §3 item 12): Node by its path is
   // all there is to run, as uid 10001. Until then the drill ran `sh -c ls`,
@@ -602,9 +564,7 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
  * each reaches, or null for a container that is no service of the three files.
  */
 export const TARGETS: Readonly<Record<string, string | null>> = {
-  // images.yml's build (docker-socket-proxy) starts the proxy as `socket-proxy`, with managed.yml's settings.
-  '.github/workflows/images.yml|socket-proxy': 'trigger-docker-proxy',
-  // psql_in <container>: box-checks.sh finds postgres's and trigger-db's containers by label.
+  // psql_in <container>: box-checks.sh finds postgres's container by label.
   'deploy/compose/box-checks.sh|$1': 'postgres',
   // live's database by its name, as the runbooks write it for live.
   'docs/operator-runbook.md|ownpace-live-db': 'postgres',
@@ -617,10 +577,6 @@ export const TARGETS: Readonly<Record<string, string | null>> = {
   'docs/stalwart-integration-fix.md|ownpace-stalwart': null,
   // images.yml starts the upstream image as root on its own, to prove the build reads its volume.
   '.github/workflows/images.yml|root-initialised': null,
-  // And Redis's (0119 §3 item 11): upstream's image as root, then the build as 999, each a
-  // container of its own on a volume of its own, never a service of the three files.
-  '.github/workflows/images.yml|$name': null,
-  '.github/workflows/images.yml|redis-upstream': null,
   // And the pooler's (0119, 2026-11-13): the build started as managed.yml runs pgbouncer, with
   // no capability, as a container of its own; what it execs there (sh, awk, cat, psql) runs as uid 70.
   '.github/workflows/images.yml|pooler-built': null,
@@ -698,7 +654,9 @@ describe('every service runs with no new privileges and only the capabilities it
   it('every service of managed.yml is found, the one-offs among them, so the rule above is not vacuous', () => {
     expect(Object.keys(parsed[MANAGED]!.services ?? {}).sort()).toEqual(Object.keys(POLICIES[MANAGED]!).sort());
     expect(Object.keys(POLICIES[MANAGED]!)).toContain('zitadel-machinekey');
-    expect(Object.keys(POLICIES[MANAGED]!)).toContain('minio-init');
+    expect(Object.keys(POLICIES[MANAGED]!)).toContain('worker');
+    // Trigger.dev's eleven went with its plane in alpha.18 (workplan 0167 T9).
+    expect(Object.keys(POLICIES[MANAGED]!).filter((s) => /^(trigger-|minio|clickhouse)/.test(s))).toEqual([]);
   });
 
   it('every exec and run into a service with a dropped set is reviewed, and has what it needs', () => {
@@ -712,9 +670,6 @@ describe('every service runs with no new privileges and only the capabilities it
         'deploy/compose/setup-zitadel.sh run zitadel-machinekey cat',
         'deploy/compose/bootstrap-managed.sh run zitadel-machinekey (its command)',
         'docs/operator-runbook.md run zitadel-machinekey cat',
-        'deploy/compose/rotate-db-passwords.sh exec clickhouse clickhouse-client',
-        'deploy/compose/plane-tokens.sh exec trigger-redis redis-cli',
-        'deploy/compose/smoke-managed.sh docker exec trigger-supervisor node',
         'docs/selfhost-quickstart.md run postgres chown',
       ]),
     );
@@ -732,14 +687,6 @@ describe('every service runs with no new privileges and only the capabilities it
     expect(guideProblems(read(GUIDE), POLICIES)).toEqual([]);
     expect([...guideRows(read(GUIDE)).keys()]).toEqual(expect.arrayContaining(['www (www.yml)', 'postgres (appliance)', 'app (appliance)']));
   });
-
-  it("Caddy's settings say why it keeps no capability as uid 65532, and why no-new-privileges stays", () => {
-    // Until 2026-11-19 they said to revisit no-new-privileges if Caddy ever ran as another user: 2.11.7's
-    // binary bound through an effective file capability, which no-new-privileges stops for any user but root.
-    const block = read(MANAGED).split('\n  trigger-tls:\n')[1]?.split('\n  trigger-tls-init:')[0] ?? '';
-    expect(block).toMatch(/as uid and gid 65532 from its first process/);
-    expect(block).toMatch(/It binds 3443, which needs\s+#\s+none, and no-new-privileges stays/);
-  });
 });
 
 describe('each rule fails when it is broken', () => {
@@ -750,25 +697,23 @@ describe('each rule fails when it is broken', () => {
     ['no-new-privileges set false', (c) => (svc(c, 'api').security_opt = ['no-new-privileges:false']), /api does not set[\s\S]*api sets no-new-privileges false/],
     ['seccomp unconfined', (c) => (svc(c, 'web').security_opt = ['no-new-privileges:true', 'seccomp:unconfined']), /web sets security_opt seccomp:unconfined/],
     ['apparmor unconfined', (c) => (svc(c, 'nextcloud').security_opt = ['no-new-privileges:true', 'apparmor=unconfined']), /nextcloud sets security_opt apparmor=unconfined/],
-    ['privileged', (c) => (svc(c, 'trigger-docker-proxy').privileged = true), /trigger-docker-proxy is privileged/],
-    ['a capability beyond the list', (c) => (svc(c, 'clickhouse').cap_add = ['CHOWN', 'DAC_READ_SEARCH', 'SETGID', 'SETUID', 'SYS_ADMIN']), /clickhouse adds SYS_ADMIN, beyond its list/],
-    ['a capability back on a service that runs as its user from the first process', (c) => (svc(c, 'trigger-redis').cap_add = ['SETUID']), /trigger-redis adds SETUID, beyond its list \(none\)/],
-    ['a capability spelt as Docker also takes it', (c) => (svc(c, 'minio').cap_add = ['cap_net_raw']), /minio adds NET_RAW, beyond its list \(none\)/],
+    ['privileged', (c) => (svc(c, 'mailpit').privileged = true), /mailpit is privileged/],
+    ['a capability beyond the list', (c) => (svc(c, 'zitadel-machinekey').cap_add = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SYS_ADMIN']), /zitadel-machinekey adds SYS_ADMIN, beyond its list/],
+    ['a capability back on a service that runs as its user from the first process', (c) => (svc(c, 'worker').cap_add = ['SETUID']), /worker adds SETUID, beyond its list \(none\)/],
+    ['a capability spelt as Docker also takes it', (c) => (svc(c, 'gatus').cap_add = ['cap_net_raw']), /gatus adds NET_RAW, beyond its list \(none\)/],
     ['ALL added back', (c) => (svc(c, 'api').cap_add = ['ALL']), /api adds ALL back/],
-    ['cap_drop taken off', (c) => delete svc(c, 'clickhouse').cap_drop, /clickhouse does not drop ALL/],
+    ['cap_drop taken off', (c) => delete svc(c, 'zitadel-machinekey').cap_drop, /zitadel-machinekey does not drop ALL/],
     ['cap_drop of one capability, not ALL', (c) => (svc(c, 'zitadel').cap_drop = ['NET_RAW']), /zitadel does not drop ALL/],
-    ['a capability no longer added', (c) => (svc(c, 'clickhouse').cap_add = ['CHOWN', 'DAC_READ_SEARCH', 'SETGID']), /clickhouse no longer adds SETUID/],
+    ['a capability no longer added', (c) => (svc(c, 'zitadel-machinekey').cap_add = ['CHOWN', 'FOWNER']), /zitadel-machinekey no longer adds DAC_OVERRIDE/],
     ["root's nginx set back on the web app", (c) => (svc(c, 'web').cap_add = ['CHOWN', 'NET_BIND_SERVICE', 'SETGID', 'SETUID']), /web adds CHOWN, NET_BIND_SERVICE, SETGID, SETUID, beyond its list \(none\)/],
-    ['NET_BIND_SERVICE given back to Caddy', (c) => (svc(c, 'trigger-tls').cap_add = ['NET_BIND_SERVICE']), /trigger-tls adds NET_BIND_SERVICE, beyond its list \(none\)/],
-    ["DAC_READ_SEARCH taken from the TLS front's init", (c) => (svc(c, 'trigger-tls-init').cap_add = ['CHOWN']), /trigger-tls-init no longer adds DAC_READ_SEARCH/],
-    ['a default-set service half dropped', (c) => (svc(c, 'trigger-api').cap_drop = ['ALL']), /trigger-api keeps Docker's default capabilities in the policy, and sets cap_drop or cap_add/],
+    ['a default-set service half dropped', (c) => (svc(c, 'nextcloud').cap_drop = ['ALL']), /nextcloud keeps Docker's default capabilities in the policy, and sets cap_drop or cap_add/],
     ['a new service', (c) => (c.services!['probe'] = { security_opt: ['no-new-privileges:true'] }), /probe is not in this guard's POLICIES/],
     ['a service renamed', (c) => {
       c.services!['mail-catcher'] = c.services!['mailpit']!;
       delete c.services!['mailpit'];
     }, /the policy names mailpit, which is not a service of the file[\s\S]*mail-catcher is not in this guard's POLICIES/],
-    ['read-only taken off', (c) => delete svc(c, 'trigger-registry').read_only, /trigger-registry is read-only in the policy and not in the file/],
-    ['a directory taken out of memory', (c) => (svc(c, 'trigger-docker-proxy').tmpfs = ['/tmp']), /trigger-docker-proxy is read-only and keeps no \/run in memory/],
+    ['read-only taken off', (c) => delete svc(c, 'pgbouncer').read_only, /pgbouncer is read-only in the policy and not in the file/],
+    ['a directory taken out of memory', (c) => (svc(c, 'worker').tmpfs = ['/run']), /worker is read-only and keeps no \/tmp in memory/],
     ['tmpfs as one string, with options, still read', (c) => (svc(c, 'mailpit').tmpfs = '/var/tmp:size=1m'), /mailpit is read-only and keeps no \/tmp in memory/],
     ['a read-only root the policy does not name', (c) => (svc(c, 'postgres').read_only = true), /postgres has a read-only root the policy does not name/],
     ['no services at all', (c) => (c.services = {}), /has no services/],
@@ -818,8 +763,8 @@ describe('each rule fails when it is broken', () => {
     const guide = read(GUIDE);
     expect(guideProblems(guide.replace(/^\| `gatus` \|.*\n/m, ''), POLICIES).join('\n')).toMatch(/has no row for gatus/);
     expect(
-      guideProblems(guide.replace(/^(\| `trigger-tls` \|[^|]*\|) none \|/m, '$1 NET_BIND_SERVICE |'), POLICIES).join('\n'),
-    ).toMatch(/says trigger-tls keeps NET_BIND_SERVICE, the policy none/);
+      guideProblems(guide.replace(/^(\| `pgbouncer` \|[^|]*\|) none \|/m, '$1 NET_BIND_SERVICE |'), POLICIES).join('\n'),
+    ).toMatch(/says pgbouncer keeps NET_BIND_SERVICE, the policy none/);
     expect(
       guideProblems(guide.replace(/^(\| `nextcloud` \|[^|]*\|) Docker's default \|/m, '$1 CHOWN |'), POLICIES).join('\n'),
     ).toMatch(/says nextcloud keeps CHOWN, the policy Docker's default/);
@@ -858,14 +803,14 @@ describe('each rule fails when it is broken', () => {
     });
     // Each on its own inputs, so a breakage of the real files does not decide it.
     expect(invocationProblems([at('postgres', 'chmod')], caps, {}).join('\n')).toMatch(/x\.sh:1: `exec postgres chmod` is in no review/);
-    expect(invocationProblems([], caps, { minio: { rm: NONE('x') } })).toEqual([
-      'REVIEWED names `minio rm`, which nothing runs any more: take it out',
+    expect(invocationProblems([], caps, { mailpit: { rm: NONE('x') } })).toEqual([
+      'REVIEWED names `mailpit rm`, which nothing runs any more: take it out',
     ]);
     expect(invocationProblems([at('?$WHO', 'psql', { verb: 'docker exec' })], caps, {}).join('\n')).toMatch(
       /docker exec into \$WHO, a container nothing here resolves/,
     );
     // A service that keeps Docker's default set is not this rule's.
-    expect(invocationProblems([at('trigger-api', 'chown')], caps, {})).toEqual([]);
+    expect(invocationProblems([at('nextcloud', 'chown')], caps, {})).toEqual([]);
     // The quickstart's chown fails without its own --cap-add, and passes with it or --privileged.
     const chown = at('postgres', 'chown', { verb: 'run' });
     const reviews = { postgres: { chown: REVIEWED['postgres']!['chown']! } };
@@ -881,17 +826,17 @@ describe('each rule fails when it is broken', () => {
       invocationsIn(path, text, services, containers, TARGETS).map((i) => `${i.verb} ${i.service} ${i.program}${i.privileged ? ' privileged' : ''}${i.capAdd.length ? ` +${i.capAdd.join(',')}` : ''}`);
     expect(found('"${COMPOSE[@]}" exec -T -e PGPASSWORD pgbouncer \\\n  psql -h 127.0.0.1 -p 6432')).toEqual(['exec pgbouncer psql']);
     expect(found(`docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'PGPASSWORD=x exec psql -U "$POSTGRES_USER"'`)).toEqual(['exec postgres psql']);
-    expect(found('docker compose $MANAGED_COMPOSE exec -T --user=0 trigger-redis bash -lc "redis-cli ping"')).toEqual(['exec trigger-redis redis-cli']);
+    expect(found('docker compose $MANAGED_COMPOSE exec -T --user=0 pgbouncer bash -lc "psql -c 1"')).toEqual(['exec pgbouncer psql']);
     // Without -c the shell is the program, not the word after it.
     expect(found('`docker compose exec app sh` still opens a shell')).toEqual(['exec app sh']);
     expect(found('docker compose -f x.yml run --rm --no-deps -u 0 --cap-add CHOWN --entrypoint chown postgres -R 70:70 /d')).toEqual(['run postgres chown +CHOWN']);
-    expect(found('docker compose -f x.yml exec --privileged -u 0 minio sh')).toEqual(['exec minio sh privileged']);
+    expect(found('docker compose -f x.yml exec --privileged -u 0 mailpit sh')).toEqual(['exec mailpit sh privileged']);
     expect(found('ZITADEL_UID="$u" "${COMPOSE[@]}" run --rm --quiet-pull zitadel-machinekey')).toEqual(['run zitadel-machinekey (its command)']);
     expect(found('DB_CONTAINER="${COMPOSE_PROJECT}-db"\ndocker exec -i "$DB_CONTAINER" pg_restore --list')).toEqual(['docker exec postgres pg_restore']);
-    expect(found('C="${X:-${COMPOSE_PROJECT}-trigger-supervisor}"\ndocker exec "$C" node -e 1')).toEqual(['docker exec trigger-supervisor node']);
+    expect(found('C="${X:-${COMPOSE_PROJECT}-worker}"\ndocker exec "$C" node -e 1')).toEqual(['docker exec worker node']);
     expect(found('docker exec "$NOBODY" psql')).toEqual(['docker exec ?$NOBODY psql']);
     // Prose, placeholders and comments are not invocations.
-    expect(found('`docker compose … exec postgres` (and `trigger-db`) runs as uid 70')).toEqual([]);
+    expect(found('`docker compose … exec postgres` (and `pgbouncer`) runs as uid 70')).toEqual([]);
     expect(found('docker compose -f deploy/compose/managed.yml exec --privileged -u 0 <service> …')).toEqual([]);
     expect(found('# docker compose exec postgres chmod 777 /x')).toEqual([]);
     expect(found('run the CLI login once, and docker compose run the')).toEqual([]);

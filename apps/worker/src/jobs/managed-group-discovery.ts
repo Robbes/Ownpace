@@ -44,11 +44,10 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schedules } from '@trigger.dev/sdk';
 import type { Pool } from 'pg';
 import { sql, type SQL } from 'drizzle-orm';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
 import { PgGroupDefStore, PgDecisionStore, tenantScopedDb, withTenant } from '@openmig/ledger';
 import { log, renderEvent, asTenantId, type GroupListing, type RaiseDecisionInput } from '@openmig/shared';
@@ -223,9 +222,8 @@ export async function groupsOfOrganisation(
 export const GroupDiscoveryJobSchema = z.strictObject({});
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const managedGroupDiscoveryRun = leavesAReference(
   'managed-group-discovery',
@@ -270,9 +268,3 @@ export const managedGroupDiscoveryRun = leavesAReference(
     return result;
   },
 );
-
-export const managedGroupDiscovery = schedules.task({
-  id: 'managed-group-discovery',
-  cron: '30 6 * * *',
-  run: onTriggerDev(managedGroupDiscoveryRun),
-});

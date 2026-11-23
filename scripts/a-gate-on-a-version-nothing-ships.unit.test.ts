@@ -96,80 +96,14 @@
  * trivy-action (or setup-trivy) step in every workflow names an exact release,
  * `vX.Y.Z`, not `latest`, and a second scan step added later is held to it too.
  *
- * ## Node: the tasks' runtime is the major the images run
+ * ## Node: the tasks' runtime, until alpha.18
  *
- * The other way round: something that ships, on a version no gate runs. The
- * managed worker's task image comes from no Dockerfile here. The Trigger.dev
- * CLI builds it, on the base image of the `runtime` that the worker's deploy
- * config (apps/worker/trigger.config.ts) names. The config named none, so the
- * CLI took its default `node`, which in the 4.5.16 CLI the deploy runs is
- * `triggerdotdev/node:21-bookworm`: the tasks, which hold every tenant's
- * credentials while they run, ran Node 21, and no workflow or Dockerfile
- * stated it. The `node:zlib` `crc32` import that
- * `a-checksum-the-runtime-did-not-have` records is what it cost (workplan 0146
- * T6).
- *
- * So the config names `runtime: 'node-<N>'`, N being the images' one major, and
- * this block holds it there. It imports the config and reads the value the CLI
- * reads, not the file's text: a line inside a block comment, or a second key
- * that overrides the first, reads one way as text and another to the CLI. It
- * also hands the value to the pinned `@trigger.dev/core`'s
- * `resolveBuildRuntime`, the function the CLI calls on it, so a major the
- * pinned CLI has no base image for fails here, not on the nightly deploy. The
- * import also brings trigger.config.ts under `pnpm typecheck`, which did not
- * read it before: the root tsconfig takes each app's `src` and `scripts`, and
- * the config sits beside `src`.
- *
- * What this does not prove: that the deploy then builds on that image (the
- * nightly managed gate's task deploy does, and its build output names the base
- * image), or that the task bundle loads on it (0146 T6's second guard).
- *
- * ## Node: the tasks run the API image's Node, not the base image's
- *
- * The right major was not enough here either. The base image the CLI names for
- * `node-24`, `triggerdotdev/node:24-bookworm@sha256:d2d0c018…`, is Node
- * 24.18.0 on a Debian snapshot of 2026-07-13, in every CLI from 4.7.2 to 4.7.6:
- * below the security releases 24.18.1 (2026-07-28) and 24.22.1 (2026-10-20),
- * while the API image moved to 24.22.1 the day after it shipped. The tasks hold
- * every tenant's mailbox and calendar credentials during a pass and are HTTPS
- * clients, and nothing moved their Node: Dependabot ignores `@trigger.dev/*`,
- * and upstream rebuilt that image only when it chose to (issue #1669, the pin
- * watch's record of it). CLI 4.7.7, 4.8.1, 4.8.3 and 4.8.4 name a rebuild on
- * 24.22.1 (`…@sha256:3cdc8242…`), which is when upstream chose to, and 4.8.5
- * one on 24.22.3 (`…@sha256:5e793c37…`, Node's November security release).
- *
- * From #1689 the deploy config copied the Node binary out of the very image
- * `apps/api/Dockerfile` builds FROM over the base image's, and from workplan
- * 0146 T14 it built the tasks on that image itself, with a layer of its own
- * (dumb-init, the CA trust edits the CLI makes to its own images, the package
- * managers removed). Since 2026-11-06 (workplan 0119 §3 item 13) the tasks run
- * on a prebuilt base, `ghcr.io/robbes/ownpace-task-base`: distroless at the
- * API's runtime digest with those edits made (`apps/worker/task-image/Dockerfile`,
- * held to the API's lines and to the installed CLI by
- * `a-task-base-the-cli-builds-nothing-into`), built and signed by images.yml
- * on main and named in the config by its `sha-<commit>` tag and index digest.
- * For every target but `trigger dev` the config's extension sets the build
- * manifest's `image.base` to that pin and its `buildBase` to the CLI's own
- * build image for the same major, where the CLI runs `npm i`, and adds no
- * layer. (Since 0146 T13 the API itself runs on distroless, whose
- * `/nodejs/bin/node` was the same file, byte for byte, as the Node line's on
- * both architectures when T13 pinned it; the managed smoke's preflights stop
- * when the API container's Node is not that line's x.y.z, and its section on
- * the tasks' image when the image the last deploy built runs another.)
- *
- * This block runs the config's own extension with a stand-in build context
- * and manifest, as the CLI does, and holds what it sets: the base to the pin,
- * of one shape only (the GHCR repository, a `sha-` tag of seven hex digits,
- * an index digest), read from one line of the config with the pin watch's
- * own reader (`taskBasePin`), which the image scan and Release's verify read
- * it with too; the build stage to the CLI's image for the same major; and no
- * layer, no package, no instruction. It holds the vendored intermediates the
- * base copies to the CLI's bytes, checks that `trigger dev`, which builds no
- * image, gets nothing, and that no instance setting (`DEPLOY_BASE_IMAGES`) can
- * override the config's base. It fails when the deploying CLI's version leaves
- * the one the build image and the trust list were read from, naming what to
- * read again: nothing else would say that a later CLI distrusts more than the
- * base keeps.
+ * Until alpha.18 the managed jobs also ran as Trigger.dev tasks, in an image
+ * the Trigger.dev CLI built on a base of its own, and two more blocks here
+ * held that image's Node to the images' major and its base to a pin. alpha.18
+ * removed Trigger.dev (workplan 0167 T9): the jobs run in the `worker` image,
+ * `apps/worker/Dockerfile`, whose `FROM node:` line the first block reads
+ * with the others.
  *
  * ## Postgres: migration-lint replays onto the major the deployments run
  *
@@ -200,14 +134,10 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { createHash, X509Certificate } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
-import { resolveBuildRuntime } from '@trigger.dev/core/v3/build';
-import type { BuildContext, BuildExtension, BuildLayer } from '@trigger.dev/core/v3/build';
-import { TASK_BASE_LINE, dockerfileBase, taskBasePin } from './idp-pin-watch.mjs';
-import taskConfig from '../apps/worker/trigger.config.ts';
+import { dockerfileBase } from './idp-pin-watch.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(REPO_ROOT, p), 'utf8');
@@ -473,8 +403,8 @@ describe('every Trivy the scans run is one somebody named', () => {
 
 /**
  * The two deployments. What is compared is each one's `postgres` service, the
- * server the migrations run on. managed.yml's `trigger-db` is Trigger.dev's own
- * database, never sees these migrations, and is not held to the same major.
+ * server the migrations run on. (managed.yml's `trigger-db`, Trigger.dev's own
+ * database, was never held to it; alpha.18 removed it, workplan 0167 T9.)
  */
 const DEPLOYMENTS = ['deploy/compose/managed.yml', 'deploy/selfhost/compose.yml'];
 
@@ -570,196 +500,5 @@ describe('migration-lint replays onto the Postgres major the deployments run', (
     }
     // No dev URL at all is not a pass.
     expect(devUrlFaults(ci.replaceAll('--dev-url', '--url'), read(STACKS_POSTGRES))).toEqual(['ci.yml names no --dev-url "docker://postgres/…"']);
-  });
-});
-
-/**
- * The worker's deploy config. The Trigger.dev CLI loads it and builds the task
- * image on the base image of the `runtime` it names. Imported above; the path
- * is for the messages.
- */
-const TASK_CONFIG = 'apps/worker/trigger.config.ts';
-
-describe('the tasks run the Node major the images ship', () => {
-  const images = imageNodeMajors();
-  // The evaluated value, as the CLI reads it (`config.runtime` in the pinned
-  // CLI's config loader). Typed `unknown` so the cases below say what a wrong
-  // value is rather than the compiler narrowing it away.
-  const runtime: unknown = taskConfig.runtime;
-
-  it('the worker deploy config names a runtime', () => {
-    // Absent, the CLI takes the server project's default, or else its own
-    // `node`, which in the pinned 4.5.16 CLI is triggerdotdev/node:21-bookworm.
-    expect(
-      runtime,
-      `${TASK_CONFIG} names no runtime, so the task image's Node is whatever the server project or the CLI defaults to`,
-    ).toBeDefined();
-  });
-
-  it("that runtime is node-<the images' major>", () => {
-    const shipped = images[0]!.major;
-    expect(
-      runtime,
-      `the images run Node ${shipped}; the tasks, which hold every tenant's credentials while they run, must too`,
-    ).toBe(`node-${shipped}`);
-  });
-
-  it('the pinned Trigger.dev core accepts it as it stands, not as a deprecated alias', () => {
-    // `resolveBuildRuntime` is what the CLI calls on this value. It throws on
-    // a runtime the pinned version has no base image for, and maps a
-    // deprecated alias to its replacement. The config's type allows only
-    // the runtimes the pinned SDK knows, but this case does not rest on the
-    // typecheck having run: a major the CLI cannot build fails here, not on
-    // the nightly deploy.
-    expect(resolveBuildRuntime(runtime)).toBe(runtime);
-  });
-});
-
-/** The tasks' prebuilt base, as the config pins it (workplan 0119 §3 item 13), read with the pin watch's reader. */
-const PIN = taskBasePin(read(TASK_CONFIG));
-
-/** The extension's name. */
-const TASK_BASE = 'task-base';
-
-type BuildManifest = Parameters<NonNullable<BuildExtension['onBuildComplete']>>[1];
-
-/**
- * The config's own extension run with a stand-in context and manifest, as the
- * CLI runs it: start, then complete, the manifest handed to the second and
- * read back after it, which is where the CLI takes `image.base` from.
- */
-async function buildFor(target: BuildContext['target']): Promise<{ layers: BuildLayer[]; manifest: BuildManifest }> {
-  const extension = (taskConfig.build?.extensions ?? []).find((e) => e.name === TASK_BASE);
-  if (!extension) throw new Error(`${TASK_CONFIG} has no ${TASK_BASE} build extension`);
-  const layers: BuildLayer[] = [];
-  const context = {
-    target,
-    workingDir: join(REPO_ROOT, 'apps/worker'),
-    addLayer: (layer: BuildLayer) => layers.push(layer),
-  } as unknown as BuildContext;
-  const manifest = { image: { pkgs: [], instructions: [] } } as unknown as BuildManifest;
-  await extension.onBuildStart?.(context);
-  await extension.onBuildComplete?.(context, manifest);
-  return { layers, manifest };
-}
-
-/**
- * SHA-256 of the eight `EMSIGN_COMPROMISE_REJECTED_INTERMEDIATES` of
- * trigger.dev 4.8.8 (`dist/esm/deploy/emsignRejectedIntermediates.js`, the same
- * file as 4.8.1's, 4.8.3's and 4.8.5's), each as the CLI writes it (its `pemLines`, a
- * newline after each), in file-name order: the bytes the vendored files must be.
- */
-const CLI_REJECTED_SHA256 = 'f4b2b13e9429b1beeda72e78bd7c48a13c0556c2c33ab77236eac90d187832ac';
-const REJECTED_DIR = 'apps/worker/task-image/emsign-block';
-
-/**
- * The trigger.dev version every hand-kept value above, the config's
- * `TASK_BUILD_IMAGE` and the trust edits `apps/worker/task-image/Dockerfile`
- * makes were read from. The CLI applies no trust edits of its own on a base of
- * one's own, so a newly distrusted root or rejected intermediate in a later
- * CLI reaches the tasks only by hand, through a new base and a new pin. A
- * Trigger.dev move fails here until they have been read again.
- */
-const CLI_READ_AT = '4.8.8';
-
-/** The DER certificate at the head of a `TRUSTED CERTIFICATE` PEM, without OpenSSL's trust settings after it. */
-function certificateOf(pem: string): X509Certificate {
-  const der = Buffer.from(pem.split('\n').filter((l) => l && !l.startsWith('-----')).join(''), 'base64');
-  // A SEQUENCE with a two-byte long-form length (0x30 0x82 hi lo): a certificate's.
-  expect([der[0], der[1]], 'the PEM starts with a certificate').toEqual([0x30, 0x82]);
-  return new X509Certificate(der.subarray(0, 4 + der.readUInt16BE(2)));
-}
-
-describe('the tasks run on the prebuilt base, pinned by tag and index digest', () => {
-  it('the config names it on one line: ghcr.io/robbes/ownpace-task-base by a sha- tag of seven hex digits and an index digest', () => {
-    // The pin watch, the image scan, Release's verify and images.yml's
-    // task-base-pin job all read this one line.
-    expect(read(TASK_CONFIG).match(new RegExp(TASK_BASE_LINE.source, 'gm')) ?? []).toHaveLength(1);
-    expect(PIN.ref).toMatch(/^ghcr\.io\/robbes\/ownpace-task-base:sha-[0-9a-f]{7}@sha256:[0-9a-f]{64}$/);
-    expect(PIN.tag).toBe(`sha-${PIN.commit}`);
-  });
-
-  it('refuses a pin of any other shape, and a line missing or there twice', () => {
-    const text = read(TASK_CONFIG);
-    const line = TASK_BASE_LINE.exec(text)![0];
-    for (const bad of [
-      PIN.ref.replace(/@sha256:[0-9a-f]{64}$/, ''),
-      PIN.ref.replace(`:${PIN.tag}@`, ':edge@'),
-      PIN.ref.replace(`:${PIN.tag}@`, '@'),
-      PIN.ref.replace(`:${PIN.tag}@`, `:sha-${PIN.commit}0@`),
-      PIN.ref.replace(/@sha256:[0-9a-f]{64}$/, '@sha256:0123'),
-      PIN.ref.replace('/ownpace-task-base:', '/ownpace-api:'),
-      PIN.ref.replace('ghcr.io/robbes/', 'docker.io/robbes/'),
-    ]) {
-      expect(bad, 'the mutation changed nothing').not.toBe(PIN.ref);
-      expect(() => taskBasePin(text.replace(PIN.ref, bad)), bad).toThrow(/not ghcr\.io\/robbes\/ownpace-task-base:sha-<commit>@sha256:<index digest>/);
-    }
-    expect(() => taskBasePin(`${text}\n${line}\n`)).toThrow(/2 times/);
-    expect(() => taskBasePin(text.replace(line, ''))).toThrow(/0 times/);
-  });
-
-  it("a deploy's base is that pin, its build stage the CLI's own build image for the same major, and it adds no layer", async () => {
-    const { layers, manifest } = await buildFor('deploy');
-    expect(layers, 'the base has everything in it; a layer would put a RUN on a base with no shell').toEqual([]);
-    expect(manifest.image?.base, `the tasks run on the base ${TASK_CONFIG} pins`).toBe(PIN.ref);
-    // Named, the CLI's build stage (`npm i`, the indexer) starts from a
-    // `-build` image of the major the config's runtime asks for, by tag and
-    // digest, and never from the base.
-    const major = String(taskConfig.runtime).replace(/^node-/, '');
-    expect(manifest.image?.buildBase).toMatch(new RegExp(`^triggerdotdev/node:${major}-bookworm-build@sha256:[0-9a-f]{64}$`));
-    // Kept, not replaced: what the CLI and other layers put there stays.
-    expect(manifest.image?.pkgs).toEqual([]);
-    expect(manifest.image?.instructions).toEqual([]);
-  });
-
-  it(`the eight rejected intermediates the base copies are trigger.dev ${CLI_READ_AT}'s bytes, each whole`, () => {
-    const files = readdirSync(join(REPO_ROOT, REJECTED_DIR)).sort();
-    expect(files).toHaveLength(8);
-    const pems = files.map((f) => read(`${REJECTED_DIR}/${f}`));
-    expect(createHash('sha256').update(pems.join('')).digest('hex'), `${REJECTED_DIR} is not trigger.dev ${CLI_READ_AT}'s list`).toBe(
-      CLI_REJECTED_SHA256,
-    );
-    for (const [i, pem] of pems.entries()) {
-      // What each file says it is: an eMudhra intermediate under one of
-      // emSign's G3 roots.
-      const cert = certificateOf(pem);
-      expect(cert.issuer, files[i]).toMatch(/CN=emSign Root (TLS|CS) CA - G3/);
-      expect(cert.ca, files[i]).toBe(true);
-    }
-  });
-
-  it(`a Trigger.dev move reads again what the config keeps of the CLI ${CLI_READ_AT}'s by hand`, () => {
-    // deploy-tasks.sh deploys with the CLI of apps/worker's SDK version.
-    const sdk = (JSON.parse(read('apps/worker/package.json')) as { dependencies?: Record<string, string> }).dependencies?.[
-      '@trigger.dev/sdk'
-    ];
-    expect(
-      sdk,
-      [
-        `apps/worker deploys with trigger.dev ${sdk}, and three things are kept from ${CLI_READ_AT}'s \`dist/esm/deploy/\``,
-        'by hand. Read each again in the new version and carry it over, then set CLI_READ_AT:',
-        `  - \`buildImage.js\`'s \`BUILD_IMAGE['${String(taskConfig.runtime)}']\`, into ${TASK_CONFIG}'s TASK_BUILD_IMAGE;`,
-        "  - `buildImage.js`'s `EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`, into apps/worker/task-image/Dockerfile's roots;",
-        `  - \`emsignRejectedIntermediates.js\`, into ${REJECTED_DIR}/ and CLI_REJECTED_SHA256 here.`,
-        'A change to either of the last two is a new base: main publishes it, and TASK_BASE_IMAGE moves to it.',
-      ].join('\n'),
-    ).toBe(CLI_READ_AT);
-  });
-
-  it('`trigger dev` builds no image: no layer, and the manifest as it was', async () => {
-    const { layers, manifest } = await buildFor('dev');
-    expect(layers).toEqual([]);
-    expect(manifest).toEqual({ image: { pkgs: [], instructions: [] } });
-  });
-
-  it("no instance setting overrides the config's base", () => {
-    // The CLI lays an instance's DEPLOY_BASE_IMAGES / DEPLOY_BUILD_BASE_IMAGES
-    // over the manifest's `image` key by key (deploy.js, `applyServerBaseImages`;
-    // the webapp sends only the keys it has, `resolveDeployBaseImages`), so a
-    // base named there would replace the config's, and the FROM line would no
-    // longer be the one place the tasks' image moves.
-    for (const file of ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example']) {
-      expect(read(file), file).not.toMatch(/DEPLOY_(BUILD_)?BASE_IMAGES/);
-    }
   });
 });

@@ -23,10 +23,8 @@ set -euo pipefail
 #   4. docker compose -f deploy/compose/managed.yml build api web
 #      docker compose -f deploy/compose/managed.yml up -d (rest of the stack; never
 #      `up --build`, which rebuilds the databases' image too: managed.yml's postgres)
-#   5. ./deploy/compose/deploy-tasks.sh          (Trigger.dev tasks — needed for
-#      verify/apply's job loop; one-time dashboard steps in that script's header).
-#      Trigger mode only: where OWNPACE_JOB_RUNNER=pg-boss the jobs ship in the
-#      worker's image and deploy-tasks.sh refuses (workplan 0167 T7)
+#   (5. deploy-tasks.sh deployed Trigger.dev's tasks until alpha.18 removed it:
+#      the jobs ship in the worker's image, which step 4 builds; workplan 0167)
 #
 # Idempotent: both underlying scripts are safe to re-run.
 #
@@ -242,8 +240,5 @@ echo "[setup-managed-demo]   Both names need OWNPACE_REACHABLE_HOSTS=nextcloud,s
 if ! job_runner_mode "$SCRIPT_DIR"; then
   echo "[setup-managed-demo] ${JOB_RUNNER_WHY}" >&2
   exit 1
-elif [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
-  echo "[setup-managed-demo]   pg-boss mode: the jobs ship in the worker's image, so step 5 (deploy-tasks.sh) is not run here"
-else
-  echo "[setup-managed-demo]   trigger mode: step 5, deploy-tasks.sh, deploys the Trigger.dev tasks"
 fi
+echo "[setup-managed-demo]   the jobs ship in the worker's image, built and started with the api (pg-boss)"

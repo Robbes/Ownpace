@@ -9,17 +9,6 @@ verifyDepsBeforeRun: false
 autoInstallPeers: true
 strictPeerDependencies: false
 allowBuilds:
-  # DENIED (2026-11-02, workplan 0119). @depot/cli arrives with the deploy CLI, trigger.dev,
-  # apps/worker's devDependency from that day (it was fetched by `npx -y` at run time before).
-  # Its postinstall, `node install.js`, checks and hard-links the native binary from the
-  # optional @depot/cli-<os>-<arch> package pnpm already installed, and when that is missing it
-  # runs `npm install` itself or downloads a tarball from the registry: outside the lockfile,
-  # which is the thing moving the CLI into the lockfile was for. Nothing here runs depot. The
-  # CLI resolves the binary only inside depot() (lib/main.js, depotBinaryPath), which it calls
-  # for a REMOTE build; a deploy to a self-hosted instance has no external build data and builds
-  # locally with buildx (trigger.dev 4.8.3, 4.8.5 since 2026-11-13 and 4.8.8 since 2026-11-21,
-  # whose commands/deploy.js is 4.8.5's byte for byte: isLocalBuild).
-  "@depot/cli": false
   better-sqlite3: true
   # DENIED, and the failure it silences is a real one that never mattered.
   # Every install printed:
@@ -51,7 +40,8 @@ overrides:
   # Scoped to the range below each fix, like every entry further down. Until 2026-10-21 these
   # five were bare, and ">=" let a consumer onto a major it never asked for: express 5.3 got
   # cookie 2 (ESM-only, no serialize), and @opentelemetry/core 3 (no otperformance) waited
-  # only for the cooldown below to pass, under Trigger.dev's exact 2.8.0 OTel pins.
+  # only for the cooldown below to pass, under Trigger.dev's exact 2.8.0 OTel pins. Those two
+  # left the tree with Trigger.dev (alpha.18, workplan 0167 T9), and their entries with them.
   # semver CVE-2022-25883 (ReDoS), fixed on three lines: 5.7.2, 6.3.1 and 7.5.2. One entry per
   # line, like brace-expansion's: pnpm applies an entry to a range that intersects it, so the 7.x
   # entry alone would leave a 5.x or 6.x below its fix where it is.
@@ -76,8 +66,8 @@ overrides:
   # with the move to 4.8.8, and minimatch 10.2.6, whose one requirer was the CLI, left the tree.
   # picomatch GHSA-fc5q-39xc-vjpf (CVE-2026-112366, HIGH, reviewed 2026-11-17) HAS NO ENTRY HERE,
   # because no picomatch release fixes it: it covers every one (<=4.0.7), so there is no version to
-  # move to. It reaches 4.0.7 through vitest, vite and typescript-eslint (tinyglobby), and 2.3.2
-  # through the deploy CLI's config loader (trigger.dev>c12>chokidar), every path dev. The owner
+  # move to. It reaches 4.0.7 through vitest, vite and typescript-eslint (tinyglobby), every path
+  # dev (2.3.2, through Trigger.dev's deploy CLI, left the tree with it in alpha.18). The owner
   # accepted it by name in scripts/audit-advisories.mjs (ACCEPTED), to 2026-12-17 at most. The gate
   # blocks again the day a release fixes it, and then the entry this file needs is the move to that
   # release. Workplan 0119, Status of 2026-11-17.
@@ -85,20 +75,9 @@ overrides:
   "semver@<5.7.2": ^5.7.2
   "semver@>=6.0.0 <6.3.1": ^6.3.1
   "semver@>=7.0.0 <7.5.2": ^7.5.2
-  # ws CVE-2026-48779 + CVE-2026-45736, fixed in 8.21.0; engine.io-client asks for ~8.21.0.
-  "ws@>=8.0.0 <8.21.0": ^8.21.0
-  # socket.io-client is no longer overridden (2026-10-31, Trigger.dev v4.8.3). A bare
-  # `socket.io-client: ^4.8.0` stood here from 2026-07-09 to lift @trigger.dev/core's exact
-  # 4.7.5 within 4.x; core pins 4.8.4 exactly since 4.8.2, so that reason is gone, and the
-  # override would only have held the tree on 4.8.3 below the version core asks for.
-  # No CVE of its own. Set with ws (2026-07-09): socket.io-client's engine.io-client was on 6.5.x.
-  "engine.io-client@<6.6.0": ^6.6.0
-  # @opentelemetry/core CVE-2026-54285: every version below 2.8.0 (1.x too), fixed only in 2.8.0.
-  "@opentelemetry/core@<2.8.0": ^2.8.0
   # cookie CVE-2024-47764: every version below 0.7.0, fixed only in 0.7.0.
   "cookie@<0.7.0": ^0.7.2
   # Security overrides (transitive CVEs surfaced by Trivy → code-scanning + pnpm audit):
-  #   engine.io  GHSA-r635-g3xr-vw7x (HIGH, prod via @trigger.dev → socket.io)
   #   brace-expansion GHSA-3jxr-9vmj-r5cp (HIGH, dev/CI: testcontainers, cyclonedx, eslint) — scoped per major
   #   body-parser GHSA-v422-hmwv-36x6 (LOW, prod via express)
   # esbuild GHSA-67mh-4wv8-2f99 IS pinned, below, with the 2026-09-09 entries. It was left unpinned
@@ -120,20 +99,8 @@ overrides:
   #   GHSA-q2hr-2g5m-vwhr (MODERATE) quadratic `{a},b}` rewrite            — 2.1.7 / 5.0.12
   brace-expansion@>=2.0.0 <2.1.7: ^2.1.7
   brace-expansion@>=4.0.0 <5.0.12: ^5.0.12
-  engine.io@>=4.1.0 <6.6.7: ^6.6.7
   # 2026-08-04 sweep. Scoped per major, like the entries above, so a package
   # that legitimately wants a different line is not forced off it.
-  #
-  # socket.io-parser is PRODUCTION, and the only one here that is: it arrives
-  # through @trigger.dev/sdk -> @trigger.dev/core, runtime dependencies of the
-  # managed worker. Same path as the engine.io entry above.
-  #
-  # This comment also named "@openmig/worker's own socket.io" until 2026-08-13.
-  # It had one: `socket.io` and `engine.io` were declared in apps/worker's
-  # dependencies and imported by NOTHING — `git grep` found zero references
-  # outside the manifest. Both are removed; the overrides stay, because the
-  # @trigger.dev path is real and is the one that made these PRODUCTION CVEs.
-  #   socket.io-parser CVE-2026-69185 (HIGH) zero-attachment memory exhaustion
   #
   # The rest are transitive under DEV tooling (testcontainers, cyclonedx-npm,
   # eslint) and reach no shipped runtime code. Pinned anyway: they are real
@@ -141,14 +108,17 @@ overrides:
   # tolerated is an audit nobody reads.
   #   fast-uri   host confusion via backslash authority
   #   ip-address leading-zero octets decoded as decimal
-  #   tar        uncontrolled recursion in mapHas/filesFilter
   #   undici     five advisories, one fix (>=8.9.0)
   # Raised 2026-10-03: GHSA-hrr3-gc8f-f4qj (MODERATE, dev-only via ajv), host case
   # normalised inconsistently through percent-encoded octets, fixed in 3.1.8.
+  # 2026-11-23 (alpha.18, workplan 0167 T9). Trigger.dev's removal took the packages twelve
+  # entries here held, and the entries with them: ws, engine.io-client, @opentelemetry/core,
+  # engine.io, socket.io-parser (PRODUCTION, via @trigger.dev/core) and systeminformation
+  # (PRODUCTION, via its @opentelemetry/host-metrics); tar; and, through the deploy CLI, zod's
+  # 4.x floor (nothing below 4.6.6 is left), deepmerge-ts, effect, hono and @hono/node-server.
+  # No package in the lockfile matched any of them any more.
   fast-uri@<3.1.8: ^3.1.8
   ip-address@<10.3.1: ^10.3.1
-  socket.io-parser@>=4.0.0 <4.2.7: ^4.2.7
-  tar@<7.5.21: ^7.5.21
   undici@>=8.0.0 <8.9.0: ^8.9.0
   # 2026-08-08. nanoid, two advisories with two different fix floors on the 3.x
   # line — 3.3.16 for one and 3.3.17 for the other, so ONE bound is not enough
@@ -185,18 +155,6 @@ overrides:
   # parses query strings through express, so it is not reachable there, but
   # the floor moves with the advisory, as every entry here does.
   qs@<6.16.1: ^6.16.1
-  # 2026-10-28. systeminformation, two advisories in networkStats(), Dependabot
-  # alerts 6 and 7 on main. PRODUCTION, via @trigger.dev/core's
-  # @opentelemetry/host-metrics (^5.31.1), in the tasks and the API.
-  #   GHSA-4vjg-vx72-qq4g (LOW, CVE-2026-116673) Linux: a symlink outside
-  #     /sys/class/net discloses a file through the interface name; needs a
-  #     local user and a caller that passes untrusted input    — fixed 5.33.14
-  #   GHSA-7648-jmwf-vw7j (MODERATE, CVE-2026-116674) prototype pollution through
-  #     the interface name, FreeBSD, OpenBSD and NetBSD only    — fixed 5.33.13
-  # The tree carried 5.33.1. 5.33.14 was published 2026-09-28, outside the
-  # cooldown below, so the floor is the Linux fix and resolves to the newest
-  # 5.33 release past the cooldown.
-  systeminformation@<5.33.14: ^5.33.14
   # 2026-09-09. Six HIGH advisories, all DEV-ONLY and all arriving through one
   # package: @cyclonedx/cyclonedx-npm, the SBOM generator this repository runs
   # in security-scan.yml. 6.0.1 is the latest release, so there is no bump to
@@ -292,94 +250,6 @@ overrides:
   # UTC, past the cooldown below since 2026-10-28, so again no minimumReleaseAgeExclude entry.
   "follow-redirects@<1.16.2": ^1.16.2
   #
-  # 2026-11-02. Two HIGH advisories, both DEV-ONLY and both arriving with the deploy CLI
-  # (trigger.dev 4.8.3), which moved that day from `npx -y` into the lockfile and so into this
-  # file's reach and the audit's. Under npx both were installed at every deploy, unread.
-  #   zod GHSA-mrhx-c7xc-m3w5: validating an oversized constrained collection can exhaust
-  #     memory; every version below 4.6.6. The CLI pins 4.5.4 exactly; everything else here
-  #     already takes 4.6.7 (apps/worker asks for ^4.6.7). Scoped to the 4.x line, so a 3.x,
-  #     which nothing in the tree takes today, is not forced across a major. 4.6.7 was
-  #     published 2026-10-12, outside the cooldown below.
-  "zod@>=4.0.0 <4.6.6": ^4.6.7
-  #   deepmerge-ts GHSA-ggr8-5vv4-36mx: merging a recursive object graph exhausts the stack;
-  #     every version below 8.0.0, fixed only in the new major (8.0.2, 2026-08-21), with no 7.x
-  #     backport. Reached through trigger.dev -> @trigger.dev/build 4.8.3 (4.8.5 since
-  #     2026-11-13, 4.8.8 since 2026-11-21, which asks for the same ^6.10.0) -> @prisma/config
-  #     6.19.3, which pins 7.1.5 exactly. So this entry crosses a
-  #     major, like minimatch's and glob's at the top. It holds because @prisma/config takes
-  #     one export, `deepmerge`, which 8.x keeps with the same call (8.0.0's breaking changes
-  #     are deepmergeInto's and type names), and imports it lazily, inside loadConfigTsOrJs,
-  #     which only @trigger.dev/build's prisma extension reaches; apps/worker's
-  #     trigger.config.ts imports @trigger.dev/sdk alone. @prisma/config 7.10.1 itself takes
-  #     8.0.2. Drop it when @trigger.dev/build asks for a @prisma/config that does.
-  "deepmerge-ts@<8.0.0": ^8.0.2
-  #
-  # 2026-11-19. effect GHSA-7589-6fvf-x4pw (HIGH, CWE-1333): the regular expression that
-  # Schema.TemplateLiteral compiles can take exponential time on a crafted string; every version
-  # to 3.22.0, fixed in 3.22.1 (2026-07-30). pnpm audit named it on the evening of 2026-11-19,
-  # red on main and on every pull request again (the tree, not the diff). DEV-ONLY, on the one
-  # path deepmerge-ts's entry above is on: apps/worker > trigger.dev (the deploy CLI, 4.8.5, and
-  # 4.8.8 since 2026-11-21) > @trigger.dev/build > @prisma/config 6.19.3, which pins 3.21.0
-  # exactly. @prisma/config calls Schema's Struct, optional, String, Boolean, Literal, Union,
-  # NullOr, Array, extend, mutable, declare and decodeUnknownEither, Either, and Function's pipe,
-  # and no TemplateLiteral
-  # (dist/index.js, read 2026-11-19), so the vulnerable code is never called; and only
-  # @trigger.dev/build's prisma extension loads @prisma/config, which apps/worker's
-  # trigger.config.ts does not use. Raised to 3.22.4, the copy the lockfile already held for
-  # @trigger.dev/schema-to-json: published 2026-10-22, well before the cooldown below, so no
-  # minimumReleaseAgeExclude entry is needed. It is a minor within the 3.x line @prisma/config
-  # asks for, so no consumer leaves its major. Drop it when @trigger.dev/build asks for a
-  # @prisma/config that takes 3.22.1 or later itself. Workplan 0119, Status of 2026-11-19.
-  "effect@<3.22.1": ^3.22.4
-  #
-  # 2026-11-13. hono and `@hono/node-server`: seven advisories (six MODERATE, one LOW), all
-  # DEV-ONLY and all on one path, apps/worker > trigger.dev (the deploy CLI, 4.8.5, and 4.8.8
-  # since 2026-11-21, which asks for the same ^1.31.0) > `@modelcontextprotocol/sdk` 1.32.2. The SDK asks for `hono: ^4.11.4` and
-  # `@hono/node-server: ^1.19.9 || ^2.0.5`; the lockfile held 4.13.14 and 2.1.5.
-  #   hono, all five fixed in 4.13.16 (2026-11-01):
-  #     GHSA-4m76-xfj5-7975  mount() can forward a path past middleware scoped inside the prefix
-  #     GHSA-h7mg-cq63-vhpq  RegExpRouter skips wildcard middleware for some route sets
-  #     GHSA-46wx-v44x-9hh2  csrf() does not check a hyperlink-auditing (text/ping) request
-  #     GHSA-4h7h-rv7c-7m2v  validator('form') skips a multipart request with extra parameters
-  #     GHSA-3gg2-335m-rxc6  (LOW) the css helper does not escape a split closing tag
-  #   `@hono/node-server`, both fixed in 2.1.6 (2026-11-02):
-  #     GHSA-qv5m-9pm6-hqp3  an ECONNRESET during an asynchronous WebSocket upgrade ends the process
-  #     GHSA-jpvv-r467-5p4w  a backslash in the request path is read as a path separator
-  # The two floors are higher than the advisories' fixes: hono 4.13.18 is two releases past
-  # 4.13.16, and `@hono/node-server` 2.1.7 one past 2.1.6 (both 2026-11-11). Each is one release
-  # past what the three-day floor picks by itself (hono 4.13.17, `@hono/node-server` 2.1.6),
-  # because upstream merged five more fixes there, four in hono 4.13.18 (4.13.17 has none) and
-  # one in `@hono/node-server` 2.1.7 (read in upstream's commits between the tags and in the npm
-  # tarballs). They are read as security fixes from their title, "Merge commit from fork", which
-  # 4.13.16's five advisory fixes also carry, and from upstream's own words in four of them;
-  # that the forks are private advisory forks is inferred, and no advisory in npm's database
-  # named them on 2026-11-13. hono's four: validator() matching the Content-Type's media type
-  # alone, so a differently written parameter no longer skips validation (the one with no words
-  # of upstream's beyond its title and its tests); bodyLimit keeping one buffer, where a body
-  # sent in tiny chunks could exhaust memory; mount() no longer forwarding a suffix past the
-  # parent's authorization, or a dot segment or a malformed percent escape; and serveStatic
-  # refusing a path whose second decode differs under allowPercentInPath. `@hono/node-server`'s
-  # one is the same serveStatic second decode. 2.1.8 (2026-11-12) is five fixes from public pull
-  # requests, none of them a fork merge, so it is not taken before its floor. The two versions
-  # were taken inside the cooldown below, waived for alpha.8; their floor passed
-  # on 2026-11-14 at 09:11 UTC, and their minimumReleaseAgeExclude entries came out after it.
-  # None of this code runs here (read 2026-11-13, in the installed packages). The CLI's entry
-  # imports commands/mcp.js on every command (dist/esm/cli/index.js, line 20), and that file
-  # takes the SDK's server/mcp.js and server/stdio.js: `trigger mcp` speaks stdio
-  # (StdioServerTransport, line 71), not HTTP. The SDK imports `@hono/node-server` in
-  # server/streamableHttp.js and, with hono, in one example, and neither file is on a path from
-  # what the CLI imports: `trigger deploy --help` resolved 963 modules, 16 of them the SDK's,
-  # none of them hono's. The scripts here run `whoami` and `deploy` and nothing else
-  # (trigger-cli-lib.sh, deploy-tasks.sh). Overridden anyway: dev tooling is no reason on its own
-  # (the esbuild entry above).
-  # Each entry is scoped to the one major the SDK's range and the lockfile are on, so no consumer
-  # leaves its own range. pnpm writes the hono entry over the peer range of
-  # `@hono/node-server` as well (`^4 || ^5.0.0-0` reads `^4.13.18` in the lockfile). Drop both
-  # when the SDK the CLI brings asks for these releases or later itself, or no longer brings the
-  # two packages. Workplan 0119, Status of 2026-11-13.
-  "hono@>=4.0.0 <4.13.18": ^4.13.18
-  "@hono/node-server@>=2.0.0 <2.1.7": ^2.1.7
-  #
   # libxmljs2 is NOT INSTALLED, on purpose. It is optional for the CycloneDX SBOM tool (an
   # optional dependency of cyclonedx-npm and an optional peer of cyclonedx-library), which uses it
   # for one thing: validating an XML SBOM against its schema. The security scan writes JSON
@@ -439,21 +309,5 @@ minimumReleaseAgeExclude:
   # Security fix inside the cooldown (GHSA-27r3-jxmh-p828, the override above); expires by itself
   # once the tree moves past 2.4.0.
   - body-parser@2.4.0
-  - socket.io-parser@4.2.7
   - js-yaml@4.3.2
   - esbuild@0.25.12
-  # 2026-11-21. Trigger.dev v4.8.8, for alpha.14, taken before its three-day floor on the owner's
-  # waiver: "I also waive waitings for alpha 14." (2026-11-21), and asked at about 10:00 UTC that
-  # day whether v4.8.8 goes into alpha.14, "Q4: yes, but asap". It covers v4.8.8 and nothing
-  # else: the five 4.8.8 packages the lockfile installs, and no transitive one (the one release
-  # the CLI moves to beside them, esbuild 0.28.2, was published 2026-08-08 and was in the
-  # lockfile already). npm published the five between 12:06:22 and 12:07:51 UTC on 2026-11-20,
-  # the SDK last (pnpm dates them by their provenance: the CLI 12:05:06, the SDK 12:05:11), so
-  # the floor passes 2026-11-23 12:08 UTC. Without these entries a frozen install exits 1 and
-  # names the first of them it meets. Each comes out once 4.8.8 is past the floor; the guard
-  # a-gate-that-was-never-switched-on fails on an entry the lockfile no longer installs.
-  - "@trigger.dev/build@4.8.8" # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC
-  - "@trigger.dev/core@4.8.8" # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC
-  - "@trigger.dev/schema-to-json@4.8.8" # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC
-  - "@trigger.dev/sdk@4.8.8" # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC
-  - trigger.dev@4.8.8 # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC

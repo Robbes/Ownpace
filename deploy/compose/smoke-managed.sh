@@ -42,16 +42,16 @@
 # print a remark and pass, which is how the apply half reached the gate's first
 # green run (2026-08-18) never once having executed.
 #
-# ON A STACK WHOSE JOBS RUN ON pg-boss (OWNPACE_JOB_RUNNER=pg-boss; ADR-0054,
-# workplan 0167 T7) the Trigger.dev sections are skipped, each with one line
-# naming itself and the mode, and the runner's part of that is the worker's:
-# no job ran is the failure no runner at all is, read from pgboss.job; every
-# job since the start completed; no runner-* container started; the worker is
+# THE JOBS RUN ON pg-boss (ADR-0054, workplan 0167 T7), the only runner since
+# alpha.18 removed Trigger.dev (T9), and the runner's part of that is the
+# worker's:
+# no job ran is the failure no runner at all was, read from pgboss.job; every
+# job since the start completed; no runner-* container started, and no
+# container of Trigger.dev's plane is left on the stack; the worker is
 # the API's image, as uid 65532, with no shell; and its log, from the start, is
 # kept beside $OUT for the same redaction as the runner logs.
 #
-# Requirements: the managed stack up (managed.yml), tasks deployed
-# (deploy-tasks.sh) on Trigger.dev or the worker up on pg-boss, the demo seed applied (seed-managed.ts — it creates the
+# Requirements: the managed stack up (managed.yml), the worker up, the demo seed applied (seed-managed.ts — it creates the
 # tenant_member rows the minted tokens rely on), and `pnpm install` done in
 # the repo (the JWT is minted with apps/api's own jsonwebtoken).
 #
@@ -97,11 +97,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Which runner works the jobs: the scripts' one reader (workplan 0167 T7).
 # shellcheck source=deploy/compose/job-runner.sh
 . "${SCRIPT_DIR}/job-runner.sh"
-# `trigger_env`, the one resolution of which Trigger.dev environment the tasks
-# deploy to: the tasks' image section below asks which deployment that
-# environment runs.
-# shellcheck source=deploy/compose/trigger-cli-lib.sh
-. "${SCRIPT_DIR}/trigger-cli-lib.sh"
 
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
@@ -130,7 +125,6 @@ API="${SMOKE_API:-http://localhost:${api_port:-3001}}"
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || exit 1
 DB_CONTAINER="${SMOKE_DB_CONTAINER:-${COMPOSE_PROJECT}-db}"
 API_CONTAINER="${SMOKE_API_CONTAINER:-${COMPOSE_PROJECT}-api}"
-TRIGGER_DB_CONTAINER="${SMOKE_TRIGGER_DB_CONTAINER:-${COMPOSE_PROJECT}-trigger-db}"
 
 # NOTHING IS EXEC'D INTO THE API CONTAINER BUT NODE, BY ITS PATH (workplan 0146
 # T13a, the readers first). Two image layouts have to answer alike. The Node
@@ -316,34 +310,23 @@ not_proven() { # not_proven <what> — a gap this stack cannot prove; said, not 
 # the run was speaking without every call site repeating it.
 note() { SECTION="$*"; printf '\n--- %s ---\n' "$*"; }
 
-# WHICH RUNNER WORKS THIS STACK'S JOBS (ADR-0054; workplan 0167 T7).
+# WHICH RUNNER WORKS THIS STACK'S JOBS (ADR-0054; workplan 0167 T7 and T9).
 #
-# Two answers. `trigger`: self-hosted Trigger.dev, its plane and the runner
-# containers its supervisor starts, every section below as it has always run.
-# `pg-boss`: the jobs on pg-boss in the ledger's own Postgres, worked by the
-# `worker` container, each run a child process of it, with the Trigger.dev
-# plane stopped and kept. Read ONCE, here, before anything asks the stack, and
-# the way the bring-up reads it: .env's OWNPACE_JOB_RUNNER, else the default
-# managed.yml gives it (`${OWNPACE_JOB_RUNNER:-…}`), else `trigger`. Unset or
-# empty is `trigger`, any other value is refused in one sentence. Like every
-# other setting here, never this shell's environment: Compose would read that
-# too, so the preflights also ask the API container what it was started with,
-# and stop when the two disagree.
-#
-# A SECTION THAT CANNOT SPEAK FOR THIS STACK IS SKIPPED OUT LOUD. On pg-boss
-# the Trigger.dev sections (the object store and the plane's TLS front, the
-# runner-log capture, the registry and the Docker proxy, ClickHouse, the
-# runner logs, the tasks' image) would each fail on a plane that is stopped
-# by design, so each prints one line naming itself and the mode, through
-# `trigger_only`, and its pg-boss counterpart runs in its place: the worker's
-# log, the worker's image, the jobs pg-boss completed, the jobs role. They are
-# not indented under their `if`, on purpose: the guards under scripts/ take
-# those sections out of this file by their first column, and run them.
+# pg-boss, the only one: the jobs on pg-boss in the ledger's own Postgres,
+# worked by the `worker` container, each run a child process of it. Read
+# ONCE, here, before anything asks the stack, and the way the bring-up reads
+# it (job-runner.sh): .env's OWNPACE_JOB_RUNNER, else managed.yml's default;
+# `trigger`, Trigger.dev's, is refused since alpha.18 removed it, and any
+# other value too, each in one sentence. Like every other setting here, never
+# this shell's environment: Compose would read that too, so the preflights
+# also ask the API container what it was started with, and stop when the two
+# disagree. Trigger.dev's own sections (the object store and the plane's TLS
+# front, the runner-log capture, the registry and the Docker proxy,
+# ClickHouse, the runner logs, the tasks' image) went with it; their pg-boss
+# counterparts stay: the worker's log, the worker's image, the jobs pg-boss
+# completed, the jobs role, and no container of the plane left.
 SMOKE_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-smoke_job_runner() { # smoke_job_runner — `trigger` or `pg-boss` on stdout; 1 and one sentence on stderr for anything else
-  # job-runner.sh's job_runner_mode, as the bring-up reads it: the shell's
-  # value, else .env's (quotes as Compose takes them), else managed.yml's
-  # default, else `trigger`; any other value refused in its one sentence.
+smoke_job_runner() { # smoke_job_runner — `pg-boss` on stdout; 1 and one sentence on stderr for anything else
   if ! job_runner_mode "$SCRIPT_DIR" "${SCRIPT_DIR}/.env"; then
     echo "$JOB_RUNNER_WHY" >&2
     return 1
@@ -352,29 +335,31 @@ smoke_job_runner() { # smoke_job_runner — `trigger` or `pg-boss` on stdout; 1 
 }
 JOB_RUNNER="$(smoke_job_runner)" || { echo "FATAL: which runner works this stack's jobs cannot be told, so neither can what to ask it"; exit 1; }
 echo "this stack's jobs run on ${JOB_RUNNER} (OWNPACE_JOB_RUNNER, as the bring-up reads it); started ${SMOKE_STARTED_AT}"
-trigger_only() { # trigger_only <section> — 0 on Trigger.dev; on pg-boss one line naming the section and the mode, and 1
-  [ "$JOB_RUNNER" = trigger ] && return 0
-  printf '\n--- %s: skipped, this stack runs its jobs on %s and its Trigger.dev plane is stopped ---\n' "$1" "$JOB_RUNNER"
-  return 1
-}
 
-# THE TRIGGER.DEV SUPERVISOR IS NOT RUNNING, at the start and at the end (pg-boss
-# only): it is what starts runner containers, and the bring-up stops the plane in
-# pg-boss mode, its volumes kept. A container that is not there, or there and
-# stopped, passes; running, or a Docker that cannot be asked, fails.
-supervisor_stopped() { # supervisor_stopped <when>
-  local said rc
-  said="$(docker container inspect --format '{{.State.Running}}' "${COMPOSE_PROJECT}-trigger-supervisor" 2>&1)" && rc=0 || rc=$?
-  if [ "$rc" = 0 ] && [ "$said" = false ]; then
-    echo "trigger-supervisor: stopped ${1}"
-  elif [ "$rc" != 0 ] && [[ "$said" =~ [Nn]o\ such\ (container|object) ]]; then
-    echo "trigger-supervisor: no such container ${1}"
-  elif [ "$rc" = 0 ] && [ "$said" = true ]; then
-    echo "trigger-supervisor is running ${1}, on a stack whose jobs run on pg-boss: it starts runner containers"
-    fail_at "trigger-supervisor is running ${1}"
+# NO CONTAINER OF TRIGGER.DEV'S PLANE ON THIS STACK, at the start and at the
+# end (workplan 0167 T9). alpha.18 removed the plane from managed.yml, and the
+# bring-up's plane phase removes what a stack that ran it still had of its
+# containers, by the project's and the service's labels; its volumes are not
+# asked about here (remove-trigger-plane.sh's). One left, running or not, or a
+# Docker that cannot be asked, fails.
+PLANE_SERVICES=(trigger-supervisor trigger-api trigger-tls trigger-tls-init clickhouse trigger-registry
+  trigger-docker-proxy minio minio-init trigger-redis trigger-db)
+plane_gone() { # plane_gone <when>
+  local svc said left=''
+  for svc in "${PLANE_SERVICES[@]}"; do
+    if ! said="$(docker ps -a --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" \
+      --filter "label=com.docker.compose.service=${svc}" --format '{{.Names}} ({{.State}})' 2>&1)"; then
+      echo "whether ${svc} has a container ${1} cannot be told: ${said}"
+      fail_at "Docker could not be asked for the plane's containers ${1}"
+      return 0
+    fi
+    [ -z "$said" ] || left="${left}${left:+, }${said//$'\n'/, }"
+  done
+  if [ -n "$left" ]; then
+    echo "containers of Trigger.dev's plane on ${COMPOSE_PROJECT} ${1}: ${left}. alpha.18 removed the plane, and the bring-up's plane phase removes these"
+    fail_at "a container of Trigger.dev's plane is left ${1}"
   else
-    echo "whether trigger-supervisor runs ${1} cannot be told (exit ${rc}): ${said}"
-    fail_at "trigger-supervisor could not be asked ${1}"
+    echo "no container of Trigger.dev's plane on ${COMPOSE_PROJECT} ${1} (its ${#PLANE_SERVICES[@]} services asked by label)"
   fi
 }
 
@@ -391,7 +376,6 @@ supervisor_stopped() { # supervisor_stopped <when>
 WORKER_CONTAINER="${SMOKE_WORKER_CONTAINER:-${COMPOSE_PROJECT}-worker}"
 WORKER_LOG="${SMOKE_WORKER_LOG:-${OUT%.*}-worker.log}"
 keep_worker_log() {
-  [ "${JOB_RUNNER:-}" = pg-boss ] || return 0
   [ -z "${WORKER_LOG_KEPT:-}" ] || return 0
   WORKER_LOG_KEPT=1
   if docker logs --since "$SMOKE_STARTED_AT" "$WORKER_CONTAINER" >"$WORKER_LOG" 2>&1; then
@@ -401,16 +385,15 @@ keep_worker_log() {
     return 1
   fi
 }
-# THE CONTAINERS THAT START, WATCHED FROM THE START (pg-boss only). `docker
+# THE CONTAINERS THAT START, WATCHED FROM THE START. `docker
 # events --since … --until …` replays only what the daemon still holds, its
 # last 256 events, and this run's own `docker exec`s and the stack's
 # healthchecks turn that over in minutes: read at the end, it could not see a
 # runner started during the passes. So one stream is kept from here, into a
 # file of this run's: each container start (ID and name) and each connect to a
 # network (the network's name and the container's ID), which
-# `no_runner_started` reads before the verdict. Its PID is WATCHER_PID, the
-# name the runner-log watcher has on Trigger.dev, so every EXIT trap below ends
-# it the same way.
+# `no_runner_started` reads before the verdict. Its PID is WATCHER_PID, which
+# every EXIT trap below ends.
 # HOW MUCH MEMORY THIS STACK USES, READ AND NEVER JUDGED (in both runners).
 # The owner asked how much the jobs really use. A background sampler asks
 # `docker stats --no-stream` every SMOKE_MEM_EVERY seconds (15) from here to
@@ -474,14 +457,12 @@ memory_readout() {
 }
 WATCHER_PID=""
 EVENTS_FILE=""
-if [ "$JOB_RUNNER" = pg-boss ]; then
-  EVENTS_FILE="$(mktemp /tmp/openmig-smoke-events.XXXXXX)"
-  docker events --since "$SMOKE_STARTED_AT" --filter type=container --filter type=network \
-    --filter event=start --filter event=connect \
-    --format '{{.Type}} {{.Action}} {{.Actor.ID}} {{.Actor.Attributes.name}} {{.Actor.Attributes.container}}' \
-    >"$EVENTS_FILE" 2>"${EVENTS_FILE}.err" &
-  WATCHER_PID=$!
-fi
+EVENTS_FILE="$(mktemp /tmp/openmig-smoke-events.XXXXXX)"
+docker events --since "$SMOKE_STARTED_AT" --filter type=container --filter type=network \
+  --filter event=start --filter event=connect \
+  --format '{{.Type}} {{.Action}} {{.Actor.ID}} {{.Actor.Attributes.name}} {{.Actor.Attributes.container}}' \
+  >"$EVENTS_FILE" 2>"${EVENTS_FILE}.err" &
+WATCHER_PID=$!
 trap 'kill "$WATCHER_PID" 2>/dev/null || true; kill "$MEM_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
 
 # WHO ELSE IS ON THIS STACK (E2E (managed) #195, 2026-09-23).
@@ -1204,11 +1185,11 @@ echo "preflights OK (API up, db reachable, jsonwebtoken present, secret read, ${
 # THE MODE THE API WAS STARTED IN IS THE MODE READ ABOVE (workplan 0167 T7).
 # The file says what the bring-up would do; the API's environment says what it
 # did, and a shell that exported OWNPACE_JOB_RUNNER to Compose could part them.
-# Unset or empty is `trigger`, as it is for the API itself.
+# Unset or empty is `pg-boss`, as it is for the API itself; the API refuses
+# `trigger` at its start since alpha.18, so it cannot be running with it.
 api_runner="$(api_env OWNPACE_JOB_RUNNER)" && api_runner_rc=0 || api_runner_rc=$?
-case "$api_runner_rc:${api_runner:-trigger}" in
-  0:trigger|1:*) api_runner=trigger ;;
-  0:pg-boss) ;;
+case "$api_runner_rc:${api_runner:-pg-boss}" in
+  0:pg-boss|1:*) api_runner=pg-boss ;;
   2:*)
     echo "FATAL: cannot read OWNPACE_JOB_RUNNER from '$API_CONTAINER', so which runner it enqueues on cannot be told"
     exit 1 ;;
@@ -1220,7 +1201,7 @@ if [ "$api_runner" != "$JOB_RUNNER" ]; then
   exit 1
 fi
 echo "the API was started to enqueue on ${JOB_RUNNER}, the runner this stack's .env names"
-[ "$JOB_RUNNER" = pg-boss ] && supervisor_stopped "at the start"
+plane_gone "at the start"
 
 # WHAT A BROWSER MAY DO WITH THE APP, AS THE IMAGE SENDS IT (workplan 0158).
 # `scripts/what-a-browser-may-do-with-the-app.unit.test.ts` reads the template
@@ -1265,317 +1246,10 @@ else
   fail_at "the app's headers"
 fi
 
-# ---------- the two services nothing else speaks for (0084) ----------
-#
-# `minio` and `trigger-tls` are the last two of the original seven that are
-# neither probed by a healthcheck nor proven functionally by the rest of this
-# run. 0084 asked for healthchecks. They are asserted here instead, and the
-# reason is the same rule those healthchecks were chosen under: **a probe runs
-# INSIDE the image, so it may only name a binary that image certainly has —
-# and under `up -d --wait` a probe naming a missing binary does not misreport,
-# it fails the bring-up and takes the gate with it.**
-#
-# `nextcloud`'s probe could be written because `setup-nextcloud-users.sh` has
-# run exactly that curl against exactly that image for months. Nothing in this
-# repository has ever executed a command inside `bitnamilegacy/minio` or
-# `caddy:2-alpine`, so there is no such evidence for either, and "the image
-# probably has curl" is the guess that costs a bring-up.
-#
-# An assertion here has none of that exposure: it runs from a place whose
-# tooling IS proven, and when it is wrong the gate goes red with a sentence
-# instead of never starting. What it cannot do is make `docker compose ps` say
-# "healthy" — so T7.1's count of services without a healthcheck is unchanged,
-# and 0084 says so.
-#
-# MINIO HAS A PROBE NOW, since 0146 T7 put Chainguard's build in Bitnami's
-# place: upstream's `mc ready`, run by the mc that image carries, which
-# Trigger.dev's own compose runs in it. This assertion stays, because it asks
-# something a probe inside the store cannot: that the store answers at
-# `minio:9000` from another container on the stack network, as trigger-api
-# reaches it.
-if trigger_only "minio and trigger-tls"; then
-note "minio and trigger-tls (0084 — the last two unasserted services)"
 
-# MINIO is network-internal (no published port), so this goes through a
-# container on `ownpace-network`. The API container, because node runs there:
-# it is its image's entrypoint, and the preflights found it by path
-# (`$API_NODE`: the distroless image of workplan 0146 T13 has no shell, and
-# node off PATH).
-#
-# `fetch` resolving is the whole assertion. It settles on ANY HTTP response,
-# 403 and 404 included, and rejects only when nothing is listening. That is
-# deliberate: `/minio/health/live` is MinIO's documented endpoint, but a probe
-# that depends on a named path goes quietly wrong the day an upstream image
-# moves it, and "something is serving HTTP on minio:9000" is the claim
-# trigger-api actually depends on (OBJECT_STORE_BASE_URL points there).
-if docker exec "$API_CONTAINER" "$API_NODE" -e \
-  "fetch('http://minio:9000/minio/health/live').then(r=>{console.log('minio HTTP '+r.status);process.exit(0)}).catch(e=>{console.log('minio unreachable: '+e.message);process.exit(1)})"
-then
-  echo "minio: reachable from the API container on the stack network"
-else
-  echo "FAIL: nothing is serving HTTP on minio:9000."
-  echo "      trigger-api's OBJECT_STORE_BASE_URL points there, so any task"
-  echo "      payload over the inline limit fails — silently, until one is big"
-  echo "      enough. This is the state the service existed to fix."
-  fail_at
-fi
-
-# TRIGGER-TLS publishes a port, so the host's own curl is enough — no exec, no
-# assumption about what is inside the Caddy image. Since 2026-10-31 that image
-# is built here without curl (deploy/compose/caddy, workplan 0119): a probe
-# inside it naming curl would now certainly fail, which is one more reason
-# this asks from the host.
-#
-# BY IP, NOT BY NAME, and that is load-bearing. The Caddyfile's site address is
-# `{$TRIGGER_TLS_HOST}:3443`, which on a real box is the machine's VPN address,
-# so a request to `https://localhost:3443/` sends an SNI that matches no site
-# and can die in the handshake. curl sends no SNI for an IP literal, which is
-# exactly the case `default_sni` exists for — rule 2 in trigger-tls.Caddyfile,
-# learned the hard way on 2026-08-01.
-#
-# `-k` because the certificate is internally minted on purpose: no public CA
-# signs a private IP. A status code — ANY status code — means TLS terminated
-# and Caddy answered. `000` is curl for "no response at all".
-tls_port="$(smoke_env_value TRIGGER_TLS_PORT)"
-TLS_PORT="${TRIGGER_TLS_PORT:-${tls_port:-3443}}"
-tls_code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
-  "https://127.0.0.1:${TLS_PORT}/" 2>/dev/null || echo 000)"
-if [ "$tls_code" != "000" ]; then
-  echo "trigger-tls: TLS terminated on 127.0.0.1:${TLS_PORT} (HTTP ${tls_code})"
-else
-  echo "FAIL: nothing answered https://127.0.0.1:${TLS_PORT}/."
-  echo "      That front is how a browser reaches the Trigger dashboard at all —"
-  echo "      its production-mode Secure cookies make plain http unusable from"
-  echo "      anything but localhost. If this is red, the dashboard is"
-  echo "      unreachable for every operator who is not sitting at the machine."
-  fail_at
-fi
-fi # trigger_only "minio and trigger-tls"
-
-# ---------- runner-log capture (before anything can AutoRemove) ----------
-# On pg-boss no runner container is started, and the worker's log is kept by
-# keep_worker_log instead, and WATCHER_PID is the events stream started with
-# the run (above), which every trap's kill ends the same way.
-RUNNER_LOG_DIR=""
-if trigger_only "the runner-log capture"; then
-RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
-(
-  # Capture every runner-* container's log stream the moment it appears.
-  # The parent's exit ends this watcher via the PID check.
-  # This stack's task runs only: they start on its DOCKER_RUNNER_NETWORKS, and
-  # another stack's runners carry the same `runner-` names (workplan 0132 T1).
-  while kill -0 $$ 2>/dev/null; do
-    for c in $(docker ps --filter "network=${COMPOSE_PROJECT}_ownpace-network" --format '{{.Names}}' 2>/dev/null | grep '^runner-' || true); do
-      if [ ! -f "$RUNNER_LOG_DIR/$c.log" ]; then
-        touch "$RUNNER_LOG_DIR/$c.log"
-        docker logs -f "$c" >"$RUNNER_LOG_DIR/$c.log" 2>&1 &
-      fi
-      # The image it started from, by ID, and the deployment version it runs
-      # (TRIGGER_DEPLOYMENT_VERSION, which the supervisor sets on every runner
-      # it creates), read in one inspect while it exists, and again on every
-      # pass until a read answers: AutoRemove takes the container, never the
-      # image (the tasks' image, below). Of its environment only that value is
-      # kept: the rest names the supervisor's address. The version is written
-      # first, so an image on file always has its version beside it.
-      if [ ! -s "$RUNNER_LOG_DIR/$c.image" ] &&
-        seen="$(docker container inspect --format '{{.Image}}{{range .Config.Env}}{{"\n"}}{{.}}{{end}}' "$c" 2>/dev/null)" &&
-        [ -n "${seen%%$'\n'*}" ]; then
-        sed -n 's/^TRIGGER_DEPLOYMENT_VERSION=//p' <<<"$seen" >"$RUNNER_LOG_DIR/$c.version"
-        printf '%s\n' "${seen%%$'\n'*}" >"$RUNNER_LOG_DIR/$c.image"
-      fi
-    done
-    sleep 1
-  done
-) >/dev/null 2>&1 &
-WATCHER_PID=$!
-fi # trigger_only "the runner-log capture"
 trap 'kill "$WATCHER_PID" 2>/dev/null || true; kill "$MEM_PID" 2>/dev/null || true; keep_worker_log; end_stream' EXIT
 
-# ---------- the last two services nothing speaks for (0084 T7.1) ----------
-#
-# `trigger-registry` and `trigger-docker-proxy` are what is left after the
-# healthcheck audit was redone against the gate's own printed list rather than
-# memory: FOUR services define no healthcheck, not seven, and `minio` and
-# `trigger-tls` are already asserted above. These two were not asserted by
-# anything at all. (Three since 0146 T7, which gave minio a probe.)
-#
-# ASSERTED HERE RATHER THAN PROBED, for exactly the reason the other two were,
-# and it is worth restating because the temptation is to "just add a
-# healthcheck". A compose probe runs INSIDE the image, so it may only name a
-# binary that image certainly has — and under `up -d --wait` a probe naming a
-# missing binary does not misreport, it fails the bring-up and takes the whole
-# gate with it. **Nothing in this repository has ever executed a command inside
-# `registry:3` or the Docker socket proxy**, and that evidence cannot be
-# gathered from a checkout: it needs a Docker daemon and those images pulled or
-# built. The proxy is `localhost/docker-socket-proxy` since 2026-10-30 (workplan
-# 0119), upstream's docker-socket-proxy v0.6.0 built here on a current HAProxy,
-# and `tecnativa/docker-socket-proxy` before. images.yml's `build
-# (docker-socket-proxy)` builds and starts it on a pull request and asks it over
-# HTTP, which runs its own entrypoint and nothing else inside it.
-# Until somebody has done that, "the image probably has wget" is the guess that
-# costs a bring-up, and an assertion from proven tooling is strictly better —
-# when it is wrong the gate goes red with a sentence instead of never starting.
-#
-# What this does NOT do is make `docker compose ps` say "healthy", so the count
-# of services without a healthcheck is unchanged by it (four then, three since
-# minio's probe in 0146 T7). That is stated rather than glossed: this
-# closes the COVERAGE gap, not the healthcheck one.
-if trigger_only "trigger-registry and trigger-docker-proxy"; then
-note "trigger-registry and trigger-docker-proxy (the last two unasserted services)"
 
-# THE REGISTRY publishes on 127.0.0.1:5000, so the host's own curl reaches it —
-# no exec, no assumption about what is inside the image.
-#
-# Any HTTP status counts, `000` (no response at all) does not. `/v2/` is the
-# registry API's documented base and answers 200 or 401, but the assertion is
-# deliberately "something is serving HTTP here" rather than a specific code:
-# the claim that matters is the one the SUPERVISOR depends on, which is that
-# task images can be pushed and pulled. A dead registry means every deploy
-# fails, and the failure surfaces as a task that will not start rather than as
-# anything naming the registry.
-registry_port="$(smoke_env_value REGISTRY_PORT)"
-REGISTRY_PORT_CHECK="${SMOKE_REGISTRY_PORT:-${registry_port:-5000}}"
-# NO `|| echo 000` HERE, and the unit test is what found that out. On a refused
-# connection curl BOTH prints `000` (that is what `%{http_code}` is when there
-# was no response) AND exits non-zero — so the fallback appended a second one,
-# `reg_code` became `000000`, and `!= "000"` was true. The assertion could not
-# fail. A check that cannot fail is worse than no check, because it reports as
-# coverage.
-reg_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:${REGISTRY_PORT_CHECK}/v2/" 2>/dev/null)"
-reg_code="${reg_code:-000}"
-if [ "$reg_code" != "000" ]; then
-  echo "trigger-registry: serving HTTP $reg_code on 127.0.0.1:${REGISTRY_PORT_CHECK}"
-else
-  echo "FAIL: nothing is serving HTTP on 127.0.0.1:${REGISTRY_PORT_CHECK}."
-  echo "      The supervisor pushes and pulls task images through this registry, so a"
-  echo "      dead one means every deploy fails — as a task that never starts, with"
-  echo "      nothing in the message naming the registry."
-  fail_at
-fi
-# AND FROM THE API CONTAINER, the registry's name must not resolve at all. Since
-# 2026-11-14 it is on `trigger-task-images`, which nothing else joins
-# (managed.yml, at the bottom; workplan 0136 T4). Nobody addresses it by name:
-# the CLI pushes and the host's daemon pulls on the host's loopback, as above.
-# The API container is on ownpace-network with every other service and every
-# task run, so an answer, a refused connection or a timeout means a network it
-# is on knows the name, and every container there can push task images, with no
-# authentication. By the path the preflights found (`$API_NODE`), as for the
-# proxy below. Only the status and the error's code are printed: the message of
-# a refused connection carries the address, and this log is public.
-reg_from_api="$(docker exec "$API_CONTAINER" "$API_NODE" -e \
-  "fetch('http://trigger-registry:5000/v2/').then(r=>{console.log('answered HTTP '+r.status);process.exit(0)}).catch(e=>{console.log((e.cause&&e.cause.code)||e.name);process.exit(1)})" 2>&1)" && reg_rc=0 || reg_rc=$?
-case "$reg_rc:$reg_from_api" in
-  1:ENOTFOUND|1:EAI_AGAIN)
-    echo "trigger-registry: no such name from the API container (${reg_from_api}), so nothing on ownpace-network reaches the task images" ;;
-  *)
-    echo "FAIL: the API container asked trigger-registry:5000 and got '${reg_from_api}' (exit ${reg_rc}), not an unknown name."
-    echo "      Every service on ownpace-network and every task run can then push task"
-    echo "      images to the registry, with no authentication: it must be on"
-    echo "      trigger-task-images alone."
-    fail_at ;;
-esac
-
-# THE DOCKER PROXY publishes no port, and since 2026-11-02 it is on one network,
-# `trigger-docker-socket`, which only the supervisor shares (managed.yml, at the
-# bottom; workplan 0136 T4). `a-network-the-tenant-cannot-see` holds the file to
-# that. So it is asked from both sides, as ClickHouse is below, and each side
-# prints what it saw.
-#
-# FROM THE SUPERVISOR, its one client: `tcp://trigger-docker-proxy:2375` is the
-# address managed.yml gives it as DOCKER_HOST, and `/_ping` is the Docker API's
-# own liveness endpoint. The pass is HTTP 200 with the Api-Version header Docker
-# sets on every answer, so that HAProxy's own 403, or its 503 when the socket
-# does not answer, never reads as Docker's (images.yml asks the proxy the same
-# way). node, because the supervisor's own health check runs it there, as the
-# image's user and without its entrypoint, which is how this runs too.
-#
-# This is the service whose failure mode workplan 0018 spent itself on: the
-# supervisor creates every runner container through this proxy, so when it is
-# down an enqueue never becomes a runner — and that is invisible in a green CI,
-# which is the entire reason this script exists.
-#
-# FROM THE API CONTAINER, on ownpace-network with every other service and every
-# task run, by the path the preflights found (`$API_NODE`): the name must not
-# resolve at all. Anything else, an answer, a refused connection or a timeout,
-# means a network it is on knows the name, and fails. Only the status and the
-# error's code are printed: the message of a refused connection carries the
-# address, and this log is public.
-SUPERVISOR_CONTAINER="${COMPOSE_PROJECT}-trigger-supervisor"
-if docker exec "$SUPERVISOR_CONTAINER" node -e \
-  "fetch('http://trigger-docker-proxy:2375/_ping').then(r=>{const v=r.headers.get('api-version');console.log('trigger-docker-proxy HTTP '+r.status+(v?' Api-Version '+v:' without Api-Version'));process.exit(r.status===200&&v?0:1)}).catch(e=>{console.log('trigger-docker-proxy unreachable: '+((e.cause&&e.cause.code)||e.name));process.exit(1)})"
-then
-  echo "trigger-docker-proxy: Docker answers the supervisor's DOCKER_HOST, on trigger-docker-socket"
-else
-  echo "FAIL: Docker did not answer the supervisor's DOCKER_HOST (tcp://trigger-docker-proxy:2375) from trigger-supervisor."
-  echo "      Every runner container is created through this proxy, so an enqueue will"
-  echo "      never become a runner — the exact failure 0018 T5 spent itself finding,"
-  echo "      and the one a green CI hides. Are trigger-supervisor and"
-  echo "      trigger-docker-proxy both on trigger-docker-socket, and is the proxy running?"
-  fail_at
-fi
-px_from_api="$(docker exec "$API_CONTAINER" "$API_NODE" -e \
-  "fetch('http://trigger-docker-proxy:2375/_ping').then(r=>{console.log('answered HTTP '+r.status);process.exit(0)}).catch(e=>{console.log((e.cause&&e.cause.code)||e.name);process.exit(1)})" 2>&1)" && px_rc=0 || px_rc=$?
-case "$px_rc:$px_from_api" in
-  1:ENOTFOUND|1:EAI_AGAIN)
-    echo "trigger-docker-proxy: no such name from the API container (${px_from_api}), so nothing on ownpace-network reaches the Docker API" ;;
-  *)
-    echo "FAIL: the API container asked trigger-docker-proxy:2375 and got '${px_from_api}' (exit ${px_rc}), not an unknown name."
-    echo "      Every service on ownpace-network and every task run can then ask the"
-    echo "      Docker API, with no authentication, to start a container on any network"
-    echo "      of the machine or with the host's files mounted: the proxy must be on"
-    echo "      trigger-docker-socket, with trigger-supervisor alone."
-    fail_at ;;
-esac
-fi # trigger_only "trigger-registry and trigger-docker-proxy"
-
-# ---------- ClickHouse: its one client reaches it, and nothing else does ----------
-#
-# CVE-2026-116366 (critical: "an unauthenticated user with network access" runs
-# code on the server) has no fix for the 26.2 this stack ran (the pin is
-# 26.8-lts, which carries it: 26.8.36.3-lts from 2026-11-02, 26.8.37.168-lts
-# since 2026-11-14), so since 2026-11-01 ClickHouse is on one network,
-# `trigger-event-store`, which only trigger-api shares (managed.yml, at the
-# bottom; workplan 0119 §3 item 9).
-# `a-store-every-container-could-reach` holds the file to that. These two ask the
-# running stack, from both sides, and each prints what it saw.
-#
-# FROM TRIGGER-API, the one client: `/ping` is ClickHouse's HTTP liveness answer
-# (`Ok.`, no credentials), on the port CLICKHOUSE_URL names. node, because the
-# webapp's own health check runs it there. trigger-api reaching healthy says
-# the same thing less directly: its entrypoint runs goose against CLICKHOUSE_URL
-# under `set -e`, so a webapp that cannot reach ClickHouse never starts.
-#
-# FROM THE API CONTAINER, on ownpace-network with every other service and every
-# task run: the name must not resolve at all. Anything else, an answer, a refused
-# connection or a timeout, means a network it is on knows the name, and fails.
-# Only the error's code is printed: the message of a refused connection carries
-# the address, and this log is public.
-if trigger_only "clickhouse, and who can reach it"; then
-note "clickhouse, and who can reach it (CVE-2026-116366)"
-TRIGGER_API_CONTAINER="${COMPOSE_PROJECT}-trigger-api"
-if docker exec "$TRIGGER_API_CONTAINER" node -e \
-  "fetch('http://clickhouse:8123/ping').then(async r=>{const b=(await r.text()).trim();console.log('clickhouse HTTP '+r.status+' '+b);process.exit(r.status===200&&b==='Ok.'?0:1)}).catch(e=>{console.log('clickhouse unreachable: '+((e.cause&&e.cause.code)||e.name));process.exit(1)})"
-then
-  echo "clickhouse: answers trigger-api, its one client, on trigger-event-store"
-else
-  echo "FAIL: trigger-api cannot reach clickhouse:8123, the address its CLICKHOUSE_URL names."
-  echo "      Its migrations and every run's metrics go there: is trigger-api on"
-  echo "      trigger-event-store, and is clickhouse healthy?"
-  fail_at
-fi
-ch_from_api="$(docker exec "$API_CONTAINER" "$API_NODE" -e \
-  "fetch('http://clickhouse:8123/ping').then(r=>{console.log('answered HTTP '+r.status);process.exit(0)}).catch(e=>{console.log((e.cause&&e.cause.code)||e.name);process.exit(1)})" 2>&1)" && ch_rc=0 || ch_rc=$?
-case "$ch_rc:$ch_from_api" in
-  1:ENOTFOUND|1:EAI_AGAIN)
-    echo "clickhouse: no such name from the API container (${ch_from_api}), so nothing on ownpace-network reaches it" ;;
-  *)
-    echo "FAIL: the API container asked clickhouse:8123 and got '${ch_from_api}' (exit ${ch_rc}), not an unknown name."
-    echo "      Every service on ownpace-network and every task run can then reach a"
-    echo "      ClickHouse with an unauthenticated code execution and no fix"
-    echo "      (CVE-2026-116366): it must be on trigger-event-store alone."
-    fail_at ;;
-esac
-fi # trigger_only "clickhouse, and who can reach it"
 
 # ---------- whoever this stack is willing to believe ----------
 #
@@ -3230,8 +2904,8 @@ sync_and_wait() { # sync_and_wait <tenant> <mapping> <token> <label>
   # through. The API enqueues; `run-delta-sync` opens the ledger row only once
   # a runner is actually executing it. An empty answer therefore means "no
   # runner yet", which is a different fact from `running` and from a pass that
-  # ended — and if it never changes it is the failure the runner-proxy section
-  # further up exists to explain.
+  # ended — and if it never changes, the worker never took it: its log, which
+  # this smoke reads at the end, says why.
   i=0
   status=""
   while [ $i -lt "$SYNC_POLLS" ]; do
@@ -3253,11 +2927,7 @@ sync_and_wait() { # sync_and_wait <tenant> <mapping> <token> <label>
       ;;
     "")
       echo "sync ($label): no ledger row for orchestrator run ${ref} after $((SYNC_POLLS * POLL_SLEEP))s."
-      if [ "$JOB_RUNNER" = pg-boss ]; then
-        echo "sync ($label): the enqueue was accepted and never ran — see the jobs on pg-boss, before the verdict, and the worker's log in the evidence."
-      else
-        echo "sync ($label): the enqueue was accepted and never became a runner — see the runner-log section below."
-      fi
+      echo "sync ($label): the enqueue was accepted and never ran — see the jobs on pg-boss, before the verdict, and the worker's log in the evidence."
       ;;
     *)
       echo "sync ($label): still '$status' after $((SYNC_POLLS * POLL_SLEEP))s — the verify below may read a half-copied target."
@@ -3794,194 +3464,9 @@ jobs_role_fit() {
   fi
 }
 
-# ---------- runner logs ----------
-# On pg-boss "no runner at all" becomes "no job ran", read from pgboss.job in
-# "the jobs on pg-boss" before the verdict, once every job this run causes has
-# been caused.
-if trigger_only "runner logs captured before AutoRemove"; then
-note "runner logs captured before AutoRemove"
-sleep 2
-found_logs=0
-for f in "$RUNNER_LOG_DIR"/*.log; do
-  [ -e "$f" ] || continue
-  found_logs=1
-  echo "== $f =="
-  head -c 4000 "$f"
-  echo
-done
-if [ "$found_logs" != "1" ]; then
-  # 0018 T5's entire lesson, restated as an assertion rather than a remark:
-  # an enqueue that never becomes a runner container on this machine is the
-  # failure a green CI hides. This used to be an echo, so the one thing this
-  # script was written to detect could happen without changing its verdict.
-  #
-  # Caveat worth knowing before blaming the stack: the watcher above polls
-  # `docker ps` once a second, so a runner that lived under a second could be
-  # missed. For a real verify task that would itself be worth investigating —
-  # and if it ever proves flaky, the fix is an event-based capture, not a
-  # softer assertion.
-  echo "NO runner containers appeared during this smoke."
-  fail_at
-fi
-fi # trigger_only "runner logs captured before AutoRemove"
 
-if trigger_only "the tasks' image"; then
-
-# ---------- the tasks' image is the prebuilt base's: the API's Node, and no shell ----------
-#
-# WHAT THE DEPLOYED TASKS RUN, ASKED OF ITSELF (workplan 0119 §3 item 13,
-# since 2026-11-06). The tasks run on the prebuilt base
-# apps/worker/trigger.config.ts pins (TASK_BASE_IMAGE): distroless, with no
-# shell and no dpkg, and the Node distroless carried when main built it, which
-# images.yml held to apps/api/Dockerfile's FROM node line on that commit. Two
-# things only the deployed image can say: that the deploy built on that base
-# (a Trigger.dev instance can name another base for its deploys, and a CLI
-# that ignored the config's would build on its own Debian one), and that its
-# Node is still the one the preflights found the API running. A Dependabot
-# move of the API's Node moves the base's Dockerfile with it, and the tasks
-# follow only once the pin does, in a pull request of its own after main has
-# published that base: until then the two run apart, and this goes red by
-# name. So it asks the image on this machine, by the ID the watcher above
-# read while each runner existed, for `node --version` and for each shell
-# name as its entrypoint, none of which may start: no network, and never a
-# pull. Until 2026-11-06 this section asked dpkg about the ten Debian
-# Essentials the config's layer purged (0119 §3 item 11); the base has none
-# of them, and no dpkg to ask.
-#
-# THE IMAGE OF THE DEPLOYMENT THE TASKS RUN, AND NO OTHER (since 2026-11-07).
-# Trigger.dev keeps a run on the deployment version it was triggered on, so a
-# pass already running when this smoke starts, or one queued before the deploy
-# and dequeued during it, runs an earlier deployment's image beside this one's.
-# Until 2026-11-07 this asked the image built last, by `docker image inspect`'s
-# Created, as the one the last deploy built. A deploy whose build is fully
-# cached keeps its first build's Created, so an earlier deployment's image,
-# built more recently, won: E2E (managed) run 42238877459 asked #1824's
-# distroless image, of an earlier deployment still running a pass, while that
-# run's own deploy was a cached build of the Debian one, and failed on the
-# wrong image. Now each side says it. The environment's deployment is its
-# "current" promotion, read from Trigger.dev's own database for the project
-# and environment the tasks deploy to (TRIGGER_PROJECT_REF, and trigger_env as
-# deploy-tasks.sh resolves it), as that deployment's worker's version; the
-# columns are named first, as plane-limit.sh names them, so a Trigger.dev that
-# renamed one says so. Each runner's is TRIGGER_DEPLOYMENT_VERSION, which the
-# supervisor sets on every runner it creates from the worker's version, read
-# by the watcher with its image. The image of that version's runners is asked;
-# every other runner's is named and not asked. Refused, asking nothing: no
-# runner's image read, the environment's deployment not read, no runner of it
-# seen, or its runners on more than one image.
-# scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts runs this block.
-note "the tasks' image is the prebuilt base's: the API's Node, and no shell (0119)"
-# What each runner ran, "<version> <image ID>", once each; "?" for a runner
-# whose environment named no version.
-ran=""
-for f in "$RUNNER_LOG_DIR"/*.image; do
-  [ -s "$f" ] || continue
-  id="$(<"$f")"
-  version=""
-  [ -s "${f%.image}.version" ] && version="$(<"${f%.image}.version")"
-  [[ "$version" =~ ^[A-Za-z0-9._-]+$ ]] || version="?"
-  case $'\n'"${ran}"$'\n' in *$'\n'"${version} ${id}"$'\n'*) ;; *) ran="${ran}${ran:+$'\n'}${version} ${id}" ;; esac
-done
-deployed="" why=""
-if [ -n "$ran" ]; then
-  trigger_q() { docker exec "$TRIGGER_DB_CONTAINER" psql -X -q -U trigger -d triggerdb -tA -v ON_ERROR_STOP=1 -c "$1" 2>&1; }
-  tasks_ref="$(smoke_env_value TRIGGER_PROJECT_REF)"
-  if ! tasks_env="$(trigger_env "${SCRIPT_DIR}/.env")"; then
-    why="which environment the tasks deploy to cannot be told (trigger_env, above)"
-  elif [[ ! "$tasks_ref" =~ ^[A-Za-z0-9_]+$ ]]; then
-    why="TRIGGER_PROJECT_REF in .env is '${tasks_ref}', not a project ref (letters, digits and _)"
-  elif [[ ! "$tasks_env" =~ ^[A-Za-z0-9_-]+$ ]]; then
-    why="the environment '${tasks_env}' is not a slug"
-  elif ! columns="$(trigger_q "SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('WorkerDeploymentPromotion', 'WorkerDeployment', 'BackgroundWorker', 'RuntimeEnvironment', 'Project')")"; then
-    why="Trigger.dev's database could not be asked: ${columns}"
-  else
-    missing=""
-    for column in WorkerDeploymentPromotion.label WorkerDeploymentPromotion.deploymentId WorkerDeploymentPromotion.environmentId \
-      WorkerDeployment.id WorkerDeployment.workerId BackgroundWorker.id BackgroundWorker.version \
-      RuntimeEnvironment.id RuntimeEnvironment.slug RuntimeEnvironment.projectId Project.id Project.externalRef; do
-      # A here-string, not a pipe: `grep -q` leaves a pipe early.
-      grep -qxF "$column" <<<"$columns" || missing="${missing} ${column}"
-    done
-    if [ -n "$missing" ]; then
-      why="this Trigger.dev's database is not the one this smoke knows; missing:${missing}"
-    elif ! deployed="$(trigger_q "SELECT w.version FROM \"WorkerDeploymentPromotion\" pr JOIN \"WorkerDeployment\" d ON d.id = pr.\"deploymentId\" JOIN \"BackgroundWorker\" w ON w.id = d.\"workerId\" JOIN \"RuntimeEnvironment\" e ON e.id = pr.\"environmentId\" JOIN \"Project\" p ON p.id = e.\"projectId\" WHERE pr.label = 'current' AND p.\"externalRef\" = '${tasks_ref}' AND e.slug = '${tasks_env}'")"; then
-      why="Trigger.dev's database could not say which deployment '${tasks_env}' runs: ${deployed}"
-      deployed=""
-    elif [[ ! "$deployed" =~ ^[A-Za-z0-9._-]+$ ]]; then
-      why="expected the one deployment '${tasks_env}' of project ${tasks_ref} runs, and Trigger.dev's database answered '${deployed//$'\n'/, }'"
-      deployed=""
-    fi
-  fi
-fi
-ours=""
-if [ -z "$ran" ]; then
-  echo "no runner's image was read while it ran, so what the deployed tasks' image is cannot be told"
-  fail_at "the tasks' image was not read"
-elif [ -z "$deployed" ]; then
-  echo "which deployment the tasks run cannot be told, so neither can which runner's image is theirs: ${why}"
-  fail_at "the tasks' deployment was not read"
-else
-  ours="$(awk -v v="$deployed" '$1 == v { print $2 }' <<<"$ran")"
-  if [ -z "$ours" ]; then
-    echo "no runner of deployment ${deployed}, the one the tasks run, was seen. The runners seen ran:"
-    awk '{ print "  image " substr($2, index($2, ":") + 1, 12) ": " ($1 == "?" ? "no version in its environment" : "deployment " $1) }' <<<"$ran"
-    fail_at "no runner of the deployed version was seen"
-    ours=""
-  elif [ "$(grep -c . <<<"$ours")" != 1 ]; then
-    echo "deployment ${deployed}'s runners ran more than one image, so which is its own cannot be told:"
-    awk '{ print "  image " substr($0, index($0, ":") + 1, 12) }' <<<"$ours"
-    fail_at "the deployed version's image could not be told"
-    ours=""
-  fi
-fi
-if [ -n "$ours" ]; then
-  while read -r version image; do
-    [ "$version" = "$deployed" ] && continue
-    short="${image#sha256:}"
-    if [ "$version" = "?" ]; then
-      echo "image ${short:0:12}: its runner's environment named no deployment version, so not the deployment's; not asked"
-    elif [ "$image" = "$ours" ]; then
-      echo "image ${short:0:12}: also ran deployment ${version}, an earlier deployment's runs, on the same image"
-    else
-      echo "image ${short:0:12}: deployment ${version}, an earlier deployment's runs; not asked"
-    fi
-  done <<<"$ran"
-  short="${ours#sha256:}"
-  short="image ${short:0:12} (deployment ${deployed})"
-  said="$(docker run --rm --pull never --network none --entrypoint node "$ours" --version 2>&1)" && rc=0 || rc=$?
-  if [ "$rc" != 0 ] || [[ ! "$said" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "${short}: its node could not be asked (exit ${rc}): ${said}"
-    fail_at "the tasks' Node could not be asked"
-  elif [ "$said" != "$WANT_NODE" ]; then
-    echo "${short}: the tasks run Node ${said}, and the API runs ${API_NODE_VERSION}, apps/api/Dockerfile's ${WANT_NODE}."
-    echo "       Move TASK_BASE_IMAGE in apps/worker/trigger.config.ts to the base main published from"
-    echo "       apps/worker/task-image/Dockerfile at this Node (the pin watch's row the tasks' base names it)"
-    fail_at "the tasks' Node is not the API's"
-  else
-    echo "${short}: Node ${said}, the API's"
-  fi
-  started=""
-  for shell in sh /bin/sh bash /bin/bash /busybox/sh; do
-    if said="$(docker run --rm --pull never --network none --entrypoint "$shell" "$ours" -c true 2>&1)"; then
-      started="${started}${started:+; }${shell} started"
-    elif [[ ! "$said" =~ (executable file not found|no such file or directory) ]]; then
-      started="${started}${started:+; }${shell} did not start, for another reason than its absence: ${said}"
-    fi
-  done
-  if [ -n "$started" ]; then
-    echo "${short}: ${started}. The tasks' base has no shell, so this is not an image built on it"
-    fail_at "the tasks' image is not the prebuilt base's"
-  else
-    echo "${short}: no shell (sh, /bin/sh, bash, /bin/bash, /busybox/sh)"
-  fi
-fi
-# ---------- on pg-boss, the worker's image in the tasks' image's place ----------
-# The jobs run in the worker's own children, on the worker's image, so that is
-# the image held to the API's Node and to no shell (worker_fit, above).
-else
 note "the worker's image is the API's: its Node, uid 65532, no shell, healthy, and no owner's URL (0167)"
 worker_fit
-fi # trigger_only "the tasks' image"
 # ---------- the identity provider, and the three answers to an invitation ----------
 #
 # WHY THIS SECTION EXISTS. Zitadel was added to managed.yml in #496 and was not
@@ -7715,13 +7200,13 @@ tick_beat="$(q "SELECT CASE WHEN now() - beat_at < interval '5 minutes' THEN 'fr
 if [ "$tick_beat" = "fresh" ]; then
   echo "the sync tick beat within the last five minutes, on the system role"
 else
-  fail_at "the sync tick has not completed a run in five minutes (${tick_beat:-no beat at all}): it connects as ownpace_system since 0138 T3 step 2, so read its runs on the plane for a refusal naming a table or SYSTEM_DATABASE_URL"
+  fail_at "the sync tick has not completed a run in five minutes (${tick_beat:-no beat at all}): it connects as ownpace_system since 0138 T3 step 2, so read the worker's log for a refusal naming a table or SYSTEM_DATABASE_URL"
 fi
-# AND ON pg-boss, THE TICK THAT BEAT RAN THERE (workplan 0167 T7). The tick
-# beats as `managed-sync-tick` on either runner, and as its runner too:
-# `managed-sync-tick-pg-boss` is the beat only a tick worked by pg-boss writes,
-# so a fresh one says the minute's schedule fires and the worker works it.
-if [ "$JOB_RUNNER" = pg-boss ]; then
+# AND THE TICK THAT BEAT RAN ON pg-boss (workplan 0167 T7). The tick beats
+# as `managed-sync-tick`, and as its runner too: `managed-sync-tick-pg-boss`
+# is the beat only a tick worked by pg-boss writes, so a fresh one says the
+# minute's schedule fires and the worker works it.
+if :; then
   runner_beat="$(q "SELECT CASE WHEN now() - beat_at < interval '5 minutes' THEN 'fresh' ELSE 'stale since ' || beat_at::text END FROM sync_tick_beat WHERE task = 'managed-sync-tick-pg-boss'" 2>&1 | tail -n1)"
   if [ "$runner_beat" = "fresh" ]; then
     echo "the sync tick beat within the last five minutes on pg-boss (managed-sync-tick-pg-boss)"
@@ -7765,21 +7250,19 @@ fi
 # ---------- the jobs on pg-boss (workplan 0167 T7) ----------
 #
 # Last before the verdict, so every job this run caused has been caused: what
-# the runner logs and the tasks' image prove on Trigger.dev, on the stack that
-# replaced it. No job ran is a failure here as no runner at all is there, and
+# the runner logs and the tasks' image proved on Trigger.dev until alpha.18.
+# No job ran is a failure here as no runner at all was there, and
 # a pass the smoke followed by its runId is a pg-boss job id that completed.
-if [ "$JOB_RUNNER" = pg-boss ]; then
-note "the jobs on pg-boss: every one completed, no runner started, the jobs' role fit (0167)"
+note "the jobs on pg-boss: every one completed, no runner started, no container of the plane left, the jobs' role fit (0167)"
 pgboss_jobs
 no_runner_started
-supervisor_stopped "at the end"
+plane_gone "at the end"
 jobs_role_fit
 keep_worker_log || fail_at "the worker's log could not be read, so the evidence holds no account of the jobs"
-fi
 
 # ---------- what this stack's memory came to, said and not judged ----------
 note "memory, as sampled from the start: each container's highest, and the sum (says nothing to the verdict)"
-memory_readout "$MEM_FILE" "$( [ -n "$RUNNER_LOG_DIR" ] && for f in "$RUNNER_LOG_DIR"/*.log; do [ -e "$f" ] && basename "$f" .log; done )"
+memory_readout "$MEM_FILE" ""
 
 # ---------- verdict ----------
 note "verdict"

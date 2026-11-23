@@ -24,7 +24,8 @@
  * `STACK_KIND=production`, named once in `deploy/compose/stack-kind.sh`. The
  * gate now asks `deploy/compose/refuse-live-env.sh` about the persisted file
  * before the restore copies anything out of that directory, so nothing of
- * live's reaches the checkout, the CLI login or the steps after it. Keyed on
+ * live's reaches the checkout or the steps after it (nor, until alpha.18, the
+ * Trigger.dev CLI's login the restore also copied). Keyed on
  * the marker rather than on `WEB_URL`, because the OTA stack's `WEB_URL` is a
  * real https address too.
  *
@@ -228,7 +229,6 @@ const WRITES_ENV = [
   /ensure-env-secrets\.sh/,
   /bootstrap-managed\.sh/,
   /env-upsert\.sh/,
-  /trigger-credentials\.sh/,
   />>?\s*"?deploy\/compose\/\.env/,
   /\b(?:cp|mv|install|tee|ln)\b[^\n]*deploy\/compose\/\.env/,
 ];
@@ -278,6 +278,8 @@ describe("the gate asks before anything of that directory's is copied or written
     }
     writeFileSync(join(persist, '.env'), env);
     writeFileSync(join(persist, 'userlist.txt'), `"openmigrate" "${SENTINEL}"\n`);
+    // Left over from before alpha.18, which restored Trigger.dev's CLI login
+    // from it; nothing restores it now (workplan 0167 T9).
     writeFileSync(join(persist, 'trigger-cli-config.json'), '{}\n');
     const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', steps[RESTORE]?.run ?? 'exit 99'], {
       cwd: checkout,
@@ -306,7 +308,9 @@ describe("the gate asks before anything of that directory's is copied or written
     // Never the userlist, since 2026-11-03: pgbouncer mounts it from the
     // persisted directory (scripts/a-pooler-file-another-workflow-deleted).
     expect(existsSync(join(r.checkout, 'deploy/compose/pgbouncer/userlist.txt'))).toBe(false);
-    expect(existsSync(join(r.home, '.config/trigger/config.json'))).toBe(true);
+    // Trigger.dev's CLI login is not restored any more: alpha.18 removed it.
+    expect(existsSync(join(r.home, '.config/trigger/config.json'))).toBe(false);
+    expect(steps[RESTORE]?.run ?? '').not.toMatch(/trigger/i);
   });
 
   it('every step that writes .env or runs the bring-up comes after the restore', () => {

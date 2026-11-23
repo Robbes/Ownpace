@@ -41,20 +41,16 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
 const { enqueued } = vi.hoisted(() => ({
   enqueued: [] as Array<{ taskId: string; options: Record<string, unknown> }>,
 }));
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (taskId: string, _payload: unknown, options: Record<string, unknown>) => {
-          enqueued.push({ taskId, options });
-          return Promise.resolve({ id: `run-${enqueued.length}` });
-        },
-      },
-    }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (taskId: string, _payload: unknown, options: Record<string, unknown>) => {
+      enqueued.push({ taskId, options });
+      return `run-${enqueued.length}`;
+  }),
+);
 
 const { default: migrationRoutes } = await import('./index.ts');
 
@@ -114,10 +110,11 @@ describe('POST /:mappingId/discover', () => {
 
     expect(enqueued).toHaveLength(2);
     const [first, reload] = enqueued.map((e) => e.options);
-    // Trigger.dev answers the second with the first run: that is the join.
-    expect(reload!.idempotencyKey).toBe(first!.idempotencyKey);
-    expect(first!.idempotencyKeyTTL).toBeTruthy();
-    expect(first!.concurrencyKey).toBe(MAPPING);
+    // pg-boss answers the second with the first run: that is the join.
+    const key = (o: Record<string, unknown>) => (o.idempotency as { key: string; ttlSeconds: number }).key;
+    expect(key(reload!)).toBe(key(first!));
+    expect((first!.idempotency as { ttlSeconds: number }).ttlSeconds).toBeGreaterThan(0);
+    expect(first!.serializeBy).toBe(MAPPING);
     expect(first!.tags).toEqual([`tenant:${TENANT}`, `mapping:${MAPPING}`]);
   });
 
@@ -130,8 +127,9 @@ describe('POST /:mappingId/discover', () => {
     await discover();
 
     const [before, after] = enqueued.map((e) => e.options);
-    expect(after!.idempotencyKey).not.toBe(before!.idempotencyKey);
+    const key = (o: Record<string, unknown>) => (o.idempotency as { key: string }).key;
+    expect(key(after!)).not.toBe(key(before!));
     // Still one at a time: a new count waits for a running one.
-    expect(after!.concurrencyKey).toBe(MAPPING);
+    expect(after!.serializeBy).toBe(MAPPING);
   });
 });

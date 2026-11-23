@@ -72,7 +72,7 @@
 # NOT EVERY OWNPACE CONTAINER IS RECOGNISED. One started without Compose and
 # without an ownpace… name, by hand or by tests, is not: a `docker run` of an
 # Ownpace image, the Postgres scripts/squash-migrations.sh starts, the
-# testcontainers of the CI jobs that run on this machine, Trigger.dev's task
+# testcontainers of the CI jobs that run on this machine, (until alpha.18) Trigger.dev's task
 # runs. Their names change from run to run, and they stay off the list; a 2- or
 # 3-field --from listing carries no labels at all, so there only the name is
 # read. An entry that is not a container name (an address among them) is

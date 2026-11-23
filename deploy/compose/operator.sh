@@ -120,9 +120,8 @@
 # than asking early), and never posts a payment twice. See
 # moneybird-nightly.ts.
 #
-# `jobs` is for a stack whose jobs run on pg-boss (OWNPACE_JOB_RUNNER=pg-boss,
-# ADR-0054); on Trigger.dev it says so and exits 1, and the dashboard is the
-# place to look. Per queue it counts the runs queued, active and failed;
+# `jobs` is the operator's view of the jobs on pg-boss (ADR-0054), the only
+# runner since alpha.18. Per queue it counts the runs queued, active and failed;
 # `failures` lists the newest failed runs with their errors' names and
 # messages; `show` and `cancel` take a run's id; `run` queues a run by hand
 # (`run-rollback`, or a schedule's run now, with '{}'), refused while the
@@ -205,8 +204,9 @@ fi
 # the one reader; workplan 0167 T7), handed to every verb: `jobs` reads it,
 # and `close` cancels a pass on that runner. An empty or absent
 # OWNPACE_JOB_RUNNER in .env is managed.yml's default, `pg-boss`, for the api
-# and the worker, while operator.ts, like every reader in code, takes an empty
-# value for `trigger`. So the answer is handed on, not the .env's line.
+# and the worker, and operator.ts, like every reader in code, takes an empty
+# value for `pg-boss` too; `trigger` is refused here, in one sentence, since
+# alpha.18 removed Trigger.dev. The answer is handed on, not the .env's line.
 # shellcheck source=deploy/compose/job-runner.sh
 . "${SCRIPT_DIR}/job-runner.sh"
 if ! job_runner_mode "$SCRIPT_DIR" "$ENV_FILE"; then

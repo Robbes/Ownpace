@@ -164,11 +164,11 @@ describe('the tick asks first, and holds as under an operator’s hold', () => {
   const count = (needle: string): number => TICK.split(needle).length - 1;
 
   const OWN = 'const ownBeat = SYNC_TICK_BEAT_ON[context.runner.name];';
-  const OTHER = "const otherRunner = context.runner.name === 'trigger' ? 'pg-boss' : 'trigger';";
+  const OTHER = "const otherRunner = 'trigger';";
   const READ_OTHER = "const otherRunnerBeats = (await readTickBeat(drizzle(pool), now, otherBeat, ANOTHER_RUNNER_BEAT_MS)) === 'up';";
   /** The pg-boss half's second rule (0167 T6): a shared beat that differs from its own, asked on pg-boss only. */
   const READ_SHARED =
-    "!otherRunnerBeats && context.runner.name === 'pg-boss' && (await sharedBeatWrittenByAnother(pool, now, ownBeat));";
+    "!otherRunnerBeats && (await sharedBeatWrittenByAnother(pool, now, ownBeat));";
   const ASKED = 'if (otherRunnerBeats || sharedBeatIsAnothers) {';
   const HELD = TICK.slice(at(ASKED), TICK.indexOf('return summary;', at(ASKED)));
 
@@ -210,9 +210,9 @@ describe('the tick asks first, and holds as under an operator’s hold', () => {
     expect(count('await recordTickBeat(')).toBe(5);
   });
 
-  it('on Trigger.dev, the runner the tick runs on today, beats as `trigger` and holds for pg-boss', () => {
+  it('runs on pg-boss alone since alpha.18, and still holds for a Trigger.dev tick’s beat', () => {
     const context = code(read('apps/worker/src/jobs/run-context.ts'));
-    expect(context).toMatch(/function triggerDevRunner\([^)]*\): JobRunnerPort \{\n {2}return \{\n {4}name: 'trigger',/);
+    expect(context).toContain("readonly name: 'pg-boss';");
     expect(SYNC_TICK_BEAT_ON.trigger).toBe('managed-sync-tick-trigger');
     expect(SYNC_TICK_BEAT_ON['pg-boss']).toBe('managed-sync-tick-pg-boss');
   });

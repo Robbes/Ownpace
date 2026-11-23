@@ -36,12 +36,13 @@
  *     a MISSING key and refuses to replace a live one, so running it on every
  *     pass is safe. One required key that is not a secret is written there
  *     too: `ZITADEL_PAT_EXPIRY`, the provisioning token's first date, by its
- *     `seed_pat_expiry` call (2026-10-21; a date still ahead is kept). And a
- *     second: `DOCKER_SOCKET_GID`, the group of the host's Docker socket, by
- *     its `seed_docker_socket_gid` call (2026-11-20, workplan 0119), read
- *     from the socket on every run. bootstrap-managed.sh makes the same two
- *     calls before its first compose call, for `--from` runs (deploy-live.sh
- *     runs `--from data`), and this file holds that too.
+ *     `seed_pat_expiry` call (2026-10-21; a date still ahead is kept).
+ *     bootstrap-managed.sh makes the same call before its first compose call,
+ *     for `--from` runs (deploy-live.sh runs `--from data`). (A second,
+ *     `DOCKER_SOCKET_GID`, the group of the host's Docker socket that
+ *     Trigger.dev's socket proxy reached it through, went with the plane in
+ *     alpha.18, workplan 0167 T9; the last case here holds that nothing asks
+ *     for it or writes it any more.)
  *   - **defaulted** in `managed.env.example` with a NON-EMPTY value — for
  *     configuration that is not secret.
  *
@@ -115,7 +116,6 @@ function generatedBySecretsScript(): Set<string> {
   const sh = read('ensure-env-secrets.sh');
   const keys = new Set([...sh.matchAll(/^ensure\s+([A-Z_]+)\s/gm)].map((m) => m[1]!));
   if (/^seed_pat_expiry "\$ENV_FILE"$/m.test(sh)) keys.add('ZITADEL_PAT_EXPIRY');
-  if (/^seed_docker_socket_gid "\$ENV_FILE"$/m.test(sh)) keys.add('DOCKER_SOCKET_GID');
   return keys;
 }
 
@@ -166,21 +166,14 @@ describe('managed.yml cannot demand a variable nothing can supply', () => {
     );
   });
 
-  it("writes the Docker socket's group before every compose call of a bring-up, `--from` runs too, and nobody types it", () => {
-    // trigger-docker-proxy runs as uid 99 and reaches the socket through its group (workplan 0119, 2026-11-20).
-    expect(required).toContain('DOCKER_SOCKET_GID');
-    expect(generated.has('DOCKER_SOCKET_GID'), 'ensure-env-secrets.sh no longer calls seed_docker_socket_gid "$ENV_FILE"').toBe(true);
-    const boot = read('bootstrap-managed.sh');
-    const loadEnv = /^load_env\(\) \{[\s\S]*?\n\}/m.exec(boot)?.[0] ?? '';
-    expect(loadEnv, 'no load_env in bootstrap-managed.sh').not.toBe('');
-    const seed = loadEnv.indexOf('seed_docker_socket_gid "$ENV_FILE" ||');
-    expect(seed, "load_env no longer writes the socket's group").toBeGreaterThan(-1);
-    expect(seed, 'load_env sources the .env before it writes the group').toBeLessThan(loadEnv.indexOf('. "$ENV_FILE"'));
-    // Read from the socket, never a value of its own: the example leaves it out, so a copied .env has no stale group.
-    expect(defaulted.has('DOCKER_SOCKET_GID'), 'managed.env.example gives DOCKER_SOCKET_GID a value').toBe(false);
-    const fn = /^seed_docker_socket_gid\(\) \{[\s\S]*?\n\}/m.exec(read('env-read.sh'))?.[0] ?? '';
-    expect(fn).toContain("stat -L -c '%F %g' \"$socket\"");
-    expect(fn).toContain('socket=/var/run/docker.sock');
+  it("no longer asks for the Docker socket's group, or writes it: nothing reaches the socket since alpha.18 (0167 T9)", () => {
+    // trigger-docker-proxy ran as uid 99 and reached the socket through its group (workplan 0119,
+    // 2026-11-20); it went with Trigger.dev's plane. A key still demanded would fail every compose call.
+    expect(required).not.toContain('DOCKER_SOCKET_GID');
+    expect(read('managed.yml')).not.toContain('DOCKER_SOCKET_GID');
+    expect(read('ensure-env-secrets.sh')).not.toMatch(/^\s*seed_docker_socket_gid\b/m);
+    expect(read('bootstrap-managed.sh')).not.toMatch(/^\s*seed_docker_socket_gid\b/m);
+    expect(read('env-read.sh')).not.toMatch(/^seed_docker_socket_gid\(\) \{/m);
   });
 
   it('seeds the jobs role\'s password before every compose call of a bring-up, `--from` runs too, that key alone (ADR-0054)', () => {
