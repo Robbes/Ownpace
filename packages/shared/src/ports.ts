@@ -2999,6 +2999,12 @@ export interface AddressChangesInLedger {
   /** The keys of the copies that wait for a change (`waitsForAnAddressChange`): never a match. */
   readonly olderKeys: ReadonlyArray<string>;
   /**
+   * Of `olderKeys`, those with no version to guard a rewrite
+   * (`guardsAnAddressRewrite`): no pass and no press changes them, so they do
+   * not wait for either (workplan 0168, found on the way). Absent reads as none.
+   */
+  readonly unguardedKeys?: ReadonlyArray<string>;
+  /**
    * What they wait for: the next pass, or, past this data type's cutover
    * with no press for the table as it is, *Apply the new addresses here too*
    * (workplan 0168 D5). Absent when none waits.
@@ -3006,8 +3012,15 @@ export interface AddressChangesInLedger {
   readonly waitsFor?: AddressChangeWaitsFor;
 }
 
-/** What a copy whose address change has not reached it waits for (workplan 0168 D5, S4 of the screens' review). */
-export type AddressChangeWaitsFor = 'pass' | 'press';
+/**
+ * What a copy whose address change has not reached it waits for (workplan 0168
+ * D5, S4 of the screens' review): the next pass, or past the data type's
+ * cutover a person's press. One copy of the confirmed list can also say
+ * `unguarded`: it has no version to guard the write, so neither reaches it and
+ * it is left as it is (S1; 0168, found on the way). The counts say that one
+ * apart, as `unguarded`, and never as what the rest waits for.
+ */
+export type AddressChangeWaitsFor = 'pass' | 'press' | 'unguarded';
 
 /** `Ledger.countAddressChanges`' answer: one data type of one migration, counted. */
 export interface AddressChangesCounted {
