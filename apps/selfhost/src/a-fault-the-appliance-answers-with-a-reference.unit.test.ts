@@ -17,6 +17,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { formatWithOptions } from 'node:util';
@@ -103,5 +104,47 @@ describe('a request the appliance fails on', () => {
       if (!page.includes(ref!)) await new Promise((r) => setTimeout(r, 100));
     }
     expect(page, 'the reference is not on the log page').toContain(ref);
+  });
+});
+
+/**
+ * A PUT whose body stops after its first bytes, as
+ * `a-body-cut-short-on-the-appliance` sends one: the handler is reading the
+ * body when the client hangs up, and that failure reaches the server's catch.
+ */
+async function cutShort(path: string): Promise<void> {
+  const sent = request({
+    host: 'localhost',
+    port: handle.port,
+    method: 'PUT',
+    path,
+    headers: { 'content-type': 'application/json', 'content-length': '100', expect: '100-continue' },
+  });
+  const hungUp = new Promise<void>((resolve) => sent.once('error', () => resolve()));
+  const reading = new Promise<void>((resolve) => sent.once('continue', () => resolve()));
+  sent.flushHeaders();
+  await reading;
+  sent.write('{"newAddress":');
+  sent.destroy();
+  await hungUp;
+}
+
+describe('the line for a request that failed', () => {
+  it("keeps the request's path as the API's access log does: an address change's key is `:key`", async () => {
+    const failures: string[] = [];
+    const printed = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      failures.push(formatWithOptions({ depth: Infinity }, ...args));
+    });
+    try {
+      await cutShort(`/address-changes/${encodeURIComponent('someone-s2@example.com')}`);
+      await vi.waitFor(
+        () => expect(failures.join('\n')).toMatch(/\[selfhost\] PUT \/address-changes\/:key failed \[ref [0-9a-f]{8}\]:/),
+        { timeout: 5_000, interval: 20 },
+      );
+    } finally {
+      printed.mockRestore();
+    }
+
+    expect(failures.join('\n'), 'the log named the old address').not.toContain('someone-s2');
   });
 });

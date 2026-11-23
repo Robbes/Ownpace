@@ -126,7 +126,7 @@ import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
 import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditExportQuery, pseudonymizer } from '@openmig/shared';
-import { UNREADABLE_ANSWER_EVENT, newReference, parseUnreadableAnswer, recordAppEvent, unreadableAnswerLogLine } from '@openmig/shared';
+import { UNREADABLE_ANSWER_EVENT, loggableUrl, newReference, parseUnreadableAnswer, recordAppEvent, unreadableAnswerLogLine } from '@openmig/shared';
 import { isCrossSiteWrite } from './cross-site.ts';
 import { answersTo, describeAllowlist, hostAllowlistFrom, namedHost } from './host-allowlist.ts';
 import {
@@ -3980,9 +3980,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // params: …`, workplan 0168). The answer is a sentence with a reference,
       // as the API's `serverFault` gives, and the reference finds the line and
       // the event on the appliance's log page. `error` stays the field the
-      // appliance's screens read.
+      // appliance's screens read. The URL as the API's access log keeps it
+      // (`loggableUrl`): a row of the address changes is named by its old
+      // address, which becomes `:key`.
       const ref = newReference();
-      log.error(`[selfhost] ${req.method} ${req.url} failed [ref ${ref}]:`, err);
+      log.error(`[selfhost] ${req.method} ${loggableUrl(req.url)} failed [ref ${ref}]:`, err);
       // Not awaited: `recordAppEvent` never throws, and the answer does not wait.
       void recordAppEvent({ level: 'error', event: 'selfhost.request_failed', reference: ref });
       return sendJson(res, 500, {

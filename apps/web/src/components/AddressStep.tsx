@@ -17,15 +17,30 @@
  * server, so *"You can change this until you press Start"* stays true.
  */
 import React from 'react';
-import { addressKey, cannotTakeAlong, isAddress } from '@openmig/shared';
+import {
+  UNDER_ONMICROSOFT,
+  addressKey,
+  cannotTakeAlong,
+  domainOf,
+  isAddress,
+  isMicrosoftTenantDomain,
+} from '@openmig/shared';
 import { useT } from '../i18n/index.tsx';
 import type { AddressChange } from '../services/address-change-service.ts';
 import { useStateWords } from './AddressChanges.tsx';
 
-/** One old address the step asks about, and whose domain it is (null where the person declared it). */
+/** One old address the step asks about, why, and whose domain it is (null where it is not on the list). */
 export interface AskedAddress {
   readonly old: string;
   readonly provider: string | null;
+  /**
+   * Why the step asks: the list names a provider that keeps the address
+   * (`list`); the person said their address changes too (`declared`); or, by
+   * itself, the new account's address is on another domain (`otherDomain`,
+   * the owner's decision (b) of 2026-11-23), which the step says, with *Choose
+   * No if ‹new› is only temporary, until your own domain moves*.
+   */
+  readonly why: 'list' | 'declared' | 'otherDomain';
 }
 
 export interface AddressProposals {
@@ -57,9 +72,30 @@ export interface AddressFailure {
 }
 
 /**
+ * THE NEW LOGIN ON ANOTHER DOMAIN (the owner, 2026-11-23, decision (b):
+ * *"Ask by itself when the new account's login is on another domain than the
+ * old address; never for a .onmicrosoft.com login; no default answer"*). An
+ * own domain that comes along keeps its addresses, so the new account signs in
+ * on it. A login on another domain means either that the address changes, or
+ * that the login stands in until the own domain moves, and only the person
+ * knows which. Domains are compared whole and in lower case. A login at
+ * `onmicrosoft.com`, or a host under it (`UNDER_ONMICROSOFT`), a Microsoft 365
+ * tenant's own domain, never asks.
+ */
+function onAnotherDomain(old: string, newAddress: string): boolean {
+  const from = domainOf(old);
+  const to = domainOf(newAddress);
+  if (from === null || to === null || from === to) return false;
+  return to !== UNDER_ONMICROSOFT.parent && !isMicrosoftTenantDomain(to);
+}
+
+/**
  * WHAT THE STEP ASKS (0168 §6.1): every address being left that is on the
- * list, or every one when the person said their address changes too, unless
- * it is the new address in another spelling or the table already holds it.
+ * list; every one when the person said their address changes too; and, by
+ * itself, one whose domain the new account's login is not on (decision (b),
+ * `onAnotherDomain`). Never the new address in another spelling, nor one the
+ * table already holds. Nothing is answered for the person: an unanswered
+ * question holds Next.
  *
  * A row this flow added itself, at a Start that went no further, is not one
  * the table "already holds" (`addedHere`, B1): its question stays, with the
@@ -89,7 +125,11 @@ export function addressProposals(input: {
     if (seen.has(key) || key === newKey || inTable.has(key)) continue;
     seen.add(key);
     const leaving = cannotTakeAlong(old);
-    if (leaving !== null || input.declared) asked.push({ old, provider: leaving?.provider ?? null });
+    if (leaving !== null) asked.push({ old, provider: leaving.provider, why: 'list' });
+    else if (input.declared) asked.push({ old, provider: null, why: 'declared' });
+    else if (newAddress !== undefined && onAnotherDomain(old, newAddress)) {
+      asked.push({ old, provider: null, why: 'otherDomain' });
+    }
   }
   const sourceKeys = new Set(input.sources.filter(isAddress).map(addressKey));
   const existing = input.table.filter(
@@ -124,7 +164,10 @@ const invalidWith = (errorId: string | undefined) =>
  * The question for one old address: Yes, No, or another address. Where the
  * new account's login is not an address there is nothing to say Yes to, so
  * the question asks which address takes the old one's place, and the box to
- * type it in is there from the start (N11).
+ * type it in is there from the start (N11). Where the step asks by itself
+ * because the new address is on another domain (decision (b)), a line says so,
+ * with the owner's hint for a login that is only temporary, and the question
+ * is described by it. No answer is chosen for the person.
  */
 const Question: React.FC<{
   asked: AskedAddress;
@@ -138,9 +181,11 @@ const Question: React.FC<{
   const name = React.useId();
   const typedId = React.useId();
   const failureId = React.useId();
+  const otherDomainId = React.useId();
   const typed = answer?.typed ?? '';
   const choose = (choice: AddressAnswer['choice']) => onAnswer({ choice, typed });
   const proposed = newAddress !== undefined;
+  const otherDomain = asked.why === 'otherDomain' && newAddress !== undefined;
   const choices = proposed ? (['yes', 'no', 'another'] as const) : (['another', 'no'] as const);
   const label = (c: AddressAnswer['choice']) =>
     c === 'yes'
@@ -159,7 +204,13 @@ const Question: React.FC<{
           : t('start.address.leaving', { old: asked.old, provider: asked.provider })}{' '}
         {proposed ? t('start.address.newIs', { new: newAddress }) : t('start.address.newNotAnAddress', { login: newLogin })}
       </p>
-      <fieldset>
+      {otherDomain && (
+        <p id={otherDomainId} className="text-sm text-gray-700">
+          {t('start.address.otherDomain', { new: newAddress, old: asked.old })}{' '}
+          {t('start.address.otherDomain.hint', { new: newAddress })}
+        </p>
+      )}
+      <fieldset {...(otherDomain ? { 'aria-describedby': otherDomainId } : {})}>
         <legend className="text-base font-semibold text-gray-900">
           {proposed
             ? t('start.address.use', { new: newAddress, old: asked.old })
