@@ -197,9 +197,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   read-only check of 2026-11-23 reported a high vulnerability with a fix in the Stalwart image the
   integration tests and E2E (self-hosted) start. Today's image scan agrees: Debian's krb5 libraries
   and `zlib1g` in `stalwartlabs/stalwart:v1.1.1` have fixes. No Stalwart release after v1.1.1
-  and no rebuild of it exists yet, so the pin cannot move. It moves by ADR-0022 when one comes,
-  and may be taken inside its three-day floor under the owner's waiver for alpha.18. Live never
-  runs this image. hadolint's rules on the GoAccess, PgBouncer and Postgres Dockerfiles stand: no
+  and no rebuild of it exists yet, so the pin cannot move by ADR-0022. The owner's answer of
+  2026-11-23, *"Stalwart: in alpha 19"*, keeps it at v1.1.1 in alpha.18: its move, to Stalwart's
+  next release or to `v1.1.1-alpine`, is alpha.19's. Live never runs this image. hadolint's rules on the GoAccess, PgBouncer and Postgres Dockerfiles stand: no
   exact apk versions (the owner's answer of 2026-11-19), the pooler's two `USER` lines named as
   upstream names them until that build goes, and no image `HEALTHCHECK` where compose gives the
   probe.

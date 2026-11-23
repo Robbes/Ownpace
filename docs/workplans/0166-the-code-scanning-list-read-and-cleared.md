@@ -38,9 +38,9 @@ for alpha.18, on another branch.
     `a-float-nothing-ever-pulled` and `a-dockerfile-that-ends-as-root` name it. Not done here.
   - **What closes it:** Stalwart's next v1.x release, or a rebuild of v1.1.1, on a Debian with
     krb5 +deb13u2 and zlib1g +deb13u1, moved by ADR-0022's procedure; the pin watch's Stalwart
-    row lists the tag. Taken inside its three-day floor for alpha.18 under the owner's words of
-    2026-11-23: *"ill waive the waiting for alpha 18, also the 3day limit for LCM, so we could
-    take newer verrsion more early."* Or, on the owner's decision, `v1.1.1-alpine` now.
+    row lists the tag. Or `v1.1.1-alpine`, another base. Asked whether to wait for the first or
+    take the second now, the owner answered on 2026-11-23: *"Stalwart: in alpha 19"*. So the pin
+    stays at v1.1.1 in alpha.18, and its move is alpha.19's.
 - **The Dockerfile rules (low), hadolint 2.15.1**, the image `hadolint.yml` pins, read from
   Docker Hub by its index digest `32dac941…` (linux/amd64 `fdf19d02…`, its one layer
   `83cf56c1…`, each checked against its digest) and run as `/bin/hadolint`, with hadolint's
@@ -285,7 +285,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
 | T7 The owner's dismissals | owner | ✅ **Done 2026-11-21** (D4), the five of §3 D, 17:32 to 17:50 UTC | The 5 alerts of §3 D, each with its reason. |
 | T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
-| T9 The outside check of 2026-11-23 | builder | ✅ **Read 2026-11-23**, nothing moved (the Status entry of 2026-11-23) | The Stalwart base's krb5 and zlib1g wait for Stalwart's next v1.x release (or `v1.1.1-alpine`, the owner's call); the Dockerfile rules stand as decided. The Trigger.dev files go with its removal. |
+| T9 The outside check of 2026-11-23 | builder | ✅ **Read 2026-11-23**, nothing moved (the Status entry of 2026-11-23) | The Stalwart base's krb5 and zlib1g stay in alpha.18, and the pin's move is alpha.19's (the owner, 2026-11-23: *"Stalwart: in alpha 19"*); the Dockerfile rules stand as decided. The Trigger.dev files go with its removal. |
 
 ## 1. The inventory
 
