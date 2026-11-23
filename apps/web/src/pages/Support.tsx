@@ -976,7 +976,7 @@ export const SupportTenantDetail: React.FC = () => {
     );
   }
 
-  const { tenant, connections, migrations, invoices, usage, members } = query.data;
+  const { tenant, connections, migrations, invoices, usage, members, addressChanges } = query.data;
 
   return (
     <div>
@@ -1076,6 +1076,16 @@ export const SupportTenantDetail: React.FC = () => {
       </Section>
 
       {usage && <TenantUsage usage={usage} />}
+
+      {/* Their address changes, counted and never named (workplan 0168 D7):
+          helping a family needs only how many, and how many are confirmed. */}
+      {addressChanges && (
+        <Section title={t('support.addressChanges')} empty={t('support.addressChanges.none')} rows={addressChanges.rows}>
+          <p className="px-3 py-2 text-sm text-gray-700" data-address-change-counts>
+            {t('support.addressChanges.counts', { rows: addressChanges.rows, confirmed: addressChanges.confirmed })}
+          </p>
+        </Section>
+      )}
 
       <Platform />
       <Section title={t('support.invoices')} empty={t('support.noInvoices')} rows={invoices.length}>
