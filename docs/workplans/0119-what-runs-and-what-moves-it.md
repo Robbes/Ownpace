@@ -13,7 +13,9 @@ at 00:26 UTC; the pin watch's #1671). squawk publishes no checksum file, so each
 The same reading at 2.73.0 gives, byte for byte, the two sums pinned before, which were those of the
 GitHub release's assets. Both builds, run over every file of both chains with the report's
 arguments, print the same 438 lines; `--help` differs in one subcommand's description. So the report
-reads as it did, and each run of the workflow proves that the GitHub release's bytes are npm's.
+reads as it did, and each run of the workflow proves that the GitHub release's bytes are npm's: the
+first, on the pull request's head `97b51841`, downloaded both v2.74.0 assets from the release and
+found the two sums pinned, and `squawk (report only)` passed.
 
 **2026-11-23, night: pnpm 11.29.0 inside its three-day floor, on the owner's word, for
 alpha.19.** The owner, 2026-11-23, after alpha.18's tag: *"Pull pnpm, zizmor and squawk earlier.
