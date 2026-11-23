@@ -6,7 +6,7 @@
 
 **2026-11-23, evening: what alpha.18 moves, and what moves for live from alpha.17.** The fold for
 `v0.2.0-alpha.18` (0146's entry of the same day) carries what `main` merged after alpha.17's C,
-`5b51a82b`: ‹PENDING: 18› pull requests (0146's entry lists them). For live, from alpha.17 (live
+`5b51a82b`: 19 pull requests (0146's entry lists them). For live, from alpha.17 (live
 since 2026-11-23 at 19:11:57 UTC):
 
 - Trigger.dev's plane leaves `managed.yml` (#2083, the entry below): its eleven services, their

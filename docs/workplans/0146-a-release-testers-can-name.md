@@ -8,7 +8,7 @@
 contract say `0.2.0-alpha.18`, `scripts/release-line.json` lists it, and everything under
 [Unreleased] moves to its section, dated 2026-11-23, under a summary; [Unreleased] stays, empty.
 alpha.18 carries what `main` merged after alpha.17's C, `5b51a82b`, the commit its tag names:
-‹PENDING: 18› pull requests, merged on 2026-11-23 from 10:05 to ‹PENDING: last› UTC, after the
+19 pull requests, merged on 2026-11-23 from 10:05 to 19:39 UTC, after the
 tag. Dependabot's npm group (#2086) gets its entry at the end of alpha.18's Changed; its move of
 `github/codeql-action/upload-sarif` (#2085) runs in CI only and gets none, as no move of that
 action has. Two entries' words change: *Live's deploy from alpha.17 is reversible* becomes
