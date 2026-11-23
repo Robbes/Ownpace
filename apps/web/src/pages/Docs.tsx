@@ -259,8 +259,13 @@ const QUOTE = /^ {0,3}> ?/;
  * own lines are indented.
  */
 const LIST_ITEM = /^( {0,3})([-*]|(\d{1,9})[.)])( {1,4}|$)/;
-/** GFM's delimiter row under a table's header: `| --- | :-: |`. */
-const TABLE_DELIMITER = /^ {0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+/**
+ * GFM's delimiter row under a table's header: `| --- | :-: |`. Its end is
+ * `(?:\|\s*)?$`, not `\|?\s*$`: the space before a closing `|` is the last
+ * cell's own, and two `\s*` side by side made a long run of spaces quadratic
+ * (workplan 0163, 2026-11-23).
+ */
+const TABLE_DELIMITER = /^ {0,3}\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*(?:\|\s*)?$/;
 /** A line that ends a paragraph because it starts a block of its own. */
 const BLOCK_START = /^(#{1,4}\s| {0,3}```| {0,3}>|\s*[-*]\s|\s*\d+[.)]\s)/;
 

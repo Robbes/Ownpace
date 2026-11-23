@@ -38,13 +38,14 @@ export const COPY = {
       calculator: 'Estimate',
       privacy: 'Privacy',
       terms: 'Terms',
+      accessibility: 'Accessibility',
       signIn: 'Sign in',
     },
     // The header's name for screen readers, and the button that opens it on a
     // phone (workplan 0152 T2).
     navName: 'Main',
     menu: 'Menu',
-    files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html', guide: 'alpha-guide.html', 'leaving-google': 'leaving-google.html', 'leaving-microsoft': 'leaving-microsoft-365.html', 'leaving-apple': 'leaving-icloud.html', 'leaving-dropbox': 'leaving-dropbox.html', 'leaving-box': 'leaving-box.html', 'leaving-mail': 'leaving-another-mail-provider.html' },
+    files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html', guide: 'alpha-guide.html', accessibility: 'accessibility.html', 'leaving-google': 'leaving-google.html', 'leaving-microsoft': 'leaving-microsoft-365.html', 'leaving-apple': 'leaving-icloud.html', 'leaving-dropbox': 'leaving-dropbox.html', 'leaving-box': 'leaving-box.html', 'leaving-mail': 'leaving-another-mail-provider.html' },
     skip: 'Skip to content',
     // The Alpha, said to a visitor who was not invited (workplan 0152 T1 (a);
     // the owner, 2026-10-05: "Do suggestions for non alpha viewers"): one line
@@ -462,12 +463,13 @@ export const COPY = {
       calculator: 'Schatting',
       privacy: 'Privacy',
       terms: 'Voorwaarden',
+      accessibility: 'Toegankelijkheid',
       // The app's own word on its sign-in page.
       signIn: 'Aanmelden',
     },
     navName: 'Hoofdmenu',
     menu: 'Menu',
-    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html', 'leaving-google': 'weg-bij-google.html', 'leaving-microsoft': 'weg-bij-microsoft-365.html', 'leaving-apple': 'weg-bij-icloud.html', 'leaving-dropbox': 'weg-bij-dropbox.html', 'leaving-box': 'weg-bij-box.html', 'leaving-mail': 'weg-bij-een-andere-mailaanbieder.html' },
+    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html', accessibility: 'toegankelijkheid.html', 'leaving-google': 'weg-bij-google.html', 'leaving-microsoft': 'weg-bij-microsoft-365.html', 'leaving-apple': 'weg-bij-icloud.html', 'leaving-dropbox': 'weg-bij-dropbox.html', 'leaving-box': 'weg-bij-box.html', 'leaving-mail': 'weg-bij-een-andere-mailaanbieder.html' },
     skip: 'Naar de inhoud',
     alphaVisitor: {
       line: 'Ownpace is gedurende de Alpha-fase enkel op uitnodiging.',
