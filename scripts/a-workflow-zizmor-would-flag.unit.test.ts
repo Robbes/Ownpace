@@ -46,10 +46,11 @@
  *
  * ## zizmor in CI, blocking
  *
- * `.github/workflows/zizmor.yml` runs zizmor 1.32.0 since 2026-11-21 (until
- * then 1.30.1, the version the outside check runs), by tag and index digest
- * (`ZIZMOR`, below, the reference read on 2026-11-21), on every pull request
- * and push to main that touches `.github/` or an action file, offline
+ * `.github/workflows/zizmor.yml` runs zizmor 1.33.1 since 2026-11-23 (1.32.0
+ * from 2026-11-21, and until then 1.30.1, the version the outside check
+ * runs), by tag and index digest (`ZIZMOR`, below, the reference read on
+ * 2026-11-23), on every pull request and push to main that touches `.github/`
+ * or an action file, offline
  * (`--offline`, `--network none`, no token), with `--config .github/zizmor.yml`
  * and `--no-ignores`, so nothing in the tree can turn a rule or a location off.
  * Its first run found 24 findings already on main (template injection,
@@ -81,8 +82,8 @@ const WORKFLOWS = '.github/workflows';
 const WORKFLOW = '.github/workflows/zizmor.yml';
 const JOB = 'zizmor';
 
-/** zizmor 1.32.0 by its index digest, read on 2026-11-21 (the workflow's comment says how). */
-const ZIZMOR = 'ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d';
+/** zizmor 1.33.1 by its index digest, read on 2026-11-23 (the workflow's comment says how). */
+const ZIZMOR = 'ghcr.io/zizmorcore/zizmor:1.33.1@sha256:ecd3ffe6158de1322e05a044ed43749bee12b1dccb7e1a7859bc6ac4b2a1c516';
 
 /** The flags that keep the run offline and let nothing in the tree silence a finding. */
 const FLAGS = ['--offline', '--config .github/zizmor.yml', '--no-ignores', '--network none'];
@@ -145,9 +146,10 @@ type Release = 'tag push' | 'release branch push' | 'release event';
 
 /**
  * What zizmor calls a release trigger (`triggers_used_when_publishing_artifacts`
- * in crates/zizmor/src/audit/cache_poisoning.rs), at v1.30.1 and v1.32.0,
- * unchanged: v1.32.0 reads the same three from one normalized set of events,
- * whatever the shape of `on:`.
+ * in crates/zizmor/src/audit/cache_poisoning.rs), at v1.30.1, v1.32.0 and
+ * v1.33.1, unchanged: since v1.32.0 it reads the same three from one
+ * normalized set of events, whatever the shape of `on:`, and v1.33.1's file
+ * is v1.32.0's, byte for byte.
  */
 export function releaseTriggers(workflow: Workflow): ReadonlyArray<Release> {
   const on = workflow.on;
@@ -167,7 +169,7 @@ export function releaseTriggers(workflow: Workflow): ReadonlyArray<Release> {
   return out;
 }
 
-/** The publishers zizmor knows (`KNOWN_PUBLISHER_ACTIONS`), at v1.30.1 and v1.32.0, unchanged. */
+/** The publishers zizmor knows (`KNOWN_PUBLISHER_ACTIONS`, audit/cache_poisoning.rs), at v1.30.1, v1.32.0 and v1.33.1, unchanged. */
 const PUBLISHERS = [
   'pypa/gh-action-pypi-publish',
   'rubygems/release-gem',
@@ -199,7 +201,7 @@ const PUBLISHERS = [
  * other action on zizmor's list of cache-aware actions
  * (`KNOWN_CACHE_AWARE_ACTIONS`) that this file names, none of which this
  * repository uses. pnpm/setup joined that list in v1.31.0, its one change
- * between v1.30.1 and v1.32.0; pnpm/action-setup, which this repository
+ * between v1.30.1 and v1.33.1; pnpm/action-setup, which this repository
  * uses, is not on it.
  */
 export function cacheFindings(path: string, workflow: Workflow): ReadonlyArray<string> {
@@ -314,7 +316,12 @@ export function jobProblems(text: string): string[] {
   return out;
 }
 
-/** The files a zizmor config could live in, by its documented discovery (docs/configuration.md at v1.30.1 and v1.32.0, unchanged). */
+/**
+ * The files a zizmor config could live in, by its documented discovery
+ * (docs/configuration.md at v1.30.1 and v1.32.0, unchanged), and by
+ * `CONFIG_CANDIDATES` in crates/zizmor/src/config/mod.rs at v1.33.1, the same
+ * four.
+ */
 const CONFIG_FILES = ['zizmor.yml', 'zizmor.yaml', '.github/zizmor.yml', '.github/zizmor.yaml'];
 
 /** The one config the job passes with `--config`. */
@@ -323,14 +330,25 @@ const CONFIG = '.github/zizmor.yml';
 /**
  * The three days CONTRIBUTING.md asks of every dependency, which Dependabot's
  * cooldown waits and `dependabot-cooldown`'s `days` is held to (zizmor's own
- * default is seven; docs/audits.md at v1.32.0).
+ * default is seven; docs/audits.md at v1.32.0, and crates/zizmor/src/config/mod.rs
+ * at v1.33.1).
  */
 const COOLDOWN_DAYS = 3;
 
 /**
+ * The cooldown keys `dependabot-cooldown` holds to `days` besides
+ * `default-days`, since zizmor 1.33.0: each of these an entry sets, for an
+ * ecosystem with semver cooldowns, npm among them (`supports_semver_cooldowns`
+ * in crates/zizmor/src/audit/dependabot_cooldown.rs at v1.33.1). Held here on
+ * every entry that sets one, whatever its ecosystem.
+ */
+const SEMVER_DAYS = ['semver-major-days', 'semver-minor-days', 'semver-patch-days'] as const;
+
+/**
  * What is wrong with the zizmor config and Dependabot's cooldowns: any setting
  * but `dependabot-cooldown`'s three days (a `disable`, an `ignore`, another
- * rule, another number), and any Dependabot entry that waits less than that.
+ * rule, another number), and any Dependabot entry that waits less than that,
+ * in its `default-days` or in a `semver-*-days` it sets.
  */
 export function configProblems(config: string, dependabot: string): string[] {
   const out: string[] = [];
@@ -343,13 +361,20 @@ export function configProblems(config: string, dependabot: string): string[] {
     'package-ecosystem'?: unknown;
     directory?: unknown;
     directories?: unknown;
-    cooldown?: { 'default-days'?: unknown } | null;
+    cooldown?: Partial<Record<'default-days' | (typeof SEMVER_DAYS)[number], unknown>> | null;
   }>;
   if (updates.length === 0) out.push('dependabot.yml has no updates entry');
   for (const u of updates) {
+    const entry = `the ${String(u['package-ecosystem'])} entry for ${JSON.stringify(u.directory ?? u.directories)}`;
     const days = u.cooldown?.['default-days'];
     if (typeof days !== 'number' || days < COOLDOWN_DAYS) {
-      out.push(`the ${String(u['package-ecosystem'])} entry for ${JSON.stringify(u.directory ?? u.directories)} waits ${JSON.stringify(days)} days, not at least ${COOLDOWN_DAYS}`);
+      out.push(`${entry} waits ${JSON.stringify(days)} days, not at least ${COOLDOWN_DAYS}`);
+    }
+    for (const key of SEMVER_DAYS) {
+      const semver = u.cooldown?.[key];
+      if (semver !== undefined && (typeof semver !== 'number' || semver < COOLDOWN_DAYS)) {
+        out.push(`${entry} waits ${JSON.stringify(semver)} days in ${key}, not at least ${COOLDOWN_DAYS}`);
+      }
     }
   }
   return out;
@@ -460,9 +485,9 @@ describe('zizmor in CI, blocking (2026-11-20)', () => {
     expect(mutate(pin!, pin!.replace(/@sha256:.*/, ''))).toMatch(/not ghcr\.io\/zizmorcore\/zizmor:<x\.y\.z>@sha256:<index digest>/);
     expect(mutate(pin!, pin!.replace(/:[\d.]+@/, ':1.30.0-rc2@'))).toMatch(/not ghcr\.io\/zizmorcore\/zizmor:<x\.y\.z>@sha256:<index digest>/);
     expect(mutate(pin!, pin!.replace('ghcr.io/', 'docker.io/'))).toMatch(/not ghcr\.io\/zizmorcore\/zizmor:<x\.y\.z>@sha256:<index digest>/);
-    expect(mutate(pin!, pin!.replace('1.32.0', '1.32.1'))).toMatch(/does not name the release it pins \(zizmor 1\.32\.1\)/);
+    expect(mutate(pin!, pin!.replace('1.33.1', '1.33.2'))).toMatch(/does not name the release it pins \(zizmor 1\.33\.2\)/);
     expect(mutate('linux/arm64', 'arm64')).toMatch(/does not say its index holds linux\/arm64/);
-    expect(mutate('read on 2026-11-21', 'read')).toMatch(/does not say the day its digest was read/);
+    expect(mutate('read on 2026-11-23', 'read')).toMatch(/does not say the day its digest was read/);
   });
 
   it('refuses each way the job could go online, silence a finding, or read a failed run as green', () => {
@@ -528,5 +553,11 @@ describe('zizmor in CI, blocking (2026-11-20)', () => {
     expect(mutate('rules:\n', 'rules:\n  unpinned-uses:\n    config:\n      policies:\n        "*": any\n')).toMatch(/not only dependabot-cooldown's days: 3/);
     expect(mutate('      default-days: 3\n', '      default-days: 1\n', true)).toMatch(/waits 1 days, not at least 3/);
     expect(mutate('    cooldown:\n      default-days: 3\n', '', true)).toMatch(/waits undefined days, not at least 3/);
+    // The npm entry comes first, and npm is an ecosystem zizmor 1.33.0 reads each `semver-*-days` of.
+    expect(mutate('      default-days: 3\n', '      default-days: 3\n      semver-patch-days: 1\n', true)).toMatch(
+      /the npm entry for "\/" waits 1 days in semver-patch-days, not at least 3/,
+    );
+    expect(mutate('      default-days: 3\n', '      default-days: 3\n      semver-major-days: "3"\n', true)).toMatch(/waits "3" days in semver-major-days/);
+    expect(mutate('      default-days: 3\n', '      default-days: 3\n      semver-minor-days: 7\n', true)).toBe('');
   });
 });

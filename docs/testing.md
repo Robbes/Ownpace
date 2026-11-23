@@ -600,7 +600,7 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   which runs the report against a stubbed docker.
 - `migration-locks.yml` — on a pull request and a push to `main` that touch either migration chain,
   the workflow or its script, and on dispatch, on a GitHub-hosted runner, never a required check
-  (workplan 0165): squawk 2.73.0, the static musl build from its GitHub release, checked by its
+  (workplan 0165): squawk 2.74.0, the static musl build from its GitHub release, checked by its
   sha256 for both architectures before it runs, over every file of both chains, one run per file,
   each read as one transaction (`--assume-in-transaction`, as `runMigrations` applies it) on
   Postgres 18. `squawk (report only)` lists in its summary every finding in a migration file the
@@ -611,12 +611,13 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   against a stand-in squawk, and `scripts/a-pin-that-knows-it-is-behind.unit.test.ts`, which runs
   the install step.
 - `zizmor.yml` — on a pull request and a push to `main` that touch `.github/` or an action file,
-  and on dispatch, on a GitHub-hosted runner, never a required check: zizmor 1.32.0 since
-  2026-11-21, moved on purpose from 1.30.1, the version the outside check of GEN-26 runs, by the
-  tag and index digest `ZIZMOR_IMAGE` names, over the whole checkout (every workflow, any action
-  file, `dependabot.yml`), offline (`--offline`, no network, no token) and read-only, with
-  `--config .github/zizmor.yml`, whose one setting holds `dependabot-cooldown` to Dependabot's
-  three days, and `--no-ignores`, so nothing in the tree can turn a rule or a location off.
+  and on dispatch, on a GitHub-hosted runner, never a required check: zizmor 1.33.1 since
+  2026-11-23 (1.32.0 from 2026-11-21), each moved to on purpose, where the outside check of GEN-26
+  runs 1.30.1, by the tag and index digest `ZIZMOR_IMAGE` names, over the whole checkout (every
+  workflow, any action file, `dependabot.yml`), offline (`--offline`, no network, no token) and
+  read-only, with `--config .github/zizmor.yml`, whose one setting holds `dependabot-cooldown` to
+  Dependabot's three days, and `--no-ignores`, so nothing in the tree can turn a rule or a location
+  off.
   `zizmor` is BLOCKING: any finding fails it, and it writes zizmor's report to its summary. Held
   by `scripts/a-workflow-zizmor-would-flag.unit.test.ts`, which also holds every cache-aware step
   in a workflow a tag starts to turning its cache off the way zizmor's `cache-poisoning` audit
