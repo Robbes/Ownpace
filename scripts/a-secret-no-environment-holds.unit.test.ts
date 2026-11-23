@@ -78,8 +78,9 @@ const location = (kind: Kind, job: string, row: number, feature: string, path = 
 
 /**
  * A `secrets-outside-env` finding, located as the audit locates one
- * (`audit/secrets_outside_env.rs` at v1.32.0): the whole job hidden, its key,
- * and the secret's context as the one primary location.
+ * (`audit/secrets_outside_env.rs` at v1.32.0, the same file at v1.33.1): the
+ * whole job hidden, its key, and the secret's context as the one primary
+ * location.
  */
 const secret = (job: string, row: number, reads: string, path?: string) => ({
   ident: AUDIT,

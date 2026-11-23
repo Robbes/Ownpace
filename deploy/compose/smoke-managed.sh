@@ -1177,7 +1177,7 @@ WANT_NODE="$(dockerfile_node)" || {
 }
 if [ "$API_NODE_VERSION" != "$WANT_NODE" ]; then
   echo "FATAL: the API container's ${API_NODE} is ${API_NODE_VERSION}, and apps/api/Dockerfile's"
-  echo "       FROM node line, the Node the tasks' base is held to, is ${WANT_NODE}. Either the"
+  echo "       FROM node line, which the worker's Dockerfile names too, is ${WANT_NODE}. Either the"
   echo "       runtime's Node and that line were moved apart (a distroless digest and the"
   echo "       node tag: move the other to the same Node), or this stack's api image was"
   echo "       not built from this checkout"

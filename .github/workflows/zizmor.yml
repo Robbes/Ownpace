@@ -48,14 +48,21 @@
 # records as read (`ZIZMOR`), and moved by hand: Dependabot reads no workflow
 # env, so the pin watch's row `ghcr.io/zizmorcore/zizmor`
 # (scripts/idp-pin-watch.mjs) reads that line and lists a newer release in its
-# summary issue. The outside check of GEN-26 runs 1.30.1. This job runs
-# 1.32.0 since 2026-11-21, moved on purpose for what zizmor's audits check
+# summary issue. The outside check of GEN-26 runs 1.30.1. This job ran
+# 1.32.0 from 2026-11-21, moved on purpose for what zizmor's audits check
 # that 1.30.1's did not, by its release notes for 1.31.0 and 1.32.0:
 # cache-poisoning reads `cache-mode:` and pnpm/setup, dangerous-triggers
 # counts `issue_comment`, and template-injection sees a context inside
-# `fromJSON(...)` or `case(...)`. A newer one is moved to on purpose too, in a
-# pull request of its own: a newer zizmor brings new audits, and this job is
-# where they land.
+# `fromJSON(...)` or `case(...)`. It runs 1.33.1 since 2026-11-23, moved on
+# purpose too, by its source read against 1.32.0's (both sdists on PyPI,
+# which carry no release notes): 1.33.0 adds the unsafe-checkout audit
+# (crates/zizmor/src/audit/dangerous_checkout.rs), which flags
+# actions/checkout given `allow-unsafe-pr-checkout`, and dependabot-cooldown
+# (audit/dependabot_cooldown.rs) reads every Dependabot entry, where 1.32.0
+# stopped at the first that waited long enough, and each `semver-*-days` an
+# entry sets; 1.33.1 reads a job whose `services:` is an expression. A newer
+# one is moved to on purpose too, in a pull request of its own: a newer
+# zizmor brings new audits, and this job is where they land.
 #
 # WHERE. A GitHub-hosted runner: it has a pull_request trigger, and ci.yml's
 # header says why that never reaches the self-hosted runner.
@@ -91,13 +98,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      # zizmor 1.32.0 by its index digest, `3014cc8f68f6…`, with linux/amd64
-      # (`bb5d47cd…`) and linux/arm64 (`4cb7e091…`) in it beside two
-      # attestation manifests, read on 2026-11-21 as the Docker-Content-Digest
+      # zizmor 1.33.1 by its index digest, `ecd3ffe6158d…`, with linux/amd64
+      # (`e308cf58…`) and linux/arm64 (`d2ad79dd…`) in it beside two
+      # attestation manifests, read on 2026-11-23 as the Docker-Content-Digest
       # of the tag's manifest on ghcr.io, whose body hashes to it. PyPI lists
-      # 1.32.0's upload at 2026-11-02 23:30 UTC, past the three-day floor
-      # (CONTRIBUTING.md).
-      ZIZMOR_IMAGE: ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
+      # 1.33.1's upload at 2026-11-22 22:26 UTC, inside the three-day floor
+      # (CONTRIBUTING.md), which the owner waived on 2026-11-23: "Pull pnpm,
+      # zizmor and squawk earlier. I waive unneeded days/waiting."
+      ZIZMOR_IMAGE: ghcr.io/zizmorcore/zizmor:1.33.1@sha256:ecd3ffe6158de1322e05a044ed43749bee12b1dccb7e1a7859bc6ac4b2a1c516
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -115,7 +123,7 @@ jobs:
             . > "$RUNNER_TEMP/zizmor.txt" 2>&1 || status=$?
           cat "$RUNNER_TEMP/zizmor.txt"
           {
-            echo "## zizmor 1.32.0 (exit $status)"
+            echo "## zizmor 1.33.1 (exit $status)"
             echo
             echo '```'
             cat "$RUNNER_TEMP/zizmor.txt"

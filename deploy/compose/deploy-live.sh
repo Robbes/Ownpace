@@ -631,7 +631,7 @@ main() {
   if [[ "$(env_as_the_app_reads OWNPACE_REACHABLE_HOSTS)" =~ [^[:space:],] ]]; then
     unready+=("OWNPACE_REACHABLE_HOSTS: names a host. Live's list stays empty (workplan 0136 T2): every name on it is let through the rule for a host inside our own networks, for every organisation on live, and it is there for the demo's hosts, which live never has (workplan 0132 T1b). Empty it:" \
       "  ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_REACHABLE_HOSTS=" \
-      "  With it empty, the deploy's set-task-env.sh deletes it from the tasks' environment too.")
+      "  With it empty, the deploy's bring-up starts the api and the worker with the list empty.")
   fi
   # No payment key during the Alpha (workplan 0131 §3 T3, and T5's step 6 for
   # the owner): nothing is charged while it runs, and live keeps
