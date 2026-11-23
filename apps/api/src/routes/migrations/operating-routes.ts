@@ -18,7 +18,8 @@
  *
  * `apply` and `verify` both touch the TARGET — one removes a message, the other
  * counts and samples every domain — and in this edition target I/O belongs to
- * the worker behind Trigger.dev (ADR-0004), not to a request thread in the API.
+ * the worker, whose jobs pg-boss queues (ADR-0004, ADR-0054), not to a request
+ * thread in the API.
  * Bolting a synchronous version into this process would put connector
  * credentials and minutes-long network work into the HTTP path, and would make
  * the two editions differ in exactly the operation that destroys data. They

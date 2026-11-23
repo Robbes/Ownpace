@@ -13,8 +13,8 @@
  * by a run that died before writing it down is found on the next run's read
  * (`creditNoteRefundOf`) and adopted, never made again.
  *
- * The key is the API's own (`MOLLIE_API_KEY`), handed to the tasks by
- * `set-task-env.sh`; unset, nothing is refunded and the push says so.
+ * The key is the API's own (`MOLLIE_API_KEY`), handed to the jobs by the
+ * worker service (managed.yml); unset, nothing is refunded and the push says so.
  */
 
 import { decimalFromCents } from './line-price.ts';

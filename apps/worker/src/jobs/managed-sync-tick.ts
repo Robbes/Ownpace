@@ -1,7 +1,8 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The managed sync tick (workplan 0022 T2) — the scheduled Trigger.dev task
+ * The managed sync tick (workplan 0022 T2) — the scheduled task (a pg-boss job
+ * since alpha.18, a Trigger.dev task before)
  * that replaces the (now-retired) polling managed-scheduler as the thing that STARTS
  * syncs (owner decision 2026-08-01, 0020 T8: one execution plane; this
  * restores ADR-0004's original architecture, which the poller was always an
@@ -596,8 +597,8 @@ function longestWaitingFirst(a: Waiting, b: Waiting): number {
 
 /**
  * What a run of this schedule reads of its payload: nothing (ADR-0054;
- * workplan 0167 T6). Trigger.dev hands a schedule's run its
- * `ScheduledTaskPayload`, which this run never reads.
+ * workplan 0167 T6). Its schedule hands it an empty one (`worker.ts`); until
+ * alpha.18, Trigger.dev handed it a `ScheduledTaskPayload`, which no run read.
  */
 export const SyncTickJobSchema = z.strictObject({});
 

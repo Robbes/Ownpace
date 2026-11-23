@@ -6,8 +6,8 @@
  *
  * `a-count-each-reload-started.unit.test.ts` pins the rule. This pins that the
  * route actually applies it: the real `POST /:mappingId/discover` over a real
- * (in-process) ledger, with only the Trigger.dev client replaced by a recorder.
- * A reload must reach Trigger.dev as the same count, and a change to the
+ * (in-process) ledger, with only the pg-boss producer replaced by a recorder.
+ * A reload must reach the runner as the same count, and a change to the
  * migration as a new one.
  */
 

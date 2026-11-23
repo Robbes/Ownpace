@@ -17,16 +17,16 @@
  * stops the schedules, lets in-flight passes settle, and closes the server.
  *
  * Single-tenant, no managed dependencies: this file (and its transitive imports)
- * must never pull in Trigger.dev, billing, or RLS — self-host loads none of it
+ * must never pull in the managed job runner, billing, or RLS — self-host loads none of it
  * (hard rule 5). It reuses the worker's `runAllDomains` (shared, not forked).
  */
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, applyNewAddressesHere, readAddressChangesForReport, type PathEnding } from '@openmig/ledger';
-// Import the in-process scheduler directly (NOT the package index, which
-// re-exports the Trigger.dev client) so self-host never loads managed code —
-// hard rule 5.
+// Import the in-process scheduler by its own subpath, so self-host never loads
+// managed code — hard rule 5. The managed runner, pg-boss's, has a subpath of
+// its own; the package index re-exported the Trigger.dev client until alpha.18.
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import {
   runAllDomains,

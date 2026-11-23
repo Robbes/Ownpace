@@ -108,7 +108,7 @@ export async function pressSyncNow(
   const enqueue = await enqueueUnlessHeld(res, tenantId, pool);
   if (!enqueue) return null;
 
-  // Enqueue the real Trigger.dev task with an id-only, tenant-scoped payload
+  // Enqueue the real job on pg-boss, with an id-only, tenant-scoped payload
   // (the mapping was just verified to belong to this tenant above).
   const { taskId, payload } = resolveSyncJob(tenantId, mappingId, body);
   const run = await enqueue(taskId, payload, {
