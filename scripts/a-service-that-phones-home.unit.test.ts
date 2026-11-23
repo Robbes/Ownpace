@@ -7,95 +7,13 @@
  * receives anything (§7, §8); on 2026-09-28 the owner chose, for the question
  * ops-telemetry, *"Switch it off everywhere"* (workplan 0139). Six images in
  * `managed.yml` reported to, or asked, their makers by default until then, each
- * read at the version this repository pins; five are switched off, and
- * Nextcloud is not yet:
+ * read at the version this repository pins. Three of them were Trigger.dev's
+ * plane: its webapp (PostHog from the server and the dashboard, and Prisma's
+ * checkpoint at every start), ClickHouse (crash reports) and MinIO (a release
+ * check at every start), each switched off and held here until alpha.18
+ * removed the plane (workplan 0167 T9), with its TLS front's `tls internal`.
+ * Of the three left, two are switched off, and Nextcloud is not yet:
  *
- *  - TRIGGER.DEV'S WEBAPP (read at v4.7.2, and again at v4.7.6, v4.8.1, v4.8.3,
- *    v4.8.5 and v4.8.8), three ways.
- *    Its server's PostHog identified
- *    the user by id, email and name at every sign-in (`services/postAuth.server.ts`
- *    calls `telemetry.user.identify`, `services/telemetry.server.ts`) and sent
- *    events when a user, an organisation or a project was created. Its dashboard
- *    loaded PostHog in the browser and identified the signed-in user by id and
- *    email (`app/hooks/usePostHog.ts`), with a project key that defaults to
- *    Trigger.dev's own (`app/env.server.ts`, `POSTHOG_PROJECT_KEY`). And its
- *    entrypoint runs `prisma migrate deploy` at every start
- *    (`docker/scripts/entrypoint.sh`; prisma 6.14.0), whose CLI sends a
- *    checkpoint to `checkpoint.prisma.io` (`packages/cli/src/CLI.ts` calls
- *    `runCheckpointClientCheck` for every command; checkpoint-client 1.1.33):
- *    the version, OS, architecture, Node, CI, the command, hashes of the
- *    project's and the CLI's paths, the schema's providers and a stored random
- *    signature. Upstream's documented opt-out, `TRIGGER_TELEMETRY_DISABLED`,
- *    stops only the first: the constructor returns early when it is set to
- *    anything, and nothing else reads it. The browser's half starts whenever
- *    the key is not empty (`usePostHog` returns early on `undefined` or `""`
- *    only), so the key is set to the empty string beside it; the checkpoint
- *    stops only on `CHECKPOINT_DISABLE` (`utils/checkpoint.ts`, and the client
- *    again), so that is set too. The entrypoint's other children do not call
- *    out: pnpm 10.34.9 (since 2026-11-02 the builds here run it in place of
- *    upstream's 10.33.2, which did the same) checks for its own update only on
- *    `install` and `add` (`pnpm/src/main.ts`; `dist/pnpm.cjs` of both as npm
- *    published them), goose has no network use of its own (v3.27.1, and
- *    v3.29.0, which the webapp's build ran in its place from 2026-11-03,
- *    whose new code is other drivers' authentication: `cmd/goose` at both
- *    tags; and v3.30.1, the build's since 2026-11-13, where `cmd/goose` is
- *    v3.29.0's byte for byte, no module joins or leaves go.mod, and what
- *    changed is the SQL parser, the Provider's sorting and locker, and
- *    `goose validate`), and the dashboard agent's migration is plain
- *    drizzle-orm. At
- *    v4.7.6 (read 2026-10-23) all of that holds: the server's two new events (the dashboard
- *    agent's feedback, a webhooks beta request) go through the same client,
- *    which the opt-out leaves unmade, and only on Trigger.dev's own cloud; the
- *    browser's new queue drops what it holds when the key is empty; the
- *    entrypoint now preloads a local CA filter (`distrust-cas.cjs`), which
- *    calls nothing; and prisma, pnpm and goose are the same versions. At
- *    v4.8.1 (read 2026-10-25) none of the files named here changed but
- *    `env.server.ts`, whose new keys (a snapshot TTL, an alert query limit)
- *    name no host; the webapp image runs Node 24.22.1, where it ran 24.18.0,
- *    and prisma 6.14.0, pnpm 10.33.2 and goose v3.27.1 are unchanged. At
- *    v4.8.3 (read 2026-10-31) telemetry.server.ts, postAuth.server.ts,
- *    usePostHog.ts, the entrypoint and the Dockerfile are v4.8.1's; root.tsx
- *    hands the page an admin origin from `ADDITIONAL_LOGIN_ORIGINS` when it is
- *    set (it is not here) and `APP_ORIGIN` otherwise; and `env.server.ts`'s new
- *    keys (login origins and checks, queue and webhook metrics, a deployment
- *    index store that falls back to `OBJECT_STORE_*` and is off by default,
- *    ClickHouse reader limits) name no third party. pnpm there is upstream's
- *    10.33.2. At v4.8.5 (read 2026-11-13, with v4.8.4, six commits before it)
- *    telemetry.server.ts, root.tsx and the entrypoint are v4.8.3's;
- *    postAuth.server.ts first refuses a sign-in to a disabled account, then
- *    identifies as before, through the client the opt-out leaves unmade;
- *    usePostHog.ts adds `readPostHogFirstTouch`, which reads nothing while
- *    PostHog is not loaded, as it never is with the key empty, and whose one
- *    caller, `confirm-basic-details.tsx`, sends it on Trigger.dev's own cloud
- *    only, to Attio, off without `ATTIO_API_KEY` (a third party below); the
- *    Dockerfile moves only its Node base, to 24.22.3; and `env.server.ts`'s new
- *    keys (CLI login and token expiry, an admin API switch, API key IP ranges,
- *    card checks and billing for Trigger.dev's own cloud, run engine and alert
- *    limits) name no third party. One route new in v4.8.4,
- *    `/api/v1/trusted-deploys/*`, fetches GitHub's signing keys
- *    (`token.actions.githubusercontent.com`,
- *    `services/trustedDeploys/github.server.ts`) to check a bearer token a
- *    caller sends, before it looks up any grant: only on such a request, and
- *    nothing here sends one. prisma 6.14.0, pnpm 10.33.2 and goose v3.27.1
- *    are unchanged. At v4.8.8 (read 2026-11-21, with v4.8.6 and v4.8.7)
- *    postAuth.server.ts, usePostHog.ts, root.tsx, the entrypoint and the
- *    Dockerfile are v4.8.5's byte for byte; telemetry.server.ts adds one
- *    event, `mcp_feedback_submitted`, through the same client the opt-out
- *    leaves unmade, sent from the remote MCP server new in this range, which
- *    is served at `/mcp` only with `MCP_SERVER_ENABLED`, off by default and
- *    not set here (entry.server.tsx, server.ts). Its OAuth clients may be
- *    named by an https metadata URL, which the webapp then fetches
- *    (`services/oauth/cimdFetch.server.ts`: https only, public addresses
- *    only, no redirect, 64 KiB at most): a host the requester names, only on
- *    such a request. The new keys of `env.server.ts` name no third party but
- *    `ATTIO_MEMBER_SYNC_ENABLED`, on by default where `APP_ENV` is production,
- *    whose client is made only with `ATTIO_API_KEY` (`services/attio.server.ts`),
- *    a third party below; the rest (the MCP server and its OAuth grants, a
- *    secret proxy and environment encryption by AWS KMS, both off by default,
- *    audit-log recording, off without its plugin, a deployment-checks worker
- *    on the stack's own Redis, ingress body limits, run engine and worker
- *    source limits, a separate health port) name no host. prisma 6.14.0,
- *    pnpm 10.33.2 and goose v3.27.1 are unchanged.
  *  - ZITADEL (v4.19.2) sends a "service ping" once a day to
  *    `https://zitadel.com/api/ping`: the version, and the id, creation date and
  *    domains of every instance, and with `ResourceCount` the number of users,
@@ -106,42 +24,6 @@
  *    release has carried the ping (read at v4.0.0, v4.6.2 and v4.17.1), so the
  *    OTA stack's provider has sent it since it first started, as far as the
  *    machine let it out.
- *  - CLICKHOUSE (26.8.37.168) sends a crash report, and a report on a logical
- *    error, to `https://crash.clickhouse.com/`: the `config.xml` the image
- *    ships sets `send_crash_reports.enabled` true, although the code's own
- *    default is false (`src/Daemon/CrashWriter.cpp`). Read at
- *    `v26.2.19.43-stable`, again for 26.3.62.3 on 2026-11-01, and again for
- *    26.8.36.3 on 2026-11-02 (workplan 0119 §3 item 9, option 2): neither
- *    security release had a public tag then, so the `config.xml` was read out
- *    of each image itself, and is byte for byte `v26.3.60.2-lts`'s and
- *    `v26.8.34.13-lts`'s, whose `CrashWriter.cpp`, `BaseDaemon.cpp` and
- *    `ConfigProcessor.cpp` read the keys and merge `config.d` as 26.2.19.43's
- *    did, and the distinct URLs it names outside comments are 26.2.19.43's,
- *    the same eight. Read again for 26.8.37.168 on 2026-11-14: the
- *    `config.xml` out of both platforms' images is byte for byte
- *    `v26.8.37.168-lts`'s, which differs from `v26.8.36.3-lts`'s (public
- *    since, and `v26.8.34.13-lts`'s byte for byte) in one comment, so the same
- *    eight URLs; those three source files are the same blobs at all three
- *    tags. A file in `config.d` turns it off,
- *    and it must be the only file ClickHouse merges that speaks of crash
- *    reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d`
- *    and `conf.d`, in sorted order, so a later one wins
- *    (`src/Common/Config/ConfigProcessor.cpp`, `getConfigMergeFiles`). Since
- *    2026-11-01 its one network, `trigger-event-store`, is `internal`
- *    (`a-store-every-container-could-reach`), so a report would also have no
- *    route off the machine. The switch stays, and stays held here: a network
- *    is one line of a compose file away from having a route again.
- *  - MINIO (Chainguard's build since 0146 T7, the fork's
- *    `RELEASE.2026-11-12T01-15-23Z`, read at `RELEASE.2026-09-22T19-25-18Z`,
- *    whose code it shares; read first at Bitnami's 2025.5.24) asks
- *    `dl.min.io` for the newest release at every start, with a User-Agent that
- *    carries the OS, the architecture, `docker`, its version and the CPU's
- *    count, vendor and model (`cmd/server-main.go`, `cmd/common-main.go`,
- *    `cmd/update.go`), unless `MINIO_UPDATE` is `off`. Its call-home to SUBNET
- *    ships `off` (`internal/config/callhome/callhome.go`) and is written out
- *    here too. Its one-shot `minio-init` runs `mc mb`, and mc asks `dl.min.io`
- *    only when it is run with no command (`cmd/main.go` at mc's
- *    `RELEASE.2025-08-13T08-35-41Z`).
  *  - MAILPIT (v1.31.6, again at v1.32.0 on 2026-10-25, at v1.33.0 on
  *    2026-11-03, at v1.33.1 on 2026-11-11 and at v1.34.0 on 2026-11-18; the
  *    test stack's catcher, live has none) asks GitHub for its newest release
@@ -197,9 +79,8 @@
  *    the default at the new version and moves the row. A new release is exactly
  *    where a new report appears: Zitadel's ping arrived with v4. A row whose
  *    fact was read for a whole major line records that line instead, and is
- *    compared by repository and major: Caddy's (Caddy 2 has no telemetry; a
- *    build here since 2026-10-31, so its row reads the FROM's line) and
- *    Nextcloud's (read at `stable34`, and at `v35.0.2` when the demo moved),
+ *    compared by repository and major: Nextcloud's (read at `stable34`, and at
+ *    `v35.0.2` when the demo moved),
  *    whose images are pinned by tag and digest since 2026-10-22, so that a
  *    patch or a rebuild the pin watch asks for does not fail here, and another
  *    major still does. A switched
@@ -263,28 +144,17 @@
  * fails on another commit, on a base not pinned by digest, or on a run that
  * has a network or may pull.
  *
- * WHAT THIS CANNOT SEE. A running container. Since 0146 T16 a machine's `.env`
- * naming another `TRIGGER_IMAGE_TAG` runs no other webapp (trigger-api's and
- * trigger-supervisor's builds refuse it), but a container keeps the environment
- * it was started with until a deploy recreates it, which is why
+ * WHAT THIS CANNOT SEE. A running container: it keeps the environment it was
+ * started with until a deploy recreates it, which is why
  * `docs/managed-bring-up.md`, *Nothing phones home*, has the check to run on the
- * machine. The deploy CLI, which runs on the host: at 4.7.2, 4.7.6, 4.8.1, 4.8.3, 4.8.5 and 4.8.8
- * `packages/cli-v3/src/telemetry/tracing.ts` is gone, and `handleTelemetry` in
- * `src/cli/common.ts` only runs the command, so no exporter of its own was
- * found; its one PostHog client is the MCP server's feedback tool
- * (`src/mcp/telemetry.ts`), which `deploy` never starts (4.8.8's `dist/esm/cli/common.js`
- * changes only how a command's error is printed, its `mcp/telemetry.js` is 4.8.5's, and
- * its `dist/esm` names the same URLs). The integration tests' throwaway Nextcloud and Stalwart, started by
+ * machine. The integration tests' throwaway Nextcloud and Stalwart, started by
  * Testcontainers on a CI runner. And what a service does once somebody
- * configures it to: every key the webapp is given is in `WEBAPP_KEYS` below
- * with its reason, and any other key fails here until somebody has read what
- * it does.
+ * configures it to.
  */
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, dirname, normalize } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
@@ -316,7 +186,7 @@ export interface Service {
 }
 
 interface Entry {
-  /** `deploy/compose/managed.yml:trigger-api`, so a failure names the entry. */
+  /** `deploy/compose/managed.yml:zitadel`, so a failure names the entry. */
   readonly key: string;
   readonly file: string;
   readonly name: string;
@@ -408,129 +278,6 @@ function exactly(env: Record<string, string>, key: string, want: string): string
   return got === want ? [] : [`${key} is "${got}"; it must be "${want}"`];
 }
 
-/**
- * Keys that switch a third party on in Trigger.dev's webapp, all read at
- * v4.7.2 (`apps/webapp/app/env.server.ts`), each off while unset, and the
- * three added by v4.7.6: Cloudflare Turnstile on the sign-in form (v4.7.4, on
- * only with both keys) and AWS KMS as a secret store. The list also stops an
- * overlay setting one; `WEBAPP_KEYS` below is what holds the webapp itself.
- */
-export const WEBAPP_THIRD_PARTIES = Object.freeze([
-  'SENTRY_DSN',
-  'LOOPS_API_KEY',
-  'ATTIO_API_KEY',
-  'KAPA_AI_WEBSITE_ID',
-  'PLAIN_API_KEY',
-  'BETTERSTACK_API_KEY',
-  'ANTHROPIC_API_KEY',
-  'OPENAI_API_KEY',
-  'AWS_BEARER_TOKEN_BEDROCK',
-  'RESEND_API_KEY',
-  'EMAIL_TRANSPORT',
-  'ALERT_EMAIL_TRANSPORT',
-  'ALERT_RESEND_API_KEY',
-  'S2_ENABLED',
-  'REALTIME_STREAMS_S2_ACCESS_TOKEN',
-  'DASHBOARD_AGENT_SECRET_KEY',
-  'SLACK_BOT_TOKEN',
-  'ORG_SLACK_INTEGRATION_CLIENT_ID',
-  'VERCEL_INTEGRATION_CLIENT_ID',
-  'AUTH_GITHUB_CLIENT_ID',
-  'AUTH_GOOGLE_CLIENT_ID',
-  'DEPOT_TOKEN',
-  'TURNSTILE_SITE_KEY',
-  'TURNSTILE_SECRET_KEY',
-  'SECRET_STORE_AWS_KMS_KEY_ID',
-]);
-
-/**
- * EVERY key `trigger-api` may set, and why it reaches no third party. A key not
- * here fails the webapp's row until somebody has read what it does at the
- * pinned version: a list of the third parties could only ever be as long as
- * the reading that wrote it.
- */
-export const WEBAPP_KEYS: Readonly<Record<string, string>> = Object.freeze({
-  DATABASE_URL: 'trigger-db, on this network',
-  DIRECT_URL: 'trigger-db, on this network',
-  SESSION_SECRET: 'a secret; names no host',
-  MAGIC_LINK_SECRET: 'a secret; names no host',
-  ENCRYPTION_KEY: 'a secret; names no host',
-  LOGIN_SECRET: 'a secret; names no host, and env.server.ts at v4.7.2, v4.7.6, v4.8.1, v4.8.3, v4.8.5 and v4.8.8 does not read it',
-  MANAGED_WORKER_SECRET: 'a secret; names no host',
-  APP_ORIGIN: "the dashboard's own origin",
-  LOGIN_ORIGIN: "the dashboard's own origin",
-  API_ORIGIN: "the webapp's own port on the host's loopback, for the deploy CLI",
-  REDIS_HOST: 'trigger-redis, on this network',
-  REDIS_PORT: "trigger-redis's port",
-  REDIS_TLS_DISABLED: 'plain Redis on this network',
-  DEPLOY_REGISTRY_HOST: "trigger-registry, on the host's loopback",
-  DEPLOY_REGISTRY_NAMESPACE: "a namespace in that registry",
-  DEPLOY_IMAGE_PLATFORM: 'the architecture task images are built for',
-  OBJECT_STORE_BASE_URL: 'minio, on this network',
-  OBJECT_STORE_ACCESS_KEY_ID: "minio's user",
-  OBJECT_STORE_SECRET_ACCESS_KEY: "minio's password",
-  CLICKHOUSE_URL: 'clickhouse, on trigger-event-store, the internal network only the two share',
-  RUN_REPLICATION_CLICKHOUSE_URL: 'clickhouse, on trigger-event-store, the internal network only the two share',
-  REALTIME_STREAMS_DEFAULT_VERSION: 'v1 is Redis; v2 reaches S2 only with REALTIME_STREAMS_S2_ACCESS_TOKEN, a third party above',
-  TRIGGER_BOOTSTRAP_ENABLED: 'writes the worker token to the shared volume',
-  TRIGGER_BOOTSTRAP_WORKER_GROUP_NAME: "the worker group's name",
-  TRIGGER_BOOTSTRAP_WORKER_TOKEN_PATH: 'a path on the shared volume',
-  PORT: "the server's own port",
-  APP_LOG_LEVEL: 'its log level',
-  TRIGGER_TELEMETRY_DISABLED: "the switch for the server's PostHog",
-  POSTHOG_PROJECT_KEY: "the switch for the dashboard's PostHog, empty",
-  CHECKPOINT_DISABLE: "the switch for Prisma's checkpoint at every start",
-  COREPACK_ENABLE_NETWORK:
-    "\"0\" stops corepack fetching pnpm from the npm registry when the build left no copy for the user that runs (corepack 0.36.0, Node 24.22.1's and 24.22.3's: corepack.cjs:13142, before any fetch); it reaches nothing (0146 T16)",
-  CLI_LOGIN_IDLE_TIMEOUT_DAYS: 'how many days a CLI login may go unused before it lapses (v4.8.4, personalAccessToken.server.ts); names no host',
-  ADMIN_API_ENABLED: '"false" makes every /admin/api route answer 404 before any authentication (v4.8.4, services/adminApi.server.ts); names no host',
-});
-
-/**
- * TWO KEYS THE OWNER CHOSE, held here because this file reads every key
- * `trigger-api` sets. The owner, 2026-11-13, for Trigger.dev v4.8.5: *"90, admin
- * off, MFA no."* From v4.8.4 a CLI login lapses after `CLI_LOGIN_IDLE_TIMEOUT_DAYS`
- * days unused (upstream's default 7), and `/admin/api` answers unless
- * `ADMIN_API_ENABLED` is off (upstream's default on). Dropped or taken from a
- * `.env`, either is upstream's default again, and nothing would say so.
- */
-export const WEBAPP_CHOSEN: Readonly<Record<string, string>> = Object.freeze({
-  CLI_LOGIN_IDLE_TIMEOUT_DAYS: '90',
-  ADMIN_API_ENABLED: 'false',
-});
-
-/** The owner's two webapp keys, each written in the file at its chosen value. */
-export function chosenProblems(env: Record<string, string>): string[] {
-  return Object.entries(WEBAPP_CHOSEN).flatMap(([key, want]) =>
-    exactly(env, key, want).map((p) => `${p}: the owner chose ${key}: "${want}" on 2026-11-13`),
-  );
-}
-
-/** Trigger.dev's webapp: both halves of its PostHog and Prisma's checkpoint off, and no key nobody has read. */
-export function webappProblems(env: Record<string, string>): string[] {
-  const problems: string[] = [];
-  const disabled = env['TRIGGER_TELEMETRY_DISABLED'];
-  if (disabled === undefined) problems.push('TRIGGER_TELEMETRY_DISABLED is not set, so the server sends PostHog events');
-  else if (!literal(disabled) || disabled === '') {
-    problems.push(`TRIGGER_TELEMETRY_DISABLED is "${disabled}"; upstream's docs ask for a value that is not empty, written in the file ("1")`);
-  }
-  const key = env['POSTHOG_PROJECT_KEY'];
-  if (key === undefined) problems.push("POSTHOG_PROJECT_KEY is not set, so the dashboard loads PostHog in the browser with Trigger.dev's own key");
-  else if (!literal(key)) {
-    problems.push(`POSTHOG_PROJECT_KEY is ${key}, from the shell or the .env, and unset there it is Trigger.dev's own key; write POSTHOG_PROJECT_KEY: ""`);
-  } else if (key !== '') problems.push(`POSTHOG_PROJECT_KEY is "${key}"; only the empty string stops the dashboard loading PostHog`);
-  for (const p of exactly(env, 'CHECKPOINT_DISABLE', '1')) {
-    problems.push(`${p}: the entrypoint's prisma migrate deploy sends a checkpoint to checkpoint.prisma.io at every start`);
-  }
-  for (const k of Object.keys(env)) {
-    if (WEBAPP_THIRD_PARTIES.includes(k)) problems.push(`${k} is set, which switches a third party on`);
-    else if (!(k in WEBAPP_KEYS)) {
-      problems.push(`${k} is set and is not in WEBAPP_KEYS: read what it does at the pinned version, and add it with the reason it reaches no third party`);
-    }
-  }
-  return problems;
-}
-
 /** Zitadel: the daily service ping and the milestone push, both off. */
 export function zitadelProblems(env: Record<string, string>): string[] {
   const problems = [
@@ -545,108 +292,11 @@ export function zitadelProblems(env: Record<string, string>): string[] {
   return problems;
 }
 
-/** The crash-report block of one ClickHouse XML config file, comments removed, or undefined. */
-export function crashReportBlock(xml: string): string | undefined {
-  const bare = xml.replace(/<!--[\s\S]*?-->/g, '');
-  return /<send_crash_reports(?:\s[^>]*)?>([\s\S]*?)<\/send_crash_reports>/.exec(bare)?.[1];
-}
-
-interface ConfigFile {
-  readonly path: string;
-  readonly text: string;
-}
-const isYaml = (path: string): boolean => /\.ya?ml$/i.test(path);
-/** Whether a file ClickHouse merges says anything about crash reports. */
-const speaks = (f: ConfigFile): boolean =>
-  isYaml(f.path) ? /\bsend_crash_reports\b/.test(f.text.replace(/#.*$/gm, '')) : crashReportBlock(f.text) !== undefined;
-
-/** ClickHouse: exactly one file it merges speaks of crash reports, in XML, and turns both off. */
-export function clickhouseProblems(files: ReadonlyArray<ConfigFile>): string[] {
-  const speaking = files.filter(speaks);
-  if (speaking.length === 0) {
-    return ["no file ClickHouse merges from config.d or conf.d sets send_crash_reports, so the shipped config.xml's `true` applies"];
-  }
-  if (speaking.length > 1) {
-    return [`${speaking.map((f) => f.path).join(' and ')} each set send_crash_reports; one file says it, so the order of config.d cannot decide it`];
-  }
-  const only = speaking[0]!;
-  if (isYaml(only.path)) return [`${only.path} sets send_crash_reports in YAML; say it in XML, as clickhouse-no-crash-reports.xml does, where this check reads the values`];
-  const block = crashReportBlock(only.text)!;
-  const problems: string[] = [];
-  for (const tag of ['enabled', 'send_logical_errors']) {
-    const value = new RegExp(`<${tag}>\\s*([^<]*?)\\s*</${tag}>`).exec(block)?.[1];
-    if (value !== 'false') {
-      problems.push(`${only.path}: send_crash_reports.${tag} is ${value === undefined ? 'not set, so the shipped true applies' : `"${value}"`}; it must be false`);
-    }
-  }
-  return problems;
-}
-
-/** The directories ClickHouse merges over `config.xml` (`getConfigMergeFiles`), and the files it takes from them. */
-const CLICKHOUSE_MERGE_DIRS = Object.freeze(['/etc/clickhouse-server/config.d', '/etc/clickhouse-server/conf.d']);
-const mergedName = (name: string): boolean => /\.(xml|conf|ya?ml)$/i.test(name) && !name.startsWith('.');
-
-/**
- * Every file ClickHouse merges from a mount of this service, read from beside
- * the compose file, and a problem for each mount into a merge directory whose
- * files this cannot read.
- */
-export function clickhouseMerged(svc: Service, composeFile: string, root = REPO_ROOT): { files: ConfigFile[]; problems: string[] } {
-  const files: ConfigFile[] = [];
-  const problems: string[] = [];
-  for (const m of mountsOf(svc)) {
-    const target = m.target.replace(/\/+$/, '');
-    if (CLICKHOUSE_MERGE_DIRS.some((d) => d.startsWith(`${target}/`))) {
-      problems.push(`${m.source} is mounted over ${target}, which holds config.d; this check reads the files mounted into it, not that`);
-      continue;
-    }
-    const dir = CLICKHOUSE_MERGE_DIRS.find((d) => target === d || target.startsWith(`${d}/`));
-    if (dir === undefined) continue;
-    const whole = target === dir;
-    const name = target.slice(dir.length + 1);
-    // A subdirectory, or a name ClickHouse skips: nothing it merges.
-    if (!whole && (name.includes('/') || !mergedName(name))) continue;
-    if (!/^\.\.?\//.test(m.source) || m.source.includes('$')) {
-      problems.push(`${m.source}:${m.target} is not a path beside the compose file, so this cannot read what ClickHouse merges from it`);
-      continue;
-    }
-    const path = normalize(join(dirname(composeFile), m.source));
-    const abs = join(root, path);
-    if (!existsSync(abs)) {
-      problems.push(`${path} is mounted into ${dir} and is not there`);
-      continue;
-    }
-    if (statSync(abs).isDirectory()) {
-      if (!whole) continue; // a directory at a file's name: ClickHouse merges regular files only
-      for (const f of readdirSync(abs).sort()) {
-        if (mergedName(f) && statSync(join(abs, f)).isFile()) files.push({ path: `${path}/${f}`, text: readFileSync(join(abs, f), 'utf8') });
-      }
-    } else if (whole) problems.push(`${path} is a file mounted over ${dir}, a directory`);
-    else files.push({ path, text: readFileSync(abs, 'utf8') });
-  }
-  return { files, problems };
-}
-
-/** Caddy: every site issues its own certificate, so no certificate authority is asked. */
-export function caddyProblems(caddyfile: string): string[] {
-  const bare = caddyfile.replace(/#.*$/gm, '');
-  const problems: string[] = [];
-  // A site is a line that starts at the margin and ends in its block's `{`; the
-  // global options block is a `{` alone, and a nested block is indented.
-  const sites = [...bare.matchAll(/^(\S[^\n]*?)[ \t]+\{[ \t]*$/gm)].map((m) => m[1]!);
-  if (sites.length === 0) problems.push('the Caddyfile has no site block to read');
-  if ((bare.match(/^\s*tls\s+internal\s*$/gm) ?? []).length < sites.length) {
-    problems.push(`${sites.length} site(s) and fewer \`tls internal\` lines: a site without it asks a public certificate authority, in the US, for a certificate`);
-  }
-  if (/\b(acme_ca|acme_dns|email)\b/.test(bare)) problems.push('the Caddyfile configures ACME, which asks a certificate authority');
-  return problems;
-}
-
 interface Row {
   /**
    * Exactly the `image:` the file writes, as the default was read at; `build`
    * for our own; or, with `line`, the repository and major line it was read
-   * for (`caddy:2`).
+   * for (`nextcloud:35`).
    */
   readonly readAt: string;
   /**
@@ -661,40 +311,7 @@ interface Row {
   readonly holds?: (svc: Service, entry: Entry) => string[];
 }
 
-/**
- * The webapp's version its defaults were read at. trigger-api runs a build
- * here since 0146 T16 (deploy/compose/trigger.dev/Dockerfile, upstream's image
- * with files deleted that never run), so the row reads `build`, and this is
- * held to the Dockerfile's FROM, without its digest: a version move is still
- * a re-read.
- */
-const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.8';
 const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.4';
-const CLICKHOUSE =
-  'clickhouse/clickhouse-server:26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648';
-/**
- * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
- * 2026-11-17 at 04:03 UTC, taken that day for alpha.11, inside its three-day
- * floor on the owner's waiver (0119 Status, 2026-11-17). The server is the
- * fork's `RELEASE.2026-11-16T00-11-40Z` at ee9fee07, Wolfi's
- * 0.20261116.001140-r0, built with Go 1.27.4: the code of the digest before
- * it, `634c989a…` (the fork's `RELEASE.2026-11-12T01-15-23Z` at a60e2a7b,
- * taken 2026-11-14), with its release name, commit and build time swapped,
- * each binary equal to that one's but for those and its two build ids, and
- * `go version -m` the same but for the main module. Its mc is
- * `RELEASE.2025-08-13T08-35-41Z`, Wolfi's -r29, the same file as that
- * digest's. Between 76c06ff1, the release of `869ca317…` (taken
- * 2026-11-10), and a60e2a7b the fork changed go.mod, go.sum, CI scripts and a
- * workflow, the Makefile's tidy check, two debugging tools and one test file,
- * so its cmd/ and internal/ are still those of `RELEASE.2026-09-22T19-25-18Z`,
- * read at that tag of `chainguard-forks/minio`. The four files read there
- * (`cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go` and
- * `internal/config/callhome/callhome.go`) are the same git blobs at
- * a60e2a7b's tag, and ee9fee07 builds to the same code, so the code read here
- * did not change.
- */
-const MINIO =
-  'chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879';
 const MAILPIT =
   'axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e';
 /**
@@ -739,69 +356,15 @@ function builtFrom(svc: Service, entry: Entry): { from?: string; problems: strin
 }
 
 export const SWITCHED: Readonly<Record<string, Row>> = {
-  'deploy/compose/managed.yml:trigger-api': {
-    readAt: 'build',
-    why:
-      "PostHog from the server at every sign-in (id, email, name) and on user, organisation and project creation, PostHog in " +
-      "the dashboard's browser with the signed-in user's id and email, and Prisma's checkpoint to checkpoint.prisma.io at every " +
-      'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2, v4.7.6, v4.8.1, v4.8.3, v4.8.5 and v4.8.8; ' +
-      'prisma 6.14.0 CLI.ts and utils/checkpoint.ts); built here from that image, with files deleted and nothing added that runs',
-    holds: (svc, entry) => {
-      const { from, problems } = builtFrom(svc, entry);
-      if (from !== undefined && from !== TRIGGER_WEBAPP) {
-        problems.push(`built FROM ${from}, and its defaults were read at ${TRIGGER_WEBAPP}: re-read what the new version sends by default, then move TRIGGER_WEBAPP`);
-      }
-      return [...problems, ...webappProblems(environmentOf(svc)), ...chosenProblems(environmentOf(svc))];
-    },
-  },
   'deploy/compose/managed.yml:zitadel': {
     readAt: ZITADEL,
     why: 'a daily service ping with instance domains and resource counts, to zitadel.com (cmd/defaults.yaml at v4.19.2, unchanged at v4.19.4, its ServicePing and Telemetry unchanged at v4.19.5, v4.20.0, v4.20.1, v4.20.2, v4.20.3 and v4.20.4)',
     holds: (svc) => zitadelProblems(environmentOf(svc)),
   },
-  'deploy/compose/managed.yml:clickhouse': {
-    readAt: CLICKHOUSE,
-    why:
-      'crash and logical-error reports to crash.clickhouse.com (programs/server/config.xml at v26.2.19.43-stable, ' +
-      "the image's own for 26.8.36.3, byte for byte v26.8.34.13-lts's, and for 26.8.37.168, byte for byte v26.8.37.168-lts's); " +
-      'since 2026-11-01 also on an internal network only, with no route out (a-store-every-container-could-reach)',
-    holds: (svc, entry) => {
-      const { files, problems } = clickhouseMerged(svc, entry.file);
-      return [...problems, ...clickhouseProblems(files)];
-    },
-  },
-  'deploy/compose/managed.yml:minio': {
-    readAt: MINIO,
-    why:
-      'a release check to dl.min.io at every start, its User-Agent carrying OS, architecture, version and CPU ' +
-      "(cmd/server-main.go, cmd/update.go, cmd/common-main.go at chainguard-forks/minio's RELEASE.2026-09-22T19-25-18Z, " +
-      'the same files at RELEASE.2026-10-23T20-06-51Z and RELEASE.2026-11-12T01-15-23Z; ' +
-      'first read at RELEASE.2025-05-24T17-08-30Z, the Bitnami image this replaced)',
-    holds: (svc) => {
-      const env = environmentOf(svc);
-      return [...exactly(env, 'MINIO_UPDATE', 'off'), ...exactly(env, 'MINIO_CALLHOME_ENABLE', 'off')];
-    },
-  },
   'deploy/compose/managed.yml:mailpit': {
     readAt: MAILPIT,
     why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6, unchanged at v1.32.0, v1.33.0 and v1.33.1; at v1.34.0 the lookup changed, and the switch still stops it first)",
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
-  },
-  'deploy/compose/managed.yml:trigger-tls': {
-    readAt: 'build',
-    why:
-      'Caddy 2 has no telemetry (its repository names it only for the opt-in `tracing` directive), and its one ' +
-      'default that leaves the machine is automatic HTTPS, which asks a public certificate authority; `tls internal` ' +
-      'in the mounted Caddyfile is the switch. Built here since 2026-10-31 from the official caddy image, with curl ' +
-      'removed and nothing added, so the fact is read for the FROM\'s major line, `caddy:2`',
-    holds: (svc, entry) => {
-      const { from, problems } = builtFrom(svc, entry);
-      if (problems.length) return problems;
-      if (from === undefined || lineOf(from) !== 'caddy:2') return [`built FROM ${String(from)}, and the fact was read for caddy:2: read what it sends by default`];
-      const file = mountsOf(svc).find((m) => m.target === '/etc/caddy/Caddyfile');
-      if (!file) return ['no Caddyfile is mounted at /etc/caddy/Caddyfile, so the image default runs'];
-      return caddyProblems(read(`${dirname(entry.file)}/${file.source.replace(/^\.\//, '')}`));
-    },
   },
 };
 
@@ -828,7 +391,6 @@ const BUILT_POSTGRES: Row = {
 /** Repositories, not tags: a new version of the same software keeps the reason; other software does not. */
 export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:postgres': BUILT_POSTGRES,
-  'deploy/compose/managed.yml:trigger-db': BUILT_POSTGRES,
   'deploy/compose/managed.yml:pgbouncer': {
     readAt: 'build',
     why: `${NONE('PgBouncer')}; built here since 2026-11-13 from edoburu's image, with five Alpine packages moved to the versions that carry their fixes and nothing added that runs`,
@@ -838,88 +400,13 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
       return problems;
     },
   },
-  'deploy/compose/managed.yml:trigger-redis': {
-    readAt: 'build',
-    why: `${NONE('Redis')}; built here since 2026-11-07 from the official redis image, with eleven Debian packages purged (thirteen since 2026-11-08) and nothing added that runs`,
-    holds: (svc, entry) => {
-      const { from, problems } = builtFrom(svc, entry);
-      if (from !== undefined && repositoryOf(from) !== 'redis') problems.push(`built FROM ${from}, not the official redis image: read what it sends by default`);
-      return problems;
-    },
-  },
-  'deploy/compose/managed.yml:trigger-registry': {
-    readAt: 'registry',
-    why:
-      "distribution v3.1.2 builds OpenTelemetry's exporter from OTEL_* variables (tracing/tracing.go); with none set " +
-      'its default is OTLP to localhost inside its own container, so nothing leaves',
-    holds: (svc) => Object.keys(environmentOf(svc)).filter((k) => k.startsWith('OTEL_')).map((k) => `${k} is set, which could send its traces somewhere`),
-  },
-  'deploy/compose/managed.yml:trigger-docker-proxy': {
-    readAt: 'build',
-    why:
-      'HAProxy in front of the Docker socket: it answers the supervisor and calls nothing; built here since 2026-10-30 from ' +
-      "tecnativa/docker-socket-proxy's Dockerfile, haproxy.cfg and entrypoint at its release (v0.6.0 since 2026-11-20, where " +
-      'the configuration is haproxy.cfg.template under system_files/, the same file) on a current official haproxy image, ' +
-      "and every server its haproxy.cfg names is the socket (SOCKET_PATH), with no resolver, mailer, peer or log host; " +
-      'since 2026-11-02 on an internal network with the supervisor alone (a-network-the-tenant-cannot-see)',
-    holds: (svc, entry) => {
-      const { from, problems } = builtFrom(svc, entry);
-      if (from !== undefined && repositoryOf(from) !== 'haproxy') problems.push(`built FROM ${from}, not the official haproxy image: read what it sends by default`);
-      const build = svc.build as string | { context?: string } | undefined;
-      const context = typeof build === 'string' ? build : build?.context;
-      if (!context) return problems;
-      const cfg = read(`${dirname(entry.file)}/${context.replace(/^\.\//, '')}/system_files/usr/local/etc/haproxy/haproxy.cfg.template`);
-      const servers = [...cfg.matchAll(/^\s*server\s+\S+\s+(\S+)/gm)].map((m) => m[1]);
-      if (servers.length === 0 || servers.some((s) => s !== '$SOCKET_PATH')) {
-        problems.push(`haproxy.cfg's servers are ${JSON.stringify(servers)}, not the Docker socket alone: read where it now connects`);
-      }
-      for (const section of ['resolvers', 'mailers', 'peers', 'http-errors', 'ring']) {
-        if (new RegExp(`^${section}\\s`, 'm').test(cfg)) problems.push(`haproxy.cfg has a \`${section}\` section, which can reach another host`);
-      }
-      if (!/^\s*log stdout\b/m.test(cfg) || /^\s*log\s+(?!stdout\b|global\b)/m.test(cfg)) problems.push('haproxy.cfg logs somewhere other than stdout');
-      return problems;
-    },
-  },
-  'deploy/compose/managed.yml:trigger-supervisor': {
-    readAt: 'build',
-    why:
-      "its settings at v4.7.2, v4.7.6, v4.8.1, v4.8.3, v4.8.5 and v4.8.8 (apps/supervisor/src/env.ts; the entrypoint.sh it has since v4.7.7 only preloads " +
-      "the local distrust-cas.cjs) have no analytics or error report; it sends its traces to the webapp's " +
-      'own /otel and serves its metrics on its own loopback; built here from ghcr.io/triggerdotdev/supervisor with a copy of pnpm deleted (0146 T16)',
-    holds: (svc, entry) => {
-      const { from, problems } = builtFrom(svc, entry);
-      if (from !== undefined && repositoryOf(from) !== 'ghcr.io/triggerdotdev/supervisor') {
-        problems.push(`built FROM ${from}, not Trigger.dev's supervisor: read what it sends by default`);
-      }
-      const otel = environmentOf(svc)['OTEL_EXPORTER_OTLP_ENDPOINT'];
-      if (otel === undefined || !/^http:\/\/trigger-api:\d+\/otel$/.test(otel)) {
-        problems.push(`OTEL_EXPORTER_OTLP_ENDPOINT is ${otel ?? 'not set'}; it must be the webapp's own http://trigger-api:<port>/otel`);
-      }
-      return problems;
-    },
-  },
   'deploy/compose/managed.yml:zitadel-machinekey': { readAt: 'busybox', why: 'a one-shot chown of a volume, with no network use' },
-  'deploy/compose/managed.yml:trigger-tls-init': {
-    readAt: 'build',
-    why: "a one-shot chown of trigger-tls's two volumes, in the front's own build, with no network: Caddy never starts in it (2026-11-19)",
-    holds: (svc) => (svc.network_mode === 'none' ? [] : [`its network_mode is ${String(svc.network_mode)}, not none: read what it can reach before it stays here`]),
-  },
-  'deploy/compose/managed.yml:minio-init': {
-    readAt: 'chainguard/minio',
-    why:
-      "a one-shot `mc mb` against the stack's own minio; mc's release check to dl.min.io runs only when mc is given no " +
-      "command (app.Action in cmd/main.go at mc's RELEASE.2025-08-13T08-35-41Z), and the server never starts here",
-    holds: (svc) => {
-      const run = [svc.entrypoint, svc.command].flat().filter((p) => p !== undefined).join(' ');
-      return /\bmc\b.*\bmb\b/.test(run) ? [] : [`it runs "${run}", not mc mb: read what that sends before it stays here`];
-    },
-  },
   'deploy/compose/managed.yml:api': { readAt: 'build', why: "Ownpace's own API: what it sends, and to whom, is privacy §7's list" },
   'deploy/compose/managed.yml:worker': {
     readAt: 'build',
     why:
-      "Ownpace's own job worker (workplan 0167 T7), the jobs Trigger.dev's task runs run today, on the API's images: what " +
-      "they send, and to whom, is privacy §7's list, as the API's is",
+      "Ownpace's own job worker (workplan 0167 T7; the only runner since alpha.18, T9), on the API's images: what " +
+      "its jobs send, and to whom, is privacy §7's list, as the API's is",
   },
   'deploy/compose/managed.yml:web': { readAt: 'build', why: "Ownpace's own web app, served by nginx: no third-party script, font or tracker" },
   'deploy/compose/managed.yml:gatus': {
@@ -991,17 +478,7 @@ export const LEFT_ON: Readonly<Record<string, Row>> = {
 };
 
 /** Every key any switch reads, so an overlay cannot set one back. */
-const SWITCH_KEYS = [
-  'TRIGGER_TELEMETRY_DISABLED',
-  'POSTHOG_PROJECT_KEY',
-  'CHECKPOINT_DISABLE',
-  ...WEBAPP_THIRD_PARTIES,
-  'ZITADEL_SERVICEPING_ENABLED',
-  'ZITADEL_TELEMETRY_ENABLED',
-  'MINIO_UPDATE',
-  'MINIO_CALLHOME_ENABLE',
-  'MP_DISABLE_VERSION_CHECK',
-];
+const SWITCH_KEYS = ['ZITADEL_SERVICEPING_ENABLED', 'ZITADEL_TELEMETRY_ENABLED', 'MP_DISABLE_VERSION_CHECK'];
 
 /** The image as the rows compare it: the full reference, its repository, or `build`. */
 function imageOf(svc: Service): string {
@@ -1015,7 +492,7 @@ function repositoryOf(image: string): string {
   const colon = noDigest.indexOf(':', slash + 1);
   return colon === -1 ? noDigest : noDigest.slice(0, colon);
 }
-/** `caddy:2` for `caddy:2.11.7-alpine@sha256:…`: the repository and its tag's first number. */
+/** `nextcloud:35` for `nextcloud:35.0.2-apache@sha256:…`: the repository and its tag's first number. */
 function lineOf(image: string): string {
   const repository = repositoryOf(image);
   const major = /^:v?(\d+)/.exec(image.slice(repository.length))?.[1];
@@ -1043,7 +520,9 @@ describe('the reading is not vacuous', () => {
       ]),
     );
     expect(files.length).toBeGreaterThanOrEqual(7);
-    expect(running.length).toBeGreaterThanOrEqual(23);
+    // Fifteen since alpha.18 removed Trigger.dev's eleven (workplan 0167 T9).
+    expect(running.length).toBeGreaterThanOrEqual(15);
+    expect(running.filter((e) => /:(trigger-|minio|clickhouse)/.test(e.key))).toEqual([]);
     expect(overlays.length).toBeGreaterThanOrEqual(3);
   });
 
@@ -1171,73 +650,39 @@ describe('what runs outside every compose file is named, at the version it was r
 });
 
 describe('the checks refuse what a regression would write', () => {
-  const OFF = { TRIGGER_TELEMETRY_DISABLED: '1', POSTHOG_PROJECT_KEY: '', CHECKPOINT_DISABLE: '1' };
-
-  it('the webapp: no switch, an empty or .env switch, a key, a third party, a key nobody read', () => {
-    expect(webappProblems(OFF)).toEqual([]);
-    expect(webappProblems({ POSTHOG_PROJECT_KEY: '', CHECKPOINT_DISABLE: '1' })).toHaveLength(1);
-    expect(webappProblems({ ...OFF, TRIGGER_TELEMETRY_DISABLED: '' })).toHaveLength(1);
-    expect(webappProblems({ ...OFF, TRIGGER_TELEMETRY_DISABLED: '${OFF:-1}' })).toHaveLength(1);
-    expect(webappProblems({ TRIGGER_TELEMETRY_DISABLED: '1', CHECKPOINT_DISABLE: '1' })).toHaveLength(1);
-    expect(webappProblems({ ...OFF, POSTHOG_PROJECT_KEY: 'phc_x' })).toHaveLength(1);
-    expect(webappProblems({ ...OFF, SENTRY_DSN: '' })).toHaveLength(1);
-    expect(webappProblems({ ...OFF, DEPOT_TOKEN: 'x', ALERT_RESEND_API_KEY: 'x' })).toHaveLength(2);
-    expect(webappProblems({ ...OFF, A_KEY_NOBODY_READ: 'x' })).toHaveLength(1);
-  });
-
-  it("the webapp: the owner's two keys dropped, changed, or taken from the .env", () => {
-    const CHOSEN = { CLI_LOGIN_IDLE_TIMEOUT_DAYS: '90', ADMIN_API_ENABLED: 'false' };
-    expect(chosenProblems(CHOSEN)).toEqual([]);
-    expect(chosenProblems({})).toHaveLength(2);
-    expect(chosenProblems({ CLI_LOGIN_IDLE_TIMEOUT_DAYS: '90' })).toHaveLength(1);
-    expect(chosenProblems({ ADMIN_API_ENABLED: 'false' })).toHaveLength(1);
-    expect(chosenProblems({ ...CHOSEN, ADMIN_API_ENABLED: 'true' })).toHaveLength(1);
-    expect(chosenProblems({ ...CHOSEN, CLI_LOGIN_IDLE_TIMEOUT_DAYS: '7' })).toHaveLength(1);
-    expect(chosenProblems({ ...CHOSEN, ADMIN_API_ENABLED: '${ADMIN_API_ENABLED:-false}' })).toHaveLength(1);
-    // Each key also has its reason, so the webapp's own check passes it.
-    expect(Object.keys(WEBAPP_CHOSEN).filter((k) => !(k in WEBAPP_KEYS))).toEqual([]);
-  });
-
-  it("the webapp: Prisma's checkpoint left on, emptied, or taken from the .env", () => {
-    expect(webappProblems({ TRIGGER_TELEMETRY_DISABLED: '1', POSTHOG_PROJECT_KEY: '' })).toHaveLength(1);
-    expect(webappProblems({ ...OFF, CHECKPOINT_DISABLE: '' })).toHaveLength(1);
-    expect(webappProblems({ ...OFF, CHECKPOINT_DISABLE: '${CHECKPOINT_DISABLE:-1}' })).toHaveLength(1);
-  });
-
   it('a key written with no value is passed through from the shell or .env, in both shapes', () => {
-    expect(webappProblems(environmentOf({ environment: { ...OFF, POSTHOG_PROJECT_KEY: null } }))).toHaveLength(1);
-    expect(webappProblems(environmentOf({ environment: { ...OFF, CHECKPOINT_DISABLE: null } }))).toHaveLength(1);
-    expect(environmentOf({ environment: { MINIO_UPDATE: 'off', MINIO_CALLHOME_ENABLE: null } })).toEqual({
-      MINIO_UPDATE: 'off',
-      MINIO_CALLHOME_ENABLE: '${MINIO_CALLHOME_ENABLE}',
+    const off = { ZITADEL_SERVICEPING_ENABLED: 'false', ZITADEL_TELEMETRY_ENABLED: 'false' };
+    expect(zitadelProblems(environmentOf({ environment: { ...off, ZITADEL_SERVICEPING_ENABLED: null } }))).toHaveLength(1);
+    expect(environmentOf({ environment: { MP_DISABLE_VERSION_CHECK: 'true', MP_UI_AUTH: null } })).toEqual({
+      MP_DISABLE_VERSION_CHECK: 'true',
+      MP_UI_AUTH: '${MP_UI_AUTH}',
     });
-    expect(environmentOf({ environment: ['MINIO_UPDATE=off', 'MINIO_CALLHOME_ENABLE'] })).toEqual({
-      MINIO_UPDATE: 'off',
-      MINIO_CALLHOME_ENABLE: '${MINIO_CALLHOME_ENABLE}',
+    expect(environmentOf({ environment: ['MP_DISABLE_VERSION_CHECK=true', 'MP_UI_AUTH'] })).toEqual({
+      MP_DISABLE_VERSION_CHECK: 'true',
+      MP_UI_AUTH: '${MP_UI_AUTH}',
     });
-    expect(exactly(environmentOf({ environment: ['MINIO_UPDATE'] }), 'MINIO_UPDATE', 'off')).toHaveLength(1);
-    expect(environmentOf({ environment: { POSTHOG_PROJECT_KEY: '' } })).toEqual({ POSTHOG_PROJECT_KEY: '' });
+    expect(exactly(environmentOf({ environment: ['MP_DISABLE_VERSION_CHECK'] }), 'MP_DISABLE_VERSION_CHECK', 'true')).toHaveLength(1);
+    expect(environmentOf({ environment: { ZITADEL_TELEMETRY_ENABLED: '' } })).toEqual({ ZITADEL_TELEMETRY_ENABLED: '' });
   });
 
   it('a key merged in from an anchor is read, as Compose reads it', () => {
     const doc = readCompose(
       [
         'x-extra: &extra',
-        '  SENTRY_DSN: https://key@sentry.example.invalid/1',
+        '  ZITADEL_SERVICEPING_ENDPOINT: https://ping.example.invalid',
         'services:',
-        '  trigger-api:',
+        '  zitadel:',
         '    image: x',
         '    environment:',
         '      <<: *extra',
-        '      TRIGGER_TELEMETRY_DISABLED: "1"',
-        '      POSTHOG_PROJECT_KEY: ""',
-        '      CHECKPOINT_DISABLE: "1"',
+        '      ZITADEL_SERVICEPING_ENABLED: "false"',
+        '      ZITADEL_TELEMETRY_ENABLED: "false"',
         '',
       ].join('\n'),
     )!;
-    const env = environmentOf(doc.services!['trigger-api']!);
-    expect(Object.keys(env)).toContain('SENTRY_DSN');
-    expect(webappProblems(env)).toHaveLength(1);
+    const env = environmentOf(doc.services!['zitadel']!);
+    expect(Object.keys(env)).toContain('ZITADEL_SERVICEPING_ENDPOINT');
+    expect(zitadelProblems(env)).toHaveLength(1);
   });
 
   it('Zitadel: a ping left on, left out, or given an endpoint', () => {
@@ -1247,60 +692,6 @@ describe('the checks refuse what a regression would write', () => {
     expect(zitadelProblems({ ZITADEL_TELEMETRY_ENABLED: 'false' })).toHaveLength(1);
     expect(zitadelProblems({ ...off, ZITADEL_SERVICEPING_ENABLED: '${PING:-false}' })).toHaveLength(1);
     expect(zitadelProblems({ ...off, ZITADEL_SERVICEPING_ENDPOINT: 'https://example.invalid' })).toHaveLength(1);
-  });
-
-  it('ClickHouse: no file, a commented-out file, a true, two files that disagree, a YAML file', () => {
-    const off = '<clickhouse><send_crash_reports><enabled>false</enabled><send_logical_errors>false</send_logical_errors></send_crash_reports></clickhouse>';
-    expect(clickhouseProblems([{ path: 'a.xml', text: off }])).toEqual([]);
-    expect(clickhouseProblems([])).toHaveLength(1);
-    expect(clickhouseProblems([{ path: 'a.xml', text: `<!-- ${off} -->` }])).toHaveLength(1);
-    expect(clickhouseProblems([{ path: 'a.xml', text: off.replace('<enabled>false', '<enabled>true') }])).toHaveLength(1);
-    expect(clickhouseProblems([{ path: 'a.xml', text: off.replace(/<send_logical_errors>.*<\/send_logical_errors>/, '') }])).toHaveLength(1);
-    expect(clickhouseProblems([{ path: 'a.xml', text: off }, { path: 'b.xml', text: off }])).toHaveLength(1);
-    expect(clickhouseProblems([{ path: 'a.xml', text: off }, { path: 'z.yaml', text: 'send_crash_reports:\n  enabled: true\n' }])).toHaveLength(1);
-    expect(clickhouseProblems([{ path: 'a.xml', text: off }, { path: 'z.yml', text: '# send_crash_reports: nothing\n' }])).toEqual([]);
-    expect(clickhouseProblems([{ path: 'z.yaml', text: 'send_crash_reports:\n  enabled: false\n' }])).toHaveLength(1);
-  });
-
-  it('ClickHouse: every mount into config.d or conf.d is read, from wherever beside the compose file', () => {
-    const root = mkdtempSync(join(tmpdir(), 'phones-home-'));
-    mkdirSync(join(root, 'deploy/compose/extra'), { recursive: true });
-    const on = '<clickhouse><send_crash_reports><enabled>true</enabled></send_crash_reports></clickhouse>';
-    writeFileSync(join(root, 'deploy/compose/off.xml'), '<clickhouse><send_crash_reports><enabled>false</enabled><send_logical_errors>false</send_logical_errors></send_crash_reports></clickhouse>');
-    writeFileSync(join(root, 'deploy/compose/zz.xml'), on);
-    writeFileSync(join(root, 'deploy/compose/zz.yaml'), 'send_crash_reports:\n  enabled: true\n');
-    writeFileSync(join(root, 'deploy/compose/extra/zz.conf'), on);
-    writeFileSync(join(root, 'deploy/compose/extra/notes.txt'), on);
-    const merged = (volumes: string[]): string[] => {
-      const { files: found, problems } = clickhouseMerged({ volumes }, 'deploy/compose/managed.yml', root);
-      return [...problems, ...clickhouseProblems(found)];
-    };
-    const base = './off.xml:/etc/clickhouse-server/config.d/off.xml:ro';
-    expect(merged([base])).toEqual([]);
-    expect(merged([base, '../compose/zz.xml:/etc/clickhouse-server/config.d/zz.xml:ro'])).toHaveLength(1);
-    expect(merged([base, './zz.yaml:/etc/clickhouse-server/config.d/zz.yaml:ro'])).toHaveLength(1);
-    expect(merged([base, './zz.xml:/etc/clickhouse-server/conf.d/zz.xml:ro'])).toHaveLength(1);
-    expect(merged([base, './extra:/etc/clickhouse-server/config.d'])).toHaveLength(1);
-    expect(merged([base, 'chconf:/etc/clickhouse-server/config.d/zz.xml'])).toHaveLength(1);
-    expect(merged([base, '${CH_EXTRA:-./zz.xml}:/etc/clickhouse-server/config.d/zz.xml'])).toHaveLength(1);
-    expect(merged([base, './missing.xml:/etc/clickhouse-server/config.d/missing.xml'])).toHaveLength(1);
-    expect(merged([base, './extra:/etc/clickhouse-server'])).toHaveLength(1);
-    // What ClickHouse does not merge says nothing: another extension, a dot file, another directory.
-    expect(merged([base, './zz.xml:/etc/clickhouse-server/config.d/zz.xml.off:ro'])).toEqual([]);
-    expect(merged([base, './zz.xml:/etc/clickhouse-server/config.d/.zz.xml:ro'])).toEqual([]);
-    expect(merged([base, './zz.xml:/etc/clickhouse-server/users.d/zz.xml:ro'])).toEqual([]);
-    // The switch mounted where ClickHouse does not read it is no switch.
-    expect(merged(['./off.xml:/etc/clickhouse-server/config.d/off.xml.bak:ro'])).toHaveLength(1);
-    rmSync(root, { recursive: true, force: true });
-  });
-
-  it('Caddy: a site without `tls internal`, and ACME', () => {
-    const good = '{\n\tdefault_sni {$H}\n}\n\n{$H}:3443 {\n\ttls internal\n\treverse_proxy x:3000\n}\n';
-    expect(caddyProblems(good)).toEqual([]);
-    expect(caddyProblems(good.replace('\ttls internal\n', ''))).toHaveLength(1);
-    expect(caddyProblems(good.replace('\ttls internal\n', '\t# tls internal\n'))).toHaveLength(1);
-    expect(caddyProblems(`${good}\nsecond.example:443 {\n\treverse_proxy y:80\n}\n`)).toHaveLength(1);
-    expect(caddyProblems(good.replace('default_sni {$H}', 'email ops@example.invalid'))).toHaveLength(1);
   });
 
   it('Nextcloud left on: in the default bring-up, not only with --with-demo, or a live script that lets the demo start', () => {

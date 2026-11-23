@@ -1,16 +1,13 @@
-# Worker Package — the job worker on pg-boss, the Trigger.dev tasks, and the cutover CLI
+# Worker Package — the job worker on pg-boss, and the cutover CLI
 
 This package **is a running service** in the managed edition: the compose
 service `worker` (`deploy/compose/managed.yml`, built from `Dockerfile` here on
 the API's two images) runs the seventeen jobs in `src/jobs/` on pg-boss, on the
-ledger's own Postgres (ADR-0054, workplan 0167). That is `managed.yml`'s
-default, `OWNPACE_JOB_RUNNER=pg-boss`. The same jobs still deploy as
-**Trigger.dev tasks** for trigger mode, the fallback: `OWNPACE_JOB_RUNNER=trigger`,
-with Trigger.dev's plane, kept installed and stopped in the compose profile
-`trigger`, started again by the bring-up. One execution plane runs the jobs at
-a time: the bring-up in either mode stops the other's first. From workplan 0022
-until the switch there was no worker container, and every job ran in the
-platform's runners.
+ledger's own Postgres (ADR-0054, workplan 0167). From workplan 0022 until
+alpha.16 the same jobs ran as self-hosted Trigger.dev tasks, with no worker
+container; alpha.16 and alpha.17 kept that plane installed and stopped as the
+way back, and alpha.18 removed it, with this package's task definitions,
+`trigger.config.ts` and the tasks' image (workplan 0167 T9).
 
 > Corrected 2026-08-02 (workplan 0021 T4): the previous version named a
 > `src/trigger-client.ts` that lives in `packages/scheduler`, listed four of
@@ -18,53 +15,35 @@ platform's runners.
 > showed the v2 SDK call shape, and documented webhook processing and DNS
 > restore that have never existed here.
 
-## The eight tasks (`src/jobs/`)
+## The jobs (`src/jobs/`), some of them
 
-| Task | Trigger | What it does |
+| Job | Started by | What it does |
 |---|---|---|
-| `managed-sync-tick` | declarative schedule, `* * * * *` | Evaluates every active mapping's own cron against the DB (croner; due = nextRun(last run start) ≤ now; invalid cron → loud log + default `*/15` cadence, never a dead stop) and triggers `run-delta-sync` per due mapping. |
-| `run-delta-sync` | the tick, or API `POST .../sync` (`"delta"` or `"full"`) | A pass over the mapping's **enabled domains only** (the #207 rule). Queue `delta-sync`, concurrency 1 per mapping (`concurrencyKey: mappingId`) — a duplicate run is a wasted idempotent delta, never duplicated data. `forceFullScan` makes it scan from the beginning: `true` for every domain, or a **list** to redo one without re-reading the others. It withholds the cursor STORE, so a full scan neither reads a saved position nor writes one — the saved position survives and the next ordinary pass resumes from it. |
+| `managed-sync-tick` | declarative schedule, `* * * * *` | Evaluates every active mapping's own cron against the DB (croner; due = nextRun(last run start) ≤ now; invalid cron → loud log + default `*/15` cadence, never a dead stop) and enqueues `run-delta-sync` per due mapping. |
+| `run-delta-sync` | the tick, or API `POST .../sync` (`"delta"` or `"full"`) | A pass over the mapping's **enabled domains only** (the #207 rule). Queue `run-delta-sync`, one at a time per mapping (`serializeBy: mappingId`) — a duplicate run is a wasted idempotent delta, never duplicated data. `forceFullScan` makes it scan from the beginning: `true` for every domain, or a **list** to redo one without re-reading the others. It withholds the cursor STORE, so a full scan neither reads a saved position nor writes one — the saved position survives and the next ordinary pass resumes from it. |
 | `run-discovery` | mapping creation / API | Read-only, body-free per-domain counts into `migration_discovery` (the confirm screen's data). |
 | `run-verification` | API `POST .../verify/start` | The §20 gate as a job; drives `verification_run` to a terminal report the API serves at `GET .../verify/report`. |
 | `run-apply-deletion` | API apply → receipt | Re-runs ALL apply gates in the job, performs the one destructive removal, lands the `apply_receipt` terminal state (`applied`/`refused`/`failed`). |
 | `run-cutover` | manual | Cutover **preparation** only: final delta + §20 gate, landing in `READY_FOR_CUTOVER` and stopping there — approving and executing are explicit `--yes` CLI actions it never performs. Converges: a second run on `READY_FOR_CUTOVER` or `FAILED` records the way back to `PREPARING` and prepares again; a cutover under way, a closed ledger or a test migration (workplan 0162 T3, never switched over) is refused with nothing written (not marked `FAILED`, not retried); a gate FAIL is recorded once and not retried. |
 | `run-rollback` | manual | Marks `ROLLED_BACK`, reactivates the mapping. DNS is NOT restored and users are NOT notified — see `docs/rollback-mechanisms.md`. |
 
-Task payloads carry **ids only** — never content, never credentials (SAD §17).
+Job payloads carry **ids only** — never content, never credentials (SAD §17).
 
 ## Configuration
 
-- `trigger.config.ts` (this package) — project ref, dirs, build.
-- Client env (the SDK's own names, read by `packages/scheduler`'s
-  `trigger-client` — one contract shared by the API, the deploy script and
-  the tasks):
-
-```bash
-TRIGGER_API_URL=http://localhost:3090   # deploy CLI / API enqueue path
-TRIGGER_SECRET_KEY=tr_prod_...
-```
-
-- **In-runner gotcha (0022 T3, learned live):** the platform injects the
-  host-perspective `TRIGGER_API_URL` into runners, so an enqueue from inside a
-  runner (the tick's passes, a cutover's final sync) first calls
-  `configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' })`.
-  The purge's `runs.retrieve` and `runs.cancel` are made without it, as they
-  always were.
-- **No task calls the SDK in its run (workplan 0167 T6).** Each task file
+- **No job calls its runner directly (workplan 0167 T6).** Each job file
   exports its run, wrapped in `leavesAReference`, which takes a run context
   (`src/jobs/run-context.ts`): the run's id, its attempt and the runner it is
   on. What a run asks of its runner (enqueue a pass, wait for one, ask after
-  or cancel a run) goes through the context, and the Trigger.dev runner there
-  makes the SDK calls the jobs made, `configure` before each enqueue. The
-  task definitions call the run through `onTriggerDev`, under the same ids,
-  queues and machines. The pg-boss runner's queues for the same jobs are
-  `@openmig/scheduler/pg-boss`'s job catalog, worked by the process below.
-- Task-runtime env (`SYSTEM_DATABASE_URL`, `APP_DATABASE_URL`,
-  `SECRET_ENCRYPTION_KEY`) is uploaded once per environment with
-  `deploy/compose/set-task-env.sh` — runners do not read the compose `.env`.
-  No run holds the database owner's `DATABASE_URL`: the script stopped
-  uploading it and deletes it from the store (workplan 0138 T3 step 2).
-  The per-tenant tasks take their pools from `openTaskPools`
+  or cancel a run) goes through the context. The queues are
+  `@openmig/scheduler/pg-boss`'s job catalog, worked by the process below, and
+  `src/jobs/the-catalog-is-the-jobs.unit.test.ts` holds the catalog and the
+  run entries one for one.
+- The worker's environment (`SYSTEM_DATABASE_URL`, `APP_DATABASE_URL`,
+  `JOBS_DATABASE_URL`, `SECRET_ENCRYPTION_KEY` and the optional values) is
+  `managed.yml`'s `worker.environment`, from the stack's `.env`. No run holds
+  the database owner's `DATABASE_URL` (workplan 0138 T3 step 2).
+  The per-tenant jobs take their pools from `openTaskPools`
   (`src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`, as `app_user`
   under row security, and one connection on `SYSTEM_DATABASE_URL`, the system
   role `ownpace_system`, for the audit export's key alone. A run without
@@ -82,20 +61,20 @@ TRIGGER_SECRET_KEY=tr_prod_...
 
 ## The jobs on pg-boss (`src/runner/`, workplan 0167 T6)
 
-The same seventeen jobs, worked by a process of this package's own instead of
-Trigger.dev's runners (ADR-0054), behind the switch `OWNPACE_JOB_RUNNER`
-(`trigger` or `pg-boss`; unset or empty in code is `trigger`, and
-`managed.yml` gives the api and the worker `pg-boss` by default). **The
-service that runs the jobs**: the bring-up builds its image with the api's and
+The seventeen jobs, worked by a process of this package's own (ADR-0054). The
+switch `OWNPACE_JOB_RUNNER` keeps its reader: unset, empty or `pg-boss` runs,
+and `trigger`, from an old `.env`, is refused in one sentence that says
+Trigger.dev was removed in alpha.18. **The service that runs the jobs**: the bring-up builds its image with the api's and
 the web app's from the release's commit, starts it once the api is healthy,
 and replaces it whenever it replaces the api, so its output goes at each update
 of the service. Its CPUs and memory follow `MAX_PASSES_IN_FLIGHT`
 (`WORKER_CPUS`, `WORKER_MEMORY`; the rule is in `managed.yml`).
 
 - `node apps/worker/src/runner/main.ts`, run by Node directly, as the API runs
-  its entry. It refuses to start, exit 1 and one line on stderr, unless
-  `OWNPACE_JOB_RUNNER=pg-boss` and `JOBS_DATABASE_URL` (the `ownpace_jobs`
-  role, through PgBouncer) are set.
+  its entry. It refuses to start, exit 1 and one line on stderr, when
+  `OWNPACE_JOB_RUNNER` says anything but `pg-boss` (unset or empty is
+  `pg-boss`), or `JOBS_DATABASE_URL` (the `ownpace_jobs` role, through
+  PgBouncer) is not set.
 - `worker.ts`: starts the runner in the schema `pgboss` (made by the bring-up;
   `createSchema: false`, `useListenNotify: false`), refuses a schema at another
   pg-boss version, declares the catalog's queues, works each with its
@@ -107,49 +86,36 @@ of the service. Its CPUs and memory follow `MAX_PASSES_IN_FLIGHT`
   service's grace of 60 s.
 - **One process per run.** Each queue's run is forked from its entry,
   `runs/<queue>.ts`, with a 410 MB heap: the entry imports that job's module,
-  parses the payload with the job's schema (a payload it refuses fails once,
-  as on Trigger.dev), and calls `<job>Run` with a pg-boss context
+  parses the payload with the job's schema (a payload it refuses fails once),
+  and calls `<job>Run` with a pg-boss context
   (`pg-boss-context.ts`). The worker kills a run's process on a cancel, a lost
   claim, or 30 s before its hour, before pg-boss could start another run on
   its key. A run raises its own `oom_score_adj`, so the kernel takes a run
   before the worker.
 - **What a run asks of its runner**: enqueue a pass (`serializeBy` = the
   migration, its tags), wait for one (polling every second), ask after a run
-  by its id (a `run_…` ref, Trigger.dev's, reads `unknown`; a job that is gone
+  by its id (a `run_…` ref, Trigger.dev's from before alpha.16, reads `unknown`; a job that is gone
   reads `finished`, said in a line) and cancel one, all through a producer the
   run opens only when it asks, on `JOBS_DATABASE_URL`, and closes when it ends.
-- **Retries** as Trigger.dev 4.8.8's: three attempts, 5 s doubling to 60 s; a
-  deliberate stop, a refused payload, the time limit, the heap and a SIGKILL
-  or SIGABRT the worker did not send (the OOM killer's, as Trigger.dev reads
-  it) are not retried; a thrown error, a run killed at a stop and a claim lost
+- **Retries** as Trigger.dev 4.8.8's were: three attempts, 5 s doubling to
+  60 s; a deliberate stop (`RunNotRetried`), a refused payload, the time
+  limit, the heap and a SIGKILL or SIGABRT the worker did not send (the OOM
+  killer's) are not retried; a thrown error, a run killed at a stop and a claim lost
   with its worker are.
 - **Logs**: stdout and stderr only; every line a run writes is forwarded with
   its queue and run id in front.
 - The parent process loads no job module and opens one pool, the jobs
   schema's; only a run's own process loads its job and opens its pools
-  (`scripts/a-pass-that-opened-the-owners-pool`, rule 10). No Trigger.dev task
-  loads pg-boss.
+  (`scripts/a-pass-that-opened-the-owners-pool`, rule 10).
 
 ## Deploy
 
-**On pg-boss, the default**, there is no task deploy: a code change to
-`src/jobs/*` or its dependencies reaches the jobs when the bring-up's `app`
-phase builds the worker's image from the checkout and replaces its container,
-as it does the api's (`docs/managed-bring-up.md`, "Updating a running
-deployment").
-
-**In trigger mode** (`OWNPACE_JOB_RUNNER=trigger`), every such change needs a
-task deploy, which refuses on a stack whose jobs run on pg-boss:
-
-```bash
-./deploy/compose/deploy-tasks.sh
-```
-
-The script preflights `uname -m` against `DEPLOY_IMAGE_PLATFORM` (an
-amd64-image-on-arm64 mismatch dies log-less in the runner; override with
-`SKIP_PLATFORM_CHECK=1`), builds, pushes to the local registry, and registers
-the new version. Smoke-test the deployed plane end to end with
-`./deploy/compose/smoke-managed.sh`. Full procedure: `docs/operator-runbook.md`.
+There is no deploy of the jobs of their own: a code change to `src/jobs/*` or
+its dependencies reaches them when the bring-up's `app` phase builds the
+worker's image from the checkout and replaces its container, as it does the
+api's (`docs/managed-bring-up.md`, "Updating a running deployment"). Smoke-test
+the stack end to end with `./deploy/compose/smoke-managed.sh`. Full
+procedure: `docs/operator-runbook.md`.
 
 There are no Helm charts in this repo.
 
@@ -193,25 +159,21 @@ in either edition, by design.
 
 - **`run` / `run_event` tables** — the ledger's own record of every pass
   (status, counts, verbatim errors).
-- **`./deploy/compose/operator.sh jobs`** — on pg-boss, the queues' runs
+- **`./deploy/compose/operator.sh jobs`** — the queues' runs
   queued, active and failed, the newest failures, one run shown or cancelled
   by its id, and a run queued by hand (`docs/operator-runbook.md`); the
   worker's own lines with `docker compose -f deploy/compose/managed.yml logs worker`.
-- **Trigger.dev dashboard**, in trigger mode — through the compose stack's TLS front
-  (`https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT`); the Runs page may be
-  empty when ClickHouse analytics lag (accepted, 0020 T7) — the `run` table
-  is ground truth.
 
 ## Testing
 
-The task **logic** is tested through extracted seams: `sync-due.unit.test.ts`
+The jobs' **logic** is tested through extracted seams: `sync-due.unit.test.ts`
 (the tick's due-evaluation), `cutover-preparation.integration.test.ts`
 (`prepareCutover` against a real ledger), the apply/verify suites in
 `@openmig/core`, and the connector/target integration suites in this package
-(`imap-dav-target`, `jmap-reindex`, `shared-mailbox`). The `schemaTask`
-wrappers themselves run only in the live smoke — an honest gap recorded in
-`docs/testing.md`'s untested-seams appendix. The pg-boss worker's wrapper is
-not: `src/runner/worker.integration.test.ts` runs it against a real Postgres.
+(`imap-dav-target`, `jmap-reindex`, `shared-mailbox`). The runs against real
+providers end to end run only in the live smoke — an honest gap recorded in
+`docs/testing.md`'s untested-seams appendix. The worker that wraps them is
+tested: `src/runner/worker.integration.test.ts` runs it against a real Postgres.
 
 ```bash
 pnpm test               # workspace unit gate (repo root)
@@ -220,12 +182,11 @@ pnpm test:integration   # testcontainers (Postgres + Stalwart + Nextcloud)
 
 ## References
 
-- [`docs/operator-runbook.md`](../../docs/operator-runbook.md) — deploy, env upload, smoke
+- [`docs/operator-runbook.md`](../../docs/operator-runbook.md) — the jobs, the smoke
 - [`docs/cutover-runbook.md`](../../docs/cutover-runbook.md) — the CLI procedure
 - [Workplan 0022](../../docs/workplans/0022-syncs-on-trigger-tasks.md) — why there was no worker container until workplan 0167
 - [Workplan 0167](../../docs/workplans/0167-a-job-runner-on-our-own-postgres.md) and [ADR-0054](../../docs/adr/0054-the-managed-editions-jobs-run-on-pg-boss.md) — the jobs on pg-boss
-- [ADR-0004](../../docs/adr/0004-orchestration-triggerdev-and-inprocess.md) — orchestration
-- [Trigger.dev docs](https://trigger.dev/docs)
+- [ADR-0004](../../docs/adr/0004-orchestration-triggerdev-and-inprocess.md) — orchestration (its managed half superseded by ADR-0054)
 
 
 ## A task that used to be here: `run-full-sync`

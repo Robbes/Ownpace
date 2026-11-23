@@ -27,7 +27,7 @@
 
 import { describe, it, expect, afterAll } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -157,29 +157,6 @@ describe('the task lane is asserted by name, not left to the inventory (0113 T7)
     expect(block).toContain('T3b');
     expect(block).toContain('T4');
     expect(block).toContain('T5');
-  });
-});
-
-describe('an enqueue that never became a runner is a failure', () => {
-  // 0018 T5's lesson is the reason this script exists at all; it used to be
-  // reported with an echo, so the script could miss the single thing it was
-  // written to catch and still say PASS.
-  const block = smoke
-    .split('\n--- ')
-    .join('\n--- ') // no-op, keeps the split readable below
-    .match(/if \[ "\$found_logs" != "1" \]; then[\s\S]*?\nfi/)?.[0];
-
-  it('is asserted, not merely remarked upon', () => {
-    expect(block).toBeDefined();
-    expect(block).toContain('fail_at');
-  });
-
-  it('no runner containers sets fail', () => {
-    expect(verdict(block!, 'found_logs=0')).toBe('1');
-  });
-
-  it('at least one runner container leaves fail alone', () => {
-    expect(verdict(block!, 'found_logs=1')).toBe('0');
   });
 });
 
@@ -338,81 +315,6 @@ describe("the smoke's eligibility is the product's, not a paraphrase of it", () 
     for (const m of selects) {
       expect(m[0], 'an item query that does not use $ELIGIBLE').toContain('$ELIGIBLE');
     }
-  });
-});
-
-describe('the two services nothing else speaks for (0084)', () => {
-  // `minio` and `trigger-tls` were the last of the original seven that no
-  // healthcheck probed and no other step proved. The workplan asked for
-  // healthchecks; they are assertions instead, and the substitution is the
-  // thing worth pinning: a compose probe runs INSIDE the image, so under
-  // `up -d --wait` one naming a binary that image lacks does not misreport —
-  // it fails the bring-up. Nothing in this repo has ever run a command inside
-  // `bitnamilegacy/minio` or `caddy:2-alpine`, so there is no evidence to
-  // write such a probe from, and an assertion has none of that exposure.
-  const minio = smoke.match(
-    /if docker exec "\$API_CONTAINER" "\$API_NODE" -e \\\n[\s\S]*?\nfi/,
-  )?.[0];
-  const tls = smoke.match(/TLS_PORT="\$\{TRIGGER_TLS_PORT[\s\S]*?\nfi/)?.[0];
-
-  it('both blocks are extractable — there is something to test', () => {
-    expect(minio, 'the minio assertion is gone from smoke-managed.sh').toBeDefined();
-    expect(tls, 'the trigger-tls assertion is gone from smoke-managed.sh').toBeDefined();
-  });
-
-  it('each SETS FAIL rather than merely remarking on it', () => {
-    // The 0084 lesson in one line: run #6 went green with half the gate
-    // unasserted because the diagnosis was an echo.
-    expect(minio).toContain('fail_at');
-    expect(tls).toContain('fail_at');
-  });
-
-  it('minio unreachable fails the smoke', () => {
-    expect(verdict(minio!, 'API_CONTAINER=x API_NODE=/nodejs/bin/node\ndocker() { return 1; }')).toBe('1');
-  });
-
-  it('minio answering leaves the smoke alone', () => {
-    expect(verdict(minio!, 'API_CONTAINER=x API_NODE=/nodejs/bin/node\ndocker() { return 0; }')).toBe('0');
-  });
-
-  it('nothing on the TLS port fails the smoke', () => {
-    // curl exiting non-zero — connection refused, handshake dead — leaves the
-    // `|| echo 000` value, which is the case this exists for.
-    expect(verdict(tls!, 'curl() { return 7; }')).toBe('1');
-  });
-
-  it('any HTTP status from the TLS front leaves the smoke alone', () => {
-    // ANY status. Caddy answering 502 still means TLS terminated, which is the
-    // claim — a probe that demanded 200 would go red whenever the thing behind
-    // the proxy was restarting.
-    expect(verdict(tls!, 'curl() { echo 502; }')).toBe('0');
-  });
-
-  it('reaches minio through a container, because it publishes no port', () => {
-    // managed.yml gives minio no `ports:` — it is reachable only on the stack
-    // network, and `http://minio:9000` is the address trigger-api is
-    // configured with. Asserting it from the host would be asserting a
-    // different thing, and would fail for the wrong reason.
-    expect(minio).toContain('docker exec');
-    expect(minio).toContain('minio:9000');
-    expect(
-      /ports:\s*\n\s*-\s*"\$\{MINIO/.test(readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8')),
-      'minio now publishes a port — the assertion could go direct, and this comment is stale',
-    ).toBe(false);
-  });
-
-  it('reaches the TLS front BY IP, because an IP sends no SNI', () => {
-    // trigger-tls.Caddyfile's rule 2, learned live on 2026-08-01: browsers
-    // connecting by IP send no SNI and get no certificate unless default_sni
-    // is set. The site address is the operator's own host, so a request to
-    // `localhost` sends an SNI matching no site — a false red waiting to
-    // happen on any box where TRIGGER_TLS_HOST is not `localhost`.
-    expect(tls).toContain('127.0.0.1');
-    expect(tls).not.toContain('https://localhost');
-    expect(
-      readFileSync(join(REPO_ROOT, 'deploy/compose/trigger-tls.Caddyfile'), 'utf8'),
-      'default_sni is gone from the Caddyfile — connecting by IP no longer works',
-    ).toContain('default_sni');
   });
 });
 
@@ -929,234 +831,6 @@ describe("the demo's mail source is seeded, and only when it needs to be", () =>
   });
 });
 
-describe('the last two services nothing spoke for (0084 T7.1)', () => {
-  // The healthcheck audit was redone against the gate's OWN printed list rather
-  // than memory: four services define no healthcheck, not the seven the
-  // workplan claimed, and the two it named as most important — trigger-api and
-  // trigger-supervisor — already had them. Of the real four, minio and
-  // trigger-tls were already asserted here; these two were covered by nothing.
-  const registry = smoke.match(/^REGISTRY_PORT_CHECK=[\s\S]*?\nfi$/m)?.[0];
-  // Both sides of the proxy since 2026-11-02 (workplan 0136 T4): the
-  // supervisor's DOCKER_HOST answers in the supervisor, and the name does not
-  // resolve in the API container. From the container's name to the `esac` of
-  // the second, the first `esac` after it.
-  const proxy = smoke.match(/^SUPERVISOR_CONTAINER="\$\{COMPOSE_PROJECT\}-trigger-supervisor"\n[\s\S]*?\nesac$/m)?.[0];
-  // The registry from the API container since 2026-11-14 (workplan 0136 T4):
-  // its name does not resolve there. From the assignment to its `esac`.
-  const registryFromApi = smoke.match(/^reg_from_api="\$\(docker exec[\s\S]*?\nesac$/m)?.[0];
-
-  /** Run an extracted block with `curl`/`docker` stubbed onto PATH: everything it printed, the verdict last. */
-  function run(block: string, stubs: Record<string, string>, setup = ''): string {
-    const dir = mkdtempSync(join(tmpdir(), 'smokesvc-'));
-    mkdirSync(join(dir, 'bin'));
-    for (const [name, body] of Object.entries(stubs)) {
-      writeFileSync(join(dir, 'bin', name), `#!/usr/bin/env bash\n${body}\n`);
-      chmodSync(join(dir, 'bin', name), 0o755);
-    }
-    try {
-      return execFileSync('bash', ['-c', `${FAIL_PREAMBLE}\n${setup}\n${block}\necho "FAIL=$fail"`], {
-        encoding: 'utf8',
-        env: { ...process.env, PATH: `${join(dir, 'bin')}:${process.env.PATH}` },
-      });
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }
-
-  /** The verdict of an extracted block, the last line `run` prints. */
-  function verdict(block: string, stubs: Record<string, string>, setup = '') {
-    return run(block, stubs, setup).trim().split('\n').pop()!.replace('FAIL=', '');
-  }
-
-  /**
-   * How `fetch` answers inside one container: a Response, or a rejection
-   * carrying Node's error code the way undici's does (`cause.code`). The
-   * message names `<address>` where a real one would carry the address, so a
-   * probe that printed messages would print it.
-   */
-  const ANSWERS = {
-    docker: "async () => new Response('OK', { status: 200, headers: { 'api-version': '1.52' } })",
-    dockerWithoutHeader: "async () => new Response('OK', { status: 200 })",
-    haproxy403: "async () => new Response('Forbidden', { status: 403 })",
-    haproxy503: "async () => new Response('Service Unavailable', { status: 503 })",
-    registry: "async () => new Response('{}', { status: 200 })",
-    ...Object.fromEntries(
-      (['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'UND_ERR_CONNECT_TIMEOUT'] as const).map((code) => [
-        code,
-        `async () => { throw new TypeError('fetch failed', { cause: Object.assign(new Error('${code} <address>:2375'), { code: '${code}' }) }); }`,
-      ]),
-    ),
-  } as Record<string, string>;
-
-  /**
-   * A `docker` whose `exec` runs the probe's own node script, with `fetch`
-   * answering in the supervisor as `sup` does and in the API container as
-   * `api` does. It refuses any other container, program or form, so a probe
-   * that moved to another container or binary fails here rather than passing.
-   */
-  function dockerRunningTheProbe(sup: string, api: string): Record<string, string> {
-    // Percent-encoded whole, quotes included, so it sits in the stub's single quotes as one word.
-    const preload = (fetch: string) =>
-      `data:text/javascript,${encodeURIComponent(`globalThis.fetch = ${fetch};`).replace(/'/g, '%27')}`;
-    return {
-      docker: [
-        '[ "$1" = exec ] || exit 97',
-        'case "$2" in',
-        `  stub-trigger-supervisor) [ "$3" = node ] || exit 96; pre='${preload(sup)}' ;;`,
-        `  stub-api) [ "$3" = /nodejs/bin/node ] || exit 96; pre='${preload(api)}' ;;`,
-        '  *) exit 95 ;;',
-        'esac',
-        '[ "$4" = -e ] && [ "$#" = 5 ] || exit 94',
-        'exec node --import "$pre" -e "$5"',
-      ].join('\n'),
-    };
-  }
-  const PROXY_SETUP = 'COMPOSE_PROJECT=stub API_CONTAINER=stub-api API_NODE=/nodejs/bin/node';
-
-  it('both blocks are extractable — they still exist to test', () => {
-    expect(registry).toBeDefined();
-    expect(proxy).toBeDefined();
-    expect(registryFromApi).toBeDefined();
-  });
-
-  it.each([['ENOTFOUND'], ['EAI_AGAIN']])("no registry name in the API container (%s) is a pass", (code) => {
-    const out = run(registryFromApi!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS[code]!), PROXY_SETUP);
-    expect(out.trim().split('\n').pop()).toBe('FAIL=0');
-    expect(out).toContain(`trigger-registry: no such name from the API container (${code})`);
-  });
-
-  it.each([
-    ['the registry answering it', 'registry', "got 'answered HTTP 200' (exit 0)"],
-    ['a refused connection', 'ECONNREFUSED', "got 'ECONNREFUSED' (exit 1)"],
-    ['a timeout', 'UND_ERR_CONNECT_TIMEOUT', "got 'UND_ERR_CONNECT_TIMEOUT' (exit 1)"],
-  ])("the API container reaching the registry's name, by %s, is a failure, and says so", (_how, answer, got) => {
-    // Anything but an unknown name means a network the API container is on,
-    // ownpace-network, with every other service and every task run, knows it.
-    const out = run(registryFromApi!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS[answer]!), PROXY_SETUP);
-    expect(out.trim().split('\n').pop()).toBe('FAIL=1');
-    expect(out).toContain('FAIL: the API container asked trigger-registry:5000 and got');
-    expect(out).toContain(got);
-    expect(out, 'a message carries the address, and this log is public').not.toContain('<address>');
-  });
-
-  it("asks the registry's name in the API container, by the path the preflights found", () => {
-    // A container the stub does not know exits 95, so another container fails here.
-    expect(verdict(registryFromApi!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS.ENOTFOUND!), 'COMPOSE_PROJECT=stub API_CONTAINER=other API_NODE=/nodejs/bin/node')).toBe('1');
-    expect(registryFromApi).toContain('docker exec "$API_CONTAINER" "$API_NODE" -e');
-    expect(registryFromApi).toContain("fetch('http://trigger-registry:5000/v2/')");
-  });
-
-  it('the registry failing to answer at all is a failure', () => {
-    // `000` is curl for "no response". A dead registry means every task deploy
-    // fails, and it surfaces as a task that never starts — nothing in that
-    // message names the registry.
-    //
-    // THIS TEST FOUND A REAL ONE. The first draft ended the command with
-    // `|| echo 000`, and on a refused connection curl BOTH prints `000` and
-    // exits non-zero — so the fallback appended a second, `reg_code` became
-    // `000000`, and `!= "000"` was true. The assertion could not fail. A check
-    // that cannot fail is worse than no check: it reports as coverage.
-    expect(verdict(registry!, { curl: 'echo -n 000; exit 7' })).toBe('1');
-  });
-
-  it('a curl that cannot run at all is also a failure, not a pass', () => {
-    // Empty output must not read as a status code either.
-    expect(verdict(registry!, { curl: 'exit 127' })).toBe('1');
-  });
-
-  it('has no fallback that would mask the no-response case', () => {
-    // Code lines only — the comment above it quotes the bug it is warning about.
-    const code = registry!
-      .split('\n')
-      .filter((l) => !l.trimStart().startsWith('#'))
-      .join('\n');
-    expect(code).not.toMatch(/\|\|\s*echo\s*000/);
-  });
-
-  it.each([['200'], ['401']])('the registry answering HTTP %s is a pass', (code) => {
-    // ANY status counts on purpose. `/v2/` answers 200 or 401 depending on the
-    // build, and the claim that matters is "something is serving HTTP here",
-    // not a particular code an upstream image is free to change.
-    expect(verdict(registry!, { curl: `echo -n ${code}` })).toBe('0');
-  });
-
-  it.each([['ENOTFOUND'], ['EAI_AGAIN']])(
-    'Docker answering the supervisor, and no name in the API container (%s), is a pass',
-    (code) => {
-      const out = run(proxy!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS[code]!), PROXY_SETUP);
-      expect(out.trim().split('\n').pop()).toBe('FAIL=0');
-      expect(out).toContain('trigger-docker-proxy HTTP 200 Api-Version 1.52');
-      expect(out).toContain(`trigger-docker-proxy: no such name from the API container (${code})`);
-    },
-  );
-
-  it.each([
-    ['refused', 'ECONNREFUSED'],
-    ['timed out', 'UND_ERR_CONNECT_TIMEOUT'],
-    ['found no name', 'ENOTFOUND'],
-    ['answered as HAProxy, 503', 'haproxy503'],
-    ['answered as HAProxy, 403', 'haproxy403'],
-    ['answered 200 without the Api-Version Docker sets', 'dockerWithoutHeader'],
-  ])('the supervisor\'s DOCKER_HOST %s is a failure, and says so', (_how, answer) => {
-    // This is workplan 0018's entire failure mode: the supervisor creates every
-    // runner container through this proxy, so when it is down an enqueue never
-    // becomes a runner — invisible in a green CI. And only Docker's answer
-    // counts: HAProxy answers 403 and 503 itself, without Api-Version.
-    const out = run(proxy!, dockerRunningTheProbe(ANSWERS[answer]!, ANSWERS.ENOTFOUND!), PROXY_SETUP);
-    expect(out.trim().split('\n').pop()).toBe('FAIL=1');
-    expect(out).toContain('FAIL: Docker did not answer the supervisor\'s DOCKER_HOST (tcp://trigger-docker-proxy:2375) from trigger-supervisor.');
-    expect(out, 'a message carries the address, and this log is public').not.toContain('<address>');
-  });
-
-  it.each([
-    ['Docker answering it', 'docker', "got 'answered HTTP 200' (exit 0)"],
-    ['HAProxy answering it', 'haproxy403', "got 'answered HTTP 403' (exit 0)"],
-    ['a refused connection', 'ECONNREFUSED', "got 'ECONNREFUSED' (exit 1)"],
-    ['a timeout', 'UND_ERR_CONNECT_TIMEOUT', "got 'UND_ERR_CONNECT_TIMEOUT' (exit 1)"],
-  ])('the API container reaching the proxy\'s name, by %s, is a failure, and says so', (_how, answer, got) => {
-    // Anything but an unknown name means a network the API container is on,
-    // ownpace-network, with every other service and every task run, knows it.
-    const out = run(proxy!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS[answer]!), PROXY_SETUP);
-    expect(out.trim().split('\n').pop()).toBe('FAIL=1');
-    expect(out).toContain(`FAIL: the API container asked trigger-docker-proxy:2375 and got`);
-    expect(out).toContain(got);
-    expect(out).not.toContain('<address>');
-  });
-
-  it('asks the supervisor by its project\'s name, and the API container by the path the preflights found', () => {
-    // A fixed container name would ask the OTA stack's supervisor from any
-    // stack (two-stacks-on-one-box); a container the stub does not know exits 95.
-    expect(verdict(proxy!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS.ENOTFOUND!), 'COMPOSE_PROJECT=other API_CONTAINER=stub-api API_NODE=/nodejs/bin/node')).toBe('1');
-    expect(proxy).toContain('docker exec "$SUPERVISOR_CONTAINER" node -e');
-    expect(proxy).toContain('docker exec "$API_CONTAINER" "$API_NODE" -e');
-  });
-
-  it('asserts rather than probes, and says why', () => {
-    // The temptation is to "just add a healthcheck". A compose probe runs
-    // INSIDE the image and under `up -d --wait` one naming a missing binary
-    // does not misreport — it fails the bring-up and takes the gate with it.
-    // Nothing here has ever executed a command inside either image.
-    expect(smoke).toMatch(/has ever executed a command inside/);
-    expect(smoke).toContain('`registry:3` or the Docker socket proxy**');
-    expect(smoke).toMatch(/closes the COVERAGE gap, not the healthcheck one/);
-  });
-
-  it('does not add a compose healthcheck to either image', () => {
-    // If this ever fails, somebody had the evidence — a Docker daemon and those
-    // images pulled — and should say so in the diff. Guessing is what costs a
-    // bring-up.
-    const managed = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
-    const block = (name: string) => {
-      const i = managed.indexOf(`  ${name}:`);
-      const rest = managed.slice(i + 1);
-      const j = rest.search(/\n {2}[a-z0-9_-]+:\n/);
-      return j === -1 ? rest : rest.slice(0, j);
-    };
-    expect(block('trigger-registry')).not.toContain('healthcheck:');
-    expect(block('trigger-docker-proxy')).not.toContain('healthcheck:');
-  });
-});
-
 describe('nothing temporary is still living in the gate', () => {
   /**
    * A `probe:` job went into this workflow on 2026-08-23 to ask the running
@@ -1180,23 +854,13 @@ describe('nothing temporary is still living in the gate', () => {
 
   it('takes no dispatch input that exists to switch the gate off', () => {
     // An input that gates the gate is how a run can look green having done
-    // nothing. ONE input is the gate's own since workplan 0167 T7: `job_runner`,
-    // which runner works the stack's jobs in that run, `trigger` or `pg-boss`,
-    // or empty for the stack's own (its .env, else managed.yml's default):
-    // a string, so that empty can be given, and refused by its step otherwise.
-    // It chooses what the gate drives, never whether it runs: every step but
-    // the Trigger.dev plane's own drill runs in both, and the smoke judges both
-    // (the pg-boss sections below). Nothing else.
-    const on = (parse(workflow) as { on: { workflow_dispatch?: { inputs?: Record<string, { type?: string; options?: string[]; default?: string }> } | null } }).on;
-    const inputs = on.workflow_dispatch?.inputs ?? {};
-    expect(Object.keys(inputs), 'a dispatch input beside job_runner').toEqual(['job_runner']);
-    expect(inputs.job_runner).toMatchObject({ type: 'string', default: '' });
-    // And nothing in the job reads an input but the steps that set the mode.
-    const reads = [...workflow.matchAll(/\$\{\{\s*inputs\.([a-z_]+)/g)].map((m) => m[1]);
-    expect(new Set(reads)).toEqual(new Set(['job_runner']));
-    // The one `if:` on it writes it into the checkout's .env; none skips a step of the gate.
-    const ifs = workflow.split('\n').filter((l) => /^\s*if:.*\binputs\./.test(l)).map((l) => l.trim());
-    expect(ifs).toEqual(["if: inputs.job_runner != ''"]);
+    // nothing. From workplan 0167 T7 to alpha.18 one input was the gate's own,
+    // `job_runner`, which runner worked the stack's jobs in that run; T9
+    // removed Trigger.dev, and the input with it. So none, and nothing reads one.
+    const on = (parse(workflow) as { on: { workflow_dispatch?: { inputs?: Record<string, unknown> } | null } }).on;
+    expect(Object.keys(on.workflow_dispatch?.inputs ?? {}), 'a dispatch input').toEqual([]);
+    expect([...workflow.matchAll(/\$\{\{\s*inputs\.([a-z_]+)/g)].map((m) => m[1])).toEqual([]);
+    expect(workflow.split('\n').filter((l) => /^\s*if:.*\binputs\./.test(l))).toEqual([]);
   });
 
   it('no job is conditional on anything but the event that fired it', () => {
@@ -1473,15 +1137,13 @@ describe('a target the reindexer could not see is not a verified target (2026-09
 });
 
 // ---------------------------------------------------------------------------
-// THE GATE IN BOTH MODES (ADR-0054; workplan 0167 T7).
+// THE GATE ON PG-BOSS (ADR-0054; workplan 0167 T7, and T9: alpha.18 removed
+// Trigger.dev, and every section that asked its plane with it).
 //
-// On a stack whose jobs run on pg-boss the Trigger.dev plane is stopped, so
-// each section that asks it is skipped, out loud, and what stood for "an
-// enqueue became a runner" is read from pg-boss instead. The first real stack
-// these branches meet is the E2E (managed) run of the switch-on, so each is
-// run here against stubs, from the script's own text: a skip in the wrong mode
-// is a green on less evidence, and a pg-boss run in which no job completed
-// must be red.
+// What stood for "an enqueue became a runner" is read from pg-boss, and no
+// container of the plane may be left on the stack. Each check is run here
+// against stubs, from the script's own text: a pg-boss run in which no job
+// completed must be red.
 // ---------------------------------------------------------------------------
 
 /** A function of the smoke, as it is written there: `name() {` to the `}` that ends it. */
@@ -1538,21 +1200,15 @@ describe('which runner works the jobs is read once, as the bring-up reads it, an
   }
 
   it.each([
-    ['no .env and no default in managed.yml', null, null, 'trigger'],
-    ['a .env without the key, and no default', 'NODE_ENV=development\n', null, 'trigger'],
-    ['the key empty', 'OWNPACE_JOB_RUNNER=\n', 'trigger', 'trigger'],
-    ['trigger', 'OWNPACE_JOB_RUNNER=trigger\n', 'trigger', 'trigger'],
-    ['pg-boss', 'OWNPACE_JOB_RUNNER=pg-boss\n', 'trigger', 'pg-boss'],
-    ['pg-boss in double quotes, as Compose reads it', 'OWNPACE_JOB_RUNNER="pg-boss"\n', 'trigger', 'pg-boss'],
-    ['pg-boss in single quotes, with a comment', "OWNPACE_JOB_RUNNER='pg-boss'   # the switch\n", 'trigger', 'pg-boss'],
-    // job-runner.sh's rule: a managed.yml that never names the switch hands it
-    // to no container, so that release runs the plane whatever .env says.
-    ['pg-boss in .env, and a managed.yml without the switch', 'OWNPACE_JOB_RUNNER=pg-boss\n', null, 'trigger'],
-    ["the key empty, and managed.yml's default pg-boss (the flip)", 'OWNPACE_JOB_RUNNER=\n', 'pg-boss', 'pg-boss'],
-    ["no key, and managed.yml's default pg-boss", 'NODE_ENV=development\n', 'pg-boss', 'pg-boss'],
-    ["the .env's trigger over managed.yml's pg-boss", 'OWNPACE_JOB_RUNNER=trigger\n', 'pg-boss', 'trigger'],
-    ["the last assignment, as Compose takes it", 'OWNPACE_JOB_RUNNER=trigger\nOWNPACE_JOB_RUNNER=pg-boss\n', 'trigger', 'pg-boss'],
-  ])('%s: %s', (_what, dotenv, ymlDefault, want) => {
+    ["no .env, and managed.yml's default pg-boss", null, 'pg-boss', 'pg-boss'],
+    ["a .env without the key, and managed.yml's default pg-boss", 'NODE_ENV=development\n', 'pg-boss', 'pg-boss'],
+    ['the key empty', 'OWNPACE_JOB_RUNNER=\n', 'pg-boss', 'pg-boss'],
+    ['managed.yml with an empty default', 'OWNPACE_JOB_RUNNER=\n', '', 'pg-boss'],
+    ['pg-boss', 'OWNPACE_JOB_RUNNER=pg-boss\n', 'pg-boss', 'pg-boss'],
+    ['pg-boss in double quotes, as Compose reads it', 'OWNPACE_JOB_RUNNER="pg-boss"\n', 'pg-boss', 'pg-boss'],
+    ['pg-boss in single quotes, with a comment', "OWNPACE_JOB_RUNNER='pg-boss'   # the switch\n", 'pg-boss', 'pg-boss'],
+    ['the last assignment, as Compose takes it', 'OWNPACE_JOB_RUNNER=trigger\nOWNPACE_JOB_RUNNER=pg-boss\n', 'pg-boss', 'pg-boss'],
+  ])('%s: pg-boss', (_what, dotenv, ymlDefault, want) => {
     const { dir, compose } = box(dotenv, ymlDefault);
     const s = smokeReads(compose);
     expect(s.out).toContain('rc=0');
@@ -1562,26 +1218,21 @@ describe('which runner works the jobs is read once, as the bring-up reads it, an
     expect(w.mode).toBe(want);
   });
 
-  it.each([['pgboss'], ['Trigger'], ['pg_boss']])("'%s' is refused in one sentence, by both", (value) => {
-    const { dir, compose } = box(`OWNPACE_JOB_RUNNER=${value}\n`, 'trigger');
+  it.each([
+    ['an old .env that says trigger', 'OWNPACE_JOB_RUNNER=trigger\n', 'pg-boss', /OWNPACE_JOB_RUNNER in \S+\.env is trigger, but Trigger\.dev was removed in alpha\.18, so remove the key from the \.env or set it to pg-boss/],
+    ["the .env's trigger as the last assignment", 'OWNPACE_JOB_RUNNER=pg-boss\nOWNPACE_JOB_RUNNER=trigger\n', 'pg-boss', /Trigger\.dev was removed in alpha\.18/],
+    ["'pgboss'", 'OWNPACE_JOB_RUNNER=pgboss\n', 'pg-boss', /OWNPACE_JOB_RUNNER in \S+\.env is not pg-boss \(its value is not printed\)/],
+    ["'Trigger'", 'OWNPACE_JOB_RUNNER=Trigger\n', 'pg-boss', /OWNPACE_JOB_RUNNER in \S+\.env is not pg-boss \(its value is not printed\)/],
+    ['a managed.yml without the switch (a release from before alpha.16)', 'OWNPACE_JOB_RUNNER=pg-boss\n', null, /names no OWNPACE_JOB_RUNNER: it is a release from before alpha\.16/],
+  ])('%s is refused in one sentence, by both', (_what, dotenv, ymlDefault, why) => {
+    const { dir, compose } = box(dotenv, ymlDefault);
     const s = smokeReads(compose);
     expect(s.out).toContain('rc=1');
-    // job-runner.sh's one sentence, which does not print the value.
-    expect(s.out).toMatch(/OWNPACE_JOB_RUNNER in \S+\.env is neither trigger nor pg-boss \(its value is not printed\)/);
+    expect(s.out).toMatch(why);
     const w = workflowReads(dir);
     expect(w.status).not.toBe(0);
     expect(w.mode).toBe('');
-    expect(w.out).toMatch(/::error::OWNPACE_JOB_RUNNER in \S+\.env is neither trigger nor pg-boss/);
-  });
-
-  it("the dispatch's input wins over the .env, for the run's steps, and is refused when it is neither", () => {
-    const { dir } = box('OWNPACE_JOB_RUNNER=trigger\n', null);
-    expect(workflowReads(dir, 'pg-boss').mode).toBe('pg-boss');
-    expect(workflowReads(dir, 'trigger').mode).toBe('trigger');
-    const bad = workflowReads(dir, 'both');
-    expect(bad.status).not.toBe(0);
-    expect(bad.mode).toBe('');
-    expect(bad.out).toContain("This dispatch's job_runner is 'both'");
+    expect(w.out).toMatch(new RegExp(`::error::.*${why.source}`));
   });
 
   it('both read it through job-runner.sh, not by a reader of their own', () => {
@@ -1598,106 +1249,57 @@ describe('which runner works the jobs is read once, as the bring-up reads it, an
     expect(smoke.slice(at, smoke.indexOf('\n', at))).toContain('exit 1');
     expect(at).toBeLessThan(smoke.indexOf('note "preflights"'));
     expect(smoke).toMatch(/^api_runner="\$\(api_env OWNPACE_JOB_RUNNER\)"/m);
-    expect(smoke.indexOf('api_runner="$(api_env OWNPACE_JOB_RUNNER)"')).toBeLessThan(smoke.indexOf('if trigger_only "minio and trigger-tls"; then'));
+    expect(smoke.indexOf('api_runner="$(api_env OWNPACE_JOB_RUNNER)"')).toBeLessThan(smoke.indexOf('\nplane_gone "at the start"\n'));
   });
 
-  it('the input is written into the checkout only after the persisted copy is saved, and never copied back', () => {
+  it("the gate drills the identity provider's database, and removes the plane's volumes by name, after its bring-up (0167 T9)", () => {
     const steps = (parse(workflow) as { jobs: Record<string, { steps: Array<{ name?: string; run?: string; if?: string }> }> }).jobs['e2e-managed']!.steps;
-    const persist = steps.findIndex((s) => (s.run ?? '').includes('cp deploy/compose/.env "${PERSIST_DIR}/.env"'));
-    const write = steps.findIndex((s) => (s.run ?? '').includes('OWNPACE_JOB_RUNNER=${JOB_RUNNER}'));
     const bringUp = steps.findIndex((s) => (s.run ?? '').includes('bootstrap-managed.sh'));
-    expect(persist).toBeGreaterThan(0);
-    expect(write).toBeGreaterThan(persist);
-    expect(write).toBeLessThan(bringUp);
-    expect(steps[write]!.if).toBe("inputs.job_runner != ''");
-    const after = steps.slice(write + 1).filter((s) => /PERSIST_DIR|\.persistent/.test(s.run ?? ''));
-    expect(after.map((s) => s.name), 'a step after the write reaches the persisted directory').toEqual([]);
-  });
-
-  it("the Trigger.dev plane's drill runs only on trigger, and its keys are asked only there", () => {
-    const steps = (parse(workflow) as { jobs: Record<string, { steps: Array<{ name?: string; run?: string; if?: string }> }> }).jobs['e2e-managed']!.steps;
-    const mode = steps.findIndex((s) => (s.run ?? '').includes('>"$RUNNER_TEMP/job-runner"'));
-    const reads = (s: { run?: string }) => (s.run ?? '').includes('JOB_RUNNER="$(cat "$RUNNER_TEMP/job-runner")"');
-    const drill = steps.findIndex((s) => (s.run ?? '').includes('trigger-version.sh drill'));
-    const refuse = steps.findIndex((s) => (s.run ?? '').includes('TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY'));
-    for (const at of [drill, refuse]) {
-      expect(at).toBeGreaterThan(mode);
-      expect(reads(steps[at]!), steps[at]!.name).toBe(true);
-    }
-    // Run, on a stand-in for the drill: on pg-boss it does not run, on trigger it does.
-    for (const [m, ran] of [['pg-boss', false], ['trigger', true]] as const) {
-      const dir = mkdtempSync(join(tmpdir(), 'drill-'));
-      dirs.push(dir);
-      mkdirSync(join(dir, 'deploy/compose'), { recursive: true });
-      writeFileSync(join(dir, 'job-runner'), `${m}\n`);
-      writeFileSync(join(dir, 'deploy/compose/trigger-version.sh'), '#!/usr/bin/env bash\necho "drill ran: $*"\n');
-      chmodSync(join(dir, 'deploy/compose/trigger-version.sh'), 0o755);
-      const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', steps[drill]!.run!], { cwd: dir, encoding: 'utf8', env: { PATH: process.env.PATH ?? '/usr/bin:/bin', RUNNER_TEMP: dir } });
-      expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout.includes('drill ran: drill'), `${m}: ${r.stdout}`).toBe(ran);
-    }
-    expect(steps[refuse]!.run).toMatch(/if \[ "\$JOB_RUNNER" = trigger \]; then\n\s+for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY; do/);
-    // No step is skipped by the mode: each decides inside its own run, and says so.
+    const drill = steps.findIndex((s) => /\.\/deploy\/compose\/dump-idp\.sh --drill\b/.test(s.run ?? ''));
+    const removal = steps.findIndex((s) => /\.\/deploy\/compose\/remove-trigger-plane\.sh --yes\b/.test(s.run ?? ''));
+    expect(drill, "no step runs the identity provider's restore drill").toBeGreaterThan(bringUp);
+    expect(removal, "no step removes the plane's volumes by name").toBeGreaterThan(bringUp);
+    // Trigger.dev's own drill, and its keys, went with it.
+    expect(steps.filter((s) => /trigger-version\.sh|TRIGGER_PROJECT_REF|TRIGGER_SECRET_KEY/.test(s.run ?? '')).map((s) => s.name)).toEqual([]);
+    // No step is skipped by the mode.
     expect(steps.filter((s) => /steps\.|outputs\./.test(s.if ?? '')).map((s) => s.name)).toEqual([]);
   });
 
   afterAll(() => dirs.forEach((d) => rmSync(d, { recursive: true, force: true })));
 });
 
-describe('a section that cannot speak for a pg-boss stack is skipped, out loud, and only there', () => {
-  /** Each Trigger.dev section, by the name its skip line gives and a line only it carries. */
-  const SECTIONS: Array<[string, string]> = [
+describe("no section of the smoke is Trigger.dev's any more, and the pg-boss checks always run (0167 T9)", () => {
+  /** A line only each Trigger.dev section carried, until alpha.18 removed the plane. */
+  const GONE: Array<[string, string]> = [
     ['minio and trigger-tls', "fetch('http://minio:9000/minio/health/live')"],
-    ['the runner-log capture', "for c in $(docker ps --filter \"network=${COMPOSE_PROJECT}_ownpace-network\""],
-    ['trigger-registry and trigger-docker-proxy', 'REGISTRY_PORT_CHECK="${SMOKE_REGISTRY_PORT:-${registry_port:-5000}}"'],
-    ['clickhouse, and who can reach it', 'TRIGGER_API_CONTAINER="${COMPOSE_PROJECT}-trigger-api"'],
-    ['runner logs captured before AutoRemove', 'if [ "$found_logs" != "1" ]; then'],
+    ['the runner-log capture', 'for c in $(docker ps --filter "network=${COMPOSE_PROJECT}_ownpace-network"'],
+    ['trigger-registry and trigger-docker-proxy', 'REGISTRY_PORT_CHECK='],
+    ['clickhouse, and who can reach it', 'TRIGGER_API_CONTAINER='],
+    ['runner logs captured before AutoRemove', 'found_logs'],
     ["the tasks' image", '--entrypoint node "$ours" --version'],
   ];
 
-  it.each(SECTIONS)('"%s" lies inside its own trigger_only, unindented', (name, marker) => {
-    const open = smoke.indexOf(`\nif trigger_only "${name}"; then\n`);
-    const close = smoke.indexOf(`\nfi # trigger_only "${name}"\n`);
-    expect(open, `no trigger_only around "${name}"`).toBeGreaterThan(0);
-    expect(close).toBeGreaterThan(open);
-    const at = smoke.indexOf(marker);
-    expect(at, marker).toBeGreaterThan(open);
-    expect(at, `${marker} is outside its trigger_only`).toBeLessThan(close);
-    // Once each: a second copy of the marker outside would run in both modes.
-    expect(smoke.indexOf(marker, at + 1)).toBe(-1);
+  it.each(GONE)('"%s" is gone, and its skip with it', (_name, marker) => {
+    expect(smoke).not.toContain(marker);
   });
 
-  it('on trigger it says nothing and runs the section; on pg-boss it prints one line naming the section and the mode, and skips it', () => {
-    const t = smokeRun(['trigger_only'], 'JOB_RUNNER=trigger; trigger_only "the tasks\' image" && echo ran || echo skipped');
-    expect(t.out.trim().split('\n')).toEqual(['ran', 'FAIL=0']);
-    const p = smokeRun(['trigger_only'], 'JOB_RUNNER=pg-boss; trigger_only "the tasks\' image" && echo ran || echo skipped');
-    const lines = p.out.trim().split('\n').filter(Boolean);
-    expect(lines).toEqual([
-      "--- the tasks' image: skipped, this stack runs its jobs on pg-boss and its Trigger.dev plane is stopped ---",
-      'skipped',
-      'FAIL=0',
-    ]);
+  it('nothing is skipped by the mode: no trigger_only, and no branch on the runner', () => {
+    expect(smoke).not.toMatch(/\btrigger_only\b/);
+    expect(smoke).not.toMatch(/if \[ "\$JOB_RUNNER" = (pg-boss|trigger) \]/);
   });
 
-  it("the pg-boss checks run only on pg-boss: in trigger mode the smoke's verdict rests on what it always did", () => {
+  it('the pg-boss checks are called once each, unindented, after the books and before the verdict', () => {
     for (const call of ['pgboss_jobs', 'no_runner_started', 'jobs_role_fit', 'worker_fit']) {
-      const calls = smoke.split('\n').filter((l) => l.trim() === call);
-      expect(calls, `${call} is called once`).toHaveLength(1);
+      const lines = smoke.split('\n').filter((l) => l.trim() === call);
+      expect(lines, `${call} is called once`).toEqual([call]);
     }
     const jobs = smoke.indexOf('\npgboss_jobs\n');
-    expect(smoke.lastIndexOf('if [ "$JOB_RUNNER" = pg-boss ]; then', jobs)).toBeGreaterThan(smoke.lastIndexOf('\nfi\n', jobs));
-    // The worker's image stands in the else of the tasks' image.
-    const worker = smoke.indexOf('\nworker_fit\n');
-    expect(smoke.lastIndexOf('\nelse\n', worker)).toBeGreaterThan(smoke.indexOf('if trigger_only "the tasks\' image"; then'));
-    expect(worker).toBeLessThan(smoke.indexOf('fi # trigger_only "the tasks\' image"'));
-    // And last before the verdict, once everything this run causes is caused.
     expect(jobs).toBeGreaterThan(smoke.indexOf('note "the books: one sandbox invoice a night (0111, decision 12)"'));
     expect(jobs).toBeLessThan(smoke.indexOf('note "verdict"'));
   });
 
-  it("the header says both modes' rule", () => {
-    expect(smoke).toContain('no runner at all');
-    expect(smoke).toContain('no job ran is the failure no runner at all is');
+  it("the header says the rule: no job ran is the failure no runner at all was", () => {
+    expect(smoke).toContain('no job ran is the failure no runner at all was');
   });
 });
 
@@ -1891,7 +1493,7 @@ sleep() { :; }
   });
 });
 
-describe('on pg-boss, no Trigger.dev runner started on this stack', () => {
+describe('no Trigger.dev runner started on this stack', () => {
   /** no_runner_started over the events file `lines`, its watcher alive or not. */
   function events(lines: string[], watcher: 'alive' | 'dead' | 'none' = 'alive') {
     const dir = mkdtempSync(join(tmpdir(), 'smoke-events-'));
@@ -1930,10 +1532,10 @@ describe('on pg-boss, no Trigger.dev runner started on this stack', () => {
     expect(r.reasons).toContain("Docker's events were not watched for the whole run");
   });
 
-  it('the stream starts with the run, on pg-boss only, runs until the trap, and is never a replay with --until', () => {
-    const at = smoke.indexOf('\nif [ "$JOB_RUNNER" = pg-boss ]; then\n  EVENTS_FILE="$(mktemp');
+  it('the stream starts with the run, runs until the trap, and is never a replay with --until', () => {
+    const at = smoke.indexOf('\nEVENTS_FILE="$(mktemp');
     expect(at).toBeGreaterThan(0);
-    const block = smoke.slice(at, smoke.indexOf('\nfi\n', at));
+    const block = smoke.slice(at, smoke.indexOf('\nWATCHER_PID=$!\n', at) + '\nWATCHER_PID=$!\n'.length);
     expect(block).toContain('docker events --since "$SMOKE_STARTED_AT" --filter type=container --filter type=network');
     expect(block).toContain('--filter event=start --filter event=connect');
     expect(block).toContain('WATCHER_PID=$!');
@@ -1949,36 +1551,77 @@ describe('on pg-boss, no Trigger.dev runner started on this stack', () => {
   });
 });
 
-describe('on pg-boss, the Trigger.dev supervisor is not running, at the start and at the end', () => {
-  const ask = (said: string, rc: number) =>
-    smokeRun(['supervisor_stopped'], `docker() { printf '%s\\n' "$SAID"; return "$RC"; }\nsupervisor_stopped "at the start"\n${SHOW_REASONS}`, {
-      COMPOSE_PROJECT: 'ownpace-managed',
-      SAID: said,
-      RC: String(rc),
-    });
+describe("no container of Trigger.dev's plane on this stack, at the start and at the end (0167 T9)", () => {
+  /** plane_gone against a docker stand-in that answers `ps -a` for each service from LEFT (`<service>=<line>`), or fails. */
+  const ask = (left: Record<string, string>, rc = 0) =>
+    smokeRun(
+      ['plane_gone'],
+      [
+        'docker() {',
+        '  local svc=""',
+        '  for a in "$@"; do case "$a" in label=com.docker.compose.service=*) svc="${a#label=com.docker.compose.service=}" ;; esac; done',
+        '  echo "$*" >>"$CALLS"',
+        '  [ "$RC" = 0 ] || { echo "Cannot connect to the Docker daemon"; return "$RC"; }',
+        '  case " $LEFT " in *" $svc="*) v="${LEFT#*"$svc"=}"; printf \'%s\\n\' "${v%% *}" | tr _ " " ;; esac',
+        '}',
+        `PLANE_SERVICES=(${PLANE.join(' ')})`,
+        'plane_gone "at the start"',
+        SHOW_REASONS,
+      ].join('\n'),
+      {
+        COMPOSE_PROJECT: 'ownpace-managed',
+        LEFT: Object.entries(left).map(([k, v]) => `${k}=${v}`).join(' '),
+        RC: String(rc),
+        CALLS: calls,
+      },
+    );
+  const PLANE = ['trigger-supervisor', 'trigger-api', 'trigger-tls', 'trigger-tls-init', 'clickhouse', 'trigger-registry',
+    'trigger-docker-proxy', 'minio', 'minio-init', 'trigger-redis', 'trigger-db'];
+  const callsDir = mkdtempSync(join(tmpdir(), 'plane-gone-'));
+  const calls = join(callsDir, 'calls');
+  afterAll(() => rmSync(callsDir, { recursive: true, force: true }));
 
-  it.each([
-    ['stopped', 'false', 0],
-    ['not there', 'Error: No such container: ownpace-managed-trigger-supervisor', 1],
-    ['not there, in an older Docker\'s words', 'Error: No such object: ownpace-managed-trigger-supervisor', 1],
-  ])('%s is a pass', (_what, said, rc) => {
-    expect(ask(said, rc).fail).toBe('0');
+  it('names the eleven services alpha.17 declared, and no other', () => {
+    const line = /^PLANE_SERVICES=\(([^)]*)\)/m.exec(smoke)?.[1] ?? '';
+    expect(line.split(/\s+/).filter(Boolean).sort()).toEqual([...PLANE].sort());
+  });
+
+  it("nothing left is a pass, every service asked by the project's and the service's labels", () => {
+    writeFileSync(calls, '');
+    const r = ask({});
+    expect(r.fail, r.out).toBe('0');
+    expect(r.out).toContain("no container of Trigger.dev's plane on ownpace-managed at the start (its 11 services asked by label)");
+    const asked = readFileSync(calls, 'utf8').trim().split('\n');
+    expect(asked).toHaveLength(11);
+    for (const a of asked) expect(a).toMatch(/^ps -a --filter label=com\.docker\.compose\.project=ownpace-managed --filter label=com\.docker\.compose\.service=\S+ /);
   });
 
   it.each([
-    ['running', 'true', 0, 'trigger-supervisor is running at the start'],
-    ['a Docker that cannot be asked', 'Cannot connect to the Docker daemon', 1, 'trigger-supervisor could not be asked at the start'],
-  ])('%s is a failure', (_what, said, rc, reason) => {
-    const r = ask(said, rc);
+    ['a stopped container', { 'trigger-db': 'ownpace-managed-trigger-db_(exited)' }],
+    ['a running one', { 'trigger-supervisor': 'ownpace-managed-trigger-supervisor_(running)' }],
+    ['a one-shot that ran', { 'minio-init': 'ownpace-managed-minio-init-1_(exited)' }],
+  ])('%s is a failure, by name', (_what, left) => {
+    const r = ask(left);
     expect(r.fail).toBe('1');
-    expect(r.reasons).toContain(reason);
+    expect(r.reasons).toContain("a container of Trigger.dev's plane is left at the start");
+    expect(r.out).toContain(Object.values(left)[0]!.replace('_', ' '));
   });
 
-  it('is asked once at the start, after the mode is known, and once at the end', () => {
-    expect(smoke).toContain('[ "$JOB_RUNNER" = pg-boss ] && supervisor_stopped "at the start"');
-    expect(smoke.indexOf('supervisor_stopped "at the start"')).toBeLessThan(smoke.indexOf('if trigger_only "minio and trigger-tls"; then'));
-    expect(smoke.indexOf('\nsupervisor_stopped "at the end"\n')).toBeGreaterThan(smoke.indexOf('\npgboss_jobs\n'));
-    expect(smoke.indexOf('supervisor_stopped() {')).toBeLessThan(smoke.indexOf('supervisor_stopped "at the start"'));
+  it('a Docker that cannot be asked is a failure', () => {
+    const r = ask({}, 1);
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain("Docker could not be asked for the plane's containers at the start");
+  });
+
+  it('is asked once at the start, after the API is held to the mode, and once at the end, after the jobs', () => {
+    const start = smoke.indexOf('\nplane_gone "at the start"\n');
+    const end = smoke.indexOf('\nplane_gone "at the end"\n');
+    expect(start).toBeGreaterThan(smoke.indexOf('api_runner="$(api_env OWNPACE_JOB_RUNNER)"'));
+    expect(end).toBeGreaterThan(smoke.indexOf('\npgboss_jobs\n'));
+    expect(end).toBeLessThan(smoke.indexOf('note "verdict"'));
+    expect(smoke.split('\n').filter((l) => /^plane_gone /.test(l))).toEqual(['plane_gone "at the start"', 'plane_gone "at the end"']);
+    // The supervisor's own check went with it.
+    expect(smoke).not.toContain('supervisor_stopped');
   });
 });
 
@@ -2091,7 +1734,7 @@ smoke_env_value() { [ "$1" = POSTGRES_USER ] && printf '%s' "\${OWNER:-}"; retur
   });
 });
 
-describe("on pg-boss, the worker's log from the start is kept beside the evidence, for the redaction", () => {
+describe("the worker's log from the start is kept beside the evidence, for the redaction", () => {
   it('is read with --since the start, into a file the collector globs, and not into the stream', () => {
     const dir = mkdtempSync(join(tmpdir(), 'worker-log-'));
     try {
@@ -2134,11 +1777,6 @@ describe("on pg-boss, the worker's log from the start is kept beside the evidenc
     expect(smoke).toContain(`keep_worker_log || fail_at "the worker's log could not be read, so the evidence holds no account of the jobs"`);
   });
 
-  it('does nothing on trigger, where the runner logs are the evidence', () => {
-    const r = smokeRun(['keep_worker_log'], 'docker() { echo called; }\nJOB_RUNNER=trigger\nkeep_worker_log; echo "rc=$?"');
-    expect(r.out.trim().split('\n')).toEqual(['rc=0', 'FAIL=0']);
-  });
-
   it('every EXIT trap keeps it, so a run that stops early still does', () => {
     const traps = smoke.split('\n').filter((l) => /^\s*trap\s+.*\bEXIT\b/.test(l));
     expect(traps.length).toBeGreaterThanOrEqual(3);
@@ -2146,23 +1784,24 @@ describe("on pg-boss, the worker's log from the start is kept beside the evidenc
   });
 });
 
-describe('on pg-boss, the tick that beat ran there', () => {
+describe('the tick that beat ran on pg-boss', () => {
   it('asks for the beat only a pg-boss tick writes, and fails when it is stale', () => {
-    const block = /^if \[ "\$JOB_RUNNER" = pg-boss \]; then\n {2}runner_beat=[\s\S]*?\nfi$/m.exec(smoke)?.[0];
+    const block = /^if :; then\n {2}runner_beat=[\s\S]*?\nfi$/m.exec(smoke)?.[0];
     expect(block).toBeDefined();
     expect(block).toContain("task = 'managed-sync-tick-pg-boss'");
-    const run = (answer: string) => verdict(block!, `JOB_RUNNER=pg-boss\nq() { echo '${answer}'; }`);
+    const run = (answer: string) => verdict(block!, `q() { echo '${answer}'; }`);
     expect(run('fresh')).toBe('0');
     expect(run('stale since 2026-11-22 16:00:00+00')).toBe('1');
     expect(run('')).toBe('1');
-    expect(verdict(block!, "JOB_RUNNER=trigger\nq() { echo 'stale'; }")).toBe('0');
   });
 });
 
-describe("a pass that never ran points at the section that explains it, in each mode", () => {
-  it('on pg-boss at the jobs and the worker\'s log, on Trigger.dev at the runner logs, as it always did', () => {
-    expect(smoke).toContain('echo "sync ($label): the enqueue was accepted and never became a runner — see the runner-log section below."');
-    expect(smoke).toMatch(/if \[ "\$JOB_RUNNER" = pg-boss \]; then\n\s+echo "sync \(\$label\): the enqueue was accepted and never ran — see the jobs on pg-boss/);
+describe('a pass that never ran points at the section that explains it', () => {
+  it("at the jobs on pg-boss and the worker's log; the runner logs went with Trigger.dev (0167 T9)", () => {
+    expect(smoke).toContain(
+      'echo "sync ($label): the enqueue was accepted and never ran — see the jobs on pg-boss, before the verdict, and the worker\'s log in the evidence."',
+    );
+    expect(smoke).not.toContain('never became a runner — see the runner-log section below');
   });
 });
 

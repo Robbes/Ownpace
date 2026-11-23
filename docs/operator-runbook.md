@@ -8,12 +8,10 @@ as distinct from a self-host owner running the single-tenant appliance (see
 > **Scope.** The managed half describes the real bring-up, verified live: the full compose
 > stack, the scripted bring-up, and `smoke-managed.sh` as the acceptance test. The seventeen
 > background jobs (sync, verify, apply, discovery, the `managed-sync-tick` schedule that starts
-> the syncs, and the rest) run on one runner at a time, chosen by `OWNPACE_JOB_RUNNER` in
-> `.env`. Its default in `managed.yml` is `pg-boss`: the jobs run in the `worker` service, on the
-> ledger's own Postgres (ADR-0054, workplan 0167). `trigger` is the way back: the jobs run as
-> deployed Trigger.dev tasks on its execution plane (registry, supervisor, ClickHouse, MinIO, the
-> TLS front), which stays installed and stopped in compose profile `trigger` otherwise. The
-> sections on Trigger.dev's plane and its task deploy are for trigger mode. The ledger-semantics
+> the syncs, and the rest) run on pg-boss, in the `worker` service, on the ledger's own Postgres
+> (ADR-0054, workplan 0167). alpha.18 removed the self-hosted Trigger.dev plane that alpha.16 and
+> alpha.17 kept as the way back (workplan 0167 T9); `OWNPACE_JOB_RUNNER=trigger` in an old `.env`
+> is refused, in one sentence that says so. The ledger-semantics
 > sections further down ("Items that would not migrate" onward) apply to BOTH editions and
 > illustrate with the appliance's local URLs — see the scope banner there.
 
@@ -26,7 +24,7 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
   folder names) is **personal data** under GDPR (§17 metadata nuance); handle it accordingly.
 - **Cannot see:** **message/file content.** The engines move data directly source → target;
   content never flows through the orchestrator or the control-plane DB. Never add a code path that
-  routes content through Trigger.dev payloads or logs (SAD §12, §17; job payloads carry **ids
+  routes content through job payloads or logs (SAD §12, §17; job payloads carry **ids
   only**).
 - **Roles** (§4/§17): tenant **admin** (controller), **operator** (processor — status/ops, no
   content), **support** (read-only status/logs, no content). The operator role must never gain a
@@ -43,17 +41,16 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
   revoking a link finds nothing to change there. See
   [Which stack a command reaches](./managed-bring-up.md#which-stack-a-command-reaches).
 - Docker + Docker Compose v2 on the host.
-- `pnpm install` run in the repo (the seed, the deploy CLI and the env-var/smoke scripts
-  use workspace `node_modules`; the deploy CLI is `apps/worker`'s devDependency, run as
-  `pnpm -C apps/worker exec trigger …` from the checkout's root).
+- `pnpm install` run in the repo (the seed and the smoke scripts use workspace
+  `node_modules`).
 - A filled-in env file, with every required secret present. The compose file has **no
   defaults for secrets** — a missing value fails the `up`, loudly:
   ```
   cd deploy/compose
   cp managed.env.example .env
   # edit .env — set NEXTCLOUD_ADMIN_PASSWORD, ports…
-  ./ensure-env-secrets.sh   # generates every still-blank required secret, the five database
-                            # passwords among them while their volumes are new (idempotent —
+  ./ensure-env-secrets.sh   # generates every still-blank required secret, the two database
+                            # passwords among them while their volume is new (idempotent —
                             # it never touches a value you set that this repository does not publish)
   ```
   Compose auto-loads `.env` from the compose file's directory. To keep it elsewhere, pass
@@ -73,15 +70,13 @@ the **system role, `ownpace_system`**. RLS is enforced through the first:
   download read the pseudonym key through it, and no tenant's rows. It is held
   by the scripts that act at the machine: `bootstrap-managed.sh` (migrations, and setting the
   system role's password), `seed-managed.sh` (the demo tenants) and `operator.sh` (appointments,
-  memberships, `check`/`clean`). **No Trigger.dev task holds it**:
-  `set-task-env.sh` uploads no URL composed from it, and its forget run
-  (`set-task-env.sh --forget-owner-names`, which the bring-up makes after `deploy-tasks.sh` has
-  gone through) deletes the owner's names from the task environment. `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script
+  memberships, `check`/`clean`). **No job holds it**: `managed.yml` hands the worker no URL
+  composed from it. `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script
   composes an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
   row-level security is in force on its request path. If you ever point the
   app at the owner URL, tenant isolation silently disappears — don't.
-- `SYSTEM_DATABASE_URL` → the **system role, `ownpace_system`**, for the Trigger.dev jobs that span
+- `SYSTEM_DATABASE_URL` → the **system role, `ownpace_system`**, for the jobs that span
   organisations and nothing else. It is **not a superuser**, may create no role or database, does
   not replicate, belongs to no role **and has no role belonging to it** (a role that belonged to
   it, `app_user` say, could `SET ROLE ownpace_system` and read every organisation's rows); it has
@@ -91,22 +86,21 @@ the **system role, `ownpace_system`**. RLS is enforced through the first:
   **Never grant anything in this database to PUBLIC**: with `BYPASSRLS`, a grant to PUBLIC is a
   grant to this role, past row security, and the integration guard counts it. Managed migration
   0033 creates it with no password; `ensure-env-secrets.sh` generates
-  `SYSTEM_DB_PASSWORD` into `.env`, and the bring-up (`bootstrap-managed.sh`, its `tasks` phase)
+  `SYSTEM_DB_PASSWORD` into `.env`, and the bring-up (`bootstrap-managed.sh`, its `app` phase, before the worker starts)
   asks Postgres that the role is still what the migration made it, **refuses to go on** if it is
   a superuser, may create roles or databases, replicates, belongs to a role, has a role belonging
   to it, or lacks `BYPASSRLS` or `LOGIN`, then sets the password on it, clears every setting left
   on it (a role may change its own settings and its own password, and every run holds its URL),
-  and proves it opens over the network and through the pooler, on every run. `set-task-env.sh`
-  asks the same question before every upload, run by the bring-up or by hand.
-- **The deployed Trigger.dev tasks: the eight per-tenant ones connect as `app_user`, three
+  and proves it opens over the network and through the pooler, on every run.
+- **The jobs: the eight per-tenant ones connect as `app_user`, three
   scheduled jobs read each organisation as `app_user`, and the three that span organisations whole
-  connect as the system role.** `set-task-env.sh` uploads two URLs, `SYSTEM_DATABASE_URL` and
+  connect as the system role.** `managed.yml` hands the worker two URLs, `SYSTEM_DATABASE_URL` and
   `APP_DATABASE_URL`, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run
   receives both. The per-tenant tasks (a pass, a discovery, a
   verification, a confirmation, an apply, a cutover's preparation, a rollback) take their pools
   from `openTaskPools` (`apps/worker/src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`,
   under row security, and one connection on `SYSTEM_DATABASE_URL` for the audit export's key
-  (`deployment_key`, which `app_user` may not read). A task run without either refuses to start,
+  (`deployment_key`, which `app_user` may not read). A job's run without either refuses to start,
   naming it; it never falls back to the owner. The digest, the drift detector and group discovery
   are split: each run asks the system role once which organisations are active (ids
   only, one connection, closed before it answers; `activeOrganisations`), and reads and writes each
@@ -116,53 +110,37 @@ the **system role, `ownpace_system`**. RLS is enforced through the first:
   of closed organisations) connect with `SYSTEM_DATABASE_URL`, and there each query's own tenant
   filter is still what keeps one organisation's rows from another: the system role reads past the
   policies on the tables it is granted. No run holds a superuser's credential: none can run a
-  program on the database server, read its files, change a role or alter the schema. The sync
-  tick needs `APP_DATABASE_URL` as well: it imports the pass's task (`run-delta-sync`) to
-  enqueue it, and that module opens its pools when it is loaded, so without it no tick runs.
+  program on the database server, read its files, change a role or alter the schema.
   The API's request path, the per-tenant tasks and the three split jobs share `app_user`'s
   server connections at PgBouncer, and the jobs across organisations the system
   role's (`pgbouncer.ini`, beside `default_pool_size`, says what that holds). `docs/rls-guide.md`,
   "Where row security holds today", lists every connection and whether the policies bind it.
-  `set-task-env.sh` deletes the owner's two names, `DIRECT_DATABASE_URL` (straight to
-  `postgres:5432`) and `DATABASE_URL` (through the pooler), from the store on every run, since an
-  older task environment may still hold them, and fails when the list it reads back still holds
-  either; `docs/managed-bring-up.md`, "The owner's names in the task environment", says what to
-  do then.
 
 **The two passwords are `.env`'s, on every run.** A role keeps the password it
 was made with, so the bring-up's `data` phase tells both: before anything migrates it creates
 `app_user` from `APP_DB_PASSWORD` when it does not exist (`0001_baseline` then leaves it alone, and
 makes it with its published `app_password` only when it is absent), sets its password when it does,
 and sets the owner's, then asks both over the stack's network and through PgBouncer. On a stack
-whose volume is new, `ensure-env-secrets.sh` generates `POSTGRES_PASSWORD` and `APP_DB_PASSWORD`
-(and `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD` and `TRIGGER_DB_PASSWORD`, each while its own
-volume is new). On a real address (`WEB_URL` https, not localhost) every phase from `data` on
-refuses one of the five that is empty or a value this repository publishes, naming the key and never
+whose volume is new, `ensure-env-secrets.sh` generates `POSTGRES_PASSWORD` and
+`APP_DB_PASSWORD`. On a real address (`WEB_URL` https, not localhost) every phase from `data` on
+refuses either that is empty or a value this repository publishes, naming the key and never
 the value. To change them on a stack that has its volumes,
 `./deploy/compose/rotate-db-passwords.sh --rotate` makes new ones and changes `.env` and the roles
 together, and `--sync` sets the roles to `.env`'s values (`docs/managed-bring-up.md`, "Changing the
-database passwords"). With `--with-trigger-stores` both also take Trigger.dev's own database:
-`trigger-db`'s role `trigger` and its `TRIGGER_DB_PASSWORD`, set over `trigger-db`'s socket. The
-bring-up's `trigger` phase sets that role to `.env`'s value on every run, before `trigger-api`
-starts.
+database passwords"). `--with-trigger-stores`, which also took Trigger.dev's database until
+alpha.18, is refused.
 
 ## Start / stop
 
-Bring up the WHOLE stack with the bring-up, which starts the services the job runner's switch
-asks for. **In pg-boss mode** (`OWNPACE_JOB_RUNNER=pg-boss`, `managed.yml`'s default) the job
-worker, `worker`, is an ordinary service of the stack: the app phase starts it after the api and
+Bring up the WHOLE stack with the bring-up. The job worker, `worker`, is an ordinary service of
+the stack: the app phase starts it after the api and
 waits for its healthcheck, which asks its own `GET http://127.0.0.1:3002/health` inside the
 container. It connects as `ownpace_jobs` through PgBouncer (`JOBS_DATABASE_URL`), to pg-boss's
 schema `pgboss` in the ledger's database. A stack without it accepts every enqueue and runs none
-of them. Trigger.dev's eleven services stay in profile `trigger`, so a plain `up` starts none of
-them; the bring-up stops any that still run, the supervisor first, and never removes their
-volumes.
-
-**In trigger mode** (`OWNPACE_JOB_RUNNER=trigger` in `.env`, then the bring-up) the bring-up
-stops and removes the worker first, then starts the plane by name from its kept volumes. The
-plane (registry, docker-proxy, supervisor, ClickHouse, MinIO, the TLS front) is then not
-optional garnish: a stack without the supervisor accepts every enqueue and executes none of
-them, and the dashboard queries ClickHouse (without it the webapp process dies, not a page).
+of them. On a stack that ran alpha.17 or earlier, the bring-up's `plane` phase removes what is
+left of Trigger.dev's eleven containers, by their labels, and never a volume; the volumes go by
+name, once, with `remove-trigger-plane.sh` (`docs/managed-bring-up.md`, "Trigger.dev's plane,
+removed").
 
 ```bash
 cd deploy/compose
@@ -171,7 +149,7 @@ cd deploy/compose
 # A bare `up` cannot stand in for it: pgbouncer stays unhealthy until setup-auth.sql
 # has created its lookup role, the identity provider is never provisioned, and
 # the demo Nextcloud starts too.
-# Bring an existing stack up again — this rebuilds api/web and re-runs
+# Bring an existing stack up again — this rebuilds api/web/worker and re-runs
 # setup-zitadel.sh (idempotent):
 ./bootstrap-managed.sh --only app
 
@@ -184,7 +162,7 @@ cd deploy/compose
 # Status / logs (status only — no content is ever logged):
 docker compose -f managed.yml ps
 docker compose -f managed.yml logs -f api
-docker compose -f managed.yml logs -f worker    # pg-boss mode: the jobs' lines
+docker compose -f managed.yml logs -f worker    # the jobs' lines
 
 # Stop (keep data):
 docker compose -f managed.yml stop
@@ -194,17 +172,16 @@ docker compose -f managed.yml down
 docker compose -f managed.yml down -v
 ```
 
-These commands reach the services of the active profiles: the stack's own, the worker among
-them. In trigger mode the plane runs in profile `trigger`, so add `--profile trigger` after
-`docker compose` for a stop or a tear-down to reach it too. A `down -v` can take the plane's
-volumes with the rest, and in pg-boss mode they are the way back to trigger mode.
+These commands reach every service `managed.yml` names, the worker among them. What is left of
+Trigger.dev's plane on a stack that ran alpha.17 or earlier is not named there any more: neither
+`down` nor `down -v` reaches it. The bring-up's `plane` phase removes its containers and
+`remove-trigger-plane.sh --yes` its volumes and networks (`docs/managed-bring-up.md`,
+"Trigger.dev's plane, removed").
 
 **Env changes need a recreate, not a restart.** `docker compose up -d` recreates only
 services whose configuration changed *as compose sees it*; a container that shows
 `Running 0.0s` in the `up` output kept its old environment. After editing `.env` for a
 running service, force it: `docker compose -f managed.yml up -d --force-recreate <service>`.
-Without it, changing the `TRIGGER_*_ORIGIN`s gives a white screen from a dashboard still
-advertising the old origins.
 
 ### Whose address a log line names, and how long it stays
 
@@ -231,14 +208,13 @@ line's last field with `<client-ip>` as it replaces mesh addresses with
 **How long they stay.** Every container writes with Docker's default log driver,
 `json-file`, which keeps its output until the container is removed: at each
 deploy for the app and the site, and when its image or settings change for the
-sign-in service. The jobs, in pg-boss mode, write only to the job worker's
+sign-in service. The jobs write only to the job worker's
 (`worker`) output: a job's run is a child process of the worker, so its lines
 are the worker's container output and go with the worker's container. That
 goes at each deploy as the app does: its image carries the commit it was built
 from (`GIT_SHA`), as the API's does, and the bring-up recreates the worker
 whenever it replaced the api's container, so each update of the service
-replaces it. In trigger mode a task's run is a container of Trigger.dev's own,
-and its output goes when that run ends. That is privacy §9's *"until
+replaces it. That is privacy §9's *"until
 the part of the service that wrote them is replaced"*. The stack's own services
 (`managed.yml`, the app and the sign-in service among them) also rotate it by
 size, five files of 20 MB: one that writes a lot keeps only about its last
@@ -275,33 +251,6 @@ not read.
 ([breach-procedure.md](breach-procedure.md), step 2). A recreated container starts
 with an empty log.
 
-### The trigger dashboard's TLS front (`trigger-tls`)
-
-**Trigger mode only.** In pg-boss mode `trigger-tls` is stopped with the rest of the plane, in
-profile `trigger`, and there is no dashboard to reach; nothing here applies until
-`OWNPACE_JOB_RUNNER=trigger` and the bring-up start it again.
-
-The dashboard runs production-mode Secure cookies, so login is unusable over plain http
-from anything but localhost. The `trigger-tls` service (Caddy, `tls internal`) serves
-`https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` for browsers. The origin split is
-deliberate and load-bearing:
-
-- `TRIGGER_APP_ORIGIN` / `TRIGGER_LOGIN_ORIGIN` → the **https** front (browsers).
-- The API origin → **`http://127.0.0.1:3090`**, always, fixed in `managed.yml` and not
-  read from `.env`. The deploy CLI follows the server-advertised API origin: pointing it at
-  a self-signed https front fails deploys with a bare "Connection error", and `localhost`
-  fails the image build, which the CLI then sends to the machine's first non-loopback
-  address. `TRIGGER_API_ORIGIN` in `.env` is only what the scripts log the CLI in with.
-
-Set `TRIGGER_TLS_HOST` to the address browsers actually use (e.g. the machine's VPN IP) —
-it is both the certificate's subject and the SNI default for IP-connecting browsers, and
-both rules exist because their absence fails as a silent TLS handshake death, not an HTTP
-error (`trigger-tls.Caddyfile` documents this). The certificate is internally minted, so
-the first visit needs the browser's "accept the risk" step. Set `TRIGGER_TLS_BIND` to the
-machine's IP address that `TRIGGER_TLS_HOST` names: the port answers on loopback only until a
-bind adds another, and a bind takes an IPv4 address, never a name, even where the host is one
-(`docs/managed-bring-up.md`, *Which address a port answers on*).
-
 ### Alternative: run apps from source (no image build)
 
 To iterate without rebuilding images, run the app services from source against the compose
@@ -313,8 +262,8 @@ export APP_DATABASE_URL="postgres://app_user:<APP_DB_PASSWORD>@localhost:5432/op
 export JWT_SECRET="<same value as in .env>"
 pnpm --filter @openmig/api dev       # API on :3001
 pnpm --filter @openmig/web dev       # Web (Vite) dev server
-# The jobs: in pg-boss mode they run in the worker service (apps/worker/src/runner/main.ts);
-# in trigger mode as deployed Trigger.dev tasks, iterated on with deploy-tasks.sh below.
+# The jobs run in the worker service (apps/worker/src/runner/main.ts); keep the stack's
+# worker container for them.
 ```
 
 ## Seed a demo (two-tenant DoD journey)
@@ -343,7 +292,7 @@ set -a; source deploy/compose/.env; set +a
 DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT:-5432}/${POSTGRES_DB}" \
   ./deploy/compose/seed-managed.sh
 
-# The managed-sync-tick scheduled task (deployed via deploy-tasks.sh) picks
+# The managed-sync-tick schedule (in the worker, on pg-boss) picks
 # up the seeded mappings within a minute and starts their sync passes on
 # each mapping's own schedule (default */15). Until a mapping's first copy is
 # finished it runs passes back to back instead, at most every 15 minutes,
@@ -362,47 +311,13 @@ console link instead of sending an operator to a user the provider has never had
 B's token must never read or affect tenant A's data through any path — verified at the SQL layer
 (RLS) and the HTTP layer (integration tests).
 
-## Deploying the Trigger.dev tasks (verify + apply run through these)
+## The jobs and the acceptance (verify + apply run through these)
 
-The API's verify/apply routes enqueue jobs; without deployed tasks and a running supervisor,
-every enqueue lands `failed` with the reason (by design — never silently). Full background:
-workplan 0018.
-
-**One-time setup (per fresh trigger-db volume):**
-
-1. Open the dashboard — `https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` — and enter an email.
-   There is no SMTP: fetch the magic link from the logs and open it in the same browser. Ask
-   for it on that address (`TRIGGER_LOGIN_ORIGIN`): the link points there and signs in only the
-   browser session that asked for it:
-   ```bash
-   ./deploy/compose/trigger-magic-link.sh
-   ```
-2. Create an org + project in the dashboard.
-3. Resume with `./deploy/compose/bootstrap-managed.sh --from account`: `trigger-credentials.sh`
-   reads the `proj_…` ref and the prod `tr_prod_…` key out of the instance, writes them to `.env`
-   and restarts the API (see [managed-bring-up.md](./managed-bring-up.md), phase 6). If `.env`
-   still holds the previous instance's pair, that phase reports nothing to do;
-   `./deploy/compose/trigger-credentials.sh --write` overwrites both.
-4. Upload the task-runtime env vars (task containers inherit NOTHING from compose — including
-   the `SMTP_*`/`NOTIFY_*` values the digest and the rollback notice read, so a value that lives
-   only in `.env` and is never uploaded is a value those tasks will never see):
-   ```bash
-   ./deploy/compose/set-task-env.sh
-   ```
-   Re-run it after any rotation of the values it uploads; the dashboard's env page is never
-   load-bearing.
-
-**Deploy (every code change to `apps/worker/src/jobs/*` or its dependencies):**
-
-```bash
-./deploy/compose/deploy-tasks.sh
-```
-
-Idempotent; installs the lockfile first, and with it the deploy CLI, which is `apps/worker`'s
-devDependency at exactly the SDK version; preflights reachability, project ref and login.
-On a non-amd64 host set `DEPLOY_IMAGE_PLATFORM` in `.env` (e.g. `linux/arm64`) — the platform
-is decided server-side and handed to the CLI, and a mismatch produces runners that die at
-exec in under a second with `AutoRemove` destroying the evidence.
+The API's verify/apply routes enqueue jobs on pg-boss; the worker runs them. Without a running
+worker every enqueue waits in its queue and none runs, which `operator.sh jobs` shows. There is
+no deploy of the jobs of their own: they are in the worker's image, which the bring-up builds
+with the api's (until alpha.18 they were Trigger.dev tasks with a deploy of their own, workplan
+0018).
 
 **Acceptance — after ANY stack change:**
 
@@ -411,16 +326,15 @@ exec in under a second with `AutoRemove` destroying the evidence.
 ```
 
 Runs the live verify + apply loop end to end (seeded-member tokens, poll to terminal,
-runner-log capture, guarded evidence cleanup) and exits non-zero unless verify lands `done`
-and apply lands `applied` or `refused`. A green CI says nothing about this machine; the
-smoke does. Its evidence file is **secret-bearing** (runner logs print the task env).
+the worker's log kept, guarded evidence cleanup) and exits non-zero unless verify lands `done`
+and apply lands `applied` or `refused`, or a container of Trigger.dev's plane is on the stack.
+A green CI says nothing about this machine; the smoke does. Its evidence file is redacted
+before anything is uploaded (`redact-evidence.sh`).
 
-## The jobs on pg-boss: seeing and steering them (pg-boss mode only)
+## The jobs on pg-boss: seeing and steering them
 
-**For a stack whose jobs run on pg-boss** (`OWNPACE_JOB_RUNNER=pg-boss`, ADR-0054, workplan
-0167), which is `managed.yml`'s default. In trigger mode the dashboard's Runs page and Test runs
-are where this is done, and each command below says so in one sentence and exits 1.
-pg-boss has no dashboard; these take the place of both:
+The jobs run on pg-boss (ADR-0054, workplan 0167), the only runner since alpha.18. pg-boss has
+no dashboard; these take the place of the one Trigger.dev had:
 
 ```bash
 ./deploy/compose/operator.sh jobs                                  # per queue: queued, active, failed, active keys
@@ -430,7 +344,7 @@ pg-boss has no dashboard; these take the place of both:
 ./deploy/compose/operator.sh jobs run <task> '<json>' [--despite-hold]
 ```
 
-- **`jobs`** lists the seventeen queues, named by their Trigger.dev task ids, with the runs
+- **`jobs`** lists the seventeen queues, named by the task ids they had on Trigger.dev, with the runs
   queued, active and failed (the failed that pg-boss still keeps, 7 days by default), and for a
   pass, a count or a confirmation the migration each active run holds. The counts are the
   worker's, refreshed every 15 s. A queue *not made yet* means the worker has not started on
@@ -441,9 +355,9 @@ pg-boss has no dashboard; these take the place of both:
   behind a reference are where they always were, in the migration's own run history and on the
   operator log page.
 - **`jobs show` and `jobs cancel`** take a run's id, a UUID: what a run row's `orchestrator_ref`
-  holds on pg-boss. A `run_…` ref is Trigger.dev's and is refused. A cancelled run that is going
+  holds on pg-boss. A `run_…` ref is Trigger.dev's, from before alpha.16, and is refused. A cancelled run that is going
   stops at its next heartbeat, within 30 s.
-- **`jobs run`** queues one run by hand, in place of Test runs: `run-rollback` (see
+- **`jobs run`** queues one run by hand, in place of Trigger.dev's Test runs: `run-rollback` (see
   [rollback-mechanisms.md](./rollback-mechanisms.md#managed-pg-boss)), or a schedule's run now,
   with `'{}'`, which is all a schedule takes: `jobs run managed-digest '{}'`. A schedule that already
   has a run waiting queues no other. A pass, a count or a confirmation needs the migration's
@@ -461,7 +375,7 @@ owner. The owner connection `operator.sh` composes is used only to read the hold
 ## Email notifications (workplan 0030)
 
 Four things send email on managed, all through the operator's own SMTP relay configured in
-`.env` and uploaded by `set-task-env.sh`:
+`.env`, which `managed.yml` hands the API and the worker:
 
 - **`managed-digest`** — a scheduled task, daily at **08:00 UTC**. It asks each active tenant
   whether today is its day (cadence is per tenant, chosen on the Tenants screen: daily, weekly
@@ -517,7 +431,7 @@ Four things send email on managed, all through the operator's own SMTP relay con
   4. **Each credit note's money made real, once**: refunded through Mollie when its
      invoice was paid through Mollie and more was paid than is owed now; set against its invoice
      in the books when nothing was paid above that; or **said, for a transfer by hand**, when it
-     was paid another way. Without `MOLLIE_API_KEY` in the task environment, a refund waits and
+     was paid another way. Without `MOLLIE_API_KEY` in the worker's environment, a refund waits and
      each run says so.
   5. **Each refund followed** at Mollie until it ends, refunded, failed or canceled. These are
      Mollie's calls, outside the budget below.
@@ -542,11 +456,11 @@ Four things send email on managed, all through the operator's own SMTP relay con
   | `N invoice(s) still drafts two days after they were made` | Said every run while it is true. The errors before it, for the same organisation, say why each draft was refused. |
 
   **The three said once reach you twice**, because each error is a line
-  on the output of a run whose container is removed when the run ends:
+  on the worker's output, which goes with its container:
   - **a mail to `NOTIFY_TO`**, in English, with the credit note's and the invoice's numbers, the
     amount and what to do, and the organisation's id, never its name. It goes once, when the push
     writes it down; a mail that cannot go is an error on the run, and the list still has it. With
-    no SMTP settings in the task environment, the run says once that it is not sending;
+    no SMTP settings in the worker's environment, the run says once that it is not sending;
   - **the support screen's *Money to give back*** (*Support*, then *Money to give back*), which
     lists them from what the invoice table records (managed 0055): what is still owed or watched
     first, with the organisation, both numbers, the amount, what happened and since when; then
@@ -605,8 +519,7 @@ government and changes for everyone at once.
 ```bash
 # deploy/compose/.env — integer CENTS. €12.50/month is 1250, never 12.50.
 PRICING_BASE_FEE_CENTS=1250
-docker compose -f managed.yml up -d api      # the api reads it at boot
-./set-task-env.sh                            # the worker meters against the same numbers
+docker compose -f managed.yml up -d api worker   # both read it at start: the worker meters against the same numbers
 ```
 
 A malformed value (a decimal point, a negative, text) stops the api at boot and names the
@@ -691,11 +604,11 @@ invite-only alpha of hand-picked testers, under that plan's conditions:
 
 - **Names per project, on one Docker daemon.** Every container, volume and
   network is named after its compose project, and each stack has its own
-  checkout, `.env`, ports, Trigger.dev plane and identity provider
+  checkout, `.env`, ports, job worker and identity provider
   ([Which stack a command reaches](./managed-bring-up.md#which-stack-a-command-reaches)).
   That keeps the stacks apart by configuration. It is not a security boundary:
-  each stack's `trigger-docker-proxy` holds the Docker socket, and so does the
-  runner.
+  the runner holds the Docker socket (until alpha.18 each stack's
+  `trigger-docker-proxy` did too).
 - **The gate refuses live's `.env`.** The nightly managed gate refuses a
   persisted `.env` that carries live's marker, `STACK_KIND=production`, or a
   slip of it, before it copies anything out of that directory
@@ -779,8 +692,9 @@ would not follow one (mount a larger disk at that path if you need the room).
 
 - **Taken** by `deploy-live.sh`, right before its checkout, with the hold on and nothing in
   flight (`copy-before-update.sh take <tag>`): the app's database, the sign-in service's
-  database and the roles (through `dump-idp.sh`), and, when the tag moves the Trigger.dev pin,
-  the task runner's database (`trigger-version.sh backup before-<tag>`), each read back. The
+  database and the roles (through `dump-idp.sh`), each read back. (Until alpha.18 it also took
+  Trigger.dev's database when the tag moved its pin; `copy-before-update.sh take --trigger` is
+  refused since, in one sentence: there is no task runner's database to copy.) The
   note `copy-before-update.txt` names when it was taken, the tag it was taken before, the
   release that ran (`from=`) and every file. A copy whose update is not proven yet is kept
   instead of a second one: it is of what ran before. It refuses while the daily duties' timer
@@ -803,9 +717,12 @@ would not follow one (mount a larger disk at that path if you need the room).
   kept past day 7 even when a run starts late. A dump made there by hand goes by its own age,
   alone. The run before the one that deletes the copy fails in the journal, to say today is the
   last day to roll back.
-- **The drill is not live's.** It runs on the test stack only, in the gate; on live
-  `trigger-version.sh` refuses `drill`, and its `backup` writes into this directory only, as
-  `dump-idp.sh` does.
+- **The drill is not live's.** It runs on the test stack only, in the gate
+  (`dump-idp.sh --drill`, the identity provider's database restored beside itself); on live
+  `dump-idp.sh` refuses `--drill`.
+- **A kept copy that holds Trigger.dev's database**, a `triggerdb-<stamp>-before-<tag>.sql.gz`
+  from a copy taken before alpha.18, is counted, kept, deleted and expired with its copy, as any
+  file the note names. Nothing restores it: there is no plane to restore it into (step 8 below).
 
 **Rolling back from it, by day 6**, when the update is not proven and will not be. From
 `~/ownpace-live`, the copy's directory as `C=~/.persistent/ownpace-live/copy-before-update`.
@@ -823,8 +740,7 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
 2. **Read the note:** `cat "$C/copy-before-update.txt"`. `from=` is the release that ran
    before, the one to go back to; the files are listed below it.
 3. **Stop everything that connects to the databases:**
-   `docker compose -f deploy/compose/managed.yml stop api zitadel pgbouncer trigger-supervisor`,
-   and `trigger-api` too when the copy holds the task runner's database. A database with a
+   `docker compose -f deploy/compose/managed.yml stop api worker zitadel pgbouncer`. A database with a
    session still open cannot be replaced: `pg_restore` stops at its `DROP DATABASE` with
    *"is being accessed by other users"*. Stop whatever that names, and run the step again.
 4. **Write down what changed since the copy**, while the app's database is still the one after
@@ -860,34 +776,14 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
    `zitadel-ownpace-live-<stamp>.dump` beside it: step 3 of the note `dump-idp.sh` wrote there
    (`zitadel-ownpace-live-<stamp>.txt`). The roles only on a new server: on the same one they
    are still there, and restoring them would set the provider's database password back.
-8. **The task runner's database**, only when the copy has a `triggerdb-<stamp>-before-<tag>.sql.gz`:
+8. **Trigger.dev's database: nothing to restore.** A copy taken before alpha.18 for an update
+   that moved the Trigger.dev pin holds a `triggerdb-<stamp>-before-<tag>.sql.gz`; from alpha.18
+   there is no plane to restore it into, and `trigger-version.sh`, which restored it, is gone.
+   Leave the file with the copy: it goes when the copy goes. Rolling back across alpha.18 to
+   alpha.17 needs none of it either: alpha.17 runs its jobs on pg-boss.
 
-   ```bash
-   ./deploy/compose/trigger-version.sh restore "$C"/triggerdb-<stamp>-before-<tag>.sql.gz --yes
-   ```
-
-   **ClickHouse's volume, only when the update moved the ClickHouse pin** (the two tags'
-   `managed.yml` pin different ClickHouse images; `deploy-live.sh` names that move and says the
-   copy holds no ClickHouse volume): the copy is not in `$C`,
-   because the copy before an update never takes a volume. It is the one taken by hand before
-   the deploy, `ownpace-live_clickhouse_data_v2_before_26_8` for the move to 26.8: restore it
-   now with the *Back to 26.2* block of `docs/managed-bring-up.md`, *Moving ClickHouse*, with
-   `cd ~/ownpace-live` in place of its first `cd` and without its last line. Without it, step
-   9 starts the older ClickHouse on parts it cannot read, if it starts at all.
-
-9. **Deploy the release that ran before**, the note's `from=`, the hold still on. When the copy
-   held the task runner's database (step 8 ran), first set live's `TRIGGER_IMAGE_TAG` back to
-   the Trigger.dev pin of that release. `.env`'s value wins over the release's own default: left
-   at the newer tag, the bring-up refuses the drift from that release's SDK, and a webapp started
-   at it would migrate the restored database forward again. Both lines the first command prints
-   name the same pin:
-
-   ```bash
-   git show <that tag>:deploy/compose/managed.yml | grep -oE 'TRIGGER_IMAGE_TAG:-v[0-9.]+'
-   ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-live/.env TRIGGER_IMAGE_TAG=<that pin>
-   ```
-
-   Then `./deploy/compose/deploy-live.sh <that tag>`. It says one-way, keeps the copy (its update
+9. **Deploy the release that ran before**, the note's `from=`, the hold still on:
+   `./deploy/compose/deploy-live.sh <that tag>`. It says one-way, keeps the copy (its update
    is not proven; on the copy's last day it lets this deploy through, and no other), brings
    every service up at that release and runs its checks. The restored database still carries
    the hold that was on when the copy was taken.
@@ -910,9 +806,7 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
 11. **Lift the hold, watch a pass complete** (`./deploy/compose/live-pass-check.sh` starts one),
     then `./deploy/compose/copy-before-update.sh delete`: the rollback is the update the copy now
     proves. The box checks leave this copy to you: the since-the-copy file beside it is not in
-    its note. When step 8 restored ClickHouse's volume, its copy goes now too, still by day 6:
-    nothing deletes it on its own. The removal block of `docs/managed-bring-up.md`, *Moving
-    ClickHouse*, with `cd ~/ownpace-live` in place of its first `cd` and `want=26.2.19.43`.
+    its note.
 
 Step 5's command was rehearsed against Postgres 16 with both migration chains applied, after a
 simulated update (a column, a table and a row added): with a session still open it stopped at
@@ -937,7 +831,6 @@ machine held ([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-
   requests;
 - every sign-in identity (live's `zitadel` database, on the same server);
 - live's `.env`, with its keys and passwords, unless you keep a copy off the machine (0134 T4);
-- live's Trigger.dev account, project and keys, and the dumps of its store.
 
 A tester loses their setup and a first pass, not their data. Their mail, calendars, contacts and
 files are still in their old account, and the copies already made stay in their new one. A
@@ -962,9 +855,8 @@ What you do:
    start when it is empty, past or not a date, and keeps one still ahead. If the old machine
    could be in someone else's hands, replace every value instead: nothing depends on the old
    ones any more, and the OAuth client secrets are replaced in each provider's console.
-3. Do Trigger.dev's one-time steps on live's plane (0132 T1c).
-4. Grant each tester again as they come back.
-5. Record the date and what was lost in 0134's Status block.
+3. Grant each tester again as they come back.
+4. Record the date and what was lost in 0134's Status block.
 
 Never squash either migration chain during the alpha (`scripts/squash-migrations.sh`). For the
 testers a squash is the same as a lost database: the runner refuses the old chain, and a database
@@ -976,8 +868,7 @@ with real data is restored from a backup, never dropped.
 loopback unless its `*_BIND` adds an address. On a stack whose public names are
 routed through a front, set `WEB_BIND` and `ZITADEL_BIND` in `.env` to the address the front
 connects to, first, or the names stop answering. `STATUS_BIND` too where a status name is routed
-or the status page is opened over the mesh, and `TRIGGER_TLS_BIND`, the IP address
-`TRIGGER_TLS_HOST` names, for a dashboard opened over the mesh. Each is one IPv4 address, never a
+or the status page is opened over the mesh. Each is one IPv4 address, never a
 name. The site is not upgraded with the stack: it keeps its old publish until `WWW_BIND` is set
 in the `.env` beside `www.yml` and `docker compose -f deploy/compose/www.yml up -d` runs from the
 updated checkout. A bind on a mesh address also ties the container's start to that address after a
@@ -1015,11 +906,9 @@ On either, this is what an upgrade does and does not do:
 3. Watch health checks and per-tenant run success after it.
 4. Roll forward: a fix and a new tag. If a release misbehaves and cannot be fixed forward, restore
    from a backup rather than reversing schema.
-5. A new pin of Trigger.dev, the identity provider, ClickHouse, MinIO, Mailpit or Nextcloud
+5. A new pin of the identity provider, Mailpit or Nextcloud
    starts with reading what that version sends its makers by default: Zitadel's daily report,
-   for one, is on unless switched off. For Trigger.dev that is the webapp and everything its
-   entrypoint runs: Prisma's migrate sends a checkpoint at every start unless
-   `CHECKPOINT_DISABLE` is set. The switches are written in `managed.yml`,
+   for one, is on unless switched off. The switches are written in `managed.yml`,
    and `scripts/a-service-that-phones-home.unit.test.ts` fails until the row for that image names
    the new version. The demo's Nextcloud has no switch yet: its update check, app store and
    connectivity check stay on, because a hook that set them off made the demo's first CalDAV
@@ -2673,24 +2562,22 @@ steps for a tester's report. The items below are causes it points to.
 
 - **API won't connect / RLS errors on every query:** confirm the API's `APP_DATABASE_URL` is set
   and points at `app_user` (not the owner), and that migration `0001_baseline` ran (the role
-  exists). The per-tenant tasks read it too: a pass, discovery,
+  exists). The per-tenant jobs read it too: a pass, discovery,
   verification, confirmation, apply, cutover or rollback run that fails at once with
-  *"APP_DATABASE_URL is required"* is a task environment without it, or with it blank, which
-  `set-task-env.sh` uploads. **The sync tick fails the same way**, every tick, and with it every
-  scheduled sync: it imports `run-delta-sync`, which opens its pools when it is loaded. **So do the
-  digest, the drift detector and group discovery**, each at the start of its daily run. Every
-  task needs `SYSTEM_DATABASE_URL` too, for its audit key, and the jobs that span
-  organisations for everything: a run that fails at once with
-  *"SYSTEM_DATABASE_URL is required"* is a task environment without it; re-run the bring-up's
-  `tasks` phase, which sets the role's password and uploads it. A run that fails with *"password
-  authentication failed for user "ownpace_system""* holds a URL from before the password last
-  changed: the same phase sets `.env`'s value on the role and uploads the URL made from it.
+  *"APP_DATABASE_URL is required"* is a worker started without it, or with it blank, which
+  `managed.yml` hands it. **So do the digest, the drift detector and group discovery**, each at
+  the start of its daily run. Every job needs `SYSTEM_DATABASE_URL` too, for its audit key, and
+  the jobs that span organisations for everything: a run that fails at once with
+  *"SYSTEM_DATABASE_URL is required"* is a worker without it; re-run the bring-up's `app` phase,
+  which sets the role's password and recreates the worker with it. A run that fails with
+  *"password authentication failed for user "ownpace_system""* holds a URL from before the
+  password last changed: the same phase sets `.env`'s value on the role and recreates the worker.
   Retention and the purge of closed organisations connect with `SYSTEM_DATABASE_URL` alone, and a
   failure there naming *"permission denied for table …"* is a statement the system role was not
   granted (managed migration 0033 lists what it was, and 0035 the one table made after it,
   `person_link`). A split job that fails with *"The list of organisations was asked on a
   connection that row security binds"* was handed a `SYSTEM_DATABASE_URL` whose role lacks
-  `BYPASSRLS`, which the bring-up refuses before it uploads one.
+  `BYPASSRLS`, which the bring-up refuses before the worker starts.
 - **A migration on a daily schedule runs a pass every hour or so:** expected while its first copy
   is unfinished. A pass stops itself at 50 minutes, and
   until every data type it copies has completed a pass (`migration_status.completed_at` set on
@@ -2710,82 +2597,34 @@ steps for a tester's report. The items below are causes it points to.
 - **Seed prints tokens but sign-in fails:** `JWT_SECRET` used by the seed must equal the API's —
   and the token's `sub` must be a seeded `tenant_member` (the tenant-membership gate; arbitrary
   subs get 403).
-- **Verify/apply enqueues land `failed` with "Could not enqueue":** tasks not deployed, or the
-  supervisor is down — run `deploy-tasks.sh`, check `docker ps` for `trigger-supervisor`, then
-  `smoke-managed.sh`.
-- **Runner containers die in under a second with no logs:** almost always the image platform —
-  set `DEPLOY_IMAGE_PLATFORM` to match `uname -m` and redeploy. `smoke-managed.sh` captures
-  runner logs live precisely because `AutoRemove` destroys them.
-- **A failed task run says only a category and a reference:** by design. Trigger.dev keeps a
-  run's error, output and logs with no
-  limit, so no tester's words go there. The error reads, for example, `email sync failed
+- **Verify/apply enqueues land `failed` with "Could not enqueue":** the job queue could not be
+  reached (the door says so), or the worker never made its queues on this database — check
+  `docker compose ps worker` and `./deploy/compose/operator.sh jobs`, then `smoke-managed.sh`.
+- **A failed job's run says only a category and a reference:** by design. pg-boss keeps a
+  run's error and output in its schema for days, so no tester's words go there. The error reads, for example, `email sync failed
   (source_refused). Reference 1a2b3c4d.`, and discovery's output keeps a category and a
   reference for a data type it could not count. Find the reference on the operator log page
   (`sync.<data type>.failed`, `discovery.<data type>.failed` or `task.<task id>.failed`), and the
-  words in the migration's own run history, where most failures are also written. A task's own
-  lines go to its container's output only: `docker logs -f` on the runner while it runs, and
-  gone once `AutoRemove` removes it.
-- **Dashboard Runs page is empty while runs exist in postgres:** the runs LIST is served from
-  ClickHouse; without run-replication it renders empty. Cosmetic, and accepted: the smoke and
-  the DB rows are the operational truth, the Tasks tab still works,
-  and enabling replication adds moving parts for a page nobody depends on. Revisit only if the
-  Runs page becomes someone's tool. Not an outage. ClickHouse holds run history even so: every
-  task process's metrics, each row with its run's id, for 60 days. The end of the Alpha empties
-  it with the task runner's database ([ending-the-alpha.md](./ending-the-alpha.md), *The switch*,
-  step 3).
-- **White screen / login loop on the dashboard:** two known causes, both env. (1) A missing
-  `TRIGGER_TLS_HOST` in `.env` — Caddy falls back to `localhost`, your browser's `Host` header
-  matches no site block, and the response is EMPTY (a white screen, not an error). (2) Stale
-  origins — the running trigger-api must advertise the SAME
-  origins your browser uses. Either way the fix ends with a recreate:
-  `--force-recreate trigger-tls trigger-api` after correcting `.env` (see Start/stop).
-
+  words in the migration's own run history, where most failures are also written. A job's own
+  lines go to the worker's output only: `docker compose -f deploy/compose/managed.yml logs -f
+  worker`, gone with the worker's container.
 ### Which services the managed gate actually speaks for
 
 `smoke-managed.sh` says `unhealthy: none`, and that sentence is narrower than
-it sounds: **five of the seventeen long-running services define no
-healthcheck**, so `docker compose ps` can only say they are *running*. If a red gate points at a
-service, this is the map of what proved it and how:
+it sounds: **two of the nine long-running services define no healthcheck**,
+so `docker compose ps` can only say they are *running*. If a red gate points at
+a service, this is the map of what proved it and how:
 
 | service | how it is proven |
 |---|---|
-| postgres, pgbouncer, trigger-db, trigger-redis, clickhouse, api, web, mailpit | healthcheck (compose, or the image's own HEALTHCHECK for api and web) — `--wait` blocks on them |
-| nextcloud, trigger-api, trigger-supervisor | compose healthcheck |
-| trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy; **and asserted by the smoke**: the registry from the host, the proxy from the supervisor, whose `DOCKER_HOST` it is, and no such name from the API container (the proxy is on `trigger-docker-socket` with the supervisor alone) |
-| minio | compose healthcheck, `mc ready` (Chainguard's build), **and asserted by the smoke** from the API container — see below |
-| minio-init | a one-shot, not a service that stays up: it makes the `packets` bucket and exits 0, `--wait` waits for that, and `trigger-api` starts only after it |
-| trigger-tls-init | a one-shot, not a service that stays up: it gives `trigger-tls`'s two volumes to uid 65532 and exits 0, `--wait` waits for that, and `trigger-tls` starts only after it |
-| trigger-tls | **asserted by the smoke**, not probed — see below |
+| postgres, pgbouncer, worker, mailpit, nextcloud | compose healthcheck — `--wait` blocks on them |
+| api, web | the image's own HEALTHCHECK — `--wait` blocks on them |
 | zitadel | no healthcheck by design (managed.yml): readiness is asked from the host by `wait_for_idp_ready`, and the smoke checks the issuer |
 | gatus | no healthcheck by design (a `FROM scratch` image): the smoke probes `/health` over the published port |
 
-`trigger-tls` has no healthcheck on purpose. A compose probe runs INSIDE the
-image, so under `up -d --wait` one naming a binary that image lacks does not
-misreport — it fails the bring-up and takes the stack with it. The front's
-image is built here without curl (`deploy/compose/caddy`), so a probe that
-names curl would certainly fail there. Chainguard's MinIO carries `mc`, and
-its probe is upstream's own `mc ready`, which Trigger.dev's compose runs in
-that image. The smoke asserts both from places
-whose tooling is proven, which for `minio` also says that another container on
-the stack network reaches it, as `trigger-api` does:
-
-```
---- minio and trigger-tls (0084 — the last two unasserted services) ---
-minio HTTP 200
-minio: reachable from the API container on the stack network
-trigger-tls: TLS terminated on 127.0.0.1:3443 (HTTP 200)
-```
-
-- **minio** is reached from the API container, because it publishes no port and
-  `http://minio:9000` is the address `trigger-api` is configured with. If this
-  is red, task payloads over the inline limit fail — silently, until one is big
-  enough.
-- **trigger-tls** is reached from the host **by IP**, never by name: the
-  Caddyfile's site address is `TRIGGER_TLS_HOST`, so a request to `localhost`
-  sends an SNI matching no site. An IP sends none, which is what `default_sni`
-  is for. If this is red, the dashboard is unreachable for every operator not
-  sitting at the machine — see the white-screen entry above, which is the same
-  fault seen from the browser.
+The smoke also checks, at its start and at its end, that no container of
+Trigger.dev's plane is on the stack (alpha.18 removed its eleven services, and
+their rows here, workplan 0167 T9).
 
 ### What the database spends its time on
 

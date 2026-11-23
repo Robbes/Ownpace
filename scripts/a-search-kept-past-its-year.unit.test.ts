@@ -68,9 +68,9 @@
  *     app cannot delete from this log", calls the owner's "the one connection
  *     that may", or says the system role deletes only for the purge, which
  *     its grant does not enforce;
- *   - once `set-task-env.sh` no longer uploads `DATABASE_URL`, none of them
- *     says a Trigger.dev run receives or holds the owner's URL: whichever of
- *     0138 T3 step 2 and this lands second is red until the sentence goes.
+ *   - none of them says a Trigger.dev run receives or holds the owner's URL:
+ *     `set-task-env.sh`, which uploaded it, went with Trigger.dev in alpha.18
+ *     (workplan 0167 T9), and no Trigger.dev run exists to receive anything.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -420,19 +420,13 @@ describe('every place that says why this runs at the machine says who else may d
     }
   });
 
-  it("says a Trigger.dev run receives the owner's URL only while set-task-env.sh uploads it", () => {
-    // 0138 T3 step 2 uploads SYSTEM_DATABASE_URL in its place and deletes the
-    // owner's names. Whichever of that step and this lands second is red here
-    // until the sentence goes.
-    const upload = code(read('deploy/compose/set-task-env.sh'));
-    expect(upload, 'set-task-env.sh uploads neither the owner\'s URL nor the system role\'s: this reading no longer matches it').toMatch(
-      /^\s*(SYSTEM_)?DATABASE_URL:/m,
-    );
-    if (/^\s*DATABASE_URL:/m.test(upload)) return;
+  it("never says a Trigger.dev run receives the owner's URL: alpha.18 removed Trigger.dev, and set-task-env.sh with it (0167 T9)", () => {
+    expect(existsSync(join(ROOT, 'deploy/compose/set-task-env.sh')), 'set-task-env.sh is back: read this case again').toBe(false);
     for (const [rel, text] of PLACES) {
-      expect(text, `${rel}: set-task-env.sh no longer uploads DATABASE_URL, so no Trigger.dev run receives the owner's URL; take the sentence out`).not.toMatch(
+      expect(text, `${rel}: no Trigger.dev run receives the owner's URL since alpha.18; take the sentence out`).not.toMatch(
         /\bTrigger\.dev runs? (still )?(receives?|holds?)\b/i,
       );
     }
   });
+
 });

@@ -31,29 +31,10 @@
  *   identity provider  managed.yml's pin against upstream's newest release of
  *                      the same major (`git ls-remote`). Its own issue, under
  *                      the title it has always had.
- *   Trigger.dev        managed.yml's default against the newest tag BOTH ghcr
- *                      images carry, by `trigger-version.sh probe`, the probe
- *                      `list` runs, which asks manifests because ghcr's tag
- *                      list is incomplete. Its own issue. The two images
- *                      run a build here since 0146 T16, whose Dockerfiles'
- *                      FROM must name the pin: a run that finds one at
- *                      another version fails, and never says current.
- *   ClickHouse        managed.yml's image against the one Trigger.dev's own
- *                      `docker/docker-compose.yml` pins at that newest tag,
- *                      with the line's row in ClickHouse's SECURITY.md as
- *                      text. Its own issue, while the two differ, unless the
- *                      difference is recorded as intended for that exact pair
- *                      (`CLICKHOUSE_INTENDED`, 0119 §3 item 9): then it is
- *                      `intended` in the table, with the reason, and opens
- *                      nothing until either side moves. A stack pin newer
- *                      than upstream's is `ahead` in the table, and its issue
- *                      never says to follow: ClickHouse's data moves forward
- *                      only.
- *   the tasks' Node    the Node in the base image the pinned Trigger.dev CLI
- *                      names, against Node's newest security release, while
- *                      `trigger.config.ts` names no base of its own (since
- *                      2026-11-06 it names the prebuilt one, and the routine
- *                      row *the tasks' base* compares that). Its own issue.
+ *   Trigger.dev,       rows of their own until alpha.18 removed Trigger.dev
+ *   ClickHouse and     (workplan 0167 T9). Each is `current` since, with a
+ *   the tasks' Node    sentence that says why (`removedRow`), so a run closes
+ *                      the issue of one still open, once.
  *   pnpm               `packageManager` against the newest pnpm of its major.
  *                      Its own issue; a newer major is a line in it.
  *   TypeScript split   a cleanup notice, opened when typescript-eslint's
@@ -61,9 +42,9 @@
  *   routine pins       ONE summary issue: every other image line of
  *                      managed.yml, dev.yml and www.yml against its registry's
  *                      tag list (Docker Hub and ghcr, anonymous tokens), or,
- *                      for a tag with no number held by its digest
- *                      (`chainguard/minio:latest`, 0146 T7), against the digest
- *                      its registry names for that tag today; an image built
+ *                      for a tag with no number held by its digest, against
+ *                      the digest its registry names for that tag today (MinIO's
+ *                      was one until alpha.18); an image built
  *                      here (`localhost/postgres`, 0146 T15) by its
  *                      Dockerfile's FROM, the tag its own name starts with,
  *                      its line saying that Dependabot reads that one too; the
@@ -71,10 +52,7 @@
  *                      apps/web/Dockerfile's, Stalwart's copies and the newest
  *                      release of their minor line, the GoAccess release
  *                      site-visits.sh builds against upstream's git tags,
- *                      the docker-socket-proxy
- *                      release trigger-docker-proxy is built from against
- *                      upstream's git tags (its base, HAProxy, is compared
- *                      within its line, `LINES`), the Trivy the Security
+ *                      the Trivy the Security
  *                      Scan installs from its GitHub release and checks by
  *                      its sha256 (2026-11-04), both copies together, the
  *                      osv-scanner it installs the same way, beside it, to
@@ -108,11 +86,10 @@
  *                      scripts/package-appliance.mjs, 2026-11-01), the file
  *                      at nodejs/release-keys' newest commit against the git
  *                      blob id it records, so a key retired, revoked, added
- *                      or given a new expiry upstream is named here; and the
- *                      tasks' prebuilt base `trigger.config.ts` pins
- *                      (`TASK_BASE_LINE`, 2026-11-06), against main's `edge`
- *                      by each platform's layers, not its digest, which moves
- *                      on every merge.
+ *                      or given a new expiry upstream is named here. (The
+ *                      docker-socket-proxy release and the tasks' prebuilt
+ *                      base were rows here until alpha.18 removed them with
+ *                      Trigger.dev.)
  *                      cosign-installer's default is a status line only. Any
  *                      other image a script in deploy/compose runs is not
  *                      compared; today there is none (db-roles.sh reads its
@@ -153,7 +130,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { gunzipSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -185,9 +161,6 @@ export const COMPOSE_FILES = ['deploy/compose/managed.yml', 'deploy/compose/dev.
  */
 export const COMPARED_ELSEWHERE = {
   'ghcr.io/zitadel/zitadel': 'the identity provider row',
-  'ghcr.io/triggerdotdev/trigger.dev': 'the Trigger.dev row',
-  'ghcr.io/triggerdotdev/supervisor': 'the Trigger.dev row',
-  'clickhouse/clickhouse-server': 'the ClickHouse row',
 };
 
 /**
@@ -345,26 +318,12 @@ export function zizmorPin(text) {
 export const GOACCESS_DOCKERFILE = 'deploy/compose/goaccess/Dockerfile';
 
 /**
- * The Docker socket proxy, built here since 2026-10-30 (workplan 0119):
- * Tecnativa's docker-socket-proxy at the release its Dockerfile names
- * (`# docker-socket-proxy v0.6.0`), on a current HAProxy of the line that
- * release chose. Until then managed.yml ran upstream's image, and this watch
- * compared its tag with Docker Hub's; it compares the release with upstream's
- * git tags now, as GoAccess's.
- */
-export const SOCKET_PROXY_DOCKERFILE = 'deploy/compose/docker-socket-proxy/Dockerfile';
-export const SOCKET_PROXY_UPSTREAM = 'https://github.com/Tecnativa/docker-socket-proxy';
-
-/**
  * Images whose line is more of their tag than its first number, by how many
  * numbers it is: compared with the newest tag that keeps them, never across
- * lines. HAProxy keeps each `3.4` branch on its own, and the socket proxy runs
- * the one its upstream release chose (deploy/compose/docker-socket-proxy's
- * header): another is the owner's call, which Dependabot is told to leave
- * alone too, and a release of docker-socket-proxy that moves it is that row's
- * to report.
+ * lines. None since alpha.18: HAProxy, under the Docker socket proxy, was the
+ * one, and went with Trigger.dev's plane (workplan 0167 T9).
  */
-export const LINES = { haproxy: 2 };
+export const LINES = {};
 
 /** Every copy of the Stalwart pin. The fixture's Dockerfile may go; a missing file is skipped. */
 export const STALWART_FILES = [
@@ -533,45 +492,6 @@ export const NODE_RELEASE_KEYS_FILE = 'scripts/package-appliance.mjs';
 /** Said beside the release keys row when upstream's file differs. */
 export const NODE_RELEASE_KEYS_NOTE =
   "read what that commit changed, then take its gpg-only-active-keys/pubring.kbx into scripts/node-release/release-keys.kbx and move NODE_RELEASE_KEYS' commit and blob with it (docs/windows-appliance-runbook.md); a-runtime-only-its-own-host-vouched-for then checks the committed SHASUMS256.txt with it";
-
-/**
- * THE TASKS' PREBUILT BASE (workplan 0119 §3 item 13, 2026-11-06): the line of
- * `apps/worker/trigger.config.ts` that names it, `const TASK_BASE_IMAGE =
- * '<ref>';`, and the shape the ref must have: `ghcr.io/robbes/ownpace-task-base`
- * by the `sha-<commit>` tag main published it under and its index digest.
- * images.yml builds it from `apps/worker/task-image/` and pushes it from main
- * only, so there is no release tag to compare: main republishes it on every
- * merge, under a new digest even when nothing it is built from moved (its
- * revision label does). So the row compares what a deploy would pull, the
- * layers of each platform's image, with `edge`'s: the same layers are the
- * same bytes, and only a base built from something else (the Dockerfile's
- * FROM lines or what its build installs) has others. A rebuild with the same
- * layers is current. The pinned index gone from GHCR, or no signature listed
- * for it, is behind too: a deploy could not pull it, or Release's verify
- * would refuse it.
- */
-export const TASK_BASE_CONFIG = 'apps/worker/trigger.config.ts';
-export const TASK_BASE_LINE = /^const TASK_BASE_IMAGE =\s+'([^'\n]*)';$/m;
-export const TASK_BASE_REF = /^ghcr\.io\/robbes\/ownpace-task-base:sha-([0-9a-f]{7})@(sha256:[0-9a-f]{64})$/;
-/** The platforms the base is published for, and the stacks run on. */
-export const TASK_BASE_ARCHES = ['amd64', 'arm64'];
-/** Said beside the tasks' base when edge's layers are not the pin's. */
-export const TASK_BASE_NOTE =
-  "move TASK_BASE_IMAGE in apps/worker/trigger.config.ts to the sha-<commit> tag that names edge's index, by tag and digest, in a pull request of its own: images.yml's `task-base pin` job pulls and verifies it there, E2E (managed) is dispatched on its branch, and live takes it from a release tag";
-
-/**
- * The tasks' base as `trigger.config.ts` pins it: the reference, its tag and
- * digest, and the commit the tag names. Any other shape, or the line missing
- * or there twice, is an error, never a pin.
- */
-export function taskBasePin(config) {
-  const lines = [...config.matchAll(new RegExp(TASK_BASE_LINE.source, 'gm'))];
-  if (lines.length !== 1) throw new Error(`${TASK_BASE_CONFIG} names the tasks' base ${lines.length} times (const TASK_BASE_IMAGE = '…';), not once`);
-  const ref = lines[0][1];
-  const shaped = TASK_BASE_REF.exec(ref);
-  if (!shaped) throw new Error(`${TASK_BASE_CONFIG} names the tasks' base ${ref}, not ghcr.io/robbes/ownpace-task-base:sha-<commit>@sha256:<index digest>`);
-  return { ...parseRef(ref), commit: shaped[1] };
-}
 
 const IMAGE_LINE = /^\s*image:\s*ghcr\.io\/zitadel\/zitadel:(\S+)\s*$/gm;
 const RELEASE = /^v(\d+)\.(\d+)\.(\d+)$/;
@@ -823,27 +743,6 @@ export async function registryDigest(net, repo, tag) {
   });
   if (!/^sha256:[0-9a-f]{64}$/.test(digest ?? '')) throw new Error(`${host} named no digest for ${name}:${tag}`);
   return digest;
-}
-
-/** The `NODE_VERSION` an image's linux/amd64 config sets: index, manifest, config, as `docker pull` reads them. */
-export async function nodeVersionOf(net, image) {
-  const { repo, tag, digest } = parseRef(image);
-  const { host, name } = registryOf(repo);
-  const auth = { Authorization: `Bearer ${await registryToken(net, host, name)}` };
-  let manifest = await net.json(`https://${host}/v2/${name}/manifests/${digest || tag}`, {
-    ...auth,
-    Accept: `${INDEX_TYPES},${MANIFEST_TYPES}`,
-  });
-  if (Array.isArray(manifest?.manifests)) {
-    const amd64 = manifest.manifests.find((m) => m.platform?.os === 'linux' && m.platform?.architecture === 'amd64');
-    if (!amd64) throw new Error(`${image} has no linux/amd64 image`);
-    manifest = await net.json(`https://${host}/v2/${name}/manifests/${amd64.digest}`, { ...auth, Accept: MANIFEST_TYPES });
-  }
-  if (!manifest?.config?.digest) throw new Error(`${image} has no config to read`);
-  const config = await net.json(`https://${host}/v2/${name}/blobs/${manifest.config.digest}`, auth);
-  const version = (config?.config?.Env ?? []).find((e) => e.startsWith('NODE_VERSION='))?.slice('NODE_VERSION='.length);
-  if (!version || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`${image} sets no NODE_VERSION`);
-  return version;
 }
 
 // -------------------------------------------------------- workflows ------
@@ -1486,49 +1385,6 @@ export function actionDefault(actionYml, input) {
 
 // ------------------------------------------------------------- npm -------
 
-/** One file of an npm package tarball, read in memory. The package is never installed or run. */
-export function fileInTgz(tgz, path) {
-  const tar = gunzipSync(tgz);
-  for (let at = 0; at + 512 <= tar.length; ) {
-    const header = tar.subarray(at, at + 512);
-    if (header.every((b) => b === 0)) break;
-    const field = (from, length) => header.subarray(from, from + length).toString('utf8').replace(/\0[\s\S]*$/, '');
-    const ustar = field(257, 5) === 'ustar';
-    const name = [ustar ? field(345, 155) : '', field(0, 100)].filter(Boolean).join('/');
-    const size = parseInt(field(124, 12).trim() || '0', 8);
-    const type = field(156, 1);
-    const start = at + 512;
-    if ((type === '0' || type === '') && name === path) return tar.subarray(start, start + size).toString('utf8');
-    at = start + Math.ceil(size / 512) * 512;
-  }
-  throw new Error(`${path} is not in the package`);
-}
-
-/** The base image the Trigger.dev CLI's `BASE_IMAGE` table names for `runtime`, read as text, never run. */
-export function baseImageOf(buildImageJs, runtime) {
-  const table = /export const BASE_IMAGE = \{([\s\S]*?)\};/.exec(buildImageJs)?.[1];
-  if (!table) throw new Error("the CLI's buildImage.js has no BASE_IMAGE table");
-  const key = runtime.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
-  const m = new RegExp(`(?:^|[\\s,{])["']?${key}["']?\\s*:\\s*["']([^"']+)["']`).exec(table);
-  if (!m) throw new Error(`the CLI's BASE_IMAGE names no image for ${runtime}`);
-  return m[1];
-}
-
-/** The base image the CLI at `version` names for `runtime`. Also what the image scan scans for the tasks. */
-export async function cliBaseImage(net, version, runtime) {
-  const tgz = await net.bytes(`https://registry.npmjs.org/trigger.dev/-/trigger.dev-${version}.tgz`);
-  return baseImageOf(fileInTgz(tgz, 'package/dist/esm/deploy/buildImage.js'), runtime);
-}
-
-/** Node's newest security release of `major`, from nodejs.org's index: the floor below which a Node is behind. */
-export function securityFloor(index, major) {
-  const releases = (Array.isArray(index) ? index : [])
-    .filter((r) => r?.security === true && typeof r.version === 'string' && r.version.startsWith(`v${major}.`))
-    .map((r) => ({ version: r.version.slice(1), date: String(r.date ?? '') }));
-  if (releases.length === 0) throw new Error(`nodejs.org lists no security release of Node ${major}`);
-  return releases.sort((a, b) => compareParts(a.version, b.version)).at(-1);
-}
-
 // ------------------------------------------------------------- rows ------
 
 /**
@@ -1566,257 +1422,7 @@ export async function zitadelRow(repo, net) {
   return { ...result, where: COMPOSE, body: issueBody(result) };
 }
 
-/**
- * Trigger.dev's pin: managed.yml's two `${TRIGGER_IMAGE_TAG:-…}` defaults,
- * which must agree with each other and with apps/worker's SDK, as the
- * bring-up and `bootstrap-managed.unit.test.ts` require.
- */
-export function readTriggerPin(compose, workerManifest) {
-  const defaults = [...compose.matchAll(/\$\{TRIGGER_IMAGE_TAG:-([^}]+)\}/g)].map((m) => m[1]);
-  if (defaults.length === 0) throw new Error(`${COMPOSE} has no \${TRIGGER_IMAGE_TAG:-…} default`);
-  if (new Set(defaults).size !== 1) throw new Error(`${COMPOSE}'s Trigger.dev defaults disagree: ${defaults.join(', ')}`);
-  const pin = defaults[0];
-  if (!numbersOf(pin)) throw new Error(`${COMPOSE} pins Trigger.dev at ${pin}, which is not a release tag`);
-  const sdk = JSON.parse(workerManifest).dependencies?.['@trigger.dev/sdk'];
-  if (sdk !== pin.slice(1)) {
-    throw new Error(`apps/worker's @trigger.dev/sdk is ${sdk}, and ${COMPOSE} pins ${pin}; they move together (trigger-version.sh pin)`);
-  }
-  return pin;
-}
-
-/**
- * The two Trigger.dev services, which run a build here since 0146 T16
- * (`localhost/trigger.dev`, `localhost/supervisor`), each from its directory's
- * Dockerfile, whose FROM is ghcr's image of the same name.
- */
-export const TRIGGER_BUILDS = { 'localhost/trigger.dev': 'ghcr.io/triggerdotdev/trigger.dev', 'localhost/supervisor': 'ghcr.io/triggerdotdev/supervisor' };
-
-/**
- * Each built Trigger.dev image's FROM, held to the pin: a Dockerfile left at
- * another version than the defaults would build what the bring-up's drift
- * check does not see. An image line that is ghcr's own (the patch dropped)
- * has nothing to check.
- */
-export function triggerBuildsAt(repo, pin) {
-  for (const line of readImages(need(repo, COMPOSE))) {
-    if (!(line.repo in TRIGGER_BUILDS)) continue;
-    const built = builtImage(repo, COMPOSE, line);
-    const want = TRIGGER_BUILDS[line.repo];
-    if (built.base.repo !== want || built.base.tag !== pin) {
-      throw new Error(`${built.dockerfile} builds on ${built.base.repo}:${built.base.tag}, and ${COMPOSE} pins ${want}:${pin}; trigger-version.sh pin moves both`);
-    }
-  }
-}
-
-export function triggerBody({ pin, newest }) {
-  return [
-    `The Trigger.dev webapp and supervisor run **${pin}** (\`${COMPOSE}\`, with the \`@trigger.dev/*\` manifests), and the newest tag both images carry on ghcr is **${newest}**.`,
-    '',
-    `Read the notes of every release after ${pin}, up to https://github.com/triggerdotdev/trigger.dev/releases/tag/${newest}. Dependabot ignores \`@trigger.dev/*\` on purpose: the webapp migrates its schema one way when it boots. The route (docs/managed-bring-up.md, *Upgrading Trigger.dev*):`,
-    '',
-    `1. \`./deploy/compose/trigger-version.sh pin ${newest}\`, then \`pnpm install\`. Read the headers of the two Dockerfiles below again at ${newest} and move their \`read_at\`, which \`pin\` leaves: both builds refuse ${newest} until then.`,
-    '2. Its own pull request, with the notes read, and the telemetry the release ships re-read (`scripts/a-service-that-phones-home.unit.test.ts`). Wait for `build (trigger, amd64)` and `build (trigger, arm64)` (`images.yml`) to be green before any window opens.',
-    '3. Drain first: start the hold and wait until nothing is EXECUTING. Upgrading with runs in flight left every run looping.',
-    `4. Back \`triggerdb\` up: \`./deploy/compose/trigger-version.sh backup before-${newest}\` in the OTA checkout. On live, the copy \`deploy-live.sh\` takes before a tag that moves the pin holds that dump.`,
-    '5. E2E (managed) dispatched on that branch, which applies it to the OTA instance, one way. Dispatch it only when the branch can merge within the hour.',
-    '6. Live takes it from a release tag.',
-    '',
-    "Both images run a build here, upstream's image with files deleted that never run in this stack (`deploy/compose/trigger.dev/Dockerfile`, `deploy/compose/supervisor/Dockerfile`, workplan 0146 T16). Step 1's `pin` moves their FROM and the hash in their names; why each deletion is safe was read at one release, their `read_at`. Step 2's `build (trigger, amd64|arm64)` jobs say whether the new tag still carries each path, and whether its user, command and entrypoint are the ones read: one that moved fails there by name. Read it again, and drop the removal the new release fixed.",
-    '',
-    'This issue is kept by `.github/workflows/idp-pin-watch.yml`. It is updated while the two differ, and closed when the pin catches up.',
-  ].join('\n');
-}
-
-export async function triggerRow(repo, net) {
-  const pin = readTriggerPin(need(repo, COMPOSE), need(repo, 'apps/worker/package.json'));
-  triggerBuildsAt(repo, pin);
-  const listed = (await net.probe(pin))
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  for (const tag of listed) if (!numbersOf(tag)) throw new Error(`the probe answered ${tag}, which is not a release tag`);
-  const newest = [pin, ...listed].sort(compareTags).at(-1);
-  const state = compareTags(pin, newest) === 0 ? 'current' : 'behind';
-  return { pin, newest, state, where: COMPOSE, body: triggerBody({ pin, newest }) };
-}
-
-/** ClickHouse's own word on a line, from the supported table in its SECURITY.md. */
-export function clickhouseSupport(securityMd, tag) {
-  const [major, minor] = partsOf(tag);
-  const rows = [...securityMd.matchAll(/^\|\s*(\d+(?:\.(?:\d+|\*))?)\s*\|\s*([^|\n]*?)\s*\|/gm)].map((m) => ({
-    line: m[1],
-    supported: /✔|✅/.test(m[2]),
-  }));
-  const row = rows.find((r) => r.line === `${major}.${minor}`) ?? rows.find((r) => r.line === `${major}.*`);
-  if (!row) return `ClickHouse's SECURITY.md has no row for ${major}.${minor}`;
-  const supported = rows.filter((r) => r.supported).map((r) => r.line);
-  return `ClickHouse ${major}.${minor} is ${row.supported ? '' : 'not '}supported with security updates, by ClickHouse's SECURITY.md (supported: ${supported.join(', ') || 'none listed'})`;
-}
-
 const refText = (image) => `${image.tag}${image.digest ? `@${image.digest}` : ''}`;
-
-/**
- * A DIFFERENCE FROM TRIGGER.DEV'S CLICKHOUSE PIN THAT IS ON PURPOSE, recorded
- * in workplan 0119 §3 item 9 (option 2, the owner's decision of 2026-11-02).
- * Trigger.dev v4.8.3 pins 26.2.19.43, which ClickHouse no longer supports, and
- * CVE-2026-116366 has no 26.2 fix; the stack's pin is the 26.8 LTS line, which
- * carries it: 26.8.36.3-lts from 2026-11-02, and 26.8.37.168-lts, a patch of
- * the same line, since 2026-11-14. Trigger.dev v4.8.5 and v4.8.8 still pin
- * 26.2.19.43 by the same digest.
- *
- * It holds for this exact pair and nothing else: the row reads it as current
- * (no issue, `intended` in the table, the reason as a note) only while
- * managed.yml pins `ours` AND Trigger.dev's compose pins `theirs`, tag and
- * digest. When Trigger.dev moves, the row compares again and opens its issue,
- * saying the record was for the old pin, and, when upstream's tag is older
- * than the stack's (a re-pushed 26.2.19.43, an older 26.8 patch), that it is
- * never followed; when the stack moves, this moves in
- * the same change (`a-pin-that-knows-it-is-behind` fails until it does).
- * `null` when the stack follows Trigger.dev's pin again.
- */
-export const CLICKHOUSE_INTENDED = {
-  ours: '26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648',
-  theirs: '26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd',
-  why: "on purpose (workplan 0119 §3 item 9): Trigger.dev's 26.2 is out of ClickHouse's support and has no fix for CVE-2026-116366, and the stack runs the 26.8 LTS line that carries it (26.8.36.3 from 2026-11-02, 26.8.37.168 since 2026-11-14)",
-};
-
-export async function clickhouseRow(repo, net, trigger) {
-  if (trigger?.state === 'error' || !trigger?.newest) throw new Error('the Trigger.dev row named no tag to read its compose file at');
-  const repoName = 'clickhouse/clickhouse-server';
-  const ours = readImages(need(repo, COMPOSE)).filter((i) => i.repo === repoName);
-  if (ours.length !== 1) throw new Error(`${COMPOSE} names ${repoName} ${ours.length} times, not once`);
-  const upstream = await net.text(
-    `https://raw.githubusercontent.com/triggerdotdev/trigger.dev/${trigger.newest}/docker/docker-compose.yml`,
-  );
-  const theirs = readImages(upstream).filter((i) => i.repo === repoName);
-  if (theirs.length !== 1) throw new Error(`Trigger.dev ${trigger.newest}'s docker-compose.yml names ${repoName} ${theirs.length} times`);
-  let support;
-  try {
-    support = clickhouseSupport(await net.text('https://raw.githubusercontent.com/ClickHouse/ClickHouse/master/SECURITY.md'), ours[0].tag);
-  } catch (error) {
-    support = `ClickHouse's SECURITY.md could not be read (${error instanceof Error ? error.message : String(error)})`;
-  }
-  const pin = refText(ours[0]);
-  const want = refText(theirs[0]);
-  const intended = CLICKHOUSE_INTENDED;
-  if (intended && pin === intended.ours && want === intended.theirs) {
-    return {
-      pin,
-      newest: want,
-      state: 'current',
-      shown: 'intended',
-      where: COMPOSE,
-      notes: [support, `differs from Trigger.dev's pin ${intended.why}`],
-      closing: `The stack differs from Trigger.dev's ClickHouse pin ${intended.why}. That difference is recorded (\`CLICKHOUSE_INTENDED\` in \`scripts/idp-pin-watch.mjs\`), for this pair only: the stack's ${pin} against Trigger.dev's ${want}. Either moving opens this again.`,
-    };
-  }
-  // A record that names the stack's pin but not Trigger.dev's: upstream moved under it.
-  const recorded = intended && pin === intended.ours ? intended.theirs : undefined;
-  // The stack's tag newer than upstream's, a digest-only re-push of an older
-  // tag included: following would take ClickHouse back, and its data moves
-  // forward only. So the issue opens (something must be decided), and never
-  // says to follow.
-  const ahead = compareParts(ours[0].tag, theirs[0].tag) > 0;
-  const lineOfTag = (tag) => partsOf(tag).slice(0, 2).join('.');
-  const [ourLine, theirLine] = [lineOfTag(ours[0].tag), lineOfTag(theirs[0].tag)];
-  const notFollowed =
-    ourLine === theirLine
-      ? `Trigger.dev's ${want} is an older patch of the stack's line, ${ourLine}, so it is not followed: it lacks fixes the stack's pin carries${recorded ? ', the one the record names among them' : ''}.`
-      : `Trigger.dev's ${want} is on an older line, ${theirLine}, than the stack's ${ourLine}, so it is never followed: ${theirLine} cannot read the parts ${ourLine} wrote, and the copy of the volume taken before the move (*Moving ClickHouse* in docs/managed-bring-up.md) is the only way back.`;
-  const body = [
-    `The stack runs ClickHouse **${pin}** (\`${COMPOSE}\`), and Trigger.dev **${trigger.newest}**'s own \`docker/docker-compose.yml\` pins **${want}**.`,
-    '',
-    `${support}.`,
-    ...(recorded
-      ? [
-          '',
-          `The stack differs from Trigger.dev's pin ${intended.why}. That was recorded against Trigger.dev's **${recorded}**, and Trigger.dev now pins ${want}, so the record no longer holds${ahead ? '.' : ': read what upstream moved to, then follow it, or record the difference again (`CLICKHOUSE_INTENDED` in `scripts/idp-pin-watch.mjs`, and workplan 0119 §3 item 9).'}`,
-        ]
-      : []),
-    ...(ahead
-      ? [
-          '',
-          `${notFollowed} Record the pair again (\`CLICKHOUSE_INTENDED\` in \`scripts/idp-pin-watch.mjs\`, and workplan 0119 §3 item 9), or move forward only.`,
-        ]
-      : []),
-    '',
-    "Trigger.dev's ClickHouse migrations are written against the ClickHouse its own compose file pins, and the v4.5.12 upgrade crash-looped on one it did not expect (docs/managed-bring-up.md, *Upgrading Trigger.dev*). So this pin follows upstream's, tag and digest, with the Trigger.dev move or in a pull request of its own, proven by E2E (managed) on its branch, and live takes it from a release tag. ClickHouse's data moves forward only, so an upstream pin older than the stack's is never followed: *Moving ClickHouse* in docs/managed-bring-up.md copies the volume first.",
-    '',
-    'This issue stays open while the two differ, unless the difference is recorded as intended for this exact pair (`CLICKHOUSE_INTENDED`, with its decision in workplan 0119 §3). It is kept by `.github/workflows/idp-pin-watch.yml`.',
-  ].join('\n');
-  return {
-    pin,
-    newest: want,
-    state: pin === want ? 'current' : 'behind',
-    ...(ahead ? { shown: 'ahead' } : {}),
-    where: COMPOSE,
-    notes: [support],
-    body,
-    update: `Trigger.dev ${trigger.newest}'s compose file now pins **${want}**; the stack runs ${pin}.`,
-    closing: `The stack runs what Trigger.dev pins again: ${pin}.`,
-  };
-}
-
-/**
- * The tasks' Node, where the CLI's base image is what they run. Once
- * `trigger.config.ts` names a base of its own (`TASK_BASE_LINE`: the prebuilt
- * base since 2026-11-06; from 0146 T14 the API image's FROM line, and from
- * #1689 a layer that copied the API image's Node over the CLI's base), the
- * CLI's base image is in nothing a deploy builds, and this row has nothing to
- * watch: the routine row *the tasks' base* compares that pin.
- */
-export async function taskNodeRow(repo, net) {
-  const config = need(repo, 'apps/worker/trigger.config.ts');
-  if (TASK_BASE_LINE.test(config)) {
-    return {
-      pin: 'apps/worker/task-image',
-      newest: '-',
-      state: 'current',
-      notes: ["the tasks run on the prebuilt base (apps/worker/trigger.config.ts), whose pin the routine row the tasks' base compares"],
-      closing:
-        "The tasks now run on the prebuilt base `apps/worker/trigger.config.ts` pins (`ghcr.io/robbes/ownpace-task-base`, built from `apps/worker/task-image/Dockerfile`, which Dependabot moves with `apps/api/Dockerfile`). The routine pins' row *the tasks' base* compares that pin with main's newest. Nothing is left for this row to watch.",
-    };
-  }
-  const runtime = /\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1];
-  if (!runtime) throw new Error('apps/worker/trigger.config.ts names no runtime');
-  const cli = JSON.parse(need(repo, 'apps/worker/package.json')).dependencies?.['@trigger.dev/sdk'];
-  if (!/^\d+\.\d+\.\d+$/.test(cli ?? '')) throw new Error(`apps/worker's @trigger.dev/sdk is ${cli}, not a version`);
-  const image = await cliBaseImage(net, cli, runtime);
-  const node = await nodeVersionOf(net, image);
-  const floor = securityFloor(await net.json('https://nodejs.org/dist/index.json'), partsOf(node)[0]);
-  const latest = (await net.npm(['view', 'trigger.dev', 'version'])).trim();
-  if (!/^\d+\.\d+\.\d+$/.test(latest)) throw new Error(`npm names trigger.dev's latest ${latest}, not a version`);
-  let latestNode = node;
-  if (latest !== cli) {
-    const latestImage = await cliBaseImage(net, latest, runtime);
-    if (latestImage !== image) latestNode = await nodeVersionOf(net, latestImage);
-  }
-  const state = compareParts(node, floor.version) < 0 ? 'behind' : 'current';
-  const route =
-    compareParts(latestNode, floor.version) >= 0
-      ? `The newest CLI, trigger.dev ${latest}, builds on Node ${latestNode}: moving Trigger.dev to it (its issue's route) moves the tasks too.`
-      : `The newest CLI, trigger.dev ${latest}, still builds on Node ${latestNode}: upstream has not republished its base image. The way that does not wait for it is the tasks' prebuilt base, named in \`apps/worker/trigger.config.ts\` as \`TASK_BASE_IMAGE\` (\`apps/worker/task-image/Dockerfile\`, on the API's Node, which Dependabot moves). Once it does, this issue closes.`;
-  const body = [
-    `The tasks run on the base image the pinned CLI, trigger.dev ${cli}, names for \`runtime: '${runtime}'\`: \`${image}\`, whose Node is **${node}**. Node's newest ${partsOf(node)[0]}.x security release is **${floor.version}** (${floor.date}, https://nodejs.org/dist/index.json).`,
-    '',
-    route,
-    '',
-    'The tasks hold every tenant\'s mailbox and calendar credentials during a pass, and they are HTTPS clients. Dependabot ignores `@trigger.dev/*`, and nothing else moves this image. A change to the tasks takes a task deploy on both stacks.',
-    '',
-    'This issue is kept by `.github/workflows/idp-pin-watch.yml`. It is updated while the Node is below the floor, and closed when it is not.',
-  ].join('\n');
-  return {
-    pin: node,
-    newest: floor.version,
-    state,
-    where: `trigger.dev ${cli}'s BASE_IMAGE['${runtime}']`,
-    notes: [`newest CLI trigger.dev ${latest}: Node ${latestNode}`],
-    body,
-    news: [`**${floor.version}**`, `trigger.dev ${latest}`],
-    update: `The tasks' Node is ${node}; Node's newest security release is now **${floor.version}**, and the newest CLI is trigger.dev ${latest} (Node ${latestNode}).`,
-    closing: `The tasks' Node, ${node}, is at or above Node's newest security release again.`,
-  };
-}
 
 export async function pnpmRow(repo, net) {
   const declared = JSON.parse(need(repo, 'package.json')).packageManager ?? '';
@@ -1892,75 +1498,6 @@ export async function typescriptRow(repo, net) {
     update: `typescript-eslint ${eslint.version} now admits TypeScript **${newest}**.`,
     closing: `typescript-eslint ${eslint.version}'s peer range no longer admits a stable TypeScript 7.1.`,
   };
-}
-
-// ------------------------------------------------ the tasks' base --------
-
-const shortDigest = (digest) => `${String(digest).slice(0, 19)}…`;
-
-/**
- * Each platform's layers in one index of the tasks' base, read by digest: what
- * `docker pull` fetches, the image's config (and so its labels) aside. An
- * index without a platform the stacks run on, or a manifest that lists no
- * layer, is an error, never "the same".
- */
-export async function taskBaseLayers(net, repo, digest) {
-  const { host, name } = registryOf(repo);
-  const auth = { Authorization: `Bearer ${await registryToken(net, host, name)}` };
-  const index = await net.json(`https://${host}/v2/${name}/manifests/${digest}`, { ...auth, Accept: INDEX_TYPES });
-  if (!Array.isArray(index?.manifests)) throw new Error(`${name}@${shortDigest(digest)} is not an index of platforms`);
-  const layers = {};
-  for (const arch of TASK_BASE_ARCHES) {
-    const entry = index.manifests.find((m) => m.platform?.os === 'linux' && m.platform?.architecture === arch);
-    if (!entry) throw new Error(`${name}@${shortDigest(digest)} has no linux/${arch} image`);
-    const manifest = await net.json(`https://${host}/v2/${name}/manifests/${entry.digest}`, { ...auth, Accept: MANIFEST_TYPES });
-    const digests = Array.isArray(manifest?.layers) ? manifest.layers.map((l) => l?.digest) : [];
-    if (digests.length === 0 || !digests.every((d) => /^sha256:[0-9a-f]{64}$/.test(d ?? ''))) {
-      throw new Error(`${name}@${shortDigest(digest)}'s linux/${arch} image lists no layers`);
-    }
-    layers[arch] = digests;
-  }
-  return layers;
-}
-
-/**
- * The tasks' base (`TASK_BASE_LINE`, the comment above it): the pin against
- * `edge`, by each platform's layers. Behind when edge's layers are not the
- * pin's, when the pinned index is gone from GHCR, or when no signature is
- * listed for it (the `sha256-<hex>` tag cosign's bundle is stored under);
- * current when edge is the pin, or a rebuild with the same layers.
- */
-export async function taskBaseRow(repo, net) {
-  const pin = taskBasePin(need(repo, TASK_BASE_CONFIG));
-  const { host, name } = registryOf(pin.repo);
-  const auth = { Authorization: `Bearer ${await registryToken(net, host, name)}` };
-  const named = (ref) => net.digest(`https://${host}/v2/${name}/manifests/${ref}`, { ...auth, Accept: `${INDEX_TYPES},${MANIFEST_TYPES}` });
-  const signed = async (digest) => /^sha256:[0-9a-f]{64}$/.test((await named(digest.replace(':', '-'))) ?? '');
-  const edge = await named('edge');
-  if (!/^sha256:[0-9a-f]{64}$/.test(edge ?? '')) throw new Error(`${host} named no digest for ${name}:edge`);
-  const shown = { pin: `${pin.tag}@${pin.digest}`, newest: `edge@${edge}` };
-  if ((await named(pin.digest)) !== pin.digest) {
-    return { ...shown, state: 'behind', notes: [`the pinned index is not on ${host} any more, so no deploy can pull it`, TASK_BASE_NOTE] };
-  }
-  const notes = [];
-  const unsigned = !(await signed(pin.digest));
-  if (unsigned) notes.push(`no signature is listed for the pinned index (no ${pin.digest.replace(':', '-')} tag), so Release's verify would refuse it`);
-  const tagged = await named(pin.tag);
-  if (tagged !== pin.digest) {
-    notes.push(
-      `${pin.tag} ${tagged ? `names another index now, ${shortDigest(tagged)}` : `is not on ${host} any more`}; the pin's digest is what a deploy pulls`,
-    );
-  }
-  let same = edge === pin.digest;
-  if (!same) {
-    const [ours, theirs] = [await taskBaseLayers(net, pin.repo, pin.digest), await taskBaseLayers(net, pin.repo, edge)];
-    same = TASK_BASE_ARCHES.every((arch) => ours[arch].join(' ') === theirs[arch].join(' '));
-    if (same) notes.push('edge is a rebuild with the same layers on both platforms: main republished what the pin was built from');
-    else notes.push(`edge's layers are not the pin's, and edge is ${(await signed(edge)) ? 'signed' : 'not signed yet (images.yml signs it after the push)'}`);
-  }
-  const state = same && !unsigned ? 'current' : 'behind';
-  if (state === 'behind') notes.push(TASK_BASE_NOTE);
-  return { ...shown, state, notes };
 }
 
 // -------------------------------------------------- routine pins ---------
@@ -2102,11 +1639,6 @@ export async function routineRows(repo, net) {
     return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [ZIZMOR_NOTE] } : {}) };
   }]);
 
-  // The tasks' prebuilt base (0119 §3 item 13, 2026-11-06): trigger.config.ts's
-  // pin against main's `edge`, by layers, since every merge republishes it
-  // under a new digest (taskBaseRow).
-  jobs.push(["the tasks' base", TASK_BASE_CONFIG, () => taskBaseRow(repo, net)]);
-
   // GoAccess: the visit count's image, built here since #1675 from the commit
   // of a release (deploy/compose/goaccess/Dockerfile, whose Alpine Dependabot
   // moves). So its release is compared with upstream's git tags, the two-part
@@ -2130,18 +1662,6 @@ export async function routineRows(repo, net) {
     }
     if (candidates.length === 0) throw new Error(`no tag shaped like ${release} was listed, so it cannot be called current`);
     const newest = candidates.sort(compareParts).at(-1);
-    return { pin: release, newest, state: stateOf(release, newest) };
-  }]);
-
-  // The Docker socket proxy: trigger-docker-proxy runs a build here since
-  // 2026-10-30, upstream's files at a release on a current HAProxy
-  // (deploy/compose/docker-socket-proxy/Dockerfile, whose base Dependabot
-  // moves within its line). So the release it is built from is compared with
-  // upstream's git tags, of its own 0.x major, as the image's tag was.
-  jobs.push(['tecnativa/docker-socket-proxy', SOCKET_PROXY_DOCKERFILE, async () => {
-    const release = /^# docker-socket-proxy (v\d+\.\d+\.\d+)$/m.exec(need(repo, SOCKET_PROXY_DOCKERFILE))?.[1];
-    if (!release) throw new Error(`${SOCKET_PROXY_DOCKERFILE} names no docker-socket-proxy release ("# docker-socket-proxy v0.6.0") above its FROM`);
-    const newest = newestLike(release, tagsOf(await net.lsRemote(SOCKET_PROXY_UPSTREAM)));
     return { pin: release, newest, state: stateOf(release, newest) };
   }]);
 
@@ -2307,7 +1827,7 @@ export function summaryOf(rows, status) {
   const behind = rows.filter((r) => r.state === 'behind');
   const failed = rows.filter((r) => r.state === 'error' || r.state === 'ahead');
   const body = [
-    "Dependabot does not read these pins, but for an image built here, whose line says so: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major, or of its line where `LINES` names one (HAProxy's), and a release built here from upstream's files (GoAccess, the Docker socket proxy) against upstream's git tags. Behind:",
+    "Dependabot does not read these pins, but for an image built here, whose line says so: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major, or of its line where `LINES` names one, and a release built here from upstream's files (GoAccess) against upstream's git tags. Behind:",
     '',
     ...behind.map(lineOf),
     '',
@@ -2393,13 +1913,27 @@ async function settle(job, meta) {
   }
 }
 
+/**
+ * A row for a pin that went with Trigger.dev (workplan 0167 T9): nothing to
+ * watch, and `current`, so `keepIssue` closes the row's issue, if one is
+ * still open, with a sentence that says why, once, and then leaves it.
+ */
+export function removedRow(what) {
+  return {
+    pin: 'removed in alpha.18',
+    newest: '-',
+    state: 'current',
+    closing: `${what} was removed with Trigger.dev in alpha.18 (workplan 0167 T9): the managed edition's jobs run on pg-boss, so there is no pin left to watch.`,
+  };
+}
+
 /** Every row, in the order the table prints them. */
 export async function watch(repo, net) {
   const own = (key, name) => ({ key, name, title: TITLES[key] });
   const zitadel = await settle(() => zitadelRow(repo, net), own('zitadel', 'identity provider'));
-  const trigger = await settle(() => triggerRow(repo, net), own('trigger', 'Trigger.dev'));
-  const clickhouse = await settle(() => clickhouseRow(repo, net, trigger), own('clickhouse', 'ClickHouse'));
-  const taskNode = await settle(() => taskNodeRow(repo, net), own('taskNode', "the tasks' Node"));
+  const trigger = { ...own('trigger', 'Trigger.dev'), ...removedRow('Trigger.dev') };
+  const clickhouse = { ...own('clickhouse', 'ClickHouse'), ...removedRow("ClickHouse, Trigger.dev's event store,") };
+  const taskNode = { ...own('taskNode', "the tasks' Node"), ...removedRow("The tasks' Trigger.dev base, and its Node,") };
   const pnpm = await settle(() => pnpmRow(repo, net), own('pnpm', 'pnpm'));
   const typescript = await settle(() => typescriptRow(repo, net), own('typescript', 'TypeScript split'));
   // The routine rows settle one by one; this catches only a checkout that lacks a compose file.
@@ -2435,8 +1969,8 @@ export function table(report) {
   return out.join('\n');
 }
 
-/** The real network: fetch, git, npm, and the probe `trigger-version.sh list` runs. */
-export function realNet(root) {
+/** The real network: fetch, git and npm. */
+export function realNet() {
   const get = async (url, headers = {}) => {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'ownpace-pin-watch', ...headers },
@@ -2450,8 +1984,7 @@ export function realNet(root) {
     text: async (url, headers) => (await get(url, headers)).text(),
     json: async (url, headers) => (await get(url, headers)).json(),
     bytes: async (url, headers) => Buffer.from(await (await get(url, headers)).arrayBuffer()),
-    // A 404 is an answer, nothing by that tag or digest, which the tasks'
-    // base row reads as a pin gone or a signature missing; registryDigest
+    // A 404 is an answer, nothing by that tag or digest; registryDigest
     // still refuses it as "named no digest". Any other failure throws.
     digest: async (url, headers = {}) => {
       const res = await fetch(url, {
@@ -2466,7 +1999,6 @@ export function realNet(root) {
     lsRemote: async (url) => run('git', ['ls-remote', '--tags', '--refs', url]),
     head: async (url) => run('git', ['ls-remote', url, 'HEAD']),
     npm: async (args) => run('npm', args, ['ignore', 'pipe', 'inherit']),
-    probe: async (pin) => run('bash', [join(root, 'deploy/compose/trigger-version.sh'), 'probe', pin], ['ignore', 'pipe', 'inherit']),
   };
 }
 
@@ -2480,7 +2012,7 @@ export function repoReader(root) {
 
 async function main(argv) {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-  const report = await watch(repoReader(root), realNet(root));
+  const report = await watch(repoReader(root), realNet());
   console.log(table(report));
   if (argv.includes('--issue')) {
     const gh = (args) => execFileSync('gh', args, { encoding: 'utf8' });

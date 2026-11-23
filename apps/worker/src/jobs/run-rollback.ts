@@ -33,9 +33,8 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import { tenantCutoverStore, mappingLifecyclePort, withTenant } from '@openmig/ledger';
 import { performRollback, RollbackRefused } from '@openmig/core';
 import { and, eq } from 'drizzle-orm';
@@ -91,9 +90,8 @@ export async function mappingNameOf(
 }
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const runRollbackRun = leavesAReference(
   'run-rollback',
@@ -234,11 +232,3 @@ export const runRollbackRun = leavesAReference(
     }
   },
 );
-
-// Register the job with Trigger.dev
-export const runRollback = schemaTask({
-  id: 'run-rollback',
-  description: 'Rollback',
-  schema: RollbackJobSchema,
-  run: onTriggerDev(runRollbackRun),
-});

@@ -15,12 +15,11 @@
  * hold's sentence and enqueues nothing. This file holds that in three ways:
  *
  *  1. **The sweep.** Every source file under `apps/api/src` is read, and the
- *     only call that enqueues a Trigger.dev task is the one inside that
- *     function. A new door that calls `getTriggerClient().tasks.trigger(`
- *     itself fails here, by file, before anybody presses it during a deploy.
- *     On pg-boss (workplan 0167 T6) the enqueue is the producer's, and only
- *     that function and `job-runner.ts` may reach the producer or name the
- *     runner's module.
+ *     only call that enqueues is the one inside that function: the pg-boss
+ *     producer's (workplan 0167 T6; Trigger.dev's `tasks.trigger` until
+ *     alpha.18 removed it, T9). A new door that enqueues itself fails here, by
+ *     file, before anybody presses it during a deploy. Only that function and
+ *     `job-runner.ts` may reach the producer or name the runner's module.
  *     The number of doors that call the function is counted too, so a ninth
  *     door gets a row in the table (`enqueueDoors`, in
  *     `__tests__/doors-that-start-work.ts`, which the closed organisation's
@@ -76,11 +75,18 @@ const THE_FUNCTION_FILE = 'enqueue-unless-held.ts';
 const sourceFiles = (): string[] => shippedFiles(SRC);
 
 /**
- * Every way the SDK enqueues: `tasks.trigger`, `tasks.batchTrigger`,
- * `batch.trigger`, `batch.triggerByTask`, and the `…AndWait` forms a task can
- * call.
+ * Every way a producer enqueues: `enqueue` and `enqueueAndWait` (Trigger.dev's
+ * SDK's `tasks.trigger` and the rest, until alpha.18). Not `free.enqueue(`:
+ * that is the enqueue `enqueueIfFree` hands back (`start-when-granted.ts`),
+ * the function's own, after it asked.
  */
-const ENQUEUE_CALL = /\.\s*(trigger|batchTrigger|triggerAndWait|batchTriggerAndWait|triggerByTask)\s*\(/g;
+const ENQUEUE_CALL = /(?<!\bfree)\.\s*(enqueue|enqueueAndWait)\s*\(/g;
+
+/**
+ * The operator's own producer, at the machine (`operator.sh jobs run`), which
+ * no route loads; the producer test below holds what it may reach.
+ */
+const THE_OPERATORS_FILE = 'scripts/operator-jobs.ts';
 
 /** The files that enqueue, and how many times each. */
 function enqueueCalls(): Map<string, number> {
@@ -141,29 +147,23 @@ function takenFromTheRunner(file: string, text: string): string[] {
 describe('the sweep: nothing in apps/api/src enqueues except through the one function', () => {
   it('the one enqueue call is inside enqueueUnlessHeld, and there is no other', () => {
     const found = enqueueCalls();
-    const elsewhere = [...found].filter(([file]) => file !== THE_FUNCTION_FILE);
+    const elsewhere = [...found].filter(([file]) => file !== THE_FUNCTION_FILE && file !== THE_OPERATORS_FILE);
     expect(
       elsewhere,
-      'these files enqueue a Trigger.dev task without asking the platform hold; route the\n' +
+      'these files enqueue a job without asking the platform hold; route the\n' +
         'call through enqueueUnlessHeld (apps/api/src/enqueue-unless-held.ts), which answers 409\n' +
         'with the hold’s sentence while one is open (workplan 0132 T6 (b))',
     ).toEqual([]);
     expect(found.get(THE_FUNCTION_FILE)).toBe(1);
   });
 
-  it('no file reaches the client’s enqueueing halves another way', () => {
-    // `const { tasks } = getTriggerClient()` and a direct SDK import both walk
-    // round the sweep above. `runs` is allowed: the close route cancels runs,
-    // which starts nothing.
+  it('no file reaches Trigger.dev’s client, which alpha.18 removed (workplan 0167 T9)', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles()) {
       const rel = relative(SRC, file);
-      if (rel === THE_FUNCTION_FILE) continue;
       const text = code(file);
       if (/from\s+['"]@trigger\.dev\//.test(text)) offenders.push(`${rel}: imports the SDK`);
-      if (text.includes('getTriggerClient') && /\.\s*(tasks|batch)\b|\{[^}]*\b(tasks|batch)\b[^}]*\}\s*=/.test(text)) {
-        offenders.push(`${rel}: reaches getTriggerClient().tasks or .batch`);
-      }
+      if (/\bgetTriggerClient\b/.test(text)) offenders.push(`${rel}: names getTriggerClient`);
     }
     expect(offenders).toEqual([]);
   });
@@ -313,21 +313,17 @@ vi.mock('./middleware/auth.ts', async (importOriginal) => {
   };
 });
 
-const { enqueued } = vi.hoisted(() => ({ enqueued: [] as string[] }));
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (taskId: string) => {
-          enqueued.push(taskId);
-          return Promise.resolve({ id: `run-${enqueued.length}` });
-        },
-      },
-    }),
-  };
+const { enqueued } = vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+  return { enqueued: [] as string[] };
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('./__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (taskId: string) => {
+    enqueued.push(taskId);
+    return `run-${enqueued.length}`;
+  }),
+);
 
 // The ledger's apply gates are not this file's subject; every one of them
 // answers "permitted", so the two apply doors reach the point where they

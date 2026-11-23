@@ -5,8 +5,10 @@
  *
  * Ending the alpha is one setting, `OWNPACE_STAGE`, emptied in live's `.env`,
  * and it reaches four processes by four routes: the api's environment, the
- * web bundle's build arg, the task environment that `set-task-env.sh`
- * uploads, and the site's build. Since 0109 T6 it turns billing on: the hold
+ * worker's environment (until alpha.18 removed Trigger.dev, workplan 0167 T9,
+ * the jobs could also run as Trigger.dev tasks, whose environment
+ * `set-task-env.sh` uploaded), the web bundle's build arg, and the site's
+ * build. Since 0109 T6 it turns billing on: the hold
  * at the data ceiling, the yes, the refusal of a start past the agreed tier,
  * and whether a first copy counts (managed 0040). A route the switch does not
  * reach fails silently: the tasks keep the alpha, and everything moved after
@@ -20,8 +22,8 @@
  * declares the build arg. A new one fails here until the runbook says what it
  * does during the alpha and after it, and how the switch reaches it.
  *
- * It also holds the runbook's checks to what the code says: the line
- * `set-task-env.sh` prints when it deletes the stage, the api's start lines
+ * It also holds the runbook's checks to what the code says: the worker's
+ * environment, where the jobs read the stage from compose, the api's start lines
  * the acceptance check greps for, and the tester guide's file names, so a
  * check never looks for a sentence nothing prints any more.
  *
@@ -29,7 +31,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -48,7 +50,8 @@ function stageReaders(): string[] {
     encoding: 'utf8',
   })
     .split('\n')
-    .filter((f) => f !== '' && !TEST.test(f));
+    // A file deleted and not yet committed is still in the index: not a reader.
+    .filter((f) => f !== '' && !TEST.test(f) && existsSync(join(ROOT, f)));
   const source = /\.(ts|tsx|mjs|js)$/;
   const plumbing = /\.(sh|yml|yaml)$|(^|\/)Dockerfile[^/]*$/;
   return tracked.filter((file) => {
@@ -69,7 +72,6 @@ describe('the runbook names every place the stage enters', () => {
     for (const known of [
       'apps/worker/src/jobs/run-delta-sync.ts',
       'apps/web/Dockerfile',
-      'deploy/compose/set-task-env.sh',
       'deploy/compose/managed.yml',
       'site/build.mjs',
     ]) {
@@ -88,10 +90,18 @@ describe('the runbook names every place the stage enters', () => {
 });
 
 describe("the runbook's checks look for what the code prints", () => {
-  it('the task environment line, as set-task-env.sh prints it', () => {
-    const line = 'deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on';
-    expect(read('deploy/compose/set-task-env.sh')).toContain(line);
-    expect(RUNBOOK).toContain(line);
+  it("the jobs read the stage from the worker's environment, and the runbook sends nobody to set-task-env.sh", () => {
+    // alpha.18 removed Trigger.dev and its task environment (workplan 0167 T9):
+    // compose hands the worker the stage, as it hands the api.
+    const compose = read('deploy/compose/managed.yml');
+    const start = compose.indexOf('\n  worker:\n');
+    expect(start, 'managed.yml has no worker service').toBeGreaterThan(-1);
+    const next = compose.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:\n|\n[a-z]/);
+    const worker = compose.slice(start, next === -1 ? undefined : start + 1 + next);
+    expect(worker, 'the worker is not handed the stage').toMatch(/\n\s+OWNPACE_STAGE: \$\{OWNPACE_STAGE:-\}\n/);
+    expect(existsSync(join(ROOT, 'deploy/compose/set-task-env.sh')), 'set-task-env.sh is back').toBe(false);
+    expect(RUNBOOK, `${RUNBOOK_PATH} still names set-task-env.sh, which alpha.18 removed`).not.toContain('set-task-env.sh');
+    expect(RUNBOOK).toContain('`worker.environment`');
   });
 
   it("the api's start lines while it asks for the texts", () => {

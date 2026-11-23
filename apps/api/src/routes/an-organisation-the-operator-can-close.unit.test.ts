@@ -50,7 +50,7 @@ const OPERATOR = 'operator-subject-0139-t7b';
 const NOT_OPERATOR = 'ordinary-subject-0139-t7b';
 const REFERENCE = 'their mail of 17 November';
 /** The orchestrator's reference of the pass in flight when USED is closed. */
-const PASS_IN_FLIGHT = 'run_c105e_in_flight';
+const PASS_IN_FLIGHT = '0c105e00-0000-4000-8000-000000000001';
 
 let driver: LedgerDriver;
 /** Set per test: the subject `authenticateSubject` pretends to have verified. */
@@ -75,15 +75,19 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
   };
 });
 
-vi.mock('@openmig/scheduler', () => ({
-  getTriggerClient: () => ({
-    runs: {
-      cancel: async (ref: string) => {
-        cancelled.push(ref);
-      },
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+});
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../__testing__/a-queue-stand-in.ts')).aQueueStandIn(
+    await importOriginal(),
+    () => {
+      throw new Error('nothing here enqueues');
     },
-  }),
-}));
+    (ref: string) => cancelled.push(ref),
+  ),
+);
 
 const { default: supportRoutes } = await import('./support.ts');
 

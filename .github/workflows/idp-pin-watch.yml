@@ -6,26 +6,25 @@
 # upgrade moves its schema one way and is the owner's call (0119 §3 item 2).
 # So nothing said when upstream moved on: v4.18.0 fixed GHSA-4hgj-wm6c-q7p2 on
 # 2026-09-21, and a week later a person reading release notes is what found
-# it. For the same reason the managed stacks' other images, Trigger.dev, the
-# tasks' Node, packageManager and the Trivy the scan runs had nothing watching
+# it. For the same reason the managed stacks' other images, Trigger.dev and the
+# tasks' Node until alpha.18 removed them (workplan 0167 T9), packageManager
+# and the Trivy the scan runs had nothing watching
 # them either, and since 2026-11-01 it also reads the Atlas release ci.yml's
 # migration-lint downloads by URL and checks by its sha256, the stalwart-cli
 # release ci.yml, e2e.yml and e2e-managed.yml install the same way, and the
 # binfmt and BuildKit images images.yml's build job names in its actions'
 # inputs, and the Node.js release keyring the Windows payload's node.exe check
 # reads (NODE_RELEASE_KEYS in scripts/package-appliance.mjs), against that file
-# at nodejs/release-keys' newest commit. Since 2026-11-06 it also reads the
-# tasks' prebuilt base apps/worker/trigger.config.ts pins (TASK_BASE_IMAGE),
-# against main's `edge` by each platform's layers, since its digest moves on
-# every merge.
+# at nodejs/release-keys' newest commit.
 #
 # Once a week, and on demand, scripts/idp-pin-watch.mjs reads each pin from the
 # checkout and compares it with its upstream, without a token: git ls-remote,
-# the registries' tag lists (Docker Hub and ghcr, anonymous), the Trigger.dev
-# probe (deploy/compose/trigger-version.sh probe), npm and nodejs.org's index.
+# the registries' tag lists (Docker Hub and ghcr, anonymous), npm and
+# nodejs.org's index.
 # It keeps ONE issue open per row that is the owner's call (the identity
-# provider, under the title it always had; Trigger.dev; ClickHouse; the tasks'
-# Node; pnpm; the TypeScript split, as a cleanup notice) and ONE summary issue
+# provider, under the title it always had; pnpm; the TypeScript split, as a
+# cleanup notice; Trigger.dev's, ClickHouse's and the tasks' Node's rows, until
+# alpha.18, now close their issue once, saying why) and ONE summary issue
 # for the routine pins. A newer release updates the issue and says so in a
 # comment, since an edit notifies nobody; the issue is closed when the pin
 # catches up. A row that cannot read its upstream touches nothing and fails

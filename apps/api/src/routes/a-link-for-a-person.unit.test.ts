@@ -92,20 +92,16 @@ vi.mock('@openmig/managed', async (importOriginal) => {
 
 // The first pass a grant starts (start when granted): counted, never sent.
 const enqueued: string[] = [];
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (_taskId: string, payload: { mappingId: string }) => {
-          enqueued.push(payload.mappingId);
-          return Promise.resolve({ id: `run-${enqueued.length}` });
-        },
-      },
-    }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (_taskId: string, payload: Record<string, unknown>) => {
+      enqueued.push(String(payload.mappingId));
+      return `run-${enqueued.length}`;
+  }),
+);
 
 vi.mock('./../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../middleware/auth.ts')>();

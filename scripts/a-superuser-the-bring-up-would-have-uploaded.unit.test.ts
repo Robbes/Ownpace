@@ -5,11 +5,13 @@
  *
  * Since T3 step 2 the jobs that span organisations (the sync tick, retention,
  * the purge of closed organisations), the split jobs' list of organisations
- * and every task's audit key connect as `ownpace_system`, the system role,
- * through `SYSTEM_DATABASE_URL`, which `deploy/compose/set-task-env.sh`
- * uploads to every run. Managed migration 0033 creates the role with
- * `NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS` and no
- * password, and grants it the statements those jobs send and nothing more.
+ * and every job's audit key connect as `ownpace_system`, the system role,
+ * through `SYSTEM_DATABASE_URL`, which the `worker` service carries for every
+ * run (`deploy/compose/managed.yml`; until alpha.18 `set-task-env.sh` uploaded
+ * it to Trigger.dev's task environment, workplan 0167 T9). Managed migration
+ * 0033 creates the role with `NOSUPERUSER NOCREATEROLE NOCREATEDB
+ * NOREPLICATION BYPASSRLS` and no password, and grants it the statements
+ * those jobs send and nothing more.
  *
  * What the migration wrote is not what the database holds for ever: a role is
  * cluster-global, anyone with the owner's socket can `ALTER ROLE` it, and
@@ -20,16 +22,13 @@
  * organisation's rows. The plan's step 2 says the bring-up asks Postgres
  * whether the system role is a superuser or may create roles, and refuses to
  * continue if it is or may, before its URL goes to every run. So
- * `bootstrap-managed.sh`'s `tasks` phase, which every bring-up runs (the
+ * `bootstrap-managed.sh`'s `app` phase, which every bring-up runs (the
  * nightly gate's, `deploy-live.sh`'s, `stand-up-live.sh`'s), asks first, with
  * `db_roles_system_fit` (`deploy/compose/db-roles.sh`), and only then sets
  * the role's password from `.env`'s `SYSTEM_DB_PASSWORD` and clears any
  * setting left on the role (`db_roles_system_set`: an ordinary role may set
- * its own, and every run holds its URL), proves it opens where the tasks
- * connect (`db_roles_system_prove`), runs `set-task-env.sh` (which asks the
- * same question again before its own upload), deploys the tasks, and only
- * after a deploy that went through runs `set-task-env.sh --forget-owner-names`,
- * so a failed deploy leaves the old tasks the owner's URL they still read.
+ * its own, and every run holds its URL), proves it opens where the worker
+ * connects (`db_roles_system_prove`), and only then starts the worker.
  *
  * HOW IT RUNS. `db-roles.sh` is sourced in a bash of its own, from a
  * directory holding copies of it and the files it sources, with `COMPOSE`
@@ -39,15 +38,14 @@
  * docker. The password is made here, at random, and must appear in the
  * stand-in's environment and nowhere else.
  *
- * The phase itself RUNS, rather than being read: `phase_tasks` and
- * `system_role_ready` are taken out of `bootstrap-managed.sh` as they are and
- * run in a bash of their own, under the script's own `set -euo pipefail`,
- * with `db-roles.sh` a stand-in whose question answers what a case says, and
- * `set-task-env.sh`, `plane-limit.sh`, `deploy-tasks.sh` and
- * `ensure-env-secrets.sh` stand-ins that record that they ran and with what. A refusal commented out,
- * skipped on a path, or answered and ignored runs the upload, and is red. The
- * first version read the text, and all three of those stayed green under it
- * (0138 T3 step 2 review).
+ * The question itself RUNS, rather than being read: `system_role_ready` is
+ * taken out of `bootstrap-managed.sh` as it is and run in a bash of its own,
+ * under the script's own `set -euo pipefail`, with `db-roles.sh` a stand-in
+ * whose question answers what a case says, followed by a stand-in for the
+ * worker's start, and `ensure-env-secrets.sh` a stand-in that records that it
+ * ran. A refusal commented out, skipped on a path, or answered and ignored
+ * starts the worker, and is red. The app phase's own statements are held to
+ * calling it before the worker, unconditionally.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -228,7 +226,7 @@ describe('the bring-up asks Postgres about the system role before its URL goes t
   });
 });
 
-describe('every bring-up runs the question, and stops, before set-task-env.sh', () => {
+describe('every bring-up runs the question, and stops, before the worker starts with the URL', () => {
   const bootstrap = read('deploy/compose/bootstrap-managed.sh');
   /** A function of bootstrap-managed.sh, as it is written there: `name() {` to the `}` that ends it. */
   const definition = (name: string): string => {
@@ -242,17 +240,18 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
   interface Ran {
     status: number | null;
     out: string;
-    /** What ran, in order: fit, set, prove, and each stand-in with its arguments. */
+    /** What ran, in order: fit, set, prove, the worker, and each stand-in with its arguments. */
     steps: string[];
   }
 
   /**
-   * phase_tasks, as bootstrap-managed.sh writes it, run under its own
-   * `set -euo pipefail`, with db-roles.sh and the scripts it calls as
-   * stand-ins answering what `answers` says.
+   * system_role_ready, as bootstrap-managed.sh writes it, then the worker's
+   * start (a stand-in), as phase_app runs them, under the script's own
+   * `set -euo pipefail`, with db-roles.sh and ensure-env-secrets.sh stand-ins
+   * answering what `answers` says.
    */
-  function phaseTasks(answers: Record<string, string> = {}, env = 'TRIGGER_PROJECT_REF=proj_stand_in\n'): Ran {
-    const dir = mkdtempSync(join(tmpdir(), 'phase-tasks-'));
+  function readyThenWorker(answers: Record<string, string> = {}, env = ''): Ran {
+    const dir = mkdtempSync(join(tmpdir(), 'system-role-ready-'));
     tempDirs.push(dir);
     copyFileSync(join(COMPOSE_DIR, 'env-read.sh'), join(dir, 'env-read.sh'));
     writeFileSync(join(dir, '.env'), env);
@@ -268,19 +267,11 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
         '',
       ].join('\n'),
     );
-    for (const [script, exitWith] of [
-      ['set-task-env.sh', 'STAND_IN_UPLOAD'],
-      ['plane-limit.sh', 'STAND_IN_PLANE'],
-      ['plane-tokens.sh', 'STAND_IN_TOKENS'],
-      ['deploy-tasks.sh', 'STAND_IN_DEPLOY'],
-      ['ensure-env-secrets.sh', 'STAND_IN_ENSURE'],
-    ] as const) {
-      writeFileSync(
-        join(dir, script),
-        ['#!/usr/bin/env bash', `printf '%s\\n' "${script}\${*:+ $*}" >>"$STAND_IN_LOG"`, `exit "\${${exitWith}:-0}"`, ''].join('\n'),
-      );
-      chmodSync(join(dir, script), 0o755);
-    }
+    writeFileSync(
+      join(dir, 'ensure-env-secrets.sh'),
+      ['#!/usr/bin/env bash', `printf '%s\\n' "ensure-env-secrets.sh" >>"$STAND_IN_LOG"`, 'exit 0', ''].join('\n'),
+    );
+    chmodSync(join(dir, 'ensure-env-secrets.sh'), 0o755);
     const harness = [
       'set -euo pipefail',
       `SCRIPT_DIR='${dir}'`,
@@ -290,13 +281,10 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
       definition('note'),
       definition('die'),
       definition('env_get'),
-      // What load_env checks is the .env's shape, which is not this guard's question.
-      'load_env() { :; }',
       definition('system_role_ready'),
-      // Trigger mode, as a .env without the switch reads (job-runner.sh).
-      "JOB_RUNNER_PGBOSS=pg-boss; JOB_RUNNER_KEY=OWNPACE_JOB_RUNNER; runner_mode() { JOB_RUNNER_MODE=\"${STAND_IN_MODE:-trigger}\"; }",
-      definition('phase_tasks'),
-      'phase_tasks',
+      `worker_up() { ${record('worker')}; }`,
+      'system_role_ready',
+      'worker_up',
     ].join('\n');
     const log = join(dir, 'ran');
     const r = spawnSync('bash', ['-c', harness], {
@@ -307,29 +295,19 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
     return { status: r.status, out: `${r.stdout}${r.stderr}`, steps };
   }
 
-  const password = () => `SYSTEM_DB_PASSWORD=${randomBytes(12).toString('hex')}\n`;
-  const withPassword = () => `TRIGGER_PROJECT_REF=proj_stand_in\n${password()}`;
+  const withPassword = () => `SYSTEM_DB_PASSWORD=${randomBytes(12).toString('hex')}\n`;
 
-  it('a fit role: asked, set, proven, then the upload, the deploy, and only then the owner names forgotten', () => {
-    const r = phaseTasks({}, withPassword());
+  it('a fit role: asked, set, proven, then the worker', () => {
+    const r = readyThenWorker({}, withPassword());
     expect(r.status, r.out).toBe(0);
-    expect(r.steps).toEqual([
-      'fit',
-      'set',
-      'prove',
-      'set-task-env.sh',
-      'plane-limit.sh',
-      'plane-tokens.sh',
-      'deploy-tasks.sh',
-      'set-task-env.sh --forget-owner-names',
-    ]);
+    expect(r.steps).toEqual(['fit', 'set', 'prove', 'worker']);
   });
 
   it.each([
     ['a role that is unfit', { STAND_IN_FIT: '1' }, /REFUSED.*superuser/],
     ['a question that could not be asked', { STAND_IN_FIT: '2' }, /could not ask Postgres/],
-  ])('%s stops the bring-up before a password is set or anything is uploaded', (_label, answers, why) => {
-    const r = phaseTasks(answers, withPassword());
+  ])('%s stops the bring-up before a password is set or the worker starts', (_label, answers, why) => {
+    const r = readyThenWorker(answers, withPassword());
     expect(r.status, r.out).not.toBe(0);
     expect(r.out).toMatch(why);
     expect(r.steps).toEqual(['fit']);
@@ -337,102 +315,59 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
 
   it.each([
     ['a password that did not set', { STAND_IN_SET: '1' }, ['fit', 'set']],
-    ['a password that does not open where the tasks connect', { STAND_IN_PROVE: '1' }, ['fit', 'set', 'prove']],
+    ['a password that does not open where the worker connects', { STAND_IN_PROVE: '1' }, ['fit', 'set', 'prove']],
     ['a password that could not be tried', { STAND_IN_PROVE: '2' }, ['fit', 'set', 'prove']],
-  ])('%s stops it before the upload', (_label, answers, steps) => {
-    const r = phaseTasks(answers, withPassword());
+  ])('%s stops it before the worker', (_label, answers, steps) => {
+    const r = readyThenWorker(answers, withPassword());
     expect(r.status, r.out).not.toBe(0);
     expect(r.steps).toEqual(steps);
   });
 
-  it('a deploy that fails leaves the owner names stored, for the tasks still deployed, and stops', () => {
-    const r = phaseTasks({ STAND_IN_DEPLOY: '1' }, withPassword());
-    expect(r.status, r.out).not.toBe(0);
-    expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh', 'plane-limit.sh', 'plane-tokens.sh', 'deploy-tasks.sh']);
-  });
-
-  it("a plane limit that could not be set deploys nothing and forgets nothing (0143 T1 step 3)", () => {
-    const r = phaseTasks({ STAND_IN_PLANE: '1' }, withPassword());
-    expect(r.status, r.out).not.toBe(0);
-    expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh', 'plane-limit.sh']);
-  });
-
-  it('an upload that fails deploys nothing and forgets nothing', () => {
-    const r = phaseTasks({ STAND_IN_UPLOAD: '1' }, withPassword());
-    expect(r.status, r.out).not.toBe(0);
-    expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh']);
-  });
-
-  it('pg-boss mode: the phase says it is skipped and runs none of it (0167 T7)', () => {
-    const r = phaseTasks({ STAND_IN_MODE: 'pg-boss' }, withPassword());
-    expect(r.status, r.out).toBe(0);
-    expect(r.out).toMatch(/skipped: pg-boss mode/);
-    expect(r.steps).toEqual([]);
-  });
-
-  it('pg-boss mode asks the same question before the worker starts, in the app phase (0167 T7)', () => {
-    const app = definition('phase_app');
-    const pg = app.indexOf('if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then\n    system_role_ready');
-    expect(pg, 'phase_app does not ask the system role first in pg-boss mode').toBeGreaterThan(-1);
-    expect(app.indexOf('worker_up', pg)).toBeGreaterThan(pg);
-  });
-
   it('a password a URL does not carry as it is stops it before the question', () => {
-    const r = phaseTasks({}, 'TRIGGER_PROJECT_REF=proj_stand_in\nSYSTEM_DB_PASSWORD=a/b@c\n');
+    const r = readyThenWorker({}, 'SYSTEM_DB_PASSWORD=a/b@c\n');
     expect(r.status, r.out).not.toBe(0);
     expect(r.steps).toEqual([]);
   });
 
   it('a .env with no password yet has one generated, and is asked about as any other', () => {
-    const r = phaseTasks({}, 'TRIGGER_PROJECT_REF=proj_stand_in\n');
-    // The stand-in generates nothing, so the phase stops on the empty value: after asking for it.
+    const r = readyThenWorker({}, '');
+    // The stand-in generates nothing, so it stops on the empty value: after asking for it.
     expect(r.status, r.out).not.toBe(0);
     expect(r.steps).toEqual(['ensure-env-secrets.sh']);
   });
 
-  it('phase_tasks runs each step unconditionally, as a statement of its own, in this order', () => {
+  it('phase_app asks it unconditionally, as a statement of its own, before the worker is readied and started', () => {
     // Behaviour above cannot see a skip keyed on a variable it does not set
     // (`[ "${SKIP:-0}" = 1 ] || system_role_ready`), so the phase's statements
     // are held to what they are. Comments and blank lines do not count.
-    const statements = definition('phase_tasks')
+    const statements = definition('phase_app')
       .split('\n')
-      .slice(1, -1)
       .map((l) => l.trim())
       .filter((l) => l !== '' && !l.startsWith('#'));
-    expect(statements).toEqual([
-      'say tasks "the system role, task environment variables, the plane\'s limit, the deploy, then the owner names forgotten"',
-      'load_env',
-      // pg-boss mode skips the phase whole, saying so (workplan 0167 T7); the
-      // worker's start in the app phase asks the same question first.
-      'runner_mode',
-      'if [ "$JOB_RUNNER_MODE" = "$JOB_RUNNER_PGBOSS" ]; then',
-      'note "skipped: pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}). The jobs ship in the worker\'s image, built and started by the app phase; nothing is uploaded to or deployed on Trigger.dev."',
-      'return 0',
-      'fi',
-      '[ -n "$(env_get TRIGGER_PROJECT_REF)" ] ||',
-      'die "TRIGGER_PROJECT_REF is not set — the \'account\' phase has not been completed."',
-      'system_role_ready',
-      '"${SCRIPT_DIR}/set-task-env.sh"',
-      // The plane's limit before the deploy that carries it (0143 T1 step 3),
-      // and the tokens it leaks released before the deploy jams on them.
-      '"${SCRIPT_DIR}/plane-limit.sh"',
-      '"${SCRIPT_DIR}/plane-tokens.sh"',
-      '"${SCRIPT_DIR}/deploy-tasks.sh"',
-      '"${SCRIPT_DIR}/set-task-env.sh" --forget-owner-names',
-    ]);
+    const at = (what: string) => statements.indexOf(what);
+    expect(at('system_role_ready'), 'phase_app does not ask the system role as a statement of its own').toBeGreaterThan(-1);
+    expect(at('worker_ready_to_start')).toBe(at('system_role_ready') + 1);
+    expect(at('worker_up "$api_before" "$api_after"')).toBe(at('system_role_ready') + 2);
+    // Nothing before it in the phase starts the worker.
+    expect(statements.slice(0, at('system_role_ready')).filter((l) => /\bworker_up\b|up\b.*\bworker\b/.test(l))).toEqual([]);
   });
 
-  it('is the bring-up deploy-live.sh runs, and the one stand-up-live.sh runs to the tasks', () => {
+  it('there is no tasks phase any more, and nothing calls set-task-env.sh (0167 T9)', () => {
+    expect(bootstrap).not.toMatch(/\nphase_tasks\(\) \{/);
+    expect(bootstrap.split('\n').filter((l) => !/^\s*#/.test(l) && /set-task-env\.sh|deploy-tasks\.sh/.test(l))).toEqual([]);
+  });
+
+  it('is the bring-up deploy-live.sh runs, and the one stand-up-live.sh runs from the plane phase on', () => {
     expect(read('deploy/compose/deploy-live.sh')).toMatch(/bootstrap-managed\.sh" --from data/);
-    expect(read('deploy/compose/stand-up-live.sh')).toMatch(/bootstrap-managed\.sh.*--from trigger/);
+    expect(read('deploy/compose/stand-up-live.sh')).toMatch(/bootstrap-managed\.sh.*--from plane/);
   });
 });
 
-describe('the role the bring-up asks about is the one the migration creates and the upload names', () => {
-  it('one name in the migration, db-roles.sh and set-task-env.sh', () => {
+describe('the role the bring-up asks about is the one the migration creates and the worker connects as', () => {
+  it('one name in the migration, db-roles.sh and the worker service', () => {
     expect(read(MIGRATION)).toMatch(new RegExp(`CREATE ROLE ${SYSTEM_ROLE}\\b`));
     expect(read('deploy/compose/db-roles.sh')).toContain(`DB_ROLES_SYSTEM='${SYSTEM_ROLE}'`);
-    expect(read('deploy/compose/set-task-env.sh')).toContain(`postgresql://${SYSTEM_ROLE}:\${SYSTEM_DB_PASSWORD}@`);
+    expect(read('deploy/compose/managed.yml')).toContain(`SYSTEM_DATABASE_URL: postgresql://${SYSTEM_ROLE}:\${SYSTEM_DB_PASSWORD:-}@`);
   });
 
   it('its password is generated into .env, and the example ships none', () => {

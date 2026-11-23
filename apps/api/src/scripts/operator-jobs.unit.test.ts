@@ -6,8 +6,8 @@
  * a real pg-boss are `operator-jobs.integration.test.ts`'s.
  *
  * What each test stands for:
- *  - in trigger mode no command reaches pg-boss, and each says so in one
- *    sentence and exits 1; a switch with any other value is refused;
+ *  - a switch that says `trigger` (Trigger.dev, removed in alpha.18) reaches
+ *    nothing, and is refused in one sentence; so is any value but pg-boss;
  *  - the connection is the jobs role's, never the owner's, and no refusal
  *    quotes a URL, which holds a password;
  *  - `jobs run` starts nothing while the hold is open, unless told to;
@@ -24,7 +24,6 @@ import type { Pool } from 'pg';
 import type { PlatformPause } from '@openmig/managed';
 import { JOB_CATALOG, type EnqueueOptions, type FailedRun, type QueueOverview, type RunStatus } from '@openmig/scheduler/pg-boss';
 import {
-  ON_TRIGGER_DEV,
   errorLine,
   jobRunnerOf,
   jobsConnectionString,
@@ -34,6 +33,7 @@ import {
   type JobsCommand,
   type JobsPort,
 } from './operator-jobs.ts';
+import { TRIGGER_REMOVED } from '../job-runner.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MAPPING = '5a1b0000-e29b-41d4-a716-446655440002';
@@ -80,10 +80,9 @@ function fakeJobs(over: Partial<JobsPort> = {}) {
 const OPEN_HOLD: PlatformPause = { id: 'h', startedAt: '2026-11-22T09:00:00.000Z', message: 'deploying' };
 
 describe('the switch', () => {
-  it('reads unset, empty and trigger as trigger, and pg-boss as pg-boss', () => {
-    expect(jobRunnerOf({})).toEqual({ runner: 'trigger' });
-    expect(jobRunnerOf({ OWNPACE_JOB_RUNNER: '' })).toEqual({ runner: 'trigger' });
-    expect(jobRunnerOf({ OWNPACE_JOB_RUNNER: 'trigger' })).toEqual({ runner: 'trigger' });
+  it('reads unset, empty and pg-boss as pg-boss', () => {
+    expect(jobRunnerOf({})).toEqual({ runner: 'pg-boss' });
+    expect(jobRunnerOf({ OWNPACE_JOB_RUNNER: '' })).toEqual({ runner: 'pg-boss' });
     expect(jobRunnerOf({ OWNPACE_JOB_RUNNER: 'pg-boss' })).toEqual({ runner: 'pg-boss' });
   });
 
@@ -91,25 +90,30 @@ describe('the switch', () => {
     const r = jobRunnerOf({ OWNPACE_JOB_RUNNER: 'pgboss' });
     // The API's own sentence (job-runner.ts's jobRunner), the one parser of the switch.
     expect('error' in r && r.error).toBe(
-      'OWNPACE_JOB_RUNNER is "pgboss", and it may only be "trigger" or "pg-boss" (unset or empty means "trigger").',
+      'OWNPACE_JOB_RUNNER is "pgboss", and it may only be "pg-boss" (unset or empty means "pg-boss").',
     );
     // Trimmed as the API trims it.
     expect(jobRunnerOf({ OWNPACE_JOB_RUNNER: ' pg-boss ' })).toEqual({ runner: 'pg-boss' });
   });
 
   it.each([[[]], [['failures']], [['show', RUN]], [['cancel', RUN]], [['run', 'run-rollback', '{}']], [['nonsense']]])(
-    'in trigger mode, `jobs %j` says the jobs run on Trigger.dev and exits 1, asking nothing',
+    'with an old .env that says trigger, `jobs %j` says Trigger.dev was removed in alpha.18 and exits 1, asking nothing',
     async (args) => {
-      for (const env of [{}, { OWNPACE_JOB_RUNNER: '' }, { OWNPACE_JOB_RUNNER: 'trigger' }]) {
-        // A jobs URL is there to be used, and must not be: the switch comes first.
-        const report = await runJobsVerb(args, { ...env, JOBS_DATABASE_URL: 'postgresql://ownpace_jobs:x@nowhere.invalid/x' }, NO_POOL);
-        expect(report).toEqual({ lines: [ON_TRIGGER_DEV], exitCode: 1 });
-      }
+      // A jobs URL is there to be used, and must not be: the switch comes first.
+      const report = await runJobsVerb(
+        args,
+        { OWNPACE_JOB_RUNNER: 'trigger', JOBS_DATABASE_URL: 'postgresql://ownpace_jobs:x@nowhere.invalid/x' },
+        NO_POOL,
+      );
+      expect(report.exitCode).toBe(1);
+      expect(report.lines).toEqual([TRIGGER_REMOVED]);
     },
   );
 
-  it('the trigger-mode answer is one sentence', () => {
-    expect(ON_TRIGGER_DEV.split(/[.!?](\s|$)/).filter((s) => s.trim() !== '').length).toBe(1);
+  it("that answer is one sentence, and says to remove the key", () => {
+    expect(TRIGGER_REMOVED.split(/[.!?](\s|$)/).filter((s) => s.trim() !== '').length).toBe(1);
+    expect(TRIGGER_REMOVED).toMatch(/Trigger\.dev was removed in alpha\.18/);
+    expect(TRIGGER_REMOVED).toMatch(/remove the key/);
   });
 
   it('a switch it cannot read is refused before anything else', async () => {
@@ -153,8 +157,8 @@ describe('the arguments', () => {
     [['failures', 'run-delta-sync', 'run-discovery'], 'jobs failures does not take "run-discovery"'],
     [['show'], 'jobs show takes one run\'s id.'],
     [['cancel', RUN, RUN], 'jobs cancel takes one run\'s id.'],
-    [['show', 'run_cm0abcdefg'], 'is a Trigger.dev run\'s ref, not a pg-boss run\'s id'],
-    [['cancel', 'run_cm0abcdefg'], 'is a Trigger.dev run\'s ref, not a pg-boss run\'s id'],
+    [['show', 'run_cm0abcdefg'], 'is a Trigger.dev run\'s ref, from before alpha.16, not a pg-boss run\'s id'],
+    [['cancel', 'run_cm0abcdefg'], 'is a Trigger.dev run\'s ref, from before alpha.16, not a pg-boss run\'s id'],
     [['show', '12345'], 'is not a run\'s id: a pg-boss run\'s id is a UUID.'],
     [['run', 'run-rollback'], 'jobs run takes a task and its payload as one JSON object.'],
     [['run', 'run-everything', '{}'], '"run-everything" is not one of the jobs\' queues'],

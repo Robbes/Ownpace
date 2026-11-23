@@ -31,8 +31,9 @@
  * SO THERE ARE THREE LAYERS, each covering what the one before cannot:
  *
  * - the sources stop printing it: `ps` without its PORTS column, an origin
- *   printed only when its host is loopback, the CLI run without the Actions
- *   files and without its links, a bad `.env` line named by its key;
+ *   printed only when its host is loopback, a bad `.env` line named by its
+ *   key (and, until alpha.18 removed Trigger.dev, workplan 0167 T9, its
+ *   deploy CLI run without the Actions files and without its links);
  * - the job masks this machine's own values before anything reads the
  *   stack (`own-addresses.sh --mask`, right after the `.env` is restored),
  *   so a message nobody has found yet prints `***`;
@@ -319,29 +320,6 @@ describe('what the gate prints about the stack', () => {
     ]) {
       expect(psPrintsABind(good), good).toBe(false);
     }
-  });
-
-  it('runs the deploy CLI without the Actions files and without its links', () => {
-    // The CLI (4.5.16, commands/deploy.js) appends TRIGGER_DEPLOYMENT_URL and
-    // TRIGGER_TEST_URL to $GITHUB_ENV whenever that is set, and the runner
-    // prints both in every later step's header. In --plain mode it prints the
-    // links only when TRIGGER_DEPLOYMENT_LINK_OUTPUT_DISABLED is not 1.
-    const text = code(read('deploy/compose/deploy-tasks.sh'));
-    const from = text.indexOf('TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}"');
-    const invocation = text.slice(from, text.indexOf('\n', text.indexOf('deploy --profile', from)));
-    // The lockfile's CLI, run from apps/worker with `-C` (2026-11-02; it was
-    // `npx -y "trigger.dev@…"` until then). `-C` and not `--filter`, which
-    // prints the package's absolute path when the command fails.
-    expect(invocation, 'the deploy invocation is no longer recognisable').toContain(
-      'pnpm -C "${REPO_ROOT}/apps/worker" exec trigger deploy',
-    );
-    expect(invocation).not.toContain('--filter');
-    const cli = invocation.indexOf('pnpm -C');
-    const unset = invocation.indexOf('env -u GITHUB_ENV -u GITHUB_OUTPUT');
-    expect(unset, 'the CLI still sees $GITHUB_ENV and $GITHUB_OUTPUT').toBeGreaterThan(-1);
-    expect(unset).toBeLessThan(cli);
-    expect(invocation.slice(0, cli)).toContain('TRIGGER_DEPLOYMENT_LINK_OUTPUT_DISABLED=1');
-    expect(invocation.slice(cli)).toMatch(/\s--plain\b/);
   });
 
   it('prints an origin only when its host is loopback', () => {

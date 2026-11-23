@@ -4,6 +4,40 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, later: what alpha.18 removes — Trigger.dev's plane, and every pin and watch that was
+only its (workplan 0167 T9).** The owner, 2026-11-23: *"i will remove trigger.dev, but the machine
+runs OTA and managed, so both have to be move out of triggerdev."* On branch
+`claude/ownpace-public-readiness-y7orc6-0167-t9`, from alpha.17 (`5b51a82b`). What leaves this
+workplan's inventory:
+
+- **Services and images** (`deploy/compose/managed.yml`): trigger-db, trigger-redis (Redis),
+  trigger-api and trigger-supervisor (the `localhost/trigger.dev:…` and `localhost/supervisor:…`
+  builds, 0146 T16), clickhouse (26.8.37.168), trigger-registry (the registry), trigger-docker-proxy
+  (Tecnativa's docker-socket-proxy v0.6.0, as uid 99), minio and minio-init (Chainguard's MinIO,
+  `59953701…`), trigger-tls and trigger-tls-init (Caddy 2.11.9-alpine). Nine services are left:
+  postgres, api, web, zitadel, gatus, pgbouncer, worker, mailpit, nextcloud.
+- **Built here**: `ghcr.io/robbes/ownpace-task-base` (`apps/worker/task-image`), and the socket
+  proxy's, Caddy's and Redis's builds in `images.yml`, which keeps `build`, `database` and
+  `pgbouncer`. Security Scan scans what is left.
+- **npm**: `@trigger.dev/sdk`, `@trigger.dev/build`, `@trigger.dev/core` and the `trigger.dev` CLI;
+  the overrides only their dependencies needed (ws, engine.io, engine.io-client, socket.io-parser,
+  `@opentelemetry/core`, tar, systeminformation, the zod 4 floor, deepmerge-ts, effect, hono and
+  `@hono/node-server`) and their release-age exclusions; `@depot/cli`'s build permission.
+  `pnpm-lock.yaml` loses about 1,770 lines.
+- **Dependabot**: the `@trigger.dev/*` ignores and the docker entries for the socket proxy, Caddy,
+  Redis and `apps/worker/task-image`.
+- **The pin watch** (`scripts/idp-pin-watch.mjs`): the rows for Trigger.dev, ClickHouse, the
+  tasks' Node and the tasks' base answer *current* with a sentence that says the pin left in
+  alpha.18, so each of their issues, and their lines in the summary issue (#1671, MinIO's row
+  among them), close once on the next run and are not opened again. Not dismissed by hand.
+- **hadolint**: its known findings for the plane's Dockerfiles go with them; `KNOWN_FINDINGS` is
+  empty, so the report could be made blocking (a follow-up, not done here).
+
+The pins that stay: Postgres, PgBouncer, Zitadel (`v4.20.4`), Gatus, Mailpit, Nextcloud, nginx,
+pg-boss (`12.38.2`), Node and pnpm. For live, from alpha.17: the plane was stopped since alpha.16;
+its containers go in alpha.18's bring-up, and its volumes when the owner runs
+`remove-trigger-plane.sh --yes` (0167's Status).
+
 **2026-11-23, morning: what alpha.17 moves, and what moves for live from alpha.16.** The fold for
 `v0.2.0-alpha.17` (0146's entry of the same day) carries what `main` merged after alpha.16's C,
 `b657f86b`: 4 pull requests (0146's entry lists them). The entry below, alpha.17's lifecycle moves,
@@ -10688,7 +10722,9 @@ is beside each; none is urgent tonight.
   *(2026-11-14: 34.0.6, tagged upstream on 2026-11-12, reached Docker Hub on 2026-11-14 at 01:52:58
   UTC and is pinned the same day, inside its floor, which is waived for alpha.9: the Status entry
   of 2026-11-14, latest.)*
-- **ClickHouse** is not checked against anything but Trigger.dev's own compose, and that
+- **ClickHouse** *(2026-11-23: moot from alpha.18, which removes it with Trigger.dev's plane,
+  workplan 0167 T9; the pin watch's row closes its issue. The rest of this bullet is the
+  record.)* was not checked against anything but Trigger.dev's own compose, and that
   is by design; the version that rejected a migration is the reason it is pinned at all. That
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with
   its revisit triggers (§3 item 9). One fired on 2026-11-01 (CVE-2026-116366): the server is on
@@ -10700,7 +10736,8 @@ is beside each; none is urgent tonight.
   26.3.62.3, superseded; §3 item 9). *(2026-11-08: so the pin is 26.8.36.3-lts, not 26.2,
   and 26.8 is a line ClickHouse's `SECURITY.md` supports (read 2026-10-23, §3 item 9); live runs
   it since its deploy of alpha.4 on 2026-11-04, 0132's Status of 2026-11-05.)*
-- **Whether Dependabot reads `${TRIGGER_IMAGE_TAG:-v4.5.12}`** correctly is not tested here;
+- **Whether Dependabot reads `${TRIGGER_IMAGE_TAG:-v4.5.12}`** *(2026-11-23: gone with the plane
+  in alpha.18, workplan 0167 T9)* correctly is not tested here;
   those two lines are ignored by name, so the answer does not matter for them. *(2026-11-08: moot
   now. The two lines read `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-…` and
   `localhost/supervisor:…`, images built here since alpha.3 (0146 T16), and Dependabot's

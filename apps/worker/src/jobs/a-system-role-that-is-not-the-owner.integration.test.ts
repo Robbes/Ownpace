@@ -3,7 +3,7 @@
 /**
  * A SYSTEM ROLE THAT IS NOT THE OWNER (workplan 0138 T3 step 2).
  *
- * Three Trigger.dev jobs span organisations whole: the sync tick (which
+ * Three scheduled jobs span organisations whole: the sync tick (which
  * mappings are due, across every organisation), retention (prunes across
  * them, each only as far as its last issued invoice) and the purge of closed
  * organisations (revokes their credentials and removes their data). Beside
@@ -56,10 +56,9 @@
  * run-delta-sync needs for `openTaskPools`) in its own process before it
  * imports them, and puts both back after. Never `DATABASE_URL`
  * (`an-integration-test-is-handed-its-database`): nothing here is handed the
- * owner's URL. The Trigger.dev SDK is the real one but for four members: a
- * scheduled task hands back its config, so its `run` can be called; a task's
- * `trigger` records what the tick would have started; `runs.retrieve` says a
- * run finished; `configure` does nothing. The role's password is made here,
+ * owner's URL. Each job's run is called with a stand-in for the pg-boss
+ * runner (`standInRunner`): an enqueue records what the tick would have
+ * started, a run asked after has finished, and a cancel does nothing. The role's password is made here,
  * at random, and set on the role by the owner, as the bring-up does from
  * `.env`: this file is the only one that logs in as the role, so no other
  * file's password races it. Everything else is the jobs' own code.
@@ -89,33 +88,23 @@ const stand = vi.hoisted(() => ({
   triggered: [] as Array<{ tenantId: string; mappingId: string; domains: string[] }>,
 }));
 
-vi.mock('@trigger.dev/sdk', async (importOriginal) => {
-  const real = await importOriginal<typeof import('@trigger.dev/sdk')>();
-  return {
-    ...real,
-    configure: () => undefined,
-    schedules: { ...real.schedules, task: (config: unknown) => config },
-    schemaTask: (config: Record<string, unknown>) => ({
-      ...config,
-      trigger: async (payload: { tenantId: string; mappingId: string; domains: string[] }) => {
-        stand.triggered.push(payload);
-        return { id: `run_stand_in_${stand.triggered.length}` };
-      },
-    }),
-    runs: {
-      ...real.runs,
-      retrieve: async () => ({
-        isExecuting: false,
-        isQueued: false,
-        isWaiting: false,
-        isCompleted: true,
-        isFailed: false,
-        isCancelled: false,
-      }),
-      cancel: async () => ({}),
-    },
-  };
-});
+/**
+ * The runner the runs are handed (workplan 0167 T9: the pg-boss worker's
+ * port, Trigger.dev's SDK gone): a pass enqueued is recorded, a run asked
+ * after has finished, and a cancel does nothing.
+ */
+const standInRunner = {
+  name: 'pg-boss' as const,
+  enqueue: async (_queue: 'run-delta-sync', payload: { tenantId: string; mappingId: string; domains?: string[] }) => {
+    stand.triggered.push({ tenantId: payload.tenantId, mappingId: payload.mappingId, domains: payload.domains ?? [] });
+    return { runId: `00000000-0000-4000-8000-${String(stand.triggered.length).padStart(12, '0')}` };
+  },
+  enqueueAndWait: async () => {
+    throw new Error('no run here waits for a pass');
+  },
+  verdict: async () => 'finished' as const,
+  cancel: async () => undefined,
+};
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {
@@ -355,9 +344,10 @@ beforeAll(async () => {
   const tick = await import('./managed-sync-tick.ts');
   const retention = await import('./managed-retention.ts');
   const purge = await import('./managed-purge-closed.ts');
-  tickRun = (tick.managedSyncTick as unknown as { run: ScheduledRun }).run;
-  retentionRun = (retention.managedRetention as unknown as { run: ScheduledRun }).run;
-  purgeRun = (purge.managedPurgeClosed as unknown as { run: ScheduledRun }).run;
+  const context = { runner: standInRunner } as never;
+  tickRun = (payload) => tick.managedSyncTickRun(payload, context) as Promise<Record<string, unknown>>;
+  retentionRun = (payload) => retention.managedRetentionRun(payload, context) as Promise<Record<string, unknown>>;
+  purgeRun = (payload) => purge.managedPurgeClosedRun(payload, context) as Promise<Record<string, unknown>>;
 }, 120_000);
 
 afterAll(async () => {
@@ -732,8 +722,8 @@ describe('the sync tick runs as the system role', () => {
       expect(summary.stillRunning).toBeGreaterThanOrEqual(1);
       expect(stand.triggered).toEqual([]);
       expect((await theBeat())!.getTime()).toBeGreaterThanOrEqual(before - 1_000);
-      // And as its runner, Trigger.dev, at the same time (workplan 0167 T6).
-      expect((await theBeat(ON_TRIGGER))?.getTime()).toBe((await theBeat())!.getTime());
+      // And as its runner, pg-boss, at the same time (workplan 0167 T6).
+      expect((await theBeat(ON_PG_BOSS))?.getTime()).toBe((await theBeat())!.getTime());
     } finally {
       await owner.execute(sql`UPDATE platform_pause SET ended_at = now(), ended_by = 'system:probe' WHERE id = ${hold}`);
     }
@@ -749,31 +739,45 @@ describe('the sync tick runs as the system role', () => {
     expect(mine).toEqual([{ tenantId: A, mappingId: A_MAPPING, domains: ['email'] }]);
     expect(summary.skippedRunning).toBeGreaterThanOrEqual(1);
     expect((await theBeat())!.getTime()).toBeGreaterThanOrEqual(before - 1_000);
-    expect((await theBeat(ON_TRIGGER))?.getTime()).toBe((await theBeat())!.getTime());
+    expect((await theBeat(ON_PG_BOSS))?.getTime()).toBe((await theBeat())!.getTime());
   });
 
-  it('holds while the pg-boss runner’s tick beats: starts nothing, beats as Trigger.dev alone, and starts again once it stops', async () => {
-    // Two runners at once (workplan 0167 T6). The other runner's tick beats as
-    // the same role, under the same grant, as this one does.
+  it('holds while a Trigger.dev tick beats: starts nothing, beats as pg-boss alone, and starts again once the shared beat is old', async () => {
+    // Two runners at once (workplan 0167 T6). Trigger.dev was removed (T9),
+    // but this tick still reads its beat, so a plane somebody started from an
+    // older tree, on the same database, makes it hold. That tick beats as the
+    // same role, under the same grant, as this one does.
     await system.query(
       `INSERT INTO sync_tick_beat (task, beat_at) VALUES ($1, now())
        ON CONFLICT (task) DO UPDATE SET beat_at = EXCLUDED.beat_at`,
-      [ON_PG_BOSS],
+      [ON_TRIGGER],
     );
     const shared = (await theBeat())!.getTime();
     const before = Date.now();
     try {
       stand.triggered.splice(0);
       const held = await tickRun({}, {});
-      expect(held).toMatchObject({ anotherRunner: 'pg-boss', triggered: 0 });
+      expect(held).toMatchObject({ anotherRunner: 'trigger', triggered: 0 });
       expect(held.heldSince).toBeUndefined();
       expect(stand.triggered).toEqual([]);
-      expect((await theBeat(ON_TRIGGER))!.getTime()).toBeGreaterThanOrEqual(before - 1_000);
+      expect((await theBeat(ON_PG_BOSS))!.getTime()).toBeGreaterThanOrEqual(before - 1_000);
       // The shared beat is left as it was: two runners left running read as a stopped tick.
       expect((await theBeat())!.getTime()).toBe(shared);
     } finally {
-      await owner.execute(sql`DELETE FROM sync_tick_beat WHERE task = ${ON_PG_BOSS}`);
+      await owner.execute(sql`DELETE FROM sync_tick_beat WHERE task = ${ON_TRIGGER}`);
     }
+    // The other tick stopped, but the shared beat it would have kept writing is
+    // still fresh and no longer this runner's own (the hold wrote only its
+    // own), so the tick's second rule holds on until that beat is older than
+    // ANOTHER_RUNNER_BEAT_MS: it does not guess whose it is.
+    stand.triggered.splice(0);
+    const still = await tickRun({}, {});
+    expect(still).toMatchObject({ anotherRunner: 'trigger', triggered: 0 });
+    expect(stand.triggered).toEqual([]);
+    // A minute and a half later, as the next ticks find it, it starts again.
+    await owner.execute(
+      sql`UPDATE sync_tick_beat SET beat_at = beat_at - interval '91 seconds' WHERE task = 'managed-sync-tick'`,
+    );
     stand.triggered.splice(0);
     const free = await tickRun({}, {});
     expect(free.anotherRunner).toBeUndefined();
@@ -781,6 +785,7 @@ describe('the sync tick runs as the system role', () => {
       { tenantId: A, mappingId: A_MAPPING, domains: ['email'] },
     ]);
     expect((await theBeat())!.getTime()).toBeGreaterThan(shared);
+    expect((await theBeat(ON_PG_BOSS))?.getTime()).toBe((await theBeat())!.getTime());
   });
 });
 

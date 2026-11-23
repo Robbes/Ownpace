@@ -260,8 +260,9 @@ comments still name them, to say what filled them.
   every container writes with Docker's default log driver, which keeps a container's output
   until the container is removed, with no limit of age or size. `deploy-live.sh` recreates the
   app's containers (a new image for each tag) and the website's (`--force-recreate`) at each
-  deploy; the sign-in service's only when its image or configuration changes; Trigger.dev
-  removes a task's container when its run ends (0134 open question 6). The owner's month for
+  deploy; the sign-in service's only when its image or configuration changes; the worker, which
+  runs the background tasks, is recreated with the app's (Trigger.dev, which removed a task's
+  container when its run ended, 0134 open question 6, is gone since alpha.18, workplan 0167 T9). The owner's month for
   container logs (0129 D2) exists as guidance only: `docs/managed-bring-up.md` tells the operator
   to set the journald log driver with `MaxRetentionSec=1month`, and lists it among the owner's
   steps for live, while 0134 open question 6 was answered (a), which is no journald. Nothing
@@ -431,8 +432,9 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   (06:30 UTC) and drift check (07:00 UTC) read the list of open organisations once, at their start
   (`task-pools.ts:212`), and read only an `o365` source's directory
   (`directory-availability.ts:72-75`): the discovery its mail-enabled groups with each one's
-  members' addresses (`graph-groups.ts`), the drift check its mailboxes (`graph-directory.ts`). No background task runs longer than an hour
-  (`apps/worker/trigger.config.ts:65`); the texts promise no period. The DPA's Annex A, unpublished,
+  members' addresses (`graph-groups.ts`), the drift check its mailboxes (`graph-directory.ts`). No background task runs longer than an hour,
+  a cutover three (each queue's limit in `JOB_CATALOG`, `packages/scheduler/src/pg-boss/catalog.ts`;
+  until alpha.18, `apps/worker/trigger.config.ts`'s `maxDuration`); the texts promise no period. The DPA's Annex A, unpublished,
   still has the old sentence, and is corrected in the DPA's one pass before the first business
   customer. The app's own sentence for a closed organisation said *"nothing uses the access it
   gave"* too; since the review of 2026-10-05 it says *"No new work starts with the access it
@@ -444,12 +446,14 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   conditions §6; rec-copies (a)): built (0139 T6, 2026-09-28, review fixes 2026-09-29).
   `deploy/compose/copy-before-update.sh`, one directory,
   `~/.persistent/ownpace-live/copy-before-update`: `deploy-live.sh` takes the copy right before
-  its checkout (the app's database, the sign-in service's database and the roles, and the task
-  runner's database before a Trigger.dev upgrade); `copy-before-update.sh delete`, or live's box
+  its checkout (the app's database, the sign-in service's database and the roles; until alpha.18
+  also the task runner's database before a Trigger.dev upgrade, which `take --trigger` now
+  refuses, workplan 0167 T9); `copy-before-update.sh delete`, or live's box
   checks every ten minutes by the same rule and stricter (`delete-if-proven`, 0132 T9), removes
   it once the update is proven (the last deploy since the copy took, its hold lifted, a pass
   since completed) and refuses before; the daily duties delete it once it is older than 6 days
-  less an hour; `dump-idp.sh` and `trigger-version.sh` write only there on live. A rollback by
+  less an hour; `dump-idp.sh` writes only there on live (`trigger-version.sh` did too, until
+  alpha.18 removed it). A rollback by
   day 6 starts with `copy-before-update.sh since`, which does again after the restore what was
   erased, closed or deleted after the copy (the operator runbook, *The copy before an update*).
   **Done 2026-10-28:** live runs alpha.2, which carries it. Its deploy took the copy on
@@ -462,9 +466,10 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   the test stack.)*
 - *No daily copies of the task runner's database on live* (privacy §9; rec-drill (a)): built on
   the same branch. The drill is off live's duties in `box-duties.sh` (its duty is the copy's
-  backstop, `copies`) and stays on the test stack; `trigger-version.sh` refuses `drill` on live,
-  and its `backup` is part of the copy before a Trigger.dev upgrade there, under the rule above.
-  Privacy §9 no longer names the drill. **Still to do:** live runs a tag that carries it.
+  backstop, `copies`). Since alpha.18 there is no task runner's database to copy (workplan 0167
+  T9): pg-boss's tables are in the service's own database, which the copy before an update
+  holds, and the gate's restore drill is the sign-in service's database (`dump-idp.sh --drill`,
+  on the test stack only). Privacy §9 no longer names the drill.
 - *A sign-in account nobody let in, 30 days* (privacy §9; ops-unadmitted-signin-cleanup (a)):
   0135 T8's script, `idp-strays.sh`, run with the machine's daily duties. Built; it runs once
   live's timer is installed. The same run removes the sign-in account of someone removed from an
@@ -517,9 +522,9 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   stands.
 - *Email and password only at the sign-in page* (privacy §4.4, §7, §8; ops-social-signin (a)):
   live's `.env` sets no `IDP_*` key.
-- *Telemetry off* (privacy §8's negative; ops-telemetry (a)): `TRIGGER_TELEMETRY_DISABLED` for
-  live and the test stack (`managed.yml`), and the sign-in service, ClickHouse and MinIO checked
-  and switched off too.
+- *Telemetry off* (privacy §8's negative; ops-telemetry (a)): the sign-in service checked and
+  switched off. (Until alpha.18 also `TRIGGER_TELEMETRY_DISABLED`, ClickHouse and MinIO, which
+  workplan 0167 T9 removed with Trigger.dev's plane.)
 - *The service's mails go to the support mailbox* (ops-notify-addresses (a); privacy-tester-list
   (a)): `NOTIFY_TO`, `ALERT_TO` and `REPORT_MAIL_TO` in live's `.env` are all
   `support@ownpace.eu`. The request notices there are also the list of testers kept off the

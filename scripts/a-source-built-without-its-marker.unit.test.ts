@@ -34,8 +34,9 @@
  * and each must be the marked one, carrying the mapping's own marker, when the
  * mapping has a marker, and the bare source when it has none. Only the
  * accounts are stood in for: the passes and the counts are recorded instead of
- * run, and Trigger.dev's `schemaTask` hands its definition back so a job's
- * `run` can be called.
+ * run, and each managed job's run is called as the pg-boss worker calls it
+ * (`run<Job>Run`, with a stand-in runner; Trigger.dev's `schemaTask` was
+ * stood in for until alpha.18 removed it, workplan 0167 T9).
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -54,6 +55,7 @@ import {
   type SwitchedOffState,
 } from '@openmig/shared';
 import { isMarkedOnly } from '../packages/orchestration/src/marked-only.ts';
+import type { RunContext } from '../apps/worker/src/jobs/run-context.ts';
 import {
   applyMappingDeletion,
   applyMappingRelocation,
@@ -79,12 +81,6 @@ const seen = vi.hoisted(() => ({
 vi.mock('@openmig/ledger', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@openmig/ledger')>()),
   tenantScopedDb: () => seen.db,
-}));
-
-// The jobs' definitions, handed back, so their `run` can be called.
-vi.mock('@trigger.dev/sdk', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@trigger.dev/sdk')>()),
-  schemaTask: (config: Record<string, unknown>) => config,
 }));
 
 // The jobs take their pool when they are imported; here it is the ledger below.
@@ -312,18 +308,23 @@ beforeAll(async () => {
   seen.db = ledgerDb;
   const pool = driver as unknown as Pool;
   const { buildTask } = await import('../apps/worker/src/jobs/run-discovery.ts');
-  const { runDeltaSync } = await import('../apps/worker/src/jobs/run-delta-sync.ts');
-  const { runApplyDeletionTask } = await import('../apps/worker/src/jobs/run-apply-deletion.ts');
-  const { runApplyRelocationTask } = await import('../apps/worker/src/jobs/run-apply-relocation.ts');
-  const runOf = (task: unknown) => (task as { run: (payload: unknown, context: unknown) => Promise<unknown> }).run;
-  const context = { ctx: { run: { id: 'run_stand_in' } } };
+  const { runDeltaSyncRun } = await import('../apps/worker/src/jobs/run-delta-sync.ts');
+  const { runApplyDeletionRun } = await import('../apps/worker/src/jobs/run-apply-deletion.ts');
+  const { runApplyRelocationRun } = await import('../apps/worker/src/jobs/run-apply-relocation.ts');
+  // A pass asks nothing of its runner here: each question fails the case.
+  const asked = (what: string) => () => Promise.reject(new Error(`a job here asked its runner to ${what}`));
+  const context: RunContext = {
+    runId: randomUUID(),
+    attempt: 1,
+    runner: { name: 'pg-boss', enqueue: asked('enqueue'), enqueueAndWait: asked('wait'), verdict: asked('say'), cancel: asked('cancel') },
+  };
   jobs = {
     count: (mappingId, domain) => buildTask(pool, TENANT as never, mappingId as never, domain).run(),
-    pass: (mappingId) => runOf(runDeltaSync)({ tenantId: TENANT, mappingId }, context),
+    pass: (mappingId) => runDeltaSyncRun({ tenantId: TENANT, mappingId }, context),
     applyDeletion: (mappingId) =>
-      runOf(runApplyDeletionTask)({ tenantId: TENANT, mappingId, naturalKeyHash: 'no-such-item', receiptId: randomUUID() }, context),
+      runApplyDeletionRun({ tenantId: TENANT, mappingId, naturalKeyHash: 'no-such-item', receiptId: randomUUID() }, context),
     applyRelocation: (mappingId) =>
-      runOf(runApplyRelocationTask)({ tenantId: TENANT, mappingId, naturalKeyHash: 'no-such-item', receiptId: randomUUID() }, context),
+      runApplyRelocationRun({ tenantId: TENANT, mappingId, naturalKeyHash: 'no-such-item', receiptId: randomUUID() }, context),
   };
 }, 120_000);
 

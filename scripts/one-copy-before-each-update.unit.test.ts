@@ -20,8 +20,7 @@
  * never go wrong, a block each:
  *
  *   take. The app's database, the sign-in service's database and the roles,
- *   and with `--trigger` the task runner's, each read back, into that
- *   directory and nowhere else, readable by the owner alone, the note last. A
+ *   each read back, into that directory and nowhere else, readable by the owner alone, the note last. A
  *   part that fails leaves nothing of the run behind. A copy whose update is
  *   not proven is kept and no second one is taken: it is the copy of what ran
  *   before. A copy whose update is proven is refused: one copy per update. The
@@ -66,9 +65,17 @@
  *   The directory is a directory: a symbolic link there is refused by every
  *   script that writes or deletes in it, because `find` does not follow one.
  *
- *   dump-idp.sh on live writes into that directory and nowhere else, and
- *   trigger-version.sh on live dumps only there and never drills, on a slip of
- *   live's marker too; on the OTA stack both are what they were.
+ *   dump-idp.sh on live writes into that directory and nowhere else, on a
+ *   slip of live's marker too; on the OTA stack it is what it was.
+ *
+ *   The task runner's database, since alpha.18 (workplan 0167 T9). Until
+ *   then `take --trigger` added Trigger.dev's database (`triggerdb-*.sql.gz`,
+ *   by trigger-version.sh backup) when a tag moved its pin. alpha.18 removed
+ *   Trigger.dev: `--trigger` is refused in its own sentence before anything is
+ *   read or written, in a dry run too, and a kept copy taken before that holds
+ *   such a dump keeps it as a part of the copy: take keeps it as it is,
+ *   delete-if-proven and delete count it and remove it with the rest, and
+ *   expire deletes it by its own age.
  *
  * `docker`, `pg_dump`, `pg_dumpall`, `pg_restore` and `psql` are stubs on the
  * PATH. The docker stub runs `docker exec <container> <command…>` itself, so
@@ -99,7 +106,6 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
-import { switchedTo } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -328,18 +334,12 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
   const home = join(root, 'home');
   mkdirSync(compose, { recursive: true });
   mkdirSync(home);
-  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'dump-idp.sh', 'trigger-version.sh', 'managed.yml', 'job-runner.sh']) {
+  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'dump-idp.sh', 'managed.yml', 'job-runner.sh']) {
     // A script that is not there yet is simply not there: the cases fail on it.
     if (!existsSync(join(COMPOSE_DIR, f))) continue;
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
-  // A stack on Trigger.dev's plane, as these cases were written for: since the
-  // flip managed.yml's default is pg-boss, where --trigger is refused, so the
-  // stage's copy defaults to trigger. The cases of the two runners set their
-  // own (workplan 0167 T7).
-  const yml = join(compose, 'managed.yml');
-  writeFileSync(yml, readFileSync(yml, 'utf8').replace(/\$\{OWNPACE_JOB_RUNNER:-[^}]*\}/g, '${OWNPACE_JOB_RUNNER:-trigger}'));
   writeFileSync(join(work, '.gitignore'), '.env\n');
   git(home, root, 'init', '-q', '-b', 'main', work);
   git(home, work, 'add', '-A');
@@ -486,7 +486,7 @@ describe('take: one copy, right before an update, in one directory', () => {
 
   it('the directory and every file in it are the owner\'s alone, and nothing is written anywhere else', () => {
     const s = stage();
-    const r = run(s, ['take', '--trigger', TAG]);
+    const r = run(s, ['take', TAG]);
     expect(r.status, r.out).toBe(0);
     expect(mode(s.dir)).toBe('700');
     for (const f of filesIn(s.dir)) expect(mode(join(s.dir, f)), f).toBe('600');
@@ -496,15 +496,14 @@ describe('take: one copy, right before an update, in one directory', () => {
     expect(r.out).not.toContain(MASTERKEY);
   });
 
-  it('with --trigger, the task runner\'s database too, verified, in the same directory', () => {
+  it('takes no task runner\'s database: Trigger.dev and its database were removed in alpha.18 (0167 T9)', () => {
     const s = stage();
-    const r = run(s, ['take', '--trigger', TAG]);
+    const r = run(s, ['take', TAG]);
     expect(r.status, r.out).toBe(0);
-    const trig = filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'));
-    expect(trig).toHaveLength(1);
-    expect(trig[0]).toMatch(new RegExp(`^triggerdb-\\d{8}T\\d{6}Z-before-${TAG.replace(/\./g, '\\.')}\\.sql\\.gz$`));
-    expect(dumps(s)).toContain('pg_dump -U trigger -d triggerdb --format=plain --no-owner');
-    expect(note(s)).toContain(trig[0]!);
+    expect(filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'))).toEqual([]);
+    expect(dumps(s).filter((d) => /triggerdb|-U trigger\b/.test(d))).toEqual([]);
+    expect(calls(s).join('\n')).not.toMatch(/trigger-db/);
+    expect(r.out).not.toMatch(/task runner/);
   });
 
   it.each([
@@ -512,12 +511,6 @@ describe('take: one copy, right before an update, in one directory', () => {
     ["the app's dump does not read back", { STUB_FAIL: 'list-openmigrate' }, [], 'pg_restore --list'],
     ["the sign-in service's database does not dump", { STUB_FAIL: 'zitadel' }, [], 'pg_dump -U openmigrate -d zitadel --format=custom'],
     ['the roles do not dump', { STUB_FAIL: 'roles' }, [], 'pg_dumpall -U openmigrate --roles-only'],
-    [
-      "the task runner's database does not dump",
-      { STUB_FAIL: 'triggerdb' },
-      ['--trigger'],
-      'pg_dump -U trigger -d triggerdb --format=plain --no-owner',
-    ],
   ] as const)('%s: it fails, and leaves nothing of its run behind, no note above all', (_label, stub, flags, tried) => {
     const s = stage();
     const r = run(s, ['take', ...flags, TAG], stub);
@@ -553,18 +546,22 @@ describe('take: one copy, right before an update, in one directory', () => {
     expect(filesIn(s.dir)).toEqual(planted);
   });
 
-  it("a kept copy without the task runner's database gains it with --trigger, and the rest stays as it was", () => {
+  it("a kept copy that holds the task runner's database, taken before alpha.18, is kept as it is: nothing added, nothing taken away", () => {
     const s = stage();
     const planted = plantCopy(s, 2 * HOUR);
-    const before = note(s);
-    const r = run(s, ['take', '--trigger', TAG]);
+    const trig = 'triggerdb-20261120T101500Z-before-v0.2.0-alpha.1.sql.gz';
+    writeFileSync(join(s.dir, trig), 'a dump of the task runner\'s database\n', { mode: 0o600 });
+    writeFileSync(
+      join(s.dir, NOTE),
+      `${note(s)}\nADDED 2026-11-20T10:15:00Z, before ${RUNNING}, which moves the Trigger.dev pin: the task runner's\ndatabase, ${trig}.\n`,
+    );
+    const before = Object.fromEntries([...planted, trig].map((f) => [f, readFileSync(join(s.dir, f), 'utf8')]));
+    const r = run(s, ['take', TAG]);
     expect(r.status, r.out).toBe(0);
-    const added = filesIn(s.dir).filter((f) => !planted.includes(f));
-    expect(added).toHaveLength(1);
-    expect(added[0]).toMatch(/^triggerdb-.*\.sql\.gz$/);
-    expect(dumps(s)).toEqual(['pg_dump -U trigger -d triggerdb --format=plain --no-owner']);
-    expect(note(s).startsWith(before), 'the note was rewritten, not added to').toBe(true);
-    expect(note(s)).toContain(added[0]!);
+    expect(r.out).toMatch(/is kept, and no second copy is taken/);
+    expect(filesIn(s.dir)).toEqual([...planted, trig].sort());
+    for (const [f, text] of Object.entries(before)) expect(readFileSync(join(s.dir, f), 'utf8'), f).toBe(text);
+    expect(dumps(s)).toEqual([]);
   });
 
   it('a copy whose update is proven is refused: one copy per update, delete it first', () => {
@@ -576,16 +573,6 @@ describe('take: one copy, right before an update, in one directory', () => {
     expect(r.out).toContain('copy-before-update.sh delete');
     expect(dumps(s)).toEqual([]);
     expect(filesIn(s.dir)).toEqual(planted);
-  });
-
-  it("a kept copy, and a take --trigger whose task runner's part fails: exit 1, and the kept copy exactly as it was", () => {
-    const s = stage();
-    const planted = plantCopy(s, 2 * HOUR);
-    const before = Object.fromEntries(planted.map((f) => [f, readFileSync(join(s.dir, f), 'utf8')]));
-    const r = run(s, ['take', '--trigger', TAG], { STUB_FAIL: 'triggerdb' });
-    expect(r.status, r.out).toBe(1);
-    expect(filesIn(s.dir), 'a failed take removed or left something in the kept copy').toEqual(planted);
-    for (const f of planted) expect(readFileSync(join(s.dir, f), 'utf8'), f).toBe(before[f]);
   });
 
   it('a dump by hand, and a fresh take that fails: the dump by hand is still there', () => {
@@ -667,9 +654,10 @@ describe('take: one copy, right before an update, in one directory', () => {
 
   it('--dry-run says what it would do, and writes nothing, not even the directory', () => {
     const s = stage();
-    const r = run(s, ['take', '--dry-run', '--trigger', TAG]);
+    const r = run(s, ['take', '--dry-run', TAG]);
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/would take/i);
+    expect(r.out).not.toMatch(/task runner/);
     expect(existsSync(s.dir)).toBe(false);
     expect(dumps(s)).toEqual([]);
 
@@ -707,14 +695,14 @@ describe('take: one copy, right before an update, in one directory', () => {
   it('the directory is not taken from the shell: the backstop looks there and nowhere else', () => {
     const s = stage();
     const elsewhere = join(s.root, 'elsewhere');
-    const r = run(s, ['take', '--trigger', TAG], {
+    const r = run(s, ['take', TAG], {
       MANAGED_ENV_PERSIST_DIR: elsewhere,
       MANAGED_BACKUP_DIR: join(elsewhere, 'trigger-backups'),
       TRIGGER_DB_CONTAINER: 'another-stacks-database',
     });
     expect(r.status, r.out).toBe(0);
     expect(existsSync(elsewhere)).toBe(false);
-    expect(filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
+    expect(filesIn(s.dir)).toContain(NOTE);
     expect(calls(s).join('\n')).not.toContain('another-stacks-database');
   });
 });
@@ -895,9 +883,9 @@ describe('delete, the proof read from a database with both chains applied', () =
     async () => {
       await setState(`${HOLD_LIFTED}${pass('incremental', 'succeeded', '30 minutes')}`);
       const s = stage();
-      const took = run(s, ['take', '--trigger', TAG]);
+      const took = run(s, ['take', TAG]);
       expect(took.status, took.out).toBe(0);
-      expect(filesIn(s.dir).length).toBeGreaterThan(4);
+      expect(filesIn(s.dir).length).toBeGreaterThan(3);
       // The deploy took after the copy: a second later, as deploys.log would say.
       mkdirSync(dirname(s.deployLog), { recursive: true });
       const later = new Date(Date.now() + 2000).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -1313,14 +1301,14 @@ describe("delete-if-proven: the box checks' delete, never looser than delete, re
   );
 
   it(
-    'end to end: what take --trigger wrote, delete-if-proven recognises whole and deletes, once every condition holds',
+    'end to end: what take wrote, delete-if-proven recognises whole and deletes, once every condition holds',
     async () => {
       await setState(PROVEN);
       const s = stage();
-      const took = run(s, ['take', '--trigger', TAG]);
+      const took = run(s, ['take', TAG]);
       expect(took.status, took.out).toBe(0);
       const written = filesIn(s.dir);
-      expect(written.filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
+      expect(written).toContain(NOTE);
       // As if the take had run three hours ago, before a deploy that took two hours ago.
       asTakenAgo(s, 3 * HOUR);
       logDeploy(s, 2 * HOUR, 'took', TAG, headOf(s));
@@ -1333,16 +1321,21 @@ describe("delete-if-proven: the box checks' delete, never looser than delete, re
   );
 
   it(
-    "end to end: a kept copy that gained the task runner's database (an ADDED line) is recognised whole too",
+    "end to end: a kept copy that gained the task runner's database before alpha.18 (an ADDED line) is recognised whole too",
     async () => {
       await setState(PROVEN);
       const s = stage();
       const first = run(s, ['take', TAG]);
       expect(first.status, first.out).toBe(0);
       asTakenAgo(s, 3 * HOUR);
-      // The next deploy moves the Trigger.dev pin: the kept copy gains its part.
-      const added = run(s, ['take', '--trigger', TAG]);
-      expect(added.status, added.out).toBe(0);
+      // As alpha.17's take --trigger added it to a kept copy: the dump, and an
+      // ADDED line in the note. alpha.18 adds none, and still counts this one.
+      const trig = `triggerdb-${iso(3 * HOUR).replace(/[-:]/g, '')}-before-${TAG}.sql.gz`;
+      writeFileSync(join(s.dir, trig), 'a dump of the task runner\'s database\n', { mode: 0o600 });
+      writeFileSync(
+        join(s.dir, NOTE),
+        `${note(s)}\nADDED ${iso(3 * HOUR)}, before ${TAG}, which moves the Trigger.dev pin: the task runner's\ndatabase, ${trig}.\n`,
+      );
       expect(note(s)).toMatch(/^ADDED /m);
       const written = filesIn(s.dir);
       expect(written.filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
@@ -1510,10 +1503,7 @@ describe('the directory is a directory: a symbolic link there is refused by ever
     expect(r.out).not.toMatch(/nothing to do/);
   });
 
-  it.each([
-    ['dump-idp.sh', []],
-    ['trigger-version.sh', ['backup', 'by-hand']],
-  ] as const)('%s on live: refused before any docker call', (script, args) => {
+  it.each([['dump-idp.sh', []]] as const)('%s on live: refused before any docker call', (script, args) => {
     const { s, elsewhere } = linked();
     const r = runIn(s, script, [...args]);
     expect(r.status, r.out).not.toBe(0);
@@ -1524,7 +1514,7 @@ describe('the directory is a directory: a symbolic link there is refused by ever
 });
 
 // ===========================================================================
-// dump-idp.sh and trigger-version.sh on live
+// dump-idp.sh on live (trigger-version.sh too, until alpha.18 removed it)
 // ===========================================================================
 
 describe('dump-idp.sh on live writes into the copy\'s directory, and nowhere else', () => {
@@ -1584,54 +1574,6 @@ describe('dump-idp.sh on live writes into the copy\'s directory, and nowhere els
   });
 });
 
-describe('trigger-version.sh on live: a backup only into the copy\'s directory, and no drill', () => {
-  it('the drill is refused on live before any docker call: the test stack drills, live keeps no daily copy', () => {
-    const s = stage();
-    const r = runIn(s, 'trigger-version.sh', ['drill']);
-    expect(r.status, r.out).not.toBe(0);
-    expect(r.out).toMatch(/test stack/);
-    expect(calls(s)).toEqual([]);
-    expect(existsSync(join(s.home, '.persistent'))).toBe(false);
-  });
-
-  it('a backup on live goes into ~/.persistent/<project>/copy-before-update, and no trigger-backups', () => {
-    const s = stage();
-    const r = runIn(s, 'trigger-version.sh', ['backup', `before-${TAG}`]);
-    expect(r.status, r.out).toBe(0);
-    expect(filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
-    expect(existsSync(join(s.home, '.persistent', LIVE, 'trigger-backups'))).toBe(false);
-  });
-
-  it('MANAGED_BACKUP_DIR naming another directory on live is refused before any docker call', () => {
-    const s = stage();
-    const elsewhere = join(s.root, 'elsewhere');
-    const r = runIn(s, 'trigger-version.sh', ['backup', 'x'], { MANAGED_BACKUP_DIR: elsewhere });
-    expect(r.status, r.out).not.toBe(0);
-    expect(calls(s)).toEqual([]);
-    expect(existsSync(elsewhere)).toBe(false);
-  });
-
-  it("on a .env whose marker is a slip of live's (STACK_KIND = production): no drill, and a backup only into the copy's directory", () => {
-    const s = stage(SLIP_ENV);
-    const drill = runIn(s, 'trigger-version.sh', ['drill'], { STUB_PSQL_ANSWER: '12\n' });
-    expect(drill.status, drill.out).not.toBe(0);
-    expect(drill.out).toMatch(/test stack/);
-    expect(calls(s)).toEqual([]);
-    const backup = runIn(s, 'trigger-version.sh', ['backup', 'by-hand']);
-    expect(backup.status, backup.out).toBe(0);
-    expect(filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
-    expect(existsSync(join(s.home, '.persistent', LIVE, 'trigger-backups'))).toBe(false);
-  });
-
-  it('on the OTA stack the drill runs as the gate runs it, into trigger-backups', () => {
-    const s = stage(OTA_ENV);
-    // Every count the drill asks answers 12: a schema big enough, the same on both sides.
-    const r = runIn(s, 'trigger-version.sh', ['drill'], { STUB_PSQL_ANSWER: '12\n' });
-    expect(r.status, r.out).toBe(0);
-    expect(r.out).toMatch(/round trip proved/);
-    expect(filesIn(join(s.home, '.persistent', OTA, 'trigger-backups'))).toHaveLength(1);
-  });
-});
 
 // ===========================================================================
 // since: what changed after the copy, done again after the rollback
@@ -1902,12 +1844,13 @@ describe('the way back is written down where the operator looks', () => {
       './deploy/compose/copy-before-update.sh since',
       '--clean --if-exists --create',
       'since-the-copy-<stamp>.sql',
-      'trigger-version.sh restore',
       './deploy/compose/deploy-live.sh',
       'idp-strays.sh',
     ]) {
       expect(section, `the section does not say ${words}`).toContain(words);
     }
+    // Nothing restores the task runner's database since alpha.18 (0167 T9).
+    expect(section, 'the section still restores the task runner\'s database').not.toContain('trigger-version.sh restore');
     // The erasures after the copy are done again BEFORE the stack comes back:
     // since is written before the restore, and applied before the deploy.
     const at = (w: string) => section.indexOf(w);
@@ -1935,45 +1878,51 @@ describe('the way back is written down where the operator looks', () => {
   });
 });
 
-describe('--trigger while the jobs run on pg-boss (workplan 0167 T7)', () => {
-  /** The stage, with a managed.yml that hands the switch to its containers, defaulting to <runner>. */
-  const onRunner = (runner: 'trigger' | 'pg-boss', dotEnv = LIVE_ENV): Stage => {
-    const s = stage(dotEnv);
-    const yml = join(s.compose, 'managed.yml');
-    const text = readFileSync(yml, 'utf8');
-    const switched = switchedTo(runner)(text);
-    writeFileSync(yml, switched);
-    return s;
-  };
+describe('--trigger since alpha.18 (workplan 0167 T9)', () => {
+  const REMOVED =
+    /\[copy-before-update\] refused: --trigger, and Trigger\.dev was removed in alpha\.18 \(workplan 0167 T9\): there is no task runner's database to copy\. Nothing was read or written\./;
 
-  it('refused, before anything is read or written: the plane is stopped and nothing migrates triggerdb', () => {
-    const s = onRunner('pg-boss');
+  it('refused in its own sentence, before anything is read or written', () => {
+    const s = stage();
     const r = run(s, ['take', '--trigger', TAG]);
     expect(r.status).toBe(1);
-    expect(r.out).toMatch(/refused: --trigger, and this stack's jobs run on pg-boss \(OWNPACE_JOB_RUNNER=pg-boss\).*Nothing was read or written\./);
-    expect(filesIn(s.dir)).toEqual([]);
-    expect(dumps(s)).toEqual([]);
+    expect(r.out).toMatch(REMOVED);
+    expect(r.out).toContain('Run it without --trigger.');
+    expect(existsSync(s.dir)).toBe(false);
+    expect(calls(s)).toEqual([]);
   });
 
-  it("refused in a dry run too, and from live's .env as from managed.yml's default", () => {
-    const s = onRunner('trigger', `${LIVE_ENV}OWNPACE_JOB_RUNNER=pg-boss\n`);
-    const r = run(s, ['take', '--dry-run', '--trigger', TAG]);
+  it('refused in a dry run too, and whatever the .env says of the runner', () => {
+    for (const env of [LIVE_ENV, `${LIVE_ENV}OWNPACE_JOB_RUNNER=pg-boss\n`, `${LIVE_ENV}OWNPACE_JOB_RUNNER=trigger\n`]) {
+      const s = stage(env);
+      const r = run(s, ['take', '--dry-run', '--trigger', TAG]);
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toMatch(REMOVED);
+      expect(calls(s)).toEqual([]);
+    }
+  });
+
+  it('refused with a copy kept too: nothing is added to it', () => {
+    const s = stage();
+    const planted = plantCopy(s, 2 * HOUR);
+    const r = run(s, ['take', '--trigger', TAG]);
     expect(r.status).toBe(1);
-    expect(r.out).toMatch(/refused: --trigger, and this stack's jobs run on pg-boss/);
+    expect(r.out).toMatch(REMOVED);
+    expect(filesIn(s.dir)).toEqual(planted);
   });
 
   it('without --trigger, the copy is taken as before, with no triggerdb', () => {
-    const s = onRunner('pg-boss');
+    const s = stage();
     const r = run(s, ['take', TAG]);
     expect(r.status, r.out).toBe(0);
     expect(filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'))).toEqual([]);
-    expect(filesIn(s.dir)).toContain('copy-before-update.txt');
+    expect(filesIn(s.dir)).toContain(NOTE);
   });
 
-  it('trigger mode: --trigger takes triggerdb, as before', () => {
-    const s = onRunner('trigger');
-    const r = run(s, ['take', '--trigger', TAG]);
-    expect(r.status, r.out).toBe(0);
-    expect(filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
+  it('the usage names no --trigger', () => {
+    const r = run(stage(), ['take']);
+    expect(r.status).toBe(2);
+    expect(r.out).toContain('copy-before-update.sh take [--dry-run] <tag>');
+    expect(r.out).not.toContain('--trigger');
   });
 });

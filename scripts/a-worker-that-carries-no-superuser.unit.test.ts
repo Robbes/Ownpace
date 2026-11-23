@@ -2,7 +2,8 @@
 
 /**
  * A WORKER THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0167 T7), the
- * twin of `a-run-that-carries-no-superuser` for the job worker.
+ * twin, for the job worker, of `a-run-that-carries-no-superuser`, which held
+ * Trigger.dev's task environment and went with it in alpha.18 (0167 T9).
  *
  * The managed edition's jobs move from Trigger.dev task runs to a worker
  * service in `deploy/compose/managed.yml` (ADR-0054). A task run receives what

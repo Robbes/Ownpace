@@ -8,9 +8,9 @@
  *
  *  1. The `login` phase said "not logged in, run login --profile openmig". The
  *     operator WAS logged in — as `ownpace` — and nothing on screen suggested
- *     the profile name was a setting. They ran the printed command, watched it
- *     succeed, and were refused again by a phase still asking about a name
- *     that is pre-rename branding nobody would guess.
+ *     the profile name was a setting. (That phase, Trigger.dev's CLI and the
+ *     cases that held it went with Trigger.dev in alpha.18, workplan 0167 T9;
+ *     the lesson stays in the two below.)
  *
  *  2. The `app` phase started Zitadel against a `.env` whose
  *     ZITADEL_DB_PASSWORD no longer matched the Postgres role. Zitadel does
@@ -41,7 +41,7 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync, spawn } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,168 +50,8 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy/compose');
 
 const bootstrap = readFileSync(join(COMPOSE_DIR, 'bootstrap-managed.sh'), 'utf8');
-const deployTasks = readFileSync(join(COMPOSE_DIR, 'deploy-tasks.sh'), 'utf8');
-const cliLib = readFileSync(join(COMPOSE_DIR, 'trigger-cli-lib.sh'), 'utf8');
-const setTaskEnv = readFileSync(join(COMPOSE_DIR, 'set-task-env.sh'), 'utf8');
-const triggerCredentials = readFileSync(join(COMPOSE_DIR, 'trigger-credentials.sh'), 'utf8');
 const envExample = readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8');
 const zitadelDbPassword = readFileSync(join(COMPOSE_DIR, 'zitadel-db-password.sh'), 'utf8');
-
-describe('the profile name is a setting, and both refusals now say so', () => {
-  // Both scripts refuse on the same condition. A fix in one of them is how the
-  // class survives: deploy-tasks.sh was carrying the identical omission.
-  const refusals: Array<[string, string]> = [
-    ['bootstrap-managed.sh', bootstrap],
-    ['deploy-tasks.sh', deployTasks],
-  ];
-
-  it.each(refusals)('%s names TRIGGER_CLI_PROFILE in its refusal', (_file, text) => {
-    // Naming the profile without naming the variable is what left an operator
-    // with nowhere to go.
-    expect(text).toContain('TRIGGER_CLI_PROFILE');
-  });
-
-  it.each(refusals)('%s offers a command that sets it, not just the name', (_file, text) => {
-    expect(text).toMatch(/env-upsert\.sh.*TRIGGER_CLI_PROFILE=/);
-  });
-
-  it.each(refusals)('%s lists the profiles the machine IS logged in under', (_file, text) => {
-    expect(text).toContain('trigger_cli_profiles_present');
-  });
-
-  it('managed.env.example documents the knob, so it is findable before it bites', () => {
-    expect(envExample).toMatch(/^TRIGGER_CLI_PROFILE=/m);
-  });
-
-  it('keeps `openmig` as the default rather than silently repointing it', () => {
-    // A machine already logged in under the old name — the gate's runner, most
-    // likely — would be stranded by a default that moved under it. The fix is
-    // to make the name visible, not to change it.
-    //
-    // Asserted at its ONE definition now, rather than as a literal in each
-    // caller: both callers resolve from it AND print it, and a default written
-    // three times is a default that can be applied and described differently.
-    expect(cliLib).toMatch(/^TRIGGER_CLI_PROFILE_DEFAULT=openmig$/m);
-    expect(bootstrap).toContain('TRIGGER_CLI_PROFILE:-$TRIGGER_CLI_PROFILE_DEFAULT');
-    expect(deployTasks).toContain('TRIGGER_CLI_PROFILE:-$TRIGGER_CLI_PROFILE_DEFAULT');
-  });
-
-  it.each(refusals)('%s never calls the RESOLVED profile the default', (_file, text) => {
-    // The 2026-08-31 sequel to the bug at the top of this file. Both refusals
-    // printed "(default '<resolved profile>')" — so an operator who had SET
-    // TRIGGER_CLI_PROFILE was told their own value was the built-in one. It
-    // hides the setting and misnames the default in the same breath, and the
-    // owner spent a bring-up looking for `openmig` in a repository that holds
-    // it in exactly one place.
-    expect(text).not.toMatch(/default\s*'?\$\{?(profile|PROFILE)\}?'?/i);
-  });
-
-  it.each(refusals)('%s says where the name came from, not just what it is', (_file, text) => {
-    expect(text).toContain('trigger_cli_profile_origin');
-  });
-
-  it.each(refusals)('%s prints the default from the one place that defines it', (_file, text) => {
-    // Not the literal `openmig` retyped into a message. The default an
-    // operator READS and the default the script APPLIED are then the same
-    // string by construction, which is the only version of this that cannot
-    // rot into the bug above.
-    expect(text).toContain('${TRIGGER_CLI_PROFILE_DEFAULT}');
-    expect(text).not.toMatch(/default\s+'openmig'/);
-  });
-});
-
-describe('trigger_cli_profile_origin, run for real', () => {
-  // String-matching the scripts proves the sentence is CALLED. Only running it
-  // proves the sentence is TRUE — which is the whole defect being fixed here.
-  function origin(profile: string): string {
-    const r = spawnSync(
-      'bash',
-      [
-        '-c',
-        `source "${join(COMPOSE_DIR, 'trigger-cli-lib.sh')}"; trigger_cli_profile_origin /somewhere/.env`,
-      ],
-      { encoding: 'utf8', env: { ...process.env, TRIGGER_CLI_PROFILE: profile } },
-    );
-    return (r.stdout ?? '').trim();
-  }
-
-  it('says plainly that nothing set it, naming the variable that would have', () => {
-    const out = origin('');
-    expect(out).toContain('nothing set it');
-    expect(out).toContain('TRIGGER_CLI_PROFILE');
-  });
-
-  it('names the setting, and says nothing at all about defaults', () => {
-    const out = origin('ownpace');
-    expect(out).toContain('set as TRIGGER_CLI_PROFILE');
-    // The bug itself, asserted as an absence. This sentence describes ONE
-    // fact — where the name came from — so a value that was set can never be
-    // rendered as the built-in one, whatever the caller wraps around it.
-    expect(out.toLowerCase()).not.toContain('default');
-  });
-
-  it('points at the shell as well as the file, because both look the same here', () => {
-    // `set -a; . .env` and an exported variable are indistinguishable by the
-    // time this runs, so the refusal must send somebody to both rather than
-    // to a file that may not contain the answer.
-    // `bootstrap`/`deployTasks` directly rather than the `refusals` table,
-    // which belongs to the describe above.
-    expect(bootstrap, 'bootstrap-managed.sh names only the file').toMatch(/this shell/);
-    expect(deployTasks, 'deploy-tasks.sh names only the file').toMatch(/this shell/);
-  });
-});
-
-describe('trigger_cli_profiles_present, run for real', () => {
-  function profiles(configPath: string | null, body?: string): { out: string; status: number } {
-    const home = mkdtempSync(join(tmpdir(), 'cli-profiles-'));
-    try {
-      if (configPath) {
-        const full = join(home, configPath);
-        mkdirSync(dirname(full), { recursive: true });
-        writeFileSync(full, body ?? '{}');
-      }
-      const r = spawnSync(
-        'bash',
-        ['-c', `source "${join(COMPOSE_DIR, 'trigger-cli-lib.sh')}"; trigger_cli_profiles_present`],
-        { encoding: 'utf8', env: { ...process.env, HOME: home } },
-      );
-      return { out: (r.stdout ?? '').trim(), status: r.status ?? -1 };
-    } finally {
-      rmSync(home, { recursive: true, force: true });
-    }
-  }
-
-  it('finds profiles nested under a `profiles` key', () => {
-    const r = profiles('.config/trigger/config.json', JSON.stringify({
-      version: '2',
-      profiles: { default: { accessToken: 'x' }, ownpace: { accessToken: 'y' } },
-    }));
-    expect(r.out.split('\n').sort()).toEqual(['default', 'ownpace']);
-  });
-
-  it('finds profiles held at the top level, which older CLIs wrote', () => {
-    const r = profiles('.config/trigger/config.json', JSON.stringify({
-      openmig: { accessToken: 'x' },
-    }));
-    expect(r.out).toBe('openmig');
-  });
-
-  it('says nothing when there is no config at all', () => {
-    // Not an error: a machine that has never logged in is the ordinary first
-    // run, and inventing prose here would put words where a list was expected.
-    const r = profiles(null);
-    expect(r.out).toBe('');
-    expect(r.status).toBe(0);
-  });
-
-  it('says nothing, and does not fail, on a config it cannot parse', () => {
-    // An unreadable config is not evidence about what is logged in. The caller
-    // still prints its own advice; this must not take the phase down with it.
-    const r = profiles('.config/trigger/config.json', 'not json at all');
-    expect(r.out).toBe('');
-    expect(r.status).toBe(0);
-  });
-});
 
 describe('the zitadel role password is asked BEFORE the container is started', () => {
   it('checks it between bringing postgres up and starting zitadel', () => {
@@ -347,15 +187,6 @@ describe('two .env files describing one stack are reported, not hidden', () => {
 
   it('names the symlink that makes divergence impossible', () => {
     expect(bootstrap).toContain('ln -sfn');
-  });
-});
-
-describe('the shared library keeps its own contract', () => {
-  it('trigger_cli_profiles_present writes only its answer to stdout', () => {
-    // The mint() rule: a function whose stdout IS its value must print nothing
-    // else there. A stray `say` would be read as a profile name.
-    const fn = cliLib.slice(cliLib.indexOf('trigger_cli_profiles_present() {'));
-    expect(fn).not.toMatch(/^\s*(echo|printf|say)\b/m);
   });
 });
 
@@ -551,110 +382,6 @@ describe('a relay asked to deliver to an address nobody owns', () => {
       '',
     );
     expect(noteFor({ SMTP_HOST: '', NOTIFY_TO: 'b@ownpace.invalid' })).toBe('');
-  });
-});
-
-describe('one environment name, resolved in one place (2026-08-31)', () => {
-  // Three scripts choose a Trigger environment. They used to read TWO
-  // variables for it, at three different moments relative to sourcing .env —
-  // so following this repository's own documented procedure moved the deploy
-  // and left the task variables and the key behind, silently.
-  const SCRIPTS = [
-    ['deploy-tasks.sh', deployTasks],
-    ['set-task-env.sh', setTaskEnv],
-    ['trigger-credentials.sh', triggerCredentials],
-  ] as const;
-
-  it.each(SCRIPTS)('%s resolves through the shared helper, never its own copy', (_f, text) => {
-    expect(text).toMatch(/trigger_env\s+"\$\{ENV_FILE\}"/);
-    // The literal default is the drift this removes: a script carrying its own
-    // `:-prod` is a script that can disagree with the other two again.
-    expect(text).not.toMatch(/TRIGGER_ENV(_SLUG)?:-prod/);
-  });
-
-  it.each(SCRIPTS)('%s keeps no functional reference to the old name', (_f, text) => {
-    // Prose in a comment is fine and wanted — it explains the rename. A read
-    // is not.
-    expect(text).not.toMatch(/\$\{?TRIGGER_ENV_SLUG/);
-    expect(text).not.toMatch(/^TRIGGER_ENV_SLUG=/m);
-  });
-
-  it('defines the default exactly once, in the lib', () => {
-    expect(cliLib).toMatch(/^TRIGGER_ENV_DEFAULT=prod$/m);
-    for (const [file, text] of SCRIPTS) {
-      expect(text, `${file} restates the default`).not.toMatch(/^TRIGGER_ENV_DEFAULT=/m);
-    }
-  });
-
-  it('resolves the environment where the env file has actually been read', () => {
-    // set-task-env.sh read the old name BEFORE sourcing .env, so the file it
-    // is pointed at could not decide. Order is the property, so order is what
-    // is asserted.
-    const sourced = setTaskEnv.indexOf('. "$ENV_FILE"');
-    const resolved = setTaskEnv.indexOf('trigger_env "${ENV_FILE}"');
-    expect(sourced).toBeGreaterThan(-1);
-    expect(resolved).toBeGreaterThan(sourced);
-  });
-});
-
-describe('trigger_env, run for real', () => {
-  function env(args: { file?: string; shell?: Record<string, string> }): {
-    out: string;
-    code: number;
-    err: string;
-  } {
-    const r = spawnSync(
-      'bash',
-      [
-        '-c',
-        `set -euo pipefail; source "${join(COMPOSE_DIR, 'trigger-cli-lib.sh')}"; trigger_env ${args.file ? `"${args.file}"` : ''}`,
-      ],
-      { encoding: 'utf8', env: { ...process.env, TRIGGER_ENV: '', TRIGGER_ENV_SLUG: '', ...args.shell } },
-    );
-    return { out: (r.stdout ?? '').trim(), code: r.status ?? -1, err: r.stderr ?? '' };
-  }
-
-  /** An env file, written where the test can point the helper at it. */
-  function envFile(body: string): string {
-    const p = join(mkdtempSync(join(tmpdir(), 'trigger-env-')), '.env');
-    writeFileSync(p, body);
-    return p;
-  }
-
-  it('is prod when nothing anywhere says otherwise', () => {
-    expect(env({ file: envFile('') })).toMatchObject({ out: 'prod', code: 0 });
-  });
-
-  it('takes the shell over the file — overriding one command', () => {
-    const f = envFile('TRIGGER_ENV=prod\n');
-    expect(env({ file: f, shell: { TRIGGER_ENV: 'staging' } }).out).toBe('staging');
-  });
-
-  it('reads the FILE, so a script that never sources .env still agrees', () => {
-    // This is the whole reason trigger-credentials.sh could disagree: it runs
-    // `docker compose exec` and cannot export the file over compose's own
-    // interpolation, so it never sourced it at all.
-    expect(env({ file: envFile('TRIGGER_ENV=staging\n') }).out).toBe('staging');
-  });
-
-  it('honours the old name, and says so once', () => {
-    const r = env({ file: envFile('TRIGGER_ENV_SLUG=staging\n') });
-    expect(r).toMatchObject({ out: 'staging', code: 0 });
-    expect(r.err).toContain('old name');
-  });
-
-  it('REFUSES when the two names disagree, rather than picking one', () => {
-    // Picking is what produced the original failure: one name decided where
-    // the tasks deployed and the other where their variables came from.
-    const r = env({ file: envFile('TRIGGER_ENV=staging\nTRIGGER_ENV_SLUG=prod\n') });
-    expect(r.code).toBe(1);
-    expect(r.err).toContain('disagree');
-  });
-
-  it('does not mistake TRIGGER_ENV_SLUG= for TRIGGER_ENV=', () => {
-    // `^TRIGGER_ENV=` must not match the longer key, or a file carrying only
-    // the old name would resolve to an empty string and read as unset.
-    expect(env({ file: envFile('TRIGGER_ENV_SLUG=staging\n') }).out).toBe('staging');
   });
 });
 

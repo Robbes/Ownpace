@@ -167,8 +167,8 @@ DEMO_FILE_SOURCE_MAILBOX='b0000000-0000-4000-8000-0000000000b1'
 DEMO_FILE_TARGET_MAILBOX='b0000000-0000-4000-8000-0000000000b2'
 
 say() { printf '[rehearsal] %s\n' "$@"; }
-# on_pg_boss — true where the jobs run on pg-boss; a value of the switch that
-# is neither stops the rehearsal (job-runner.sh).
+# on_pg_boss — true: the jobs run on pg-boss, the only runner since alpha.18;
+# a value of the switch it may not hold stops the rehearsal (job-runner.sh).
 on_pg_boss() {
   if ! job_runner_mode "$SCRIPT_DIR" "$ENV_FILE"; then
     printf '[rehearsal] refused: %s\n' "$JOB_RUNNER_WHY" >&2

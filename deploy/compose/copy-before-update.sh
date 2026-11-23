@@ -23,8 +23,8 @@
 # (MANAGED_ENV_PERSIST_DIR, MANAGED_BACKUP_DIR): the daily backstop looks here
 # and nowhere else, so a copy put anywhere else would outlive the promise.
 # Every file in it is part of the copy, a dump made there by hand included:
-# on live, dump-idp.sh and trigger-version.sh backup write here and nowhere
-# else (both source this file for the directory's name). It is a DIRECTORY:
+# on live, dump-idp.sh writes here and nowhere else (it sources this file for
+# the directory's name; trigger-version.sh backup did too, until alpha.18). It is a DIRECTORY:
 # find does not follow a symbolic link it is started on, so behind a link the
 # backstop would see no copy and delete nothing. Every script that writes or
 # deletes here refuses a link (mount a larger disk at the path instead).
@@ -37,9 +37,10 @@
 #   the sign-in service's database and the server's roles
 #                           dump-idp.sh --dir <this directory>, which reads its
 #                           dump back and writes its own note, with the way back
-#   the task runner's database, only with --trigger, which deploy-live.sh
-#                           passes when the tag moves the Trigger.dev pin:
-#                           trigger-version.sh backup before-<tag>, verified
+#   (the task runner's database, Trigger.dev's, with --trigger, until
+#                           alpha.18 removed Trigger.dev: --trigger is
+#                           refused since, and a kept copy that holds such a
+#                           dump keeps it, below)
 #   copy-before-update.txt  the note, written last: the lines above its first
 #                           blank line are read back (taken=, taken_epoch=,
 #                           before=, from=); below them, the files, the rule and
@@ -51,7 +52,7 @@
 #
 # THE COMMANDS, from live's checkout:
 #
-#   copy-before-update.sh take [--dry-run] [--trigger] <tag>
+#   copy-before-update.sh take [--dry-run] <tag>
 #       deploy-live.sh runs it right before its checkout, with the hold on and
 #       nothing in flight. It refuses first while the daily duties' timer
 #       (ownpace-box-duties.timer, the user unit the bring-up installs) is not
@@ -59,9 +60,8 @@
 #       backstop's rule (expire, below): what is past it goes. With no copy
 #       here, it takes one. With a copy whose update is not proven, it keeps
 #       that one and takes no other: it is the copy of what ran before, and a
-#       deploy that did not take may already have migrated the database. With
-#       --trigger it adds the task runner's database to a kept copy that lacks
-#       it. It refuses a kept copy the next daily run deletes: the update after
+#       deploy that did not take may already have migrated the database. It
+#       refuses a kept copy the next daily run deletes: the update after
 #       it would have no copy from then on, so prove the previous update and
 #       delete that copy, or roll back from it, first. The rollback's own
 #       deploy, of the release the copy holds (its note's from=), goes ahead
@@ -141,7 +141,17 @@
 # password hashes: umask 077, the directory 700. It prints no value from the
 # .env, and nothing that runs it may use `set -x`.
 #
-# Usage:  ./deploy/compose/copy-before-update.sh take [--dry-run] [--trigger] <tag>
+# A COPY THAT HOLDS THE TASK RUNNER'S DATABASE (workplan 0167 T9). A copy
+# taken with --trigger before alpha.18 holds a `triggerdb-*.sql.gz`, named in
+# its note's ADDED line or Files list. It is part of that copy still: delete,
+# delete-if-proven and expire count it, and delete it with the copy, as they
+# did; take keeps it in a kept copy, as it keeps the rest. Nothing restores it
+# any more: there is no trigger-db to restore it into, and no release from
+# alpha.16 on runs its jobs on Trigger.dev. A rollback from such a copy
+# restores the app's database and the sign-in service's, and leaves it
+# (docs/operator-runbook.md, "The copy before an update").
+#
+# Usage:  ./deploy/compose/copy-before-update.sh take [--dry-run] <tag>
 #         ./deploy/compose/copy-before-update.sh delete
 #         ./deploy/compose/copy-before-update.sh delete-if-proven
 #         ./deploy/compose/copy-before-update.sh expire
@@ -152,7 +162,7 @@
 #         stdout says which); 1 cannot tell (unread <code> on stdout) or
 #         refused before reading (nothing on stdout); 2 usage.
 #
-# Sourced (dump-idp.sh, trigger-version.sh), it defines only the directory's
+# Sourced (dump-idp.sh), it defines only the directory's
 # name, below, and returns before anything runs.
 
 COPY_BEFORE_UPDATE_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -220,7 +230,7 @@ refuse() {
 usage() {
   [ "$#" -eq 0 ] || fail "$1"
   cat >&2 <<'EOF'
-usage: ./deploy/compose/copy-before-update.sh take [--dry-run] [--trigger] <tag>
+usage: ./deploy/compose/copy-before-update.sh take [--dry-run] <tag>
        ./deploy/compose/copy-before-update.sh delete
        ./deploy/compose/copy-before-update.sh delete-if-proven
        ./deploy/compose/copy-before-update.sh expire
@@ -242,6 +252,7 @@ case "$CMD" in
     while [ "$#" -gt 0 ]; do
       case "$1" in
         --dry-run) DRY_RUN=1 ;;
+        # Refused below, in its own sentence, once live's checkout is known.
         --trigger) TRIGGER=1 ;;
         -*) usage "unknown option '$1'" ;;
         *)
@@ -275,16 +286,14 @@ stack_is_live "$ENV_FILE" ||
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" ||
   refuse "the project this checkout drives could not be settled (the reason is above)."
 
-# --trigger adds triggerdb, for a deploy that starts the plane at another
-# version. A stack whose jobs run on pg-boss has its plane stopped, and the
-# tag's bring-up there migrates nothing in it (workplan 0167 T7), so the
-# option is a mistake there, refused before anything is read or written.
+# --trigger added triggerdb, Trigger.dev's database, for a deploy that started
+# its plane at another version. alpha.18 removed Trigger.dev (workplan 0167
+# T9), so there is no such database to copy: refused, before anything is read
+# or written. alpha.17's deploy-live.sh passes it only when the tag's bring-up
+# runs Trigger.dev, which no tag from alpha.16 on does.
 if [ -n "$TRIGGER" ]; then
-  job_runner_mode "$SCRIPT_DIR" "$ENV_FILE" || refuse "$JOB_RUNNER_WHY"
-  if [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
-    refuse "--trigger, and this stack's jobs run on pg-boss (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}): the Trigger.dev plane is stopped, and nothing migrates its database, so no copy of it is taken (workplan 0167 T7). Nothing was read or written." \
-      "Run it without --trigger; deploy-live.sh passes none while the tag's bring-up runs pg-boss."
-  fi
+  refuse "--trigger, and Trigger.dev was removed in alpha.18 (workplan 0167 T9): there is no task runner's database to copy. Nothing was read or written." \
+    "Run it without --trigger."
 fi
 
 COPY_DIR="$(copy_before_update_dir)"
@@ -297,8 +306,9 @@ DB_NAME="${DB_NAME:-openmigrate}"
 case "$DB_NAME" in
   '' | *[!A-Za-z0-9_]*) refuse "POSTGRES_DB in ${ENV_FILE} is not a plain database name. Its value is not printed." ;;
 esac
-# The parts' own scripts must not be pointed anywhere else from the shell:
-# trigger-version.sh takes its directory and its container from these.
+# The parts' own scripts must not be pointed anywhere else from the shell
+# (trigger-version.sh took its directory and its container from these until
+# alpha.18).
 unset MANAGED_BACKUP_DIR MANAGED_ENV_PERSIST_DIR TRIGGER_DB_CONTAINER
 # A copy holds testers' data and the provider's password hashes.
 umask 077
@@ -313,8 +323,9 @@ copy_files() {
 }
 
 # note_files — the name of every entry the note says is the copy's, one per
-# line, sorted: its Files list and each ADDED line, as take writes them, and
-# the note itself. False when the note cannot be read.
+# line, sorted: its Files list and each ADDED line, as take wrote them (an
+# ADDED line names a task runner's database, added before alpha.18), and the
+# note itself. False when the note cannot be read.
 note_files() {
   local listed
   listed="$(sed -n -E -e 's/^    ([A-Za-z0-9._-]+)   [0-9]+ bytes.*$/\1/p' \
@@ -563,24 +574,6 @@ part_failed() {
   exit 1
 }
 
-# trigger_part — trigger-version.sh backup before-<tag>, which on live writes
-# into this directory (it sources this file for its name) and verifies what it
-# wrote.
-trigger_part() {
-  say "the task runner's database: trigger-version.sh backup before-${TAG}"
-  "${SCRIPT_DIR}/trigger-version.sh" backup "before-${TAG}" >/dev/null ||
-    part_failed "trigger-version.sh backup failed (above): the task runner's database is not in the copy, and nothing of this run was kept."
-}
-
-# has_trigger_part — whether the copy already holds the task runner's database.
-has_trigger_part() {
-  local f
-  while IFS= read -r f; do
-    case "$f" in triggerdb-*.sql.gz) return 0 ;; esac
-  done <<<"$(copy_files)"
-  return 1
-}
-
 take_new() {
   local taken epoch stamp app listing entries from commit f k line
   taken="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -612,8 +605,6 @@ take_new() {
   say "the sign-in service's database and the roles: dump-idp.sh --dir <this directory>"
   "${SCRIPT_DIR}/dump-idp.sh" --dir "$COPY_DIR" ||
     part_failed "dump-idp.sh failed (above): the sign-in service's database is not in the copy, and nothing of this run was kept."
-
-  [ -z "$TRIGGER" ] || trigger_part
 
   # The note, last: a directory with a note holds a whole copy.
   commit="$(git -C "$REPO_ROOT" rev-parse -q --verify HEAD 2>/dev/null)" || commit=''
@@ -714,29 +705,7 @@ cmd_take() {
     fi
     say "a copy is here already, taken ${taken:-at a time its note does not say} before ${before:-a tag its note does not name}, on day $(copy_day "$age") of at most 7, and its update is not proven: ${WHY}."
     say "It is the copy of what ran before, so it is kept, and no second copy is taken. It goes once the update is proven (./deploy/compose/copy-before-update.sh delete), and after day ${COPY_EXPIRE_DAYS} whatever happens."
-    if [ -n "$TRIGGER" ] && ! has_trigger_part; then
-      if [ -n "$DRY_RUN" ]; then
-        say "dry run: ${TAG} moves the Trigger.dev pin, and the kept copy has no task runner's database: a take would add it. Nothing was written."
-        return 0
-      fi
-      mapfile -t BEFORE < <(copy_files)
-      trap on_exit EXIT
-      trigger_part
-      while IFS= read -r f; do
-        case "$f" in
-          triggerdb-*.sql.gz)
-            mine=1
-            for k in ${BEFORE[@]+"${BEFORE[@]}"}; do [ "$k" != "$f" ] || mine=''; done
-            [ -z "$mine" ] ||
-              printf '\nADDED %s, before %s, which moves the Trigger.dev pin: the task runner'"'"'s\ndatabase, %s.\n' \
-                "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TAG" "$f" >>"${COPY_DIR}/${COPY_NOTE}"
-            ;;
-        esac
-      done <<<"$(copy_files)"
-      DONE=1
-      trap - EXIT
-      say "the task runner's database is added to the kept copy."
-    elif [ -n "$DRY_RUN" ]; then
+    if [ -n "$DRY_RUN" ]; then
       say "dry run: nothing was written."
     fi
     return 0
@@ -752,7 +721,6 @@ cmd_take() {
     fi
     [ -z "$files" ] || n="$(wc -l <<<"$files")"
     parts="the app's database, the sign-in service's database and the roles"
-    [ -z "$TRIGGER" ] || parts="${parts}, and the task runner's database (the tag moves the Trigger.dev pin)"
     say "dry run: a take would take the copy before ${TAG} into ${COPY_DIR}: ${parts}."
     [ "$n" -eq 0 ] || say "dry run: ${n} file(s) already there without a note, a dump by hand, would become part of it."
     say "dry run: nothing was written."
@@ -770,7 +738,7 @@ cmd_delete() {
   fi
   if [ ! -f "${COPY_DIR}/${COPY_NOTE}" ]; then
     refuse "${COPY_DIR} holds files without a copy's note, so no update is theirs to prove: ${files//$'\n'/, }." \
-      "They are a dump made by hand (on live dump-idp.sh and trigger-version.sh backup write here). The next copy takes them in, and the daily duties delete them after day ${COPY_EXPIRE_DAYS}; remove them by hand if you want them gone sooner."
+      "They are a dump made by hand (on live dump-idp.sh writes here). The next copy takes them in, and the daily duties delete them after day ${COPY_EXPIRE_DAYS}; remove them by hand if you want them gone sooner."
   fi
   taken="$(note_value taken)"
   before="$(note_value before)"
