@@ -62,6 +62,33 @@ describe('the key of an address', () => {
     expect(addressKey('+x@gmail.com')).toBe('+x@gmail.com');
     expect(addressKey(' Nobody ')).toBe('nobody');
   });
+
+  // 0168's review, finding 3: a NUL passed the check and reached Postgres,
+  // which refuses it (22021), so the write failed with a 500 whose log line
+  // carried both addresses. A control character or half a surrogate pair is
+  // in no address, so the check refuses it before anything stores it.
+  it.each([
+    ['a NUL', 'mum\u0000@hotmail.com'],
+    ['a NUL in the domain', 'mum@hot\u0000mail.com'],
+    ['a bell', 'mu\u0007m@example.org'],
+    ['a delete', 'mum\u007f@example.org'],
+    ['a C1 control', 'mum\u0085@example.org'],
+    ['half a surrogate pair', 'mum\ud800@example.org'],
+    ['the other half', '\udc00mum@example.org'],
+  ])('does not take an address with %s for one', (_what, value) => {
+    expect(isAddress(value)).toBe(false);
+  });
+
+  it('proposes nothing for such a value either', () => {
+    expect(cannotTakeAlong('mum\u0000@gmail.com')).toBeNull();
+    expect(cannotTakeAlong('mum@gmail.com')).toEqual({ provider: 'Google' });
+  });
+
+  it('still takes an address written in other scripts, or with an emoji, for one', () => {
+    for (const v of ['jörg@example.org', 'имя@пример.рф', '😀@example.org', 'İnci@example.org']) {
+      expect(isAddress(v), v).toBe(true);
+    }
+  });
 });
 
 describe('the domains nobody can take along', () => {
