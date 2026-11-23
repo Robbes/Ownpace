@@ -4,6 +4,41 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **An address change says whether its own person confirmed it** (workplan 0168, its follow-ups).
+  Each row of `/api/address-changes` carries `confirmedByThePerson`, true when the person confirmed
+  it through their own link, and the team screen reads it: a confirmation by somebody whose name
+  is said as the person's now reads *Confirmed by ‹name› for ‹person›*. Always false on the
+  appliance, which has no person.
+
+### Fixed
+
+- **A copy deleted on the new system is counted as gone, never as the owner's edit and never made
+  again** (workplan 0168, found on the way; ADR-0055, amended). A rewrite of a JMAP file that was
+  no longer there threw, so the item failed and its retry made the file again. A DAV rewrite
+  refused with 412 was always read as an edit, though `If-Match` is refused the same way when
+  nothing is there, so a copy the person deleted was marked as theirs and never reported missing.
+  One HEAD now tells the two apart, and a HEAD that cannot say fails the item and writes nothing.
+- **A rewrite that failed is retried as that rewrite** (workplan 0168, found on the way). Only a
+  failed address rewrite was; a failed rewrite of a change at the old system took the create path
+  on its retry, which adopted our own copy as the target's, so later changes never reached it, or
+  made a deleted one again.
+- **Recording a copy's source version no longer counts it as copied again on Billing** (workplan
+  0168, found on the way). A copy from before the version column, seen unchanged, had its version
+  stored by the path that also stamps the copy's last write, which the usage meter reads, so it
+  counted again, at its whole size, in that month. Only the version is written now.
+- **A change to the account's own addresses reaches its events** (workplan 0168, found on the
+  way). They decide whether an event's guests change, but a calendar's cursor was stored under the
+  address table alone, so a source that lists only what changed never read those events again.
+- **A copy with no version to guard its new address is said as left, never as waiting for the
+  next pass** (workplan 0168, found on the way). No pass and no press rewrites such a copy. The
+  confirmed list's row now says `unguarded`, verification counts it apart and warns about it in
+  its own words in English and Dutch, and a sample of only those copies is no longer told to
+  check again after the next pass.
+- **The appliance's answer to *Apply the new addresses here too* for a migration it does not
+  hold has a sentence**, in English and Dutch, as managed's has (workplan 0168, found on the way).
+
 ## [0.2.0-alpha.17] - 2026-11-23
 
 A person who leaves an address they cannot take along, a Gmail address for one, now declares the
