@@ -67,6 +67,7 @@ import { VIEW_FAILURE_KEY, VIEW_SIDE_KEY } from '../i18n/view-failure-key.ts';
 import { formatBytes } from '../i18n/bytes.ts';
 import { Hint } from '../components/Hint.tsx';
 import PausedBecause from '../components/PausedBecause.tsx';
+import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
@@ -632,7 +633,11 @@ const View: React.FC = () => {
         </>
       )}
 
-      <div className="mt-10 text-center">
+      {/* A person with only this link reaches the statement from here too (0145 T9 (b)). */}
+      <p className="mt-10 text-center text-sm text-gray-500">
+        <AccessibilityLink className="underline" />
+      </p>
+      <div className="mt-4 text-center">
         <BuildStamp />
       </div>
     </main>

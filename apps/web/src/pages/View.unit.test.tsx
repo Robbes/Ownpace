@@ -172,6 +172,14 @@ describe('what the page says', () => {
   });
 });
 
+describe('the accessibility statement (workplan 0145 T9 (b))', () => {
+  it('is linked at the foot of the page, for a person who has only this link', async () => {
+    renderPage();
+    const link = await screen.findByRole('link', { name: 'Accessibility' });
+    expect(link.getAttribute('href')).toMatch(/\/accessibility\.html$/);
+  });
+});
+
 describe('when something is wrong', () => {
   it('counts what needs attention and points at the right person', async () => {
     readMock.mockResolvedValue(
