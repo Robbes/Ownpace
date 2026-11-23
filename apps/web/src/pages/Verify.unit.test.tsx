@@ -598,6 +598,7 @@ describe('what the check found, in the reader’s words (owner, 2026-10-18)', ()
     // The two about a new address (workplan 0168).
     expect(core).toContain('id: `ADDRESS_OLDER_TABLE_${dataType}`');
     expect(core).toContain('id: `ADDRESS_NOT_COMPARED_${dataType}`');
+    expect(core).toContain('id: `ADDRESS_UNGUARDED_${dataType}`');
   });
 });
 
@@ -658,6 +659,47 @@ describe('a new address in what the check found (workplan 0168)', () => {
     // The server's English stays in the closed fold, where a support thread can quote it.
     expect(shown('None of them is counted as a match')).toEqual([]);
     expect(screen.queryAllByText(/ADR-\d{4}/).filter((el) => el.closest('details') === null)).toEqual([]);
+  });
+
+  /**
+   * NO VERSION TO GUARD THE WRITE (0168, found on the way). These copies were
+   * said to wait for the next pass, which never changes them. Said apart, and
+   * a sample of only those is never told to check again after a pass.
+   */
+  it.each([
+    ['en', '1 contacts items wait for an address change, which the next pass makes', '2 contacts items do not have the new address and are left as they are', 'Every sampled calendar item is without its new address'],
+    ['nl', '1 items (contacten) wachten op een adreswijziging, die de volgende ronde doorvoert', '2 items (contacten) hebben het nieuwe adres niet en blijven zoals ze zijn', 'Elk item (agenda) uit de steekproef mist zijn nieuwe adres'],
+  ] as const)('says the copies no pass changes apart from those that wait, in %s', async (locale, waiting, unguarded, notCompared) => {
+    const report: VerificationResult = {
+      ...REPORT,
+      contacts: found('contacts', {
+        status: 'PASS',
+        addressChanges: { digest: null, changed: 1, older: 3, unguarded: 2, waitsFor: 'pass' },
+        issues: [issue('ADDRESS_OLDER_TABLE_contacts', 'WARNING', OLDER), issue('ADDRESS_UNGUARDED_contacts', 'WARNING', 'x')],
+      }),
+      calendar: found('calendar', {
+        status: 'FAIL',
+        addressChanges: { digest: null, changed: 0, older: 3, unguarded: 3 },
+        issues: [issue('ADDRESS_NOT_COMPARED_calendar', 'ERROR', NOT_COMPARED)],
+      }),
+    };
+    window.localStorage.setItem('ownpace.locale', locale);
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-11-23T12:00:00Z',
+      finishedAt: '2026-11-23T12:03:00Z',
+      report: { 'mapping-1': report },
+    });
+    render(
+      <LocaleProvider>
+        <MemoryRouter><Verify /></MemoryRouter>
+      </LocaleProvider>,
+    );
+    await screen.findByRole('link', { name: 'mapping-1' });
+    expect(shown(waiting)).toHaveLength(1);
+    expect(shown(unguarded)).toHaveLength(1);
+    expect(shown(notCompared)).toHaveLength(1);
+    expect(shown(locale === 'en' ? 'check again after the next pass' : 'verifieer opnieuw na de volgende ronde')).toEqual([]);
   });
 });
 

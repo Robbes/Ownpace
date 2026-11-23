@@ -184,6 +184,7 @@ export function addressChangeAnswer(
     setByYou: facts.asker !== undefined && row.setBy === facts.asker,
     confirmedBy: saidBy(row.confirmedBy, label),
     confirmedByYou: facts.asker !== undefined && (row.confirmedBy === facts.asker || theirOwn),
+    confirmedByThePerson: person !== undefined && personWhoConfirmed(row.confirmedBy) === person.id,
     createdAt: row.createdAt,
     confirmedAt: row.confirmedAt,
     person: person === undefined ? null : { id: person.id, displayName: person.displayName },

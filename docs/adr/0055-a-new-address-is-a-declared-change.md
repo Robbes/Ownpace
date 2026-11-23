@@ -1,6 +1,6 @@
 # ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail
 
-- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; built 2026-11-23 (0168 T1–T9, #2067), and amended that day by the landing's review: a copy records the digest of the rows that decided it, a rewrite needs a strong recorded version, and the press names the table it was shown (decisions 3 to 6).
+- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; built 2026-11-23 (0168 T1–T9, #2067), and amended that day by the landing's review: a copy records the digest of the rows that decided it, a rewrite needs a strong recorded version, and the press names the table it was shown (decisions 3 to 6); again for alpha.18 (5, 6).
 - **Date:** 2026-11-22
 - **Deciders:** owner
 - **Relates to:** [ADR-0005](./0005-idempotency-ledger-nondestructive.md) (re-runs converge),
@@ -30,10 +30,10 @@
   (`item.address_digest`); verification and the confirmed list count and name it; an older digest,
   or a change a copy still waits for (`item.address_digest_due`), is never a match. Every write of
   the table is audited by reference, never by address.
-- **A changed table converges** by a rewrite that needs a strong recorded version, sent as
-  `If-Match` (without one the copy is left and counted); adopted copies stay, tombstones stay, a
-  copy deleted on the target is never made again. Past a data type's cutover only on a person's
-  press, for the table they were shown (D5). Silence (ADR-0043) holds.
+- **A changed table converges** by a rewrite guarded by `If-Match` with a strong version, else
+  the copy is left and said as left. A copy deleted on the target is counted gone, never remade
+  (decision 6). Past a cutover only on a person's press, for the table they were shown (D5).
+  Silence (ADR-0043) holds.
 - **Shares:** a confirmed row is ADR-0032 §6's confirmation; each press still sends its address.
   Support shows counts only (D7); erasure purges both tables (`PURGED_TABLES`).
 
@@ -81,12 +81,18 @@ break.
    decided its bytes (`item.address_digest`), and a pass that did not write it records the digest
    it should carry (`item.address_digest_due`). Verification and the confirmed list count changed
    items and name the digest, an item a change still waits for is never reported as a match, and
-   a sample in which every item waits holds the cutover.
+   a sample in which every item waits holds the cutover. An item with no version to guard its
+   rewrite is said apart from those that wait (`unguarded`): no pass and no press changes it.
 6. **A changed table converges** through the ordinary rewrite, with every rule a rewrite keeps:
    - an adopted item is left alone;
    - the write carries `If-Match` with a strong recorded version, and without one the item is left
      as it is and counted;
-   - a tombstoned item stays tombstoned, and an item deleted on the target is never made again.
+   - a tombstoned item stays tombstoned, and an item deleted on the target is never made again:
+     a rewrite that finds no copy says so (`goneFromTarget`), on JMAP and on a DAV `If-Match` 412
+     whose HEAD finds nothing, for a source change as for an address change, and a failed rewrite
+     is retried as that rewrite, never as a create;
+   - a source that lists only what changed reads a collection again when its table moves, and for
+     a calendar or task when the account's own addresses move, since they decide its guests.
 
    After a data type's cutover, it waits for a person's press, which names the table the page
    showed (workplan 0168 D5).

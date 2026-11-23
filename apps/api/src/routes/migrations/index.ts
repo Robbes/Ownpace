@@ -81,6 +81,7 @@ import {
   halfMailLoginRefusal,
   targetCredentialRecord,
   ADDRESS_PRESS_NAMES_NO_TABLE,
+  NO_SUCH_MIGRATION_HERE,
   ADDRESS_TABLE_MOVED,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
@@ -3888,8 +3889,8 @@ router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest,
  */
 const NO_SUCH_MIGRATION = {
   error: 'Not found',
-  message: 'There is no such migration here.',
-  messageNl: 'Deze migratie bestaat hier niet.',
+  message: NO_SUCH_MIGRATION_HERE.en,
+  messageNl: NO_SUCH_MIGRATION_HERE.nl,
 } as const;
 const A_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
