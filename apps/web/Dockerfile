@@ -91,7 +91,7 @@ RUN pnpm --filter @openmig/web build
 # geoip, image-filter, acme) or curl, none of which nginx.conf.template loads.
 # envsubst and the entrypoint's template step are in slim; the health check
 # below is busybox's wget, which slim keeps.
-FROM nginx:1.31.8-alpine-slim@sha256:9c68ad4f28e7dee4b9484a7859bf451da39ef661bcd038ef62e87593fcd91c86 AS runtime
+FROM nginx:1.31.9-alpine-slim@sha256:5bfced78d24d644270bedb0a9968697042e38d5c03fb6354603df025279c1cbe AS runtime
 ENV API_UPSTREAM=api:3001
 # THE SIGN-IN HOST, FOR THE APP'S POLICY (workplan 0158). nginx.conf.template
 # names it in the policy's connect-src, so the page may fetch the issuer's
