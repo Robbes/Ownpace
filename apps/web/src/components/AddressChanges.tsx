@@ -497,7 +497,7 @@ export const AddressChanges: React.FC<{
           ))}
         </ul>
       )}
-      {/* The people could not be read: a row can still be added, for nobody, and the screen says why it cannot be given to anyone. */}
+      {/* The people could not be read: a row can still be added, for nobody, and the screen says why it cannot be linked to a person. */}
       {picks && writable && people.isError && (
         <p className="mt-3 text-sm text-amber-700">
           {t('addresses.peopleFailed')} {serverMessage(people.error)}

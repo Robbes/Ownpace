@@ -310,7 +310,9 @@ describe('the team screen: Address changes', () => {
     vi.mocked(fetchAddressChanges).mockResolvedValue({ rows: [], door: 'api', file: null });
     vi.mocked(fetchPeople).mockRejectedValue(new Error('down'));
     renderWith({ kind: 'organisation' }, true);
-    expect(await screen.findByText(/The people could not be read, so a row cannot be given to anyone yet\./)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/The people could not be read, so an address change cannot be linked to a person yet\./),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('Person')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
   });
