@@ -4,6 +4,82 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, later still: *Your new address* asks by itself when the new account's login is on
+another domain, and about every `.onmicrosoft.com` address, on
+`claude/ownpace-public-readiness-y7orc6-own-domain`.** The owner answered four questions in one
+dialog the same day:
+
+1. **An own domain and a new login on another domain:** *"(b) Ask if login differs"*, worded as
+   *"Ask by itself when the new account's login is on another domain than the old address; never
+   for a .onmicrosoft.com login; no default answer; hint: 'Choose No if ‹new› is only temporary,
+   until your own domain moves.'"*
+2. **`.onmicrosoft.com`:** *"Yes, any .onmicrosoft.com"*: *"One suffix rule beside the list,
+   matched on a whole label, so a lookalike never matches."*
+3. **A listed address of another provider than the one being left:** *"No, any listed address"*.
+   The step keeps asking about every address on the list, whichever provider is being left.
+   Nothing was changed for it.
+4. **The Dutch of the Microsoft guide:** *make it: "of op een lokale versie daarvan, zoals"*.
+
+What was built:
+
+- **One rule beside the list** (`address-forms.ts`, `UNDER_ONMICROSOFT`,
+  `isMicrosoftTenantDomain`). `cannotTakeAlong` names Microsoft, the provider the list's Microsoft
+  entries name, for a host under `onmicrosoft.com` with one label or more before it, none empty:
+  `contoso.onmicrosoft.com`, `contoso.mail.onmicrosoft.com`. Never `onmicrosoft.com` itself,
+  `notonmicrosoft.com`, `onmicrosoft.com.example.com` or `onmicrosoft.co`. The list stays whole
+  domains, and the file's header says this is its one rule that is not.
+- **The step asks by itself** (`addressProposals`, `AddressStep.tsx`). An old address that is not
+  on the list, is not the new address in another spelling and is not in the table already is
+  asked about when the new account's login is an address on another domain (compared whole, in
+  lower case), never when that login is `onmicrosoft.com` or a host under it. `AskedAddress`
+  gains `why` (`list`, `declared`, `otherDomain`). For `otherDomain` alone the step says *"‹new›
+  is on another domain than ‹old›. Choose No if ‹new› is only temporary, until your own domain
+  moves."* / *"‹new› staat op een ander domein dan ‹old›. Kies Nee als ‹new› maar tijdelijk is,
+  tot uw eigen domein meekomt."*, and that line describes the question. No answer is chosen; an
+  unanswered question still holds Next (`start.address.needAnswer`). A login on the old address's
+  own domain asks nothing new. With *I am also changing my address* ticked, a question is asked
+  as it was, without the line. §6.2's three cases are four.
+- **The guides.** The Microsoft guide, in English and Dutch, says an address in the organisation's
+  `.onmicrosoft.com` name comes by itself and no longer sends anybody to the box for it, and says
+  in one sentence that the step asks by itself when the new account's address is on another
+  domain, with the hint. The Dutch reads *"of op een lokale versie daarvan, zoals"*, the English
+  *"or in one of their local versions, such as"*. The Google guide does not explain the box, so it
+  gained no such sentence.
+- **Fixtures that left an own domain for a Soverin login on another domain** now sign in on the
+  source's own domain, so they still walk the flow they test without the step: *Check, then
+  start*, the copies' folders and the company's own app in `StartMigration.unit.test.tsx`, and the
+  UI smoke's start flow (`startFlowFixtures`). The two lookalike cases sign in on the lookalike's
+  domain, and the tick's case is now an address on the login's own domain.
+
+**The source for `.onmicrosoft.com`.** Two Microsoft Support pages, read 2026-11-23 and quoted
+beside the rule: [the difference between a Microsoft account and a work or school
+account](https://support.microsoft.com/en-us/accounts-billing/manage/what-s-the-difference-between-a-microsoft-account-and-a-work-or-school-account)
+(*"When you first sign up for a Microsoft business product like Microsoft 365 for business, you
+get an email address that ends with .onmicrosoft.com. You can use that address or customize it by
+adding your own domain"*) and [What is my user
+ID](https://support.microsoft.com/en-us/office/lifecycle/what-is-my-user-id-and-why-do-i-need-it-for-office-365-for-business).
+And [Microsoft's domains FAQ](https://learn.microsoft.com/en-us/microsoft-365/admin/setup/domains-faq),
+read the same day once the owner allowed learn.microsoft.com, says the domain ends with the tenant:
+*"Microsoft 365 creates a domain for you, like contoso.onmicrosoft.com, when you sign up with the
+service"*, and *"You can't remove your onmicrosoft.com domain. Microsoft 365 needs to keep the
+onmicrosoft.com domain because it's used behind the scenes for your subscription."* All three are
+quoted beside the rule; nothing was cited from search excerpts or from memory.
+
+Proven, each rule with a test that fails with it mutated off and passes with it restored:
+
+- `address-forms.unit.test.ts`: the rule's three positives and seven lookalikes. The rule removed
+  fails 3 tests; a bare suffix in place of whole labels fails 6.
+- `AddressStep.unit.test.tsx` (new, 16 tests) and `StartMigration.unit.test.tsx` (four new cases):
+  rule (b) removed fails 6; the `.onmicrosoft.com` login allowed fails 4; the domain comparison
+  removed fails 7; the line and hint not drawn fails 3; *No* shown as chosen fails 3; the suffix
+  rule removed fails 2 there.
+- The UI smoke (`test/ui`, real Chromium over the built bundle): 74 of 74, with a new case in
+  Dutch at phone width, a login on another domain, the line, no answer chosen and a *Nee* that
+  writes nothing; with rule (b) forced off, that case fails.
+- The web and shared unit tiers, typecheck, lint, and the docs checks.
+
+Not proven: anything against a running server.
+
 **2026-11-23, later still: the owner's two decisions on copies nothing changes, built, on
 `claude/ownpace-public-readiness-y7orc6-0168-unguarded`** (cut from the follow-ups' branch). Two
 of the follow-ups' *Not done* items were the owner's call; both are decided and built, each rule
@@ -126,11 +202,14 @@ Apple 3, Yahoo 17, Ziggo 7, KPN 18, Telenet 1, Proximus 3.
   (its business page says 18 months); Proximus's terms keep it up to 18 months, free. Neither
   says a Belgian rule requires it. Ziggo offers no way to keep one.
 - **Not added:** `onmicrosoft.com` (a tenant's name is a host under it, which a list of whole
-  domains holds only as a pattern; the guide keeps the tick for it), `passport.com` (Wikipedia
+  domains holds only as a pattern; the guide keeps the tick for it — *since read by one rule
+  beside the list, and the step comes by itself for it, on
+  `claude/ownpace-public-readiness-y7orc6-own-domain`, above*), `passport.com` (Wikipedia
   only), `pandora.be` and `yahoo.nl`/`yahoo.be` (no source found).
 - **The words:** the Microsoft guide, in both languages, says the step now comes by itself for
   Microsoft's addresses, and keeps the tick for an `.onmicrosoft.com` name or any address the
-  step does not recognise; the Dutch is for the owner's check. The step says the provider the
+  step does not recognise (*the `.onmicrosoft.com` name comes by itself since, on
+  `claude/ownpace-public-readiness-y7orc6-own-domain`, above*); the Dutch is for the owner's check. The step says the provider the
   list names (*"‹provider› keeps that address"*) and needed no change, nor did the Google guide,
   the privacy policy (no domain in §4.6 or §9), the feature matrix or the site's *How it works*.
 - **Proof:** `address-forms.unit.test.ts` pins every entry by provider, proposes a Hotmail, a
