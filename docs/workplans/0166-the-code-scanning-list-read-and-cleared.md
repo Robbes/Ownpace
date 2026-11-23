@@ -4,6 +4,37 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, evening: T6, Monday's scan read. No Trigger.dev image was left in it.** The weekly
+Security Scan, run 45227762752 on `main` at `ac4efadb` (#2084), was started by GitHub at
+17:26:53, not at its 06:00, and ended green at 17:28:52 (22 jobs). It is the first image scan on
+`main` after T9 (#2083, merged at 16:25:42; the entry below), so it listed 19 images, not 28, and
+scanned all 19, none past its end of life. The v4.8.8 builds T6 was to read (`trigger.dev`,
+`supervisor`) left the list with the plane, so that reading is moot. The report job's counts, one
+finding per package and advisory, as §1.2 counts them:
+
+- **By tier:** production-public, 7 images: 0 critical, 10 high, 6 of them with a fix in a newer
+  package; production-internal, 6: 0, 4, 0; shipped, 3: 0, 4, 0; test-only, not sent to code
+  scanning, 3: 6, 366, 171.
+- **As in §1.2 and §3 B:** `gatus` v5.38.0, 0 critical and 5 high, all 5 with a fix (go-jose v4
+  v4.1.4, compress v1.18.6, x/image v0.40.0, x/net v0.58.0), and `zitadel` v4.20.4, 0 and 1, x/net
+  v0.61.0, fixed in 0.62.0. Both wait on an upstream release, as their §3 B rows say.
+- **Gone since §1.2:** `postgres-managed` and `postgres-selfhost` read 0 and 0, where §1.2 had one
+  high each: T3 (#2015).
+- **Newer than §1.2:** Ownpace's six Debian 13.7 images, `ownpace-api`, `ownpace-worker` and
+  `ownpace-selfhost` at `:edge` and at `0.2.0-alpha.17`, read 0 critical and 2 high each, both in
+  `libssl3t64` 3.5.7-1~deb13u3, with no fix yet: the entry of 2026-11-21, last, read one. They
+  close with Debian 13's fix, which a rebuild of each image takes; nothing changes for a release
+  until then. The Go `stdlib` finding that entry read in `gatus` and `zitadel` (CVE-2026-97054) is
+  not in this run's report.
+- **The rest:** `nginx`, `pgbouncer`, `busybox`, `goaccess` and `ownpace-web` at `:edge` and at the
+  release, 0 critical and 0 high. Every image's issue was left as it was.
+
+So the 16 categories that still upload hold 18 open alerts by this counting: gatus's 5 and
+zitadel's 1, which wait on upstream, and `libssl3t64`'s 2 in each of the six Debian images, which
+wait on Debian. The nine categories T9 stopped get no newer analysis, so their alerts stay open
+until the owner deletes their configurations (the entry below). §1 stays the reading of
+2026-11-21.
+
 **2026-11-23: an outside, read-only check of `5b51a82b`, read on `main` at `db37bf49`. Docs only:
 nothing moved, and why.** On `claude/ownpace-public-readiness-y7orc6-dockerfiles` (T9). The
 Trigger.dev files it named (`deploy/compose/trigger.dev`, `supervisor`, `docker-socket-proxy`,
@@ -282,7 +313,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | T3 libxml2 in both Postgres builds | builder | ✅ **Merged** as #2015 on 2026-11-21 (`6e9c1d04`) (D3: the pin; the Status entry of 2026-11-21, after the answers: T3) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
 | T4 PAM out of the Redis and Trigger.dev webapp builds | builder | ✅ **Merged** as #2016 on 2026-11-21 (`2d249b3c`) (D1: yes; the Status entry of 2026-11-21, after the answers: T4) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
 | T5 effect in the Trigger.dev webapp | builder | 🔨 **Built 2026-11-21** (D2: yes; the Status entry of 2026-11-21, after the answers: T5) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
-| T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
+| T6 Monday's scan, read into §1 | builder | ✅ **Read 2026-11-23** (the Status entry of 2026-11-23, evening): run 45227762752, 19 images; the v4.8.8 builds left the list with the plane first (T9), so their reading is moot | The weekly run of 2026-11-23 was to be the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). §1 stays the reading of 2026-11-21 and §3 as it was; the entry says what moved. |
 | T7 The owner's dismissals | owner | ✅ **Done 2026-11-21** (D4), the five of §3 D, 17:32 to 17:50 UTC | The 5 alerts of §3 D, each with its reason. |
 | T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
 | T9 The outside check of 2026-11-23 | builder | ✅ **Read 2026-11-23**, nothing moved (the Status entry of 2026-11-23) | The Stalwart base's krb5 and zlib1g stay in alpha.18, and the pin's move is alpha.19's (the owner, 2026-11-23: *"Stalwart: in alpha 19"*); the Dockerfile rules stand as decided. The Trigger.dev files go with its removal. |
