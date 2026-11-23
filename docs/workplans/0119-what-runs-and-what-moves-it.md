@@ -2,7 +2,31 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-22 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23, morning: what alpha.17 moves, and what moves for live from alpha.16.** The fold for
+`v0.2.0-alpha.17` (0146's entry of the same day) carries what `main` merged after alpha.16's C,
+`b657f86b`: 4 pull requests (0146's entry lists them). The entry below, alpha.17's lifecycle moves,
+merged as #2057 on 2026-11-23 at 07:37:48 UTC, after E2E (managed) #509 and E2E (self-hosted, PGlite)
+#434 were green on it. For live, from alpha.16 (live since 2026-11-23 at 06:52:30 UTC):
+
+- the web image's nginx, and the public site's, move to `nginx:1.31.9-alpine-slim` by tag and index
+  digest (#2057): only nginx moves in the image, 1.31.8-r1 to 1.31.9-r1, on the same Alpine 3.24.4;
+  the web image's template gains a `map` that writes `:key` in its access log for an
+  address-change path, in place of the address (#2067), and its security headers are as they were;
+- npm: `@azure/msal-node` 7.2.3 (with `@azure/msal-common` 16.17.0), jose 6.2.18,
+  `@electric-sql/pglite` 0.5.17, TanStack Query 5.108.1 and lucide-react 1.76.0, and in tests
+  only testcontainers 12.2.2, `@testing-library/user-event` 14.6.13 and `@testing-library/jest-dom`
+  8.0.0 (#2057);
+- the worker runs at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once, and `managed.yml`'s memory rule
+  becomes (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 256 MB: 2,816 MB at the default of 3, 4,352 MB at
+  live's 6, where live's `.env` pins alpha.16's 6,400 MB; the bring-up keeps a pinned larger value
+  and says so (#2060);
+- ledger migrations 0071 to 0074 and managed migration 0063, all additive (#2067).
+
+So live's deploy from alpha.16 is one-way by the deploy's own rule (0146's entry). Not moved: the
+Trigger.dev (`v4.8.8`), identity-provider (Zitadel `v4.20.4`), ClickHouse (`26.8.37.168`) and MinIO
+(`59953701…`) pins; MinIO's `latest` at `e9cf6b99…` and Atlas v1.4.1 still each want a later branch.
 
 **2026-11-22, night, later: alpha.17's lifecycle moves. The web image's and the public site's
 nginx move to 1.31.9-alpine-slim, in place of Dependabot's #2051, with Dependabot's #2052 and #2053

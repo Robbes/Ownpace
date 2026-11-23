@@ -4,6 +4,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.17] - 2026-11-23
+
+A person who leaves an address they cannot take along, a Gmail address for one, now declares the
+new one once, for themselves or for others moving with them: in the step *Your new address* of
+*Start a migration*, on the person's and the team's pages, or through their own grant or progress
+link. Confirmed, the change reaches the copies of their contacts, events and tasks and the Sharing
+checklist's grantees, never their mail; each change is in the audit log by reference, and the
+privacy policy, still version 1.0, says so. The job worker runs at most `MAX_PASSES_IN_FLIGHT` + 2
+runs at once, and its memory limit follows: 4,352 MB at 6, where alpha.16 sized 6,400 MB. nginx
+moves to 1.31.9, with Dependabot's npm group and jest-dom 8. Live's deploy from alpha.16 is
+one-way: ledger migrations 0071 to 0074 and managed migration 0063 add the address changes'
+tables and columns.
+
 ### Added
 
 - **A new address for one you cannot take along: declared once, applied to contacts, calendars and
@@ -40,8 +53,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
     the changes. English and Dutch; nothing sends mail.
   - The managed gate and the appliance's e2e check the changed card and event on the target, the
     seeded message byte for byte, and the copies converging back when the row is deleted.
-  - Ledger migrations 0071, 0072, 0073 and 0074 and managed migration 0063 make the next deploy
-    one-way.
+  - Ledger migrations 0071, 0072, 0073 and 0074 and managed migration 0063 make live's deploy
+    from alpha.16 one-way.
 
 ### Changed
 
