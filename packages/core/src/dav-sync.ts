@@ -110,6 +110,74 @@ function changed(
 }
 
 /**
+ * What a cursor was read under (`cursorsUnderTheTable`): the confirmed table's
+ * digest, and whether a person's press past the cutover covers that table.
+ * Empty for the empty table with no press, which is every migration whose
+ * organisation never confirmed a row: its cursors are stored exactly as they
+ * always were.
+ */
+export function addressTableTag(changes: AddressChangesForPass): string {
+  const press = changes.pastCutoverApplies === true;
+  if (changes.table.digest === null && !press) return '';
+  return `${changes.table.digest ?? 'none'}${press ? '+applied' : ''}`;
+}
+
+/** How a tagged cursor starts. Followed by the tag, a `|`, and the source's own cursor. */
+const READ_UNDER = 'ownpace-address-table:';
+
+/**
+ * A CURSOR IS A CLAIM MADE UNDER A TABLE (ADR-0055; workplan 0168 §3.3; the
+ * managed E2E, run 45088703249, against a real Nextcloud).
+ *
+ * A collection's cursor says "every item up to here was read, and none needs
+ * reading again". Past it, the sources list only what changed on the SOURCE:
+ * a sync-collection token (CardDAV and CalDAV, Google's endpoints included)
+ * and Graph's delta links for contacts and calendars. An item the source left
+ * alone is then never classified, so a change to the address table reached
+ * nothing already copied: not a row confirmed after the first pass, not a row
+ * deleted or sent back, not the press past a cutover. The E2E saw the second:
+ * after the row was deleted, "rows still under a digest: 2". Graph's To Do and
+ * Google Tasks read every task on every pass and were never affected.
+ *
+ * So each cursor is stored with the table it was read under
+ * (`addressTableTag`), and a cursor read under another table is no cursor:
+ * that collection is read from the beginning, once, every item it holds is
+ * classified under the table as it is now, and its cursor is stored again
+ * under that table. Per collection, as the cursor itself is, so a pass that
+ * stops at its deadline reads again only the collections it did not reach,
+ * and a long first reading cannot be started over for ever. A press past the
+ * cutover changes the tag too, so the pass after a press reads every item it
+ * may now rewrite. Cursors are non-authoritative (ADR-0020): a reading from
+ * the beginning is idempotent, never a copy.
+ */
+function cursorsUnderTheTable(
+  cursors: CursorStore | undefined,
+  changes: AddressChangesForPass | undefined,
+): CursorStore | undefined {
+  if (!cursors || !changes) return cursors;
+  const tag = addressTableTag(changes);
+  return {
+    async get(tenantId, mappingId, folderPath) {
+      const held = await cursors.get(tenantId, mappingId, folderPath);
+      if (held === undefined) return undefined;
+      if (!held.value.startsWith(READ_UNDER)) return tag === '' ? held : undefined;
+      const bar = held.value.indexOf('|', READ_UNDER.length);
+      if (bar === -1) return undefined;
+      return held.value.slice(READ_UNDER.length, bar) === tag ? { value: held.value.slice(bar + 1) } : undefined;
+    },
+    set(tenantId, mappingId, folderPath, cursor) {
+      return cursors.set(
+        tenantId,
+        mappingId,
+        folderPath,
+        tag === '' ? cursor : { value: `${READ_UNDER}${tag}|${cursor.value}` },
+      );
+    },
+    clear: (tenantId, mappingId) => cursors.clear(tenantId, mappingId),
+  };
+}
+
+/**
  * Dependencies for calendar (CalDAV) sync.
  */
 export interface CalendarSyncDeps extends PassClock, SourceAuthority {
@@ -157,7 +225,8 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     source,
     target,
     ledger,
-    cursors,
+    // Each cursor read under the table it was stored under (`cursorsUnderTheTable`).
+    cursors: cursorsUnderTheTable(cursors, deps.addressChanges),
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
@@ -270,7 +339,8 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     source,
     target,
     ledger,
-    cursors,
+    // Each cursor read under the table it was stored under (`cursorsUnderTheTable`).
+    cursors: cursorsUnderTheTable(cursors, deps.addressChanges),
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
@@ -349,7 +419,8 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     source,
     target,
     ledger,
-    cursors,
+    // Each cursor read under the table it was stored under (`cursorsUnderTheTable`).
+    cursors: cursorsUnderTheTable(cursors, deps.addressChanges),
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
