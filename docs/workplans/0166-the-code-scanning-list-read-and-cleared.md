@@ -4,6 +4,84 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23: an outside, read-only check of `5b51a82b`, read on `main` at `db37bf49`. Docs only:
+nothing moved, and why.** On `claude/ownpace-public-readiness-y7orc6-dockerfiles` (T9). The
+Trigger.dev files it named (`deploy/compose/trigger.dev`, `supervisor`, `docker-socket-proxy`,
+`redis`, `caddy`, `apps/worker/task-image`) are not read here: they go with Trigger.dev's removal
+for alpha.18, on another branch.
+- **The Stalwart base (high), `packages/testing/fixtures/stalwart/Dockerfile:8`: still there, and
+  the pin cannot move to a fix.** Security Scan run 45149289024 (its report job, 137607804040)
+  reads `stalwartlabs/stalwart:v1.1.1` at 0 critical and 110 high, 57 of them with a fix, all in
+  Debian 13.7: krb5's four (`libgssapi-krb5-2`, `libk5crypto3`, `libkrb5-3`, `libkrb5support0`)
+  at 1.21.3-5+deb13u1, 14 findings each (CVE-2026-71199, CVE-2026-71200, CVE-2026-107364,
+  CVE-2026-112315 and 10 more), fixed in +deb13u2; and `zlib1g` 1:1.3.dfsg+really1.3.1-1+b1,
+  CVE-2026-85091, fixed in -1+deb13u1. Read the same day:
+  - Docker Hub's tag list: v1.1.1 is still the newest release, and still the index `5ebdf474…`
+    pushed 2026-11-16 at 11:47:29 UTC, as `v1`, `v1.1` and `latest` are. No patch release after
+    it and no rebuild of it, so ADR-0022's move has no tag to move to, the owner's waiver of
+    2026-11-23 notwithstanding. The release cadence since v1.0.0 (2026-10-26) has been about one a
+    week (v1.0.1, v1.0.2, v1.0.3, v1.1.0, v1.1.1).
+  - The image itself, the linux/amd64 layers of `5ebdf474…` (`544760db…`), each blob checked
+    against its digest, nothing run: Debian 13.7, krb5 at 1.21.3-5+deb13u1 and zlib1g at
+    1:1.3.dfsg+really1.3.1-1+b1, as the scan says.
+  - The other variant of the same release, `v1.1.1-alpine` (`53ce86ed…`, linux/amd64
+    `75f72758…` layers read the same way): Alpine 3.24.4, no krb5 at all, and zlib 1.3.2-r1,
+    the build Alpine fixed CVE-2026-85091 in (the pgbouncer Dockerfile's header). It is another
+    base (musl), so it is not a move ADR-0022 allows without the owner, and the two-phase run,
+    `stalwart-cli` and E2E (self-hosted) would have to be proved on it first.
+  - The image is test-only: the integration tests, E2E (self-hosted) and the OTA demo start it,
+    live never does, and its findings go to the scan's report, not to code scanning (§2).
+  - **The fixture Dockerfile is dead code, and removing it does not close this.** Nothing builds
+    it (its own header); the image the tests start is the same pin, by `setup-stalwart.sh` and
+    `testcontainers-setup.ts`. Taking it out is a separate cleanup: the fix doc's "Moving the pin"
+    list, `scripts/idp-pin-watch.mjs`'s copies, and the guards `a-fixture-that-named-no-user`,
+    `a-float-nothing-ever-pulled` and `a-dockerfile-that-ends-as-root` name it. Not done here.
+  - **What closes it:** Stalwart's next v1.x release, or a rebuild of v1.1.1, on a Debian with
+    krb5 +deb13u2 and zlib1g +deb13u1, moved by ADR-0022's procedure; the pin watch's Stalwart
+    row lists the tag. Or `v1.1.1-alpine`, another base. Asked whether to wait for the first or
+    take the second now, the owner answered on 2026-11-23: *"Stalwart: in alpha 19"*. So the pin
+    stays at v1.1.1 in alpha.18, and its move is alpha.19's.
+- **The Dockerfile rules (low), hadolint 2.15.1**, the image `hadolint.yml` pins, read from
+  Docker Hub by its index digest `32dac941…` (linux/amd64 `fdf19d02…`, its one layer
+  `83cf56c1…`, each checked against its digest) and run as `/bin/hadolint`, with hadolint's
+  defaults and again with `.hadolint.yaml`:
+  - `deploy/compose/goaccess/Dockerfile`: DL3018 at lines 52 and 86 (`apk add --no-cache`
+    without versions), with the defaults only; nothing with the repository's config.
+  - `deploy/compose/pgbouncer/Dockerfile`: DL3066 (info) at line 148 (`USER root`) and line 178
+    (`USER postgres`), with either.
+  - `deploy/compose/postgres/Dockerfile`: nothing, with either.
+  - **No rule fires on a file as a whole.** With DL3057 (`HEALTHCHECK` missing, off by default in
+    hadolint) switched on, it fires on every stage's FROM: goaccess lines 51 and 85, pgbouncer
+    142, postgres 86. That is the likeliest reading of the check's three file-level findings, and
+    none of the three images has a HEALTHCHECK.
+- **Why none of them changes,** each the repository's own decision, written down where it was
+  taken:
+  - **DL3018, unpinned apk (goaccess).** The owner's answer of 2026-11-19 (`.hadolint.yaml`):
+    every base is pinned by digest, the weekly image scan reports a package behind its fix, and
+    an exact version stops the next fresh build the day Alpine drops it from its mirror. Pinning
+    would need a watch that moves the pins, as `a-rebuild-upstream-has-not-made` and the libxml2
+    RUN show for the two builds that pin one on purpose, each with its way out. **Advice: keep
+    the decision**; GoAccess is the visit count's batch tool, and an exact pin there buys a build
+    that breaks on Alpine's schedule for nothing the scan does not already say.
+  - **DL3066, a named USER (pgbouncer).** The file is temporary by design: it exists until
+    upstream's image carries the five Alpine fixes (its header's THE WAY OUT), and then goes
+    whole. Until then `images.yml`'s `build (pgbouncer, …)` holds the built image's `User` to
+    upstream's, `postgres`, string for string, the second RUN proves `postgres` is uid 70, and
+    the job proves process 1 runs as uid 70. `USER 70:70` would turn that equality into a
+    translation the job and `a-rebuild-upstream-has-not-made` would have to learn, and rename
+    the image, for an info-level rule on a file that is meant to go. `USER root` cannot go: apk
+    needs root. **Advice: keep it**; `a-dockerfile-that-ends-as-root`'s EXCEPTIONS already fail
+    once the names become numbers and the exception stays, so nothing more is needed to hold it.
+  - **DL3057, no HEALTHCHECK (all three).** `a-dockerfile-that-ends-as-root`'s header: compose
+    gives each service its probe, or none on purpose. `managed.yml` probes postgres
+    (`pg_isready`) and pgbouncer (`psql … SHOW POOLS`, which needs the password the image does
+    not have), and compose's healthcheck replaces an image's. GoAccess runs once and exits, so a
+    probe means nothing. An image HEALTHCHECK in the Postgres build would also rename both
+    Postgres images (the guard holds the appliance's copy to the same instructions), so every
+    stack would rebuild and restart its databases, for a probe no stack reads. **Advice: keep the
+    decision.**
+- **No new check,** since nothing was fixed: the guards above hold the state as decided.
+
 **2026-11-23: alpha.18 removes Trigger.dev's plane, and nine image categories stop (workplan 0167
 T9).** The images leave Security Scan's list with the plane: `trigger.dev`, `supervisor`,
 `clickhouse-server`, `minio`, `redis`, `registry`, `docker-socket-proxy`, `caddy` and
@@ -207,6 +285,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
 | T7 The owner's dismissals | owner | ✅ **Done 2026-11-21** (D4), the five of §3 D, 17:32 to 17:50 UTC | The 5 alerts of §3 D, each with its reason. |
 | T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
+| T9 The outside check of 2026-11-23 | builder | ✅ **Read 2026-11-23**, nothing moved (the Status entry of 2026-11-23) | The Stalwart base's krb5 and zlib1g stay in alpha.18, and the pin's move is alpha.19's (the owner, 2026-11-23: *"Stalwart: in alpha 19"*); the Dockerfile rules stand as decided. The Trigger.dev files go with its removal. |
 
 ## 1. The inventory
 
