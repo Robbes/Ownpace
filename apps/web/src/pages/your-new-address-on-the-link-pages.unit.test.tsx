@@ -6,8 +6,10 @@
  * through their real services: the payload is parsed as the server sends it
  * (`addressChanges`, `LinkAddressChange` in `apps/api/docs/openapi.yaml`), the
  * line is shown with the button its row's state offers, and a press goes to
- * the page's own door with `{ state }` alone. In English and in Dutch. Only
- * the HTTP client is stubbed.
+ * the page's own door, naming the row by its ref, with `{ state, newAddress }`:
+ * the answer and the address the line showed. No old address is in the
+ * payload, and none is shown. In English and in Dutch. Only the HTTP client
+ * is stubbed.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -36,12 +38,7 @@ import { LocaleProvider } from '../i18n/index.tsx';
 const TOKEN = 'p.kid-link.a-secret-of-sixteen';
 const IN_A_WEEK = new Date(Date.now() + 7 * 86_400_000).toISOString();
 
-const KID_ROW = {
-  oldKey: 'kidname@gmail.com',
-  oldAddress: 'Kid.Name@gmail.com',
-  newAddress: 'kid@example.org',
-  state: 'proposed' as const,
-};
+const KID_ROW = { ref: 'c'.repeat(32), newAddress: 'kid@example.org', state: 'proposed' as const };
 
 /** A person's grant page, as `GET /api/grant/{link}` answers it. */
 const grantPage = (addressChanges: unknown) => ({
@@ -101,15 +98,15 @@ function renderAt(path: string) {
   );
 }
 
-const DOOR = (door: 'grant' | 'view') => `/${door}/${encodeURIComponent(TOKEN)}/address-changes/kidname%40gmail.com`;
+const DOOR = (door: 'grant' | 'view') => `/${door}/${encodeURIComponent(TOKEN)}/address-changes/${'c'.repeat(32)}`;
 
 beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.setItem('ownpace.locale', 'en');
   reportAvailableMock.mockResolvedValue(false);
   // The server's answer to a press: the row in the state it was sent.
-  putMock.mockImplementation(async (_url: string, body: { state: 'proposed' | 'confirmed' }) => ({
-    data: { ...KID_ROW, state: body.state },
+  putMock.mockImplementation(async (_url: string, body: { state: 'proposed' | 'confirmed'; newAddress: string }) => ({
+    data: { ...KID_ROW, newAddress: body.newAddress, state: body.state },
   }));
 });
 
@@ -127,11 +124,11 @@ describe('the grant page', () => {
     expect(getMock).toHaveBeenCalledWith(`/grant/${encodeURIComponent(TOKEN)}`);
     expect(screen.queryByRole('button', { name: 'Not right?' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Yes, that is right' }));
-    expect(putMock).toHaveBeenCalledWith(DOOR('grant'), { state: 'confirmed' });
+    expect(putMock).toHaveBeenCalledWith(DOOR('grant'), { state: 'confirmed', newAddress: 'kid@example.org' });
     expect(await screen.findByText('Confirmed: kid@example.org.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Not right?' }));
-    expect(putMock).toHaveBeenLastCalledWith(DOOR('grant'), { state: 'proposed' });
+    expect(putMock).toHaveBeenLastCalledWith(DOOR('grant'), { state: 'proposed', newAddress: 'kid@example.org' });
     expect(
       await screen.findByText(
         'Sent back. It changes nothing until it is confirmed again, and whoever set it up sees it waiting on their pages.',
@@ -147,7 +144,7 @@ describe('the grant page', () => {
 
     expect(await screen.findByText('Uw nieuwe adres: kid@example.org. Klopt dat?')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Ja, dat klopt' }));
-    expect(putMock).toHaveBeenCalledWith(DOOR('grant'), { state: 'confirmed' });
+    expect(putMock).toHaveBeenCalledWith(DOOR('grant'), { state: 'confirmed', newAddress: 'kid@example.org' });
     expect(await screen.findByText('Bevestigd: kid@example.org.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Klopt het niet?' })).toBeInTheDocument();
   });
@@ -178,7 +175,7 @@ describe('the progress page', () => {
     expect(screen.queryByText('This page only shows numbers; it holds nothing from your account.')).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Not right?' }));
-    expect(putMock).toHaveBeenCalledWith(DOOR('view'), { state: 'proposed' });
+    expect(putMock).toHaveBeenCalledWith(DOOR('view'), { state: 'proposed', newAddress: 'kid@example.org' });
     expect(await screen.findByText(/^Sent back\./)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Yes, that is right' })).toBeInTheDocument();
   });
@@ -194,7 +191,7 @@ describe('the progress page', () => {
       screen.getByText('Deze pagina toont aantallen, en het nieuwe adres dat voor u is ingesteld; er staat niets uit uw account op.'),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Klopt het niet?' }));
-    expect(putMock).toHaveBeenCalledWith(DOOR('view'), { state: 'proposed' });
+    expect(putMock).toHaveBeenCalledWith(DOOR('view'), { state: 'proposed', newAddress: 'kid@example.org' });
     expect(await screen.findByText(/^Teruggestuurd\./)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ja, dat klopt' })).toBeInTheDocument();
   });

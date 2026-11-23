@@ -388,6 +388,8 @@ export interface AddressChangeAudit {
    * this write moved that link. Absent on the appliance, which has no people.
    */
   readonly person?: { readonly id: string | null; readonly moved: boolean };
+  /** Managed only: the person's link a write through it came by, as a withdrawal through one records it. */
+  readonly personLinkId?: string;
 }
 
 /**
@@ -439,6 +441,7 @@ export async function recordAddressChangeWrite(
       to: write.after?.state ?? null,
       via: write.via,
       ...(write.person ? { personId: write.person.id } : {}),
+      ...(write.personLinkId === undefined ? {} : { personLinkId: write.personLinkId }),
     },
   });
   return true;

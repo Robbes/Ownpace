@@ -12,7 +12,9 @@
  *    the owner can issue one too;
  *  - opens every migration of theirs with the counts and states a migration's
  *    own page shows, grouped by the Google account each reads under an opaque
- *    ref, with no migration id, no address and no host;
+ *    ref, with no migration id, no address and no host; the one address on it
+ *    is the new address of their own address change (0168 §4.4), never its
+ *    old one, which is their account's;
  *  - takes a grant back per account: each token that account's migrations
  *    hold is revoked at Google once, and cleared from each of them, and only
  *    them, with an audit row each, whatever Google answered;
@@ -29,9 +31,9 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import express from 'express';
 import request from 'supertest';
 import { join } from 'node:path';
-import { expiryFromDays, issueMappingLink, pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
+import { addAddressChange, expiryFromDays, issueMappingLink, pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import { runManagedMigrations } from '@openmig/managed';
+import { linkAddressChangePerson, runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 import { specChecker } from '../__tests__/doors-that-start-work.ts';
 
@@ -266,7 +268,22 @@ beforeEach(async () => {
 
 describe('a person’s progress page', () => {
   it('shows every migration of theirs, grouped by the Google account each reads, and nothing that names anything', async () => {
-    const { page } = await progressPage();
+    // Anna's own address change, from the account a migration reads to a new
+    // one (0168 §4.4): the page may say the new address, and nothing else.
+    await withTenant(driver, TENANT, async (db) => {
+      const w = await addAddressChange(db, TENANT, {
+        oldAddress: 'anna@gmail.com',
+        newAddress: 'a.new@example.org',
+        confirm: false,
+        by: 'pat',
+      });
+      if (!w.ok) throw new Error(w.refusal.message);
+      await linkAddressChangePerson(db, TENANT, w.row.oldKey, ANNA);
+    });
+    const { page } = await progressPage().finally(() => q('DELETE FROM address_change WHERE tenant_id = $1', [TENANT]));
+    expect((page as unknown as { addressChanges: unknown }).addressChanges).toEqual([
+      { ref: expect.stringMatching(/^[0-9a-f]{32}$/), newAddress: 'a.new@example.org', state: 'proposed' },
+    ]);
     expect(page.kind).toBe('person');
     expect(page.organisation).toBe('Acme Legal');
     expect(page.migrations.map((m) => [m.from, m.to, m.state, m.started])).toEqual([
@@ -287,6 +304,8 @@ describe('a person’s progress page', () => {
     for (const secret of [CAL, CONTACTS, WORK_MAIL, OLD_MAIL, TENANT, ANNA, 'anna@', 'cloud.example.org', 'imap.old']) {
       expect(said).not.toContain(secret);
     }
+    // The one address on the page is the new one.
+    expect(said.match(/[^"\s]+@[^"\s]+/g)).toEqual(['a.new@example.org']);
     expect(documented('/api/view/{link}', 'get', '200', page)).toBe(true);
   });
 

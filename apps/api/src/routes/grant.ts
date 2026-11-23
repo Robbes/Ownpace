@@ -68,11 +68,11 @@
  *
  * A person's page also carries `addressChanges`: the rows of the
  * organisation's address changes linked to this person, and nobody else's,
- * each with its old and new address and its state, so the page can ask *Your
- * new address: ‹address›. Is that right?*. `PUT
- * /api/grant/:link/address-changes/:oldKey` takes the answer, behind this
- * door's own link check and close (`link-address-changes.ts`). A migration's
- * own link names no person, so its page carries none.
+ * each named by an opaque `ref`, with its new address and its state and never
+ * its old address, so the page can ask *Your new address: ‹address›. Is that
+ * right?*. `PUT /api/grant/:link/address-changes/:ref` takes the answer,
+ * behind this door's own link check and close (`link-address-changes.ts`). A
+ * migration's own link names no person, so its page carries none.
  */
 
 import { Router } from 'express';
@@ -528,10 +528,11 @@ router.post(
 );
 
 /**
- * PUT /api/grant/:link/address-changes/:oldKey — the person's answer to *Your
- * new address: ‹address›. Is that right?* (workplan 0168 §4.4, D6): `{ state }`
- * and nothing else, for a row linked to them. `link-address-changes.ts`.
+ * PUT /api/grant/:link/address-changes/:ref — the person's answer to *Your new
+ * address: ‹address›. Is that right?* (workplan 0168 §4.4, D6): `{ state,
+ * newAddress }`, the answer and the address the page showed, and nothing else,
+ * for a row linked to them. `link-address-changes.ts`.
  */
-router.put('/:link/address-changes/:oldKey', linkAuth, answerAddressChangeThroughLink('grant', pool));
+router.put('/:link/address-changes/:ref', linkAuth, answerAddressChangeThroughLink('grant', pool));
 
 export default router;

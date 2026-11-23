@@ -4,8 +4,11 @@
  *
  * One line per row of the person's own, on the grant page and the progress
  * page (ADR-0035), the pages a migrated person already reaches. The server
- * sends only the rows linked to this person (`addressChanges`), and takes the
- * answer by the link (`PUT /api/{grant|view}/{link}/address-changes/{oldKey}`).
+ * sends only the rows linked to this person (`addressChanges`), each named by
+ * an opaque `ref`, and takes the answer by the link
+ * (`PUT /api/{grant|view}/{link}/address-changes/{ref}`), with the new address
+ * the line showed: a row whose address changed since the page was opened is
+ * refused, never confirmed as something the person did not read.
  *
  * - A **proposed** row offers *Yes, that is right*, which confirms it as
  *   theirs. Until then it changes nothing, and the line under it says so:
@@ -15,9 +18,10 @@
  *   *Not right?*, which sends it back to proposed, so an admin's word for them
  *   can be undone by them.
  *
- * After a press the buttons follow the row's new state, so a press made by
- * mistake can be taken back at once. A refusal is said in the server's words,
- * beside the row.
+ * After a press the buttons follow the row the server answered, and the line
+ * under it says the address that answer holds, so a press made by mistake can
+ * be taken back at once and nothing is said of an address that was not the
+ * one answered. A refusal is said in the server's words, beside the row.
  */
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -41,21 +45,23 @@ export const YourNewAddress: React.FC<{
   const queryClient = useQueryClient();
   const idBase = React.useId();
   const [busy, setBusy] = React.useState<string | null>(null);
-  const [said, setSaid] = React.useState<Readonly<Record<string, State>>>({});
+  /** The row as the server answered each press, by ref. */
+  const [said, setSaid] = React.useState<Readonly<Record<string, LinkAddressChange>>>({});
   const [refused, setRefused] = React.useState<Readonly<Record<string, string>>>({});
   if (changes === undefined || changes.length === 0) return null;
   const answer = async (c: LinkAddressChange, state: State) => {
-    setBusy(c.oldKey);
+    setBusy(c.ref);
     try {
-      const row = await answerAddressChangeByLink(door, link, c.oldKey, state);
-      setSaid((prev) => ({ ...prev, [c.oldKey]: row.state }));
+      // The row as this line shows it: its ref, and the new address it says.
+      const row = await answerAddressChangeByLink(door, link, c, state);
+      setSaid((prev) => ({ ...prev, [c.ref]: row }));
       setRefused((prev) => {
         const next = { ...prev };
-        delete next[c.oldKey];
+        delete next[c.ref];
         return next;
       });
     } catch (error) {
-      setRefused((prev) => ({ ...prev, [c.oldKey]: serverMessage(error) }));
+      setRefused((prev) => ({ ...prev, [c.ref]: serverMessage(error) }));
     } finally {
       setBusy(null);
       void queryClient.invalidateQueries({ queryKey });
@@ -64,24 +70,25 @@ export const YourNewAddress: React.FC<{
   return (
     <section className="mt-6 space-y-3" data-your-new-address>
       {changes.map((c, i) => {
-        const now = said[c.oldKey] ?? c.state;
+        const answered = said[c.ref];
+        const now = answered?.state ?? c.state;
         const lineId = `${idBase}-${i}`;
         return (
-          <div key={c.oldKey} className="rounded-lg border border-gray-200 bg-white p-4">
+          <div key={c.ref} className="rounded-lg border border-gray-200 bg-white p-4">
             <p id={lineId} className="text-sm text-gray-900 break-words">
               {t('addresses.grant.yours', { new: c.newAddress })}
             </p>
-            {said[c.oldKey] === 'confirmed' && (
+            {answered?.state === 'confirmed' && (
               <p role="status" className="mt-1 text-sm text-green-800 break-words">
-                {t('addresses.grant.confirmed', { new: c.newAddress })}
+                {t('addresses.grant.confirmed', { new: answered.newAddress })}
               </p>
             )}
-            {said[c.oldKey] === 'proposed' && (
+            {answered?.state === 'proposed' && (
               <p role="status" className="mt-1 text-sm text-gray-700">
                 {t('addresses.grant.returned')}
               </p>
             )}
-            {now === 'proposed' && said[c.oldKey] === undefined && (
+            {now === 'proposed' && answered === undefined && (
               <p className="mt-1 text-sm text-gray-600">{t('addresses.grant.leaveIt')}</p>
             )}
             <div className="mt-2 flex flex-wrap gap-2">
@@ -89,7 +96,7 @@ export const YourNewAddress: React.FC<{
                 <button
                   type="button"
                   aria-describedby={lineId}
-                  disabled={busy === c.oldKey}
+                  disabled={busy === c.ref}
                   className={BUTTON}
                   onClick={() => void answer(c, 'confirmed')}
                 >
@@ -99,7 +106,7 @@ export const YourNewAddress: React.FC<{
                 <button
                   type="button"
                   aria-describedby={lineId}
-                  disabled={busy === c.oldKey}
+                  disabled={busy === c.ref}
                   className={BUTTON}
                   onClick={() => void answer(c, 'proposed')}
                 >
@@ -107,9 +114,9 @@ export const YourNewAddress: React.FC<{
                 </button>
               )}
             </div>
-            {refused[c.oldKey] !== undefined && (
+            {refused[c.ref] !== undefined && (
               <p role="alert" className="mt-2 text-sm text-red-800 break-words">
-                <span className="font-medium">{t('addresses.notSaved')}</span> {refused[c.oldKey]}
+                <span className="font-medium">{t('addresses.notSaved')}</span> {refused[c.ref]}
               </p>
             )}
           </div>

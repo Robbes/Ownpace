@@ -10,12 +10,16 @@
  * organisation's row for its own person. It holds:
  *
  *  - a link reaches only its own person's rows: each of Kid's pages carries
- *    Kid's row and nothing else, shaped as `openapi.yaml` says, and a
- *    migration's own link carries none;
- *  - another person's row, a row linked to nobody, another organisation's and
- *    a missing one are the same 404, and nothing changes;
- *  - a body with anything but `state` is refused, in both languages, and
- *    nothing changes;
+ *    Kid's row and nothing else, named by an opaque ref, with its new address
+ *    and never its old one, shaped as `openapi.yaml` says, and a migration's
+ *    own link carries none;
+ *  - a ref of another person's row, of a row linked to nobody, of another
+ *    organisation's, a made-up one and an old key are the same 404, after the
+ *    same work, and nothing changes;
+ *  - a body with anything but `state` and the address the page showed is
+ *    refused, in both languages, and nothing changes;
+ *  - a Yes or a Not right? on a page whose address has changed since it was
+ *    opened is refused `changed`, in both languages, and nothing changes;
  *  - a link the other routes of its page refuse is refused the same way, in
  *    the same words: forged, unknown, expired, revoked, a grant link used up,
  *    the other page's link, and on the grant page a closed organisation;
@@ -52,17 +56,19 @@ import {
 import type { LedgerDriver } from '@openmig/ledger';
 import {
   addressChangeAnswer,
+  answerAddressChangeByLink,
   issuePersonLink,
   linkAddressChangePerson,
+  linkRowRef,
   memberLabels,
   readAddressChangePeople,
   revokePersonLink,
   runManagedMigrations,
   spendPersonLink,
 } from '@openmig/managed';
-import { addressChangeNotFound } from '@openmig/shared';
+import { createHash } from 'node:crypto';
 import { specChecker } from '../__tests__/doors-that-start-work.ts';
-import { ONLY_THE_STATE } from './link-address-changes.ts';
+import { CHANGED_SINCE_SHOWN, NOT_ONE_OF_YOURS, ONLY_THE_ANSWER } from './link-address-changes.ts';
 import { setAuditKeyDriver } from '../audit-key.ts';
 
 const U = (n: string) => `0168b3d1-e29b-41d4-a716-4466554430${n}`;
@@ -81,8 +87,17 @@ const OWNER = 'owner-subject';
 const KID_MEMBER = 'kid-subject';
 
 const KID_KEY = 'kidname@gmail.com';
-const KID_ROW = { oldKey: KID_KEY, oldAddress: 'Kid.Name@gmail.com', newAddress: 'kid@example.org', state: 'proposed' };
-const MUM_ROW = { oldKey: 'mum@gmail.com', oldAddress: 'mum@gmail.com', newAddress: 'mum@example.org', state: 'confirmed' };
+const KID_OLD = 'Kid.Name@gmail.com';
+const KID_NEW = 'kid@example.org';
+const KID_REF = linkRowRef(TENANT, KID, KID_KEY);
+const KID_ROW = { ref: KID_REF, newAddress: KID_NEW, state: 'proposed' };
+const MUM_KEY = 'mum@gmail.com';
+const MUM_ROW = { ref: linkRowRef(TENANT, MUM, MUM_KEY), newAddress: 'mum@example.org', state: 'confirmed' };
+
+/** What a press sends: the answer, and the new address the page showed. */
+const answer = (state: 'confirmed' | 'proposed', newAddress = KID_NEW) => ({ state, newAddress });
+/** Not one of Kid's: the 404 every ref Kid's link does not reach answers. */
+const NOT_KIDS = { error: 'address_change_not_found', message: NOT_ONE_OF_YOURS.en, messageNl: NOT_ONE_OF_YOURS.nl };
 
 const CHECKER = specChecker(join(import.meta.dirname, '..', '..', 'docs', 'openapi.yaml'));
 const shapedAs = (name: string, body: unknown): boolean =>
@@ -135,8 +150,8 @@ async function stored(tenantId: string, oldKey: string) {
   return row;
 }
 
-const put = (door: 'grant' | 'view', token: string, key: string, body: unknown) =>
-  request(app).put(`/api/${door}/${token}/address-changes/${encodeURIComponent(key)}`).send(body as object);
+const put = (door: 'grant' | 'view', token: string, ref: string, body: unknown) =>
+  request(app).put(`/api/${door}/${token}/address-changes/${encodeURIComponent(ref)}`).send(body as object);
 
 /** A person's link of one purpose, live for a week unless said otherwise. */
 async function personLink(personId: string, purpose: 'grant' | 'view', expiresAt = expiryFromDays(7)) {
@@ -161,8 +176,8 @@ async function seedTable(): Promise<void> {
       if (personId) await linkAddressChangePerson(db, tenantId, w.row.oldKey, personId);
     });
   };
-  await add(TENANT, KID_ROW.oldAddress, KID_ROW.newAddress, false, KID);
-  await add(TENANT, MUM_ROW.oldAddress, MUM_ROW.newAddress, true, MUM);
+  await add(TENANT, KID_OLD, KID_NEW, false, KID);
+  await add(TENANT, MUM_KEY, MUM_ROW.newAddress, true, MUM);
   await add(TENANT, 'grandpa@hotmail.com', 'grandpa@example.org', false, null);
   await add(OTHER, 'theirs@gmail.com', 'theirs@example.org', false, THEIRS);
 }
@@ -177,7 +192,16 @@ async function answersFor(asker: string) {
 
 let kidGrant: string;
 let kidView: string;
+let kidGrantId: string;
+let kidViewId: string;
 let mumView: string;
+
+/** Kid's two links, made afresh (a person deleted takes their links). */
+async function kidsLinks(): Promise<void> {
+  const grant = await personLink(KID, 'grant');
+  const view = await personLink(KID, 'view');
+  [kidGrant, kidGrantId, kidView, kidViewId] = [grant.token, grant.id, view.token, view.id];
+}
 
 beforeAll(async () => {
   process.env.API_URL = 'https://api.example';
@@ -230,8 +254,7 @@ beforeAll(async () => {
   );
   await q('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3)', [CAL, KID, TENANT]);
 
-  kidGrant = (await personLink(KID, 'grant')).token;
-  kidView = (await personLink(KID, 'view')).token;
+  await kidsLinks();
   mumView = (await personLink(MUM, 'view')).token;
 }, 120_000);
 
@@ -260,8 +283,21 @@ describe('a link reaches only its own person’s rows', () => {
     expect(view.body.addressChanges).toEqual([KID_ROW]);
     expect(shapedAs('PersonProgressPage', view.body)).toBe(true);
 
+    // Kid's old address is named nowhere, in any spelling: only the new one.
     const said = JSON.stringify([grant.body.addressChanges, view.body]);
-    for (const other of ['mum@', 'grandpa@', 'theirs@', OWNER, KID, TENANT]) expect(said).not.toContain(other);
+    for (const other of ['kid.name', 'kidname', 'gmail', 'mum@', 'grandpa@', 'theirs@', OWNER, KID, TENANT]) {
+      expect(said.toLowerCase()).not.toContain(other);
+    }
+    expect(said).toContain(KID_NEW);
+  });
+
+  it('names a row by a ref only the server can make: not from the address, and another for another person', () => {
+    expect(KID_REF).toMatch(/^[0-9a-f]{32}$/);
+    for (const fromTheAddress of [KID_KEY, KID_OLD, KID_NEW]) {
+      expect(KID_REF).not.toBe(createHash('sha256').update(fromTheAddress).digest('hex').slice(0, 32));
+    }
+    expect(linkRowRef(TENANT, MUM, KID_KEY)).not.toBe(KID_REF);
+    expect(linkRowRef(OTHER, KID, KID_KEY)).not.toBe(KID_REF);
   });
 
   it('carries Mum’s row on Mum’s page, and none on a page whose person has none', async () => {
@@ -287,15 +323,27 @@ describe('a link reaches only its own person’s rows', () => {
 });
 
 describe('another person’s row is a 404', () => {
-  it('answers a row of Mum’s, of nobody’s, of another organisation’s and a missing one alike, and changes none', async () => {
+  /** Every ref Kid's link does not reach: each is answered alike. */
+  const notKids = (): ReadonlyArray<readonly [string, string]> => [
+    ['Mum’s row, by Mum’s own ref', MUM_ROW.ref],
+    ['Mum’s row, under Kid', linkRowRef(TENANT, KID, MUM_KEY)],
+    ['a row linked to nobody', linkRowRef(TENANT, KID, 'grandpa@hotmail.com')],
+    ['another organisation’s row, by its own ref', linkRowRef(OTHER, THEIRS, 'theirs@gmail.com')],
+    ['Kid’s key in another organisation', linkRowRef(OTHER, KID, KID_KEY)],
+    ['a ref never made', 'f'.repeat(32)],
+    ['the old key itself', KID_KEY],
+    ['an address', MUM_KEY],
+  ];
+
+  it('answers a row of Mum’s, of nobody’s, of another organisation’s and a made-up one alike, and changes none', async () => {
     for (const door of ['grant', 'view'] as const) {
       const token = door === 'grant' ? kidGrant : kidView;
-      for (const key of ['mum@gmail.com', 'grandpa@hotmail.com', 'theirs@gmail.com', 'nobody@gmail.com']) {
+      for (const [what, ref] of notKids()) {
         for (const state of ['confirmed', 'proposed'] as const) {
-          const res = await put(door, token, key, { state });
-          expect(res.status, `${door} ${key} ${state}`).toBe(404);
-          expect(res.body).toEqual(addressChangeNotFound(key));
-          expect(documented(`/api/${door}/{link}/address-changes/{oldKey}`, '404', res.body)).toBe(true);
+          const res = await put(door, token, ref, answer(state, 'mum@example.org'));
+          expect(res.status, `${door} ${what} ${state}`).toBe(404);
+          expect(res.body, what).toEqual(NOT_KIDS);
+          expect(documented(`/api/${door}/{link}/address-changes/{ref}`, '404', res.body)).toBe(true);
         }
       }
     }
@@ -308,31 +356,61 @@ describe('another person’s row is a 404', () => {
     const own = await withTenant(driver, TENANT, (db) =>
       issueMappingLink(db, { tenantId: TENANT, mappingId: CAL, purpose: 'view', createdBy: OWNER, expiresAt: expiryFromDays(7) }),
     );
-    const res = await put('view', own.token, KID_KEY, { state: 'confirmed' });
+    const res = await put('view', own.token, KID_REF, answer('confirmed'));
     expect(res.status).toBe(404);
-    expect(res.body).toEqual(addressChangeNotFound(KID_KEY));
+    expect(res.body).toEqual(NOT_KIDS);
     expect(await stored(TENANT, KID_KEY)).toMatchObject({ state: 'proposed', confirmed_by: null });
+  });
+
+  it('costs the same work for every ref it does not reach, so a link cannot learn whose rows exist', async () => {
+    const AUDIT = { actor: 'progress-link', pseudonym: () => 'a-row-reference' };
+    /** The answer, and how many statements it sent. */
+    const work = (ref: string) =>
+      withTenant(driver, TENANT, async (db) => {
+        let statements = 0;
+        const counted = new Proxy(db, {
+          get(target, prop, receiver) {
+            const value = Reflect.get(target, prop, receiver) as unknown;
+            if (prop !== 'execute' || typeof value !== 'function') return value;
+            return (...args: unknown[]) => {
+              statements += 1;
+              return (value as (...a: unknown[]) => unknown).apply(target, args);
+            };
+          },
+        });
+        const out = await answerAddressChangeByLink(counted, TENANT, KID, { ref, ...answer('confirmed') }, AUDIT);
+        return { out, statements };
+      });
+    const costs = new Set<number>();
+    for (const [what, ref] of notKids()) {
+      const { out, statements } = await work(ref);
+      expect(out, what).toEqual({ ok: false, refused: 'not_found' });
+      costs.add(statements);
+    }
+    expect([...costs], 'every ref Kid’s link does not reach costs the same').toHaveLength(1);
+    expect(await stored(TENANT, MUM_KEY)).toMatchObject({ state: 'confirmed', confirmed_by: OWNER });
   });
 });
 
-describe('a body with anything but state is refused', () => {
-  it('refuses every other field, a missing state and a state it does not know, in both languages, and changes nothing', async () => {
+describe('a body with anything but state and the address shown is refused', () => {
+  it('refuses every other field, a missing state or address and a state it does not know, in both languages, and changes nothing', async () => {
     const bodies: unknown[] = [
-      { state: 'confirmed', newAddress: 'kid@example.com' },
-      { newAddress: 'kid@example.com' },
-      { state: 'confirmed', personId: MUM },
-      { state: 'confirmed', oldAddress: 'other@gmail.com' },
+      { state: 'confirmed' },
+      { newAddress: KID_NEW },
+      { state: 'confirmed', newAddress: KID_NEW, personId: MUM },
+      { state: 'confirmed', newAddress: KID_NEW, oldAddress: 'other@gmail.com' },
+      { state: 'confirmed', newAddress: '' },
       {},
-      { state: 'rejected' },
+      { state: 'rejected', newAddress: KID_NEW },
       ['confirmed'],
     ];
     for (const door of ['grant', 'view'] as const) {
       const token = door === 'grant' ? kidGrant : kidView;
       for (const body of bodies) {
-        const res = await put(door, token, KID_KEY, body);
+        const res = await put(door, token, KID_REF, body);
         expect(res.status, `${door} ${JSON.stringify(body)}`).toBe(400);
-        expect(res.body).toEqual({ error: 'invalid_request', message: ONLY_THE_STATE.en, messageNl: ONLY_THE_STATE.nl });
-        expect(documented(`/api/${door}/{link}/address-changes/{oldKey}`, '400', res.body)).toBe(true);
+        expect(res.body).toEqual({ error: 'invalid_request', message: ONLY_THE_ANSWER.en, messageNl: ONLY_THE_ANSWER.nl });
+        expect(documented(`/api/${door}/{link}/address-changes/{ref}`, '400', res.body)).toBe(true);
       }
     }
     expect(await stored(TENANT, KID_KEY)).toEqual({ new_address: 'kid@example.org', state: 'proposed', confirmed_by: null });
@@ -363,7 +441,7 @@ describe('a refused link is refused the same way', () => {
     for (const [what, door, token] of refused) {
       const page = await request(app).get(`/api/${door}/${token}`);
       expect(page.status, what).toBe(401);
-      const res = await put(door, token, KID_KEY, { state: 'confirmed' });
+      const res = await put(door, token, KID_REF, answer('confirmed'));
       expect(res.status, what).toBe(401);
       expect(res.body, what).toEqual(page.body);
       expect(res.body).toMatchObject({ error: 'link_unusable' });
@@ -377,27 +455,72 @@ describe('a refused link is refused the same way', () => {
     const page = await request(app).get(`/api/grant/${kidGrant}`);
     expect(page.status).toBe(409);
     expect(page.body.error).toBe('account_closed');
-    const res = await put('grant', kidGrant, KID_KEY, { state: 'confirmed' });
+    const res = await put('grant', kidGrant, KID_REF, answer('confirmed'));
     expect(res.status).toBe(409);
     expect(res.body).toEqual(page.body);
     expect(res.body.messageNl).toEqual(expect.any(String));
-    expect(documented('/api/grant/{link}/address-changes/{oldKey}', '409', res.body)).toBe(true);
+    expect(documented('/api/grant/{link}/address-changes/{ref}', '409', res.body)).toBe(true);
     expect(await stored(TENANT, KID_KEY)).toMatchObject({ state: 'proposed', confirmed_by: null });
 
     // The progress page still opens for a closed organisation (reading is
     // never refused), and its answer starts nothing, so it is not refused.
     expect((await request(app).get(`/api/view/${kidView}`)).status).toBe(200);
-    const view = await put('view', kidView, KID_KEY, { state: 'confirmed' });
+    const view = await put('view', kidView, KID_REF, answer('confirmed'));
     expect(view.status).toBe(200);
+  });
+});
+
+describe('an answer on a page whose address has changed since it was opened', () => {
+  /** The owner types another new address for Kid's row, on the team screen. */
+  const ownerReaddresses = async (newAddress: string) => {
+    const res = await request(app).put(`/api/address-changes/${encodeURIComponent(KID_KEY)}`).send({ newAddress });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+  };
+  const CHANGED = { error: 'changed', message: CHANGED_SINCE_SHOWN.en, messageNl: CHANGED_SINCE_SHOWN.nl };
+
+  it('refuses a Yes for the address the page showed, confirms nothing, and records nothing', async () => {
+    await q('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
+    await ownerReaddresses('somebody.else@example.net');
+    for (const door of ['grant', 'view'] as const) {
+      const res = await put(door, door === 'grant' ? kidGrant : kidView, KID_REF, answer('confirmed'));
+      expect(res.status, door).toBe(409);
+      expect(res.body).toEqual(CHANGED);
+      expect(documented(`/api/${door}/{link}/address-changes/{ref}`, '409', res.body)).toBe(true);
+    }
+    expect(await stored(TENANT, KID_KEY)).toEqual({
+      new_address: 'somebody.else@example.net',
+      state: 'proposed',
+      confirmed_by: null,
+    });
+    expect(await q(`SELECT actor FROM audit_log WHERE tenant_id = $1 AND actor LIKE '%-link'`, [TENANT])).toEqual([]);
+
+    // The page opened again says the address as it is now, and a Yes to that
+    // confirms that, as Kid's.
+    const page = await request(app).get(`/api/view/${kidView}`);
+    expect(page.body.addressChanges).toEqual([{ ref: KID_REF, newAddress: 'somebody.else@example.net', state: 'proposed' }]);
+    const yes = await put('view', kidView, KID_REF, answer('confirmed', 'somebody.else@example.net'));
+    expect(yes.status).toBe(200);
+    expect(yes.body).toEqual({ ref: KID_REF, newAddress: 'somebody.else@example.net', state: 'confirmed' });
+    expect(await stored(TENANT, KID_KEY)).toMatchObject({ state: 'confirmed', confirmed_by: `person:${KID}` });
+  });
+
+  it('refuses a Not right? for the address the page showed, and sends nothing back', async () => {
+    expect((await put('view', kidView, KID_REF, answer('confirmed'))).status).toBe(200);
+    await ownerReaddresses('kid@example.net');
+    await request(app).put(`/api/address-changes/${encodeURIComponent(KID_KEY)}`).send({ state: 'confirmed' });
+    const res = await put('grant', kidGrant, KID_REF, answer('proposed'));
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual(CHANGED);
+    expect(await stored(TENANT, KID_KEY)).toEqual({ new_address: 'kid@example.net', state: 'confirmed', confirmed_by: OWNER });
   });
 });
 
 describe('the attribution is said right', () => {
   it('stores Kid’s confirmation as Kid’s, and says it as Kid’s name to the owner and as theirs to Kid', async () => {
-    const yes = await put('view', kidView, 'Kid.Name@gmail.com', { state: 'confirmed' });
+    const yes = await put('view', kidView, KID_REF, answer('confirmed'));
     expect(yes.status, JSON.stringify(yes.body)).toBe(200);
     expect(yes.body).toEqual({ ...KID_ROW, state: 'confirmed' });
-    expect(documented('/api/view/{link}/address-changes/{oldKey}', '200', yes.body)).toBe(true);
+    expect(documented('/api/view/{link}/address-changes/{ref}', '200', yes.body)).toBe(true);
     // The person, by id, never the subject of the member Kid also is.
     expect(await stored(TENANT, KID_KEY)).toEqual({
       new_address: 'kid@example.org',
@@ -444,10 +567,10 @@ describe('the attribution is said right', () => {
       confirmedByYou: false,
     });
     // Kid's *Yes* on a row already confirmed changes nothing: it stays the owner's.
-    expect((await put('grant', kidGrant, KID_KEY, { state: 'confirmed' })).body.state).toBe('confirmed');
+    expect((await put('grant', kidGrant, KID_REF, answer('confirmed'))).body.state).toBe('confirmed');
     expect(await stored(TENANT, KID_KEY)).toMatchObject({ confirmed_by: OWNER });
 
-    const back = await put('grant', kidGrant, KID_KEY, { state: 'proposed' });
+    const back = await put('grant', kidGrant, KID_REF, answer('proposed'));
     expect(back.status).toBe(200);
     expect(back.body).toEqual(KID_ROW);
     expect(await stored(TENANT, KID_KEY)).toEqual({ new_address: 'kid@example.org', state: 'proposed', confirmed_by: null });
@@ -460,7 +583,7 @@ describe('the attribution is said right', () => {
   });
 
   it('says a person who is gone as nobody, never as their id', async () => {
-    await put('view', kidView, KID_KEY, { state: 'confirmed' });
+    await put('view', kidView, KID_REF, answer('confirmed'));
     // Only the link goes with the person (0168 §5); the row and who confirmed it stay.
     await q(`DELETE FROM person_migration WHERE person_id = $1`, [KID]);
     await q(`DELETE FROM person WHERE id = $1`, [KID]);
@@ -471,8 +594,7 @@ describe('the attribution is said right', () => {
     } finally {
       await q(`INSERT INTO person (id, tenant_id, display_name, user_id) VALUES ($1,$2,'Kid',$3)`, [KID, TENANT, KID_MEMBER]);
       await q('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3)', [CAL, KID, TENANT]);
-      kidGrant = (await personLink(KID, 'grant')).token;
-      kidView = (await personLink(KID, 'view')).token;
+      await kidsLinks();
     }
   });
 });
@@ -487,9 +609,9 @@ describe('an answer through a link is in the audit log', () => {
 
   it('records each answer that changed the row under the link’s holder, by reference and never by address, and a press that changed nothing not at all', async () => {
     await q('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
-    expect((await put('view', kidView, KID_KEY, { state: 'confirmed' })).status).toBe(200);
-    expect((await put('view', kidView, KID_KEY, { state: 'confirmed' })).status).toBe(200);
-    expect((await put('grant', kidGrant, KID_KEY, { state: 'proposed' })).status).toBe(200);
+    expect((await put('view', kidView, KID_REF, answer('confirmed'))).status).toBe(200);
+    expect((await put('view', kidView, KID_REF, answer('confirmed'))).status).toBe(200);
+    expect((await put('grant', kidGrant, KID_REF, answer('proposed'))).status).toBe(200);
 
     const got = await records();
     expect(got).toHaveLength(2);
@@ -497,12 +619,12 @@ describe('an answer through a link is in the audit log', () => {
       actor: 'progress-link',
       action: 'address_change.confirmed',
       entity: 'address_change',
-      detail: { from: 'proposed', to: 'confirmed', via: 'link', personId: KID },
+      detail: { from: 'proposed', to: 'confirmed', via: 'link', personId: KID, personLinkId: kidViewId },
     });
     expect(got[1]).toMatchObject({
       actor: 'grant-link',
       action: 'address_change.sent_back',
-      detail: { from: 'confirmed', to: 'proposed', via: 'link', personId: KID },
+      detail: { from: 'confirmed', to: 'proposed', via: 'link', personId: KID, personLinkId: kidGrantId },
     });
     // One reference for the row in both records, and no address anywhere in them.
     expect(typeof got[0]!.detail.addressChange).toBe('string');
@@ -515,7 +637,7 @@ describe('an answer through a link is in the audit log', () => {
 
   it('records nothing for a row the link does not reach', async () => {
     await q('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
-    expect((await put('view', kidView, 'mum@gmail.com', { state: 'proposed' })).status).toBe(404);
+    expect((await put('view', kidView, MUM_ROW.ref, answer('proposed', 'mum@example.org'))).status).toBe(404);
     expect(await records()).toEqual([]);
   });
 });
@@ -523,8 +645,8 @@ describe('an answer through a link is in the audit log', () => {
 describe('two presses at once', () => {
   it('leave one confirmed row, and both answer it', async () => {
     const [a, b] = await Promise.all([
-      put('grant', kidGrant, KID_KEY, { state: 'confirmed' }),
-      put('view', kidView, KID_KEY, { state: 'confirmed' }),
+      put('grant', kidGrant, KID_REF, answer('confirmed')),
+      put('view', kidView, KID_REF, answer('confirmed')),
     ]);
     expect([a.status, b.status]).toEqual([200, 200]);
     expect([a.body.state, b.body.state]).toEqual(['confirmed', 'confirmed']);

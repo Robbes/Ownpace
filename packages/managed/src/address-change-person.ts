@@ -18,23 +18,24 @@
  *
  * A person who has a link and no account confirms their own rows on the grant
  * and progress pages, or sends one back (*Not right?*). Their link reaches the
- * rows linked to them here and no other, and changes a row's state and
- * nothing else (`answerAddressChangeByLink`), through the ledger's one writer
- * and under the organisation's lock. Their confirmation is stored as theirs
+ * rows linked to them here and no other, each named by an opaque `ref`
+ * (`linkRowRef`), and changes a row's state and nothing else, and only while
+ * the row still says the new address the page showed
+ * (`answerAddressChangeByLink`), through the ledger's one writer and under the
+ * organisation's lock. Their confirmation is stored as theirs
  * (`confirmedByPerson`, `person:<id>`): it reads *Confirmed* to them and
  * *Confirmed by ‹person›* to everyone else, never as a member's address and
  * never as an id.
  */
 
+import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { recordAddressChangeWrite, updateAddressChange } from '@openmig/ledger';
+import { lockAddressChanges, recordAddressChangeWrite, updateAddressChange } from '@openmig/ledger';
 import {
-  addressChangeNotFound,
   confirmedByPerson,
   personWhoConfirmed,
   saidBy,
   type AddressChange,
-  type AddressChangeRefusal,
   type AddressChangeState,
   type StoredAddressChange,
 } from '@openmig/shared';
@@ -191,19 +192,54 @@ export function addressChangeAnswer(
 
 /**
  * One row as a person's own link shows it (0168 §4.4): the line on the grant
- * and progress pages, and the key a press names. Nothing about who set or
+ * and progress pages, named by an opaque `ref`. Only the new address, which
+ * the line asks about, and the state: never the old address, which is often
+ * the Google account itself, and which a progress page, alive for up to 180
+ * days and forwardable, names nowhere else. Nothing about who set or
  * confirmed it, and nothing about anybody else's rows.
  */
 export interface LinkAddressChange {
-  readonly oldKey: string;
-  readonly oldAddress: string;
+  readonly ref: string;
   readonly newAddress: string;
   readonly state: AddressChangeState;
 }
 
-const linkRow = (r: StoredAddressChange): LinkAddressChange => ({
-  oldKey: r.oldKey,
-  oldAddress: r.oldAddress,
+/**
+ * A row's name on its person's links: a hash of the organisation, the person
+ * and the old key, so it cannot be worked out from an address, and a press
+ * through somebody else's link names nothing it can reach. Stable while the
+ * row is linked to the person; a row moved to another person gets another.
+ */
+export function linkRowRef(tenantId: string, personId: string, oldKey: string): string {
+  return createHash('sha256').update(`address-change\n${tenantId}\n${personId}\n${oldKey}`).digest('hex').slice(0, 32);
+}
+
+/** A row of the person's, as the server keeps it for their link: with the key, which never leaves. */
+interface Theirs {
+  readonly oldKey: string;
+  readonly newAddress: string;
+  readonly state: AddressChangeState;
+}
+
+/** The rows linked to this person, oldest first. Nobody else's. */
+async function readTheirs(db: PgDatabase, tenantId: string, personId: string): Promise<Theirs[]> {
+  const rows = rowsOf(
+    await db.execute(sql`
+      SELECT a.old_key, a.new_address, a.state
+        FROM address_change_person l
+        JOIN address_change a ON a.tenant_id = l.tenant_id AND a.old_key = l.old_key
+       WHERE l.tenant_id = ${tenantId}::uuid AND l.person_id = ${personId}::uuid
+       ORDER BY a.created_at, a.old_key`),
+  );
+  return rows.map((r) => ({
+    oldKey: String(r.old_key),
+    newAddress: String(r.new_address),
+    state: r.state === 'confirmed' ? 'confirmed' : 'proposed',
+  }));
+}
+
+const linkRow = (tenantId: string, personId: string, r: Theirs): LinkAddressChange => ({
+  ref: linkRowRef(tenantId, personId, r.oldKey),
   newAddress: r.newAddress,
   state: r.state,
 });
@@ -214,86 +250,85 @@ export async function readLinkAddressChanges(
   tenantId: string,
   personId: string,
 ): Promise<LinkAddressChange[]> {
-  const rows = rowsOf(
-    await db.execute(sql`
-      SELECT a.old_key, a.old_address, a.new_address, a.state
-        FROM address_change_person l
-        JOIN address_change a ON a.tenant_id = l.tenant_id AND a.old_key = l.old_key
-       WHERE l.tenant_id = ${tenantId}::uuid AND l.person_id = ${personId}::uuid
-       ORDER BY a.created_at, a.old_key`),
-  );
-  return rows.map((r) => ({
-    oldKey: String(r.old_key),
-    oldAddress: String(r.old_address),
-    newAddress: String(r.new_address),
-    state: r.state === 'confirmed' ? 'confirmed' : 'proposed',
-  }));
-}
-
-/** Whether this row is linked to this person. */
-async function isAddressChangeOf(db: PgDatabase, tenantId: string, oldKey: string, personId: string): Promise<boolean> {
-  const rows = rowsOf(
-    await db.execute(sql`
-      SELECT 1 FROM address_change_person
-       WHERE tenant_id = ${tenantId}::uuid AND old_key = ${oldKey} AND person_id = ${personId}::uuid`),
-  );
-  return rows.length > 0;
+  return (await readTheirs(db, tenantId, personId)).map((r) => linkRow(tenantId, personId, r));
 }
 
 /**
  * Who answered through a link, as the audit log records it: the door's link
  * holder (`grant-link` or `progress-link`, the actors each door's other records
- * name, since a link carries no sign-in), and the audit export's pseudonym
- * under this deployment's key, read before the transaction opens.
+ * name, since a link carries no sign-in), the audit export's pseudonym under
+ * this deployment's key, read before the transaction opens, and the link's own
+ * id, as a withdrawal through a person's link records it.
  */
 export interface LinkAnswerAudit {
   readonly actor: string;
   readonly pseudonym: Pseudonymize;
+  readonly personLinkId?: string;
 }
 
-/** How a press through a link went: the row as the link shows it now, or the refusal. */
+/** What a person's link says about one of their rows: which, the answer, and the address the page showed. */
+export interface LinkAnswer {
+  readonly ref: string;
+  readonly state: AddressChangeState;
+  /** The new address the page showed when the button was pressed: what *Yes* confirms. */
+  readonly newAddress: string;
+}
+
+/**
+ * How a press through a link went: the row as the link shows it now, or why
+ * nothing was written. `not_found`: no row of this person's has that ref.
+ * `changed`: the row's new address is no longer the one the page showed. The
+ * route words both, in English and in Dutch.
+ */
 export type LinkAddressChangeWrite =
   | { readonly ok: true; readonly row: LinkAddressChange }
-  | { readonly ok: false; readonly refusal: AddressChangeRefusal };
+  | { readonly ok: false; readonly refused: 'not_found' | 'changed' };
 
 /**
  * A person's answer through their own link (0168 §4.4, D6): *Yes, that is
  * right* confirms their row, *Not right?* sends it back to `proposed`. The
- * state, and nothing else.
+ * state, and nothing else, of the address the page showed.
  *
- * Through `@openmig/ledger`'s one writer, which takes the organisation's lock.
- * The first call says nothing new, so it writes nothing: it takes that lock
- * and reads the row, and the lock is held to the end of the transaction, so
- * whose row it is cannot change between the check and the write (the
- * organisation's routes link a row under the same lock). Two presses at once
- * are one after the other, and the second changes nothing.
+ * The organisation's lock first (`lockAddressChanges`), then the person's own
+ * rows, then the write through `@openmig/ledger`'s one writer, which takes the
+ * same lock again. So whose row it is and what it says hold from the check to
+ * the write: the organisation's routes write and link a row under that lock,
+ * and two presses at once are one after the other, the second changing
+ * nothing.
  *
- * A row that is not linked to this person is answered as one that does not
- * exist, in the same words, so a link learns nothing of anybody else's rows.
+ * A ref is looked for among this person's rows only, so every ref this link
+ * does not reach (somebody else's, a deleted row's, one never made) is the
+ * same `not_found` after the same work: the lock and the one read. A link
+ * learns nothing of anybody else's rows, not even by the time it takes.
+ *
+ * A row whose new address is not the one the page showed is `changed`, and
+ * nothing is written: a confirmation is of one new address, the one the
+ * person read (`updateAddressChange`'s own rule), never of whatever the row
+ * says when the press lands.
  *
  * Each answer that changed the row is recorded in the audit log in the same
  * transaction (`recordAddressChangeWrite`, as the organisation's routes record
  * theirs): the door's link holder as the actor, `via: 'link'`, the person's
- * id, and the row by its pseudonym, never by its address. A press that changed
- * nothing records nothing.
+ * id, the link's id, and the row by its pseudonym, never by its address. A
+ * press that changed nothing records nothing.
  */
 export async function answerAddressChangeByLink(
   db: PgDatabase,
   tenantId: string,
   personId: string,
-  oldKey: string,
-  state: AddressChangeState,
+  answer: LinkAnswer,
   audit: LinkAnswerAudit,
 ): Promise<LinkAddressChangeWrite> {
-  const by = confirmedByPerson(personId);
-  const held = await updateAddressChange(db, tenantId, oldKey, { by });
-  if (!held.ok) return held;
-  // The ledger's own words for a key with no row, so the two cannot be told apart.
-  if (!(await isAddressChangeOf(db, tenantId, oldKey, personId))) {
-    return { ok: false, refusal: addressChangeNotFound(oldKey) };
-  }
-  const written = await updateAddressChange(db, tenantId, oldKey, { state, by });
-  if (!written.ok) return written;
+  await lockAddressChanges(db, tenantId);
+  const row = (await readTheirs(db, tenantId, personId)).find(
+    (r) => linkRowRef(tenantId, personId, r.oldKey) === answer.ref,
+  );
+  if (row === undefined) return { ok: false, refused: 'not_found' };
+  if (row.newAddress !== answer.newAddress.trim()) return { ok: false, refused: 'changed' };
+  const written = await updateAddressChange(db, tenantId, row.oldKey, { state: answer.state, by: confirmedByPerson(personId) });
+  // Read under the lock a moment ago, and only its state is asked for: a
+  // refusal here is a defect, said as one (hard rule 9), not a 404.
+  if (!written.ok) throw new Error(`The link's own row was refused after it was read under the lock: ${written.refusal.error}`);
   await recordAddressChangeWrite(db, tenantId, {
     actor: audit.actor,
     via: 'link',
@@ -301,6 +336,7 @@ export async function answerAddressChangeByLink(
     before: written.before,
     after: written.row,
     person: { id: personId, moved: false },
+    ...(audit.personLinkId === undefined ? {} : { personLinkId: audit.personLinkId }),
   });
-  return { ok: true, row: linkRow(written.row) };
+  return { ok: true, row: linkRow(tenantId, personId, written.row) };
 }

@@ -188,10 +188,10 @@ describe('the premise this number is sized against', () => {
       'routes/access-requests.ts POST /',
       'routes/billing/webhooks.ts POST /mollie',
       'routes/grant.ts POST /:link/google/authorize',
-      'routes/grant.ts PUT /:link/address-changes/:oldKey',
+      'routes/grant.ts PUT /:link/address-changes/:ref',
       'routes/link-reports.ts POST /:link/report',
       'routes/view.ts POST /:link/withdraw',
-      'routes/view.ts PUT /:link/address-changes/:oldKey',
+      'routes/view.ts PUT /:link/address-changes/:ref',
     ]);
   });
 

@@ -9,6 +9,10 @@
  * *Not right?* is offered on a confirmed row only. On a proposed one there is
  * nothing to send back: the press changed nothing and the line then said
  * *Sent back*, and the line it said promised a notice nobody sends.
+ *
+ * A press names the row by its ref and says the new address the line showed,
+ * so the server can refuse an answer to an address that has changed since;
+ * and the line under it says the address the server's answer holds.
  */
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -21,12 +25,7 @@ import { answerAddressChangeByLink, type LinkAddressChange } from '../services/l
 
 vi.mock('../services/link-address-service', () => ({ answerAddressChangeByLink: vi.fn() }));
 
-const ROW: LinkAddressChange = {
-  oldKey: 'name@gmail.com',
-  oldAddress: 'name@gmail.com',
-  newAddress: 'first@example.org',
-  state: 'proposed',
-};
+const ROW: LinkAddressChange = { ref: 'a'.repeat(32), newAddress: 'first@example.org', state: 'proposed' };
 
 const renderWith = (changes: ReadonlyArray<LinkAddressChange> | undefined, door: 'grant' | 'view' = 'grant') =>
   render(
@@ -41,7 +40,7 @@ const renderWith = (changes: ReadonlyArray<LinkAddressChange> | undefined, door:
 const answersWith = () =>
   vi
     .mocked(answerAddressChangeByLink)
-    .mockImplementation(async (_door, _link, _key, state) => ({ ...ROW, state }));
+    .mockImplementation(async (_door, _link, shown, state) => ({ ...ROW, ...shown, state }));
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -59,7 +58,7 @@ describe('Your new address, by the person’s link', () => {
     renderWith([ROW]);
     expect(screen.getByText('Your new address: first@example.org. Is that right?')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Yes, that is right' }));
-    expect(answerAddressChangeByLink).toHaveBeenCalledWith('grant', 'p.l1.secret', 'name@gmail.com', 'confirmed');
+    expect(answerAddressChangeByLink).toHaveBeenCalledWith('grant', 'p.l1.secret', ROW, 'confirmed');
     expect(await screen.findByRole('status')).toHaveTextContent('Confirmed: first@example.org.');
     expect(screen.queryByRole('button', { name: 'Yes, that is right' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Not right?' })).toBeInTheDocument();
@@ -70,7 +69,7 @@ describe('Your new address, by the person’s link', () => {
     renderWith([{ ...ROW, state: 'confirmed' }], 'view');
     expect(screen.queryByRole('button', { name: 'Yes, that is right' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Not right?' }));
-    expect(answerAddressChangeByLink).toHaveBeenCalledWith('view', 'p.l1.secret', 'name@gmail.com', 'proposed');
+    expect(answerAddressChangeByLink).toHaveBeenCalledWith('view', 'p.l1.secret', { ...ROW, state: 'confirmed' }, 'proposed');
     // The truth, not a notice nobody sends.
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Sent back. It changes nothing until it is confirmed again, and whoever set it up sees it waiting on their pages.',
@@ -92,13 +91,50 @@ describe('Your new address, by the person’s link', () => {
   });
 
   it('names the line each button answers, so two rows are not two identical buttons', () => {
-    renderWith([ROW, { ...ROW, oldKey: 'name@hotmail.com', oldAddress: 'name@hotmail.com', state: 'confirmed' }]);
+    renderWith([ROW, { ref: 'b'.repeat(32), newAddress: 'second@example.org', state: 'confirmed' }]);
     expect(screen.getByRole('button', { name: 'Yes, that is right' })).toHaveAccessibleDescription(
       'Your new address: first@example.org. Is that right?',
     );
     expect(screen.getByRole('button', { name: 'Not right?' })).toHaveAccessibleDescription(
-      'Your new address: first@example.org. Is that right?',
+      'Your new address: second@example.org. Is that right?',
     );
+  });
+
+  it('says the address the answer holds, never the one a stale line still shows', async () => {
+    // A server that confirmed another address than the line showed: the line
+    // under it says what was confirmed, not what the page last read.
+    vi.mocked(answerAddressChangeByLink).mockResolvedValue({ ...ROW, newAddress: 'somebody.else@example.net', state: 'confirmed' });
+    const user = userEvent.setup();
+    renderWith([ROW]);
+    await user.click(screen.getByRole('button', { name: 'Yes, that is right' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Confirmed: somebody.else@example.net.');
+    expect(screen.queryByText('Confirmed: first@example.org.')).toBeNull();
+  });
+
+  it('says why nothing was saved when the address changed since the page was opened', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    vi.mocked(answerAddressChangeByLink).mockRejectedValue(
+      new AxiosError('Request failed with status code 409', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: {
+          error: 'changed',
+          message:
+            'Your new address was changed since this page was opened, so nothing was saved. Open this page again to see it as it is now.',
+          messageNl:
+            'Uw nieuwe adres is gewijzigd sinds deze pagina werd geopend, dus er is niets opgeslagen. Open deze pagina opnieuw om het te zien zoals het nu is.',
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    renderWith([ROW]);
+    await user.click(screen.getByRole('button', { name: 'Ja, dat klopt' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Niet opgeslagen: Uw nieuwe adres is gewijzigd sinds deze pagina werd geopend, dus er is niets opgeslagen.',
+    );
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('says a refusal beside the row, in the server’s words in the page’s language', async () => {
@@ -111,8 +147,8 @@ describe('Your new address, by the person’s link', () => {
         config: { headers: new AxiosHeaders() },
         data: {
           error: 'address_change_not_found',
-          message: 'There is no address change for name@gmail.com. It may have been deleted already.',
-          messageNl: 'Er is geen adreswijziging voor name@gmail.com. Misschien is die al verwijderd.',
+          message: 'This address change is not one of yours, or it no longer exists. Open this page again to see your own.',
+          messageNl: 'Deze adreswijziging is niet van u, of bestaat niet meer. Open deze pagina opnieuw om de uwe te zien.',
         },
       }),
     );
@@ -120,7 +156,7 @@ describe('Your new address, by the person’s link', () => {
     renderWith([ROW]);
     await user.click(screen.getByRole('button', { name: 'Ja, dat klopt' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Niet opgeslagen: Er is geen adreswijziging voor name@gmail.com. Misschien is die al verwijderd.',
+      'Niet opgeslagen: Deze adreswijziging is niet van u, of bestaat niet meer. Open deze pagina opnieuw om de uwe te zien.',
     );
     expect(screen.queryByRole('status')).toBeNull();
   });

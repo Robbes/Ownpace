@@ -15,6 +15,9 @@
  *    for the first, writes nothing, and both answer the one confirmed row;
  *  - *Yes* and *Not right?* at once: the second waits, and the row ends as
  *    the second answer says;
+ *  - an owner typing another new address while the person presses *Yes*
+ *    for the one their page showed: the press waits, and is refused
+ *    `changed`, and nothing is confirmed;
  *  - an owner moving the row to another person while the person presses
  *    *Yes*: the press waits, answers as for a row that is not theirs, and the
  *    row is not confirmed by somebody it no longer belongs to.
@@ -29,8 +32,7 @@ import { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
 import { addAddressChange, pgDriver, updateAddressChange, withTenant, type LedgerDriver } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger/db';
-import { addressChangeNotFound } from '@openmig/shared';
-import { answerAddressChangeByLink, linkAddressChangePerson } from './address-change-person.ts';
+import { answerAddressChangeByLink, linkAddressChangePerson, linkRowRef } from './address-change-person.ts';
 
 const URL = process.env.TEST_DATABASE_URL;
 if (!URL) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
@@ -40,6 +42,9 @@ const TENANT = U('01');
 const KID = U('41');
 const MUM = U('42');
 const KEY = 'kidname@gmail.com';
+const SHOWN = 'kid@example.org';
+/** Kid's press: the row by its ref, the answer, and the address Kid's page showed. */
+const press = (state: 'confirmed' | 'proposed') => ({ ref: linkRowRef(TENANT, KID, KEY), state, newAddress: SHOWN });
 
 /** How long the first transaction stays open after its write. */
 const HOLD = 600;
@@ -122,11 +127,11 @@ beforeEach(async () => {
 describe('two presses at once, through a person’s links', () => {
   it('Yes twice: the second waits, writes nothing, and both answer the one confirmed row', async () => {
     const [one, two] = await interleave(
-      async (db) => ({ answer: await answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed', AUDIT), row: await seenBy(db) }),
-      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed', AUDIT),
+      async (db) => ({ answer: await answerAddressChangeByLink(db, TENANT, KID, press('confirmed'), AUDIT), row: await seenBy(db) }),
+      (db) => answerAddressChangeByLink(db, TENANT, KID, press('confirmed'), AUDIT),
     );
-    expect(one.r.answer).toMatchObject({ ok: true, row: { oldKey: KEY, state: 'confirmed' } });
-    expect(two.r).toMatchObject({ ok: true, row: { oldKey: KEY, state: 'confirmed' } });
+    expect(one.r.answer).toMatchObject({ ok: true, row: { newAddress: SHOWN, state: 'confirmed' } });
+    expect(two.r).toMatchObject({ ok: true, row: { newAddress: SHOWN, state: 'confirmed' } });
     expect(two.at, 'the second press waited for the first').toBeGreaterThanOrEqual(HOLD);
 
     const rows = await stored();
@@ -139,12 +144,23 @@ describe('two presses at once, through a person’s links', () => {
 
   it('Yes and Not right? at once: the second waits, and the row ends as it says', async () => {
     const [one, two] = await interleave(
-      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed', AUDIT),
-      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'proposed', AUDIT),
+      (db) => answerAddressChangeByLink(db, TENANT, KID, press('confirmed'), AUDIT),
+      (db) => answerAddressChangeByLink(db, TENANT, KID, press('proposed'), AUDIT),
     );
     expect(one.r).toMatchObject({ ok: true, row: { state: 'confirmed' } });
     expect(two.r).toMatchObject({ ok: true, row: { state: 'proposed' } });
     expect(two.at, 'the second press waited for the first').toBeGreaterThanOrEqual(HOLD);
+    expect(await stored()).toEqual([{ state: 'proposed', confirmed_by: null, confirmed_at: null }]);
+  });
+
+  it('an owner typing another address while Kid presses Yes for the one shown: the press waits and is refused', async () => {
+    const [one, two] = await interleave(
+      async (db) => (await updateAddressChange(db, TENANT, KEY, { newAddress: 'somebody.else@example.net', by: 'owner-subject' })).ok,
+      (db) => answerAddressChangeByLink(db, TENANT, KID, press('confirmed'), AUDIT),
+    );
+    expect(one.r).toBe(true);
+    expect(two.at, 'the press waited for the owner').toBeGreaterThanOrEqual(HOLD);
+    expect(two.r).toEqual({ ok: false, refused: 'changed' });
     expect(await stored()).toEqual([{ state: 'proposed', confirmed_by: null, confirmed_at: null }]);
   });
 
@@ -157,11 +173,11 @@ describe('two presses at once, through a person’s links', () => {
         await linkAddressChangePerson(db, TENANT, KEY, MUM);
         return w.ok;
       },
-      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed', AUDIT),
+      (db) => answerAddressChangeByLink(db, TENANT, KID, press('confirmed'), AUDIT),
     );
     expect(one.r).toBe(true);
     expect(two.at, 'the press waited for the owner').toBeGreaterThanOrEqual(HOLD);
-    expect(two.r).toEqual({ ok: false, refusal: addressChangeNotFound(KEY) });
+    expect(two.r).toEqual({ ok: false, refused: 'not_found' });
     expect(await stored()).toEqual([{ state: 'proposed', confirmed_by: null, confirmed_at: null }]);
     expect(await linkedTo()).toEqual([{ person_id: MUM }]);
   });

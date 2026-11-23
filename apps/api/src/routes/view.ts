@@ -43,10 +43,11 @@
  * progress page one line, *Your new address: ‹address›. Is that right?*, so
  * that somebody who has only links can confirm their row of the address
  * changes, or send it back. So a person's page carries `addressChanges`: the
- * rows linked to this person, each with its old and new address and its
- * state, and nobody else's. Nothing else on it names an address; the accounts
- * keep their opaque `ref`. `PUT /api/view/:link/address-changes/:oldKey`
- * takes the answer, behind this door's own link check
+ * rows linked to this person, and nobody else's, each named by an opaque
+ * `ref`, with its new address and its state. Never the old address, which is
+ * often the account a migration reads: that is named nowhere on this page,
+ * which may be forwarded. `PUT /api/view/:link/address-changes/:ref` takes the
+ * answer, behind this door's own link check
  * (`link-address-changes.ts`). A migration's own link names no person, so its
  * page carries none.
  *
@@ -252,12 +253,12 @@ router.post(
 );
 
 /**
- * PUT /api/view/:link/address-changes/:oldKey — the person's answer to *Your
- * new address: ‹address›. Is that right?* on their progress page (workplan 0168
- * §4.4, D6): `{ state }` and nothing else, for a row linked to them. Like the
- * withdrawal, it changes something, so it is never a GET.
- * `link-address-changes.ts`.
+ * PUT /api/view/:link/address-changes/:ref — the person's answer to *Your new
+ * address: ‹address›. Is that right?* on their progress page (workplan 0168
+ * §4.4, D6): `{ state, newAddress }`, the answer and the address the page
+ * showed, and nothing else, for a row linked to them. Like the withdrawal, it
+ * changes something, so it is never a GET. `link-address-changes.ts`.
  */
-router.put('/:link/address-changes/:oldKey', linkAuth, answerAddressChangeThroughLink('view', pool));
+router.put('/:link/address-changes/:ref', linkAuth, answerAddressChangeThroughLink('view', pool));
 
 export default router;
