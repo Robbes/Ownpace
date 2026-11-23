@@ -15,15 +15,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
-- **The test mail server runs Stalwart v1.1.1's Alpine build** (workplan 0166 T9; ADR-0022, the
-  owner's decision of 2026-11-23: *"Stalwart: in alpha 19"*). Development, the integration tests,
-  both E2E workflows and the OTA demo start `stalwartlabs/stalwart:v1.1.1-alpine`: the same
-  release, built from the same upstream revision, with the same user, paths and healthcheck, on
-  Alpine 3.24, which carries no krb5 and zlib 1.3.2-r1, where the Debian build lacked Debian's
-  fixes for its krb5 libraries and `zlib1g`. A volume the Debian build wrote opens as it was, so
-  the demo needs no reset.
-  The pin watch now compares the pin with Stalwart's Alpine tags of its major, so it lists v1.2.0,
-  pushed the same day, for the owner's next decision. Live never runs this image.
+- **The test mail server runs Stalwart v1.2.0's Alpine build** (workplan 0166 T9; ADR-0022, the
+  owner's decisions of 2026-11-23: *"Stalwart: in alpha 19"*, then *"Pick stalwart v1.2.0, since
+  it's part of our test/dev setup. Not part of our own pace solution."* and, on its three-day
+  floor, *"v1.2.0 now (waive)"*). Development, the integration tests, both E2E workflows and the
+  OTA demo start `stalwartlabs/stalwart:v1.2.0-alpine`, every copy by that tag and the digest of
+  its index (`2b7dfee6…`). The base moves from v1.1.1's Debian 13.7 to Alpine 3.24.4: no krb5, and
+  zlib 1.3.2-r1, where the Debian build lacked Debian's fixes for its krb5 libraries and `zlib1g`
+  (CVE-2026-85091). It runs as the same user, uid and gid 2000, with the same entrypoint, command,
+  volumes, ports and healthcheck, and keeps v1.1.1's database schema (version 7) with no
+  migration, so the OTA demo's volume, which v1.1.1 wrote, opens as it was: no reset. Docker Hub
+  published it on 2026-11-23 at 18:25 UTC; CONTRIBUTING.md's three days are waived for this test
+  image alone, on the owner's words above. stalwart-cli stays at v1.0.14, which reads v1.2.0's
+  schema. Live never runs this image.
 
 ## [0.2.0-alpha.18] - 2026-11-23
 

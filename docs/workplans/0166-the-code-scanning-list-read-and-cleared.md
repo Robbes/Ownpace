@@ -4,18 +4,21 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
-**2026-11-23, night: the Stalwart base moves to v1.1.1's Alpine build, for alpha.19 (T9).** The
-owner's answer of 2026-11-23, recorded below: *"Stalwart: in alpha 19"*. Every copy of the pin now
-names `stalwartlabs/stalwart:v1.1.1-alpine`, the fixture's FROM by that tag and its index
-`53ce86ed…` (ADR-0022's update of the same day; the fix doc, "Moving the pin", has what was read).
-It is the same release from the same upstream revision, with the same entrypoint, user (uid and gid
-2000), paths and healthcheck, on Alpine 3.24: no krb5, and zlib 1.3.2-r1. So the image scan's
-krb5 and `zlib1g` findings with a fix leave `trivy-image-stalwart`'s report once `main` runs it,
-and a volume the Debian build wrote, the OTA demo's included, opens as it was. The pin watch now
-compares the pin with the Alpine build's tags of its major, so it lists v1.2.0, which Stalwart
-pushed on 2026-11-23 at 18:25 UTC: the owner's next decision, not before its three days. It merges
-after alpha.18's tag, once the CI integration tests, E2E (self-hosted) and E2E (managed) are green
-on its branch.
+**2026-11-23, night: the Stalwart base moves to v1.2.0's Alpine build, for alpha.19, on the
+owner's word, its three days waived (T9).** The owner's first answer, recorded below, was
+*"Stalwart: in alpha 19"*: v1.1.1's Alpine build. Stalwart pushed v1.2.0 and its Alpine build
+that day at 18:25 UTC, and after alpha.18's tag the owner chose it: *"Pick stalwart v1.2.0, since
+it's part of our test/dev setup. Not part of our own pace solution."*, and, on its three-day
+floor, *"v1.2.0 now (waive)"*. So every copy of the pin names
+`stalwartlabs/stalwart:v1.2.0-alpine` by that tag and the digest of its index, `2b7dfee6…`
+(ADR-0022's update of the same day; the fix doc, "Moving the pin", has what was read). It has
+v1.1.1's entrypoint, user (uid and gid 2000), paths and healthcheck, on Alpine 3.24.4: no krb5, and
+zlib 1.3.2-r1. So the image scan's krb5 and `zlib1g` findings with a fix leave
+`trivy-image-stalwart`'s report once `main` runs it. v1.2.0 keeps v1.1.1's database schema and
+migrates nothing, so the OTA demo's volume, which v1.1.1 wrote, opens as it was, and stalwart-cli
+v1.0.14 still reads its schema. The pin watch's Stalwart row compares the pin with the Alpine
+build's tags of its major, where v1.2.0-alpine is the newest. It merges once the CI integration
+tests, E2E (self-hosted) on Postgres and on PGlite, and E2E (managed) are green on its branch.
 
 **2026-11-23: an outside, read-only check of `5b51a82b`, read on `main` at `db37bf49`. Docs only:
 nothing moved, and why.** On `claude/ownpace-public-readiness-y7orc6-dockerfiles` (T9). The
@@ -298,7 +301,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
 | T7 The owner's dismissals | owner | ✅ **Done 2026-11-21** (D4), the five of §3 D, 17:32 to 17:50 UTC | The 5 alerts of §3 D, each with its reason. |
 | T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
-| T9 The outside check of 2026-11-23 | builder | ✅ **Read 2026-11-23**; the Stalwart base moves for alpha.19 (the Status entries of 2026-11-23) | The Stalwart base's krb5 and zlib1g stay in alpha.18, and the pin moves to v1.1.1's Alpine build for alpha.19, on the owner's answer (*"Stalwart: in alpha 19"*): no krb5, and zlib 1.3.2-r1; the Dockerfile rules stand as decided. The Trigger.dev files go with its removal. |
+| T9 The outside check of 2026-11-23 | builder | ✅ **Read 2026-11-23**; the Stalwart base moves for alpha.19 (the Status entries of 2026-11-23) | The Stalwart base's krb5 and zlib1g stay in alpha.18, and the pin moves to v1.2.0's Alpine build for alpha.19, by tag and index digest, on the owner's answers (*"Stalwart: in alpha 19"*, then *"Pick stalwart v1.2.0, since it's part of our test/dev setup. Not part of our own pace solution."* and *"v1.2.0 now (waive)"*, its three days waived): no krb5, and zlib 1.3.2-r1; the Dockerfile rules stand as decided. The Trigger.dev files go with its removal. |
 
 ## 1. The inventory
 

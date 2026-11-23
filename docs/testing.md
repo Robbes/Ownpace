@@ -23,7 +23,7 @@ Two exceptions, both because the subject is not a single file:
   mapping, Pattern S/D resolution. No I/O.
 - **Connector contract tests**: each source/target adapter against a recorded/standard contract.
 - **Integration** (Testcontainers for Node): the global setup spins up the full stack
-  programmatically — **Postgres**, **Stalwart v1.1.1 (official image, its Alpine build, two-phase
+  programmatically — **Postgres**, **Stalwart v1.2.0 (official image, its Alpine build, two-phase
   startup: recovery-mode provisioning, then normal serving)**, and **Nextcloud** (CalDAV/CardDAV/
   WebDAV target). No env vars or pre-running dev stack required; ports are dynamic. Tests exercise
   the ledger, the IMAP/JMAP/imap-dav mail path, and the CalDAV/CardDAV/WebDAV

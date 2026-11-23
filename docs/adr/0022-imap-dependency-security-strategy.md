@@ -13,7 +13,7 @@
 
 - The vulnerable chain is **gone, not overridden**: `imap-simple`→`utf7`→`semver@5.3.0` left the lockfile with the imapflow migration (workplan 0032).
 - The `semver` pnpm override **stays** — it was never only about that chain; removing it is a separate decision with its own blast radius. Since 2026-10-21 it is one scoped entry per fixed line (5.7.2, 6.3.1, 7.5.2): a 5.x, 6.x or 7.x below its fix is lifted within its major, and nothing is moved to 7.
-- The Stalwart test fixture is pinned at **v1.1.1**, its Alpine build `v1.1.1-alpine` (2026-11-23, on the owner's decision of that day; v1.1.1 since 2026-11-20). It moves only on the owner's decision, recorded here as a dated update, with every copy in one change, as `docs/stalwart-integration-fix.md`, "Moving the pin", lists.
+- The Stalwart test fixture is pinned at **v1.2.0**, its Alpine build, by tag and index digest (2026-11-23, on the owner's word, its three days waived; v1.1.1 from 2026-11-20). It moves only on the owner's decision, recorded here as a dated update, with every copy in one change, as `docs/stalwart-integration-fix.md`, "Moving the pin", lists.
 
 > ## Update, 2026-08-06 — the workaround is no longer load-bearing
 >
@@ -124,38 +124,38 @@
 > **The rule for the next move** is the operative bullet above, unchanged
 > but for the version.
 
-> ## Update, 2026-11-23 — the Stalwart pin moves to v1.1.1's Alpine build, on the owner's decision
+> ## Update, 2026-11-23 — the Stalwart pin moves to v1.2.0's Alpine build, on the owner's decisions, its three days waived
 >
-> **The question and the answer.** An outside, read-only check of
+> **The questions and the answers.** An outside, read-only check of
 > 2026-11-23, and that day's image scan, found Debian's krb5 libraries and
 > `zlib1g` in `stalwartlabs/stalwart:v1.1.1` with fixes that no Stalwart
 > release or rebuild had carried by then (workplan 0166 T9). Asked whether to
-> wait for Stalwart's next release or take `v1.1.1-alpine` now, the owner
-> answered on 2026-11-23: *"Stalwart: in alpha 19"*. So the pin stayed at
-> v1.1.1 in alpha.18, and moves to `v1.1.1-alpine` for alpha.19.
+> wait for Stalwart's next release or take v1.1.1's Alpine build, the owner
+> answered: *"Stalwart: in alpha 19"*. So the pin stayed at v1.1.1 in
+> alpha.18. Stalwart pushed v1.2.0, and its Alpine build, the same day at
+> 18:25 UTC. After alpha.18's tag the owner chose it: *"Pick stalwart v1.2.0,
+> since it's part of our test/dev setup. Not part of our own pace
+> solution."*, and, on its three days: *"v1.2.0 now (waive)"*. So the pin
+> moves from v1.1.1 to `v1.2.0-alpine` for alpha.19, every copy by the tag
+> and the digest of its index (`sha256:2b7dfee6…`). CONTRIBUTING.md's
+> three-day floor is waived for this test image alone; live never runs it.
 >
-> **Why it is the same release.** The Alpine build is v1.1.1 from the same
-> upstream revision, pushed to Docker Hub beside the Debian build on
-> 2026-11-16 at 11:47 UTC, so CONTRIBUTING.md's three days passed on
-> 2026-11-19. Its config is the Debian build's, for linux/amd64 and
-> linux/arm64: the same entrypoint, command, working directory, user
-> `stalwart` (uid and gid 2000), volumes, ports and healthcheck, whose
-> `curl` it carries. Only the base differs: Alpine 3.24, with no krb5 and
-> zlib 1.3.2-r1, the build Alpine fixed CVE-2026-85091 in. A volume the
-> Debian build wrote opens as it was, the same version under the same uid,
-> so the OTA demo needs no reset. It is another C library (musl), which the
-> two-phase run proves before it merges.
+> **What moves, and what does not.** The base: Alpine 3.24.4 for Debian
+> 13.7, with no krb5, zlib 1.3.2-r1 (the build Alpine fixed CVE-2026-85091
+> in) and musl for glibc. The release: another minor of v1, which upstream
+> upgrades in place; its one upgrade note is permissions that default roles
+> an earlier version made lack, for mail rules, junk-mail lists, calendar
+> settings and Exchange, none of which this repository uses. The image: the
+> same entrypoint, command, user `stalwart` (uid and gid 2000), volumes,
+> ports and healthcheck as v1.1.1's, for linux/amd64 and linux/arm64. The
+> store: schema version 7, as v1.1.1's, with no migration at start, so a
+> volume v1.1.1 wrote, the OTA demo's included, opens as it was: no reset,
+> and nothing one-way in it. stalwart-cli v1.0.14 still reads its schema.
+> The fix doc, "Moving the pin", has what was read.
 >
 > **How it merges.** After alpha.18's tag, on its own branch: the CI
-> integration tests on the new tag (the two-phase run), then E2E
-> (self-hosted) and E2E (managed). The fix doc, "Moving the pin", has what
-> was read.
->
-> **What came after the answer.** Stalwart pushed v1.2.0, and its Alpine
-> build, on 2026-11-23 at 18:25 UTC: another minor, read by the fix doc's
-> procedure before any move, and not before its three days. The pin watch
-> compares the pin with the Alpine build's tags of its major, so it lists
-> it.
+> integration tests on the new tag (the two-phase run, on amd64 and arm64),
+> then E2E (self-hosted) on Postgres and on PGlite, and E2E (managed).
 
 ## Context
 

@@ -5,9 +5,9 @@
 # (docs/stalwart-integration-fix.md, "Verified Image"). It is one of the copies
 # of the pin, which moves only by ADR-0022 ("Moving the pin"): the tag, with the
 # digest of its index.
-FROM stalwartlabs/stalwart:v1.1.1-alpine@sha256:53ce86ed60f3730a031b09721b9b83b80e062f2f2095ea0e9b343bdd4ff6cc2e
+FROM stalwartlabs/stalwart:v1.2.0-alpine@sha256:2b7dfee66dfd116a903607826e03e4f8af8841207fae28098aa908c568ca919a
 COPY config.json /etc/stalwart/config.json
 # The image's own user, stalwart, by number: its config's `User`, uid and gid
-# 2000 in its /etc/passwd (read at the Debian build's digest on 2026-11-20, and
-# at the Alpine build's above, for linux/amd64 and linux/arm64, on 2026-11-23).
+# 2000 in its /etc/passwd (read at v1.1.1's digest on 2026-11-20, and at
+# v1.2.0-alpine's above, for linux/amd64 and linux/arm64, on 2026-11-23).
 USER 2000:2000

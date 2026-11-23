@@ -1227,6 +1227,25 @@ describe('the routine pins, in one summary issue', () => {
     expect(await rowWith(`v${major}.99.0-alpine`)).toMatchObject({ state: 'behind', newest: `v${major}.99.0-alpine`, notes: [STALWART_RULE] });
   });
 
+  /**
+   * Docker Hub's Stalwart tags on 2026-11-23, after v1.2.0 and its Alpine build were pushed at 18:25
+   * UTC, newest first as it lists them, beside the last v0.16. The pin moved to v1.2.0-alpine that
+   * day (ADR-0022, the owner's word, its three days waived), the newest of its shape in its major.
+   */
+  const HUB_STALWART_2026_11_23 = [
+    'latest', 'v1.2.0', 'v1', 'v1.2', 'latest-alpine', 'v1.2.0-alpine', 'v1-alpine', 'v1.2-alpine',
+    'v1.1.1', 'v1.1', 'v1.1.1-alpine', 'v1.1-alpine', 'v1.1.0', 'v1.1.0-alpine', 'v0.16.27',
+  ];
+
+  it("takes v1.2.0-alpine for the newest of Docker Hub's tags on 2026-11-23, and the pin for it (ADR-0022)", async () => {
+    expect(newestLike('v1.1.1-alpine', HUB_STALWART_2026_11_23, 1)).toBe('v1.2.0-alpine');
+    expect(newestLike('v1.2.0-alpine', HUB_STALWART_2026_11_23, 1)).toBe('v1.2.0-alpine');
+    // The Debian build's tags have their own newest, which the Alpine pin is never compared with.
+    expect(newestLike('v1.1.1', HUB_STALWART_2026_11_23, 1)).toBe('v1.2.0');
+    const row = (await routineRows(REAL, fakeNet(registry()))).rows.find((r) => r.name === 'stalwartlabs/stalwart')!;
+    expect(row).toMatchObject({ state: 'current', pin: 'v1.2.0-alpine', newest: 'v1.2.0-alpine' });
+  });
+
   // No pin of the compose files is held by its digest alone since alpha.18
   // removed MinIO (`chainguard/minio:latest`, workplan 0167 T9); the rule is
   // held on a stand-in line of that shape, added to the real managed.yml.

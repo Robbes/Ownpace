@@ -3040,6 +3040,10 @@ reading a file drops off its entry by itself.
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 
+### `scripts/a-service-that-phones-home.unit.test.ts`
+
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+
 ### `scripts/a-stack-that-names-its-mode.unit.test.ts`
 
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
@@ -4458,6 +4462,7 @@ Reads:
 - `deploy/selfhost/setup-stalwart.sh`
 - `packages/testing/fixtures/stalwart/Dockerfile`
 - `packages/testing/src/testcontainers-setup.ts`
+- `scripts/a-service-that-phones-home.unit.test.ts`
 
 ### [a-fixture-with-ten-seconds](../scripts/a-fixture-with-ten-seconds.unit.test.ts)
 
