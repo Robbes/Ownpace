@@ -1,6 +1,6 @@
 # ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail
 
-- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; built 2026-11-23 (0168 T1–T9, #2067), and amended that day by the landing's review: a copy records the digest of the rows that decided it, a rewrite needs a strong recorded version, and the press names the table it was shown (decisions 3 to 6). Amended for alpha.18 by 0168's follow-ups: a copy deleted on the target is counted gone whichever rewrite finds it, a copy with no version to guard the write is said as left, never as waiting, and a calendar's cursor is read under the account's own addresses too (decisions 5 and 6).
+- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; built 2026-11-23 (0168 T1–T9, #2067), and amended that day by the landing's review: a copy records the digest of the rows that decided it, a rewrite needs a strong recorded version, and the press names the table it was shown (decisions 3 to 6); again for alpha.18 (5, 6).
 - **Date:** 2026-11-22
 - **Deciders:** owner
 - **Relates to:** [ADR-0005](./0005-idempotency-ledger-nondestructive.md) (re-runs converge),
