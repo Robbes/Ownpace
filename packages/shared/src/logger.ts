@@ -17,7 +17,13 @@
  * `info`/`debug` to stdout. Docker, journald and GitHub Actions all separate
  * those, and changing which stream a message lands on would break log
  * collection that already works.
+ *
+ * Every error handed to it is printed through `loggableError` (workplan 0168):
+ * a database driver's error carries the statement's values, and the privacy
+ * policy's *Server logs* says what a log may hold, whichever line prints it.
  */
+
+import { loggableError } from './loggable-error.ts';
 
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
 
@@ -84,21 +90,59 @@ export function isLevelEnabled(level: LogLevel): boolean {
   return RANK[level] <= RANK[active];
 }
 
+/** An error, from this realm or another: what `console` prints with its stack. */
+function isErrorLike(arg: unknown): arg is object {
+  if (arg instanceof Error) return true;
+  if (typeof arg !== 'object' || arg === null) return false;
+  const { message, stack } = arg as { message?: unknown; stack?: unknown };
+  return typeof message === 'string' && typeof stack === 'string';
+}
+
+/** An object written as `{ … }`, not an instance of anything. */
+function isPlainObject(arg: unknown): arg is Record<string, unknown> {
+  if (typeof arg !== 'object' || arg === null || Array.isArray(arg)) return false;
+  const prototype: unknown = Object.getPrototypeOf(arg);
+  return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * An argument as the log prints it: an error without the values it carries
+ * (`loggableError`), and so an error handed inside a plain object,
+ * `{ error: err }`; anything else as it is. Logging never throws: an error
+ * whose fields cannot be read is named, not printed with its values.
+ */
+function printable(arg: unknown): unknown {
+  try {
+    if (isErrorLike(arg)) return loggableError(arg);
+    if (!isPlainObject(arg)) return arg;
+    let copy: Record<string, unknown> | undefined;
+    for (const [key, value] of Object.entries(arg)) {
+      const kept = isErrorLike(value) ? loggableError(value) : value;
+      if (kept === value) continue;
+      copy = copy ?? { ...arg };
+      copy[key] = kept;
+    }
+    return copy ?? arg;
+  } catch {
+    return '[an error whose fields could not be read, not printed]';
+  }
+}
+
 export const log = {
   /** Something failed. Always emitted. */
   error(...args: unknown[]): void {
-    if (RANK.error <= RANK[active]) console.error(...args);
+    if (RANK.error <= RANK[active]) console.error(...args.map(printable));
   },
   /** Something is wrong but the run continues. */
   warn(...args: unknown[]): void {
-    if (RANK.warn <= RANK[active]) console.warn(...args);
+    if (RANK.warn <= RANK[active]) console.warn(...args.map(printable));
   },
   /** The default narrative of a run: what started, what finished, totals. */
   info(...args: unknown[]): void {
-    if (RANK.info <= RANK[active]) console.log(...args);
+    if (RANK.info <= RANK[active]) console.log(...args.map(printable));
   },
   /** Per-item and per-request detail. Off unless asked for. */
   debug(...args: unknown[]): void {
-    if (RANK.debug <= RANK[active]) console.log(...args);
+    if (RANK.debug <= RANK[active]) console.log(...args.map(printable));
   },
 } as const;

@@ -1,6 +1,6 @@
 # ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail
 
-- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; built 2026-11-23 (0168 T1–T9, #2067), and amended that day three times: by the landing's review (decisions 3 to 6), for alpha.18 (5, 6), and by the owner's two decisions on copies nothing changes (5, 6). See the Amendment log.
+- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; built 2026-11-23 (0168 T1–T9, #2067), and amended that day three times: by the landing's review (decisions 3 to 6), for alpha.18 (3 to 6), and by the owner's two decisions on copies nothing changes (5, 6). See the Amendment log.
 - **Date:** 2026-11-22
 - **Deciders:** owner
 - **Relates to:** [ADR-0005](./0005-idempotency-ledger-nondestructive.md) (re-runs converge),
@@ -14,16 +14,17 @@
 
 ## Operative rules
 
-- **Built** (workplan 0168 T1–T9). A copy changes only once the organisation's table holds a
-  confirmed row; with none, every byte is the source's.
+- **Built** (workplan 0168): only a confirmed row changes a copy.
 - **One table per organisation**, `address_change`, in the shared chain under forced row security.
   Only an owner or an admin writes it, and only rows a person **confirmed** reach a writer; the
   machine never confirms. An admin may confirm for a person, attributed; the person confirms or
   sends back their own row, on their page or through their links (0168 D6).
-- **A pure function of source bytes and table** (`applyAddressChanges`), applied before
-  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, byte for byte.
+- **A pure function of source bytes, table and migration start** (`applyAddressChanges`), before
+  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, as is an event or task
+  over at that start (`mailbox_mapping.created_at`).
 - **Changed:** a vCard `EMAIL` gains the new address first and preferred, the old kept (D2); an old
-  `ORGANIZER` is replaced; an `ATTENDEE` only where the organiser is in the table or is the person (D3).
+  `ORGANIZER` is replaced; an old `ATTENDEE`, `SENT-BY`, `DELEGATED-*` or `MEMBER` address only where
+  the organiser is in the table or is the person (D3).
 - **Never changed:** mail, in any byte (D1); free text (D4); display names; UIDs; a card inside a
   card; an outside organiser's invitation.
 - **Declared, never silent:** each item records the digest of the rows that decided it
@@ -60,23 +61,38 @@ break.
 1. **One table of address changes per organisation**, old to new, in the shared ledger chain
    (`address_change`, forced row security). Only rows a person **confirmed** reach a writer. The
    machine may propose rows, and never confirms one.
-2. **The change is a pure function of the source bytes and the table**
-   (`applyAddressChanges`, `packages/shared`), applied by the contact and calendar writers before
-   their existing repairs and before `neutraliseScheduling`. An empty table is the identity, byte
-   for byte.
+2. **The change is a pure function of the source bytes and the table**, and for a calendar object
+   of the migration's start too (decision 4; `applyAddressChanges`, `packages/shared`), applied by
+   the contact and calendar writers before their existing repairs and before
+   `neutraliseScheduling`. An empty table is the identity, byte for byte.
 3. **What it changes:**
    - a vCard `EMAIL` that is an old address gains the new one, first and preferred, and the old line
      is kept (a card that already lists the new address prefers that line where it is, and the
      added line carries no `PID`, `ALTID` or `PROP-ID`);
    - an `ORGANIZER` that is an old address is replaced;
-   - an `ATTENDEE` is replaced only in events whose organiser is in the table or is the person.
+   - an `ATTENDEE` is replaced only in events whose organiser is in the table or is the person;
+   - in those events, an old address in an `ORGANIZER`'s or `ATTENDEE`'s `SENT-BY`,
+     `DELEGATED-FROM`, `DELEGATED-TO` or `MEMBER` gets the new one, each value of a list in its own
+     quotes and scheme spelling (amended 2026-11-23; the owner: *"yes, since the new address will
+     control the new events"*). An `ATTENDEE` left as it was keeps them.
 4. **What it never changes:**
    - mail, in any header or byte;
    - free text (`SUMMARY`, `DESCRIPTION`, `LOCATION`, `NOTE`);
    - display names;
    - UIDs;
    - a card inside a card;
-   - an outside organiser's invitation.
+   - an outside organiser's invitation;
+   - a calendar object that was over at the migration's start, `mailbox_mapping.created_at`, one
+     moment no pass and no press moves: an event whose last occurrence ended before it, a series
+     with an `UNTIL` or `COUNT` spent and no `RDATE` or moved instance still to come, a task done
+     before it, a journal entry dated before it. The whole object is one decision, and dates that
+     cannot be read are not over. Its bytes are decided by no row, so its digest is null (amended
+     2026-11-23; the owner: *"Though perhapse we need not change past-events we migrate."*).
+   - A task is done before the start when its `COMPLETED` time is; without one, when its `STATUS`
+     is `COMPLETED` or `CANCELLED` and its `LAST-MODIFIED`, else its `DTSTAMP`, is. With no such
+     time, or one that cannot be read, it is not over. So a task open at the start changes and
+     stays changed when it is finished later: nothing goes back during a migration (the same day's
+     review).
 5. **It is declared, never silent.** Each item records the digest of the confirmed rows that
    decided its bytes (`item.address_digest`), and a pass that did not write it records the digest
    it should carry (`item.address_digest_due`). Verification and the confirmed list count changed
@@ -94,7 +110,9 @@ break.
      whose HEAD finds nothing, for a source change as for an address change, and a failed rewrite
      is retried as that rewrite, never as a create;
    - a source that lists only what changed reads a collection again when its table moves, and for
-     a calendar or task when the account's own addresses move, since they decide its guests.
+     a calendar or task when the account's own addresses move, since they decide its guests; the
+     migration's start is in a calendar's tag too (decision 4), which never moves, so a calendar
+     read before 2026-11-23 is read once more and its past events go back to the source's bytes.
 
    After a data type's cutover, it waits for a person's press, which names the table the page
    showed (workplan 0168 D5). *Amended 2026-11-23 by the owner (Amendment log):* a copy whose

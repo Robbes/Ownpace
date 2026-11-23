@@ -115,6 +115,15 @@ export interface MigrationPhases {
    * is its digest now. Absent when nobody pressed it.
    */
   readonly addressChangesApplied?: string;
+  /**
+   * When the migration was made (`mailbox_mapping.created_at`, never NULL and
+   * never written again): the migration's start, the one moment every pass
+   * and every press of *Apply the new addresses here too* reads alike. The
+   * address table leaves an event or task that was over by then as the source
+   * has it (the owner, 2026-11-23; ADR-0055). Always set by this reader;
+   * optional for the hand-built phases a test makes.
+   */
+  readonly createdAt?: Date;
 }
 
 /**
@@ -132,6 +141,7 @@ export async function readPathPhases(
       grantWithdrawnAt: schemaPg.mailboxMapping.grantWithdrawnAt,
       testMarker: schemaPg.mailboxMapping.testMarker,
       addressChangesApplied: schemaPg.mailboxMapping.addressChangesAppliedDigest,
+      createdAt: schemaPg.mailboxMapping.createdAt,
     })
     .from(schemaPg.mailboxMapping)
     .where(eq(schemaPg.mailboxMapping.id, mappingId));
@@ -176,6 +186,7 @@ export async function readPathPhases(
     anyRuns,
     ...(row.testMarker !== null ? { testMarker: row.testMarker } : {}),
     ...(row.addressChangesApplied !== null ? { addressChangesApplied: row.addressChangesApplied } : {}),
+    createdAt: row.createdAt,
   };
 }
 

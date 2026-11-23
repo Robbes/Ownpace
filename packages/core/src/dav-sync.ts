@@ -81,6 +81,13 @@ export interface AddressChangesForPass {
    * copies. Without it, it waits.
    */
   readonly pastCutoverApplies?: boolean;
+  /**
+   * The migration's start, `mailbox_mapping.created_at`: one moment, which no
+   * pass and no press moves. An event or task that was over by then keeps
+   * every address the source gave it (the owner, 2026-11-23;
+   * `calendarObjectIsOver`). Absent, none is over. A card is never over.
+   */
+  readonly migrationStart?: Date;
 }
 
 /** The loop's address-change hooks for one format, or nothing for a pass without a table. */
@@ -94,7 +101,8 @@ function addressHooks<Item>(
 } {
   if (!changes) return {};
   return {
-    addressDigestNow: (item) => applyAddressChanges(format, bodyOf(item), changes.table, changes.ownKeys).digest,
+    addressDigestNow: (item) =>
+      applyAddressChanges(format, bodyOf(item), changes.table, changes.ownKeys, changes.migrationStart).digest,
     ...(changes.pastCutoverApplies ? { addressRewritePastCutover: true } : {}),
   };
 }
@@ -106,7 +114,7 @@ function changed(
   body: string,
 ): { readonly body: string; readonly addressDigest?: string | null } {
   if (!changes) return { body };
-  const r = applyAddressChanges(format, body, changes.table, changes.ownKeys);
+  const r = applyAddressChanges(format, body, changes.table, changes.ownKeys, changes.migrationStart);
   return { body: r.body, addressDigest: r.digest };
 }
 
@@ -124,6 +132,14 @@ function changed(
  * those events again, and an own address added or taken away rewrote nothing
  * (workplan 0168, found on the way). A card is not decided by them, and its
  * tag leaves them out.
+ *
+ * And, for a calendar or task while the table has a row, the migration's
+ * start (`migrationStart`): an object over by then keeps every address (the
+ * owner, 2026-11-23), so the start decides what the table does to the
+ * collection too. It never moves for a migration; in the tag it reads each
+ * collection again, once, where a cursor was stored before that rule, so a
+ * copy of a past event that a pass changed then goes back to the source's
+ * bytes even from a source that lists only what changed.
  */
 export function addressTableTag(
   changes: AddressChangesForPass,
@@ -135,7 +151,12 @@ export function addressTableTag(
     format === 'icalendar' && changes.table.digest !== null && changes.ownKeys.length > 0
       ? `+own:${ownKeysDigest(changes.ownKeys)}`
       : '';
-  return `${changes.table.digest ?? 'none'}${press ? '+applied' : ''}${own}`;
+  const start = changes.migrationStart?.getTime();
+  const over =
+    format === 'icalendar' && changes.table.digest !== null && start !== undefined && Number.isFinite(start)
+      ? `+over:${new Date(start).toISOString()}`
+      : '';
+  return `${changes.table.digest ?? 'none'}${press ? '+applied' : ''}${own}${over}`;
 }
 
 /** The account's own address keys, in any order, as one short digest for a cursor's tag. */

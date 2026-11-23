@@ -55,12 +55,22 @@ export function accountAddressesOf(...connections: ReadonlyArray<Record<string, 
  * too* for on this migration (`PassPhases.addressChangesApplied`, D5): past
  * the data type's cutover the table rewrites copies only while it is the
  * table's press digest now (`addressTablePressDigest`).
+ *
+ * `migrationStart` is when the migration was made (`mailbox_mapping.
+ * created_at`, read with its phases): an event or task over by then keeps
+ * every address (the owner, 2026-11-23). The migration's creation and not its
+ * first pass, because it is one moment no pass and no press moves, is never
+ * NULL, and is in the ledger of both editions from the row's first day; the
+ * passes leave no record that lasts as long (`run` rows are history, and go).
+ * Required, though it may be undefined (a migration gone since its pass
+ * began), so a dispatcher that forgets it does not compile.
  */
 export async function addressChangesForPass(
   ledger: Pick<Ledger, 'listConfirmedAddressChanges'>,
   tenantId: string,
   ownAddressKeys: ReadonlyArray<string>,
   applied: string | undefined,
+  migrationStart: Date | undefined,
 ): Promise<AddressChangesForPass | undefined> {
   if (!ledger.listConfirmedAddressChanges) return undefined;
   const rows = await ledger.listConfirmedAddressChanges(tenantId as TenantId);
@@ -69,5 +79,6 @@ export async function addressChangesForPass(
     table,
     ownKeys: ownAddressKeys,
     ...(applied !== undefined && applied === addressTablePressDigest(rows) ? { pastCutoverApplies: true } : {}),
+    ...(migrationStart !== undefined ? { migrationStart } : {}),
   };
 }

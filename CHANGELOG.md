@@ -46,6 +46,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   after the switch, not updated*, in English and Dutch. It never counts as waiting, the press never
   claims it, and it holds nothing.
 
+- **A new address reaches `SENT-BY`, `DELEGATED-FROM`, `DELEGATED-TO` and `MEMBER` too, and an
+  event that was already over keeps every address** (workplan 0168; ADR-0055, amended; the owner,
+  2026-11-23: *"yes, since the new address will control the new events. Though perhapse we need
+  not change past-events we migrate."*). In an event or task whose organiser is in the table or is
+  the account's own, an old address in those parameters gets the new one, each value of a list in
+  its own quotes and scheme spelling; an invitation from outside keeps them, as it keeps its
+  guests. A calendar object that was over at the migration's start, when the migration was made,
+  is copied as the source has it and records no address digest, so nothing waits for it: an event
+  that ended before it, read in its own time zone (a floating time in UTC); a series whose `UNTIL`
+  or `COUNT` was spent, never one without an end, and not while an added date or a moved instance
+  is still to come; a task completed or cancelled before it, by its `COMPLETED` time, else by when
+  it was last changed, so a task finished later keeps the new address; a journal entry dated
+  before it. Dates that cannot be read are not over, so such an object changes, as every one did
+  before. A copy of a
+  past event that alpha.17 changed goes back to the source's bytes on the next pass, which reads
+  each calendar again once (past a data type's cutover, after *Apply the new addresses here too*).
+  *Your new address* and the Google and Microsoft guides say so in English and Dutch, and the
+  managed gate seeds a past event whose copy must be the source's bytes.
+
 ### Fixed
 
 - **A copy deleted on the new system is counted as gone, never as the owner's edit and never made
@@ -72,6 +91,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   check again after the next pass.
 - **The appliance's answer to *Apply the new addresses here too* for a migration it does not
   hold has a sentence**, in English and Dutch, as managed's has (workplan 0168, found on the way).
+- **A database fault no longer writes a person's details into the server log** (workplan 0168).
+  Every route logged a failed statement's whole error beside its reference, and the drivers put
+  the statement's values in it: Postgres's `detail` quotes the key or the whole failing row
+  (`Key (email)=(…) already exists.`), a data exception's message quotes the input it refused,
+  PGlite adds the statement's `params`, and Drizzle repeats them in its message and stack.
+  `loggableError` now leaves those out of what it logs, as it already left out a request's body.
+  The rest of the message, the error's code, its table, column and constraint names, the statement
+  up to its first literal and the chain of causes still say what failed and where.
+- **Every log line prints a database error without its values, not only a route's 500** (workplan
+  0168). The shared `log` reads every error it is handed through `loggableError`, at every level, so
+  the places in the API, the job worker and the appliance that log an error themselves, and the job
+  runner's own error lines, print it the same way. The appliance answers a request it fails on with
+  a sentence and a reference, as the API does, instead of the error's message, which for a database
+  error carried the statement's values; the reference is in its log line and on its log page.
+- **An access request, an invitation and a mail that could not be sent are logged by id, not by
+  address** (workplan 0168). An outside, read-only check found the requester's, the invitee's and a
+  mail's recipient's address in the log lines themselves. Each line now names the access request or
+  the invitation by its id, or what the mail was about; a second knock while a request is still
+  open names nobody, since nothing on that anonymous path can read the queue for its id.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 

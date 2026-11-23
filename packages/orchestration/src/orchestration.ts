@@ -557,8 +557,11 @@ export async function runAllDomains(
   // THE ADDRESS TABLE (ADR-0055; workplan 0168 §4.3), read once at the start
   // of each contact, calendar and task pass, inside its `try`: a table the
   // ledger refuses is that data type's failure, never an empty table. The
-  // press past a cutover (D5) is the migration's own, read with its phases.
+  // press past a cutover (D5) is the migration's own, read with its phases,
+  // and so is its start, before which an event that was over keeps its
+  // addresses (the owner, 2026-11-23).
   const addressChangesOf = async (passLedger: Ledger) => {
+    const phases = await phasesNow();
     const changes = await addressChangesForPass(
       passLedger,
       tenantId,
@@ -566,7 +569,8 @@ export async function runAllDomains(
         config.source as unknown as Record<string, unknown>,
         config.target as unknown as Record<string, unknown>,
       ),
-      (await phasesNow())?.addressChangesApplied,
+      phases?.addressChangesApplied,
+      phases?.createdAt,
     );
     return changes ? { addressChanges: changes } : {};
   };

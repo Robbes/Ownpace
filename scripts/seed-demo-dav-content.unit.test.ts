@@ -79,6 +79,8 @@ if [ "$m" = "POST" ]; then
   echo -n '{"ocs":{"meta":{"status":"ok","statuscode":200}}}'
   exit 0
 fi
+# A GET (no -X) answers GET_ANSWER where a test gives one: the read-only modes.
+[ -z "$m" ] && [ -n "\${GET_ANSWER:-}" ] && { printf '%s' "$GET_ANSWER"; exit 0; }
 cat >> "$ARGDIR/bodies.txt" 2>/dev/null; echo -n 201
 `;
 
@@ -250,7 +252,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
     }
   };
 
-  it('deletes exactly the thirteen paths --fresh writes, and nothing else', () => {
+  it('deletes exactly the fourteen paths --fresh writes, and nothing else', () => {
     // NINE since 0120 T6 added the one file above the streaming threshold.
     // It is in this list for a reason larger than arithmetic: `--fresh` runs
     // whenever the gate finds nothing eligible, and that file is tens of
@@ -277,6 +279,10 @@ describe('--remove takes one --fresh set back (0100)', () => {
     // set carried them. On the TARGET, event 4's copy is organised by the
     // account itself while the gate's address change stands, so it is the
     // second copy that a bare DELETE could CANCEL from.
+    //
+    // FOURTEEN since 2026-11-23 added the past event, event 5 (the owner's
+    // word that day; ADR-0055): organised by the same old address and over
+    // before any migration began, so its copy must stay as the source has it.
     const r = run({ VERIFY_ANSWER: '' }, ['--remove', 'tag-1']);
     expect(r.status).toBe(0);
     const paths = deleted().map((u) => u.replace(/^.*remote\.php\/dav\//, ''));
@@ -289,6 +295,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
         'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-2.ics',
         'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-3.ics',
         'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-4.ics',
+        'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-5.ics',
         // The task pair (0113 T7), in the VTODO-only collection rather than
         // beside the events. A `--fresh` set that seeded four domains and
         // took back three would grow the demo source by a task a night.
@@ -305,13 +312,34 @@ describe('--remove takes one --fresh set back (0100)', () => {
     );
   });
 
+  it('reads the past event back as the source holds it, unfolded and without carriage returns, and writes nothing', () => {
+    // `--past-event` (the owner, 2026-11-23; ADR-0055): the smoke holds the
+    // target's copy of event 5 to these lines, without learning this
+    // account's password, as `--big-sha256` lets it check the large file.
+    const none = run({}, ['--past-event']);
+    expect(none.status).not.toBe(0);
+    expect(none.stderr).toContain('--past-event needs the tag');
+    const r = run(
+      { GET_ANSWER: 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDESCRIPTION:a long\r\n  line\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n' },
+      ['--past-event', 'tag-1'],
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe('BEGIN:VCALENDAR\nBEGIN:VEVENT\nDESCRIPTION:a long line\nEND:VEVENT\nEND:VCALENDAR\n');
+    expect(readFileSync(join(dir, 'last.args'), 'utf8')).toContain(
+      'http://localhost/remote.php/dav/calendars/tenant-b-source/personal/openmig-demo-event-tag-1-5.ics',
+    );
+    expect(deleted()).toEqual([]);
+    expect(existsSync(join(dir, 'bodies.txt'))).toBe(false);
+  });
+
   it('leaves the task list alone when the account has not got one', () => {
     // `--remove` must never MKCALENDAR: creating a collection in order to
     // empty it is a write on the take-back path. With the collection absent
     // the other three domains are still taken back, and nothing is created.
     const r = run({ VERIFY_ANSWER: '', TASK_LIST_ANSWER: '404' }, ['--remove', 'tag-9']);
     expect(r.status).toBe(0);
-    expect(deleted()).toHaveLength(11);
+    // The fourteen of a whole set, less the two tasks.
+    expect(deleted()).toHaveLength(12);
     expect(deleted().join('\n')).not.toContain('openmig-demo-task-');
     expect(existsSync(join(dir, 'mkcalendar.txt'))).toBe(false);
   });
@@ -399,7 +427,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
     );
     expect(r.status).toBe(0);
     expect(deleted().every((u) => u.includes('tenant-b-target'))).toBe(true);
-    expect(deleted()).toHaveLength(13);
+    expect(deleted()).toHaveLength(14);
     expect(
       deleted(),
       'the target copy of the organiser canary is the one a bare DELETE would CANCEL from',
