@@ -142,7 +142,7 @@ from alpha.17 is one-way: ledger migration 0075 adds a column.
   edition's check of the hosts it is asked to reach; in the web bundle `@tanstack/react-query`
   5.108.2 and lucide-react 1.77.0, with `@tanstack/react-query-devtools` 5.108.2, whose styles no
   longer come from goober. All six are past the three-day floor; taken after CI and E2E
-  (self-hosted, on Postgres and on PGlite, and managed) were green on its head ‹PENDING: E2E›.
+  (self-hosted, on Postgres and on PGlite, and managed) were green on it.
 
 ### Removed
 

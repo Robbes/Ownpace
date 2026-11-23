@@ -48,8 +48,8 @@ name, which the step now asks about by itself (#2084).
   the three E2E lanes at C, one at a time; then the Release run, which the owner starts from their
   own account, with `commit` set to C and `waive_nights` set to the reason in their own words, and
   the approval in the `release` environment.
-- **Live's deploy** goes from alpha.17, which live runs since ‹PENDING: alpha.17's deploy, 0132's
-  Status›. It is **one-way** by the deploy's own rule: between alpha.17's C and this one, ledger
+- **Live's deploy** goes from alpha.17, which live runs since 2026-11-23 at 19:11:57 UTC.
+  It is **one-way** by the deploy's own rule: between alpha.17's C and this one, ledger
   migration `0075_the_copy_left_after_the_switch` is added (`item.address_left_at`, additive), and
   no managed migration. The T9 entry below calls the deploy reversible; it was written before that
   migration reached its branch. The identity provider's pin (Zitadel `v4.20.4`) is as it was, and
@@ -61,8 +61,9 @@ name, which the step now asks about by itself (#2084).
   plane's volumes and networks stay until the owner runs `remove-trigger-plane.sh --yes` once
   alpha.18 is proven (docs/managed-bring-up.md, "Trigger.dev's plane, removed"). Live's `.env`
   must not say `OWNPACE_JOB_RUNNER=trigger`, which alpha.18 refuses; the sheet's first block
-  checks. live keeps the copy alpha.17's deploy takes ‹PENDING: as that deploy left it›; while it
-  is there a take keeps it and takes no other, so the deploy's sheet asks the owner whether to
+  checks. live keeps the copy alpha.17's deploy took (2026-11-23 at 19:09:31 UTC, alpha.16's
+  databases, not proven, since no pass can run while live's only organisation is closed; the copy
+  before alpha.14 was deleted first, on the owner's yes); while it is there a take keeps it and takes no other, so the deploy's sheet asks the owner whether to
   delete it first, so that the take copies alpha.17's databases. The worker's memory rule is
   alpha.17's.
 
