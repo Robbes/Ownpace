@@ -271,10 +271,14 @@ export const NOT_TAKEN_ALONG: ReadonlyArray<NotTakenAlong> = Object.freeze([
  * read 2026-11-23: "The domain part of the user ID is either the
  * onmicrosoft.com domain that you chose when you signed up for Microsoft 365
  * for business or another domain—for example, your organization’s custom
- * domain". NEITHER PAGE SAYS WHETHER THAT DOMAIN CAN BE REMOVED. Microsoft's
- * admin pages on domains, which support.microsoft.com now sends to
- * learn.microsoft.com or docs.microsoft.com, could not be read from the
- * build's network that day; workplan 0168's Status block says so.
+ * domain". And the one that says it ends with the tenant: Microsoft Learn,
+ * "Domains FAQ",
+ * https://learn.microsoft.com/en-us/microsoft-365/admin/setup/domains-faq,
+ * read 2026-11-23: "Microsoft 365 creates a domain for you, like
+ * contoso.onmicrosoft.com, when you sign up with the service", and "You can't
+ * remove your onmicrosoft.com domain. Microsoft 365 needs to keep the
+ * onmicrosoft.com domain because it's used behind the scenes for your
+ * subscription."
  */
 export const UNDER_ONMICROSOFT: Readonly<{ readonly parent: string; readonly provider: string }> = Object.freeze({
   parent: 'onmicrosoft.com',

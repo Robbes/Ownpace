@@ -58,13 +58,12 @@ account](https://support.microsoft.com/en-us/accounts-billing/manage/what-s-the-
 get an email address that ends with .onmicrosoft.com. You can use that address or customize it by
 adding your own domain"*) and [What is my user
 ID](https://support.microsoft.com/en-us/office/lifecycle/what-is-my-user-id-and-why-do-i-need-it-for-office-365-for-business).
-**Neither says that the initial domain cannot be removed.** Microsoft's domains FAQ on
-learn.microsoft.com could not be read: this environment's network refused the host (the proxy
-answered 403). The three support.microsoft.com pages on removing or adding a domain that came up
-(KB 2787317, KB 2284755, *Add a custom domain*) answer with a redirect to learn.microsoft.com or
-docs.microsoft.com, neither of which this environment allows. Nothing was cited from search
-excerpts or from memory. A build with learn.microsoft.com allowed should read the FAQ and cite it
-beside the rule.
+And [Microsoft's domains FAQ](https://learn.microsoft.com/en-us/microsoft-365/admin/setup/domains-faq),
+read the same day once the owner allowed learn.microsoft.com, says the domain ends with the tenant:
+*"Microsoft 365 creates a domain for you, like contoso.onmicrosoft.com, when you sign up with the
+service"*, and *"You can't remove your onmicrosoft.com domain. Microsoft 365 needs to keep the
+onmicrosoft.com domain because it's used behind the scenes for your subscription."* All three are
+quoted beside the rule; nothing was cited from search excerpts or from memory.
 
 Proven, each rule with a test that fails with it mutated off and passes with it restored:
 
