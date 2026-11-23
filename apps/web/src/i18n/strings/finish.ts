@@ -82,6 +82,10 @@ export const en = {
     'Make new email arrive at the new system: with your own domain, change its mail settings (MX records) at your domain provider; with an address like @gmail.com, turn on forwarding to your new address. Then set up the mail app on your phone and computer for the new account.',
   'finish.step4.more':
     'This happens outside Ownpace\'s reach, so it is the one step here nobody can check for you.',
+  // An address that cannot come along (workplan 0168 §2.1): guidance only,
+  // because a migration sends nothing to anyone (ADR-0043).
+  'finish.step4.autoreply':
+    'With an address like @gmail.com, also turn on an automatic reply at the old provider that says your address has changed. A migration sends nothing to anyone, so you turn this on yourself, in the old provider\'s settings.',
   'finish.step4.warn.pre': 'If you finish before this is done',
   'finish.step4.warn.post':
     ', anything that arrives on the old system afterwards will not be migrated, and nothing will report it — Ownpace stopped watching.',
@@ -183,6 +187,8 @@ export const nl: Record<keyof typeof en, string> = {
     'Zorg dat nieuwe e-mail op het nieuwe systeem aankomt: hebt u een eigen domein, wijzig dan de mailinstellingen (MX-records) bij uw domeinaanbieder; hebt u een adres als @gmail.com, zet dan doorsturen aan naar uw nieuwe adres. Stel daarna de mail-app op uw telefoon en computer in voor het nieuwe account.',
   'finish.step4.more':
     'Dit gebeurt buiten Ownpace; Ownpace kan dit niet controleren.',
+  'finish.step4.autoreply':
+    'Hebt u een adres als @gmail.com, zet dan bij de oude aanbieder ook een automatisch antwoord aan dat zegt dat uw adres is veranderd. Een migratie stuurt niemand iets, dus dit zet u zelf aan, in de instellingen van de oude aanbieder.',
   'finish.step4.warn.pre': 'Als u afrondt voordat dit is gedaan',
   'finish.step4.warn.post':
     ', stopt de migratie: wat daarna nog op het oude systeem binnenkomt, zet Ownpace niet meer over naar het nieuwe, en niets meldt het — Ownpace kijkt niet meer mee.',

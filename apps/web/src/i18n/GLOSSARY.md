@@ -35,8 +35,11 @@ Two kinds of words render; only the first belongs to this glossary:
   `recommendations`. Since 2026-10-18 (the owner) Verify says four of them
   in client words, matched by the whole id: `TARGET_FOLDER_MISSING_<type>`,
   `TARGET_UNREAD_<type>`, `MISSING_<type>` and `CHECKSUM_<type>`
-  (`verify.issue.*`, chosen by `issueSentence` in `verdict-words.ts`). Any
-  other finding says the server's text. The server's text, each finding's
+  (`verify.issue.*`, chosen by `issueSentence` in `verdict-words.ts`); and,
+  since workplan 0168, the two about a new address, `ADDRESS_OLDER_TABLE_<type>`
+  and `ADDRESS_NOT_COMPARED_<type>`, whose sentence says what the copies wait
+  for: the next pass (*ronde*), or past the switch the press *De nieuwe
+  adressen hier ook toepassen*. Any other finding says the server's text. The server's text, each finding's
   id and severity token, and the recommendations are VERBATIM in a closed
   *Technical details* / *Technische details* fold.
 

@@ -11,7 +11,7 @@
  * Provides detailed reports for cutover decision-making.
  */
 
-import type { TenantId, MappingId } from '@openmig/shared';
+import type { AddressChangeWaitsFor, TenantId, MappingId } from '@openmig/shared';
 import {
   ACCOUNT_CLOSED,
   A_TEST_IS_NOT_SWITCHED_OVER,
@@ -123,6 +123,22 @@ export interface VerificationDeps {
   findExtraOnTarget(
     dataType: VerificationDomain
   ): Promise<Array<{ id: string; targetRef: string }>>;
+
+  /**
+   * The address table's part of this data type (ADR-0055; workplan 0168 T5):
+   * the table's digest now, how many copies carry a change under it, and the
+   * keys of those written under an older table. Optional: absent, the report
+   * says nothing about a table, exactly as before.
+   */
+  getAddressChanges?(
+    dataType: VerificationDomain
+  ): Promise<{
+    readonly digest: string | null;
+    readonly changed: number;
+    readonly olderKeys: ReadonlyArray<string>;
+    /** What they wait for: the next pass, or past the data type's cutover the press (workplan 0168 D5). */
+    readonly waitsFor?: AddressChangeWaitsFor;
+  }>;
   
   // Bytes tracking
   getTotalBytesSource(dataType: VerificationDomain): Promise<number>;
@@ -565,9 +581,21 @@ async function verifyDataType(
   // Samples the target answered with a hash, of whichever version: none, from
   // a target that can hash, holds the gate (0149 T4, below).
   let hashedByTarget = 0;
+  // THE ADDRESS TABLE (ADR-0055; workplan 0168 T5, S3). A copy a change of
+  // the table waits for is NEVER a match: its hash agreeing with the ledger
+  // proves only that it is what we wrote then. Such a sample is never asked
+  // of the target, counted as unavailable, and said below.
+  const address = deps.getAddressChanges ? await deps.getAddressChanges(dataType) : undefined;
+  const older = new Set(address?.olderKeys ?? []);
+  let olderSampled = 0;
 
   // Compare samples by matching naturalKeyHash
   for (const sourceSample of sourceSamples) {
+    if (older.has(sourceSample.naturalKeyHash)) {
+      olderSampled++;
+      checksumUnavailable++;
+      continue;
+    }
     const targetSample = targetSamplesByHash.get(sourceSample.naturalKeyHash);
 
     if (targetSample) {
@@ -650,7 +678,16 @@ async function verifyDataType(
   // version, is an answer, so this is about the target answering at all. No
   // sample drawn at all is held too (`CHECKSUM_NOT_SAMPLED_*`, below): nothing
   // was compared there either.
+  //
+  // AND A SAMPLE EVERY ITEM OF WHICH WAITS FOR AN ADDRESS CHANGE IS NO SAMPLE
+  // (workplan 0168, the review's S2). Those were set aside unasked, so nothing
+  // was compared, and the gate holds as it does for no sample drawn (0149 T4;
+  // ADR-0055 decision 5). It read PASS here, with no match, between a change
+  // to a row and the pass after it, for a data type whose sampled copies all
+  // carried the change: a person's own calendar, say. Said on its own below,
+  // since the remedy is the next pass or the press, not the connection.
   const contentHeld = deps.targetCanHash(dataType) && sourceCount > 0 && hashedByTarget === 0;
+  const allWaitForAnAddress = sourceSamples.length > 0 && olderSampled === sourceSamples.length;
 
   const status = contentHeld
     ? 'FAIL'
@@ -696,6 +733,19 @@ async function verifyDataType(
           ? 'The new system can be asked for content, so the cutover is held. Verify again.'
           : 'Count parity still applies.'),
     });
+  } else if (contentHeld && allWaitForAnAddress) {
+    // Every sample waits for an address change (S2): nothing was asked of the
+    // target, so nothing was compared. Held, with the remedy that applies.
+    issues.push({
+      id: `ADDRESS_NOT_COMPARED_${dataType}`,
+      severity: 'ERROR',
+      message:
+        `Every one of the ${sourceSamples.length} sampled ${dataType} item(s) waits for an address ` +
+        `change to reach it, so no content was compared. The cutover is held. Check again after ` +
+        (address?.waitsFor === 'press'
+          ? 'pressing Apply the new addresses here too, on the migration\'s page, and the pass after it.'
+          : 'the next pass.'),
+    });
   } else if (contentHeld) {
     // Samples were drawn, and the target, which can hash, answered not one of
     // them with a hash (0149 T4). This takes the place of the warning below,
@@ -739,6 +789,23 @@ async function verifyDataType(
     });
   }
   
+  if (address && address.olderKeys.length > 0) {
+    // Said in a person's words: what they wait for, and no decision's number
+    // (the screens' review S11). Past the data type's cutover a change waits
+    // for a person's press, never for "the next pass" (D5; S4).
+    issues.push({
+      id: `ADDRESS_OLDER_TABLE_${dataType}`,
+      severity: 'WARNING',
+      message:
+        `${address.olderKeys.length} ${dataType} item(s) wait for an address change to reach them, ` +
+        (address.waitsFor === 'press'
+          ? 'which past the switch happens only when somebody presses Apply the new addresses here too, on the migration\'s page. '
+          : 'which the next pass writes. ') +
+        'None of them is counted as a match' +
+        (olderSampled > 0 ? `; ${olderSampled} sampled item(s) were set aside for it.` : '.'),
+    });
+  }
+
   if (checksumMismatches > 0) {
     issues.push({
       id: `CHECKSUM_${dataType}`,
@@ -767,6 +834,16 @@ async function verifyDataType(
     checksumMatches,
     checksumMismatches,
     checksumUnavailable,
+    ...(address
+      ? {
+          addressChanges: {
+            digest: address.digest,
+            changed: address.changed,
+            older: address.olderKeys.length,
+            ...(address.waitsFor !== undefined ? { waitsFor: address.waitsFor } : {}),
+          },
+        }
+      : {}),
     totalBytesSource,
     totalBytesTarget,
     issues,

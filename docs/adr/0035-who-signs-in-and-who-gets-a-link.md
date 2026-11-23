@@ -1,8 +1,8 @@
 # ADR-0035: Who signs in, and who just gets a link
 
 - **Status:** Accepted 2026-09-20 (owner: "yes on all 3"), substance owner-decided 2026-08-17
-  and restated 2026-08-19; amended nine times (latest 2026-10-03: the error text and item names
-  follow whose data it is, built); consolidated 2026-10-03 (ADR-0051)
+  and restated 2026-08-19; amended ten times (latest 2026-11-23: a person's links show the new
+  address set up for them, ADR-0055, built); consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-08-17; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0034](./0034-appliance-configuration-surface.md) (its decision 6 is
@@ -27,8 +27,8 @@
   (decision 4). Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be
   narrowed** — stated, not hidden (decision 3).
 - The owner decides who gets a link to manage and **grant** their own migration, and
-  **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days; progress links
-  longer, never showing content (`migration-view.ts`).
+  **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days, progress links
+  longer, showing no content but a person's own new address (`migration-view.ts`, ADR-0055).
 - **One link per person** (owner, 2026-09-29 and 2026-10-03; ADR-0050): a grant link and a
   progress link for all their migrations, granting per Google account only what the page showed.
   It replaces the per-migration link; one already sent is honoured until it expires.

@@ -311,8 +311,8 @@ live in [README.md](./README.md), the register.
   (decision 4). Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be
   narrowed** — stated, not hidden (decision 3).
 - The owner decides who gets a link to manage and **grant** their own migration, and
-  **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days; progress links
-  longer, never showing content (`migration-view.ts`).
+  **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days, progress links
+  longer, showing no content but a person's own new address (`migration-view.ts`, ADR-0055).
 - **One link per person** (owner, 2026-09-29 and 2026-10-03; ADR-0050): a grant link and a
   progress link for all their migrations, granting per Google account only what the page showed.
   It replaces the per-migration link; one already sent is honoured until it expires.
@@ -792,3 +792,28 @@ live in [README.md](./README.md), the register.
   way back (`OWNPACE_JOB_RUNNER=trigger`); removed only on the owner's word.
 - **A job carries ids only** (ADR-0004). Self-host keeps its in-process scheduler. The rules in
   full: *In force from workplan 0167 T7*, below.
+
+## [ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail](./0055-a-new-address-is-a-declared-change.md)
+
+- **Built** (workplan 0168 T1–T9). A copy changes only once the organisation's table holds a
+  confirmed row; with none, every byte is the source's.
+- **One table per organisation**, `address_change`, in the shared chain under forced row security.
+  Only an owner or an admin writes it, and only rows a person **confirmed** reach a writer; the
+  machine never confirms. An admin may confirm for a person, attributed; the person confirms or
+  sends back their own row, on their page or through their links (0168 D6).
+- **A pure function of source bytes and table** (`applyAddressChanges`), applied before
+  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, byte for byte.
+- **Changed:** a vCard `EMAIL` gains the new address first and preferred, the old kept (D2); an old
+  `ORGANIZER` is replaced; an `ATTENDEE` only where the organiser is in the table or is the person (D3).
+- **Never changed:** mail, in any byte (D1); free text (D4); display names; UIDs; a card inside a
+  card; an outside organiser's invitation.
+- **Declared, never silent:** each item records the digest of the rows that decided it
+  (`item.address_digest`); verification and the confirmed list count and name it; an older digest,
+  or a change a copy still waits for (`item.address_digest_due`), is never a match. Every write of
+  the table is audited by reference, never by address.
+- **A changed table converges** by a rewrite that needs a strong recorded version, sent as
+  `If-Match` (without one the copy is left and counted); adopted copies stay, tombstones stay, a
+  copy deleted on the target is never made again. Past a data type's cutover only on a person's
+  press, for the table they were shown (D5). Silence (ADR-0043) holds.
+- **Shares:** a confirmed row is ADR-0032 §6's confirmation; each press still sends its address.
+  Support shows counts only (D7); erasure purges both tables (`PURGED_TABLES`).

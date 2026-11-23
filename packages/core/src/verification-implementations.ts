@@ -117,6 +117,17 @@ export function createRealVerificationDeps(
     getTotalBytesTarget: (dataType) =>
       getTotalBytesFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType),
     ...(deps.organisationIsOpen ? { organisationIsOpen: deps.organisationIsOpen } : {}),
+    // The address table's part (ADR-0055), where the reader keeps one.
+    ...(verificationReader.addressChangesOf
+      ? {
+          getAddressChanges: (dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks') =>
+            verificationReader.addressChangesOf!(
+              tenantId,
+              mappingId,
+              mapDataTypeToDomain(dataType) as DiscoveryDomain,
+            ),
+        }
+      : {}),
   };
 }
 

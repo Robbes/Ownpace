@@ -292,6 +292,26 @@ describe('one organisation', () => {
     ).toHaveAttribute('href', `/support/log?tenantId=${TENANT.tenant_id}`);
   });
 
+  it('counts their address changes, rows and confirmed, and names no address (workplan 0168 D7)', async () => {
+    tenantMock.mockResolvedValue({ ...DETAIL, addressChanges: { rows: 2, confirmed: 1 } });
+    mount(<SupportTenantDetail />, `/support/tenants/${TENANT.tenant_id}`, '/support/tenants/:tenantId');
+    const counts = await screen.findByText(/^2 address change\(s\), 1 of them confirmed\./);
+    expect(counts.closest('section')).toHaveTextContent(OPERATOR_STRINGS['support.addressChanges']);
+    expect(counts.closest('section')!.textContent).not.toMatch(/@/);
+  });
+
+  it('says an organisation with no address change has none, and draws nothing from an API that sends no counts', async () => {
+    tenantMock.mockResolvedValue({ ...DETAIL, addressChanges: { rows: 0, confirmed: 0 } });
+    const first = mount(<SupportTenantDetail />, `/support/tenants/${TENANT.tenant_id}`, '/support/tenants/:tenantId');
+    expect(await screen.findByText(OPERATOR_STRINGS['support.addressChanges.none'])).toBeInTheDocument();
+    first.unmount();
+
+    tenantMock.mockResolvedValue(DETAIL);
+    mount(<SupportTenantDetail />, `/support/tenants/${TENANT.tenant_id}`, '/support/tenants/:tenantId');
+    await screen.findByText('Alpha mail');
+    expect(screen.queryByText(OPERATOR_STRINGS['support.addressChanges'])).not.toBeInTheDocument();
+  });
+
   it('says the same thing for an id that does not exist and one it may not see', async () => {
     // Both are a 404 from the API, deliberately. Two different sentences here
     // would let somebody use this screen to discover which ids are real.

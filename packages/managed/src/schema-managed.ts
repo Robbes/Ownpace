@@ -793,6 +793,29 @@ export const personLink = pgTable(
 );
 
 /**
+ * Whose old address an address change is (ADR-0055; workplan 0168 §4.2;
+ * managed migration 0063): at most one person per row of the shared chain's
+ * `address_change`, keyed by that row. A managed row of its own, because
+ * `person` is managed-only (hard rule 5). Its keys are the SQL's: to
+ * `address_change (tenant_id, old_key)` and to `person (id, tenant_id)`, both
+ * cascading, so deleting either side deletes only this link. Purged on
+ * erasure (`PURGED_TABLES`).
+ */
+export const addressChangePerson = pgTable(
+  'address_change_person',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    oldKey: text('old_key').notNull(),
+    personId: uuid('person_id').notNull(),
+    linkedAt: timestamp('linked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.oldKey] }),
+    index('address_change_person_person_idx').on(t.personId),
+  ],
+);
+
+/**
  * When a migration was last visited: its page opened, or *Sync now* pressed
  * (workplan 0157 T7, managed migration 0042). A migration with no schedule of
  * its own looks every hour for 14 days from the later of this and its first

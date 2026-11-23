@@ -40,6 +40,8 @@ import { applyTargetFolderPrefix,
   fileNaturalKeyHash,
   containerContentHash,
   fileContentHash,
+  applyAddressChanges,
+  type AddressTable,
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncResult } from './domain-sync.ts';
 import { fileTooLarge } from './largest-file.ts';
@@ -55,6 +57,124 @@ import { fileTooLarge } from './largest-file.ts';
  */
 function ownsPrefix(target: unknown): boolean {
   return (target as { ownsTargetFolderPrefix?: boolean } | undefined)?.ownsTargetFolderPrefix === true;
+}
+
+/**
+ * THE ADDRESS TABLE A PASS APPLIES (ADR-0055; workplan 0168 §3, T4), read once
+ * at the pass's start from the tenant's CONFIRMED rows and made ready with
+ * `prepareAddressTable`.
+ *
+ * Applied to the body the source gave, before anything else reads it: the
+ * writer's own repairs (`repairPayload`) and `neutraliseScheduling` then run
+ * on the changed body, the loop's content hash is of it, and the writer sends
+ * it. So the ledger, the target and verification name one set of bytes.
+ * Absent, or empty, every byte is the source's, exactly as before.
+ */
+export interface AddressChangesForPass {
+  readonly table: AddressTable;
+  /** `addressKey` of the migration's own account's addresses: its events' guests change too (D3). */
+  readonly ownKeys: ReadonlyArray<string>;
+  /**
+   * A person pressed *Apply the new addresses here too* on this migration for
+   * this table (D5): past the data type's cutover, a changed table rewrites
+   * copies. Without it, it waits.
+   */
+  readonly pastCutoverApplies?: boolean;
+}
+
+/** The loop's address-change hooks for one format, or nothing for a pass without a table. */
+function addressHooks<Item>(
+  changes: AddressChangesForPass | undefined,
+  format: 'vcard' | 'icalendar',
+  bodyOf: (item: Item) => string,
+): {
+  readonly addressDigestNow?: (item: Item) => string | null;
+  readonly addressRewritePastCutover?: boolean;
+} {
+  if (!changes) return {};
+  return {
+    addressDigestNow: (item) => applyAddressChanges(format, bodyOf(item), changes.table, changes.ownKeys).digest,
+    ...(changes.pastCutoverApplies ? { addressRewritePastCutover: true } : {}),
+  };
+}
+
+/** A body with the table applied, and the digest it was changed under; the body itself without a table. */
+function changed(
+  changes: AddressChangesForPass | undefined,
+  format: 'vcard' | 'icalendar',
+  body: string,
+): { readonly body: string; readonly addressDigest?: string | null } {
+  if (!changes) return { body };
+  const r = applyAddressChanges(format, body, changes.table, changes.ownKeys);
+  return { body: r.body, addressDigest: r.digest };
+}
+
+/**
+ * What a cursor was read under (`cursorsUnderTheTable`): the confirmed table's
+ * digest, and whether a person's press past the cutover covers that table.
+ * Empty for the empty table with no press, which is every migration whose
+ * organisation never confirmed a row: its cursors are stored exactly as they
+ * always were.
+ */
+export function addressTableTag(changes: AddressChangesForPass): string {
+  const press = changes.pastCutoverApplies === true;
+  if (changes.table.digest === null && !press) return '';
+  return `${changes.table.digest ?? 'none'}${press ? '+applied' : ''}`;
+}
+
+/** How a tagged cursor starts. Followed by the tag, a `|`, and the source's own cursor. */
+const READ_UNDER = 'ownpace-address-table:';
+
+/**
+ * A CURSOR IS A CLAIM MADE UNDER A TABLE (ADR-0055; workplan 0168 §3.3; the
+ * managed E2E, run 45088703249, against a real Nextcloud).
+ *
+ * A collection's cursor says "every item up to here was read, and none needs
+ * reading again". Past it, the sources list only what changed on the SOURCE:
+ * a sync-collection token (CardDAV and CalDAV, Google's endpoints included)
+ * and Graph's delta links for contacts and calendars. An item the source left
+ * alone is then never classified, so a change to the address table reached
+ * nothing already copied: not a row confirmed after the first pass, not a row
+ * deleted or sent back, not the press past a cutover. The E2E saw the second:
+ * after the row was deleted, "rows still under a digest: 2". Graph's To Do and
+ * Google Tasks read every task on every pass and were never affected.
+ *
+ * So each cursor is stored with the table it was read under
+ * (`addressTableTag`), and a cursor read under another table is no cursor:
+ * that collection is read from the beginning, once, every item it holds is
+ * classified under the table as it is now, and its cursor is stored again
+ * under that table. Per collection, as the cursor itself is, so a pass that
+ * stops at its deadline reads again only the collections it did not reach,
+ * and a long first reading cannot be started over for ever. A press past the
+ * cutover changes the tag too, so the pass after a press reads every item it
+ * may now rewrite. Cursors are non-authoritative (ADR-0020): a reading from
+ * the beginning is idempotent, never a copy.
+ */
+function cursorsUnderTheTable(
+  cursors: CursorStore | undefined,
+  changes: AddressChangesForPass | undefined,
+): CursorStore | undefined {
+  if (!cursors || !changes) return cursors;
+  const tag = addressTableTag(changes);
+  return {
+    async get(tenantId, mappingId, folderPath) {
+      const held = await cursors.get(tenantId, mappingId, folderPath);
+      if (held === undefined) return undefined;
+      if (!held.value.startsWith(READ_UNDER)) return tag === '' ? held : undefined;
+      const bar = held.value.indexOf('|', READ_UNDER.length);
+      if (bar === -1) return undefined;
+      return held.value.slice(READ_UNDER.length, bar) === tag ? { value: held.value.slice(bar + 1) } : undefined;
+    },
+    set(tenantId, mappingId, folderPath, cursor) {
+      return cursors.set(
+        tenantId,
+        mappingId,
+        folderPath,
+        tag === '' ? cursor : { value: `${READ_UNDER}${tag}|${cursor.value}` },
+      );
+    },
+    clear: (tenantId, mappingId) => cursors.clear(tenantId, mappingId),
+  };
 }
 
 /**
@@ -81,6 +201,8 @@ export interface CalendarSyncDeps extends PassClock, SourceAuthority {
    * fail to migrate because an advisory record could not be written.
    */
   readonly recordTargetScheduling?: () => Promise<void>;
+  /** The tenant's confirmed address changes for this pass (ADR-0055); absent changes nothing. */
+  readonly addressChanges?: AddressChangesForPass;
 }
 
 /**
@@ -103,17 +225,21 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     source,
     target,
     ledger,
-    cursors,
+    // Each cursor read under the table it was stored under (`cursorsUnderTheTable`).
+    cursors: cursorsUnderTheTable(cursors, deps.addressChanges),
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
     fetchRaw: async (item) => {
-      const raw = item.icalendar;
-      return { 
-        raw: { item: item.item, icalendar: raw } as RawCalendarEvent,
-        sizeBytes: Buffer.from(item.icalendar, 'utf8').length 
+      // The address table first (ADR-0055), then the writer's own steps.
+      const { body, addressDigest } = changed(deps.addressChanges, 'icalendar', item.icalendar);
+      return {
+        raw: { item: item.item, icalendar: body } as RawCalendarEvent,
+        sizeBytes: Buffer.from(body, 'utf8').length,
+        ...(addressDigest !== undefined ? { addressDigest } : {}),
       };
     },
+    ...addressHooks<RawCalendarEvent>(deps.addressChanges, 'icalendar', (item) => item.icalendar),
     upsert: async (calendarId, raw, _item, options) =>
       target.upsertCalendarEvent(calendarId, raw as RawCalendarEvent, options),
     // Through the shared helper, not the bare UID: a recurring series and each
@@ -213,17 +339,21 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     source,
     target,
     ledger,
-    cursors,
+    // Each cursor read under the table it was stored under (`cursorsUnderTheTable`).
+    cursors: cursorsUnderTheTable(cursors, deps.addressChanges),
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
     fetchRaw: async (item) => {
-      const raw = item.icalendar;
+      // The address table first (ADR-0055), then the writer's own steps.
+      const { body, addressDigest } = changed(deps.addressChanges, 'icalendar', item.icalendar);
       return {
-        raw: { item: item.item, icalendar: raw } as RawCalendarEvent,
-        sizeBytes: Buffer.from(item.icalendar, 'utf8').length,
+        raw: { item: item.item, icalendar: body } as RawCalendarEvent,
+        sizeBytes: Buffer.from(body, 'utf8').length,
+        ...(addressDigest !== undefined ? { addressDigest } : {}),
       };
     },
+    ...addressHooks<RawCalendarEvent>(deps.addressChanges, 'icalendar', (item) => item.icalendar),
     upsert: async (calendarId, raw, _item, options) =>
       target.upsertCalendarEvent(calendarId, raw as RawCalendarEvent, options),
     // THE ONE LINE THAT IS NOT THE CALENDAR PASS. `naturalKeyForTask` carries
@@ -269,6 +399,8 @@ export interface ContactSyncDeps extends PassClock, SourceAuthority {
   readonly onCollision?: 'skip' | 'fail';
   /** Create every target directory under this folder — see `MappingConfig.targetFolderPrefix`. */
   readonly targetFolderPrefix?: string;
+  /** The tenant's confirmed address changes for this pass (ADR-0055); absent changes nothing. */
+  readonly addressChanges?: AddressChangesForPass;
 }
 
 /**
@@ -287,7 +419,8 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     source,
     target,
     ledger,
-    cursors,
+    // Each cursor read under the table it was stored under (`cursorsUnderTheTable`).
+    cursors: cursorsUnderTheTable(cursors, deps.addressChanges),
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
@@ -303,11 +436,23 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
       // contact arrived with its name and numbers and without its face
       // (owner's report, 2026-09-23).
       const full = source.fetch ? await source.fetch(item) : item;
+      // The address table first (ADR-0055), then the writer's own repairs.
+      const fetchedChange = changed(deps.addressChanges, 'vcard', full.vcard);
+      const body = fetchedChange.body;
+      // THE DIGEST THE PASS CLASSIFIED BY (the review's S8): of the LISTED
+      // card, as `addressDigestNow` reads it, never of the fetched one. A
+      // fetch never changes an EMAIL line (`ContactSource.fetch`), so the two
+      // agree; a source that broke that would otherwise record a digest the
+      // next pass's listing never gives, and rewrite the card on every pass.
+      const addressDigest =
+        full.vcard === item.vcard ? fetchedChange.addressDigest : changed(deps.addressChanges, 'vcard', item.vcard).addressDigest;
       return {
-        raw: { item: full.item, vcard: full.vcard } as RawContact,
-        sizeBytes: Buffer.from(full.vcard, 'utf8').length,
+        raw: { item: full.item, vcard: body } as RawContact,
+        sizeBytes: Buffer.from(body, 'utf8').length,
+        ...(addressDigest !== undefined ? { addressDigest } : {}),
       };
     },
+    ...addressHooks<RawContact>(deps.addressChanges, 'vcard', (item) => item.vcard),
     upsert: async (folderId, raw, _item, options) =>
       target.upsertContact(folderId, raw as RawContact, options),
     naturalKey: (item) => contactNaturalKeyHash(item.item.uid),

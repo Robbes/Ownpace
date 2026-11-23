@@ -14,12 +14,20 @@
  *  - **An OAuth callback**, `?code=…&state=…`: a code that can still be spent,
  *    and the state that binds it to the grant.
  *
+ * And one kind carries an ADDRESS: a row of the table of address changes is
+ * named by its old address, `/api/address-changes/<key>` (`PUT`, `DELETE`),
+ * and a link's own `/api/grant/<link>/address-changes/<key>`. The operator of
+ * the managed service sees how many rows an organisation has, never an
+ * address (workplan 0168 §5, D7; the review's finding 2).
+ *
  * So the log keeps what it is for (who asked, for which route, with what
  * outcome) and loses the rest: a link becomes `:link`, whatever the case or
  * the spelling of its route (`/API/GRANT/<link>` and `/%67rant/<link>` too),
- * and a query string is reduced to the fact that there was one, since its
- * values can carry codes and, on a search, whatever a person typed. The web image's nginx writes its own access log by
- * the same rule (`apps/web/nginx.conf.template`).
+ * an address change's key becomes `:key` by the same reading, and a query
+ * string is reduced to the fact that there was one, since its values can
+ * carry codes and, on a search, whatever a person typed. The web image's
+ * nginx writes its own access log by the same rule
+ * (`apps/web/nginx.conf.template`).
  */
 import morgan from 'morgan';
 import type { IncomingMessage } from 'node:http';
@@ -54,6 +62,15 @@ const LINK_ROUTE = `/(?:${spelled('api')}/)?(?:${spelled('grant')}|${spelled('vi
  */
 const LINK_SEGMENT = new RegExp(`^((?:[a-z][a-z0-9+.-]*://[^/]+)?${LINK_ROUTE})[^/]+`, 'i');
 
+/**
+ * The path segment that is an address change's key, and everything before it
+ * (0168's review, finding 2): the first segment after an `address-changes/`
+ * route word, wherever it is, in any case or spelling, as a link's route is
+ * read. The one such segment that is a route word and no key is `apply`
+ * (`/api/migrations/<id>/address-changes/apply`), and it stays.
+ */
+const KEY_SEGMENT = new RegExp(`^([^?]*?/${spelled('address-changes')}/)(?!apply(?:[/?]|$))[^/?]+`, 'i');
+
 /** What a query string is reduced to: that there was one, and nothing it said. */
 export const QUERY_MARK = '?...';
 
@@ -62,7 +79,7 @@ export function loggableUrl(url: string | undefined): string {
   if (!url) return '-';
   const query = url.indexOf('?');
   const path = query === -1 ? url : url.slice(0, query);
-  const kept = path.replace(LINK_SEGMENT, '$1:link');
+  const kept = path.replace(LINK_SEGMENT, '$1:link').replace(KEY_SEGMENT, '$1:key');
   return query === -1 ? kept : `${kept}${QUERY_MARK}`;
 }
 

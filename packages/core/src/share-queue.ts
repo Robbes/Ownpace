@@ -29,6 +29,7 @@
 
 import { createHash } from 'node:crypto';
 import type {
+  ConfirmedAddressChange,
   DiscoveryDomain,
   Ledger,
   MappingId,
@@ -44,6 +45,7 @@ import {
   dataTypeOfShare,
   groupShareGrants,
   limitAfterRefusals,
+  newAddressFor,
   spentTheLimit,
 } from '@openmig/shared';
 import { mapGrant, type ReportLanguage } from './permission-map.ts';
@@ -779,6 +781,15 @@ export interface ApplyFolderDeps extends ApplyShareDeps {
    * the address to be different.
    */
   readonly confirmed: ConfirmedGrantees;
+  /**
+   * The organisation's CONFIRMED address changes (ADR-0055 decision 7;
+   * workplan 0168 §2.4, T6). A row is a person's confirmation of a grantee's
+   * new address, so a grantee the request did not confirm, whose old address
+   * has one, is sent to the row's new address and is not refused. An address
+   * the request does carry wins: a person corrected it on the page. The press
+   * is still a person's, and every invitation still carries its address.
+   */
+  readonly addressChanges?: ReadonlyArray<ConfirmedAddressChange>;
 }
 
 export type ApplyFolderRefusal =
@@ -868,7 +879,13 @@ export async function applyShareGrantsInFolder(
   // not checked here: there is nobody to confirm, and the target's own
   // refusal says so per row, in its words.
   const needed = [...new Set(candidates.map((r) => r.grantee).filter((g): g is string => !!g))];
-  const unconfirmed = needed.filter((g) => !(deps.confirmed[g] ?? '').trim()).sort();
+  // The address each grantee is sent to: the one the request confirmed, else
+  // the one a confirmed row of the address table gives (ADR-0055), else none.
+  const table = deps.addressChanges ?? [];
+  const sentTo = (grantee: string): string | undefined =>
+    (deps.confirmed[grantee] ?? '').trim() || newAddressFor(table, grantee);
+  const fromTable = needed.filter((g) => !(deps.confirmed[g] ?? '').trim() && newAddressFor(table, g) !== undefined);
+  const unconfirmed = needed.filter((g) => sentTo(g) === undefined).sort();
   if (unconfirmed.length > 0) {
     return {
       ok: false,
@@ -884,9 +901,7 @@ export async function applyShareGrantsInFolder(
 
   // Each row to the address a person confirmed for its grantee; the target's
   // limit stops the press as it stops the one-go press (`pressRows`).
-  const pressed = await pressRows(deps, candidates, (row) =>
-    (row.grantee ? deps.confirmed[row.grantee]?.trim() : undefined) || undefined,
-  );
+  const pressed = await pressRows(deps, candidates, (row) => (row.grantee ? sentTo(row.grantee) : undefined));
   const { applied, refused, waitingForLimit } = pressed;
 
   // The press is its own event beside the per-row entries. It records WHICH
@@ -905,6 +920,9 @@ export async function applyShareGrantsInFolder(
         applied: applied.length,
         refused: refused.length,
         grantees: needed.length,
+        // How many were confirmed by the organisation's address table rather
+        // than on the page (ADR-0055): a count, never the addresses.
+        ...(fromTable.length > 0 ? { fromAddressChanges: fromTable.length } : {}),
         leftForChecklist: { links, manual },
         waitingForLimit: waitingForLimit.length,
       },

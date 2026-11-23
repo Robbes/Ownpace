@@ -60,6 +60,7 @@ import { useT, useFormatters } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { ownerOrAdminOnly } from '../services/api.ts';
+import { AddressChanges } from '../components/AddressChanges.tsx';
 
 /** The roles this screen grants (0137 T7): the API refuses the other two. */
 const ROLES: ReadonlyArray<Member['role']> = ['owner', 'admin'];
@@ -651,6 +652,10 @@ const Tenants: React.FC = () => {
           </table>
         )}
       </div>
+
+      {/* Address changes (0168 §6.3): the organisation's one table, under
+          this screen's owner-or-admin rule. */}
+      <AddressChanges scope={{ kind: 'organisation' }} canWrite={canManage} headingId="address-changes" />
 
       {/* Invite */}
       {canManage && (

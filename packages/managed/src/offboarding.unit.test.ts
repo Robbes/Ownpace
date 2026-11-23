@@ -145,6 +145,28 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
   // 0061), so every purge below empties `person` with a link in it, and the
   // member it names after it.
   await conn.query(`UPDATE person SET user_id = $1 WHERE id = $2`, [`sub-${suffix}`, person!.id]);
+  // The organisation's table of address changes, one row confirmed and one
+  // proposed, and whose the first is (ADR-0055; ledger 0071, managed 0063):
+  // other people's old and new addresses, which an erasure is for. Seeded
+  // because the purge names both tables, and the review of 0168 found them
+  // emptied only of what was never there.
+  await conn.query(
+    `INSERT INTO address_change (tenant_id, old_key, old_address, new_address, state, set_by, confirmed_by, confirmed_at)
+     VALUES ($1, $2, $2, $3, 'confirmed', $4, $4, now()), ($1, $5, $5, $6, 'proposed', $4, NULL, NULL)`,
+    [
+      tenantId,
+      `anna-${suffix}@example.com`,
+      `anna-${suffix}@example.org`,
+      `sub-${suffix}`,
+      `kid-${suffix}@example.com`,
+      `kid-${suffix}@example.org`,
+    ],
+  );
+  await conn.query(`INSERT INTO address_change_person (tenant_id, old_key, person_id) VALUES ($1, $2, $3)`, [
+    tenantId,
+    `anna-${suffix}@example.com`,
+    person!.id,
+  ]);
   // What that member accepted, and when (workplan 0139 T3, managed 0032):
   // part of their account, which privacy §4.4 and §9 erase with it.
   await conn.query(
@@ -368,6 +390,20 @@ describe('purging a tenant', () => {
     }
     expect(survivors).toEqual([]);
     expect(await count('tenant', `WHERE id = '${LEAVING}'`)).toBe(0);
+  });
+
+  // The review of 0168's table, finding 12: the tables were in PURGED_TABLES
+  // and emptied, but no fixture had ever put a row in them.
+  it("erases the organisation's address changes and whose they are, counts them on the receipt, and keeps the other's", async () => {
+    expect(await count('address_change', `WHERE tenant_id = '${LEAVING}'`)).toBe(2);
+    expect(await count('address_change_person', `WHERE tenant_id = '${LEAVING}'`)).toBe(1);
+    await closeTenant(db, LEAVING, 0, 'owner@example.com', NOW);
+    const receipt = await purgeTenant(db, LEAVING, NOW);
+    expect(receipt.counts).toMatchObject({ address_change: 2, address_change_person: 1 });
+    expect(await count('address_change', `WHERE tenant_id = '${LEAVING}'`)).toBe(0);
+    expect(await count('address_change_person', `WHERE tenant_id = '${LEAVING}'`)).toBe(0);
+    expect(await count('address_change', `WHERE tenant_id = '${STAYING}'`)).toBe(2);
+    expect(await count('address_change_person', `WHERE tenant_id = '${STAYING}'`)).toBe(1);
   });
 
   it('leaves the OTHER tenant completely untouched', async () => {

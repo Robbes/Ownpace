@@ -18,13 +18,23 @@
 # It logs `/API/GRANT/<link>` too, when it serves the page for it: only a
 # lower-case `/api/` is proxied. The route is written as it came; only the
 # link goes.
+#
+# AND AN ADDRESS CHANGE'S KEY, which is an old address (workplan 0168 §5, D7;
+# the review's finding 2): `PUT /api/address-changes/<key>` and the link's own
+# `/api/grant/<link>/address-changes/<key>` write `:key` where the address
+# was, by the same reading of the route word. `apply`, the one segment after
+# it that is a route word, stays.
 map $request_uri $ownpace_log_uri_path {
   "~^(?<ownpace_uri_path>[^?]*)\?" "${ownpace_uri_path}?...";
   default $request_uri;
 }
-map $ownpace_log_uri_path $ownpace_log_uri {
+map $ownpace_log_uri_path $ownpace_log_uri_linkless {
   "~*^(?<ownpace_uri_route>/(?:(?:a|%[46]1)(?:p|%[57]0)(?:i|%[46]9)/)?(?:(?:g|%[46]7)(?:r|%[57]2)(?:a|%[46]1)(?:n|%[46]e)(?:t|%[57]4)|(?:v|%[57]6)(?:i|%[46]9)(?:e|%[46]5)(?:w|%[57]7))/)[^/?]+(?<ownpace_uri_rest>.*)$" "${ownpace_uri_route}:link${ownpace_uri_rest}";
   default $ownpace_log_uri_path;
+}
+map $ownpace_log_uri_linkless $ownpace_log_uri {
+  "~*^(?<ownpace_key_route>[^?]*?/(?:a|%[46]1)(?:d|%[46]4)(?:d|%[46]4)(?:r|%[57]2)(?:e|%[46]5)(?:s|%[57]3)(?:s|%[57]3)(?:-|%[22]d)(?:c|%[46]3)(?:h|%[46]8)(?:a|%[46]1)(?:n|%[46]e)(?:g|%[46]7)(?:e|%[46]5)(?:s|%[57]3)/)(?!apply(?:[/?]|$))[^/?]+(?<ownpace_key_rest>.*)$" "${ownpace_key_route}:key${ownpace_key_rest}";
+  default $ownpace_log_uri_linkless;
 }
 map $http_referer $ownpace_log_referer_path {
   # No Referer at all. Said as an entry of its own because nginx never runs a
