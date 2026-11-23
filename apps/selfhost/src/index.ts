@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, type PathEnding } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, applyNewAddressesHere, readAddressChangesForReport, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -70,6 +70,10 @@ import {
   summariseSetup,
   implicitPeople,
   ONE_PERSON_HERE,
+  withGranteesNewAddress,
+  ADDRESS_CHANGES_FILE,
+  ADDRESS_PRESS_NAMES_NO_TABLE,
+  ADDRESS_TABLE_MOVED,
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
@@ -93,6 +97,7 @@ import type {
   PersonMigration,
 } from '@openmig/shared';
 import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
+import { addressTableAtStart, handleAddressChanges, readAddressDoor, seedAddressChanges } from './address-changes.ts';
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition, updateTransition } from './lifecycle.ts';
 import { serveUi, UI_MOUNT } from './static-ui.ts';
@@ -463,6 +468,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // the shared target, reporting success. Refused at boot, with the fix.
   for (const m of mappings) assertMappingPattern(m.config);
   log.info(`[selfhost] loaded ${mappings.length} mapping(s) from ${configDir}`);
+  // The table of address changes' door (workplan 0168 §7): its file, read and
+  // checked now, so a malformed one stops the start before anything runs; or,
+  // without the file, the appliance's own page.
+  const addressDoor = readAddressDoor(configDir);
+  log.info(
+    addressDoor.door === 'file'
+      ? `[selfhost] address changes: ${addressDoor.rows.length} from ${addressDoor.file} (the page shows them read-only)`
+      : '[selfhost] address changes: written on this appliance\'s own page',
+  );
 
   // 3. Wire the status store + scheduler.
   const db = persistenceBackend.db;
@@ -1175,11 +1189,42 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     log.info(`[selfhost] scheduled ${m.config.mappingId} (${cron})`);
   };
 
+  // The table of address changes every tenant starts with (0168 §7; the
+  // review's findings 5 and 7): the file's, or, through the page, the first
+  // tenant's that holds a row, once the rows a removed file set are gone. One
+  // table however many tenants the directory names, so every migration
+  // applies the same changes and the page shows the table they apply.
+  const addressStart = await addressTableAtStart(
+    persistenceBackend.driver,
+    [...new Set(mappings.map((m) => m.config.tenantId as string))],
+    addressDoor,
+  );
+  if (addressStart.door === 'page' && addressStart.fileRowsDeleted > 0) {
+    log.info(
+      `[selfhost] address changes: ${ADDRESS_CHANGES_FILE} is gone, so the ${addressStart.fileRowsDeleted} ` +
+        "address change(s) it set were deleted; this appliance's own page writes them from now on",
+    );
+  }
   // Startup: ensure records, fire read-only discovery in the background, and schedule
   // only mappings that are already 'active'. Paused (draft) mappings wait for the operator
   // to confirm on the page (0013 T7).
+  const addressTablesSeeded = new Set<string>();
   for (const m of mappings) {
     await ensureRecordsFor(m);
+    // The tenant's table becomes that table once its row exists, and before
+    // any of its passes is scheduled (0168 §7).
+    if (!addressTablesSeeded.has(m.config.tenantId)) {
+      addressTablesSeeded.add(m.config.tenantId);
+      const seeded = await seedAddressChanges(persistenceBackend.driver, m.config.tenantId, addressStart);
+      if (seeded && seeded.added + seeded.changed + seeded.removed > 0) {
+        log.info(
+          (addressStart.door === 'file'
+            ? `[selfhost] address changes from ${ADDRESS_CHANGES_FILE}: `
+            : `[selfhost] address changes of tenant ${m.config.tenantId}, made the same as the others': `) +
+            `${seeded.added} added, ${seeded.changed} changed, ${seeded.removed} removed, ${seeded.kept} as they were`,
+        );
+      }
+    }
     // 0125 T2, and before anything is discovered or scheduled: the row has to
     // exist first (this writes to it), and a mapping whose scope or provider
     // changed under a ledger full of items must not reach a pass at all.
@@ -1788,6 +1833,20 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // migrations are every one its config directory holds, in the order it
       // lists them. `/people` and not `/moves`: `/moves` below is the queue of
       // items a source put somewhere else.
+      // The table of address changes (ADR-0055; workplan 0168 T2): the same
+      // shapes as `/api/address-changes`, through this appliance's door.
+      if (
+        await handleAddressChanges(req, res, {
+          driver: persistenceBackend.driver,
+          door: addressDoor,
+          tenantIds: () => [...new Set(mappings.map((m) => m.config.tenantId as string))],
+          sendJson,
+          readJson,
+          drain,
+        })
+      ) {
+        return;
+      }
       if (req.method === 'GET' && req.url === '/people') {
         const migrations: PersonMigration[] = [];
         for (const m of mappings) {
@@ -2424,11 +2483,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           m.config.tenantId as TenantId,
           m.mailboxMappingId as MappingId,
         );
+        const addressChanges = await ledger.listConfirmedAddressChanges(m.config.tenantId as TenantId);
         return sendJson(res, 200, {
           migrationStatus: lifecycle,
           summary: summariseShareGrants(grants),
-          // The Dutch line beside the stored English, as managed answers it.
-          grants: grants.map((g) => ({ ...g, verdictTargetNl: verdictTargetFor(g, 'nl') })),
+          // The Dutch line beside the stored English, as managed answers it,
+          // and the grantee's new address from the address table (ADR-0055).
+          grants: grants.map((g) =>
+            withGranteesNewAddress({ ...g, verdictTargetNl: verdictTargetFor(g, 'nl') }, addressChanges),
+          ),
           ...(lifecycle === 'done' ? { reportingClosed: REPORTING_CLOSED } : {}),
         });
       }
@@ -2609,6 +2672,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             onError: (msg: string, err: unknown) => log.error(msg, err),
             isCutOver,
             confirmed,
+            // A confirmed address change is a grantee's confirmation (ADR-0055).
+            addressChanges: await ledger.listConfirmedAddressChanges(m.config.tenantId as TenantId),
             ...(createShare ? { createShare } : {}),
           },
           parentKey,
@@ -3051,6 +3116,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           lifecycle: await mappingStatus(m),
           generatedAt: new Date().toISOString(),
           domains: buildDomainStatusReports(statuses, failures, adopted, found),
+          // The addresses that changed (ADR-0055; workplan 0168 §6.3): counts only.
+          addressChanges: await withTenant(persistenceBackend.driver, tId, (tdb) =>
+            readAddressChangesForReport(tdb, tId, mId),
+          ),
           moves: await ledger.listMoves(tId, mId),
           deletions: await ledger.listDeletions(tId, mId),
           failures,
@@ -3514,6 +3583,45 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           log.info(`[selfhost] ${m.config.mappingId}: ${domain} ${stop ? 'stopped' : 'resumed'} by operator`);
         }
         return sendJson(res, 200, { id, domain, stopped: stop, changed: outcome.changed });
+      }
+
+      // POST /mappings/:id/address-changes/apply — *Apply the new addresses
+      // here too* (ADR-0055; workplan 0168 D5), through the ledger's own door,
+      // as managed's route. The person on this loopback page is its owner, so
+      // the press is the operator's, as its decisions are. The body names the
+      // table the page showed (`{ digest }`, S5 (d)): 409 when it moved since,
+      // 400 when it names none, both in both languages, as managed answers.
+      const applyMatch =
+        req.method === 'POST' && req.url ? /^\/mappings\/([^/?]+)\/address-changes\/apply$/.exec(req.url) : null;
+      if (applyMatch) {
+        const body = (await readJsonOrNone(req)) as { digest?: unknown } | undefined;
+        const id = decodeURIComponent(applyMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const shown = body?.digest;
+        if (typeof shown !== 'string' || !/^[0-9a-f]{64}$/.test(shown)) {
+          return sendJson(res, 400, {
+            error: 'digest_required',
+            message: ADDRESS_PRESS_NAMES_NO_TABLE.en,
+            messageNl: ADDRESS_PRESS_NAMES_NO_TABLE.nl,
+          });
+        }
+        const tenantId = m.config.tenantId as string;
+        const applied = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+          applyNewAddressesHere(tdb, tenantId, m.mailboxMappingId, 'operator', shown),
+        );
+        if (applied === null) return sendJson(res, 404, { error: 'unknown mapping' });
+        if (applied.moved) {
+          return sendJson(res, 409, {
+            error: 'address_table_moved',
+            message: ADDRESS_TABLE_MOVED.en,
+            messageNl: ADDRESS_TABLE_MOVED.nl,
+            digest: applied.digest,
+            rows: applied.rows,
+          });
+        }
+        log.info(`[selfhost] ${m.config.mappingId}: new addresses applied here too by operator (${applied.rows} row(s))`);
+        return sendJson(res, 200, { id, applied: true, digest: applied.digest, rows: applied.rows });
       }
 
       // POST /mappings/:id/domains/:domain/end and …/keep — end or keep one data

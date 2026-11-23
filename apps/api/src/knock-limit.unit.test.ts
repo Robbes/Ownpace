@@ -117,7 +117,7 @@ describe('the premise this number is sized against', () => {
    * note in a chat window is not a place a number gets re-derived from.
    *
    * It pins the premise rather than the intent: the set of routes anybody on
-   * the internet may WRITE through. A fourth one appearing is the most likely
+   * the internet may WRITE through. A new one appearing is the most likely
    * shape of "the front door opened", and it is worth catching on its own
    * merits — an unauthenticated write that nobody noticed is the same class of
    * defect whatever prompted it.
@@ -156,10 +156,10 @@ describe('the premise this number is sized against', () => {
   };
 
   it('is still a door only an operator can open', () => {
-    // Five, and each is deliberate:
+    // Seven, and each is deliberate:
     //
     //   the knock          — this limit's whole subject, and the only one of
-    //                        the five a stranger is *invited* to use
+    //                        the seven a stranger is *invited* to use
     //   the grant link     — 0108: the link itself is the credential, and the
     //                        route grants nothing without it
     //   the progress link  — 0108 T8 (c): the same kind of credential, and the
@@ -171,8 +171,13 @@ describe('the premise this number is sized against', () => {
     //                        by that route's own link middleware, and a ticket
     //                        a person reads, so with limits of its own: three
     //                        a day per link, thirty an hour for every link
+    //   the new address,   — 0168 §4.4 (D6), twice: a person's grant link and
+    //   by either link       their progress link, each authenticated by its
+    //                        page's own link middleware, change the state of
+    //                        a row linked to that person and nothing else; it
+    //                        starts nothing and sends nothing
     //
-    // A SIXTH is the question. If it is a self-service signup, this number is
+    // AN EIGHTH is the question. If it is a self-service signup, this number is
     // no longer sized for the door in front of it, and raising it is only half
     // the change: the key is still `req.ip`, which behind an ingress is the
     // ingress. Set `TRUST_PROXY` so the bucket is per CALLER first, then raise
@@ -183,8 +188,10 @@ describe('the premise this number is sized against', () => {
       'routes/access-requests.ts POST /',
       'routes/billing/webhooks.ts POST /mollie',
       'routes/grant.ts POST /:link/google/authorize',
+      'routes/grant.ts PUT /:link/address-changes/:ref',
       'routes/link-reports.ts POST /:link/report',
       'routes/view.ts POST /:link/withdraw',
+      'routes/view.ts PUT /:link/address-changes/:ref',
     ]);
   });
 

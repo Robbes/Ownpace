@@ -13,6 +13,9 @@ import { z } from 'zod';
 import { DISCOVERY_DOMAINS, DOMAIN_STATES } from '@openmig/shared';
 import { fetchCompletionReport } from './operating-service.ts';
 
+/** A sentence of the report, in both of its languages. */
+const SaidSchema = z.object({ en: z.string(), nl: z.string() });
+
 const LineSchema = z.object({
   domain: z.enum(DISCOVERY_DOMAINS),
   state: z.enum(DOMAIN_STATES),
@@ -52,6 +55,22 @@ export const CompletionReportSchema = z.object({
       skipped: z.number(),
       open: z.number(),
       openManual: z.number(),
+    })
+    .optional(),
+  /**
+   * *Addresses changed* (ADR-0055; workplan 0168 §6.3): the rows, the copies
+   * per data type, and the report's own sentences in both languages, which
+   * the page says as the report says them (the review's S8). Without it the
+   * parse dropped the section, and only the English download said it.
+   */
+  addressChanges: z
+    .object({
+      rows: z.number(),
+      digest: z.string().nullable(),
+      byDomain: z.array(
+        z.object({ domain: z.enum(['contact', 'calendar', 'task']), changed: z.number(), older: z.number() }),
+      ),
+      said: z.object({ heading: SaidSchema, lines: z.array(SaidSchema) }),
     })
     .optional(),
   verdict: z.enum(['complete', 'complete_with_decisions_pending', 'in_progress']),

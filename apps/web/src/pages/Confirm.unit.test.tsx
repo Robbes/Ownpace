@@ -29,6 +29,11 @@ const {
   startMigration: vi.fn(),
 }));
 
+// The appliance's address changes (0168 §7): none, unless a test says.
+vi.mock('../services/address-change-service', () => ({
+  fetchAddressChanges: vi.fn(async () => ({ rows: [], door: 'page', file: null })),
+  createAddressChange: vi.fn(),
+}));
 vi.mock('../services/operating-service', () => ({
   fetchStatus,
   fetchAllDiscovery,
@@ -99,6 +104,15 @@ beforeEach(() => {
 });
 
 describe('before anything has started', () => {
+  it('holds the address changes, and where a new address goes, before anything is copied (0168 §7)', async () => {
+    fetchStatus.mockResolvedValue(status('paused'));
+    renderScreen();
+    expect(await screen.findByRole('heading', { name: 'Address changes' })).toBeInTheDocument();
+    expect(await screen.findByText('No address changes.')).toBeInTheDocument();
+    expect(screen.getByText('Where a new address goes, and where it does not')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
+  });
+
   it('says nothing has been copied, and offers the green light', async () => {
     fetchStatus.mockResolvedValue(status('paused'));
     renderScreen();

@@ -1468,6 +1468,12 @@ export interface ConfirmedListQueue {
    * the worst case rather than an edge one. The complete account is the export,
    * which is bounded by nothing.
    */
+  /**
+   * The address table's part of the account (ADR-0055; workplan 0168 T5):
+   * its digest now, how many copies carry a change under it, and how many
+   * under an older table (never a match, *Waiting for the next pass*).
+   */
+  readonly addressChanges?: { readonly digest: string | null; readonly changed: number; readonly older: number };
   readonly truncated?: boolean;
   readonly lastPass: ConfirmationPassState;
   /** Why the last pass stopped early, when it did (0090 T4). */

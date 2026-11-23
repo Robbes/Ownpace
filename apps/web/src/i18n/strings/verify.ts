@@ -64,6 +64,17 @@ export const en = {
   'verify.issue.missing':
     '{n} {type} items are on the old system but not on the new one. Let another pass run, then check again.',
   'verify.issue.checksum': '{n} sampled {type} items differ from the original. Confirmed shows which.',
+  // A new address (workplan 0168, S2 and S11 of the reviews): copies a change
+  // of the address table waits for, which never count as a match. Past a data
+  // type's switch the change waits for a person's press, never for a pass.
+  'verify.issue.addressOlder':
+    '{n} {type} items wait for an address change, which the next pass makes. None of them counts as a match.',
+  'verify.issue.addressOlderPress':
+    '{n} {type} items wait for an address change. Past the switch it is made only when somebody presses Apply the new addresses here too, on the migration’s page. None of them counts as a match.',
+  'verify.issue.addressNotCompared':
+    'Every sampled {type} item waits for an address change, so nothing was compared, and that blocks the switch. Check again after the next pass.',
+  'verify.issue.addressNotComparedPress':
+    'Every sampled {type} item waits for an address change, so nothing was compared, and that blocks the switch. Press Apply the new addresses here too on the migration’s page, then check again after the next pass.',
   'verify.verdict.PASS': 'Passed',
   'verify.verdict.WARN': 'Passed, with warnings',
   'verify.verdict.FAIL': 'Did not pass',
@@ -134,6 +145,14 @@ export const nl: Record<keyof typeof en, string> = {
     '{n} items ({type}) staan op het oude systeem maar niet op het nieuwe. Laat nog een ronde lopen en verifieer daarna opnieuw.',
   'verify.issue.checksum':
     '{n} items ({type}) uit de steekproef wijken af van het origineel. Bevestigd laat zien welke.',
+  'verify.issue.addressOlder':
+    '{n} items ({type}) wachten op een adreswijziging, die de volgende ronde doorvoert. Geen ervan telt als overeenkomend.',
+  'verify.issue.addressOlderPress':
+    '{n} items ({type}) wachten op een adreswijziging. Na de overstap gebeurt dat pas als iemand op de pagina van de migratie op De nieuwe adressen hier ook toepassen drukt. Geen ervan telt als overeenkomend.',
+  'verify.issue.addressNotCompared':
+    'Elk item ({type}) uit de steekproef wacht op een adreswijziging, dus is er niets vergeleken, en dat houdt de overstap tegen. Verifieer opnieuw na de volgende ronde.',
+  'verify.issue.addressNotComparedPress':
+    'Elk item ({type}) uit de steekproef wacht op een adreswijziging, dus is er niets vergeleken, en dat houdt de overstap tegen. Druk op de pagina van de migratie op De nieuwe adressen hier ook toepassen en verifieer opnieuw na de volgende ronde.',
   'verify.verdict.PASS': 'Geslaagd',
   'verify.verdict.WARN': 'Geslaagd, met waarschuwingen',
   'verify.verdict.FAIL': 'Niet geslaagd',

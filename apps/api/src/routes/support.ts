@@ -316,6 +316,15 @@ router.get(
                         END, email`,
         );
 
+        // The organisation's address changes, COUNTED (workplan 0168 D7): how
+        // many rows and how many confirmed. The view has no address column, so
+        // this read cannot serve one.
+        const addressChanges = await db.execute(
+          sql`SELECT row_count, confirmed_count
+                FROM public.support_tenant_address_changes
+               WHERE tenant_id = ${tenantId}::uuid`,
+        );
+
         // Recorded only once the tenant was actually found and served: a 404 is
         // not a read of anybody's data, and logging one would put organisations
         // in the record that the operator never saw.
@@ -328,6 +337,7 @@ router.get(
           invoices: invoices.rows as Row[],
           members: members.rows as Row[],
           usage: usageForScreen(usage.rows[0] as Row | undefined),
+          addressChanges: addressChangeCounts(addressChanges.rows[0] as Row | undefined),
         };
       });
 
@@ -340,6 +350,16 @@ router.get(
     }
   },
 );
+
+/**
+ * The address-change counts as the screen reads them (workplan 0168 D7). The
+ * view answers one row for every organisation it serves, so a missing row is
+ * an organisation the view did not serve, and is said as none rather than
+ * guessed.
+ */
+function addressChangeCounts(row: Row | undefined): { rows: number; confirmed: number } {
+  return { rows: Number(row?.row_count ?? 0), confirmed: Number(row?.confirmed_count ?? 0) };
+}
 
 /**
  * The reference an operator's close or reopen keeps on its audit row: the

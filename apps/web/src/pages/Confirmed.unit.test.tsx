@@ -850,3 +850,61 @@ describe('the full list is saved under a name a person can read (the UX sweep)',
     await waitFor(() => expect(names).toEqual(['confirmed-mapping-1.csv']));
   });
 });
+
+describe('a declared address change, never a silent one (workplan 0168 §3.1, T5)', () => {
+  it('never says Matches beside a row that does not match, whatever its address mark (the review’s B2)', async () => {
+    show(
+      queue({
+        verified: 0,
+        total: 4,
+        rows: [
+          row({ domain: 'contact', naturalKey: 'uid-1', state: 'missing', address: 'changed' }),
+          row({ domain: 'contact', naturalKey: 'uid-2', state: 'differs', address: 'changed' }),
+          row({ domain: 'contact', naturalKey: 'uid-3', state: 'present', address: 'changed' }),
+          row({ domain: 'contact', naturalKey: 'uid-4', state: 'differs', address: 'older' }),
+        ],
+      }),
+    );
+    await screen.findByText('uid-1');
+    expect(screen.queryByText('Matches, with your new address')).toBeNull();
+    expect(screen.queryByText(/Waiting for the next pass/)).toBeNull();
+  });
+
+  it('says the account’s address changes as counts beside the headline, from the list’s own counts', async () => {
+    show(
+      queue({
+        verified: 7,
+        total: 8,
+        rows: [row({ domain: 'contact', naturalKey: 'uid-4', state: 'differs', address: 'older' })],
+        addressChanges: { digest: 'd1', changed: 6, older: 1 },
+      }),
+    );
+    const counts = await screen.findByText((_, el) => el?.hasAttribute('data-address-counts') === true);
+    expect(counts).toHaveTextContent('Copies with a new address: 6 · Copies from before the latest address change: 1');
+  });
+
+  it('says no count where no copy carries a change, and none where no table was read', async () => {
+    show(queue({ verified: 1, total: 1, addressChanges: { digest: null, changed: 0, older: 0 } }));
+    await screen.findByText('Every item was re-read and matched. Nothing needs your attention.');
+    expect(screen.queryByText(/Copies with a new address/)).toBeNull();
+    expect(screen.queryByText(/Copies from before/)).toBeNull();
+  });
+
+  it('says Matches, with your new address, on a verified row should the server ever send one', async () => {
+    show(
+      queue({
+        verified: 1,
+        total: 1,
+        rows: [row({ domain: 'contact', naturalKey: 'uid-5', state: 'verified', claim: 'fingerprint', address: 'changed' })],
+      }),
+    );
+    expect(await screen.findByText('Matches, with your new address')).toBeInTheDocument();
+  });
+
+  it('says nothing of an address where the row carries no change', async () => {
+    show(queue({ verified: 0, total: 1, rows: [row({ naturalKey: 'uid-3' })] }));
+    await screen.findByText('uid-3');
+    expect(screen.queryByText('Matches, with your new address')).toBeNull();
+    expect(screen.queryByText(/Copies with a new address/)).toBeNull();
+  });
+});

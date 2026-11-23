@@ -36,6 +36,8 @@ import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
 import { scopeFamilyOf, scopeManifestFor, timeBeforeStart } from '@openmig/shared';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
 import SharedAddresses from '../components/confirm/SharedAddresses.tsx';
+import { AddressChanges } from '../components/AddressChanges.tsx';
+import { WhereItGoes } from '../components/AddressStep.tsx';
 // The live strip is shared with the managed hub (0033 T5) — one component,
 // two data sources, same DomainStatusReport rows underneath.
 import LiveProgress from '../components/LiveProgress.tsx';
@@ -334,6 +336,20 @@ const Confirm: React.FC = () => {
           />
         )}
       </section>
+
+      {/* A NEW ADDRESS (workplan 0168 §7, ADR-0034's doors): the appliance's
+          one table, before anything is copied. On its own page a row written
+          here is confirmed by its operator; with `address-changes.json` in
+          its config directory the list is that file's, read-only, and named. */}
+      <div className="mb-8 space-y-3">
+        <AddressChanges scope={{ kind: 'organisation' }} canWrite headingId="address-changes" />
+        <details className="p-4 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
+          <summary className="cursor-pointer font-medium text-gray-900">{t('addresses.whereMore')}</summary>
+          <div className="mt-3 space-y-6">
+            <WhereItGoes oldAddress={t('addresses.theOld')} newAddress={t('addresses.theNew')} />
+          </div>
+        </details>
+      </div>
 
       {manifest.data && (
         <section className="p-4 bg-white border border-gray-200 rounded-lg">

@@ -27,6 +27,7 @@ import { Link, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pause } from 'lucide-react';
 import { isSelfHost } from '../services/edition.ts';
+import { MigrationAddresses } from '../components/MigrationAddresses.tsx';
 
 // The strip's refresh rule, shared with a person's lines (0154 T1 (b)).
 export { progressRefetchInterval, PROGRESS_POLL_ACTIVE_MS, PROGRESS_POLL_IDLE_MS } from '../services/progress-poll.ts';
@@ -429,6 +430,19 @@ const MappingDetail: React.FC = () => {
             ),
           })}
         </p>
+      )}
+      {/* THE NEW ADDRESS (0168 §6.3, D5): used here where this migration's
+          copies carry a change, the last pass's count, and past the switch, a
+          press where copies wait for it. In both editions, from each one's own
+          read of the last pass: the detail on managed, the status on the
+          appliance, which never reads the detail (the screens' review S3). */}
+      {progressDomains !== undefined && (
+        <MigrationAddresses
+          mappingId={id}
+          lifecycle={lifecycle}
+          domains={isSelfHost() ? progressDomains.map((d) => d.domain) : (detail.data?.syncConfig.domains ?? [])}
+          domainStatus={progressDomains}
+        />
       )}
       {/* WHERE THE COPIES LAND (0153 open question 5, item 4): the folder
           chosen as *Put it in a folder of its own*, or the destination's own

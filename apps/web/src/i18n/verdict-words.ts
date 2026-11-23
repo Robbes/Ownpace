@@ -55,5 +55,14 @@ export function issueSentence(
   if (is('CHECKSUM') && d.checksumMismatches > 0) {
     return { key: 'verify.issue.checksum', n: d.checksumMismatches };
   }
+  // A new address (workplan 0168; the screens' review S11): what the copies
+  // wait for decides the sentence, the press past the switch, else the pass.
+  const press = d.addressChanges?.waitsFor === 'press';
+  if (is('ADDRESS_OLDER_TABLE') && (d.addressChanges?.older ?? 0) > 0) {
+    return { key: press ? 'verify.issue.addressOlderPress' : 'verify.issue.addressOlder', n: d.addressChanges!.older };
+  }
+  if (is('ADDRESS_NOT_COMPARED')) {
+    return { key: press ? 'verify.issue.addressNotComparedPress' : 'verify.issue.addressNotCompared' };
+  }
   return null;
 }

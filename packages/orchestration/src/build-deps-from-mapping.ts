@@ -32,7 +32,7 @@ import {
   mailsGuestsItself,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
-import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget, readPathPhases } from '@openmig/ledger';
+import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget, readAddressChangesApplied, readPathPhases } from '@openmig/ledger';
 import {
   createTokenProvider,
   cirruxDriveNotConnected,
@@ -114,6 +114,7 @@ import {
 } from './mail-source-factory.ts';
 import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory.ts';
 import { markedOnlyCalendar, markedOnlyContacts, markedOnlyFiles, markedOnlyMail } from './marked-only.ts';
+import { accountAddressesOf, addressChangesForPass } from './address-changes-for-pass.ts';
 
 /**
  * The mapping's OWN credentials merged over the connection's, key by key
@@ -877,6 +878,21 @@ export async function buildDomainDepsFromMapping(
     ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
   };
 
+  // THE ADDRESS TABLE, read once at the start of this data type's pass
+  // (ADR-0055; workplan 0168 §4.3), for the three data types it reaches.
+  // Files and mail never get one. The press past a cutover (D5) is read with
+  // it, from the migration's own row.
+  const addressChanges =
+    domain === 'calendar' || domain === 'task' || domain === 'contact'
+      ? await addressChangesForPass(
+          ledger,
+          tenantId,
+          accountAddressesOf(src.config, src.creds, tgt.config, tgt.creds),
+          await withTenant(pool, tenantId, (txDb) => readAddressChangesApplied(txDb, tenantId, mappingId)),
+        )
+      : undefined;
+  const withAddressChanges = addressChanges ? { addressChanges } : {};
+
   // DAV endpoints are resolved INSIDE the branches that are DAV-shaped, not
   // hoisted above them. Hoisting was a live bug, not a style point: a
   // `google_drive` source has OAuth credentials and no username/password, so
@@ -902,6 +918,7 @@ export async function buildDomainDepsFromMapping(
         // The verdict, recorded before the mapping's first calendar write
         // (0105 T0) — measured on the SAME endpoint the writer just got.
         recordTargetScheduling: schedulingRecorder(calendarTargetEndpoint, targetDeps, tgt.kind),
+        ...withAddressChanges,
       } satisfies CalendarSyncDeps,
       HANDED_BY_THE_CALLER,
     );
@@ -921,6 +938,7 @@ export async function buildDomainDepsFromMapping(
         target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps, {
           mailsGuests: mailsGuestsItself(tgt.kind),
         }),
+        ...withAddressChanges,
       } satisfies CalendarSyncDeps,
       HANDED_BY_THE_CALLER,
     );
@@ -941,6 +959,7 @@ export async function buildDomainDepsFromMapping(
           davEndpointFromCreds('target', tgt.config, tgt.creds),
           targetDeps,
         ),
+        ...withAddressChanges,
       } satisfies ContactSyncDeps,
       HANDED_BY_THE_CALLER,
     );

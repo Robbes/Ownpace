@@ -37,6 +37,20 @@
  * the owner's email, any address, any folder, any file, any other migration, or
  * the provider's own error prose.
  *
+ * ## One exception, on a person's page: their own new address
+ *
+ * Workplan 0168 §4.4 (D6, the owner's *"ok"* of 2026-11-22) gives the person's
+ * progress page one line, *Your new address: ‹address›. Is that right?*, so
+ * that somebody who has only links can confirm their row of the address
+ * changes, or send it back. So a person's page carries `addressChanges`: the
+ * rows linked to this person, and nobody else's, each named by an opaque
+ * `ref`, with its new address and its state. Never the old address, which is
+ * often the account a migration reads: that is named nowhere on this page,
+ * which may be forwarded. `PUT /api/view/:link/address-changes/:ref` takes the
+ * answer, behind this door's own link check
+ * (`link-address-changes.ts`). A migration's own link names no person, so its
+ * page carries none.
+ *
  * ## A GET that changes nothing, and here that is not a nicety
  *
  * The grant route needed it so a chat preview could not burn a single-use link.
@@ -58,9 +72,11 @@ import {
   type MigrationView,
   type TokenRevoker,
 } from '@openmig/shared';
+import { readLinkAddressChanges } from '@openmig/managed';
 import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
+import { answerAddressChangeThroughLink } from './link-address-changes.ts';
 import { withdrawGrant } from './withdraw-grant.ts';
 import { migrationProgress, readPersonView, withdrawPersonGrant, withdrawalRefusalBody } from './person-progress.ts';
 
@@ -105,9 +121,12 @@ router.get(
         // reads it. The person gone takes their links with them, so a null
         // here is an organisation that is gone.
         const { tenantId, personId, expiresAt } = req.personLink;
-        const view = await withTenantDb(tenantId, pool(), (db) =>
-          readPersonView(db, { tenantId, personId, expiresAt }),
-        );
+        const view = await withTenantDb(tenantId, pool(), async (db) => {
+          const page = await readPersonView(db, { tenantId, personId, expiresAt });
+          // Their own rows of the address changes, the one exception to
+          // counts and states (see the header): to confirm or send back.
+          return page && { ...page, addressChanges: await readLinkAddressChanges(db, tenantId, personId) };
+        });
         if (!view) return void res.status(409).json({ error: 'not_found', ...reasonPair(MIGRATION_GONE) });
         return void res.json(view);
       }
@@ -232,5 +251,14 @@ router.post(
     }
   },
 );
+
+/**
+ * PUT /api/view/:link/address-changes/:ref — the person's answer to *Your new
+ * address: ‹address›. Is that right?* on their progress page (workplan 0168
+ * §4.4, D6): `{ state, newAddress }`, the answer and the address the page
+ * showed, and nothing else, for a row linked to them. Like the withdrawal, it
+ * changes something, so it is never a GET. `link-address-changes.ts`.
+ */
+router.put('/:link/address-changes/:ref', linkAuth, answerAddressChangeThroughLink('view', pool));
 
 export default router;
