@@ -40,11 +40,17 @@ GitHub on 2026-11-23. Times are UTC.
   Scan run #6350 on main, windows-payload run #63; gate scan
   https://github.com/Robbes/Ownpace/actions/runs/45264815130* and *Nights waived by Robbes, in
   their words: "waived"*.
-- **The image scan after the tag is owed.** `docs/release.md` §4 asks for it on `main` at C, and
-  `main` moved past C before it ran: #2090, at 21:17:45, moves CI's migration lint to Atlas v1.4.1
-  for alpha.19, in `ci.yml` alone, and changes no Dockerfile, image pin, compose file or lockfile.
-  So the scan, dispatched on `main` before a merge that moves an image, reads C's images, as
-  alpha.16's did after #2067 (that day's entry below).
+- **The image scan after the tag** (`docs/release.md` §4) ran on `main` at `a788a223`: Security Scan
+  run 45273322579, dispatched by hand, 21:48:02 to 21:50:54, 22 jobs, green. §4 asks for it on
+  `main` at C, and `main` had moved past C: #2090, at 21:17:45, moves CI's migration lint to Atlas
+  v1.4.1 for alpha.19, in `ci.yml` alone, and #2092, at 21:45:44, changes code comments and the
+  pin-watch issue's text alone. Neither changes a Dockerfile, an image pin, a compose file or the
+  lockfile, and the scan ran before any merge that moves one, so it read C's images, as alpha.16's
+  did after #2067 (that day's entry below). It listed and scanned 19 images, none past its end of
+  life and none without a report, alpha.18's release images among them, with the counts per tier of
+  Monday's run (0166's Status, 2026-11-23, evening): production-public 0 critical and 10 high,
+  production-internal 0 and 4, shipped 0 and 4, test-only 6 and 366. Every image's issue was left as
+  it was.
 - **The freeze ended with the tag.** The first merge after it was #2090, as `548f388e`.
 - **Live's deploy** from alpha.17 follows, by the owner, from the sheet filled from this tag
   (one-way: ledger migration 0075, as the fold's entry below says); 0132's Status will record it.
