@@ -201,20 +201,20 @@ describe('what the review added', () => {
 
   it('a write says the row as it was: none for a new one, the same row for a write that changed nothing', async () => {
     const added = await withTenant(driver, C, (db) =>
-      addAddressChange(db, C, { oldAddress: 'one@example.net', newAddress: 'one@example.org', confirm: false, by: BY }),
+      addAddressChange(db, C, { oldAddress: 'one@example.com', newAddress: 'one@example.org', confirm: false, by: BY }),
     );
     expect(added.ok && added.before).toBeNull();
-    const confirmed = await withTenant(driver, C, (db) => updateAddressChange(db, C, 'one@example.net', { state: 'confirmed', by: BY }));
+    const confirmed = await withTenant(driver, C, (db) => updateAddressChange(db, C, 'one@example.com', { state: 'confirmed', by: BY }));
     expect(confirmed.ok && [confirmed.before?.state, confirmed.row.state]).toEqual(['proposed', 'confirmed']);
     const again = await withTenant(driver, C, (db) =>
-      addAddressChange(db, C, { oldAddress: 'one@example.net', newAddress: 'one@example.org', confirm: true, by: BY }),
+      addAddressChange(db, C, { oldAddress: 'one@example.com', newAddress: 'one@example.org', confirm: true, by: BY }),
     );
     expect(again.ok && again.changed === false && again.before?.state).toBe('confirmed');
   });
 
   it("makes another tenant's table this one's, row for row, and a second run changes nothing", async () => {
-    await withTenant(driver, C, (db) => addAddressChange(db, C, { oldAddress: 'two@example.net', newAddress: 'two@example.org', confirm: false, by: 'operator' }));
-    await withTenant(driver, D, (db) => addAddressChange(db, D, { oldAddress: 'stale@example.net', newAddress: 'stale@example.org', confirm: true, by: 'operator' }));
+    await withTenant(driver, C, (db) => addAddressChange(db, C, { oldAddress: 'two@example.com', newAddress: 'two@example.org', confirm: false, by: 'operator' }));
+    await withTenant(driver, D, (db) => addAddressChange(db, D, { oldAddress: 'stale@example.com', newAddress: 'stale@example.org', confirm: true, by: 'operator' }));
     const table = await withTenant(driver, C, (db) => readAddressChanges(db, C));
     const first = await withTenant(driver, D, (db) => replaceAddressChanges(db, D, table));
     expect(first).toEqual({ added: 2, changed: 0, removed: 1, kept: 0 });
@@ -222,21 +222,21 @@ describe('what the review added', () => {
     expect(await withTenant(driver, D, (db) => readAddressChanges(db, D))).toEqual(table);
     expect(await withTenant(driver, D, (db) => replaceAddressChanges(db, D, table))).toEqual({ added: 0, changed: 0, removed: 0, kept: 2 });
     // A row that differs is made the same.
-    const sentBack = table.map((r): StoredAddressChange => (r.oldKey === 'one@example.net' ? { ...r, state: 'proposed', confirmedBy: null, confirmedAt: null } : r));
+    const sentBack = table.map((r): StoredAddressChange => (r.oldKey === 'one@example.com' ? { ...r, state: 'proposed', confirmedBy: null, confirmedAt: null } : r));
     expect(await withTenant(driver, D, (db) => replaceAddressChanges(db, D, sentBack))).toEqual({ added: 0, changed: 1, removed: 0, kept: 1 });
   });
 
   it('deletes the rows one setter set, and no other', async () => {
-    const file = parseAddressChangesFile(JSON.stringify({ changes: [{ oldAddress: 'file@example.net', newAddress: 'file@example.org' }] }));
+    const file = parseAddressChangesFile(JSON.stringify({ changes: [{ oldAddress: 'file@example.com', newAddress: 'file@example.org' }] }));
     await withTenant(driver, D, (db) => replaceAddressChangesFromFile(db, D, file, 'address-changes.json'));
-    await withTenant(driver, D, (db) => addAddressChange(db, D, { oldAddress: 'page@example.net', newAddress: 'page@example.org', confirm: true, by: 'operator' }));
-    expect(await withTenant(driver, D, (db) => deleteAddressChangesSetBy(db, D, 'address-changes.json'))).toEqual(['file@example.net']);
+    await withTenant(driver, D, (db) => addAddressChange(db, D, { oldAddress: 'page@example.com', newAddress: 'page@example.org', confirm: true, by: 'operator' }));
+    expect(await withTenant(driver, D, (db) => deleteAddressChangesSetBy(db, D, 'address-changes.json'))).toEqual(['file@example.com']);
     expect((await withTenant(driver, D, (db) => readAddressChanges(db, D))).map((r) => r.setBy)).toEqual(['operator']);
     expect(await withTenant(driver, D, (db) => deleteAddressChangesSetBy(db, D, 'address-changes.json'))).toEqual([]);
   });
 
   it('names each write by what it did, and a write that did nothing as nothing', () => {
-    const row = { oldKey: 'k@example.net', oldAddress: 'k@example.net', newAddress: 'k@example.org', state: 'proposed', setBy: BY, confirmedBy: null, createdAt: '2026-11-23T00:00:00.000Z', confirmedAt: null } as const;
+    const row = { oldKey: 'k@example.com', oldAddress: 'k@example.com', newAddress: 'k@example.org', state: 'proposed', setBy: BY, confirmedBy: null, createdAt: '2026-11-23T00:00:00.000Z', confirmedAt: null } as const;
     const confirmed = { ...row, state: 'confirmed', confirmedBy: BY, confirmedAt: '2026-11-23T00:00:01.000Z' } as const;
     expect(addressChangeAction({ before: null, after: row })).toBe('address_change.added');
     expect(addressChangeAction({ before: row, after: confirmed })).toBe('address_change.confirmed');
@@ -251,7 +251,7 @@ describe('what the review added', () => {
   it('records a write in its own transaction, by reference, and nothing for a write that did nothing', async () => {
     const pseudonym = (v: string) => `pseudo:${Buffer.from(v).toString('hex').slice(0, 16)}`;
     const w = await withTenant(driver, C, async (db) => {
-      const write = await updateAddressChange(db, C, 'two@example.net', { state: 'confirmed', by: BY });
+      const write = await updateAddressChange(db, C, 'two@example.com', { state: 'confirmed', by: BY });
       if (!write.ok) throw new Error('refused');
       const recorded = await recordAddressChangeWrite(db, C, { actor: BY, via: 'api', pseudonym, before: write.before, after: write.row });
       const none = await recordAddressChangeWrite(db, C, { actor: BY, via: 'api', pseudonym, before: write.row, after: write.row });
@@ -266,7 +266,7 @@ describe('what the review added', () => {
           actor: BY,
           action: 'address_change.confirmed',
           entity: 'address_change',
-          detail: { addressChange: pseudonym('two@example.net'), from: 'proposed', to: 'confirmed', via: 'api' },
+          detail: { addressChange: pseudonym('two@example.com'), from: 'proposed', to: 'confirmed', via: 'api' },
         },
       ]);
       expect(JSON.stringify(rows)).not.toContain('@');

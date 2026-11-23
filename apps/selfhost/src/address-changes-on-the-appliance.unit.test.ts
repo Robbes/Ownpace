@@ -194,7 +194,7 @@ describe('the page door, without address-changes.json', () => {
 
   // N6 of 0168's review: the dictionary's *de appliance*; *dit apparaat* is the reader's own device.
   it('calls itself de appliance in Dutch', async () => {
-    const res = await ask(h, 'POST', '/address-changes', { oldAddress: 'a@example.net', newAddress: 'a@example.org', personId: 'implicit' });
+    const res = await ask(h, 'POST', '/address-changes', { oldAddress: 'a@example.com', newAddress: 'a@example.org', personId: 'implicit' });
     expect(res.json.messageNl).toContain('Deze appliance migreert voor één persoon');
     expect(res.json.messageNl).not.toMatch(/apparaat/i);
   });
@@ -300,24 +300,24 @@ describe('one table, however many tenants the directory names', () => {
     const cfg = configDir();
     const data = dataDir();
     let h = await boot(cfg, data);
-    expect((await ask(h, 'POST', '/address-changes', { oldAddress: 'me@gmail.com', newAddress: 'me@example.org' })).status).toBe(201);
+    expect((await ask(h, 'POST', '/address-changes', { oldAddress: 'me@example.com', newAddress: 'me@example.org' })).status).toBe(201);
     await stop(h);
 
     mappingFile(cfg, 'calendar.json', TENANT_2, MAPPING_2); // sorts before contacts.json
     h = await boot(cfg, data);
     const seen = await ask(h, 'GET', '/address-changes');
-    expect((seen.json.rows as Array<{ oldKey: string }>).map((r) => r.oldKey)).toEqual(['me@gmail.com']);
-    expect((await ask(h, 'POST', '/address-changes', { oldAddress: 'kid@gmail.com', newAddress: 'kid@example.org' })).status).toBe(201);
-    const gone = await ask(h, 'DELETE', '/address-changes/me%40gmail.com');
+    expect((seen.json.rows as Array<{ oldKey: string }>).map((r) => r.oldKey)).toEqual(['me@example.com']);
+    expect((await ask(h, 'POST', '/address-changes', { oldAddress: 'kid@example.com', newAddress: 'kid@example.org' })).status).toBe(201);
+    const gone = await ask(h, 'DELETE', '/address-changes/me%40example.com');
     expect(gone.status).toBe(200);
-    expect(gone.json).toMatchObject({ oldKey: 'me@gmail.com', newAddress: 'me@example.org' });
+    expect(gone.json).toMatchObject({ oldKey: 'me@example.com', newAddress: 'me@example.org' });
     await stop(h);
 
     // Each tenant holds the same row, who set and confirmed it and when included.
     const rows = await tablesIn(data);
     expect(rows.map((r) => [r.old_key, r.tenant_id])).toEqual([
-      ['kid@gmail.com', TENANT],
-      ['kid@gmail.com', TENANT_2],
+      ['kid@example.com', TENANT],
+      ['kid@example.com', TENANT_2],
     ]);
     const strip = ({ tenant_id: _t, ...rest }: Record<string, unknown>) => rest;
     expect(strip(rows[0]!)).toEqual(strip(rows[1]!));
@@ -328,7 +328,7 @@ describe('one table, however many tenants the directory names', () => {
     mappingFile(cfg, 'calendar.json', TENANT_2, MAPPING_2);
     const data = dataDir();
     let h = await boot(cfg, data);
-    expect((await ask(h, 'POST', '/address-changes', { oldAddress: 'old@example.net', newAddress: 'new@example.org' })).status).toBe(201);
+    expect((await ask(h, 'POST', '/address-changes', { oldAddress: 'old@example.com', newAddress: 'new@example.org' })).status).toBe(201);
     await stop(h);
     // The first tenant's copy is gone, as a copy that failed would leave it,
     // and the other still holds it.
@@ -342,9 +342,9 @@ describe('one table, however many tenants the directory names', () => {
     // Started again, every tenant is the first that holds a row: both hold it.
     h = await boot(cfg, data);
     expect(((await ask(h, 'GET', '/address-changes')).json.rows as unknown[]).length).toBe(1);
-    const del = await ask(h, 'DELETE', '/address-changes/old%40example.net');
+    const del = await ask(h, 'DELETE', '/address-changes/old%40example.com');
     expect(del.status).toBe(200);
-    expect((await ask(h, 'DELETE', '/address-changes/old%40example.net')).status).toBe(404);
+    expect((await ask(h, 'DELETE', '/address-changes/old%40example.com')).status).toBe(404);
     await stop(h);
     expect(await tablesIn(data)).toEqual([]);
   }, 240_000);
@@ -357,8 +357,8 @@ describe('a file that is gone takes its rows', () => {
   it('deletes the rows the file set at the next start, saying so in one line with no address', async () => {
     const file = JSON.stringify({
       changes: [
-        { oldAddress: 'parent@outlook.example', newAddress: 'parent@example.org' },
-        { oldAddress: 'kid.name@gmail.com', newAddress: 'kid@example.org' },
+        { oldAddress: 'parent@example.com', newAddress: 'parent@example.org' },
+        { oldAddress: 'kid.old@example.com', newAddress: 'kid@example.org' },
       ],
     });
     const cfg = configDir(file);
@@ -382,7 +382,7 @@ describe('a file that is gone takes its rows', () => {
     ]);
 
     // A row the page writes is the page's: the next start keeps it, and says nothing.
-    expect((await ask(h, 'POST', '/address-changes', { oldAddress: 'me@gmail.com', newAddress: 'me@example.org' })).status).toBe(201);
+    expect((await ask(h, 'POST', '/address-changes', { oldAddress: 'me@example.com', newAddress: 'me@example.org' })).status).toBe(201);
     await stop(h);
     const again: string[] = [];
     const spy2 = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => void again.push(args.map(String).join(' ')));
@@ -399,7 +399,7 @@ describe('a file that is gone takes its rows', () => {
 describe('an appliance with no migration yet', () => {
   it('refuses a write, saying so in both languages, de appliance in Dutch (N6)', async () => {
     const h = await boot(configDir(undefined, false));
-    const res = await ask(h, 'POST', '/address-changes', { oldAddress: 'a@example.net', newAddress: 'a@example.org' });
+    const res = await ask(h, 'POST', '/address-changes', { oldAddress: 'a@example.com', newAddress: 'a@example.org' });
     expect(res.status).toBe(400);
     expect(res.json.messageNl).toBe(
       'Deze appliance heeft nog geen migratie, dus er is geen tabel om te wijzigen. Voeg eerst een migratiebestand toe.',

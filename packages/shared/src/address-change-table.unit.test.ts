@@ -144,9 +144,9 @@ describe('checkAddressChange', () => {
   // 0168's review, finding 3: these passed the check and then failed the
   // write with a 500, its log line carrying both addresses.
   it('refuses an old address with a NUL in it as not an address, before anything stores it', () => {
-    const r = checkAddressChange([], { oldAddress: 'mum\u0000@hotmail.com', newAddress: 'mum@example.org' });
+    const r = checkAddressChange([], { oldAddress: 'mum\u0000@example.com', newAddress: 'mum@example.org' });
     expect(r.ok ? 'ok' : [r.refusal.error, r.refusal.field]).toEqual(['not_an_address', 'oldAddress']);
-    const n = checkAddressChange([], { oldAddress: 'mum@hotmail.com', newAddress: 'mum\u0000@example.org' });
+    const n = checkAddressChange([], { oldAddress: 'mum@example.com', newAddress: 'mum\u0000@example.org' });
     expect(n.ok ? 'ok' : [n.refusal.error, n.refusal.field]).toEqual(['not_an_address', 'newAddress']);
   });
 
@@ -165,21 +165,21 @@ describe('checkAddressChange', () => {
   describe(`at ${ADDRESS_CHANGE_ROWS_MAX} rows`, () => {
     const full: StoredAddressChange[] = Array.from({ length: ADDRESS_CHANGE_ROWS_MAX }, (_, i) => ({
       ...ROW,
-      oldKey: `old${i}@example.net`,
-      oldAddress: `old${i}@example.net`,
+      oldKey: `old${i}@example.com`,
+      oldAddress: `old${i}@example.com`,
       newAddress: `new${i}@example.org`,
     }));
     it('refuses a new row, in both languages', () => {
-      const r = checkAddressChange(full, { oldAddress: 'one-more@example.net', newAddress: 'one-more@example.org' });
+      const r = checkAddressChange(full, { oldAddress: 'one-more@example.com', newAddress: 'one-more@example.org' });
       expect(r.ok ? 'ok' : r.refusal.error).toBe('too_many_address_changes');
     });
     it('takes it with one row fewer', () => {
-      expect(checkAddressChange(full.slice(1), { oldAddress: 'one-more@example.net', newAddress: 'one-more@example.org' }).ok).toBe(true);
+      expect(checkAddressChange(full.slice(1), { oldAddress: 'one-more@example.com', newAddress: 'one-more@example.org' }).ok).toBe(true);
     });
     it('still answers the same change again with its row, and still changes a row', () => {
-      const same = checkAddressChange(full, { oldAddress: 'old7@example.net', newAddress: 'new7@example.org' });
-      expect(same.ok && same.same?.oldKey).toBe('old7@example.net');
-      expect(checkAddressChange(full, { oldAddress: 'old7@example.net', newAddress: 'other@example.org' }, 'old7@example.net').ok).toBe(true);
+      const same = checkAddressChange(full, { oldAddress: 'old7@example.com', newAddress: 'new7@example.org' });
+      expect(same.ok && same.same?.oldKey).toBe('old7@example.com');
+      expect(checkAddressChange(full, { oldAddress: 'old7@example.com', newAddress: 'other@example.org' }, 'old7@example.com').ok).toBe(true);
     });
   });
 });
@@ -218,7 +218,7 @@ describe('address-changes.json', () => {
 
   it(`holds the file to the table's ${ADDRESS_CHANGE_ROWS_MAX} rows`, () => {
     const changes = (n: number) =>
-      JSON.stringify({ changes: Array.from({ length: n }, (_, i) => ({ oldAddress: `old${i}@example.net`, newAddress: `new${i}@example.org` })) });
+      JSON.stringify({ changes: Array.from({ length: n }, (_, i) => ({ oldAddress: `old${i}@example.com`, newAddress: `new${i}@example.org` })) });
     expect(parseAddressChangesFile(changes(ADDRESS_CHANGE_ROWS_MAX))).toHaveLength(ADDRESS_CHANGE_ROWS_MAX);
     expect(() => parseAddressChangesFile(changes(ADDRESS_CHANGE_ROWS_MAX + 1))).toThrow(
       new RegExp(`^Invalid address-changes\\.json: it lists ${ADDRESS_CHANGE_ROWS_MAX + 1} changes, and a table holds at most ${ADDRESS_CHANGE_ROWS_MAX}\\.$`),

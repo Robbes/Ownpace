@@ -283,9 +283,9 @@ describe('who may write (0168 §4.4; the review, finding 1)', () => {
     await owner(`INSERT INTO person (id, tenant_id, display_name) VALUES ($1, $2, '‹mum›')`, [MUM, OURS]);
     as(OURS, 'admin-of-01');
     for (const body of [
-      { oldAddress: 'kid.name@gmail.com', newAddress: 'kid@example.org', personId: KID },
-      { oldAddress: 'mum@hotmail.example', newAddress: 'mum@example.org', personId: MUM },
-      { oldAddress: 'grandpa@hotmail.example', newAddress: 'grandpa@example.org' },
+      { oldAddress: 'kid.old@example.com', newAddress: 'kid@example.org', personId: KID },
+      { oldAddress: 'mum@example.com', newAddress: 'mum@example.org', personId: MUM },
+      { oldAddress: 'grandpa@example.com', newAddress: 'grandpa@example.org' },
     ]) {
       expect((await request(app).post('/api/address-changes').send(body)).status).toBe(201);
     }
@@ -295,21 +295,21 @@ describe('who may write (0168 §4.4; the review, finding 1)', () => {
     as(OURS, role === 'member' ? KID_MEMBER : VIEWER, role);
     const before = await rowsOf(OURS);
     refusedAs(
-      await request(app).post('/api/address-changes').send({ oldAddress: 'grandpa@hotmail.example', newAddress: 'x@example.org', confirm: true }),
+      await request(app).post('/api/address-changes').send({ oldAddress: 'grandpa@example.com', newAddress: 'x@example.org', confirm: true }),
       403,
       'owner_or_admin_only',
     );
     refusedAs(
-      await request(app).post('/api/address-changes').send({ oldAddress: 'new@example.net', newAddress: 'new@example.org' }),
+      await request(app).post('/api/address-changes').send({ oldAddress: 'new@example.com', newAddress: 'new@example.org' }),
       403,
       'owner_or_admin_only',
     );
     // Not even on their own row: a new address, a person, or a state with either.
     for (const body of [{ newAddress: 'elsewhere@example.org' }, { personId: null }, { state: 'confirmed', newAddress: 'x@example.org' }, {}]) {
-      refusedAs(await request(app).put('/api/address-changes/kidname%40gmail.com').send(body), 403, 'owner_or_admin_only');
+      refusedAs(await request(app).put('/api/address-changes/kid.old%40example.com').send(body), 403, 'owner_or_admin_only');
     }
-    refusedAs(await request(app).delete('/api/address-changes/kidname%40gmail.com'), 403, 'owner_or_admin_only');
-    refusedAs(await request(app).delete('/api/address-changes/grandpa%40hotmail.example'), 403, 'owner_or_admin_only');
+    refusedAs(await request(app).delete('/api/address-changes/kid.old%40example.com'), 403, 'owner_or_admin_only');
+    refusedAs(await request(app).delete('/api/address-changes/grandpa%40example.com'), 403, 'owner_or_admin_only');
     expect(await rowsOf(OURS)).toEqual(before);
   });
 
@@ -317,7 +317,7 @@ describe('who may write (0168 §4.4; the review, finding 1)', () => {
     as(OURS, KID_MEMBER, 'member');
     const kid = await request(app).get('/api/address-changes');
     expect(kid.status).toBe(200);
-    expect(kid.body.rows.map((r: { oldKey: string }) => r.oldKey)).toEqual(['kidname@gmail.com']);
+    expect(kid.body.rows.map((r: { oldKey: string }) => r.oldKey)).toEqual(['kid.old@example.com']);
     as(OURS, VIEWER, 'viewer');
     expect((await request(app).get('/api/address-changes')).body).toEqual({ rows: [], door: 'api', file: null });
     for (const role of ['owner', 'admin']) {
@@ -328,10 +328,10 @@ describe('who may write (0168 §4.4; the review, finding 1)', () => {
 
   it('a member confirms their own row, attributed to them, and sends it back', async () => {
     as(OURS, KID_MEMBER, 'member');
-    const yes = await request(app).put('/api/address-changes/kidname%40gmail.com').send({ state: 'confirmed' });
+    const yes = await request(app).put('/api/address-changes/kid.old%40example.com').send({ state: 'confirmed' });
     expect(yes.status).toBe(200);
     expect(yes.body).toMatchObject({ state: 'confirmed', confirmedBy: 'kid-of-01@example.org', confirmedByYou: true });
-    const back = await request(app).put('/api/address-changes/' + encodeURIComponent('Kid.Name@gmail.com')).send({ state: 'proposed' });
+    const back = await request(app).put('/api/address-changes/' + encodeURIComponent('Kid.Old@example.com')).send({ state: 'proposed' });
     expect(back.status).toBe(200);
     expect(back.body).toMatchObject({ state: 'proposed', confirmedBy: null });
   });
@@ -340,7 +340,7 @@ describe('who may write (0168 §4.4; the review, finding 1)', () => {
     as(OURS, KID_MEMBER, 'member');
     const before = await rowsOf(OURS);
     const answers = [];
-    for (const key of ['mum%40hotmail.example', 'grandpa%40hotmail.example', 'nobody%40example.net', 'not-an-address']) {
+    for (const key of ['mum%40example.com', 'grandpa%40example.com', 'nobody%40example.com', 'not-an-address']) {
       const res = await request(app).put(`/api/address-changes/${key}`).send({ state: 'confirmed' });
       refusedAs(res, 403, 'not_your_address_change');
       answers.push(res.body);
@@ -352,9 +352,9 @@ describe('who may write (0168 §4.4; the review, finding 1)', () => {
 
   it('an owner confirms for someone else, attributed to them, and deletes', async () => {
     as(OURS, 'admin-of-01', 'owner');
-    const res = await request(app).put('/api/address-changes/mum%40hotmail.example').send({ state: 'confirmed' });
+    const res = await request(app).put('/api/address-changes/mum%40example.com').send({ state: 'confirmed' });
     expect(res.body).toMatchObject({ state: 'confirmed', confirmedBy: 'admin-of-01@example.org', person: { id: MUM } });
-    expect((await request(app).delete('/api/address-changes/grandpa%40hotmail.example')).status).toBe(200);
+    expect((await request(app).delete('/api/address-changes/grandpa%40example.com')).status).toBe(200);
   });
 });
 
@@ -374,13 +374,13 @@ describe('every write is recorded, by reference, never by address (the review, f
   });
 
   it('records each write once, saying who, which row, and the state it went from and to', async () => {
-    const key = 'kidname@gmail.com';
+    const key = 'kid.old@example.com';
     as(OURS, 'admin-of-01');
     await request(app).delete(`/api/address-changes/${encodeURIComponent(key)}`);
     await owner(`DELETE FROM audit_log WHERE tenant_id = $1`, [OURS]);
 
-    await request(app).post('/api/address-changes').send({ oldAddress: 'Kid.Name@gmail.com', newAddress: 'kid@example.org', personId: KID });
-    await request(app).post('/api/address-changes').send({ oldAddress: 'kid.name@gmail.com', newAddress: 'kid@example.org' });
+    await request(app).post('/api/address-changes').send({ oldAddress: 'Kid.Old@example.com', newAddress: 'kid@example.org', personId: KID });
+    await request(app).post('/api/address-changes').send({ oldAddress: 'kid.old@example.com', newAddress: 'kid@example.org' });
     await request(app).put(`/api/address-changes/${encodeURIComponent(key)}`).send({ state: 'confirmed' });
     await request(app).put(`/api/address-changes/${encodeURIComponent(key)}`).send({ state: 'confirmed' });
     as(OURS, 'kid-of-01', 'member');
@@ -411,7 +411,7 @@ describe('every write is recorded, by reference, never by address (the review, f
     // Never an address, anywhere in a record; and every field it carries is one the export keeps.
     for (const a of recorded) {
       const text = JSON.stringify(a);
-      for (const value of ['@', 'kid.name', 'kidname', 'kid@example.org', 'kid.new']) expect(text).not.toContain(value);
+      for (const value of ['@', 'kid.old', 'kid@example.org', 'kid.new']) expect(text).not.toContain(value);
       for (const field of Object.keys(a.detail)) expect(AUDIT_DETAIL_FIELDS).toHaveProperty(field);
     }
   });
@@ -420,9 +420,9 @@ describe('every write is recorded, by reference, never by address (the review, f
     await owner(`DELETE FROM audit_log WHERE tenant_id = $1`, [OURS]);
     as(OURS, 'admin-of-01');
     await request(app).post('/api/address-changes').send({ oldAddress: 'nobody', newAddress: 'x@example.org' });
-    await request(app).delete('/api/address-changes/nobody%40example.net');
+    await request(app).delete('/api/address-changes/nobody%40example.com');
     as(OURS, 'kid-of-01', 'member');
-    await request(app).put('/api/address-changes/mum%40hotmail.example').send({ state: 'proposed' });
+    await request(app).put('/api/address-changes/mum%40example.com').send({ state: 'proposed' });
     expect(await audits()).toEqual([]);
   });
 });
@@ -431,7 +431,7 @@ describe('every write is recorded, by reference, never by address (the review, f
 // whose log line carried both addresses (the review, finding 3).
 describe('a value no row can hold is not an address, never a 500 (the review, finding 3)', () => {
   it.each([
-    ['a NUL', 'mum\u0000@hotmail.example'],
+    ['a NUL', 'mum\u0000@example.com'],
     // 254 characters as typed, 255 once lower-cased: `İ` is two then.
     ['a key longer than the table holds', `İ${'a'.repeat(241)}@example.org`],
   ])('refuses an old address with %s as not_an_address, in both languages', async (_what, oldAddress) => {
@@ -453,18 +453,18 @@ describe(`a table holds at most ${ADDRESS_CHANGE_ROWS_MAX} rows (the review, fin
   it('refuses one more, in both languages, and still takes a change to a row', async () => {
     await owner(
       `INSERT INTO address_change (tenant_id, old_key, old_address, new_address, set_by)
-       SELECT $1, 'old' || n || '@example.net', 'old' || n || '@example.net', 'new' || n || '@example.org', 'admin-of-01'
+       SELECT $1, 'old' || n || '@example.com', 'old' || n || '@example.com', 'new' || n || '@example.org', 'admin-of-01'
          FROM generate_series(1, $2::int) AS n`,
       [THEIRS, ADDRESS_CHANGE_ROWS_MAX],
     );
     try {
       as(THEIRS);
       refusedAs(
-        await request(app).post('/api/address-changes').send({ oldAddress: 'one-more@example.net', newAddress: 'one-more@example.org' }),
+        await request(app).post('/api/address-changes').send({ oldAddress: 'one-more@example.com', newAddress: 'one-more@example.org' }),
         409,
         'too_many_address_changes',
       );
-      expect((await request(app).put('/api/address-changes/old7%40example.net').send({ newAddress: 'other@example.org' })).status).toBe(200);
+      expect((await request(app).put('/api/address-changes/old7%40example.com').send({ newAddress: 'other@example.org' })).status).toBe(200);
       expect((await owner(`SELECT count(*)::int AS n FROM address_change WHERE tenant_id = $1`, [THEIRS]))[0]!.n).toBe(ADDRESS_CHANGE_ROWS_MAX);
     } finally {
       await owner(`DELETE FROM address_change WHERE tenant_id = $1`, [THEIRS]);
@@ -479,18 +479,18 @@ describe('every answer is in both languages (N7; the review, finding 9)', () => 
 
   it.each([
     ['a POST with an address that is not a string', 'POST', { oldAddress: 5, newAddress: 'x@example.org' }, 'oldAddress is tekst.'],
-    ['a POST with a field it does not take', 'POST', { oldAddress: 'a@example.net', newAddress: 'b@example.org', extra: 1 }, 'De inhoud heeft een veld dat hier niet past: extra.'],
+    ['a POST with a field it does not take', 'POST', { oldAddress: 'a@example.com', newAddress: 'b@example.org', extra: 1 }, 'De inhoud heeft een veld dat hier niet past: extra.'],
     ['an empty POST', 'POST', {}, 'Een adreswijziging heeft oldAddress en newAddress nodig.'],
-    ['a POST with an address too long', 'POST', { oldAddress: `${'a'.repeat(400)}@example.net`, newAddress: 'b@example.org' }, 'oldAddress is langer dan een adres kan zijn.'],
-    ['a POST whose confirm is not true or false', 'POST', { oldAddress: 'a@example.net', newAddress: 'b@example.org', confirm: 'yes' }, 'confirm is true of false.'],
-    ['a POST whose personId is no id', 'POST', { oldAddress: 'a@example.net', newAddress: 'b@example.org', personId: 'kid' }, 'personId is het id van een persoon, of null.'],
+    ['a POST with an address too long', 'POST', { oldAddress: `${'a'.repeat(400)}@example.com`, newAddress: 'b@example.org' }, 'oldAddress is langer dan een adres kan zijn.'],
+    ['a POST whose confirm is not true or false', 'POST', { oldAddress: 'a@example.com', newAddress: 'b@example.org', confirm: 'yes' }, 'confirm is true of false.'],
+    ['a POST whose personId is no id', 'POST', { oldAddress: 'a@example.com', newAddress: 'b@example.org', personId: 'kid' }, 'personId is het id van een persoon, of null.'],
     ['a PUT with a state there is not', 'PUT', { state: 'maybe' }, 'state is proposed of confirmed.'],
   ])('%s is said in Dutch without the English', async (_what, method, body, dutch) => {
     as(OURS, 'admin-of-01');
     const res =
       method === 'POST'
         ? await request(app).post('/api/address-changes').send(body)
-        : await request(app).put('/api/address-changes/mum%40hotmail.example').send(body);
+        : await request(app).put('/api/address-changes/mum%40example.com').send(body);
     refusedAs(res, 400, 'invalid_request');
     expect(res.body.messageNl).toBe(`Dit verzoek is niet te lezen. ${dutch}`);
     expect(res.body.messageNl).not.toMatch(ENGLISH);
@@ -519,12 +519,12 @@ describe('every answer is in both languages (N7; the review, finding 9)', () => 
   it("says another organisation's person in both languages, shaped as every refusal here", async () => {
     as(OURS, 'admin-of-01');
     refusedAs(
-      await request(app).post('/api/address-changes').send({ oldAddress: 'x@example.net', newAddress: 'x@example.org', personId: THEIR_PERSON }),
+      await request(app).post('/api/address-changes').send({ oldAddress: 'x@example.com', newAddress: 'x@example.org', personId: THEIR_PERSON }),
       404,
       'person_not_found',
     );
     refusedAs(
-      await request(app).put('/api/address-changes/mum%40hotmail.example').send({ personId: THEIR_PERSON }),
+      await request(app).put('/api/address-changes/mum%40example.com').send({ personId: THEIR_PERSON }),
       404,
       'person_not_found',
     );

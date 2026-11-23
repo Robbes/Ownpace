@@ -68,8 +68,8 @@ describe('the key of an address', () => {
   // carried both addresses. A control character or half a surrogate pair is
   // in no address, so the check refuses it before anything stores it.
   it.each([
-    ['a NUL', 'mum\u0000@hotmail.com'],
-    ['a NUL in the domain', 'mum@hot\u0000mail.com'],
+    ['a NUL', 'mum\u0000@example.com'],
+    ['a NUL in the domain', 'mum@exa\u0000mple.com'],
     ['a bell', 'mu\u0007m@example.org'],
     ['a delete', 'mum\u007f@example.org'],
     ['a C1 control', 'mum\u0085@example.org'],
@@ -80,12 +80,12 @@ describe('the key of an address', () => {
   });
 
   it('proposes nothing for such a value either', () => {
-    expect(cannotTakeAlong('mum\u0000@gmail.com')).toBeNull();
-    expect(cannotTakeAlong('mum@gmail.com')).toEqual({ provider: 'Google' });
+    expect(cannotTakeAlong('someone\u0000@gmail.com')).toBeNull();
+    expect(cannotTakeAlong('someone@gmail.com')).toEqual({ provider: 'Google' });
   });
 
   it('still takes an address written in other scripts, or with an emoji, for one', () => {
-    for (const v of ['jörg@example.org', 'имя@пример.рф', '😀@example.org', 'İnci@example.org']) {
+    for (const v of ['jörg@example.org', 'имя@example.org', '😀@example.org', 'İnci@example.org']) {
       expect(isAddress(v), v).toBe(true);
     }
   });
