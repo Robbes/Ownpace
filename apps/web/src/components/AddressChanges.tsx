@@ -73,7 +73,10 @@ export function useStateWords(): (row: AddressChange, viewerIsPerson?: boolean) 
         ? t('addresses.confirmedByYouFor', { person })
         : t('addresses.confirmed');
     }
-    return person === undefined
+    // The row's own person confirmed it, through their link: the server says
+    // it as their name (`person:<id>`, 0168 §4.4), so it reads *Confirmed by
+    // ‹person›*, never *by ‹person› for ‹person›*.
+    return person === undefined || who === person
       ? t('addresses.confirmedBy', { who })
       : t('addresses.confirmedByFor', { who, person });
   };

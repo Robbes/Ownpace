@@ -99,6 +99,17 @@ describe("the person's page: Addresses", () => {
     expect(updateAddressChange).toHaveBeenCalledWith('name@gmail.com', { state: 'proposed' });
   });
 
+  it('says the person’s own confirmation through their link as theirs, never as for themselves', async () => {
+    vi.mocked(fetchAddressChanges).mockResolvedValue({
+      rows: [row({ confirmedBy: 'Child' })],
+      door: 'api',
+      file: null,
+    });
+    renderWith(CHILD);
+    expect(await screen.findByText('Confirmed by Child')).toBeInTheDocument();
+    expect(screen.queryByText('Confirmed by Child for Child')).not.toBeInTheDocument();
+  });
+
   it('says whom a proposed row waits for, and confirms it', async () => {
     vi.mocked(fetchAddressChanges).mockResolvedValue({
       rows: [row({ state: 'proposed', confirmedBy: null, confirmedAt: null })],
