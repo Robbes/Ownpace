@@ -168,6 +168,7 @@ describe('the page door, without address-changes.json', () => {
       confirmedBy: 'operator',
       setByYou: false,
       confirmedByYou: false,
+      confirmedByThePerson: false,
       person: null,
     });
     expect((await ask(h, 'POST', '/address-changes', { oldAddress: 'memyself@gmail.com', newAddress: 'me@example.org' })).status).toBe(200);

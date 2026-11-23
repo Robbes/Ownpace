@@ -17,7 +17,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ADDRESS_TABLE_MOVED, addressKey, addressTablePressDigest } from '@openmig/shared';
+import { ADDRESS_TABLE_MOVED, NO_SUCH_MIGRATION_HERE, addressKey, addressTablePressDigest } from '@openmig/shared';
 import { start, type SelfhostHandle } from './index.ts';
 
 const TENANT = '0168d5a0-e29b-41d4-a716-446655443201';
@@ -112,7 +112,13 @@ describe('the appliance’s press for the table it was shown', () => {
     expect(res.json).toEqual({ id: MAPPING, applied: true, digest: shown, rows: 1 });
   });
 
-  it('answers 404 for a migration it does not have', async () => {
-    expect((await ask('/mappings/no-such-mapping/address-changes/apply', { digest: addressTablePressDigest([ANA]) })).status).toBe(404);
+  it('answers 404 for a migration it does not have, with a sentence in both languages (0168)', async () => {
+    const res = await ask('/mappings/no-such-mapping/address-changes/apply', { digest: addressTablePressDigest([ANA]) });
+    expect(res.status).toBe(404);
+    // It carried a code and no sentence; managed's says one in both languages.
+    expect(res.json).toMatchObject({
+      message: NO_SUCH_MIGRATION_HERE.en,
+      messageNl: NO_SUCH_MIGRATION_HERE.nl,
+    });
   });
 });

@@ -9141,7 +9141,7 @@ components:
       description: |
         One address that becomes another (ADR-0055, workplan 0168 §4.2). Its
         identity is `oldKey`, unique in the organisation.
-      required: [oldAddress, oldKey, newAddress, state, setBy, setByYou, confirmedBy, confirmedByYou, createdAt, confirmedAt, person]
+      required: [oldAddress, oldKey, newAddress, state, setBy, setByYou, confirmedBy, confirmedByYou, confirmedByThePerson, createdAt, confirmedAt, person]
       properties:
         oldAddress:
           type: string
@@ -9179,6 +9179,13 @@ components:
             as `person:` and their id, said as the name, never as the id.
             Null while `proposed`.
         confirmedByYou: { type: boolean, description: Whether the asker confirmed it. Always false on the appliance. }
+        confirmedByThePerson:
+          type: boolean
+          description: |
+            Whether the row's own person confirmed it, through their link
+            (stored as `person:` and their id). Exact where `confirmedBy`, a
+            name, is not: a member who shares the person's name is not the
+            person. Always false on the appliance, which has no person.
         createdAt: { type: string, format: date-time }
         confirmedAt: { type: [string, 'null'], format: date-time, description: Null while `proposed`. }
         person:

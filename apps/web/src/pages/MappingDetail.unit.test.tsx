@@ -1384,6 +1384,7 @@ describe('the new address, on a migration’s page (0168 §6.3, D5)', () => {
     setByYou: true,
     confirmedBy: null,
     confirmedByYou: true,
+    confirmedByThePerson: false,
     createdAt: '2026-11-22T10:00:00.000Z',
     confirmedAt: '2026-11-22T10:00:00.000Z',
     person: null,

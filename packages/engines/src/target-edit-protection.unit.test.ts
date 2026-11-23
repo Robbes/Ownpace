@@ -103,12 +103,18 @@ interface Call {
  * edited copy is stopped, so a stub that accepted every PUT would prove
  * nothing.
  */
-function server(currentEtag: string | undefined, putEtag = 'after-our-write') {
+function server(currentEtag: string | undefined, putEtag = 'after-our-write', gone = false) {
   const calls: Call[] = [];
   const client: HttpClient = {
     async request(o) {
       const call: Call = { method: o.method, url: o.url, ...(o.headers ? { headers: o.headers } : {}) };
       calls.push(call);
+      if (gone && (o.method === 'HEAD' || (o.method === 'PUT' && o.headers?.['If-Match'] !== undefined))) {
+        // Deleted on the target: `If-Match` is false with no current
+        // representation (RFC 9110 §13.1.1), and a HEAD finds nothing.
+        call.status = o.method === 'PUT' ? 412 : 404;
+        return { status: call.status, body: '', headers: {} };
+      }
       if (o.method === 'HEAD') {
         const headers: Record<string, string> = {};
         if (currentEtag !== undefined) headers.etag = `"${currentEtag}"`;
@@ -164,7 +170,10 @@ describe('a rewrite whose target copy has been edited', () => {
     // The server refused it, on the version we recorded, in the write itself
     // (workplan 0149 T3): no read first, and no gap between the two.
     expect(s.sent()[0]?.headers?.['If-Match']).toBe('"the-version-we-wrote"');
-    expect(s.calls.filter((c) => c.method === 'HEAD')).toHaveLength(0);
+    // The one HEAD comes AFTER the refusal, to tell an edit from a deletion
+    // (workplan 0168): it never decides whether the write goes out.
+    const firstPut = s.calls.findIndex((c) => c.method === 'PUT');
+    expect(s.calls.findIndex((c) => c.method === 'HEAD')).toBeGreaterThan(firstPut);
   });
 
   it('rewrites normally when the target still holds our version', async () => {
@@ -263,5 +272,78 @@ describe('the same rule in the other two writers', () => {
     );
     expect(result.conflicted).toBe(true);
     expect(s.puts()).toHaveLength(0);
+  });
+});
+
+/**
+ * A COPY THE PERSON DELETED IS NOT THEIR EDIT (workplan 0168, found on the
+ * way). `If-Match` answers 412 for a resource that is not there as well as for
+ * one that changed, and the writers read every 412 on a rewrite as an edit: the
+ * loop marked the row adopted, said it as the person's own, and verification
+ * never reported the copy missing. One HEAD tells the two apart.
+ */
+describe('a rewrite whose target copy was deleted', () => {
+  const card = (client: HttpClient) =>
+    new CardDAVTargetWriter(
+      { url: BASE, username: 'alice', password: 'pw' },
+      { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+    ).upsertContact(
+      '/addressbooks/alice/contacts/',
+      { item: { uid: 'card-1', type: 'person' as const, version: '3.0', name: 'Corrected', etag: 'e2', sourcePath: '', vcard: VCF }, vcard: VCF },
+      { overwrite: true, expectedTargetVersion: 'the-version-we-wrote' },
+    );
+  const event = (client: HttpClient) =>
+    calWriter(client).upsertCalendarEvent(
+      '/calendars/alice/personal/',
+      { item: { uid: 'evt-1', type: 'event', summary: 'Corrected', start: '', etag: 'e2', sourcePath: '', icalendar: ICS }, icalendar: ICS },
+      { overwrite: true, expectedTargetVersion: 'the-version-we-wrote' },
+    );
+  const file = (client: HttpClient) =>
+    new WebDAVTargetWriter(
+      { url: BASE, username: 'alice', password: 'pw' },
+      { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+    ).upsertFile(
+      '/files/alice/',
+      {
+        item: { path: 'notes.txt', name: 'notes.txt', isDirectory: false, size: 3, modifiedAt: '', etag: 'e2', sourceRef: 'notes.txt' },
+        content: new TextEncoder().encode('new'),
+      },
+      { overwrite: true, expectedTargetVersion: 'the-version-we-wrote' },
+    );
+
+  it.each([
+    ['CardDAV', card],
+    ['CalDAV', event],
+    ['WebDAV', file],
+  ] as const)('%s says it is gone from the target, not edited, and writes nothing', async (_name, write) => {
+    const s = server(undefined, 'after-our-write', true);
+    const result = await write(s.client);
+    expect(result.goneFromTarget).toBe(true);
+    expect(result.conflicted).toBeUndefined();
+    expect(result.updated).toBeUndefined();
+    expect(s.puts()).toHaveLength(0);
+  });
+
+  it.each([
+    ['CardDAV', card],
+    ['CalDAV', event],
+    ['WebDAV', file],
+  ] as const)('%s still calls a copy that is there and changed an edit', async (_name, write) => {
+    const result = await write(server('somebody-elses-version').client);
+    expect(result.conflicted).toBe(true);
+    expect(result.goneFromTarget).toBeUndefined();
+  });
+
+  it('fails the item when the HEAD that should tell cannot say, and writes nothing', async () => {
+    const calls: string[] = [];
+    const client: HttpClient = {
+      async request(o) {
+        calls.push(o.method);
+        if (o.method === 'PUT') return { status: 412, body: '', headers: {} };
+        if (o.method === 'HEAD') return { status: 500, body: '', headers: {} };
+        return { status: 207, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>', headers: {} };
+      },
+    };
+    await expect(card(client)).rejects.toThrow(/refused with 412, and the HEAD .* failed with status 500/);
   });
 });
