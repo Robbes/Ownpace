@@ -17,6 +17,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Hub. v1.4.1 is v1.4.0 relabelled: the same upstream commit, build date, Go, flags and
   dependencies, in a file of the same size; only the version it prints differs. Nothing deployed
   changes.
+- **CI's migration report moves to squawk 2.74.0** (workplan 0119; the pin watch's #1671), from
+  alpha.18's 2.73.0. npm published it on 2026-11-23 at 00:26 UTC; it is taken inside its three-day
+  floor, on the owner's word of 2026-11-23: *"Pull pnpm, zizmor and squawk earlier. I waive
+  unneeded days/waiting."* Each architecture is checked by the SHA-256 of the `squawk` binary in
+  squawk's own npm package for that build, whose 2.73.0 gives, byte for byte, the sums pinned
+  before. Over every file of both migration chains it reports what 2.73.0 reported, line for line.
+  The report fails nothing, and nothing deployed changes.
 
 ### Fixed
 
