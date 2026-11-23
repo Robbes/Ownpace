@@ -292,6 +292,14 @@ export interface ContactSource {
    * card for every source but one. Until 2026-09-23 that one had a `fetch` that
    * nothing called, since it was not on this port, so no Microsoft contact
    * ever reached its destination with its photo.
+   *
+   * **A FETCH NEVER CHANGES AN EMAIL LINE** (ADR-0055; workplan 0168 S8). It
+   * adds to the listed card (Graph adds the photo) and never adds, removes or
+   * rewrites an `EMAIL`. The pass decides whether a card's addresses need
+   * rewriting from the LISTED card, and records that card's digest; a fetch
+   * that changed an address would make the bytes written disagree with the
+   * digest recorded for them. `a-fetch-that-never-changes-an-address`
+   * holds every contact source that has a fetch to this.
    */
   fetch?(item: RawContact): Promise<RawContact>;
   /** Lists only what a test migration's marker selects. See `SourceConnector.markedOnly`. */

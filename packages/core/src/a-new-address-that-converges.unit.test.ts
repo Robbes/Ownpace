@@ -287,6 +287,40 @@ describe('contacts under the address table', () => {
     expect(t.bodies).toEqual(expected([ANA, BEN]));
   });
 
+  it('records the digest of the card it classified by, so a fetch that adds an address costs no rewrite on every pass (S8)', async () => {
+    // A source whose fetch carries an old address its listing does not: what
+    // `ContactSource.fetch` forbids, and the review's E3.
+    const listing = contactSource();
+    const source = {
+      ...listing,
+      listFolders: listing.listFolders,
+      listSince: listing.listSince,
+      fetch: async (listed: { item: Contact; vcard: string }) => ({
+        item: listed.item,
+        vcard: listed.vcard.replace('UID:', 'EMAIL:ben@old.example.org\r\nUID:'),
+      }),
+    } as unknown as ContactSource;
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    const pass = () =>
+      runContactSync({
+        sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        source,
+        target: contactTarget(t),
+        ledger,
+        addressChanges: changes([BEN]),
+      });
+    const writes: number[] = [];
+    for (let k = 0; k < 4; k += 1) {
+      const p = await pass();
+      writes.push(p.created + p.updated);
+    }
+    expect(writes).toEqual([3, 0, 0, 0]);
+  });
+
   it('converges from any sequence of tables: after each change two passes leave exactly the table’s bytes, the second writing nothing', async () => {
     const rows = [ANA, BEN, row('carla@stays.example.org', 'carla@example.org')];
     let seed = 7;

@@ -437,7 +437,15 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
       // (owner's report, 2026-09-23).
       const full = source.fetch ? await source.fetch(item) : item;
       // The address table first (ADR-0055), then the writer's own repairs.
-      const { body, addressDigest } = changed(deps.addressChanges, 'vcard', full.vcard);
+      const fetchedChange = changed(deps.addressChanges, 'vcard', full.vcard);
+      const body = fetchedChange.body;
+      // THE DIGEST THE PASS CLASSIFIED BY (the review's S8): of the LISTED
+      // card, as `addressDigestNow` reads it, never of the fetched one. A
+      // fetch never changes an EMAIL line (`ContactSource.fetch`), so the two
+      // agree; a source that broke that would otherwise record a digest the
+      // next pass's listing never gives, and rewrite the card on every pass.
+      const addressDigest =
+        full.vcard === item.vcard ? fetchedChange.addressDigest : changed(deps.addressChanges, 'vcard', item.vcard).addressDigest;
       return {
         raw: { item: full.item, vcard: body } as RawContact,
         sizeBytes: Buffer.from(body, 'utf8').length,
