@@ -2060,6 +2060,13 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     // A pass changes tasks as it changes events (0168 T4), and the step says so.
     expect(screen.getByText('tasks you organised list you as first@example.org, as your events do.')).toBeInTheDocument();
     expect(screen.getByText(/every message stays exactly as it was sent/)).toBeInTheDocument();
+    // What is already over keeps the old address (the owner, 2026-11-23; ADR-0055), and the step says so.
+    expect(screen.getByText('Events that are already over:')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'they keep the old address, as a record of what happened. So do tasks completed or cancelled before the migration starts; a task you finish later still gets the new address.',
+      ),
+    ).toBeInTheDocument();
     expect(next()).toHaveAccessibleDescription('Answer the question first.');
 
     await user.click(screen.getByRole('radio', { name: 'Yes' }));

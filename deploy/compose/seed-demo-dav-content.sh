@@ -100,6 +100,7 @@
 #   ./deploy/compose/seed-demo-dav-content.sh --fresh    # seed a uniquely-tagged set (never tombstoned)
 #   ./deploy/compose/seed-demo-dav-content.sh --remove T # take one --fresh set back again
 #   ./deploy/compose/seed-demo-dav-content.sh --big-sha256 T  # the large file's sha256, one line
+#   ./deploy/compose/seed-demo-dav-content.sh --past-event T  # the past event as the source holds it
 #
 # Env overrides:
 #   NEXTCLOUD_CONTAINER  (default <project>-nextcloud, matches managed.yml;
@@ -156,6 +157,7 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 
 REMOVE_ONLY=0
 BIG_SHA_ONLY=0
+PAST_EVENT_ONLY=0
 case "${1:-}" in
   --verify) VERIFY_ONLY=1 ;;
   --fresh) TAG="${2:-${SEED_DAV_TAG:-$(date -u +%Y%m%dT%H%M%SZ)-$$}}" ;;
@@ -185,8 +187,18 @@ case "${1:-}" in
     TAG="${2:-}"
     [ -n "$TAG" ] || fail "--big-sha256 needs the tag to read: --big-sha256 <tag>"
     ;;
+  # `--past-event <tag>` is READ ONLY too, for the same reason: the past event
+  # `--fresh <tag>` seeded (event 5, the owner's word of 2026-11-23, workplan
+  # 0168), as the SOURCE account holds it, one unfolded line per property and
+  # no carriage returns, so the smoke can hold the target's copy to the same
+  # bytes without learning this account's password.
+  --past-event)
+    PAST_EVENT_ONLY=1
+    TAG="${2:-}"
+    [ -n "$TAG" ] || fail "--past-event needs the tag to read: --past-event <tag>"
+    ;;
   "") ;;
-  *) fail "unknown argument '$1' (expected --verify, --fresh <tag>, --remove <tag>, --big-sha256 <tag>, or nothing)" ;;
+  *) fail "unknown argument '$1' (expected --verify, --fresh <tag>, --remove <tag>, --big-sha256 <tag>, --past-event <tag>, or nothing)" ;;
 esac
 # The names carry the tag in the middle, so `openmig-demo-event-` stays the
 # prefix everything greps for — the verification below, and anybody reading the
@@ -257,7 +269,7 @@ BIG_FILE_NAME=""
 # one, and the fixed fixture never carries a canary.
 ORGANISER_USER=""
 ORGANISER_PASS=""
-if [ -n "$TAG" ] && [ "$REMOVE_ONLY" = "0" ] && [ "$BIG_SHA_ONLY" = "0" ]; then
+if [ -n "$TAG" ] && [ "$REMOVE_ONLY" = "0" ] && [ "$BIG_SHA_ONLY" = "0" ] && [ "$PAST_EVENT_ONLY" = "0" ]; then
   ORGANISER_USER="${SEED_DAV_ORGANISER_USER:-}"
   ORGANISER_PASS="${SEED_DAV_ORGANISER_PASSWORD:-}"
   [ -z "$ORGANISER_USER" ] || [ -n "$ORGANISER_PASS" ] \
@@ -422,6 +434,17 @@ if [ "$BIG_SHA_ONLY" = "1" ]; then
     is there; this refuses rather than printing the digest of nothing."
   exit 0
 fi
+# `--past-event` answers and stops here too, its output the event's lines alone.
+# Unfolded and without carriage returns exactly as the smoke reads a copy off
+# the target (`target_copy_at`), so the two compare line for line.
+if [ "$PAST_EVENT_ONLY" = "1" ]; then
+  docker exec "$NC" curl -sSf -u "${DAVUSER}:${PASS}" "http://localhost/remote.php/dav/${CAL}openmig-demo-event-${SUFFIX}5.ics" \
+    | tr -d '\r' \
+    | awk 'NR > 1 && /^[ \t]/ { line = line substr($0, 2); next } NR > 1 { print line } { line = $0 } END { if (NR) print line }' \
+    || fail "could not read ${CAL}openmig-demo-event-${SUFFIX}5.ics from ${DAVUSER} — was --fresh ${TAG} run with an
+    organiser, and did its past event's PUT succeed?"
+  exit 0
+fi
 
 echo "[seed-dav] account ${DAVUSER}"
 echo "[seed-dav]   calendar     ${CAL}"
@@ -482,14 +505,18 @@ if [ "$REMOVE_ONLY" = "1" ]; then
     # per set with event 3, and taken back the same way: 404 is success.
     addr_event_spec=""
     addr_contact_spec=""
+    # And the past event, event 5 (the owner, 2026-11-23), seeded with them.
+    past_event_spec=""
     if [ "$n" = "1" ]; then
       addr_event_spec="${CAL}openmig-demo-event-${SUFFIX}4.ics"
       addr_contact_spec="${ABK}openmig-demo-contact-${SUFFIX}a.vcf"
+      past_event_spec="${CAL}openmig-demo-event-${SUFFIX}5.ics"
     fi
     for spec in "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" \
                 ${own_spec:+"$own_spec"} \
                 ${addr_event_spec:+"$addr_event_spec"} \
                 ${addr_contact_spec:+"$addr_contact_spec"} \
+                ${past_event_spec:+"$past_event_spec"} \
                 ${dir_spec:+"$dir_spec"} \
                 ${task_spec:+"$task_spec"} \
                 "${ABK}openmig-demo-contact-${SUFFIX}${n}.vcf" \
@@ -847,6 +874,34 @@ EMAIL;TYPE=INTERNET:openmig-old-${TAG}@example.invalid
 END:VCARD")
     echo "[seed-dav] contact ${SUFFIX}a: HTTP ${code} (EMAIL openmig-old-${TAG}@example.invalid, the address canary)"
     case "$code" in 201|204) ;; *) fail "contact PUT ${SUFFIX}a (the address canary) returned ${code}" ;; esac
+
+    # THE PAST EVENT (the owner, 2026-11-23: "perhapse we need not change
+    # past-events we migrate"; ADR-0055). Organised by the same old address,
+    # and over on 2025-01-07, before any migration of this stack was made: the
+    # address table leaves an event that was over at its migration's start as
+    # the source has it. The smoke holds the target's copy to these bytes, but
+    # for the SCHEDULE-AGENT=CLIENT every copied organiser and guest carries
+    # (`--past-event`), and its ledger row to no digest. A fixed date, unlike
+    # events 3 and 4: what it must be is older than the migration, whenever the
+    # run is. The canary attendee rides it too, so the catcher would hear it.
+    code=$(dav PUT "${CAL}openmig-demo-event-${SUFFIX}5.ics" 'text/calendar; charset=utf-8' \
+"BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//OpenMigrate//demo//EN
+BEGIN:VEVENT
+UID:openmig-demo-event-${SUFFIX}5
+DTSTAMP:20250101T000000Z
+DTSTART:20250107T100000Z
+DTEND:20250107T110000Z
+SUMMARY:Ownpace demo event ${SUFFIX}5
+DESCRIPTION:Organised from openmig-old-${TAG}@example.invalid\, over before any migration began.
+STATUS:CONFIRMED
+ORGANIZER;CN=Someone Moving:mailto:openmig-old-${TAG}@example.invalid
+ATTENDEE;CN=Migration Canary;PARTSTAT=NEEDS-ACTION:mailto:openmig-attendee-${TAG}@example.invalid
+END:VEVENT
+END:VCALENDAR")
+    echo "[seed-dav] event ${SUFFIX}5: HTTP ${code} (organised by openmig-old-${TAG}@example.invalid, over on 2025-01-07: the past event)"
+    case "$code" in 201|204) ;; *) fail "calendar PUT ${SUFFIX}5 (the past event) returned ${code}" ;; esac
   fi
 fi
 
@@ -896,6 +951,8 @@ if [ -n "$OWN_ORGANISER" ]; then
   [ "$(count "$CAL" "openmig-demo-event-${SUFFIX}4")" -ge 1 ] \
     && [ "$(count "$ABK" "openmig-demo-contact-${SUFFIX}a")" -ge 1 ] \
     || fail "the address canary, event ${SUFFIX}4 and contact ${SUFFIX}a, is not in the source (0168 T8)"
+  [ "$(count "$CAL" "openmig-demo-event-${SUFFIX}5")" -ge 1 ] \
+    || fail "the past event, event ${SUFFIX}5, is not in the source (the owner, 2026-11-23)"
 fi
 
 # The heredoc below stays QUOTED. It contains `$POSTGRES_USER`, `$POSTGRES_DB`

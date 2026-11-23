@@ -228,8 +228,13 @@ router.post('/', async (req: Request, res: Response) => {
      * (hard rule 9) — the duplicate is recorded in the log, where an operator
      * can see it and the stranger cannot.
      */
+    // The request's own id, minted here rather than read back: the log names
+    // the request by it, never by its address, and `RETURNING` would need a
+    // SELECT policy this anonymous door does not have.
+    const requestId = randomUUID();
     try {
       await db.insert(accessRequest).values({
+        id: requestId,
         email: body.email,
         ...(body.name ? { name: body.name } : {}),
         ...(body.organisation ? { organisation: body.organisation } : {}),
@@ -250,8 +255,10 @@ router.post('/', async (req: Request, res: Response) => {
       const cause = (error as { cause?: unknown }).cause;
       const pg = (cause ?? error) as { code?: string; constraint?: string };
       if (pg.code !== '23505' || pg.constraint !== 'ux_access_request_one_open_per_email') throw error;
+      // Without the address, and so without naming whose request: this door
+      // cannot read the queue, so it cannot find the open request's id.
       log.info(
-        `[access-request] ${body.email} asked again while a request is still open — ` +
+        '[access-request] an address with a request still open asked again — ' +
           'not recorded twice, and told the same thing as the first time',
       );
       // BYTE FOR BYTE what the first knock answers, below. The first version of
@@ -263,10 +270,11 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    // Logged without the note, and without the name: an access request is
+    // Logged by the request's id, the one the queue lists it under, and
+    // without the address, the note or the name: an access request is
     // somebody's contact details, and logs travel further than the database
-    // does (§17). The address is what makes the line useful for support.
-    log.info(`[access-request] ${body.email} asked for access (${body.locale})`);
+    // does (§17).
+    log.info(`[access-request] request ${requestId} asked for access (${body.locale})`);
 
     // TELL THE OPERATOR, and say so when nobody was told.
     //
@@ -290,12 +298,12 @@ router.post('/', async (req: Request, res: Response) => {
       // a fact about this request, and an operator who believes they are being
       // notified is exactly who rule 9 protects.
       log.warn(
-        `[access-request] nobody was told about ${body.email} — no SMTP configured. ` +
+        `[access-request] nobody was told about request ${requestId} — no SMTP configured. ` +
           'Set SMTP_HOST, NOTIFY_FROM and NOTIFY_TO; the request is in the queue either way.',
       );
     } else if (announced === 'failed') {
       log.error(
-        `[access-request] could not announce ${body.email} — the request is recorded ` +
+        `[access-request] could not announce request ${requestId} — the request is recorded ` +
           'and is in the queue, but no mail went out.',
       );
     }
@@ -610,9 +618,9 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
       return;
     }
 
-    // The address, because it is what makes the line useful for support; not
-    // the note or the name (§17, same rule the knock above follows).
-    log.info(`[access-request] granted ${outcome.email} tenant ${tenantId}`);
+    // By the request's id, as the queue lists it; not the address, the note or
+    // the name (§17, same rule the knock above follows).
+    log.info(`[access-request] granted request ${id}: tenant ${tenantId}`);
 
     // AFTER the commit, and outside it (workplan 0095 T3). Granting is three
     // writes or none; the email is not a fourth. A mail server that is down
@@ -632,13 +640,14 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
         outcome.email,
         outcome.locale,
         accessGrantedEvent({ organisation: outcome.name, appUrl: where, email: outcome.email }),
+        `access request ${id}`,
       );
     } else {
       // `off` to the operator, because what they need to know is the same in
       // both cases: nobody was told, and the manual step is theirs. WHY goes to
       // the log, where it names the variable to set.
       log.error(
-        `[access-request] WEB_URL is not set — granted ${outcome.email} but sent no email, ` +
+        `[access-request] WEB_URL is not set — granted request ${id} but sent no email, ` +
           'because it would have named no address to sign in at',
       );
       notified = 'off';
@@ -728,7 +737,7 @@ router.post('/:id/decline', authenticateSubject, async (req: AuthenticatedReques
       return;
     }
 
-    log.info(`[access-request] declined ${outcome.email}`);
+    log.info(`[access-request] declined request ${outcome.id}`);
 
     // AFTER the commit and outside it, exactly like the grant: the refusal is
     // recorded whether or not the mail server is reachable, and the mail only
@@ -739,11 +748,11 @@ router.post('/:id/decline', authenticateSubject, async (req: AuthenticatedReques
     // `WEB_URL` can still be polite.
     let notified: NotifiedOutcome;
     if (parsed.data.notify) {
-      notified = await tell(outcome.email, outcome.locale, { kind: 'access_declined' });
+      notified = await tell(outcome.email, outcome.locale, { kind: 'access_declined' }, `access request ${outcome.id}`);
     } else {
       // Logged because it is a decision a person made about another person, and
       // the queue row records the decision but not that it was kept quiet.
-      log.info(`[access-request] declined ${outcome.email} without telling them (operator's choice)`);
+      log.info(`[access-request] declined request ${outcome.id} without telling them (operator's choice)`);
       notified = 'skipped';
     }
 

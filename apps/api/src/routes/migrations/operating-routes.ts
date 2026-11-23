@@ -993,7 +993,9 @@ router.post(
             pressedBy: decidedBy,
             isCutOver,
             channelIsOn: channelIsOn(),
-            tell: async (grantee, message) => (await tellMessage(grantee, locale, message)) === 'sent',
+            tell: async (grantee, message) =>
+              (await tellMessage(grantee, locale, message, `the sharing announcement of migration ${s.mappingId}`)) ===
+              'sent',
             privacyPolicy,
             onError: (m: string, err: unknown) => log.error(m, err),
           },
