@@ -225,9 +225,73 @@ describe('a card (D2)', () => {
     expect(r.body).toContain('\r\nEMAIL;PREF=1;TYPE=home:ana@example.org\r\nEMAIL;TYPE=home:ana@old.example.org\r\n');
   });
 
-  it('adds nothing to a card that already lists the new address', () => {
+  it('adds no line to a card that already lists the new address, and moves the preference to it (N2)', () => {
+    // The old address was preferred, so mail went there: D2 says the new one is.
     const card = GOOGLE_CARD.replace('UID:', 'EMAIL:Ana@Example.org\r\nUID:');
+    const r = applyAddressChanges('vcard', card, TABLE);
+    expect(r.changed).toBe(true);
+    expect(r.digest).toBe(addressTableDigest([ANA]));
+    expect(r.body).toBe(
+      crlf([
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        'FN:Ana ‹surname›',
+        'N:‹surname›;Ana;;;',
+        'EMAIL;TYPE=INTERNET;TYPE=HOME:ana@old.example.org',
+        'EMAIL;TYPE=INTERNET;TYPE=WORK:ana.work@other.example.org',
+        'NOTE:Write to ana@old.example.org about the move',
+        'EMAIL;TYPE=pref:Ana@Example.org',
+        'UID:google-contact-1',
+        'END:VCARD',
+      ]),
+    );
+    expect(applyAddressChanges('vcard', r.body, TABLE).body).toBe(r.body);
+  });
+
+  it('writes PREF=1 on the new address a vCard 4.0 already lists, in place of a lower preference', () => {
+    const card = V4_CARD.replace('UID:', 'EMAIL;PREF=2;TYPE=work:ana@example.org\r\nUID:');
+    const r = applyAddressChanges('vcard', card, TABLE);
+    expect(r.body).toContain('\r\nEMAIL;TYPE=home:ana@old.example.org\r\nEMAIL;PREF=1;TYPE=work:ana@example.org\r\n');
+    expect(applyAddressChanges('vcard', r.body, TABLE).body).toBe(r.body);
+  });
+
+  it('leaves byte for byte a card that already lists the new address, preferred, beside the old one without', () => {
+    const card = crlf([
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'FN:Ana',
+      'EMAIL;TYPE=INTERNET:ana@old.example.org',
+      'EMAIL;TYPE=INTERNET,pref:ana@example.org',
+      'END:VCARD',
+    ]);
     expect(applyAddressChanges('vcard', card, TABLE)).toEqual({ body: card, changed: false, digest: null });
+  });
+
+  it('gives the preference to one line only: the line a card gains, not a new address it already lists', () => {
+    // A family card: Ana's new address is listed, Ben's is gained.
+    const card = crlf([
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'FN:Ana and Ben',
+      'EMAIL;TYPE=pref:ana@old.example.org',
+      'EMAIL:ana@example.org',
+      'EMAIL:ben.old@old.example.org',
+      'END:VCARD',
+    ]);
+    const r = applyAddressChanges('vcard', card, TABLE);
+    expect(r.body).toBe(
+      crlf([
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        'FN:Ana and Ben',
+        'EMAIL;TYPE=pref:ben@example.org',
+        'EMAIL:ana@old.example.org',
+        'EMAIL:ana@example.org',
+        'EMAIL:ben.old@old.example.org',
+        'END:VCARD',
+      ]),
+    );
+    expect(applyAddressChanges('vcard', r.body, TABLE).body).toBe(r.body);
   });
 
   it('leaves a card of somebody not in the table byte for byte', () => {

@@ -16,7 +16,10 @@
  *   table gains the new address on a line of its own, put before the card's
  *   first `EMAIL` and marked preferred (`PREF=1`; in a vCard 2.1 or 3.0,
  *   which has no `PREF` parameter, `TYPE=pref`). The old line stays and loses
- *   its preference. A card that already lists the new address gets nothing.
+ *   its preference. A card that already lists the new address gains no line:
+ *   that address's own line takes the preference instead, where no gained
+ *   line has it, so mail goes to the new address there too (the data-path
+ *   review's N2).
  * - **iCalendar `ORGANIZER` (D3).** Its address is replaced when it is an old
  *   address in the table. `CN` and every other parameter are kept.
  * - **iCalendar `ATTENDEE` (D3).** Its address is replaced when it is an old
@@ -40,7 +43,8 @@
  * - An empty table is the identity, byte for byte.
  * - `f(f(x)) = f(x)`: a table is refused when a new address is itself an old
  *   address of the table (`chained`), so a changed address never matches
- *   again, and a card that already lists its new address gains nothing.
+ *   again, and a card that already lists its new address, preferred, gains
+ *   nothing.
  *
  * A rewritten line is emitted unfolded, as `neutraliseScheduling` emits one:
  * a long line is legal (75 octets is a SHOULD) and servers re-fold it.
@@ -508,32 +512,48 @@ function changeCard(lines: ReadonlyArray<Line>, t: AddressTable, decided: Decide
     const p = parse(l.logical);
     return p !== null && p.name === 'EMAIL' ? p : null;
   });
-  const present = new Set<string>();
-  for (const p of emails) if (p) present.add(addressKey(addressIn(p.value).address));
+  // Each address the card lists, and the first of its lines.
+  const listed = new Map<string, number>();
+  emails.forEach((p, i) => {
+    if (!p) return;
+    const key = addressKey(addressIn(p.value).address);
+    if (!listed.has(key)) listed.set(key, i);
+  });
 
   // The new addresses this card gains, in the order their old lines stand.
   const gained: { readonly row: ConfirmedAddressChange; readonly from: Property }[] = [];
   const gainedKeys = new Set<string>();
+  // The first lines of new addresses the card already lists, in the same order.
+  const listedNew: number[] = [];
   const losing = new Set<number>();
   emails.forEach((p, i) => {
     if (!p) return;
     const row = rowFor(t, addressIn(p.value).address, decided);
     if (!row) return;
     const newKey = addressKey(row.newAddress);
-    if (!gainedKeys.has(newKey)) {
-      // The card already lists the new address: it gains nothing.
-      if (present.has(newKey)) return;
-      present.add(newKey);
+    const already = listed.get(newKey);
+    if (already !== undefined) {
+      // The card already lists the new address: it gains no line, and that
+      // address's own line takes the preference the old one loses (the
+      // review's N2), as a gained line would have it (D2).
+      if (!listedNew.includes(already)) listedNew.push(already);
+    } else if (!gainedKeys.has(newKey)) {
       gainedKeys.add(newKey);
       gained.push({ row, from: p });
     }
-    // EVERY old line of an address the card gains loses its preference, not
-    // only the first: two old addresses that both become the new one would
-    // otherwise leave a second preferred line beside the new one (the
-    // review's N1).
+    // EVERY old line of an address the card gains or lists loses its
+    // preference, not only the first: two old addresses that both become the
+    // new one would otherwise leave a second preferred line beside the new one
+    // (the review's N1).
     losing.add(i);
   });
-  if (gained.length === 0) return lines.flatMap((l) => [...l.span]);
+  if (gained.length === 0 && listedNew.length === 0) return lines.flatMap((l) => [...l.span]);
+  // One line takes the preference: the first gained line, or, where the card
+  // gains none and none of the new addresses it lists is preferred already,
+  // the first of them. So a second application, which finds the gained line
+  // listed and preferred, moves nothing.
+  const preferredHere =
+    gained.length === 0 && !listedNew.some((i) => preferredFirst(emails[i]!, v4)) ? listedNew[0] : undefined;
 
   const firstEmail = emails.findIndex((p) => p !== null);
   const out: string[] = [];
@@ -563,9 +583,22 @@ function changeCard(lines: ReadonlyArray<Line>, t: AddressTable, decided: Decide
       out.push(`${render({ ...p, params })}${line.eol}`);
       return;
     }
+    if (p && i === preferredHere && !preferredFirst(p, v4)) {
+      // `PREF=1` in a vCard 4.0, in place of a lower preference; before 4.0,
+      // `TYPE=pref` as a gained line carries it.
+      const params = v4 ? ['PREF=1', ...p.params.filter((x) => paramKey(x) !== 'PREF')] : ['TYPE=pref', ...p.params];
+      out.push(`${render({ ...p, params })}${line.eol}`);
+      return;
+    }
     out.push(...line.span);
   });
   return out;
+}
+
+/** A line already preferred first: `PREF=1` in a vCard 4.0; before it, any preference. */
+function preferredFirst(p: Property, v4: boolean): boolean {
+  if (v4) return p.params.some((x) => paramKey(x) === 'PREF' && paramValue(x).trim() === '1');
+  return p.params.some((x) => isPreference(x, false) || hasPrefType(x));
 }
 
 /** A `PREF` parameter, or in a vCard before 4.0 a bare `PREF` or a `TYPE` that says only `pref`. */
