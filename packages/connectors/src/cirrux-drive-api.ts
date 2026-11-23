@@ -371,13 +371,12 @@ export class CirruxDriveApi {
   // Transport
   // ---------------------------------------------------------------------
 
-  private partUrls(path: string, partNumbers: ReadonlyArray<number>): Promise<ReadonlyArray<{ part_number: number; url: string }>> {
-    return this.json<{ part_urls?: Array<{ part_number: number; url: string }> }>('POST', path, {
+  private async partUrls(path: string, partNumbers: ReadonlyArray<number>): Promise<ReadonlyArray<{ part_number: number; url: string }>> {
+    const answer = await this.json<{ part_urls?: Array<{ part_number: number; url: string }> }>('POST', path, {
       part_numbers: partNumbers,
-    }).then((answer) => {
-      if (!Array.isArray(answer.part_urls)) throw new Error(`Cirrux answered ${path} without part_urls.`);
-      return answer.part_urls;
     });
+    if (!Array.isArray(answer.part_urls)) throw new Error(`Cirrux answered ${path} without part_urls.`);
+    return answer.part_urls;
   }
 
   /**

@@ -245,9 +245,11 @@ async function copyToTheOthers(driver: LedgerDriver, from: string, table: readon
  * The appliance is one process, so an order kept here is the only order.
  */
 const WRITING = new WeakMap<LedgerDriver, Promise<unknown>>();
-function oneAtATime<T>(driver: LedgerDriver, work: () => Promise<T>): Promise<T> {
+export function oneAtATime<T>(driver: LedgerDriver, work: () => Promise<T>): Promise<T> {
   const next = (WRITING.get(driver) ?? Promise.resolve()).then(work, work);
-  WRITING.set(driver, next.catch(() => undefined));
+  // The next write waits for this one to settle, either way; its failure is
+  // the caller's, through `next`, and settling keeps it from being thrown twice.
+  WRITING.set(driver, Promise.allSettled([next]));
   return next;
 }
 

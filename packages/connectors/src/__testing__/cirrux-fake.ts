@@ -80,7 +80,8 @@ export class MemoryRotatingGrantStore implements RotatingGrantStore {
       }
       throw outcome.error;
     });
-    this.tail = run.catch(() => undefined);
+    // The next rotation waits for this one to settle; its failure is the caller's, through `run`.
+    this.tail = Promise.allSettled([run]);
     return run;
   }
 }
