@@ -748,13 +748,13 @@ footer.site .build { font-size: 0.8rem; }
 // ------------------------------------------------------------------ layout --
 
 /** Every page, in every locale, so the switcher and hreflang can be built. */
-const PAGE_KEYS = ['home', 'how', 'pricing', 'calculator', 'privacy', 'terms'];
+const PAGE_KEYS = ['home', 'how', 'pricing', 'calculator', 'privacy', 'terms', 'accessibility'];
 
 /**
  * The pages the header lists, before *Sign in* and the language switch
  * (workplan 0152 T2): *Home · How it works · Pricing · Sign in*. The estimate
  * is linked from the pricing page and the home page's *What it costs* (T6 (c)),
- * and Privacy and Terms from the footer. They stay in `PAGE_KEYS`, so the
+ * and Privacy, Terms and the accessibility statement from the footer. They stay in `PAGE_KEYS`, so the
  * language switch and hreflang still reach them.
  */
 const NAV_KEYS = ['home', 'how', 'pricing'];
@@ -974,6 +974,7 @@ ${body}
   <div>
     <a href="${urlFor(locale, 'privacy')}">${c.nav.privacy}</a> ·
     <a href="${urlFor(locale, 'terms')}">${c.nav.terms}</a> ·
+    <a href="${urlFor(locale, 'accessibility')}">${c.nav.accessibility}</a> ·
     <a href="${STATUS_URL}">${c.footerStatus}</a> ·
     <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>
   </div>
@@ -1762,8 +1763,8 @@ function calculatorPage(locale) {
  * documents (workplan 0139 T10).
  */
 export const SOURCE = {
-  en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md', alpha: 'legal/alpha.md', guide: 'pages/en/alpha-guide.md' },
-  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md', alpha: 'legal/alpha.nl.md', guide: 'pages/nl/alpha-handleiding.md' },
+  en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md', alpha: 'legal/alpha.md', guide: 'pages/en/alpha-guide.md', accessibility: 'pages/en/accessibility.md' },
+  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md', alpha: 'legal/alpha.nl.md', guide: 'pages/nl/alpha-handleiding.md', accessibility: 'pages/nl/toegankelijkheid.md' },
 };
 
 const META = {
@@ -1776,6 +1777,7 @@ const META = {
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
     alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
     guide: ['Guide to the Alpha — Ownpace', 'For the people invited to the Alpha: what it is, what to do before you start, how to start, where to get help and how to stop.'],
+    accessibility: ['Accessibility statement — Ownpace', 'The standard Ownpace aims for, the gaps we know of, and how to tell us about a barrier.'],
   },
   nl: {
     home: ['Ownpace — neem uw gegevens mee, in uw eigen tempo', 'Migreer uw e-mail, contacten, agenda en bestanden van Google of Microsoft naar een Europese aanbieder, doorlopend, en stap over wanneer u er klaar voor bent.'],
@@ -1786,6 +1788,7 @@ const META = {
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
     alpha: ['Voorwaarden voor de Alpha — Ownpace', 'De voorwaarden voor deelname aan de Alpha van de beheerde Ownpace-dienst.'],
     guide: ['Handleiding voor de Alpha — Ownpace', 'Voor wie is uitgenodigd voor de Alpha: wat het is, wat u vooraf doet, hoe u begint, waar u hulp krijgt en hoe u stopt.'],
+    accessibility: ['Toegankelijkheidsverklaring — Ownpace', 'De norm waar Ownpace naar streeft, de tekortkomingen die we kennen, en hoe u ons een drempel meldt.'],
   },
 };
 

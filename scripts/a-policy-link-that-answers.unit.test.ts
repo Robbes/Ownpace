@@ -84,6 +84,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import type * as LegalLinks from '../apps/web/src/services/legal-links.ts';
 import type * as GuideLink from '../apps/web/src/services/tester-guide-link.ts';
+import type * as StatementLink from '../apps/web/src/services/accessibility-link.ts';
 import type * as MailLink from '../packages/shared/src/privacy-policy-link.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -693,5 +694,73 @@ describe("the tester guide's link (0144 T1)", () => {
       // Read with the repo's one reader, never the shell's value.
       expect(text).toContain('. deploy/compose/env-read.sh');
     });
+  });
+});
+
+/**
+ * 8. THE ACCESSIBILITY STATEMENT'S LINK (workplan 0145 T9 (b)). Like the tester
+ * guide, a page of the same site that is not a legal text (no version, nobody
+ * accepts it, built from `site/pages/`), so it is not in `LEGAL_PAGES` and has
+ * a module of its own on the same origin. Unlike the guide, every build writes
+ * it, so the app links it in every build.
+ */
+describe("the accessibility statement's link (0145 T9 (b))", () => {
+  const STATEMENT_MODULE = 'apps/web/src/services/accessibility-link.ts';
+  const loadStatementModule = (): Promise<typeof StatementLink> =>
+    import('../apps/web/src/services/accessibility-link.ts');
+
+  /** Per locale, the file the build writes for the page keyed `accessibility`. */
+  function statementFilesBuilt(): Map<string, string> {
+    return new Map(built().pages.filter((p) => p.key === 'accessibility').map((p) => [p.locale, p.file]));
+  }
+
+  it('the build writes the statement in every language the site is built in, so the cases below compare real files', () => {
+    expect([...statementFilesBuilt().keys()].sort()).toEqual([...legalPagesBuilt().keys()].sort());
+  });
+
+  it.each([
+    ['unset, the production site', {}, (): string => built().publicSite],
+    ['the OTA test site, with a trailing slash', { [SETTING]: `${OTA_SITE}/` }, (): string => OTA_SITE],
+  ])('%s: every address it gives is the file the build writes for that language', async (_name, env, origin) => {
+    const m = await loadStatementModule();
+    for (const locale of statementFilesBuilt().keys()) {
+      expectWritten(m.accessibilityUrl(locale as 'en' | 'nl', env), origin(), locale, 'accessibility');
+    }
+    expect(Object.keys(m.ACCESSIBILITY_FILES).sort()).toEqual([...statementFilesBuilt().keys()].sort());
+  });
+
+  it('is on the origin the legal pages are on, and refuses what they refuse', async () => {
+    const m = await loadStatementModule();
+    const legal = await loadModule();
+    for (const value of [undefined, OTA_SITE, `${OTA_SITE}/`]) {
+      const env = value === undefined ? {} : { [SETTING]: value };
+      expect(new URL(m.accessibilityUrl('nl', env)).origin).toBe(legal.legalSiteFrom(env));
+    }
+    expect(() => m.accessibilityUrl('en', { [SETTING]: 'www.ownpace.eu' })).toThrow(SETTING);
+  });
+
+  it('is not a legal page: the legal links stay exactly the pages built from site/legal/', async () => {
+    const legal = await loadModule();
+    expect(legal.LEGAL_PAGES as readonly string[]).not.toContain('accessibility');
+  });
+
+  it('no other shipped file in the web app names the statement\'s file, and the module names no host', () => {
+    const names = [...statementFilesBuilt().values()].map((f) => basename(f));
+    expect(names.length).toBeGreaterThan(0);
+    const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(names.map(escape).join('|'));
+    const sources = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) return sources(p);
+        return /\.tsx?$/.test(p) && !/\.test\.tsx?$/.test(p) ? [p] : [];
+      });
+    const offenders = sources(join(REPO_ROOT, 'apps/web/src'))
+      .map((f) => f.slice(REPO_ROOT.length + 1))
+      .filter((f) => f !== STATEMENT_MODULE)
+      .filter((f) => pattern.test(read(f).replace(/\/\*[^]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')));
+    expect(offenders, `These name the statement's file themselves. Read it from ${STATEMENT_MODULE}.`).toEqual([]);
+    const own = read(STATEMENT_MODULE).replace(/\/\*[^]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(own).not.toContain(new URL(built().publicSite).host);
   });
 });

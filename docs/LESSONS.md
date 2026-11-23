@@ -789,6 +789,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `apps/web/src/services/accessibility-link.ts`
+
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+
 ### `apps/web/src/services/api.ts`
 
 - [a-sentence-two-files-must-agree-on](../scripts/a-sentence-two-files-must-agree-on.unit.test.ts) — A SENTENCE TWO FILES MUST AGREE ON, AND NOTHING MADE THEM.
@@ -5110,6 +5114,7 @@ Reads:
 - `apps/web/Dockerfile`
 - `apps/web/src/pages/Grant.tsx`
 - `apps/web/src/pages/Grant.unit.test.tsx`
+- `apps/web/src/services/accessibility-link.ts`
 - `apps/web/src/services/legal-links.ts`
 - `apps/web/src/services/tester-guide-link.ts`
 - `apps/web/vite.config.ts`

@@ -7,18 +7,28 @@
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
 
-  Still 1.0, and no word changed, read again on 2026-11-23 for alpha.18 (workplan 0167 T9: the
-  owner, 2026-11-23, "i will remove trigger.dev, but the machine runs OTA and managed, so both
-  have to be move out of triggerdev."). The published text never named Trigger.dev, ClickHouse
-  or MinIO; it says "background tasks", which run on pg-boss in the worker since alpha.16. What
-  the notes below said would hold "once Trigger.dev and its database are removed" now holds on a
-  stack from the moment its owner runs deploy/compose/remove-trigger-plane.sh --yes: §4.1 and
-  §11's "settings of the background tasks" are the worker's alone; §9's records of the
-  background tasks are pg-boss's alone (Trigger.dev's kept database is one of the volumes that
-  script removes, on live once alpha.18 is proven); a copy before an update taken by an earlier
-  release may still hold a dump of Trigger.dev's database, and goes as any copy does (at most
-  7 days, §9), with nothing that restores it; §8's negative no longer depends on ClickHouse,
-  MinIO or the task runner's usage reports, which no longer run.
+  Still 1.0, and no word changed by the Trigger.dev removal, read again on 2026-11-23 for alpha.18
+  (workplan 0167 T9: the owner, 2026-11-23, "i will remove trigger.dev, but the machine runs OTA
+  and managed, so both have to be move out of triggerdev."). The published text never named
+  Trigger.dev, ClickHouse or MinIO; it says "background tasks", which run on pg-boss in the worker
+  since alpha.16. What the notes below said would hold "once Trigger.dev and its database are
+  removed" now holds on a stack from the moment its owner runs
+  deploy/compose/remove-trigger-plane.sh --yes: §4.1 and §11's "settings of the background tasks"
+  are the worker's alone; §9's records of the background tasks are pg-boss's alone (Trigger.dev's
+  kept database is one of the volumes that script removes, on live once alpha.18 is proven); a
+  copy before an update taken by an earlier release may still hold a dump of Trigger.dev's
+  database, and goes as any copy does (at most 7 days, §9), with nothing that restores it; §8's
+  negative no longer depends on ClickHouse, MinIO or the task runner's usage reports, which no
+  longer run.
+
+  Still 1.0, edited in place once more on 2026-11-23, in both languages. Asked on 2026-11-23
+  whether §4.5's line on a request for access should say less now that the log names a request
+  by its reference, never by its address (workplan 0168, #2077), the owner chose: "Yes, draft it".
+  What changed: §4.5's last lines say a request for access and our decision on it are logged by
+  the request's reference, not by the address it gives, and that the sign-in service does log the
+  address a person registers with when they arrive from the mail that grants them access, which
+  the comment below that paragraph had kept for the next version. The owner read the words,
+  2026-11-23, verbatim: "it stays version 1.0: ok". The Last updated line stays 2026-11-23.
 
   Still 1.0, edited in place again on 2026-11-23, in both languages. The owner, 2026-11-22 at
   about 22:33 UTC, of workplan 0168's D8 (the policy's lines for a new address go in before the
@@ -974,8 +984,9 @@ its own log of each request; §7 says what it holds. Logs are written so that
 **credentials and message content do not appear in them.** They are not free of names, though.
 When a step of a migration fails, the provider's own error text is written to the log of the
 process that met it, beside a reference, so that we can help you with it; that text can name a
-folder, a file or an address. And a request for access is logged with the email address it
-gives, as is our decision on it.
+folder, a file or an address. A request for access, and our decision on it, are logged by the
+request's reference, not by the email address it gives. The sign-in service does log the address
+you register with when you arrive from the mail that grants you access.
 
 <!-- ONE MORE SUCH LINE, ONCE alpha.3 RUNS (workplan 0095 T6; the owner, 2026-10-29, accepted it
      with the grant link that fills in the address). The grant mail's link carries the granted
@@ -984,9 +995,9 @@ gives, as is our decision on it.
      login v1) logs "login hint invalid" at info level with that address for every hint that
      matches no account yet, which is everybody the button is for, in its own container log on
      our machine, kept as §9's Server logs row says. Same person, same purpose and same
-     machine as the grant line above, and "not free of names" covers it, so 1.0 stays true. At
-     the next version, the sentence above gains: "and the sign-in service logs the address you
-     register with when you arrive from the mail that grants you access" / NL to match. -->
+     machine as the grant line above, and "not free of names" covers it, so 1.0 stays true. The
+     paragraph above says it in words since 2026-11-23, when its request line was narrowed to
+     the request's reference and so no longer covered it. -->
 
 <!-- NOT YET TRUE ON live: nothing counts yet. The owner, 2026-10-05, verbatim: "go with GoAccess
      on the logs and the sentence. id and status we skip for now, no netbird api tokens..." It
