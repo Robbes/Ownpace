@@ -51,6 +51,7 @@ reading a file drops off its entry by itself.
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
+- [a-password-a-workflow-spells-out](../scripts/a-password-a-workflow-spells-out.unit.test.ts) — A PASSWORD A WORKFLOW SPELLS OUT (workplan 0163, Status of 2026-11-23: an outside, read-only check of 5b51a82b found nine).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts) — A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
@@ -84,6 +85,7 @@ reading a file drops off its entry by itself.
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts) — A cron moved, and both nightlies quietly ran the same backend.
+- [a-password-a-workflow-spells-out](../scripts/a-password-a-workflow-spells-out.unit.test.ts) — A PASSWORD A WORKFLOW SPELLS OUT (workplan 0163, Status of 2026-11-23: an outside, read-only check of 5b51a82b found nine).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-pool-that-had-not-happened-yet](../scripts/a-pool-that-had-not-happened-yet.unit.test.ts) — A POOL THAT HAD NOT HAPPENED YET.
@@ -106,6 +108,7 @@ reading a file drops off its entry by itself.
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts) — A cron moved, and both nightlies quietly ran the same backend.
+- [a-password-a-workflow-spells-out](../scripts/a-password-a-workflow-spells-out.unit.test.ts) — A PASSWORD A WORKFLOW SPELLS OUT (workplan 0163, Status of 2026-11-23: an outside, read-only check of 5b51a82b found nine).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
@@ -137,6 +140,7 @@ reading a file drops off its entry by itself.
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
+- [a-password-a-workflow-spells-out](../scripts/a-password-a-workflow-spells-out.unit.test.ts) — A PASSWORD A WORKFLOW SPELLS OUT (workplan 0163, Status of 2026-11-23: an outside, read-only check of 5b51a82b found nine).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
@@ -1578,6 +1582,7 @@ reading a file drops off its entry by itself.
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
+- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
 - [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
@@ -4340,6 +4345,7 @@ Reads:
 - `deploy/compose/redact-evidence.sh`
 - `deploy/compose/refuse-live-env.sh`
 - `deploy/compose/remove-trigger-plane.sh`
+- `deploy/compose/seed-managed.sh`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/smoke-managed.sh`
@@ -4993,6 +4999,17 @@ Reads:
 
 - `packages/scheduler/src/pg-boss/catalog.ts`
 - `packages/shared/src/pass-deadline.ts`
+
+### [a-password-a-workflow-spells-out](../scripts/a-password-a-workflow-spells-out.unit.test.ts)
+
+A PASSWORD A WORKFLOW SPELLS OUT (workplan 0163, Status of 2026-11-23: an outside, read-only check of 5b51a82b found nine).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/e2e-managed.yml`
+- `.github/workflows/e2e.yml`
+- `.github/workflows/images.yml`
 
 ### [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts)
 

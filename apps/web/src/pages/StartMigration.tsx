@@ -563,7 +563,9 @@ const StartMigration: React.FC = () => {
   // The old address is each account being left (`sourceUsername`); the new
   // one is the account the mail goes to, else the contacts' or the
   // calendar's, read as its mail signs in (`mailLoginOf`). The step shows
-  // where an old address is on the list, where the organisation's table
+  // where an old address is on the list, where the new account's login is on
+  // another domain than an old address (the owner's decision (b), 2026-11-23;
+  // never for a login under `onmicrosoft.com`), where the organisation's table
   // already holds a row for this person, or where the person says so on `to`.
   const [alsoChanging, setAlsoChanging] = React.useState(false);
   const addressTable = useQuery({ queryKey: ['address-changes'], queryFn: fetchAddressChanges, retry: false });

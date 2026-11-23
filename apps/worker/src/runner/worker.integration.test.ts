@@ -918,8 +918,16 @@ describe("what a run's process holds in memory, for the worker's limit (0167, de
     await startWorker({
       catalog: catalogOf(WORKED, { 'managed-sync-tick': { kind: 'on-demand' } as Partial<JobCatalogEntry> }),
     });
+    // The tick's queue is stately: one tick waits, no second. The tests above keep the tick's
+    // schedule, so now and then a tick it made while no worker ran is still waiting here, and
+    // pg-boss turns this test's own tick away with no run id (#2075's CI, 2026-11-23). The
+    // ticks that wait go first; one a worker has already taken runs beside this test's.
+    await admin.query(
+      `DELETE FROM ${await jobTableOf('managed-sync-tick')} WHERE name = 'managed-sync-tick' AND state IN ('created', 'retry')`,
+    );
     const watch = watchRunMemory();
     const tick = await producer.enqueue('managed-sync-tick', {}, {});
+    expect(tick.runId, 'the tick queue turned this tick away: another one was waiting').not.toBeNull();
     const count = await producer.enqueue(
       'run-discovery',
       { tenantId: TENANT, mappingId: FOUND_MAPPING, domains: ['file'] },
