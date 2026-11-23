@@ -42,7 +42,12 @@ stays with that pass, and the statement says nothing about the Act.
   `components/AccessibilityLink.tsx`: under the sign-in page beside *Service status*, in the
   menu above *Sign out* (both editions), and on a line of its own at the foot of both grant
   pages, below the privacy policy and the terms (not in their line, which lists what a person
-  accepts). Words: *Accessibility* / *Toegankelijkheid*.
+  accepts). Words: *Accessibility* / *Toegankelijkheid*. And at the foot of the progress page a
+  link opens (`View.tsx`), where the managed service links its privacy policy beside it (the
+  owner, 2026-11-23, asked whether a person with only that link should reach the policy too:
+  *"Yes, add it"*). An appliance links no policy of ours there: it is its owner's service, under
+  their policy (the share mail's rule, `packages/shared/src/privacy-policy-link.ts`).
+  `View.unit.test.tsx` holds both, each test failing with its half of the rule taken out.
 - **The guards.** `site/an-accessibility-statement.unit.test.ts`: the statement in every
   language the site builds, each the other's switch, every page's footer linking its own
   language's, a WCAG version and level, a `mailto:` link to `SUPPORT_EMAIL` inside `<main>`, and
@@ -51,9 +56,8 @@ stays with that pass, and the statement says nothing about the Act.
   branch: 6 of 6 passed. `scripts/a-policy-link-that-answers.unit.test.ts` gains point 8: every
   address the app's module gives is the file the build writes, on the legal pages' origin, and
   no other shipped file names it.
-- **⏳ Owner: the texts wait for the owner's reading before they are published**, as 0139 does
-  for public texts. Until then the branch is not merged, or, merged, the next public build
-  carries words the owner has not read.
+- **The owner read both texts**, as 0139 does for public texts, and chose, 2026-11-23: *"Yes,
+  publish as it is"*.
 
 **2026-11-08, records: T8 (a)'s last part merged.** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`), read from

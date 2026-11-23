@@ -19,7 +19,7 @@
  * un-provided fallback, the same way `Grant.unit.test.tsx` does.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -46,6 +46,13 @@ vi.mock('../services/view-service.ts', async (importOriginal) => {
   };
 });
 vi.mock('../services/api.ts', () => ({ default: {}, serverMessage: serverMessageMock }));
+
+// The managed service unless a case says the appliance: only the edition's answer is replaced.
+const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
+vi.mock('../services/edition.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/edition.ts')>()),
+  isSelfHost: () => editionFlag.selfhost,
+}));
 
 import View from './View.tsx';
 import { LocaleProvider } from '../i18n/index.tsx';
@@ -177,6 +184,26 @@ describe('the accessibility statement (workplan 0145 T9 (b))', () => {
     renderPage();
     const link = await screen.findByRole('link', { name: 'Accessibility' });
     expect(link.getAttribute('href')).toMatch(/\/accessibility\.html$/);
+  });
+});
+
+describe('the privacy policy (the owner, 2026-11-23)', () => {
+  afterEach(() => {
+    editionFlag.selfhost = false;
+  });
+
+  it('is linked beside the accessibility statement on the managed service', async () => {
+    renderPage();
+    const link = await screen.findByRole('link', { name: 'Privacy policy' });
+    expect(link.getAttribute('href')).toMatch(/\/privacy\.html$/);
+    expect(link.parentElement).toBe(screen.getByRole('link', { name: 'Accessibility' }).parentElement);
+  });
+
+  it('is not linked on an appliance, which runs under its owner\'s policy, not ours', async () => {
+    editionFlag.selfhost = true;
+    renderPage();
+    await screen.findByRole('link', { name: 'Accessibility' });
+    expect(screen.queryByRole('link', { name: 'Privacy policy' })).toBeNull();
   });
 });
 

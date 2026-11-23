@@ -8,7 +8,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 - **An accessibility statement on the site, in English and in Dutch** (workplan 0145 T9 (b)):
   `accessibility.html` and `nl/toegankelijkheid.html`, linked from every page's footer, from
-  under the app's sign-in page, from its menu and from the foot of a grant link's page. It says
+  under the app's sign-in page, from its menu, and from the foot of a grant link's page and of a
+  progress link's page, where the managed service also links its privacy policy (an appliance,
+  its owner's service under their own policy, does not). It says
   the app aims for WCAG 2.2 level AA and does not yet meet it in full, that no independent audit
   has been done, what it covers (the site, the app at app.ownpace.eu with the pages a link opens,
   and the appliance's same screens), what 0145 and the screen sweep (0159) did, the gaps still
@@ -16,8 +18,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   checked (VoiceOver and TalkBack, 200% zoom, in-app browsers, axe and WebKit in CI), and to write
   to support@ownpace.eu, answered within five working days, as the privacy policy says. Its
   *Last reviewed* date is held to the last twelve months by
-  `site/an-accessibility-statement.unit.test.ts`. The texts wait for the owner's reading before
-  they are published.
+  `site/an-accessibility-statement.unit.test.ts`. The owner read both texts and chose to publish
+  them as they are.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 

@@ -69,6 +69,8 @@ import { Hint } from '../components/Hint.tsx';
 import PausedBecause from '../components/PausedBecause.tsx';
 import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
+import { isSelfHost } from '../services/edition.ts';
+import { legalUrl } from '../services/legal-links.ts';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
@@ -633,8 +635,19 @@ const View: React.FC = () => {
         </>
       )}
 
-      {/* A person with only this link reaches the statement from here too (0145 T9 (b)). */}
+      {/* A person with only this link reaches the statement from here too (0145 T9 (b)), and, on
+          the managed service, its privacy policy (the owner, 2026-11-23). An appliance is its
+          owner's service under their own policy, not ours, so it links none (the share mail's
+          rule, `privacy-policy-link.ts`). In the same tab, as the accessibility link: no form here. */}
       <p className="mt-10 text-center text-sm text-gray-500">
+        {!isSelfHost() && (
+          <>
+            <a className="underline" href={legalUrl('privacy', locale)}>
+              {t('acceptance.doc.privacy')}
+            </a>
+            {' · '}
+          </>
+        )}
         <AccessibilityLink className="underline" />
       </p>
       <div className="mt-4 text-center">
