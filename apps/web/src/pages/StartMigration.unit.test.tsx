@@ -1891,6 +1891,7 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     setByYou: false,
     confirmedBy: 'admin@example.org',
     confirmedByYou: false,
+    confirmedByThePerson: false,
     createdAt: '2026-11-22T10:00:00.000Z',
     confirmedAt: '2026-11-22T10:00:00.000Z',
     person: null,
@@ -1933,6 +1934,7 @@ describe('Your new address (workplan 0168 §6.2)', () => {
         setByYou: true,
         confirmedBy: input.confirm ? 'me@example.org' : null,
         confirmedByYou: input.confirm === true,
+        confirmedByThePerson: false,
         confirmedAt: input.confirm ? '2026-11-23T10:00:00.000Z' : null,
         person: input.personId ? { id: input.personId, displayName: 'Anna Jansen' } : null,
       };

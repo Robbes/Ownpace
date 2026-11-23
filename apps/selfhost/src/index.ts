@@ -73,6 +73,7 @@ import {
   withGranteesNewAddress,
   ADDRESS_CHANGES_FILE,
   ADDRESS_PRESS_NAMES_NO_TABLE,
+  NO_SUCH_MIGRATION_HERE,
   ADDRESS_TABLE_MOVED,
 } from '@openmig/shared';
 import type {
@@ -3597,7 +3598,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const body = (await readJsonOrNone(req)) as { digest?: unknown } | undefined;
         const id = decodeURIComponent(applyMatch[1]!);
         const m = mappings.find((x) => x.config.mappingId === id);
-        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        // In both languages, as managed answers (0168, found on the way).
+        const noSuchMigration = {
+          error: 'unknown mapping',
+          message: NO_SUCH_MIGRATION_HERE.en,
+          messageNl: NO_SUCH_MIGRATION_HERE.nl,
+        };
+        if (!m) return sendJson(res, 404, noSuchMigration);
         const shown = body?.digest;
         if (typeof shown !== 'string' || !/^[0-9a-f]{64}$/.test(shown)) {
           return sendJson(res, 400, {
@@ -3610,7 +3617,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const applied = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
           applyNewAddressesHere(tdb, tenantId, m.mailboxMappingId, 'operator', shown),
         );
-        if (applied === null) return sendJson(res, 404, { error: 'unknown mapping' });
+        if (applied === null) return sendJson(res, 404, noSuchMigration);
         if (applied.moved) {
           return sendJson(res, 409, {
             error: 'address_table_moved',

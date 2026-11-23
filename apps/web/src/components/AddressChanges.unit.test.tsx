@@ -42,6 +42,7 @@ const row = (over: Partial<AddressChange>): AddressChange => ({
   setByYou: false,
   confirmedBy: 'admin@example.org',
   confirmedByYou: false,
+  confirmedByThePerson: false,
   createdAt: '2026-11-22T10:00:00.000Z',
   confirmedAt: '2026-11-22T10:00:00.000Z',
   person: { id: 'p-child', displayName: 'Child' },
@@ -101,13 +102,25 @@ describe("the person's page: Addresses", () => {
 
   it('says the person’s own confirmation through their link as theirs, never as for themselves', async () => {
     vi.mocked(fetchAddressChanges).mockResolvedValue({
-      rows: [row({ confirmedBy: 'Child' })],
+      rows: [row({ confirmedBy: 'Child', confirmedByThePerson: true })],
       door: 'api',
       file: null,
     });
     renderWith(CHILD);
     expect(await screen.findByText('Confirmed by Child')).toBeInTheDocument();
     expect(screen.queryByText('Confirmed by Child for Child')).not.toBeInTheDocument();
+  });
+
+  it('tells the person’s own confirmation by the server’s flag, not by a name somebody else shares (0168)', async () => {
+    // Somebody whose name is said as the person's confirmed it for them: it
+    // read as the person's own, by the name alone.
+    vi.mocked(fetchAddressChanges).mockResolvedValue({
+      rows: [row({ confirmedBy: 'Child', confirmedByThePerson: false })],
+      door: 'api',
+      file: null,
+    });
+    renderWith(CHILD);
+    expect(await screen.findByText('Confirmed by Child for Child')).toBeInTheDocument();
   });
 
   it('says whom a proposed row waits for, and confirms it', async () => {
