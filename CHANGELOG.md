@@ -62,6 +62,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   *Your new address* and the Google and Microsoft guides say so in English and Dutch, and the
   managed gate seeds a past event whose copy must be the source's bytes.
 
+- **The privacy policy says a request for access is logged by its reference** (§4.5, both
+  languages, still version 1.0; workplan 0168). The log names a request and our decision on it by
+  the request's reference since #2077, never by the address it gives, and the policy now says so.
+  It also says in words what a comment beside it kept for the next version: the sign-in service
+  logs the address a person registers with when they arrive from the mail that grants them access.
+
 ### Fixed
 
 - **A copy deleted on the new system is counted as gone, never as the owner's edit and never made
