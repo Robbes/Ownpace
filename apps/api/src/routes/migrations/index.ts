@@ -3874,8 +3874,18 @@ router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest,
  * next pass rewrites the copies whose table moved and which the person has not
  * edited since. A later change to the table waits for a press of its own.
  * 200 with the digest and the number of rows (never an address); 404 for a
- * migration this organisation does not have.
+ * migration this organisation does not have, in English and in Dutch, as the
+ * address-change routes answer (N7 of 0168's review: the page that presses it
+ * is read in Dutch too). An id that is no uuid names no migration either, and
+ * is not asked of the database, whose uuid column would refuse it as a 500.
  */
+const NO_SUCH_MIGRATION = {
+  error: 'Not found',
+  message: 'There is no such migration here.',
+  messageNl: 'Deze migratie bestaat hier niet.',
+} as const;
+const A_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 router.post('/:mappingId/address-changes/apply', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { mappingId } = req.params;
@@ -3888,11 +3898,15 @@ router.post('/:mappingId/address-changes/apply', authenticate, async (req: Authe
       res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found in authentication context' });
       return;
     }
+    if (!A_UUID.test(mappingId)) {
+      res.status(404).json(NO_SUCH_MIGRATION);
+      return;
+    }
     const applied = await withTenantDb(tenantId, getSharedPool(), (db) =>
       applyNewAddressesHere(db, tenantId, mappingId, req.userId ?? 'unknown'),
     );
     if (applied === null) {
-      res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+      res.status(404).json(NO_SUCH_MIGRATION);
       return;
     }
     res.json({ id: mappingId, applied: true, digest: applied.digest, rows: applied.rows });

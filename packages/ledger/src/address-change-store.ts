@@ -22,6 +22,12 @@
  *
  * Idempotent: the same change again writes nothing and says so (`changed:
  * false`), and a refusal writes nothing at all.
+ *
+ * WHO WROTE WHAT IS RECORDED (0168 §5; the review's finding 4). A write's
+ * caller records it with `recordAddressChangeWrite`, in the same transaction:
+ * who, which row by reference, and the state it went from and to. The
+ * reference is the row's old key as the audit export's pseudonym, so no
+ * address is ever written into `audit_log`, which outlives the row.
  */
 
 import { sql } from 'drizzle-orm';
@@ -31,9 +37,12 @@ import {
   checkAddressChange,
   type AddressChangeRefusal,
   type FileAddressChange,
+  type Pseudonymize,
   type StoredAddressChange,
+  type TenantId,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
+import { PgLedger } from './ledger.ts';
 
 type Row = Record<string, unknown>;
 const rowsOf = (result: unknown): Row[] => ((result as { rows?: Row[] }).rows ?? []) as Row[];
@@ -53,10 +62,16 @@ function stored(r: Row): StoredAddressChange {
   };
 }
 
-/** The organisation's advisory lock for writing its table, held to the end of the transaction. */
-async function lockTable(db: PgDatabase, tenantId: string): Promise<void> {
+/**
+ * The organisation's advisory lock for writing its table, held to the end of
+ * the transaction. Every write here takes it; a caller takes it first when
+ * what it reads before the write must hold until the write (whose row it is,
+ * on managed). Taken twice in one transaction, it is held once.
+ */
+export async function lockAddressChanges(db: PgDatabase, tenantId: string): Promise<void> {
   await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`address_change:${tenantId}`}, 0))`);
 }
+const lockTable = lockAddressChanges;
 
 /** Every row of the organisation's table, oldest first. A failed read throws. */
 export async function readAddressChanges(db: PgDatabase, tenantId: string): Promise<StoredAddressChange[]> {
@@ -84,9 +99,18 @@ export async function readAddressChange(
   return row === undefined ? undefined : stored(row);
 }
 
-/** How a write went: the row as it is now, whether this write made it, and whether it changed anything. */
+/**
+ * How a write went: the row as it is now and as it was before (null when this
+ * write made it), whether this write made it, and whether it changed anything.
+ */
 export type AddressChangeWrite =
-  | { readonly ok: true; readonly row: StoredAddressChange; readonly created: boolean; readonly changed: boolean }
+  | {
+      readonly ok: true;
+      readonly row: StoredAddressChange;
+      readonly before: StoredAddressChange | null;
+      readonly created: boolean;
+      readonly changed: boolean;
+    }
   | { readonly ok: false; readonly refusal: AddressChangeRefusal };
 
 /**
@@ -105,10 +129,11 @@ export async function addAddressChange(
   const checked = checkAddressChange(table, change);
   if (!checked.ok) return checked;
   if (checked.same) {
-    if (change.confirm && checked.same.state === 'proposed') {
-      return { ok: true, row: await confirm(db, tenantId, checked.same.oldKey, change.by), created: false, changed: true };
+    const before = checked.same;
+    if (change.confirm && before.state === 'proposed') {
+      return { ok: true, row: await confirm(db, tenantId, before.oldKey, change.by), before, created: false, changed: true };
     }
-    return { ok: true, row: checked.same, created: false, changed: false };
+    return { ok: true, row: before, before, created: false, changed: false };
   }
   const [row] = rowsOf(
     await db.execute(sql`
@@ -118,7 +143,7 @@ export async function addAddressChange(
               ${change.confirm ? change.by : null}, ${change.confirm ? sql`now()` : null})
       RETURNING old_key, old_address, new_address, state, set_by, confirmed_by, created_at, confirmed_at`),
   );
-  return { ok: true, row: stored(row!), created: true, changed: true };
+  return { ok: true, row: stored(row!), before: null, created: true, changed: true };
 }
 
 async function confirm(db: PgDatabase, tenantId: string, oldKey: string, by: string): Promise<StoredAddressChange> {
@@ -158,7 +183,9 @@ export async function updateAddressChange(
   }
   const state = change.state ?? (readdressed ? 'proposed' : current.state);
   const reconfirm = state === 'confirmed' && (readdressed || current.state === 'proposed');
-  if (!readdressed && state === current.state) return { ok: true, row: current, created: false, changed: false };
+  if (!readdressed && state === current.state) {
+    return { ok: true, row: current, before: current, created: false, changed: false };
+  }
 
   const [row] = rowsOf(
     await db.execute(sql`
@@ -170,10 +197,16 @@ export async function updateAddressChange(
        WHERE tenant_id = ${tenantId}::uuid AND old_key = ${oldKey}
       RETURNING old_key, old_address, new_address, state, set_by, confirmed_by, created_at, confirmed_at`),
   );
-  return { ok: true, row: stored(row!), created: false, changed: true };
+  return { ok: true, row: stored(row!), before: current, created: false, changed: true };
 }
 
-/** Delete a row, answering it as it was, or undefined when there was none. */
+/**
+ * Delete a row, answering it as it was, or undefined when there was none.
+ *
+ * The answer is the DELETE's own `RETURNING`, taken under the lock: of two
+ * deletes at once, the second finds nothing and says so (0168's review,
+ * finding 8). A caller answers from this, never from a read made before it.
+ */
 export async function deleteAddressChange(
   db: PgDatabase,
   tenantId: string,
@@ -242,7 +275,167 @@ export async function replaceAddressChangesFromFile(
   return { added, changed, removed, kept };
 }
 
+const sameRow = (a: StoredAddressChange, b: StoredAddressChange): boolean =>
+  a.oldAddress === b.oldAddress &&
+  a.newAddress === b.newAddress &&
+  a.state === b.state &&
+  a.setBy === b.setBy &&
+  a.confirmedBy === b.confirmedBy &&
+  a.createdAt === b.createdAt &&
+  a.confirmedAt === b.confirmedAt;
+
+/**
+ * Make the organisation's table exactly these rows, each as it is, who set
+ * and confirmed it and when included: every other row deleted, and a row that
+ * already says the same left as it is.
+ *
+ * The appliance's Personal door (0168 §7) keeps one table for every tenant
+ * its config directory names, as its file door does: at start-up every
+ * tenant's table is made the first's, and after each write on its page the
+ * table it was written in is copied to the others (0168's review, finding 5).
+ */
+export async function replaceAddressChanges(
+  db: PgDatabase,
+  tenantId: string,
+  rows: readonly StoredAddressChange[],
+): Promise<{ readonly added: number; readonly changed: number; readonly removed: number; readonly kept: number }> {
+  await lockTable(db, tenantId);
+  const table = await readAddressChanges(db, tenantId);
+  const wanted = new Map(rows.map((r) => [r.oldKey, r]));
+  let removed = 0;
+  for (const r of table) {
+    if (!wanted.has(r.oldKey)) {
+      await db.execute(sql`DELETE FROM address_change WHERE tenant_id = ${tenantId}::uuid AND old_key = ${r.oldKey}`);
+      removed++;
+    }
+  }
+  let added = 0;
+  let changed = 0;
+  let kept = 0;
+  for (const r of rows) {
+    const have = table.find((t) => t.oldKey === r.oldKey);
+    if (have && sameRow(have, r)) {
+      kept++;
+      continue;
+    }
+    await db.execute(sql`
+      INSERT INTO address_change (tenant_id, old_key, old_address, new_address, state, set_by, confirmed_by, created_at, confirmed_at)
+      VALUES (${tenantId}::uuid, ${r.oldKey}, ${r.oldAddress}, ${r.newAddress}, ${r.state}, ${r.setBy},
+              ${r.confirmedBy}, ${r.createdAt}::timestamptz, ${r.confirmedAt}::timestamptz)
+      ON CONFLICT (tenant_id, old_key) DO UPDATE
+         SET old_address = EXCLUDED.old_address, new_address = EXCLUDED.new_address,
+             state = EXCLUDED.state, set_by = EXCLUDED.set_by, confirmed_by = EXCLUDED.confirmed_by,
+             created_at = EXCLUDED.created_at, confirmed_at = EXCLUDED.confirmed_at`);
+    if (have) changed++;
+    else added++;
+  }
+  return { added, changed, removed, kept };
+}
+
+/**
+ * Delete every row one setter set, answering their keys: the appliance's
+ * `address-changes.json` rows once the file is gone (0168's review, finding
+ * 7), since a row nothing can change any more is not one anybody chose to
+ * keep.
+ */
+export async function deleteAddressChangesSetBy(db: PgDatabase, tenantId: string, setBy: string): Promise<string[]> {
+  await lockTable(db, tenantId);
+  return rowsOf(
+    await db.execute(sql`
+      DELETE FROM address_change WHERE tenant_id = ${tenantId}::uuid AND set_by = ${setBy}
+      RETURNING old_key`),
+  ).map((r) => String(r.old_key));
+}
+
 /** The key a path segment names, decoded and folded, so `A.B@gmail.com` finds `ab@gmail.com`. */
 export function oldKeyOf(segment: string): string {
   return addressKey(segment);
+}
+
+/**
+ * What a write of the table is recorded under in `audit_log` (0168 §5: *"The
+ * audit log records who confirmed which row by reference"*).
+ */
+export const ADDRESS_CHANGE_ADDED_ACTION = 'address_change.added';
+export const ADDRESS_CHANGE_READDRESSED_ACTION = 'address_change.readdressed';
+export const ADDRESS_CHANGE_CONFIRMED_ACTION = 'address_change.confirmed';
+export const ADDRESS_CHANGE_SENT_BACK_ACTION = 'address_change.sent_back';
+export const ADDRESS_CHANGE_LINKED_ACTION = 'address_change.linked';
+export const ADDRESS_CHANGE_DELETED_ACTION = 'address_change.deleted';
+
+/** One write of the table, as its audit record says it. */
+export interface AddressChangeAudit {
+  /** Who wrote it: the sign-in's subject on managed, `operator` on the appliance's page. */
+  readonly actor: string;
+  /** The door it came through: `api` on managed, `page` on the appliance. */
+  readonly via: string;
+  /**
+   * The audit export's pseudonym under this deployment's key
+   * (`pseudonymizer`), applied to the row's old key: the row by reference,
+   * the same reference in every record of it, and never its address.
+   */
+  readonly pseudonym: Pseudonymize;
+  /** The row as it was, or null when this write added it. */
+  readonly before: StoredAddressChange | null;
+  /** The row as it is now, or null when this write deleted it. */
+  readonly after: StoredAddressChange | null;
+  /**
+   * Managed only: whose row it is once written (null for nobody), and whether
+   * this write moved that link. Absent on the appliance, which has no people.
+   */
+  readonly person?: { readonly id: string | null; readonly moved: boolean };
+}
+
+/**
+ * Which action a write is, or null when it changed nothing: a press that says
+ * what the row already says is not an event, and is not recorded. A new
+ * address outranks a state, and a state a person, in a write that did more
+ * than one; the record says the states either way.
+ */
+export function addressChangeAction(write: Omit<AddressChangeAudit, 'actor' | 'via' | 'pseudonym'>): string | null {
+  const { before, after } = write;
+  if (before === null && after === null) return null;
+  if (before === null) return ADDRESS_CHANGE_ADDED_ACTION;
+  if (after === null) return ADDRESS_CHANGE_DELETED_ACTION;
+  if (before.newAddress !== after.newAddress) return ADDRESS_CHANGE_READDRESSED_ACTION;
+  if (before.state !== after.state) {
+    return after.state === 'confirmed' ? ADDRESS_CHANGE_CONFIRMED_ACTION : ADDRESS_CHANGE_SENT_BACK_ACTION;
+  }
+  if (write.person?.moved) return ADDRESS_CHANGE_LINKED_ACTION;
+  return null;
+}
+
+/**
+ * Record one write of the table, in the write's own transaction (`db`), so
+ * the row and its record commit together or not at all, as a migration's
+ * status change and its record do (`mapping-status-audit.ts`). Answers whether
+ * anything was recorded.
+ *
+ * The record names who (`actor`), the row by reference (`addressChange`), the
+ * states it went `from` and `to` (null for a row added or deleted), the door
+ * (`via`) and, on managed, whose row it is (`personId`). NEVER an address:
+ * `audit_log` is never pruned and outlives the row, and the address of a
+ * deleted row must go with it.
+ */
+export async function recordAddressChangeWrite(
+  db: PgDatabase,
+  tenantId: string,
+  write: AddressChangeAudit,
+): Promise<boolean> {
+  const action = addressChangeAction(write);
+  const row = write.after ?? write.before;
+  if (action === null || row === null) return false;
+  await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+    actor: write.actor,
+    action,
+    entity: 'address_change',
+    detail: {
+      addressChange: write.pseudonym(row.oldKey),
+      from: write.before?.state ?? null,
+      to: write.after?.state ?? null,
+      via: write.via,
+      ...(write.person ? { personId: write.person.id } : {}),
+    },
+  });
+  return true;
 }

@@ -16,7 +16,12 @@
  *    and none writing anything;
  *  - the same change twice writes nothing; a new address unconfirms;
  *  - the engine's reader returns the confirmed rows only, by old key;
- *  - the file door makes the table the file's, idempotently.
+ *  - the file door makes the table the file's, idempotently;
+ *
+ * and, since 0168's review: a write says the row as it was (finding 4's
+ * record); the appliance's tenants are made one table, row for row (finding
+ * 5); a removed file's rows go (finding 7); and every write's record names
+ * the row by reference, never by address (finding 4).
  *
  * Addresses are invented, at `example.org` and Gmail's own domain, which the
  * key folds.
@@ -24,7 +29,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { parseAddressChangesFile, type TenantId } from '@openmig/shared';
+import { parseAddressChangesFile, type StoredAddressChange, type TenantId } from '@openmig/shared';
 import { pgliteDriver } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import { withTenant } from './db.ts';
@@ -32,8 +37,12 @@ import type { LedgerDriver } from './driver.ts';
 import { PgLedger } from './ledger.ts';
 import {
   addAddressChange,
+  addressChangeAction,
   deleteAddressChange,
+  deleteAddressChangesSetBy,
   readAddressChanges,
+  recordAddressChangeWrite,
+  replaceAddressChanges,
   replaceAddressChangesFromFile,
   updateAddressChange,
 } from './address-change-store.ts';
@@ -174,5 +183,95 @@ describe('the table of address changes, under row security', () => {
     ]);
     const second = await withTenant(driver, A, (db) => replaceAddressChangesFromFile(db, A, file, 'address-changes.json'));
     expect(second).toEqual({ added: 0, changed: 0, removed: 0, kept: 2 });
+  });
+});
+
+describe('what the review added', () => {
+  const C = '0168a2d0-e29b-41d4-a716-446655440003';
+  const D = '0168a2d0-e29b-41d4-a716-446655440004';
+
+  beforeAll(async () => {
+    const conn = await driver.acquire();
+    try {
+      await conn.query(`INSERT INTO tenant (id, name) VALUES ($1, 'C'), ($2, 'D')`, [C, D]);
+    } finally {
+      conn.release();
+    }
+  });
+
+  it('a write says the row as it was: none for a new one, the same row for a write that changed nothing', async () => {
+    const added = await withTenant(driver, C, (db) =>
+      addAddressChange(db, C, { oldAddress: 'one@example.net', newAddress: 'one@example.org', confirm: false, by: BY }),
+    );
+    expect(added.ok && added.before).toBeNull();
+    const confirmed = await withTenant(driver, C, (db) => updateAddressChange(db, C, 'one@example.net', { state: 'confirmed', by: BY }));
+    expect(confirmed.ok && [confirmed.before?.state, confirmed.row.state]).toEqual(['proposed', 'confirmed']);
+    const again = await withTenant(driver, C, (db) =>
+      addAddressChange(db, C, { oldAddress: 'one@example.net', newAddress: 'one@example.org', confirm: true, by: BY }),
+    );
+    expect(again.ok && again.changed === false && again.before?.state).toBe('confirmed');
+  });
+
+  it("makes another tenant's table this one's, row for row, and a second run changes nothing", async () => {
+    await withTenant(driver, C, (db) => addAddressChange(db, C, { oldAddress: 'two@example.net', newAddress: 'two@example.org', confirm: false, by: 'operator' }));
+    await withTenant(driver, D, (db) => addAddressChange(db, D, { oldAddress: 'stale@example.net', newAddress: 'stale@example.org', confirm: true, by: 'operator' }));
+    const table = await withTenant(driver, C, (db) => readAddressChanges(db, C));
+    const first = await withTenant(driver, D, (db) => replaceAddressChanges(db, D, table));
+    expect(first).toEqual({ added: 2, changed: 0, removed: 1, kept: 0 });
+    // Who set and confirmed each, and when, are the first tenant's own.
+    expect(await withTenant(driver, D, (db) => readAddressChanges(db, D))).toEqual(table);
+    expect(await withTenant(driver, D, (db) => replaceAddressChanges(db, D, table))).toEqual({ added: 0, changed: 0, removed: 0, kept: 2 });
+    // A row that differs is made the same.
+    const sentBack = table.map((r): StoredAddressChange => (r.oldKey === 'one@example.net' ? { ...r, state: 'proposed', confirmedBy: null, confirmedAt: null } : r));
+    expect(await withTenant(driver, D, (db) => replaceAddressChanges(db, D, sentBack))).toEqual({ added: 0, changed: 1, removed: 0, kept: 1 });
+  });
+
+  it('deletes the rows one setter set, and no other', async () => {
+    const file = parseAddressChangesFile(JSON.stringify({ changes: [{ oldAddress: 'file@example.net', newAddress: 'file@example.org' }] }));
+    await withTenant(driver, D, (db) => replaceAddressChangesFromFile(db, D, file, 'address-changes.json'));
+    await withTenant(driver, D, (db) => addAddressChange(db, D, { oldAddress: 'page@example.net', newAddress: 'page@example.org', confirm: true, by: 'operator' }));
+    expect(await withTenant(driver, D, (db) => deleteAddressChangesSetBy(db, D, 'address-changes.json'))).toEqual(['file@example.net']);
+    expect((await withTenant(driver, D, (db) => readAddressChanges(db, D))).map((r) => r.setBy)).toEqual(['operator']);
+    expect(await withTenant(driver, D, (db) => deleteAddressChangesSetBy(db, D, 'address-changes.json'))).toEqual([]);
+  });
+
+  it('names each write by what it did, and a write that did nothing as nothing', () => {
+    const row = { oldKey: 'k@example.net', oldAddress: 'k@example.net', newAddress: 'k@example.org', state: 'proposed', setBy: BY, confirmedBy: null, createdAt: '2026-11-23T00:00:00.000Z', confirmedAt: null } as const;
+    const confirmed = { ...row, state: 'confirmed', confirmedBy: BY, confirmedAt: '2026-11-23T00:00:01.000Z' } as const;
+    expect(addressChangeAction({ before: null, after: row })).toBe('address_change.added');
+    expect(addressChangeAction({ before: row, after: confirmed })).toBe('address_change.confirmed');
+    expect(addressChangeAction({ before: confirmed, after: row })).toBe('address_change.sent_back');
+    expect(addressChangeAction({ before: row, after: { ...row, newAddress: 'other@example.org' } })).toBe('address_change.readdressed');
+    expect(addressChangeAction({ before: row, after: null })).toBe('address_change.deleted');
+    expect(addressChangeAction({ before: row, after: row, person: { id: null, moved: true } })).toBe('address_change.linked');
+    expect(addressChangeAction({ before: row, after: row })).toBeNull();
+    expect(addressChangeAction({ before: row, after: row, person: { id: 'p', moved: false } })).toBeNull();
+  });
+
+  it('records a write in its own transaction, by reference, and nothing for a write that did nothing', async () => {
+    const pseudonym = (v: string) => `pseudo:${Buffer.from(v).toString('hex').slice(0, 16)}`;
+    const w = await withTenant(driver, C, async (db) => {
+      const write = await updateAddressChange(db, C, 'two@example.net', { state: 'confirmed', by: BY });
+      if (!write.ok) throw new Error('refused');
+      const recorded = await recordAddressChangeWrite(db, C, { actor: BY, via: 'api', pseudonym, before: write.before, after: write.row });
+      const none = await recordAddressChangeWrite(db, C, { actor: BY, via: 'api', pseudonym, before: write.row, after: write.row });
+      return { recorded, none };
+    });
+    expect(w).toEqual({ recorded: true, none: false });
+    const conn = await driver.acquire();
+    try {
+      const { rows } = await conn.query(`SELECT actor, action, entity, detail FROM audit_log WHERE tenant_id = $1`, [C]);
+      expect(rows).toEqual([
+        {
+          actor: BY,
+          action: 'address_change.confirmed',
+          entity: 'address_change',
+          detail: { addressChange: pseudonym('two@example.net'), from: 'proposed', to: 'confirmed', via: 'api' },
+        },
+      ]);
+      expect(JSON.stringify(rows)).not.toContain('@');
+    } finally {
+      conn.release();
+    }
   });
 });
