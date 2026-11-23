@@ -29,6 +29,24 @@
  * - A `mailto:` value is matched on the address after it, ignoring case, and
  *   the scheme is written back as the source spelled it. An `EMAIL=`
  *   parameter whose address is an old one changes with the value.
+ * - **`SENT-BY`, `DELEGATED-FROM`, `DELEGATED-TO` and `MEMBER`** (the owner,
+ *   2026-11-23: *"yes, since the new address will control the new events"*).
+ *   On an `ORGANIZER` or `ATTENDEE` line of a component whose organiser is in
+ *   the table or is the account's own, each of their addresses that is an old
+ *   one gets the new one: every one of the quoted values a `DELEGATED-*` or
+ *   `MEMBER` may hold, each in its own quotes and scheme spelling. So an
+ *   `ATTENDEE` D3 leaves alone keeps them, and an outside organiser's
+ *   invitation keeps its `ORGANIZER`'s `SENT-BY` as it keeps its guests.
+ *
+ * ## What is over keeps every address (the owner, 2026-11-23)
+ *
+ * *"Though perhapse we need not change past-events we migrate."* Given the
+ * migration's start (`migrationStart`), a calendar object that is over, its
+ * last occurrence ended before that start, keeps every byte the source gave
+ * it, as a record of what happened (`calendar-object-over.ts` says what over
+ * means, and reads an object whose dates it cannot read as not over). Its
+ * bytes are then decided by no row, so its digest is null, as for a body the
+ * table does not touch. A card is never over.
  *
  * ## What it never changes
  *
@@ -62,6 +80,7 @@
 
 import { createHash } from 'node:crypto';
 import { addressKey, isAddress } from './address-forms.ts';
+import { calendarObjectIsOverAt, type CalendarComponentTree, type CalendarProperty } from './calendar-object-over.ts';
 // The digests a copy records and waits for, in a module that imports nothing,
 // so the confirmed list can ask them and stay pure (its own guard says why).
 import { ADDRESS_DIGEST_OF_NO_CHANGE } from './address-digest-due.ts';
@@ -258,12 +277,17 @@ export function prepareAddressTable(rows: ReadonlyArray<ConfirmedAddressChange>)
  * @param ownKeys `addressKey` of each of the migration's own account's
  *                addresses: an `ATTENDEE` changes in an event that account
  *                organised. Unused for a vCard.
+ * @param migrationStart the migration's start, one moment for every pass
+ *                (`mailbox_mapping.created_at`): a calendar object over
+ *                before it keeps every byte. Absent, none is over. Unused
+ *                for a vCard.
  */
 export function applyAddressChanges(
   format: AddressChangeFormat,
   body: string,
   table: AddressTable | ReadonlyArray<ConfirmedAddressChange>,
   ownKeys: ReadonlyArray<string> = [],
+  migrationStart?: Date,
 ): AppliedAddressChanges {
   const t = isPrepared(table) ? table : prepareAddressTable(table);
   if (t.rows.length === 0) return { body, changed: false, digest: null };
@@ -278,9 +302,51 @@ export function applyAddressChanges(
   const decided = new Map<string, ConfirmedAddressChange>();
   const out =
     format === 'vcard' ? changeVcard(body, t, decided) : changeIcalendar(body, t, new Set(ownKeys), decided);
-  return out === body
-    ? { body, changed: false, digest: null }
-    : { body: out, changed: true, digest: addressTableDigest([...decided.values()]) };
+  if (out === body) return { body, changed: false, digest: null };
+  // WHAT IS OVER KEEPS EVERY ADDRESS (the owner, 2026-11-23). Asked only of a
+  // body the table would change, and of its source bytes: no change touches
+  // a date, so the answer is the same for the change's own output, and a
+  // second application finds it over or not over just as the first did.
+  if (format === 'icalendar' && migrationStart !== undefined && calendarObjectIsOver(body, migrationStart)) {
+    return { body, changed: false, digest: null };
+  }
+  return { body: out, changed: true, digest: addressTableDigest([...decided.values()]) };
+}
+
+/**
+ * Is this calendar object over at the migration's start: did its last
+ * occurrence end before it (`calendar-object-over.ts`)? Read with this
+ * module's own content-line reader, unfolded, each parameter unquoted. False
+ * wherever its dates cannot be read.
+ */
+export function calendarObjectIsOver(icalendar: string, migrationStart: Date): boolean {
+  return calendarObjectIsOverAt(componentTree(icalendar), migrationStart);
+}
+
+/** The components of an iCalendar text, nested as they stand, each with its own properties. */
+function componentTree(icalendar: string): CalendarComponentTree[] {
+  type Open = { name: string; properties: CalendarProperty[]; components: Open[] };
+  const root: Open = { name: '', properties: [], components: [] };
+  const open: Open[] = [root];
+  for (const line of linesOf(icalendar)) {
+    const begin = /^BEGIN:(\S+)\s*$/i.exec(line.logical)?.[1];
+    if (begin !== undefined) {
+      const component: Open = { name: begin.toUpperCase(), properties: [], components: [] };
+      open[open.length - 1]!.components.push(component);
+      open.push(component);
+      continue;
+    }
+    if (/^END:\S+\s*$/i.test(line.logical)) {
+      if (open.length > 1) open.pop();
+      continue;
+    }
+    const p = parse(line.logical);
+    if (p === null) continue;
+    const params = new Map<string, string>();
+    for (const x of p.params) if (!params.has(paramKey(x))) params.set(paramKey(x), paramValue(x));
+    open[open.length - 1]!.properties.push({ name: p.name, params, value: p.value });
+  }
+  return root.components;
 }
 
 function isPrepared(t: AddressTable | ReadonlyArray<ConfirmedAddressChange>): t is AddressTable {
@@ -688,7 +754,7 @@ function changeComponent(
   lines.forEach((line, i) => {
     const p = props[i] ?? null;
     const touches = p !== null && (p.name === 'ORGANIZER' || (p.name === 'ATTENDEE' && inside));
-    const changed = p !== null && touches ? replaceAddress(p, t, decided) : null;
+    const changed = p !== null && touches ? replaceAddress(p, t, decided, inside) : null;
     if (changed === null) out.push(...line.span);
     else out.push(`${render(changed)}${line.eol}`);
   });
@@ -704,8 +770,21 @@ function addressesOf(p: Property): string[] {
   return out.filter((a) => a !== '');
 }
 
-/** The property with each old address in its value and its `EMAIL=` replaced, or null when none was old. */
-function replaceAddress(p: Property, t: AddressTable, decided: Decided): Property | null {
+/**
+ * The parameters that name other calendar users by address, besides `EMAIL`
+ * (RFC 5545 §3.2.18 `SENT-BY`, §3.2.4 `DELEGATED-FROM`, §3.2.5 `DELEGATED-TO`,
+ * §3.2.11 `MEMBER`): who acts for the user, who handed the invitation on and
+ * to whom, which group they are in. The last three may hold several values.
+ */
+const ADDRESS_PARAMETERS: ReadonlySet<string> = new Set(['SENT-BY', 'DELEGATED-FROM', 'DELEGATED-TO', 'MEMBER']);
+
+/**
+ * The property with each old address in its value and its `EMAIL=` replaced,
+ * and, in a component whose organiser is in the table or is the account's own
+ * (`inside`), in its `SENT-BY`, `DELEGATED-*` and `MEMBER`; or null when none
+ * was old.
+ */
+function replaceAddress(p: Property, t: AddressTable, decided: Decided, inside: boolean): Property | null {
   let changed = false;
   let value = p.value;
   const v = addressIn(p.value);
@@ -717,7 +796,14 @@ function replaceAddress(p: Property, t: AddressTable, decided: Decided): Propert
     }
   }
   const params = p.params.map((x) => {
-    if (paramKey(x) !== 'EMAIL') return x;
+    const key = paramKey(x);
+    if (inside && ADDRESS_PARAMETERS.has(key)) {
+      const next = replaceInAddressList(x, t, decided);
+      if (next === null) return x;
+      changed = true;
+      return next;
+    }
+    if (key !== 'EMAIL') return x;
     const row = rowFor(t, paramValue(x), decided);
     if (!row) return x;
     changed = true;
@@ -726,4 +812,40 @@ function replaceAddress(p: Property, t: AddressTable, decided: Decided): Propert
     return `${x.slice(0, eq)}=${quoted ? `"${row.newAddress}"` : row.newAddress}`;
   });
   return changed ? { ...p, params, value } : null;
+}
+
+/**
+ * One `SENT-BY`, `DELEGATED-*` or `MEMBER` parameter with each of its values
+ * that is an old address replaced, or null when none was. Its values are split
+ * on the commas outside quotes, and each keeps its own quotes, or their
+ * absence, and its scheme as the source spelled it (`mailto:`, `MAILTO:`); every
+ * other byte of the parameter is kept.
+ */
+function replaceInAddressList(param: string, t: AddressTable, decided: Decided): string | null {
+  const eq = param.indexOf('=');
+  if (eq === -1) return null;
+  const raw = param.slice(eq + 1);
+  const values: string[] = [];
+  let quoted = false;
+  let from = 0;
+  for (let k = 0; k < raw.length; k += 1) {
+    if (raw[k] === '"') quoted = !quoted;
+    else if (raw[k] === ',' && !quoted) {
+      values.push(raw.slice(from, k));
+      from = k + 1;
+    }
+  }
+  values.push(raw.slice(from));
+  let changed = false;
+  const out = values.map((value) => {
+    const inQuotes = value.length >= 2 && value.startsWith('"') && value.endsWith('"');
+    const a = addressIn(inQuotes ? value.slice(1, -1) : value);
+    if (a.scheme === '' && !isAddress(a.address)) return value;
+    const row = rowFor(t, a.address, decided);
+    if (!row) return value;
+    changed = true;
+    const written = `${a.scheme}${row.newAddress}`;
+    return inQuotes ? `"${written}"` : written;
+  });
+  return changed ? `${param.slice(0, eq + 1)}${out.join(',')}` : null;
 }

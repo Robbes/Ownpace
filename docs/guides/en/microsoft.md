@@ -95,6 +95,8 @@ The **Microsoft 365 account** card is one connection holding one delegated grant
 
 An address ending in `@outlook.com`, `@hotmail.com`, `@live.com` or `@msn.com`, or in your organisation's `.onmicrosoft.com` name, belongs to Microsoft, so it cannot come with you. **Start a migration** does not yet recognise these addresses by itself: on **Where does it go?**, tick **I am also changing my address**, and the step **Your new address** follows, where you say which address replaces it. Contacts that list the old address get the new one first and keep the old one, so old mail still finds the person. Events and tasks you organised list you at the new address, so you can still change them. The **Sharing checklist** suggests the new address for you. Your mail is never changed: every message stays exactly as it was sent. Nobody is sent anything. You can change the new address afterwards, on your page.
 
+**Events that are already over keep the old address**, as a record of what happened, and so do tasks that are completed or cancelled: only events still to come, and open tasks, change. An event is over when it, or for a repeating event its last occurrence, ended before the migration started.
+
 ## When the test reports a problem {#when-test-says}
 
 Two refusals are a **tenant policy**, not something to try again:

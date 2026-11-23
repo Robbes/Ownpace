@@ -80,6 +80,13 @@ export interface AddressChangesForPass {
    * copies. Without it, it waits.
    */
   readonly pastCutoverApplies?: boolean;
+  /**
+   * The migration's start, `mailbox_mapping.created_at`: one moment, which no
+   * pass and no press moves. An event or task that was over by then keeps
+   * every address the source gave it (the owner, 2026-11-23;
+   * `calendarObjectIsOver`). Absent, none is over. A card is never over.
+   */
+  readonly migrationStart?: Date;
 }
 
 /** The loop's address-change hooks for one format, or nothing for a pass without a table. */
@@ -93,7 +100,8 @@ function addressHooks<Item>(
 } {
   if (!changes) return {};
   return {
-    addressDigestNow: (item) => applyAddressChanges(format, bodyOf(item), changes.table, changes.ownKeys).digest,
+    addressDigestNow: (item) =>
+      applyAddressChanges(format, bodyOf(item), changes.table, changes.ownKeys, changes.migrationStart).digest,
     ...(changes.pastCutoverApplies ? { addressRewritePastCutover: true } : {}),
   };
 }
@@ -105,7 +113,7 @@ function changed(
   body: string,
 ): { readonly body: string; readonly addressDigest?: string | null } {
   if (!changes) return { body };
-  const r = applyAddressChanges(format, body, changes.table, changes.ownKeys);
+  const r = applyAddressChanges(format, body, changes.table, changes.ownKeys, changes.migrationStart);
   return { body: r.body, addressDigest: r.digest };
 }
 
