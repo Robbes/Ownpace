@@ -527,14 +527,15 @@ describe('the same answers as the single PUT', () => {
     expect(nc.of('DELETE')).toHaveLength(1);
   });
 
-  it('a rewrite of a file the owner removed is a conflict too, as If-Match makes it', async () => {
+  it('a rewrite of a file the owner removed is gone from the target, as the single PUT says (0168)', async () => {
     const nc = fakeNextcloud();
     const result = await writerFor(nc.client).upsertFile('', itemOf('clip.mp4', streamedBody(bytesOf(PIECE * 2))), {
       overwrite: true,
       expectedTargetVersion: 'ours',
     });
     expect(nc.of('MOVE')[0]!.status).toBe(404);
-    expect(result.conflicted).toBe(true);
+    expect(result.goneFromTarget).toBe(true);
+    expect(result.conflicted).toBeUndefined();
     expect(nc.files.has('clip.mp4'), 'the removed file was put back').toBe(false);
   });
 });
