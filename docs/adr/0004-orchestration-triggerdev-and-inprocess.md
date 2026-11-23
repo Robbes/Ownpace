@@ -2,9 +2,8 @@
 
 - **Status:** Accepted; **its managed half superseded by
   [ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md)**, accepted 2026-11-22 and in
-  force since workplan 0167 T7: pg-boss runs the managed edition's jobs. Self-hosted Trigger.dev
-  was kept installed and stopped as the fallback until alpha.18 removed it (workplan 0167 T9,
-  2026-11-23). The self-host half stands. Amended three times (2026-11-22, 2026-11-23).
+  force since workplan 0167 T7: pg-boss runs the managed edition's jobs, and alpha.18 removes
+  Trigger.dev (0167 T9). The self-host half stands. Amended three times (2026-11-22, 2026-11-23).
 - **Date:** 2026-06-20
 
 ## Operative rules
