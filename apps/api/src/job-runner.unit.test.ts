@@ -220,6 +220,21 @@ describe('the enqueue on pg-boss', () => {
     expect(warned).not.toHaveBeenCalled();
   });
 
+  it('a close while the start fails says so once, at warn, and stops nothing more', async () => {
+    const warned = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const failed = new Error('The jobs schema "pgboss" is not at pg-boss schema version 30.');
+    boss.start.mockRejectedValueOnce(failed);
+    const press = pgBossProducer();
+    const closing = closeJobRunner();
+    // The press is handed the failure; the close says it beside, never instead.
+    await expect(press).rejects.toBe(failed);
+    await closing;
+    expect(warned).toHaveBeenCalledTimes(1);
+    expect(warned).toHaveBeenCalledWith(expect.stringMatching(/had failed to start, so there was nothing to stop/), failed);
+    // Only the stop after the failed start, inside the press.
+    expect(boss.stop).toHaveBeenCalledTimes(1);
+  });
+
   it('a start that fails late forgets only itself, never a newer producer', async () => {
     const warned = vi.spyOn(log, 'warn').mockImplementation(() => {});
     let failFirst!: (err: Error) => void;

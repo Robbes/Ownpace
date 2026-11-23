@@ -844,21 +844,24 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     const targetId = snapshot?.files.get(naturalKey)?.id
       ?? (await this.findFileByNaturalKey('', naturalKey));
     if (!targetId) {
-      // Asked to rewrite something that is not there. Falling through to a
-      // create would be convenient and wrong: the caller believes this item is
-      // already on the target, and silently disagreeing hides whatever made
-      // that untrue.
-      throw new Error(
-        `Asked to rewrite file ${naturalKey}, but no node with that path is on the target. ` +
-          `Refusing to create one instead — the caller believes this item was already copied, ` +
-          `and quietly disagreeing would hide whatever made that false.`,
-      );
+      // Asked to rewrite something that is not there: somebody deleted the
+      // copy on the target. Falling through to a create would be convenient
+      // and wrong, and so was the throw this used to be (workplan 0168, found
+      // on the way): it made the row `failed`, whose retry took the create
+      // path and made the file again, one pass later, against arch §11.1
+      // ("Target-side deletions are deliberately not repaired"). So it is
+      // said, not thrown, as the JMAP contact writer says it: nothing written,
+      // nothing created, and the loop counts the copy as gone from the target.
+      return { targetId: '', created: false, goneFromTarget: true };
     }
 
     if (expectedTargetVersion !== undefined) {
       // A read that fails refuses the rewrite (0149 T3): see `nodeVersionBefore`.
       const current = await this.nodeVersionBefore('rewritten', targetId);
-      if (current !== undefined && current !== expectedTargetVersion) {
+      // A node the snapshot named and the read did not find went in between:
+      // gone from the target, as above.
+      if (current === undefined) return { targetId, created: false, goneFromTarget: true };
+      if (current !== expectedTargetVersion) {
         // Someone edited our copy. Not an error and deliberately not thrown:
         // a conflict is a fact about ownership, not a failure to migrate.
         return { targetId, created: false, conflicted: true };
@@ -881,6 +884,11 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
       },
     });
     const failure = response.notUpdated?.[targetId];
+    // Deleted between the look and the write: gone from the target, as above.
+    if (failure?.type === 'notFound') {
+      this.invalidateTree();
+      return { targetId, created: false, goneFromTarget: true };
+    }
     if (failure) {
       // HTTP 200 either way (RFC 8620 §3.6.2): a per-item refusal arrives in
       // `notUpdated`, not as a transport error. Not looking is how a rewrite

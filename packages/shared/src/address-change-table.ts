@@ -117,6 +117,14 @@ export interface AddressChange {
   readonly setByYou: boolean;
   readonly confirmedBy: string | null;
   readonly confirmedByYou: boolean;
+  /**
+   * The row's own person confirmed it, through their link (`person:<id>`,
+   * 0168 §4.4). Exact where the name is not: a member who shares the
+   * person's name, confirming for them, read as the person's own *Yes*
+   * (0168, found on the way). Always false on the appliance, which has no
+   * person.
+   */
+  readonly confirmedByThePerson: boolean;
   readonly createdAt: string;
   readonly confirmedAt: string | null;
   /** Managed only: whose old address it is. Always null on the appliance. */

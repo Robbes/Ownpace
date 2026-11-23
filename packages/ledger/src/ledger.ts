@@ -1319,6 +1319,33 @@ export class PgLedger implements Ledger {
   }
 
   /**
+   * The source version of an unchanged copy whose row had none (the loop's
+   * `record-version`). This column and `updated_at`, nothing else: nothing
+   * was written to the target, and `recordUpdate`'s `last_synced_at = now()`
+   * read to the usage meter as another copy of the item, in this month, at
+   * its whole size (workplan 0168, found on the way).
+   */
+  async recordSourceVersion(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    naturalKeyHash: string,
+    sourceVersion: string,
+  ): Promise<void> {
+    await this.db
+      .update(schemaPg.item)
+      .set({ sourceVersion, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+        ),
+      );
+  }
+
+  /**
    * The change one copy waits for, or null to clear it (workplan 0168 S3).
    * This column and `updated_at`, nothing else: `last_synced_at` is when a
    * copy was last WRITTEN to the target, which the billing meter reads, and
