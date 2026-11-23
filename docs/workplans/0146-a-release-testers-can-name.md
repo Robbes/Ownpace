@@ -2,7 +2,69 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-22 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23, morning: `v0.2.0-alpha.16` is released, its nights waived (T2, T4).** Read from
+GitHub on 2026-11-23. Times are UTC.
+
+- **C is `b657f86b`**, the squash of #2055, the fold, merged on 2026-11-22 at 21:52:04. Its tree is
+  that of #2055's head, `714430d1`. On C, all green: CI run 45074483532 (21:52:07 to 22:26:15,
+  `ci-complete` included), Security Scan run 45074483502, Images run 45074483538, Semgrep run
+  45074483589, Dockerfile lint run 45074483574 and Nextcloud's second major, run 45074483599. C did
+  not move: nothing merged to `main` between the fold and the tag.
+- **In the counted nights' place**, waived for alpha.16 (*"Also, I waive the waiting and
+  nights."*, #2035), dispatched on `main` at C, all green: E2E (managed), on pg-boss, run
+  45074522193 (21:52:31 to 21:58:10), then E2E (self-hosted) on Postgres, run 45075126797 (21:59:30
+  to 22:05:38), and on PGlite, run 45075799548 (22:06:15 to 22:11:21), one at a time, each once the
+  run before it had ended green; beside them Security Scan with the image scans, run 45074524887
+  (30 jobs), and `windows-payload.yml` run 45074527409 (win-x64).
+- **Release.** The owner ran it from their own account, first as a preflight alone: run
+  45123025860 (`mode` `preflight`, 06:16:44 to 06:17:33), which refused nothing. Then Release run
+  45123378033 (`mode` `release`), with `waive_nights` set to *"waived"*, in one attempt: its
+  preflight passed (06:20:03 to 06:20:51), and it waited at its approve job until the owner
+  approved in the `release` environment (06:21:32); then the gate scan of C (run 45123595275, on
+  `release-gate/v0.2.0-alpha.16`, 06:21:54 to 06:24:16) and the tag (06:24:46) succeeded. The
+  publish job's Security Scan on the tag, run 45123960388 (06:25:09 to 06:26:24), made the release
+  with its body and SBOM; the images, run 45124180697 (06:27:07 to 06:28:14), and the Windows zip,
+  run 45124184326 (06:27:08 to 06:28:55), both on the tag, were green; and verify passed (06:29:16
+  to 06:30:13).
+- **The two attaches, through the runner's own `gh`** (#1977): `bom.json` (2,064,513 bytes, with
+  the release at 06:26:16) and `ownpace-appliance-win-x64-v0.2.0-alpha.16.zip` (50,046,029 bytes,
+  06:28:47), both uploaded by `github-actions[bot]`. Verify, which reads both, passed. The release's
+  body is said once (1,049 characters): no second scan ran on the tag (#2039).
+- **The tag.** `v0.2.0-alpha.16` is tag object `bcb7d82b…` on `b657f86b`, made by
+  `github-actions[bot]` at 06:24:46. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/45123378033*, *Proved by: CI run #6076, Security
+  Scan run #6217 on main, windows-payload run #59; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/45123595275* and *Nights waived by Robbes, in
+  their words: "waived"*.
+- **The freeze ended with the tag:** #2067 (workplan 0168) merged at 06:31 as `04e455d9`, the first
+  merge after C.
+- **The image scan after the tag**, Security Scan run 45124811639 (`image_scans`, dispatched on `main`, 06:32:42
+  to 06:36:40, 31 jobs), was green: 28 images listed and scanned, none past its end of life. It ran
+  on `main` at `04e455d9`, after #2067 had merged, not at C as `docs/release.md` §4 asks: #2067
+  changes no Dockerfile, image pin, compose file or lockfile, so every image it reads is C's. Against
+  C's own scan, run 45074524887, the three production tiers are as they were (the 7 images the
+  internet reaches: 0 critical, 8 high; the appliance's 3: 0 critical, 2 high) but for one image
+  more among the internal ones: the worker's release image, `ownpace-worker:0.2.0-alpha.16`,
+  published by a release for the first time, with the worker's edge image's counts (0 critical, 1
+  high), so that tier reads 15 images, 2 critical and 29 high where C's read 14, 2 and 28. The three
+  other release images it reads are now alpha.16's, each with alpha.15's counts. In the test images,
+  not in production, Debian now publishes fixes for findings that had none: Nextcloud's high
+  findings a newer package fixes go from 40 to 114 (its high count from 252 to 250), Stalwart's from
+  1 to 57.
+- **Live's deploy** from alpha.14 follows, by the owner, from the sheet filled from this tag
+  (reversible, as the fold's entry below says); 0132's Status records it.
+
+**2026-11-22, night, later: alpha.17's counted nights are waived, in the owner's words, before its
+fold.** The owner, on 2026-11-22: *"Continue working on alpha 17, I waive the waitings for that one,
+so I can roll that one out possibly also tomorrow."* So `v0.2.0-alpha.17` joins `WAIVER_VERSIONS` in
+`scripts/release-nights.mjs`, beside alpha.3 to alpha.16, with those words. The two guards that read
+the list name it, with `v0.2.0-alpha.18` now the version a waiver is refused for, and
+`docs/release.md` lists it. With the new line taken out, both list guards fail (2 of 119); with it,
+119 of 119 pass. It lands before alpha.17's fold, so C carries the list: Release reads
+`WAIVER_VERSIONS` from `main`'s own scripts. The words also cover alpha.17's other waits: a release
+taken inside its three-day floor for alpha.17 says so in its own pull request.
 
 **2026-11-22, night: the fold for `v0.2.0-alpha.16` (T2).** `package.json` and the API contract say
 `0.2.0-alpha.16`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
