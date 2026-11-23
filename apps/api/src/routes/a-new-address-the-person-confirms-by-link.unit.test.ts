@@ -63,6 +63,7 @@ import {
 import { addressChangeNotFound } from '@openmig/shared';
 import { specChecker } from '../__tests__/doors-that-start-work.ts';
 import { ONLY_THE_STATE } from './link-address-changes.ts';
+import { setAuditKeyDriver } from '../audit-key.ts';
 
 const U = (n: string) => `0168b3d1-e29b-41d4-a716-4466554430${n}`;
 const TENANT = U('01');
@@ -186,6 +187,10 @@ beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
   await runManagedMigrations({ driver, logger: () => {} });
+  // A write through the table's own route records itself in the audit log by
+  // the row's pseudonym, read on the owner's connection (`audit-key.ts`), as
+  // the API's start-up sets it; here the same in-process database.
+  setAuditKeyDriver(driver);
 
   await q('INSERT INTO tenant (id, name) VALUES ($1, $2), ($3, $4)', [TENANT, 'Example family', OTHER, 'Other family']);
   await q(
@@ -231,6 +236,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
+  setAuditKeyDriver(undefined);
   delete process.env.GOOGLE_OAUTH_CLIENT_ID;
   delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   await driver?.end?.();

@@ -95,7 +95,7 @@ import type {
   PersonMigration,
 } from '@openmig/shared';
 import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
-import { handleAddressChanges, readAddressDoor, seedAddressChangesFromFile } from './address-changes.ts';
+import { addressTableAtStart, handleAddressChanges, readAddressDoor, seedAddressChanges } from './address-changes.ts';
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition, updateTransition } from './lifecycle.ts';
 import { serveUi, UI_MOUNT } from './static-ui.ts';
@@ -1187,21 +1187,39 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     log.info(`[selfhost] scheduled ${m.config.mappingId} (${cron})`);
   };
 
+  // The table of address changes every tenant starts with (0168 §7; the
+  // review's findings 5 and 7): the file's, or, through the page, the first
+  // tenant's that holds a row, once the rows a removed file set are gone. One
+  // table however many tenants the directory names, so every migration
+  // applies the same changes and the page shows the table they apply.
+  const addressStart = await addressTableAtStart(
+    persistenceBackend.driver,
+    [...new Set(mappings.map((m) => m.config.tenantId as string))],
+    addressDoor,
+  );
+  if (addressStart.door === 'page' && addressStart.fileRowsDeleted > 0) {
+    log.info(
+      `[selfhost] address changes: ${ADDRESS_CHANGES_FILE} is gone, so the ${addressStart.fileRowsDeleted} ` +
+        "address change(s) it set were deleted; this appliance's own page writes them from now on",
+    );
+  }
   // Startup: ensure records, fire read-only discovery in the background, and schedule
   // only mappings that are already 'active'. Paused (draft) mappings wait for the operator
   // to confirm on the page (0013 T7).
   const addressTablesSeeded = new Set<string>();
   for (const m of mappings) {
     await ensureRecordsFor(m);
-    // The file's address changes become the tenant's table once its row
-    // exists, and before any of its passes is scheduled (0168 §7).
+    // The tenant's table becomes that table once its row exists, and before
+    // any of its passes is scheduled (0168 §7).
     if (!addressTablesSeeded.has(m.config.tenantId)) {
       addressTablesSeeded.add(m.config.tenantId);
-      const seeded = await seedAddressChangesFromFile(persistenceBackend.driver, m.config.tenantId, addressDoor);
+      const seeded = await seedAddressChanges(persistenceBackend.driver, m.config.tenantId, addressStart);
       if (seeded && seeded.added + seeded.changed + seeded.removed > 0) {
         log.info(
-          `[selfhost] address changes from ${ADDRESS_CHANGES_FILE}: ${seeded.added} added, ` +
-            `${seeded.changed} changed, ${seeded.removed} removed, ${seeded.kept} as they were`,
+          (addressStart.door === 'file'
+            ? `[selfhost] address changes from ${ADDRESS_CHANGES_FILE}: `
+            : `[selfhost] address changes of tenant ${m.config.tenantId}, made the same as the others': `) +
+            `${seeded.added} added, ${seeded.changed} changed, ${seeded.removed} removed, ${seeded.kept} as they were`,
         );
       }
     }

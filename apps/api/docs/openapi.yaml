@@ -3276,7 +3276,17 @@ paths:
                     minimum: 0
                     description: How many confirmed rows the table held.
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        '404':
+          description: This organisation has no such migration, in English and in Dutch.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, message, messageNl]
+                properties:
+                  error: { type: string, enum: ['Not found'] }
+                  message: { type: string }
+                  messageNl: { type: string }
 
   /api/migrations/{mappingId}/cutover:
     parameters:
@@ -6521,6 +6531,11 @@ paths:
         appliance's own word, never a sign-in's id. `setByYou` and
         `confirmedByYou` say whether that was the asker.
 
+        **Who reads what** (0168 §4.4): an owner or an admin reads every
+        row. Any other member reads only the rows that are their own
+        person's (the person whose member they are, `person.user_id`), and
+        none when they are nobody's person.
+
         **The appliance answers `GET /address-changes` in the same shape.**
         On its own page (the Personal door) its rows are written by
         `POST /address-changes`, and `door` is `page`. When its config
@@ -6560,6 +6575,15 @@ paths:
         `confirmed` with `confirmedBy: operator`, whatever `confirm` says:
         the person on its loopback page is its owner, as with its decisions.
 
+        On managed, only an owner or an admin adds a row (0168 §4.4, D6).
+        A table holds at most 300 rows (`ADDRESS_CHANGE_ROWS_MAX`, the
+        appliance's `address-changes.json` too).
+
+        Every write is recorded in the audit log, in the write's own
+        transaction: who, the row by reference (its key as the audit
+        export's pseudonym) and the states it went from and to. Never an
+        address.
+
         Refusals are `{error, message, messageNl}`: the sentence in English
         and in Dutch. Nothing was written.
       requestBody:
@@ -6588,11 +6612,16 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: '`owner_or_admin_only`, managed only: the asker is a member who is not an owner or an admin.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
         '404':
           description: '`person_not_found`, managed only: this organisation has no such person.'
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
         '409':
           description: |
             `already_changed`: the old address is in the table already, with
@@ -6601,8 +6630,9 @@ paths:
             row's new address, so the change would run on into another one;
             `row` is the row to change instead (the table stores each old
             address against its final new address, 0168 §1.2).
-            `file_door`, appliance only: the rows are `address-changes.json`'s,
-            and are changed in that file.
+            `too_many_address_changes`: the table holds 300 rows, the most it
+            holds; delete one first. `file_door`, appliance only: the rows are
+            `address-changes.json`'s, and are changed in that file.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
@@ -6627,6 +6657,15 @@ paths:
         The refusals are `POST`'s, in both languages. The appliance's page
         keeps every row `confirmed` by `operator`, and refuses
         `state: proposed`.
+
+        **Who may** (managed, 0168 §4.4, D6): an owner or an admin sends any
+        field, for any row, and a confirmation for someone else is
+        attributed to them. Any other member sends `{state}` alone, for a
+        row that is their own person's: they confirm it, or send it back.
+        Anything else is `owner_or_admin_only`, and a row that is not
+        theirs `not_your_address_change`, said the same whether or not
+        the row exists. A path that names no address names no row:
+        `address_change_not_found`.
       requestBody:
         required: true
         content:
@@ -6644,6 +6683,14 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: |
+            Managed only. `owner_or_admin_only`: a member who is not an owner
+            or an admin sent more than `{state}`. `not_your_address_change`:
+            the row is not their own person's.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
         '404':
           description: |
             `address_change_not_found`: the table has no row for this key.
@@ -6664,7 +6711,9 @@ paths:
         it converge back to what the source says on the next pass (ADR-0055
         decision 6), within the ordinary rules of a rewrite. Deleting a
         person does not delete their rows: other people's copies depend on
-        them.
+        them. On managed, only an owner or an admin deletes a row. The
+        answer is the row the delete removed: of two deletes at once, the
+        second is `address_change_not_found`.
       responses:
         '200':
           description: Deleted. The row as it was.
@@ -6672,6 +6721,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AddressChange' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: '`owner_or_admin_only`, managed only.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressChangeRefusal' }
         '404':
           description: '`address_change_not_found`: the table has no row for this key.'
           content:
@@ -9120,7 +9174,18 @@ components:
       properties:
         error:
           type: string
-          enum: [not_an_address, same_address, already_changed, chained, address_change_not_found, file_door, invalid_request]
+          enum:
+            - not_an_address
+            - same_address
+            - already_changed
+            - chained
+            - address_change_not_found
+            - file_door
+            - invalid_request
+            - too_many_address_changes
+            - person_not_found
+            - owner_or_admin_only
+            - not_your_address_change
         message: { type: string }
         messageNl: { type: string }
         field:

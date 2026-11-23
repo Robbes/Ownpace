@@ -35,9 +35,23 @@
 
 import { addressKey, isAddress } from './address-forms.ts';
 import type { Bilingual } from './link-holder-refusals.ts';
+import { PERSON_NOT_FOUND } from './people.ts';
 
-/** The longest address a row may hold (RFC 5321's path). `address_change`'s CHECKs say the same. */
+/**
+ * The longest address a row may hold (RFC 5321's path). `address_change`'s
+ * CHECKs say the same of the old address, its key and the new address.
+ */
 export const ADDRESS_CHANGE_MAX = 254;
+
+/**
+ * The most rows one organisation's table holds (0168's review, finding 11).
+ *
+ * A family changes a handful of addresses and a small team a few dozen, so
+ * nobody the table is for reaches this. It bounds what every write reads
+ * under the organisation's lock, and what every pass reads at its start. The
+ * appliance's `address-changes.json` is held to it too.
+ */
+export const ADDRESS_CHANGE_ROWS_MAX = 300;
 
 /** The two states a row may be in. Only `confirmed` reaches a writer. */
 export const ADDRESS_CHANGE_STATES = ['proposed', 'confirmed'] as const;
@@ -63,6 +77,11 @@ export const CHAINED = 'chained';
 export const ADDRESS_CHANGE_NOT_FOUND = 'address_change_not_found';
 export const FILE_DOOR = 'file_door';
 export const INVALID_ADDRESS_CHANGE = 'invalid_request';
+export const TOO_MANY_ADDRESS_CHANGES = 'too_many_address_changes';
+/** Managed: what only an owner or an admin may do (0168 §4.4, D6). */
+export const OWNER_OR_ADMIN_ONLY = 'owner_or_admin_only';
+/** Managed: a member confirms or sends back only a row that is their own person's. */
+export const NOT_YOUR_ADDRESS_CHANGE = 'not_your_address_change';
 
 /** A row as it is stored, in the words both editions read it in. */
 export interface StoredAddressChange {
@@ -130,13 +149,18 @@ export interface AddressChangeRefusal {
 }
 
 /** The status a refusal is answered with. */
-export function refusalStatus(refusal: AddressChangeRefusal): 400 | 404 | 409 {
+export function refusalStatus(refusal: AddressChangeRefusal): 400 | 403 | 404 | 409 {
   switch (refusal.error) {
+    case OWNER_OR_ADMIN_ONLY:
+    case NOT_YOUR_ADDRESS_CHANGE:
+      return 403;
     case ADDRESS_CHANGE_NOT_FOUND:
+    case PERSON_NOT_FOUND:
       return 404;
     case ALREADY_CHANGED:
     case CHAINED:
     case FILE_DOOR:
+    case TOO_MANY_ADDRESS_CHANGES:
       return 409;
     default:
       return 400;
@@ -252,16 +276,60 @@ export function invalidAddressChange(text: Bilingual): AddressChangeRefusal {
   return refusal(INVALID_ADDRESS_CHANGE, text);
 }
 
+/** The table holds `ADDRESS_CHANGE_ROWS_MAX` rows already: a new one is refused, nothing written. */
+export function tooManyAddressChanges(max: number = ADDRESS_CHANGE_ROWS_MAX): AddressChangeRefusal {
+  return refusal(TOO_MANY_ADDRESS_CHANGES, {
+    en: `The table holds ${max} address changes, the most it can hold. Delete one that is no longer needed before you add another.`,
+    nl: `De tabel bevat ${max} adreswijzigingen, het maximum. Verwijder er een die niet meer nodig is voordat u er een toevoegt.`,
+  });
+}
+
+/** Managed: the body names a person this organisation does not have. The people pages' own words. */
+export function personNotFound(): AddressChangeRefusal {
+  return refusal(PERSON_NOT_FOUND, {
+    en: 'There is no such person here.',
+    nl: 'Deze persoon bestaat hier niet.',
+  });
+}
+
+/**
+ * Managed: adding, changing or deleting a row, or confirming one for someone
+ * else, is an owner's or an admin's (0168 §4.4, D6). A member may confirm
+ * their own row, or send it back.
+ */
+export function ownerOrAdminOnly(): AddressChangeRefusal {
+  return refusal(OWNER_OR_ADMIN_ONLY, {
+    en:
+      'Only an owner or an admin of this organisation can add, change or delete an address change. ' +
+      'You can confirm your own address change, or send it back.',
+    nl:
+      'Alleen een eigenaar of beheerder van deze organisatie kan een adreswijziging toevoegen, wijzigen of ' +
+      'verwijderen. Uw eigen adreswijziging kunt u bevestigen of terugsturen.',
+  });
+}
+
+/**
+ * Managed: a member's confirmation or *Not right?* of a row that is not their
+ * own person's. Said the same whether or not the row exists, so a member
+ * learns nothing of the rows they cannot read.
+ */
+export function notYourAddressChange(): AddressChangeRefusal {
+  return refusal(NOT_YOUR_ADDRESS_CHANGE, {
+    en: 'This is not your address change, so only an owner or an admin of this organisation can confirm it or send it back.',
+    nl: 'Dit is niet uw adreswijziging, dus alleen een eigenaar of beheerder van deze organisatie kan die bevestigen of terugsturen.',
+  });
+}
+
 /** The appliance has one implicit person: a body naming a person is refused. */
 export const NO_PERSON_HERE: Bilingual = {
   en: 'This appliance moves one person, so an address change here names no person. Leave personId out.',
-  nl: 'Dit apparaat migreert voor één persoon, dus een adreswijziging noemt hier geen persoon. Laat personId weg.',
+  nl: 'Deze appliance migreert voor één persoon, dus een adreswijziging noemt hier geen persoon. Laat personId weg.',
 };
 
 /** The appliance's page keeps its rows confirmed: a row it does not want is deleted. */
 export const CONFIRMED_HERE: Bilingual = {
   en: 'An address change made on this appliance is confirmed by its owner. Delete it if it is not right.',
-  nl: 'Een adreswijziging op dit apparaat is bevestigd door de eigenaar. Verwijder die als die niet klopt.',
+  nl: 'Een adreswijziging op deze appliance is bevestigd door de eigenaar. Verwijder die als die niet klopt.',
 };
 
 /** What a row is checked against: the rest of the organisation's table. */
@@ -279,7 +347,15 @@ export interface CandidateChange {
  * answered `{ ok: true, same }` so the route can answer 200 with no write.
  *
  * Order matters only in which refusal a body with two faults hears first: the
- * values, then the old address's own row, then the chains.
+ * values, then the old address's own row, then the chains, then the table's
+ * size (`ADDRESS_CHANGE_ROWS_MAX`, for a new row only: the same change again
+ * is still answered with its row).
+ *
+ * The lengths are the CHECKs' of `address_change` (ledger 0071), so a value
+ * that passes here is one the table stores. The KEY is measured as well as
+ * the address typed: lower case can be longer than the address (`İ` is one
+ * character, and two once lower-cased), and a key over the limit failed the
+ * write with a 500 (0168's review, finding 3).
  */
 export function checkAddressChange(
   table: readonly StoredAddressChange[],
@@ -289,7 +365,11 @@ export function checkAddressChange(
   | { readonly ok: true; readonly oldKey: string; readonly same: StoredAddressChange | null }
   | { readonly ok: false; readonly refusal: AddressChangeRefusal } {
   const { oldAddress, newAddress } = candidate;
-  if (!isAddress(oldAddress) || oldAddress.trim().length > ADDRESS_CHANGE_MAX) {
+  if (
+    !isAddress(oldAddress) ||
+    oldAddress.trim().length > ADDRESS_CHANGE_MAX ||
+    addressKey(oldAddress).length > ADDRESS_CHANGE_MAX
+  ) {
     return { ok: false, refusal: notAnAddress('oldAddress', oldAddress) };
   }
   if (!isAddress(newAddress) || newAddress.trim().length > ADDRESS_CHANGE_MAX) {
@@ -311,6 +391,9 @@ export function checkAddressChange(
   if (onward) return { ok: false, refusal: chainedOnward(onward) };
   const back = others.find((r) => addressKey(r.newAddress) === oldKey);
   if (back) return { ok: false, refusal: chainedBack(back, newAddress) };
+  if (replacing === undefined && table.length >= ADDRESS_CHANGE_ROWS_MAX) {
+    return { ok: false, refusal: tooManyAddressChanges() };
+  }
   return { ok: true, oldKey, same: null };
 }
 
@@ -351,6 +434,9 @@ export function parseAddressChangesFile(text: string, file: string = ADDRESS_CHA
   if (extra.length > 0) return fail(`it has a field this file does not take: "${extra[0]}".`);
   const changes = (parsed as { changes?: unknown }).changes;
   if (!Array.isArray(changes)) return fail('"changes" must be a list.');
+  if (changes.length > ADDRESS_CHANGE_ROWS_MAX) {
+    return fail(`it lists ${changes.length} changes, and a table holds at most ${ADDRESS_CHANGE_ROWS_MAX}.`);
+  }
 
   const rows: StoredAddressChange[] = [];
   changes.forEach((entry: unknown, i) => {

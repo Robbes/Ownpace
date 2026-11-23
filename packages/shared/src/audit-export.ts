@@ -74,6 +74,14 @@ export const AUDIT_DETAIL_FIELDS = {
   memberId: 'keep',
   userId: 'keep',
   naturalKeyHash: 'keep',
+  // A row of the table of address changes, by reference (ADR-0055; 0168 §5):
+  // its old key as this export's own pseudonym, made when the event was
+  // recorded, so the row is never named by its address, in the database or
+  // here. Kept as it is: it is a pseudonym already, so a line and the row it
+  // came from carry the same reference.
+  addressChange: 'keep',
+  // The person an address change is for, on managed: their id, naming nobody.
+  personId: 'keep',
   // Counts, codes and states.
   refused: 'keep',
   kind: 'keep',

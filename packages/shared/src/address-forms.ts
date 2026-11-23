@@ -32,12 +32,20 @@
 const GMAIL = 'gmail.com';
 const GOOGLEMAIL = 'googlemail.com';
 
+/**
+ * What no address holds: white space, a control character (NUL among them,
+ * which Postgres refuses to store, 22021) and half of a surrogate pair, which
+ * no encoding of an address can carry. A value with one is not an address, so
+ * it is refused as one before anything stores it (0168's review, finding 3).
+ */
+const NOT_IN_AN_ADDRESS = /[\s\p{Cc}\p{Cs}]/u;
+
 /** The local part and domain of an address, lower case, or null when it is not one. */
 function partsOf(address: string): { readonly name: string; readonly domain: string } | null {
   const parts = address.trim().toLowerCase().split('@');
   if (parts.length !== 2) return null;
   const [name, domain] = parts as [string, string];
-  if (name === '' || domain === '' || /\s/.test(name + domain)) return null;
+  if (name === '' || domain === '' || NOT_IN_AN_ADDRESS.test(name + domain)) return null;
   return { name, domain };
 }
 
@@ -50,8 +58,8 @@ function folded(name: string, domain: string): { readonly name: string; readonly
 
 /**
  * Is this value an address the key can be taken of? One `@`, a local part and
- * a domain, no white space, and for Gmail a local part that is not empty once
- * folded (`+x@gmail.com` names nobody).
+ * a domain, no white space or control character, and for Gmail a local part
+ * that is not empty once folded (`+x@gmail.com` names nobody).
  */
 export function isAddress(address: string): boolean {
   const p = partsOf(address);

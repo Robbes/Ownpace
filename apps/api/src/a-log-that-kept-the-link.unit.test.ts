@@ -342,6 +342,26 @@ describe('through the API itself', () => {
     for (const line of lines) expect(line).not.toContain(MARK);
   }, 60_000);
 
+  // 0168's review, finding 2: a row of the table of address changes is named
+  // by its old address, and confirming one wrote that address into the log.
+  it('writes no address of an address change, in any line, whatever the case of its route', async () => {
+    const { default: app } = await import('./index.ts');
+    const key = `${MARK}%40example.org`;
+    await request(app).put(`/api/address-changes/${key}`).send({ state: 'confirmed' });
+    await request(app).delete(`/API/Address-Changes/${key}`);
+    const broken = await request(app).delete(`/api/address-changes/${key}%ZZ`);
+    expect(broken.status).toBe(400);
+
+    const access = await accessLines(3);
+    expect(access[0]).toContain('"PUT /api/address-changes/:key HTTP/1.1" 401');
+    expect(access[1]).toContain('"DELETE /API/Address-Changes/:key HTTP/1.1" 401');
+    expect(access[2]).toContain('"DELETE /api/address-changes/:key HTTP/1.1" 400');
+    expect(lines.filter((l) => l.includes('could not decode'))).toEqual([
+      '[api] DELETE /api/address-changes/:key: a path the router could not decode, answered 400',
+    ]);
+    for (const line of lines) expect(line).not.toContain(MARK);
+  }, 60_000);
+
   it('writes no link for a request with an absolute target, in any case', async () => {
     const { default: app } = await import('./index.ts');
     const server = app.listen(0);

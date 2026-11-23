@@ -83,24 +83,56 @@ export async function hasPerson(db: PgDatabase, tenantId: string, personId: stri
   return rows.length > 0;
 }
 
-/** Link a row to a person, or unlink it with null. Saying it again changes nothing. */
+/**
+ * The old keys of the rows that are the asker's own: linked to the person
+ * who is their member (`person.user_id`, managed 0061). A member who is not
+ * an owner or an admin reads only these, and confirms or sends back only
+ * these (0168 §4.4; the review's finding 1). Empty for a member who is
+ * nobody's person, and for no sign-in at all.
+ */
+export async function ownAddressChangeKeys(
+  db: PgDatabase,
+  tenantId: string,
+  userId: string | undefined,
+): Promise<Set<string>> {
+  if (!userId) return new Set();
+  const rows = rowsOf(
+    await db.execute(sql`
+      SELECT l.old_key
+        FROM address_change_person l
+        JOIN person p ON p.id = l.person_id AND p.tenant_id = l.tenant_id
+       WHERE l.tenant_id = ${tenantId}::uuid AND p.user_id = ${userId}`),
+  );
+  return new Set(rows.map((r) => String(r.old_key)));
+}
+
+/**
+ * Link a row to a person, or unlink it with null. Saying it again changes
+ * nothing. Answers whether the link moved, for the write's audit record.
+ */
 export async function linkAddressChangePerson(
   db: PgDatabase,
   tenantId: string,
   oldKey: string,
   personId: string | null,
-): Promise<void> {
+): Promise<boolean> {
   if (personId === null) {
-    await db.execute(
-      sql`DELETE FROM address_change_person WHERE tenant_id = ${tenantId}::uuid AND old_key = ${oldKey}`,
+    const gone = rowsOf(
+      await db.execute(
+        sql`DELETE FROM address_change_person WHERE tenant_id = ${tenantId}::uuid AND old_key = ${oldKey} RETURNING old_key`,
+      ),
     );
-    return;
+    return gone.length > 0;
   }
-  await db.execute(sql`
-    INSERT INTO address_change_person (tenant_id, old_key, person_id)
-    VALUES (${tenantId}::uuid, ${oldKey}, ${personId}::uuid)
-    ON CONFLICT (tenant_id, old_key) DO UPDATE SET person_id = EXCLUDED.person_id, linked_at = now()
-     WHERE address_change_person.person_id IS DISTINCT FROM EXCLUDED.person_id`);
+  const linked = rowsOf(
+    await db.execute(sql`
+      INSERT INTO address_change_person (tenant_id, old_key, person_id)
+      VALUES (${tenantId}::uuid, ${oldKey}, ${personId}::uuid)
+      ON CONFLICT (tenant_id, old_key) DO UPDATE SET person_id = EXCLUDED.person_id, linked_at = now()
+       WHERE address_change_person.person_id IS DISTINCT FROM EXCLUDED.person_id
+      RETURNING old_key`),
+  );
+  return linked.length > 0;
 }
 
 /**
