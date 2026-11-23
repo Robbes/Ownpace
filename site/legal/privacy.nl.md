@@ -7,8 +7,10 @@
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
   Still 1.0, edited in place again on 2026-11-23 (the owner, 2026-11-22, of workplan 0168's D8:
-  "1.0 ok"): §4.6 gains De adressen die veranderen, and §9 a row for them. privacy.md's briefing
-  has what changed and why.
+  "1.0 ok"): §4.6 gains De adressen die veranderen, with who changed each and that this stays
+  in the audit log by reference; §9 a row for them; and §7's line on progress links says a
+  person's link also shows the new address set up for them. privacy.md's briefing has what
+  changed and why.
   Still 1.0, edited in place on 2026-11-22 (the owner: "Option A, but keep the policy on 1.0,
   since no tester has yet accepted it"): §9's Serverlogs row has the background tasks follow
   the app's rule. privacy.md's briefing has what changed, why, and what was read again. The
@@ -418,7 +420,10 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
   uzelf of voor iemand die met u mee overstapt, dan bewaren we beide adressen, van wie het adres
   is, wie de wijziging toevoegde, wie die bevestigde en wie die toepaste op kopieën die al waren
   gemaakt. We gebruiken ze alleen om die adressen te corrigeren in de contacten, agenda's, taken en
-  delingen die we voor uw organisatie kopiëren. Uw e-mail wordt nooit gewijzigd.
+  delingen die we voor uw organisatie kopiëren. Uw e-mail wordt nooit gewijzigd. Wie elke wijziging
+  toevoegde, bevestigde, terugstuurde of verwijderde, en wanneer, blijft in het auditlog staan onder
+  een verwijzing die niet het adres is, ook nadat u de wijziging verwijdert, tot uw gegevens worden
+  gewist.
 - **Mensen die een link melden** die ze kregen: zie §4.5.
 - **Correspondenten, en iedereen verder in uw e-mail, contacten en agenda's**: alleen wat §4.2
   per item bewaart. Hun naam of adres kan daar staan in een onderwerpregel, als naam van een
@@ -583,7 +588,9 @@ gebracht, dus Mollie ontvangt niets over u.
 
 **Binnen uw organisatie** is wat de dienst bewaart zichtbaar voor de eigenaar en de beheerders;
 de Voorwaarden voor de Alpha vragen u niemand uit te nodigen (§8 daar). Een voortgangslink toont
-wie hem heeft de aantallen en statussen van één migratie, nooit de inhoud.
+wie hem heeft de aantallen en statussen van één migratie, nooit de inhoud. De voortgangslink van een
+persoon toont ook het nieuwe adres dat voor die persoon is ingesteld en of het is bevestigd, nooit
+het oude, zodat die kan zeggen of het klopt.
 
 **De bron en het doel van uw migratie zijn geen subverwerkers van ons** — dat zijn uw eigen
 accounts, en uw relatie met die aanbieders is de uwe.

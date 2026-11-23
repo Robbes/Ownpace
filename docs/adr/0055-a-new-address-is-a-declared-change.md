@@ -1,6 +1,6 @@
 # ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail
 
-- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; nothing is built yet (0168 T1–T8).
+- **Status:** **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it, with its decisions D1–D10 as recommended; built 2026-11-23 (0168 T1–T9, #2067), and amended that day by the landing's review: a copy records the digest of the rows that decided it, a rewrite needs a strong recorded version, and the press names the table it was shown (decisions 3 to 6).
 - **Date:** 2026-11-22
 - **Deciders:** owner
 - **Relates to:** [ADR-0005](./0005-idempotency-ledger-nondestructive.md) (re-runs converge),
@@ -14,21 +14,26 @@
 
 ## Operative rules
 
-- **Built in the engine, not yet shown** (workplan 0168 T1, T3–T6; T7, T8 open). A copy changes only
-  once the organisation's table holds a confirmed row; with none, every byte is the source's.
+- **Built** (workplan 0168 T1–T9). A copy changes only once the organisation's table holds a
+  confirmed row; with none, every byte is the source's.
 - **One table per organisation**, `address_change`, in the shared chain under forced row security.
-  Only rows a person **confirmed** reach a writer; the machine proposes, never confirms. An admin
-  may confirm for a person, attributed; the person can undo it (0168 D6).
+  Only an owner or an admin writes it, and only rows a person **confirmed** reach a writer; the
+  machine never confirms. An admin may confirm for a person, attributed; the person confirms or
+  sends back their own row, on their page or through their links (0168 D6).
 - **A pure function of source bytes and table** (`applyAddressChanges`), applied before
   `repairPayload` and `neutraliseScheduling`. An empty table is the identity, byte for byte.
 - **Changed:** a vCard `EMAIL` gains the new address first and preferred, the old kept (D2); an old
   `ORGANIZER` is replaced; an `ATTENDEE` only where the organiser is in the table or is the person (D3).
-- **Never changed:** mail, in any byte (D1); free text (D4); display names; UIDs; an outside
-  organiser's invitation.
-- **Declared, never silent:** each item records `item.address_digest`; verification and the
-  confirmed list count and name it; an older digest is never a match.
-- **A changed table converges** by the ordinary rewrite (adopted left alone, `If-Match`, tombstones
-  kept); past a data type's cutover only on a person's press (D5). Silence (ADR-0043) holds.
+- **Never changed:** mail, in any byte (D1); free text (D4); display names; UIDs; a card inside a
+  card; an outside organiser's invitation.
+- **Declared, never silent:** each item records the digest of the rows that decided it
+  (`item.address_digest`); verification and the confirmed list count and name it; an older digest,
+  or a change a copy still waits for (`item.address_digest_due`), is never a match. Every write of
+  the table is audited by reference, never by address.
+- **A changed table converges** by a rewrite that needs a strong recorded version, sent as
+  `If-Match` (without one the copy is left and counted); adopted copies stay, tombstones stay, a
+  copy deleted on the target is never made again. Past a data type's cutover only on a person's
+  press, for the table they were shown (D5). Silence (ADR-0043) holds.
 - **Shares:** a confirmed row is ADR-0032 §6's confirmation; each press still sends its address.
   Support shows counts only (D7); erasure purges both tables (`PURGED_TABLES`).
 
@@ -61,7 +66,8 @@ break.
    for byte.
 3. **What it changes:**
    - a vCard `EMAIL` that is an old address gains the new one, first and preferred, and the old line
-     is kept;
+     is kept (a card that already lists the new address prefers that line where it is, and the
+     added line carries no `PID`, `ALTID` or `PROP-ID`);
    - an `ORGANIZER` that is an old address is replaced;
    - an `ATTENDEE` is replaced only in events whose organiser is in the table or is the person.
 4. **What it never changes:**
@@ -69,16 +75,21 @@ break.
    - free text (`SUMMARY`, `DESCRIPTION`, `LOCATION`, `NOTE`);
    - display names;
    - UIDs;
+   - a card inside a card;
    - an outside organiser's invitation.
-5. **It is declared, never silent.** Each item records the table digest it was written under
-   (`item.address_digest`). Verification and the confirmed list count changed items and name the
-   digest, and an item under an older digest is never reported as a match.
+5. **It is declared, never silent.** Each item records the digest of the confirmed rows that
+   decided its bytes (`item.address_digest`), and a pass that did not write it records the digest
+   it should carry (`item.address_digest_due`). Verification and the confirmed list count changed
+   items and name the digest, an item a change still waits for is never reported as a match, and
+   a sample in which every item waits holds the cutover.
 6. **A changed table converges** through the ordinary rewrite, with every rule a rewrite keeps:
    - an adopted item is left alone;
-   - the write carries `If-Match`;
-   - a tombstoned item stays tombstoned.
+   - the write carries `If-Match` with a strong recorded version, and without one the item is left
+     as it is and counted;
+   - a tombstoned item stays tombstoned, and an item deleted on the target is never made again.
 
-   After a data type's cutover, it waits for a person's press (workplan 0168 D5).
+   After a data type's cutover, it waits for a person's press, which names the table the page
+   showed (workplan 0168 D5).
 7. **Shares:** a confirmed row counts as ADR-0032 §6's confirmation of a grantee's address. Each
    press still sends its address. Nothing else in ADR-0032 changes.
 8. **Silence holds:** ADR-0043's rule is unchanged, and the managed gate proves it on a changed

@@ -18,7 +18,12 @@
   that are copied; mail is never changed), and §9 a row for them (until the change is deleted or
   the data is erased; deleting a person does not delete it). The review of 2026-11-23 found the
   first draft of these lines named only who confirmed a change, and no tasks; they now name
-  everything the change keeps and everything it reaches. The Last updated line moved to
+  everything the change keeps and everything it reaches. Two more lines came with the review's
+  fixes: §4.6 says who added, confirmed, sent back or deleted a change stays in the audit log
+  under a reference that is not the address, also after the change is deleted, until the data is
+  erased (every write of the table is recorded so, the address never); and §7's line on progress
+  links says a person's progress link also shows the new address set up for them, so they can say
+  whether it is right (their old address is not on it). The Last updated line moved to
   2026-11-23. The Dutch is for the owner's check.
 
   Still 1.0, edited in place on 2026-11-22, on the owner's decision, in both languages. The
@@ -1097,7 +1102,9 @@ A migration touches people who never signed up with us. This is what we hold abo
   someone moving with you, we keep both addresses, whose address it is, who added the change, who
   confirmed it, and who applied it to copies already made. We use them only to correct those
   addresses in the contacts, calendars, tasks and shares we copy for your organisation. Your mail
-  is never changed.
+  is never changed. Who added, confirmed, sent back or deleted each change, and when, stays in the
+  audit log under a reference that is not the address, also after you delete the change, until
+  your data is erased.
 - **People who report a link** they were sent: see §4.5.
 - **Correspondents, and everyone else in your mail, contacts and calendars**: only what §4.2
   keeps about each item. Their name or address can appear there in a subject, as a contact's
@@ -1257,7 +1264,9 @@ number.** During the Alpha nothing is charged, so Mollie receives nothing about 
 
 **Inside your organisation**, what the service holds is visible to its owner and its admins;
 the Alpha conditions ask you to invite nobody (§8 there). A progress link shows whoever holds it
-the counts and states of one migration, never its content.
+the counts and states of one migration, never its content. A person's progress link also shows the
+new address set up for that person and whether it is confirmed, never the old one, so that they
+can say whether it is right.
 
 **Your migration's source and target providers are not our sub-processors** — they are your
 own accounts, and your relationship with them is yours.

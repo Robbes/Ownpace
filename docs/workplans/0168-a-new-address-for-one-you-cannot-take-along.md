@@ -2,7 +2,97 @@
 
 > **In one line:** A declared table of address changes (old to new), shared by every migration of one family or team, applied to contacts' `EMAIL`, calendar `ORGANIZER`/`ATTENDEE` and share grantees, never to mail bytes or free text. The plan covers its step in *Start a migration* and the proposed ADR-0055.
 
-## Status — 2026-11-22 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23: landed whole, in one pull request (#2067), with the review's fixes; the Dutch waits
+for the owner's check.** The seven branches of 2026-11-22 (T1–T9) were merged onto alpha.16's C
+and reviewed by three readers at once: the engine's data path; the table, its routes and their
+security; the screens and the contracts between the parts. Their findings, and a second reading
+of the link door, were fixed before anything reached a tester:
+
+- **The table.** Only an owner or an admin writes it; a member confirms or sends back their own
+  row and reads only their own rows (§4.4; during the alpha every member is an owner or an admin,
+  so this narrows only legacy roles). Every write is in `audit_log`, the row by its pseudonym
+  under the deployment's key, never by address. Both access logs write `:key` for the old address.
+  A table holds at most 300 rows. A value with a control character, or a key longer than the
+  column, is refused in both languages instead of answering 500. The races are tested on Postgres,
+  and the erasure with rows in both tables.
+- **The appliance.** One table for every tenant: at start-up every tenant's table is made equal
+  to the first that holds a row, and a removed `address-changes.json`'s rows are deleted.
+- **The link door (§4.4), built.** A person who has only links sees their own rows on their grant
+  and progress pages and confirms them or sends them back (`PUT
+  /api/{grant|view}/{link}/address-changes/{ref}`). A row is named there by an opaque reference,
+  never by the old address; an answer to an address that changed since the page was opened is
+  refused; each answer that changed the row is in the audit log under the door's link holder.
+  The person's own confirmation is stored as `person:<id>` and said as their name.
+- **The engine.** A card nested inside a card keeps every byte, and the line a card gains names no
+  `PID`, `ALTID` or `PROP-ID`. A copy records the digest of the rows that decided it, not the
+  table's, so a row added for one person rewrites only that person's copies. A copy a change waits
+  for is never a match: ledger `0074` records the digest a copy is due
+  (`item.address_digest_due`); the confirmed list counts it as older, and verification holds the
+  switch when every sampled item waits (`ADDRESS_NOT_COMPARED`). A rewrite needs a strong recorded
+  version, sent as `If-Match`; without one the copy is left and counted (`addressChangesUnguarded`),
+  and a copy the person deleted on the new system is never made again. A change to the table
+  reaches the copies of a source that lists only what changed: every cursor is stored with the
+  table it was read under. Both editions carry the pass's address counts in `lastPass`, and *Apply
+  the new addresses here too* shows where copies wait, in both editions, and must name the table
+  the page showed (400 without it, 409 when it moved).
+- **The screens.** *Your new address* writes its rows when *Start* is pressed, never on *Next*; a
+  refused row stops the start and is said; a row the flow wrote is deleted only on a *No*. A row
+  that waits for a confirmation says so and changes nothing until then. The confirmed list counts
+  the address changes and marks only a verified row; its CSV gains an `address` column. The team
+  screen links a row to a person; the appliance offers no *Not right?* and no person.
+- **The words.** The privacy policy's §4.6 says who added, confirmed, sent back or deleted a change
+  stays in the audit log by reference, and §7 that a person's progress link also shows the new
+  address set up for them and whether it is confirmed, never the old one. Still version 1.0,
+  edited in place, on the owner's word of 2026-11-22 (D8: *"1.0 ok"*), and both pins moved with
+  it.
+
+Proven:
+
+- **E2E (managed)** on the landing before these fixes (run #507): the confirmed rows' card carries
+  the target account's own address first and preferred (`TYPE=pref` on the server's vCard 3.0)
+  and keeps the old one; the event's organiser is the new address with `SCHEDULE-AGENT=CLIENT`,
+  its outside attendee and description unchanged; the row deleted, the next pass put both copies
+  back as the source has them; the seeded message hashes on the target exactly as on the source,
+  one copy; and nothing reached the mail catcher. **E2E (self-hosted)** on PostgreSQL (#429) and
+  PGlite (#430): the file door's gate on both backends. All three again on the head that merged;
+  the pull request names those runs.
+- The unit tier, the type checks, lint and the docs checks on that head; the Postgres race tests
+  through `scripts/local-pg.sh`; each fix with a test that fails without it.
+
+**Not in this landing** (follow-ups):
+
+- `NOT_TAKEN_ALONG` holds Google's two domains only. Microsoft's, Apple's, Yahoo's and the
+  internet providers' each need a source this build could not read. Until then a person declares
+  such an address by ticking *I am also changing my address*, as the Microsoft guide says.
+- A member's team screen shows the organisation's table, but a legacy `member` or `viewer` now
+  reads only their own rows there, and their *Start* with a new address is refused; nobody is
+  granted those roles during the alpha.
+- The team screen tells a person's own confirmation from an admin's by name; an API flag would be
+  exact when two people share one name.
+- A database fault logs the driver's whole error, parameters included (`server-fault.ts`), on
+  every route; the fix belongs in `loggableError`.
+- `SENT-BY`, `DELEGATED-FROM`/`-TO` and `MEMBER` keep their old addresses while `ORGANIZER` and
+  `ATTENDEE` change (D3 names only those two): the owner's call.
+- **Where the build differs from §3 and D2 above:** a copy records the digest of the rows that
+  decided its bytes, not the table's, with `item.address_digest_due` beside it (§3.1); a rewrite
+  needs a strong recorded version, and a copy deleted on the target is counted as gone (§3.3); the
+  press names the table the page showed and only reaches copies with a strong version (§3.4); DAV
+  and Graph cursors carry the table's tag (§3.5); a card that already lists the new address
+  prefers that line where it is (D2). ADR-0055 says each.
+- Found on the way, outside this landing's fixes:
+  - a rewrite of a file that is gone throws and its retry takes the create path
+    (`jmap-file-target.ts`), and so does a failed rewrite of a source change (`domain-sync.ts`);
+  - `record-version` bumps `last_synced_at`, which the usage meter reads as a copy again;
+  - a 412 on a copy deleted on a DAV target reads as an edit, so it is counted as adopted;
+  - past a cutover, a copy whose source changed and whose digest moved is counted as waiting for
+    the press, which never rewrites it;
+  - a change to the account's own addresses changes no copy's digest, so it rewrites nothing;
+  - copies with no version to guard a rewrite are still called waiting for the next pass in the
+    confirmed list's reading, Verify and §20's words;
+  - the appliance's apply 404 carries a code and no sentence.
+
 
 **2026-11-22: T9 drafted by a builder, for the owner's check.** The privacy policy gains the §4.6
 item of §5, word for word in English, and a §9 row beside *"What belongs to your organisation
@@ -152,15 +242,15 @@ What is proven: nothing runs. The docs checks pass (the PR that opens this plan 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The owner's decisions and ADR-0055 | owner | ✅ **Done 2026-11-22** | §9: D1–D10 answered as recommended on 2026-11-22 (D7 after rewording). ADR-0055 accepted the same day. |
-| T1 Address forms and the list of addresses nobody can take along | builder | 🔄 **Built 2026-11-22, in review** | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moved there, no behaviour change. The list holds Google's two domains; the rest wait for their sources to be read (Status). |
-| T2 The table of address changes | builder | 🟡 **Built, in review** | §4, §5. `address_change` (ledger 0071), `item.address_digest` (0072), `address_change_person` (managed 0063), routes in both editions, `PURGED_TABLES`, Support's counts. Status 2026-11-22. |
-| T3 The change itself, as a pure function | builder | 🔄 **Built 2026-11-22, in review** | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests; mail-path guard. |
-| T4 The writers apply it, and a changed table converges | builder | 🔄 **Built 2026-11-22, in review** | §3. CardDAV, JMAP contacts and CalDAV writers; `item.address_digest`; `classifyKnownItem`. |
-| T5 Verification and the confirmed list say what was changed | builder | 🔄 **Built 2026-11-22, in review** | §3.1. A declared change, never a silent difference. |
-| T6 The Sharing checklist reads the table | builder | 🔄 **Built 2026-11-22 (backend and its screen), in review** | §2.4. Pre-fills the grantee; each press still sends its address. |
-| T7 The screens | builder | 🔨 **Built 2026-11-22, not run against a server** | §6. *Start a migration*'s step, the person's page, the organisation's table, the migration page, the confirmed list, the Sharing checklist, the grant and progress pages. Unit tests and the UI smoke at phone width; three shapes written ahead of their routes (Status). The Dutch waits for the owner. |
-| T8 The E2E lane proves it | builder | 🟡 **Written, not run** | §8. The managed gate and the appliance's e2e: bytes changed where declared, mail byte-identical, no mail sent. |
-| T9 Words outside the app | owner | ⏳ **Drafted by a builder, waiting for the owner's check** | §5, §7. The privacy policy (D8), the customer guides, Finish step 4. Drafted 2026-11-22; the policy's version is the owner's to decide. |
+| T1 Address forms and the list of addresses nobody can take along | builder | ✅ **Done 2026-11-23** (#2067) | §6.1. `packages/shared/src/address-forms.ts`; `googleAccountKey` moved there, no behaviour change. The list holds Google's two domains; the rest wait for their sources to be read (Status). |
+| T2 The table of address changes | builder | ✅ **Done 2026-11-23** (#2067) | §4, §5. `address_change` (ledger 0071), `item.address_digest` (0072), `address_change_person` (managed 0063), routes in both editions, `PURGED_TABLES`, Support's counts. Status 2026-11-22. |
+| T3 The change itself, as a pure function | builder | ✅ **Done 2026-11-23** (#2067) | §2. `applyAddressChanges` for vCard and iCalendar; identity on an empty table; property tests; mail-path guard. |
+| T4 The writers apply it, and a changed table converges | builder | ✅ **Done 2026-11-23** (#2067) | §3. CardDAV, JMAP contacts and CalDAV writers; `item.address_digest`; `classifyKnownItem`. |
+| T5 Verification and the confirmed list say what was changed | builder | ✅ **Done 2026-11-23** (#2067) | §3.1. A declared change, never a silent difference. |
+| T6 The Sharing checklist reads the table | builder | ✅ **Done 2026-11-23** (#2067) | §2.4. Pre-fills the grantee; each press still sends its address. |
+| T7 The screens | builder | ✅ **Done 2026-11-23** (#2067); the Dutch waits for the owner's check | §6. *Start a migration*'s step, the person's page, the organisation's table, the migration page, the confirmed list, the Sharing checklist, the grant and progress pages. Unit tests and the UI smoke at phone width; every shape served by its route since the landing, the link door's included (Status 2026-11-23). |
+| T8 The E2E lane proves it | builder | ✅ **Done 2026-11-23** (#2067) | §8. The managed gate and the appliance's e2e: bytes changed where declared, mail byte-identical, no mail sent. |
+| T9 Words outside the app | owner | 🔄 **Landed 2026-11-23** (#2067); the policy stays 1.0 (D8, *"1.0 ok"*); the Dutch waits for the owner's check | §5, §7. The privacy policy (D8), the customer guides, Finish step 4. Drafted 2026-11-22; landed 2026-11-23 under 1.0 on the owner's word. |
 
 ## 1. The situations
 
