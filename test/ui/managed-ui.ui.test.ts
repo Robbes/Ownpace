@@ -1537,9 +1537,13 @@ describe('signed in by somebody who has not accepted the texts yet', () => {
  *
  *  - a grant link: who asks, who asked, the account it reads and where it
  *    goes, the Google button, the line about a chat app's own browser, and the
- *    privacy policy and terms in the reader's language;
+ *    privacy policy and terms in the reader's language, and below them the
+ *    accessibility statement (0145 T9 (b));
  *  - a progress link: where each data type is, and no control but its own
  *    withdrawal and *Report this link*: no field, and no link into the app.
+ *    Its only links leave for the site: the privacy policy and the
+ *    accessibility statement (the owner, 2026-11-23), under the page's
+ *    `Referrer-Policy: no-referrer`, so the link's secret goes nowhere.
  *
  * Each also holds that the page raised nothing in the browser and broke no
  * policy (`open` turns a violation into a console error), and asked the API
@@ -1590,6 +1594,21 @@ describe('the grant and progress links, opened by the person they were sent to (
       ['Servicevoorwaarden', 'https://www.ownpace.eu/nl/voorwaarden.html'],
     ],
   };
+  /** The accessibility statement, at the foot of both pages (0145 T9 (b)). */
+  const STATEMENT: Readonly<Record<Locale, readonly [string, string]>> = {
+    en: ['Accessibility', 'https://www.ownpace.eu/accessibility.html'], // accessibility.link
+    nl: ['Toegankelijkheid', 'https://www.ownpace.eu/nl/toegankelijkheid.html'],
+  };
+  /** A grant page: the texts a person accepts, then the statement on a line of its own. */
+  const GRANT_LINKS: Readonly<Record<Locale, ReadonlyArray<readonly [string, string]>>> = {
+    en: [...LEGAL.en, STATEMENT.en],
+    nl: [...LEGAL.nl, STATEMENT.nl],
+  };
+  /** A progress page, on the managed service: the privacy policy, then the statement. */
+  const PROGRESS_LINKS: Readonly<Record<Locale, ReadonlyArray<readonly [string, string]>>> = {
+    en: [LEGAL.en[0]!, STATEMENT.en],
+    nl: [LEGAL.nl[0]!, STATEMENT.nl],
+  };
   /** The language switch both pages carry, as `Layout` does (0145 T6). */
   const SWITCH = ['EN', 'NL'] as const;
 
@@ -1636,7 +1655,7 @@ describe('the grant and progress links, opened by the person they were sent to (
         en: [...SWITCH, 'Report this link', 'Continue with Google'], // linkReport.open, grant.connect
         nl: [...SWITCH, 'Deze link melden', 'Doorgaan met Google'],
       },
-      links: LEGAL,
+      links: GRANT_LINKS,
       rows: { en: [], nl: [] },
     },
     {
@@ -1671,7 +1690,7 @@ describe('the grant and progress links, opened by the person they were sent to (
         en: [...SWITCH, 'Report this link', 'Continue with Google as anna@example.com'], // grant.person.connect
         nl: [...SWITCH, 'Deze link melden', 'Doorgaan met Google als anna@example.com'],
       },
-      links: LEGAL,
+      links: GRANT_LINKS,
       rows: { en: [], nl: [] },
     },
     {
@@ -1698,7 +1717,7 @@ describe('the grant and progress links, opened by the person they were sent to (
         en: [...SWITCH, 'Withdraw access', 'Report this link'], // view.grant.withdraw
         nl: [...SWITCH, 'Toegang intrekken', 'Deze link melden'],
       },
-      links: { en: [], nl: [] },
+      links: PROGRESS_LINKS,
       rows: {
         en: [
           ['email', 'Email', 'Copying', '4,211 of ~5,000'], // domain.email, state.stage.copying
@@ -1742,7 +1761,7 @@ describe('the grant and progress links, opened by the person they were sent to (
         en: [...SWITCH, 'Withdraw access', 'Report this link'],
         nl: [...SWITCH, 'Toegang intrekken', 'Deze link melden'],
       },
-      links: { en: [], nl: [] },
+      links: PROGRESS_LINKS,
       rows: {
         en: [['email', 'Email', 'Copying', '4,211 of ~5,000']],
         nl: [['email', 'E-mail', 'Wordt gemigreerd', '4.211 van ~5.000']],

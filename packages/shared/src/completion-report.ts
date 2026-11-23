@@ -96,8 +96,10 @@ export interface CompletionSharingSummary {
  * found should reach them (`older`): for the next pass, or, past the data
  * type's cutover, for somebody to press *Apply the new addresses here too*
  * (`waitsFor`, D5), save those with no version to guard the write, which are
- * left as they are (`unguarded`, S1). Counts only: the report narrates counts,
- * never the addresses (§17).
+ * left as they are (`unguarded`, S1), and those whose source changed after the
+ * switch, which no press rewrites (`left`; ADR-0055 decision 6, the owner's (b)
+ * of 2026-11-23). Counts only: the report narrates counts, never the addresses
+ * (§17).
  */
 export interface CompletionAddressChanges {
   readonly rows: number;
@@ -108,6 +110,8 @@ export interface CompletionAddressChanges {
     readonly older: number;
     /** Of `older`, those with no version to guard the write. Absent reads as none. */
     readonly unguarded?: number;
+    /** Of `older`, those left because their source changed after the switch. Absent reads as none. */
+    readonly left?: number;
     /** What the rest of `older` waits for. Absent reads as the next pass. */
     readonly waitsFor?: AddressChangeWaitsFor;
   }>;
@@ -139,7 +143,8 @@ export function addressChangesSaid(changes: CompletionAddressChanges): Completio
   for (const d of changes.byDomain) {
     const name = DATA_TYPE_SAID[d.domain];
     const unguarded = Math.min(d.unguarded ?? 0, d.older);
-    const waiting = d.older - unguarded;
+    const left = Math.min(d.left ?? 0, d.older - unguarded);
+    const waiting = d.older - unguarded - left;
     // Past the data type's cutover no pass makes the change: it waits for a
     // person's press (D5; the screens' review S4).
     const press = d.waitsFor === 'press';
@@ -151,7 +156,12 @@ export function addressChangesSaid(changes: CompletionAddressChanges): Completio
             (press ? 'for somebody to press Apply the new addresses here too.' : 'for the next pass.')
           : '') +
         (unguarded > 0
-          ? ` ${unguarded} ${unguarded === 1 ? 'was' : 'were'} not changed, with no version to guard the write.`
+          ? ` ${unguarded} ${unguarded === 1 ? 'keeps' : 'keep'} the old address, because the new system offers ` +
+            `no safe way to update ${unguarded === 1 ? 'it' : 'them'}.`
+          : '') +
+        (left > 0
+          ? ` ${left} ${left === 1 ? 'was' : 'were'} changed in your old account after the switch, and ` +
+            `${left === 1 ? 'is' : 'are'} not updated.`
           : ''),
       nl:
         `${name.nl}: ${d.changed} ${d.changed === 1 ? 'kopie heeft' : "kopieën hebben"} een nieuw adres.` +
@@ -160,7 +170,12 @@ export function addressChangesSaid(changes: CompletionAddressChanges): Completio
             (press ? 'tot iemand drukt op De nieuwe adressen hier ook toepassen.' : 'op de volgende ronde.')
           : '') +
         (unguarded > 0
-          ? ` ${unguarded} ${unguarded === 1 ? 'is' : 'zijn'} niet gewijzigd, zonder versie om het schrijven te bewaken.`
+          ? ` ${unguarded} ${unguarded === 1 ? 'houdt' : 'houden'} het oude adres, omdat het nieuwe systeem geen ` +
+            `veilige manier biedt om ${unguarded === 1 ? 'die' : 'ze'} bij te werken.`
+          : '') +
+        (left > 0
+          ? ` ${left} ${left === 1 ? 'is' : 'zijn'} na de overstap in uw oude account gewijzigd en ` +
+            `${left === 1 ? 'wordt' : 'worden'} niet bijgewerkt.`
           : ''),
     });
   }

@@ -50,6 +50,10 @@ export const en = {
   'start.address.not.invitations.label': 'Invitations from other people:',
   'start.address.not.invitations':
     'they keep the address they were sent to, so a reply still matches what the sender has.',
+  // The owner, 2026-11-23: "perhapse we need not change past-events we migrate" (ADR-0055).
+  'start.address.not.past.label': 'Events that are already over:',
+  'start.address.not.past':
+    'they keep the old address, as a record of what happened. So do tasks completed or cancelled before the migration starts; a task you finish later still gets the new address.',
   'start.address.not.text.label': 'Text:',
   'start.address.not.text': 'descriptions, notes and documents are never changed.',
   'start.address.others': 'Others moving with you?',
@@ -122,13 +126,20 @@ export const en = {
   // Copies an address change should reach with no version to guard the write
   // (workplan 0168 S1): left as they are, and said.
   'addresses.mapping.unguarded':
-    'Not changed: {count}, with no version to guard the write. An edit made on the new system could not be told apart from our copy, so they are left as they are.',
+    'Keep the old address: {count}. The new system offers no safe way to update them, so they are left as they are.',
+  // Changed at the old account after the switch: never rewritten, never
+  // waiting (the owner, 2026-11-23; ADR-0055 decision 6).
+  'addresses.mapping.left':
+    'Changed in your old account after the switch, not updated: {count}. Apply the new addresses here too leaves them as they are.',
   'addresses.mapping.applying': 'Applying…',
   'addresses.mapping.applied': 'The next pass applies the new addresses here.',
   // On a verified row only (B2); the account's counts beside the headline.
   'addresses.confirmedList.changed': 'Matches, with your new address',
   'addresses.confirmedList.changedCount': 'Copies with a new address: {count}',
   'addresses.confirmedList.olderCount': 'Copies from before the latest address change: {count}',
+  'addresses.confirmedList.unguardedCount':
+    'Keep the old address: {count}. The new system offers no safe way to update them.',
+  'addresses.confirmedList.leftCount': 'Changed in your old account after the switch, not updated: {count}',
   'addresses.sharing.fromTable': 'From your address changes',
   'addresses.grant.yours': 'Your new address: {new}. Is that right?',
   'addresses.grant.yes': 'Yes, that is right',
@@ -177,6 +188,9 @@ export const nl: Record<keyof typeof en, string> = {
   'start.address.not.invitations.label': 'Uitnodigingen van anderen:',
   'start.address.not.invitations':
     'die houden het adres waarnaar ze zijn gestuurd, zodat een antwoord nog klopt met wat de afzender heeft.',
+  'start.address.not.past.label': 'Afspraken die al voorbij zijn:',
+  'start.address.not.past':
+    'die houden het oude adres, als vastlegging van wat er is gebeurd. Dat geldt ook voor taken die zijn afgerond of geannuleerd voordat de migratie begint; een taak die u later afrondt, krijgt toch het nieuwe adres.',
   'start.address.not.text.label': 'Tekst:',
   'start.address.not.text': 'beschrijvingen, notities en documenten worden nooit gewijzigd.',
   'start.address.others': 'Gaan er anderen mee?',
@@ -239,12 +253,17 @@ export const nl: Record<keyof typeof en, string> = {
   'addresses.mapping.apply.line':
     'Na de overstap bereikt een wijziging in de adreswijzigingen deze migratie pas als iemand hierop drukt. Wachten hierop: {count}. Kopieën die iemand in het nieuwe systeem heeft bewerkt, blijven zoals ze zijn.',
   'addresses.mapping.unguarded':
-    'Niet gewijzigd: {count}, zonder versie om het schrijven te bewaken. Een bewerking in het nieuwe systeem is dan niet te onderscheiden van onze kopie, dus blijven ze zoals ze zijn.',
+    'Houden het oude adres: {count}. Het nieuwe systeem biedt geen veilige manier om ze bij te werken, dus blijven ze zoals ze zijn.',
+  'addresses.mapping.left':
+    'Na de overstap gewijzigd in uw oude account, niet bijgewerkt: {count}. De nieuwe adressen hier ook toepassen laat ze zoals ze zijn.',
   'addresses.mapping.applying': 'Bezig met toepassen…',
   'addresses.mapping.applied': 'De volgende ronde past de nieuwe adressen hier toe.',
   'addresses.confirmedList.changed': 'Klopt, met uw nieuwe adres',
   'addresses.confirmedList.changedCount': 'Kopieën met een nieuw adres: {count}',
   'addresses.confirmedList.olderCount': 'Kopieën van vóór de laatste adreswijziging: {count}',
+  'addresses.confirmedList.unguardedCount':
+    'Houden het oude adres: {count}. Het nieuwe systeem biedt geen veilige manier om ze bij te werken.',
+  'addresses.confirmedList.leftCount': 'Na de overstap gewijzigd in uw oude account, niet bijgewerkt: {count}',
   'addresses.sharing.fromTable': 'Uit uw adreswijzigingen',
   'addresses.grant.yours': 'Uw nieuwe adres: {new}. Klopt dat?',
   'addresses.grant.yes': 'Ja, dat klopt',

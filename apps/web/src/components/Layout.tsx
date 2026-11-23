@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText, Mail } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText, Mail, Accessibility } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { IMPLICIT_PERSON_ID } from '@openmig/shared';
@@ -25,6 +25,7 @@ import { useSignOut } from './SignOut.tsx';
 import { useLocale, useOperatorT } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import BuildStamp from './BuildStamp.tsx';
+import AccessibilityLink from './AccessibilityLink.tsx';
 import LanguageSwitch from './LanguageSwitch.tsx';
 import NextStepLink from './NextStepLink.tsx';
 import SiteMark from './SiteMark.tsx';
@@ -562,6 +563,12 @@ const Layout: React.FC = () => {
                 <span className="min-w-0 break-all">{t('help.sidebar', { address: helpAddress })}</span>
               </a>
             )}
+            {/* The site's accessibility statement (workplan 0145 T9 (b)): the
+                standard aimed for, the known gaps, and where to report a
+                barrier. In both editions: the appliance shows these screens. */}
+            <AccessibilityLink className="w-full flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+              <Accessibility className="w-5 h-5 mr-3 shrink-0" aria-hidden="true" />
+            </AccessibilityLink>
             {!selfHost && (
               <button
                 onClick={signOut}

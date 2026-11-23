@@ -798,25 +798,26 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0055: A new address is a declared change, applied to cards and calendars, never to mail](./0055-a-new-address-is-a-declared-change.md)
 
-- **Built** (workplan 0168 T1–T9). A copy changes only once the organisation's table holds a
-  confirmed row; with none, every byte is the source's.
+- **Built** (workplan 0168): only a confirmed row changes a copy.
 - **One table per organisation**, `address_change`, in the shared chain under forced row security.
-  Only an owner or an admin writes it, and only rows a person **confirmed** reach a writer; the
+  Only an owner or admin writes it, and only rows a person **confirmed** reach a writer; the
   machine never confirms. An admin may confirm for a person, attributed; the person confirms or
   sends back their own row, on their page or through their links (0168 D6).
-- **A pure function of source bytes and table** (`applyAddressChanges`), applied before
-  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, byte for byte.
+- **A pure function of source bytes, table and migration start** (`applyAddressChanges`), before
+  `repairPayload` and `neutraliseScheduling`. An empty table is the identity, as is an event or task
+  over at that start (`mailbox_mapping.created_at`).
 - **Changed:** a vCard `EMAIL` gains the new address first and preferred, the old kept (D2); an old
-  `ORGANIZER` is replaced; an `ATTENDEE` only where the organiser is in the table or is the person (D3).
+  `ORGANIZER` is replaced; an old `ATTENDEE`, `SENT-BY`, `DELEGATED-*` or `MEMBER` address only where
+  the organiser is in the table or is the person (D3).
 - **Never changed:** mail, in any byte (D1); free text (D4); display names; UIDs; a card inside a
   card; an outside organiser's invitation.
 - **Declared, never silent:** each item records the digest of the rows that decided it
-  (`item.address_digest`); verification and the confirmed list count and name it; an older digest,
-  or a change a copy still waits for (`item.address_digest_due`), is never a match. Every write of
-  the table is audited by reference, never by address.
+  (`item.address_digest`), counted and named by verification and the confirmed list; a change still
+  to come (`item.address_digest_due`) is never a match. A copy nothing will change (`unguarded`,
+  `left`) is checked as copied, said apart, and holds nothing. Writes are audited.
 - **A changed table converges** by a rewrite guarded by `If-Match` with a strong version, else
-  the copy is left and said as left. A copy deleted on the target is counted gone, never remade
-  (decision 6). Past a cutover only on a person's press, for the table they were shown (D5).
-  Silence (ADR-0043) holds.
+  the copy is left and said as left. A copy deleted on the target is never remade (decision 6).
+  Past a cutover only on a person's press, for the table shown (D5), never for a copy whose source
+  changed after it. Silence (ADR-0043) holds.
 - **Shares:** a confirmed row is ADR-0032 §6's confirmation; each press still sends its address.
   Support shows counts only (D7); erasure purges both tables (`PURGED_TABLES`).

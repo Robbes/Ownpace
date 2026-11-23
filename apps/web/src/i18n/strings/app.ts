@@ -13,6 +13,8 @@ export const en = {
   'fold.how': 'How?',
   'fold.more': 'More',
   'status.link': 'Service status',
+  // The site's accessibility statement (workplan 0145 T9 (b)), as the site's footer names it.
+  'accessibility.link': 'Accessibility',
   'notFound.heading': 'Nothing here... we carry on migrating quietly.',
   'notFound.lede':
     'No screen has that address; renamed or never there, your migrations are untouched.',
@@ -156,6 +158,7 @@ export const nl: Record<keyof typeof en, string> = {
   // Het woord op een uitklapbaar deel (workplan 0118) — zie het Engelse blok.
   'fold.more': 'Meer',
   'status.link': 'Servicestatus',
+  'accessibility.link': 'Toegankelijkheid',
   'notFound.heading': 'Hier staat niets... we migreren rustig aan verder.',
   'notFound.lede':
     'Geen pagina heeft dit adres (meer), uw migraties zijn ongemoeid.',

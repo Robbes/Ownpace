@@ -54,6 +54,19 @@ describe('CarddavSource', () => {
       expect(homeSet).toBe('/dav/addressbooks/user/test/');
     });
 
+    it('reads a body that opens the home set many times and never closes it in linear time (workplan 0163)', () => {
+      // `<p:name[^>]*>([\s\S]*?)<\/p:name>` scanned from every opening tag to the end:
+      // before the change this body took 22 seconds; the bound is far above a linear read.
+      const source = new CarddavSource(
+        { url: 'https://carddav.example.com/', username: 'test', passwordEnv: 'TEST_PASSWORD' },
+        { httpClient: createMockHttpClient({ status: 207, body: '', headers: {} }) },
+      );
+      const body = '<card:addressbook-home-set>'.repeat(60_000);
+      const started = performance.now();
+      expect((source as any).parseAddressBookHomeSetResponse(body)).toBeNull();
+      expect(performance.now() - started).toBeLessThan(1500);
+    });
+
     it('should parse address book collections from PROPFIND response', async () => {
       const propfindResponse: HttpResponse = {
         status: 207,
