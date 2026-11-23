@@ -3,26 +3,25 @@
 /**
  * ONE COUNT PER MIGRATION AT A TIME (2026-09-22).
  *
- * The API enqueues every preflight with `concurrencyKey: mappingId`
- * (`discoveryTriggerOptions`). A concurrency key only names a partition of the
- * task's queue; it is the queue's limit of ONE that makes a second count of the
- * same migration wait for the first instead of racing it. Without the limit,
- * every reload of the confirm screen ran another full count beside the first —
- * which is what the owner's first Microsoft preflight did.
+ * The API enqueues every preflight keyed by the migration
+ * (`discoveryTriggerOptions`'s `concurrencyKey: mappingId`). A key only names
+ * a partition; it is the queue's limit of ONE per key that makes a second
+ * count of the same migration wait for the first instead of racing it.
+ * Without it, every reload of the confirm screen ran another full count beside
+ * the first — which is what the owner's first Microsoft preflight did. Until
+ * alpha.18 that limit was Trigger.dev's queue (`concurrencyLimit: 1`); since
+ * then it is the pg-boss queue's (workplan 0167 T9): `singleton`, serialised by
+ * the migration's id.
  */
 
 import { describe, it, expect } from 'vitest';
-
-// The job module opens its pools at import (openTaskPools, which refuses
-// without either URL: app_user's and, for the audit key, the owner's); no
-// query is made here.
-process.env.APP_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
-process.env.SYSTEM_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
-
-const { discoveryQueue } = await import('./run-discovery.ts');
+import { JOB_CATALOG } from '@openmig/scheduler/pg-boss';
 
 describe('the discovery queue', () => {
-  it('runs one count per concurrency key', () => {
-    expect(discoveryQueue).toMatchObject({ name: 'run-discovery', concurrencyLimit: 1 });
+  it('runs one count per migration', () => {
+    expect(JOB_CATALOG.find((queue) => queue.name === 'run-discovery')).toMatchObject({
+      policy: 'singleton',
+      serializedBy: '<mappingId>',
+    });
   });
 });

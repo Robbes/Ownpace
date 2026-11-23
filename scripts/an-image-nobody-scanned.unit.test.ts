@@ -7,7 +7,7 @@
  * Security Scan ran Trivy with `scan-type: fs`, which reads the repository's
  * lockfiles and nothing else (0135 §1 said as much). So an operating system
  * past its end of life, or a CVE in an image whose tag never moved, was
- * reported by nothing. Trigger.dev's Redis, `redis:7-alpine`, runs on Alpine
+ * reported by nothing. Trigger.dev's Redis, `redis:7-alpine`, ran on Alpine
  * 3.21, which leaves support on 2026-11-01, around when the Alpha opens; the
  * lifecycle survey of 2026-10-21 found it by reading release pages. The pin
  * watch says when a newer TAG exists. It cannot say what is inside the one
@@ -40,16 +40,15 @@
  *    a `runs-on` that names GitHub-hosted runners only.
  *
  * And one that went wrong in the first version (workplan 0146 T10, 2026-10-25).
- * The tasks' image was in no registry: each deploy built it, on the base image
- * the pinned CLI names, with the layers `apps/worker/trigger.config.ts` added
- * (the API image's Node, the Debian packages upgraded). The scan read that base
- * alone (14 critical and 119 high on 2026-10-25), so the alerts for the Debian
- * findings the upgrade fixes (42 on 2026-10-23) could never close. From then
- * until 2026-11-06 its leg built the deploy's `base` stage from the config's
- * own extensions and scanned that. Since 2026-11-06 the tasks run on the
- * prebuilt base the config pins (workplan 0119 §3 item 13), to which a deploy
- * adds the task code and nothing else, so the leg reads that pin from GHCR,
- * under the name, and so the category, its alerts were opened under.
+ * The tasks' image was in no registry: each deploy built it, on a base the
+ * scan read alone, so the alerts for the findings the deploy's own layers fixed
+ * could never close; from 2026-11-06 the tasks ran on a prebuilt base the
+ * scan read from GHCR, under the name `trigger-task-base`. alpha.18 removed
+ * Trigger.dev (workplan 0167 T9): the jobs run in `ownpace-worker`, scanned
+ * at :edge and at its newest release with the other images Ownpace publishes,
+ * and no task image is listed. That name's SARIF category is no longer
+ * uploaded, so its alerts stay open until somebody closes them (workplan
+ * 0166).
  *
  * And an image no registry serves cannot be pulled to be scanned (#1675,
  * 2026-10-25). GoAccess's upstream image is on an Alpine past its end of life,
@@ -79,13 +78,8 @@
  * `postgres-selfhost`, the category and the issue) is the one the pulled
  * image had.
  *
- *  - The tasks' base image is the one a deploy builds on. Since 2026-11-06 the
- *    deploy config names the prebuilt base (from workplan 0146 T14 until then,
- *    the image `apps/api/Dockerfile` builds FROM), and the CLI's own base image
- *    is in nothing a deploy builds; a list that kept reading the CLI's would
- *    scan an image nothing runs, and nothing would scan the one that does. So
- *    the config's own extension is run here as the CLI runs it, and the scan's
- *    reference must be the base it leaves in the manifest.
+ *  - The tasks' base image was the one a deploy built on, held here until
+ *    alpha.18 removed it: no image named for Trigger.dev is listed since.
  *
  * And every image has a tier (the owner, 2026-11-03, workplan 0119). The
  * report weighed the demo's Nextcloud like live's sign-in: five of the seven
@@ -97,21 +91,18 @@
  * Stalwart, Mailpit), so moving an image into it, or out, is a change made on
  * purpose here.
  *
- * The network is stubbed (the git tags, the Trigger.dev CLI's tarball) and so
- * is `gh`; the compose files, the scripts and the deploy config are the real
- * ones.
+ * The network is stubbed (the git tags) and so is `gh`; the compose files
+ * and the scripts are the real ones.
  */
 
 import { describe, it, expect } from 'vitest';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { gzipSync } from 'node:zlib';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
-import type { BuildContext, BuildExtension, BuildLayer } from '@trigger.dev/core/v3/build';
-import { COMPOSE_FILES, TASK_BASE_LINE, builtTag, parseRef, readImages, repoReader, stepsUsing, taskBasePin, type Net, type Repo } from './idp-pin-watch.mjs';
+import { COMPOSE_FILES, builtTag, readImages, repoReader, stepsUsing, type Net, type Repo } from './idp-pin-watch.mjs';
 import {
   BUILT_HERE,
   IMAGE_TIERS,
@@ -122,9 +113,6 @@ import {
   SCRIPT_DIRS,
   OWNPACE_REGISTRY,
   SCAN_FILES,
-  TASK_BASE_DOCKERFILE,
-  TASK_CONFIG,
-  TASK_IMAGE,
   TIERS,
   TIER_MEANS,
   compareVersions,
@@ -142,7 +130,6 @@ import {
   type ScanImage,
   type Tier,
 } from './image-scan.mjs';
-import taskConfig from '../apps/worker/trigger.config.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REAL = repoReader(REPO_ROOT);
@@ -151,55 +138,10 @@ const WORKFLOW = readFileSync(join(REPO_ROOT, WORKFLOW_FILE), 'utf8');
 
 // ------------------------------------------------------------- stubs -----
 
-/** A gzipped tar holding `files`, as an npm package tarball is. */
-function tgz(files: Record<string, string>): Buffer {
-  const blocks: Buffer[] = [];
-  for (const [name, text] of Object.entries(files)) {
-    const body = Buffer.from(text);
-    const header = Buffer.alloc(512);
-    header.write(name, 0, 100);
-    header.write('0000644\0', 100);
-    header.write(`${body.length.toString(8).padStart(11, '0')}\0`, 124);
-    header.write('0', 156);
-    header.write('ustar\0', 257);
-    header.write('00', 263);
-    blocks.push(header, body, Buffer.alloc((512 - (body.length % 512)) % 512));
-  }
-  blocks.push(Buffer.alloc(1024));
-  return gzipSync(Buffer.concat(blocks));
-}
-
-/**
- * The stand-in CLI's base for the config's runtime, `node-26` since the Node
- * line moved to 26 (2026-10-31, workplan 0119 §2.4). It was a `node-24` row
- * until then, and a stand-in CLI with no row for the config's runtime failed
- * the cases that read it with "names no image for node-26".
- */
-const TASK_BASE = `triggerdotdev/node:26-bookworm@sha256:${'d'.repeat(64)}`;
-
-/**
- * Where Trivy's SARIF puts an operating-system package's finding: the result's
- * target with its `(debian 12.x)` dropped, read as an image reference, and
- * its repository without the registry, Docker Hub's official images under
- * `library/` (`ToPathUri` in pkg/report/sarif.go at v0.76.1, through
- * go-containerregistry's `RepositoryStr`).
- */
-function sarifOsLocation(target: string): string {
-  const named = /^(.+?)(?:\s*\((?:.*?)\).*?)?$/.exec(target)![1]!;
-  const parts = parseRef(named).repo.split('/');
-  const registry = parts.length > 1 && (/[.:]/.test(parts[0]!) || parts[0] === 'localhost') ? parts.shift()! : 'docker.io';
-  const hub = registry === 'docker.io' || registry === 'index.docker.io';
-  return hub && parts.length === 1 ? `library/${parts[0]}` : parts.join('/');
-}
-const CLI_TARBALL = tgz({
-  'package/package.json': '{}',
-  'package/dist/esm/deploy/buildImage.js': `export const BASE_IMAGE = {\n    node: "triggerdotdev/node:22-bookworm",\n    "node-24": "triggerdotdev/node:24-bookworm@sha256:${'c'.repeat(64)}",\n    "node-26": "${TASK_BASE}",\n};\n`,
-});
-
 const lsRemote = (...tags: string[]) => tags.map((t, i) => `${i}\trefs/tags/${t}`).join('\n');
 const TAGS = lsRemote('v0.1.0-rc.1', 'v0.2.0-alpha.1', 'v0.2.0-alpha.9', 'v0.2.0-alpha.10', 'not-a-release');
 
-/** A network that answers only the CLI's tarball and the repository's tags, and records what it was asked. */
+/** A network that answers only the repository's tags, and records what it was asked. */
 function fakeNet(tags = TAGS): Net & { asked: string[] } {
   const asked: string[] = [];
   const refuse = async (what: string | string[]): Promise<never> => {
@@ -211,11 +153,7 @@ function fakeNet(tags = TAGS): Net & { asked: string[] } {
     asked,
     json: refuse,
     text: refuse,
-    bytes: async (url) => {
-      asked.push(url);
-      if (/\/trigger\.dev\/-\/trigger\.dev-\d+\.\d+\.\d+\.tgz$/.test(url)) return CLI_TARBALL;
-      throw new Error(`nothing stubbed for ${url}`);
-    },
+    bytes: refuse,
     lsRemote: async (url) => {
       asked.push(url);
       return tags;
@@ -223,41 +161,8 @@ function fakeNet(tags = TAGS): Net & { asked: string[] } {
     head: refuse,
     digest: refuse,
     npm: refuse,
-    probe: refuse,
   };
 }
-
-/**
- * The base a task deploy builds on: every build extension of the real deploy
- * config run as the CLI runs them for a deploy (all starts, then all
- * completes, one manifest handed to each), and the manifest's `image.base`
- * read back, which is where the CLI takes the Containerfile's first FROM
- * from. Undefined when the config names none, and the CLI's own base is used.
- */
-async function deployBase(): Promise<string | undefined> {
-  const context = {
-    target: 'deploy',
-    workingDir: join(REPO_ROOT, 'apps/worker'),
-    addLayer: (_layer: BuildLayer) => undefined,
-  } as unknown as BuildContext;
-  type Manifest = Parameters<NonNullable<BuildExtension['onBuildComplete']>>[1];
-  const manifest = { image: { pkgs: [], instructions: [] } } as unknown as Manifest;
-  const extensions = taskConfig.build?.extensions ?? [];
-  for (const extension of extensions) await extension.onBuildStart?.(context);
-  for (const extension of extensions) await extension.onBuildComplete?.(context, manifest);
-  return manifest.image?.base;
-}
-
-/** The deploy config with its pin of a base of its own taken out: a config that names none. */
-const configWithoutBase = (): string => {
-  const config = REAL.read('apps/worker/trigger.config.ts')!;
-  const bare = config.replace(TASK_BASE_LINE, '');
-  expect(TASK_BASE_LINE.test(bare), 'the pin is still in the config, so this case would prove nothing').toBe(false);
-  return bare;
-};
-
-/** The tasks' prebuilt base, as the deploy config pins it. */
-const PIN = taskBasePin(REAL.read(TASK_CONFIG)!);
 
 /** The real checkout, with some files replaced. */
 const withFiles = (over: Record<string, string>): Repo => ({
@@ -336,10 +241,6 @@ describe('which images it scans', () => {
       }
     }
     // The reader's resolution and digests, on the real lines.
-    // A `${VAR:-default}` inside a tag, as the Trigger.dev builds name theirs (0146 T16).
-    const trigger = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'localhost/trigger.dev')!;
-    expect(trigger.tag, "managed.yml's trigger-api image no longer carries the version default").toMatch(/^v\d+\.\d+\.\d+-[0-9a-f]{12}$/);
-    expect(refs.has(`localhost/trigger.dev:${trigger.tag}`)).toBe(true);
     const pinned = SCAN_FILES.flatMap((file) => readImages(REAL.read(file)!)).filter((i) => i.digest);
     expect(pinned.length, 'no image line is pinned by digest, so nothing here shows a digest is kept').toBeGreaterThan(0);
     for (const image of pinned) expect(refs.has(`${image.repo}${image.tag ? `:${image.tag}` : ''}@${image.digest}`)).toBe(true);
@@ -424,43 +325,11 @@ describe('which images it scans', () => {
     // newest digest to both entries; the review of T15b, 2026-10-26).
     const sameContent = builtTag(REAL.read(`${appliance.context}/Dockerfile`)!) === builtTag(REAL.read(`${postgres.context}/Dockerfile`)!);
     expect(appliance.ref === postgres.ref, 'the two legs share a name, and the two Dockerfiles build different content, or the other way round').toBe(sameContent);
-    // The two Trigger.dev images built here (0146 T16) keep the names, and so the
-    // categories and issues, the pulled images had.
-    for (const [name, context] of [['trigger.dev', 'deploy/compose/trigger.dev'], ['supervisor', 'deploy/compose/supervisor']] as const) {
-      const built = images.find((i) => i.name === name);
-      expect(built?.ref, `${name} is pulled from a registry again`).toMatch(new RegExp(`^localhost/${name.replace('.', '\\.')}:v[\\d.]+-[0-9a-f]{12}$`));
-      expect(built?.context).toBe(context);
-      expect(built?.where).toBe('deploy/compose/managed.yml');
-      expect(REAL.read(`${context}/Dockerfile`)).toMatch(new RegExp(`^FROM ghcr\\.io/triggerdotdev/${name.replace('.', '\\.')}:`, 'm'));
+    // Trigger.dev's two builds, its socket proxy, its TLS front and its Redis
+    // were built here too until alpha.18 removed them (workplan 0167 T9).
+    for (const gone of ['trigger.dev', 'supervisor', 'docker-socket-proxy', 'caddy', 'redis']) {
+      expect(images.find((i) => i.name === gone), `${gone} is listed again`).toBeUndefined();
     }
-    // The Docker socket proxy built here (2026-10-30) keeps the name, and so the
-    // category and the issue, that `tecnativa/docker-socket-proxy` had.
-    const proxy = images.find((i) => i.name === 'docker-socket-proxy');
-    expect(proxy?.ref, 'the Docker socket proxy is pulled from a registry again').toMatch(/^localhost\/docker-socket-proxy:\d+\.\d+\.\d+-alpine-[0-9a-f]{12}$/);
-    expect(proxy?.context).toBe('deploy/compose/docker-socket-proxy');
-    expect(proxy?.where).toBe('deploy/compose/managed.yml');
-    expect(proxy?.floating).toBe(false);
-    expect(REAL.read('deploy/compose/docker-socket-proxy/Dockerfile')).toMatch(/^FROM haproxy:/m);
-    expect(images.filter((i) => /socket-proxy/.test(i.name)).map((i) => i.name), 'one scan of the proxy, under its old name').toEqual(['docker-socket-proxy']);
-    // The dashboard's TLS front built here without curl (2026-10-31) keeps the
-    // name, and so the category and the issue, that `caddy` had.
-    const front = images.find((i) => i.name === 'caddy');
-    expect(front?.ref, 'the TLS front is pulled from a registry again').toMatch(/^localhost\/caddy:\d+\.\d+\.\d+-alpine-[0-9a-f]{12}$/);
-    expect(front?.context).toBe('deploy/compose/caddy');
-    expect(front?.where).toBe('deploy/compose/managed.yml');
-    expect(front?.floating).toBe(false);
-    expect(REAL.read('deploy/compose/caddy/Dockerfile')).toMatch(/^FROM caddy:/m);
-    expect(images.filter((i) => /caddy/.test(i.name)).map((i) => i.name), 'one scan of the front, under its old name').toEqual(['caddy']);
-    // Trigger.dev's Redis built here with the Debian packages nothing runs
-    // purged (2026-11-07, for alpha.6) keeps the name, and so the category and
-    // the issue, that `redis` had.
-    const queue = images.find((i) => i.name === 'redis');
-    expect(queue?.ref, "Trigger.dev's Redis is pulled from a registry again").toMatch(/^localhost\/redis:\d+\.\d+\.\d+-bookworm-[0-9a-f]{12}$/);
-    expect(queue?.context).toBe('deploy/compose/redis');
-    expect(queue?.where).toBe('deploy/compose/managed.yml');
-    expect(queue?.floating).toBe(false);
-    expect(REAL.read('deploy/compose/redis/Dockerfile')).toMatch(/^FROM redis:/m);
-    expect(images.filter((i) => /redis/.test(i.name)).map((i) => i.name), 'one scan of Redis, under its old name').toEqual(['redis']);
     // The pooler built here with five Alpine packages at the versions that
     // carry their fixes (2026-11-13, for alpha.8) keeps the name, and so the
     // category and the issue, that `edoburu/pgbouncer` had.
@@ -483,86 +352,14 @@ describe('which images it scans', () => {
     }
   });
 
-  it("the tasks' base image is the one a deploy builds on: the prebuilt base the config pins, read as published", async () => {
-    const base = await deployBase();
-    // Vacuity guard: the config names a base of its own (0119 §3 item 13), so
-    // the equality below compares two real references, not two undefineds.
-    expect(base, 'the deploy config names no base, so the CLI builds the tasks on its own').toMatch(
-      /^ghcr\.io\/robbes\/ownpace-task-base:sha-[0-9a-f]{7}@sha256:[0-9a-f]{64}$/,
-    );
+  it("lists no task image since alpha.18 removed Trigger.dev: the jobs run in ownpace-worker, scanned with Ownpace's images (0167 T9)", async () => {
     const net = fakeNet();
     const images = await imagesToScan(REAL, net);
-    const task = images.find((i) => i.name === TASK_IMAGE);
-    expect(task?.ref, 'the scan reads an image no task deploy builds on').toBe(base);
-    expect(task?.ref).toBe(PIN.ref);
-    expect(task?.where).toContain(TASK_CONFIG);
-    expect(task?.where).toContain(TASK_BASE_DOCKERFILE);
-    expect(task?.floating).toBe(false);
-    // Read from GHCR as published: a deploy builds nothing into it, so nothing is built here.
-    expect(Object.keys(task ?? {}).sort()).toEqual(['floating', 'name', 'ref', 'tier', 'where']);
-    // The CLI's own base is in nothing a deploy builds, so it is not even read.
-    expect(net.asked.some((url) => url.includes('registry.npmjs.org/trigger.dev/'))).toBe(false);
-    expect(images.some((i) => i.ref === TASK_BASE)).toBe(false);
-  });
-
-  it("where the config names no base of its own, the one the pinned CLI names for the runtime the config asks for", async () => {
-    const net = fakeNet();
-    const images = await imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), net);
-    const cli = JSON.parse(REAL.read('apps/worker/package.json')!).dependencies['@trigger.dev/sdk'] as string;
-    // The name, and so the SARIF category `trivy-image-trigger-task-base`, is
-    // the one its alerts were opened under (workplan 0146 T10): renamed, the
-    // old category would keep them open until somebody deleted it by hand.
-    expect(TASK_IMAGE).toBe('trigger-task-base');
-    expect(images.find((i) => i.name === TASK_IMAGE)).toEqual({
-      name: TASK_IMAGE,
-      tier: 'production-internal',
-      ref: TASK_BASE,
-      where: expect.stringContaining(cli),
-      floating: false,
-    });
-    expect(images.find((i) => i.name === TASK_IMAGE)?.where).toContain(TASK_CONFIG);
-    expect(net.asked).toContain(`https://registry.npmjs.org/trigger.dev/-/trigger.dev-${cli}.tgz`);
-  });
-
-  it("keeps the name its alerts were opened under, and puts the base's Debian findings at its own repository", () => {
-    // Trivy's SARIF writes an operating-system package's finding at the
-    // image's repository and gives it no fingerprint, so code scanning tells
-    // alerts apart by rule and that location. Until 2026-11-06 the leg built
-    // the deploy's stage under the API's Node image's repository; the first
-    // scan of the pin closes those alerts, once, and opens the base's at its own.
-    expect(sarifOsLocation(`${PIN.ref} (debian 13.1)`)).toBe('robbes/ownpace-task-base');
-    expect(sarifOsLocation('node:trigger-task-base-built (debian 13.1)')).toBe('library/node');
-    // The tier is the one it had: live's task runs run in it, on the stack's own network.
-    expect(tierOf(TASK_IMAGE)).toBe('production-internal');
-  });
-
-  it("reads the base the config names, or else the CLI's own, since the managed stack names no other for its deploys", () => {
-    // A Trigger.dev instance can make the CLI build on base images of its own
-    // (the webapp's DEPLOY_BASE_IMAGES and DEPLOY_BUILD_BASE_IMAGES, which the
-    // 4.7.6 CLI applies); the scan would then read a base no deploy uses.
-    // managed.yml hands its Trigger.dev services only the keys it lists.
-    const managed = REAL.read('deploy/compose/managed.yml')!;
-    expect(managed).toContain('trigger-api:');
-    for (const key of ['DEPLOY_BASE_IMAGES', 'DEPLOY_BUILD_BASE_IMAGES']) expect(managed, key).not.toContain(key);
-  });
-
-  it("follows the pinned CLI wherever it moves, and keeps the tasks' name when it does", async () => {
-    // Nothing here names a Trigger.dev version: a move of the SDK pin (4.7.6
-    // to 4.8.1, say) moves the tarball read and the `where`, and nothing else.
-    const manifest = JSON.parse(REAL.read('apps/worker/package.json')!) as { dependencies: Record<string, string> };
-    const moved = JSON.stringify({ ...manifest, dependencies: { ...manifest.dependencies, '@trigger.dev/sdk': '99.0.1' } });
-    // The CLI's base is read only where the config names no base of its own.
-    const net = fakeNet();
-    const images = await imagesToScan(withFiles({ 'apps/worker/package.json': moved, 'apps/worker/trigger.config.ts': configWithoutBase() }), net);
-    expect(net.asked).toContain('https://registry.npmjs.org/trigger.dev/-/trigger.dev-99.0.1.tgz');
-    const before = (await imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), fakeNet())).find((i) => i.name === TASK_IMAGE)!;
-    const after = images.find((i) => i.name === TASK_IMAGE)!;
-    expect(after.where).toContain('trigger.dev 99.0.1');
-    expect(after.name).toBe(before.name);
-    // And a move of the pin keeps it too.
-    const other = PIN.ref.replace(/@sha256:[0-9a-f]{64}$/, `@sha256:${'7'.repeat(64)}`);
-    const repinned = await imagesToScan(withFiles({ [TASK_CONFIG]: REAL.read(TASK_CONFIG)!.replace(PIN.ref, other) }), fakeNet());
-    expect(repinned.find((i) => i.name === TASK_IMAGE)?.ref).toBe(other);
+    expect(images.filter((i) => /trigger|task/.test(i.name) || /triggerdotdev|ownpace-task-base/.test(i.ref))).toEqual([]);
+    expect(OWNPACE_IMAGES).toContain('worker');
+    expect(images.find((i) => i.name === 'ownpace-worker-edge')?.ref).toBe(`${OWNPACE_REGISTRY}/ownpace-worker:edge`);
+    // Only the repository's tags are asked: nothing from npm, as the Trigger.dev CLI's tarball was.
+    expect(net.asked).toEqual(['origin']);
   });
 
   it("Ownpace's images at :edge and at the newest release tag, as images.yml publishes them", async () => {
@@ -596,19 +393,17 @@ describe('which images it scans', () => {
   });
 
   it("leaves out the Dockerfiles' FROM bases, which are inside Ownpace's images, but scans www.yml's nginx, which runs as it is", async () => {
-    // The tasks' base is listed as the image it is, the pin; the images its
-    // Dockerfile builds FROM are inside it, as the API's are inside ownpace-api.
+    // The images a Dockerfile of Ownpace's builds FROM are inside the image it
+    // publishes, as the API's are inside ownpace-api, and the worker's inside
+    // ownpace-worker.
     const images = await imagesToScan(REAL, fakeNet());
-    const bare = await imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), fakeNet());
-    for (const dockerfile of ['apps/api/Dockerfile', 'apps/selfhost/Dockerfile', TASK_BASE_DOCKERFILE]) {
+    for (const dockerfile of ['apps/api/Dockerfile', 'apps/selfhost/Dockerfile', 'apps/worker/Dockerfile']) {
       // Every image a stage builds FROM: the API's are the Node image it builds
-      // on and the distroless one it runs on (0146 T13), both inside ownpace-api;
-      // the tasks' base's are the same two (0119 §3 item 13).
+      // on and the distroless one it runs on (0146 T13), both inside ownpace-api.
       const froms = [...REAL.read(dockerfile)!.matchAll(/^FROM\s+(\S+[:@]\S+)/gm)].map((m) => m[1]!);
       expect(froms.length, `${dockerfile} builds FROM no image`).toBeGreaterThan(0);
       for (const from of froms) {
         expect(images.filter((i) => i.ref === from).map((i) => i.name), `${from} is scanned twice`).toEqual([]);
-        expect(bare.some((i) => i.ref === from), `${from} is scanned twice`).toBe(false);
       }
     }
     const www = readImages(REAL.read('deploy/compose/www.yml')!).find((i) => i.repo === 'nginx')!;
@@ -619,9 +414,9 @@ describe('which images it scans', () => {
     const images = await imagesToScan(REAL, fakeNet());
     expect(new Set(images.map((i) => i.name)).size).toBe(images.length);
     for (const image of images) expect(image.name).toMatch(/^[a-z0-9][a-z0-9._-]*$/);
-    // Redis is built here since 2026-11-07, under the name the pulled image had.
-    const redis = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'localhost/redis')!;
-    expect(images.find((i) => i.ref === redis.ref)?.name).toBe('redis');
+    // The pooler is built here since 2026-11-13, under the name the pulled image had.
+    const pooler = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'localhost/pgbouncer')!;
+    expect(images.find((i) => i.ref === pooler.ref)?.name).toBe('pgbouncer');
     expect(images.filter((i) => i.name.startsWith('postgres')).map((i) => i.name).sort()).toEqual(['postgres-managed', 'postgres-selfhost']);
     expect(stackOf('deploy/compose/managed.yml')).toBe('managed');
     expect(stackOf('deploy/compose/www.yml')).toBe('managed');
@@ -633,9 +428,10 @@ describe('which images it scans', () => {
 
   it('keeps every name when a pin moves, so its SARIF category and its issue stay the same', async () => {
     const managedYml = REAL.read('deploy/compose/managed.yml')!;
-    // Trigger.dev's registry: an image this stack still pulls by its tag (the
-    // pooler, this case's example until 2026-11-13, is built here now).
-    const registry = readImages(managedYml).find((i) => i.repo === 'registry')!;
+    // The status page: an image this stack still pulls by its tag (the pooler,
+    // this case's example until 2026-11-13, is built here now, and Trigger.dev's
+    // registry, until alpha.18, is gone).
+    const registry = readImages(managedYml).find((i) => i.repo === 'ghcr.io/twin/gatus')!;
     const to = `${registry.repo}:99.0.0`;
     expect(to, 'the pin would not move, so this case would prove nothing').not.toBe(registry.ref);
     const before = await imagesToScan(REAL, fakeNet());
@@ -691,15 +487,7 @@ describe('which images it scans', () => {
     expect(isFloating({ tag: '1.12', digest: 'sha256:0' })).toBe(false);
   });
 
-  it("refuses rather than lists less: a CLI it cannot read, a pin of another shape, or no release tag", async () => {
-    const broken: Net = { ...fakeNet(), bytes: async () => Promise.reject(new Error('registry.npmjs.org answered 503')) };
-    await expect(imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), broken)).rejects.toThrow(/503/);
-    // A pin without its digest is not the reference a deploy pulls, and the
-    // CLI's base is not what the tasks run: neither is listed.
-    const config = REAL.read(TASK_CONFIG)!;
-    const unpinned = config.replace(PIN.ref, PIN.ref.replace(/@sha256:[0-9a-f]{64}$/, ''));
-    expect(unpinned, 'the pin kept its digest, so this case would prove nothing').not.toBe(config);
-    await expect(imagesToScan(withFiles({ [TASK_CONFIG]: unpinned }), broken)).rejects.toThrow(/not ghcr\.io\/robbes\/ownpace-task-base:sha-<commit>@sha256:<index digest>/);
+  it('refuses rather than lists less: no release tag', async () => {
     await expect(imagesToScan(REAL, fakeNet(lsRemote('edge')))).rejects.toThrow(/no v\* release tag/);
   });
 });
@@ -844,23 +632,6 @@ describe('the report job', () => {
     const table = summary.lines.join('\n');
     expect(table).toMatch(/\| `redis` \| production-internal \| `redis:7-alpine` \(floats\) \| alpine 3\.21\.9 \| \*\*past its end of life\*\* \|/);
     expect(table).toMatch(/\| `minio` \| production-internal \| `bitnamilegacy\/minio:2025\.5\.24-debian-12-r5@sha256:444444444444…` \| debian 12\.11 \| supported \| 1 \| 0 \| 1 \|/);
-  });
-
-  it("lists the tasks' base as the pin it is, and routes its issue to the base's Dockerfile and the pin, not to a tag upstream moves", async () => {
-    const task = (await imagesToScan(REAL, fakeNet())).find((i) => i.name === TASK_IMAGE)!;
-    const fine = trivyJson({ Family: 'debian', Name: '13.1' });
-    const table = summarize([task, IMAGES[0]!], reports({ [`trivy-image-${TASK_IMAGE}.json`]: fine, 'trivy-image-redis.json': fine })).lines.join('\n');
-    expect(table).toContain(`| \`${TASK_IMAGE}\` | production-internal | \`${PIN.repo}:${PIN.tag}@${PIN.digest.slice(0, 19)}…\` | debian 13.1 |`);
-    expect(table, 'nothing is built in its leg any more').not.toMatch(/built on|containerfile/);
-    const issue = eoslIssue(task, readReport(trivyJson({ Family: 'debian', Name: '13.1', EOSL: true })));
-    expect(issue.state).toBe('behind');
-    expect(issue.body).toContain(`\`${TASK_BASE_DOCKERFILE}\``);
-    expect(issue.body).toContain('`TASK_BASE_IMAGE`');
-    expect(issue.body, 'its base is built here, from no tag upstream moves').not.toContain('a newer tag of it once upstream');
-    // Where the config names no base, the CLI's is an upstream image like any other.
-    const cli = (await imagesToScan(withFiles({ [TASK_CONFIG]: configWithoutBase() }), fakeNet())).find((i) => i.name === TASK_IMAGE)!;
-    expect(eoslIssue(cli, readReport(trivyJson({ Family: 'debian', Name: '12.1', EOSL: true }))).body).toContain('a newer tag of it once upstream');
-    expect(imagesFromEnv(JSON.stringify([task]))).toEqual([task]);
   });
 
   it('says which image was built here, and routes its issue to the Dockerfile rather than to a tag upstream moves', () => {

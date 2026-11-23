@@ -9,7 +9,7 @@
 #   - Docker Compose, through `env_file:` in managed.yml and `--env-file`, with
 #     its own Go dotenv implementation;
 #   - `set-task-env.sh`, with `set -a` and bash `source`, to carry those values
-#     into the Trigger.dev task environment.
+#     into the Trigger.dev task environment (until alpha.18, which removed it).
 #
 # For a plain single-line value they agree, which is why this has never been a
 # problem for `LOG_LEVEL=info`. They stop agreeing the moment a value contains a

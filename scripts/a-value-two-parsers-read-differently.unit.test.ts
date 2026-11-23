@@ -6,7 +6,7 @@
  * `deploy/compose/.env` is read by Docker Compose's own Go dotenv
  * implementation (through `env_file:` in managed.yml) and by bash `source`
  * (`set -a` in `set-task-env.sh`, carrying the same values into the Trigger.dev
- * task environment). For `LOG_LEVEL=info` they agree, which is why this was
+ * task environment, until alpha.18 removed Trigger.dev, workplan 0167 T9). For `LOG_LEVEL=info` they agree, which is why this was
  * never anybody's problem. They stop agreeing the moment a value holds a dollar
  * sign, a backslash, a quote, whitespace or a newline.
  *
@@ -19,7 +19,7 @@
  *
  * The owner's first instinct when that error appeared on 2026-09-08 was *"I did
  * have some issues with multiline in .env yesterday, so we might need to
- * check."* He was right that the mechanism exists. That particular incident
+ * check."* They were right that the mechanism exists. That particular incident
  * turned out to be an old key rather than a parser disagreement — but nothing
  * refused an ambiguous value, so nothing could have told him either way.
  *
@@ -35,8 +35,13 @@
  *     rejected file needs to know which line and what to type;
  *  4. it never sources the file — proved by handing it one whose value would
  *     leave a mark if executed;
- *  5. `set-task-env.sh` calls it BEFORE its own `source`, since sourcing is
- *     the very thing that would run a command substitution.
+ *  5. `set-task-env.sh` called it BEFORE its own `source`, since sourcing is
+ *     the very thing that would run a command substitution. alpha.18 removed
+ *     that script with Trigger.dev (workplan 0167 T9), and nothing calls the
+ *     checker now. The bring-up's own `source` of the file is held by its
+ *     narrower check (a bare space), since this one refuses every
+ *     double-quoted value, which the bring-up itself recommends; calling it
+ *     there is a follow-up that first needs the two to agree (0167's Status).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -373,39 +378,9 @@ describe('it scans the file, it never sources it', () => {
   });
 });
 
-describe('set-task-env.sh consults it before it sources anything', () => {
-  const setTaskEnv = readFileSync(join(REPO_ROOT, 'deploy/compose/set-task-env.sh'), 'utf8');
-
-  it('calls the checker', () => {
-    expect(
-      setTaskEnv,
-      'set-task-env.sh is the seam where a parser disagreement becomes damage: it\n' +
-        'carries these values into the task containers, which is the half of the\n' +
-        'deployment that would then hold the other value.',
-    ).toContain('check-env-agreement.sh');
-  });
-
-  it('calls it BEFORE the source, not after', () => {
-    const checkAt = setTaskEnv.indexOf('check-env-agreement.sh');
-    const sourceAt = setTaskEnv.indexOf('. "$ENV_FILE"');
-    expect(checkAt).toBeGreaterThan(-1);
-    expect(sourceAt).toBeGreaterThan(-1);
-    expect(
-      checkAt,
-      'A check that runs after the source reports the hazard having already suffered\n' +
-        'it — `source` on a file with $(...) executes it.',
-    ).toBeLessThan(sourceAt);
-  });
-
-  it('treats the refusal as fatal rather than advisory', () => {
-    const window = setTaskEnv.slice(
-      setTaskEnv.indexOf('check-env-agreement.sh'),
-      setTaskEnv.indexOf('. "$ENV_FILE"'),
-    );
-    expect(
-      window,
-      'Uploading half-understood values is the damage. A warning here would let the\n' +
-        'upload proceed, which is the thing being prevented.',
-    ).toMatch(/exit 1/);
+describe('the seam it guarded, set-task-env.sh, went with Trigger.dev in alpha.18 (0167 T9)', () => {
+  it('is gone, and the checker it called is still here to call', () => {
+    expect(existsSync(join(REPO_ROOT, 'deploy/compose/set-task-env.sh')), 'set-task-env.sh is back: hold it to calling the checker before its source again').toBe(false);
+    expect(existsSync(join(REPO_ROOT, 'deploy/compose/check-env-agreement.sh'))).toBe(true);
   });
 });

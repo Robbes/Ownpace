@@ -73,13 +73,21 @@ function refusalCode(status: number, body: unknown): string {
   return typeof error === 'string' && /^[a-z_]+$/.test(error) ? error : 'refused';
 }
 
-/** What a failure is called, never what it says: its code, else its name. */
+/**
+ * What a failure is called, never what it says: its code, else its cause's
+ * code, else its name. A queue the API could not reach is said in a sentence of
+ * its own with the socket's error as its cause (`enqueue-unless-held.ts`,
+ * `QUEUE_UNREACHABLE`), and the cause's code is the part worth printing.
+ */
 function failureName(error: unknown): string {
-  const { code, name } = (typeof error === 'object' && error !== null ? error : {}) as {
+  const { code, name, cause } = (typeof error === 'object' && error !== null ? error : {}) as {
     code?: unknown;
     name?: unknown;
+    cause?: unknown;
   };
   if (typeof code === 'string' && /^[A-Z0-9_]+$/.test(code)) return code;
+  const causeCode = typeof cause === 'object' && cause !== null ? (cause as { code?: unknown }).code : undefined;
+  if (typeof causeCode === 'string' && /^[A-Z0-9_]+$/.test(causeCode)) return causeCode;
   if (typeof name === 'string' && /^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return name;
   return 'unknown';
 }

@@ -3,30 +3,25 @@
 /**
  * A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
  *
- * The managed pass runs as a Trigger.dev task under `maxDuration`. That
- * ceiling is a KILL: the process ends where it stands, mid-item, and none of
- * the code that closes the run row runs. `managed-sync-tick` skips a mapping
- * that has an open `running` row, so the mapping then stops syncing — silently,
- * and until somebody notices by hand.
+ * The managed pass runs under a time limit that is a KILL: the process ends
+ * where it stands, mid-item, and none of the code that closes the run row
+ * runs. `managed-sync-tick` skips a mapping that has an open `running` row,
+ * so the mapping then stops syncing — silently, and until somebody notices by
+ * hand.
  *
  * `PASS_SOFT_DEADLINE_MS` exists so the pass ends itself first, cleanly, with
  * its cursors intact. That only works while it is genuinely SMALLER than the
- * kill, and the two numbers live in different files, in different units, and
- * cannot import each other: `trigger.config.ts` is loaded a second time inside
- * the build's indexer container, where a workspace import has already cost
- * this repository one aborted deploy.
+ * kill, and the two numbers live in different places, in different units.
  *
- * Two numbers that must agree, in two files, with no compiler between them, is
- * exactly the shape a guard is for. This one reads both as text.
+ * ## Whose kill
  *
- * ## The other runner's kill (workplan 0167 T6)
- *
- * On the pg-boss runner the kill is each queue's time limit in the job
- * catalog (`packages/scheduler/src/pg-boss/catalog.ts`, `maxDurationSeconds`,
- * pg-boss's `expireInSeconds`), in seconds again. So the pass's queue says
- * `PASS_HARD_LIMIT_MS` too, and every queue says the config's `maxDuration`,
- * which every task takes, none naming its own: a run is given an hour on
- * either runner. The catalog is data with no import, so it is imported here.
+ * Until alpha.18 the kill was Trigger.dev's `maxDuration` in
+ * `apps/worker/trigger.config.ts`, and the pg-boss runner's queues were held
+ * to it too (workplan 0167 T6). alpha.18 removed Trigger.dev (0167 T9), so the
+ * kill is the pass's queue's time limit in the job catalog alone
+ * (`packages/scheduler/src/pg-boss/catalog.ts`, `maxDurationSeconds`,
+ * pg-boss's `expireInSeconds`), in seconds. The catalog is data with no
+ * import, so it is imported here; `pass-deadline.ts` is read as text.
  *
  * ## What it does NOT check
  *
@@ -44,23 +39,17 @@ import { JOB_CATALOG } from '../packages/scheduler/src/pg-boss/catalog.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const CONFIG = 'apps/worker/trigger.config.ts';
 const DEADLINE = 'packages/shared/src/pass-deadline.ts';
 
 function read(path: string): string {
   return readFileSync(join(REPO_ROOT, path), 'utf8');
 }
 
-/** `maxDuration: 3600` — the runner's kill, in SECONDS. */
-function maxDurationSeconds(): number {
-  const found = /^\s*maxDuration:\s*(\d+)\s*,/m.exec(read(CONFIG));
-  if (!found) {
-    throw new Error(
-      `${CONFIG} no longer declares \`maxDuration: <seconds>\` on its own line. ` +
-        'This guard reads it as text, so it must stay one — or this guard must change.',
-    );
-  }
-  return Number(found[1]);
+/** The pass's queue's time limit in the job catalog: the runner's kill, in SECONDS. */
+function passLimitSeconds(): number {
+  const pass = JOB_CATALOG.find((queue) => queue.name === 'run-delta-sync');
+  if (!pass) throw new Error('the job catalog has no queue for run-delta-sync');
+  return pass.maxDurationSeconds;
 }
 
 /** A `export const NAME = <expression>;` evaluated as arithmetic on literals. */
@@ -81,10 +70,10 @@ function constantMs(name: string): number {
 }
 
 describe('the pass deadline and the runner ceiling', () => {
-  it('states the runner ceiling in both files, in agreement', () => {
-    // Written in seconds in the config and milliseconds in the constant, so
+  it("states the runner ceiling in the constant and on the pass's queue, in agreement", () => {
+    // Written in seconds in the catalog and milliseconds in the constant, so
     // the conversion is the thing that can silently rot.
-    expect(constantMs('PASS_HARD_LIMIT_MS')).toBe(maxDurationSeconds() * 1000);
+    expect(constantMs('PASS_HARD_LIMIT_MS')).toBe(passLimitSeconds() * 1000);
   });
 
   it('stops the pass before the runner kills it', () => {
@@ -103,28 +92,20 @@ describe('the pass deadline and the runner ceiling', () => {
     expect(margin).toBeGreaterThanOrEqual(5 * 60 * 1000);
   });
 
-  it('states the same ceiling on the pass’s queue of the pg-boss runner, in seconds there too', () => {
-    const pass = JOB_CATALOG.find((queue) => queue.name === 'run-delta-sync');
-    expect(pass, 'the job catalog has no queue for run-delta-sync').toBeDefined();
-    expect(pass!.maxDurationSeconds * 1000).toBe(constantMs('PASS_HARD_LIMIT_MS'));
-  });
-
-  it('gives every queue of the pg-boss runner the hour the config gives every task, the cutover by name excepted', () => {
+  it("gives every queue the pass's hour, the cutover by name excepted", () => {
     expect(JOB_CATALOG.length).toBeGreaterThan(0);
-    expect(JOB_CATALOG.filter((queue) => queue.maxDurationSeconds !== maxDurationSeconds()).map((queue) => queue.name)).toEqual([
+    expect(JOB_CATALOG.filter((queue) => queue.maxDurationSeconds !== passLimitSeconds()).map((queue) => queue.name)).toEqual([
       // A cutover waits for a pass running ahead of it and for its own, then runs the gate.
-      // Trigger.dev's maxDuration never counted those waits (they are pauses of the run's
-      // CPU time); pg-boss's limit is the wall clock, so it has an hour for each (0167 T6).
+      // pg-boss's limit is the wall clock, so it has an hour for each (0167 T6).
       'run-cutover',
     ]);
     const cutover = JOB_CATALOG.find((queue) => queue.name === 'run-cutover')!;
-    expect(cutover.maxDurationSeconds).toBe(3 * maxDurationSeconds());
+    expect(cutover.maxDurationSeconds).toBe(3 * passLimitSeconds());
   });
 
-  it('reads a real number from the config rather than passing on absence', () => {
-    // The vacuity floor. If the regex ever stops matching, every assertion
-    // above would throw rather than pass — but a `maxDuration: 0` would pass
-    // them all while meaning the ceiling is gone.
-    expect(maxDurationSeconds()).toBeGreaterThan(0);
+  it('reads a real number from the catalog rather than passing on absence', () => {
+    // The vacuity floor: a limit of 0 would pass the ordering while meaning
+    // the ceiling is gone.
+    expect(passLimitSeconds()).toBeGreaterThan(0);
   });
 });

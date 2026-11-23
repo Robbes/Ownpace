@@ -2,8 +2,8 @@
 
 - **Status:** Accepted; **its managed half superseded by
   [ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md)**, accepted 2026-11-22 and in
-  force since workplan 0167 T7: pg-boss runs the managed edition's jobs, and Trigger.dev is kept
-  installed and stopped as the fallback. The self-host half stands. Amended twice (2026-11-22).
+  force since workplan 0167 T7: pg-boss runs the managed edition's jobs, and alpha.18 removes
+  Trigger.dev (0167 T9). The self-host half stands. Amended three times (2026-11-22, 2026-11-23).
 - **Date:** 2026-06-20
 
 ## Operative rules
@@ -12,7 +12,7 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance; on managed **pg-boss** on our own Postgres ([ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md), in force since workplan 0167 T7), with self-hosted Trigger.dev kept installed and stopped as the fallback.
+- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance; on managed **pg-boss** on our own Postgres ([ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md), in force since workplan 0167 T7); self-hosted Trigger.dev is removed from the managed edition (alpha.18, workplan 0167 T9).
 - The orchestrator never sees content: task payloads carry ids only; bytes move inside the task process (SAD §17).
 
 > **Update 2026-08-02:** "imapsync/rclone move data directly source->target"
@@ -54,4 +54,10 @@ Workers run on our/the user's infra; because imapsync/rclone move data directly 
   sections above are left as they were written. Record: ADR-0054, decision 6.
 - **2026-11-22** — ADR-0054 is in force (workplan 0167 T7, the switch on): the first operative
   rule names pg-boss on managed, with Trigger.dev kept installed and stopped as the fallback. The
+  sections above are left as they were written.
+- **2026-11-23** — The managed half is superseded in full: alpha.18 removes self-hosted
+  Trigger.dev from the managed edition, its code, images, scripts, pins and services (workplan
+  0167 T9; the owner, 2026-11-23: *"i will remove trigger.dev, but the machine runs OTA and
+  managed, so both have to be move out of triggerdev."*). The first operative rule says so. The
+  self-host half, the seam and the rule that the orchestrator never sees content stand; the
   sections above are left as they were written.

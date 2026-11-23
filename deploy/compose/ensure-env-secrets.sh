@@ -15,10 +15,9 @@
 # replaced, because the provider refuses a first start on a date that has passed
 # (seed_pat_expiry in env-read.sh, below).
 #
-# The five database passwords (POSTGRES_PASSWORD, APP_DB_PASSWORD,
-# CLICKHOUSE_PASSWORD, MINIO_ROOT_PASSWORD, TRIGGER_DB_PASSWORD; workplan 0132
-# T2) only while each one's volume does not exist yet: see ensure_db_password
-# below.
+# The database passwords (POSTGRES_PASSWORD, APP_DB_PASSWORD; workplan 0132
+# T2; Trigger.dev's three until alpha.18) only while their volume does not
+# exist yet: see ensure_db_password below.
 #
 # Every value goes to env-upsert.sh on its standard input, never as an
 # argument: an argument is on the process's command line, which `ps` shows
@@ -112,11 +111,8 @@ USERLIST="$(pgbouncer_userlist "$SCRIPT_DIR")" || {
 #   TRIGGER_ENCRYPTION_KEY=change-me-32-byte-encryption-key
 #   TRIGGER_LOGIN_SECRET=change-me-login-secret
 # — values published in this repository's git history. TRIGGER_ENCRYPTION_KEY
-# is the one that matters: it encrypts the Trigger.dev environment-variable
-# store, which holds the database URLs (SYSTEM_DATABASE_URL and
-# APP_DATABASE_URL since workplan 0138 T3; the owner's DATABASE_URL until then)
-# and SECRET_ENCRYPTION_KEY — the key that decrypts every stored customer
-# credential.
+# was the one that mattered: it encrypted the Trigger.dev environment-variable
+# store (gone with Trigger.dev in alpha.18).
 #
 # So anything still wearing a shipped placeholder counts as ABSENT.
 is_placeholder() { # is_placeholder <value>
@@ -128,7 +124,8 @@ is_placeholder() { # is_placeholder <value>
 
 # ROTATING AN ENCRYPTION KEY IS NOT THE SAME AS FILLING IN A BLANK ONE.
 #
-# TRIGGER_ENCRYPTION_KEY encrypts the Trigger.dev secret store. Replacing it on
+# TRIGGER_ENCRYPTION_KEY encrypted the Trigger.dev secret store until alpha.18,
+# and taught this the rule. Replacing it on
 # an instance that already HAS secrets does not re-encrypt them — it strands
 # them, and the failure is not at boot. It is
 #
@@ -156,7 +153,7 @@ is_placeholder() { # is_placeholder <value>
 # rather than trusted to be remembered (ADR-0042).
 needs_rotation_procedure() { # needs_rotation_procedure <name>
   case "$1" in
-    TRIGGER_ENCRYPTION_KEY | ZITADEL_MASTERKEY) return 0 ;;
+    ZITADEL_MASTERKEY) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -215,14 +212,11 @@ ensure() { # ensure <name> <bytes>
   if [ "$was_placeholder" -eq 1 ] && needs_rotation_procedure "$name"; then
     echo "[ensure-env-secrets] REFUSING to replace ${name}." >&2
     echo "[ensure-env-secrets] It holds a shipped placeholder, which is not a secret — and it is" >&2
-    echo "[ensure-env-secrets] ALSO the key the Trigger.dev secret store is encrypted with. Replacing" >&2
-    echo "[ensure-env-secrets] it here would strand every secret already written under it, and the" >&2
-    echo "[ensure-env-secrets] symptom is runs that never start, reported as a snapshot error." >&2
+    echo "[ensure-env-secrets] ALSO the key the identity provider encrypts its own data with. Replacing" >&2
+    echo "[ensure-env-secrets] it here would strand every user already written under it." >&2
     echo "[ensure-env-secrets]" >&2
-    echo "[ensure-env-secrets] On a stack with no Trigger.dev data yet, rotate it and move on:" >&2
+    echo "[ensure-env-secrets] On a stack whose provider holds nobody yet, rotate it and move on:" >&2
     echo "[ensure-env-secrets]   ./deploy/compose/env-upsert.sh ${ENV_FILE} ${name}=\$(openssl rand -hex ${bytes})" >&2
-    echo "[ensure-env-secrets] On one that is running, follow the procedure in" >&2
-    echo "[ensure-env-secrets] docs/managed-bring-up.md — 'Rotating TRIGGER_ENCRYPTION_KEY'." >&2
     REFUSED_ROTATION=1
     return 0
   fi
@@ -268,11 +262,6 @@ REFUSED_ROTATION=0
 
 ensure JWT_SECRET 32
 ensure SECRET_ENCRYPTION_KEY 32
-ensure TRIGGER_SESSION_SECRET 16
-ensure TRIGGER_MAGIC_LINK_SECRET 16
-ensure TRIGGER_ENCRYPTION_KEY 16
-ensure TRIGGER_LOGIN_SECRET 16
-ensure TRIGGER_MANAGED_WORKER_SECRET 16
 ensure PGBOUNCER_AUTH_PASSWORD 24
 
 # The identity provider's own encryption key (ADR-0042).
@@ -292,11 +281,11 @@ ensure ZITADEL_DB_PASSWORD 24
 # The first human account, so a fresh stack has somebody who can sign in at all.
 ensure ZITADEL_ADMIN_PASSWORD 16
 # The system role's password (workplan 0138 T3 step 2): `ownpace_system`, the
-# role the Trigger.dev jobs that span organisations connect as, which is not a
+# role the jobs that span organisations connect as, which is not a
 # superuser. Generated here on the OTA stack and on live alike, and SAFE to
 # generate on a stack whose volume exists, unlike the five database passwords
 # below: managed migration 0033 creates the role with no password, and the
-# bring-up (bootstrap-managed.sh, its `tasks` phase) sets this value on it
+# bring-up (bootstrap-managed.sh, its `app` phase) sets this value on it
 # with ALTER ROLE on every run, so the volume never keeps an older one. The
 # nightly gate persists .env back after this script, so it is generated once
 # per stack.
@@ -328,9 +317,8 @@ fi
 # Generated on live too, where nothing reads it: live runs no demo.
 ensure NEXTCLOUD_DB_PASSWORD 24
 
-# THE FIVE DATABASE PASSWORDS (workplan 0132 T2): POSTGRES_PASSWORD,
-# APP_DB_PASSWORD, CLICKHOUSE_PASSWORD, MINIO_ROOT_PASSWORD and, since step B
-# (2026-10-05), TRIGGER_DB_PASSWORD: shipped-passwords.sh's
+# THE DATABASE PASSWORDS (workplan 0132 T2): POSTGRES_PASSWORD and
+# APP_DB_PASSWORD (and Trigger.dev's three, until alpha.18): shipped-passwords.sh's
 # SHIPPED_PASSWORD_KEYS, each with its volume.
 #
 # managed.env.example ships them empty, so a new stack gets its own, as it
@@ -339,22 +327,18 @@ ensure NEXTCLOUD_DB_PASSWORD 24
 # (shipped-passwords.sh lists those, the change-me… values older examples
 # carried, and the migration's for app_user).
 #
-# A STACK THAT EXISTS CHANGES THEM WITH ITS DATABASE. Postgres, trigger-db
-# among them, reads its password when its volume is first initialised, and
-# keeps it: a value written here after that changes what the containers are
-# told, never what the roles hold. ClickHouse and MinIO read theirs when their
-# containers are recreated, and a new value has to reach each store and
-# trigger-api together (MinIO's old volume may refuse a new pair).
-# rotate-db-passwords.sh --rotate --with-trigger-stores writes the new values
-# and sets the roles, and the E2E (managed) run it starts recreates the
-# containers. So a key that is empty or
+# A STACK THAT EXISTS CHANGES THEM WITH ITS DATABASE. Postgres reads its
+# password when its volume is first initialised, and keeps it: a value written
+# here after that changes what the containers are told, never what the roles
+# hold. rotate-db-passwords.sh --rotate writes the new values and sets the
+# roles. So a key that is empty or
 # holds a published value is generated only while its volume does not exist
 # yet. Once it exists, nothing is written for that key, and the note says how
-# to change it, the way TRIGGER_ENCRYPTION_KEY is refused above. A value that
+# to change it, the way ZITADEL_MASTERKEY is refused above. A value that
 # is not published is never touched, and then docker is not even asked: the
 # nightly gate runs this on the OTA stack every night, whose values the owner
-# rotated on 2026-10-05, trigger-db's with them. A daemon that does not answer
-# is not a stack without volumes: nothing is written for the five then either.
+# rotated on 2026-10-05. A daemon that does not answer is not a stack without
+# volumes: nothing is written for them then either.
 #
 # scripts/a-password-the-repository-knows.unit.test.ts runs this with a docker
 # stub, and runs the gate's Fill step on an .env like the OTA stack's.
@@ -402,11 +386,7 @@ ensure_db_password() { # ensure_db_password <name> <volume>
       fi
       ;;
     0)
-      if [ "$volume" = postgres_data ] || [ "$volume" = trigger_db_data ]; then
-        echo "[ensure-env-secrets] LEFT AS IT IS: ${name} is empty or holds a value this repository publishes, and ${DB_PROJECT}_${volume} exists, which keeps the password its role was made with." >&2
-      else
-        echo "[ensure-env-secrets] LEFT AS IT IS: ${name} is empty or holds a value this repository publishes, and ${DB_PROJECT}_${volume} exists: a new value has to reach the store and trigger-api together, when they are recreated." >&2
-      fi
+      echo "[ensure-env-secrets] LEFT AS IT IS: ${name} is empty or holds a value this repository publishes, and ${DB_PROJECT}_${volume} exists, which keeps the password its role was made with." >&2
       DB_LEFT+=("$name")
       ;;
     *)
@@ -424,23 +404,12 @@ if [ "${#DB_LEFT[@]}" -gt 0 ]; then
   REFUSED_ROTATION=1
   cat >&2 <<'EOF'
 [ensure-env-secrets] A database password whose volume exists is changed together with the database, not here:
-[ensure-env-secrets]   ./deploy/compose/rotate-db-passwords.sh --check, then --rotate --with-trigger-stores at a
+[ensure-env-secrets]   ./deploy/compose/rotate-db-passwords.sh --check, then --rotate at a
 [ensure-env-secrets]   quiet time (docs/managed-bring-up.md, "Changing the database passwords").
 [ensure-env-secrets] On a developer's own stack on localhost the published values are fine. On a real address
 [ensure-env-secrets] (WEB_URL https, not localhost) the bring-up refuses them from the data phase on.
 EOF
 fi
-
-# TRIGGER_DB_PASSWORD IS IN THAT LOOP since 2026-10-05 (workplan 0132 T2, step
-# B). It was kept out until the owner had run rotate-db-passwords.sh --rotate
-# --with-trigger-stores on the OTA stack: that stack's trigger_db_data held
-# managed.yml's fallback and its .env had no value, and the bring-up, which
-# judges the same list, would have refused that on its real address and
-# stopped the nightly gate. This script would only have left a note there,
-# because the volume existed. That run wrote a generated value to the
-# persisted .env, which this leaves alone (it is not published).
-# stand-up-live.sh generates it for live, before live's volume exists, with a
-# list of its own.
 
 # AND REPAIR ONE THE OLD GENERATOR ALREADY WROTE, which `ensure` above will not:
 # it fills a MISSING key and never touches a present one, which is right for a
@@ -481,14 +450,6 @@ fi
 # env-read.sh for the whole rule; managed-env-contract.unit.test.ts counts this
 # line as what supplies the key.
 seed_pat_expiry "$ENV_FILE"
-
-# THE GROUP OF THE HOST'S DOCKER SOCKET (workplan 0119, 2026-11-20). Not a
-# secret either, and here for the same reason: managed.yml requires it
-# (`${DOCKER_SOCKET_GID:?…}`, trigger-docker-proxy's group_add), so every
-# compose command needs it. Read from the socket on every run, never typed:
-# see seed_docker_socket_gid in env-read.sh. managed-env-contract.unit.test.ts
-# counts this line as what supplies the key.
-seed_docker_socket_gid "$ENV_FILE"
 
 # PgBouncer's own credential file (workplan 0082 T4).
 #
@@ -548,16 +509,10 @@ if [ "${PLACEHOLDERS_REPLACED:-0}" -eq 1 ]; then
   cat <<'EOF'
 
 [ensure-env-secrets] ONE OR MORE SECRETS WERE PLACEHOLDERS AND HAVE BEEN REPLACED.
-[ensure-env-secrets] The services holding the old values must be recreated, and
-[ensure-env-secrets] anything encrypted with them re-supplied:
+[ensure-env-secrets] The services holding the old values must be recreated:
 [ensure-env-secrets]
 [ensure-env-secrets]   docker compose -f deploy/compose/managed.yml \
-[ensure-env-secrets]     up -d --force-recreate trigger-api trigger-supervisor api
-[ensure-env-secrets]   ./deploy/compose/set-task-env.sh    # re-encrypts the task environment
-[ensure-env-secrets]
-[ensure-env-secrets] Rotating TRIGGER_ENCRYPTION_KEY strands the Trigger.dev env-var store,
-[ensure-env-secrets] which is why set-task-env.sh is not optional here. Rotating
-[ensure-env-secrets] TRIGGER_LOGIN_SECRET or TRIGGER_SESSION_SECRET only signs people out.
+[ensure-env-secrets]     up -d --force-recreate api worker
 EOF
 fi
 

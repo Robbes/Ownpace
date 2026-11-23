@@ -231,7 +231,12 @@ function stage(dotEnv: string): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
-  writeFileSync(join(compose, 'managed.yml'), 'name: rehearsal-stub\nservices: {}\n');
+  // With the switch, as every managed.yml since alpha.16 has it: one without is
+  // a release that ran Trigger.dev, which job-runner.sh refuses (0167 T9).
+  writeFileSync(
+    join(compose, 'managed.yml'),
+    'name: rehearsal-stub\nservices:\n  worker:\n    environment:\n      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}\n',
+  );
   writeFileSync(join(compose, '.env'), dotEnv);
 
   const bin = join(root, 'bin');

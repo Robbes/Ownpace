@@ -125,12 +125,12 @@ hold. The same guard's rule 8 holds who reads which URL across
 organisations: the three jobs that span them and `task-pools.ts` read
 `SYSTEM_DATABASE_URL` and no other database URL, the operator's CLI and
 `direct-url.ts`, which never run in a task, never read it, and no other file
-does; `scripts/a-run-that-carries-no-superuser.unit.test.ts` holds
-`set-task-env.sh` to uploading the system role's URL, nothing composed from
-the owner's user or password under any name, neither of the owner's two names,
-and to deleting both from the store and reading the list back; and
+does; `scripts/a-run-that-carries-no-superuser.unit.test.ts` holds the
+worker's environment in `managed.yml` to the system role's URL and nothing
+composed from the owner's user or password under any name (until alpha.18 it
+held `set-task-env.sh`, the Trigger.dev tasks' upload, to the same); and
 `scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts` holds the
-bring-up to asking Postgres, before the upload, whether the role is a
+bring-up to asking Postgres, before the worker starts, whether the role is a
 superuser or may create roles, and refusing if it is or may.
 `apps/worker/src/jobs/a-system-role-that-is-not-the-owner.integration.test.ts`
 asks a database with both chains what the role is and holds (its attributes,
@@ -196,48 +196,34 @@ database roles"):
   deployment — the ones that by their nature span tenants, or precede one
   existing. **No job's run holds it**: the worker's environment in
   `managed.yml` names neither and composes nothing from the owner's name or
-  password, and in trigger mode, the fallback, `set-task-env.sh` uploads
-  nothing composed from it and deletes the names it went up under
-  (`DATABASE_URL`, `DIRECT_DATABASE_URL`) from the task environment. At the
-  machine, these hold it:
+  password. At the machine, these hold it:
 
 | who holds it | what for |
 | --- | --- |
-| `deploy/compose/bootstrap-managed.sh` | applies the migrations, creates the `pgbouncer_auth` role and the jobs role `ownpace_jobs` with its schema `pgboss` (`jobs-role.sql`, the table above; it asks what that role may do before it sets its password, and refuses it when it may do more), and, in its `data` phase, creates `app_user` when it is missing and sets `app_user`'s and the owner's passwords to `.env`'s, over the socket as the owner, before anything migrates (workplan 0132 T2). In its `tasks` phase it asks what the system role may do and sets its password (below) |
+| `deploy/compose/bootstrap-managed.sh` | applies the migrations, creates the `pgbouncer_auth` role and the jobs role `ownpace_jobs` with its schema `pgboss` (`jobs-role.sql`, the table above; it asks what that role may do before it sets its password, and refuses it when it may do more), and, in its `data` phase, creates `app_user` when it is missing and sets `app_user`'s and the owner's passwords to `.env`'s, over the socket as the owner, before anything migrates (workplan 0132 T2). In its `app` phase, before the worker starts, it asks what the system role may do and sets its password (below) |
 | `deploy/compose/seed-managed.sh` | writes the demo tenants |
 | `deploy/compose/operator.sh` | appoints operators, manages their memberships, and runs `check` / `clean` — all of which ask questions that span every tenant, which is why they are scripts and not routes (see `apps/api/src/scripts/operator.ts`). It hands one verb, `measure-google-sync` (workplan 0164 T1), to the worker's CLI on the same URL: three SELECTs in a transaction opened `READ ONLY`, to choose the newest migration whose calendars come from Google, and nothing written |
-| `deploy/compose/box-checks.sh` | live's daily summary (workplan 0142 T3): `psql` over each `postgres` and `trigger-db` container's socket, as `POSTGRES_USER`, without composing a URL. SELECTs only: database sizes, and on live the row counts of `run`, `run_event`, `item` and `app_event` across every organisation, given only when that role passes row security, and the sync tick's beat. It sends numbers by mail, never a row's content. Every ten minutes it also runs `copy-before-update.sh delete-if-proven`, whose proof reads live's database the same way |
-| `deploy/compose/live-pass-check.sh` | live's pass check (workplan 0132 T9): `psql` over the `postgres` container's socket, as `POSTGRES_USER`, without composing a URL. SELECTs only: the open holds; the named migration's organisation, status and selected data types; whether an active owner of that organisation is a platform operator; the passes in flight across every organisation; and that migration's run rows by `orchestrator_ref`. It prints counts, times and the Trigger.dev run id, never a row's content. The pass itself is pressed inside the `api` container as `app_user`, under row security (`apps/api/src/scripts/live-pass.ts`) |
-| `deploy/compose/rotate-db-passwords.sh` | acts as the owner without composing a URL: `psql` over the database container's socket, as `POSTGRES_USER`, to list the login roles and to `ALTER ROLE` the owner and `app_user` to `.env`'s values (`--sync`, `--rotate`; the functions are `db-roles.sh`'s, which the bring-up's `data` phase calls on every run). It asks each password over the stack's network and through PgBouncer, and prints no value (workplan 0132 T2; `docs/managed-bring-up.md`, "Changing the database passwords"). With `--with-trigger-stores` it also sets `trigger-db`'s role `trigger` over that container's socket, as itself: Trigger.dev's own database, which holds no tenant rows |
+| `deploy/compose/box-checks.sh` | live's daily summary (workplan 0142 T3): `psql` over each stack's `postgres` container's socket, as `POSTGRES_USER`, without composing a URL. SELECTs only: database sizes, and on live the row counts of `run`, `run_event`, `item` and `app_event` across every organisation, given only when that role passes row security, and the sync tick's beat. It sends numbers by mail, never a row's content. Every ten minutes it also runs `copy-before-update.sh delete-if-proven`, whose proof reads live's database the same way |
+| `deploy/compose/live-pass-check.sh` | live's pass check (workplan 0132 T9): `psql` over the `postgres` container's socket, as `POSTGRES_USER`, without composing a URL. SELECTs only: the open holds; the named migration's organisation, status and selected data types; whether an active owner of that organisation is a platform operator; the passes in flight across every organisation; and that migration's run rows by `orchestrator_ref`. It prints counts, times and the run's id, never a row's content. The pass itself is pressed inside the `api` container as `app_user`, under row security (`apps/api/src/scripts/live-pass.ts`) |
+| `deploy/compose/rotate-db-passwords.sh` | acts as the owner without composing a URL: `psql` over the database container's socket, as `POSTGRES_USER`, to list the login roles and to `ALTER ROLE` the owner and `app_user` to `.env`'s values (`--sync`, `--rotate`; the functions are `db-roles.sh`'s, which the bring-up's `data` phase calls on every run). It asks each password over the stack's network and through PgBouncer, and prints no value (workplan 0132 T2; `docs/managed-bring-up.md`, "Changing the database passwords") |
 
-The `worker` service does not hold it either: `managed.yml` gives it the same
-two database URLs the tasks get, composed the same way, beside
-`SECRET_ENCRYPTION_KEY`, the jobs role's `JOBS_DATABASE_URL` and the optional
-values, and every job's run, a process of the worker, receives them. In trigger
-mode `deploy/compose/set-task-env.sh` does not hold it: it uploads those two
-database URLs into the Trigger.dev task environment,
-beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run of every
-task receives both. `SYSTEM_DATABASE_URL` (composed as
+The `worker` service does not hold it either: `managed.yml` gives it two
+database URLs, beside `SECRET_ENCRYPTION_KEY`, the jobs role's
+`JOBS_DATABASE_URL` and the optional values, and every job's run, a process of
+the worker, receives them. `SYSTEM_DATABASE_URL` (composed as
 `TASK_SYSTEM_DATABASE_URL`, from the system role's name and `.env`'s
 `SYSTEM_DB_PASSWORD`) is the system role through the pooler: **the three jobs
 that span organisations whole connect with it**; the three split jobs (the
 digest, the drift detector, group discovery) read their list of organisations
-on it, ids only; and every task that opens `openTaskPools` reads it for the
+on it, ids only; and every job that opens `openTaskPools` reads it for the
 audit key's pool of one. `APP_DATABASE_URL` is `app_user`: the eight per-tenant
-tasks read and write tenant data through it, and the three split jobs every
-organisation's rows. `set-task-env.sh` deletes the owner's two names, `DIRECT_DATABASE_URL`
-(the owner straight to `postgres:5432`) and `DATABASE_URL` (the owner through
-the pooler), from the store, since an older task environment may still hold
-them, in a run of its own (`set-task-env.sh --forget-owner-names`) that the
-bring-up makes only after `deploy-tasks.sh` has put the new tasks in place, so
-a deploy that fails leaves the old tasks the URL they read, and that run fails
-when the list it reads back still holds either (`docs/managed-bring-up.md`,
-"The owner's names in the task environment").
+jobs read and write tenant data through it, and the three split jobs every
+organisation's rows.
 
 - `SYSTEM_DATABASE_URL` → **the system role, `ownpace_system`** (managed
   migration 0033). **The jobs that span organisations, and nothing
   else**: the sync tick, retention and the purge of closed organisations for
-  everything, the split jobs' list of organisations, and every task's audit key.
+  everything, the split jobs' list of organisations, and every job's audit key.
   `LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS`, a member
   of no role, **and no role a member of it**: a role it belonged to would lend
   it that role's rights with `SET ROLE`, and a role that belonged to it
@@ -261,16 +247,13 @@ when the list it reads back still holds either (`docs/managed-bring-up.md`,
   change its own password and its own settings, as any role can; the bring-up
   sets the one and clears the other on every run. The migration gives it no
   password; `ensure-env-secrets.sh` generates `SYSTEM_DB_PASSWORD`, and the
-  bring-up's `tasks` phase asks Postgres whether the role is a superuser, may
+  bring-up's `app` phase asks Postgres, before the worker starts, whether the role is a superuser, may
   create roles or databases, replicates, belongs to a role, has a role
   belonging to it, or lacks `BYPASSRLS` or `LOGIN`, **refuses to go on if it
   is, may or does**, then sets the password, clears every setting on the role,
-  and proves it opens where the tasks connect (`db_roles_system_fit`,
-  `db_roles_system_set`, `deploy/compose/db-roles.sh`); `set-task-env.sh` asks
-  the same question before every upload, the bring-up's or one run by hand, and
-  uploads nothing on a wrong answer. Every run still
-  receives this URL, because the worker has one environment for all its runs
-  (and Trigger.dev, in trigger mode, stores variables per environment); a
+  and proves it opens where the jobs connect (`db_roles_system_fit`,
+  `db_roles_system_set`, `deploy/compose/db-roles.sh`). Every run still
+  receives this URL, because the worker has one environment for all its runs; a
   run that had been taken over could read past the policies with it. 0138's T3
   step 3, parked until the service admits people the owner has not let in,
   replaces it with functions the owner owns.

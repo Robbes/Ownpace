@@ -7,7 +7,7 @@
  * Each file in `./runs/` is the entry the worker forks for one queue: it
  * imports that job's module statically, and ends in
  * `serveRuns({ run: onPgBoss(<schema>, <job>Run) })`. What the run is handed
- * is made here, as Trigger.dev makes it for the same job (`onTriggerDev`):
+ * is made here, as Trigger.dev made it for the same job until alpha.18:
  *
  * 1. **The payload, parsed with the job's own schema.** A payload the schema
  *    refuses fails the run before the job's run is called, and is not retried:

@@ -135,31 +135,31 @@ describe('managed.yml hands the setting to both halves', () => {
 });
 
 /**
- * AND THE SYNC TASKS (workplan 0109 T6). The pass holds new first copies at an
+ * AND THE SYNC PASS (workplan 0109 T6). The pass holds new first copies at an
  * organisation's data ceiling, but not during the alpha, where the API takes
- * no yes that would lift the hold. A task container inherits nothing from
- * compose, so the stage reaches it only through `set-task-env.sh`; missed, the
- * hold would stop a tester's migration at a price nobody can pay. And emptied,
- * it must leave the store, or the hold would stay off after the alpha ended.
+ * no yes that would lift the hold. The pass runs in the `worker` service since
+ * alpha.16 (pg-boss; Trigger.dev's task containers, which inherited nothing
+ * from compose and were handed it by `set-task-env.sh`, were removed in
+ * alpha.18, workplan 0167 T9), so managed.yml hands it to the worker as it
+ * does to the API; missed, the hold would stop a tester's migration at a
+ * price nobody can pay. And emptied in `.env`, the next bring-up hands the
+ * worker an empty value, so the hold is back once the alpha ends.
  */
-describe('the sync tasks are handed it, and lose it when it is emptied', () => {
-  const setTaskEnv = read('deploy/compose/set-task-env.sh');
-
+describe('the sync pass is handed it, and loses it when it is emptied', () => {
   it('the pass reads it', () => {
     expect(read('apps/worker/src/jobs/run-delta-sync.ts')).toMatch(
       new RegExp(`holdsAtCeiling\\(process\\.env\\.${SETTING}\\)`),
     );
   });
 
-  it('set-task-env.sh uploads it when set', () => {
-    expect(setTaskEnv).toContain(`${SETTING}="\${${SETTING}:-}"`);
-    expect(setTaskEnv).toContain(`"${SETTING}",`);
-  });
-
-  it('and deletes it from the store when empty', () => {
-    expect(setTaskEnv).toMatch(
-      new RegExp(`if \\(!process\\.env\\.${SETTING}\\) \\{\\s*try \\{\\s*await envvars\\.del\\(ref, slug, "${SETTING}"\\)`),
-    );
+  it('the worker receives it in its explicit environment, empty by default', () => {
+    const env = compose().services.worker?.environment ?? {};
+    expect(
+      Object.keys(env),
+      `the worker service is never handed ${SETTING}. Compose passes nothing it is not told\n` +
+        'to pass, so the pass would hold a tester at the ceiling.',
+    ).toContain(SETTING);
+    expect(env[SETTING], `${SETTING} must default to empty: empty means off`).toBe(`\${${SETTING}:-}`);
   });
 });
 

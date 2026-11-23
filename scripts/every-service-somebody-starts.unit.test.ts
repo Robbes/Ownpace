@@ -77,7 +77,8 @@ describe('every service the stack defines is one the bring-up knows about', () =
   it('found the services, rather than passing on an empty list', () => {
     // The failure mode of a scan: the file moves, the regex finds nothing, and
     // a rule about everything becomes a rule about nothing.
-    expect(services.length).toBeGreaterThan(10);
+    // Ten since alpha.18 removed Trigger.dev's eleven (workplan 0167 T9).
+    expect(services.length).toBeGreaterThanOrEqual(9);
     expect(services).toContain('api');
     expect(services).toContain('gatus');
     expect(services, 'a network was read as a service').not.toContain('ownpace-network');
@@ -263,11 +264,10 @@ describe('what gatus reads is what /api/ready answers', () => {
  * changing the image fails this file rather than the nightly.
  *
  * DELIBERATELY NARROW. The general rule — every service without a healthcheck
- * is probed by the smoke or exempted with a reason — would also cover zitadel,
- * minio, the registry, the docker proxy and the TLS terminator, and is worth
- * writing when somebody has read what each of those images can actually
- * execute. Guessing that for five images is how this defect was written in the
- * first place.
+ * is probed by the smoke or exempted with a reason — would also cover zitadel
+ * and the others without one, and is worth writing when somebody has read what
+ * each of those images can actually execute. Guessing that for several images
+ * is how this defect was written in the first place.
  */
 describe('the status page, which cannot check itself', () => {
   const smoke = readFileSync(join(COMPOSE, 'smoke-managed.sh'), 'utf8');

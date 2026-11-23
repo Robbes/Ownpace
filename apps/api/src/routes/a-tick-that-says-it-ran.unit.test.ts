@@ -9,9 +9,10 @@
  * (`readTickBeat`) is proved against the database in `@openmig/managed`; here
  * it is stubbed, and the route is called through Express.
  *
- * - no orchestrator configured answers `off`, and reads nothing: on Trigger.dev
- *   no `TRIGGER_SECRET_KEY`, on pg-boss no `JOBS_DATABASE_URL` (0167 T6, the
- *   switch `OWNPACE_JOB_RUNNER`), and either reads the one shared beat;
+ * - no orchestrator configured answers `off`, and reads nothing: no
+ *   `JOBS_DATABASE_URL` (0167 T6; pg-boss is the only runner since alpha.18
+ *   removed Trigger.dev, 0167 T9, and an old switch that says `trigger` is
+ *   refused, as any value but `pg-boss` is);
  * - the beat's answer is the body's one field;
  * - a read that fails answers `down`, logs why, and says nothing of it.
  *
@@ -35,25 +36,20 @@ const { default: readyRoutes, __setPoolForTests } = await import('./ready.ts');
 const app = express();
 app.use('/api/ready', readyRoutes);
 
-let secretKey: string | undefined;
 let runner: string | undefined;
 let jobsUrl: string | undefined;
 
 beforeEach(() => {
-  secretKey = process.env.TRIGGER_SECRET_KEY;
   runner = process.env.OWNPACE_JOB_RUNNER;
   jobsUrl = process.env.JOBS_DATABASE_URL;
   delete process.env.OWNPACE_JOB_RUNNER;
-  delete process.env.JOBS_DATABASE_URL;
-  process.env.TRIGGER_SECRET_KEY = 'tr_test_not_a_real_key';
+  process.env.JOBS_DATABASE_URL = 'postgres://ownpace_jobs@pgbouncer:6432/ownpace';
   // Never connected: the beat's reader is stubbed.
   __setPoolForTests(new Pool({ connectionString: 'postgres://nobody@127.0.0.1:1/none' }));
   readTickBeat.mockReset();
 });
 
 afterEach(() => {
-  if (secretKey === undefined) delete process.env.TRIGGER_SECRET_KEY;
-  else process.env.TRIGGER_SECRET_KEY = secretKey;
   if (runner === undefined) delete process.env.OWNPACE_JOB_RUNNER;
   else process.env.OWNPACE_JOB_RUNNER = runner;
   if (jobsUrl === undefined) delete process.env.JOBS_DATABASE_URL;
@@ -78,17 +74,15 @@ describe('GET /api/ready/scheduler', () => {
   });
 
   it('says off, and reads nothing, where no orchestrator is configured', async () => {
-    delete process.env.TRIGGER_SECRET_KEY;
+    delete process.env.JOBS_DATABASE_URL;
     const res = await request(app).get('/api/ready/scheduler');
     expect(res.body).toEqual({ scheduler: 'off' });
     expect(readTickBeat).not.toHaveBeenCalled();
   });
 
   describe('on the switch (0167 T6)', () => {
-    it('on pg-boss, with JOBS_DATABASE_URL: reads the same shared beat, with no Trigger.dev key', async () => {
+    it('on pg-boss, with JOBS_DATABASE_URL: reads the shared beat', async () => {
       process.env.OWNPACE_JOB_RUNNER = 'pg-boss';
-      process.env.JOBS_DATABASE_URL = 'postgres://ownpace_jobs@pgbouncer:6432/ownpace';
-      delete process.env.TRIGGER_SECRET_KEY;
       readTickBeat.mockResolvedValue('up');
       const res = await request(app).get('/api/ready/scheduler');
       expect(res.body).toEqual({ scheduler: 'up' });
@@ -97,21 +91,21 @@ describe('GET /api/ready/scheduler', () => {
       expect(readTickBeat.mock.calls[0]).toHaveLength(2);
     });
 
-    it('on pg-boss without JOBS_DATABASE_URL: off, though a Trigger.dev key is set', async () => {
+    it('on pg-boss without JOBS_DATABASE_URL: off', async () => {
       process.env.OWNPACE_JOB_RUNNER = 'pg-boss';
+      delete process.env.JOBS_DATABASE_URL;
       const res = await request(app).get('/api/ready/scheduler');
       expect(res.body).toEqual({ scheduler: 'off' });
       expect(readTickBeat).not.toHaveBeenCalled();
     });
 
-    it('on Trigger.dev, said outright: as unset', async () => {
+    it('an old switch that says trigger: down, the alpha.18 sentence in the log only, and nothing read (0167 T9)', async () => {
+      const logged = vi.spyOn(log, 'error').mockImplementation(() => {});
       process.env.OWNPACE_JOB_RUNNER = 'trigger';
-      process.env.JOBS_DATABASE_URL = 'postgres://ownpace_jobs@pgbouncer:6432/ownpace';
-      delete process.env.TRIGGER_SECRET_KEY;
-      expect((await request(app).get('/api/ready/scheduler')).body).toEqual({ scheduler: 'off' });
-      process.env.TRIGGER_SECRET_KEY = 'tr_test_not_a_real_key';
-      readTickBeat.mockResolvedValue('down');
-      expect((await request(app).get('/api/ready/scheduler')).body).toEqual({ scheduler: 'down' });
+      const res = await request(app).get('/api/ready/scheduler');
+      expect(res.body).toEqual({ scheduler: 'down' });
+      expect(readTickBeat).not.toHaveBeenCalled();
+      expect(String(logged.mock.calls[0]?.[1])).toContain('Trigger.dev was removed in alpha.18');
     });
 
     it('a switch it may not hold: down, the sentence in the log only, and nothing read', async () => {
@@ -120,7 +114,7 @@ describe('GET /api/ready/scheduler', () => {
       const res = await request(app).get('/api/ready/scheduler');
       expect(res.body).toEqual({ scheduler: 'down' });
       expect(readTickBeat).not.toHaveBeenCalled();
-      expect(String(logged.mock.calls[0]?.[1])).toContain('may only be "trigger" or "pg-boss"');
+      expect(String(logged.mock.calls[0]?.[1])).toContain('may only be "pg-boss"');
     });
   });
 

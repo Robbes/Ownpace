@@ -27,7 +27,7 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0004: Orchestration via Trigger.dev (managed) + in-process scheduler (self-host)](./0004-orchestration-triggerdev-and-inprocess.md)
 
-- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance; on managed **pg-boss** on our own Postgres ([ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md), in force since workplan 0167 T7), with self-hosted Trigger.dev kept installed and stopped as the fallback.
+- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance; on managed **pg-boss** on our own Postgres ([ADR-0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md), in force since workplan 0167 T7); self-hosted Trigger.dev is removed from the managed edition (alpha.18, workplan 0167 T9).
 - The orchestrator never sees content: task payloads carry ids only; bytes move inside the task process (SAD §17).
 
 ## [ADR-0005: Idempotency via a ledger; non-destructive by default](./0005-idempotency-ledger-nondestructive.md)
@@ -776,9 +776,10 @@ live in [README.md](./README.md), the register.
 ## [ADR-0054: The managed edition's jobs run on pg-boss, on our own Postgres](./0054-the-managed-editions-jobs-run-on-pg-boss.md)
 
 - **The managed edition's jobs run on pg-boss** (in force since workplan 0167 T7), each on a
-  queue named by its Trigger.dev task id, through `PgBossJobRunner` at
-  `@openmig/scheduler/pg-boss`, which the appliance may not reach. The switch is
-  `OWNPACE_JOB_RUNNER`, `pg-boss` by `managed.yml`'s default.
+  queue named by the task id it had on Trigger.dev, through `PgBossJobRunner` at
+  `@openmig/scheduler/pg-boss`, which the appliance may not reach. The switch
+  `OWNPACE_JOB_RUNNER` keeps its reader: unset, empty or `pg-boss`; `trigger` is refused in one
+  sentence, since alpha.18.
 - **pg-boss is pinned exactly, and the runner runs only on its release's schema version**
   (`scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts`).
 - **Its schema `pgboss` is owned by `ownpace_jobs`**, no superuser and no grant on the ledger,
@@ -791,8 +792,9 @@ live in [README.md](./README.md), the register.
 - **A run settles as Trigger.dev 4.8.8 settles it**, decided by the error's name: an hour,
   three for a cutover (§2's table).
 - **The operator sees the work through `operator.sh jobs`**; there is no dashboard.
-- **Trigger.dev's plane is kept installed and stopped**, in profile `trigger`, its volumes the
-  way back (`OWNPACE_JOB_RUNNER=trigger`); removed only on the owner's word.
+- **Trigger.dev's plane is removed** (alpha.18, workplan 0167 T9): what a stack kept of it goes
+  by name only, its containers in the bring-up's `plane` phase and its volumes by
+  `remove-trigger-plane.sh --yes`, on live on the owner's word.
 - **A job carries ids only** (ADR-0004). Self-host keeps its in-process scheduler. The rules in
   full: *In force from workplan 0167 T7*, below.
 

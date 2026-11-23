@@ -9,24 +9,27 @@
  * host goes through it (#1223). But nothing switched it on: the managed API and
  * the managed tasks connected wherever a tester pointed them. It is on now in
  * both managed processes, with the operator's allow list,
- * `OWNPACE_REACHABLE_HOSTS`, and off in the appliance.
+ * `OWNPACE_REACHABLE_HOSTS`, and off in the appliance. (The jobs ran as
+ * Trigger.dev tasks, whose list `set-task-env.sh` uploaded, until alpha.18
+ * removed Trigger.dev, workplan 0167 T9; they run in the `worker` service
+ * since, which compose hands the list as it hands the API's.)
  *
  * WHAT THIS HOLDS:
  *
  * - the API's start-up switches it on, before it listens, where the other
  *   start-up checks run;
- * - every task module imports the task runtime's switch, which reads the list
- *   and switches the rule on as it loads;
+ * - every job module imports the jobs' switch, which reads the list and
+ *   switches the rule on as it loads;
  * - nothing the appliance runs switches it on, and nothing hands it the list;
- * - the list reaches both halves: the API through `managed.yml`, the tasks
- *   through `set-task-env.sh`, which also deletes it from the task store when
- *   it is emptied; `managed.env.example` documents it, empty;
+ * - the list reaches both halves, the API and the worker, each through its
+ *   own environment in `managed.yml`; `managed.env.example` documents it,
+ *   empty;
  * - the demo phase of the bring-up admits the demo's two compose names, adding
  *   only what is missing, and the bring-up says what the list holds;
  * - the smoke asks the API for the demo Nextcloud by its compose name, which the
  *   list admits, not by the host-side address the rule refuses.
  *
- * It fails if either process stops switching the rule on, if a new task module
+ * It fails if either process stops switching the rule on, if a new job module
  * forgets the switch, or if the list stops reaching a half.
  */
 
@@ -36,6 +39,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string): string => readFileSync(join(REPO_ROOT, path), 'utf8');
@@ -67,16 +71,18 @@ describe('the managed API switches the rule on at start-up', () => {
   });
 });
 
-describe('the managed tasks switch the rule on as each task module loads', () => {
+describe('the managed jobs switch the rule on as each job module loads', () => {
   const JOBS = 'apps/worker/src/jobs';
   const SWITCH = 'apps/worker/src/jobs/refuse-internal-addresses.ts';
   const taskModules = readdirSync(join(REPO_ROOT, JOBS))
     .filter((file) => file.endsWith('.ts') && !file.includes('.test.'))
     .map((file) => `${JOBS}/${file}`)
-    .filter((path) => /\b(?:schemaTask|task|schedules\.task)\(/.test(read(path)));
+    // A job module is one whose run the worker serves: `leavesAReference(` (the
+    // Trigger.dev task wrappers it was read by until alpha.18 are gone).
+    .filter((path) => /\bleavesAReference\(/.test(read(path)) && !path.endsWith('/what-a-run-leaves.ts'));
 
-  it('there are task modules to hold, the vacuity floor', () => {
-    expect(taskModules.length).toBeGreaterThanOrEqual(14);
+  it('there are job modules to hold, the vacuity floor: one per queue of the catalog', () => {
+    expect(taskModules.length).toBeGreaterThanOrEqual(17);
   });
 
   it.each(taskModules)('%s imports the switch', (path) => {
@@ -144,19 +150,18 @@ describe('the list reaches both managed halves', () => {
     expect(read('deploy/compose/managed.yml')).toContain(`${NAME}: \${${NAME}:-}`);
   });
 
-  it('the tasks, through set-task-env.sh, which deletes it there when it is emptied', () => {
-    const script = read('deploy/compose/set-task-env.sh');
-    expect(script).toContain(`${NAME}="\${${NAME}:-}" \\`);
-    expect(script).toMatch(new RegExp(`^\\s*"${NAME}",$`, 'm'));
-    expect(script).toContain(`if (!process.env.${NAME}) {`);
-    expect(script).toContain(`await envvars.del(ref, slug, "${NAME}");`);
+  it("the API's and the worker's, each its own, in managed.yml", () => {
+    const services = (parseYaml(read('deploy/compose/managed.yml')) as { services: Record<string, { environment?: Record<string, unknown> }> }).services;
+    for (const half of ['api', 'worker']) {
+      expect(services[half]?.environment?.[NAME], `${half} is not handed the list`).toBe(`\${${NAME}:-}`);
+    }
   });
 
-  it('managed.env.example documents it, empty, and names the upload', () => {
+  it('managed.env.example documents it, empty, and says both halves read it', () => {
     const example = read('deploy/compose/managed.env.example');
     const at = example.search(new RegExp(`^${NAME}=$`, 'm'));
     expect(at, `${NAME}= is not in the example, empty`).toBeGreaterThan(0);
-    expect(example.slice(Math.max(0, at - 1500), at)).toContain('set-task-env.sh');
+    expect(example.slice(Math.max(0, at - 1500), at)).toContain('The api and the worker read this');
   });
 });
 

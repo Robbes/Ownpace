@@ -6,13 +6,15 @@
 # e2e-managed.yml's steps are maintenance, not tests: `setup-zitadel.sh` runs
 # the identity provider's provisioning token's clock (the token lives seven
 # days and a run replaces it in its last three; past its deadline no successor
-# can be minted, because minting needs the token that died), and
-# `trigger-version.sh drill` dumps the Trigger.dev database and proves the
-# dump loads. Live never meets CI (T1g), so nothing did either for it.
+# can be minted, because minting needs the token that died), and the drill
+# dumps a database and proves the dump loads (Trigger.dev's until alpha.18,
+# the identity provider's since: dump-idp.sh --drill). Live never meets CI
+# (T1g), so nothing did either for it.
 #
 # THE DRILL IS NOT LIVE'S (workplan 0139; the owner's answer rec-drill (a),
 # 2026-09-28). It stays on the test stack, in the gate. Here it kept a daily
-# dump of live's task runner database, the newest seven, and live keeps one
+# dump of live's task runner database (Trigger.dev's, removed in alpha.18),
+# the newest seven, and live keeps one
 # copy of its databases, made right before an update and deleted once the
 # update is proven, never past day 7 (the privacy policy's §9). That copy's
 # backstop is the second duty instead.
@@ -192,8 +194,8 @@ COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" ||
   refuse "the project this checkout drives could not be settled (the reason is above)"
 
 # NO DUTY TAKES A DIRECTORY OR A CONTAINER FROM THE SHELL. The deploy scripts
-# read MANAGED_BACKUP_DIR, MANAGED_ENV_PERSIST_DIR and TRIGGER_DB_CONTAINER
-# before their defaults, and a shell that set one for the OTA stack would point
+# read MANAGED_BACKUP_DIR and MANAGED_ENV_PERSIST_DIR (and, until alpha.18,
+# TRIGGER_DB_CONTAINER) before their defaults, and a shell that set one for the OTA stack would point
 # a duty at the OTA stack's files or database. The copy's backstop does not
 # read them, and no duty is handed them.
 unset MANAGED_BACKUP_DIR MANAGED_ENV_PERSIST_DIR TRIGGER_DB_CONTAINER

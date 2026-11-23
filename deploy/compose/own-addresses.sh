@@ -31,7 +31,9 @@
 #                         the name of the key that holds it.
 #
 # WHAT COUNTS AS THIS MACHINE'S. Every `*_BIND`, TRIGGER_TLS_HOST, the hosts of
-# TRIGGER_APP_ORIGIN and TRIGGER_LOGIN_ORIGIN, and each entry of
+# TRIGGER_APP_ORIGIN and TRIGGER_LOGIN_ORIGIN (Trigger.dev's keys: alpha.18
+# removed it, and a .env from before still holds them, still this machine's),
+# and each entry of
 # NEXTCLOUD_TRUSTED_DOMAINS. Never loopback, every interface, an empty value, or
 # the name of a service in managed.yml: `nextcloud` is in the trusted domains,
 # and masked it would blank the word out of every line the job prints.

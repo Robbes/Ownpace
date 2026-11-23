@@ -176,12 +176,12 @@ Local Volumes space usage:
 
 VOLUME NAME                          LINKS     SIZE
 ownpace-live_postgres_data           1         1.5GB
-ownpace-live_trigger_clickhouse      1         12.3GB
+ownpace-live_nextcloud_data      1         12.3GB
 ownpace-managed_postgres_data        1         3.21GB
-ownpace-managed_trigger_minio        1         800MB
+ownpace-managed_mailpit_data        1         800MB
 not-ours_data                        1         99GB
 ownpace-live_gatus_data              1         45.1kB
-ownpace-managed_trigger_registry     1         5.6GB
+ownpace-managed_nextcloud_data     1         5.6GB
 ownpace-live_zitadel_machinekey      1         0B
 
 Build cache usage: 0B
@@ -189,11 +189,11 @@ Build cache usage: 0B
 CACHE ID   CACHE TYPE   SIZE      CREATED   LAST USED   USAGE     SHARED
 `;
 const TOP_FIVE = [
-  'ownpace-live_trigger_clickhouse',
-  'ownpace-managed_trigger_registry',
+  'ownpace-live_nextcloud_data',
+  'ownpace-managed_nextcloud_data',
   'ownpace-managed_postgres_data',
   'ownpace-live_postgres_data',
-  'ownpace-managed_trigger_minio',
+  'ownpace-managed_mailpit_data',
 ];
 
 /** A copy taken before NEXT, a deploy of NEXT that took, two passes since and five files: the line delete-if-proven prints when it deleted them. */
@@ -247,9 +247,6 @@ case "$1" in
         label=com.docker.compose.service=*) s="\${a#label=com.docker.compose.service=}" ;;
       esac
     done
-    # A service stopped on a running stack (STUB_STOPPED, <project>:<service>):
-    # trigger-db, where the jobs run on pg-boss (workplan 0167 T7).
-    case " \${STUB_STOPPED:-} " in *" $p:$s "*) exit 0 ;; esac
     case " \${STUB_RUNNING:-} " in *" $p "*) echo "id-\${p}-\${s}" ;; esac ;;
   exec)
     id="$3"; sql="$(cat)"
@@ -262,7 +259,6 @@ case "$1" in
         else
           echo "\${STUB_COUNTS:-yes|1234|567890|12345|678|42}"
         fi ;;
-      *-trigger-db) printf 'postgres 7655727\\ntriggerdb 2254857830\\n' ;;
     esac ;;
   system)
     [ -z "\${STUB_SYSTEM_DF_FAIL:-}" ] || { echo "Error response from daemon: a disk usage operation is already running" >&2; exit 1; }
@@ -745,7 +741,8 @@ describe('one summary a day, numbers only', () => {
     for (const project of ['ownpace-live', 'ownpace-managed']) {
       const line = body.split('\n').find((l) => l.trim().startsWith(`${project}:`)) ?? '';
       expect(line, `no databases line for ${project}`).toContain('postgres: openmigrate 1229 MB, postgres 7 MB, zitadel 256 MB');
-      expect(line).toContain('trigger-db: postgres 7 MB, triggerdb 2150 MB');
+      // One Postgres a stack: Trigger.dev's database went with its plane (workplan 0167 T9).
+      expect(line).not.toContain('trigger-db');
     }
     // The five largest volumes of the two stacks, largest first, and nobody else's.
     const volumes = body
@@ -763,7 +760,7 @@ describe('one summary a day, numbers only', () => {
     expect(sql).toMatch(/pg_database_size/);
     expect(sql).not.toMatch(/\b(UPDATE|INSERT|DELETE|TRUNCATE|DROP|ALTER|CREATE)\b/i);
     expect(calls(s, 'docker').filter((l) => l.startsWith('docker exec')).every((l) => l.includes('psql'))).toBe(true);
-    expect(calls(s, 'docker').some((l) => /--filter label=com\.docker\.compose\.service=trigger-db/.test(l))).toBe(true);
+    expect(calls(s, 'docker').some((l) => /--filter label=com\.docker\.compose\.service=trigger-db/.test(l))).toBe(false);
   });
 
   it('goes once a day, at the first run from 07:00 UTC', () => {
@@ -826,28 +823,16 @@ describe('one summary a day, numbers only', () => {
     expect(r.status, r.out).toBe(0);
     const line = told(s)[0]!.body.split('\n').find((l) => l.trim().startsWith('ownpace-managed:')) ?? '';
     expect(line).toContain('postgres: not running here');
-    expect(line).toContain('trigger-db: not running here');
-  });
-
-  it("a stack whose jobs run on pg-boss: its trigger-db, stopped with the plane, is not running here, and is no failure (workplan 0167 T7)", () => {
-    const s = stage();
-    dutiesPassed(s);
-    const r = checks(s, ['--summary'], { STUB_STOPPED: 'ownpace-live:trigger-db' });
-    expect(r.status, r.out).toBe(0);
-    const line = told(s)[0]!.body.split('\n').find((l) => l.trim().startsWith('ownpace-live:')) ?? '';
-    expect(line).toContain('trigger-db: not running here');
-    expect(line).not.toContain('postgres: not running here');
-    expect(line).not.toContain('not read');
   });
 
   it('a database that cannot be read says so in the summary, which still goes, and the run fails (hard rule 9)', () => {
     const s = stage();
     dutiesPassed(s);
-    const r = checks(s, ['--summary'], { STUB_EXEC_FAIL: 'id-ownpace-live-trigger-db,id-ownpace-live-postgres' });
+    const r = checks(s, ['--summary'], { STUB_EXEC_FAIL: 'id-ownpace-live-postgres' });
     expect(r.status, r.out).toBe(1);
     expect(r.out).toContain('connection to server on socket failed');
     const body = told(s)[0]!.body;
-    expect(body).toContain('trigger-db: not read');
+    expect(body).toContain('postgres: not read');
     expect(body).toMatch(/Live's rows: not read/);
     expect(body).toMatch(/What could not be read/);
     expect(body).not.toContain('connection to server on socket failed');

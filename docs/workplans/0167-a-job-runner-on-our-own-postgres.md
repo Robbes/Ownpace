@@ -2,7 +2,97 @@
 
 > **In one line:** pg-boss (MIT) on our own Postgres in place of self-hosted Trigger.dev for the managed edition's jobs: a spike that proved nine points against a real Postgres, directly and through PgBouncer, then the replacement in steps, from the runner, imported by nothing, to Trigger.dev's removal.
 
-## Status — 2026-11-22 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23, latest: T9, Trigger.dev removed from the managed edition, for alpha.18.** On branch
+`claude/ownpace-public-readiness-y7orc6-0167-t9`, from alpha.17 (`5b51a82b`). The owner's word,
+2026-11-23, verbatim: *"i will remove trigger.dev, but the machine runs OTA and managed, so both
+have to be move out of triggerdev."*
+
+- **Removed.** The `@trigger.dev/*` packages and the CLI, with the overrides and release-age
+  exclusions only they needed; every task wrapper in `apps/worker/src/jobs` (the runs stay, as the
+  worker serves them), `run-context.ts`'s Trigger.dev half, `trigger.config.ts`,
+  `apps/worker/task-image`, `packages/scheduler/src/trigger-client.ts` and the API's client paths.
+  In `managed.yml`: the eleven services of profile `trigger`, their three networks, their volumes
+  and every `TRIGGER_*` key; nine services are left. The plane's scripts and configuration under
+  `deploy/compose`; the bring-up's phases `trigger`, `account`, `login` and `tasks`; the images
+  and scans of the task base, the socket proxy, Caddy and Redis; Dependabot's entries for them;
+  the pin watch's rows for Trigger.dev, ClickHouse and the tasks' Node and base (each answers
+  *current* once, with a sentence, so its issue closes); E2E (managed)'s `job_runner` input, its
+  Trigger.dev drill and its `TRIGGER_*` environment and secrets.
+- **The switch keeps its reader.** Unset, empty or `pg-boss` runs; `trigger` is refused in one
+  sentence by `job-runner.sh`, the API, the worker and `operator.sh`: *"... Trigger.dev was removed
+  in alpha.18, so remove the key from the .env or set it to "pg-boss"."*
+- **Decision 1, the stopped plane on each stack (built: by name, never `down -v`).** The bring-up's
+  new `plane` phase removes what is left of the plane's containers by their Compose labels
+  (project and service), not by `--remove-orphans`, which would remove any container the file does
+  not name; it never removes a volume. The volumes go only by
+  `deploy/compose/remove-trigger-plane.sh --yes`, by name: `<project>_` + `trigger_db_data`,
+  `redis_data`, `trigger_shared`, `registry_data`, `minio_data_v2`, `minio_data`,
+  `trigger_tls_data`, `trigger_tls_config`, `clickhouse_data`, `clickhouse_data_v2`,
+  `clickhouse_logs`, and the networks `<project>_trigger-event-store`, `-trigger-docker-socket`,
+  `-trigger-task-images`, the project being COMPOSE_PROJECT_NAME (`ownpace-managed` on the OTA
+  stack, `ownpace-live` on live). On the OTA stack the gate runs it after every bring-up (a second
+  run says there is nothing to remove); on live it is the owner's pasted block once alpha.18 is
+  proven. *Alternative, not built:* the bring-up removes the volumes itself on the first alpha.18
+  bring-up (no owner step, but a deploy that removes data nobody asked it to), or the volumes are
+  kept indefinitely (nothing lost, but a stopped database and object store left on disk).
+- **Decision 2, the gate's restore drill (built: the identity provider's database).**
+  `dump-idp.sh --drill` dumps Zitadel's database, restores it into `<db>_drill` with
+  `pg_restore --exit-on-error`, compares every base table's row count (equal, and at least ten
+  tables) and the event store's (more than none, no more than the source), and drops the drill
+  database; refused on live and with `--dir`. *Alternative, not built:* a drill of the jobs'
+  schema (`pgboss`), which holds queue state a run of the gate recreates, so it proves less.
+- **Decision 3, live's alpha.17 → alpha.18 deploy (as alpha.17's `deploy-live.sh` will do it).**
+  Both the stack's and the tag's runner read `pg-boss` (alpha.18's `managed.yml` keeps
+  `${OWNPACE_JOB_RUNNER:-pg-boss}`), so nothing is refused and no worker is missing. It says
+  *no --trigger* and takes the copy without it; its differences note that the release removes the
+  plane from `managed.yml` with its volumes kept, and compare only the identity provider's pin,
+  which does not move. This branch alone moves no migration, but alpha.18 also carries ledger
+  migration 0075 (#2080, `item.address_left_at`), and any migration makes a deploy **one-way**
+  (alpha.17's `deploy-live.sh`), so its way back is the copy the take makes before the checkout.
+  It then checks out the tag, installs, and runs alpha.18's own bring-up from `data`, whose
+  `plane` phase removes the stopped containers. On live that bring-up skips its smoke (no demo),
+  so the owner's sheet checks that no plane container is left. It does not ask for `--trigger`. Live's
+  `.env` must not say `OWNPACE_JOB_RUNNER=trigger` (the owner's first block checks).
+- **Decision 4, a copy that holds the task runner's database (built: kept, never restored).**
+  `copy-before-update.sh take --trigger` is refused, *"there is no task runner's database to
+  copy"*. A kept copy taken by an earlier release with a `triggerdb-*.sql.gz` keeps it; `list`,
+  `delete` and the expiry count it as any part of the copy; nothing restores it. *Alternative, not
+  built:* restore it into a stopped plane, which no longer exists.
+- **Guards.** New: `scripts/a-plane-removed.unit.test.ts` (16): `managed.yml` without the plane,
+  the three readers' one sentence, `remove-trigger-plane.sh` against a Docker stand-in (lists,
+  shows, removes only the project's plane, a second run removes nothing, refuses on a plane
+  container, an old `.env` or an old `managed.yml`), and the names checked against
+  `v0.2.0-alpha.17`'s `managed.yml` when the clone has the tag. With alpha.17's `managed.yml` and
+  `job-runner.sh` put back it fails 10 of 16. `scripts/job-runner-mode.unit.test.ts` (23), rewritten for alpha.18's reader, fails 12 with
+  alpha.17's `job-runner.sh`. About 60 guards under `scripts/` were rewritten for alpha.18, and the
+  ones that only pinned the plane deleted (among them `trigger-version`, `a-plane-kept-and-stopped`,
+  `an-object-store-with-a-maintainer`, `a-store-every-container-could-reach`,
+  `a-task-base-the-cli-builds-nothing-into`, `a-binary-the-stack-never-runs`,
+  `a-run-that-carries-no-superuser`, whose protection `a-worker-that-carries-no-superuser` holds).
+  New cases pin the plane phase (containers by label, never a volume, never `down`), the smoke's
+  check that no plane container is left, `take --trigger` and `--with-trigger-stores` refused,
+  live's alpha.17 → alpha.18 deploy (the note, reversible, no `--trigger`), and the pin watch's
+  removed rows closing their issues once.
+- **Evidence.** On the branch, locally: typecheck and lint clean; the unit tier 1,398 files, 22,539
+  passed and 33 skipped, then the two it failed fixed and rerun (ADR-0004's status entry over its
+  400 characters; a guard that still read `set-task-env.sh`); the indexes regenerated;
+  `docker compose -f deploy/compose/managed.yml config -q` passes with `managed.env.example` (its
+  required keys given stand-in values), nine services. `pnpm install --frozen-lockfile` passes on
+  the new lockfile. On `main` before the change the unit tier was 1,415 files, 23,432 passed.
+- **Found on the way, left as follow-ups.** Nothing calls `check-env-agreement.sh` now that
+  `set-task-env.sh` is gone: the bring-up's own `source` of the `.env` is held only by its check
+  for a bare space, and the checker refuses every double-quoted value, which the bring-up itself
+  recommends, so calling it from `load_env` first needs the two to agree. hadolint's known
+  findings are empty, so its report could be made blocking. Code scanning's nine stopped image
+  categories are the owner's to delete on the tool status page (0166). The repository secret
+  `TRIGGER_ACCESS_TOKEN` is no longer read and is the owner's to delete.
+- **Next:** E2E (managed) on this branch, which must show: the bring-up's `plane` phase and the
+  smoke's check that no plane container is left, at its start and its end; the identity provider's
+  drill green; `remove-trigger-plane.sh --yes` removing what an earlier run left, then saying there
+  is nothing to remove; the jobs completing on pg-boss. Then alpha.18, and live's deploy by the
+  owner's blocks (docs/managed-bring-up.md, "Trigger.dev's plane, removed").
 
 **2026-11-22, latest: the worker's limit on runs at once, and its memory lowered to match (the T9 row's alpha.17 part).**
 On branch `claude/ownpace-pgboss-worker-cap`, from `main` as it stood while alpha.16 was tagged. The
@@ -1250,7 +1340,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, merged as #2043 (`2f86401c`); the worker built on `claude/ownpace-pgboss-worker-process`; the API's doors, cancels and readiness on the switch built on `claude/ownpace-pgboss-api-doors`; the operator's commands built on `claude/ownpace-pgboss-operator-jobs` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. The API's step (the Status entry "the API's doors on the switch") reads `OWNPACE_JOB_RUNNER` in `apps/api/src/job-runner.ts`: on `pg-boss` every door enqueues through one producer on `JOBS_DATABASE_URL`, a close cancels by the pg-boss id, and readiness reads the shared beat; on `trigger`, unset or empty, nothing changes and no pg-boss module loads. Its second step, the worker (the Status entry "the worker on pg-boss, inert until started"), built on `claude/ownpace-pgboss-worker-process`: `apps/worker/src/runner/`, the seventeen jobs worked one process per run, the pg-boss half of the run context and of the tick's interlock; nothing starts it yet. The operator's commands, `operator.sh jobs` (overview, failures, show, cancel, run, refused while the hold is open unless `--despite-hold`), built on `claude/ownpace-pgboss-operator-jobs` (the Status entry of 2026-11-22, later still, T6's operator commands). |
 | T7 The worker service, and the switch on | builder, owner | 🟡 **Built 2026-11-22**: the role and schema (#2041); the worker's image and service, the bring-up and the deploy, the smoke and the gate on their branches; the switch on, built on `claude/ownpace-pgboss-flip`. Done when that pull request merges and E2E (managed) passes in both modes | A worker service in `managed.yml`, its CPUs and memory from `MAX_PASSES_IN_FLIGHT` by the owner's rule, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. The image (`apps/worker/Dockerfile`, on the API's two images) and the service in profile `jobs`, with the api's `JOBS_DATABASE_URL` and `OWNPACE_JOB_RUNNER`, are built (the Status entry of 2026-11-22, the worker's image). ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. The gate's part (the Status entry of 2026-11-22, the smoke and the gate): `smoke-managed.sh` and `e2e-managed.yml` read `OWNPACE_JOB_RUNNER` as the bring-up does; on `pg-boss` each Trigger.dev section is skipped with one line, and the jobs in `pgboss.job`, the worker, its log and `ownpace_jobs` are checked in their place; a dispatch's `job_runner` input sets one run's mode without persisting it. Trigger mode unchanged. The worker's memory limit stays `(MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2,816 MB` for alpha.16 (the owner, 2026-11-22 at about 18:55 UTC: *"Ok, makes sense, go ahead."*). |
 | T8 Trigger.dev's services stopped | builder, owner | 🟡 **Built 2026-11-22**, with the switch on `claude/ownpace-pgboss-flip` | In pg-boss mode the bring-up stops the plane in order, in profile `trigger`, its volumes kept as the way back (`OWNPACE_JOB_RUNNER=trigger`). Stopped on a stack when it is deployed at alpha.16. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: alpha.16 keeps the plane installed and stopped. |
-| T9 Trigger.dev removed | owner | 🟡 **Its alpha.17 part built 2026-11-22**; the removal not started | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: not in alpha.16; its pull requests start once the switch's has merged. The owner, 2026-11-22 at about 18:55 UTC, on the worker's memory: *"Ok, makes sense, go ahead."*: alpha.17 also adds a worker-wide limit of `MAX_PASSES_IN_FLIGHT` + 2 runs at once, as Trigger.dev admits today, then lowers the worker's memory limit from what the runs measured. **That part is built** (the Status entry of 2026-11-22, the worker's limit): at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once, a run past it waiting in its queue; the memory rule `(MAX_PASSES_IN_FLIGHT + 2) x 512 MB + 256 MB`, 2,816 MB at 3 and 4,352 MB at 6; done when its pull request merges and E2E (managed) passes. |
+| T9 Trigger.dev removed | builder, owner | 🟡 **Built 2026-11-23** for alpha.18, on `claude/ownpace-public-readiness-y7orc6-0167-t9`; its alpha.17 part merged before | **The owner's word, 2026-11-23:** *"i will remove trigger.dev, but the machine runs OTA and managed, so both have to be move out of triggerdev."* Removed: Trigger.dev's code, packages, images, compose services, scripts, pins, watches and gate steps (the Status entry of 2026-11-23). What a stack kept of it goes by name only: its containers in the bring-up's `plane` phase, its volumes by `remove-trigger-plane.sh --yes` (the gate on the OTA stack, every run; the owner on live, once alpha.18 is proven). Done when its pull request merges, E2E (managed) passes, and live runs alpha.18 with the volumes removed. Before (the record): The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: not in alpha.16; its pull requests start once the switch's has merged. The owner, 2026-11-22 at about 18:55 UTC, on the worker's memory: *"Ok, makes sense, go ahead."*: alpha.17 also adds a worker-wide limit of `MAX_PASSES_IN_FLIGHT` + 2 runs at once, as Trigger.dev admits today, then lowers the worker's memory limit from what the runs measured. **That part is built** (the Status entry of 2026-11-22, the worker's limit): at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once, a run past it waiting in its queue; the memory rule `(MAX_PASSES_IN_FLIGHT + 2) x 512 MB + 256 MB`, 2,816 MB at 3 and 4,352 MB at 6; done when its pull request merges and E2E (managed) passes. |
 
 ## 1. Why, and what was asked
 

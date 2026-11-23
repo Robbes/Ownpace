@@ -153,7 +153,8 @@ describe('the probe tries every port the stacks publish', () => {
     // Vacuity: a reader that finds nothing makes every comparison below pass.
     expect(composePorts('managed.yml', MANAGED).problems).toEqual([]);
     expect(composePorts('www.yml', WWW).problems).toEqual([]);
-    expect(composePorts('managed.yml', MANAGED).ports.size).toBeGreaterThanOrEqual(10);
+    // Seven since alpha.18: Trigger.dev's plane published three of its own (workplan 0167 T9).
+    expect(composePorts('managed.yml', MANAGED).ports.size).toBeGreaterThanOrEqual(7);
     expect(composePorts('www.yml', WWW).ports.size).toBeGreaterThanOrEqual(1);
     // The demo's two: the Stalwart ports setup-managed-demo.sh publishes.
     const demo = [...scriptPorts('setup-managed-demo.sh', DEMO).values()].flat().join(' ');

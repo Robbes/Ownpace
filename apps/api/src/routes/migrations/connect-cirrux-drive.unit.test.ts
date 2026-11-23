@@ -60,12 +60,13 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
   };
 });
 
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({ tasks: { trigger: () => Promise.resolve({ id: 'run-1' }) }, runs: { cancel: () => Promise.resolve() } }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+});
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) => {
+  const { aQueueStandIn, aRunId } = await import('../../__testing__/a-queue-stand-in.ts');
+  return aQueueStandIn(await importOriginal(), () => aRunId(1));
 });
 
 // The app password's own faces reach IMAP and DAV servers, which are not this

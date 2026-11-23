@@ -6,13 +6,15 @@
  * `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET` let a deployment
  * configure its own Google application once, so nobody pastes a client secret
  * into a wizard and the connection stores neither (ADR-0041, owner decision
- * 2026-09-01 — option B). Two halves of the stack read them, and they are
- * supplied by two DIFFERENT mechanisms:
+ * 2026-09-01 — option B). Two halves of the stack read them, and each is
+ * given them separately:
  *
- *   the API      `deploy/compose/managed.yml` names the variable on the
+ *   the API      `deploy/compose/managed.yml` names the variable on the `api`
  *                service, or `docker compose` passes it nothing.
- *   the worker   `deploy/compose/set-task-env.sh` uploads it, because a
- *                Trigger.dev task container inherits nothing from compose.
+ *   the worker   the same file names it on the `worker` service, for the same
+ *                reason. (Until alpha.18 the jobs ran as Trigger.dev tasks,
+ *                and `set-task-env.sh` uploaded it to them; workplan 0167 T9
+ *                removed both.)
  *
  * MISSING THE SECOND IS THE WORST OF THE POSSIBLE SPLITS, and it is the one a
  * reasonable person makes: the API would build the consent, Google would
@@ -20,11 +22,10 @@
  * fail to mint a token, hours later, in a task log. Everything visible works;
  * the invisible half does not.
  *
- * This repository has paid for that shape twice already. `TRIGGER_ENCRYPTION_KEY`
- * and `DEPLOY_IMAGE_PLATFORM` each cost a live afternoon, and
- * `set-task-env.sh`'s own header records three more variables that tasks read
- * and nobody uploaded — each with a working default, so SETTING them did
- * nothing, silently.
+ * This repository has paid for that shape twice already: two variables of
+ * Trigger.dev's plane each cost a live afternoon, and three more were read by
+ * the tasks and handed them by nobody, each with a working default, so
+ * SETTING them did nothing, silently (`a-knob-the-tasks-can-never-see`).
  *
  * ROOT-LEVEL, SO VITEST AND NODE BUILTINS ONLY. A test in `scripts/` cannot
  * import `@openmig/shared` (AGENTS.md). The BEHAVIOUR half lives beside its
@@ -43,25 +44,28 @@ const read = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'utf8')
 
 const NAMES = ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'] as const;
 
+/** The text of one service of managed.yml, from its line under `services:` to the next service. */
+function serviceText(service: string): string {
+  const managed = read('deploy/compose/managed.yml');
+  const at = managed.indexOf(`\n  ${service}:\n`);
+  if (at < 0) return '';
+  const next = managed.slice(at + 1).search(/\n {2}[A-Za-z0-9_.-]+:\n|\n[^\s#]/);
+  return next < 0 ? managed.slice(at) : managed.slice(at, at + 1 + next);
+}
+
 describe('both halves of the stack are given the client', () => {
   it.each(NAMES.map((n) => [n]))('managed.yml passes %s to the API', (name) => {
-    const managed = read('deploy/compose/managed.yml');
     expect(
-      managed,
+      serviceText('api'),
       `the API service does not receive ${name} — compose passes nothing a service does not name`,
     ).toContain(`${name}: \${${name}`);
   });
 
-  it.each(NAMES.map((n) => [n]))('set-task-env.sh uploads %s to the worker', (name) => {
-    // TWO PLACES IN ONE FILE, and both are load-bearing: the shell must
-    // forward the value into the `node -e` process, and the JS name list must
-    // include it in the upload. Either alone is a variable that travels
-    // halfway.
-    const script = read('deploy/compose/set-task-env.sh');
-    expect(script, `${name} is never forwarded into the upload process`).toContain(
-      `${name}="\${${name}:-}"`,
-    );
-    expect(script, `${name} is forwarded but not in the uploaded list`).toContain(`"${name}"`);
+  it.each(NAMES.map((n) => [n]))('managed.yml passes %s to the worker', (name) => {
+    expect(
+      serviceText('worker'),
+      `the worker service does not receive ${name}, so every pass fails to mint a token`,
+    ).toContain(`${name}: \${${name}`);
   });
 
   it.each(NAMES.map((n) => [n]))('the example env documents %s', (name) => {
@@ -75,7 +79,7 @@ describe('both halves of the stack are given the client', () => {
     const at = example.indexOf('GOOGLE_OAUTH_CLIENT_ID=');
     expect(at, 'the setting is not in the example env').toBeGreaterThan(-1);
     const around = example.slice(Math.max(0, at - 1500), at);
-    expect(around, 'nothing near it mentions set-task-env.sh').toContain('set-task-env.sh');
+    expect(around, 'nothing near it says the worker reads it too').toMatch(/THE API \*AND\* THE WORKER/);
   });
 });
 
@@ -173,21 +177,19 @@ describe('Cirrux’s client reaches both halves of the stack', () => {
   const NAME = 'CIRRUX_OAUTH_CLIENT_ID';
 
   it('managed.yml passes it to the API', () => {
-    expect(read('deploy/compose/managed.yml')).toContain(`${NAME}: \${${NAME}`);
+    expect(serviceText('api')).toContain(`${NAME}: \${${NAME}`);
   });
 
-  it('set-task-env.sh forwards it into the upload and lists it', () => {
-    const script = read('deploy/compose/set-task-env.sh');
-    expect(script, `${NAME} is never forwarded into the upload process`).toContain(`${NAME}="\${${NAME}:-}"`);
-    expect(script, `${NAME} is forwarded but not in the uploaded list`).toContain(`"${NAME}"`);
+  it('managed.yml passes it to the worker', () => {
+    expect(serviceText('worker'), `the worker service does not receive ${NAME}`).toContain(`${NAME}: \${${NAME}`);
   });
 
   it('the example env documents it, and says beside it that the worker needs it too', () => {
     const example = read('deploy/compose/managed.env.example');
     const at = example.indexOf(`${NAME}=`);
     expect(at, 'the setting is not in the example env').toBeGreaterThan(-1);
-    expect(example.slice(Math.max(0, at - 1500), at), 'nothing near it mentions set-task-env.sh').toContain(
-      'set-task-env.sh',
+    expect(example.slice(Math.max(0, at - 1500), at), 'nothing near it says the worker reads it too').toMatch(
+      /by the API AND the worker/,
     );
   });
 

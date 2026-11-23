@@ -19,8 +19,9 @@
 # not ignored here. `disable-ignore-pragma` makes a `# hadolint ignore=` line
 # in a Dockerfile ignore nothing, so this list is all that is ignored. No
 # `failure-threshold` and no `no-fail`: whether a finding fails is the
-# workflow's to say, and it is report only until the two Trigger.dev
-# Dockerfiles have had their pass.
+# workflow's to say, and it is report only until a pull request of its own
+# makes it blocking (the two Trigger.dev Dockerfiles it waited on went with
+# Trigger.dev in alpha.18).
 #
 # scripts/a-dockerfile-that-ends-as-root.unit.test.ts holds this file to
 # exactly these two keys.

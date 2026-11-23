@@ -3,9 +3,11 @@
 /**
  * THE CLOCK A PASS STOPS ITSELF BY, so that nothing else has to stop it.
  *
- * A managed pass runs as a Trigger.dev task under `maxDuration` (see
- * `apps/worker/trigger.config.ts`). That ceiling is a KILL, not a request:
- * when it fires the task process ends where it stands, mid-item, and none of
+ * A managed pass runs as a job on the worker under its queue's time limit
+ * (`maxDurationSeconds` in `JOB_CATALOG`, `packages/scheduler/src/pg-boss/catalog.ts`;
+ * `maxDuration` in Trigger.dev's `trigger.config.ts` until alpha.18). That
+ * ceiling is a KILL, not a request:
+ * when it fires the run's process ends where it stands, mid-item, and none of
  * the code that closes a run row gets to run. The mapping's `run` row then
  * sits at `running` for ever, and `managed-sync-tick` — which skips a mapping
  * that already has one — never enqueues that mapping again. Silently, and for
@@ -22,25 +24,22 @@
  * what is already copied without re-fetching it, and a big migration crosses
  * many passes by design rather than by accident.
  *
- * `maxDuration` then means what a backstop should mean: nothing reached it
+ * The time limit then means what a backstop should mean: nothing reached it
  * unless something is genuinely wrong.
  */
 
 import type { PassStopReason } from './path-phase.ts';
 
 /**
- * The task runner's hard kill, in milliseconds — `maxDuration: 3600` in
- * `apps/worker/trigger.config.ts`, written here in the unit the rest of this
- * file uses.
+ * The runner's hard kill, in milliseconds: `run-delta-sync`'s
+ * `maxDurationSeconds: 3600` in the job catalog, written here in the unit the
+ * rest of this file uses.
  *
- * Duplicated in the sense that the config states it in seconds and this states
- * it in milliseconds, which is a duplication a guard can hold together and a
- * comment cannot: `scripts/a-pass-that-outlives-its-runner.unit.test.ts` reads
- * both and fails the build if they disagree, or if the soft deadline below
- * ever reaches it. Imported into the config instead would be neater and is
- * deliberately not done — that file is loaded a second time inside the
- * build's indexer container, where a workspace import has already cost this
- * repository one aborted deploy.
+ * Duplicated in the sense that the catalog states it in seconds and this
+ * states it in milliseconds, which is a duplication a guard can hold together
+ * and a comment cannot: `scripts/a-pass-that-outlives-its-runner.unit.test.ts`
+ * reads both and fails the build if they disagree, or if the soft deadline
+ * below ever reaches it.
  */
 export const PASS_HARD_LIMIT_MS = 3_600_000;
 

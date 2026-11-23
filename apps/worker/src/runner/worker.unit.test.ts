@@ -16,7 +16,6 @@ import { spawn, spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { z } from 'zod';
 import {
   ChildRunDied,
@@ -43,6 +42,7 @@ import {
   healthyIn,
   passesInFlightFrom,
   refusalToStart,
+  TRIGGER_REMOVED,
   serveHealth,
 } from './worker.ts';
 
@@ -57,17 +57,24 @@ afterEach(() => {
 describe('the process refuses to start, in one sentence, unless the switch names pg-boss and the jobs URL is set', () => {
   const URL_SET = { JOBS_DATABASE_URL: 'postgresql://ownpace_jobs@pgbouncer:6432/ownpace' };
 
-  it('starts only on pg-boss with the jobs URL', () => {
+  it('starts only on pg-boss with the jobs URL, the switch unset or empty included', () => {
     expect(refusalToStart({ OWNPACE_JOB_RUNNER: 'pg-boss', ...URL_SET })).toBeNull();
     expect(refusalToStart({ OWNPACE_JOB_RUNNER: ' pg-boss ', ...URL_SET })).toBeNull();
+    expect(refusalToStart({ ...URL_SET })).toBeNull();
+    expect(refusalToStart({ OWNPACE_JOB_RUNNER: '', ...URL_SET })).toBeNull();
+  });
+
+  it('refuses an old .env that still names Trigger.dev, in the sentence that says it was removed (0167 T9)', () => {
+    expect(refusalToStart({ OWNPACE_JOB_RUNNER: 'trigger', ...URL_SET })).toBe(TRIGGER_REMOVED);
+    expect(TRIGGER_REMOVED).toBe(
+      'OWNPACE_JOB_RUNNER is "trigger", but Trigger.dev was removed in alpha.18, so remove the key from the .env or set it to "pg-boss".',
+    );
   });
 
   it.each([
-    [{}, /is "trigger", so the jobs run on Trigger.dev/],
-    [{ OWNPACE_JOB_RUNNER: '' }, /is "trigger"/],
-    [{ OWNPACE_JOB_RUNNER: 'trigger' }, /is "trigger"/],
-    [{ OWNPACE_JOB_RUNNER: 'pgboss' }, /may only be "trigger" or "pg-boss"/],
-    [{ OWNPACE_JOB_RUNNER: 'PG-BOSS' }, /may only be "trigger" or "pg-boss"/],
+    [{ OWNPACE_JOB_RUNNER: 'trigger' }, /Trigger\.dev was removed in alpha\.18/],
+    [{ OWNPACE_JOB_RUNNER: 'pgboss' }, /may only be "pg-boss"/],
+    [{ OWNPACE_JOB_RUNNER: 'PG-BOSS' }, /may only be "pg-boss"/],
     [{ OWNPACE_JOB_RUNNER: 'pg-boss' }, /JOBS_DATABASE_URL is not set/],
     [{ OWNPACE_JOB_RUNNER: 'pg-boss', JOBS_DATABASE_URL: '  ' }, /JOBS_DATABASE_URL is not set/],
   ] as const)('refuses %j', (env, said) => {
@@ -121,7 +128,7 @@ describe("a run's error settles it by name, as Trigger.dev 4.8.8 settles it", ()
   })();
 
   it.each([
-    ['AbortTaskRunError, a deliberate stop', new AbortTaskRunError('stop'), 'deadletter'],
+    ['AbortTaskRunError, a deliberate stop', Object.assign(new Error('stop'), { name: 'AbortTaskRunError' }), 'deadletter'],
     ['RunNotRetried, the runner’s own', new RunNotRetried('stop'), 'deadletter'],
     ['ZodError, a payload its schema refused (TaskPayloadParsedError, skipped)', zodError, 'deadletter'],
     ['RunTimedOut, the time limit (MAX_DURATION_EXCEEDED)', new RunTimedOut('late'), 'deadletter'],

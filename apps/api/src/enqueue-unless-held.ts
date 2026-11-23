@@ -18,9 +18,8 @@
  * Every enqueue now goes through `enqueueUnlessHeld`. It reads the open hold.
  * While one is open it answers 409 with the hold's sentence and hands back
  * nothing, and the door returns having written and enqueued nothing.
- * Otherwise it hands back the enqueue, which holds the only `tasks.trigger(`
- * in `apps/api/src`, and the only pg-boss enqueue (0167 T6: the runner
- * `OWNPACE_JOB_RUNNER` names, `job-runner.ts`).
+ * Otherwise it hands back the enqueue, which holds the only pg-boss enqueue
+ * in `apps/api/src` (0167 T6; the runner `job-runner.ts` reads).
  * `a-hold-that-holds-every-door.unit.test.ts` sweeps the source for any other.
  *
  * *Sync now*'s gates live in `routes/migrations/sync-now.ts` (`pressSyncNow`),
@@ -90,7 +89,6 @@
 import type { Pool } from 'pg';
 import type { LedgerDriver } from '@openmig/ledger';
 import { readOpenPause, readOrganisationClosure } from '@openmig/managed';
-import { getTriggerClient } from '@openmig/scheduler';
 import type { EnqueueOptions } from '@openmig/scheduler/pg-boss';
 import { log } from '@openmig/shared';
 import { withTenantDb } from './middleware/auth.ts';
@@ -98,22 +96,22 @@ import { accountClosedAnswer } from './closed-organisation.ts';
 import { jobRunner, pgBossProducer } from './job-runner.ts';
 import type { Answerable } from './types/api.ts';
 
-/** What a door asks of the enqueue besides the task and its payload: Trigger.dev's names for them. */
+/** What a door asks of the enqueue besides the task and its payload, by the names the doors were written with (Trigger.dev's, until alpha.18). */
 export interface EnqueueAsked {
   readonly tags?: readonly string[];
-  /** One running run per value: Trigger.dev's `concurrencyKey`, pg-boss's singleton key. */
+  /** One running run per value: pg-boss's singleton key. */
   readonly concurrencyKey?: string;
   /** The same key within `idempotencyKeyTTL` hands back the run it started. */
   readonly idempotencyKey?: string;
-  /** Trigger.dev's duration, as `job-resolution.ts` writes it: `<n>s`, `<n>m`, `<n>h` or `<n>d`. */
+  /** A duration, as `job-resolution.ts` writes it: `<n>s`, `<n>m`, `<n>h` or `<n>d`. */
   readonly idempotencyKeyTTL?: string;
 }
 
 /**
- * The enqueue, on whichever runner `OWNPACE_JOB_RUNNER` names (0167 T6),
- * handed out only while no hold is open. Every door reads the run's `id` and
- * nothing else of what comes back; on pg-boss `joined` also says whether an
- * earlier run with the same idempotency key was handed back.
+ * The enqueue, on pg-boss (0167 T6), handed out only while no hold is open.
+ * Every door reads the run's `id` and nothing else of what comes back;
+ * `joined` also says whether an earlier run with the same idempotency key was
+ * handed back.
  */
 export type Enqueue = (
   taskId: string,
@@ -137,10 +135,9 @@ async function whatStopsAStart(tenantId: string, source: Pool | LedgerDriver) {
  * Ask whether the organisation is closed, then the platform hold; answer 409
  * and return null when either stops the press.
  *
- * Otherwise returns the enqueue. The client is built when the enqueue is
- * called, not here, so a deployment without `TRIGGER_SECRET_KEY` (or, on
- * pg-boss, without `JOBS_DATABASE_URL`) still fails where each door already
- * lands that failure on its own row.
+ * Otherwise returns the enqueue. The producer is made when the enqueue is
+ * called, not here, so a deployment without `JOBS_DATABASE_URL` still fails
+ * where each door already lands that failure on its own row.
  */
 export async function enqueueUnlessHeld(
   res: Answerable,
@@ -181,21 +178,17 @@ export async function enqueueIfFree(
 }
 
 /**
- * The one enqueue in this API, handed out only by the two doors above. On
- * Trigger.dev it is the SDK's own `tasks.trigger`, called exactly as before,
- * so every test that mocks `@openmig/scheduler` still hears it. On pg-boss it
- * is the producer's, which this module reaches only on that branch.
+ * The one enqueue in this API, handed out only by the two doors above: the
+ * producer's. The switch is read first, so an old `.env` that still names
+ * Trigger.dev fails the press with its sentence rather than enqueueing.
  */
 const enqueue: Enqueue = async (taskId, payload, options = {}) => {
-  if (jobRunner() === 'trigger') {
-    const { tags, ...rest } = options;
-    return getTriggerClient().tasks.trigger(taskId, payload, { ...rest, ...(tags ? { tags: [...tags] } : {}) });
-  }
+  jobRunner();
   return enqueueOnPgBoss(taskId, payload, options);
 };
 
 /**
- * The pg-boss half, reached only through the enqueue the two doors above hand
+ * The enqueue itself, reached only through the enqueue the two doors above hand
  * out; not exported, so no door can enqueue round the hold through it
  * (`a-hold-that-holds-every-door`). A queue the worker has not made (it never
  * started on this schema) fails here, naming the queue, and the door lands

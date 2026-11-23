@@ -30,10 +30,15 @@ import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
 
 // The detail route is a read, but importing the app pulls in the sync/cutover
-// routes with it, and those construct a Trigger client at import.
-vi.mock('@openmig/scheduler', () => ({
-  getTriggerClient: () => ({ tasks: { trigger: vi.fn(async () => ({ id: 'run_mock' })) } }),
-}));
+// routes with it, which enqueue on pg-boss: its producer is stood in for.
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+});
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) => {
+  const { aQueueStandIn, aRunId } = await import('../../__testing__/a-queue-stand-in.ts');
+  return aQueueStandIn(await importOriginal(), () => aRunId(1));
+});
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {
