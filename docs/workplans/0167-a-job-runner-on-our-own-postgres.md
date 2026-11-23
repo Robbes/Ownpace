@@ -46,11 +46,14 @@ have to be move out of triggerdev."*
 - **Decision 3, live's alpha.17 → alpha.18 deploy (as alpha.17's `deploy-live.sh` will do it).**
   Both the stack's and the tag's runner read `pg-boss` (alpha.18's `managed.yml` keeps
   `${OWNPACE_JOB_RUNNER:-pg-boss}`), so nothing is refused and no worker is missing. It says
-  *no --trigger* and takes the copy without it; its differences find no migration, note that the
-  release removes the plane from `managed.yml` with its volumes kept, compare only the identity
-  provider's pin, which does not move, and call the update **reversible**. It then checks out the
-  tag, installs, and runs alpha.18's own bring-up from `data`, whose `plane` phase removes the
-  stopped containers and whose smoke checks none is left. It does not ask for `--trigger`. Live's
+  *no --trigger* and takes the copy without it; its differences note that the release removes the
+  plane from `managed.yml` with its volumes kept, and compare only the identity provider's pin,
+  which does not move. This branch alone moves no migration, but alpha.18 also carries ledger
+  migration 0075 (#2080, `item.address_left_at`), and any migration makes a deploy **one-way**
+  (alpha.17's `deploy-live.sh`), so its way back is the copy the take makes before the checkout.
+  It then checks out the tag, installs, and runs alpha.18's own bring-up from `data`, whose
+  `plane` phase removes the stopped containers. On live that bring-up skips its smoke (no demo),
+  so the owner's sheet checks that no plane container is left. It does not ask for `--trigger`. Live's
   `.env` must not say `OWNPACE_JOB_RUNNER=trigger` (the owner's first block checks).
 - **Decision 4, a copy that holds the task runner's database (built: kept, never restored).**
   `copy-before-update.sh take --trigger` is refused, *"there is no task runner's database to

@@ -5775,13 +5775,16 @@ the checkout had before it moved. It takes the copy before the update
 migrates Trigger.dev's database); prints a note that the release *removes the
 Trigger.dev plane from managed.yml (its volumes stay)*; compares the
 identity provider's pin and no Trigger.dev pin, since only one of the two
-releases has the plane; and, with no migration and no pin moved, calls the
-update **reversible**. Then it checks the tag out and runs alpha.18's own
+releases has the plane; and calls the update **one-way**: no pin moves, but
+alpha.18 carries ledger migration 0075 (#2080), and any migration makes a
+deploy one-way, so the way back is the copy the take makes before the
+checkout. Then it checks the tag out and runs alpha.18's own
 bring-up from `data`: the `plane` phase stops nothing (the plane is stopped
 already) and removes the plane's eleven containers by their labels, saying
 that its volumes are still there; the `app` phase rebuilds the api, web and
-worker; and the smoke checks, at its start and its end, that no container of
-the plane is left. Then lift the hold and prove the update as every time.
+worker. Without the demo the bring-up skips its smoke on live, so check by
+hand that no container of the plane is left, as the deploy sheet does. Then
+lift the hold and prove the update as every time.
 
 **Block 3, after the deploy is proven:** the smoke and the checks green, and
 the jobs running on pg-boss:
@@ -5822,10 +5825,13 @@ run every job on pg-boss.
   duties' `expire`); nothing restores the file, since there is no plane to
   restore it into.
 
-**Rolling back.** alpha.18 → alpha.17 stays a reversible deploy, before block
-3 and after it: alpha.17 runs pg-boss and keeps the plane stopped, so it
-needs none of the volumes. Going back to Trigger.dev itself, the way back
-alpha.16 kept, is not offered from alpha.18 on.
+**Rolling back.** alpha.17 → alpha.18 is one-way (ledger migration 0075), so
+the way back is the copy the take made before the checkout, as for any
+one-way deploy; alpha.17 refuses a database alpha.18 migrated. The plane
+plays no part in it, before block 3 and after it: alpha.17 runs pg-boss and
+keeps the plane stopped, so it needs none of the volumes. Going back to
+Trigger.dev itself, the way back alpha.16 kept, is not offered from alpha.18
+on.
 
 ## Redoing a rollout somewhere else
 

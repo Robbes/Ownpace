@@ -29,9 +29,10 @@
 # trigger-docker-proxy, trigger-supervisor, minio, minio-init, trigger-tls,
 # trigger-tls-init), stood here in profile `trigger`, stopped, from alpha.16 to
 # alpha.17, and alpha.18 removed them with their volumes, networks and
-# TRIGGER_* keys. A stack still running one of their containers sees it as an
-# orphan, which the bring-up's `up --remove-orphans` removes; the volumes it
-# leaves are removed only by `remove-trigger-plane.sh`, by name, never by a
+# TRIGGER_* keys. A stack that ran them keeps their stopped containers as
+# orphans, which the bring-up's `plane` phase removes by their Compose labels
+# (it never runs `up --remove-orphans`); the volumes are removed only by
+# `remove-trigger-plane.sh`, by name, never by a
 # `down -v` (docs/managed-bring-up.md, "Trigger.dev's plane, removed").
 # An old `.env` that still says OWNPACE_JOB_RUNNER=trigger is refused by the
 # api, the worker and the bring-up, each in one sentence, never ignored.

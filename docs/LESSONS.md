@@ -6208,6 +6208,10 @@ Reads:
 - `apps/worker/src/runner/main.ts`
 - `deploy/compose/managed.yml`
 
+### [a-workflow-key-left-empty](../scripts/a-workflow-key-left-empty.unit.test.ts)
+
+A WORKFLOW KEY LEFT EMPTY (workplan 0167 T9).
+
 ### [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts)
 
 AN APOSTROPHE IN A COMMENT TOOK THE WHOLE GATE DOWN.
