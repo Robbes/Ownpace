@@ -2,7 +2,7 @@
 // Testcontainers setup for integration tests.
 // Spins up Postgres and Stalwart programmatically.
 //
-// IMPORTANT: Stalwart v1.1.1 requires a two-phase startup:
+// IMPORTANT: Stalwart v1.2.0 requires a two-phase startup:
 //   Phase 1: Recovery mode container - provisions accounts via stalwart-cli
 //   Phase 2: Normal mode container - starts with mail listeners enabled
 // Both phases share the same Docker named volume for data persistence.
@@ -527,7 +527,7 @@ async function startStalwart(): Promise<{
   // Use Docker-managed NAMED VOLUME (not host bind mount) for consistent UID/permissions
   // The source is the Docker volume name, which Docker handles with proper permissions
   // CRITICAL: Attach log consumer BEFORE start() to capture ALL logs from container creation
-  const containerA = await new GenericContainer('stalwartlabs/stalwart:v1.1.1')
+  const containerA = await new GenericContainer('stalwartlabs/stalwart:v1.2.0-alpine@sha256:2b7dfee66dfd116a903607826e03e4f8af8841207fae28098aa908c568ca919a')
     .withBindMounts([
       { source: STALWART_DATA_VOLUME, target: '/opt/stalwart/data' },
     ])
@@ -562,7 +562,7 @@ async function startStalwart(): Promise<{
 
   console.log('[StalwartSetup] Provisioning accounts via stalwart-cli...');
   
-  // Stalwart account format since v0.16 (v1.1.1 reads the same) - name is local part, account ID is the key
+  // Stalwart account format since v0.16 (v1.1.1 and v1.2.0 read the same) - name is local part, account ID is the key
   // With config.json present, server starts in recovery mode (not bootstrap)
   // Can directly create Domain and Account objects
   const plan = [
@@ -741,7 +741,7 @@ async function startStalwart(): Promise<{
   // Phase 2: Normal mode container (no recovery mode env vars)
   // Uses SAME bind mount approach as Phase 1 (host path -> container path)
   // withUser('root') sidesteps any UID/permission issues with the bind-mounted directory
-  const containerBBuilder = new GenericContainer('stalwartlabs/stalwart:v1.1.1')
+  const containerBBuilder = new GenericContainer('stalwartlabs/stalwart:v1.2.0-alpine@sha256:2b7dfee66dfd116a903607826e03e4f8af8841207fae28098aa908c568ca919a')
     .withBindMounts([
       { source: STALWART_DATA_VOLUME, target: '/opt/stalwart/data' },
     ])

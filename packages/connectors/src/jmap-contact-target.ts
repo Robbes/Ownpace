@@ -123,13 +123,31 @@ interface CardGetResponse {
   readonly notFound?: ReadonlyArray<string>;
 }
 
+/**
+ * A JMAP SetError (RFC 8620 §5.3). `properties` names, for `invalidProperties`,
+ * the properties the server refused: without it in the message, a refusal of
+ * one property of a card reads the same as a refusal of all of them.
+ */
+interface SetError {
+  readonly type: string;
+  readonly description?: string;
+  readonly properties?: ReadonlyArray<string>;
+}
+
 interface CardSetResponse {
   readonly created?: Record<string, { id: string }>;
   readonly updated?: Record<string, unknown>;
   readonly destroyed?: ReadonlyArray<string>;
-  readonly notCreated?: Record<string, { type: string; description?: string }>;
-  readonly notUpdated?: Record<string, { type: string; description?: string }>;
-  readonly notDestroyed?: Record<string, { type: string; description?: string }>;
+  readonly notCreated?: Record<string, SetError>;
+  readonly notUpdated?: Record<string, SetError>;
+  readonly notDestroyed?: Record<string, SetError>;
+}
+
+/** A SetError as a message tail: its type, the properties it names, its description. */
+export function setErrorText(failure: SetError | undefined): string {
+  if (!failure) return 'no id returned';
+  const named = failure.properties?.length ? ` (properties: ${failure.properties.join(', ')})` : '';
+  return `${failure.type}${named}` + (failure.description ? ` - ${failure.description}` : '');
 }
 
 interface AddressBookGetResponse {
@@ -137,9 +155,39 @@ interface AddressBookGetResponse {
 }
 
 interface ParseResponse {
-  readonly parsed?: Record<string, Card>;
+  /**
+   * The cards each blob holds. Stalwart v1.2.0 answers with the LIST of cards
+   * a blob holds, since one vCard file can hold several; v1.1.1 answered with
+   * the one card itself. `parsedCardOf` reads both.
+   */
+  readonly parsed?: Record<string, Card | ReadonlyArray<Card>>;
   readonly notParsable?: ReadonlyArray<string>;
   readonly notFound?: ReadonlyArray<string>;
+}
+
+/**
+ * The one card `ContactCard/parse` read from one source contact's vCard, by
+ * either shape of `parsed` (see `ParseResponse`), or `undefined` when the
+ * server returned none.
+ *
+ * A list is read for the card with the contact's own UID. A blob is one
+ * source contact, so a list of more than one card, none of them with that
+ * UID or more than one with it, is refused, not guessed at: spread into the
+ * create as it stood, the list itself was what Stalwart v1.2.0 refused, as a
+ * card whose one property was named "0".
+ */
+export function parsedCardOf(parsed: Card | ReadonlyArray<Card> | undefined, uid: string): Card | undefined {
+  if (parsed === undefined || parsed === null) return undefined;
+  if (!Array.isArray(parsed)) return parsed as Card;
+  const cards = parsed as ReadonlyArray<Card>;
+  if (cards.length === 0) return undefined;
+  if (cards.length === 1) return cards[0];
+  const mine = cards.filter((card) => card.uid === uid);
+  if (mine.length === 1) return mine[0];
+  throw new Error(
+    `ContactCard/parse read ${cards.length} cards from the vCard of ${uid}, and ${mine.length} of them ` +
+      `carry its UID, so which one it is cannot be told. Nothing was written: this item is not on the target.`,
+  );
 }
 
 interface JmapSession {
@@ -364,8 +412,7 @@ export class JmapContactTarget implements ContactTargetWriter, TargetReindexer {
       if (found) return found.id;
     }
     throw new Error(
-      `Could not create address book '${wanted}': ${failure?.type ?? 'no id returned'}` +
-        (failure?.description ? ` - ${failure.description}` : ''),
+      `Could not create address book '${wanted}': ${setErrorText(failure)}`,
     );
   }
 
@@ -433,8 +480,7 @@ export class JmapContactTarget implements ContactTargetWriter, TargetReindexer {
         }
       }
       throw new Error(
-        `ContactCard/set refused ${uid}: ${failure?.type ?? 'no id returned'}` +
-          (failure?.description ? ` - ${failure.description}` : ''),
+        `ContactCard/set refused ${uid}: ${setErrorText(failure)}`,
       );
     }
 
@@ -514,8 +560,7 @@ export class JmapContactTarget implements ContactTargetWriter, TargetReindexer {
       // `notUpdated`, not as a transport error. Not looking is how a rewrite
       // that did nothing gets counted as an update.
       throw new Error(
-        `ContactCard/set could not update ${targetId} (${uid}): ${failure.type}` +
-          (failure.description ? ` - ${failure.description}` : ''),
+        `ContactCard/set could not update ${targetId} (${uid}): ${setErrorText(failure)}`,
       );
     }
 
@@ -543,7 +588,7 @@ export class JmapContactTarget implements ContactTargetWriter, TargetReindexer {
       USING_PARSE,
     );
 
-    const card = response.parsed?.[blobId];
+    const card = parsedCardOf(response.parsed?.[blobId], uid);
     if (!card) {
       // Say WHICH of the several "no card" outcomes happened. A single
       // "parse failed" would send somebody looking at the wrong thing:
@@ -803,8 +848,7 @@ export class JmapContactTarget implements ContactTargetWriter, TargetReindexer {
     const failure = response.notDestroyed?.[targetId];
     if (failure) {
       throw new Error(
-        `ContactCard/set could not destroy ${targetId}: ${failure.type}` +
-          (failure.description ? ` - ${failure.description}` : ''),
+        `ContactCard/set could not destroy ${targetId}: ${setErrorText(failure)}`,
       );
     }
     if (!response.destroyed?.includes(targetId)) {

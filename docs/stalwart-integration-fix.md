@@ -1,18 +1,19 @@
-# Stalwart v1.1.1 Testcontainers Integration — Authoritative Reference
+# Stalwart v1.2.0 Testcontainers Integration — Authoritative Reference
 
-DO NOT deviate from this. DO NOT change the pinned version (v1.1.1) except on
+DO NOT deviate from this. DO NOT change the pinned version (v1.2.0) except on
 the owner's decision, recorded in ADR-0022, with every copy moved in the same change and the
 two-phase run proved on the new tag first — see "Moving the pin" below. DO NOT put
 accounts/domains/listeners in config.json. DO NOT skip the shadow-pass tests. Prior sessions
 repeatedly re-fabricated the config below; this file is the corrected ground truth.
 
-## Verified Image: stalwartlabs/stalwart:v1.1.1 (official, no custom image needed)
+## Verified Image: stalwartlabs/stalwart:v1.2.0-alpine (official, no custom image needed)
 
 **Finding**: The custom image `stalwart-test-custom:latest` provides NO benefit over the official
 image. It was previously thought to contain workarounds for config or listener issues, but those
 were solving non-problems. The official image (`stalwartlabs/stalwart:v0.16.10`, then v0.16.27,
-and v1.1.1 now: what is proved on it is under "Moving the pin") works correctly when used with the
-proper two-phase startup pattern.
+then v1.1.1, and v1.2.0's Alpine build `v1.2.0-alpine` now, by the digest of its index: what is
+proved on each is under "Moving the pin") works correctly when used with the proper two-phase
+startup pattern.
 
 **Dockerfile inspection** (from prior session):
 ```
@@ -29,11 +30,13 @@ The custom image had no special configuration baked in. Switch to the official i
 section of ADR-0022, and only within a minor line upstream calls a binary swap (v0.16.x: *"replace
 the binary (or run `docker pull`)"*); another line starts from upstream's `UPGRADING/` notes. In
 the same change:
-- every copy: `IMAGE` in `deploy/selfhost/setup-stalwart.sh`, both phases in
-  `packages/testing/src/testcontainers-setup.ts`, `packages/testing/fixtures/stalwart/Dockerfile`
-  (its FROM by the tag and the digest of the tag's index, which nothing else names),
-  `STALWART` in `scripts/a-service-that-phones-home.unit.test.ts`, and this file
-  (`scripts/idp-pin-watch.mjs` reads the first four and reports "the copies disagree" otherwise);
+- every copy, each by the tag and the digest of the tag's index (since 2026-11-23; the fixture's
+  FROM alone named the digest before): `IMAGE` in `deploy/selfhost/setup-stalwart.sh`, both phases
+  in `packages/testing/src/testcontainers-setup.ts`, `packages/testing/fixtures/stalwart/Dockerfile`'s
+  FROM, `STALWART` in `scripts/a-service-that-phones-home.unit.test.ts`, and this file
+  (`scripts/idp-pin-watch.mjs` reads the first four and reports "the copies disagree" otherwise,
+  and `scripts/a-fixture-that-named-no-user.unit.test.ts` fails a copy whose tag or digest is
+  another);
 - then `git grep -n` for the old tag, because nothing guards the other places that name the
   current pin: ADR-0022's operative bullet (then `node scripts/adr-operative.mjs --write`) and its
   row in `docs/adr/README.md`, the comments in `testcontainers-setup.ts` and
@@ -53,6 +56,90 @@ the same change:
 Before it merges: the CI `integration-tests` job, then E2E (self-hosted) and E2E (managed). A tag
 that cannot open the OTA demo's volume needs that volume and the demo's ledger reset once, by hand,
 before E2E (managed): the move to v1.1.1 below says how.
+
+**v1.1.1 → v1.2.0-alpine (2026-11-23, ADR-0022's update of that date; workplan 0166 T9).** Why:
+an outside, read-only check of 2026-11-23, and that day's image scan, read Debian 13.7's krb5
+libraries (`libgssapi-krb5-2`, `libk5crypto3`, `libkrb5-3`, `libkrb5support0` at
+1.21.3-5+deb13u1, fixed in +deb13u2) and `zlib1g` (CVE-2026-85091, fixed in -1+deb13u1) in
+v1.1.1's Debian build, which no release or rebuild had carried by then. Asked whether to wait for
+the next release or take the Alpine build, the owner answered: *"Stalwart: in alpha 19"*. Stalwart
+pushed v1.2.0 and its Alpine build that day at 18:25 UTC, and after alpha.18's tag the owner chose
+it: *"Pick stalwart v1.2.0, since it's part of our test/dev setup. Not part of our own pace
+solution."*, and, on its three days: *"v1.2.0 now (waive)"*. So the age this list ends with is
+waived for this move. What was read, through Docker Hub's registry (each blob checked against its
+digest), upstream's changelog, and the source at both tags (a blobless fetch of `v1.1.1` and
+`v1.2.0` from upstream's git), nothing built or run:
+- **The tag:** `v1.2.0-alpine`, index `sha256:2b7dfee6…` (linux/amd64 `0d7d5ef0…`, linux/arm64
+  `9d952dcd…`), pushed on 2026-11-23 at 18:25:41 UTC, the newest `vX.Y.Z-alpine` then. Its
+  `org.opencontainers.image.revision`, `b2d3df9a…`, is upstream's tag `v1.2.0`.
+- **The image:** its config is v1.1.1's, Debian build and Alpine build alike, for linux/amd64 and
+  linux/arm64: the same entrypoint (`/usr/local/bin/stalwart`), command (`--config
+  /etc/stalwart/config.json`), working directory, user `stalwart`, volumes (`/etc/stalwart`,
+  `/var/lib/stalwart`), ports, environment and healthcheck (`curl` on `/healthz/live`), and its
+  build steps are v1.1.1-alpine's. `stalwart` is uid and gid 2000 in its `/etc/passwd`, and
+  `/etc/stalwart` and `/var/lib/stalwart` are 2000:2000.
+- **The base:** Alpine 3.24.4, v1.1.1-alpine's own base layer, 32 packages: no krb5, zlib 1.3.2-r1
+  (the build Alpine fixed CVE-2026-85091 in), curl 8.23.0 and musl 1.2.6. musl is another C
+  library than the Debian build's glibc, which the CI `integration-tests` job, E2E (self-hosted)
+  and E2E (managed) prove before it merges.
+- **What the container is asked to run, besides Stalwart:** `setup-stalwart.sh` runs `/bin/sh -c`
+  with `echo` and `chmod`, as root, to seed the config volume, and `curl`, its readiness probe;
+  Testcontainers' `Wait.forListeningPorts()` runs `/bin/sh -c` with `cat`, `awk` and `grep`, or
+  `nc`. The image has each, for linux/amd64 and linux/arm64: curl, and the rest from BusyBox
+  1.37.0. It has no `bash`, the wait's third probe; the wait runs its three together, and one that
+  succeeds is enough.
+- **The store, and the OTA demo's volume:** v1.2.0 keeps schema version 7
+  (`DATABASE_SCHEMA_VERSION_BASE` in `crates/common/src/lib.rs`), its
+  `crates/common/src/manager/schema.rs` and `defaults.rs` are v1.1.1's byte for byte, and
+  `crates/store` names the same subspaces and system keys. So a store v1.1.1 wrote, the OTA demo's
+  included, opens as it was: nothing migrates at start, nothing in it is one-way, and no reset is
+  needed. Both phases run as root on this repository's own volume at `/opt/stalwart/data` (the
+  `config.json` above), so the image's uid does not reach it.
+- **Upstream's changelog, 1.1.1 to 1.2.0,** against what this repository uses (most of the release
+  is Exchange, mail rules, calendar availability, resource accounts and FoundationDB, none used
+  here):
+  - its one upgrade note: default roles an earlier version made lack the new permissions for mail
+    rules, junk-mail lists, calendar settings and Exchange. `STALWART_UPDATE_ROLE_PERMISSIONS=true`
+    adds them on a normal-mode start (recovery mode returns before the roles, `defaults.rs`).
+    Nothing here uses those objects, so the OTA demo's roles keep v1.1.1's, and a new volume has
+    them all. Its WebUI moves to 2.1.1: the `v2` tag named v2.1.1's commit on 2026-11-23;
+  - recovery mode: `STALWART_RECOVERY_MODE`, `STALWART_RECOVERY_ADMIN` and `STALWART_HOSTNAME`
+    read as before (`crates/store/src/registry/local.rs`), and the new `STALWART_RECOVERY_MODE_BIND`
+    defaults to `[::]`, where v1.1.1 bound, on 8080;
+  - IMAP: new limits per command (128 FETCH items, 4,096 sequence-set items, 256 SEARCH criteria,
+    128 flags, 256 header fields). The source asks `1:*`, `N:*` or one UID, with five FETCH items
+    at most;
+  - JMAP: a capability `using` names that the server does not know is now refused. Every one the
+    connectors send (`core`, `mail`, `contacts`, `contacts:parse`, `calendars`, `filenode`) is in
+    v1.2.0's list. `crates/jmap-proto/src/object/file_node.rs` is v1.1.1's, the FileNode capability
+    still carries `supportedNodeTypes` (the session adds only `urn:ietf:params:jmap:mdn`), and
+    JSCalendar still names one `recurrenceRule`;
+  - JMAP for Contacts: `ContactCard/parse` maps each blob id to the list of cards the blob holds,
+    where v1.1.1 mapped it to the one card. The contact writer spread that list into its
+    `ContactCard/set` create, which v1.2.0 refused as `invalidProperties` naming the property `0`;
+    CI's integration tests found it on 2026-11-23, and since then `parsedCardOf`
+    (`packages/connectors/src/jmap-contact-target.ts`) reads either shape. It is the one change of
+    the release that needed code here;
+  - mail stored locally gets a `Return-Path` from its envelope sender. The message key leaves that
+    header out (`packages/shared/src/generated-message-id.ts`), and the SMTPS test asserts by
+    `toContain`;
+  - `APPEND` trains the spam classifier only on Junk, as `Email/import` does; a login that trips the
+    per-login counter bans its source address alone; and Security's `authBanRate` default is still
+    100 a day, with no ban period.
+- **stalwart-cli 1.0.14 still provisions it, as read.** The schema it loads from `/api/schema`
+  (`resources/schema/schema.json.gz`) tags its values with the same `type`s as v1.1.1's (25 in the
+  open-source schema, 29 in the full one), no tag lost a key it always carried, and `x:UserAccount`
+  and `x:Domain`, which the plan upserts, are unchanged; `x:Account` adds a `Resource` variant. Its
+  new enumerated values sit in data the CLI reads as JSON, except the string format `localTime`,
+  which 1.0.14's `StringFormat` takes by its `#[serde(other)]` (`src/schema/types.rs`). So the CLI
+  pin stays; its v2.0.0 (2026-11-16) is another major, which the pin watch does not compare with.
+- **What it downloads:** `defaults.rs`, `application.rs` and the `Application` and `SpamSettings`
+  defaults are v1.1.1's, so `setup-stalwart.sh`'s header and "Nothing phones home" say it again.
+- **The pin, by digest:** every copy names the tag and the digest of its index, and
+  `scripts/a-fixture-that-named-no-user.unit.test.ts` fails a copy whose tag or digest is another.
+- **Not done here:** `scripts/jmap-target-spike.ts`'s re-run, which needs a Docker daemon (workplan
+  0031 T1's trigger). v1.1.1-alpine, read the same day for the owner's first answer (the same base
+  and packages, on v1.1.1's revision), was never merged: the second answer took v1.2.0 instead.
 
 **v0.16.27 → v1.1.1 (2026-11-20, ADR-0022's update of that date; workplan 0119).** Why: the scan
 of v0.16.27 reads brotli 1.1.0-2 (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and
@@ -194,7 +281,7 @@ the database and are provisioned via stalwart-cli — never in config.json. Mail
   wall).
 
 ## Two-phase startup (required — provisioning and serving cannot share one process)
-Phase 1 (provisioning): image stalwartlabs/stalwart:v1.1.1, config.json mounted, data volume,
+Phase 1 (provisioning): image stalwartlabs/stalwart:v1.2.0-alpine (by its index digest), config.json mounted, data volume,
   STALWART_RECOVERY_MODE=1 + STALWART_RECOVERY_ADMIN=admin:<pw>. Recovery mode exposes only the
   management API (mail listeners suspended). Provision via stalwart-cli, then STOP the container.
 Phase 2 (serving): new container, SAME config.json, SAME data volume, NO recovery env vars →
@@ -253,7 +340,7 @@ observed to prevent "LOCK: Resource temporarily unavailable" errors:
 ## Verified Findings from Integration Testing
 
 **Image**: The official `stalwartlabs/stalwart` image works correctly (v0.16.10 and
-v0.16.27, and v1.1.1 as "Moving the pin" records). No custom image is needed. The custom image
+v0.16.27, v1.1.1, and v1.2.0's Alpine build, as "Moving the pin" records). No custom image is needed. The custom image
 `stalwart-test-custom:latest` provided no benefit.
 
 **TLS Ports**: Stalwart in Normal Mode auto-binds TLS listeners:
@@ -270,7 +357,8 @@ v0.16.27 listen on the same seven ports: 25, 443, 465, 993, 995, 4190 and 8080. 
 25 and ManageSieve on 4190 ARE bound (this section said 25 was not until then); nothing here
 publishes either — `setup-stalwart.sh` publishes 8080 and 993, Testcontainers 8080, 993 and 465.
 v1.1.1's `crates/common/src/manager/defaults.rs` inserts the same seven listeners on a new
-database (read at the tag on 2026-11-20, not yet read from a running container).
+database (read at the tag on 2026-11-20, not yet read from a running container), and v1.2.0's is
+v1.1.1's byte for byte (read on 2026-11-23).
 
 ## IMAP Authentication Fix (Resolved)
 

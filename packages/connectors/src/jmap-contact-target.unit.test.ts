@@ -28,7 +28,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { RawContact } from '@openmig/shared';
-import { JmapContactTarget, extractUidFromVcard } from './jmap-contact-target.ts';
+import { JmapContactTarget, extractUidFromVcard, setErrorText, parsedCardOf } from './jmap-contact-target.ts';
 
 /**
  * The session document this writer connects against.
@@ -501,5 +501,66 @@ describe('address books', () => {
     // no display name.
     const set = calls.find((c) => c.method === 'AddressBook/set')!;
     expect((set.args.create as Record<string, { name: string }>)['0']!.name).toBe('colleagues');
+  });
+});
+
+describe('setErrorText: a refusal says what it refused', () => {
+  it('names the properties an invalidProperties refusal lists, before its description', () => {
+    expect(
+      setErrorText({ type: 'invalidProperties', properties: ['media', 'vCardProps'], description: 'Invalid property.' }),
+    ).toBe('invalidProperties (properties: media, vCardProps) - Invalid property.');
+  });
+
+  it('reads as before when the server names no property, and says so when it sent no error at all', () => {
+    expect(setErrorText({ type: 'forbidden', description: 'no' })).toBe('forbidden - no');
+    expect(setErrorText({ type: 'invalidProperties', properties: [] })).toBe('invalidProperties');
+    expect(setErrorText(undefined)).toBe('no id returned');
+  });
+});
+
+describe('ContactCard/parse answered as a list, as Stalwart v1.2.0 answers it', () => {
+  beforeEach(() => {
+    responders['ContactCard/get'] = () => ({ list: [] });
+    // v1.2.0: the blob id maps to the LIST of cards the blob holds.
+    responders['ContactCard/parse'] = (args) => ({
+      parsed: { [(args.blobIds as string[])[0]!]: [parsedCard('card-1')] },
+    });
+    responders['ContactCard/set'] = () => ({ created: { '0': { id: 'srv-1' } } });
+  });
+
+  it('writes the one card, with only the address book added, and never the list itself', async () => {
+    await target().upsertContact('book-1', rawContact());
+
+    const set = calls.find((c) => c.method === 'ContactCard/set')!;
+    const created = (set.args.create as Record<string, Record<string, unknown>>)['0']!;
+    // Spread as it stood, the list became a card whose one property was "0",
+    // which v1.2.0 refused as invalidProperties.
+    expect(Object.keys(created)).not.toContain('0');
+    expect(created['@type']).toBe('Card');
+    expect(created.vCard).toEqual(parsedCard('card-1').vCard);
+    expect(created.addressBookIds).toEqual({ 'book-1': true });
+  });
+});
+
+describe('parsedCardOf: the one card of one contact, by either shape', () => {
+  const card = (uid: string) => ({ '@type': 'Card', uid });
+
+  it('reads v1.1.1\'s card itself and v1.2.0\'s list of one alike', () => {
+    expect(parsedCardOf(card('u1'), 'u1')).toEqual(card('u1'));
+    expect(parsedCardOf([card('u1')], 'u1')).toEqual(card('u1'));
+  });
+
+  it('picks the card with the contact\'s own UID from a list of several', () => {
+    expect(parsedCardOf([card('other'), card('u1')], 'u1')).toEqual(card('u1'));
+  });
+
+  it('answers no card for nothing or an empty list, so the caller says why', () => {
+    expect(parsedCardOf(undefined, 'u1')).toBeUndefined();
+    expect(parsedCardOf([], 'u1')).toBeUndefined();
+  });
+
+  it('refuses a list of several in which the UID names no card, or more than one', () => {
+    expect(() => parsedCardOf([card('a'), card('b')], 'u1')).toThrow(/2 cards .* 0 of them carry its UID/);
+    expect(() => parsedCardOf([card('u1'), card('u1')], 'u1')).toThrow(/2 cards .* 2 of them carry its UID/);
   });
 });

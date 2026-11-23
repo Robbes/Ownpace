@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Stand up a real, working Stalwart v1.1.1 for local dev / e2e (workplan 0010 T5 and
+# Stand up a real, working Stalwart v1.2.0 for local dev / e2e (workplan 0010 T5 and
 # friends — the self-host restart-resume idempotency gate needs a real IMAP+JMAP source
 # and target). This is the ONE canonical way to do that in this repo; do not re-invent a
 # second path (see docs/stalwart-integration-fix.md, "DO NOT deviate").
@@ -17,7 +17,7 @@ set -euo pipefail
 #
 # A VOLUME A v0.16 STALWART MADE IS REFUSED. v1.0 has a new database layout, and upstream
 # upgrades none in place (its CHANGELOG at 1.0.0: data is moved with its migration tool).
-# v1.1.1 stops at start with "The data store was created by a Stalwart version prior to
+# v1.2.0, as v1.1.1, stops at start with "The data store was created by a Stalwart version prior to
 # 1.0 ... and cannot be opened by this version" (crates/common/src/manager/schema.rs), so
 # phase 1 below reports "never came up" with that line in the logs it prints. The volume
 # holds fixtures only: remove it (`docker volume rm "$VOLUME"`) and run this again. Not so the
@@ -26,7 +26,13 @@ set -euo pipefail
 # (docs/stalwart-integration-fix.md, "Moving the pin").
 #
 # Uses ONLY the official image (no custom build — docs/stalwart-integration-fix.md's own
-# "Verified Image" finding: a custom image provided no benefit over the official one).
+# "Verified Image" finding: a custom image provided no benefit over the official one): v1.2.0's
+# Alpine build since 2026-11-23, by its tag and the digest of its index (ADR-0022's update of
+# that date, on the owner's word). It has v1.1.1's entrypoint, user (uid and gid 2000), paths
+# and healthcheck, on Alpine 3.24 instead of Debian 13: no krb5, and zlib 1.3.2-r1, where
+# v1.1.1's Debian build lacked Debian's fixes for both. v1.2.0 keeps v1.1.1's database schema
+# (version 7) and migrates nothing, so a volume v1.1.1 wrote opens as it was, and its BusyBox
+# has the `sh`, `echo` and `chmod` the config step below runs.
 #
 # Requires: docker, curl, and stalwart-cli on PATH (or STALWART_CLI_PATH set). Install the
 # release CI runs (docs/stalwart-integration-fix.md, "Provisioning"), by its own installer:
@@ -74,14 +80,15 @@ set -euo pipefail
 # WHAT THIS STALWART FETCHES FROM OUTSIDE, LEFT ON, AS THE OWNER PREFERRED ON 2026-09-29
 # (workplan 0139). The owner's ops-telemetry answer was "Switch it off everywhere"; asked
 # about these three, the owner wrote "Do we need it. And where? Perhaps not in live but yes
-# in OTA?", which is where this Stalwart already runs (below). v1.1.1 inserts three
+# in OTA?", which is where this Stalwart already runs (below). v1.2.0 inserts three
 # defaults into its database (crates/common/src/manager/defaults.rs, Application and
-# SpamSettings in crates/registry/src/schema/structs_impl.rs), read at that tag on
-# 2026-11-20:
+# SpamSettings in crates/registry/src/schema/structs_impl.rs), read at v1.1.1 on 2026-11-20
+# and again at v1.2.0 on 2026-11-23, the same:
 #   - its WebUI, from github.com/stalwartlabs/webui/releases/download/v2, on first start and
 #     again once its cached copy expires, 90 days on (the Application default; v0.16.27 set
 #     30). It is inserted and fetched in recovery mode (phase 1) too. `v2` is a tag upstream
-#     moves within its 2.x releases: on 2026-11-20 it named the commit of v2.1.0;
+#     moves within its 2.x releases: on 2026-11-20 it named the commit of v2.1.0, and on
+#     2026-11-23 v2.1.1's;
 #   - its spam-filter rules, from github.com/stalwartlabs/spam-filter/releases/latest;
 #   - an ASN and country database, refreshed daily, from github.com/sapics/ip-location-db.
 #     The cdn.jsdelivr.net addresses a database made before v0.16.18 kept are gone with
@@ -106,7 +113,7 @@ set -euo pipefail
 # `scripts/a-service-that-phones-home.unit.test.ts` pins the version they were read at, and
 # docs/managed-bring-up.md, "Nothing phones home", names them.
 
-IMAGE="stalwartlabs/stalwart:v1.1.1"
+IMAGE="stalwartlabs/stalwart:v1.2.0-alpine@sha256:2b7dfee66dfd116a903607826e03e4f8af8841207fae28098aa908c568ca919a"
 CONTAINER="${STALWART_CONTAINER:-ownpace-dev-stalwart}"
 VOLUME="${STALWART_VOLUME:-ownpace-dev-stalwart-data}"
 CONFIG_VOLUME="${STALWART_CONFIG_VOLUME:-ownpace-dev-stalwart-config}"

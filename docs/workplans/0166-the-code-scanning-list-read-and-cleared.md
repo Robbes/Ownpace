@@ -4,6 +4,32 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, night: the Stalwart base moves to v1.2.0's Alpine build, for alpha.19, on the owner's
+word, its three days waived (T9).** The owner's first answer, recorded below, was *"Stalwart: in
+alpha 19"*: v1.1.1's Alpine build. Stalwart pushed v1.2.0 and its Alpine build that day at 18:25
+UTC, and after alpha.18's tag the owner chose it: *"Pick stalwart v1.2.0, since it's part of our
+test/dev setup. Not part of our own pace solution."*, and, on its three-day floor, *"v1.2.0 now
+(waive)"*. So every copy of the pin names `stalwartlabs/stalwart:v1.2.0-alpine` by that tag and the
+digest of its index, `2b7dfee6…` (ADR-0022's update of the same day; the fix doc, "Moving the pin",
+has what was read). It has v1.1.1's entrypoint, user (uid and gid 2000), paths and healthcheck, on
+Alpine 3.24.4: no krb5, and zlib 1.3.2-r1. Security Scan run 45273420538, dispatched on the branch
+at `218de59b`, reads it with 0 critical and 0 high, where run 45273322579 on `main` that evening
+read v1.1.1's Debian build with 0 critical and 113 high, 57 of them with a fix in krb5's four
+libraries and `zlib1g`; so the test-only tier falls from 6 critical and 366 high to 6 and 253,
+Nextcloud's. v1.2.0 keeps v1.1.1's database schema and migrates nothing, so the OTA demo's volume,
+which v1.1.1 wrote, opens as it was, and stalwart-cli v1.0.14 still reads its schema. The pin
+watch's Stalwart row compares the pin with the Alpine build's tags of its major, where v1.2.0-alpine
+is the newest. On `218de59b`, E2E (self-hosted) on Postgres (run 45273192768) and on PGlite (run
+45274141879) and E2E (managed) (run 45274950431) passed, one at a time. CI's integration tests did
+not, and found the one change of the release that needed code here: v1.2.0's `ContactCard/parse`
+maps each blob id to the list of cards the blob holds, where v1.1.1 mapped it to the card, and the
+JMAP contact writer, which spread it into its `ContactCard/set` create, was refused as
+`invalidProperties` naming the property `0`. The writer now reads either shape (`parsedCardOf`), and
+its refusals name the properties a server refused (the fix doc, "Moving the pin"). On the fix's
+head, `b3cde606`, CI's integration tests passed on both architectures, and E2E (self-hosted) on
+Postgres (run 45285771678) and on PGlite (run 45286646969) and E2E (managed) (run 45287379785)
+passed again, one at a time.
+
 **2026-11-23, evening: T6, Monday's scan read. No Trigger.dev image was left in it.** The weekly
 Security Scan, run 45227762752 on `main` at `ac4efadb` (#2084), was started by GitHub at
 17:26:53, not at its 06:00, and ended green at 17:28:52 (22 jobs). It is the first image scan on
@@ -316,7 +342,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | T6 Monday's scan, read into §1 | builder | ✅ **Read 2026-11-23** (the Status entry of 2026-11-23, evening): run 45227762752, 19 images; the v4.8.8 builds left the list with the plane first (T9), so their reading is moot | The weekly run of 2026-11-23 was to be the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). §1 stays the reading of 2026-11-21 and §3 as it was; the entry says what moved. |
 | T7 The owner's dismissals | owner | ✅ **Done 2026-11-21** (D4), the five of §3 D, 17:32 to 17:50 UTC | The 5 alerts of §3 D, each with its reason. |
 | T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
-| T9 The outside check of 2026-11-23 | builder | ✅ **Read 2026-11-23**, nothing moved (the Status entry of 2026-11-23) | The Stalwart base's krb5 and zlib1g stay in alpha.18, and the pin's move is alpha.19's (the owner, 2026-11-23: *"Stalwart: in alpha 19"*); the Dockerfile rules stand as decided. The Trigger.dev files go with its removal. |
+| T9 The outside check of 2026-11-23 | builder | ✅ **Read 2026-11-23**; the Stalwart base moves for alpha.19 (the Status entries of 2026-11-23) | The Stalwart base's krb5 and zlib1g stay in alpha.18, and the pin moves to v1.2.0's Alpine build for alpha.19, by tag and index digest, on the owner's answers (*"Stalwart: in alpha 19"*, then *"Pick stalwart v1.2.0, since it's part of our test/dev setup. Not part of our own pace solution."* and *"v1.2.0 now (waive)"*, its three days waived): no krb5, and zlib 1.3.2-r1; the Dockerfile rules stand as decided. The Trigger.dev files go with its removal. |
 
 ## 1. The inventory
 

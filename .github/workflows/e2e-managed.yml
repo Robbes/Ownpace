@@ -796,7 +796,7 @@ jobs:
       # that fails in between leaves the worker, which syncs the demo mapping
       # every 15 minutes, logging in with the password before. Stalwart bans
       # an address after 100 failed logins of one account in a day, for good
-      # (v1.1.1's Security defaults: authBanRate 100/1d, no authBanPeriod),
+      # (v1.2.0's Security defaults, as v1.1.1's: authBanRate 100/1d, no authBanPeriod),
       # and a ban would fail the next run, on main or any branch. So when the
       # account takes this run's password, the connection is seeded again
       # (idempotent: the demo connections are upserted). When it does not,

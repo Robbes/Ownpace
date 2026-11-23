@@ -108,7 +108,7 @@
  * follow-up switches them off with a check that the demo's DAV writes still
  * work.
  *
- * And the demo's Stalwart (v1.1.1), which
+ * And the demo's Stalwart (v1.2.0's Alpine build), which
  * `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
  * the OTA stack every night, in the self-host end-to-end run and on a
  * developer's machine. It fetches its WebUI from
@@ -119,8 +119,9 @@
  * database every day, from `github.com/sapics/ip-location-db`
  * (`crates/common/src/manager/defaults.rs` and `application.rs`, `Application`
  * and `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, read at
- * v1.1.1). The `cdn.jsdelivr.net` addresses v0.16 kept on a database v0.16.10
- * made are gone with the line: v1 opens no database an earlier line made
+ * v1.1.1 and again at v1.2.0, the same). The `cdn.jsdelivr.net` addresses
+ * v0.16 kept on a database v0.16.10 made are gone with the line: v1 opens no
+ * database an earlier line made
  * (`crates/common/src/manager/schema.rs`). Each is an object in its
  * database, not in its one-line file on disk, so switching it off is new
  * objects in the provisioning plan, and Stalwart settings written without
@@ -324,8 +325,12 @@ const MAILPIT =
  * interface).
  */
 const NEXTCLOUD = 'nextcloud:35';
-/** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
-const STALWART = 'stalwartlabs/stalwart:v1.1.1';
+/**
+ * The demo's Stalwart, outside every compose file, by its tag and the digest of its index; its
+ * fetches were read at v1.1.1 and again at v1.2.0 (2026-11-23, upstream revision `b2d3df9a`), whose
+ * `defaults.rs` and `Application` and `SpamSettings` defaults are v1.1.1's.
+ */
+const STALWART = 'stalwartlabs/stalwart:v1.2.0-alpine@sha256:2b7dfee66dfd116a903607826e03e4f8af8841207fae28098aa908c568ca919a';
 /**
  * The site's visit count, outside every compose file (`site-visits.sh`); read
  * at the tag `v1.12` (`ef3c4f3c`), and since 2026-10-25 (#1675) built from that
@@ -608,7 +613,7 @@ describe('an overlay runs its base image and switches nothing back on', () => {
 describe('what runs outside every compose file is named, at the version it was read at', () => {
   it("the demo's Stalwart (setup-stalwart.sh, docker run) is the one whose fetches docs/managed-bring-up.md names", () => {
     const image = /^IMAGE="([^"]+)"$/m.exec(read('deploy/selfhost/setup-stalwart.sh'))?.[1];
-    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v1.1.1; re-read defaults.rs at the new pin").toBe(STALWART);
+    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v1.2.0; re-read defaults.rs at the new pin").toBe(STALWART);
     const doc = read('docs/managed-bring-up.md');
     for (const host of [
       'github.com/stalwartlabs/webui',
