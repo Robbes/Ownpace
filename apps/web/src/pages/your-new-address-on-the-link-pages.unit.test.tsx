@@ -115,7 +115,7 @@ afterEach(() => {
 });
 
 describe('the grant page', () => {
-  it('shows the line and Yes for a proposed row, and both answers go to the grant door with the state alone', async () => {
+  it('shows the line and Yes for a proposed row, and both answers go to the grant door with the address the line showed', async () => {
     getMock.mockResolvedValue({ data: grantPage([KID_ROW]) });
     const user = userEvent.setup();
     renderAt(`/grant/${TOKEN}`);
