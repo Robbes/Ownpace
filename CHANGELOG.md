@@ -31,8 +31,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   is copied as the source has it and records no address digest, so nothing waits for it: an event
   that ended before it, read in its own time zone (a floating time in UTC); a series whose `UNTIL`
   or `COUNT` was spent, never one without an end, and not while an added date or a moved instance
-  is still to come; a task completed or cancelled; a journal entry dated before it. Dates that
-  cannot be read are not over, so such an object changes, as every one did before. A copy of a
+  is still to come; a task completed or cancelled before it, by its `COMPLETED` time, else by when
+  it was last changed, so a task finished later keeps the new address; a journal entry dated
+  before it. Dates that cannot be read are not over, so such an object changes, as every one did
+  before. A copy of a
   past event that alpha.17 changed goes back to the source's bytes on the next pass, which reads
   each calendar again once (past a data type's cutover, after *Apply the new addresses here too*).
   *Your new address* and the Google and Microsoft guides say so in English and Dutch, and the

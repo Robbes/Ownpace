@@ -2063,7 +2063,9 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     // What is already over keeps the old address (the owner, 2026-11-23; ADR-0055), and the step says so.
     expect(screen.getByText('Events that are already over:')).toBeInTheDocument();
     expect(
-      screen.getByText('they keep the old address, as a record of what happened. So do tasks that are completed or cancelled.'),
+      screen.getByText(
+        'they keep the old address, as a record of what happened. So do tasks completed or cancelled before the migration starts; a task you finish later still gets the new address.',
+      ),
     ).toBeInTheDocument();
     expect(next()).toHaveAccessibleDescription('Answer the question first.');
 

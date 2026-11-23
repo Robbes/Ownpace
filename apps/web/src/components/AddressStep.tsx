@@ -201,8 +201,9 @@ const Question: React.FC<{
  * WHERE A NEW ADDRESS GOES, AND WHERE IT DOES NOT (0168 §6.2), in the words
  * of the step: on *Start a migration*, and on the appliance's confirm page.
  * A pass changes tasks as it changes events (0168 T4), so they are named. An
- * event that is already over, and a task that is done, keep the old address
- * (the owner, 2026-11-23; ADR-0055), and the step says so.
+ * event that is already over, and a task done before the migration starts,
+ * keep the old address (the owner, 2026-11-23; ADR-0055), and the step says
+ * so; a task finished later still gets the new one.
  */
 export const WhereItGoes: React.FC<{ oldAddress: string; newAddress: string }> = ({ oldAddress, newAddress }) => {
   const t = useT();

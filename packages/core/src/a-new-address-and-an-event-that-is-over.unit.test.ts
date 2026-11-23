@@ -15,13 +15,14 @@
  * or waits for a person's press past the cutover, as any changed table does,
  * also from a source that lists only what changed: the start is in a
  * calendar's cursor tag (`addressTableTag`), so each collection is read again
- * once.
+ * once. A task open at the start changes, and stays changed when the person
+ * finishes it later: the next pass never puts the old organiser back.
  *
  * Addresses are `example.org` only.
  */
 
 import { describe, it, expect } from 'vitest';
-import { addressTableTag, runCalendarSync, type AddressChangesForPass } from './dav-sync.ts';
+import { addressTableTag, runCalendarSync, runTaskSync, type AddressChangesForPass } from './dav-sync.ts';
 import { MemoryCursorStore, MemoryLedger } from './__testing__/memory.ts';
 import {
   addressKey,
@@ -29,6 +30,7 @@ import {
   asMappingId,
   asTenantId,
   naturalKeyForCalendar,
+  naturalKeyForTask,
   prepareAddressTable,
   waitsForAnAddressChange,
   ADDRESS_DIGEST_OF_NO_CHANGE,
@@ -277,6 +279,83 @@ describe('from a source that lists only what changed', () => {
     const writes = t.writes;
     await run(changes([ANA, BEN]));
     expect(asked).toEqual([undefined, undefined, 'seq-2']);
+    expect(t.writes).toBe(writes);
+  });
+});
+
+describe('a task the person finishes after the start', () => {
+  /** Ana's task, with Ben as its guest, as the source holds it: open, or done at the time given. */
+  function todo(done?: string): string {
+    return [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VTODO',
+      'UID:t-milk',
+      `DTSTAMP:${done ?? '20261101T080000Z'}`,
+      `LAST-MODIFIED:${done ?? '20261101T080000Z'}`,
+      ...(done === undefined ? ['STATUS:NEEDS-ACTION'] : ['STATUS:COMPLETED', `COMPLETED:${done}`]),
+      'ORGANIZER;CN=Ana:mailto:ana@old.example.org',
+      'ATTENDEE;CN=Ben;DELEGATED-FROM="mailto:ana@old.example.org":mailto:ben@old.example.org',
+      'SUMMARY:buy milk',
+      'END:VTODO',
+      'END:VCALENDAR',
+      '',
+    ].join('\r\n');
+  }
+
+  it('keeps the new address on the next pass, and is never put back to the old one: a task must not flip', async () => {
+    const ledger = new MemoryLedger();
+    const t = new Target();
+    let held = { body: todo(), version: 1 };
+    const source = {
+      listFolders: async () => [{ path: '/tasks/', name: 'Tasks' }],
+      listSince: async () => ({
+        items: [
+          {
+            item: { ...item('t-milk'), etag: `"t-milk-${held.version}"`, sourcePath: '/tasks/t-milk.ics' },
+            icalendar: held.body,
+          },
+        ],
+        nextCursor: { value: String(held.version) },
+        removed: [],
+      }),
+    } as unknown as CalendarSource;
+    const run = () =>
+      runTaskSync({
+        sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        source,
+        target: {
+          ensureCalendar: async (folder: { path: string }) => folder.path,
+          upsertCalendarEvent: async (_c: string, raw: { item: CalendarEvent; icalendar: string }, options?: UpsertOptions) =>
+            t.put(raw.item.uid, raw.icalendar, options),
+        } as unknown as CalendarTargetWriter,
+        ledger,
+        addressChanges: changes([ANA, BEN]),
+      });
+    const rowNow = () => ledger.find(TENANT, MAPPING, 'task', naturalKeyForTask(item('t-milk')));
+
+    // Open at the start: it changes.
+    await run();
+    expect(t.bodies.get('t-milk')).toContain('\r\nORGANIZER;CN=Ana:mailto:ana@example.org\r\n');
+    expect((await rowNow())?.addressDigest).toBe(addressTableDigest([ANA, BEN]));
+
+    // Done at the source the day after the start: copied again as done, still at the new address.
+    held = { body: todo('20261124T080000Z'), version: 2 };
+    const done = await run();
+    expect(done.updated).toBe(1);
+    expect(t.bodies.get('t-milk')).toContain('\r\nSTATUS:COMPLETED\r\n');
+    expect(t.bodies.get('t-milk')).toContain('\r\nORGANIZER;CN=Ana:mailto:ana@example.org\r\n');
+    expect(t.bodies.get('t-milk')).not.toContain('mailto:ana@old.example.org');
+    const after = await rowNow();
+    expect(after?.addressDigest).toBe(addressTableDigest([ANA, BEN]));
+    expect(waitsForAnAddressChange(after?.addressDigest, after?.addressDigestDue)).toBe(false);
+
+    // And the pass after it leaves it there.
+    const writes = t.writes;
+    await run();
     expect(t.writes).toBe(writes);
   });
 });

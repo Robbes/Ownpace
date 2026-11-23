@@ -36,8 +36,12 @@
  *   `INTERVAL`, `BYDAY`, `BYMONTHDAY`, `BYMONTH` and `WKST`. A rule with any
  *   other part is over by its `UNTIL` alone, when even an occurrence starting at
  *   `UNTIL` would have ended before the start; with a `COUNT`, it is not over.
- * - **A task** is over when it is done: `STATUS:COMPLETED` or `CANCELLED`, or
- *   a `COMPLETED` time. An open task changes, whatever its dates.
+ * - **A task** is over when it was done before the start: its `COMPLETED`
+ *   time is before it; or, without one, it is `COMPLETED` or `CANCELLED` by
+ *   its `STATUS` and was last changed before it (`LAST-MODIFIED`, else
+ *   `DTSTAMP`). So a task open at the start changes, and stays changed when it
+ *   is done later: no task goes back to the old address during a migration.
+ *   An open task changes, whatever its dates.
  * - **A journal entry** is over when its `DTSTART` is before the start.
  *
  * ## Never over by mistake
@@ -46,7 +50,8 @@
  * every object did before 2026-11-23: no `DTSTART`, a value that is not a
  * date, a `TZID` that names no zone, a rule that is not one, `DTEND` and
  * `DURATION` both, an instance that moves the ones after it
- * (`RANGE=THISANDFUTURE`). Every other doubt falls the same way:
+ * (`RANGE=THISANDFUTURE`), a done task with no time to say when, or one that
+ * cannot be read. Every other doubt falls the same way:
  *
  * - a wall time a daylight saving change makes twice is read at the later
  *   instant, and one it skips at the later side of the gap;
@@ -134,14 +139,36 @@ export function calendarObjectIsOverAt(roots: ReadonlyArray<CalendarComponentTre
 }
 
 function componentIsOver(c: CalendarComponentTree, at: number, zones: ZoneBook): boolean {
-  if (c.name === 'VTODO') return taskIsDone(c);
+  if (c.name === 'VTODO') return taskFinishedBefore(c, at, zones);
   return occurrencesEndBefore(c, at, zones, c.name === 'VJOURNAL');
 }
 
-/** A task that is done: completed or cancelled, by its status or a completion time. */
-function taskIsDone(c: CalendarComponentTree): boolean {
+/**
+ * A task finished before `at`, so that no task flips during a migration: one
+ * open at the start changes, and stays changed when it is done later.
+ *
+ * - Its `COMPLETED` time says when it was done (RFC 5545 §3.8.2.1).
+ * - Without one, a task `COMPLETED` or `CANCELLED` by its `STATUS` was done
+ *   no later than it was last changed: its `LAST-MODIFIED`, else its
+ *   `DTSTAMP` (§3.8.7.3, §3.8.7.2).
+ *
+ * The time that decides must be read, and be before `at`. One that cannot be
+ * read decides nothing, and no other time stands in for it: the task is not
+ * over. Nor is a done task with no such time, or an open one.
+ */
+function taskFinishedBefore(c: CalendarComponentTree, at: number, zones: ZoneBook): boolean {
+  const completed = first(c, 'COMPLETED');
+  if (completed !== undefined) return timeIsBefore(completed, at, zones);
   const status = first(c, 'STATUS')?.value.trim().toUpperCase();
-  return status === 'COMPLETED' || status === 'CANCELLED' || first(c, 'COMPLETED') !== undefined;
+  if (status !== 'COMPLETED' && status !== 'CANCELLED') return false;
+  const changed = first(c, 'LAST-MODIFIED') ?? first(c, 'DTSTAMP');
+  return changed !== undefined && timeIsBefore(changed, at, zones);
+}
+
+/** Is this time before `at`, read at its latest: a date to the end of its day, a doubled wall time at the later instant. */
+function timeIsBefore(p: CalendarProperty, at: number, zones: ZoneBook): boolean {
+  const m = momentOf(p, zones);
+  return m !== undefined && endOf(m.wall, m.zone, m.date ? ONE_DAY : ZERO_SPAN) < at;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +207,9 @@ type Span =
 
 const ZERO_SPAN: Span = { kind: 'exact', ms: 0 };
 
+/** A whole day on the wall clock: how long an all-day event, and a date, lasts. */
+const ONE_DAY: Span = { kind: 'nominal', days: 1, ms: 0 };
+
 /**
  * How long each occurrence lasts, and the latest instant the first one, at
  * DTSTART, ends: its own DTEND where it has one, read directly rather than as
@@ -212,7 +242,7 @@ function spanOf(
     span = { kind: 'nominal', ...d };
   } else {
     // All day: to the end of DTSTART's day. With a time: at DTSTART (RFC 5545 §3.6.1).
-    span = dtstart.date ? { kind: 'nominal', days: 1, ms: 0 } : ZERO_SPAN;
+    span = dtstart.date ? ONE_DAY : ZERO_SPAN;
   }
   return { span, firstEnd: endOf(dtstart.wall, dtstart.zone, span) };
 }

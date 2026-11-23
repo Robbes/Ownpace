@@ -19,9 +19,10 @@ so. ADR-0055 is amended (decisions 2 to 4, its operative rules).
 - **What is over keeps every address.** A calendar object that was over at the migration's start
   is copied byte for byte and records no digest (`calendar-object-over.ts`): an event by `DTEND`,
   `DURATION` or its all-day date; a series once its `UNTIL` or `COUNT` is spent and no `RDATE` or
-  moved instance is still to come, never with an open-ended rule; a task once completed or
-  cancelled; a journal entry by its `DTSTART`. The whole object is one decision, and dates it
-  cannot read are not over. A `TZID` is read in its zone (an IANA name through `Intl`, any other
+  moved instance is still to come, never with an open-ended rule; a task done before the start,
+  by its `COMPLETED` time, else, `COMPLETED` or `CANCELLED` by its `STATUS`, by its
+  `LAST-MODIFIED` or else `DTSTAMP`; a journal entry by its `DTSTART`. The whole object is one
+  decision, and dates it cannot read are not over, nor is a done task with no such time. A `TZID` is read in its zone (an IANA name through `Intl`, any other
   through the object's own `VTIMEZONE`, at the latest instant its offsets allow); a floating time,
   and a date, in UTC. The repository's own content-line reader parses it: no dependency was added.
 - **The start** is the migration's creation, `mailbox_mapping.created_at`, read with its phases
@@ -39,11 +40,18 @@ so. ADR-0055 is amended (decisions 2 to 4, its operative rules).
   (`a-new-address-and-an-event-that-is-over.unit.test.ts`).
 - **The words.** *Your new address*, and the appliance's confirm page through the same list, say
   *"Events that are already over: they keep the old address, as a record of what happened. So do
-  tasks that are completed or cancelled."*, in English and Dutch; the Google and Microsoft guides
-  say it after their paragraph on a new address. No feature matrix or known-limitations line names
+  tasks completed or cancelled before the migration starts; a task you finish later still gets the
+  new address."*, in English and Dutch; the Google and Microsoft guides say it after their
+  paragraph on a new address. No feature matrix or known-limitations line names
   the address change. The privacy policy's §4.6 and §7 stay true and were not edited: the
   addresses are still used only to correct those in what we copy, now in fewer events, and a
   progress link still shows the new address, never the old.
+- **A task must not flip** (the coordinating session's review, the same day). As first built, a
+  task was over once completed or cancelled, whenever that was, so one the person finished after
+  the start went back to the old organiser on the next pass. Now only a task done before the start
+  is over, and one open then stays changed (`calendar-object-over.unit.test.ts`, *a task is over
+  when it was done before the start*; `a-new-address-and-an-event-that-is-over.unit.test.ts`, *a
+  task the person finishes after the start*).
 - **E2E (managed).** Event 4, the organiser rewrite's canary, is dated January of next year, after
   every run and so after the demo migration's start: unchanged. The seed adds event 5, organised by
   the same old address and over on 2025-01-07; the gate holds its copy to the source's bytes but for

@@ -84,11 +84,15 @@ break.
    - an outside organiser's invitation;
    - a calendar object that was over at the migration's start, `mailbox_mapping.created_at`, one
      moment no pass and no press moves: an event whose last occurrence ended before it, a series
-     with an `UNTIL` or `COUNT` spent and no `RDATE` or moved instance still to come, a task
-     completed or cancelled, a journal entry dated before it. The whole object is one decision, and
-     dates that cannot be read are not over. Its bytes are decided by no row, so its digest is
-     null (amended 2026-11-23; the owner: *"Though perhapse we need not change past-events we
-     migrate."*).
+     with an `UNTIL` or `COUNT` spent and no `RDATE` or moved instance still to come, a task done
+     before it, a journal entry dated before it. The whole object is one decision, and dates that
+     cannot be read are not over. Its bytes are decided by no row, so its digest is null (amended
+     2026-11-23; the owner: *"Though perhapse we need not change past-events we migrate."*).
+   - A task is done before the start when its `COMPLETED` time is; without one, when its `STATUS`
+     is `COMPLETED` or `CANCELLED` and its `LAST-MODIFIED`, else its `DTSTAMP`, is. With no such
+     time, or one that cannot be read, it is not over. So a task open at the start changes and
+     stays changed when it is finished later: nothing goes back during a migration (the same day's
+     review).
 5. **It is declared, never silent.** Each item records the digest of the confirmed rows that
    decided its bytes (`item.address_digest`), and a pass that did not write it records the digest
    it should carry (`item.address_digest_due`). Verification and the confirmed list count changed

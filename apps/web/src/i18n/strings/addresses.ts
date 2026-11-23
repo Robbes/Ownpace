@@ -53,7 +53,7 @@ export const en = {
   // The owner, 2026-11-23: "perhapse we need not change past-events we migrate" (ADR-0055).
   'start.address.not.past.label': 'Events that are already over:',
   'start.address.not.past':
-    'they keep the old address, as a record of what happened. So do tasks that are completed or cancelled.',
+    'they keep the old address, as a record of what happened. So do tasks completed or cancelled before the migration starts; a task you finish later still gets the new address.',
   'start.address.not.text.label': 'Text:',
   'start.address.not.text': 'descriptions, notes and documents are never changed.',
   'start.address.others': 'Others moving with you?',
@@ -183,7 +183,7 @@ export const nl: Record<keyof typeof en, string> = {
     'die houden het adres waarnaar ze zijn gestuurd, zodat een antwoord nog klopt met wat de afzender heeft.',
   'start.address.not.past.label': 'Afspraken die al voorbij zijn:',
   'start.address.not.past':
-    'die houden het oude adres, als vastlegging van wat er is gebeurd. Dat geldt ook voor taken die zijn afgerond of geannuleerd.',
+    'die houden het oude adres, als vastlegging van wat er is gebeurd. Dat geldt ook voor taken die zijn afgerond of geannuleerd voordat de migratie begint; een taak die u later afrondt, krijgt toch het nieuwe adres.',
   'start.address.not.text.label': 'Tekst:',
   'start.address.not.text': 'beschrijvingen, notities en documenten worden nooit gewijzigd.',
   'start.address.others': 'Gaan er anderen mee?',

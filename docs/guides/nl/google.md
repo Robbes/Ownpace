@@ -122,7 +122,7 @@ De schermen van Google staan hieronder met hun Engelse namen; Google toont ze in
 
 Een adres dat eindigt op `@gmail.com` of `@googlemail.com` hoort bij Google en kan dus niet mee. Heeft het oude account zo'n adres, dan toont **Migratie starten** een stap **Uw nieuwe adres**, waarin u zegt welk adres het vervangt. Contacten met het oude adres krijgen het nieuwe als eerste adres en houden het oude, zodat oude mail de persoon nog vindt. Afspraken en taken die u zelf hebt gemaakt, noemen u met het nieuwe adres, zodat u ze kunt blijven wijzigen. De **Deel-checklist** stelt het nieuwe adres voor u voor. Uw mail wordt nooit gewijzigd: elk bericht blijft precies zoals het is verstuurd. Niemand krijgt iets toegestuurd. Het nieuwe adres wijzigt u achteraf op uw pagina.
 
-**Afspraken die al voorbij zijn, houden het oude adres**, als vastlegging van wat er is gebeurd, en taken die zijn afgerond of geannuleerd ook; de rest krijgt het nieuwe. Een afspraak is voorbij als hij, en bij een terugkerende afspraak de laatste keer, was afgelopen voordat de migratie begon.
+**Afspraken die al voorbij zijn, houden het oude adres**, als vastlegging van wat er is gebeurd, en taken die al waren afgerond of geannuleerd ook; de rest krijgt het nieuwe. Een afspraak is voorbij als hij, en bij een terugkerende afspraak de laatste keer, was afgelopen voordat de migratie begon, en een taak als die toen al klaar was. Een taak die u later afrondt, houdt het nieuwe adres.
 
 ### Wat een Drive-migratie nog niet doet {#drive-not-yet}
 

@@ -299,18 +299,61 @@ describe('a series and its overridden instances are one decision', () => {
   });
 });
 
-describe('a task is over when it is done', () => {
+/**
+ * A TASK MUST NOT FLIP (the coordinating session, 2026-11-23). A task is over
+ * only when it was done before the start, so one open at the start changes,
+ * and stays changed when the person finishes it later: the next pass never
+ * puts the old organiser back.
+ */
+describe('a task is over when it was done before the start', () => {
   const task = (lines: string[]) => crlf(['BEGIN:VCALENDAR', 'VERSION:2.0', ...own('VTODO', lines), 'END:VCALENDAR']);
 
-  it('completed or cancelled, by its status or a completion time, whatever its dates', () => {
-    expectKept(task(['STATUS:COMPLETED', 'DUE:20270101T090000Z']));
-    expectKept(task(['STATUS:cancelled']));
-    expectKept(task(['COMPLETED:20261001T120000Z', 'DUE:20261201T090000Z']));
+  it('completed before the start, by its COMPLETED time, it is over, whatever it was due; completed at the start, it is not', () => {
+    expectKept(task(['STATUS:COMPLETED', 'COMPLETED:20261001T120000Z', 'DUE:20270101T090000Z']));
+    expectKept(task(['STATUS:COMPLETED', 'COMPLETED:20261123T095959Z']));
+    expectChanged(task(['STATUS:COMPLETED', 'COMPLETED:20261123T100000Z']));
   });
 
-  it('open, it changes, however long ago it was due', () => {
-    expectChanged(task(['STATUS:NEEDS-ACTION', 'DUE:20200101T090000Z']));
-    expectChanged(task(['DTSTART:20200101T090000Z']));
+  it('completed after the start, it is not over: a task changed while open stays changed when it is done', () => {
+    const open = task(['DTSTAMP:20261101T080000Z', 'LAST-MODIFIED:20261101T080000Z', 'STATUS:NEEDS-ACTION']);
+    const done = task(['DTSTAMP:20261124T080000Z', 'LAST-MODIFIED:20261124T080000Z', 'STATUS:COMPLETED', 'COMPLETED:20261124T080000Z']);
+    expectChanged(open);
+    expectChanged(done);
+    const organiserOf = (body: string) => applyAddressChanges('icalendar', body, TABLE, [], START).body.split('\r\n').find((l) => l.startsWith('ORGANIZER'));
+    expect(organiserOf(done)).toBe(organiserOf(open));
+    // The COMPLETED time decides, though the task was last changed before the start.
+    expectChanged(task(['LAST-MODIFIED:20261101T080000Z', 'STATUS:COMPLETED', 'COMPLETED:20261124T080000Z']));
+  });
+
+  it('cancelled before the start, with its LAST-MODIFIED before it, it is over; changed at the start or after, it is not', () => {
+    // LAST-MODIFIED decides where it is written, whatever DTSTAMP says.
+    expectKept(task(['DTSTAMP:20261124T080000Z', 'LAST-MODIFIED:20261101T080000Z', 'STATUS:CANCELLED']));
+    expectChanged(task(['DTSTAMP:20261101T080000Z', 'LAST-MODIFIED:20261123T100000Z', 'STATUS:CANCELLED']));
+    // Without it, DTSTAMP does, for a task completed by its status alone too.
+    expectKept(task(['DTSTAMP:20261101T080000Z', 'STATUS:COMPLETED']));
+    expectChanged(task(['DTSTAMP:20261124T080000Z', 'STATUS:COMPLETED']));
+  });
+
+  it('cancelled or completed with no time to say when, or one that cannot be read, it is not over', () => {
+    expectChanged(task(['STATUS:CANCELLED']));
+    expectChanged(task(['STATUS:COMPLETED', 'DUE:20200101T090000Z']));
+    // A time that cannot be read decides nothing, and no other stands in for it.
+    expectChanged(task(['DTSTAMP:20261101T080000Z', 'STATUS:COMPLETED', 'COMPLETED:yesterday']));
+    expectChanged(task(['DTSTAMP:20261101T080000Z', 'LAST-MODIFIED:last week', 'STATUS:CANCELLED']));
+    expectChanged(task(['STATUS:COMPLETED', 'COMPLETED;TZID=Nowhere/Atlantis:20261001T120000']));
+  });
+
+  it('reads a COMPLETED date to the end of its day, and one in a zone in that zone', () => {
+    expectKept(task(['STATUS:COMPLETED', 'COMPLETED;VALUE=DATE:20261122']));
+    expectChanged(task(['STATUS:COMPLETED', 'COMPLETED;VALUE=DATE:20261123']));
+    // 18:59:59 in Tokyo is 09:59:59 UTC, a second before the start.
+    expectKept(task(['STATUS:COMPLETED', 'COMPLETED;TZID=Asia/Tokyo:20261123T185959']));
+    expectChanged(task(['STATUS:COMPLETED', 'COMPLETED;TZID=Asia/Tokyo:20261123T190000']));
+  });
+
+  it('open, it changes, however long ago it was due or last changed', () => {
+    expectChanged(task(['STATUS:NEEDS-ACTION', 'DUE:20200101T090000Z', 'LAST-MODIFIED:20200101T090000Z']));
+    expectChanged(task(['DTSTART:20200101T090000Z', 'DTSTAMP:20200101T090000Z']));
   });
 });
 
@@ -429,7 +472,22 @@ function randomObject(r: () => number): { readonly body: string; readonly utcEnd
     lines.push(`RRULE:FREQ=${freq}${byDay}${bound}`);
   }
   if (r() < 0.1) lines.push(`RDATE:${stamp(from + Math.floor((r() * 2 - 0.5) * 400) * 24 * HOUR)}Z`);
-  if (component === 'VTODO') lines.push(...pick(r, [[], ['STATUS:COMPLETED'], ['STATUS:CANCELLED'], ['STATUS:NEEDS-ACTION'], ['COMPLETED:20261001T000000Z']]));
+  if (component === 'VTODO') {
+    // Done before the start or after it, by each time that can say so, or with none.
+    const done = stamp(START.getTime() + Math.floor((r() * 2 - 1) * 60 * 24) * HOUR);
+    lines.push(
+      ...pick(r, [
+        [],
+        ['STATUS:COMPLETED'],
+        ['STATUS:CANCELLED'],
+        ['STATUS:NEEDS-ACTION'],
+        ['COMPLETED:20261001T000000Z'],
+        ['STATUS:COMPLETED', `COMPLETED:${done}Z`],
+        ['STATUS:CANCELLED', `LAST-MODIFIED:${done}Z`],
+        ['STATUS:COMPLETED', `DTSTAMP:${done}Z`],
+      ]),
+    );
+  }
   const organiser = pick(r, ADDRESSES);
   const objectLines = [
     `BEGIN:${component}`,
@@ -491,6 +549,35 @@ describe('properties over random dated objects', () => {
       expect(calendarObjectIsOver(body, START), `seed ${seed}`).toBe(utcEnd < START.getTime());
     }
     expect(checked).toBeGreaterThan(50);
+  });
+
+  it('reads a task as over exactly when the time that decides is before the start, so a task done later never goes back', () => {
+    const task = (lines: string[]) => crlf(['BEGIN:VCALENDAR', 'VERSION:2.0', ...own('VTODO', lines), 'END:VCALENDAR']);
+    const ways: Array<(t: string) => string[]> = [
+      (t) => ['STATUS:COMPLETED', `COMPLETED:${t}Z`],
+      (t) => ['DTSTAMP:20200101T000000Z', `LAST-MODIFIED:${t}Z`, 'STATUS:CANCELLED'],
+      (t) => [`DTSTAMP:${t}Z`, 'STATUS:COMPLETED'],
+    ];
+    let before = 0;
+    let after = 0;
+    for (const seed of SEEDS) {
+      const r = rng(seed);
+      // To the second, within a month either side of the start.
+      const at = START.getTime() + Math.floor((r() * 2 - 1) * 30 * 24 * 3600) * 1000;
+      const body = task(pick(r, ways)(stamp(at)));
+      const over = at < START.getTime();
+      expect(calendarObjectIsOver(body, START), `seed ${seed}`).toBe(over);
+      if (over) {
+        before += 1;
+        continue;
+      }
+      after += 1;
+      expect(applyAddressChanges('icalendar', body, TABLE, [], START).body, `seed ${seed}`).toContain(
+        '\r\nORGANIZER;CN=Ana:mailto:ana@example.org\r\n',
+      );
+    }
+    expect(before).toBeGreaterThan(50);
+    expect(after).toBeGreaterThan(50);
   });
 
   it('gives an object the same bytes under any two tables that give it the same digest, and a row it never names changes nothing (0168 S4)', () => {
