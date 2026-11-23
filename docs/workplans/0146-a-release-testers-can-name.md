@@ -33,7 +33,9 @@ name, which the step now asks about by itself (#2084).
   answer read in time linear in its length (#2074), and each CI run's own test passwords (#2071);
 - the accessibility statement in English and Dutch, with the progress page's link to the privacy
   policy (#2076), and the privacy policy's §4.5 on how a request for access is logged (#2082);
-- an outside check's findings on the Stalwart base and three Dockerfiles, read and kept (#2075);
+- an outside check's findings on the Stalwart base and three Dockerfiles, read and kept, Stalwart's
+  move set for alpha.19 on the owner's answer (#2075), and a race in the worker's memory test
+  fixed (#2087);
 - Dependabot's npm minor-and-patch group, 6 updates (#2086), and `github/codeql-action/upload-sarif`
   4.39.4 (#2085).
 

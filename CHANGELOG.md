@@ -256,9 +256,6 @@ from alpha.17 is one-way: ledger migration 0075 adds a column.
   `STALWART_TARGET_PASSWORD`, and `deploy/compose/dev.yml` reads `NEXTCLOUD_ADMIN_PASSWORD`; each
   keeps its old value as a developer's default. A guard fails any workflow that sets a credential
   to a literal.
-
-### Security
-
 - **The test mail server's krb5 and zlib findings wait for Stalwart's next release; the Dockerfile
   rules an outside check read stay as decided** (workplan 0166 T9; docs only). An outside,
   read-only check of 2026-11-23 reported a high vulnerability with a fix in the Stalwart image the
