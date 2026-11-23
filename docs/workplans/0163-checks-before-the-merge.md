@@ -9,9 +9,9 @@ server sends, now linear.** On `claude/ownpace-public-readiness-y7orc6-redos`, f
 `db37bf49`. An outside, read-only check at `5b51a82b`, with Semgrep 1.178.0, listed 25 places as
 regular expressions that can be slow (CWE-1333).
 - **Reproduced, all 25, on `db37bf49`,** with Semgrep 1.178.0 and the two rules taken from Semgrep's
-  rules repository, since the registry refused this session's network: 8 are `detect-redos` and
-  17 `detect-non-literal-regexp`. The same two rules also report eight places outside the 25 and
-  outside tests, all in `scripts/` (`migration-locks-report.mjs:74`, `release-names-agree.mjs:58`
+  rules repository, since the registry refused the network it was checked from: 8 are
+  `detect-redos` and 17 `detect-non-literal-regexp`. The same two rules also report eight places
+  outside the 25 and outside tests, all in `scripts/` (`migration-locks-report.mjs:74`, `release-names-agree.mjs:58`
   and `:149`, `workplan-index.mjs:150`, `nginx-config.mjs:141`, `release-preflight.mjs:177`,
   `release-verify.mjs:174` and `:175`), which were not read here.
 - **How each was read.** The input's source, then a crafted input at three lengths, timed. The §4.3
