@@ -4,10 +4,13 @@
  * *ADDRESSES CHANGED* IN THE COMPLETION REPORT (workplan 0168 §6.3; ADR-0055).
  *
  * The closing document says how many address changes were confirmed, per
- * data type how many copies carry one and how many wait for the next pass,
- * and, always, that mail was copied unchanged, in English and in Dutch. It
- * narrates counts, never addresses. A migration the table never touched
- * reads exactly as before.
+ * data type how many copies carry one and how many wait, and for what: the
+ * next pass, or, past the data type's switch, somebody's press of *Apply the
+ * new addresses here too* (D5; the screens' review S4), and how many were left
+ * as they are for want of a version to guard the write (S1). And, always,
+ * that mail was copied unchanged, in English and in Dutch. It narrates
+ * counts, never addresses. A migration the table never touched reads exactly
+ * as before.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -61,6 +64,39 @@ describe('Addresses changed', () => {
       'Mail is ongewijzigd gekopieerd: elk bericht is precies zoals het is verstuurd, zodat de handtekening en de geschiedenis ervan intact blijven.',
     ]);
     for (const l of said.lines) expect(l.en.length > 0 && l.nl.length > 0).toBe(true);
+  });
+
+  it('says a copy past its switch waits for the press, never for the next pass', () => {
+    const said = addressChangesSaid({
+      rows: 1,
+      digest: 'd'.repeat(64),
+      byDomain: [{ domain: 'contact', changed: 4, older: 2, unguarded: 0, waitsFor: 'press' }],
+    });
+    expect(said.lines[1]).toEqual({
+      en: 'Contacts: 4 copies carry a new address. 2 wait for somebody to press Apply the new addresses here too.',
+      nl: 'Contacten: 4 kopieën hebben een nieuw adres. 2 wachten tot iemand drukt op De nieuwe adressen hier ook toepassen.',
+    });
+    expect(said.lines[1]!.en).not.toContain('next pass');
+    expect(said.lines[1]!.nl).not.toContain('volgende ronde');
+  });
+
+  it('says the copies left as they are with no version to guard the write, apart from those that wait', () => {
+    const said = addressChangesSaid({
+      rows: 1,
+      digest: 'd'.repeat(64),
+      byDomain: [
+        { domain: 'calendar', changed: 0, older: 3, unguarded: 1, waitsFor: 'pass' },
+        { domain: 'task', changed: 2, older: 2, unguarded: 2 },
+      ],
+    });
+    expect(said.lines[1]).toEqual({
+      en: 'Calendars: 0 copies carry a new address. 2 wait for the next pass. 1 was not changed, with no version to guard the write.',
+      nl: "Agenda's: 0 kopieën hebben een nieuw adres. 2 wachten op de volgende ronde. 1 is niet gewijzigd, zonder versie om het schrijven te bewaken.",
+    });
+    expect(said.lines[2]).toEqual({
+      en: 'Tasks: 2 copies carry a new address. 2 were not changed, with no version to guard the write.',
+      nl: 'Taken: 2 kopieën hebben een nieuw adres. 2 zijn niet gewijzigd, zonder versie om het schrijven te bewaken.',
+    });
   });
 
   it('says one change and one copy in the singular', () => {

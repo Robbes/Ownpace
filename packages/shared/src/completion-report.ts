@@ -26,7 +26,7 @@ import {
   type OutlivingAccess,
 } from './standing-grants.ts';
 import type { DomainStatusReport } from './operating-contract.ts';
-import type { ItemDeletion, ItemFailure, ItemMove } from './ports.ts';
+import type { AddressChangeWaitsFor, ItemDeletion, ItemFailure, ItemMove } from './ports.ts';
 
 /** One domain's line in the report. */
 export interface CompletionDomainLine {
@@ -92,9 +92,12 @@ export interface CompletionSharingSummary {
 /**
  * THE ADDRESSES THAT CHANGED (ADR-0055; workplan 0168 §6.3): the organisation's
  * confirmed rows, counted, and per data type how many copies carry a new
- * address under the table as it is now (`changed`) or under an older one
- * (`older`, waiting for the next pass). Counts only: the report narrates
- * counts, never the addresses (§17).
+ * address as the table says (`changed`) and how many wait for a change a pass
+ * found should reach them (`older`): for the next pass, or, past the data
+ * type's cutover, for somebody to press *Apply the new addresses here too*
+ * (`waitsFor`, D5), save those with no version to guard the write, which are
+ * left as they are (`unguarded`, S1). Counts only: the report narrates counts,
+ * never the addresses (§17).
  */
 export interface CompletionAddressChanges {
   readonly rows: number;
@@ -103,6 +106,10 @@ export interface CompletionAddressChanges {
     readonly domain: 'contact' | 'calendar' | 'task';
     readonly changed: number;
     readonly older: number;
+    /** Of `older`, those with no version to guard the write. Absent reads as none. */
+    readonly unguarded?: number;
+    /** What the rest of `older` waits for. Absent reads as the next pass. */
+    readonly waitsFor?: AddressChangeWaitsFor;
   }>;
 }
 
@@ -131,13 +138,30 @@ export function addressChangesSaid(changes: CompletionAddressChanges): Completio
   });
   for (const d of changes.byDomain) {
     const name = DATA_TYPE_SAID[d.domain];
+    const unguarded = Math.min(d.unguarded ?? 0, d.older);
+    const waiting = d.older - unguarded;
+    // Past the data type's cutover no pass makes the change: it waits for a
+    // person's press (D5; the screens' review S4).
+    const press = d.waitsFor === 'press';
     lines.push({
       en:
         `${name.en}: ${d.changed} ${d.changed === 1 ? 'copy carries' : 'copies carry'} a new address.` +
-        (d.older > 0 ? ` ${d.older} ${d.older === 1 ? 'waits' : 'wait'} for the next pass.` : ''),
+        (waiting > 0
+          ? ` ${waiting} ${waiting === 1 ? 'waits' : 'wait'} ` +
+            (press ? 'for somebody to press Apply the new addresses here too.' : 'for the next pass.')
+          : '') +
+        (unguarded > 0
+          ? ` ${unguarded} ${unguarded === 1 ? 'was' : 'were'} not changed, with no version to guard the write.`
+          : ''),
       nl:
         `${name.nl}: ${d.changed} ${d.changed === 1 ? 'kopie heeft' : "kopieën hebben"} een nieuw adres.` +
-        (d.older > 0 ? ` ${d.older} ${d.older === 1 ? 'wacht' : 'wachten'} op de volgende ronde.` : ''),
+        (waiting > 0
+          ? ` ${waiting} ${waiting === 1 ? 'wacht' : 'wachten'} ` +
+            (press ? 'tot iemand drukt op De nieuwe adressen hier ook toepassen.' : 'op de volgende ronde.')
+          : '') +
+        (unguarded > 0
+          ? ` ${unguarded} ${unguarded === 1 ? 'is' : 'zijn'} niet gewijzigd, zonder versie om het schrijven te bewaken.`
+          : ''),
     });
   }
   lines.push({
