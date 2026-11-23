@@ -705,30 +705,23 @@ jobs:
         #
         # WHERE THE SUMS COME FROM. Each is the SHA-256 of `/atlas` in the
         # same release's community image on Docker Hub,
-        # `arigaio/atlas:1.4.0-community@sha256:972b99f8a90fd513d8a1ed97e525ea59702e41e40be260c315ad5892fac46706`
-        # (linux/amd64 manifest `9fb3012c…`, linux/arm64 `fb2ddb21…`), read
-        # through the registry's own digests, layer by layer (2026-11-18; the
-        # same reading of v1.3.10's image gave the two sums pinned before
-        # these). So a run that passes here has two channels agreeing on the
-        # bytes, both carrying one output of Ariga's own build
-        # (`-tags=official`, version v1.4.0, Go 1.26.10 as v1.3.10's). Its Go
-        # build information names upstream commit `e933d0b70620` (2026-11-17),
-        # the one upstream's git tag v1.4.0 names, and differs from v1.3.10's
-        # in that commit, the version and the build date alone: the same
-        # compiler, flags and 89 dependencies, in a file of the same size and
-        # section layout. It is clean for amd64, while the arm64 build
-        # reports a modified tree (`vcs.modified=true`), as v1.3.6's,
-        # v1.3.8's, v1.3.9's and v1.3.10's did, so only the amd64 one says it
-        # is that commit as published. Upstream's public git holds two
-        # commits between v1.3.10's `90dacfc6c25f` and it: a section of the
-        # README, and an include and exclude option for `schema clean` in the
-        # Go SDK (`atlasexec`), which no package of the CLI imports. Every
-        # other path is the same in both, so the docker driver, the Postgres
-        # driver, the migrate package and the lint's analyzers this job runs
-        # are v1.3.10's, which are v1.3.8's. Docker Hub listed the tag on
-        # 2026-11-17 15:20 UTC, so its three-day floor (CONTRIBUTING.md) runs
-        # to 2026-11-20 15:20: it is taken inside that floor, on the owner's
-        # word of 2026-11-19, *"I waive waiting time / nights if needed."*
+        # `arigaio/atlas:1.4.1-community@sha256:2ffb222d646dc2c16cc750978da3b6ad957e7a55484783985e7a6a9c22b95417`
+        # (linux/amd64 manifest `fa488087…`, linux/arm64 `3e0921b2…`), read
+        # through the registry's own digests, layer by layer (2026-11-23; the
+        # same reading of v1.4.0's image gave the two sums pinned before
+        # these, byte for byte). So a run that passes here has two channels
+        # agreeing on the bytes, both carrying one output of Ariga's own build
+        # (`-tags=official`, version v1.4.1, Go 1.26.10 as v1.4.0's). Its Go
+        # build information is v1.4.0's in every line but the version in its
+        # `-ldflags`: the same upstream commit `e933d0b70620` (2026-11-17),
+        # the one upstream's git tag v1.4.0 names, the same build date, the
+        # same compiler, flags and 89 dependencies, in a file of the same size
+        # for each architecture. So v1.4.1 is v1.4.0 relabelled, and the lint
+        # and its dev database run as they did. It is clean for amd64, while
+        # the arm64 build reports a modified tree (`vcs.modified=true`), as
+        # every arm64 build since v1.3.6 has. Docker Hub listed the tag on
+        # 2026-11-19 22:40 UTC, so its three-day floor (CONTRIBUTING.md) ran
+        # to 2026-11-22 22:40, before this move.
         # Upstream's git has a tag for v1.3.0 and one for v1.4.0, and none
         # for the releases between them, so the release list is the image's
         # tags, and that is what the pin watch reads
@@ -741,9 +734,9 @@ jobs:
         # all three values below in one pull request, and read the version
         # line in both of its migration-lint legs' logs.
         env:
-          ATLAS_VERSION: v1.4.0
-          ATLAS_SHA256_AMD64: 5f964b94afdb069661fb180fb07c2a536b8bccc6262296e3268411dfea3b95cc
-          ATLAS_SHA256_ARM64: f2c6eb9f010376960765a805478666fe256939fa1dd0cd542733f35392b58849
+          ATLAS_VERSION: v1.4.1
+          ATLAS_SHA256_AMD64: 84a820ad9cfe8145e065268b4ed05ca0d30330309e33a1bc1e705431a6375d96
+          ATLAS_SHA256_ARM64: db59c797016e0e57255be9ceb4e3b14bc9f52edcaa157e0536e656ba6ac36d38
         run: |
           set -euo pipefail
           case "$(uname -m)" in
@@ -817,7 +810,8 @@ jobs:
           # Atlas's docker driver takes the path's first part as the tag and
           # runs `docker run … postgres:<tag>` (FromURL and PostgreSQL in its
           # cmd/atlas/internal/docker, at v1.3.6's commit and unchanged at
-          # v1.3.8's, at v1.3.9's, which is v1.3.10's, and at v1.4.0's), and a
+          # v1.3.8's, at v1.3.9's, which is v1.3.10's, and at v1.4.0's, which
+          # is v1.4.1's), and a
           # tag that carries `@sha256:` reaches `docker run` whole. The last
           # part is the database because it holds no `:`. A Dependabot pull
           # request that moves that FROM fails

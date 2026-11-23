@@ -4,6 +4,17 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, night: CI's migration lint takes Atlas v1.4.1, which is v1.4.0 relabelled, for
+alpha.19.** The pin watch's summary issue (#1671) listed v1.4.1 behind v1.4.0 on 2026-11-21. Docker
+Hub listed `1.4.1-community` on 2026-11-19 at 22:40 UTC, so its three-day floor ended on
+2026-11-22 at 22:40, before this move. `/atlas` read out of its linux/amd64 and linux/arm64 images
+through the registry's own digests, layer by layer, gives the two sums `ci.yml` now pins; the same
+reading of `1.4.0-community` gives, byte for byte, the two sums pinned before. The two builds'
+Go build information differs in the version in `-ldflags` alone: the same upstream commit
+`e933d0b70620`, build date, Go 1.26.10, flags and 89 dependencies, in files of the same size. So
+the lint and its dev database run as they did, and nothing deployed changes. It merges after
+alpha.18's tag, from which `main` takes nothing until then.
+
 **2026-11-23, evening: what alpha.18 moves, and what moves for live from alpha.17.** The fold for
 `v0.2.0-alpha.18` (0146's entry of the same day) carries what `main` merged after alpha.17's C,
 `5b51a82b`: 19 pull requests (0146's entry lists them). For live, from alpha.17 (live

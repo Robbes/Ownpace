@@ -4,6 +4,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **CI's migration lint moves to Atlas v1.4.1** (workplan 0119), from alpha.18's v1.4.0. Docker
+  Hub published it on 2026-11-19 at 22:40 UTC, and it is taken after its three-day floor. Each
+  architecture is checked by the SHA-256 of `/atlas` in the release's community image on Docker
+  Hub. v1.4.1 is v1.4.0 relabelled: the same upstream commit, build date, Go, flags and
+  dependencies, in a file of the same size; only the version it prints differs. Nothing deployed
+  changes.
+
 ### Fixed
 
 - **Text that still described Trigger.dev in the present tense** (workplan 0167, after T9). Code
