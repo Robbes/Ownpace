@@ -2,7 +2,37 @@
 
 > **In one line:** Which scanners and checks CI should add so that what an outside, read-only check finds is caught before a merge: what runs today, what each finding is, and in what order to add Semgrep, osv-scanner, zizmor's secrets audit, gitleaks and the rest, each failing the build or only reporting.
 
-## Status — 2026-11-22 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23: the second round of swallowed errors, 14 places, read and settled.** On
+`claude/ownpace-public-readiness-y7orc6-swallowed-errors`, from `main` at `db37bf49`. An outside,
+read-only check, at `5b51a82b`, named 14 places where an error is caught and lost, at medium
+severity: 3 in production, 11 in tests and fakes. All 14 were still on `main`. The first round
+(#1944, recorded in workplan 0006) set the style: a catch lets go only the failure it expects, or
+the failure is said or passed on, and no suppression or ignore comment.
+- **`closeJobRunner` (`apps/api/src/job-runner.ts`).** The only one that lost an error. A close
+  while the producer's start failed dropped that failure: the press that made the producer was
+  handed it, but the close said nothing. It now logs it once, at warn, through the API's `log` and
+  `loggableError`, and stops nothing; a test in `job-runner.unit.test.ts` shows the warn line, the
+  press's own rejection and the one stop.
+- **`oneAtATime` (`apps/selfhost/src/address-changes.ts`).** Lost nothing: the catch quieted only
+  the copy kept for ordering, and the caller had `next` with its error. The copy is now
+  `Promise.allSettled([next])`, with the same order. `one-address-write-at-a-time.unit.test.ts`
+  shows a failed write's error reaching its caller and the next write running after it settles.
+- **`partUrls` (`packages/connectors/src/cirrux-drive-api.ts`).** Lost nothing: the promise was
+  returned. Now `async`/`await`, the same behaviour; the existing test of an answer without
+  `part_urls` in `cirrux-drive-target.unit.test.ts` still shows the throw reaching the pass.
+- **Tests and fakes.** A runner's stop in a teardown that nothing else stops
+  (`a-job-on-pg-boss`, `operator-jobs` twice in its first `afterAll` and once in its second) now
+  fails the hook when it fails. Where the tests stop most runners themselves (the scheduler's
+  `job-runner` and `a-jobs-role-that-owns-only-its-queue`), the teardown's second stop ends the pool
+  again, and only pg's `Called end on pool more than once` is let go. The worker's wait for
+  `/health` lets go only `ECONNREFUSED`, before it listens. The members test's requests are settled
+  from the start with `Promise.allSettled`, and a failed one is thrown after the commit, as
+  `Promise.all` threw it; the connection test's press is an `async` function, awaited with the
+  other. The Cirrux fake's rotation queue keeps its order with `Promise.allSettled`, as
+  `oneAtATime` does. The appliance's address-change E2E keeps the last refused pass and says it if
+  the wait runs out, as `driveUntil` in `apply-deletion-lib.ts` does.
 
 **2026-11-22: T5's first rule that blocks, `run-shell-injection`, built; `react-href-var` waits on
 its time-outs.** On `claude/ownpace-alpha16-semgrep-blocking`, from `main` at `0683eb04`. It

@@ -136,8 +136,20 @@ beforeAll(async () => {
   await prepareKeyHolderTable(jobsPool, SCHEMA);
 });
 
+/**
+ * Stop a runner the tests may have stopped already. A second stop ends its
+ * pool again, which pg refuses in these words; any other failure fails the hook.
+ */
+async function stopAgain(r: { stop(opts: { graceful?: boolean }): Promise<void> }): Promise<void> {
+  try {
+    await r.stop({ graceful: false });
+  } catch (err) {
+    if (!(err instanceof Error && err.message === 'Called end on pool more than once')) throw err;
+  }
+}
+
 afterAll(async () => {
-  for (const r of runners) await r.stop({ graceful: false }).catch(() => undefined);
+  for (const r of runners) await stopAgain(r);
   await jobsPool?.end();
   if (admin) {
     await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
