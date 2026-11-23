@@ -17,7 +17,7 @@
  *     as the automatic cadence; a cron is still read and refused as before.
  *
  * The real routes over a real (in-process) ledger, both chains applied, with
- * only the Trigger.dev client replaced by a recorder.
+ * only the job queue's producer replaced by a recorder.
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
@@ -50,20 +50,16 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
 });
 
 const { enqueued } = vi.hoisted(() => ({ enqueued: [] as string[] }));
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (taskId: string) => {
-          enqueued.push(taskId);
-          return Promise.resolve({ id: `run-${enqueued.length}` });
-        },
-      },
-    }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (taskId: string) => {
+      enqueued.push(taskId);
+      return `run-${enqueued.length}`;
+  }),
+);
 
 const { default: migrationRoutes } = await import('./index.ts');
 

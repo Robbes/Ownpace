@@ -27,10 +27,7 @@ COPY . .
 # nothing else (scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts
 # walks the same closure and holds every package its runtime source loads to
 # that package's own `dependencies`). pg-boss comes with @openmig/scheduler.
-# @trigger.dev/sdk comes too while the tasks under apps/worker/src/jobs are
-# Trigger.dev's as well as the runner's; it goes with Trigger.dev (0167 T9).
-# The CLI that deploys the tasks (`trigger.dev`) is a devDependency and does
-# not.
+# Nothing of Trigger.dev's comes since alpha.18, which removed it (0167 T9).
 #
 # Then /app readable by everyone and writable by root alone, as the API's: the
 # worker, uid 65532, reads its code and cannot rewrite it.

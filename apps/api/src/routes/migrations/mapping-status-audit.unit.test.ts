@@ -52,12 +52,13 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
 // The start route enqueues a first pass; a real client would reach for a
 // network. Answering keeps this file about the audit row and leaves the
 // route's own enqueue-failure path alone rather than exercising it by accident.
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({ trigger: () => Promise.resolve({ id: 'run-1' }) }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+});
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) => {
+  const { aQueueStandIn, aRunId } = await import('../../__testing__/a-queue-stand-in.ts');
+  return aQueueStandIn(await importOriginal(), () => aRunId(1));
 });
 
 const { default: migrationRoutes } = await import('./index.ts');

@@ -19,8 +19,9 @@
  *
  * So `deploy/compose/postgres/Dockerfile` builds the same image, by the same
  * digest, without gosu and with `USER 70:70`, and every Postgres of the
- * deploy/compose stacks runs it: managed.yml's `postgres` and `trigger-db`,
- * and dev.yml's `postgres`. The base stays Alpine and musl: a Debian base
+ * deploy/compose stacks runs it: managed.yml's `postgres` (and its
+ * `trigger-db` until alpha.18 removed Trigger.dev, workplan 0167 T9), and
+ * dev.yml's `postgres`. The base stays Alpine and musl: a Debian base
  * collates text differently, and the indexes of a database made under one are
  * not to be trusted under the other. This holds:
  *
@@ -85,10 +86,8 @@
  *    comment or document gives a command that builds the databases' image:
  *    no `up --build` on managed.yml or dev.yml, no `build` naming no service
  *    or a database, nor any other service whose image is built here, read
- *    from the files (trigger-api and trigger-supervisor since 0146 T16,
- *    trigger-docker-proxy since 2026-10-30, trigger-tls since 2026-10-31 and
- *    its one-shot trigger-tls-init since 2026-11-19, and trigger-redis since
- *    2026-11-07);
+ *    from the files (pgbouncer; Trigger.dev's six builds went with its plane
+ *    in alpha.18, workplan 0167 T9);
  *  - a pull request that touches deploy/ builds the Dockerfile and starts the
  *    result (images.yml, `build (postgres)`), so a FROM that does not resolve,
  *    or a base without gosu, is found there and not first by E2E (managed);
@@ -141,7 +140,7 @@ const DOCKERFILE = 'deploy/compose/postgres/Dockerfile';
 const APPLIANCE_DOCKERFILE = 'deploy/selfhost/postgres/Dockerfile';
 
 /** Every Postgres service of the deploy/compose files, which run the build. */
-const BUILT = ['deploy/compose/managed.yml:postgres', 'deploy/compose/managed.yml:trigger-db', 'deploy/compose/dev.yml:postgres'];
+const BUILT = ['deploy/compose/managed.yml:postgres', 'deploy/compose/dev.yml:postgres'];
 
 /**
  * The appliance's compose files: `compose.yml` and every override layered on
@@ -481,7 +480,7 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
     const [stale, ...more] = composeProblems(composeTexts, edited);
     expect(more).toEqual([]);
     const next = `localhost/postgres:${builtTag(edited)}`;
-    expect(stale).toContain(`${DOCKERFILE}'s instructions changed, so the image it builds is named ${next} now, and 3 image line(s) still give the old name:`);
+    expect(stale).toContain(`${DOCKERFILE}'s instructions changed, so the image it builds is named ${next} now, and ${BUILT.length} image line(s) still give the old name:`);
     const lines = Object.entries(composeTexts).flatMap(([file, text]) =>
       readImages(text)
         .filter((i) => i.repo === 'localhost/postgres')
@@ -758,10 +757,9 @@ const COMPOSE_VARIABLE = /^"?\$\{?[A-Z_]*COMPOSE[A-Z_]*\}?"?$/;
 
 /**
  * Every service of managed.yml and dev.yml that runs an image built here
- * (`localhost/…`), read from the files: the two databases (0146 T15),
- * trigger-api and trigger-supervisor since 0146 T16, trigger-docker-proxy
- * since 2026-10-30, trigger-tls since 2026-10-31 (and trigger-tls-init, the
- * same build, since 2026-11-19) and trigger-redis since 2026-11-07 (0119).
+ * (`localhost/…`), read from the files: the database (0146 T15) and the
+ * pooler. (Trigger.dev's database and its five other builds were here until
+ * alpha.18 removed the plane, workplan 0167 T9.)
  * None may be built by name: each is built where its name is missing, and only
  * then.
  */
@@ -972,13 +970,6 @@ describe("nothing builds the databases' image again while the machine has it", (
     expect([...BUILT_HERE_SERVICES].sort()).toEqual([
       'pgbouncer',
       'postgres',
-      'trigger-api',
-      'trigger-db',
-      'trigger-docker-proxy',
-      'trigger-redis',
-      'trigger-supervisor',
-      'trigger-tls',
-      'trigger-tls-init',
     ]);
   });
 
@@ -991,10 +982,10 @@ describe("nothing builds the databases' image again while the machine has it", (
       '#   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build',
       'docker compose build --no-cache',
       'docker compose -f deploy/compose/managed.yml build postgres',
-      'docker compose -f deploy/compose/managed.yml build --build-arg GIT_SHA=x trigger-db api',
-      // The Trigger.dev builds (0146 T16) are built where missing, and never by name either.
-      'docker compose -f deploy/compose/managed.yml build trigger-api',
-      '"${COMPOSE[@]}" build trigger-supervisor',
+      'docker compose -f deploy/compose/managed.yml build --build-arg GIT_SHA=x postgres api',
+      // The pooler is built where missing, and never by name either.
+      'docker compose -f deploy/compose/managed.yml build pgbouncer',
+      '"${COMPOSE[@]}" build pgbouncer',
       'run `docker compose -f deploy/compose/managed.yml -f override.yml up -d --build` first',
       // The appliance's database is a build too since 0146 T15b, and E2E (self-hosted) runs on a
       // Docker the managed stacks share.
@@ -1054,12 +1045,12 @@ describe("nothing builds the databases' image again while the machine has it", (
     expect(found).toEqual([]);
   });
 
-  it('the app phase builds api and web by name, with the commit, before its `up`, which has no --build', () => {
+  it('the app phase builds api, web and the worker by name, with the commit, before its `up`, which has no --build', () => {
     const app = lift('phase_app');
     expect(app, 'phase_app not found').toContain('local services=(');
-    const build = app.search(/^\s*GIT_SHA="\$\(git -C "\$REPO_ROOT" rev-parse HEAD[^\n]*\\\n\s*"\$\{COMPOSE\[@\]\}" build api web \|\| die /m);
+    const build = app.search(/^\s*GIT_SHA="\$\(git -C "\$REPO_ROOT" rev-parse HEAD[^\n]*\\\n\s*"\$\{COMPOSE\[@\]\}" build api web worker \|\| die /m);
     const up = app.indexOf('up_wait "${services[@]}"');
-    expect(build, 'phase_app does not build api and web by name, with GIT_SHA, and stop when they do not build').toBeGreaterThan(-1);
+    expect(build, 'phase_app does not build api, web and the worker by name, with GIT_SHA, and stop when they do not build').toBeGreaterThan(-1);
     expect(up, 'phase_app does not bring its services up through up_wait').toBeGreaterThan(-1);
     expect(build, 'the images that carry code are built after the `up` that runs them').toBeLessThan(up);
     expect(lift('up_wait'), 'up_wait builds what its services need').toMatch(/"\$\{COMPOSE\[@\]\}" up -d --wait "\$@"/);

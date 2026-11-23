@@ -37,16 +37,15 @@ runs at **:23** past the hour, the push at **:41**.
 
 In the OTA checkout, as [ending-the-alpha.md](./ending-the-alpha.md) *The switch* does on live: empty
 `OWNPACE_STAGE`, name this month as the first invoiced, and bring the change to every part that reads
-it. The web bundle bakes the stage in, so its image is rebuilt; the API reads it when it starts; the
-tasks only from `set-task-env.sh`.
+it. The web bundle bakes the stage in, so its image is rebuilt; the API and the worker read it when
+they start.
 
 ```bash
 ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_STAGE=
 ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_BILLING_FROM="$(date -u +%Y-%m)"
 GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml build web
 docker compose -f deploy/compose/managed.yml up -d --wait web
-docker compose -f deploy/compose/managed.yml up -d --force-recreate api
-./deploy/compose/set-task-env.sh   # says: deleted OWNPACE_STAGE
+docker compose -f deploy/compose/managed.yml up -d --force-recreate api worker
 ```
 
 **Check:** the app's sign-in page shows no Alpha note, and the Billing page's cards have buttons.
@@ -143,8 +142,7 @@ time.
 ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_BILLING_FROM=
 GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml build web
 docker compose -f deploy/compose/managed.yml up -d --wait web
-docker compose -f deploy/compose/managed.yml up -d --force-recreate api
-./deploy/compose/set-task-env.sh
+docker compose -f deploy/compose/managed.yml up -d --force-recreate api worker
 ```
 
 **Check:** the sign-in page shows the Alpha note again, and the next **:23** says nobody is invoiced
@@ -163,6 +161,6 @@ nothing while the alpha lasts.
 ## What to write down
 
 For each step: passed, or what you saw instead, with the time and the invoice or credit note number.
-Anything that did not happen on the hour it should have is in the task's run on the Trigger.dev
-dashboard and on the operator's log page. Record the walk in workplan 0111's Status, as the proofs of
+Anything that did not happen on the hour it should have is in the job's run
+(`./deploy/compose/operator.sh jobs failures`) and on the operator's log page. Record the walk in workplan 0111's Status, as the proofs of
 2026-10-11 were.

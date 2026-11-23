@@ -24,10 +24,11 @@
  * EXCEPTIONS live here, not in the guard, so that a bare checkout can read
  * them.
  *
- * REPORT ONLY, until the two Trigger.dev Dockerfiles have had their pass
- * (`deploy/compose/trigger.dev/Dockerfile` and
- * `deploy/compose/supervisor/Dockerfile`, whose EXCEPTIONS say they were not in
- * that check's round). A finding fails nothing: hadolint runs with
+ * REPORT ONLY. It was to stay so until the two Trigger.dev Dockerfiles had had
+ * their pass (`deploy/compose/trigger.dev/Dockerfile` and
+ * `deploy/compose/supervisor/Dockerfile`); alpha.18 removed both with
+ * Trigger.dev (workplan 0167 T9), so the condition is gone, and making it
+ * blocking is a pull request of its own (workplan 0119). A finding fails nothing: hadolint runs with
  * `--no-fail`, and this exits 0 whatever it found. On a pull request this
  * exits 0 whatever happened, and warns when a Dockerfile went unlinted. On a
  * push or a dispatch it exits 1 when a Dockerfile went unlinted (the image not
@@ -119,20 +120,6 @@ export const EXCEPTIONS = {
       "`USER root` for the one RUN apk needs and `USER postgres` after it, by the name upstream's config gives its user: " +
       "images.yml's build (pgbouncer) holds the built image's User to upstream's, and the RUN after it proves postgres is uid 70",
   },
-
-  'deploy/compose/supervisor/Dockerfile': {
-    'numeric-user':
-      "upstream's `node` after the RUN as root that removes what nothing here runs, which a-binary-the-stack-never-runs reads " +
-      'line by line; not in the lines this round read (workplan 0119, 2026-11-19)',
-    pipefail: 'the RUN as root that removes what nothing here runs pipes in its walks, held line by line by a-binary-the-stack-never-runs; not in this round',
-  },
-
-  'deploy/compose/trigger.dev/Dockerfile': {
-    'numeric-user':
-      "upstream's `node` after the RUNs as root that remove what nothing here runs and purge the Debian packages nothing loads, " +
-      'which a-binary-the-stack-never-runs and an-essential-nothing-runs read line by line; not in this round (workplan 0119, 2026-11-19)',
-    pipefail: 'the RUNs as root that remove what nothing here runs pipe in their walks, held line by line by those two guards; not in this round',
-  },
 };
 
 /**
@@ -141,19 +128,6 @@ export const EXCEPTIONS = {
  * Known in the summary, never ignored.
  */
 export const KNOWN_FINDINGS = {
-  'deploy/compose/docker-socket-proxy/Dockerfile': {
-    DL3064:
-      "`SECRETS=0` in upstream's ENV names no secret: it is the switch that refuses Docker's secrets endpoint, and " +
-      "a-tag-upstream-never-rebuilds holds every instruction but the base's FROM and the check to upstream's",
-  },
-  'deploy/compose/redis/Dockerfile': {
-    SC2016:
-      'the purge RUN hands its two Perl programs to perl in single quotes, where nothing is meant to expand; ' +
-      'an-essential-nothing-runs holds that RUN line by line',
-    SC2086:
-      'the purge RUN splits its two lists, of packages and of libraries, into words on purpose; ' +
-      'an-essential-nothing-runs holds that RUN line by line',
-  },
 };
 
 /** `table[key]` when the table holds that key itself: a path or a code is never one of Object's own names. */
@@ -274,7 +248,7 @@ export function report({ image, event, files, results = [], stopped = null, exce
     '## hadolint, report only',
     '',
     `\`${image || '(no image)'}\` with \`${CONFIG}\`, which ignores ${IGNORED.join(' and ')} and nothing else, one run per Dockerfile git lists. ` +
-      'No finding fails this job: it is report only until the two Trigger.dev Dockerfiles have had their pass (workplan 0119). ' +
+      'No finding fails this job: it is report only, until a pull request of its own makes it blocking (workplan 0119). ' +
       "A known finding is one that `a-dockerfile-that-ends-as-root`'s EXCEPTIONS explain, or one KNOWN_FINDINGS records (both in " +
       '`scripts/hadolint-report.mjs`), and is listed with why it stands.',
     '',

@@ -64,20 +64,16 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
 });
 // Every enqueue is recorded by its task, and answers: the first pass on
 // Start, and the cutover's preparation this file is about.
-vi.mock('@openmig/scheduler', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    getTriggerClient: () => ({
-      tasks: {
-        trigger: (task: string) => {
-          triggered.push(task);
-          return Promise.resolve({ id: `run-${triggered.length}` });
-        },
-      },
-    }),
-  };
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
 });
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) =>
+  (await import('../../__testing__/a-queue-stand-in.ts')).aQueueStandIn(await importOriginal(), (task: string) => {
+      triggered.push(task);
+      return `run-${triggered.length}`;
+  }),
+);
 
 const { default: migrationRoutes } = await import('./index.ts');
 const { default: connectionRoutes } = await import('../connections.ts');

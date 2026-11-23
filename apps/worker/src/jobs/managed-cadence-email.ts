@@ -31,13 +31,12 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schedules } from '@trigger.dev/sdk';
 import type { Pool } from 'pg';
 import { withTenant } from '@openmig/ledger';
 import { createNotifier, log, renderEvent, type NotificationLocale, type NotificationMessage } from '@openmig/shared';
 import { notifierFromEnv, smtpTransport } from '@openmig/connectors';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
 import { claimSlowerSteps, whomToTell } from './the-slower-cadence-email.ts';
 
@@ -87,9 +86,8 @@ export async function cadenceOfOrganisation(
 export const CadenceEmailJobSchema = z.strictObject({});
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const managedCadenceEmailRun = leavesAReference(
   'managed-cadence-email',
@@ -145,12 +143,3 @@ export const managedCadenceEmailRun = leavesAReference(
     return result;
   },
 );
-
-export const managedCadenceEmail = schedules.task({
-  id: 'managed-cadence-email',
-  // 07:30 UTC: after the drift detector, before the digest. A morning's mail,
-  // rather than one at the minute a step happened, which is as often as not
-  // in the night.
-  cron: '30 7 * * *',
-  run: onTriggerDev(managedCadenceEmailRun),
-});

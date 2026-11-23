@@ -51,9 +51,8 @@ import {
   DISCOVERY_DOMAINS,
   type DiscoveryDomain,
 } from '@openmig/shared';
-import { AbortTaskRunError, schemaTask } from '@trigger.dev/sdk';
-import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import { leavesAReference, RunNotRetried } from './what-a-run-leaves.ts';
+import type { RunContext } from './run-context.ts';
 import { tenantCutoverStore, bindCutoverLedger, type CutoverStateStore } from '@openmig/ledger';
 import {
   CutoverRefused,
@@ -132,7 +131,7 @@ export interface CutoverPreparationDeps {
     CutoverStateStore,
     'initializeCutover' | 'loadCutoverState' | 'transitionState' | 'getEventHistory' | 'loadLedgers'
   >;
-  /** Where progress goes. The Trigger.dev task passes the shared log, which writes to the container's output. */
+  /** Where progress goes. The task passes the shared log, which writes to the container's output. */
   log: (message: string) => void;
   /**
    * The final sync: the pass the scheduler runs, over every data type the
@@ -347,9 +346,8 @@ export async function prepareCutover(
 }
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const runCutoverRun = leavesAReference(
   'run-cutover',
@@ -442,7 +440,7 @@ export const runCutoverRun = leavesAReference(
         // Nothing was prepared and nothing was written — see the policy.
         const hint = error instanceof CutoverRefused && error.hint ? ` ${error.hint}` : '';
         appLog.warn(`Cutover preparation refused: ${err.message}${hint}`, { tenantId, mappingId });
-        throw new AbortTaskRunError(err.message);
+        throw new RunNotRetried(err.message);
       }
 
       appLog.error(`Cutover preparation failed: ${err.message}`, { tenantId, mappingId });
@@ -461,21 +459,8 @@ export const runCutoverRun = leavesAReference(
 
       // A verdict is an answer; a fault is worth another go (and the retry
       // converges: it finds FAILED and takes it back to PREPARING).
-      if (!policy.retry) throw new AbortTaskRunError(err.message);
+      if (!policy.retry) throw new RunNotRetried(err.message);
       throw error;
     }
   },
 );
-
-// Register the job with Trigger.dev
-export const runCutover = schemaTask({
-  id: 'run-cutover',
-  description: 'Cutover preparation (final sync + verification gate)',
-  schema: CutoverJobSchema,
-  run: onTriggerDev(runCutoverRun, {
-    // Loaded when the final sync starts, and not at the top: the task file
-    // opens its database pools, and points the process's sinks at them,
-    // when it is imported.
-    deltaSync: async () => (await import('./run-delta-sync.ts')).runDeltaSync,
-  }),
-});

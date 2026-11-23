@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { cancelEnvForTheClose } from './operator-close.ts';
 import { jobsConnectionString } from './operator-jobs.ts';
+import { TRIGGER_REMOVED } from '../job-runner.ts';
 
 const OWNER = 'postgresql://openmigrate:owner-pw@localhost:55432/openmigrate';
 
@@ -42,21 +43,26 @@ describe('cancelEnvForTheClose', () => {
     expect(env.JOBS_DATABASE_URL).toBeUndefined();
   });
 
-  it.each([[{}], [{ OWNPACE_JOB_RUNNER: '' }], [{ OWNPACE_JOB_RUNNER: 'trigger' }]])(
-    'in trigger mode (%j), the environment is as it was, and operator-jobs.ts is not loaded',
-    async (mode) => {
-      let loaded = false;
-      const given = { ...mode, DATABASE_URL: OWNER, JOBS_DB_PASSWORD: 'jobs-pw' };
-      const env = await cancelEnvForTheClose(given, async () => {
+  it.each([[{}], [{ OWNPACE_JOB_RUNNER: '' }]])('unset or empty (%j) is pg-boss: the URL is composed', async (mode) => {
+    const env = await cancelEnvForTheClose(
+      { ...mode, DATABASE_URL: OWNER, JOBS_DB_PASSWORD: 'jobs-pw' },
+      async () => jobsConnectionString,
+    );
+    expect(new URL(env.JOBS_DATABASE_URL!).username).toBe('ownpace_jobs');
+  });
+
+  it('trigger, from an old .env, is refused in its own sentence before operator-jobs.ts is loaded (0167 T9)', async () => {
+    let loaded = false;
+    await expect(
+      cancelEnvForTheClose({ OWNPACE_JOB_RUNNER: 'trigger', DATABASE_URL: OWNER }, async () => {
         loaded = true;
         return jobsConnectionString;
-      });
-      expect(env).toBe(given);
-      expect(loaded).toBe(false);
-    },
-  );
+      }),
+    ).rejects.toThrow(TRIGGER_REMOVED);
+    expect(loaded).toBe(false);
+  });
 
-  it('refuses a switch that is neither, as the API does', async () => {
-    await expect(cancelEnvForTheClose({ OWNPACE_JOB_RUNNER: 'both' })).rejects.toThrow(/may only be "trigger" or "pg-boss"/);
+  it('refuses any other value, as the API does', async () => {
+    await expect(cancelEnvForTheClose({ OWNPACE_JOB_RUNNER: 'both' })).rejects.toThrow(/may only be "pg-boss"/);
   });
 });

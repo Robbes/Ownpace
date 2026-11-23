@@ -22,12 +22,12 @@
 # not a required check (every-pr-check-is-classified.unit.test.ts,
 # docs/testing.md).
 #
-# IT BECOMES BLOCKING after the two Trigger.dev Dockerfiles,
+# IT WAS TO BECOME BLOCKING after the two Trigger.dev Dockerfiles,
 # deploy/compose/trigger.dev/Dockerfile and deploy/compose/supervisor/Dockerfile,
-# have had their pass, whose EXCEPTIONS say they were not in that check's round;
-# not before. Then a finding that is not known fails the job, and the job
-# becomes a required check, in one pull request that says which findings still
-# stand and why.
+# had had their pass. alpha.18 removed both with Trigger.dev (workplan 0167
+# T9), so that condition is gone; the switch is still a pull request of its
+# own, in which a finding that is not known fails the job and the job becomes
+# a required check, saying which findings still stand and why.
 #
 # WHICH IMAGE. HADOLINT_IMAGE below, by tag and index digest, which the guard
 # holds to the reference it records as read (`HADOLINT`), and moved by hand:

@@ -55,20 +55,18 @@
 #       a line setting a key in a form env_value does not read and Compose
 #       does (indented, a space before '=', or ':' for '='), which would set
 #       what this checks empty behind its back; WEB_BIND, ZITADEL_BIND or
-#       STATUS_BIND empty; POSTGRES_BIND, API_BIND or TRIGGER_BIND set; a bind
-#       that is not one IPv4 address; any of the nine *_PORT (MAILPIT_PORT
+#       STATUS_BIND empty; POSTGRES_BIND or API_BIND set; a bind
+#       that is not one IPv4 address; any of the six *_PORT (MAILPIT_PORT
 #       among them) empty, one of the OTA stack's ports whatever its key (each
 #       *_PORT its persisted .env sets, and the rest at the compose files'
 #       default, NEXTCLOUD_PORT and the site's WWW_PORT among them), shared by
 #       two keys, or, on a first run, in use on the machine; a port live
-#       publishes (the nine, WWW_PORT while WWW_LIVE=true, 0139 T10's switch
+#       publishes (the six, WWW_PORT while WWW_LIVE=true, 0139 T10's switch
 #       once it lands, and any other *_PORT a `ports:` entry of managed.yml
 #       names but the demo's) inside
 #       the kernel's ephemeral port range and not reserved (check_ephemeral:
 #       an outgoing connection can take it first), on a resume too;
-#       TRIGGER_API_ORIGIN not on TRIGGER_PORT; TRIGGER_APP_ORIGIN or
-#       TRIGGER_LOGIN_ORIGIN not on TRIGGER_TLS_PORT; TRIGGER_CLI_PROFILE
-#       empty, the default, or the OTA stack's; an EXPOSURE_ALLOW or
+#       an EXPOSURE_ALLOW or
 #       EXPOSURE_NOT_OURS that exposure-check.sh refuses (an Ownpace container
 #       in the second), or with which it would fail an address
 #       either stack binds on (asked of exposure-check.sh itself, so loopback
@@ -104,8 +102,8 @@
 # WHAT IT DOES, in order. Every step asks whether it is done first, so a run
 # with --resume after a stop picks up without a state file.
 #
-#   1. POSTGRES_PASSWORD, APP_DB_PASSWORD, CLICKHOUSE_PASSWORD,
-#      MINIO_ROOT_PASSWORD and TRIGGER_DB_PASSWORD (D8, T2): each one empty or
+#   1. POSTGRES_PASSWORD and APP_DB_PASSWORD (D8, T2; Trigger.dev's three
+#      until alpha.18, workplan 0167 T9): each one empty or
 #      published, and whose volume does not exist yet, gets `openssl rand -hex
 #      24`, written through `env-upsert.sh --stdin`; and JOBS_DB_PASSWORD, the
 #      jobs role's (ADR-0054), whenever it is empty or published, since the
@@ -116,8 +114,9 @@
 #      Ownpace (workplan 0135 open question 8, the owner, 2026-10-17); a name
 #      the owner set is kept.
 #   2. bootstrap-managed.sh --only preflight, --only env (the other secrets;
-#      it never rotates one), then DOCKER_RUNNER_NETWORKS as Compose renders
-#      it must be <project>_ownpace-network (D9), then --only data.
+#      it never rotates one), then --only data. (DOCKER_RUNNER_NETWORKS, which
+#      it asked for live's own network (D9), went with Trigger.dev's supervisor
+#      in alpha.18.)
 #   3. app_user is there before anything migrates. Since 0132 T2's code the
 #      data phase of step 2 creates it from APP_DB_PASSWORD (the baseline
 #      migration creates it with the password this repository publishes only
@@ -128,23 +127,19 @@
 #      values) must open, and the three published values must not, for the
 #      owner, openmigrate and app_user. PGPASSWORD goes to `docker run` by
 #      name.
-#   5. bootstrap-managed.sh --from trigger. Where the jobs run on pg-boss
-#      (OWNPACE_JOB_RUNNER, workplan 0167 T7) it stops for nothing: its
-#      trigger phase stops the plane, account and login say they are skipped,
-#      the app phase starts the worker, and nothing is deployed to Trigger.dev.
-#      Where they run on the plane it stops twice for you (exit 2):
-#      live's own Trigger.dev account, organisation and project on its
-#      dashboard, then the deploy CLI's login under live's own profile. This
-#      says what to do and exits 2; run it again with --resume. Its `tasks`
+#   5. bootstrap-managed.sh --from plane: it stops for nothing (alpha.18
+#      removed Trigger.dev, and with it the account and the login it stopped
+#      for, workplan 0167 T9); the plane phase removes what is left of
+#      Trigger.dev's containers, and the app phase starts the worker. Its app
 #      phase asks live's Postgres that the system role (ownpace_system,
 #      workplan 0138 T3 step 2) is no superuser, may create no role and
 #      shares no membership either way, refuses if it is, may or does, sets
 #      its password from SYSTEM_DB_PASSWORD (which step 2's `--only env`
-#      generated) and clears any setting on it, and only then uploads the
-#      task environment, with the system role's URL and without the owner's,
-#      deploys, and then deletes the owner's names from the store.
-#   6. apps/worker/package.json put back when the task deploy changed only its
-#      last newline (deploy-live.sh refuses a tree that is not clean).
+#      generated) and clears any setting on it, and only then starts the api
+#      and the worker, the worker with the system role's URL and without the
+#      owner's.
+#   6. (Until alpha.18: apps/worker/package.json put back after the task
+#      deploy; there is no task deploy now, workplan 0167 T9.)
 #   7. The checks, all of them, then the verdict: /api/version at
 #      app.ownpace.eu names the tag's commit and version, /api/ready answers
 #      200, /api/auth/mode answers managed, NODE_ENV is production in the api
@@ -230,7 +225,7 @@ LIVE_STATUS=status.ownpace.eu
 # by-hand procedure for live in case the owner's answer changes. So
 # MAILPIT_PORT is set apart from the OTA stack's like the rest, whose default,
 # 3127, it would otherwise take.
-LIVE_PORT_KEYS=(POSTGRES_PORT TRIGGER_PORT TRIGGER_TLS_PORT ZITADEL_PORT API_PORT WEB_PORT STATUS_PORT REGISTRY_PORT MAILPIT_PORT)
+LIVE_PORT_KEYS=(POSTGRES_PORT ZITADEL_PORT API_PORT WEB_PORT STATUS_PORT MAILPIT_PORT)
 # A port managed.yml publishes that live never does, by the same rule: the
 # demo's Nextcloud starts only with --with-demo, which this script and
 # deploy-live.sh both refuse (T5).
@@ -248,16 +243,10 @@ SITE_SWITCH_KEY=WWW_LIVE
 PASSWORDS=(
   'POSTGRES_PASSWORD postgres_data'
   'APP_DB_PASSWORD postgres_data'
-  'CLICKHOUSE_PASSWORD clickhouse_data_v2'
-  'MINIO_ROOT_PASSWORD minio_data_v2'
-  'TRIGGER_DB_PASSWORD trigger_db_data'
   'JOBS_DB_PASSWORD -'
 )
-# managed.yml puts these in a URL, so only characters a URL carries as they are:
-# a database's, or minio-init's MC_HOST_store, where mc reads a ':' in the
-# password as the start of a session token (hostKeyTokens, cmd/config.go at
-# mc's RELEASE.2025-08-13T08-35-41Z) and the bucket is never made.
-URL_PASSWORDS=' POSTGRES_PASSWORD APP_DB_PASSWORD CLICKHOUSE_PASSWORD TRIGGER_DB_PASSWORD MINIO_ROOT_PASSWORD JOBS_DB_PASSWORD '
+# managed.yml puts these in a URL, so only characters a URL carries as they are.
+URL_PASSWORDS=' POSTGRES_PASSWORD APP_DB_PASSWORD JOBS_DB_PASSWORD '
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 CHECK_TRIES="${STAND_UP_LIVE_CHECK_TRIES:-5}"
@@ -379,7 +368,7 @@ main() {
   if [ -n "$dirty" ]; then
     refuse "the working tree is not clean. Live runs what the tag holds, and deploy-live.sh refuses a tree that is not clean:" \
       "$dirty" \
-      "Look at each (git status, git diff). The task deploy is known to strip apps/worker/package.json's last newline; discard that with git checkout -- apps/worker/package.json."
+      "Look at each (git status, git diff), and discard or keep each change before you run this again."
   fi
   head="$(git -C "$REPO_ROOT" rev-parse HEAD)"
   tags_text="$(git -C "$REPO_ROOT" tag --points-at HEAD --list 'v*')" || refuse "git could not list the tags at HEAD."
@@ -440,7 +429,7 @@ main() {
   # it was created with, so this is asked before the bring-up creates any.
   # managed.yml's services set json-file themselves, with a size cap
   # (2026-10-21), so what the daemon's answer decides is the website's container
-  # (www.yml) and the task runs Trigger.dev starts.
+  # (www.yml).
   local driver
   driver="$(docker info --format '{{.LoggingDriver}}')" ||
     refuse "docker info could not say which log driver this machine's containers write with (above). A daemon that does not answer is not one on Docker's default."
@@ -504,7 +493,6 @@ main() {
   # ---- 2. The first half of the bring-up ------------------------------------------
   bring_up --only preflight
   bring_up --only env
-  check_runner_network
   bring_up --only data
 
   # ---- 3. app_user, before anything migrates --------------------------------------
@@ -513,28 +501,16 @@ main() {
   # ---- 4. The passwords, asked the way every container asks (T2 step 2) -------------
   check_db_passwords
 
-  # ---- 5. Trigger.dev, the account, the login, the app and the tasks ---------------
+  # ---- 5. The plane's leftovers, the app and the worker (workplan 0167 T9) -----------
   local rc=0
   job_runner_mode "$SCRIPT_DIR" "$ENV_FILE" || stopped "$JOB_RUNNER_WHY"
-  if [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
-    say "pg-boss mode (${JOB_RUNNER_KEY}=${JOB_RUNNER_PGBOSS}): the bring-up stops the Trigger.dev plane, asks for no account or login, and starts the worker after the api (workplan 0167 T7)"
-  fi
-  say "bootstrap-managed.sh --from trigger (never --with-demo)"
-  "${SCRIPT_DIR}/bootstrap-managed.sh" --from trigger || rc=$?
-  # ---- 6. What the task deploy leaves behind ------------------------------------------
-  restore_worker_newline
-  if [ "$rc" -eq 2 ] && [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ]; then
-    # No account and no login to stop for in pg-boss mode: whatever stopped
-    # it said so itself.
-    stopped "bootstrap-managed.sh --from trigger stopped for you (exit 2): do what it asks above." \
-      "In pg-boss mode it has no Trigger.dev account or login to stop for (workplan 0167 T7)."
-  elif [ "$rc" -eq 2 ]; then
-    if [ -z "$(env_value "$ENV_FILE" TRIGGER_PROJECT_REF)" ] || [ -z "$(env_value "$ENV_FILE" TRIGGER_SECRET_KEY)" ]; then
-      your_turn_account
-    fi
-    your_turn_login
+  say "bootstrap-managed.sh --from plane (never --with-demo)"
+  "${SCRIPT_DIR}/bootstrap-managed.sh" --from plane || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    stopped "bootstrap-managed.sh --from plane stopped for you (exit 2): do what it asks above." \
+      "It has no Trigger.dev account or login to stop for since alpha.18 (workplan 0167 T9)."
   elif [ "$rc" -ne 0 ]; then
-    stopped "bootstrap-managed.sh --from trigger failed (exit ${rc}, above)."
+    stopped "bootstrap-managed.sh --from plane failed (exit ${rc}, above)."
   fi
 
   # ---- 7. The checks ------------------------------------------------------------------
@@ -631,7 +607,7 @@ check_settings() {
     [ -n "$(env_value "$ENV_FILE" "$key")" ] ||
       _p+=("${key}: empty. The production names are routed to the front's address, and without a bind there the port answers on 127.0.0.1 only (workplan 0132 T1b step 3, T1e).")
   done
-  for key in POSTGRES_BIND API_BIND TRIGGER_BIND; do
+  for key in POSTGRES_BIND API_BIND; do
     [ -z "$(env_value "$ENV_FILE" "$key")" ] ||
       _p+=("${key}: set. It stays empty on live: nothing off this machine needs that port (T1b step 3).")
   done
@@ -673,24 +649,6 @@ check_settings() {
     exposure_passes "$value" ||
       _p+=("EXPOSURE_ALLOW: with it, exposure-check.sh would fail a port on the address in the OTA stack's ${key}. The check reads both stacks at once, so the list is every address any container on the machine is published on, loopback aside (workplan 0132 T3).")
   done <<<"$(keys_ending "$ota_env" _BIND)"
-
-  value="$(env_value "$ENV_FILE" TRIGGER_PORT)"
-  if [ -z "$value" ] || [ "$(origin_port "$(env_value "$ENV_FILE" TRIGGER_API_ORIGIN)")" != "$value" ]; then
-    _p+=("TRIGGER_API_ORIGIN: its port is not TRIGGER_PORT. set-task-env.sh and deploy-tasks.sh send live's settings and tasks there; on another port they reach whichever plane answers, the OTA stack's (T1c).")
-  fi
-  value="$(env_value "$ENV_FILE" TRIGGER_TLS_PORT)"
-  for key in TRIGGER_APP_ORIGIN TRIGGER_LOGIN_ORIGIN; do
-    if [ -z "$value" ] || [ "$(origin_port "$(env_value "$ENV_FILE" "$key")")" != "$value" ]; then
-      _p+=("${key}: not on TRIGGER_TLS_PORT, where live's own dashboard answers (T1c).")
-    fi
-  done
-  profile="$(env_value "$ENV_FILE" TRIGGER_CLI_PROFILE)"
-  default_profile="$(env_value "${SCRIPT_DIR}/trigger-cli-lib.sh" TRIGGER_CLI_PROFILE_DEFAULT)"
-  if [ -z "$profile" ] || [ "$profile" = "$default_profile" ]; then
-    _p+=("TRIGGER_CLI_PROFILE: empty or the default. Live logs the deploy CLI in under a profile of its own, so a login to one plane is never used against the other (T1c).")
-  elif [ "$profile" = "$(env_value "$ota_env" TRIGGER_CLI_PROFILE "$default_profile")" ]; then
-    _p+=("TRIGGER_CLI_PROFILE: the OTA stack's too. Each plane has its own login (T1c).")
-  fi
 
   [ "$(env_value "$ENV_FILE" WEB_URL)" = "https://${LIVE_APP}" ] ||
     _p+=("WEB_URL: not https://${LIVE_APP}, live's production name (T1b step 4).")
@@ -873,7 +831,7 @@ exposure_passes() {
 }
 
 # ota_ports <ota-env-file> — every port the OTA stack publishes or sets, one
-# per line: live's nine keys, NEXTCLOUD_PORT, the site's WWW_PORT and every
+# per line: live's six keys (LIVE_PORT_KEYS), NEXTCLOUD_PORT, the site's WWW_PORT and every
 # other *_PORT its persisted .env sets, each from that .env, or else the
 # compose files' default.
 ota_ports() {
@@ -1068,8 +1026,7 @@ check_passwords() {
 password_remedy() {
   case "$1" in
     postgres_data) printf '%s' "Workplan 0132 T2 steps 3 and 4 change the role with ALTER ROLE; nothing on live uses it yet." ;;
-    trigger_db_data) printf '%s' "Before live's Trigger.dev account exists, ./deploy/compose/reset-trigger.sh --yes removes that database, and this script then sets a new password." ;;
-    *) printf '%s' "Workplan 0132 T2, the paragraph on ClickHouse and MinIO." ;;
+    *) printf '%s' "Workplan 0132 T2." ;;
   esac
 }
 
@@ -1084,22 +1041,6 @@ bring_up() {
       "Then run this script again, not the resume line it printed."
   fi
   stopped "bootstrap-managed.sh $* failed (exit ${rc}, above)."
-}
-
-# Task runs start on the network DOCKER_RUNNER_NETWORKS names, and must start
-# on live's own (D9). The rendered configuration holds secrets: only that one
-# value leaves this function.
-check_runner_network() {
-  local cfg net
-  cfg="$("${COMPOSE[@]}" config)" || stopped "docker compose could not render managed.yml with live's .env (above)."
-  net="$(sed -n 's/^[[:space:]]*DOCKER_RUNNER_NETWORKS:[[:space:]]*//p' <<<"$cfg")"
-  cfg=''
-  net="${net//\"/}"
-  net="${net//\'/}"
-  if [ "$net" != "${COMPOSE_PROJECT}_ownpace-network" ]; then
-    stopped "DOCKER_RUNNER_NETWORKS renders as '${net:-nothing}', not ${COMPOSE_PROJECT}_ownpace-network. Live's task runs would join another stack's network, where postgres is that stack's database (workplan 0132 D9)."
-  fi
-  say "task runs start on ${net} (DOCKER_RUNNER_NETWORKS, as Compose renders it)"
 }
 
 # psql as the owner, over the postgres container's own socket, the SQL on stdin.
@@ -1193,20 +1134,6 @@ check_db_passwords() {
       "Workplan 0132 T2 steps 3 and 4 change it with ALTER ROLE; nothing on live uses these roles yet."
   fi
   say "the controls open, and the three published values are refused for ${users[*]} (workplan 0132 T2 step 2)"
-}
-
-# The task deploy strips apps/worker/package.json's last newline. Put back
-# when that is all it changed; said, and left, when it is more.
-restore_worker_newline() {
-  local f=apps/worker/package.json changed
-  changed="$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no -- "$f")" || return 0
-  [ -n "$changed" ] || return 0
-  if [ -f "${REPO_ROOT}/${f}" ] && [ "$(git -C "$REPO_ROOT" show "HEAD:${f}")" = "$(cat "${REPO_ROOT}/${f}")" ]; then
-    git -C "$REPO_ROOT" checkout -q -- "$f"
-    say "put back ${f}'s last newline, which the task deploy strips (deploy-live.sh refuses a tree that is not clean)"
-  else
-    say "NOTE: ${f} changed beyond its last newline, and is left as it is. deploy-live.sh refuses a tree that is not clean: look at git diff ${f}."
-  fi
 }
 
 # http_get <origin> <path> <body-var> <code-var> — true on a 200. Tries
@@ -1320,11 +1247,7 @@ run_checks() {
   fi
   # Live's networks are its own (D9).
   before="${#_f[@]}"
-  # The plane's three networks only in trigger mode: Compose creates the
-  # networks of the services it starts, and a pg-boss stand-up starts no
-  # plane service (workplan 0167 T7).
   local -a live_nets=(ownpace-network status-probe)
-  [ "$JOB_RUNNER" = "$JOB_RUNNER_PGBOSS" ] || live_nets+=(trigger-event-store trigger-docker-socket trigger-task-images)
   if nets="$(docker network ls --filter "name=${COMPOSE_PROJECT}_" --format '{{.Name}}')"; then
     for n in "${live_nets[@]}"; do
       grep -qx -- "${COMPOSE_PROJECT}_${n}" <<<"$nets" || _f+=("the network ${COMPOSE_PROJECT}_${n} is not there (workplan 0132 D9).")
@@ -1371,54 +1294,6 @@ install_timer_units() {
   else
     printf 'the %s units are in %s; run systemctl --user daemon-reload once this account has a user manager (after enable-linger)' "$n" "$dir"
   fi
-}
-
-your_turn_account() {
-  cat <<'EOF'
-
-[stand-up-live] Your turn: live's own Trigger.dev account, organisation and project
-  (workplan 0132 T1c). bootstrap-managed.sh stopped for it, as it must: the dashboard
-  signs in by magic link and has no admin API.
-
-  1. Open live's dashboard, https://localhost:<TRIGGER_TLS_PORT>, where
-     <TRIGGER_TLS_PORT> is that key's number in live's .env, in a browser on
-     this machine. From a laptop, open a tunnel first and use the same address
-     there (this form is not tried yet):
-       ssh -N -L <TRIGGER_TLS_PORT>:127.0.0.1:<TRIGGER_TLS_PORT> <you>@<this machine>
-     It serves a self-signed certificate: accept it.
-  2. Type your email address and press Continue. No mail is sent; fetch the
-     link with
-       ./deploy/compose/trigger-magic-link.sh
-     and open it in the same browser. A link works once.
-  3. Name an organisation and a project (Ownpace and ownpace, say). Nothing
-     here depends on either name.
-  4. Do not copy the project ref or the key: the next run reads both out of
-     live's instance.
-
-  Then run this again, with --resume (not the resume line bootstrap-managed.sh
-  printed above: this script runs the steps around it):
-    ./deploy/compose/stand-up-live.sh --resume
-EOF
-  exit 2
-}
-
-your_turn_login() {
-  cat <<'EOF'
-
-[stand-up-live] Your turn: log the deploy CLI in to live's plane, under live's own
-  profile (TRIGGER_CLI_PROFILE; workplan 0132 T1c). bootstrap-managed.sh stopped for it.
-
-  Run the `pnpm -C apps/worker exec trigger login …` line it printed above, in
-  a shell on this machine, from this checkout's root (the CLI is the lockfile's,
-  and the bring-up installed it). It prints an address to open in a browser,
-  here or on another machine (Chromium worked where Firefox did not), and waits
-  for the code the page shows. The address in the line is live's plain http API
-  on loopback, not the dashboard.
-
-  Then run this again, with --resume:
-    ./deploy/compose/stand-up-live.sh --resume
-EOF
-  exit 2
 }
 
 # owner_steps <tag> <timer note> — what is left, in order.

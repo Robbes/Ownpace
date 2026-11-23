@@ -1,28 +1,20 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The three scripts a managed bring-up cannot get wrong, tested.
+ * The scripts a managed bring-up cannot get wrong, tested.
  *
- * `bootstrap-managed.sh` itself is not tested here and cannot usefully be:
- * every one of its phases is a `docker compose` call, and a test that stubbed
- * Docker would be testing the stub. What IS tested is the part of the bring-up
- * that decides what ends up written into `deploy/compose/.env` — because that
- * file is sourced by every other script and by compose itself, and a wrong
- * value in it does not fail at bring-up. It fails hours later, as an enqueue
- * that never became a runner, or as an authentication error that points at a
- * password when the problem was a role.
+ * `env-upsert.sh` writes `deploy/compose/.env`, which is sourced by every other
+ * script and by compose itself, and a wrong value in it does not fail at
+ * bring-up: it fails hours later, as an authentication error that points at a
+ * password when the problem was a role. The rest of this file holds the
+ * bring-up's wiring: that every wait can say why it failed, that no image
+ * floats, that every mount and required variable can be satisfied, the .env
+ * it refuses to write into, the Docker networks, and the app and plane phases
+ * against a stand-in for Docker.
  *
- *   env-upsert.sh           writes the file
- *   trigger-credentials.sh  decides WHAT to write for the two values a human
- *                           would otherwise transcribe by eye
- *   trigger-magic-link.sh   finds the one-time link that makes the human step
- *                           possible at all
- *
- * The Trigger.dev schema `trigger-credentials.sh` reads belongs to Trigger.dev
- * and can change under a version bump, so the tests below lean hard on the
- * refusals: what matters is not that the happy path works today, it is that a
- * changed schema, an extra project or a value of the wrong shape produces
- * "refused, here is the dashboard page" rather than a plausible wrong answer.
+ * Until alpha.18 it also held `trigger-credentials.sh`, `trigger-magic-link.sh`,
+ * the Trigger.dev CLI's login and the images that built the tasks. alpha.18
+ * removed Trigger.dev (workplan 0167 T9), and those scripts with it.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -37,17 +29,13 @@ import {
   cpSync,
   mkdirSync,
   symlinkSync,
-  globSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { switchedTo } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const UPSERT = join(REPO_ROOT, 'deploy/compose/env-upsert.sh');
-const CREDENTIALS = join(REPO_ROOT, 'deploy/compose/trigger-credentials.sh');
-const MAGIC_LINK = join(REPO_ROOT, 'deploy/compose/trigger-magic-link.sh');
 
 let dir: string;
 
@@ -66,9 +54,7 @@ function run(
 ): { status: number; stdout: string; stderr: string } {
   const r = spawnSync(script, args, {
     encoding: 'utf8',
-    // Trigger mode unless a case says otherwise: the Trigger.dev scripts run
-    // here refuse in pg-boss mode, managed.yml's default (workplan 0167 T7).
-    env: { ...process.env, OWNPACE_JOB_RUNNER: 'trigger', ...env },
+    env: { ...process.env, ...env },
     cwd: dir,
   });
   return { status: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
@@ -87,9 +73,9 @@ describe('env-upsert.sh', () => {
         'POSTGRES_USER=openmigrate',
         'POSTGRES_PASSWORD=change-me-openmigrate',
         '',
-        '# ---- Trigger ----',
-        'TRIGGER_PROJECT_REF=',
-        'TRIGGER_SECRET_KEY=',
+        '# ---- Identity provider ----',
+        'ZITADEL_PROJECT_ID=',
+        'SMTP_PASSWORD=',
         '',
       ].join('\n'),
     );
@@ -98,13 +84,13 @@ describe('env-upsert.sh', () => {
   const read = () => readFileSync(envFile, 'utf8');
 
   it('replaces a key where it already sits, so the comment above it still applies', () => {
-    const r = run(UPSERT, [envFile, 'TRIGGER_PROJECT_REF=proj_abc']);
+    const r = run(UPSERT, [envFile, 'ZITADEL_PROJECT_ID=368104']);
     expect(r.status).toBe(0);
 
     const lines = read().split('\n');
-    // Under the Trigger header, not appended at the bottom under Postgres's.
-    expect(lines.indexOf('TRIGGER_PROJECT_REF=proj_abc')).toBe(
-      lines.indexOf('# ---- Trigger ----') + 1,
+    // Under the identity provider's header, not appended at the bottom under Postgres's.
+    expect(lines.indexOf('ZITADEL_PROJECT_ID=368104')).toBe(
+      lines.indexOf('# ---- Identity provider ----') + 1,
     );
   });
 
@@ -123,12 +109,12 @@ describe('env-upsert.sh', () => {
   });
 
   it('--if-absent leaves an operator’s own value alone but fills an empty one', () => {
-    run(UPSERT, ['--if-absent', envFile, 'POSTGRES_USER=somebody-else', 'TRIGGER_SECRET_KEY=tr_prod_x']);
+    run(UPSERT, ['--if-absent', envFile, 'POSTGRES_USER=somebody-else', 'SMTP_PASSWORD=sm_x']);
 
     expect(read()).toContain('POSTGRES_USER=openmigrate');
     // `KEY=` is an ABSENT value, not a set one — that is what copying
     // managed.env.example leaves behind, and it must be fillable.
-    expect(read()).toContain('TRIGGER_SECRET_KEY=tr_prod_x');
+    expect(read()).toContain('SMTP_PASSWORD=sm_x');
   });
 
   it('refuses a value it cannot represent, and writes nothing at all', () => {
@@ -183,445 +169,18 @@ describe('env-upsert.sh', () => {
   it('leaves a file `. .env` still reads the way compose does', () => {
     // The property behind the refusals: every consumer sources this file, so a
     // written value must survive the shell unchanged.
-    run(UPSERT, [envFile, 'TRIGGER_SECRET_KEY=tr_prod_A1b2C3', 'PGBOUNCER_AUTH_PASSWORD=9f8e7d6c']);
+    run(UPSERT, [envFile, 'SMTP_PASSWORD=sm_A1b2C3', 'PGBOUNCER_AUTH_PASSWORD=9f8e7d6c']);
 
     const echoed = execFileSync(
       'sh',
-      ['-c', `set -a; . "${envFile}"; set +a; printf '%s|%s' "$TRIGGER_SECRET_KEY" "$PGBOUNCER_AUTH_PASSWORD"`],
+      ['-c', `set -a; . "${envFile}"; set +a; printf '%s|%s' "$SMTP_PASSWORD" "$PGBOUNCER_AUTH_PASSWORD"`],
       { encoding: 'utf8' },
     );
-    expect(echoed).toBe('tr_prod_A1b2C3|9f8e7d6c');
+    expect(echoed).toBe('sm_A1b2C3|9f8e7d6c');
   });
 });
 
 // ---------------------------------------------------------------------------
-describe('trigger-magic-link.sh', () => {
-  /** A log shaped like the webapp's: the link buried in JSON and in prose. */
-  const LOG = [
-    '{"level":"info","msg":"webapp listening on 3000"}',
-    'Click here to log in with this magic link: http://localhost:3090/magic?token=OLDEST',
-    '{"level":"info","message":"email","url":"https://machine.local:3443/magic?token=NEWEST"}',
-    'GET /login 200 12ms',
-  ].join('\n');
-
-  const logCmd = (text: string) => {
-    const file = join(dir, 'trigger.log');
-    writeFileSync(file, `${text}\n`);
-    return { TRIGGER_LOG_CMD: `cat ${file}` };
-  };
-
-  it('prints the newest link, because an older one may already be spent', () => {
-    const r = run(MAGIC_LINK, [], logCmd(LOG));
-    expect(r.status).toBe(0);
-    expect(r.stdout.trim()).toBe('https://machine.local:3443/magic?token=NEWEST');
-  });
-
-  it('--all prints every link, oldest first', () => {
-    const r = run(MAGIC_LINK, ['--all'], logCmd(LOG));
-    expect(r.stdout.trim().split('\n')).toEqual([
-      'http://localhost:3090/magic?token=OLDEST',
-      'https://machine.local:3443/magic?token=NEWEST',
-    ]);
-  });
-
-  it('stops at the JSON quote rather than swallowing the rest of the line', () => {
-    const r = run(MAGIC_LINK, [], logCmd('{"url":"https://h:3443/magic?token=ABC","expires":"5m"}'));
-    expect(r.stdout.trim()).toBe('https://h:3443/magic?token=ABC');
-  });
-
-  it('says the link is only written when one is REQUESTED, rather than blaming the stack', () => {
-    const r = run(MAGIC_LINK, [], logCmd('{"level":"info","msg":"webapp listening on 3000"}'));
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/only written when one is REQUESTED/);
-    expect(r.stdout).toBe('');
-  });
-});
-
-// ---------------------------------------------------------------------------
-describe('trigger-credentials.sh', () => {
-  const FULL_SCHEMA = [
-    'Project.externalRef',
-    'Project.id',
-    'Project.name',
-    'RuntimeEnvironment.apiKey',
-    'RuntimeEnvironment.slug',
-    'RuntimeEnvironment.projectId',
-  ].join('\\n');
-
-  /**
-   * A stand-in for `psql` inside the trigger-db container: it answers the
-   * introspection probe and the lookup differently, which is the only thing
-   * the script's contract with psql actually is.
-   */
-  function stubPsql(schema: string, rows: string): NodeJS.ProcessEnv {
-    const path = join(dir, 'psql-stub');
-    writeFileSync(
-      path,
-      [
-        '#!/usr/bin/env bash',
-        'sql="$(cat)"',
-        'case "$sql" in',
-        `  *information_schema*) printf '${schema}\\n' ;;`,
-        `  *) printf '${rows}' ;;`,
-        'esac',
-      ].join('\n'),
-    );
-    chmodSync(path, 0o755);
-    return { TRIGGER_DB_PSQL: path };
-  }
-
-  it('prints the ref and the prod key as env lines', () => {
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'proj_abc123|tr_prod_XYZ789|ownpace\\n'));
-    expect(r.status).toBe(0);
-    expect(r.stdout.trim().split('\n')).toEqual([
-      'TRIGGER_PROJECT_REF=proj_abc123',
-      'TRIGGER_SECRET_KEY=tr_prod_XYZ789',
-    ]);
-  });
-
-  it('--write puts both into .env and nothing else', () => {
-    const envFile = join(dir, '.env');
-    writeFileSync(envFile, 'TRIGGER_PROJECT_REF=\nTRIGGER_SECRET_KEY=\nAPI_PORT=3001\n');
-    // The script writes to the .env NEXT TO ITSELF, so drive the write through
-    // env-upsert directly on a temp file and assert the pair it would hand over.
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'proj_abc123|tr_prod_XYZ789|ownpace\\n'));
-    run(UPSERT, [envFile, ...r.stdout.trim().split('\n')]);
-
-    expect(readFileSync(envFile, 'utf8')).toBe(
-      'TRIGGER_PROJECT_REF=proj_abc123\nTRIGGER_SECRET_KEY=tr_prod_XYZ789\nAPI_PORT=3001\n',
-    );
-  });
-
-  it('refuses when the schema is not the one it knows, and names the missing columns', () => {
-    // Trigger.dev renamed a column in a version bump — the case this guard is for.
-    const partial = 'Project.id\\nRuntimeEnvironment.slug\\nRuntimeEnvironment.projectId';
-    const r = run(CREDENTIALS, [], stubPsql(partial, 'anything\\n'));
-
-    expect(r.status).toBe(1);
-    expect(r.stderr).toContain('Project.externalRef');
-    expect(r.stderr).toContain('RuntimeEnvironment.apiKey');
-    expect(r.stdout).toBe('');
-  });
-
-  it('refuses a value of the wrong shape rather than writing a plausible one', () => {
-    // The column exists but holds something else — the failure mode that would
-    // otherwise be believed for the rest of the deployment's life.
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'cm9iYmVz|tr_prod_XYZ789|ownpace\\n'));
-
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/does not look like a project ref/);
-    expect(r.stdout).toBe('');
-  });
-
-  it('refuses a dev key where a prod key belongs', () => {
-    // A `tr_dev_` key is personal to a CLI session and would not work from a
-    // container — and it is the one an operator is most likely to copy.
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'proj_abc123|tr_dev_XYZ789|ownpace\\n'));
-
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/does not look like a tr_prod_ key/);
-  });
-
-  it('says which project to name when the instance holds more than one', () => {
-    const rows = 'proj_aaa|tr_prod_AAA|first\\nproj_bbb|tr_prod_BBB|second\\n';
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, rows));
-
-    expect(r.status).toBe(1);
-    expect(r.stderr).toContain('first');
-    expect(r.stderr).toContain('second');
-    expect(r.stderr).toContain('--project');
-    expect(r.stdout).toBe('');
-  });
-
-  it('does not blame the stack when compose could not read the file at all', () => {
-    // Seen live on the machine, 2026-08-18. `docker compose exec` interpolates
-    // the WHOLE compose file before running anything, so ONE unset variable —
-    // here on a service this command never touches — fails the call. The old
-    // message said "Is the stack up?" and sent the operator looking at a
-    // Trigger.dev instance that was running perfectly well.
-    const composeError =
-      'error while interpolating services.pgbouncer.environment.PGBOUNCER_AUTH_PASSWORD: ' +
-      'required variable PGBOUNCER_AUTH_PASSWORD is missing a value';
-    const path = join(dir, 'psql-failing');
-    writeFileSync(path, ['#!/usr/bin/env bash', 'cat >/dev/null', `echo '${composeError}' >&2`, 'exit 1'].join('\n'));
-    chmodSync(path, 0o755);
-
-    const r = run(CREDENTIALS, [], { TRIGGER_DB_PSQL: path });
-
-    expect(r.status).toBe(1);
-    expect(r.stderr).toContain('NOT a database problem');
-    expect(r.stderr).toContain('PGBOUNCER_AUTH_PASSWORD');
-    expect(r.stderr).toContain('ensure-env-secrets.sh');
-    // And it must NOT hand out the dashboard instructions, which would be
-    // answering a question nobody asked.
-    expect(r.stderr).not.toContain('Project → Settings');
-  });
-
-  it('treats "no project yet" as the expected pre-setup answer and says which pages to open', () => {
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, ''));
-
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/expected answer BEFORE the one human step/);
-    expect(r.stderr).toContain('Project → Settings');
-    expect(r.stderr).toContain('API keys');
-  });
-});
-
-// ---------------------------------------------------------------------------
-/**
- * `trigger.dev whoami` cannot be trusted by exit code (found 2026-08-18).
- *
- * Read from the installed CLI's own source: on an auth failure `whoami`
- * returns `{success:false}` as DATA rather than throwing, and the CLI's own
- * command wrapper only marks the process failed when something throws. So
- * `whoami --profile X >/dev/null 2>&1; echo $?` is 0 for a revoked, stale, or
- * entirely absent token — exactly the state a wiped Trigger.dev instance
- * leaves behind, since the local CLI profile lives outside its database and
- * survives untouched. Both bootstrap-managed.sh's `login` phase and
- * deploy-tasks.sh's preflight trusted that exit code and let a dead token
- * through; `deploy` only failed once it tried to use it.
- */
-describe('trigger_cli_logged_in (trigger-cli-lib.sh)', () => {
-  const LIB = join(REPO_ROOT, 'deploy/compose/trigger-cli-lib.sh');
-
-  function stub(body: string): NodeJS.ProcessEnv {
-    const path = join(dir, 'whoami-stub');
-    writeFileSync(path, `#!/usr/bin/env bash\n${body}\n`);
-    chmodSync(path, 0o755);
-    return { TRIGGER_CLI_WHOAMI_CMD: path };
-  }
-
-  function loggedIn(env: NodeJS.ProcessEnv): boolean {
-    const r = spawnSync('bash', ['-c', `. "${LIB}"; trigger_cli_logged_in 4.5.9 openmig`], {
-      env: { ...process.env, ...env },
-    });
-    return r.status === 0;
-  }
-
-  it('the login phase does not claim to have verified TRIGGER_ACCESS_TOKEN', () => {
-    // e2e-managed printed "already logged in" and then died inside `deploy`
-    // with "Invalid or Missing Access Token": the check short-circuits on
-    // TRIGGER_ACCESS_TOKEN WITHOUT validating it (whoami structurally cannot
-    // see that variable), so on CI the phase was reporting a trust decision as
-    // a verification. The trust is fine; the wording was not.
-    const bootstrap = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
-    const phase = bootstrap.slice(bootstrap.indexOf('phase_login()'));
-    expect(phase).toMatch(/TRIGGER_ACCESS_TOKEN[\s\S]{0,400}NOT verified here/);
-    // And the profile path must still report itself as the verified one.
-    expect(phase).toContain('already logged in (profile');
-  });
-
-  it('recognises a real successful lookup by its User ID line', () => {
-    expect(
-      loggedIn(stub('echo "User ID: user_abc123"; echo "Email:   owner@example.test"')),
-    ).toBe(true);
-  });
-
-  it('is NOT fooled by an exit code of 0 on a stale token', () => {
-    // This is the bug, reproduced: the real CLI exits 0 here too.
-    const env = stub(
-      'echo "You must login first. Use `trigger.dev login --profile openmig` to login."; exit 0',
-    );
-    expect(loggedIn(env)).toBe(false);
-  });
-
-  it('treats a platform-down fetch failure as not logged in, not a crash', () => {
-    expect(loggedIn(stub('echo "Fetch failed. Platform down?"; exit 0'))).toBe(false);
-  });
-
-  it('treats a genuinely nonzero exit as not logged in too', () => {
-    expect(loggedIn(stub('echo "boom" >&2; exit 1'))).toBe(false);
-  });
-
-  it('does not match "User ID" appearing somewhere it should not (e.g. an error dump)', () => {
-    // Guards the anchor: a stray mention of the phrase in unrelated output must
-    // not be read as a successful account lookup.
-    expect(loggedIn(stub('echo "no User ID: field was present in the response"'))).toBe(false);
-  });
-
-  it('reads the BOXED account details the CLI actually prints', () => {
-    // The bug this pins, found on a live bring-up 2026-08-20. The CLI draws
-    // account details inside a box, so the line is `\u2502  User ID: …  \u2502`
-    // and never starts with "User ID:". The old `grep -q "^User ID:"` therefore
-    // told a correctly authenticated operator "Not logged in" — and the advice
-    // it printed was to run `login`, which short-circuits on "already logged
-    // in". A loop with no exit, on a stack where nothing executes until the
-    // tasks deploy.
-    // One `echo` per line — a single printf with embedded \n would be escaped
-    // back into one literal line by the shell quoting, which is not what the
-    // CLI produces and would test nothing.
-    const boxed = [
-      '\u250c  Displaying your account details [openmig]',
-      '\u2502',
-      '\u25c7  Account details [openmig] \u2500\u2500\u2500\u256e',
-      '\u2502                                      \u2502',
-      '\u2502  User ID: cmt0uv3zg0005r05dwkrmhgfy  \u2502',
-      '\u2502  Email:   owner@example.test         \u2502',
-    ];
-    expect(loggedIn(stub(boxed.map((l) => `echo ${JSON.stringify(l)}`).join('; ')))).toBe(true);
-  });
-
-  it('still refuses a boxed line with no ID after the colon', () => {
-    // Decoration tolerance must not become "the words appeared somewhere".
-    // The matcher requires an alphanumeric value, which is what proves a
-    // lookup actually returned something.
-    expect(loggedIn(stub('echo "\u2502  User ID:                          \u2502"'))).toBe(false);
-  });
-
-  // ---------------------------------------------------------------------
-  /**
-   * TRIGGER_ACCESS_TOKEN (found 2026-08-18, following run #5). `whoami`
-   * structurally cannot see this variable — confirmed from the installed
-   * CLI's source, `isLoggedIn()` reads only the local profile file. `deploy`
-   * uses it directly via a different code path (`login({embedded:true})`).
-   * So when it is set, this function must trust it WITHOUT ever invoking
-   * whoami — these tests prove that by pointing TRIGGER_CLI_WHOAMI_CMD at a
-   * stub that would fail, and confirming it is never reached.
-   */
-  it('trusts TRIGGER_ACCESS_TOKEN without ever calling whoami', () => {
-    const env = {
-      ...stub('echo "You must login first."; exit 0'), // would report false, if called
-      TRIGGER_ACCESS_TOKEN: 'tr_pat_fakeButPresent',
-    };
-    expect(loggedIn(env)).toBe(true);
-  });
-
-  it('does not treat an empty TRIGGER_ACCESS_TOKEN as set', () => {
-    const env = { ...stub('echo "User ID: user_abc123"'), TRIGGER_ACCESS_TOKEN: '' };
-    // Empty falls through to the real check, which here says logged in —
-    // proving the empty value did NOT short-circuit on its own to a false
-    // positive OR a false negative, only that the fallback ran at all.
-    expect(loggedIn(env)).toBe(true);
-    const envLoggedOut = { ...stub('echo "not logged in"; exit 0'), TRIGGER_ACCESS_TOKEN: '' };
-    expect(loggedIn(envLoggedOut)).toBe(false);
-  });
-});
-
-/**
- * THE DEPLOY CLI IS THE LOCKFILE'S (workplan 0119, 2026-11-02).
- *
- * Every script here ran `npx -y trigger.dev@<sdk version>`: deploy-tasks.sh's
- * deploy, trigger-cli-lib.sh's `whoami`, and the login lines the bring-up,
- * deploy-tasks.sh and stand-up-live.sh print. npx fetched the CLI and its
- * whole dependency tree from the registry at run time, so the version was
- * pinned and nothing under it was: not the lockfile, not pnpm-workspace.yaml's
- * three-day floor on new releases or its overrides, not its build approvals.
- * Read on that day, the tree npx installed carried two HIGH advisories (zod,
- * deepmerge-ts) and a postinstall that downloads a binary (@depot/cli).
- *
- * Now `trigger.dev` is apps/worker's devDependency, and the scripts run it as
- * `pnpm -C apps/worker exec trigger`. These hold the three things that keep
- * it so: the CLI's version is the SDK's, exactly; no script fetches it with
- * npx again; and the `whoami` the bring-up trusts runs the installed CLI, and
- * only once it is the SDK's version.
- */
-describe("the deploy CLI is the lockfile's", () => {
-  const worker = JSON.parse(readFileSync(join(REPO_ROOT, 'apps/worker/package.json'), 'utf8')) as {
-    dependencies: Record<string, string>;
-    devDependencies: Record<string, string>;
-  };
-  const LIB = join(REPO_ROOT, 'deploy/compose/trigger-cli-lib.sh');
-
-  it('apps/worker declares it as a devDependency at exactly the SDK version beside it', () => {
-    const sdk = worker.dependencies['@trigger.dev/sdk'];
-    const cli = worker.devDependencies['trigger.dev'];
-    expect(sdk, 'apps/worker no longer pins @trigger.dev/sdk').toMatch(/^\d+\.\d+\.\d+$/);
-    // Exact, not a range: `^4.8.3` would let the lockfile move the CLI alone.
-    expect(cli, 'the deploy CLI is not an exact version').toMatch(/^\d+\.\d+\.\d+$/);
-    expect(cli, 'the deploy CLI and the SDK it bundles disagree').toBe(sdk);
-    // A runtime dependency would put the CLI's tree into what the worker ships.
-    expect(worker.dependencies['trigger.dev']).toBeUndefined();
-  });
-
-  it('nothing under deploy/ or scripts/, and no workflow, fetches it with npx or dlx', () => {
-    // Comment lines may say why it is gone; anything else that runs or prints
-    // a fetch of the CLI is the thing this replaced. The guards themselves
-    // (*.test.ts) quote the old line to test against it, and are left out.
-    const FETCH = /\b(?:npx|pnpx|pnpm\s+dlx|npm\s+exec)\b[^\n]*\btrigger\.dev(?:@|\s|$)/;
-    const files = [
-      ...globSync('deploy/**/*', { cwd: REPO_ROOT }),
-      ...globSync('scripts/**/*', { cwd: REPO_ROOT }),
-      ...globSync('.github/workflows/*.yml', { cwd: REPO_ROOT }),
-    ].filter((rel) => !rel.includes('node_modules') && !/\.test\.ts$/.test(rel));
-    const read = files.flatMap((rel) => {
-      try {
-        return [{ rel, text: readFileSync(join(REPO_ROOT, rel), 'utf8') }];
-      } catch {
-        return []; // a directory
-      }
-    });
-    expect(read.some((f) => f.rel === 'deploy/compose/deploy-tasks.sh'), 'the scan read nothing it should').toBe(true);
-    const comment = (line: string) => /^\s*(?:#|\/\/|\*|\/\*)/.test(line);
-    const found = read.flatMap(({ rel, text }) =>
-      text
-        .split('\n')
-        .map((line, i) => ({ line, at: `${rel}:${i + 1}` }))
-        .filter(({ line }) => !comment(line) && FETCH.test(line))
-        .map(({ line, at }) => `${at}: ${line.trim()}`),
-    );
-    expect(found).toEqual([]);
-    // The pattern is not vacuous: it catches each shape this replaced.
-    for (const old of [
-      'npx -y "trigger.dev@${CLI_VERSION}" deploy --profile x',
-      '  local cmd="${TRIGGER_CLI_WHOAMI_CMD:-npx -y trigger.dev@${cli_version} whoami --profile ${profile}}"',
-      '      npx -y trigger.dev@${cli_version} login -a ${url} --profile ${profile} --no-browser',
-      'pnpm dlx trigger.dev@4.8.3 whoami',
-    ]) {
-      expect(FETCH.test(old), old).toBe(true);
-    }
-  });
-
-  it('every printed login line is the one the docs name, run from the checkout root', () => {
-    const lib = readFileSync(LIB, 'utf8');
-    expect(lib).toMatch(/^TRIGGER_CLI_SHOWN="pnpm -C apps\/worker exec trigger"$/m);
-    for (const rel of ['deploy/compose/deploy-tasks.sh', 'deploy/compose/bootstrap-managed.sh']) {
-      const text = readFileSync(join(REPO_ROOT, rel), 'utf8');
-      expect(text, `${rel} prints no login line from TRIGGER_CLI_SHOWN`).toContain('${TRIGGER_CLI_SHOWN} login -a ');
-    }
-  });
-
-  /** A `pnpm` that writes down where and how it was called, and answers as whoami would. */
-  function pnpmStub(answer: string): string {
-    const bin = join(dir, 'bin');
-    mkdirSync(bin, { recursive: true });
-    writeFileSync(
-      join(bin, 'pnpm'),
-      `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >>"${join(dir, 'pnpm.log')}"\necho ${JSON.stringify(answer)}\n`,
-    );
-    chmodSync(join(bin, 'pnpm'), 0o755);
-    return bin;
-  }
-
-  function whoami(version: string, answer: string) {
-    const bin = pnpmStub(answer);
-    const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` };
-    delete env.TRIGGER_ACCESS_TOKEN;
-    delete env.TRIGGER_CLI_WHOAMI_CMD;
-    const r = spawnSync('bash', ['-c', `set -euo pipefail; . "${LIB}"; trigger_cli_logged_in "$1" openmig`, '_', version], {
-      encoding: 'utf8',
-      env,
-      cwd: dir,
-    });
-    const calls = existsSync(join(dir, 'pnpm.log')) ? readFileSync(join(dir, 'pnpm.log'), 'utf8').split('\n').filter(Boolean) : [];
-    return { status: r.status, stderr: r.stderr, calls };
-  }
-
-  it("asks the installed CLI, from apps/worker, whatever directory it is called from", () => {
-    const sdk = worker.dependencies['@trigger.dev/sdk']!;
-    const r = whoami(sdk, 'User ID: user_abc123');
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.calls).toEqual([`-C ${join(REPO_ROOT, 'apps/worker')} exec trigger whoami --profile openmig`]);
-  });
-
-  it('refuses, without running anything, when the installed CLI is not the version asked for', () => {
-    const r = whoami('0.0.1', 'User ID: user_abc123');
-    expect(r.status).toBe(1);
-    expect(r.calls, 'it ran a CLI that is not the SDK version').toEqual([]);
-    expect(r.stderr).toContain('pnpm install --frozen-lockfile');
-    expect(r.stderr).toContain('apps/worker/package.json pins @trigger.dev/sdk 0.0.1');
-  });
-});
-
 /**
  * Every bring-up that WAITS has to be able to say why it failed.
  *
@@ -923,183 +482,6 @@ describe('a bring-up that waits can say why it failed', () => {
   });
 });
 
-describe('the Trigger.dev images and the SDK that builds the tasks agree', () => {
-  /**
-   * `bootstrap-managed.sh` refuses to bring the stack up when
-   * `apps/worker`'s `@trigger.dev/sdk` and the image tag disagree (0018 T0):
-   * the tasks it deploys RUN inside those images, and "the 4.5.x family is
-   * SDK-compatible" is a hope, not a deploy story.
-   *
-   * That refusal is a RUNTIME one — it fires at `docker compose up`, which
-   * only the managed gate ever performs, and which no pull request runs. So
-   * the agreement was invisible to CI, and dependabot walked straight through
-   * it: PR #528 bumped the SDK 4.5.9 -> 4.5.12, passed all seventeen checks,
-   * merged, and the next managed run died at the bring-up. The nightly would
-   * have died the same way. Two hand-maintained numbers in three files and
-   * nothing comparing them — the same shape as the service list (0099), the
-   * MOUNTS list (0096) and the trigger filters (0097).
-   *
-   * So the numbers are compared HERE, where a pull request can see it. The
-   * fix for a red from this test is a decision, not an edit: either hold the
-   * SDK back, or move all three and accept that the next bring-up recreates
-   * the Trigger.dev webapp and supervisor at the new tag.
-   */
-  const workerPkg = JSON.parse(readFileSync(join(REPO_ROOT, 'apps/worker/package.json'), 'utf8'));
-  const compose = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
-  const example = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.env.example'), 'utf8');
-
-  /** Every `${TRIGGER_IMAGE_TAG:-vX}` default in managed.yml. */
-  const composeDefaults = [...compose.matchAll(/\$\{TRIGGER_IMAGE_TAG:-(v[^}]+)\}/g)].map((m) => m[1]);
-
-  it('read the real files', () => {
-    expect(workerPkg.dependencies?.['@trigger.dev/sdk']).toBeTruthy();
-    // Both the webapp and the supervisor carry the tag; one of them drifting
-    // alone would run a split-version plane.
-    expect(composeDefaults.length).toBe(2);
-  });
-
-  it('every image in managed.yml carries the SAME tag', () => {
-    expect(new Set(composeDefaults).size, `managed.yml disagrees with itself: ${composeDefaults.join(' vs ')}`).toBe(1);
-  });
-
-  it('the image tag matches the SDK apps/worker builds its tasks with', () => {
-    // The exact comparison bootstrap-managed.sh makes, made where CI can see
-    // it: tag without the leading v, against the SDK's pinned version.
-    const sdk = workerPkg.dependencies['@trigger.dev/sdk'];
-    // Read once and asserted present: an empty match list would otherwise
-    // make every comparison below vacuously true.
-    const tag = composeDefaults[0] ?? '';
-    expect(tag, 'managed.yml declares no TRIGGER_IMAGE_TAG default at all').not.toBe('');
-    expect(
-      tag.replace(/^v/, ''),
-      `managed.yml runs images ${tag} but apps/worker builds tasks with SDK ${sdk}. ` +
-        'bootstrap-managed.sh refuses this at bring-up, so a merge with it red breaks E2E (managed). ' +
-        'Reconcile deliberately: hold the SDK back, or move BOTH managed.yml defaults and ' +
-        'managed.env.example forward and accept that the next bring-up recreates the Trigger.dev plane.',
-    ).toBe(sdk);
-  });
-
-  it('EVERY package.json that declares a Trigger.dev dependency names that same version', () => {
-    /**
-     * The four places were never four. `apps/worker` was the only manifest
-     * this suite compared, so #827 moved it to 4.5.16 and left the ROOT
-     * `package.json` (`@trigger.dev/sdk` AND `@trigger.dev/core`) and
-     * `packages/scheduler` on 4.5.12 — and nothing said a word. Measured
-     * 2026-09-09: the lockfile carried BOTH versions side by side, so the
-     * package the API enqueues through (`@openmig/scheduler`, whose index
-     * re-exports the Trigger.dev client) would have talked to a v4.5.16
-     * platform as a 4.5.12 client, while the tasks deployed into it were
-     * 4.5.16. Probably benign inside one patch line; nobody had decided that,
-     * and the migration it would have been discovered during is one-way.
-     *
-     * So the comparison is over every manifest rather than one, and a new
-     * package that takes a Trigger.dev dependency joins it by existing.
-     */
-    const manifests = globSync('{,apps/*/,packages/*/}package.json', { cwd: REPO_ROOT })
-      .map((rel) => ({ rel, pkg: JSON.parse(readFileSync(join(REPO_ROOT, rel), 'utf8')) }))
-      .flatMap(({ rel, pkg }) =>
-        Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })
-          // The deploy CLI is one of them since 2026-11-02 (`trigger.dev`, from
-          // the lockfile rather than `npx`), under an unscoped name.
-          .filter(([name]) => name.startsWith('@trigger.dev/') || name === 'trigger.dev')
-          .map(([name, version]) => ({ rel, name, version: String(version) })),
-      );
-
-    // If this ever finds nothing, the check has stopped checking — the
-    // manifests moved, or the glob did.
-    expect(manifests.length, 'no Trigger.dev dependency found in any manifest').toBeGreaterThan(2);
-
-    const wanted = (composeDefaults[0] ?? '').replace(/^v/, '');
-    const wrong = manifests.filter((m) => m.version !== wanted);
-    expect(
-      wrong.map((m) => `${m.rel}: ${m.name}@${m.version}`),
-      `these declare a Trigger.dev version other than the image tag (${wanted}). The SDK and the ` +
-        'platform move together or not at all — `deploy/compose/trigger-version.sh pin` moves the ' +
-        'tag and the manifests, and a version left behind here is a client talking to a platform ' +
-        'it was not built against.',
-    ).toEqual([]);
-  });
-
-  it('the example env agrees too, or a fresh .env reintroduces the drift', () => {
-    // managed.env.example is copied to .env on a new machine, and a value
-    // there WINS over managed.yml's default — so a stale one here puts the
-    // drift back on exactly the machine least able to debug it.
-    const exampleTag = /^TRIGGER_IMAGE_TAG=(.+)$/m.exec(example)?.[1]?.trim();
-    expect(exampleTag, 'managed.env.example names no TRIGGER_IMAGE_TAG').toBeTruthy();
-    expect(exampleTag).toBe(composeDefaults[0] ?? '');
-  });
-
-  /** phase_trigger's lines between reading the SDK and comparing, run for real below. */
-  function fallbackBlock(): string {
-    const script = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
-    const lines = script.split('\n');
-    const from = lines.findIndex((l) => /^\s*sdk_version="\$\(node /.test(l));
-    const to = lines.findIndex((l, i) => i > from && /^\s*if \[ "\$\{tag_version#v\}"/.test(l));
-    expect(from, 'phase_trigger no longer reads the SDK version this way').toBeGreaterThan(-1);
-    expect(to, 'phase_trigger no longer compares tag_version').toBeGreaterThan(from);
-    return lines.slice(from + 1, to).join('\n');
-  }
-
-  it("the bring-up's check falls back to managed.yml's default, not a copy of the number", () => {
-    // With TRIGGER_IMAGE_TAG absent from .env, compose runs managed.yml's
-    // default, so that is what the check must compare. It said v4.5.9 while the
-    // images defaulted to v4.5.16, and refused a stack that agreed. Run for
-    // real: the lines between reading the SDK and comparing, with the key unset.
-    const block = fallbackBlock();
-    const env: NodeJS.ProcessEnv = { ...process.env, SCRIPT_DIR: join(REPO_ROOT, 'deploy/compose') };
-    delete env.TRIGGER_IMAGE_TAG;
-    const out = execFileSync(
-      'bash',
-      ['-c', `set -euo pipefail\n${block}\nprintf '%s' "$tag_version"`],
-      { encoding: 'utf8', env },
-    );
-    expect(out).toBe(composeDefaults[0]);
-  });
-
-  it('a drift names the two remedies that build: the .env at the checkout\'s version, or a checkout that pins the other (0146 T16)', () => {
-    // Pinning the SDK back alone passed this check, and the build of the webapp
-    // then refused: its Dockerfile's FROM is the checkout's version.
-    const script = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
-    const check = /^ {2}if \[ "\$\{tag_version#v\}" != "\$sdk_version" \]; then\n[\s\S]*?\n {2}fi$/m.exec(script)?.[0];
-    expect(check, 'phase_trigger no longer compares tag_version this way').toBeTruthy();
-    const r = spawnSync('bash', ['-c', `set -euo pipefail\nENV_FILE=/x/.env\nsdk_version=4.8.1\ntag_version=v4.9.0\n${check}`], { encoding: 'utf8' });
-    expect(r.status).toBe(1);
-    expect(r.stderr).toContain('Trigger.dev version drift (0018 T0)');
-    expect(r.stderr).toContain('env-upsert.sh /x/.env TRIGGER_IMAGE_TAG=v4.8.1');
-    expect(r.stderr).toContain('./deploy/compose/trigger-version.sh pin v4.9.0');
-    expect(r.stderr).not.toMatch(/pin @trigger\.dev\/sdk back/);
-    // An .env OLDER than the checkout (live at v4.7.6 against v4.8.1) is the
-    // checkout that pinned it, never a pin backwards: that keeps this
-    // version's removals and read_at, and its build refuses.
-    const back = spawnSync('bash', ['-c', `set -euo pipefail\nENV_FILE=/x/.env\nsdk_version=4.8.1\ntag_version=v4.7.6\n${check}`], { encoding: 'utf8' });
-    expect(back.status).toBe(1);
-    expect(back.stderr).toContain('env-upsert.sh /x/.env TRIGGER_IMAGE_TAG=v4.8.1');
-    expect(back.stderr).toContain('run the checkout that pinned v4.7.6');
-    expect(back.stderr).not.toContain('trigger-version.sh pin v4.7.6');
-    // A patch number of two digits is newer, not older (sort -V, not a string compare).
-    const ten = spawnSync('bash', ['-c', `set -euo pipefail\nENV_FILE=/x/.env\nsdk_version=4.8.9\ntag_version=v4.8.10\n${check}`], { encoding: 'utf8' });
-    expect(ten.stderr).toContain('./deploy/compose/trigger-version.sh pin v4.8.10');
-  });
-
-  it('a managed.yml with no default to fall back to is named, not a silent exit', () => {
-    // Reading the default is a grep, and under `set -e` a grep that finds
-    // nothing ends the bring-up with no message at all. The script's own `die`
-    // is used, so what an operator would read is what is asserted.
-    const script = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
-    const die = /^die\(\) \{.*\}$/m.exec(script)?.[0];
-    expect(die, 'bootstrap-managed.sh no longer defines die() on one line').toBeTruthy();
-    writeFileSync(join(dir, 'managed.yml'), 'services:\n  trigger-api:\n    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG}\n');
-    const env: NodeJS.ProcessEnv = { ...process.env, SCRIPT_DIR: dir };
-    delete env.TRIGGER_IMAGE_TAG;
-    const r = spawnSync('bash', ['-c', `set -euo pipefail\n${die}\n${fallbackBlock()}\nprintf '%s' "$tag_version"`], {
-      encoding: 'utf8',
-      env,
-    });
-    expect(r.status).not.toBe(0);
-    expect(r.stderr, 'the bring-up stopped without saying why').toMatch(/TRIGGER_IMAGE_TAG/);
-  });
-});
-
 describe('nothing in the managed stack runs whatever `latest` happens to mean', () => {
   /**
    * THE ONE DEPENDENCY THAT FLOATED.
@@ -1180,8 +562,8 @@ describe('nothing in the managed stack runs whatever `latest` happens to mean', 
 
   it('read every image in managed.yml', () => {
     // A scanner that matches nothing passes forever.
-    expect(references.length).toBeGreaterThanOrEqual(14);
-    expect(references.some((r) => r.includes('clickhouse'))).toBe(true);
+    expect(references.length).toBeGreaterThanOrEqual(7);
+    expect(references.some((r) => r.includes('zitadel'))).toBe(true);
   });
 
   it('every float is a named one, and every named one is still floating', () => {
@@ -1207,19 +589,6 @@ describe('nothing in the managed stack runs whatever `latest` happens to mean', 
     }
   });
 
-  it('clickhouse is pinned by DIGEST, not merely by version', () => {
-    // The one that bit us gets the strongest form available. A version tag can
-    // be repointed; a digest names the bytes. It is also what upstream's own
-    // docker-compose.yml for this Trigger.dev release runs, which is the only
-    // ClickHouse the migration in question has been proved against.
-    const clickhouse = references.find((r) => r.includes('clickhouse'));
-    expect(clickhouse, 'no clickhouse image in managed.yml at all').toBeTruthy();
-    expect(clickhouse).toContain('@sha256:');
-    expect(
-      clickhouse,
-      'bitnamilegacy tops out at 25.7.5, and 25.5.2 is the version that rejected the v4.5.12 migration',
-    ).not.toContain('bitnamilegacy');
-  });
 });
 
 describe('every file managed.yml mounts is a file that exists', () => {
@@ -1230,7 +599,8 @@ describe('every file managed.yml mounts is a file that exists', () => {
    * which for `clickhouse-override.xml` means the <16GB-RAM tuning quietly
    * stops applying on a 16GB box, and for `pgbouncer.ini` a pooler with no
    * configuration at all. Nothing checked this until a second ClickHouse
-   * config file was added (2026-08-24).
+   * config file was added (2026-08-24); the ClickHouse service went with
+   * Trigger.dev's plane in alpha.18 (workplan 0167 T9).
    *
    * The exception is real and must stay one: `pgbouncer/userlist.txt` holds
    * the pooler's md5 credentials, so it is GENERATED at bring-up by
@@ -1262,8 +632,8 @@ describe('every file managed.yml mounts is a file that exists', () => {
   const sources = [...composeYml.matchAll(/^\s*-\s+(?:\$\{[A-Z_][A-Z0-9_]*:-)?(\.\/[^:\s}]+)\}?:/gm)].map((m) => m[1]!);
 
   it('found the bind mounts', () => {
-    expect(sources.length).toBeGreaterThanOrEqual(5);
-    expect(sources).toContain('./clickhouse-disable-system-logs.xml');
+    expect(sources.length).toBeGreaterThanOrEqual(4);
+    expect(sources).toContain('./gatus.yaml');
     // The interpolated default is read too, or the generated file drops out.
     expect(sources).toContain('./pgbouncer/userlist.txt');
   });
@@ -1750,17 +1120,20 @@ describe('ensure-env-secrets.sh --only, which load_env runs for the jobs role (A
 
 // ---------------------------------------------------------------------------
 /**
- * THE BRING-UP IN EITHER RUNNER (workplan 0167 T7). The phases that differ by
- * `OWNPACE_JOB_RUNNER` are taken out of `bootstrap-managed.sh` as written and
- * RUN, under its own `set -euo pipefail`, with `docker` a stand-in on the PATH
- * that records every call and answers what a case says: which plane services
- * run, whether a worker container exists, how many polls still see a runner
- * container, the host's CPU count. The phases' other helpers (the identity
- * provider's, the mail catcher's, the system role's question) are stand-ins
- * that record that they ran. The pg-boss branches run for real only from the
- * flip's E2E dispatch; these are what holds them until then.
+ * THE BRING-UP'S APP AND PLANE PHASES (workplan 0167 T7 and T9). alpha.18
+ * removed Trigger.dev: the jobs run on pg-boss, in the `worker` service the
+ * app phase builds and starts, and the `plane` phase removes what is left of
+ * Trigger.dev's plane on a stack that ran alpha.17 (its containers, stopped,
+ * orphans of a managed.yml that no longer names them), never a volume. The
+ * phases are taken out of `bootstrap-managed.sh` as written and RUN, under its
+ * own `set -euo pipefail`, with `docker` a stand-in on the PATH that records
+ * every call and answers what a case says: which of the plane's containers
+ * are left and which run, the api's container id, the host's CPU count and
+ * memory. The phases' other helpers (the identity provider's, the mail
+ * catcher's, the system role's question, remove-trigger-plane.sh's list) are
+ * stand-ins that record that they ran.
  */
-describe('the bring-up in either runner (0167 T7)', () => {
+describe("the bring-up's app and plane phases (0167 T7, T9)", () => {
   const BOOTSTRAP = join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh');
   const text = readFileSync(BOOTSTRAP, 'utf8');
   const definition = (name: string): string => {
@@ -1770,39 +1143,30 @@ describe('the bring-up in either runner (0167 T7)', () => {
     if (oneLine && oneLine.index === 0) return oneLine[0];
     return text.slice(start + 1, text.indexOf('\n}\n', start) + 2);
   };
-  /** A top-level line of the script, as written. */
-  const line = (re: RegExp): string => {
+  /** A top-level statement of the script, as written, to the line that ends it. */
+  const statement = (re: RegExp): string => {
     const m = re.exec(text);
-    expect(m, `bootstrap-managed.sh has no line matching ${re}`).not.toBeNull();
+    expect(m, `bootstrap-managed.sh has no statement matching ${re}`).not.toBeNull();
     return m![0];
   };
 
-  const TRIGGER_IMAGE_LINE = /\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}/.exec(
-    readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8'),
-  )![0];
-  const managedYml = (opts: { worker: boolean; cpus?: string; runner?: string }) =>
+  const managedYml = (opts: { cpus?: string } = {}) =>
     [
       'name: ownpace-managed',
       'services:',
       '  api:',
       '    image: example',
       '    environment:',
-      `      OWNPACE_JOB_RUNNER: \${OWNPACE_JOB_RUNNER:-${opts.runner ?? 'trigger'}}`,
-      '  trigger-api:',
-      `    image: ${TRIGGER_IMAGE_LINE}`,
-      ...(opts.worker
-        ? [
-            '  worker:',
-            '    profiles: ["jobs"]',
-            ...(opts.cpus ? [`    cpus: \${WORKER_CPUS:-${opts.cpus}}`] : []),
-            // managed.yml's default size, for the default cap of 3 (#2046).
-            '    mem_limit: ${WORKER_MEMORY:-2816m}',
-            // Keys the worker receives, as #2046's service hands them on.
-            '    environment:',
-            '      LEDGER_RETENTION_DAYS: ${LEDGER_RETENTION_DAYS:-}',
-            '      LOG_LEVEL: ${LOG_LEVEL:-}',
-          ]
-        : []),
+      '      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}',
+      '  worker:',
+      `    cpus: \${WORKER_CPUS:-${opts.cpus ?? '2.5'}}`,
+      // managed.yml's default size, for the default cap of 3 (#2046).
+      '    mem_limit: ${WORKER_MEMORY:-2816m}',
+      // Keys the worker receives, as #2046's service hands them on.
+      '    environment:',
+      '      OWNPACE_JOB_RUNNER: ${OWNPACE_JOB_RUNNER:-pg-boss}',
+      '      LEDGER_RETENTION_DAYS: ${LEDGER_RETENTION_DAYS:-}',
+      '      LOG_LEVEL: ${LOG_LEVEL:-}',
       '',
     ].join('\n');
 
@@ -1813,16 +1177,19 @@ describe('the bring-up in either runner (0167 T7)', () => {
     calls: string[];
   }
 
-  function phase(
-    phases: string[],
-    o: { env?: string; yml?: string; answers?: Record<string, string> } = {},
-  ): Ran {
-    const d = mkdtempSync(join(tmpdir(), 'bring-up-mode-'));
+  /**
+   * The phases named, run in a bash of their own. PLANE_LEFT names the plane's
+   * services that still have a container (each gets the id `id-<service>`),
+   * PLANE_RUNNING the ones of those that run, LEFT_VOLUMES what
+   * remove-trigger-plane.sh --list answers.
+   */
+  function phase(phases: string[], o: { env?: string; yml?: string; answers?: Record<string, string> } = {}): Ran {
+    const d = mkdtempSync(join(tmpdir(), 'bring-up-phase-'));
     const log = join(d, 'calls');
     for (const f of ['job-runner.sh', 'env-read.sh', 'own-addresses.sh']) {
       cpSync(join(REPO_ROOT, 'deploy/compose', f), join(d, f));
     }
-    writeFileSync(join(d, 'managed.yml'), o.yml ?? managedYml({ worker: true, cpus: '2.5' }));
+    writeFileSync(join(d, 'managed.yml'), o.yml ?? managedYml());
     writeFileSync(join(d, '.env'), o.env ?? '');
     mkdirSync(join(d, 'bin'));
     writeFileSync(
@@ -1830,13 +1197,11 @@ describe('the bring-up in either runner (0167 T7)', () => {
       [
         '#!/usr/bin/env bash',
         'printf "docker %s\\n" "$*" >>"$CALLS"',
+        'svc=""; for a in "$@"; do case "$a" in label=com.docker.compose.service=*) svc="${a#label=com.docker.compose.service=}" ;; esac; done',
         'case "$*" in',
-        '  *" ps -a -q worker") printf "%s" "${WORKER_IDS-}" ;;',
-        '  *" ps --status running --status restarting --format {{.Service}}") [ -z "${PLANE_RUNNING-}" ] || printf "%s\\n" $PLANE_RUNNING ;;',
-        '  "ps --filter network="*)',
-        '    n=$(cat "$STATE" 2>/dev/null || echo 0); echo $((n + 1)) >"$STATE"',
-        '    [ "$n" -ge "${RUNNER_POLLS:-0}" ] || echo runner-abc123',
-        '    echo ownpace-managed-api-1 ;;',
+        '  "ps -a -q --filter "*) [ "${PS_FAILS:-}" != 1 ] || exit 1; case " ${PLANE_LEFT-} " in *" $svc "*) echo "id-$svc" ;; esac ;;',
+        '  "ps -q --filter "*) case " ${PLANE_RUNNING-} " in *" $svc "*) echo "id-$svc" ;; esac ;;',
+        '  "rm "*) exit "${RM_EXIT:-0}" ;;',
         '  "info --format {{.NCPU}}") echo "${NCPU:-4}" ;;',
         '  "info --format {{.MemTotal}}") echo "${MEMTOTAL:-17179869184}" ;;',
         // The api's container id: another after the `up` when API_REPLACED says so.
@@ -1854,6 +1219,11 @@ describe('the bring-up in either runner (0167 T7)', () => {
       writeFileSync(join(d, s), `#!/usr/bin/env bash\nprintf '%s\\n' "${s}" >>"$CALLS"\n`);
       chmodSync(join(d, s), 0o755);
     }
+    writeFileSync(
+      join(d, 'remove-trigger-plane.sh'),
+      '#!/usr/bin/env bash\nprintf \'%s\\n\' "remove-trigger-plane.sh $*" >>"$CALLS"\n[ -z "${LEFT_VOLUMES:-}" ] || printf \'%s\\n\' $LEFT_VOLUMES\n',
+    );
+    chmodSync(join(d, 'remove-trigger-plane.sh'), 0o755);
     const stub = (name: string) => `${name}() { printf '%s\\n' "${name}" >>"$CALLS"; }`;
     const harness = [
       'set -euo pipefail',
@@ -1866,18 +1236,13 @@ describe('the bring-up in either runner (0167 T7)', () => {
       '. "${SCRIPT_DIR}/env-read.sh"',
       '. "${SCRIPT_DIR}/own-addresses.sh"',
       '. "${SCRIPT_DIR}/job-runner.sh"',
-      line(/^COMPOSE_PLANE=.*$/m),
-      line(/^COMPOSE_WORKER=.*$/m),
-      'PLANE_RUNNERS_TIMEOUT="${PLANE_RUNNERS_TIMEOUT:-300}"',
-      'PLANE_RUNNERS_INTERVAL=0',
-      "JOB_RUNNER_MODE=''",
-      ...['say', 'note', 'die', 'env_get', 'env_or', 'runner_mode', 'worker_stop_and_remove', 'plane_runners'].map(definition),
+      statement(/^PLANE_SERVICES=\([^)]*\)$/m),
+      ...['say', 'note', 'die', 'env_get', 'env_or', 'runner_mode', 'plane_containers', 'plane_containers_removed'].map(definition),
       "WORKER_CPUS_RULE=''; WORKER_MEMORY_RULE=''; WORKER_SIZE_SAID=''",
-      ...['plane_stop_in_order', 'worker_size_note', 'worker_sized', 'worker_set_against_rule', 'worker_size_drift', 'worker_cpus_fit', 'worker_memory_bytes'].map(definition),
+      ...['worker_size_note', 'worker_sized', 'worker_set_against_rule', 'worker_size_drift', 'worker_cpus_fit', 'worker_memory_bytes'].map(definition),
       definition('worker_memory_fit'),
       ...['worker_env_fit', 'worker_ready_to_start'].map(definition),
-      ...['worker_up', 'up_wait', 'phase_trigger', 'phase_account'].map(definition),
-      ...['phase_login', 'phase_app', 'phase_tasks'].map(definition),
+      ...['worker_up', 'up_wait', 'phase_plane', 'phase_app'].map(definition),
       // set -a, as load_env sources the file: the shell then holds what it says.
       'load_env() { set -a; . "$ENV_FILE"; set +a; }',
       'explain_failure() { printf "%s\\n" "explain_failure $*" >>"$CALLS"; exit 1; }',
@@ -1888,10 +1253,9 @@ describe('the bring-up in either runner (0167 T7)', () => {
         'assert_zitadel_role_password',
         'wait_for_idp_ready',
         'check_idp_console_config',
-        'trigger_db_role_matches_env',
       ].map(stub),
       // As system_role_ready dies on an unfit role (a-superuser-the-bring-up-would-have-uploaded runs the real one).
-      `system_role_ready() { printf '%s\\n' system_role_ready >>"$CALLS"; [ -z "\${ROLE_UNFIT:-}" ] || die "REFUSED, before its password is set or its URL uploaded"; }`,
+      `system_role_ready() { printf '%s\\n' system_role_ready >>"$CALLS"; [ -z "\${ROLE_UNFIT:-}" ] || die "REFUSED, before its password is set or the worker starts with its URL"; }`,
       'catcher_needed() { return 1; }',
       ...phases.map((p) => `phase_${p}`),
     ].join('\n');
@@ -1911,60 +1275,95 @@ describe('the bring-up in either runner (0167 T7)', () => {
   }
 
   const PG = 'OWNPACE_JOB_RUNNER=pg-boss\n';
-  const ALL_PLANE =
-    'trigger-db trigger-redis clickhouse minio trigger-registry trigger-docker-proxy trigger-api trigger-tls trigger-supervisor';
+  /** The plane's eleven services, as alpha.17's managed.yml declared them. */
+  const PLANE = [
+    'trigger-supervisor',
+    'trigger-api',
+    'trigger-tls',
+    'trigger-tls-init',
+    'clickhouse',
+    'trigger-registry',
+    'trigger-docker-proxy',
+    'minio',
+    'minio-init',
+    'trigger-redis',
+    'trigger-db',
+  ];
+  const asked = (all: boolean, svc: string) =>
+    `docker ps ${all ? '-a ' : ''}-q --filter label=com.docker.compose.project=ownpace-managed --filter label=com.docker.compose.service=${svc}`;
 
-  describe('pg-boss mode', () => {
-    it('trigger: the supervisor first, a bounded wait for its runners, then the rest in order; stop, never rm', () => {
-      const r = phase(['trigger'], { env: PG, answers: { PLANE_RUNNING: ALL_PLANE, RUNNER_POLLS: '2' } });
-      expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/pg-boss mode \(OWNPACE_JOB_RUNNER=pg-boss\).*nothing migrates triggerdb/);
-      const C = 'docker compose -f managed.yml --profile trigger';
-      expect(r.calls).toEqual([
-        // The worker's readiness first, before anything stops.
-        'docker info --format {{.NCPU}}',
-        'docker info --format {{.MemTotal}}',
-        `${C} ps --status running --status restarting --format {{.Service}}`,
-        `${C} stop trigger-supervisor`,
-        'docker ps --filter network=ownpace-managed_ownpace-network --format {{.Names}}',
-        'docker ps --filter network=ownpace-managed_ownpace-network --format {{.Names}}',
-        'docker ps --filter network=ownpace-managed_ownpace-network --format {{.Names}}',
-        ...['trigger-api', 'trigger-tls', 'clickhouse', 'trigger-registry', 'trigger-docker-proxy', 'minio', 'trigger-redis', 'trigger-db'].map(
-          (s) => `${C} stop ${s}`,
-        ),
-      ]);
-      expect(r.calls.join('\n')).not.toMatch(/\brm\b|down|-v\b|\bup\b/);
+  describe('plane: what is left of Trigger.dev’s plane, its containers only', () => {
+    it('names the eleven services alpha.17 declared, and nothing of the stack that runs', () => {
+      expect(statement(/^PLANE_SERVICES=\([^)]*\)$/m).replace(/\s+/g, ' ')).toBe(`PLANE_SERVICES=(${PLANE.join(' ')})`);
     });
 
-    it('trigger: a plane that is already stopped is left as it is, and said', () => {
-      const r = phase(['trigger'], { env: PG });
+    it('a stack with none left: asks for each service by its labels, removes nothing, and says so', () => {
+      const r = phase(['plane'], { env: PG });
       expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/none of the plane's services runs: nothing to stop/);
-      expect(r.calls).toEqual([
-        'docker info --format {{.NCPU}}',
-        'docker info --format {{.MemTotal}}',
-        'docker compose -f managed.yml --profile trigger ps --status running --status restarting --format {{.Service}}',
-      ]);
+      expect(r.out).toMatch(/no container of Trigger\.dev's plane on ownpace-managed: nothing to remove/);
+      expect(r.calls).toEqual([...PLANE.map((s) => asked(true, s)), 'remove-trigger-plane.sh --list']);
     });
 
-    it('trigger: a crash-looping plane container (restarting) is asked for and stopped too', () => {
-      // The stand-in answers the one query that names both states; the service is in it.
-      const r = phase(['trigger'], { env: PG, answers: { PLANE_RUNNING: 'trigger-supervisor' } });
+    it("alpha.17's stopped plane: every container removed by id, none running so none stopped, and never a volume", () => {
+      const r = phase(['plane'], { env: PG, answers: { PLANE_LEFT: PLANE.join(' ') } });
       expect(r.status, r.out).toBe(0);
-      expect(r.calls).toContain('docker compose -f managed.yml --profile trigger ps --status running --status restarting --format {{.Service}}');
-      expect(r.calls).toContain('docker compose -f managed.yml --profile trigger stop trigger-supervisor');
+      const rm = r.calls.filter((c) => /^docker rm /.test(c));
+      expect(rm).toEqual([`docker rm ${PLANE.map((s) => `id-${s}`).join(' ')}`]);
+      expect(r.calls.some((c) => /^docker stop /.test(c))).toBe(false);
+      expect(r.out).toMatch(/its 11 container\(s\) removed, as orphans of a managed\.yml that no longer names them \(workplan 0167 T9\); no volume was touched/);
+      // Never a volume, never the project's other containers, never Compose's own removal.
+      expect(r.calls.join('\n')).not.toMatch(/volume|\brm -v\b|\brm -f\b|\bdown\b|--remove-orphans|\bprune\b/);
     });
 
-    it.each([
-      ['a CPU cap above the host', 'WORKER_CPUS=8\n', {}, /WORKER_CPUS is 8, above this host's 4 CPU\(s\)/],
-      ['a comment where the worker reads a value', 'LEDGER_RETENTION_DAYS=  # days\n', {}, /LEDGER_RETENTION_DAYS: its line/],
-    ])('trigger: %s refuses before the plane is touched, so a cutover never leaves no runner', (_l, env, answers, why) => {
-      const r = phase(['trigger'], { env: `${PG}${env}`, answers: { PLANE_RUNNING: ALL_PLANE, ...answers } });
+    it('a container of the plane that still runs is stopped first, the supervisor before the rest, then removed with the others', () => {
+      const r = phase(['plane'], {
+        env: PG,
+        answers: { PLANE_LEFT: 'trigger-supervisor trigger-api trigger-db', PLANE_RUNNING: 'trigger-db trigger-supervisor' },
+      });
+      expect(r.status, r.out).toBe(0);
+      const stops = r.calls.filter((c) => /^docker stop /.test(c));
+      expect(stops).toEqual(['docker stop -t 30 id-trigger-supervisor', 'docker stop -t 30 id-trigger-db']);
+      const lastStop = r.calls.lastIndexOf(stops.at(-1)!);
+      const rm = r.calls.findIndex((c) => /^docker rm /.test(c));
+      expect(rm).toBeGreaterThan(lastStop);
+      expect(r.calls[rm]).toBe('docker rm id-trigger-supervisor id-trigger-api id-trigger-db');
+    });
+
+    it("the plane's volumes still on the machine are said, with the one command that removes them, and not removed", () => {
+      const r = phase(['plane'], {
+        env: PG,
+        answers: { LEFT_VOLUMES: 'ownpace-managed_trigger_db_data ownpace-managed_clickhouse_data_v2' },
+      });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/the plane's volumes are still on this machine, kept until they are removed by name:/);
+      expect(r.out).toMatch(/ownpace-managed_trigger_db_data/);
+      expect(r.out).toMatch(/\.\/deploy\/compose\/remove-trigger-plane\.sh says what it would remove; with --yes it removes them, one way/);
+      expect(r.calls).toContain('remove-trigger-plane.sh --list');
+      expect(r.calls).not.toContain('remove-trigger-plane.sh --yes');
+    });
+
+    it('Docker that cannot be asked stops the phase, having removed nothing', () => {
+      const r = phase(['plane'], { env: PG, answers: { PS_FAILS: '1', PLANE_LEFT: PLANE.join(' ') } });
       expect(r.status).not.toBe(0);
-      expect(r.out).toMatch(why);
-      expect(r.calls.filter((c) => / stop | ps --status /.test(c))).toEqual([]);
+      expect(r.out).toMatch(/could not ask Docker for the plane's containers \(above\); nothing was removed\./);
+      expect(r.calls.some((c) => /^docker (rm|stop) /.test(c))).toBe(false);
     });
 
+    it('a removal that fails stops the phase and says the volumes are as they were', () => {
+      const r = phase(['plane'], { env: PG, answers: { PLANE_LEFT: 'trigger-db', RM_EXIT: '1' } });
+      expect(r.status).not.toBe(0);
+      expect(r.out).toMatch(/the plane's containers did not all go \(above\)\. Its volumes are as they were\./);
+    });
+
+    it('an old .env that says trigger stops the phase before Docker is asked, in the sentence that says alpha.18 removed it', () => {
+      const r = phase(['plane'], { env: 'OWNPACE_JOB_RUNNER=trigger\n', answers: { PLANE_LEFT: PLANE.join(' ') } });
+      expect(r.status).not.toBe(0);
+      expect(r.out).toMatch(/OWNPACE_JOB_RUNNER in .+ is trigger, but Trigger\.dev was removed in alpha\.18, so remove the key from the \.env or set it to pg-boss/);
+      expect(r.calls).toEqual([]);
+    });
+  });
+
+  describe('app: the worker, on pg-boss', () => {
     it('app: the size follows MAX_PASSES_IN_FLIGHT when .env sets none, exported for the compose calls and never written', () => {
       const env = `${PG}MAX_PASSES_IN_FLIGHT=6\n`;
       const r = phase(['app'], { env, answers: { NCPU: '8' } });
@@ -1986,9 +1385,9 @@ describe('the bring-up in either runner (0167 T7)', () => {
       ['the rule\'s limit above a 2 GB host', `${'OWNPACE_JOB_RUNNER=pg-boss\n'}`, String(2 * 1024 ** 3), /WORKER_MEMORY is 2816m, above this host's 2048 MB of memory\. Set it to at most that \(the rule: \(MAX_PASSES_IN_FLIGHT \+ 2\) x 512 MB \+ 256 MB = 2816m\)/],
       ['a .env limit above the host', 'OWNPACE_JOB_RUNNER=pg-boss\nWORKER_MEMORY=20g\n', String(16 * 1024 ** 3), /WORKER_MEMORY is 20g, above this host's 16384 MB of memory\./],
       ['a limit Compose does not read', 'OWNPACE_JOB_RUNNER=pg-boss\nWORKER_MEMORY=lots\n', String(16 * 1024 ** 3), /WORKER_MEMORY is 'lots', not an amount of memory Compose reads \(a number with b, k, m or g\)\. The rule: \(MAX_PASSES_IN_FLIGHT \+ 2\) x 512 MB \+ 256 MB = 2816m\./],
-    ])('%s: refused in one sentence, before the plane stops and before the worker starts', (_l, env, memtotal, why) => {
-      for (const p of ['trigger', 'app']) {
-        const r = phase([p], { env, answers: { MEMTOTAL: memtotal, PLANE_RUNNING: ALL_PLANE } });
+    ])('%s: refused in one sentence, before the worker starts', (_l, env, memtotal, why) => {
+      for (const p of ['app']) {
+        const r = phase([p], { env, answers: { MEMTOTAL: memtotal } });
         expect(r.status, `${p}: ${r.out}`).not.toBe(0);
         expect(r.out).toMatch(why);
         expect(r.calls.filter((c) => / stop | up -d --wait( --force-recreate)? worker/.test(c))).toEqual([]);
@@ -1998,7 +1397,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
     it("a passing run prints neither the host's CPU count nor its memory: the gate's log is public", () => {
       // Numbers no other line holds: 13 CPUs, 23 GiB.
       const memtotal = String(23 * 1024 ** 3);
-      for (const p of ['trigger', 'app']) {
+      for (const p of ['app']) {
         const r = phase([p], { env: PG, answers: { NCPU: '13', MEMTOTAL: memtotal } });
         expect(r.status, r.out).toBe(0);
         expect(r.out).not.toMatch(/\b13\b/);
@@ -2034,31 +1433,6 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.out.match(/is above the rule's/g)).toHaveLength(1);
       expect(r.out).toMatch(/the worker's memory limit: 6400m, within this host's memory/);
       expect(r.calls.some((c) => / up -d --wait( --force-recreate)? worker/.test(c))).toBe(true);
-    });
-
-    it("a whole pg-boss bring-up, the trigger phase then the app phase, says the worker's size once", () => {
-      // Both phases size the worker (worker_ready_to_start): the trigger phase before the plane
-      // stops, the app phase before the worker starts. Only the first says it.
-      const pinned = phase(['trigger', 'app'], {
-        env: `${PG}MAX_PASSES_IN_FLIGHT=6\nWORKER_CPUS=4\nWORKER_MEMORY=6400m\n`,
-        answers: { NCPU: '8' },
-      });
-      expect(pinned.status, pinned.out).toBe(0);
-      expect(pinned.out.match(/is above the rule's/g), pinned.out).toHaveLength(1);
-      expect(pinned.out.match(/WORKER_CPUS 4, from \.env/g), pinned.out).toHaveLength(1);
-      expect(pinned.calls.some((c) => / up -d --wait( --force-recreate)? worker/.test(c))).toBe(true);
-      // Worked out, from a .env with no line for either and from the example's empty lines (which
-      // the app phase reads again): said once, and never as from .env, though the first phase
-      // exported it; and the app phase still starts the worker at it.
-      for (const env of [PG, `${PG}WORKER_CPUS=\nWORKER_MEMORY=\n`]) {
-        const r = phase(['trigger', 'app'], { env });
-        expect(r.status, r.out).toBe(0);
-        expect(r.out.match(/WORKER_CPUS [\d.]+: 0\.5 x /g), r.out).toHaveLength(1);
-        expect(r.out.match(/WORKER_MEMORY \d+m: \(MAX_PASSES_IN_FLIGHT /g), r.out).toHaveLength(1);
-        expect(r.out, r.out).not.toMatch(/from \.env/);
-        expect(r.out.match(/the worker's memory limit: \d+m, within this host's memory/g), r.out).toHaveLength(2);
-        expect(r.calls.some((c) => / up -d --wait( --force-recreate)? worker/.test(c))).toBe(true);
-      }
     });
 
     it('app: a size .env sets below the rule is kept, and said as a warning', () => {
@@ -2107,28 +1481,11 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.status, r.out).toBe(0);
     });
 
-    it('trigger: runners that outlive the wait stop the phase, with the rest of the plane still running', () => {
-      const r = phase(['trigger'], {
-        env: PG,
-        answers: { PLANE_RUNNING: ALL_PLANE, RUNNER_POLLS: '1000', PLANE_RUNNERS_TIMEOUT: '0' },
-      });
-      expect(r.status).not.toBe(0);
-      expect(r.out).toMatch(/1 runner container\(s\) of the plane still on ownpace-managed_ownpace-network.*the drain was not done/);
-      expect(r.calls.filter((c) => / stop /.test(c))).toEqual(['docker compose -f managed.yml --profile trigger stop trigger-supervisor']);
-    });
-
-    it.each(['account', 'login', 'tasks'])('%s: says "skipped: pg-boss mode", and asks Docker nothing', (p) => {
-      const r = phase([p], { env: PG });
-      expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/skipped: pg-boss mode \(OWNPACE_JOB_RUNNER=pg-boss\)\. /);
-      expect(r.calls).toEqual([]);
-    });
-
-    it("app: builds api, web and worker; starts no plane service; the system role, the CPU cap, then the worker, after the api", () => {
+    it("app: builds api, web and worker; starts no service of Trigger.dev's plane; the system role, the CPU cap, then the worker, after the api", () => {
       const r = phase(['app'], { env: PG });
       expect(r.status, r.out).toBe(0);
       const build = r.calls.findIndex((c) => / build /.test(c));
-      expect(r.calls[build]).toBe('docker compose -f managed.yml --profile jobs build api web worker');
+      expect(r.calls[build]).toBe('docker compose -f managed.yml build api web worker');
       const up = r.calls.findIndex((c) => / up -d --wait .*\bapi\b/.test(c));
       expect(r.calls[up]).not.toMatch(/trigger-|minio|clickhouse|worker/);
       const after = r.calls.slice(up + 1);
@@ -2137,7 +1494,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
         'system_role_ready',
         'docker info --format {{.NCPU}}',
         'docker info --format {{.MemTotal}}',
-        'docker compose -f managed.yml --profile jobs up -d --wait worker',
+        'docker compose -f managed.yml up -d --wait worker',
       ]);
       expect(r.out).toMatch(/the worker's CPU cap: 2\.5, within this host's CPUs \(the rule: 0\.5 x \(MAX_PASSES_IN_FLIGHT \+ 2\) = 2\.5\)/);
     });
@@ -2146,8 +1503,8 @@ describe('the bring-up in either runner (0167 T7)', () => {
       const r = phase(['app'], { env: PG, answers: { API_REPLACED: '1' } });
       expect(r.status, r.out).toBe(0);
       const builds = r.calls.filter((c) => / build /.test(c));
-      expect(builds).toEqual(['docker compose -f managed.yml --profile jobs build api web worker']);
-      expect(r.calls.at(-1)).toBe('docker compose -f managed.yml --profile jobs up -d --wait --force-recreate worker');
+      expect(builds).toEqual(['docker compose -f managed.yml build api web worker']);
+      expect(r.calls.at(-1)).toBe('docker compose -f managed.yml up -d --wait --force-recreate worker');
       expect(r.out).toMatch(/the api container was replaced by this run: recreating the worker with it/);
       // The ids were asked around the `up` that replaced the api.
       const up = r.calls.findIndex((c) => / up -d --wait .*\bapi\b/.test(c));
@@ -2158,7 +1515,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
     it('app: an api that was not replaced leaves the worker to Compose, which replaces it when its image moved', () => {
       const r = phase(['app'], { env: PG });
       expect(r.status, r.out).toBe(0);
-      expect(r.calls.at(-1)).toBe('docker compose -f managed.yml --profile jobs up -d --wait worker');
+      expect(r.calls.at(-1)).toBe('docker compose -f managed.yml up -d --wait worker');
       expect(r.out).not.toMatch(/recreating the worker/);
     });
 
@@ -2168,7 +1525,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.calls.at(-1)).toBe('explain_failure worker');
     });
 
-    it('app: an unfit system role stops it before the worker starts, as the tasks phase stopped the upload', () => {
+    it('app: an unfit system role stops it before the worker starts, before its URL reaches a run', () => {
       const r = phase(['app'], { env: PG, answers: { ROLE_UNFIT: '1' } });
       expect(r.status).not.toBe(0);
       expect(r.out).toMatch(/REFUSED, before/);
@@ -2188,74 +1545,47 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.calls.some((c) => / up -d --wait worker/.test(c))).toBe(false);
     });
 
-    it('app: a worker that never comes up is explained from its own log, with its profile named', () => {
+    it('app: a worker that never comes up is explained from its own log', () => {
       const r = phase(['app'], { env: PG, answers: { WORKER_UP_EXIT: '1' } });
       expect(r.status).not.toBe(0);
-      expect(r.calls.slice(-2)).toEqual(['docker compose -f managed.yml --profile jobs up -d --wait worker', 'explain_failure worker']);
+      expect(r.calls.slice(-2)).toEqual(['docker compose -f managed.yml up -d --wait worker', 'explain_failure worker']);
       expect(r.out).not.toMatch(/worker up and healthy/);
     });
   });
 
-  describe('trigger mode', () => {
-    const TRIGGER_ENV = 'OWNPACE_JOB_RUNNER=trigger\n';
-
-    it('trigger: a worker left from pg-boss mode is stopped and removed before any plane service starts', () => {
-      const r = phase(['trigger'], { env: TRIGGER_ENV, answers: { WORKER_IDS: 'abc123' } });
-      expect(r.status, r.out).toBe(0);
-      const W = 'docker compose -f managed.yml --profile jobs';
-      expect(r.calls.slice(0, 3)).toEqual([`${W} ps -a -q worker`, `${W} stop worker`, `${W} rm -f worker`]);
-      expect(r.calls[3]).toMatch(/ up -d --wait trigger-db$/);
-      expect(r.out).toMatch(/trigger mode \(OWNPACE_JOB_RUNNER=trigger\)/);
-    });
-
-    it('trigger: with no worker container, nothing is stopped, and the plane comes up as before', () => {
-      const r = phase(['trigger'], { env: '' });
-      expect(r.status, r.out).toBe(0);
-      expect(r.calls[0]).toBe('docker compose -f managed.yml --profile jobs ps -a -q worker');
-      expect(r.calls.some((c) => / (stop|rm) /.test(c))).toBe(false);
-      expect(r.calls[1]).toMatch(/ up -d --wait trigger-db$/);
-      expect(r.calls.at(-1)).toMatch(/ up -d --wait trigger-supervisor$/);
-    });
-
-    it("trigger: a managed.yml without a worker (alpha.14's) asks for none", () => {
-      const r = phase(['trigger'], { env: '', yml: managedYml({ worker: false }) });
-      expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/defines no worker service, so there is no worker to stop/);
-      expect(r.calls[0]).toMatch(/ up -d --wait trigger-db$/);
-    });
-
-    it('app: builds api and web only, starts the plane with the rest, and no worker', () => {
-      const r = phase(['app'], { env: '', answers: { WORKER_IDS: 'abc123' } });
-      expect(r.status, r.out).toBe(0);
-      expect(r.calls.slice(0, 3)).toEqual([
-        'docker compose -f managed.yml --profile jobs ps -a -q worker',
-        'docker compose -f managed.yml --profile jobs stop worker',
-        'docker compose -f managed.yml --profile jobs rm -f worker',
-      ]);
-      expect(r.calls).toContain('docker compose -f managed.yml build api web');
-      const up = r.calls.find((c) => / up -d --wait .*\bapi\b/.test(c))!;
-      expect(up).toMatch(/trigger-db .*trigger-supervisor/);
-      expect(up).not.toMatch(/\bworker\b/);
-      expect(r.calls).not.toContain('system_role_ready');
-      expect(r.calls.some((c) => /up -d --wait worker/.test(c))).toBe(false);
-    });
+  it.each([
+    ['--only', 'trigger'],
+    ['--only', 'account'],
+    ['--from', 'login'],
+    ['--from', 'tasks'],
+  ])('%s %s: a phase alpha.18 removed is refused in one sentence, before anything runs', (flag, name) => {
+    const r = spawnSync(BOOTSTRAP, [flag, name], { env: { ...process.env, HOME: tmpdir() }, encoding: 'utf8' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toBe(
+      `bootstrap-managed.sh: the phase '${name}' went with Trigger.dev in alpha.18 (workplan 0167 T9); the jobs run in the worker, which the app phase starts. Phases: preflight env data demo plane app smoke\n`,
+    );
+    expect(r.stdout).toBe('');
   });
 
-  it('a value that is neither stops the bring-up before any phase runs', () => {
+  it('--list names the phases alpha.18 runs, the plane phase between the demo and the app', () => {
+    const r = spawnSync(BOOTSTRAP, ['--list'], { encoding: 'utf8' });
+    expect(r.stdout.trim().split('\n')).toEqual(['preflight', 'env', 'data', 'demo', 'plane', 'app', 'smoke']);
+  });
+
+  it.each([
+    ['both', /^!!! OWNPACE_JOB_RUNNER in this shell's environment is not pg-boss \(its value is not printed\)/m],
+    ['trigger', /^!!! OWNPACE_JOB_RUNNER in this shell's environment is trigger, but Trigger\.dev was removed in alpha\.18/m],
+  ])('a switch of %s stops the bring-up before any phase runs', (value, why) => {
     const d = mkdtempSync(join(tmpdir(), 'bring-up-bad-mode-'));
     try {
-      // A checkout whose managed.yml hands the switch to its containers, as
-      // alpha.16's does; one that never names it ignores the value.
       const compose = join(d, 'deploy', 'compose');
       cpSync(join(REPO_ROOT, 'deploy', 'compose'), compose, { recursive: true, filter: (src) => !src.endsWith('/.env') });
-      const real = readFileSync(join(compose, 'managed.yml'), 'utf8');
-      writeFileSync(join(compose, 'managed.yml'), switchedTo('trigger')(real));
       const r = spawnSync(join(compose, 'bootstrap-managed.sh'), ['--only', 'smoke'], {
-        env: { ...process.env, OWNPACE_JOB_RUNNER: 'both', HOME: d },
+        env: { ...process.env, OWNPACE_JOB_RUNNER: value, HOME: d },
         encoding: 'utf8',
       });
       expect(r.status).toBe(1);
-      expect(r.stderr).toMatch(/^!!! OWNPACE_JOB_RUNNER in this shell's environment is neither trigger nor pg-boss/m);
+      expect(r.stderr).toMatch(why);
       expect(r.stdout).not.toMatch(/=== \[smoke\]/);
     } finally {
       rmSync(d, { recursive: true, force: true });

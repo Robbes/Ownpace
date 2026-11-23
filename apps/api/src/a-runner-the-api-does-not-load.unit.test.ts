@@ -1,14 +1,16 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * ON TRIGGER.DEV THE API LOADS NO PG-BOSS (workplan 0167 T6).
+ * THE API LOADS NO TRIGGER.DEV, AND PG-BOSS ONLY WHEN A JOB IS ASKED FOR
+ * (workplan 0167 T6, and T9: alpha.18 removed Trigger.dev).
  *
- * Until the switch is turned on, `OWNPACE_JOB_RUNNER` is unset and every job
- * goes to Trigger.dev, as before. In that mode nothing in the API may load
- * `pg-boss` or `@openmig/scheduler/pg-boss`: the API's tests mock
- * `@openmig/scheduler`, several with a bare factory, and a door that reached
- * pg-boss in trigger mode would walk round every one of them, and round
- * Trigger.dev itself.
+ * Since alpha.18 every job goes to pg-boss. Nothing in the API may load
+ * Trigger.dev's SDK any more (the package is gone from the lockfile, and a
+ * resolve of it would be a leftover import). And pg-boss is still loaded only
+ * on the first enqueue or cancel, by `job-runner.ts`'s one dynamic import: the
+ * API's tests stand in for `@openmig/scheduler/pg-boss`'s producer
+ * (`__testing__/a-queue-stand-in.ts`), and a door that loaded it some other
+ * way would walk round that stand-in.
  *
  * Two halves:
  *
@@ -16,13 +18,12 @@
  *     on `apps/api/src/index.ts`, types erased, workspace packages through
  *     `node_modules`), and the operator's script, with a resolve hook that
  *     records every module URL resolved, in this repository or out of it, and
- *     asks the scheduler's readiness. None is pg-boss's package or the runner's
- *     module. A control process, on `pg-boss`, asks for the producer, and both
- *     show up: the hook does see them.
+ *     asks the scheduler's readiness. None is pg-boss's package, the runner's
+ *     module, or anything of Trigger.dev's. A control process asks for the
+ *     producer, and pg-boss's modules show up: the hook does see them.
  *  2. **Written.** No shipped file under `apps/api/src` imports `pg-boss`, and
  *     none imports `@openmig/scheduler/pg-boss` but for its types, which Node
- *     erases; the one dynamic import of it is `job-runner.ts`'s, on the
- *     pg-boss branch. That is what keeps half 1 true of a route no test here
+ *     erases; the one dynamic import of it is `job-runner.ts`'s. That is what keeps half 1 true of a route no test here
  *     reaches.
  */
 
@@ -74,8 +75,8 @@ function loadInAChild(body: string, env: Record<string, string>): { urls: string
   }
 }
 
-describe('1. loaded: the API as its image runs it, in trigger mode', () => {
-  it('index.ts (every router) and the operator’s script resolve no pg-boss module, and readiness is off', () => {
+describe('1. loaded: the API as its image runs it, before any job is asked for', () => {
+  it('index.ts (every router) and the operator’s script resolve no pg-boss module and nothing of Trigger.dev’s', () => {
     const { urls, said } = loadInAChild(
       `
       await import(at('apps/api/src/index.ts'));
@@ -86,22 +87,23 @@ describe('1. loaded: the API as its image runs it, in trigger mode', () => {
       `,
       {},
     );
-    expect(said).toBe('trigger {"scheduler":"off"}');
-    // It loaded the API, through the packages, and the SDK it does use.
+    // Unset is pg-boss; without a jobs URL, readiness is off.
+    expect(said).toBe('pg-boss {"scheduler":"off"}');
+    // It loaded the API, through the packages.
     expect(urls.length).toBeGreaterThan(500);
     expect(urls.some((u) => u.endsWith('/apps/api/src/routes/migrations/index.ts'))).toBe(true);
-    expect(urls.some((u) => /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@trigger\.dev\/sdk\//.test(u))).toBe(true);
+    expect(urls.filter((u) => /@trigger\.dev|\/trigger\.dev\/|trigger-client/.test(u))).toEqual([]);
     expect(urls.filter((u) => PG_BOSS_PACKAGE.test(u) || RUNNER_MODULE.test(u))).toEqual([]);
   });
 
-  it('the control: on pg-boss, asking for the producer resolves both, so the hook would have seen them', () => {
+  it('the control: asking for the producer resolves both, so the hook would have seen them', () => {
     const { urls, said } = loadInAChild(
       `
       const { pgBossProducer } = await import(at('apps/api/src/job-runner.ts'));
       // Nothing listens on port 1: the start fails, after the modules are loaded.
       said = await pgBossProducer().then(() => 'started', (e) => e.code ?? e.message);
       `,
-      { OWNPACE_JOB_RUNNER: 'pg-boss', JOBS_DATABASE_URL: 'postgres://nobody@127.0.0.1:1/none' },
+      { JOBS_DATABASE_URL: 'postgres://nobody@127.0.0.1:1/none' },
     );
     expect(said).not.toBe('started');
     expect(urls.some((u) => PG_BOSS_PACKAGE.test(u))).toBe(true);

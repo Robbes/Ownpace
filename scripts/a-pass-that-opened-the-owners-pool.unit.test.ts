@@ -115,8 +115,9 @@
  *      URL for the person who runs them, and never read the system role's.
  *      No other file reads `SYSTEM_DATABASE_URL`. Until step 2 the four read
  *      `DATABASE_URL`, the owner, a superuser, and `set-task-env.sh` uploaded
- *      it to every run; it uploads the system role's URL now and deletes the
- *      owner's from the store (`a-run-that-carries-no-superuser`). There is
+ *      it to every Trigger.dev run; the worker service is handed the system
+ *      role's URL and never the owner's (`a-worker-that-carries-no-superuser`;
+ *      Trigger.dev and that script went in alpha.18, workplan 0167 T9). There is
  *      no fallback either way: a file that read both names would be one
  *      `DATABASE_URL` in `.env` away from the owner again. And no fallback
  *      this cannot see: the machine's files export exactly what is listed for
@@ -127,21 +128,22 @@
  *      new `direct-url.ts` export and behind `process.env[`${p}DATABASE_URL`]`,
  *      each with every guard green (0138 T3 step 2).
  *   9. The run's context, `run-context.ts`, does nothing when it is imported
- *      and loads no value but the two SDK calls it holds (workplan 0167 T6).
- *      Every task file imports it, so a pool it built, a sink it pointed or a
- *      job module it loaded would be in every run's process, whatever that
- *      run's own kind: a per-tenant job's sinks pointed back at a pool it
- *      never opened, or the tick's taken from its system pool. A pass's task
- *      reaches it from the job that enqueues one, which loads the pass's
- *      module when it always did.
+ *      and loads no value at all: since alpha.18 removed Trigger.dev (workplan
+ *      0167 T9) it holds the context's types and nothing else, and every job
+ *      file imports it for those types only. A pool it built, a sink it
+ *      pointed or a job module it loaded would be in every run's process,
+ *      whatever that run's own kind: a per-tenant job's sinks pointed back at
+ *      a pool it never opened, or the tick's taken from its system pool.
  *  10. The worker's runner, `apps/worker/src/runner/` (workplan 0167 T6),
  *      reads the jobs role's URL, `JOBS_DATABASE_URL`, and no other database
  *      URL (THE_WORKERS_RUNNER, closed; its test's stand-in reads the test's
  *      own table, and nothing imports it). Its parent process, `main.ts` and
  *      every module it loads, loads no job module and so opens no job's pool:
- *      each run's own process imports its job. And nothing a Trigger.dev task
- *      loads reaches pg-boss: no file in `jobs/`, nor any file one of them
- *      loads, imports `pg-boss`, `@openmig/scheduler/pg-boss` or the runner.
+ *      each run's own process imports its job. And no job module reaches
+ *      pg-boss itself: no file in `jobs/`, nor any file one of them loads,
+ *      imports `pg-boss`, `@openmig/scheduler/pg-boss` or the runner; its run
+ *      entry (`runner/runs/`) hands it the context, so a job is one function of
+ *      its payload and that context, whichever runner calls it.
  *
  * Until T1's second step there was a second list, KNOWN_REMOVED_BY_T1, of the
  * per-tenant readers the ratchet let stand: eleven when it landed, the three
@@ -161,7 +163,8 @@
  * WHAT "READS A DATABASE URL" MEANS HERE. Any name ending in `DATABASE_URL`
  * other than `APP_DATABASE_URL` (so `DATABASE_URL`, `DIRECT_DATABASE_URL`, the
  * builders' old `TEST_DATABASE_URL || DATABASE_URL` fallback, and T3 step 2's
- * `SYSTEM_DATABASE_URL`, which the T3 guard, `a-run-that-carries-no-superuser`,
+ * `SYSTEM_DATABASE_URL`, which `a-worker-that-carries-no-superuser` (until
+ * alpha.18 also the T3 guard, `a-run-that-carries-no-superuser`)
  * only lets go up under such a name), used as a property (`process.env.X`,
  * `env.X`), an element (`env['X']`), a destructured binding (`{ X } = …`) or a
  * string whose whole text is the name (`getEnv('X')`). Parsed, not grepped: a
@@ -228,8 +231,8 @@ const CROSS_TENANT: Record<string, string> = {
 /**
  * The CROSS_TENANT files that run in a task (rule 8, 0138 T3 step 2). Each
  * reads `SYSTEM_DATABASE_URL`, the system role, and no other database URL:
- * never `DATABASE_URL`, the owner, a superuser on the managed stack, which
- * `set-task-env.sh` no longer uploads and deletes from the store.
+ * never `DATABASE_URL`, the owner, a superuser on the managed stack, which the
+ * worker service is never handed (`a-worker-that-carries-no-superuser`).
  */
 const ON_THE_SYSTEM_ROLE: readonly string[] = Object.freeze([
   'apps/worker/src/jobs/managed-sync-tick.ts',
@@ -586,20 +589,30 @@ function helperNames(file: string, text: string): string[] {
   return [...found].sort();
 }
 
-/** The callee text of every call a Trigger.dev task file registers a task with. */
-const TASK_REGISTRARS = new Set(['schemaTask', 'task', 'schedules.task']);
+/** The run entries the worker forks, one a job (`../worker.ts`, `../serve-job.ts`). */
+const RUNS_DIR = 'apps/worker/src/runner/runs';
 
-/** Whether a file registers a Trigger.dev task: a `schemaTask(…)`, `task(…)` or `schedules.task(…)`. */
-function definesATask(file: string, text: string): boolean {
-  if (!/\b(?:schemaTask|task)\s*\(/.test(text)) return false;
-  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
-  let found = false;
-  const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node) && TASK_REGISTRARS.has(node.expression.getText(sf))) found = true;
-    if (!found) ts.forEachChild(node, visit);
-  };
-  visit(sf);
-  return found;
+/**
+ * The job modules: each file of jobs/ a run entry imports a value from. Since
+ * alpha.18 removed Trigger.dev (workplan 0167 T9) that is the one way a job is
+ * run, as a Trigger.dev task's `schemaTask(…)` or `schedules.task(…)` was
+ * until then.
+ */
+function jobModules(): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const entry of readdirSync(join(REPO_ROOT, RUNS_DIR)).filter((f) => f.endsWith('.ts') && !f.includes('.test.'))) {
+    const file = `${RUNS_DIR}/${entry}`;
+    for (const imported of valueImports(file, readFileSync(join(REPO_ROOT, file), 'utf8'))) {
+      const local = resolvedFrom(file, imported.slice(0, imported.lastIndexOf(': ')));
+      if (local?.startsWith(`${JOBS_DIR}/`)) out.add(local);
+    }
+  }
+  return out;
+}
+
+/** Whether a file is a job module: one a run entry of the worker imports. */
+function definesATask(file: string, _text?: string): boolean {
+  return jobModules().has(file);
 }
 
 /** The local names a file imports `openTaskPools` under, from the task-pools module. */
@@ -1506,14 +1519,15 @@ describe('a per-tenant job builds no pool of its own', () => {
 describe('a per-tenant task takes its pools from the one module that builds them', () => {
   const taskFiles = files.filter((f) => f.startsWith(`${JOBS_DIR}/`) && definesATask(f, texts.get(f)!));
 
-  it('found the fifteen task files, and knows each shape a task is registered in', () => {
+  it('found the job modules, one for each of the worker\'s run entries', () => {
     expect(taskFiles).toContain('apps/worker/src/jobs/run-delta-sync.ts');
     expect(taskFiles).toContain('apps/worker/src/jobs/managed-sync-tick.ts');
-    expect(taskFiles.length).toBeGreaterThanOrEqual(15);
-    expect(definesATask('shape.ts', "export const t = schemaTask({ id: 'x' });")).toBe(true);
-    expect(definesATask('shape.ts', "export const t = schedules.task({ id: 'x' });")).toBe(true);
-    expect(definesATask('shape.ts', "export const t = task({ id: 'x' });")).toBe(true);
-    expect(definesATask('shape.ts', '// schemaTask({ id }) in a comment')).toBe(false);
+    expect(taskFiles.length).toBeGreaterThanOrEqual(17);
+    const entries = readdirSync(join(REPO_ROOT, RUNS_DIR)).filter((f) => f.endsWith('.ts') && !f.includes('.test.'));
+    expect(taskFiles.length).toBe(entries.length);
+    // Not a helper a job imports: only what a run entry names.
+    expect(definesATask('apps/worker/src/jobs/task-pools.ts')).toBe(false);
+    expect(definesATask('apps/worker/src/jobs/run-context.ts')).toBe(false);
   });
 
   it.each(taskFiles.map((f) => [f]))('%s is one of the three kinds', (file) => {
@@ -1695,7 +1709,7 @@ describe('a split job asks across organisations for the list alone, and reads ea
     ]);
     for (const file of splitFiles) {
       expect(texts.has(file), `${file} is on SPLIT and is not a source file here`).toBe(true);
-      expect(taskFiles, `${file} is on SPLIT and registers no task`).toContain(file);
+      expect(taskFiles, `${file} is on SPLIT and no run entry runs it`).toContain(file);
     }
   });
 
@@ -2068,29 +2082,35 @@ describe("what reaches a job from the owner's connection is ids, closed at both 
 /** The run's context (rule 9), which every task file imports. */
 const RUN_CONTEXT = 'apps/worker/src/jobs/run-context.ts';
 
-/** What run-context.ts may import as a value, as `<module>: <name>`, closed (rule 9). Types are free. */
-const RUN_CONTEXT_IMPORTS: Record<string, string> = {
-  '@trigger.dev/sdk: configure': "the SDK pointed at the stack's own API, before a pass is enqueued",
-  '@trigger.dev/sdk: runs': 'a run asked after, and cancelled, by its id: the purge of closed organisations',
-};
+/**
+ * What run-context.ts may import as a value, as `<module>: <name>`, closed
+ * (rule 9). Types are free. Nothing since alpha.18: Trigger.dev's SDK calls it
+ * held until then went with Trigger.dev (workplan 0167 T9).
+ */
+const RUN_CONTEXT_IMPORTS: Record<string, string> = {};
 
-describe("the run's context, which every task imports, loads the SDK and nothing else, and does nothing when imported", () => {
-  it('is imported by every task file, so what it does at import it does in every run', () => {
+describe("the run's context, which every job imports, loads nothing and does nothing when imported", () => {
+  it('is imported by every job module, for its types only', () => {
     const taskFiles = files.filter((f) => f.startsWith(`${JOBS_DIR}/`) && definesATask(f, texts.get(f)!));
     expect(taskFiles.length).toBeGreaterThanOrEqual(17);
     for (const file of taskFiles) {
-      expect(valueImports(file, texts.get(file)!), `${file} does not run through onTriggerDev`).toContain(
-        './run-context.ts: onTriggerDev',
+      const text = texts.get(file)!;
+      expect(text, `${file} does not take its context's type from run-context.ts`).toMatch(
+        /^import type \{[^}]*\bRunContext\b[^}]*\} from '\.\/run-context\.ts';$/m,
       );
+      expect(
+        valueImports(file, text).filter((i) => i.startsWith('./run-context.ts:')),
+        `${file} loads run-context.ts as a value`,
+      ).toEqual([]);
     }
   });
 
-  it('imports no value but the SDK calls it holds: no job module, no pool, no sink', () => {
+  it('imports no value: no SDK, no job module, no pool, no sink', () => {
     expect(texts.has(RUN_CONTEXT), `${RUN_CONTEXT} is not a source file here`).toBe(true);
     expect(
       valueImports(RUN_CONTEXT, texts.get(RUN_CONTEXT)!),
-      `${RUN_CONTEXT} loads something into every run's process. A pass's task comes from the job that\n` +
-        'enqueues one, which decides when the pass\'s module, and its pools and sinks, are loaded (0167 T6).',
+      `${RUN_CONTEXT} loads something into every run's process. A job's module, and its pools and sinks,\n` +
+        'are loaded by its own run entry, in its own process (0167 T6).',
     ).toEqual(Object.keys(RUN_CONTEXT_IMPORTS).sort());
   });
 
@@ -2101,8 +2121,8 @@ describe("the run's context, which every task imports, loads the SDK and nothing
     expect(buildsAPool(RUN_CONTEXT, text)).toBe(false);
   });
 
-  it('sees a job module loaded, by import or import(), and a value imported beside the SDK', () => {
-    const shape = "import { configure, runs } from '@trigger.dev/sdk';\nimport type { X } from './run-delta-sync.ts';\n";
+  it('sees a job module loaded, by import or import(), and a type import as no load', () => {
+    const shape = "import type { X } from './run-delta-sync.ts';\n";
     expect(valueImports('shape.ts', shape)).toEqual(Object.keys(RUN_CONTEXT_IMPORTS).sort());
     expect(valueImports('shape.ts', `${shape}import { runDeltaSync } from './run-delta-sync.ts';`)).toContain(
       './run-delta-sync.ts: runDeltaSync',
@@ -2149,7 +2169,7 @@ function loadedFrom(entry: string): { files: string[]; packages: string[] } {
 
 const PG_BOSS_SPECIFIERS = ['pg-boss', '@openmig/scheduler/pg-boss'];
 
-describe("the worker's runner reads the jobs role's URL alone, its parent loads no job, and no Trigger.dev task loads pg-boss (rule 10)", () => {
+describe("the worker's runner reads the jobs role's URL alone, its parent loads no job, and no job module loads pg-boss (rule 10)", () => {
   it.each(Object.keys(THE_WORKERS_RUNNER).map((f) => [f]))('%s reads exactly what THE_WORKERS_RUNNER says', (file) => {
     expect(texts.has(file), `${file} is on THE_WORKERS_RUNNER and is not a source file here`).toBe(true);
     expect(readers.get(file) ?? [], `${file} reads another database URL than its entry says`).toEqual(THE_WORKERS_RUNNER[file]);
@@ -2177,7 +2197,7 @@ describe("the worker's runner reads the jobs role's URL alone, its parent loads 
     );
   });
 
-  it('nothing a Trigger.dev task loads imports pg-boss, its runner, or the worker’s runner', () => {
+  it('nothing a job module loads imports pg-boss, its runner, or the worker’s runner', () => {
     const taskFiles = files.filter((f) => f.startsWith(`${JOBS_DIR}/`) && definesATask(f, texts.get(f)!));
     expect(taskFiles.length).toBeGreaterThanOrEqual(17);
     const offences: string[] = [];
@@ -2195,11 +2215,11 @@ describe("the worker's runner reads the jobs role's URL alone, its parent loads 
         }
       }
     }
-    expect(offences, 'A Trigger.dev task would load pg-boss: its half of the run context is run-context.ts, which loads the SDK alone.').toEqual([]);
+    expect(offences, 'A job module would load pg-boss itself: its run entry (runner/runs/) hands it the context.').toEqual([]);
   });
 
-  it('no workspace package a task can load reaches pg-boss, but the runner’s own directory', () => {
-    // A task loads packages too (the tick loads @openmig/managed's tick-beat.ts), and those are
+  it('no workspace package a job can load reaches pg-boss, but the runner’s own directory', () => {
+    // A job loads packages too (the tick loads @openmig/managed's tick-beat.ts), and those are
     // listed above, not followed: so no file of any package may import pg-boss at all, but the
     // runner's own, packages/scheduler/src/pg-boss/, which only its subpath exports.
     const offences: string[] = [];
@@ -2210,7 +2230,7 @@ describe("the worker's runner reads the jobs role's URL alone, its parent loads 
       }
     }
     expect(files.filter((f) => f.startsWith('packages/managed/src/')).length).toBeGreaterThan(10);
-    expect(offences, 'A workspace package a Trigger.dev task loads would load pg-boss with it.').toEqual([]);
+    expect(offences, 'A workspace package a job loads would load pg-boss with it.').toEqual([]);
   });
 
   it('sees a re-export as a load: `export … from` loads the module it names', () => {
@@ -2228,7 +2248,7 @@ describe("the worker's runner reads the jobs role's URL alone, its parent loads 
     expect(resolvedFrom('apps/worker/src/runner/main.ts', './worker.ts')).toBe('apps/worker/src/runner/worker.ts');
     expect(resolvedFrom('apps/worker/src/jobs/x.ts', '../runner/pg-boss-context.ts')).toBe('apps/worker/src/runner/pg-boss-context.ts');
     expect(resolvedFrom('apps/worker/src/jobs/x.ts', '@openmig/scheduler/pg-boss')).toBeNull();
-    // The tick, a task, reaches the pass's module by a relative import, and the guard follows it there.
-    expect(loadedFrom('apps/worker/src/jobs/managed-sync-tick.ts').files).toContain('apps/worker/src/jobs/run-delta-sync.ts');
+    // The tick, a job, reaches the module that settles a run by a relative import, and the guard follows it there.
+    expect(loadedFrom('apps/worker/src/jobs/managed-sync-tick.ts').files).toContain('apps/worker/src/jobs/what-a-run-leaves.ts');
   });
 });

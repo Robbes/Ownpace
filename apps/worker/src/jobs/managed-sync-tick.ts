@@ -48,9 +48,8 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schedules } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type RunContext } from './run-context.ts';
+import type { RunContext } from './run-context.ts';
 import { Pool } from 'pg';
 import {
   log,
@@ -101,12 +100,6 @@ import {
   minGapMinutes,
   SELF_HEALING_CATEGORIES,
 } from '@openmig/orchestration/failing-backoff';
-// The pass's task, for the Trigger.dev runner (the definition below). Loaded
-// here, before this file points the sinks at the system role's pool, as it
-// always was: its module opens its own pools when it is imported, and points
-// the process's sinks at them, so loaded during a run it would take them back
-// from this one (workplan 0167 T6).
-import { runDeltaSync } from './run-delta-sync.ts';
 
 // The system role, `ownpace_system`, which spans organisations and is not a
 // superuser (workplan 0138 T3 step 2; managed migration 0033 grants it what
@@ -636,9 +629,8 @@ export async function sharedBeatWrittenByAnother(
 }
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const managedSyncTickRun = leavesAReference(
   'managed-sync-tick',
@@ -654,12 +646,16 @@ export const managedSyncTickRun = leavesAReference(
 
     /**
      * NO PASS WHILE THE OTHER RUNNER'S TICK BEATS (ADR-0054; workplan 0167
-     * T6).
+     * T6, and T9).
      *
      * Each runner serialises a migration's passes on its own queue, and only
      * there, so two runners at once, Trigger.dev and pg-boss, could start two
-     * passes on one migration: two writers. The procedures stop one before
-     * starting the other; this makes a slip loud rather than harmful. The tick
+     * passes on one migration: two writers. Trigger.dev was removed in
+     * alpha.18, and this tick runs on pg-boss alone; it still reads the
+     * Trigger.dev tick's beat, so a plane somebody started from an older tree,
+     * on the same database, makes this tick hold rather than write beside it.
+     * The procedures stop one before starting the other; this makes a slip
+     * loud rather than harmful. The tick
      * beats as its runner, `SYNC_TICK_BEAT_ON`, besides the shared beat, and
      * holds, as under an operator's hold, while the other runner's tick has
      * beaten within `ANOTHER_RUNNER_BEAT_MS`. Holding, it writes its own beat
@@ -677,7 +673,7 @@ export const managedSyncTickRun = leavesAReference(
      * to start passes.
      */
     const ownBeat = SYNC_TICK_BEAT_ON[context.runner.name];
-    const otherRunner = context.runner.name === 'trigger' ? 'pg-boss' : 'trigger';
+    const otherRunner = 'trigger';
     const otherBeat = SYNC_TICK_BEAT_ON[otherRunner];
     const otherRunnerBeats = (await readTickBeat(drizzle(pool), now, otherBeat, ANOTHER_RUNNER_BEAT_MS)) === 'up';
     // The pg-boss half's second rule (0167 T6): a Trigger.dev tick from before
@@ -687,7 +683,7 @@ export const managedSyncTickRun = leavesAReference(
     // else wrote it. Its own two beats are written at one time, so they are
     // equal when this runner wrote both, and only then.
     const sharedBeatIsAnothers =
-      !otherRunnerBeats && context.runner.name === 'pg-boss' && (await sharedBeatWrittenByAnother(pool, now, ownBeat));
+      !otherRunnerBeats && (await sharedBeatWrittenByAnother(pool, now, ownBeat));
     if (otherRunnerBeats || sharedBeatIsAnothers) {
       const summary = { anotherRunner: otherRunner, triggered: 0, ms: Date.now() - startedAt };
       const whose = otherRunnerBeats
@@ -1067,9 +1063,3 @@ export const managedSyncTickRun = leavesAReference(
     return summary;
   },
 );
-
-export const managedSyncTick = schedules.task({
-  id: 'managed-sync-tick',
-  cron: '* * * * *',
-  run: onTriggerDev(managedSyncTickRun, { deltaSync: async () => runDeltaSync }),
-});

@@ -26,7 +26,7 @@
 #      <client-ip> (ops-trust-proxy (b)): a person's address, and nobody's to publish.
 #   3. **By shape**, for connection strings and token-looking strings. This
 #      catches the passwords we could NOT name — a value set directly in the
-#      Trigger.dev dashboard, or one that arrived through a container's own
+#      Trigger.dev dashboard (until alpha.18), or one that arrived through a container's own
 #      environment. Pass 1 alone would have missed exactly those, which are the
 #      ones nobody remembers to add.
 #

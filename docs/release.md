@@ -335,16 +335,11 @@ docker pull ghcr.io/robbes/ownpace-worker:edge
 
 Do it before the next weekly scan and before the alpha.16 tag.
 
-`images.yml` builds no `ownpace-task-base` on a tag. The managed tasks' prebuilt base is
-published from `main` only, as `edge` and `sha-<commit>`, and a release carries it as the
-digest its `apps/worker/trigger.config.ts` names (`TASK_BASE_IMAGE`): so the OTA stack, which
-deploys `main`, and live, which deploys the tag, run the same bytes. `verify` reads that line
-at C through the API and checks the base it names:
-`ghcr.io/robbes/ownpace-task-base` at that index digest has linux/amd64 and linux/arm64; its
-revision label starts with the commit its `sha-` tag names and is an ancestor of C (the compare
-API); and `cosign verify` passes by digest with the exact identity
-`https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/heads/main`, the only ref
-that publishes it. A tag from before the switch pins none, and gets a note.
+Until alpha.18 the managed tasks also ran on a prebuilt base, `ownpace-task-base`, which
+`images.yml` built from `main` only and a release carried as the digest
+`apps/worker/trigger.config.ts` named; `verify` checked it. alpha.18 removed Trigger.dev, the
+base and that check with it (workplan 0167 T9): the jobs run in `ownpace-worker`, verified
+above as the other images are.
 
 **CI.** A tag the Release workflow makes runs no CI: its token's events start
 no push run, and Release dispatches only the three publishers. C's own push

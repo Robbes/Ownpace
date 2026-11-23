@@ -1,42 +1,38 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * WHAT A RUN LEAVES IN TRIGGER.DEV'S OWN DATABASE (workplan 0134, open
- * question 3, answered (a) on 2026-09-27).
+ * WHAT A RUN LEAVES IN THE JOB RUNNER'S OWN RECORDS (workplan 0134, open
+ * question 3, answered (a) on 2026-09-27; the runner pg-boss since workplan
+ * 0167, Trigger.dev removed in alpha.18).
  *
- * The task plane keeps every run's error, output and logs in `triggerdb`, with
- * no limit, and every dump of it carries them (0134 T1 (c)). A tester's words
- * got in through three doors: a failed run's error, discovery's output, and the
- * run's logs. Each can hold a folder or file name, a mailbox name, an address,
- * or the provider's own sentence. So a dump of live's `triggerdb` was a backup
- * of testers' data, and `BACKUP_RETENTION_DAYS=0` was not true.
+ * The runner keeps a failed run's error and a run's output in its own tables
+ * (pg-boss's `pgboss.job`), which every dump of the database carries. A
+ * tester's words could get in through two doors: a failed run's error, and
+ * discovery's output. Each can hold a folder or file name, a mailbox name, an
+ * address, or the provider's own sentence. So a dump would be a backup of
+ * testers' data, and `BACKUP_RETENTION_DAYS=0` would not be true. (Trigger.dev
+ * kept a third door, the run's logs, in its own database, `triggerdb`, while
+ * it ran the jobs; that database went with it.)
  *
- * Now each door lets through a reference and a category instead, as the Test
+ * Each door lets through a reference and a category instead, as the Test
  * button's answer does (0136 T3):
  *
  * - **A failed run's error.** Every task's `run` is wrapped in
  *   {@link leavesAReference}, so whatever it throws leaves as
  *   {@link planeErrorFor}'s error: the task or data type, a category, and a
  *   reference, or one of each for every data type of a pass that failed
- *   ({@link planeErrorForEach}). It has to be done INSIDE `run`: Trigger.dev's `run()` span
- *   records the exception it sees before any `catchError` hook could swap it
- *   (`TriggerTracer.startActiveSpan`, 4.5.16).
+ *   ({@link planeErrorForEach}).
  * - **Discovery's output.** {@link outcomesForThePlane} keeps a failed data
  *   type's category and reference, and drops its error text.
- * - **The run's logs.** `trigger.config.ts` turns Trigger.dev's console
- *   interceptor off, so `log.*` writes to the container's output only, and no
- *   task uses the SDK's `logger`, which writes to the plane directly.
  *
  * The text itself is not lost. It is written to the container's output on a
  * line with the same reference, and it stays in the application's own records
  * where it always was: a pass's run log and status, discovery's own row, a
  * verification run, an apply receipt, a cutover's ledger. The erasure reaches
- * those; it never reached Trigger.dev. `app_event` holds the reference and the
- * category for the operator's log page (0129 T1), and no text: it has no column
- * for any.
+ * those. `app_event` holds the reference and the category for the operator's
+ * log page (0129 T1), and no text: it has no column for any.
  */
 
-import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { PassAbortError, failureSideOf } from '@openmig/core';
 import {
   classifyFailure,
@@ -91,43 +87,32 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * The errors a task throws for a verdict, which fail its run once on
- * Trigger.dev: `AbortTaskRunError`, Trigger.dev's own, and `RunNotRetried`,
- * the pg-boss runner's, which a job may throw in its place. Private: a runner
- * settles a run by its own list (`NOT_RETRIED_ERROR_NAMES`, workplan 0167 T6),
- * and a name added here would change what Trigger.dev retries.
+ * A run's verdict: the error a task throws to fail its run once, never
+ * retried. The worker settles a run by the error's name
+ * (`NOT_RETRIED_ERROR_NAMES` in `@openmig/scheduler/pg-boss`), so the name is
+ * the pg-boss runner's own, `RunNotRetried`. Declared here, not imported from
+ * the runner, so a job's process loads no pg-boss to say it.
  */
-const VERDICT_NAMES: readonly string[] = Object.freeze(['AbortTaskRunError', 'RunNotRetried']);
+export class RunNotRetried extends Error {
+  override name = 'RunNotRetried';
+}
 
 /** A task's own verdict: an error it threw on purpose to fail its run once. */
-const isVerdict = (error: unknown): boolean => error instanceof Error && VERDICT_NAMES.includes(error.name);
-
-/**
- * A refusal from Trigger.dev's own API that its executor would not retry: a 4xx
- * other than 408 and 429 (`TaskExecutor`'s `#handleError`, 4.5.16). Kept, so
- * the error made here is not retried where the one it replaces would not be.
- */
-function isPlaneRefusal(error: unknown): boolean {
-  if (!(error instanceof Error) || error.name !== 'TriggerApiError') return false;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429;
-}
+const isVerdict = (error: unknown): boolean => error instanceof Error && error.name === 'RunNotRetried';
 
 /**
  * The error a task fails with, given the one it threw: the same verdict for
- * Trigger.dev, and none of the words.
+ * the runner, and none of the words.
  *
  * **A DELIBERATE STOP IS NOT RETRIED.** `PassAbortError` is the pass saying "25
  * items failed in a row, the world is broken, stop". Rethrown as an ordinary
- * error it went through `trigger.config.ts`'s default retry (three attempts,
- * 5s/10s/20s apart), so ONE tick produced three failed runs inside a minute
- * against a target that had already said no (live, 2026-09-11: four failed
- * passes inside 13:01, and the only way to halt them was `docker stop` on the
- * worker). `AbortTaskRunError` fails the run ONCE, and the sync tick's
- * failing-backoff ladder spaces the next attempts out. A task's own
- * `AbortTaskRunError`, a verdict such as a refused cutover, stays one too, and
- * so does a refusal Trigger.dev's own API gave, which its executor would not
- * have retried either.
+ * error it went through the runner's default retry (three attempts, 5s/10s/20s
+ * apart), so ONE tick produced three failed runs inside a minute against a
+ * target that had already said no (live, 2026-09-11: four failed passes inside
+ * 13:01, and the only way to halt them was `docker stop` on the worker).
+ * {@link RunNotRetried} fails the run ONCE, and the sync tick's failing-backoff
+ * ladder spaces the next attempts out. A task's own `RunNotRetried`, a verdict
+ * such as a refused cutover, stays one too.
  *
  * **Everything else is still retried**, and that half matters as much: a thrown
  * pool error, an OOM, a provider 500 are all worth another go, and a blanket
@@ -215,7 +200,7 @@ export function planeErrorForEach(failures: readonly [RecordedFailure, ...Record
 /** One failure, as the plane hears it: whether it fails its run once, and its sentence. */
 function sentenceOf({ error, recorded }: RecordedFailure): { readonly failsOnce: boolean; readonly sentence: string } {
   const stopped = error instanceof PassAbortError;
-  const failsOnce = stopped || isVerdict(error) || isPlaneRefusal(error);
+  const failsOnce = stopped || isVerdict(error);
   const what = stopped
     ? 'stopped itself after items failed in a row'
     : failsOnce
@@ -228,7 +213,7 @@ function sentenceOf({ error, recorded }: RecordedFailure): { readonly failsOnce:
 function planeErrorOf(failures: readonly RecordedFailure[]): Error {
   const said = failures.map(sentenceOf);
   const sentence = said.map((s) => s.sentence).join(' ');
-  const planeError = said.some((s) => s.failsOnce) ? new AbortTaskRunError(sentence) : new Error(sentence);
+  const planeError = said.some((s) => s.failsOnce) ? new RunNotRetried(sentence) : new Error(sentence);
   made.add(planeError);
   return planeError;
 }
@@ -255,8 +240,8 @@ export type Afterwards = (end: () => Promise<void>) => void;
  * Every task under `src/jobs` is defined with one (the guard
  * `a-run-that-kept-a-testers-words` reads them all), so a task added later
  * cannot let a tester's words out by forgetting. Each task file exports it as
- * its run on either runner (workplan 0167 T6), which Trigger.dev's definition
- * calls with the context `run-context.ts` makes.
+ * its run, which the pg-boss worker serves (workplan 0167 T6) with the
+ * context `run-context.ts` describes.
  *
  * **WHAT A RUN OPENED IS ENDED AFTER ITS FAILURE IS RECORDED.** The run gets a
  * third argument, {@link Afterwards}, and what it hands over there is ended

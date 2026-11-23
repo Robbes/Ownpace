@@ -60,14 +60,13 @@
  *   It moves live without a copy of what ran before (workplan 0139, the
  *   owner's answer rec-copies (a), 2026-09-28; 0132 T6 step 4). Right before
  *   the checkout, with the hold on and nothing in flight, it runs
- *   `copy-before-update.sh take <tag>`, with `--trigger` when the tag moves
- *   the Trigger.dev pin, and a take that fails refuses the deploy with
- *   nothing moved. The dry run asks the same question, `take --dry-run`, and
- *   takes nothing. What it says at the end names the delete step and day 6.
- *   `--trigger` errs towards taking the task runner's database: a base the
- *   log does not name (`-`), a commit this clone does not have, a tag with no
- *   pin to read, and any base, not only HEAD, whose pin differs each ask for
- *   it (review of 2026-09-29).
+ *   `copy-before-update.sh take <tag>`, and a take that fails refuses the
+ *   deploy with nothing moved. The dry run asks the same question, `take
+ *   --dry-run`, and takes nothing. What it says at the end names the delete
+ *   step and day 6. Until alpha.18 it passed `--trigger` too, for the task
+ *   runner's database, when the tag moved the Trigger.dev pin; alpha.18
+ *   removed Trigger.dev (workplan 0167 T9), so it never does now, whatever
+ *   the tag moves.
  *
  *   It moves live to a tag that cannot keep it. A tag without any of the
  *   scripts live is deployed, checked and kept by (release-tag.sh's list:
@@ -206,7 +205,7 @@ import { fileURLToPath } from 'node:url';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
 import { APP_TEMPLATE, expectedAppHeaders } from './app-headers.mjs';
-import { switchedTo, withoutPlane, withoutSwitch, withoutWorker } from './job-runner-fixtures.ts';
+import { withoutSwitch, withoutWorker } from './job-runner-fixtures.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -791,6 +790,32 @@ function movePin(yml: string, which: 'trigger' | 'zitadel' | 'clickhouse', to: s
   return moved;
 }
 
+/**
+ * managed.yml with Trigger.dev's plane put back, as alpha.16 and alpha.17 had
+ * it (stopped, in profile `trigger`): its three image lines, the version
+ * default in both Trigger.dev builds and ClickHouse's tag and digest, which
+ * are what deploy-live.sh reads of it. alpha.18 removed the plane (workplan
+ * 0167 T9); a release before it, or the way back to one, still has them.
+ */
+function withPlane(yml: string, version = 'v4.8.8', clickhouse = '26.8.37.168'): string {
+  if (yml.includes('${TRIGGER_IMAGE_TAG:-')) return yml;
+  const plane = [
+    '  trigger-api:',
+    `    image: localhost/trigger.dev:\${TRIGGER_IMAGE_TAG:-${version}}-c8ebb4044c16`,
+    '    profiles: ["trigger"]',
+    '  clickhouse:',
+    `    image: clickhouse/clickhouse-server:${clickhouse}@sha256:${'a5'.repeat(32)}`,
+    '    profiles: ["trigger"]',
+    '  trigger-supervisor:',
+    `    image: localhost/supervisor:\${TRIGGER_IMAGE_TAG:-${version}}-f21dbbd335dd`,
+    '    profiles: ["trigger"]',
+    '',
+  ].join('\n');
+  const out = yml.replace(/\nservices:\n/, `\nservices:\n${plane}`);
+  if (out === yml) throw new Error('managed.yml has no services: line this fixture knows');
+  return out;
+}
+
 /** managed.yml as alpha.3 has it: Trigger.dev pulled from ghcr at the same version default, before 0146 T16. */
 function ghcrTrigger(yml: string): string {
   const back = yml.replace(/localhost\/(trigger\.dev|supervisor):(\$\{TRIGGER_IMAGE_TAG:-v[0-9.]+\})-[0-9a-f]{12}/g, 'ghcr.io/triggerdotdev/$1:$2');
@@ -844,12 +869,11 @@ function stage(opts: StageOptions = {}): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
-  // The running release runs Trigger.dev's plane, as these cases were
-  // written for: since the switch is on, managed.yml's default is pg-boss,
-  // so the stage's copy defaults to trigger. The cases of either runner set
-  // their own with switchedTo (workplan 0167 T7).
-  writeFileSync(join(compose, 'managed.yml'), switchedTo('trigger')(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8')));
-  if (opts.runningGhcrTrigger) writeFileSync(join(compose, 'managed.yml'), ghcrTrigger(readFileSync(join(compose, 'managed.yml'), 'utf8')));
+  // The running release's managed.yml is this checkout's: pg-boss, and no
+  // Trigger.dev plane since alpha.18 (workplan 0167 T9). A case about a
+  // release that still had the plane puts it back with withPlane.
+  copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(compose, 'managed.yml'));
+  if (opts.runningGhcrTrigger) writeFileSync(join(compose, 'managed.yml'), ghcrTrigger(withPlane(readFileSync(join(compose, 'managed.yml'), 'utf8'))));
   if (opts.runningYml) writeFileSync(join(compose, 'managed.yml'), opts.runningYml(readFileSync(join(compose, 'managed.yml'), 'utf8')));
   for (const [rel, body] of Object.entries(opts.runningFiles ?? {})) {
     mkdirSync(dirname(join(work, rel)), { recursive: true });
@@ -888,7 +912,7 @@ function stage(opts: StageOptions = {}): Stage {
     if (r.ledger) writeFileSync(join(work, 'packages', 'ledger', 'migrations', r.ledger), 'SELECT 2;\n');
     if (r.managed) writeFileSync(join(work, 'packages', 'managed', 'migrations', r.managed), 'SELECT 2;\n');
     let yml = r.builtTrigger
-      ? switchedTo('trigger')(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8'))
+      ? withPlane(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8'))
       : readFileSync(join(compose, 'managed.yml'), 'utf8');
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
@@ -2480,11 +2504,14 @@ describe("from a checkout before T13a to a tag with the distroless API, the depl
       expect(outcomes()).toEqual([`${ALPHA2.tag} ${s.commit[ALPHA2.tag]} took reversible`, `${ALPHA3.tag} ${commit} did-not-take reversible`]);
 
       // Run again as the tree is: refused before anything moves, naming the
-      // file the procedures put back first.
+      // file. The sentence that said the task deploy strips its newline went
+      // with the task deploy (alpha.18 removed Trigger.dev, workplan 0167 T9);
+      // the procedures put the file back by name.
       const dirty = run(s, [ALPHA3.tag]);
       expect(dirty.status, dirty.out).toBe(1);
       expect(dirty.out).toContain(' M apps/worker/package.json');
-      expect(dirty.out).toContain('git checkout -- apps/worker/package.json');
+      expect(dirty.out).toContain('Look at each (git status, git diff).');
+      expect(dirty.out).not.toMatch(/task deploy/);
       expect(called(s, 'bootstrap')).toHaveLength(1);
 
       // Put back what the task deploy changed, by the procedures' own command,
@@ -2574,15 +2601,16 @@ describe('before the hold is lifted it says whether the deploy can be undone (01
   const ONE_WAY: Array<[string, Release, RegExp]> = [
     ['a migration file in the shared chain', { ...NEXT, ledger: '0002_a_column.sql' }, /packages\/ledger\/migrations\/0002_a_column\.sql/],
     ['a migration file in the managed chain', { ...NEXT, managed: '0002_a_table.sql' }, /packages\/managed\/migrations\/0002_a_table\.sql/],
-    ['the Trigger.dev pin moved', { ...NEXT, trigger: 'v4.9.9' }, /Trigger\.dev[\s\S]*v4\.9\.9/],
+    ['the Trigger.dev pin moved, between two releases that both have the plane', { ...NEXT, trigger: 'v4.9.9' }, /Trigger\.dev[\s\S]*v4\.9\.9/],
     ['the identity provider pin moved', { ...NEXT, zitadel: 'v4.99.1' }, /identity provider[\s\S]*v4\.99\.1/],
-    ['the ClickHouse pin moved', { ...NEXT, clickhouse: '26.99.1.1' }, /moves the ClickHouse pin in managed\.yml: clickhouse\/clickhouse-server:[0-9.]+@sha256:[0-9a-f]{64} -> clickhouse\/clickhouse-server:26\.99\.1\.1@/],
+    ['the ClickHouse pin moved, between two releases that both have the plane', { ...NEXT, clickhouse: '26.99.1.1' }, /moves the ClickHouse pin in managed\.yml: clickhouse\/clickhouse-server:[0-9.]+@sha256:[0-9a-f]{64} -> clickhouse\/clickhouse-server:26\.99\.1\.1@/],
   ];
 
   it.each(ONE_WAY)(
     '%s: one-way',
     (_label, release, names) => {
-      const s = stage({ releases: [release] });
+      // The plane's pins are read only where both releases have it (alpha.16, alpha.17).
+      const s = stage({ releases: [release], runningYml: release.trigger || release.clickhouse ? withPlane : undefined });
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/one-way/);
@@ -2967,12 +2995,14 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
   );
 
   it(
-    "a tag that moves the Trigger.dev pin: the copy holds the task runner's database too (--trigger)",
+    "a tag that moves the Trigger.dev pin, from a release that has the plane: one-way, and still no --trigger (alpha.18 copies no task runner's database)",
     () => {
-      const s = stage({ releases: [{ ...NEXT, trigger: 'v4.9.99' }] });
+      const s = stage({ runningYml: withPlane, releases: [{ ...NEXT, trigger: 'v4.9.99' }] });
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
-      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+      expect(r.out).toMatch(/moves the Trigger\.dev pin in managed\.yml: v4\.8\.8 -> v4\.9\.99/);
+      expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+      expect(r.out).not.toMatch(/--trigger/);
     },
     CASE_MS,
   );
@@ -2981,7 +3011,7 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
     ['a migration', { ...NEXT, ledger: '0002_a_column.sql' }],
     ["the identity provider's pin", { ...NEXT, zitadel: 'v4.99.0' }],
   ] as const)(
-    "a tag that moves %s and not the Trigger.dev pin: no --trigger",
+    'a tag that moves %s: the copy, and no --trigger',
     (_label, release) => {
       const s = stage({ releases: [release] });
       const r = run(s, [NEXT.tag]);
@@ -2992,7 +3022,7 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
   );
 
   it(
-    "a retry after a first deploy that did not take, one-way over what ran before it: that base is named nowhere, so --trigger",
+    'a retry after a first deploy that did not take, one-way over what ran before it: one-way, and no --trigger',
     () => {
       const s = stage({ releases: [{ ...NEXT, ledger: '0002_a_column.sql' }] });
       const first = run(s, [NEXT.tag], { STUB_EXPOSURE_EXIT: '1' });
@@ -3001,45 +3031,48 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
       expect(retry.status, retry.out).toBe(0);
       expect(copies(s)).toEqual([
         `copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`,
-        `copy-before-update take --trigger ${NEXT.tag} head=${s.commit[NEXT.tag]}`,
+        `copy-before-update take ${NEXT.tag} head=${s.commit[NEXT.tag]}`,
       ]);
     },
     CASE_MS,
   );
 
   it(
-    'a deploys.log naming a commit this clone does not have: its pin cannot be read, so --trigger',
+    'a deploys.log naming a commit this clone does not have: cannot be compared, so one-way, and no --trigger',
     () => {
       const s = stage({ releases: [NEXT] });
       mkdirSync(dirname(s.deployLog), { recursive: true });
       writeFileSync(s.deployLog, `2026-09-27T10:00:00Z\t${RUNNING.tag}\t${'c0ffee'.padEnd(40, '0')}\ttook\treversible\n`);
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
-      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+      expect(r.out).toMatch(/cannot be compared with it: c0ffee0+ is not in this clone/);
+      expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
     },
     CASE_MS,
   );
 
   it(
-    "the last deploy that took ran another Trigger.dev pin than HEAD: every base is compared, not only HEAD, so --trigger",
+    'the last deploy that took ran another Trigger.dev pin than HEAD: every base is compared, not only HEAD',
     () => {
       const OTHER = { tag: 'v0.2.0-alpha.3', version: '0.2.0-alpha.3' };
-      const s = stage({ releases: [NEXT, { ...OTHER, trigger: 'v4.9.99' }] });
+      const s = stage({ runningYml: withPlane, releases: [NEXT, { ...OTHER, trigger: 'v4.9.99' }] });
       mkdirSync(dirname(s.deployLog), { recursive: true });
       writeFileSync(s.deployLog, `2026-09-27T10:00:00Z\t${OTHER.tag}\t${s.commit[OTHER.tag]}\ttook\tone-way\n`);
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
-      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+      expect(r.out).toMatch(/moves the Trigger\.dev pin in managed\.yml: v4\.9\.99 -> v4\.8\.8/);
+      expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
     },
     CASE_MS,
   );
 
-  // THE PIN IS THE VERSION, NOT THE IMAGE LINE (0146 T16). What migrates
-  // triggerdb is the Trigger.dev version; the build here changes no schema.
+  // THE PIN IS THE VERSION, NOT THE IMAGE LINE (0146 T16). What migrated
+  // triggerdb was the Trigger.dev version; the build here changed no schema.
+  // Read between two releases that both have the plane (alpha.16, alpha.17).
   it(
-    'a change to the Trigger.dev builds alone, the version kept: reversible, and no --trigger',
+    'a change to the Trigger.dev builds alone, the version kept: reversible',
     () => {
-      const s = stage({ releases: [{ ...NEXT, triggerBuild: true }] });
+      const s = stage({ runningYml: withPlane, releases: [{ ...NEXT, triggerBuild: true }] });
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/reversible/);
@@ -3050,7 +3083,7 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
   );
 
   it(
-    "ghcr's images replaced by the builds at the same version: reversible, and no --trigger",
+    "ghcr's images replaced by the builds at the same version: reversible",
     () => {
       const s = stage({ runningGhcrTrigger: true, releases: [{ ...NEXT, builtTrigger: true }] });
       expect(git(s.root, s.work, 'show', `${RUNNING.tag}:deploy/compose/managed.yml`)).toContain(
@@ -3067,7 +3100,7 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
   );
 
   it(
-    "ghcr's images replaced by the builds at a new version: one-way, and --trigger",
+    "ghcr's images replaced by the builds at a new version: one-way, and no --trigger",
     () => {
       const s = stage({ runningGhcrTrigger: true, releases: [{ ...NEXT, builtTrigger: true, trigger: 'v4.9.99' }] });
       expect(git(s.root, s.work, 'show', `${NEXT.tag}:deploy/compose/managed.yml`)).toContain('image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.9.99}-');
@@ -3075,18 +3108,20 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/one-way/);
       expect(r.out).toMatch(/moves the Trigger\.dev pin in managed\.yml: v[0-9.]+ -> v4\.9\.99/);
-      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+      expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
     },
     CASE_MS,
   );
 
   it(
-    "a tag whose managed.yml names no Trigger.dev image: its pin cannot be read, so --trigger",
+    "a tag that keeps ClickHouse's line and names no Trigger.dev image: its pin cannot be read, so one-way",
     () => {
-      const s = stage({ releases: [{ ...NEXT, noTriggerPin: true }] });
+      const s = stage({ runningYml: withPlane, releases: [{ ...NEXT, noTriggerPin: true }] });
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
-      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+      expect(r.out).toMatch(/cannot be compared with it on the Trigger\.dev pin: managed\.yml at one of the two has no image line naming it/);
+      expect(r.out).toMatch(/one-way/);
+      expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
     },
     CASE_MS,
   );
@@ -3119,10 +3154,10 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
   it(
     'a dry run asks the same question and takes nothing: take --dry-run, and its refusal is the dry run\'s',
     () => {
-      const s = stage({ releases: [{ ...NEXT, trigger: 'v4.9.99' }] });
+      const s = stage({ runningYml: withPlane, releases: [{ ...NEXT, trigger: 'v4.9.99' }] });
       const dry = run(s, ['--dry-run', NEXT.tag]);
       expect(dry.status, dry.out).toBe(0);
-      expect(copies(s)).toEqual([`copy-before-update take --dry-run --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+      expect(copies(s)).toEqual([`copy-before-update take --dry-run ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
 
       const refused = stage({ releases: [NEXT] });
       const r = run(refused, ['--dry-run', NEXT.tag], { STUB_COPY_FAIL: 'a proven copy is still there' });
@@ -3711,121 +3746,55 @@ describe('the script survives its own checkout', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Either runner (workplan 0167 T7)
+// The runner, and Trigger.dev's plane (workplan 0167 T7 and T9)
 // ---------------------------------------------------------------------------
 
 /**
- * THE DEPLOY IN EITHER RUNNER (workplan 0167 T7). From alpha.16 the managed
- * edition runs its jobs on Trigger.dev's plane or on the worker (pg-boss), by
- * `OWNPACE_JOB_RUNNER`, read by `job-runner.sh`. What the deploy must know:
- * a tag whose bring-up runs pg-boss stops the plane, so no copy of triggerdb
- * is taken (no `--trigger`); a tag without the plane (alpha.17) removes it,
- * which on a stack already on pg-boss is not one-way by itself; a tag without
- * a worker (alpha.14, alpha.15, the way back) would leave one running beside
- * the plane its bring-up starts, so it is stopped and removed before the
- * checkout; pg-boss's own queue is part of the drain; and a move of pg-boss's
+ * THE DEPLOY ON ONE RUNNER (workplan 0167 T7 and T9). alpha.16 and alpha.17
+ * ran the managed edition's jobs on Trigger.dev's plane or on the worker
+ * (pg-boss), by `OWNPACE_JOB_RUNNER`, read by `job-runner.sh`. alpha.18 removed
+ * Trigger.dev: pg-boss is the one runner, and the deploy refuses, before
+ * anything is read or moved, an `.env` that still says `trigger` (Trigger.dev
+ * was removed in alpha.18) and a tag from before alpha.16, whose managed.yml
+ * names no switch and whose bring-up would start the plane. A tag that takes
+ * the plane's lines out of managed.yml (alpha.18 over alpha.17) or puts them
+ * back (the way back to alpha.17, where the plane is stopped) is not one-way
+ * by itself; pg-boss's own queue is part of the drain; and a move of pg-boss's
  * version or schema version is one-way.
  */
-describe('the deploy in either runner (0167 T7)', () => {
-  // managed.yml changed by the shared fixtures (job-runner-fixtures.ts), from whatever it holds.
-  const withWorker = switchedTo;
+describe('the deploy on one runner, and the plane it removed (0167 T7, T9)', () => {
   const pgboss = (version: string, schema: number): Record<string, string> => ({
     'packages/scheduler/package.json': `{ "name": "@openmig/scheduler", "dependencies": { "pg-boss": "${version}" } }\n`,
     'pnpm-lock.yaml': `lockfileVersion: '9.0'\n\npackages:\n\n  pg-boss@${version}:\n    resolution: {integrity: sha512-x}\n\nsnapshots:\n\n  pg-boss@${version}(@opentelemetry/api@1.9.1):\n    dependencies: {}\n`,
     'packages/scheduler/src/pg-boss/job-runner.ts': `// stand-in\nconst PG_BOSS_SCHEMA_VERSION = ${schema};\n`,
   });
   const copyCalls = (s: Stage) => called(s, 'copy-before-update');
-  const at = (s: Stage, re: RegExp) => calls(s).findIndex((l) => re.test(l));
+  const REMOVED = /refused: OWNPACE_JOB_RUNNER in .* is trigger, but Trigger\.dev was removed in alpha\.18, so remove the key from the \.env or set it to pg-boss; nothing has run\./;
 
   it(
-    "a tag whose bring-up runs pg-boss is no --trigger take, even where it moves the Trigger.dev pin, and says why",
+    'the runner line: pg-boss here and at the tag, each said with where it came from',
     () => {
-      const s = stage({ releases: [{ ...NEXT, trigger: 'v9.9.9', yml: withWorker('pg-boss') }] });
-      const r = run(s, [NEXT.tag]);
+      const s = stage({ releases: [NEXT], dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=pg-boss\n` });
+      const r = run(s, ['--dry-run', NEXT.tag]);
       expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/the jobs run on trigger here now \(from .*managed\.yml.*\); v0\.2\.0-alpha\.2's bring-up will run them on pg-boss \(from managed\.yml at [0-9a-f]+'s default\)/);
-      expect(r.out).toMatch(/no --trigger: .*runs the jobs on pg-boss, so it starts no Trigger\.dev plane and nothing migrates triggerdb/);
-      expect(copyCalls(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+      expect(r.out).toMatch(/the jobs run on pg-boss here now \(from .*\/\.env\); v0\.2\.0-alpha\.2's bring-up will run them on pg-boss \(from .*\/\.env\)/);
+      const d = stage({ releases: [NEXT] });
+      const dr = run(d, ['--dry-run', NEXT.tag]);
+      expect(dr.out).toMatch(/the jobs run on pg-boss here now \(from .*managed\.yml's default\); v0\.2\.0-alpha\.2's bring-up will run them on pg-boss \(from managed\.yml at [0-9a-f]+'s default\)/);
     },
     CASE_MS,
   );
 
   it(
-    "the same tag with OWNPACE_JOB_RUNNER=trigger in live's .env: its pin moves, so --trigger",
-    () => {
-      const s = stage({
-        releases: [{ ...NEXT, trigger: 'v9.9.9', yml: withWorker('pg-boss') }],
-        dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=trigger\n`,
-      });
-      const r = run(s, [NEXT.tag]);
-      expect(r.status, r.out).toBe(0);
-      expect(copyCalls(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
-    },
-    CASE_MS,
-  );
-
-  it(
-    "a tag without the switch (alpha.14's) runs the plane, whatever live's .env says",
-    () => {
-      const s = stage({
-        releases: [{ ...NEXT, trigger: 'v9.9.9', yml: (y) => withoutSwitch(withoutWorker(y)) }],
-        dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=pg-boss\n`,
-        runningYml: withWorker('pg-boss'),
-      });
-      const r = run(s, [NEXT.tag]);
-      expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/the jobs run on pg-boss here now \(from .*\.env\); v0\.2\.0-alpha\.2's bring-up will run them on trigger \(from the one runner managed\.yml at [0-9a-f]+ has, since it names no switch\)/);
-      expect(copyCalls(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
-    },
-    CASE_MS,
-  );
-
-  it(
-    'a value of the switch that is neither is refused before anything is read or moved',
-    () => {
-      const s = stage({ releases: [NEXT], dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=both\n`, runningYml: withWorker('trigger') });
-      const r = run(s, [NEXT.tag]);
-      expect(r.status).toBe(1);
-      expect(r.out).toMatch(/refused: OWNPACE_JOB_RUNNER in .*\.env is neither trigger nor pg-boss/);
-      expectNothingChanged(s, r.out);
-      expect(called(s, 'docker')).toEqual([]);
-    },
-    CASE_MS,
-  );
-
-  it(
-    'a tag without the plane, from a stack on pg-boss: "removes the Trigger.dev plane", not one-way by itself',
-    () => {
-      const s = stage({
-        runningYml: withWorker('pg-boss'),
-        releases: [{ ...NEXT, yml: withoutPlane }],
-      });
-      const r = run(s, [NEXT.tag]);
-      expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/not one-way by itself \(workplan 0167 T7\):\n {4}over v0\.2\.0-alpha\.1, v0\.2\.0-alpha\.2 removes the Trigger\.dev plane from managed\.yml \(its volumes stay\)/);
-      expect(r.out).toMatch(/reversible: over each of those/);
-      expect(r.out).not.toMatch(/one-way: after/);
-      expect(deployLines(s).at(-1)).toMatch(/\ttook\treversible$/);
-      expect(copyCalls(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
-    },
-    CASE_MS,
-  );
-
-  it(
-    'the same tag onto a stack still on the plane: refused before anything moves, in a dry run too, since nothing would stop the plane',
+    "OWNPACE_JOB_RUNNER=trigger in live's .env: refused before anything is read or moved, in a dry run too (Trigger.dev was removed in alpha.18)",
     () => {
       for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
-        const s = stage({
-          runningYml: withWorker('trigger'),
-          releases: [{ ...NEXT, yml: (y) => withoutPlane(switchedTo('pg-boss')(y)) }],
-        });
+        const s = stage({ releases: [NEXT], dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=trigger\n` });
         const r = run(s, args);
         expect(r.status, r.out).toBe(1);
-        expect(r.out).toMatch(
-          /refused: v0\.2\.0-alpha\.2's managed\.yml has no Trigger\.dev plane, and this stack's jobs still run on it \(OWNPACE_JOB_RUNNER=trigger\): switch to pg-boss with the bring-up first, then deploy\./,
-        );
-        expect(r.out).not.toMatch(/would be (one-way|reversible)/);
+        expect(r.out).toMatch(REMOVED);
         expectNothingChanged(s, r.out);
+        expect(called(s, 'docker')).toEqual([]);
         expect(copyCalls(s)).toEqual([]);
       }
     },
@@ -3833,14 +3802,87 @@ describe('the deploy in either runner (0167 T7)', () => {
   );
 
   it(
+    'a value of the switch that is not pg-boss is refused before anything is read or moved, and not printed',
+    () => {
+      const s = stage({ releases: [NEXT], dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=both\n` });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status).toBe(1);
+      expect(r.out).toMatch(/refused: OWNPACE_JOB_RUNNER in .*\.env is not pg-boss \(its value is not printed\)/);
+      expect(r.out).not.toMatch(/\bboth\b/);
+      expectNothingChanged(s, r.out);
+      expect(called(s, 'docker')).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a tag from before alpha.16, whose managed.yml has no switch: refused before anything moves, since its bring-up would start Trigger.dev's plane",
+    () => {
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const s = stage({ releases: [{ ...NEXT, yml: (y) => withoutSwitch(withoutWorker(withPlane(y))) }] });
+        const r = run(s, args);
+        expect(r.status, r.out).toBe(1);
+        expect(r.out).toMatch(
+          /refused: v0\.2\.0-alpha\.2: managed\.yml at [0-9a-f]+ names no OWNPACE_JOB_RUNNER: it is a release from before alpha\.16, whose jobs run on Trigger\.dev, which this checkout removed \(alpha\.18\); nothing has run\./,
+        );
+        expectNothingChanged(s, r.out, 'reads');
+        expect(copyCalls(s)).toEqual([]);
+      }
+    },
+    CASE_MS,
+  );
+
+  it(
+    "alpha.17 to alpha.18, the plane taken out of managed.yml: a note, not one-way by itself, the copy without --trigger, logged reversible",
+    () => {
+      // The running release has the plane, as alpha.17 does; the tag is this
+      // checkout's managed.yml, as alpha.18 has it.
+      const s = stage({ runningYml: withPlane, releases: [{ ...NEXT, yml: () => readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8') }] });
+      expect(git(s.root, s.work, 'show', `${NEXT.tag}:deploy/compose/managed.yml`)).not.toMatch(/TRIGGER_IMAGE_TAG|clickhouse-server/);
+      const dry = run(s, ['--dry-run', NEXT.tag]);
+      expect(dry.status, dry.out).toBe(0);
+      expect(dry.out).toMatch(/would be reversible/);
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(
+        /not one-way by itself \(workplan 0167 T7\):\n {4}over v0\.2\.0-alpha\.1, v0\.2\.0-alpha\.2 removes the Trigger\.dev plane from managed\.yml; the bring-up removes its stopped containers, and its volumes stay until remove-trigger-plane\.sh removes them/,
+      );
+      expect(r.out).toMatch(/reversible: over each of those/);
+      expect(r.out).not.toMatch(/one-way: after/);
+      // The plane's pins are not compared once the tag has none.
+      expect(r.out).not.toMatch(/on the (Trigger\.dev|ClickHouse) pin|moves the (Trigger\.dev|ClickHouse) pin/);
+      expect(deployLines(s).at(-1)).toMatch(/\ttook\treversible$/);
+      expect(copyCalls(s)).toEqual([
+        `copy-before-update take --dry-run ${NEXT.tag} head=${s.commit[RUNNING.tag]}`,
+        `copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`,
+      ]);
+      expect(called(s, 'bootstrap')).toEqual([`bootstrap --from data head=${s.commit[NEXT.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'the way back, alpha.18 to alpha.17, the plane put back stopped: a note, not one-way by itself',
+    () => {
+      const s = stage({ releases: [{ ...NEXT, yml: withPlane }] });
+      const r = run(s, ['--dry-run', NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(
+        /over v0\.2\.0-alpha\.1, v0\.2\.0-alpha\.2 puts Trigger\.dev's plane back in managed\.yml, in profile trigger and stopped; its bring-up runs the jobs on pg-boss and starts none of it/,
+      );
+      expect(r.out).toMatch(/would be reversible/);
+    },
+    CASE_MS,
+  );
+
+  it(
     'two tags that both have no plane compare nothing on it: reversible',
     () => {
-      const noPlane = (y: string) => withoutPlane(withWorker('pg-boss')(y));
-      const s = stage({ runningYml: noPlane, releases: [NEXT] });
+      const s = stage({ releases: [NEXT] });
       const r = run(s, ['--dry-run', NEXT.tag]);
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/would be reversible/);
-      expect(r.out).not.toMatch(/on the (Trigger\.dev|ClickHouse) pin|moves the (Trigger\.dev|ClickHouse) pin|removes the Trigger\.dev plane/);
+      expect(r.out).not.toMatch(/on the (Trigger\.dev|ClickHouse) pin|moves the (Trigger\.dev|ClickHouse) pin|Trigger\.dev plane|plane back/);
     },
     CASE_MS,
   );
@@ -3884,113 +3926,15 @@ describe('the deploy in either runner (0167 T7)', () => {
   }, CASE_MS);
 
   it(
-    'the worker stopped before a checkout that then failed: the refusal says the stack is not as it was, and how to start it again',
+    'the deploy stops and removes no worker before the checkout: the tag\'s bring-up recreates it',
     () => {
-      const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
-      // The stand-in's `rm` of the worker leaves git's index locked, so the checkout after it fails.
-      const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r', STUB_LOCK_INDEX: join(s.work, '.git', 'index.lock') });
-      expect(r.status, r.out).toBe(1);
-      expect(r.out).toMatch(/refused: git checkout --detach v0\.2\.0-alpha\.2 failed/);
-      expect(r.out).toMatch(/The checkout is as it was\. The stack is not: its worker was stopped and removed before the checkout; \.\/deploy\/compose\/bootstrap-managed\.sh --only app starts it again\./);
-      expect(r.out).not.toMatch(/The checkout and the stack are as they were/);
-      rmSync(join(s.work, '.git', 'index.lock'), { force: true });
-    },
-    CASE_MS,
-  );
-
-  it(
-    "the runner line names where each answer came from",
-    () => {
-      const s = stage({ releases: [{ ...NEXT, yml: withWorker('pg-boss') }], dotEnv: `${LIVE_ENV}OWNPACE_JOB_RUNNER=trigger\n` });
-      const r = run(s, ['--dry-run', NEXT.tag]);
+      const s = stage({ releases: [NEXT] });
+      const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
       expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/the jobs run on trigger here now \(from .*\); v0\.2\.0-alpha\.2's bring-up will run them on trigger \(from .*\/\.env\)/);
+      expect(calls(s).filter((l) => /worker/.test(l))).toEqual([]);
     },
     CASE_MS,
   );
-
-  describe('a tag without a worker, from a stack that has one', () => {
-    it(
-      "this managed.yml defines the worker: stopped and removed with its profile named, after the copy and before the checkout",
-      () => {
-        const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
-        const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
-        expect(r.status, r.out).toBe(0);
-        const stop = at(s, /^docker compose .*--profile jobs stop worker$/);
-        const rm = at(s, /^docker compose .*--profile jobs rm -f worker$/);
-        expect(stop, r.out).toBeGreaterThan(at(s, /^copy-before-update /));
-        expect(rm).toBeGreaterThan(stop);
-        // The bring-up ran at the tag: after the checkout, which came after the stop.
-        expect(at(s, /^bootstrap /)).toBeGreaterThan(rm);
-        expect(called(s, 'bootstrap')).toEqual([`bootstrap --from data head=${s.commit[NEXT.tag]}`]);
-        expect(r.out).toMatch(/the worker stopped and removed before the checkout: v0\.2\.0-alpha\.2's managed\.yml defines none/);
-      },
-      CASE_MS,
-    );
-
-    it(
-      'this managed.yml does not define it: stopped and removed by the name managed.yml gives it',
-      () => {
-        const s = stage({ runningYml: withoutWorker, releases: [NEXT] });
-        const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
-        expect(r.status, r.out).toBe(0);
-        expect(called(s, 'docker').filter((l) => /worker/.test(l))).toEqual([
-          'docker ps -a -q --filter name=^ownpace-live-worker$',
-          'docker stop -t 60 ownpace-live-worker',
-          'docker rm ownpace-live-worker',
-        ]);
-        expect(at(s, /^bootstrap /)).toBeGreaterThan(at(s, /^docker rm ownpace-live-worker$/));
-      },
-      CASE_MS,
-    );
-
-    it(
-      'no worker container: nothing is stopped, and it says so',
-      () => {
-        const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
-        const r = run(s, [NEXT.tag]);
-        expect(r.status, r.out).toBe(0);
-        expect(r.out).toMatch(/defines no worker, and this stack has none: nothing to stop/);
-        expect(calls(s).filter((l) => / (stop|rm) /.test(l))).toEqual([]);
-      },
-      CASE_MS,
-    );
-
-    it(
-      'a worker that does not stop: refused before the checkout, nothing moved',
-      () => {
-        const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
-        const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r', STUB_WORKER_STOP_EXIT: '1' });
-        expect(r.status).toBe(1);
-        expect(r.out).toMatch(/refused: the worker did not stop \(above\), and v0\.2\.0-alpha\.2 defines none\. Nothing was checked out\./);
-        expectNothingChanged(s, r.out, 'reads');
-      },
-      CASE_MS,
-    );
-
-    it(
-      'a dry run says it would, and stops nothing',
-      () => {
-        const s = stage({ runningYml: withWorker('pg-boss'), releases: [{ ...NEXT, yml: withoutWorker }] });
-        const r = run(s, ['--dry-run', NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
-        expect(r.status, r.out).toBe(0);
-        expect(r.out).toMatch(/dry run: v0\.2\.0-alpha\.2's managed\.yml defines no worker, so a deploy would stop and remove this stack's worker/);
-        expect(calls(s).filter((l) => /worker/.test(l))).toEqual([]);
-      },
-      CASE_MS,
-    );
-
-    it(
-      'a tag that defines the worker: it is left to the bring-up',
-      () => {
-        const s = stage({ runningYml: withWorker('pg-boss'), releases: [NEXT] });
-        const r = run(s, [NEXT.tag], { STUB_WORKER_ID: 'w0rk3r' });
-        expect(r.status, r.out).toBe(0);
-        expect(calls(s).filter((l) => /worker/.test(l))).toEqual([]);
-      },
-      CASE_MS,
-    );
-  });
 
   it(
     "pg-boss jobs created, retrying or active outside the schedule queues: refused, as a pass in flight is",
@@ -4018,16 +3962,13 @@ describe('the deploy in either runner (0167 T7)', () => {
   );
 
   it(
-    'in pg-boss mode no sentence names the task deploy; in trigger mode it still does',
+    'no sentence names the task deploy, the plane or set-task-env.sh, even where the tree is left changed',
     () => {
-      const pg = stage({ releases: [{ ...NEXT, yml: withWorker('pg-boss') }] });
-      const r = run(pg, [NEXT.tag], { STUB_BOOTSTRAP_DIRTIES: 'apps/worker/package.json' });
+      const s = stage({ releases: [NEXT] });
+      const r = run(s, [NEXT.tag], { STUB_BOOTSTRAP_DIRTIES: 'apps/worker/package.json' });
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/NOTE: the deploy left the working tree changed/);
-      expect(r.out).not.toMatch(/task deploy/);
-      const tr = stage({ releases: [NEXT] });
-      const t = run(tr, [NEXT.tag], { STUB_BOOTSTRAP_DIRTIES: 'apps/worker/package.json' });
-      expect(t.out).toMatch(/The task deploy is known to strip apps\/worker\/package\.json's last newline\./);
+      expect(r.out).not.toMatch(/task deploy|set-task-env|--profile trigger|trigger-api/);
     },
     CASE_MS,
   );

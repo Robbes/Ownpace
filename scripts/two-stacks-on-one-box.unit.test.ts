@@ -26,6 +26,9 @@
  *               name. Recipes printed for an operator to paste named
  *               `ownpace-managed_` volumes too: 13 lines in six files. Run or
  *               pasted in live's checkout, each would have acted on the OTA stack.
+ *               (Trigger.dev went in alpha.18, workplan 0167 T9, and
+ *               `reset-trigger.sh` with it; `remove-trigger-plane.sh`, which
+ *               removes what its plane left by name, is held the same way.)
  *
  * WHAT IS ASSERTED, in two halves.
  *
@@ -58,10 +61,11 @@
  *   The second half renders `managed.yml` the way Compose does, under two
  *   project names and two sets of port values. The two stacks may share no
  *   container name, volume, network or host port, and every network a stack's
- *   services or task runs join must start with that stack's own project name.
- *   The smoke's runner watcher must render to that stack's runner network. It
- *   then runs the one reader the scripts take the project from, and
- *   `reset-trigger.sh` itself, in each stack's checkout. The reader refuses a
+ *   services join must start with that stack's own project name. (Until
+ *   alpha.18 the task runs Trigger.dev's supervisor started, and the smoke's
+ *   watcher of them, were held to it too.) It then runs the one reader the
+ *   scripts take the project from, and `remove-trigger-plane.sh` itself, in
+ *   each stack's checkout. The reader refuses a
  *   `.env` carrying live's exact marker (`stack-kind.sh`) whose project comes
  *   out as managed.yml's own name: a live checkout that forgot
  *   `COMPOSE_PROJECT_NAME` would otherwise drive the OTA stack with live's
@@ -73,9 +77,10 @@
  *   from a shell that exports live's name: each must refuse before its first
  *   `docker` call and leave the `.env` as it was.
  *
- * WHAT IT DOES NOT MAKE TRUE. Both stacks' `trigger-docker-proxy` hold the
- * host's Docker socket and may create containers on any network (0132 §1).
- * Names keep the stacks apart by configuration. They are not a boundary (D7).
+ * WHAT IT DOES NOT MAKE TRUE. Names keep the stacks apart by configuration.
+ * They are not a boundary (D7): one daemon runs both. (Until alpha.18 both
+ * stacks' `trigger-docker-proxy` also held the host's Docker socket and could
+ * create containers on any network, 0132 §1.)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -238,8 +243,26 @@ interface Compose {
 }
 const compose = parseYaml(read(MANAGED)) as Compose;
 
+/**
+ * The old container names that were also Trigger.dev's service names, until
+ * alpha.18 removed its plane (workplan 0167 T9). A stack that ran alpha.17
+ * still holds containers of those services, found by their compose labels
+ * (bootstrap-managed.sh's plane phase, remove-trigger-plane.sh), so the names
+ * still mean a service: a bare `docker` container command on one is still
+ * refused below, a list of them is not.
+ */
+const PLANE_SERVICE_NAMES = [
+  'trigger-db',
+  'trigger-redis',
+  'trigger-api',
+  'trigger-registry',
+  'trigger-docker-proxy',
+  'trigger-supervisor',
+  'trigger-tls',
+];
+
 /** Names that still mean something on a stack's own network: services and alias defaults. */
-const networkNames = new Set<string>(Object.keys(compose.services));
+const networkNames = new Set<string>([...Object.keys(compose.services), ...PLANE_SERVICE_NAMES]);
 for (const svc of Object.values(compose.services)) {
   if (svc.networks && !Array.isArray(svc.networks)) {
     for (const net of Object.values(svc.networks)) {
@@ -264,7 +287,8 @@ describe('the first half: nothing names a stack that the project does not', () =
       linesOf(sources[0]!).filter(({ line }) => DEFAULT_LINE.test(line)),
       `managed.yml must keep \`name: ${OTA}\`: the OTA stack's volumes and networks are named after it`,
     ).toHaveLength(1);
-    expect(Object.keys(compose.services).length).toBeGreaterThanOrEqual(OLD_CONTAINER_NAMES.length);
+    // Seventeen services carried a fixed name; ten of them are left since the plane went (0167 T9).
+    expect(Object.keys(compose.services).length).toBeGreaterThanOrEqual(OLD_CONTAINER_NAMES.length - PLANE_SERVICE_NAMES.length);
   });
 
   it('every container_name in managed.yml is derived from the project', () => {
@@ -369,7 +393,7 @@ describe('the first half: nothing names a stack that the project does not', () =
     ).toEqual([...wholeDaemon]);
     // AND ONE READS BOTH STACKS ON PURPOSE, each by its own project: the box
     // checks (0142 T3) report every database's size in each stack's postgres
-    // and trigger-db, live's and the OTA stack's, because both fill one disk.
+    // (and trigger-db until alpha.18), live's and the OTA stack's, because both fill one disk.
     // It runs on live only (stack_is_live), takes the OTA stack's name from
     // managed.yml's `name:` rather than writing it, and sends numbers, never a
     // log, an environment or an address (`a-disk-that-says-it-is-filling`
@@ -458,7 +482,7 @@ describe('the first half: nothing names a stack that the project does not', () =
     ).toEqual([]);
   });
 
-  it('the persisted .env and the Trigger.dev dumps default to ~/.persistent/<project>', () => {
+  it('the persisted .env and the dumps default to ~/.persistent/<project>', () => {
     const persisted = allLines.flatMap((l) =>
       [...l.line.matchAll(/\.persistent\/([^\s"'`)]*)/g)].map((m) => ({ ...l, rest: m[1] ?? '' })),
     );
@@ -640,10 +664,11 @@ describe('the second half: the OTA stack and live, rendered side by side', () =>
   it('rendered both stacks in full', () => {
     // Vacuity: an empty rendering shares nothing and would pass every case.
     expect(ota.containers.length).toBe(Object.keys(compose.services).length);
-    expect(ota.volumes.length).toBeGreaterThanOrEqual(10);
+    expect(ota.volumes.length).toBeGreaterThanOrEqual(5);
     expect(ota.networks.length).toBeGreaterThanOrEqual(2);
-    expect(ota.runners.length, 'no DOCKER_RUNNER_NETWORKS found in managed.yml').toBeGreaterThan(0);
-    expect(portVariables.length).toBeGreaterThanOrEqual(8);
+    // No supervisor starts task runs since alpha.18 (0167 T9): nothing names a runner network.
+    expect(ota.runners, 'DOCKER_RUNNER_NETWORKS is back in managed.yml: hold its runs to the project again').toEqual([]);
+    expect(portVariables.length).toBeGreaterThanOrEqual(7);
     expect(live.hostPorts.length).toBe(ota.hostPorts.length);
   });
 
@@ -679,25 +704,6 @@ describe('the second half: the OTA stack and live, rendered side by side', () =>
     it(`every network ${stack.project}'s services join starts with its project name (D9)`, () => {
       const foreign = stack.joined.filter(({ network }) => !network.startsWith(`${stack.project}_`));
       expect(foreign.map(({ service, network }) => `${service} joins ${network}`)).toEqual([]);
-    });
-
-    it(`${stack.project}'s task runs start on a network of its own (D9)`, () => {
-      expect(
-        stack.runners.filter((n) => !n.startsWith(`${stack.project}_`) || !stack.networks.includes(n)),
-        'DOCKER_RUNNER_NETWORKS names a network this stack does not create: its task runs\n' +
-          'would join another stack\'s network, or none',
-      ).toEqual([]);
-    });
-
-    it(`the smoke run in ${stack.project}'s checkout watches ${stack.project}'s task runs, and no others`, () => {
-      // The runner-log watcher tells the two stacks' task runs apart by the one
-      // thing that differs: the network the supervisor starts them on. So its
-      // filter has to render to that stack's DOCKER_RUNNER_NETWORKS.
-      const smoke = read('deploy/compose/smoke-managed.sh');
-      const watcher = /docker ps --filter "network=([^"]+)"[^\n]*grep '\^runner-'/.exec(smoke);
-      expect(watcher, "smoke-managed.sh's runner watcher lists every runner-* container on the daemon").not.toBeNull();
-      const network = interpolate(watcher![1]!, { COMPOSE_PROJECT: stack.project });
-      expect(stack.runners).toContain(network);
     });
   }
 });
@@ -860,17 +866,19 @@ describe("each stack's scripts find their own stack", () => {
 });
 
 /**
- * `reset-trigger.sh`, run for real with a `docker` that only writes down what
- * it was asked. The one script here that removes a volume by name.
+ * `remove-trigger-plane.sh --yes`, run for real with a `docker` that only
+ * writes down what it was asked and answers that every volume and network it
+ * asks after is there. The one script here that removes a volume by name
+ * (workplan 0167 T9).
  */
-function resetTrigger(dotenv: string): { status: number | null; calls: string; err: string } {
-  const dir = mkdtempSync(join(tmpdir(), 'two-stacks-reset-'));
+function removePlane(dotenv: string): { status: number | null; calls: string; err: string } {
+  const dir = mkdtempSync(join(tmpdir(), 'two-stacks-remove-'));
   try {
     const compose = join(dir, 'deploy', 'compose');
     const bin = join(dir, 'bin');
     mkdirSync(compose, { recursive: true });
     mkdirSync(bin);
-    for (const f of ['reset-trigger.sh', 'env-read.sh', 'job-runner.sh', 'stack-kind.sh', 'env-upsert.sh', 'managed.yml']) {
+    for (const f of ['remove-trigger-plane.sh', 'env-read.sh', 'job-runner.sh', 'stack-kind.sh', 'managed.yml']) {
       copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     }
     writeFileSync(join(compose, '.env'), dotenv);
@@ -878,9 +886,8 @@ function resetTrigger(dotenv: string): { status: number | null; calls: string; e
     writeFileSync(join(bin, 'docker'), `#!/usr/bin/env bash\necho "$*" >> "${log}"\n`);
     chmodSync(join(bin, 'docker'), 0o755);
     writeFileSync(log, '');
-    const r = spawnSync('bash', [join(compose, 'reset-trigger.sh'), '--yes'], {
-      // Trigger mode: these scripts work on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
-      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir, OWNPACE_JOB_RUNNER: 'trigger' },
+    const r = spawnSync('bash', [join(compose, 'remove-trigger-plane.sh'), '--yes'], {
+      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir },
       encoding: 'utf8',
     });
     return { status: r.status, calls: readFileSync(log, 'utf8'), err: r.stderr };
@@ -889,16 +896,17 @@ function resetTrigger(dotenv: string): { status: number | null; calls: string; e
   }
 }
 
-describe('reset-trigger.sh removes its own stack\'s Trigger.dev database, and no other', () => {
-  it("in live's checkout, live's volume", () => {
-    const r = resetTrigger(`COMPOSE_PROJECT_NAME=${LIVE}\nTRIGGER_PROJECT_REF=proj_x\n`);
+describe("remove-trigger-plane.sh removes its own stack's volumes, and no other's", () => {
+  it("in live's checkout, live's", () => {
+    const r = removePlane(`COMPOSE_PROJECT_NAME=${LIVE}\n`);
     expect(r.status, r.err).toBe(0);
     expect(r.calls).toContain(`volume rm ${LIVE}_trigger_db_data`);
+    expect(r.calls).toContain(`network rm ${LIVE}_trigger-event-store`);
     expect(r.calls).not.toContain(OTA);
   });
 
   it("in the OTA stack's checkout, the OTA stack's", () => {
-    const r = resetTrigger('TRIGGER_PROJECT_REF=proj_x\n');
+    const r = removePlane('POSTGRES_DB=openmigrate\n');
     expect(r.status, r.err).toBe(0);
     expect(r.calls).toContain(`volume rm ${OTA}_trigger_db_data`);
     expect(r.calls).not.toContain(LIVE);
@@ -909,8 +917,8 @@ describe('reset-trigger.sh removes its own stack\'s Trigger.dev database, and no
  * A script run in the OTA stack's checkout from a shell that still exports
  * live's name (`set -a; . ~/ownpace-live/deploy/compose/.env` earlier in the
  * same shell). `docker` and `pnpm` only write down what they were asked, and
- * `docker` answers the way the other stack would: the queries with live's
- * Trigger.dev key, `port` with live's published port, `logs` with live's link.
+ * `docker` answers `port` the way the other stack would, with live's
+ * published port.
  */
 function inOtaCheckout(
   script: string,
@@ -933,8 +941,6 @@ function inOtaCheckout(
       'POSTGRES_DB=openmigrate',
       'JWT_SECRET=ota-stub-jwt',
       'SECRET_ENCRYPTION_KEY=ota-stub-key',
-      'TRIGGER_PROJECT_REF=proj_OTAref',
-      'TRIGGER_SECRET_KEY=tr_prod_OTAkey',
       '',
     ].join('\n');
     writeFileSync(join(compose, '.env'), envBefore);
@@ -946,14 +952,7 @@ function inOtaCheckout(
         '#!/usr/bin/env bash',
         `echo "docker $*" >> "${log}"`,
         'case "$*" in',
-        '  *"exec -T trigger-db"*)',
-        '    sql="$(cat)"',
-        '    case "$sql" in',
-        "      *information_schema*) printf 'Project.externalRef\\nProject.id\\nProject.name\\nRuntimeEnvironment.apiKey\\nRuntimeEnvironment.slug\\nRuntimeEnvironment.projectId\\n' ;;",
-        "      *) printf 'proj_LIVEref|tr_prod_LIVEkey|live\\n' ;;",
-        '    esac ;;',
         "  *'port postgres'*) echo '0.0.0.0:25432' ;;",
-        "  *' logs '*) echo 'https://trigger.example.test/magic?token=LIVE' ;;",
         'esac',
         'exit 0',
         '',
@@ -963,8 +962,7 @@ function inOtaCheckout(
     chmodSync(join(bin, 'docker'), 0o755);
     chmodSync(join(bin, 'pnpm'), 0o755);
     const r = spawnSync('bash', [join(compose, script), ...args], {
-      // Trigger mode: these scripts work on Trigger.dev's plane, and managed.yml's default is pg-boss (0167 T7).
-      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir, OWNPACE_JOB_RUNNER: 'trigger', ...shell },
+      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir, ...shell },
       encoding: 'utf8',
       input: '',
       timeout: 20_000,
@@ -982,15 +980,15 @@ function inOtaCheckout(
 }
 
 describe("a script run from a shell that names the other stack touches neither", () => {
-  // Every script here that reaches a stack through Compose. The first four
-  // reached it without asking the reader, so they followed the shell into the
-  // other stack; trigger-credentials.sh asked only after it had written.
+  // Scripts that reach a stack through Compose or by its names. operator.sh and
+  // seed-managed.sh reached it without asking the reader, so they followed the
+  // shell into the other stack (as trigger-credentials.sh, trigger-magic-link.sh
+  // and reset-trigger.sh did, until alpha.18 removed them with Trigger.dev);
+  // remove-trigger-plane.sh removes volumes by the project's name.
   const SCRIPTS: Array<[string, string[]]> = [
-    ['trigger-credentials.sh', ['--write']],
     ['operator.sh', ['list']],
     ['seed-managed.sh', []],
-    ['trigger-magic-link.sh', []],
-    ['reset-trigger.sh', ['--yes']],
+    ['remove-trigger-plane.sh', ['--yes']],
   ];
 
   it.each(SCRIPTS)('%s reaches a stack when the shell names none', (script, args) => {

@@ -67,13 +67,15 @@ const LOWER = /\balpha\b/;
 
 /**
  * Prose, with what is not prose taken out first: an address (`…/alpha.html`),
- * a version (`v0.2.0-alpha.1`) and a setting's value (`OWNPACE_STAGE=alpha`)
- * carry the word as an identifier.
+ * a version (`v0.2.0-alpha.1`, or a release by its short name, `alpha.18`, as
+ * the operator's sentences name the release that removed Trigger.dev) and a
+ * setting's value (`OWNPACE_STAGE=alpha`) carry the word as an identifier.
  */
 function prose(text: string): string {
   return text
     .replace(/\bhttps?:\/\/\S+/g, ' ')
     .replace(/\bv?\d+\.\d+\.\d+-alpha(?:\.\d+)?\b/g, ' ')
+    .replace(/\balpha\.\d+\b/g, ' ')
     .replace(/\b[A-Z][A-Z0-9_]*=alpha\b/g, ' ');
 }
 
@@ -257,6 +259,13 @@ describe('3. the sentences written in the source', () => {
       FOR_THE_OPERATOR.some((o) => w.at.startsWith(`${o.file}:`) && w.text === o.text);
     const saying = strings.filter((w) => wrongIn(w.text) && !allowed(w)).map((w) => `${w.at}  ${JSON.stringify(w.text)}`);
     expect(saying, WHY).toEqual([]);
+  });
+
+  it('a release by its short name is an identifier, the phase in a sentence is not', () => {
+    expect(wrongIn('Trigger.dev was removed in alpha.18, so remove the key')).toBe(false);
+    expect(wrongIn('from before alpha.16, not a pg-boss run')).toBe(false);
+    expect(wrongIn('during the alpha, nothing is billed')).toBe(true);
+    expect(wrongIn('the alpha.page and the alpha')).toBe(true);
   });
 
   it("the operator's sentences it leaves alone are still there, so the list cannot go stale", () => {

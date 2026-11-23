@@ -2,7 +2,12 @@
 
 > **In one line:** Sizing the reference machine for the alpha's two stacks: Trigger.dev machine presets, a pass cap in `managed-sync-tick`, per-organisation limits, streamed files to `JmapFileTarget`, a largest-file refusal, plane retention and a measured load rehearsal.
 
-## Status — 2026-11-19 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23: alpha.18 removes Trigger.dev (workplan 0167 T9).** The plane's machine presets
+and its environment limit (`plane-limit.sh`) are gone with it; the pass cap in
+`managed-sync-tick` stands, and the worker holds every queue together to `MAX_PASSES_IN_FLIGHT` + 2
+runs at once (0167, alpha.17). What this workplan measured of the plane's memory is the record.
 
 **2026-11-19: a failed data type no longer ends the pass (T5).** Found that day on the test
 environment: the owner's migration into Cirrux had its calendars failing on every pass, and its

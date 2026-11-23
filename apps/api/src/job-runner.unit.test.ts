@@ -4,17 +4,18 @@
  * THE SWITCH, THE PRODUCER AND THE CANCEL, WITH THE RUNNER MOCKED (workplan
  * 0167 T6; `job-runner.ts`, and the pg-boss half of `enqueue-unless-held.ts`).
  *
- * - `OWNPACE_JOB_RUNNER`: unset, empty or `trigger` is Trigger.dev, `pg-boss`
- *   is pg-boss, and anything else is refused in one sentence.
- * - The enqueue: on Trigger.dev the SDK's `tasks.trigger`, called as before; on
- *   pg-boss the producer's, with `concurrencyKey` as the singleton key, the
+ * - `OWNPACE_JOB_RUNNER`: unset, empty or `pg-boss` is pg-boss; `trigger` is
+ *   refused in the sentence that says alpha.18 removed Trigger.dev (0167 T9),
+ *   and anything else in one sentence of its own.
+ * - The enqueue: the producer's, with `concurrencyKey` as the singleton key, the
  *   idempotency key and its `'15m'` as 900 s, and the tags. A queue the worker
  *   never made fails the enqueue with the producer's sentence.
  * - One producer a process, on `JOBS_DATABASE_URL` and the schema `pgboss`,
  *   with the catalog's queues; refused in one sentence without the URL, which
  *   it never says; made again after a start that failed, and closed.
- * - The cancel: each runner cancels its own refs, refuses the other's, and a
- *   pg-boss run that is gone reads as finished, in a log line.
+ * - The cancel: a pg-boss run's id goes to the producer, a `run_…` ref from
+ *   Trigger.dev's days is refused before anything is asked, and a run that is
+ *   gone reads as finished, in a log line.
  *
  * The same against a real pg-boss is `a-job-on-pg-boss.integration.test.ts`.
  */
@@ -23,11 +24,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { log } from '@openmig/shared';
 import { DISCOVERY_JOIN_WINDOW, DISCOVERY_JOIN_WINDOW_SECONDS, discoveryTriggerOptions } from './routes/migrations/job-resolution.ts';
 
-const { sdk, boss } = vi.hoisted(() => ({
-  sdk: {
-    trigger: vi.fn(async (..._args: unknown[]) => ({ id: 'run_cmtrigger0001' })),
-    cancel: vi.fn(async (..._args: unknown[]) => ({ id: 'run_cmtrigger0001' })),
-  },
+const { boss } = vi.hoisted(() => ({
   boss: {
     made: [] as Array<{ opts: unknown; queues: readonly { name: string }[] }>,
     start: vi.fn(async () => {}),
@@ -40,10 +37,9 @@ const { sdk, boss } = vi.hoisted(() => ({
   },
 }));
 
-// A bare factory, as several of the API's tests write it.
-vi.mock('@openmig/scheduler', () => ({
-  getTriggerClient: () => ({ tasks: { trigger: sdk.trigger }, runs: { cancel: sdk.cancel } }),
-}));
+// A bare factory, as several of the API's tests write it: the API reaches
+// nothing of it to enqueue or cancel since alpha.18 (0167 T9).
+vi.mock('@openmig/scheduler', () => ({}));
 
 vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@openmig/scheduler/pg-boss')>();
@@ -69,7 +65,7 @@ vi.mock('./middleware/auth.ts', () => ({
   withTenantDb: async (_tenantId: string, _source: unknown, fn: (db: unknown) => unknown) => fn({}),
 }));
 
-const { jobRunner, cancelRun, closeJobRunner, pgBossProducer, isPgBossRef, JOBS_SCHEMA, NO_JOBS_URL } = await import(
+const { jobRunner, cancelRun, closeJobRunner, pgBossProducer, isPgBossRef, JOBS_SCHEMA, NO_JOBS_URL, TRIGGER_REMOVED } = await import(
   './job-runner.ts'
 );
 const { enqueueIfFree, pgBossOptionsFor, durationSeconds, isUnreachable, QUEUE_UNREACHABLE } = await import(
@@ -92,7 +88,7 @@ beforeEach(() => {
   delete process.env.OWNPACE_JOB_RUNNER;
   delete process.env.JOBS_DATABASE_URL;
   boss.made.length = 0;
-  for (const f of [sdk.trigger, sdk.cancel, boss.start, boss.stop, boss.enqueue, boss.cancel]) f.mockClear();
+  for (const f of [boss.start, boss.stop, boss.enqueue, boss.cancel]) f.mockClear();
 });
 
 afterEach(async () => {
@@ -105,19 +101,20 @@ afterEach(async () => {
 });
 
 describe('the switch', () => {
-  it.each([
-    [undefined, 'trigger'],
-    ['', 'trigger'],
-    ['  ', 'trigger'],
-    ['trigger', 'trigger'],
-    ['pg-boss', 'pg-boss'],
-  ] as const)('%j is %s', (value, runner) => {
-    expect(jobRunner(value === undefined ? {} : { OWNPACE_JOB_RUNNER: value })).toBe(runner);
+  it.each([[undefined], [''], ['  '], ['pg-boss'], [' pg-boss ']] as const)('%j is pg-boss', (value) => {
+    expect(jobRunner(value === undefined ? {} : { OWNPACE_JOB_RUNNER: value })).toBe('pg-boss');
+  });
+
+  it('`trigger`, an old .env’s, is refused in the sentence that says Trigger.dev was removed (0167 T9)', () => {
+    expect(() => jobRunner({ OWNPACE_JOB_RUNNER: 'trigger' })).toThrow(TRIGGER_REMOVED);
+    expect(TRIGGER_REMOVED).toBe(
+      'OWNPACE_JOB_RUNNER is "trigger", but Trigger.dev was removed in alpha.18, so remove the key from the .env or set it to "pg-boss".',
+    );
   });
 
   it.each(['pgboss', 'Trigger', 'in-process', 'pg-boss,trigger'])('%j is refused in one sentence', (value) => {
     expect(() => jobRunner({ OWNPACE_JOB_RUNNER: value })).toThrow(
-      `OWNPACE_JOB_RUNNER is "${value}", and it may only be "trigger" or "pg-boss" (unset or empty means "trigger").`,
+      `OWNPACE_JOB_RUNNER is "${value}", and it may only be "pg-boss" (unset or empty means "pg-boss").`,
     );
   });
 
@@ -169,7 +166,7 @@ describe('the enqueue on pg-boss', () => {
     process.env.JOBS_DATABASE_URL = JOBS_URL;
   });
 
-  it('enqueues on the task’s queue, through one producer made from the catalog, and never the SDK', async () => {
+  it('enqueues on the task’s queue, through one producer made from the catalog', async () => {
     const asked = discoveryTriggerOptions('t-1', 'm-1', { updatedAt: new Date('2026-11-22T10:00:00Z') });
     boss.enqueue.mockResolvedValueOnce({ runId: UUID, joined: false });
     boss.enqueue.mockResolvedValueOnce({ runId: UUID, joined: true });
@@ -186,7 +183,6 @@ describe('the enqueue on pg-boss', () => {
     expect(JOBS_SCHEMA).toBe('pgboss');
     expect(boss.made[0]!.queues.map((q) => q.name)).toContain('run-discovery');
     expect(boss.made[0]!.queues).toHaveLength(17);
-    expect(sdk.trigger).not.toHaveBeenCalled();
   });
 
   it('a queue the worker never made fails the enqueue, in the producer’s words', async () => {
@@ -297,17 +293,10 @@ describe('the enqueue on pg-boss', () => {
 });
 
 describe('the cancel', () => {
-  it('on Trigger.dev: a run_ ref goes to the SDK, as before', async () => {
-    await cancelRun('run_cmabc123def456');
-    expect(sdk.cancel).toHaveBeenCalledWith('run_cmabc123def456');
+  it('an old .env’s `trigger` is refused, and nothing is asked (0167 T9)', async () => {
+    process.env.OWNPACE_JOB_RUNNER = 'trigger';
+    await expect(cancelRun(UUID)).rejects.toThrow(TRIGGER_REMOVED);
     expect(boss.made).toHaveLength(0);
-  });
-
-  it('on Trigger.dev: a pg-boss ref is refused, and nothing is asked', async () => {
-    await expect(cancelRun(UUID)).rejects.toThrow(
-      `Run ${UUID} is a pg-boss job, and this API runs its jobs on Trigger.dev; it was not cancelled.`,
-    );
-    expect(sdk.cancel).not.toHaveBeenCalled();
   });
 
   it('on pg-boss: a UUID goes to the producer, by the id alone', async () => {
@@ -315,7 +304,6 @@ describe('the cancel', () => {
     process.env.JOBS_DATABASE_URL = JOBS_URL;
     await cancelRun(UUID);
     expect(boss.cancel).toHaveBeenCalledWith(UUID);
-    expect(sdk.cancel).not.toHaveBeenCalled();
   });
 
   it('on pg-boss: a run_ ref is refused before pg-boss is asked', async () => {
@@ -338,7 +326,6 @@ describe('the cancel', () => {
 
   it('a switch it cannot read is refused, and nothing is asked', async () => {
     process.env.OWNPACE_JOB_RUNNER = 'pgboss';
-    await expect(cancelRun('run_x')).rejects.toThrow(/may only be "trigger" or "pg-boss"/);
-    expect(sdk.cancel).not.toHaveBeenCalled();
+    await expect(cancelRun('run_x')).rejects.toThrow(/may only be "pg-boss"/);
   });
 });

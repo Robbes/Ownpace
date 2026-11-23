@@ -11,7 +11,7 @@
 #                          role does not exist yet;
 #   the example's          what managed.env.example carried until 2026-10-05.
 #                          A .env copied from it may hold them still. The
-#                          example now ships the five keys below empty, and
+#                          example now ships the keys below empty, and
 #                          ensure-env-secrets.sh generates them.
 #
 # Sourced, never run, by every script that judges one of these values:
@@ -27,45 +27,25 @@
 # defaults and the migration's literal from their own files, fails when one is
 # missing here, and fails when one of the scripts above spells a value itself.
 #
-# TRIGGER-DB IS ONE OF THE FIVE since 2026-10-05 (0132 T2, step B). Its
-# literal is managed.yml's fallback for an empty TRIGGER_DB_PASSWORD.
-# rotate-db-passwords.sh --check counts it, and --rotate --with-trigger-stores
-# changes it (step A). It was kept out of SHIPPED_PASSWORD_KEYS until the
-# owner had run that on the OTA stack, whose trigger_db_data held the literal
-# and whose .env had no value of its own: refusing it sooner would have
-# stopped the nightly gate. The run was on 2026-10-05 (E2E (managed) #242
-# green, --check 0), and wrote a generated value to that stack's .env.
+# TRIGGER.DEV'S THREE WENT WITH IT (alpha.18, workplan 0167 T9): ClickHouse's,
+# MinIO's and trigger-db's passwords, which were three of the five from
+# 2026-10-05 (0132 T2, step B). Their stores are no longer in managed.yml.
 
 # Postgres: tried against every login role among the owner, app_user,
 # openmigrate and APP_DB_USER (rotate-db-passwords.sh --check).
 SHIPPED_PG=(app_password openmigrate_password change-me-openmigrate)
 SHIPPED_PG_FROM=("the migration's default" "compose's default" "the example's value")
-# ClickHouse: CLICKHOUSE_PASSWORD's.
-SHIPPED_CLICKHOUSE=(password change-me-clickhouse)
-SHIPPED_CLICKHOUSE_FROM=("compose's default" "the example's value")
-# MinIO: MINIO_ROOT_PASSWORD's.
-SHIPPED_MINIO=(very-safe-password change-me-minio)
-SHIPPED_MINIO_FROM=("compose's default" "the example's value")
-# Trigger.dev's own database: managed.yml's fallback for TRIGGER_DB_PASSWORD.
-SHIPPED_TRIGGER_DB='trigger_password'
-SHIPPED_TRIGGER_DB_FROM="compose's default"
 
 # The keys the bring-up refuses on a real address and ensure-env-secrets.sh
 # generates, each with the volume whose existence ends that: "KEY volume".
-# Postgres, trigger-db's included, reads its password when its volume is first
-# initialised, and keeps it. ClickHouse and MinIO read theirs when their
-# containers are recreated. On a stack whose volumes exist, a new value goes
-# through rotate-db-passwords.sh --rotate --with-trigger-stores, which sets the
-# roles and changes the stores, and trigger-api with them. MinIO's volume is
-# minio_data_v2, its store since workplan 0146 T7. stand-up-live.sh
-# keeps a list of its own with the same five (PASSWORDS);
+# Postgres reads its password when its volume is first initialised, and keeps
+# it. On a stack whose volume exists, a new value goes through
+# rotate-db-passwords.sh --rotate, which sets the roles. stand-up-live.sh
+# keeps a list of its own with the same keys (PASSWORDS);
 # a-password-the-repository-knows.unit.test.ts holds the two equal.
 SHIPPED_PASSWORD_KEYS=(
   'POSTGRES_PASSWORD postgres_data'
   'APP_DB_PASSWORD postgres_data'
-  'CLICKHOUSE_PASSWORD clickhouse_data_v2'
-  'MINIO_ROOT_PASSWORD minio_data_v2'
-  'TRIGGER_DB_PASSWORD trigger_db_data'
 )
 
 # shipped_password <value> — 0 when the value is one this repository
@@ -77,7 +57,7 @@ shipped_password() {
   case "$value" in
     '' | change-me* | changeme*) return 0 ;;
   esac
-  for known in "${SHIPPED_PG[@]}" "${SHIPPED_CLICKHOUSE[@]}" "${SHIPPED_MINIO[@]}" "$SHIPPED_TRIGGER_DB"; do
+  for known in "${SHIPPED_PG[@]}"; do
     [ "$value" = "$known" ] && return 0
   done
   return 1

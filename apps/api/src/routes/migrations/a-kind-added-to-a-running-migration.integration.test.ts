@@ -23,10 +23,16 @@ import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
 import { KIND_AFTER_CUTOVER_REFUSAL } from '@openmig/shared';
 
-// Importing the app pulls in the sync routes, which build a Trigger client.
-vi.mock('@openmig/scheduler', () => ({
-  getTriggerClient: () => ({ tasks: { trigger: vi.fn(async () => ({ id: 'run_mock' })) } }),
-}));
+// Importing the app pulls in the sync routes, which enqueue on pg-boss: its
+// producer is stood in for.
+vi.hoisted(() => {
+  // The API refuses to make its producer without a jobs URL (__testing__/a-queue-stand-in.ts).
+  process.env.JOBS_DATABASE_URL ??= 'postgres://ownpace_jobs@jobs.stand-in.invalid:6432/none';
+});
+vi.mock('@openmig/scheduler/pg-boss', async (importOriginal) => {
+  const { aQueueStandIn, aRunId } = await import('../../__testing__/a-queue-stand-in.ts');
+  return aQueueStandIn(await importOriginal(), () => aRunId(1));
+});
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {

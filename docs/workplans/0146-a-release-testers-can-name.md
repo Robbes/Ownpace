@@ -4,6 +4,12 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23: alpha.18 removes Trigger.dev (workplan 0167 T9).** The task image, its base
+(`ownpace-task-base`, T10 and 0119 §3 item 13), the plane's builds here (T16) and the release's
+check of the task base (`release-verify.mjs`) are gone with it; `images.yml` builds `build`,
+`database` and `pgbouncer`. Live's deploy from alpha.17 is reversible by the deploy's own rule: no
+migration, and no pin it compares moves (0167's Status).
+
 **2026-11-23, later: alpha.18's counted nights are waived, in the owner's words, before its fold.**
 The owner, on 2026-11-23, after alpha.17's tag: *"ill waive the waiting for alpha 18, also the 3day
 limit for LCM, so we could take newer verrsion more early."* So `v0.2.0-alpha.18` joins

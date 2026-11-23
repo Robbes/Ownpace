@@ -102,7 +102,7 @@ describe("the managed stacks' containers", () => {
 
   it('are all found, the one-off ones among them, so the cases above are not vacuous', () => {
     expect(Object.keys(managed)).toEqual(
-      expect.arrayContaining(['postgres', 'trigger-api', 'zitadel', 'zitadel-machinekey', 'api', 'web']),
+      expect.arrayContaining(['postgres', 'worker', 'zitadel', 'zitadel-machinekey', 'api', 'web']),
     );
   });
 });

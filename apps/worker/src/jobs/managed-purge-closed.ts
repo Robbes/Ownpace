@@ -56,9 +56,8 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schedules } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { onTriggerDev, type JobRunnerPort, type RunContext } from './run-context.ts';
+import type { JobRunnerPort, RunContext } from './run-context.ts';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
@@ -160,9 +159,8 @@ async function verdictsFor(rows: readonly LiveRunRow[], runner: JobRunnerPort): 
 export const PurgeClosedJobSchema = z.strictObject({});
 
 /**
- * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
- * Trigger.dev task below calls it, and so will the pg-boss worker, each with
- * a context of its own (`run-context.ts`).
+ * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
+ * T6), with the context `run-context.ts` describes.
  */
 export const managedPurgeClosedRun = leavesAReference(
   'managed-purge-closed',
@@ -308,12 +306,3 @@ export const managedPurgeClosedRun = leavesAReference(
     return summary;
   },
 );
-
-export const managedPurgeClosed = schedules.task({
-  id: 'managed-purge-closed',
-  // Hourly, not per-minute: nothing is waiting on this, and an immediate close
-  // promises "as soon as the purge next runs" rather than "instantly" for
-  // exactly this reason. Off the hour, away from the retention pass.
-  cron: '23 * * * *',
-  run: onTriggerDev(managedPurgeClosedRun),
-});

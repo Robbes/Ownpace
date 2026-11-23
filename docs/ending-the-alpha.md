@@ -17,10 +17,10 @@ it, and only then on live.
 ## What the stage switches
 
 The stage reaches four processes by four different routes: the api's environment, from compose;
-the jobs' environment; the web bundle's build; and the site's build. The jobs run on the runner
-`OWNPACE_JOB_RUNNER` names: in pg-boss mode, `managed.yml`'s default, in the `worker` service, whose
-environment compose gives it (`worker.environment` in `managed.yml`); in trigger mode as
-Trigger.dev tasks, whose environment `set-task-env.sh` uploads instead. The table names every
+the jobs' environment; the web bundle's build; and the site's build. The jobs run on pg-boss, in
+the `worker` service, whose environment compose gives it (`worker.environment` in `managed.yml`);
+until alpha.18 they could run as Trigger.dev tasks, whose environment was uploaded to the plane
+instead. The table names every
 place where it enters, held by `scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts`: a file that starts
 reading the stage fails that guard until it has a line here.
 
@@ -35,11 +35,10 @@ reading the stage fails that guard until it has a line here.
 | The month's invoices: `apps/worker/src/jobs/managed-month-invoices.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)`, in the **jobs' environment**, as the sync tasks read it, beside `OWNPACE_BILLING_FROM` | Nobody is invoiced, whatever `OWNPACE_BILLING_FROM` says. The hourly run says so and reads nothing about any organisation. | From the month `OWNPACE_BILLING_FROM` names, and never while it is empty: each organisation's month is invoiced in advance, on its first day at the tier it starts on, and after a move up for the difference (workplan 0111, slice 4). Free is never invoiced. |
 | The invoices' push: `apps/worker/src/jobs/managed-invoice-push.ts` | the same `whyNobodyIsInvoiced`, in the **jobs' environment** | Nothing is sent to Moneybird. The hourly run says so and reads nothing about any organisation. | Each draft is numbered by Moneybird, within the hour it was made, once `OWNPACE_BILLING_FROM` is set and the `MONEYBIRD_*` keys reach the jobs (workplan 0111, slice 5). |
 | The API's alpha rule: `apps/api/src/access-notify.ts` | `alphaFrom(env)`, read by `conditions-not-accepted.ts`, `config-guards.ts` and the access-granted mail | Every member is asked to accept the Alpha conditions, the privacy policy and the terms before any access is stored, once no text is a draft (0139 T3). The access-granted mail says it is the alpha. A blank `BACKUP_RETENTION_DAYS` stops the API from starting. | Nobody is asked to accept anything. The mail does not mention the alpha. A blank `BACKUP_RETENTION_DAYS` is a warning in production (`stand-up-live.sh` still refuses one on live). |
-| The sync tasks: `apps/worker/src/jobs/run-delta-sync.ts` | `process.env.OWNPACE_STAGE`, in the **jobs' environment**: in pg-boss mode the worker's, from compose; in trigger mode the task environment, never compose's | Nothing waits at the data ceiling. Every first copy is marked as the alpha's (`bytes_moved.alpha_bytes`, managed 0040) and never counts. | New first copies wait at the ceiling until a yes (0109 T6). First copies count from here. |
+| The sync tasks: `apps/worker/src/jobs/run-delta-sync.ts` | `process.env.OWNPACE_STAGE`, in the **jobs' environment**: the worker's, from compose | Nothing waits at the data ceiling. Every first copy is marked as the alpha's (`bytes_moved.alpha_bytes`, managed 0040) and never counts. | New first copies wait at the ceiling until a yes (0109 T6). First copies count from here. |
 | The web bundle: `apps/web/src/components/AlphaNote.tsx` | `import.meta.env.VITE_OWNPACE_STAGE`, **baked in at build** through the build arg in `apps/web/Dockerfile` | The Alpha note on every page, the sign-in page and the request page. A visitor without a session reads a line about the Alpha in the guides instead (workplan 0152 T1 (a)). The acceptance screen on load. The tester-guide link. The Billing page's alpha line, and its invoice-details card saying none are needed. | None of these. The invoice-details card asks for the details unless the tier is Free. |
 | The public site: `site/build.mjs` | `process.env.OWNPACE_STAGE` **at build** | The tester guide is built (`/alpha-guide.html`, `/nl/alpha-handleiding.html`). Every page says the Alpha to its visitor in one line under the header (workplan 0152 T1 (a)). | The guide and the line are left out. The Alpha conditions page stays. |
 | Compose: `deploy/compose/managed.yml` | `${OWNPACE_STAGE:-}` from live's `.env` | Handed to the api's environment, to the worker's (`worker.environment`, with `OWNPACE_BILLING_FROM` and the `MONEYBIRD_*` keys), and, as `VITE_OWNPACE_STAGE`, to the web image's build. | The same, empty. The api and the worker take it when their containers are recreated, and the bring-up recreates the worker whenever it replaces the api's container; the web only when its image is rebuilt. |
-| The task environment, in trigger mode only: `deploy/compose/set-task-env.sh` | the value in live's `.env` | Uploaded to the tasks. In pg-boss mode the script refuses to run, and the bring-up's `tasks` phase skips it. | **Deleted** from the tasks; it prints `deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on`. A task container inherits nothing from compose, so nothing else reaches it. |
 | The env check: `deploy/compose/ensure-env-secrets.sh` | `env_value` from the stack's `.env`, as the bring-up's env phase and the gate's Fill step run it | A blank `BACKUP_RETENTION_DAYS` is written as `0` off live, where no copy is kept, so the API can start; on live it writes nothing and names 7 (workplan 0134). | Nothing: the API only warns about a blank line, and a value written during the alpha stays. |
 | The live deploy: `deploy/compose/deploy-live.sh` | `env_value` from live's `.env` (`SITE_STAGE`); and, for its refusal, as Compose hands it to the api, trimmed and in any case | Hands `alpha` to the site build, and refuses a `.env` that sets `MOLLIE_API_KEY` (workplan 0131 §3 T3). | Hands it an empty stage, and takes Mollie's key. Its refusal of a host in `OWNPACE_REACHABLE_HOSTS` holds after the alpha too (workplan 0136 T2). |
 | The OTA site: `deploy/compose/www.yml` | the OTA stack's `.env` | `alpha`, as live's: the tester guide and the line, as on live's site. | Emptied on the OTA stack first, as the rehearsal. |
@@ -66,7 +65,7 @@ the owner's job.
    draft, from the month `OWNPACE_BILLING_FROM` names (workplan 0111, slice 4,
    `managed-month-invoices`), and the hourly push has Moneybird number each one
    (`managed-invoice-push`, slice 5) once live's `MONEYBIRD_*` keys are set and reach the jobs:
-   from compose in pg-boss mode, uploaded by `set-task-env.sh` in trigger mode. The Billing page names the legal number (slice 5b), the invoice details are asked
+   from compose. The Billing page names the legal number (slice 5b), the invoice details are asked
    before leaving Free (decision 14, slice 5e), and a consumer can withdraw (slices 7a to 7c).
    A payment Mollie confirms is booked on its invoice in Moneybird, on the account
    `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` names, and paid and late are read back from Moneybird
@@ -104,8 +103,7 @@ the owner's job.
    - **the financial account Mollie pays out from**, made in live's administration, as
      `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`, and the accountant's answer on how Moneybird's own
      link to Mollie matches the payments and refunds Ownpace books there;
-   - **the API and the worker recreated** (in trigger mode, **`set-task-env.sh` run** instead
-     of the worker), then the check again, which ends `RESULT: ready`.
+   - **the API and the worker recreated**, then the check again, which ends `RESULT: ready`.
    - **a way to hear the money you owe**: the hourly push mails a credit note to pay back by hand,
      a refund that failed and one running late to `NOTIFY_TO`, so live's SMTP settings and
      `NOTIFY_TO` reach the jobs, and lists each on the support screen's *Money to give back*
@@ -137,10 +135,9 @@ release tag, with `deploy-live.sh`* in [managed-bring-up.md](./managed-bring-up.
 
 - the web image must be rebuilt to drop the note;
 - the api container must be recreated to read the new value;
-- the jobs get the stage, the books' keys with it, in pg-boss mode from compose, in the worker's
+- the jobs get the stage, the books' keys with it, from compose, in the worker's
   environment: the deploy's bring-up recreates the worker whenever it replaces the api's
-  container. In trigger mode they get it only from `set-task-env.sh`, which the bring-up's
-  `tasks` phase runs; nothing is uploaded in pg-boss mode;
+  container;
 - the site is rebuilt by the deploy's site step.
 
 `docker compose up -d` alone reaches the api and the worker and nothing else.
@@ -153,92 +150,24 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    `0 pass(es) still in flight`.
 3. **Empty the background tasks' history**, on live only. Privacy §9 keeps their records *"Until
    the end of the Alpha at the latest: then the background tasks start with an empty history."*
-   That history is in every store the task runner writes, not in its own database alone
-   (as read at Trigger.dev v4.7.2; not read again at v4.7.6, so its ClickHouse migrations 049 to
-   054, webhook tables among them, are not checked against this list; v4.8.1 adds no migration of
-   either kind; v4.8.3 adds six Prisma migrations, columns, an index and the drop of a table only
-   the logs-search projector wrote, and ClickHouse 055 and 056, which change a setting of
-   `task_events_search_v2` and drop `task_events_search_v1` with its view, both filled only by
-   the ClickHouse event store this stack does not use; v4.8.4 adds twelve Prisma migrations,
-   columns, indexes, an enum value and two tables of trusted deploys, none of which holds a
-   run, among them `api_keys.last_used_ip`, the address an additional API key made on
-   the dashboard was last used from (the scripts here use the environment's own key, which is
-   not in that table); v4.8.5 adds none, and neither adds a ClickHouse migration; v4.8.6 to
-   v4.8.8 add five tables (OAuth clients of the dashboard's MCP server and their refresh tokens,
-   an environment's encryption policy and keys, and the environment variables a team chose to
-   ignore), columns (an organisation's second-factor settings, who invited a member and how
-   they joined, a deploy's credential kind, a task's execution mode) and enums, none of which
-   holds a run, read from `schema.prisma` at both tags, whose migration files were not listed,
-   and the ClickHouse client the webapp writes with is v4.8.5's, so the list below holds):
-   - **`triggerdb`**, its database: the runs, their payloads, outputs and errors, and their log
-     events (`EVENT_REPOSITORY_DEFAULT_STORE` is not set, so they are kept there).
-   - **ClickHouse**, although runs are not copied there (`RUN_REPLICATION_ENABLED` is not set,
-     which is why its dashboard's Runs page is empty). Every task process sends its host and
-     Node.js metrics, collected every 10 seconds, to `trigger_dev.metrics_v1`, whatever either key
-     says. Each row carries the run's id, its task and attempt, and Trigger.dev's ids of the
-     organisation, project and environment, and is kept 60 days.
-   - **Redis**, the queues: a run that died keeps its id in its queue's set for good.
-   - **MinIO**: a payload of 512 KB or more, or an output of 128 KB or more.
-   - **pg-boss's schema `pgboss`**, in the ledger's database, once the jobs have run on pg-boss:
-     each job's row, with its payload, output and error, in `pgboss.job` (every queue here shares
-     its one partition, `pgboss.job_common`, where `operator.sh jobs failures` and `jobs show`
-     read), the links from a run to the runs it waits for (`pgboss.job_dependency`), each queue's
-     counts over time (`pgboss.queue_stats`) and pg-boss's own warnings (`pgboss.warning`).
-
-   Trigger.dev's four stores hold the alpha's history in either mode: in pg-boss mode the plane is
-   stopped and its volumes are kept, history and all. **In trigger mode**
-   (`OWNPACE_JOB_RUNNER=trigger`) `reset-trigger.sh` removes `triggerdb`, and the two lines after
-   it remove the other three, each container and volume. **In pg-boss mode** `reset-trigger.sh`
-   refuses to run, so the step stops the worker, empties pg-boss's job tables, and removes the
-   four stores by name (the second block below). Nothing of the application is touched: its
-   database, with every organisation, migration, run log and invoice, is another one, and only
-   the task runner uses these four; pg-boss's tables are in that database, in a schema of their
-   own that only `ownpace_jobs` owns, and the step names them and nothing else. Start only once
-   the drain is done and the hold is at least `DEPLOY_LIVE_QUIET_MINUTES` old (5 by default), as `deploy-live.sh` asks before it replaces the
-   task containers. A pass the tick queued just before the hold is in no count until it starts,
-   and the reset would end it halfway, its run left `running` until the tick takes it for dead two
+   Since alpha.18 that history is in one store, **pg-boss's schema `pgboss`**, in the ledger's
+   database: each job's row, with its payload, output and error, in `pgboss.job` (every queue
+   here shares its one partition, `pgboss.job_common`, where `operator.sh jobs failures` and
+   `jobs show` read), the links from a run to the runs it waits for (`pgboss.job_dependency`),
+   each queue's counts over time (`pgboss.queue_stats`) and pg-boss's own warnings
+   (`pgboss.warning`). Until alpha.18 it was also in Trigger.dev's four stores (its database,
+   ClickHouse, Redis and MinIO); those go with the plane's volumes, by name, in the owner's step
+   after the alpha.18 deploy ([managed-bring-up.md](./managed-bring-up.md), *Trigger.dev's plane,
+   removed*), and this step removes them too if they are still there. Nothing of the application
+   is touched: its database, with every organisation, migration, run log and invoice, is the
+   same database, but pg-boss's tables are in a schema of their own that only `ownpace_jobs`
+   owns, and the step names them and nothing else. Start only once the drain is done and the
+   hold is at least `DEPLOY_LIVE_QUIET_MINUTES` old (5 by default), as `deploy-live.sh` asks. A
+   pass the tick queued just before the hold is in no count until it starts, and emptying the
+   tables would end it halfway, its run left `running` until the tick takes it for dead two
    hours later. `./deploy/compose/deploy-live.sh --dry-run <tag>` says
    `the hold is on and nothing is in flight` once both are true. Then, **before the `.env` change
-   in step 4**, in trigger mode:
-
-   ```bash
-   ./deploy/compose/reset-trigger.sh --yes
-   docker compose -f deploy/compose/managed.yml rm -s -f trigger-redis clickhouse minio
-   docker volume rm ownpace-live_redis_data ownpace-live_clickhouse_data_v2 ownpace-live_clickhouse_logs ownpace-live_minio_data_v2
-   ./deploy/compose/ensure-env-secrets.sh
-   ./deploy/compose/bootstrap-managed.sh --from trigger
-   ```
-
-   MinIO's store is `ownpace-live_minio_data_v2`. If `docker volume ls` still lists the older
-   `ownpace-live_minio_data`, it holds the packets of the alpha's first weeks, so remove it in
-   this step too, with `docker volume rm ownpace-live_minio_data`.
-
-   A volume `docker volume rm` refuses is one something still holds: see *If a check fails*. The
-   bring-up starts the task runner and its stores empty (`trigger-api` applies ClickHouse's
-   schema when it starts, and `minio-init` makes MinIO's `packets` bucket) and stops at its
-   `account` phase (exit 2) with the one human step: on live's Trigger.dev dashboard, sign in and
-   name an organisation and a project. Then:
-
-   ```bash
-   ./deploy/compose/bootstrap-managed.sh --from account
-   ```
-
-   It reads the new project's ref and key into live's `.env` and stops once more (exit 2) for the
-   deploy CLI's login under live's own profile: the old login went with the old database. Run the
-   `pnpm -C apps/worker exec trigger login … --profile …` line it prints, from the checkout's root
-   (the CLI is the lockfile's, and the login phase installs it first), then:
-
-   ```bash
-   ./deploy/compose/bootstrap-managed.sh --from login
-   ```
-
-   That finishes: the app brought up with the new key, the task environment uploaded and the
-   tasks deployed, all under the hold. Not `stand-up-live.sh --resume`: it refuses once live's
-   deploy log has a line. The task deploy can strip `apps/worker/package.json`'s last newline, and
-   the deploy in step 5 refuses a tree that is not clean: if `git status` shows only that file,
-   `git checkout -- apps/worker/package.json`.
-
-   In pg-boss mode (`OWNPACE_JOB_RUNNER=pg-boss`, `managed.yml`'s default), at the same moment:
+   in step 4**:
 
    ```bash
    docker compose -f deploy/compose/managed.yml stop worker
@@ -246,42 +175,29 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    SET ROLE ownpace_jobs;
    TRUNCATE pgboss.job, pgboss.job_dependency, pgboss.queue_stats, pgboss.warning;
    SQL
-   docker compose -f deploy/compose/managed.yml --profile trigger rm -s -f trigger-db trigger-redis clickhouse minio
-   docker volume rm ownpace-live_trigger_db_data ownpace-live_redis_data ownpace-live_clickhouse_data_v2 ownpace-live_clickhouse_logs ownpace-live_minio_data_v2
-   ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-live/.env TRIGGER_PROJECT_REF= TRIGGER_SECRET_KEY=
-   ./deploy/compose/ensure-env-secrets.sh
-   ./deploy/compose/bootstrap-managed.sh --from trigger
+   ./deploy/compose/remove-trigger-plane.sh --yes    # Trigger.dev's stores, if still here; else "Nothing to remove."
+   docker compose -f deploy/compose/managed.yml start worker
    ```
 
    The worker stops first, so no run writes while the tables are emptied; its stop gives a run a
    minute to settle, and after the drain there is none. The `TRUNCATE` runs as `ownpace_jobs`,
    the tables' owner, and empties pg-boss's job tables only: the role `ownpace_jobs`, the schema
    `pgboss`, and pg-boss's version, queues and schedules stay, so the worker starts on them as it
-   left them. The plane's containers are stopped already in this mode, so `rm` only removes them;
-   the `.env` line clears the old project's ref and key, as `reset-trigger.sh` does. The bring-up
-   then stops nothing, skips `account`, `login` and `tasks` (`skipped: pg-boss mode`), starts the
-   worker again in its app phase, and starts none of the plane: its stores stay removed until the
-   way back (`OWNPACE_JOB_RUNNER=trigger`, then the bring-up) starts them empty, with the
-   dashboard step and the CLI login of the trigger-mode lines above.
+   left them, and `start` brings the same container back, all under the hold.
+   Not `stand-up-live.sh --resume`: it refuses once live's deploy log has a line.
 
-   - **Why before the `.env` change:** the new project then takes the stage with its task
-     environment, and the deploy's `set-task-env.sh` deletes it and prints the line step 6 reads.
-     Reset after the change, and the new project never held the stage, so that line never comes.
-     And the copy the deploy takes before the update holds the new, empty database. In pg-boss
-     mode nothing is uploaded: the worker takes the empty stage from compose when the deploy
-     recreates it with the api, and check 1 reads it there.
-   - **What still holds the old history, and how long:** a copy before an update taken in the
-     week before, when its tag moved the Trigger.dev pin, until that update is proven and after
-     day 6 at the latest (privacy §9's row for that copy). Live keeps no daily dumps of the task
-     runner's database: `trigger-version.sh` refuses its drill there. No copy or dump takes
-     ClickHouse, Redis or MinIO, and each container removed takes its log with it. pg-boss's
-     tables are in the ledger's database, so a copy or backup of that database taken before
-     step 3 holds their rows as it holds the rest, for as long as privacy §9 keeps that copy. The
-     jobs' own lines are the worker's output, which goes when the deploy replaces its container.
+   - **Why before the `.env` change:** the copy the deploy takes before the update then holds the
+     emptied tables, and the worker takes the empty stage from compose when the deploy recreates
+     it with the api, where check 1 reads it.
+   - **What still holds the old history, and how long:** pg-boss's tables are in the ledger's
+     database, so a copy or backup of that database taken before step 3 holds their rows as it
+     holds the rest, for as long as privacy §9 keeps that copy. A copy before an update taken
+     before alpha.18, for an update that moved the Trigger.dev pin, holds Trigger.dev's database
+     too, until that update is proven and after day 6 at the latest (privacy §9's row for that
+     copy). The jobs' own lines are the worker's output, which goes when the deploy replaces its
+     container.
    - **The OTA stack is not in the promise**, which is live's. A rehearsal there is optional, with
-     its own project's volume names (`ownpace-managed_…`): it costs that stack its dashboard step,
-     and the gate's CLI login (its `TRIGGER_ACCESS_TOKEN`, or the session it restores) was made on
-     the old instance and has to be made again.
+     its own project's names (`ownpace-managed-db`, `ownpace-managed_…`).
 
    *Checks*, step 6, proves it.
 4. **Empty the stage in live's `.env`.** Keep the line and leave it empty, so the next reader sees
@@ -345,26 +261,20 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    ./deploy/compose/deploy-live.sh <tag>       # the same tag
    ```
 
-6. **In trigger mode, read its output for the task environment line:**
-   `[set-task-env] deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on`.
-   Without it, the tasks still hold the alpha: see *If a check fails*. When step 5 ran twice, the
-   line is in the first run's output: the second run finds the stage already deleted and prints
-   no such line. In pg-boss mode there is no such line: check 1 reads the stage from the
-   worker's container.
-7. **Run the checks below, then lift the hold yourself.** Then delete the copy before the update
+6. **Run the checks below, then lift the hold yourself.** Then delete the copy before the update
    once the update is proven, as after every deploy.
 
 ## Checks
 
 Before lifting the hold:
 
-1. **The api reads an empty stage, and in pg-boss mode the worker too.** Read from Docker,
+1. **The api reads an empty stage, and the worker too.** Read from Docker,
    which answers for either API image: the distroless one has no shell to ask
    (docs/managed-bring-up.md, *Reading what the api container was started with*).
 
    ```bash
    docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q api)" | grep '^OWNPACE_STAGE='   # OWNPACE_STAGE=
-   docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q worker)" | grep '^OWNPACE_STAGE='   # OWNPACE_STAGE=, pg-boss mode
+   docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q worker)" | grep '^OWNPACE_STAGE='   # OWNPACE_STAGE=
    ```
 
 2. **The api asks nobody to accept the texts.** Its start log has neither
@@ -388,24 +298,13 @@ Before lifting the hold:
 5. **Billing, as the owner of your own organisation.** The Billing page's panel is titled *What
    this month bills*. Its data line counts from 0 (*Moved in total, counted: 0 GB of 250 GB*), and
    what the alpha moved is on a line of its own.
-6. **The background tasks start with an empty history** (*The switch*, step 3). In trigger mode
-   every store the task runner writes is new: each volume was made in step 3, and the oldest run in `triggerdb`
-   and the oldest metrics row in ClickHouse are younger than the reset, or there are none yet.
-   Both read in UTC. `clickhouse-client` takes the container's own user and password, so none is
-   typed.
+6. **The background tasks start with an empty history** (*The switch*, step 3). Nothing of
+   Trigger.dev's plane is left (`remove-trigger-plane.sh --list` prints nothing), and pg-boss's
+   oldest job is younger than step 3 (the schedules queue new ones once the worker is up), read
+   in UTC:
 
    ```bash
-   docker volume inspect -f '{{.Name}} {{.CreatedAt}}' ownpace-live_trigger_db_data ownpace-live_redis_data ownpace-live_clickhouse_data_v2 ownpace-live_clickhouse_logs ownpace-live_minio_data_v2   # each at step 3
-   docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c 'SELECT min("createdAt") FROM "TaskRun"'   # after the reset, or empty
-   docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "SELECT count(), min(bucket_start) FROM trigger_dev.metrics_v1"   # 0, or an oldest after the reset
-   ```
-
-   In pg-boss mode the plane is not started again, so the same `docker volume inspect` line
-   answers `no such volume` for each of the five, and the two reads of its stores are not run.
-   pg-boss's oldest job is younger than step 3 (the schedules queue new ones once the worker is
-   up):
-
-   ```bash
+   ./deploy/compose/remove-trigger-plane.sh --list    # nothing
    docker exec -i ownpace-live-db sh -c 'psql -X -At -U "$POSTGRES_USER" -d openmigrate' <<'SQL'
    SELECT count(*), min(created_on) FROM pgboss.job;
    SQL
@@ -431,10 +330,8 @@ After lifting the hold, once passes have copied new items:
 
 ## If a check fails
 
-- **The tasks still hold the alpha** (no `deleted OWNPACE_STAGE` line, or `counting` stays 0 while
-  passes copy new items). From `~/ownpace-live`, with live's `.env` already empty, in trigger mode
-  run `./deploy/compose/set-task-env.sh` and read the line. In pg-boss mode (the worker's
-  `OWNPACE_STAGE` still `alpha` in check 1) the worker was not recreated with the new `.env`:
+- **The tasks still hold the alpha** (the worker's `OWNPACE_STAGE` still `alpha` in check 1, or
+  `counting` stays 0 while passes copy new items): the worker was not recreated with the new `.env`:
   `docker compose -f deploy/compose/managed.yml up -d --wait --force-recreate worker`. What moved in between was marked as the
   alpha's and never counts. That errs in the customer's favour, and nothing reverses it.
 - **The api still says `[x]` or asks for acceptance.** The api container was not recreated with
@@ -444,24 +341,10 @@ After lifting the hold, once passes have copied new items:
   with the same tag, after checking `.env` (step 4).
 - **The guide or the line is still on the site.** The site step built with live's old stage, or
   `WWW_LIVE` is not `true`. Check `.env` and run the deploy again.
-- **The history is not empty** (check 6), with the hold still on. A volume made before step 3,
-  or a row older than the reset, is a volume that was not removed (in pg-boss mode, any of the
-  five that still exists). `reset-trigger.sh` says so and
-  exits 1, `docker volume rm` names the one it refused, and
-  `docker ps -a --filter volume=<its name>` names what still holds it.
-  - `ownpace-live_trigger_db_data`: run step 3 again.
-  - A pg-boss job older than step 3: run step 3's pg-boss lines again, from the worker's stop.
-  - One of the others: stop what holds it, then, from `~/ownpace-live`:
-
-    ```bash
-    docker compose -f deploy/compose/managed.yml rm -s -f trigger-supervisor trigger-api trigger-redis clickhouse minio
-    docker volume rm <its name>
-    ./deploy/compose/bootstrap-managed.sh --from trigger
-    ```
-
-    That starts them again and walks the rest with the project the task runner has, so there is
-    no dashboard step. Then the `git checkout` of step 3 if `git status` shows that file, and
-    check 6 again.
+- **The history is not empty** (check 6), with the hold still on. A pg-boss job older than step
+  3: run step 3's lines again, from the worker's stop. A volume of Trigger.dev's plane still
+  listed: `./deploy/compose/remove-trigger-plane.sh` says what holds it (a container of the plane
+  left: `./deploy/compose/bootstrap-managed.sh --only plane` first), then run it with `--yes`.
 
 ## What changes for customers
 
