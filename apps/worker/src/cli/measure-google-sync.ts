@@ -79,7 +79,7 @@ import { sourceCredentialsFor } from '@openmig/orchestration/build-deps-from-map
 import { GOOGLE_CALDAV_SCOPE, googleCalDavPrincipalUrl } from '@openmig/orchestration/google-dav-source-factory';
 import { STORED_GOOGLE_DWD_KEY_NAME } from '@openmig/orchestration/google-dwd';
 import { connectionKindsWithFace } from '@openmig/orchestration/source-face-builders';
-import { collectionCarries, type ProviderClientEnv, type TokenProvider } from '@openmig/shared';
+import { collectionCarries, elementsIn, namesElement, withoutElements, type ProviderClientEnv, type TokenProvider } from '@openmig/shared';
 
 // ---------------------------------------------------------------------------
 // The method guard: what may go to Google's calendars at all
@@ -290,19 +290,43 @@ export function countsOnly(line: string): string {
 // Reading a multistatus: counts, never contents
 // ---------------------------------------------------------------------------
 
-/** An element by its local name, with or without a namespace prefix. */
-const element = (name: string, flags: string): RegExp =>
-  new RegExp(`<(?:[A-Za-z][\\w.-]*:)?${name}\\b[^>]*>([\\s\\S]*?)</(?:[A-Za-z][\\w.-]*:)?${name}\\s*>`, flags);
+/** A namespace prefix at the start of a tag, `C:`. */
+const PREFIX = /^[A-Za-z][\w.-]*:/;
 
-const RESPONSES = element('response', 'gi');
-const PROPSTATS = element('propstat', 'gi');
-const STATUS_ELEMENT = element('status', 'i');
-const SYNC_TOKEN = element('sync-token', 'i');
-const CALENDAR_DATA = element('calendar-data', 'i');
-const HREF = element('href', 'i');
-const RESOURCETYPE = element('resourcetype', 'i');
+/** The elements of a piece of XML with one local name: every one's text, the first one's, or the XML without them. */
+interface Elements {
+  all(xml: string): string[];
+  first(xml: string): string | undefined;
+  outOf(xml: string): string;
+}
+
+/**
+ * An element by its local name, with or without a namespace prefix, case
+ * aside: as `<(?:p:)?name\b[^>]*>([\s\S]*?)</(?:p:)?name\s*>` with the `i` flag
+ * read it, but a tag at a time, in time linear in the answer's length
+ * (`elementsIn`, workplan 0163), since that pattern was quadratic on an
+ * answer that opens the element many times and never closes it.
+ */
+const element = (name: string): Elements => {
+  const opens = (tag: string): boolean => namesElement(tag, name, PREFIX, (rest) => !/^\w/.test(rest), true);
+  const closes = (tag: string): boolean =>
+    tag.startsWith('/') && namesElement(tag.slice(1), name, PREFIX, (rest) => /^\s*$/.test(rest), true);
+  return {
+    all: (xml) => elementsIn(xml, opens, closes).map((found) => found.text),
+    first: (xml) => elementsIn(xml, opens, closes, true)[0]?.text,
+    outOf: (xml) => withoutElements(xml, opens, closes),
+  };
+};
+
+const RESPONSES = element('response');
+const PROPSTATS = element('propstat');
+const STATUS_ELEMENT = element('status');
+const SYNC_TOKEN = element('sync-token');
+const CALENDAR_DATA = element('calendar-data');
+const HREF = element('href');
+const RESOURCETYPE = element('resourcetype');
 /** `<C:calendar/>` in a resourcetype, the spelling the CalDAV source also takes (`calendar-collection`). */
-const A_CALENDAR = /<(?:[A-Za-z][\w.-]*:)?calendar(?:-collection)?(?:\s[^>]*)?\/?>/i;
+const A_CALENDAR = /<(?:[A-Za-z][\w.-]*:)?calendar(?:-collection)?(?:\s[^<>]*)?\/?>/i;
 
 /** The five predefined entities and character references: an href or a token is text inside XML. */
 function decodeXml(text: string): string {
@@ -327,7 +351,7 @@ function escapeXml(text: string): string {
 
 /** The code of the first `<status>` in a piece of XML: `HTTP/1.1 404 Not Found` is 404. */
 function statusCodeIn(xml: string): number | undefined {
-  const text = STATUS_ELEMENT.exec(xml)?.[1];
+  const text = STATUS_ELEMENT.first(xml);
   const code = text ? /^\s*HTTP\/\d(?:\.\d)?\s+(\d{3})\b/i.exec(text)?.[1] : undefined;
   return code === undefined ? undefined : Number(code);
 }
@@ -371,9 +395,8 @@ export function countMultistatus(body: string): MultistatusCounts {
   const members = emptyCounts();
   let carriedData = false;
   let truncated = false;
-  for (const match of body.matchAll(RESPONSES)) {
-    const response = match[1] ?? '';
-    const own = statusCodeIn(response.replace(PROPSTATS, ''));
+  for (const response of RESPONSES.all(body)) {
+    const own = statusCodeIn(PROPSTATS.outOf(response));
     if (own !== undefined) {
       if (own === 507) truncated = true;
       else if (own === 200) members.ok += 1;
@@ -381,29 +404,28 @@ export function countMultistatus(body: string): MultistatusCounts {
       else bump(members.other, String(own));
       continue;
     }
-    const propstats = [...response.matchAll(PROPSTATS)].map((p) => p[1] ?? '');
+    const propstats = PROPSTATS.all(response);
     const found = propstats.filter((p) => statusCodeIn(p) === 200);
     if (found.length > 0) {
       members.ok += 1;
-      if (found.some((p) => (CALENDAR_DATA.exec(p)?.[1] ?? '').trim() !== '')) carriedData = true;
+      if (found.some((p) => (CALENDAR_DATA.first(p) ?? '').trim() !== '')) carriedData = true;
       continue;
     }
     const first = propstats.map(statusCodeIn).find((code) => code !== undefined);
     bump(members.other, first === undefined ? 'no status' : `${first} in propstat`);
   }
   // The multistatus's own token, outside every response.
-  const raw = SYNC_TOKEN.exec(body.replace(RESPONSES, ''))?.[1];
+  const raw = SYNC_TOKEN.first(RESPONSES.outOf(body));
   const token = raw === undefined ? '' : decodeXml(raw).trim();
   return { members, token: token === '' ? undefined : token, carriedData, truncated };
 }
 
 /** The href a property names, when a propstat that says 200 carries it. */
 function hrefOfProperty(body: string, property: string): string | undefined {
-  for (const match of body.matchAll(PROPSTATS)) {
-    const propstat = match[1] ?? '';
+  for (const propstat of PROPSTATS.all(body)) {
     if (statusCodeIn(propstat) !== 200) continue;
-    const value = element(property, 'i').exec(propstat)?.[1];
-    const href = value === undefined ? undefined : HREF.exec(value)?.[1];
+    const value = element(property).first(propstat);
+    const href = value === undefined ? undefined : HREF.first(value);
     if (href !== undefined && href.trim() !== '') return decodeXml(href).trim();
   }
   return undefined;
@@ -417,11 +439,10 @@ function hrefOfProperty(body: string, property: string): string | undefined {
  */
 export function calendarsIn(body: string, homeUrl: string): string[] {
   const found: string[] = [];
-  for (const match of body.matchAll(RESPONSES)) {
-    const response = match[1] ?? '';
-    const href = HREF.exec(response)?.[1];
+  for (const response of RESPONSES.all(body)) {
+    const href = HREF.first(response);
     if (href === undefined || href.trim() === '') continue;
-    if (!A_CALENDAR.test(RESOURCETYPE.exec(response)?.[1] ?? '')) continue;
+    if (!A_CALENDAR.test(RESOURCETYPE.first(response) ?? '')) continue;
     if (!collectionCarries(CalDAVSource.parseComponentSet(response), 'VEVENT')) continue;
     const url = new URL(decodeXml(href).trim(), homeUrl).toString();
     if (url !== homeUrl && !found.includes(url)) found.push(url);

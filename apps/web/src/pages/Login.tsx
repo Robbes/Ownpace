@@ -12,6 +12,7 @@ import { fetchMe } from '../services/session.ts';
 import { rememberSignIn } from '../services/acceptance.ts';
 import { serverMessage } from '../services/api.ts';
 import StatusLink from '../components/StatusLink.tsx';
+import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import AlphaNote from '../components/AlphaNote.tsx';
 import SupportLine from '../components/SupportLine.tsx';
@@ -512,6 +513,11 @@ const Login: React.FC = () => {
           <SupportLine />
           <div>
             <StatusLink />
+          </div>
+          {/* Where to read how far the app is accessible, and report a
+              barrier (workplan 0145 T9 (b)). */}
+          <div>
+            <AccessibilityLink className="text-sm text-gray-600 underline hover:text-gray-800" />
           </div>
           <BuildStamp />
         </div>

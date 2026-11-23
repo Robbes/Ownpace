@@ -56,6 +56,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { carddavMatchAllFilter } from '../packages/shared/src/carddav-query.ts';
+import { asciiLower, elementsIn } from '../packages/shared/src/xml-elements.ts';
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -221,12 +222,18 @@ async function dav(method, url, body, depth) {
  * tell apart from a genuine payload.
  */
 export function measure(xml, dataLocalName) {
-  const responses = [...xml.matchAll(/<(?!\/)[^:>\s]*:?response[\s>]/gi)].length;
-  const paired = new RegExp(
-    `<(?!\\/)[^>]*?${dataLocalName}[^>]*?(?<!\\/)>([\\s\\S]*?)<\\/[^>]*?${dataLocalName}\\s*>`,
-    'gi',
-  );
-  const withData = [...xml.matchAll(paired)].filter((m) => (m[1] ?? '').trim() !== '').length;
+  // No `<` inside a tag's name, so each `<` is tried once (workplan 0163).
+  const responses = [...xml.matchAll(/<(?!\/)[^:<>\s]*:?response[\s>]/gi)].length;
+  // `<(?!\/)[^>]*?name[^>]*?(?<!\/)>([\s\S]*?)<\/[^>]*?name\s*>`, case aside, read a tag
+  // at a time (`elementsIn`, workplan 0163): as a pattern it was quadratic on an answer that
+  // opens the element many times and never closes it, and the server is whatever host the
+  // tester named.
+  const name = asciiLower(dataLocalName);
+  const withData = elementsIn(
+    xml,
+    (tag) => !tag.startsWith('/') && !tag.endsWith('/') && asciiLower(tag).includes(name),
+    (tag) => tag.startsWith('/') && asciiLower(tag.slice(1)).trimEnd().endsWith(name),
+  ).filter((found) => found.text.trim() !== '').length;
   const uids = [...xml.matchAll(/UID:([^\r\n]+)/g)].length;
   return { responses, withData, uids };
 }

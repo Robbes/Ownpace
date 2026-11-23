@@ -56,6 +56,22 @@ describe('CalDAVSource', () => {
       expect(homeSet).toBe('/dav/calendars/user/test/');
     });
 
+    it('reads a body that opens the home set many times and never closes it in linear time (workplan 0163)', () => {
+      // `<p:name[^>]*>([\s\S]*?)<\/p:name>` scanned from every opening tag to the end:
+      // before the change this body took 19 seconds; the bound is far above a linear read.
+      const source = new CalDAVSource(
+        { url: 'https://caldav.example.com/', username: 'test', passwordEnv: 'TEST_PASSWORD' },
+        { httpClient: createMockHttpClient({ status: 207, body: '', headers: {} }) },
+      );
+      const body = '<cal:calendar-home-set>'.repeat(60_000);
+      const started = performance.now();
+      expect((source as any).parseCalendarHomeSetResponse(body)).toBeNull();
+      expect(performance.now() - started).toBeLessThan(1500);
+      // And the href inside, with a closing tag the server spelled in another case.
+      const spelled = '<cal:Calendar-Home-Set><d:href>/dav/calendars/u/</d:href></CAL:calendar-home-set>';
+      expect((source as any).parseCalendarHomeSetResponse(spelled)).toBe('/dav/calendars/u/');
+    });
+
     it('should parse calendar collections from PROPFIND response', async () => {
       const propfindResponse: HttpResponse = {
         status: 207,

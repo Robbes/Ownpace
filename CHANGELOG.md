@@ -11,6 +11,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   it through their own link, and the team screen reads it: a confirmation by somebody whose name
   is said as the person's now reads *Confirmed by ‹name› for ‹person›*. Always false on the
   appliance, which has no person.
+- **An accessibility statement on the site, in English and in Dutch** (workplan 0145 T9 (b)):
+  `accessibility.html` and `nl/toegankelijkheid.html`, linked from every page's footer, from
+  under the app's sign-in page, from its menu, and from the foot of a grant link's page and of a
+  progress link's page, where the managed service also links its privacy policy (an appliance,
+  its owner's service under their own policy, does not). It says
+  the app aims for WCAG 2.2 level AA and does not yet meet it in full, that no independent audit
+  has been done, what it covers (the site, the app at app.ownpace.eu with the pages a link opens,
+  and the appliance's same screens), what 0145 and the screen sweep (0159) did, the gaps still
+  open (a new screen is not announced; *Check*'s help is a hover text), what has not been
+  checked (VoiceOver and TalkBack, 200% zoom, in-app browsers, axe and WebKit in CI), and to write
+  to support@ownpace.eu, answered within five working days, as the privacy policy says. Its
+  *Last reviewed* date is held to the last twelve months by
+  `site/an-accessibility-statement.unit.test.ts`. The owner read both texts and chose to publish
+  them as they are.
 
 ### Changed
 
@@ -29,7 +43,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   whose provider lets the address be kept, for a fee or for a while, stays on the list, since the
   step only proposes. The Microsoft guide keeps *I am also changing my address* for an
   `.onmicrosoft.com` name, or any address the step does not recognise.
-
 - **A new address reaches `SENT-BY`, `DELEGATED-FROM`, `DELEGATED-TO` and `MEMBER` too, and an
   event that was already over keeps every address** (workplan 0168; ADR-0055, amended; the owner,
   2026-11-23: *"yes, since the new address will control the new events. Though perhapse we need
@@ -107,6 +120,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   mail's recipient's address in the log lines themselves. Each line now names the access request or
   the invitation by its id, or what the mail was about; a second knock while a request is still
   open names nobody, since nothing on that anonymous path can read the queue for its id.
+
+### Security
+
+- **A DAV server's answer is read in time linear in its length** (workplan 0163, 2026-11-23). The
+  CalDAV and CardDAV readers, the 207 reader the DAV targets share, the reading of a DAV server's
+  refusal, the Google sync measurement and the DAV target probe took an element out with a pattern of
+  the shape `<name…>([\s\S]*?)</name>`. On an answer that opens the element many times and never
+  closes it, that pattern scans from every opening tag to the end: time quadratic in the answer's
+  length, with nothing capping it. Crafted answers under 1 MB held a test for 15 to 94 seconds
+  where they now take milliseconds. The server is whatever host a person names, so a hostile one
+  could hold a worker that long. They are now read a tag at a time (`elementsIn`, in
+  `@openmig/shared`), and what each reader finds in well-formed tags is unchanged.
+- **The guides' table reader no longer slows on a long run of spaces.** The delimiter-row pattern
+  had two `\s*` side by side at its end. It read only the guides the web app ships, so this is a
+  fix in kind, not one anybody could reach.
+- **Three more patterns no longer build a regular expression from a value**: a calendar
+  invitation's `CN` and `EMAIL`, a mail header by its name, and a WebDAV error's conditions by the
+  root's prefix. Each was linear and reads as before.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 
