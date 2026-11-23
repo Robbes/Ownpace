@@ -4,6 +4,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.18] - 2026-11-23
+
+Self-hosted Trigger.dev leaves the managed edition: every job has run on pg-boss since alpha.16,
+alpha.18's bring-up removes the stopped plane's containers, and its volumes go only by name, with
+`remove-trigger-plane.sh --yes`. The step *Your new address* comes by itself for Microsoft's,
+Apple's and Yahoo's addresses and for the Dutch and Belgian providers', for every
+`.onmicrosoft.com` address, and when the new account's login is on another domain. A new address
+reaches `SENT-BY`, `DELEGATED-FROM`, `DELEGATED-TO` and `MEMBER`, an event already over keeps its
+addresses, and a copy that cannot be guarded, or that was changed in the old account after the
+switch, is counted apart and no longer holds the switch. The site has an accessibility statement
+in English and Dutch, and the privacy policy, still version 1.0, says how a request for access is
+logged. Log lines no longer carry a database error's values, a mail server's refusal or an address
+change's key; a DAV server's answer is read in time linear in its length; each CI run makes its own
+test passwords; and Dependabot's npm group moves imapflow, nodemailer and undici. Live's deploy
+from alpha.17 is one-way: ledger migration 0075 adds a column.
+
 ### Added
 
 - **An address change says whether its own person confirmed it** (workplan 0168, its follow-ups).
@@ -48,9 +64,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **`copy-before-update.sh take --trigger` is refused**: there is no task runner's database to
   copy. A kept copy that holds one keeps it, is deleted and expires as any copy, and nothing
   restores it. `rotate-db-passwords.sh --with-trigger-stores` is refused the same way.
-- **Live's deploy from alpha.17 is reversible.** alpha.17's `deploy-live.sh` takes the copy
+- **Live's deploy from alpha.17 is one-way.** alpha.17's `deploy-live.sh` takes the copy
   without `--trigger`, notes that the release removes the plane from `managed.yml` (its volumes
-  stay), and finds no migration and no changed pin it compares.
+  stay), and finds no changed pin it compares; ledger migration
+  `0075_the_copy_left_after_the_switch` (below) makes the deploy one-way, so its way back is the
+  copy the take makes before the checkout.
 - **The API says a jobs producer that never started when it closes it** (workplan 0163). Closing
   the API's pg-boss producer while its start had failed dropped that failure without a word; the
   press that made it was handed the failure, and the close now logs it once, at warn, through
@@ -64,8 +82,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   (`hotmail.nl`, `live.be`, `yahoo.de`, …), so most of those rest on Thunderbird's ISP database,
   and say so. Each domain is matched whole, so `hotmail.example.com` proposes nothing; a domain
   whose provider lets the address be kept, for a fee or for a while, stays on the list, since the
-  step only proposes. The Microsoft guide keeps *I am also changing my address* for an
-  `.onmicrosoft.com` name, or any address the step does not recognise.
+  step only proposes. The Microsoft guide keeps *I am also changing my address* for any address
+  the step does not recognise.
 - **A new address reaches `SENT-BY`, `DELEGATED-FROM`, `DELEGATED-TO` and `MEMBER` too, and an
   event that was already over keeps every address** (workplan 0168; ADR-0055, amended; the owner,
   2026-11-23: *"yes, since the new address will control the new events. Though perhapse we need
@@ -118,6 +136,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   itself are not. The Microsoft guide, in both languages, no longer sends anybody to the box for
   an `.onmicrosoft.com` name, says when the step asks by itself, and names the country domains
   local versions, as the owner worded the Dutch.
+
+- **The npm minor-and-patch group, 6 updates** (workplan 0119; Dependabot, #2086): at run time
+  imapflow 2.12.2 and nodemailer 10.6.1 for the connectors, and undici 8.13.0 for the managed
+  edition's check of the hosts it is asked to reach; in the web bundle `@tanstack/react-query`
+  5.108.2 and lucide-react 1.77.0, with `@tanstack/react-query-devtools` 5.108.2, whose styles no
+  longer come from goober. All six are past the three-day floor; taken after CI and E2E
+  (self-hosted, on Postgres and on PGlite, and managed) were green on it.
 
 ### Removed
 
@@ -231,9 +256,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `STALWART_TARGET_PASSWORD`, and `deploy/compose/dev.yml` reads `NEXTCLOUD_ADMIN_PASSWORD`; each
   keeps its old value as a developer's default. A guard fails any workflow that sets a credential
   to a literal.
-
-### Security
-
 - **The test mail server's krb5 and zlib findings wait for Stalwart's next release; the Dockerfile
   rules an outside check read stay as decided** (workplan 0166 T9; docs only). An outside,
   read-only check of 2026-11-23 reported a high vulnerability with a fix in the Stalwart image the

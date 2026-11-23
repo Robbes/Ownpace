@@ -4,6 +4,69 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, evening: the fold for `v0.2.0-alpha.18` (T2).** `package.json` and the API
+contract say `0.2.0-alpha.18`, `scripts/release-line.json` lists it, and everything under
+[Unreleased] moves to its section, dated 2026-11-23, under a summary; [Unreleased] stays, empty.
+alpha.18 carries what `main` merged after alpha.17's C, `5b51a82b`, the commit its tag names:
+19 pull requests, merged on 2026-11-23 from 10:05 to 19:39 UTC, after the
+tag. Dependabot's npm group (#2086) gets its entry at the end of alpha.18's Changed; its move of
+`github/codeql-action/upload-sarif` (#2085) runs in CI only and gets none, as no move of that
+action has. Two entries' words change: *Live's deploy from alpha.17 is reversible* becomes
+one-way, by ledger migration 0075 (#2080), as 0167's decision 3 already says; and the domain
+list's entry (#2078) no longer keeps *I am also changing my address* for an `.onmicrosoft.com`
+name, which the step now asks about by itself (#2084).
+
+- the records of alpha.17's release, with alpha.18's counted nights waived in the owner's words
+  (#2069);
+- workplan 0168: its follow-ups, six defects found on the way and whether a change's own person
+  confirmed it (#2070); 154 domains of Microsoft, Apple, Yahoo and the Dutch and Belgian
+  providers that a person cannot take along (#2078); `SENT-BY`, `DELEGATED-FROM`,
+  `DELEGATED-TO` and `MEMBER` following the new address, and an event already over keeping its
+  addresses (#2079); a copy that cannot be guarded, or that was changed in the old account after
+  the switch, counted apart and no longer holding the switch, with ledger migration 0075 (#2080);
+  and the step asking by itself when the new login is on another domain, and about every
+  `.onmicrosoft.com` address (#2084);
+- workplan 0167 T9, self-hosted Trigger.dev removed from the managed edition (#2083);
+- a database fault's values kept out of the server log (#2077), and a database error's message,
+  a mail server's refusal and the appliance's failure line saying no value (#2081);
+- fourteen swallowed errors (#2072), the door-matching pattern built once (#2073), a DAV server's
+  answer read in time linear in its length (#2074), and each CI run's own test passwords (#2071);
+- the accessibility statement in English and Dutch, with the progress page's link to the privacy
+  policy (#2076), and the privacy policy's §4.5 on how a request for access is logged (#2082);
+- an outside check's findings on the Stalwart base and three Dockerfiles, read and kept, Stalwart's
+  move set for alpha.19 on the owner's answer (#2075), and a race in the worker's memory test
+  fixed (#2087);
+- Dependabot's npm minor-and-patch group, 6 updates (#2086), and `github/codeql-action/upload-sarif`
+  4.39.4 (#2085).
+
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`.
+- **In the nights' place,** waived for alpha.18 (*"ill waive the waiting for alpha 18, also the
+  3day limit for LCM, so we could take newer verrsion more early."*, #2069): E2E (managed) and
+  E2E (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at a time, beside C's
+  push runs and its Windows smoke.
+- **Owed before the tag:** C's checks, its push runs and its Windows smoke, the image scans, and
+  the three E2E lanes at C, one at a time; then the Release run, which the owner starts from their
+  own account, with `commit` set to C and `waive_nights` set to the reason in their own words, and
+  the approval in the `release` environment.
+- **Live's deploy** goes from alpha.17, which live runs since 2026-11-23 at 19:11:57 UTC.
+  It is **one-way** by the deploy's own rule: between alpha.17's C and this one, ledger
+  migration `0075_the_copy_left_after_the_switch` is added (`item.address_left_at`, additive), and
+  no managed migration. The T9 entry below calls the deploy reversible; it was written before that
+  migration reached its branch. The identity provider's pin (Zitadel `v4.20.4`) is as it was, and
+  the Trigger.dev and ClickHouse pins leave with the plane, so the deploy compares no Trigger.dev
+  pin and its take needs no `--trigger` (0167's decision 3). alpha.17's `deploy-live.sh` notes
+  that the release removes the plane from `managed.yml`, its volumes kept; alpha.18's bring-up
+  removes the plane's stopped containers by their labels in its `plane` phase and, with no demo
+  on live, skips its smoke, so the deploy's sheet checks that no plane container is left. The
+  plane's volumes and networks stay until the owner runs `remove-trigger-plane.sh --yes` once
+  alpha.18 is proven (docs/managed-bring-up.md, "Trigger.dev's plane, removed"). Live's `.env`
+  must not say `OWNPACE_JOB_RUNNER=trigger`, which alpha.18 refuses; the sheet's first block
+  checks. live keeps the copy alpha.17's deploy took (2026-11-23 at 19:09:31 UTC, alpha.16's
+  databases, not proven, since no pass can run while live's only organisation is closed; the copy
+  before alpha.14 was deleted first, on the owner's yes); while it is there a take keeps it and takes no other, so the deploy's sheet asks the owner whether to
+  delete it first, so that the take copies alpha.17's databases. The worker's memory rule is
+  alpha.17's.
+
 **2026-11-23: alpha.18 removes Trigger.dev (workplan 0167 T9).** The task image, its base
 (`ownpace-task-base`, T10 and 0119 §3 item 13), the plane's builds here (T16) and the release's
 check of the task base (`release-verify.mjs`) are gone with it; `images.yml` builds `build`,
