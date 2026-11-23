@@ -2,7 +2,58 @@
 
 > **In one line:** The web app on phones, screen readers and in-app browsers: phone menu focus, `CreateMapping` wizard focus, the consent popup opened on the press, grant page language, ARIA state, axe and WebKit tests, an accessibility statement.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-23 (update this block at the end of every session)
+
+**2026-11-23, build: T9 (b), the statement, on branch
+`claude/ownpace-public-readiness-y7orc6-accessibility-statement`, not merged.** An outside,
+read-only check of this repository (at `5b51a82b`) reported the statement missing. Built ahead of
+the order in §4, which put T9 (b) after 0139's legal pass; the Act question (open question 5)
+stays with that pass, and the statement says nothing about the Act.
+
+- **The pages.** `site/pages/en/accessibility.md` and `site/pages/nl/toegankelijkheid.md`, page key
+  `accessibility` in `site/build.mjs` (`PAGE_KEYS`, `SOURCE`, `META`) and `site/copy.mjs` (`files`,
+  `nav`), written to `accessibility.html` and `nl/toegankelijkheid.html`. From `site/pages/`, not
+  `site/legal/`: it is not a legal text (§2, D4), nobody accepts it, and it has no *Version* line.
+  The site's footer links it on every page, beside Privacy and Terms; the layout's language switch
+  links each to the other.
+- **What it says.** WCAG 2.2 level AA, *aimed for*, not met in full, with no independent audit
+  (0011's is still open). The scope: the site, the app at app.ownpace.eu with the grant and
+  progress pages a link opens, and the appliance, which shows the same screens; the identity
+  provider's sign-in page and Google's, Microsoft's and Dropbox's consent screens are named as
+  not ours. What was done: T1, T3 (a), T4, T7 (a), T8 (a) and 0159's sweep, with its axe numbers
+  (§3 there). **The known gaps**, read against the code on 2026-11-23, each from an open row:
+  - *a new screen is not announced*: T3 (b)'s focus half. Each screen's title is 0159 T1's
+    (#1613); focus on a route change is still left where it was (`NewPageAtTheTop.tsx`'s header);
+  - *some help only appears on hover*: T7 (b). `Verify.tsx` still gives the verdict and evidence
+    help, and *not measured*, only as `title`; the other `title={t(…)}` uses (61 in shipped
+    files) have not been read through.
+
+  **Not checked yet**: T10's walk with VoiceOver and TalkBack and its 200% step (⏳ owner), the
+  in-app browsers (T10, 0140 T3), and T8 (b) and (c), axe and WebKit in CI (open question 4).
+  **Not listed as gaps**, because the code shows them done: T1's skip link (0159 T1, #1613,
+  `nav.skipToContent`), and T2 as far as it still applies: the chooser cards carry `aria-pressed`
+  (`FrontDoorChooser.tsx`), Finish's states are in words (`a-finish-state-said-in-words`), and
+  the wizard whose step labels T2 named retired (0153 D5); *Start a migration* says *Step n of
+  m* in text. T2's and T1's rows are left as they were for whoever closes them.
+  The contact is `SUPPORT_EMAIL` (`site/prices.mjs`), the address 0144 T6 and the privacy policy
+  use; the five working days are privacy §1's own words. *Last reviewed: 2026-11-23*.
+- **The app links it** through `apps/web/src/services/accessibility-link.ts` (a table per
+  language on `legalSiteFrom`'s origin, as `tester-guide-link.ts` does it) and
+  `components/AccessibilityLink.tsx`: under the sign-in page beside *Service status*, in the
+  menu above *Sign out* (both editions), and on a line of its own at the foot of both grant
+  pages, below the privacy policy and the terms (not in their line, which lists what a person
+  accepts). Words: *Accessibility* / *Toegankelijkheid*.
+- **The guards.** `site/an-accessibility-statement.unit.test.ts`: the statement in every
+  language the site builds, each the other's switch, every page's footer linking its own
+  language's, a WCAG version and level, a `mailto:` link to `SUPPORT_EMAIL` inside `<main>`, and
+  a *Last reviewed* / *Laatst nagekeken* date, the same in both, no more than twelve months old.
+  On `main` at `db37bf4`: 6 of 6 failed (*renders no accessibility statement in "en"*); on the
+  branch: 6 of 6 passed. `scripts/a-policy-link-that-answers.unit.test.ts` gains point 8: every
+  address the app's module gives is the file the build writes, on the legal pages' origin, and
+  no other shipped file names it.
+- **⏳ Owner: the texts wait for the owner's reading before they are published**, as 0139 does
+  for public texts. Until then the branch is not merged, or, merged, the next public build
+  carries words the owner has not read.
 
 **2026-11-08, records: T8 (a)'s last part merged.** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`), read from
@@ -860,7 +911,7 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | T6 The grant flow and the consent endings in one language | ✅ **done** in #1208, merged 2026-09-27, both halves; the Dutch wording ⏳ **Owner**, before merge — *was:* 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. The grant half is built ahead of 0140's open question 2, and the switch follows open question 2 below as recommended; both answers are still the owner's. |
 | T7 Help a finger can reach | (a) ✅ **done** in #1308, merged 2026-09-28 (`7e7d89ca`), with T5; (b) 📋 **Proposed**, after — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged (2026-09-28); 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
 | T8 Checks that run: phone width, axe, WebKit | (a) ✅ **Done**: the grant and progress links at 390 px in #1646, merged 2026-10-21, with 0141 T12 (b); the app's own pages (the sign-in and request-access pages, Migrations with T1's menu focus, every screen of *Start a migration* with T3 (a)'s top and focus) in #1813, merged 2026-11-05; the Alpha's build (its note above Migrations, `AlphaGoogleLine` on *Start a migration* and on a grant link) in #1814, merged 2026-11-05 (`1b203759`; *was:* on branch `claude/ownpace-public-readiness-y7orc6-alpha-phone`, 2026-11-05). (b) and (c) 📋 **Proposed** — *was:* 📋 **Proposed**, all but the grant and progress links | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
-| T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
+| T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-accessibility-statement`, not merged** (2026-11-23), its texts ⏳ **Owner** before publication — *was:* 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
 | T10 The walk on two phones | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 9); ⏳ **Owner** (the walk) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
 
 ## 1. What there is today

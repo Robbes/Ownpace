@@ -150,7 +150,7 @@ describe('the public site renders', () => {
   }, 90_000);
 
   it('does not scroll sideways on a phone', async () => {
-    for (const path of ['/', '/pricing.html', '/privacy.html', '/nl/privacy.html']) {
+    for (const path of ['/', '/pricing.html', '/privacy.html', '/nl/privacy.html', '/accessibility.html', '/nl/toegankelijkheid.html']) {
       const { page } = await open(path, 390);
       const overflows = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth + 1,
