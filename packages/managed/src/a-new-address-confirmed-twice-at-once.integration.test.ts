@@ -43,6 +43,8 @@ const KEY = 'kidname@gmail.com';
 
 /** How long the first transaction stays open after its write. */
 const HOLD = 600;
+/** Who answered, as the route says it: the progress link's holder, and a reference that is no address. */
+const AUDIT = { actor: 'progress-link', pseudonym: () => 'a-row-reference' };
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let pool: Pool;
@@ -120,8 +122,8 @@ beforeEach(async () => {
 describe('two presses at once, through a person’s links', () => {
   it('Yes twice: the second waits, writes nothing, and both answer the one confirmed row', async () => {
     const [one, two] = await interleave(
-      async (db) => ({ answer: await answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed'), row: await seenBy(db) }),
-      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed'),
+      async (db) => ({ answer: await answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed', AUDIT), row: await seenBy(db) }),
+      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed', AUDIT),
     );
     expect(one.r.answer).toMatchObject({ ok: true, row: { oldKey: KEY, state: 'confirmed' } });
     expect(two.r).toMatchObject({ ok: true, row: { oldKey: KEY, state: 'confirmed' } });
@@ -137,8 +139,8 @@ describe('two presses at once, through a person’s links', () => {
 
   it('Yes and Not right? at once: the second waits, and the row ends as it says', async () => {
     const [one, two] = await interleave(
-      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed'),
-      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'proposed'),
+      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed', AUDIT),
+      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'proposed', AUDIT),
     );
     expect(one.r).toMatchObject({ ok: true, row: { state: 'confirmed' } });
     expect(two.r).toMatchObject({ ok: true, row: { state: 'proposed' } });
@@ -155,7 +157,7 @@ describe('two presses at once, through a person’s links', () => {
         await linkAddressChangePerson(db, TENANT, KEY, MUM);
         return w.ok;
       },
-      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed'),
+      (db) => answerAddressChangeByLink(db, TENANT, KID, KEY, 'confirmed', AUDIT),
     );
     expect(one.r).toBe(true);
     expect(two.at, 'the press waited for the owner').toBeGreaterThanOrEqual(HOLD);

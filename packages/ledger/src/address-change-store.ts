@@ -365,9 +365,13 @@ export const ADDRESS_CHANGE_DELETED_ACTION = 'address_change.deleted';
 
 /** One write of the table, as its audit record says it. */
 export interface AddressChangeAudit {
-  /** Who wrote it: the sign-in's subject on managed, `operator` on the appliance's page. */
+  /**
+   * Who wrote it: the sign-in's subject on managed, the door's link holder
+   * (`grant-link`, `progress-link`) for a person's own link, `operator` on the
+   * appliance's page.
+   */
   readonly actor: string;
-  /** The door it came through: `api` on managed, `page` on the appliance. */
+  /** The door it came through: `api` on managed, `link` for a person's own link, `page` on the appliance. */
   readonly via: string;
   /**
    * The audit export's pseudonym under this deployment's key

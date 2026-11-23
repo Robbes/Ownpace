@@ -117,7 +117,7 @@ describe('the premise this number is sized against', () => {
    * note in a chat window is not a place a number gets re-derived from.
    *
    * It pins the premise rather than the intent: the set of routes anybody on
-   * the internet may WRITE through. A fourth one appearing is the most likely
+   * the internet may WRITE through. A new one appearing is the most likely
    * shape of "the front door opened", and it is worth catching on its own
    * merits — an unauthenticated write that nobody noticed is the same class of
    * defect whatever prompted it.
@@ -159,7 +159,7 @@ describe('the premise this number is sized against', () => {
     // Seven, and each is deliberate:
     //
     //   the knock          — this limit's whole subject, and the only one of
-    //                        the five a stranger is *invited* to use
+    //                        the seven a stranger is *invited* to use
     //   the grant link     — 0108: the link itself is the credential, and the
     //                        route grants nothing without it
     //   the progress link  — 0108 T8 (c): the same kind of credential, and the

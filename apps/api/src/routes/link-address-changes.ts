@@ -32,6 +32,9 @@
  * WHO CONFIRMED IT. The person, stored as `person:<id>` (`confirmedByPerson`
  * in `@openmig/shared`): said to them as *Confirmed*, to everyone else as
  * *Confirmed by ‹person›*, never as a member's address and never as an id.
+ * The audit log records each answer that changed the row under the door's
+ * link holder (`grant-link`, `progress-link`), with the person's id and the
+ * row's pseudonym, as the organisation's own routes record theirs.
  *
  * The answer is the row as the link shows it, the same shape the two pages
  * read (`LinkAddressChange`).
@@ -45,6 +48,7 @@ import { answerAddressChangeByLink } from '@openmig/managed';
 import {
   addressChangeNotFound,
   invalidAddressChange,
+  pseudonymizer,
   refusalStatus,
   type AddressChangeRefusal,
   type Bilingual,
@@ -53,6 +57,9 @@ import { withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
 import type { PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
+import { auditPseudonymKey } from '../audit-key.ts';
+import { GRANT_ACTOR } from './migrations/grant-ending.ts';
+import { WITHDRAWAL_ACTOR } from './withdraw-grant.ts';
 
 /** The one thing a link may say about its row. */
 const AnswerSchema = z.object({ state: z.enum(['proposed', 'confirmed']) }).strict();
@@ -92,8 +99,14 @@ export function answerAddressChangeThroughLink(
       const person = link.personLink;
       // A migration's own link is nobody's: it reaches no row.
       if (!person) return void refuse(res, addressChangeNotFound(oldKey));
+      // Read before the transaction opens: the key is the owner's alone and is
+      // read on the owner's own connection (`audit-key.ts`).
+      const audit = {
+        actor: door === 'grant' ? GRANT_ACTOR : WITHDRAWAL_ACTOR,
+        pseudonym: pseudonymizer(await auditPseudonymKey()),
+      };
       const written = await withTenantDb(person.tenantId, pool(), (db) =>
-        answerAddressChangeByLink(db, person.tenantId, person.personId, oldKey, parsed.data.state),
+        answerAddressChangeByLink(db, person.tenantId, person.personId, oldKey, parsed.data.state, audit),
       );
       if (!written.ok) return void refuse(res, written.refusal);
       res.json(written.row);

@@ -27,7 +27,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { updateAddressChange } from '@openmig/ledger';
+import { recordAddressChangeWrite, updateAddressChange } from '@openmig/ledger';
 import {
   addressChangeNotFound,
   confirmedByPerson,
@@ -38,6 +38,7 @@ import {
   type AddressChangeState,
   type StoredAddressChange,
 } from '@openmig/shared';
+import type { Pseudonymize } from '@openmig/shared';
 import type { PgDatabase } from '@openmig/ledger/db';
 
 type Row = Record<string, unknown>;
@@ -239,6 +240,17 @@ async function isAddressChangeOf(db: PgDatabase, tenantId: string, oldKey: strin
   return rows.length > 0;
 }
 
+/**
+ * Who answered through a link, as the audit log records it: the door's link
+ * holder (`grant-link` or `progress-link`, the actors each door's other records
+ * name, since a link carries no sign-in), and the audit export's pseudonym
+ * under this deployment's key, read before the transaction opens.
+ */
+export interface LinkAnswerAudit {
+  readonly actor: string;
+  readonly pseudonym: Pseudonymize;
+}
+
 /** How a press through a link went: the row as the link shows it now, or the refusal. */
 export type LinkAddressChangeWrite =
   | { readonly ok: true; readonly row: LinkAddressChange }
@@ -258,6 +270,12 @@ export type LinkAddressChangeWrite =
  *
  * A row that is not linked to this person is answered as one that does not
  * exist, in the same words, so a link learns nothing of anybody else's rows.
+ *
+ * Each answer that changed the row is recorded in the audit log in the same
+ * transaction (`recordAddressChangeWrite`, as the organisation's routes record
+ * theirs): the door's link holder as the actor, `via: 'link'`, the person's
+ * id, and the row by its pseudonym, never by its address. A press that changed
+ * nothing records nothing.
  */
 export async function answerAddressChangeByLink(
   db: PgDatabase,
@@ -265,6 +283,7 @@ export async function answerAddressChangeByLink(
   personId: string,
   oldKey: string,
   state: AddressChangeState,
+  audit: LinkAnswerAudit,
 ): Promise<LinkAddressChangeWrite> {
   const by = confirmedByPerson(personId);
   const held = await updateAddressChange(db, tenantId, oldKey, { by });
@@ -275,5 +294,13 @@ export async function answerAddressChangeByLink(
   }
   const written = await updateAddressChange(db, tenantId, oldKey, { state, by });
   if (!written.ok) return written;
+  await recordAddressChangeWrite(db, tenantId, {
+    actor: audit.actor,
+    via: 'link',
+    pseudonym: audit.pseudonym,
+    before: written.before,
+    after: written.row,
+    person: { id: personId, moved: false },
+  });
   return { ok: true, row: linkRow(written.row) };
 }

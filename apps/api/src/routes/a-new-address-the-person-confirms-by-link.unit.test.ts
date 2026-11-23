@@ -477,6 +477,49 @@ describe('the attribution is said right', () => {
   });
 });
 
+describe('an answer through a link is in the audit log', () => {
+  /** The table's records for this organisation, oldest first. */
+  const records = () =>
+    q(
+      `SELECT actor, action, entity, detail FROM audit_log WHERE tenant_id = $1 AND entity = 'address_change' ORDER BY at, id`,
+      [TENANT],
+    ) as Promise<Array<{ actor: string; action: string; entity: string; detail: Record<string, unknown> }>>;
+
+  it('records each answer that changed the row under the link’s holder, by reference and never by address, and a press that changed nothing not at all', async () => {
+    await q('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
+    expect((await put('view', kidView, KID_KEY, { state: 'confirmed' })).status).toBe(200);
+    expect((await put('view', kidView, KID_KEY, { state: 'confirmed' })).status).toBe(200);
+    expect((await put('grant', kidGrant, KID_KEY, { state: 'proposed' })).status).toBe(200);
+
+    const got = await records();
+    expect(got).toHaveLength(2);
+    expect(got[0]).toMatchObject({
+      actor: 'progress-link',
+      action: 'address_change.confirmed',
+      entity: 'address_change',
+      detail: { from: 'proposed', to: 'confirmed', via: 'link', personId: KID },
+    });
+    expect(got[1]).toMatchObject({
+      actor: 'grant-link',
+      action: 'address_change.sent_back',
+      detail: { from: 'confirmed', to: 'proposed', via: 'link', personId: KID },
+    });
+    // One reference for the row in both records, and no address anywhere in them.
+    expect(typeof got[0]!.detail.addressChange).toBe('string');
+    expect(got[1]!.detail.addressChange).toBe(got[0]!.detail.addressChange);
+    const text = JSON.stringify(got);
+    expect(text).not.toContain('@');
+    expect(text.toLowerCase()).not.toContain('kid.name');
+    expect(text.toLowerCase()).not.toContain('kidname');
+  });
+
+  it('records nothing for a row the link does not reach', async () => {
+    await q('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
+    expect((await put('view', kidView, 'mum@gmail.com', { state: 'proposed' })).status).toBe(404);
+    expect(await records()).toEqual([]);
+  });
+});
+
 describe('two presses at once', () => {
   it('leave one confirmed row, and both answer it', async () => {
     const [a, b] = await Promise.all([
