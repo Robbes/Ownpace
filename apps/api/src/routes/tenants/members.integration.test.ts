@@ -559,13 +559,17 @@ describe('Members Route Isolation', () => {
           [tenantId],
         );
         const holderPid: number = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
-        const answers = sends.map((send) => Promise.resolve(send()));
-        for (const answer of answers) answer.catch(() => undefined);
-        await waitUntilQueued(holderPid, answers.length);
+        // Settled from the start, so one that fails while the others are still
+        // being waited for is not an unhandled rejection; its error is thrown below.
+        const answers = Promise.allSettled(sends.map((send) => send()));
+        await waitUntilQueued(holderPid, sends.length);
         if (meanwhile) await meanwhile(holder);
         await holder.query('COMMIT');
         held = false;
-        return await Promise.all(answers);
+        return (await answers).map((answer) => {
+          if (answer.status === 'rejected') throw answer.reason;
+          return answer.value;
+        });
       } finally {
         if (held) await holder.query('ROLLBACK').catch(() => undefined);
         holder.release();

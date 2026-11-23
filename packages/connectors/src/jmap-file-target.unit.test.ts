@@ -652,17 +652,43 @@ describe('the ownership guard', () => {
     expect(second.conflicted).toBeUndefined();
   });
 
-  it('refuses to create a file it was asked to rewrite', async () => {
+  it('never creates a file it was asked to rewrite: it says the copy is gone (0168)', async () => {
     responders['FileNode/get'] = treeResponder([]);
     responders['FileNode/set'] = () => {
       throw new Error('a rewrite must never fall through to a create');
     };
 
-    // The caller believes this item is already on the target. Quietly
-    // disagreeing would hide whatever made that false.
-    await expect(
-      target().upsertFile('', rawFile('report.pdf'), { overwrite: true }),
-    ).rejects.toThrow(/Refusing to create one instead/);
+    // Somebody deleted the copy on the target. A throw made the row failed,
+    // and its retry took the create path and made the file again (arch
+    // §11.1: target-side deletions are not repaired). Said, not thrown.
+    const result = await target().upsertFile('', rawFile('report.pdf'), { overwrite: true });
+    expect(result).toEqual({ targetId: '', created: false, goneFromTarget: true });
+    expect(uploads).toHaveLength(0);
+  });
+
+  it('says the copy is gone when the node goes between the tree and the guard (0168)', async () => {
+    responders['FileNode/get'] = (args, call) => {
+      if (Array.isArray(args.ids)) return { list: [], notFound: args.ids };
+      return treeResponder(tree)(args, call);
+    };
+    responders['FileNode/set'] = () => {
+      throw new Error('a rewrite must not reach the server for a node that is gone');
+    };
+    const result = await target().upsertFile('', rawFile('report.pdf'), {
+      overwrite: true,
+      expectedTargetVersion: 'v1',
+    });
+    expect(result.goneFromTarget).toBe(true);
+    expect(result.conflicted).toBeUndefined();
+    expect(uploads).toHaveLength(0);
+  });
+
+  it('says the copy is gone when the update finds no node (0168)', async () => {
+    responders['FileNode/get'] = treeResponder(tree);
+    responders['FileNode/set'] = () => ({ notUpdated: { f1: { type: 'notFound' } } });
+    const result = await target().upsertFile('', rawFile('report.pdf'), { overwrite: true });
+    expect(result.goneFromTarget).toBe(true);
+    expect(result.updated).toBeUndefined();
   });
 
   it('refuses a rewrite when the stored node cannot be read (workplan 0149 T3)', async () => {

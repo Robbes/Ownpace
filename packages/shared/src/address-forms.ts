@@ -26,6 +26,15 @@
  * named beside it with the date it was read. A domain is never added from
  * memory. The list only proposes a row in the table (0168 §6.1): a person can
  * still say no, or declare an address the list missed.
+ *
+ * Where a provider publishes its domains, its own page decides. Where it
+ * publishes none, as Microsoft and Yahoo do not for their country forms,
+ * Thunderbird's ISP database (its configuration for each provider, which
+ * lists the domains that provider serves) stands in, and the comment says so.
+ * Where a provider's own page lists its domains, a domain only that database
+ * still names is left out: it may have lapsed and belong to somebody else.
+ * Every domain is written in full and matched whole, so a lookalike such as
+ * `hotmail.example.com` never matches.
  */
 
 /** Gmail's two spellings of one domain. */
@@ -90,12 +99,19 @@ export interface NotTakenAlong {
   readonly provider: string;
 }
 
+/** A provider's domains as entries of the list, in the order their source gives them. */
+function servedBy(provider: string, domains: ReadonlyArray<string>): NotTakenAlong[] {
+  return domains.map((domain) => ({ domain, provider }));
+}
+
 /**
  * The domains whose addresses cannot be taken along (0168 §1.1, D10).
  *
- * Every entry names its source and the date it was read. Domains whose
- * sources could not be read when this list was built are not here; the
- * workplan's Status block names them.
+ * Every group names its source and the date it was read. A provider that lets
+ * a person keep the address for a while, or for a fee, keeps its domains here
+ * all the same, and the group says so: the address still cannot come along to
+ * the new provider, the list only proposes, and the person can answer No.
+ * What was looked for and left out is in workplan 0168's Status block.
  */
 export const NOT_TAKEN_ALONG: ReadonlyArray<NotTakenAlong> = Object.freeze([
   // Google for Developers, "Manage offline conversions" (Google Ads API),
@@ -107,6 +123,112 @@ export const NOT_TAKEN_ALONG: ReadonlyArray<NotTakenAlong> = Object.freeze([
   // `googlemail.com` domain: Remove all dots".
   { domain: GMAIL, provider: 'Google' },
   { domain: GOOGLEMAIL, provider: 'Google' },
+
+  // Microsoft Support, "Subscription features in Outlook.com for Microsoft 365 subscribers",
+  // https://support.microsoft.com/en-us/outlook/premium-features-in-outlook-com-for-microsoft-365-subscribers,
+  // read 2026-11-23: "Outlook.com accounts have email addresses ending in
+  // @outlook.com, @hotmail.com, @live.com, and @msn.com."
+  ...servedBy('Microsoft', ['outlook.com', 'hotmail.com', 'live.com', 'msn.com']),
+  // Microsoft Support, "My username and password have stopped working",
+  // https://support.microsoft.com/en-us/accounts-billing/manage/my-username-and-password-have-stopped-working,
+  // read 2026-11-23: "Microsoft offers different country domains for Hotmail,
+  // Outlook and Live accounts, such as .com and .co.uk". Its "Help with the
+  // Microsoft account recovery form" names "@outlook.co.uk" the same day.
+  // Microsoft publishes no list of its country domains.
+  ...servedBy('Microsoft', ['hotmail.co.uk', 'live.co.uk', 'outlook.co.uk']),
+  // ONLY THUNDERBIRD'S ISP DATABASE names these, in its Outlook.com entry,
+  // https://autoconfig.thunderbird.net/v1.1/hotmail.com, read 2026-11-23:
+  // every domain it lists but those above and `olc.protection.outlook.com`,
+  // the name of a mail server. English Wikipedia's "Outlook.com" also names
+  // `windowslive.com` as Microsoft's, kept but no longer offered.
+  ...servedBy('Microsoft', [
+    'windowslive.com', 'outlook.at', 'outlook.be', 'outlook.cl', 'outlook.cz', 'outlook.de', 'outlook.dk',
+    'outlook.es', 'outlook.fr', 'outlook.hu', 'outlook.ie', 'outlook.in', 'outlook.it', 'outlook.jp',
+    'outlook.kr', 'outlook.lv', 'outlook.my', 'outlook.ph', 'outlook.pt', 'outlook.sa', 'outlook.sg',
+    'outlook.sk', 'outlook.co.id', 'outlook.co.il', 'outlook.co.th', 'outlook.com.ar', 'outlook.com.au',
+    'outlook.com.br', 'outlook.com.gr', 'outlook.com.tr', 'outlook.com.vn', 'hotmail.be', 'hotmail.ca',
+    'hotmail.cl', 'hotmail.cz', 'hotmail.de', 'hotmail.dk', 'hotmail.es', 'hotmail.fi', 'hotmail.fr',
+    'hotmail.gr', 'hotmail.hu', 'hotmail.it', 'hotmail.lt', 'hotmail.lv', 'hotmail.my', 'hotmail.nl',
+    'hotmail.no', 'hotmail.ph', 'hotmail.rs', 'hotmail.se', 'hotmail.sg', 'hotmail.sk', 'hotmail.co.id',
+    'hotmail.co.il', 'hotmail.co.in', 'hotmail.co.jp', 'hotmail.co.kr', 'hotmail.co.th', 'hotmail.co.za',
+    'hotmail.com.ar', 'hotmail.com.au', 'hotmail.com.br', 'hotmail.com.hk', 'hotmail.com.tr',
+    'hotmail.com.tw', 'hotmail.com.vn', 'live.at', 'live.be', 'live.ca', 'live.cl', 'live.cn', 'live.de',
+    'live.dk', 'live.fi', 'live.fr', 'live.hk', 'live.ie', 'live.in', 'live.it', 'live.jp', 'live.nl',
+    'live.no', 'live.ru', 'live.se', 'live.co.jp', 'live.co.kr', 'live.co.za', 'live.com.ar', 'live.com.au',
+    'live.com.mx', 'live.com.my', 'live.com.ph', 'live.com.pt', 'live.com.sg', 'livemail.tw',
+  ]),
+
+  // Apple Support, "About your @icloud.com, @me.com, and @mac.com email addresses",
+  // https://support.apple.com/en-us/118230, read 2026-11-23 (published
+  // 2025-01-29): "your iCloud email addresses and aliases may end with
+  // @icloud.com, @me.com, or @mac.com domains".
+  ...servedBy('Apple', ['icloud.com', 'me.com', 'mac.com']),
+
+  // Yahoo Help, "Identify your domain extension in Yahoo Mail" (SLN2153),
+  // https://help.yahoo.com/kb/SLN2153.html, read 2026-11-23: "While Yahoo
+  // accounts can end in "@yahoo.com" or "@myyahoo.com", some older accounts
+  // may have a different extension depending on the location where they were
+  // created", "like "@yahoo.co.uk" or "@yahoo.fr"". It lists no others.
+  ...servedBy('Yahoo', ['yahoo.com', 'myyahoo.com', 'yahoo.co.uk', 'yahoo.fr']),
+  // Yahoo Help, "Sign in or out of Yahoo" (SLN3407),
+  // https://help.yahoo.com/kb/SLN3407.html, read 2026-11-23: "If your account
+  // uses a non-Yahoo, ymail, or rocketmail email address, enter the full email
+  // address". The page writes no `.com`; Thunderbird's ISP database (its Yahoo
+  // entry) and English Wikipedia's "Yahoo Mail" spell the two domains so.
+  ...servedBy('Yahoo', ['ymail.com', 'rocketmail.com']),
+  // ONLY THUNDERBIRD'S ISP DATABASE names these, in its Yahoo entry,
+  // https://autoconfig.thunderbird.net/v1.1/yahoo.com, read 2026-11-23: every
+  // domain it lists but those above, the names of Yahoo's mail servers
+  // (`yahoodns.net` and two under it), and `cox.net`, an internet provider's
+  // own. English Wikipedia's "Yahoo Mail" also names `yahoo.it`.
+  ...servedBy('Yahoo', [
+    'yahoo.ca', 'yahoo.de', 'yahoo.it', 'yahoo.es', 'yahoo.se', 'yahoo.co.in', 'yahoo.co.nz', 'yahoo.com.au',
+    'yahoo.com.ar', 'yahoo.com.br', 'yahoo.com.mx',
+  ]),
+
+  // Ziggo, "IMAP-, POP-, SMTP-instellingen",
+  // https://www.ziggo.nl/klantenservice/e-mail/serverinstellingen, read
+  // 2026-11-23: "De POP- en IMAP-instellingen werken voor de volgende
+  // e-maildomeinen:" these seven. Ziggo offers no way to keep one: its
+  // "Ziggo Mail - webmail" page, the same day, "Kan ik mijn Ziggo e-mailadres
+  // houden als ik opzeg of overstap naar een andere provider? Nee, dat gaat
+  // niet." Eight more domains in Thunderbird's ISP database are not on Ziggo's
+  // page, so they are left out.
+  ...servedBy('Ziggo', ['ziggo.nl', 'quicknet.nl', 'home.nl', 'casema.nl', 'upcmail.nl', 'chello.nl', 'a2000.nl']),
+
+  // KPN, "E-mail instellen op je pc of Mac",
+  // https://www.kpn.com/service/ugs/instellen-e-mail-laptop-pc, read
+  // 2026-11-23: "Je kan e-mailadressen instellen die eindigen op:" these
+  // eighteen, the same as Thunderbird's ISP database. KPN SELLS A WAY TO KEEP
+  // ONE: its "E-mail only abonnement" page, the same day, "Met een E-mail Only
+  // abonnement van KPN kan je het e-mailadres blijven gebruiken", if asked for
+  // within six months of ending the internet subscription.
+  ...servedBy('KPN', [
+    'kpnmail.nl', 'kpnplanet.nl', 'planet.nl', 'wxs.nl', 'hetnet.nl', 'freeler.nl', 'snelnet.net', 'on.nl',
+    'onsbrabantnet.nl', 'onsmail.nl', 'onsnet.nu', 'onsneteindhoven.nl', 'onsnetnuenen.nl', 'xs4all.nl',
+    'telfort.nl', 'tip.nl', 'tiscali.nl', 'tiscalimail.nl',
+  ]),
+
+  // Telenet, "Je e-mail",
+  // https://www2.telenet.be/residential/nl/klantenservice/internet/e-mail.html,
+  // read 2026-11-23: one signs in to its webmail "met je Telenet e-mailadres",
+  // and its example ends in `@telenet.be`. Thunderbird's ISP database has no
+  // Telenet entry. TELENET KEEPS THE ADDRESS AFTER THE CONTRACT ENDS: its
+  // general terms of 1 November 2024, "Bijzondere voorwaarden mailbox", 1.1,
+  // "De mailbox en de bijbehorende e-mailadressen blijven beschikbaar, zelfs
+  // nadat de Overeenkomst is beëindigd", and Telenet may delete a mailbox
+  // that sends nothing for two years.
+  ...servedBy('Telenet', ['telenet.be']),
+
+  // Proximus, "E-mail van Proximus: hulp, toegang en wachtwoord",
+  // https://www.proximus.be/support/nl/id_sfaqr_mail_global/particulieren/support/internet/e-mails-en-website/problemen-met-je-mailbox/vragen-over-proximus-mail.html,
+  // read 2026-11-23: "log je in op webmail via webmail.proximus.be met je
+  // e-mailadres (proximus.be, skynet.be of belgacom.net)". PROXIMUS KEEPS THE
+  // MAILBOX FOR A WHILE: its internet terms (V.20210816), 20.4, "tot 18
+  // maanden na de afsluiting van het internetabonnement", free. Thunderbird's
+  // ISP database also names `kidcity.be`, which Proximus's page does not, so
+  // it is left out.
+  ...servedBy('Proximus', ['proximus.be', 'skynet.be', 'belgacom.net']),
 ]);
 
 const BY_DOMAIN: ReadonlyMap<string, NotTakenAlong> = new Map(NOT_TAKEN_ALONG.map((e) => [e.domain, e]));

@@ -73,6 +73,7 @@ import {
   withGranteesNewAddress,
   ADDRESS_CHANGES_FILE,
   ADDRESS_PRESS_NAMES_NO_TABLE,
+  NO_SUCH_MIGRATION_HERE,
   ADDRESS_TABLE_MOVED,
 } from '@openmig/shared';
 import type {
@@ -125,7 +126,7 @@ import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
 import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditExportQuery, pseudonymizer } from '@openmig/shared';
-import { UNREADABLE_ANSWER_EVENT, parseUnreadableAnswer, recordAppEvent, unreadableAnswerLogLine } from '@openmig/shared';
+import { UNREADABLE_ANSWER_EVENT, newReference, parseUnreadableAnswer, recordAppEvent, unreadableAnswerLogLine } from '@openmig/shared';
 import { isCrossSiteWrite } from './cross-site.ts';
 import { answersTo, describeAllowlist, hostAllowlistFrom, namedHost } from './host-allowlist.ts';
 import {
@@ -3597,7 +3598,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const body = (await readJsonOrNone(req)) as { digest?: unknown } | undefined;
         const id = decodeURIComponent(applyMatch[1]!);
         const m = mappings.find((x) => x.config.mappingId === id);
-        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        // In both languages, as managed answers (0168, found on the way).
+        const noSuchMigration = {
+          error: 'unknown mapping',
+          message: NO_SUCH_MIGRATION_HERE.en,
+          messageNl: NO_SUCH_MIGRATION_HERE.nl,
+        };
+        if (!m) return sendJson(res, 404, noSuchMigration);
         const shown = body?.digest;
         if (typeof shown !== 'string' || !/^[0-9a-f]{64}$/.test(shown)) {
           return sendJson(res, 400, {
@@ -3610,7 +3617,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const applied = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
           applyNewAddressesHere(tdb, tenantId, m.mailboxMappingId, 'operator', shown),
         );
-        if (applied === null) return sendJson(res, 404, { error: 'unknown mapping' });
+        if (applied === null) return sendJson(res, 404, noSuchMigration);
         if (applied.moved) {
           return sendJson(res, 409, {
             error: 'address_table_moved',
@@ -3966,13 +3973,22 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // get back from a self-hosted run — showed a healthy-looking appliance
       // next to a bare 500. Hard rule 9: the cause has to survive somewhere.
       //
-      // The stack stays server-side. Error messages already cross the wire and
-      // that is enough to act on; stacks carry filesystem layout, and driver
+      // The stack stays server-side. Stacks carry filesystem layout, and driver
       // errors can quote a connection string, neither of which belongs in an
-      // HTTP body (workplan 0010 T4, secret hygiene).
-      log.error(`[selfhost] ${req.method} ${req.url} failed:`, err);
+      // HTTP body (workplan 0010 T4, secret hygiene). Nor does the message: a
+      // database error's says the statement's values (`Failed query: …
+      // params: …`, workplan 0168). The answer is a sentence with a reference,
+      // as the API's `serverFault` gives, and the reference finds the line and
+      // the event on the appliance's log page. `error` stays the field the
+      // appliance's screens read.
+      const ref = newReference();
+      log.error(`[selfhost] ${req.method} ${req.url} failed [ref ${ref}]:`, err);
+      // Not awaited: `recordAppEvent` never throws, and the answer does not wait.
+      void recordAppEvent({ level: 'error', event: 'selfhost.request_failed', reference: ref });
       return sendJson(res, 500, {
-        error: err instanceof Error ? err.message : 'internal error',
+        error:
+          'Something went wrong answering this request — this is a fault in the appliance, not ' +
+          `something your input caused. Reference ${ref}: its log has the detail under it.`,
       });
     }
   });

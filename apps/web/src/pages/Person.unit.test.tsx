@@ -697,6 +697,7 @@ describe('the appliance’s one person (0153 T8)', () => {
           setByYou: false,
           confirmedBy: 'operator',
           confirmedByYou: false,
+          confirmedByThePerson: false,
           createdAt: '2026-11-22T10:00:00.000Z',
           confirmedAt: '2026-11-22T10:00:00.000Z',
           person: null,

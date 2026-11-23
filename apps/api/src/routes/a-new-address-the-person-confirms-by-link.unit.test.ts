@@ -536,6 +536,8 @@ describe('the attribution is said right', () => {
       state: 'confirmed',
       confirmedBy: 'Kid',
       confirmedByYou: false,
+      // Exact where the name is not (0168, found on the way).
+      confirmedByThePerson: true,
       person: { id: KID, displayName: 'Kid' },
     });
     expect(kid?.person).toEqual({ id: KID, displayName: 'Kid' });
@@ -560,6 +562,7 @@ describe('the attribution is said right', () => {
     expect(confirmed.body).toMatchObject({
       confirmedBy: 'owner@example.org',
       confirmedByYou: true,
+      confirmedByThePerson: false,
       person: { id: KID, displayName: 'Kid' },
     });
     expect((await answersFor(KID_MEMBER)).find((r) => r.oldKey === KID_KEY)).toMatchObject({

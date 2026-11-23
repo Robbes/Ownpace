@@ -6,6 +6,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **An address change says whether its own person confirmed it** (workplan 0168, its follow-ups).
+  Each row of `/api/address-changes` carries `confirmedByThePerson`, true when the person confirmed
+  it through their own link, and the team screen reads it: a confirmation by somebody whose name
+  is said as the person's now reads *Confirmed by ‹name› for ‹person›*. Always false on the
+  appliance, which has no person.
 - **An accessibility statement on the site, in English and in Dutch** (workplan 0145 T9 (b)):
   `accessibility.html` and `nl/toegankelijkheid.html`, linked from every page's footer, from
   under the app's sign-in page, from its menu, and from the foot of a grant link's page and of a
@@ -20,6 +25,88 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   *Last reviewed* date is held to the last twelve months by
   `site/an-accessibility-statement.unit.test.ts`. The owner read both texts and chose to publish
   them as they are.
+
+### Changed
+
+- **The API says a jobs producer that never started when it closes it** (workplan 0163). Closing
+  the API's pg-boss producer while its start had failed dropped that failure without a word; the
+  press that made it was handed the failure, and the close now logs it once, at warn, through
+  `loggableError`, and stops nothing. Two other places an outside, read-only check named keep
+  their behaviour in plainer code: the appliance's queue of address-change writes keeps their order
+  with `Promise.allSettled`, and Cirrux's request for part URLs is written with `await`.
+- **The step *Your new address* comes by itself for Microsoft's, Apple's and Yahoo's addresses,
+  and for Ziggo's, KPN's, Telenet's and Proximus's, not only for Google's** (workplan 0168;
+  ADR-0055). `NOT_TAKEN_ALONG` holds 154 domains, each group beside the provider's page it was
+  read from on 2026-11-23. Microsoft and Yahoo publish no list of their country forms
+  (`hotmail.nl`, `live.be`, `yahoo.de`, …), so most of those rest on Thunderbird's ISP database,
+  and say so. Each domain is matched whole, so `hotmail.example.com` proposes nothing; a domain
+  whose provider lets the address be kept, for a fee or for a while, stays on the list, since the
+  step only proposes. The Microsoft guide keeps *I am also changing my address* for an
+  `.onmicrosoft.com` name, or any address the step does not recognise.
+- **A new address reaches `SENT-BY`, `DELEGATED-FROM`, `DELEGATED-TO` and `MEMBER` too, and an
+  event that was already over keeps every address** (workplan 0168; ADR-0055, amended; the owner,
+  2026-11-23: *"yes, since the new address will control the new events. Though perhapse we need
+  not change past-events we migrate."*). In an event or task whose organiser is in the table or is
+  the account's own, an old address in those parameters gets the new one, each value of a list in
+  its own quotes and scheme spelling; an invitation from outside keeps them, as it keeps its
+  guests. A calendar object that was over at the migration's start, when the migration was made,
+  is copied as the source has it and records no address digest, so nothing waits for it: an event
+  that ended before it, read in its own time zone (a floating time in UTC); a series whose `UNTIL`
+  or `COUNT` was spent, never one without an end, and not while an added date or a moved instance
+  is still to come; a task completed or cancelled before it, by its `COMPLETED` time, else by when
+  it was last changed, so a task finished later keeps the new address; a journal entry dated
+  before it. Dates that cannot be read are not over, so such an object changes, as every one did
+  before. A copy of a
+  past event that alpha.17 changed goes back to the source's bytes on the next pass, which reads
+  each calendar again once (past a data type's cutover, after *Apply the new addresses here too*).
+  *Your new address* and the Google and Microsoft guides say so in English and Dutch, and the
+  managed gate seeds a past event whose copy must be the source's bytes.
+
+### Fixed
+
+- **A copy deleted on the new system is counted as gone, never as the owner's edit and never made
+  again** (workplan 0168, found on the way; ADR-0055, amended). A rewrite of a JMAP file that was
+  no longer there threw, so the item failed and its retry made the file again. A DAV rewrite
+  refused with 412 was always read as an edit, though `If-Match` is refused the same way when
+  nothing is there, so a copy the person deleted was marked as theirs and never reported missing.
+  One HEAD now tells the two apart, and a HEAD that cannot say fails the item and writes nothing.
+- **A rewrite that failed is retried as that rewrite** (workplan 0168, found on the way). Only a
+  failed address rewrite was; a failed rewrite of a change at the old system took the create path
+  on its retry, which adopted our own copy as the target's, so later changes never reached it, or
+  made a deleted one again.
+- **Recording a copy's source version no longer counts it as copied again on Billing** (workplan
+  0168, found on the way). A copy from before the version column, seen unchanged, had its version
+  stored by the path that also stamps the copy's last write, which the usage meter reads, so it
+  counted again, at its whole size, in that month. Only the version is written now.
+- **A change to the account's own addresses reaches its events** (workplan 0168, found on the
+  way). They decide whether an event's guests change, but a calendar's cursor was stored under the
+  address table alone, so a source that lists only what changed never read those events again.
+- **A copy with no version to guard its new address is said as left, never as waiting for the
+  next pass** (workplan 0168, found on the way). No pass and no press rewrites such a copy. The
+  confirmed list's row now says `unguarded`, verification counts it apart and warns about it in
+  its own words in English and Dutch, and a sample of only those copies is no longer told to
+  check again after the next pass.
+- **The appliance's answer to *Apply the new addresses here too* for a migration it does not
+  hold has a sentence**, in English and Dutch, as managed's has (workplan 0168, found on the way).
+- **A database fault no longer writes a person's details into the server log** (workplan 0168).
+  Every route logged a failed statement's whole error beside its reference, and the drivers put
+  the statement's values in it: Postgres's `detail` quotes the key or the whole failing row
+  (`Key (email)=(…) already exists.`), a data exception's message quotes the input it refused,
+  PGlite adds the statement's `params`, and Drizzle repeats them in its message and stack.
+  `loggableError` now leaves those out of what it logs, as it already left out a request's body.
+  The rest of the message, the error's code, its table, column and constraint names, the statement
+  up to its first literal and the chain of causes still say what failed and where.
+- **Every log line prints a database error without its values, not only a route's 500** (workplan
+  0168). The shared `log` reads every error it is handed through `loggableError`, at every level, so
+  the places in the API, the job worker and the appliance that log an error themselves, and the job
+  runner's own error lines, print it the same way. The appliance answers a request it fails on with
+  a sentence and a reference, as the API does, instead of the error's message, which for a database
+  error carried the statement's values; the reference is in its log line and on its log page.
+- **An access request, an invitation and a mail that could not be sent are logged by id, not by
+  address** (workplan 0168). An outside, read-only check found the requester's, the invitee's and a
+  mail's recipient's address in the log lines themselves. Each line now names the access request or
+  the invitation by its id, or what the mail was about; a second knock while a request is still
+  open names nobody, since nothing on that anonymous path can read the queue for its id.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 
