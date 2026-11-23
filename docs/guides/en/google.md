@@ -118,7 +118,7 @@ A Workspace admin can authorise a **service account** to impersonate users, once
 
 ### A new address, when yours cannot come with you {#new-address}
 
-An address ending in `@gmail.com` or `@googlemail.com` belongs to Google, so it cannot come with you. When the old account has one, **Start a migration** shows a step, **Your new address**, where you say which address replaces it. Contacts that list the old address get the new one first and keep the old one, so old mail still finds the person. Events you organised list you at the new address, so you can still change them. The **Sharing checklist** suggests the new address for you. Your mail is never changed: every message stays exactly as it was sent. Nobody is sent anything. You can change the new address afterwards, on your page.
+An address ending in `@gmail.com` or `@googlemail.com` belongs to Google, so it cannot come with you. When the old account has one, **Start a migration** shows a step, **Your new address**, where you say which address replaces it. Contacts that list the old address get the new one first and keep the old one, so old mail still finds the person. Events and tasks you organised list you at the new address, so you can still change them. The **Sharing checklist** suggests the new address for you. Your mail is never changed: every message stays exactly as it was sent. Nobody is sent anything. You can change the new address afterwards, on your page.
 
 ### What a Drive migration does not do yet {#drive-not-yet}
 

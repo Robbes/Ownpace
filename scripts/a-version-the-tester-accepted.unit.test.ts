@@ -127,16 +127,18 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // PRIVACY RE-PINNED UNDER 1.0 again on 2026-11-23 (the owner, 2026-11-22, of workplan 0168's D8,
   // verbatim: "1.0 ok"): §4.6 gains the addresses that change and §9 a row for them, for a new
   // address for one you cannot take along (ADR-0055, workplan 0168), and the Last updated line
-  // moved to 2026-11-23, in both languages. No tester had accepted any version, so the number stays
-  // 1.0, edited in place, as on 2026-10-14, 2026-10-21 and 2026-11-22. Only the two privacy pins
-  // move. As before, an acceptance of 1.0 recorded before these words reach a stack counts for
-  // them, and only the owner's own and test accounts can hold one.
+  // moved to 2026-11-23, in both languages. Re-pinned once more the same day, under the same word,
+  // after the review: those lines now name everything the change keeps (whose address it is, and
+  // who added, confirmed and applied it) and the tasks it reaches. No tester had accepted any
+  // version, so the number stays 1.0, edited in place, as on 2026-10-14, 2026-10-21 and 2026-11-22.
+  // Only the two privacy pins move. As before, an acceptance of 1.0 recorded before these words
+  // reach a stack counts for them, and only the owner's own and test accounts can hold one.
   // From the first tester's acceptance on, a change of words takes a new number (1.1); the pins of
   // earlier words are in git, with the texts.
   'alpha.md@1.0': 'acc56aaf5e570d53687793a4e6951ae5732c5ce7273328a5ac5ed4201785018c',
   'alpha.nl.md@1.0': 'bf9a41a1679f8ee912c8e611b52eb4daf93f0e4042f8c708c476dea99cfd4bfb',
-  'privacy.md@1.0': '1c4cd44e395b682aebc6d6de11da5cfcd9952475dd38cb1334c54f0d58b47f95',
-  'privacy.nl.md@1.0': 'ec508b864c8493e27053e20b042ce631129313dbe6636895c709ab46a8804c50',
+  'privacy.md@1.0': 'b33450385ba42880fa8b7cc5b39720f845ccf436d4f8c6f74af8497cf2935c49',
+  'privacy.nl.md@1.0': '9b5049c3f49223c5063846b7e62c917e200a3d610cdb0517c08c0244dda5515d',
   'terms.md@1.0': 'b743e1286302fcbc0ab0570f0e3b5afd7bc86a82de3d2d55233e9517ccc90633',
   'terms.nl.md@1.0': '7024556d073d4f12216250c1c0183223304721d2631f244707e46d523f1cc47a',
 };

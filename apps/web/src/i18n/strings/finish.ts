@@ -85,7 +85,7 @@ export const en = {
   // An address that cannot come along (workplan 0168 §2.1): guidance only,
   // because a migration sends nothing to anyone (ADR-0043).
   'finish.step4.autoreply':
-    'With an address like @gmail.com, also turn on an automatic reply at the old provider that says your address has changed. Ownpace sends nothing to anyone, so you turn this on yourself, in the old provider\'s settings.',
+    'With an address like @gmail.com, also turn on an automatic reply at the old provider that says your address has changed. A migration sends nothing to anyone, so you turn this on yourself, in the old provider\'s settings.',
   'finish.step4.warn.pre': 'If you finish before this is done',
   'finish.step4.warn.post':
     ', anything that arrives on the old system afterwards will not be migrated, and nothing will report it — Ownpace stopped watching.',
@@ -188,7 +188,7 @@ export const nl: Record<keyof typeof en, string> = {
   'finish.step4.more':
     'Dit gebeurt buiten Ownpace; Ownpace kan dit niet controleren.',
   'finish.step4.autoreply':
-    'Hebt u een adres als @gmail.com, zet dan bij de oude aanbieder ook een automatisch antwoord aan dat zegt dat uw adres is veranderd. Ownpace stuurt niemand iets, dus dit zet u zelf aan, in de instellingen van de oude aanbieder.',
+    'Hebt u een adres als @gmail.com, zet dan bij de oude aanbieder ook een automatisch antwoord aan dat zegt dat uw adres is veranderd. Een migratie stuurt niemand iets, dus dit zet u zelf aan, in de instellingen van de oude aanbieder.',
   'finish.step4.warn.pre': 'Als u afrondt voordat dit is gedaan',
   'finish.step4.warn.post':
     ', stopt de migratie: wat daarna nog op het oude systeem binnenkomt, zet Ownpace niet meer over naar het nieuwe, en niets meldt het — Ownpace kijkt niet meer mee.',

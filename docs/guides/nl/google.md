@@ -120,7 +120,7 @@ De schermen van Google staan hieronder met hun Engelse namen; Google toont ze in
 
 ### Een nieuw adres, als het uwe niet mee kan {#new-address}
 
-Een adres dat eindigt op `@gmail.com` of `@googlemail.com` hoort bij Google en kan dus niet mee. Heeft het oude account zo'n adres, dan toont **Migratie starten** een stap **Uw nieuwe adres**, waarin u zegt welk adres het vervangt. Contacten met het oude adres krijgen het nieuwe als eerste adres en houden het oude, zodat oude mail de persoon nog vindt. Afspraken die u zelf hebt gemaakt, noemen u met het nieuwe adres, zodat u ze kunt blijven wijzigen. De **Deel-checklist** stelt het nieuwe adres voor u voor. Uw mail wordt nooit gewijzigd: elk bericht blijft precies zoals het is verstuurd. Niemand krijgt iets toegestuurd. Het nieuwe adres wijzigt u achteraf op uw pagina.
+Een adres dat eindigt op `@gmail.com` of `@googlemail.com` hoort bij Google en kan dus niet mee. Heeft het oude account zo'n adres, dan toont **Migratie starten** een stap **Uw nieuwe adres**, waarin u zegt welk adres het vervangt. Contacten met het oude adres krijgen het nieuwe als eerste adres en houden het oude, zodat oude mail de persoon nog vindt. Afspraken en taken die u zelf hebt gemaakt, noemen u met het nieuwe adres, zodat u ze kunt blijven wijzigen. De **Deel-checklist** stelt het nieuwe adres voor u voor. Uw mail wordt nooit gewijzigd: elk bericht blijft precies zoals het is verstuurd. Niemand krijgt iets toegestuurd. Het nieuwe adres wijzigt u achteraf op uw pagina.
 
 ### Wat een Drive-migratie nog niet doet {#drive-not-yet}
 

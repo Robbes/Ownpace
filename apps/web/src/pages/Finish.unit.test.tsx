@@ -353,7 +353,7 @@ describe('the cutover order', () => {
   });
 
   it('says in step 4 to turn on an automatic reply at the old provider, and only where mail waits', async () => {
-    // Ownpace sends nothing to anyone (workplan 0168 §2.1), so the reply is the
+    // A migration sends nothing to anyone (workplan 0168 §2.1), so the reply is the
     // person's own to turn on: guidance, never a write.
     fetchStatus.mockResolvedValue(statusReport('active'));
     const { unmount } = renderScreen();
