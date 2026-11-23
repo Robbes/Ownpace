@@ -130,7 +130,9 @@ const DEMO_TENANTS: readonly DemoTenant[] = [
       // tlsVerify:false because the dev Stalwart's certificate is self-signed
       // -- a demo opting out in writing, now that verification defaults ON.
       config: { type: 'imap-oauth2', host: STALWART_MAIL.host, port: STALWART_MAIL.imapsPort, user: 'source@dev.local', tlsVerify: false },
-      credentials: { password: 'source_password' },
+      // The nightly gate's run sets its own on the account (e2e-managed.yml;
+      // workplan 0163, 2026-11-23); setup-stalwart.sh reads the same variable.
+      credentials: { password: process.env.STALWART_SOURCE_PASSWORD || 'source_password' },
     },
     target: {
       kind: 'jmap',

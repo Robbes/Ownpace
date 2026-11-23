@@ -796,11 +796,17 @@ describe('Where does it go? (screen 5)', () => {
 });
 
 describe('Check, then start (screen 6)', () => {
-  /** Mail from another provider to Soverin and files from Dropbox to Nextcloud, every account saved. */
+  /**
+   * Mail from another provider to Soverin and files from Dropbox to
+   * Nextcloud, every account saved. Anna's own domain comes along, so her
+   * Soverin account signs in on it and *Your new address* asks nothing: a
+   * login on another domain would ask about her address (0168, the owner's
+   * decision (b)).
+   */
   const SAVED = [
     account({ id: 'c-mail', knownValues: { username: 'anna@example.nl' } }),
     account({ id: 'c-dropbox', kind: 'dropbox', displayName: 'Anna Dropbox', knownValues: { username: 'anna@example.nl' } }),
-    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } }),
+    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@example.nl' } }),
     account({ id: 'c-cloud', role: 'target', kind: 'nextcloud', displayName: 'Anna Nextcloud', knownValues: { username: 'anna' } }),
   ];
   const createMock = vi.mocked(mappingApi.create);
@@ -873,7 +879,7 @@ describe('Check, then start (screen 6)', () => {
       sourceConnectionId: 'c-mail',
       targetConnectionId: 'c-soverin',
       sourceConfig: { username: 'anna@example.nl' },
-      targetConfig: { username: 'anna@soverin.net', password: '' },
+      targetConfig: { username: 'anna@example.nl', password: '' },
       syncConfig: { domains: ['email'] },
     });
     // Dropbox's Paper docs in the format chosen on *What moves?*.
@@ -1374,7 +1380,9 @@ describe('what migrates, for each source on the check screen', () => {
 describe('mail through a company’s own Microsoft app (0153 open question 5)', () => {
   const createMock = vi.mocked(mappingApi.create);
   const ORG = account({ id: 'c-org', kind: 'o365', displayName: 'Contoso mail app', knownValues: { username: 'info@contoso.example' } });
-  const SOVERIN = account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Contoso Soverin', knownValues: { username: 'info@contoso.eu' } });
+  // The company's domain comes along: its Soverin account signs in on it, so
+  // *Your new address* asks nothing (0168, the owner's decision (b)).
+  const SOVERIN = account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Contoso Soverin', knownValues: { username: 'info@contoso.example' } });
 
   /** *What moves?*'s Microsoft section, by its legend. */
   const microsoftSection = () => screen.getByRole('group', { name: /^From Microsoft 365/ });
@@ -1693,11 +1701,16 @@ describe('a saved Google Calendar or Contacts account, on the Google tile (0153 
 });
 
 describe('where the copies land (0153 open question 5, item 4)', () => {
-  /** Mail from Gmail and from another provider, both into one Soverin: every account saved. */
+  /**
+   * Mail from Gmail and from another provider, both into one Soverin: every
+   * account saved. Anna's own domain comes along, so her Soverin account signs
+   * in on it, and *Your new address* asks about her Gmail address alone (0168,
+   * the owner's decision (b)).
+   */
   const SAVED = [
     account({ id: 'c-gmail', kind: 'gmail', displayName: 'Anna Gmail', knownValues: { username: 'anna@gmail.com' } }),
     account({ id: 'c-mail', knownValues: { username: 'anna@example.nl' } }),
-    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } }),
+    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@example.nl' } }),
   ];
   const createMock = vi.mocked(mappingApi.create);
 
@@ -2233,6 +2246,8 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     expect(startMock).toHaveBeenCalledWith('m-cal');
   });
 
+  // The new login is on the old address's own domain, which comes along: the
+  // step's reason for asking by itself (the owner's decision (b)) is not met.
   it('is not there where the address can move, and the flow keeps its six steps', async () => {
     accounts('name@example.org');
     const user = userEvent.setup();
@@ -2246,16 +2261,82 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     expect(addMock).not.toHaveBeenCalled();
   });
 
-  it('is there for an own domain given up, once the person says so', async () => {
-    accounts('name@old.example.org');
+  // The tick works as before: an address on the new login's own domain is
+  // asked about once the person says it changes, with no line about another
+  // domain.
+  it('is there for an address the step cannot tell is changing, once the person says so', async () => {
+    accounts('name@example.org');
     const user = userEvent.setup();
     renderAt();
     await toWhere(user);
+    expect(screen.getByText('Step 5 of 6')).toBeInTheDocument();
     await user.click(screen.getByRole('checkbox', { name: 'I am also changing my address' }));
     expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
     await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Your new address' });
-    expect(screen.getByText("You are leaving name@old.example.org. Your new account's address is first@example.org.")).toBeInTheDocument();
+    expect(screen.getByText("You are leaving name@example.org. Your new account's address is first@example.org.")).toBeInTheDocument();
+    expect(screen.queryByText(/on another domain/)).not.toBeInTheDocument();
+  });
+
+  // The owner, 2026-11-23, decision (b): "Ask by itself when the new account's
+  // login is on another domain than the old address; never for a
+  // .onmicrosoft.com login; no default answer; hint: 'Choose No if ‹new› is
+  // only temporary, until your own domain moves.'"
+  it('asks by itself about an own-domain address when the new login is on another domain, with the hint, and answers nothing', async () => {
+    accounts('name@example.org', { knownValues: { username: 'first@example.net' } });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my address' })).not.toBeChecked();
+    expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    expect(screen.getByText("You are leaving name@example.org. Your new account's address is first@example.net.")).toBeInTheDocument();
+    const line =
+      'first@example.net is on another domain than name@example.org. Choose No if first@example.net is only temporary, until your own domain moves.';
+    expect(screen.getByText(line)).toBeInTheDocument();
+    const question = screen.getByRole('group', { name: 'Use first@example.net in place of name@example.org?' });
+    expect(question).toHaveAccessibleDescription(line);
+    // No answer is chosen for the person, and Next waits for one.
+    for (const radio of within(question).getAllByRole('radio')) expect(radio).not.toBeChecked();
+    expect(next()).toHaveAccessibleDescription('Answer the question first.');
+
+    // The new login is only temporary: No writes nothing.
+    await user.click(screen.getByRole('radio', { name: 'No, keep it as it is' }));
+    await toCheckFromStep(user);
+    expect(screen.queryByText(/becomes/)).not.toBeInTheDocument();
+    await pressStart(user);
+    expect(addMock).not.toHaveBeenCalled();
+    expect(startMock).toHaveBeenCalledWith('m-cal');
+  });
+
+  it('is not there by itself when the new login is under onmicrosoft.com', async () => {
+    accounts('name@example.org', { knownValues: { username: 'first@contoso.onmicrosoft.com' } });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    expect(screen.getByText('Step 5 of 6')).toBeInTheDocument();
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+  });
+
+  // The owner, 2026-11-23: "Yes, any .onmicrosoft.com". The guide no longer
+  // sends anybody to the box for one.
+  it('asks about an address under onmicrosoft.com with no box ticked, as one Microsoft keeps', async () => {
+    accounts('name@contoso.onmicrosoft.com');
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my address' })).not.toBeChecked();
+    expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    expect(
+      screen.getByText(
+        "You are leaving name@contoso.onmicrosoft.com. Microsoft keeps that address, so it cannot come with you. Your new account's address is first@example.org.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/on another domain/)).not.toBeInTheDocument();
   });
 
   // Not Google's alone since 2026-11-23: Microsoft's, Apple's, Yahoo's and the
@@ -2282,10 +2363,12 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     expect(screen.getByRole('group', { name: `Use first@example.org in place of ${from}?` })).toBeInTheDocument();
   });
 
-  it.each(['name@hotmail.example.com', 'name@notgmail.com'])(
+  // The new login is on the lookalike's own domain, so the step's other
+  // reason, a login on another domain, does not ask either.
+  it.each(['name@hotmail.example.com', 'name@notgmail.com', 'name@notonmicrosoft.com'])(
     'is not there for %s, which only looks like a domain on the list',
     async (from) => {
-      accounts(from);
+      accounts(from, { knownValues: { username: `first@${from.split('@')[1]!}` } });
       const user = userEvent.setup();
       renderAt();
       await toWhere(user);

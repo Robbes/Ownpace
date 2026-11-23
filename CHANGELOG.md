@@ -123,6 +123,19 @@ from alpha.17 is one-way: ledger migration 0075 adds a column.
   the migration's page, the Check page and the report count it apart, *changed in your old account
   after the switch, not updated*, in English and Dutch. It never counts as waiting, the press never
   claims it, and it holds nothing.
+- **The step *Your new address* asks by itself when the new account's address is on another
+  domain, and about every `.onmicrosoft.com` address** (workplan 0168; the owner's decisions of
+  2026-11-23: *"(b) Ask if login differs"* and *"Yes, any .onmicrosoft.com"*). An old address that
+  is not on the list is asked about when the new account's login is an address on another domain,
+  never when that login is under `onmicrosoft.com`, and the step says the new address is on
+  another domain, with *Choose No if ‹new› is only temporary, until your own domain moves.*, in
+  English and Dutch. No answer is chosen for the person; a login on the old address's own domain
+  asks nothing new, and *I am also changing my address* works as before. Beside the list of whole
+  domains, one rule names Microsoft for any host under `onmicrosoft.com`, a Microsoft 365
+  tenant's own domain, read on whole labels, so `notonmicrosoft.com` and `onmicrosoft.com`
+  itself are not. The Microsoft guide, in both languages, no longer sends anybody to the box for
+  an `.onmicrosoft.com` name, says when the step asks by itself, and names the country domains
+  local versions, as the owner worded the Dutch.
 
 - **The npm minor-and-patch group, 6 updates** (workplan 0119; Dependabot, #2086): at run time
   imapflow 2.12.2 and nodemailer 10.6.1 for the connectors, and undici 8.13.0 for the managed
@@ -196,6 +209,24 @@ from alpha.17 is one-way: ledger migration 0075 adds a column.
   mail's recipient's address in the log lines themselves. Each line now names the access request or
   the invitation by its id, or what the mail was about; a second knock while a request is still
   open names nobody, since nothing on that anonymous path can read the queue for its id.
+- **A database error's own message says no value, so a line that writes it into its own text
+  prints none** (workplan 0168). Lines in the API, the job worker and the appliance that write
+  `${err.message}` into their text hand the log a string it cannot read again, and Drizzle's message
+  ends `params: <values>`. The ledger now throws a database error without them where it leaves the
+  ledger: every Drizzle statement's failure, on `pg` or PGlite, and every statement its drivers send.
+  The error keeps its class and `code`, a Drizzle error's `cause` is still the driver's error with
+  its `code` and `constraint`, and the original is kept behind it. `pg` used without the ledger, by
+  the job runner and pg-boss, the operator's commands and the measuring tool, is not read so; only a
+  data exception's message can carry a value there.
+- **A mail server's refusal is logged without the address it refused** (workplan 0168). nodemailer
+  names the recipient in the server's reply, which it also appends to its message, and in `rejected`
+  and `rejectedErrors`, and the mail channel logs that error beside its line. `loggableError` now
+  drops those lists and an `envelope`, and writes `[redacted]` for every address in the reply and
+  the message, keeping the error's code, status and command.
+- **The appliance's line for a request that failed keeps its path as the API's access log does**
+  (workplan 0168). A row of the address changes is named by its old address,
+  `/address-changes/<key>`, and the line printed it; it now writes `:key`, and a query string as
+  `?...`, by `loggableUrl`, which moves from the API into `@openmig/shared`.
 
 ### Security
 
@@ -214,6 +245,31 @@ from alpha.17 is one-way: ledger migration 0075 adds a column.
 - **Three more patterns no longer build a regular expression from a value**: a calendar
   invitation's `CN` and `EMAIL`, a mail header by its name, and a WebDAV error's conditions by the
   root's prefix. Each was linear and reads as before.
+- **No workflow names a password any more; each run makes its own** (workplan 0163, Status of
+  2026-11-23). An outside, read-only check found nine in the pipeline files: six for E2E
+  (self-hosted)'s throwaway Stalwart, Nextcloud and Postgres, two for the image workflow's database
+  build check, and the password of the demo's mail source on the OTA stack. Each was a test
+  credential, not a credential to anything real, but each run now makes its own at random, masks
+  it and hands it on through `$GITHUB_ENV`. The demo's mail source keeps its data between runs, so
+  its password is rotated: the nightly gate sets a new one on the account at each bring-up, and the
+  old one no longer opens it. `setup-stalwart.sh` reads `STALWART_SOURCE_PASSWORD` and
+  `STALWART_TARGET_PASSWORD`, and `deploy/compose/dev.yml` reads `NEXTCLOUD_ADMIN_PASSWORD`; each
+  keeps its old value as a developer's default. A guard fails any workflow that sets a credential
+  to a literal.
+
+### Security
+
+- **The test mail server's krb5 and zlib findings wait for Stalwart's next release; the Dockerfile
+  rules an outside check read stay as decided** (workplan 0166 T9; docs only). An outside,
+  read-only check of 2026-11-23 reported a high vulnerability with a fix in the Stalwart image the
+  integration tests and E2E (self-hosted) start. Today's image scan agrees: Debian's krb5 libraries
+  and `zlib1g` in `stalwartlabs/stalwart:v1.1.1` have fixes. No Stalwart release after v1.1.1
+  and no rebuild of it exists yet, so the pin cannot move by ADR-0022. The owner's answer of
+  2026-11-23, *"Stalwart: in alpha 19"*, keeps it at v1.1.1 in alpha.18: its move, to Stalwart's
+  next release or to `v1.1.1-alpine`, is alpha.19's. Live never runs this image. hadolint's rules on the GoAccess, PgBouncer and Postgres Dockerfiles stand: no
+  exact apk versions (the owner's answer of 2026-11-19), the pooler's two `USER` lines named as
+  upstream names them until that build goes, and no image `HEALTHCHECK` where compose gives the
+  probe.
 
 ## [0.2.0-alpha.17] - 2026-11-23
 

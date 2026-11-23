@@ -16,6 +16,9 @@ import {
 } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
 import { holdUntilCommit } from './after-commit.ts';
+// Every Drizzle failure, and every one sent through a driver here, is thrown
+// without the values its message would say (workplan 0168).
+import { rethrowWithoutValues } from './driver-errors.ts';
 
 export type { PgDatabase };
 
@@ -56,14 +59,13 @@ export function pgDriver(pool: Pool, options: { readonly role?: string } = {}): 
       let db: PgDatabase | undefined;
       const conn: LedgerConnection = {
         query: <R>(text: string, params?: readonly unknown[]) =>
-          client.query<R extends Record<string, unknown> ? R : never>(
-            text,
-            params as unknown[] | undefined,
-          ),
+          client
+            .query<R extends Record<string, unknown> ? R : never>(text, params as unknown[] | undefined)
+            .catch(rethrowWithoutValues),
         // No parameters, so node-postgres uses the SIMPLE protocol and accepts
         // multiple statements — which is what a migration file is.
         exec: async (sql: string) => {
-          await client.query(sql);
+          await client.query(sql).catch(rethrowWithoutValues);
         },
         get db(): PgDatabase {
           return (db ??= drizzlePg(client, { schema: schemaPg }) as unknown as PgDatabase);

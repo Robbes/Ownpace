@@ -26,7 +26,7 @@ import pg from 'pg';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { CutoverRefused } from '@openmig/core';
-import { pgliteDriver, type LedgerConnection, type LedgerDriver } from '@openmig/ledger';
+import { pgDriver, pgliteDriver, type LedgerConnection, type LedgerDriver } from '@openmig/ledger';
 import { log, loggableError, resetLogLevel, setLogLevel } from '@openmig/shared';
 import { serverFault } from './server-fault.ts';
 
@@ -113,6 +113,17 @@ function logged(error: unknown): string {
 
 function expectNoValue(line: string): void {
   for (const value of VALUES) expect(line, `the log printed ${value}`).not.toContain(value);
+}
+
+/**
+ * The error a statement's own fields came from: since the ledger throws a
+ * database error without its values (`errorWithoutValues`, workplan 0168), the
+ * original is kept only at the end of its chain of causes.
+ */
+function original(error: unknown): Record<string, unknown> {
+  let at = error as Record<string, unknown>;
+  while (typeof at.cause === 'object' && at.cause !== null) at = at.cause as Record<string, unknown>;
+  return at;
 }
 
 /** The error the statement threw. */
@@ -207,9 +218,13 @@ describe('a database fault, as the log prints it (workplan 0168)', () => {
     const error = await thrown(() =>
       drizzle(client).execute(sql`INSERT INTO person (email, name) VALUES (${EMAIL}, ${NAME})`),
     );
+    // Thrown without its values already, by the ledger's reading of Drizzle's
+    // failures; the driver's error is still its cause, the original behind it.
     expect((error as Error).message).toBe(
-      `Failed query: INSERT INTO person (email, name) VALUES ($1, $2)\nparams: ${EMAIL},${NAME}`,
+      'Failed query: INSERT INTO person (email, name) VALUES ($1, $2)\nparams: [redacted]',
     );
+    expect((error as { cause?: { code?: string } }).cause?.code).toBe('23505');
+    expect(original(error).detail).toBe(`Key (email)=(${EMAIL}) already exists.`);
 
     const line = logged(error);
 
@@ -228,8 +243,10 @@ describe('a database fault, as the log prints it (workplan 0168)', () => {
     const wrapped = await thrown(() =>
       connection.db.execute(sql`INSERT INTO person (email, name) VALUES (${EMAIL}, ${NAME})`),
     );
-    expect((bare as { params?: unknown }).params).toEqual([EMAIL, NAME]);
-    expect(Object.hasOwn(bare as object, 'queryOptions')).toBe(true);
+    // The ledger's driver throws it without them; the original keeps them.
+    expect((bare as { params?: unknown }).params).toBeUndefined();
+    expect(original(bare).params).toEqual([EMAIL, NAME]);
+    expect(Object.hasOwn(original(bare), 'queryOptions')).toBe(true);
 
     for (const error of [bare, wrapped]) {
       const line = logged(error);
@@ -245,7 +262,8 @@ describe('a database fault, as the log prints it (workplan 0168)', () => {
     const error = await thrown(() =>
       connection.exec(`INSERT INTO person (email, name) VALUES ('${EMAIL}', '${NAME}')`),
     );
-    expect((error as { query?: string }).query).toContain(EMAIL);
+    expect((error as { query?: string }).query).toBe('INSERT INTO person (email, name) VALUES ([redacted]');
+    expect(original(error).query).toContain(EMAIL);
 
     const line = logged(error);
 
@@ -333,5 +351,47 @@ describe('the shared log, handed the error itself (workplan 0168)', () => {
     const line = printedByTheLog('info', '[jobs] asked:', { params: ['kept as asked'] });
 
     expect(line).toContain('kept as asked');
+  });
+});
+
+/**
+ * A line that writes an error's message into its own text hands the log a
+ * string, which the log cannot read again; so the ledger throws a database
+ * error whose message already says no value (`errorWithoutValues`, workplan
+ * 0168): Drizzle's failures where Drizzle runs a statement, and a statement a
+ * ledger driver sends where it sends it.
+ */
+describe("a line that writes the error's message into its own text", () => {
+  it('prints no value after a real pg, Drizzle or PGlite fault through the ledger', async () => {
+    // The ledger's own pg driver, over the same socket to the same Postgres.
+    const viaPg = pgDriver({
+      connect: async () => Object.assign(client, { release: () => {} }),
+      end: async () => {},
+    } as unknown as pg.Pool);
+    const pgConnection = await viaPg.acquire();
+    const faults = {
+      'pg, an input the column could not take': await thrown(() =>
+        pgConnection.query('SELECT name FROM person WHERE id = $1', [EMAIL]),
+      ),
+      'Drizzle over pg, a unique key': await thrown(() =>
+        drizzle(client).execute(sql`INSERT INTO person (email, name) VALUES (${EMAIL}, ${NAME})`),
+      ),
+      'Drizzle over pg, a value written into the statement': await thrown(() =>
+        drizzle(client).execute(sql.raw(`INSERT INTO person (email, name) VALUES ('${EMAIL}', '${NAME}')`)),
+      ),
+      'PGlite, an input the column could not take': await thrown(() =>
+        connection.query('SELECT name FROM person WHERE id = $1', [EMAIL]),
+      ),
+      'Drizzle over PGlite, a failing row': await thrown(() =>
+        connection.db.execute(sql`INSERT INTO person (email, name, note) VALUES (${EMAIL}, ${NAME}, ${NOTE})`),
+      ),
+    };
+
+    for (const [fault, error] of Object.entries(faults)) {
+      const line = printedByTheLog('error', `[jobs] ${fault} failed: ${(error as Error).message}`);
+
+      expectNoValue(line);
+      expect(line, fault).toMatch(/^\[jobs\] .+ failed: \S/);
+    }
   });
 });

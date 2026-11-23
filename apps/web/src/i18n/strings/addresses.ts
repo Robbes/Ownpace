@@ -22,6 +22,10 @@ export const en = {
   'start.address.newIs': "Your new account's address is {new}.",
   'start.address.newNotAnAddress':
     'Your new account signs in as {login}, which is not an address. Type the address your new mail comes from.',
+  // Asked by itself because the new account's address is on another domain
+  // (the owner, 2026-11-23, decision (b)); the hint is the owner's words.
+  'start.address.otherDomain': '{new} is on another domain than {old}.',
+  'start.address.otherDomain.hint': 'Choose No if {new} is only temporary, until your own domain moves.',
   'start.address.use': 'Use {new} in place of {old}?',
   // Where the new account's login is not an address, nothing is proposed (N11).
   'start.address.which': 'Which address takes the place of {old}?',
@@ -162,6 +166,8 @@ export const nl: Record<keyof typeof en, string> = {
   'start.address.newIs': 'Het adres van uw nieuwe account is {new}.',
   'start.address.newNotAnAddress':
     'Uw nieuwe account meldt zich aan als {login}, en dat is geen adres. Typ het adres waar uw nieuwe mail van komt.',
+  'start.address.otherDomain': '{new} staat op een ander domein dan {old}.',
+  'start.address.otherDomain.hint': 'Kies Nee als {new} maar tijdelijk is, tot uw eigen domein meekomt.',
   'start.address.use': '{new} gebruiken in plaats van {old}?',
   'start.address.which': 'Welk adres komt in de plaats van {old}?',
   'start.address.yes': 'Ja',
