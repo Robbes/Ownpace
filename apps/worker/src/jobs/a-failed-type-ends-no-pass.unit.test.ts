@@ -21,8 +21,8 @@
  * text, because its body needs a database, a runner and five connectors. Here
  * the task's own run runs, over a real ledger (PGlite, the ledger's migrations), with
  * only what it cannot have stood in: the run is the one the task file exports
- * for either runner (`runDeltaSyncRun`, workplan 0167 T6), called with a
- * context of its own, so Trigger.dev's SDK is the real one; the task's pool
+ * for its runner (`runDeltaSyncRun`, workplan 0167 T6), called with a
+ * context of its own; the task's pool
  * is the PGlite driver; the five passes and their builders are scripted; and the
  * first-copy email, which reads managed tables, is counted instead of sent.
  * Everything between them is the pass's own: the order, the shares of time, the

@@ -100,8 +100,8 @@
  * and every scope in it would change nothing again, with nothing to say so.
  * `SYSTEM_DATABASE_URL` unset refuses too: every audit line the task writes
  * would be lost, and that is not a state to start in (hard rule 9). Nor does
- * it fall back to `DATABASE_URL`, the owner, which `set-task-env.sh` stopped
- * uploading and deletes from the store (0138 T3 step 2):
+ * it fall back to `DATABASE_URL`, the owner, which no run has held since 0138
+ * T3 step 2 (the worker service carries none, managed.yml):
  * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` (rule 8) fails
  * if this module reads that name at all.
  *

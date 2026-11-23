@@ -21,8 +21,8 @@
  * migration that never resumes on its own. So both directions are asserted.
  *
  * **Since 2026-09-27 neither carries the words** (workplan 0134, open question
- * 3 (a)). Trigger.dev keeps what a run fails with, with no limit, and the last
- * item's error can name a tester's file. So the rule lives in `planeErrorFor`,
+ * 3 (a)). Trigger.dev kept what a run failed with, with no limit, until
+ * alpha.18, and the last item's error can name a tester's file. So the rule lives in `planeErrorFor`,
  * which every task's error goes through, and the words go to the container's
  * output under the reference the error carries. The class still decides the
  * retry; `a-run-that-kept-a-testers-words` holds the words.
@@ -30,9 +30,10 @@
  * **On the pg-boss runner (workplan 0167 T6)** a run's error crosses from its
  * process as a name and a message, and the runner settles it by the name, on
  * its one list, `NOT_RETRIED_ERROR_NAMES`. This module keeps no list of its
- * own for a runner to read: the two names its Trigger.dev mapping goes by are
- * private, since a third there (`ZodError`, say) would change what Trigger.dev
- * retries. What the plane is handed settles on pg-boss as on Trigger.dev.
+ * own for a runner to read: the two names its Trigger.dev mapping went by were
+ * private, since a third there (`ZodError`, say) would have changed what
+ * Trigger.dev retried. What the plane is handed settles on pg-boss as it did
+ * on Trigger.dev.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -135,8 +136,8 @@ describe('on the pg-boss runner, settled by its own list of names (workplan 0167
   });
 
   it('keeps a task’s own RunNotRetried a verdict, as its own RunNotRetried is: not retried', async () => {
-    // Thrown by a job in place of RunNotRetried once Trigger.dev is gone
-    // (ADR-0054, T9): the plane's error still fails the run once.
+    // What a job throws since Trigger.dev went (ADR-0054, T9), in place of
+    // AbortTaskRunError: the plane's error still fails the run once.
     quieter();
     const own = Object.assign(new Error('Rollback refused'), { name: 'RunNotRetried' });
     const mapped = await planeErrorFor(own, { task: 'run-rollback' });

@@ -4,8 +4,9 @@
  * A RUN THAT KEPT A TESTER'S WORDS (workplan 0134, open question 3, answered
  * (a) on 2026-09-27).
  *
- * Trigger.dev keeps every run's error, output and logs in its own database,
- * with no limit, and every dump of that database carries them (0134 T1 (c)).
+ * Trigger.dev kept every run's error, output and logs in its own database,
+ * with no limit, until alpha.18, and every dump of that database carried them
+ * (0134 T1 (c)).
  * Three doors let a tester's words in: a failed run's error (the last item's
  * "Last error: …" names a file), discovery's output (each failed data type's
  * error, verbatim), and the run's logs (`log.*` names folders and files on
@@ -15,8 +16,9 @@
  *
  * Run where it can be: the error, the event and the log line of a failure;
  * discovery's outcomes. Read where it cannot: each task file, which builds a
- * database pool when it is imported, and `trigger.config.ts`, which sits outside
- * `src` and is read by the Trigger.dev CLI, not by this runtime.
+ * database pool when it is imported (and, until alpha.18, `trigger.config.ts`,
+ * which sat outside `src` and was read by the Trigger.dev CLI, not by this
+ * runtime).
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';

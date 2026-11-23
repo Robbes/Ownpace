@@ -589,7 +589,7 @@ export const runDeltaSyncRun = leavesAReference(
           // its bytes to the meter (below). Not during the alpha (the owner,
           // 2026-10-03: "A"), where nothing is charged and no yes is taken:
           // this process learns the stage from OWNPACE_STAGE, which
-          // set-task-env.sh uploads to the task environment.
+          // the worker service carries (managed.yml).
           const ceiling = holdsAtCeiling(process.env.OWNPACE_STAGE)
             ? await withTenant(pool, tenantId, (db) => readCeiling(db, tenantId))
             : null;
@@ -1202,9 +1202,9 @@ export const runDeltaSyncRun = leavesAReference(
       }
 
       // EVERY DATA TYPE HAS HAD ITS TURN, AND THE PASS NOW ANSWERS FOR THE ONES
-      // THAT FAILED (0143 T5, 2026-11-19). It fails, so Trigger.dev records the
+      // THAT FAILED (0143 T5, 2026-11-19). It fails, so the runner records the
       // failure and retries it as it always did: the run row closes failed,
-      // counting each data type that failed, and the plane's error names every
+      // counting each data type that failed, and the run's error names every
       // one of them, in the order the pass took them, each with the reference
       // and category recorded above. A first copy this pass finished is said
       // on the way out, once for the pass however many failed (0154 T7), after

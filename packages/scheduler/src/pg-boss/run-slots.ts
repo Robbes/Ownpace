@@ -4,10 +4,10 @@
  * THE WORKER'S LIMIT ON RUNS AT ONCE, AND THE LOOP THAT KEEPS TO IT (ADR-0054;
  * workplan 0167, the T9 row's alpha.17 part).
  *
- * Trigger.dev's plane admits at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once
- * on a stack (`deploy/compose/plane-limit.sh`): a run past that limit stays
- * QUEUED in its own queue, is dequeued once a run ends, and neither fails nor
- * spends an attempt for having waited. The worker keeps the same limit, by the
+ * Trigger.dev's plane admitted at most `MAX_PASSES_IN_FLIGHT` + 2 runs at
+ * once on a stack until alpha.18: a run past that limit stayed QUEUED in its
+ * own queue, was dequeued once a run ended, and neither failed nor spent an
+ * attempt for having waited. The worker keeps the same limit, by the
  * same rule: a run past it is NOT FETCHED. It stays `created` in its pg-boss
  * queue, at the attempt it had, its time limit not yet counting (pg-boss counts
  * it from the fetch), and a stop leaves it there for the next worker.
@@ -27,7 +27,7 @@
  *   goes to the first in line. A queue goes to the back of the line each time
  *   it asks again, so the queues take turns, and a queue with many runs
  *   waiting does not take every slot that frees: no kind of run is put ahead
- *   of another, as Trigger.dev puts none ahead at its limit.
+ *   of another, as Trigger.dev put none ahead at its limit.
  * - {@link workQueue} is one queue's loop: at most `concurrency` of its runs
  *   at once, and each only with a slot.
  *

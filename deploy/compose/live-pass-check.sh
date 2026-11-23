@@ -83,11 +83,11 @@ STALE_RUN_AFTER_SECONDS=7200
 # The tick's defaults for its two caps (managed-sync-tick.ts), for a blank line.
 DEFAULT_MAX_PASSES_IN_FLIGHT=3
 DEFAULT_MAX_PASSES_PER_ORGANISATION=2
-# run-delta-sync's attempts, the same on either runner: apps/worker/
-# trigger.config.ts's maxAttempts 3, and the pg-boss catalog's 3 for every
-# queue (packages/scheduler/src/pg-boss/catalog.ts, workplan 0167). And how
-# long a failed attempt waits for its retry before it is the last: the
-# backoff is at most 60 s on both, plus a runner's start.
+# run-delta-sync's attempts: the pg-boss catalog's 3 for every queue
+# (packages/scheduler/src/pg-boss/catalog.ts, workplan 0167), as apps/worker/
+# trigger.config.ts's maxAttempts was until alpha.18. And how long a failed
+# attempt waits for its retry before it is the last: the backoff is at most
+# 60 s, plus a run's start.
 ATTEMPTS=3
 RETRY_GRACE_SECONDS=180
 

@@ -6,8 +6,8 @@
  * The defect this closes cannot be seen from inside one limiter: a per-process
  * bucket behaves perfectly on its own and is simply duplicated N times across
  * the service. So the central test here uses **two independent `PgRateBudget`
- * instances over one database** — which is exactly what two Trigger.dev task
- * runs are, minus the process boundary. If the state were instance-local, both
+ * instances over one database** — which is exactly what two runs in the
+ * worker are, minus the process boundary. If the state were instance-local, both
  * would happily spend a full bucket and the assertion would fail.
  *
  * Real Postgres via PGlite: `ON CONFLICT DO UPDATE … WHERE`, `clock_timestamp()`
@@ -213,7 +213,7 @@ describe('PgRateBudget', () => {
  */
 describe('PgByteBudget', () => {
   it('meters ONE budget across two independent instances', async () => {
-    // Two instances are what two Trigger.dev task runs are. Instance-local
+    // Two instances are what two runs in the worker are. Instance-local
     // state would leave each seeing only its own half.
     const a = new PgByteBudget(db, { bytesPerDay: 1000 });
     const b = new PgByteBudget(db, { bytesPerDay: 1000 });

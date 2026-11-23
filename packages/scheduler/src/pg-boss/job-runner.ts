@@ -3,8 +3,8 @@
 /**
  * THE MANAGED EDITION'S JOB RUNNER, ON OUR OWN POSTGRES (ADR-0054, workplan 0167).
  *
- * What the managed edition asks of Trigger.dev (0167 §1), said once over
- * pg-boss, each ask proved against a real Postgres (0167 §3):
+ * What the managed edition asked of Trigger.dev until alpha.18 (0167 §1), said
+ * once over pg-boss, each ask proved against a real Postgres (0167 §3):
  *
  *  - a QUEUE per task, whose runs are retried as a whole (three attempts,
  *    exponential, 5 s to 60 s), capped in time, and kept alive by a heartbeat
@@ -102,9 +102,9 @@ export class RunTimedOut extends Error {
 
 /**
  * The error names that fail a run with no further attempts, so that a run
- * settles as Trigger.dev 4.8.8 settles it today (ADR-0054 §2):
- *  - ours, and Trigger.dev's (the jobs throw it today,
- *    `apps/worker/src/jobs/what-a-run-leaves.ts`);
+ * settles as Trigger.dev 4.8.8 settled it (ADR-0054 §2):
+ *  - ours, which the jobs throw (`apps/worker/src/jobs/what-a-run-leaves.ts`),
+ *    and Trigger.dev's, which no job has thrown since alpha.18;
  *  - a payload that failed its schema, which no retry can mend;
  *  - a run that reached its time limit (`MAX_DURATION_EXCEEDED`);
  *  - a run whose process ran out of its heap (`RunOutOfMemory`, V8's line or
@@ -143,7 +143,10 @@ export interface QueueSpec {
   readonly attempts?: number;
   readonly retryDelaySeconds?: number;
   readonly retryDelayMaxSeconds?: number;
-  /** The run's time limit, pg-boss's `expireInSeconds`. Default 3600, Trigger.dev's `maxDuration` here. */
+  /**
+   * The run's time limit, pg-boss's `expireInSeconds`. Default 3600, the
+   * `maxDuration` Trigger.dev's config set until alpha.18.
+   */
   readonly maxDurationSeconds?: number;
   /** A run whose worker stops beating for this long is failed and retried. Default 30, minimum 10. */
   readonly heartbeatSeconds?: number;
@@ -253,8 +256,9 @@ export interface PgBossJobRunnerOptions extends PgBossClientOptions {
   readonly pollingIntervalSeconds?: number;
   /**
    * The most runs this worker runs at once, across every queue it works:
-   * Trigger.dev's environment limit, `MAX_PASSES_IN_FLIGHT` + 2 on the
-   * managed stack. A run past it is not fetched, and waits in its queue
+   * `MAX_PASSES_IN_FLIGHT` + 2 on the managed stack, as Trigger.dev's
+   * environment limit was until alpha.18. A run past it is not fetched, and
+   * waits in its queue
    * (`./run-slots.ts`). Default: no limit but each queue's own.
    */
   readonly runsAtOnce?: number;

@@ -33,7 +33,9 @@ export const TICK_LATE_AFTER_MS = 5 * 60_000;
 /**
  * THE SYNC TICK'S BEAT ON EACH RUNNER (ADR-0054; workplan 0167 T6).
  *
- * While the jobs can run on Trigger.dev or on pg-boss, the tick on each writes
+ * The jobs run on pg-boss alone since alpha.18, but a Trigger.dev plane
+ * somebody started from an older tree could still run them on the same
+ * database (managed-sync-tick.ts), so the tick on each runner writes
  * a beat of its own beside the shared one above, and starts no pass while the
  * other runner's tick has beaten within {@link ANOTHER_RUNNER_BEAT_MS}: two
  * runners at once would start two passes on one migration, each serialising

@@ -9,9 +9,10 @@
  * - `LARGEST_FILE_MB` unset is the owner's 10 GB (2026-09-27), a whole number
  *   of megabytes moves it, and anything else is refused by name rather than
  *   replaced;
- * - the managed file pass is built with it, read from the task environment,
- *   and `set-task-env.sh` uploads it, because a task container inherits
- *   nothing from compose;
+ * - the managed file pass is built with it, read from the worker's
+ *   environment, which managed.yml's `worker` service hands it
+ *   (`set-task-env.sh` uploaded it to the tasks until alpha.18), because a
+ *   container inherits nothing from compose but what its service names;
  * - the appliance's file pass is built without it: no runner kills its passes.
  *
  * The wiring is read as text, as the job guards read a task body, because

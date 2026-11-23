@@ -25,7 +25,7 @@
  *    sessions, so it is `degraded`, not `down`. That distinction is the
  *    difference between orange and red on the page.
  *
- * Not the worker, not Trigger.dev, not the demo backends. A sync that is behind
+ * Not the worker, not the job queues, not the demo backends. A sync that is behind
  * is a real thing to know and NOT a reason to tell the world the service is
  * down; it belongs on a queue-depth metric, not here.
  *

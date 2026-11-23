@@ -49,7 +49,9 @@
 #                       MAX_PASSES_PER_ORGANISATION, blank for 2, longest-
 #                       waiting first, and the next as a pass ends. To measure
 #                       the machine at another cap, set it in the stack's .env
-#                       and run set-task-env.sh before the sitting.
+#                       and bring the stack up again before the sitting
+#                       (bootstrap-managed.sh sizes the worker for it and
+#                       starts it with it).
 #
 # The connection rows copy the demo's sealed credentials as they are: nothing
 # is decrypted or encrypted again, so the script needs no key. No member is
@@ -95,8 +97,9 @@
 # organisation is gone, and writes nothing.
 #
 # WHAT IT LEAVES, and says so: the copies the passes wrote into the demo target
-# accounts (named by folder when it removes), and the Trigger.dev plane's own
-# records of the runs (0143 T7 is about those).
+# accounts (named by folder when it removes), and the job runner's own records
+# of the runs (pg-boss's, in the schema pgboss; Trigger.dev's plane's until
+# alpha.18; 0143 T7 is about those).
 #
 # HOW IT REACHES THE DATABASE. `docker compose exec postgres`, psql over the
 # container's own socket, as the owner the postgres image created. That owner
