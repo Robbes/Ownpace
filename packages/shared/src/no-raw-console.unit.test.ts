@@ -28,6 +28,10 @@ const ROOTS = [
   'packages/orchestration/src',
   'apps/worker/src',
   'apps/selfhost/src',
+  // The job runner's three `console.error`s printed a database error whole,
+  // values and all; through the logger they print it as `loggableError` does
+  // (workplan 0168).
+  'packages/scheduler/src',
 ];
 
 /**

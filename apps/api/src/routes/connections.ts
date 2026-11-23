@@ -112,7 +112,8 @@ import {
   targetConnectionConfig,
 } from './migrations/index.ts';
 import { pressSyncNow } from './migrations/sync-now.ts';
-import { loggableError, serverFault } from '../server-fault.ts';
+import { serverFault } from '../server-fault.ts';
+import { loggableError } from '@openmig/shared';
 import { probeAnswers, type ProbeAnswers } from '../probe-answer.ts';
 import { refusedOverTestLimit } from '../probe-limit.ts';
 import { withinBudget } from './within-budget.ts';

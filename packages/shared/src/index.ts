@@ -118,6 +118,7 @@ export * from './erasure-scope.ts';
 export * from './quiesce.ts';
 export * from './token-revocation.ts';
 export * from './logger.ts';
+export * from './loggable-error.ts';
 export * from './app-event.ts';
 export * from './unreadable-answer.ts';
 export * from './operator-log.ts';
