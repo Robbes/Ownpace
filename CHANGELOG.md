@@ -59,7 +59,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Trigger.dev's plane admits, and its memory limit is lowered to match** (workplan 0167, the T9
   row's alpha.17 part; ADR-0054). A run past the limit is not fetched: it waits in its queue at the
   attempt it had, neither failing nor spending a retry, its time limit not counting, and a stop
-  leaves it there; the queues take turns at a slot that frees. A run claimed as a stop comes goes
+  leaves it there; the queues take turns at a slot that frees. A run claimed as a stop goes
   back to its queue at its attempt, or, where its queue's policy refuses it back, is run, as
   pg-boss runs a claim it cannot give back. The memory rule is now
   (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 256 MB, every run at its 512 MB budget and the worker

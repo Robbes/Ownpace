@@ -287,6 +287,6 @@ operative rules above say them in short; these are the rules in full:
   `fetch`, `touch`, `complete` and `fail`. The operative bullet on the worker says so, and that
   its size is per run: (`MAX_PASSES_IN_FLIGHT` + 2) × 512 MB + 256 MB, every run at the 512 MB
   budget `small-1x` gives every queue alike and 256 MB for the worker itself, whose process
-  measured 120 MB. A run claimed as a stop comes goes back to its queue at its attempt, or, where
+  measured 120 MB. A run claimed as a stop goes back to its queue at its attempt, or, where
   its queue's policy refuses it back, is run under its claim, as pg-boss's own give-back runs it.
   The *In force* bullet on the +17 stands as the record of alpha.16.
