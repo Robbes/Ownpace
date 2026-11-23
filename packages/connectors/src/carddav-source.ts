@@ -17,7 +17,7 @@
 
 import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@openmig/shared';
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types.ts';
-import { carddavMatchAllFilter, davRefusalBody, log } from '@openmig/shared';
+import { carddavMatchAllFilter, davRefusalBody, elementsIn, log, namesPrefixedElement } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
@@ -492,12 +492,17 @@ export class CarddavSource implements ContactSource {
    * against Nextcloud/sabre-dav for the sibling calendar-home-set property, same server stack.
    */
   private static extractHrefProperty(body: string, elementName: string): string | null {
-    const outer = body.match(
-      new RegExp(`<[\\w-]+:${elementName}[^>]*>([\\s\\S]*?)<\\/[\\w-]+:${elementName}>`, 'i'),
-    );
-    const outerContent = outer?.[1];
+    // `<p:name[^>]*>([\s\S]*?)<\/p:name>`, case aside, read a tag at a time, in time linear in the
+    // body's length (`elementsIn`, workplan 0163): the pattern was quadratic on a body that opens
+    // the element many times and never closes it, and the server is whatever host a person named.
+    const outerContent = elementsIn(
+      body,
+      (tag) => namesPrefixedElement(tag, elementName),
+      (tag) => tag.startsWith('/') && namesPrefixedElement(tag.slice(1), elementName, true),
+      true,
+    )[0]?.text;
     if (outerContent === undefined) return null;
-    const hrefMatch = outerContent.match(/<[\w-]+:href[^>]*>([^<]+)<\/[\w-]+:href>/i);
+    const hrefMatch = outerContent.match(/<[\w-]+:href[^<>]*>([^<]+)<\/[\w-]+:href>/i);
     const value = (hrefMatch?.[1] ?? outerContent).trim();
     return value || null;
   }

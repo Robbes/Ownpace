@@ -108,6 +108,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the invitation by its id, or what the mail was about; a second knock while a request is still
   open names nobody, since nothing on that anonymous path can read the queue for its id.
 
+### Security
+
+- **A DAV server's answer is read in time linear in its length** (workplan 0163, 2026-11-23). The
+  CalDAV and CardDAV readers, the 207 reader the DAV targets share, the reading of a DAV server's
+  refusal, the Google sync measurement and the DAV target probe took an element out with a pattern of
+  the shape `<name…>([\s\S]*?)</name>`. On an answer that opens the element many times and never
+  closes it, that pattern scans from every opening tag to the end: time quadratic in the answer's
+  length, with nothing capping it. Crafted answers under 1 MB held a test for 15 to 94 seconds
+  where they now take milliseconds. The server is whatever host a person names, so a hostile one
+  could hold a worker that long. They are now read a tag at a time (`elementsIn`, in
+  `@openmig/shared`), and what each reader finds in well-formed tags is unchanged.
+- **The guides' table reader no longer slows on a long run of spaces.** The delimiter-row pattern
+  had two `\s*` side by side at its end. It read only the guides the web app ships, so this is a
+  fix in kind, not one anybody could reach.
+- **Three more patterns no longer build a regular expression from a value**: a calendar
+  invitation's `CN` and `EMAIL`, a mail header by its name, and a WebDAV error's conditions by the
+  root's prefix. Each was linear and reads as before.
+
 ## [0.2.0-alpha.17] - 2026-11-23
 
 A person who leaves an address they cannot take along, a Gmail address for one, now declares the

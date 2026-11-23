@@ -128,6 +128,8 @@ export * from './metrics.ts';
 // not customers, and @openmig/shared is loaded by both editions.
 export * from './probe-outcome.ts';
 export * from './dav-refusal.ts';
+// A DAV body's elements, read in time linear in its length (workplan 0163, 2026-11-23).
+export * from './xml-elements.ts';
 // A remote's refusal in parts, so the managed Test button answers without its bytes (0136 T3).
 export * from './remote-refusal.ts';
 // A share the new system refused, in parts and in our words (0136 T3, a share's refusal on apply).
