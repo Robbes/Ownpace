@@ -506,7 +506,11 @@ describe('every answer is in both languages (N7; the review, finding 9)', () => 
   it("answers the apply press of a migration this organisation does not have in both languages", async () => {
     as(OURS, 'admin-of-01');
     for (const id of [`${P}99`, 'not-a-migration']) {
-      const res = await request(app).post(`/api/migrations/${id}/address-changes/apply`);
+      // A press names the table its page showed (the engine's S5 (d)), so it
+      // carries a digest; without one it is a 400 before any migration is read.
+      const res = await request(app)
+        .post(`/api/migrations/${id}/address-changes/apply`)
+        .send({ digest: '0'.repeat(64) });
       expect(res.status).toBe(404);
       expect(res.body).toEqual({
         error: 'Not found',

@@ -339,6 +339,10 @@ describe('what only an owner can do, as the admin line says', () => {
         // (0130 T6), and neither route decides anything by it.
         "reads the caller's role: problem-reports.ts GET /preview (serverFacts)",
         "reads the caller's role: problem-reports.ts POST / (serverFacts)",
+        // Not an owner-only act: the table of address changes is the owner's
+        // and the admins' alike, and a member answers only their own row
+        // (workplan 0168 §4.4), so the admin line has nothing to add.
+        "reads the caller's role: address-changes.ts outside a route, line 96 (includes)",
       ].sort(),
     );
   });
