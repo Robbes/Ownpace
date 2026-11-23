@@ -72,6 +72,8 @@ import {
   ONE_PERSON_HERE,
   withGranteesNewAddress,
   ADDRESS_CHANGES_FILE,
+  ADDRESS_PRESS_NAMES_NO_TABLE,
+  ADDRESS_TABLE_MOVED,
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
@@ -3568,19 +3570,38 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // POST /mappings/:id/address-changes/apply — *Apply the new addresses
       // here too* (ADR-0055; workplan 0168 D5), through the ledger's own door,
       // as managed's route. The person on this loopback page is its owner, so
-      // the press is the operator's, as its decisions are.
+      // the press is the operator's, as its decisions are. The body names the
+      // table the page showed (`{ digest }`, S5 (d)): 409 when it moved since,
+      // 400 when it names none, both in both languages, as managed answers.
       const applyMatch =
         req.method === 'POST' && req.url ? /^\/mappings\/([^/?]+)\/address-changes\/apply$/.exec(req.url) : null;
       if (applyMatch) {
-        await drain(req);
+        const body = (await readJsonOrNone(req)) as { digest?: unknown } | undefined;
         const id = decodeURIComponent(applyMatch[1]!);
         const m = mappings.find((x) => x.config.mappingId === id);
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const shown = body?.digest;
+        if (typeof shown !== 'string' || !/^[0-9a-f]{64}$/.test(shown)) {
+          return sendJson(res, 400, {
+            error: 'digest_required',
+            message: ADDRESS_PRESS_NAMES_NO_TABLE.en,
+            messageNl: ADDRESS_PRESS_NAMES_NO_TABLE.nl,
+          });
+        }
         const tenantId = m.config.tenantId as string;
         const applied = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
-          applyNewAddressesHere(tdb, tenantId, m.mailboxMappingId, 'operator'),
+          applyNewAddressesHere(tdb, tenantId, m.mailboxMappingId, 'operator', shown),
         );
         if (applied === null) return sendJson(res, 404, { error: 'unknown mapping' });
+        if (applied.moved) {
+          return sendJson(res, 409, {
+            error: 'address_table_moved',
+            message: ADDRESS_TABLE_MOVED.en,
+            messageNl: ADDRESS_TABLE_MOVED.nl,
+            digest: applied.digest,
+            rows: applied.rows,
+          });
+        }
         log.info(`[selfhost] ${m.config.mappingId}: new addresses applied here too by operator (${applied.rows} row(s))`);
         return sendJson(res, 200, { id, applied: true, digest: applied.digest, rows: applied.rows });
       }

@@ -244,10 +244,15 @@ export async function readShareGate(
 
 /** What a press of *Apply the new addresses here too* answers. */
 export interface AddressChangesApplied {
-  /** The press digest recorded (`addressTablePressDigest`). */
+  /** The press digest recorded (`addressTablePressDigest`), or, when `moved`, the table's now. */
   readonly digest: string;
   /** How many confirmed rows the table held when it was pressed. A count, never an address. */
   readonly rows: number;
+  /**
+   * The table is not the one the page showed (workplan 0168 S5 (d)): nothing
+   * was recorded. Both doors answer 409 with `ADDRESS_TABLE_MOVED`.
+   */
+  readonly moved?: true;
 }
 
 /**
@@ -264,16 +269,25 @@ export async function applyNewAddressesHere(
   tenantId: string,
   mappingId: string,
   appliedBy: string,
+  /**
+   * The press digest of the table the page SHOWED (workplan 0168 S5 (d)).
+   * Given and not the table's now, nothing is recorded and the answer says
+   * `moved`: a row added or changed since would otherwise be applied to live
+   * data unseen. Both doors pass it; absent, the table as it is now is
+   * recorded, as before.
+   */
+  shown?: string,
 ): Promise<AddressChangesApplied | null> {
-  const rows = await db
-    .select({
-      oldKey: schemaPg.addressChange.oldKey,
-      oldAddress: schemaPg.addressChange.oldAddress,
-      newAddress: schemaPg.addressChange.newAddress,
-    })
-    .from(schemaPg.addressChange)
-    .where(and(eq(schemaPg.addressChange.tenantId, tenantId), eq(schemaPg.addressChange.state, 'confirmed')));
+  const rows = await confirmedRowsOf(db, tenantId);
   const digest = addressTablePressDigest(rows);
+  if (shown !== undefined && shown !== digest) {
+    // Not this organisation's migration is still a 404, never a 409.
+    const [mine] = await db
+      .select({ id: schemaPg.mailboxMapping.id })
+      .from(schemaPg.mailboxMapping)
+      .where(and(eq(schemaPg.mailboxMapping.id, mappingId), eq(schemaPg.mailboxMapping.tenantId, tenantId)));
+    return mine ? { digest, rows: rows.length, moved: true } : null;
+  }
   const recorded = await recordAddressChangesApplied(db, tenantId, mappingId, digest, appliedBy);
   return recorded ? { digest, rows: rows.length } : null;
 }

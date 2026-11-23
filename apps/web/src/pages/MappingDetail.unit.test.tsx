@@ -14,6 +14,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { AxiosError } from 'axios';
+import { ADDRESS_TABLE_MOVED, addressTablePressDigest } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 
@@ -78,7 +79,9 @@ vi.mock('../services/operating-service', () => ({
 }));
 
 // The organisation's address changes (0168 §6.3): none, unless a test says.
-vi.mock('../services/address-change-service', () => ({
+// The press digest is the service's own, so a test can say which one is sent.
+vi.mock('../services/address-change-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/address-change-service.ts')>()),
   fetchAddressChanges: addressTableMock,
   applyAddressChangesHere: applyHereMock,
 }));
@@ -1385,47 +1388,124 @@ describe('the new address, on a migration’s page (0168 §6.3, D5)', () => {
     confirmedAt: '2026-11-22T10:00:00.000Z',
     person: null,
   };
-  const contacts = (status: string, addressChanged?: number) =>
-    aMapping({
-      status,
-      syncConfig: { domains: ['contact'] },
-      domainStatus: [
-        {
-          domain: 'contact',
-          state: 'completed',
-          itemsSynced: 12,
-          itemsFailed: 0,
-          bytesTransferred: 0,
-          itemsRetrying: 0,
-          itemsNeedingDecision: 0,
-          ...(addressChanged === undefined ? {} : { lastPass: { items: 12, addressChanged } }),
-        },
-      ],
-    });
+  /** A contacts row whose last pass said these address counts. */
+  const contactRow = (lastPass?: Record<string, number>) => ({
+    domain: 'contact',
+    state: 'completed',
+    itemsSynced: 12,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+    ...(lastPass === undefined ? {} : { lastPass: { items: 12, ...lastPass } }),
+  });
+  /** A contacts migration in this lifecycle, as managed's detail reads it. */
+  const contacts = (status: string, lastPass?: Record<string, number>) =>
+    aMapping({ status, syncConfig: { domains: ['contact'] }, domainStatus: [contactRow(lastPass)] });
+  /**
+   * The same migration in the edition the test runs: the detail on managed,
+   * the status on the appliance, which reads no detail.
+   */
+  const onEdition = (selfhost: boolean, status: string, lastPass?: Record<string, number>) => {
+    editionFlag.selfhost = selfhost;
+    if (selfhost) {
+      fetchStatusMock.mockResolvedValue({
+        status: 'ok',
+        mappings: [{ mappingId: 'acme-mail', migrationStatus: status, domains: [contactRow(lastPass)] }],
+      });
+    } else {
+      mappingApiGet.mockResolvedValue(contacts(status, lastPass));
+    }
+  };
+  const PRESS = 'Apply the new addresses here too';
 
-  it('says nothing where the table holds no confirmed row', async () => {
-    mappingApiGet.mockResolvedValue(contacts('active', 3));
+  it('says nothing where no copy carries a change and none waits', async () => {
+    mappingApiGet.mockResolvedValue(contacts('active'));
     renderHub();
     await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
     expect(screen.queryByText(/Your new address is used/)).toBeNull();
   });
 
-  it('says the new address is used, and the last pass’s count', async () => {
+  it('says nothing on a migration the table does not change, though the organisation confirmed a row (S12)', async () => {
+    // The child's address changed; nothing on Dad's migration names it.
     addressTableMock.mockResolvedValue({ rows: [CONFIRMED], door: 'api', file: null });
-    mappingApiGet.mockResolvedValue(contacts('active', 3));
+    mappingApiGet.mockResolvedValue(contacts('active', { addressChanged: 0, addressChangesCarried: 0 }));
+    renderHub();
+    await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
+    expect(screen.queryByText(/Your new address is used/)).toBeNull();
+  });
+
+  it('says the new address is used, and the last pass’s count, where its copies carry a change', async () => {
+    addressTableMock.mockResolvedValue({ rows: [CONFIRMED], door: 'api', file: null });
+    mappingApiGet.mockResolvedValue(contacts('active', { addressChanged: 3, addressChangesCarried: 3 }));
     renderHub();
     expect(
       await screen.findByText('Your new address is used in contacts and calendars · Changed in the last pass: 3'),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Apply the new addresses here too' })).toBeNull();
+    expect(screen.queryByRole('button', { name: PRESS })).toBeNull();
   });
 
-  it('past the switch, waits for a press, and the press asks the server', async () => {
-    addressTableMock.mockResolvedValue({ rows: [CONFIRMED], door: 'api', file: null });
-    mappingApiGet.mockResolvedValue(contacts('cutover'));
+  it('says how many copies were left as they are for want of a version to guard the write (S1)', async () => {
+    mappingApiGet.mockResolvedValue(contacts('active', { addressChangesUnguarded: 2 }));
     renderHub();
-    fireEvent.click(await screen.findByRole('button', { name: 'Apply the new addresses here too' }));
-    expect(await screen.findByRole('status')).toHaveTextContent('The next pass applies the new addresses here.');
-    expect(applyHereMock).toHaveBeenCalledWith('acme-mail');
+    expect(await screen.findByText(/^Not changed: 2, with no version to guard the write\./)).toBeInTheDocument();
+  });
+
+  it.each([false, true])(
+    'past the switch, offers the press where copies wait, on the appliance %s too, and sends the table it showed',
+    async (selfhost) => {
+      addressTableMock.mockResolvedValue({ rows: [CONFIRMED], door: selfhost ? 'page' : 'api', file: null });
+      onEdition(selfhost, 'cutover', { addressChangesCarried: 1, addressChangesWaiting: 2 });
+      renderHub();
+      expect(await screen.findByText(/Waiting for it: 2\./)).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole('button', { name: PRESS }));
+      expect(await screen.findByRole('status')).toHaveTextContent('The next pass applies the new addresses here.');
+      expect(applyHereMock).toHaveBeenCalledWith('acme-mail', addressTablePressDigest([CONFIRMED]));
+    },
+  );
+
+  it('offers no press where nothing waits, past the switch', async () => {
+    addressTableMock.mockResolvedValue({ rows: [CONFIRMED], door: 'api', file: null });
+    mappingApiGet.mockResolvedValue(contacts('cutover', { addressChangesCarried: 1, addressChangesWaiting: 0 }));
+    renderHub();
+    await screen.findByText(/Your new address is used/);
+    expect(screen.queryByRole('button', { name: PRESS })).toBeNull();
+  });
+
+  it.each([false, true])(
+    'offers no press once the migration is done, on the appliance %s too: no pass runs to apply it',
+    async (selfhost) => {
+      addressTableMock.mockResolvedValue({ rows: [CONFIRMED], door: selfhost ? 'page' : 'api', file: null });
+      onEdition(selfhost, 'done', { addressChangesCarried: 1, addressChangesWaiting: 2 });
+      renderHub();
+      await screen.findByText(/Your new address is used/);
+      expect(screen.queryByRole('button', { name: PRESS })).toBeNull();
+    },
+  );
+
+  it('keeps the press when the last row is gone and copies still carry it, and sends the digest of no rows (S5 (c))', async () => {
+    mappingApiGet.mockResolvedValue(contacts('cutover', { addressChangesCarried: 2, addressChangesWaiting: 2 }));
+    renderHub();
+    fireEvent.click(await screen.findByRole('button', { name: PRESS }));
+    await screen.findByRole('status');
+    expect(applyHereMock).toHaveBeenCalledWith('acme-mail', addressTablePressDigest([]));
+  });
+
+  it('says the refusal of a table that moved since, and reads the table again (S5 (d))', async () => {
+    addressTableMock.mockResolvedValue({ rows: [CONFIRMED], door: 'api', file: null });
+    applyHereMock.mockRejectedValue(
+      new AxiosError('Request failed with status code 409', AxiosError.ERR_BAD_REQUEST, undefined, undefined, {
+        status: 409,
+        data: { error: 'address_table_moved', message: ADDRESS_TABLE_MOVED.en, messageNl: ADDRESS_TABLE_MOVED.nl },
+      } as never),
+    );
+    mappingApiGet.mockResolvedValue(contacts('cutover', { addressChangesWaiting: 1 }));
+    renderHub();
+    // The press is offered once the table is read: a read after it is the refetch.
+    const button = await screen.findByRole('button', { name: PRESS });
+    const asked = addressTableMock.mock.calls.length;
+    fireEvent.click(button);
+    expect(await screen.findByRole('alert')).toHaveTextContent(ADDRESS_TABLE_MOVED.en);
+    await vi.waitFor(() => expect(addressTableMock.mock.calls.length).toBeGreaterThan(asked));
   });
 });

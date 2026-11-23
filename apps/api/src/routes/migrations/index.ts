@@ -80,6 +80,8 @@ import {
   halfMailLogin,
   halfMailLoginRefusal,
   targetCredentialRecord,
+  ADDRESS_PRESS_NAMES_NO_TABLE,
+  ADDRESS_TABLE_MOVED,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { HttpTokenRevoker } from '@openmig/connectors';
@@ -3873,8 +3875,13 @@ router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest,
  * (`applyNewAddressesHere`, the ledger's door, shared with the appliance); the
  * next pass rewrites the copies whose table moved and which the person has not
  * edited since. A later change to the table waits for a press of its own.
- * 200 with the digest and the number of rows (never an address); 404 for a
- * migration this organisation does not have.
+ *
+ * The body names the table the page showed, `{ digest }`, its press digest
+ * (workplan 0168 S5 (d)): a row added or changed after the page rendered is
+ * never applied to live data unseen. 409 when the table moved since, 400 when
+ * the body names none, both in both languages. 200 with the digest and the
+ * number of rows (never an address); 404 for a migration this organisation
+ * does not have.
  */
 router.post('/:mappingId/address-changes/apply', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -3888,11 +3895,30 @@ router.post('/:mappingId/address-changes/apply', authenticate, async (req: Authe
       res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found in authentication context' });
       return;
     }
+    const shown = (req.body as { digest?: unknown } | undefined)?.digest;
+    if (typeof shown !== 'string' || !/^[0-9a-f]{64}$/.test(shown)) {
+      res.status(400).json({
+        error: 'digest_required',
+        message: ADDRESS_PRESS_NAMES_NO_TABLE.en,
+        messageNl: ADDRESS_PRESS_NAMES_NO_TABLE.nl,
+      });
+      return;
+    }
     const applied = await withTenantDb(tenantId, getSharedPool(), (db) =>
-      applyNewAddressesHere(db, tenantId, mappingId, req.userId ?? 'unknown'),
+      applyNewAddressesHere(db, tenantId, mappingId, req.userId ?? 'unknown', shown),
     );
     if (applied === null) {
-      res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+      res.status(404).json({ error: 'Not found', message: 'Mapping not found', messageNl: 'Migratie niet gevonden.' });
+      return;
+    }
+    if (applied.moved) {
+      res.status(409).json({
+        error: 'address_table_moved',
+        message: ADDRESS_TABLE_MOVED.en,
+        messageNl: ADDRESS_TABLE_MOVED.nl,
+        digest: applied.digest,
+        rows: applied.rows,
+      });
       return;
     }
     res.json({ id: mappingId, applied: true, digest: applied.digest, rows: applied.rows });

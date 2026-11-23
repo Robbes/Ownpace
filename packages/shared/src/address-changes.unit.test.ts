@@ -10,9 +10,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
+  ADDRESS_DIGEST_OF_NO_CHANGE,
   AddressTableRefused,
   addressTableDigest,
+  addressTableDigestInput,
+  addressTablePressDigest,
   applyAddressChanges,
   prepareAddressTable,
   type ConfirmedAddressChange,
@@ -147,6 +151,12 @@ describe('the table’s digest', () => {
   });
   it('does not change for another spelling of the same old address', () => {
     expect(addressTableDigest([row('ANA@old.example.org', 'ana@example.org')])).toBe(addressTableDigest([ANA]));
+  });
+  it('is the SHA-256 of one text, the digest of no rows included, which no table of rows can have', () => {
+    expect(createHash('sha256').update(addressTableDigestInput(TABLE)).digest('hex')).toBe(addressTableDigest(TABLE));
+    expect(createHash('sha256').update(addressTableDigestInput([])).digest('hex')).toBe(ADDRESS_DIGEST_OF_NO_CHANGE);
+    expect(addressTablePressDigest([])).toBe(ADDRESS_DIGEST_OF_NO_CHANGE);
+    expect(addressTablePressDigest(TABLE)).toBe(addressTableDigest(TABLE));
   });
 });
 

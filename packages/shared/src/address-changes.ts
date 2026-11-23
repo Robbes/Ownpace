@@ -121,11 +121,21 @@ export interface AddressTable {
  */
 export function addressTableDigest(rows: ReadonlyArray<ConfirmedAddressChange>): string | null {
   if (rows.length === 0) return null;
+  return createHash('sha256').update(addressTableDigestInput(rows)).digest('hex');
+}
+
+/**
+ * The text a table's digest is the SHA-256 of, in UTF-8: a header line, then
+ * one line per row sorted by old key, `["<old key>","<new address>"]`. Pure,
+ * so a page can hash it with the browser's own SHA-256 and send the press
+ * digest of the table it showed (workplan 0168 S5 (d)); every digest here is
+ * of this text, so the two cannot disagree.
+ */
+export function addressTableDigestInput(
+  rows: ReadonlyArray<Pick<ConfirmedAddressChange, 'oldKey' | 'newAddress'>>,
+): string {
   const sorted = [...rows].sort((a, b) => (a.oldKey < b.oldKey ? -1 : a.oldKey > b.oldKey ? 1 : 0));
-  const h = createHash('sha256');
-  h.update('ownpace-address-table-v1\n');
-  for (const r of sorted) h.update(`${JSON.stringify([r.oldKey, r.newAddress])}\n`);
-  return h.digest('hex');
+  return `ownpace-address-table-v1\n${sorted.map((r) => `${JSON.stringify([r.oldKey, r.newAddress])}\n`).join('')}`;
 }
 
 /**
@@ -144,10 +154,29 @@ export function addressTablePressDigest(rows: ReadonlyArray<ConfirmedAddressChan
  * The digest of no rows at all, which no table of rows can have: the press
  * for an empty table (above), and the change a copy waits for when the table
  * says it should carry none (`addressDigestDue`).
+ *
+ * A literal, not a hash taken when the module loads: the web bundle imports
+ * this module and has no `node:crypto` to call. `address-changes.unit` pins
+ * it to the SHA-256 of `addressTableDigestInput([])`.
  */
-export const ADDRESS_DIGEST_OF_NO_CHANGE: string = createHash('sha256')
-  .update('ownpace-address-table-v1\n')
-  .digest('hex');
+export const ADDRESS_DIGEST_OF_NO_CHANGE = '2cbba60cb6d49adc1df7c709282f76838ca4cdb6e5062805e6f49e90acd08582';
+
+/**
+ * A press of *Apply the new addresses here too* refused because the table
+ * moved since the page showed it (workplan 0168 D5, S5 (d)): a row added or
+ * changed after the page rendered would otherwise reach the person's live
+ * data unseen. Both editions answer 409 with it, in both languages.
+ */
+export const ADDRESS_TABLE_MOVED = {
+  en: 'The address changes changed since this page showed them, so nothing was applied. Look at them again, then press again.',
+  nl: 'De adreswijzigingen zijn veranderd sinds deze pagina ze liet zien, dus er is niets toegepast. Bekijk ze opnieuw en druk dan nog een keer.',
+} as const;
+
+/** A press that does not say which table it was shown: 400, in both languages. */
+export const ADDRESS_PRESS_NAMES_NO_TABLE = {
+  en: 'This press does not say which address changes it was shown, so nothing was applied. Reload the page and press again.',
+  nl: 'Deze knop zegt niet welke adreswijzigingen hij liet zien, dus er is niets toegepast. Laad de pagina opnieuw en druk nog een keer.',
+} as const;
 
 /**
  * What a pass records on a copy it did not write although its table moved
