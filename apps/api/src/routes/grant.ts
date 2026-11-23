@@ -63,6 +63,16 @@
  * not that person and must never hold that secret. The consent URL carries the
  * client id (Google requires it and it is not a secret); the secret goes only
  * into the token-exchange POST body, in the callback, in this process.
+ *
+ * ## The person's own new address (workplan 0168 §4.4, D6)
+ *
+ * A person's page also carries `addressChanges`: the rows of the
+ * organisation's address changes linked to this person, and nobody else's,
+ * each with its old and new address and its state, so the page can ask *Your
+ * new address: ‹address›. Is that right?*. `PUT
+ * /api/grant/:link/address-changes/:oldKey` takes the answer, behind this
+ * door's own link check and close (`link-address-changes.ts`). A migration's
+ * own link names no person, so its page carries none.
  */
 
 import { Router } from 'express';
@@ -77,8 +87,10 @@ import {
   type Bilingual,
   type DiscoveryDomain,
 } from '@openmig/shared';
+import { readLinkAddressChanges } from '@openmig/managed';
 import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
+import { answerAddressChangeThroughLink } from './link-address-changes.ts';
 import type { MappingLinkRequest, PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import {
@@ -283,9 +295,12 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
   if (await refusedAsClosed(res, link.tenantId, pool())) return;
   const subject = await readPersonSubject(link);
   if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT) });
-  const { askedBy, checkedCompany } = await withTenantDb(link.tenantId, pool(), async (db) => ({
+  const { askedBy, checkedCompany, addressChanges } = await withTenantDb(link.tenantId, pool(), async (db) => ({
     askedBy: await readPersonLinkAskedBy(db, link.tenantId, link.linkId),
     checkedCompany: await readCheckedCompany(db, link.tenantId),
+    // Their own rows of the address changes, to confirm or send back here
+    // (0168 §4.4, D6): the rows linked to this person, and nobody else's.
+    addressChanges: await readLinkAddressChanges(db, link.tenantId, link.personId),
   }));
   res.json({
     kind: 'person',
@@ -306,6 +321,7 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
       migrations: a.migrations.map((m) => ({ domains: m.domains, to: m.to, granted: m.granted })),
     })),
     expiresAt: link.expiresAt.toISOString(),
+    addressChanges,
   });
 }
 
@@ -510,5 +526,12 @@ router.post(
     }
   },
 );
+
+/**
+ * PUT /api/grant/:link/address-changes/:oldKey — the person's answer to *Your
+ * new address: ‹address›. Is that right?* (workplan 0168 §4.4, D6): `{ state }`
+ * and nothing else, for a row linked to them. `link-address-changes.ts`.
+ */
+router.put('/:link/address-changes/:oldKey', linkAuth, answerAddressChangeThroughLink('grant', pool));
 
 export default router;
