@@ -4,6 +4,56 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, later still: `SENT-BY`, `DELEGATED-*` and `MEMBER`, and what is over, decided and
+built, on `claude/ownpace-public-readiness-y7orc6-calendar-past`.** The owner, asked about the
+three parameters D3 had left as they were: *"yes, since the new address will control the new
+events. Though perhapse we need not change past-events we migrate."* The coordinating session
+advised leaving past events as the source has them and changing the rest, and the owner was told
+so. ADR-0055 is amended (decisions 2 to 4, its operative rules).
+
+- **The three parameters.** In an event or task whose organiser is in the table or is the person
+  (D3), an old address in an `ORGANIZER`'s or `ATTENDEE`'s `SENT-BY`, `DELEGATED-FROM`,
+  `DELEGATED-TO` or `MEMBER` gets the new one: each quoted value of a list, in its own quotes and
+  scheme spelling, every other byte kept. An outside invitation keeps them, as it keeps its guests
+  (`an-address-a-delegate-or-a-group-names.unit.test.ts`).
+- **What is over keeps every address.** A calendar object that was over at the migration's start
+  is copied byte for byte and records no digest (`calendar-object-over.ts`): an event by `DTEND`,
+  `DURATION` or its all-day date; a series once its `UNTIL` or `COUNT` is spent and no `RDATE` or
+  moved instance is still to come, never with an open-ended rule; a task once completed or
+  cancelled; a journal entry by its `DTSTART`. The whole object is one decision, and dates it
+  cannot read are not over. A `TZID` is read in its zone (an IANA name through `Intl`, any other
+  through the object's own `VTIMEZONE`, at the latest instant its offsets allow); a floating time,
+  and a date, in UTC. The repository's own content-line reader parses it: no dependency was added.
+- **The start** is the migration's creation, `mailbox_mapping.created_at`, read with its phases
+  (`readPathPhases`, `createdAt`) by both editions' passes and the managed builder. Chosen over its
+  first pass because it is one moment no pass and no press moves, never NULL, and on the row in
+  both editions from its first day, where the passes leave no record that lasts (`run` rows are
+  history). It is the draft's creation, shortly before *Start* is pressed, so an event that ended
+  in between still changes: the safe side.
+- **Converging.** A copy of a past event that alpha.17 changed goes back to the source's bytes by
+  the ordinary rewrite, past a cutover on the press. The start is in a calendar's cursor tag
+  (`+over:`), so a source that lists only what changed reads each calendar once more.
+- **Nothing waits for a past event.** Its digest and its due digest stay null, so the confirmed
+  list marks nothing, verification sets nothing aside (`ADDRESS_NOT_COMPARED` cannot count it),
+  and *Apply the new addresses here too* counts nothing for it
+  (`a-new-address-and-an-event-that-is-over.unit.test.ts`).
+- **The words.** *Your new address*, and the appliance's confirm page through the same list, say
+  *"Events that are already over: they keep the old address, as a record of what happened. So do
+  tasks that are completed or cancelled."*, in English and Dutch; the Google and Microsoft guides
+  say it after their paragraph on a new address. No feature matrix or known-limitations line names
+  the address change. The privacy policy's §4.6 and §7 stay true and were not edited: the
+  addresses are still used only to correct those in what we copy, now in fewer events, and a
+  progress link still shows the new address, never the old.
+- **E2E (managed).** Event 4, the organiser rewrite's canary, is dated January of next year, after
+  every run and so after the demo migration's start: unchanged. The seed adds event 5, organised by
+  the same old address and over on 2025-01-07; the gate holds its copy to the source's bytes but for
+  `SCHEDULE-AGENT=CLIENT` (the seeder's `--past-event`), and its ledger row to no digest. Not run:
+  the lane needs the shared runner.
+
+Proven: the unit tier of the packages touched (shared, core, orchestration, ledger, the web app)
+and the script guards, typecheck, lint and the docs checks; each rule with a test that fails with
+the rule mutated off. Not proven: anything against a running server.
+
 **2026-11-23, later: the follow-ups for alpha.18, on
 `claude/ownpace-public-readiness-y7orc6-0168-followups`.** Six of the seven defects found on the
 way are fixed and the API flag is added, each with a test that fails without its fix. The
@@ -137,7 +187,9 @@ Proven:
 - A database fault logs the driver's whole error, parameters included (`server-fault.ts`), on
   every route; the fix belongs in `loggableError`.
 - `SENT-BY`, `DELEGATED-FROM`/`-TO` and `MEMBER` keep their old addresses while `ORGANIZER` and
-  `ATTENDEE` change (D3 names only those two): the owner's call.
+  `ATTENDEE` change (D3 names only those two): the owner's call — *decided 2026-11-23 and built for
+  alpha.18: they change with their line, and an event that was over at the migration's start keeps
+  every address (the entry above)*.
 - **Where the build differs from §3 and D2 above:** a copy records the digest of the rows that
   decided its bytes, not the table's, with `item.address_digest_due` beside it (§3.1); a rewrite
   needs a strong recorded version, and a copy deleted on the target is counted as gone (§3.3); the

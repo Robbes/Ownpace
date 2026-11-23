@@ -19,8 +19,8 @@
  * one moment, the same for every pass and every press of *Apply the new
  * addresses here too*. An object is therefore over on every pass or on none,
  * whatever day the pass runs, and the change stays a pure function of the
- * bytes: `f(f(x)) = f(x)` holds, and a row that comes or goes never reaches a
- * past object.
+ * bytes, the table and that one moment: `f(f(x)) = f(x)` holds, and a row
+ * that comes or goes never reaches a past object.
  *
  * The whole object is one decision. A series and its overridden instances
  * (`RECURRENCE-ID`) share one file, and are over together or not at all: the
@@ -45,7 +45,8 @@
  * Where the dates cannot be read, the object is not over, so it changes, as
  * every object did before 2026-11-23: no `DTSTART`, a value that is not a
  * date, a `TZID` that names no zone, a rule that is not one, `DTEND` and
- * `DURATION` both. Every other doubt falls the same way:
+ * `DURATION` both, an instance that moves the ones after it
+ * (`RANGE=THISANDFUTURE`). Every other doubt falls the same way:
  *
  * - a wall time a daylight saving change makes twice is read at the later
  *   instant, and one it skips at the later side of the gap;

@@ -12,14 +12,17 @@
  * cutover or after it, whatever the table does; the event still to come
  * changes as before. And a copy written before 2026-11-23, when a past event
  * changed too, converges back to the source's bytes by the ordinary rewrite,
- * or waits for a person's press past the cutover, as any changed table does.
+ * or waits for a person's press past the cutover, as any changed table does,
+ * also from a source that lists only what changed: the start is in a
+ * calendar's cursor tag (`addressTableTag`), so each collection is read again
+ * once.
  *
  * Addresses are `example.org` only.
  */
 
 import { describe, it, expect } from 'vitest';
-import { runCalendarSync, type AddressChangesForPass } from './dav-sync.ts';
-import { MemoryLedger } from './__testing__/memory.ts';
+import { addressTableTag, runCalendarSync, type AddressChangesForPass } from './dav-sync.ts';
+import { MemoryCursorStore, MemoryLedger } from './__testing__/memory.ts';
 import {
   addressKey,
   addressTableDigest,
@@ -214,5 +217,66 @@ describe('a copy of a past event written before 2026-11-23, when it changed too'
     expect(t.bodies.get('e-past')).toBe(event('e-past', '20251124'));
     const past = await rowOf(ledger, 'e-past');
     expect(waitsForAnAddressChange(past?.addressDigest, past?.addressDigestDue)).toBe(false);
+  });
+});
+
+describe('from a source that lists only what changed', () => {
+  it('names the start in a calendar’s cursor tag, and only where the table has a row', () => {
+    const tag = addressTableTag(changes([ANA, BEN]), 'icalendar');
+    expect(tag).toContain(`+over:${START.toISOString()}`);
+    expect(addressTableTag(changes([ANA, BEN], { start: null }), 'icalendar')).not.toContain('+over:');
+    // A card is never over, and an empty table with no press keeps its cursors as they were.
+    expect(addressTableTag(changes([ANA, BEN]), 'vcard')).not.toContain('+over:');
+    expect(addressTableTag(changes([]), 'icalendar')).toBe('');
+  });
+
+  it('reads each calendar again once under the start, so a past event changed before 2026-11-23 goes back, then reads incrementally', async () => {
+    const ledger = new MemoryLedger();
+    const cursors = new MemoryCursorStore();
+    const t = new Target();
+    const asked: Array<string | undefined> = [];
+    // Everything on a first reading; past the cursor it issued, nothing, as nothing changes there.
+    const source = {
+      listFolders: async () => [{ path: '/cal/', name: 'Calendar' }],
+      listSince: async (_folder: unknown, cursor: { value: string } | undefined) => {
+        asked.push(cursor?.value);
+        if (cursor !== undefined && cursor.value !== 'seq-2') throw new Error(`a cursor this source never issued: ${cursor.value}`);
+        return {
+          items: cursor === undefined ? EVENTS.map(([uid, day]) => ({ item: item(uid), icalendar: event(uid, day) })) : [],
+          nextCursor: { value: 'seq-2' },
+          removed: [],
+        };
+      },
+    } as unknown as CalendarSource;
+    const run = (addressChanges: AddressChangesForPass) =>
+      runCalendarSync({
+        sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        source,
+        target: {
+          ensureCalendar: async (folder: { path: string }) => folder.path,
+          upsertCalendarEvent: async (_c: string, raw: { item: CalendarEvent; icalendar: string }, options?: UpsertOptions) =>
+            t.put(raw.item.uid, raw.icalendar, options),
+        } as unknown as CalendarTargetWriter,
+        ledger,
+        cursors,
+        addressChanges,
+      });
+
+    // As alpha.17 copied it: the table applied, no start known.
+    await run(changes([ANA, BEN], { start: null }));
+    expect(t.bodies.get('e-past')).toContain('\r\nORGANIZER;CN=Ana:mailto:ana@example.org\r\n');
+    // Under the start the tag moved, so the calendar is read from the beginning, and the past event goes back.
+    const back = await run(changes([ANA, BEN]));
+    expect(asked).toEqual([undefined, undefined]);
+    expect(back.updated).toBe(1);
+    expect(t.bodies.get('e-past')).toBe(event('e-past', '20251124'));
+    // The pass after it reads incrementally again, and writes nothing.
+    const writes = t.writes;
+    await run(changes([ANA, BEN]));
+    expect(asked).toEqual([undefined, undefined, 'seq-2']);
+    expect(t.writes).toBe(writes);
   });
 });

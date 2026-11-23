@@ -120,7 +120,7 @@ A Workspace admin can authorise a **service account** to impersonate users, once
 
 An address ending in `@gmail.com` or `@googlemail.com` belongs to Google, so it cannot come with you. When the old account has one, **Start a migration** shows a step, **Your new address**, where you say which address replaces it. Contacts that list the old address get the new one first and keep the old one, so old mail still finds the person. Events and tasks you organised list you at the new address, so you can still change them. The **Sharing checklist** suggests the new address for you. Your mail is never changed: every message stays exactly as it was sent. Nobody is sent anything. You can change the new address afterwards, on your page.
 
-**Events that are already over keep the old address**, as a record of what happened, and so do tasks that are completed or cancelled: only events still to come, and open tasks, change. An event is over when it, or for a repeating event its last occurrence, ended before the migration started.
+**Events that are already over keep the old address**, as a record of what happened, and so do tasks that are completed or cancelled; the rest get the new one. An event is over when it, or for a repeating event its last occurrence, ended before the migration started.
 
 ### What a Drive migration does not do yet {#drive-not-yet}
 
