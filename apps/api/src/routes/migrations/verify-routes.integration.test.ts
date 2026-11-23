@@ -2,11 +2,11 @@
 //
 // The managed §20 start + poll pair (workplan 0017 T3), against real Postgres.
 //
-// What is covered here is everything that does NOT need a Trigger.dev server:
+// What is covered here is everything that does NOT need the job runner:
 // the report mapper over every row shape `verification_run` allows, the
 // joined-run short-circuit (which answers before any enqueue), and the scope
 // guards. The live enqueue itself follows the same precedent as the discovery
-// routes' suite: it needs a Trigger.dev backend this environment does not run,
+// routes' suite: it needs the job runner, which this suite does not start,
 // and a test that mocks the client would be asserting the mock. The enqueue
 // failure path's row-landing is unit-testable the day the client grows an
 // injection seam; until then it is three lines whose behaviour the route
@@ -120,7 +120,7 @@ describe('verify start + poll routes (0017 T3)', () => {
 
   it('a start while one is running JOINS it — 200, started: false, same run', async () => {
     // The short-circuit answers before any enqueue, which is what makes this
-    // testable without a Trigger.dev backend — and what makes double-clicking
+    // testable without the job runner — and what makes double-clicking
     // the button harmless in production.
     const res = await request.post(`/api/migrations/${MAPPING}/verify/start`).set(auth);
     expect(res.status).toBe(200);

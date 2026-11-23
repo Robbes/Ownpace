@@ -17,7 +17,7 @@
  *  4. none of it on a paid tier, nor during the alpha.
  *
  * The real routes over a real (in-process) ledger, both chains applied, with
- * only the Trigger.dev client replaced by a recorder.
+ * only the pg-boss producer replaced by a recorder.
  */
 
 process.env.SECRET_ENCRYPTION_KEY =

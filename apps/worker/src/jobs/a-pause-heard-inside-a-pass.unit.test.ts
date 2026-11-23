@@ -20,8 +20,8 @@
  * read under row security, as the worker's own role, is in
  * `a-pause-nobody-could-press.integration.test.ts`.
  *
- * And the runner itself, read as text as its neighbours read it (it is a
- * Trigger.dev task and opens its pools at import): every data type's pass is
+ * And the runner itself, read as text as its neighbours read it (it was a
+ * Trigger.dev task until alpha.18, and opens its pools at import): every data type's pass is
  * handed the question, and a data type stopped mid-pass is not called
  * completed.
  */

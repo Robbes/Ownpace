@@ -50,14 +50,14 @@
 #
 # THE SYSTEM ROLE (workplan 0138 T3 step 2). `ownpace_system`, by the name
 # managed migration 0033 creates it under, which is not .env's to choose: the
-# migration grants to it by name. The Trigger.dev jobs that span organisations
-# (the sync tick, retention, the purge), the split jobs' list and every task's
-# audit key connect as it through SYSTEM_DATABASE_URL, which set-task-env.sh
-# uploads to every run. The migration made it with no password and nothing a
-# superuser has but BYPASSRLS; what the database holds now is asked, not
-# assumed, every time its URL is about to go up: by the bring-up's tasks phase
-# before it sets the password, and by set-task-env.sh before every upload, the
-# bring-up's or one run by hand.
+# migration grants to it by name. The jobs that span organisations (the sync
+# tick, retention, the purge), the split jobs' list and every job's audit key
+# connect as it through SYSTEM_DATABASE_URL, which the worker service carries
+# for every run (managed.yml; set-task-env.sh uploaded it until alpha.18). The
+# migration made it with no password and nothing a superuser has but
+# BYPASSRLS; what the database holds now is asked, not assumed, at every
+# bring-up, before it sets the password and before the worker starts with the
+# URL (system_role_ready, bootstrap-managed.sh).
 #
 #   db_roles_system_fit
 #       asks the catalog, over the socket as the owner, for the role's

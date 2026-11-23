@@ -4,7 +4,15 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
-**2026-11-23, latest: T9, Trigger.dev removed from the managed edition, for alpha.18.** On branch
+**2026-11-23, latest: the text T9 left in the present tense, for alpha.19.** Code comments in
+`apps/`, `packages/` and `deploy/compose/` that still said Trigger.dev runs the jobs, or pointed
+at files T9 removed (`set-task-env.sh`, `plane-limit.sh`, `trigger.config.ts`,
+`apps/worker/task-image`, `the-catalog-is-the-tasks`), now say what runs since alpha.18, and the
+identity provider's pin-watch issue says what the gate's restore drill proves. Dated and
+comparing mentions stay; printed and thrown text is left as it is. Comments and that issue text
+only: no behaviour changes.
+
+**2026-11-23: T9, Trigger.dev removed from the managed edition, for alpha.18.** On branch
 `claude/ownpace-public-readiness-y7orc6-0167-t9`, from alpha.17 (`5b51a82b`). The owner's word,
 2026-11-23, verbatim: *"i will remove trigger.dev, but the machine runs OTA and managed, so both
 have to be move out of triggerdev."*

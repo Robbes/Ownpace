@@ -10,7 +10,7 @@
  * over.
  *
  * The real `POST /:mappingId/sync` over a real (in-process) ledger, with only
- * the Trigger.dev client replaced by a recorder, as `a-sync-now-that-waits-its-turn`.
+ * the pg-boss producer replaced by a recorder, as `a-sync-now-that-waits-its-turn`.
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';

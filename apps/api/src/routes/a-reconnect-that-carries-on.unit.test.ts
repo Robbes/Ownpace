@@ -14,8 +14,8 @@
  * A rotation that stores its credential now presses *Sync now* for each
  * migration standing against the connection (`carryOnAfterRotation`). What is
  * held here, through the real rotation door over a real (in-process) ledger as
- * `app_user`, with only the probe, the account qualifier and the Trigger.dev
- * client replaced:
+ * `app_user`, with only the probe, the account qualifier and the pg-boss
+ * producer replaced:
  *
  *  - the migration whose sign-in expired is pressed once, however many of its
  *    data types failed, on its own partition, and the answer lists its run;

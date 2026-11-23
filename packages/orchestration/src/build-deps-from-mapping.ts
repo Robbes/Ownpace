@@ -1,6 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 // Build dependencies from database-stored connections with encrypted credentials.
-// Used by Trigger.dev jobs to construct real source/target connectors.
+// Used by the managed jobs (on pg-boss, in the worker) to construct real source/target connectors.
 
 import { Pool } from 'pg';
 import { eq, and } from 'drizzle-orm';
@@ -727,7 +727,8 @@ async function loadDomainConnections(
  * both, so a sixth caller inherits it rather than re-deciding it.
  *
  * The budget is Pg-backed because it belongs to the TENANT's quota at the
- * provider, not to one pass: Trigger.dev runs each pass in its own process, so
+ * provider, not to one pass: the worker runs each pass in a process of its own
+ * (as Trigger.dev did), so
  * an in-process bucket would be one private copy of a singular limit (SAD §13
  * specifies one multi-tenant Entra app for every customer).
  *

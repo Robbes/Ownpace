@@ -2,7 +2,7 @@
 
 /**
  * THE LARGEST FILE A MANAGED PASS COPIES (workplan 0143 T4 (a)), from
- * `LARGEST_FILE_MB`, a task-environment setting that `set-task-env.sh` uploads.
+ * `LARGEST_FILE_MB`, a setting the worker service carries (managed.yml).
  *
  * The rule behind the number: the largest file must finish inside one pass at
  * the slowest rate this machine sees. A pass stops taking new work at 50

@@ -13,7 +13,8 @@
  * went.
  *
  * Read from the source, as this file's neighbours read the loop, because the
- * runner is a Trigger.dev task that needs the plane to run:
+ * runner needs a database and its queue to run (a Trigger.dev task that
+ * needed the plane, until alpha.18):
  *
  *  1. every data type's measurements ride into `run.stats`, beside
  *     `domainSeconds`, one set per data type per pass;

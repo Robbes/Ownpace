@@ -16,7 +16,7 @@ import { Pool } from 'pg';
 import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
 
-// Mock the Trigger.dev client so the real sync/cutover endpoints can be tested
+// Mock the pg-boss producer so the real sync/cutover endpoints can be tested
 // without a live orchestrator: capture the enqueue call and return a stub run.
 const { triggerMock } = vi.hoisted(() => ({
   triggerMock: vi.fn(async (..._asked: unknown[]) => ({ id: 'run_mock_test' })),

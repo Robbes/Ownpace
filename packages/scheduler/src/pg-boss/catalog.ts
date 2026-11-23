@@ -4,22 +4,23 @@
  * THE MANAGED EDITION'S JOBS, AS THE RUNNER DECLARES THEM (ADR-0054; workplan
  * 0167 T6).
  *
- * Seventeen queues, one for each Trigger.dev task under `apps/worker/src/jobs`
- * and named by the task's id, so a run goes by the same name on either runner:
- * nine schedules and eight jobs somebody asks for. Each entry says how its runs
+ * Seventeen queues, one for each task under `apps/worker/src/jobs`, named by
+ * the task's id, as its Trigger.dev task was until alpha.18: nine schedules and
+ * eight jobs somebody asks for. Each entry says how its runs
  * are admitted, retried, timed, kept alive, capped and worked.
  *
  * - **Admitted.** A schedule's queue is `stately`, one run waiting and one
  *   running at most, so a schedule never overlaps itself (0167, point 6). A
  *   pass and a count are `singleton`, one running per migration (point 1):
  *   Trigger.dev's `concurrencyLimit: 1` with the `concurrencyKey: mappingId`
- *   every caller passes. A confirmation is `singleton` by the key its route
- *   passes, `confirm:<mappingId>`, which serialises nothing on Trigger.dev,
- *   whose queue for it has no limit; stricter here, and it costs nothing, since
- *   the route joins a confirmation already running before it asks for another.
+ *   every caller passed until alpha.18. A confirmation is `singleton` by the
+ *   key its route passes, `confirm:<mappingId>`, which serialised nothing on
+ *   Trigger.dev, whose queue for it had no limit; stricter here, and it costs
+ *   nothing, since the route joins a confirmation already running before it
+ *   asks for another.
  *   The rest are `standard`.
- * - **Retried and timed** as `apps/worker/trigger.config.ts` retries and times
- *   every task, none of which sets its own: three attempts, the first retry
+ * - **Retried and timed** as `apps/worker/trigger.config.ts` retried and timed
+ *   every task until alpha.18, none of which set its own: three attempts, the first retry
  *   5 s after a failure and each after it twice as long, never longer than
  *   60 s (pg-boss adds up to as much again at random), and an hour a run. The
  *   hour is the pass's hard limit, `PASS_HARD_LIMIT_MS`, which its soft
@@ -33,41 +34,42 @@
  * - **Kept alive** by a beat every 30 s: a run whose worker stops beating is
  *   failed and retried (point 2).
  * - **Capped** at a heap of 410 MB a run, V8's share of the `small-1x`
- *   machine every task runs on, half a CPU and 512 MB (point 8). The CPU is
+ *   machine every task ran on until alpha.18, half a CPU and 512 MB (point 8). The CPU is
  *   the worker container's to cap.
  * - **Worked** one run at a time on each worker, except the pass: the sync
  *   tick's cap on passes in flight, `MAX_PASSES_IN_FLIGHT`, and one more, for
- *   the pass a cutover waits on, as the plane keeps a slot above the cap for
- *   it (`deploy/compose/plane-limit.sh`). How often an idle worker asks for
+ *   the pass a cutover waits on, as Trigger.dev's plane kept a slot above the
+ *   cap for it until alpha.18. How often an idle worker asks for
  *   work is the runner's, one interval for every queue.
  *
  * THE WORKER'S LIMIT ON RUNS AT ONCE (alpha.17; ADR-0054, 0167). Each queue
  * above has its own concurrency, which adds up to `MAX_PASSES_IN_FLIGHT` + 17.
  * The worker also holds every queue together to `MAX_PASSES_IN_FLIGHT` + 2
- * runs at once, the plane's limit (`plane-limit.sh`), counted before each
- * fetch (`./run-slots.ts`): a run past it waits in its queue, as a run past
- * the plane's limit stays queued, and the queues take turns at a slot that
- * frees.
+ * runs at once, the limit Trigger.dev's plane had until alpha.18, counted
+ * before each fetch (`./run-slots.ts`): a run past it waits in its queue, as a
+ * run past the plane's limit stayed queued, and the queues take turns at a
+ * slot that frees.
  *
  * NOT TRIGGER.DEV'S CONCURRENCY, AND KNOWN NOT TO BE (ADR-0054, 0167).
  *  - **One of each job asked for at a time, across every organisation.**
- *    Trigger.dev runs one count per migration and counts of different
- *    migrations side by side, and puts no limit on verification,
+ *    Trigger.dev ran one count per migration and counts of different
+ *    migrations side by side, and put no limit on verification,
  *    confirmation, the two applies, the cutover and the rollback. Here each of
  *    those queues is worked one run at a time on the one worker: a second
  *    organisation's count, or a second cutover, waits for the first.
  *
  * DATA ONLY. It imports nothing, so whoever reads it loads no pg-boss. Each
  * entry is a `QueueSpec` as `PgBossJobRunner#start` takes it, with what a
- * worker needs besides to work the queue. The tasks are held to it from their
- * source, ids, crons, keys, retries and time limit
- * (`apps/worker/src/jobs/the-catalog-is-the-tasks.unit.test.ts`).
+ * worker needs besides to work the queue. The jobs are held to it, one entry
+ * a queue, and its crons, keys, retries and time limits to what they were
+ * when the tasks were removed (`apps/worker/src/jobs/the-catalog-is-the-jobs.unit.test.ts`).
  *
- * The worker reads it at start (`apps/worker/src/runner/worker.ts`), in
- * pg-boss mode, `managed.yml`'s default since workplan 0167 T7.
+ * The worker reads it at start (`apps/worker/src/runner/worker.ts`). pg-boss
+ * was `managed.yml`'s default from workplan 0167 T7, and is its only runner
+ * since T9 (alpha.18).
  */
 
-/** What every run of every queue gets, as `trigger.config.ts` gives every task. */
+/** What every run of every queue gets, as `trigger.config.ts` gave every task until alpha.18. */
 interface EveryRun {
   /** Attempts in all, the first included. */
   readonly attempts: number;
@@ -84,7 +86,7 @@ interface EveryRun {
 }
 
 interface EveryQueue extends EveryRun {
-  /** The queue's name, which is its Trigger.dev task's id. */
+  /** The queue's name: its task's id, as on Trigger.dev until alpha.18. */
   readonly name: string;
   /**
    * How many of its runs one worker works at once: a number, or the sync
@@ -105,9 +107,9 @@ export interface OnDemandJob extends EveryQueue {
   readonly kind: 'on-demand';
   readonly policy: 'singleton' | 'standard';
   /**
-   * A `singleton` queue's key: what each caller passes as `serializeBy`, and
-   * passes to Trigger.dev as `concurrencyKey`, the migration's id after a
-   * prefix or none.
+   * A `singleton` queue's key: what each caller passes as `serializeBy` (and
+   * passed to Trigger.dev as `concurrencyKey` until alpha.18), the migration's
+   * id after a prefix or none.
    */
   readonly serializedBy?: '<mappingId>' | `${string}:<mappingId>`;
 }
@@ -161,7 +163,7 @@ export const JOB_CATALOG = [
   { ...ASKED_FOR, name: 'run-rollback', policy: 'standard' },
 ] as const satisfies readonly JobCatalogEntry[];
 
-/** A queue's name, which is its Trigger.dev task's id. */
+/** A queue's name: its task's id, as on Trigger.dev until alpha.18. */
 export type JobName = (typeof JOB_CATALOG)[number]['name'];
 
 /**

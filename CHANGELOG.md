@@ -4,6 +4,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **Text that still described Trigger.dev in the present tense** (workplan 0167, after T9). Code
+  comments in the API, the worker, the packages and the deploy scripts now say what runs since
+  alpha.18 (pg-boss, in the `worker` service) and no longer point at files T9 removed, and the
+  identity provider's pin-watch issue no longer says the gate drills Trigger.dev's database.
+
 ## [0.2.0-alpha.18] - 2026-11-23
 
 Self-hosted Trigger.dev leaves the managed edition: every job has run on pg-boss since alpha.16,

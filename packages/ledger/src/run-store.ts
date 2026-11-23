@@ -45,7 +45,10 @@ export interface StartRunInput {
   kind: RunKind;
   /** Defaults to 'schedule' — the common case for worker jobs. */
   trigger?: RunTrigger;
-  /** The orchestrator's own id for this execution (e.g. a Trigger.dev run id). */
+  /**
+   * The orchestrator's own id for this execution: a pg-boss job's id (before
+   * alpha.16, a Trigger.dev `run_…`).
+   */
   orchestratorRef?: string;
 }
 
