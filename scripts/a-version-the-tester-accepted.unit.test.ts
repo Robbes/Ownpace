@@ -47,7 +47,7 @@
  * `LEGAL_VERSIONS`, and pin the new words under the new number. The one other
  * case is the owner's word, before the first tester, that no tester has
  * accepted any version: then the text stays 1.0 and is edited in place, as
- * alpha-version-number (a) says (the owner, 2026-10-14, 2026-10-21 and
+ * alpha-version-number (a) says (the owner, 2026-10-14, 2026-10-21 and twice on
  * 2026-11-22, privacy only; the comment beside the pins records each).
  *
  * ## What it reads
@@ -124,12 +124,23 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // two privacy pins move; the alpha and terms texts are unchanged. As on 2026-10-21, an acceptance
   // of 1.0 recorded before these words reach a stack counts for them, and only the owner's own and
   // test accounts can hold one.
-  // From the first tester's acceptance on, a change of words takes a new number (1.1); the pins of
-  // earlier words are in git, with the texts.
+  // PRIVACY RE-PINNED UNDER 1.0 again on 2026-11-23 (the owner, 2026-11-22, of workplan 0168's D8,
+  // verbatim: "1.0 ok"): §4.6 gains the addresses that change and §9 a row for them, for a new
+  // address for one you cannot take along (ADR-0055, workplan 0168), and the Last updated line
+  // moved to 2026-11-23, in both languages. Re-pinned once more the same day, under the same word,
+  // after the review: those lines now name everything the change keeps (whose address it is, and
+  // who added, confirmed and applied it) and the tasks it reaches; that who added, confirmed, sent
+  // back or deleted a change stays in the audit log under a reference that is not the address; and
+  // that a person's progress link also shows the new address set up for them. No tester had
+  // accepted any version, so the number stays 1.0, edited in place, as on 2026-10-14, 2026-10-21
+  // and 2026-11-22. Only the two privacy pins move. As before, an acceptance of 1.0 recorded before
+  // these words reach a stack counts for them, and only the owner's own and test accounts can hold
+  // one. From the first tester's acceptance on, a change of words takes a new number (1.1); the
+  // pins of earlier words are in git, with the texts.
   'alpha.md@1.0': 'acc56aaf5e570d53687793a4e6951ae5732c5ce7273328a5ac5ed4201785018c',
   'alpha.nl.md@1.0': 'bf9a41a1679f8ee912c8e611b52eb4daf93f0e4042f8c708c476dea99cfd4bfb',
-  'privacy.md@1.0': 'b66693fbd7a8a33fe9daaab2a6b63d5a2221538e41f666b44a17b7279633bbed',
-  'privacy.nl.md@1.0': 'efdb557be7c3f5a5b9a00749052b6c84f98915e9a3c887c8f5d2b09ab2b42a30',
+  'privacy.md@1.0': 'bbf6edf558432e35d8ee37e93784371d6e55df183e0a1264fc0a5ebbcd8d89d0',
+  'privacy.nl.md@1.0': '70da6f4f590432d33a77734982905807faadc2c092120f800ef83fab5b73608c',
   'terms.md@1.0': 'b743e1286302fcbc0ab0570f0e3b5afd7bc86a82de3d2d55233e9517ccc90633',
   'terms.nl.md@1.0': '7024556d073d4f12216250c1c0183223304721d2631f244707e46d523f1cc47a',
 };

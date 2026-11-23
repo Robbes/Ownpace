@@ -118,6 +118,10 @@ De schermen van Google staan hieronder met hun Engelse namen; Google toont ze in
 
 **Wat er met labels gebeurt.** Via IMAP toont Gmail elk label als een map, en die gaan mee als mappen. Gmail toont ook drie weergaven die berichten uit andere mappen nog eens bevatten: All Mail, Starred en Important. Die migreren zou elk bericht dubbel opleveren, één keer per weergave waarin het staat. Daarom slaat Ownpace die drie weergaven over (herkend aan de eigen kenmerken `\All`/`\Flagged`/`\Important` van Google, die in elke taal gelijk blijven) en migreert alles wat echt is: INBOX, uw labels, Sent, Drafts. Prullenbak en Spam worden standaard niet gemigreerd, zoals bij elke IMAP-bron, terwijl de prullenbak wel wordt gelezen als bewijs van verwijderingen. Een bericht met meerdere labels staat in meerdere mappen, maar mail wordt herkend aan de Message-ID, dus het wordt **één keer gemigreerd**, naar de map waar een ronde het eerst ziet. Wordt het later onder een ander label gezien, dan wordt het niet opnieuw gemigreerd; het kan wel in de wachtrij **Verplaatsingen** verschijnen als melding van een plaatsing aan de bronkant. Dat is informatie, geen opdracht. Labelt u veel, dan beschrijft die wachtrij vooral de labels van Gmail, en niet iets wat u deed.
 
+### Een nieuw adres, als het uwe niet mee kan {#new-address}
+
+Een adres dat eindigt op `@gmail.com` of `@googlemail.com` hoort bij Google en kan dus niet mee. Heeft het oude account zo'n adres, dan toont **Migratie starten** een stap **Uw nieuwe adres**, waarin u zegt welk adres het vervangt. Contacten met het oude adres krijgen het nieuwe als eerste adres en houden het oude, zodat oude mail de persoon nog vindt. Afspraken en taken die u zelf hebt gemaakt, noemen u met het nieuwe adres, zodat u ze kunt blijven wijzigen. De **Deel-checklist** stelt het nieuwe adres voor u voor. Uw mail wordt nooit gewijzigd: elk bericht blijft precies zoals het is verstuurd. Niemand krijgt iets toegestuurd. Het nieuwe adres wijzigt u achteraf op uw pagina.
+
 ### Wat een Drive-migratie nog niet doet {#drive-not-yet}
 
 Hier gezegd, zodat u het niet zelf hoeft te ontdekken:

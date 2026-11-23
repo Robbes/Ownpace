@@ -42,6 +42,9 @@ vi.mock('../services/operating-service', () => ({
   DecisionRefusedError,
 }));
 
+const { fetchAddressChanges } = vi.hoisted(() => ({ fetchAddressChanges: vi.fn() }));
+vi.mock('../services/address-change-service', () => ({ fetchAddressChanges }));
+
 import Sharing from './Sharing.tsx';
 import { LocaleProvider } from '../i18n/index.tsx';
 
@@ -75,6 +78,7 @@ function renderScreen() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fetchAddressChanges.mockResolvedValue({ rows: [], door: 'api', file: null });
 });
 
 describe('the checklist', () => {
@@ -526,5 +530,51 @@ describe('the rows in the reader\u2019s language', () => {
   it('a link share is a deellink in Dutch', async () => {
     inDutch([row({ id: 'g1', viaLink: true, grantee: undefined, verdict: 'manual' })]);
     expect(await screen.findByText('deellink')).toBeInTheDocument();
+  });
+});
+
+describe('a grantee from the address changes (workplan 0168 T6, §2.4)', () => {
+  const change = (state: 'proposed' | 'confirmed') => ({
+    oldAddress: 'Anna@Old.example.nl',
+    oldKey: 'anna@old.example.nl',
+    newAddress: 'anna@example.org',
+    state,
+    setBy: null,
+    setByYou: true,
+    confirmedBy: state === 'confirmed' ? 'admin@example.org' : null,
+    confirmedByYou: false,
+    createdAt: '2026-11-22T10:00:00Z',
+    confirmedAt: state === 'confirmed' ? '2026-11-22T10:00:00Z' : null,
+    person: null,
+  });
+  const oneRow = () =>
+    fetchSharing.mockResolvedValue({
+      migrationStatus: 'done',
+      summary: { total: 1, open: 1, applied: 0, doneManual: 0, skipped: 0, openManual: 0 },
+      grants: [row({ id: 'g1' })],
+    });
+
+  it('pre-fills a confirmed row, says where it came from, and the press still sends the address', async () => {
+    fetchAddressChanges.mockResolvedValue({ rows: [change('confirmed')], door: 'api', file: null });
+    oneRow();
+    decideSharing.mockResolvedValue({ status: 'ok', grant: row({ id: 'g1', state: 'applied' }) });
+    renderScreen();
+    expect(await screen.findByDisplayValue('anna@example.org')).toBeInTheDocument();
+    expect(screen.getByText('From your address changes')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Share on the new system'));
+    fireEvent.click(screen.getByText('Press again: this shares and sends an invitation'));
+    await waitFor(() =>
+      expect(decideSharing).toHaveBeenCalledWith('m1', 'g1', { action: 'apply', grantee: 'anna@example.org' }),
+    );
+  });
+
+  it('pre-fills nothing from a row nobody has confirmed', async () => {
+    fetchAddressChanges.mockResolvedValue({ rows: [change('proposed')], door: 'api', file: null });
+    oneRow();
+    renderScreen();
+    await waitFor(() => expect(fetchAddressChanges).toHaveBeenCalled());
+    expect(await screen.findByDisplayValue('anna@old.example.nl')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('anna@example.org')).toBeNull();
+    expect(screen.queryByText('From your address changes')).toBeNull();
   });
 });

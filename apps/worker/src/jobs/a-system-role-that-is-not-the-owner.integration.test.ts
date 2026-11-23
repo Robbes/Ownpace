@@ -246,6 +246,9 @@ const EXPECTED: Record<string, readonly string[]> = {
   policy_preset: PURGED_ONLY(),
   group_def: PURGED_ONLY(),
   share_grant: PURGED_ONLY(),
+  // The addresses that change and whose they are (workplan 0168 T2, managed 0063): only the purge.
+  address_change: PURGED_ONLY(),
+  address_change_person: PURGED_ONLY(),
   apply_receipt: PURGED_ONLY(),
   setup_step: PURGED_ONLY(),
   backup_target: PURGED_ONLY(),
@@ -854,6 +857,17 @@ describe('the purge of a closed organisation runs as the system role', () => {
       INSERT INTO person_link (id, tenant_id, person_id, purpose, secret_hash, created_by, expires_at) VALUES
         (${C_LINK}, ${C}, ${C_PERSON}, 'grant', 'h-0138f-c-link', 'user-0138f-c-owner', now() + interval '7 days')
       ON CONFLICT (id) DO NOTHING`);
+    // C's table of address changes, and whose a row is (ADR-0055; ledger 0071,
+    // managed 0063): other people's old and new addresses, erased with it, by
+    // the system role's own grants (the review of 0168's table, finding 12).
+    await owner.execute(sql`
+      INSERT INTO address_change (tenant_id, old_key, old_address, new_address, state, set_by, confirmed_by, confirmed_at) VALUES
+        (${C}, 'c-old@example.com', 'c-old@example.com', 'c-new@example.org', 'confirmed', 'user-0138f-c-owner', 'user-0138f-c-owner', now()),
+        (${C}, 'c-other@example.com', 'c-other@example.com', 'c-other@example.org', 'proposed', 'user-0138f-c-owner', NULL, NULL)
+      ON CONFLICT DO NOTHING`);
+    await owner.execute(sql`
+      INSERT INTO address_change_person (tenant_id, old_key, person_id) VALUES (${C}, 'c-old@example.com', ${C_PERSON})
+      ON CONFLICT DO NOTHING`);
     // When C's migration was last visited (workplan 0157 T7, managed migration 0042): erased with it.
     await owner.execute(sql`
       INSERT INTO migration_visit (mapping_id, tenant_id) VALUES (${C_MAPPING}, ${C})
@@ -910,6 +924,8 @@ describe('the purge of a closed organisation runs as the system role', () => {
     expect(receipt!.counts.person).toBe(1);
     expect(receipt!.counts.person_migration).toBe(1);
     expect(receipt!.counts.person_link).toBe(1);
+    expect(receipt!.counts.address_change).toBe(2);
+    expect(receipt!.counts.address_change_person).toBe(1);
     expect(receipt!.counts.migration_visit).toBe(1);
     expect(receipt!.counts.migration_cadence_said).toBe(1);
   });

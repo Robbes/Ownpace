@@ -4,6 +4,58 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **A new address for one you cannot take along: declared once, applied to contacts, calendars and
+  shares, never to mail** (workplan 0168; ADR-0055). An organisation keeps one table of address
+  changes, old address to new, proposed or confirmed (`/api/address-changes`; on the appliance
+  `/address-changes`, one table for every tenant, with `address-changes.json` in the config
+  directory as the Organisation door). Only an owner or an admin writes it; a person confirms or
+  sends back their own row, on their page or through their grant or progress link. Every write is
+  in the audit log under a reference, never by address; both access logs write `:key` for the old
+  address; a table holds at most 300 rows; Support sees counts only. *Start a migration* gains the
+  step *Your new address* between *Where does it go?* and *Check, then start* where an address
+  being left is one nobody can take along (`NOT_TAKEN_ALONG` holds Google's two domains, the only
+  ones whose sources could be read), where the table already holds it, or where the person ticks
+  *I am also changing my address*; otherwise the flow keeps its six steps. The step writes its rows
+  when *Start* is pressed.
+  - Every contact, calendar and task pass applies the confirmed rows before the writer's repairs.
+    A card's new `EMAIL` goes first and the old one stays (a card that already lists the new
+    address prefers it where it is); an event's `ORGANIZER` and the family's `ATTENDEE`s change;
+    free text, a vCard 2.1 note, display names, UIDs, a card inside a card and an outside
+    invitation never do.
+  - Each copy records the digest of the rows that decided it (`item.address_digest`), so a row
+    added for one person rewrites only that person's copies, once, also where a source lists only
+    what changed. A rewrite is written only with a strong recorded version, sent as `If-Match`;
+    without one the copy is left and counted, an adopted or edited copy is left alone, and a copy
+    the person deleted on the new system is never made again. Past a data type's cutover a change
+    waits for *Apply the new addresses here too*, which shows where copies wait, in both editions,
+    and is refused when the table changed since the page showed it. A copy that waits is never a
+    match (`item.address_digest_due`), and verification holds the switch when every sampled item
+    waits.
+  - The confirmed list, the §20 report and the completion report say what was changed
+    (*Addresses changed*), and that mail was copied unchanged. The Sharing checklist's folder press
+    takes a confirmed row as a grantee's confirmation.
+  - The person's page, the team screen, a migration's page and the grant and progress pages show
+    the changes. English and Dutch; nothing sends mail.
+  - The managed gate and the appliance's e2e check the changed card and event on the target, the
+    seeded message byte for byte, and the copies converging back when the row is deleted.
+  - Ledger migrations 0071, 0072, 0073 and 0074 and managed migration 0063 make the next deploy
+    one-way.
+
+### Changed
+
+- **The privacy policy names the addresses that change** (workplan 0168 T9 and D8; ADR-0055). §4.6
+  says both addresses, whose address it is, and who added, confirmed and applied the change are
+  kept, and used only to correct those addresses in the contacts, calendars, tasks and shares
+  copied, never in mail; and that who added, confirmed, sent back or deleted each change stays in
+  the audit log under a reference that is not the address. §9 says a change is kept until it is
+  deleted or the data is erased, and that deleting a person does not delete it. §7 says a person's
+  progress link also shows the new address set up for them. Still version 1.0, edited in place,
+  since no tester has accepted it (the owner, 2026-11-22: *"1.0 ok"*), and dated 2026-11-23 in both
+  languages. The Google and Microsoft guides say what *Start a migration* does with an address that
+  cannot come along, and Finish step 4 says to turn on an automatic reply at the old provider.
+
 ## [0.2.0-alpha.16] - 2026-11-22
 
 The managed edition's background jobs now run on pg-boss, on the stack's own Postgres, in one

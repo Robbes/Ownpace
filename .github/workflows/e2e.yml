@@ -330,6 +330,16 @@ jobs:
           SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
         run: node test/e2e/seed-dav-source.mjs
 
+      # The address canary (workplan 0168 T8): one event and one card naming
+      # an address the appliance's address-changes.json changes. Fixed keys;
+      # the stack's volumes start empty every run.
+      - name: Seed the address canary (one event, one card, over DAV)
+        env:
+          SEED_DAV_URL: http://127.0.0.1:${{ env.DEV_NEXTCLOUD_PORT }}
+          SEED_DAV_SOURCE_USER: ${{ env.NEXTCLOUD_SOURCE_USER }}
+          SEED_DAV_SOURCE_PASSWORD: ${{ env.SOURCE_DAV_PASSWORD }}
+        run: node test/e2e/seed-address-change-source.mjs
+
       # A fixture that CANNOT migrate, to prove one bad item does not stop its
       # domain — and that the operator can then resolve it.
       #
@@ -481,6 +491,18 @@ jobs:
             inTarget.target.url = targetFiles + "from-target/";
             inTarget.domains.files.target.url = targetFiles + "from-target/";
             fs.writeFileSync("deploy/selfhost/config/zzz-archive-in-target-import.mapping.json", JSON.stringify(inTarget, null, 2));
+            // The Organisation door's table of address changes (workplan 0168
+            // T8): its file in the config directory, read at start-up, before
+            // any pass. One row for the address canary the DAV seed names, one
+            // for the seeded mail's sender, so the mail pass runs with a
+            // confirmed row naming it. selfhost-address-changes.e2e.test.ts
+            // reads what the passes made of them.
+            fs.writeFileSync("deploy/selfhost/config/address-changes.json", JSON.stringify({
+              changes: [
+                { oldAddress: "moving@example.org", newAddress: "moved@example.org" },
+                { oldAddress: "source@dev.local", newAddress: "source-moved@example.org" },
+              ],
+            }, null, 2));
           NODE
           cat > deploy/selfhost/.env <<ENV
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -642,6 +664,16 @@ jobs:
         env:
           SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
         run: pnpm test:e2e test/e2e/selfhost-verification.e2e.test.ts
+
+      # A new address through the appliance's file door (workplan 0168 T8;
+      # ADR-0055): the copies the passes above made of the address canary, read
+      # off the real Nextcloud, and the seeded mail's bytes on both accounts.
+      # After the verification gate, which therefore measured a target where
+      # two items carry a declared change.
+      - name: Run the address-change gate (the file door, on both backends)
+        env:
+          SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
+        run: pnpm test:e2e test/e2e/selfhost-address-changes.e2e.test.ts
 
       # `apply` (ADR-0024) — the one destructive operation in the product — against
       # REAL Nextcloud + Stalwart for the first time. Everything proving it before
@@ -864,4 +896,4 @@ jobs:
           docker volume rm ownpace-dev-stalwart-data || true
           docker compose -f deploy/compose/dev.yml -f deploy/compose/dev.ci.yml down --remove-orphans || true
           docker rm -f ownpace-dev-nextcloud || true
-          rm -f deploy/selfhost/.env deploy/selfhost/config/mapping.json || true
+          rm -f deploy/selfhost/.env deploy/selfhost/config/mapping.json deploy/selfhost/config/address-changes.json || true

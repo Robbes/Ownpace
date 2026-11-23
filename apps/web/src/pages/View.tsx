@@ -48,6 +48,7 @@
  */
 
 import React from 'react';
+import { YourNewAddress } from '../components/YourNewAddress.tsx';
 import { useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isPauseReason, type FailureCategory, type MappingLifecycle, type ViewTime } from '@openmig/shared';
@@ -556,10 +557,17 @@ const View: React.FC = () => {
       )}
 
       {person && link && <PersonProgress link={link} view={person} />}
+      {person && link && (
+        <YourNewAddress door="view" link={link} changes={person.addressChanges} queryKey={['view', link]} />
+      )}
       {person && (
         <>
           <p className="mt-8 text-sm text-gray-500">{t('view.until', { date: dateTime(person.expiresAt) })}</p>
-          <p className="mt-1 text-sm text-gray-500">{t('view.readOnly')}</p>
+          {/* Not "only numbers" when the page shows the person's new address
+              (0168 §4.4): the one thing on it that is not a count or a state. */}
+          <p className="mt-1 text-sm text-gray-500">
+            {t((person.addressChanges?.length ?? 0) > 0 ? 'addresses.view.readOnly' : 'view.readOnly')}
+          </p>
         </>
       )}
 

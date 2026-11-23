@@ -135,3 +135,11 @@ export * from './calendar-scheduling.ts';
 // Not here: the rule for a host a tenant gives us (0136 T1) builds a BlockList
 // and loads undici as it is imported, and the browser bundle loads this index.
 // Node code imports it as `@openmig/shared/reachable-host`.
+
+// The forms an address takes, and the domains nobody can take along (workplan 0168 T1).
+export * from './address-forms.ts';
+// A new address as a declared change to cards and events, never to mail (workplan 0168 T3, ADR-0055).
+export * from './address-changes.ts';
+
+// The table of address changes, as both editions serve it (workplan 0168 T2).
+export * from './address-change-table.ts';

@@ -2271,10 +2271,14 @@ FIXTURE_RE="openmig-demo-(event|contact|file|task)-[0-9]+[.][a-z]+$"
 # Fresh event 3 is the ORGANISER canary (0141 T9 (b)), read off the target the
 # same way and after the same half, so it is spared for the same reason.
 CANARY_RE="openmig-demo-event-.+-[13][.]ics$"
+# Fresh event 4 and contact a are the ADDRESS CANARY (workplan 0168 T8): read
+# off the target after the sync, and again after the row is deleted and the
+# next pass converges, so the apply half must never spend them either.
+ADDRESS_RE="openmig-demo-(event-.+-4[.]ics|contact-.+-a[.]vcf)$"
 HREF_EXPR="coalesce(source_ref_href, source_ref->>'href', '')"
 
 pick_disposable() {
-  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE AND $HREF_EXPR !~ '$FIXTURE_RE' AND $HREF_EXPR !~ '$CANARY_RE' ORDER BY first_seen_at DESC, natural_key_hash LIMIT 1"
+  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE AND $HREF_EXPR !~ '$FIXTURE_RE' AND $HREF_EXPR !~ '$CANARY_RE' AND $HREF_EXPR !~ '$ADDRESS_RE' ORDER BY first_seen_at DESC, natural_key_hash LIMIT 1"
 }
 pick_fixture() {
   q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE ORDER BY natural_key_hash LIMIT 1"
@@ -2338,6 +2342,135 @@ at_a_paid_pace() { # at_a_paid_pace <token> <label>
     echo "pace ($label): POST /api/billing/pick -> HTTP $code — ${body:0:300}"
     fail_at "pace ($label): the pick of Small was not taken (HTTP $code), so Sync now stays at Free's one pass a day"
   fi
+}
+
+# THE DEMO NEXTCLOUD, AS THIS SCRIPT REACHES IT FROM OUTSIDE THE STACK. Read
+# here, before the address changes this run declares, because that section is
+# the first to read the target (0168 T8): it reads the target account's own
+# address and its copies off it, and a `$NC` set only further down left both
+# curling a bare path. The export archive (0148 T9) and the Nextcloud door
+# further down use the same `$NC`.
+nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
+# THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST is the failure this
+# reads .env to avoid: an operator who binds the DAV backend to a private mesh
+# address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
+# every assertion below curling a loopback address nothing listens on any more,
+# and the gate would report a target failure that is really a moved port.
+nc_host="$(smoke_env_value NEXTCLOUD_BIND)"
+NC="http://${nc_host:-localhost}:${nc_port:-8083}"
+
+# ---------- the address changes this run declares (workplan 0168 T8; ADR-0055) ----------
+#
+# Each organisation's table of address changes is written through the product's
+# own door, `POST /api/address-changes`, confirmed in the same press, as a person
+# confirming their own new address on *Start a migration* would. Never by SQL:
+# the gate proves the routes as much as the copies.
+#
+# THE TABLE OUTLIVES THE RUN unless the run takes its rows back, and the CI stack
+# is never torn down. So every row this gate writes is deleted by this gate: the
+# DAV row by the convergence check (deleting it is what that check is about),
+# the mail row once its assertion has run, and a row an earlier, failed run
+# left behind is deleted before this one writes its own. A row left behind would
+# not break a later run, but it would make that run's table not the one it
+# declared.
+ADDRESS_ROWS_WRITTEN=""
+
+address_change_confirm() { # address_change_confirm <token> <label> <old> <new>
+  local r code body state
+  r="$(http POST "$API/api/address-changes" "$1" \
+    "$(jq -nc --arg o "$3" --arg n "$4" '{oldAddress: $o, newAddress: $n, confirm: true}')")"
+  code="${r%% *}"; body="${r#* }"
+  state="$(jq -r '.state // empty' <<<"$body" 2>/dev/null || true)"
+  if { [ "$code" = "201" ] || [ "$code" = "200" ]; } && [ "$state" = "confirmed" ]; then
+    echo "address change ($2): $3 becomes $4, confirmed (HTTP $code)"
+    ADDRESS_ROWS_WRITTEN="${ADDRESS_ROWS_WRITTEN} $2"
+    return 0
+  fi
+  echo "address change ($2): POST /api/address-changes -> HTTP $code — ${body:0:300}"
+  fail_at "address change ($2): the row $3 -> $4 was not written and confirmed (HTTP $code), so nothing below is about it (0168 T8)"
+  return 1
+}
+
+address_change_delete() { # address_change_delete <token> <label> <old>
+  local r code body key
+  key="$(jq -rn --arg k "$3" '$k | ascii_downcase | @uri')"
+  r="$(http DELETE "$API/api/address-changes/${key}" "$1")"
+  code="${r%% *}"; body="${r#* }"
+  case "$code" in
+    200) echo "address change ($2): the row for $3 deleted" ;;
+    404) echo "address change ($2): no row for $3 (already gone)" ;;
+    *) echo "address change ($2): DELETE -> HTTP $code — ${body:0:300}"
+       fail_at "address change ($2): the row for $3 could not be deleted (HTTP $code) (0168 T8)" ;;
+  esac
+}
+
+# The rows an earlier run of this gate left, by the old address only a run
+# writes (`openmig-old-<tag>@example.invalid`), deleted through the same door.
+address_changes_left_behind() { # address_changes_left_behind <token> <label>
+  local r code body old
+  r="$(http GET "$API/api/address-changes" "$1")"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" != "200" ]; then
+    echo "address changes ($2): GET /api/address-changes -> HTTP $code — ${body:0:300}"
+    fail_at "address changes ($2): the table could not be read (HTTP $code) (0168 T8)"
+    return 0
+  fi
+  while IFS= read -r old; do
+    [ -n "$old" ] && address_change_delete "$1" "$2" "$old"
+  done < <(jq -r '.rows[] | select(.oldKey | test("^openmig-old-")) | .oldAddress' <<<"$body")
+}
+
+# A copy on the demo target, by the path its ledger row records, unfolded
+# (RFC 5545 §3.1, RFC 6350 §3.2) so an address a server folded reads whole.
+# How a card's version marks its preferred line (0168 D2): vCard 4.0 has the
+# PREF parameter (RFC 6350 §5.3); 2.1 and 3.0 have none, and mark it with
+# TYPE=pref (RFC 2426 §3.3.2), which is what the change writes there.
+card_pref_mark() { # card_pref_mark <card>
+  if grep -qiE '^VERSION:4[.]0$' <<<"$1"; then echo 'PREF=1'; else echo 'TYPE=pref'; fi
+}
+card_line_preferred() { # card_line_preferred <card> <EMAIL line>
+  local params="${2%%:*}"
+  if [ "$(card_pref_mark "$1")" = 'PREF=1' ]; then
+    grep -qiE '(^|;)PREF=1(;|$)' <<<"$params"
+  else
+    grep -qiE '(^|;)TYPE=([^;]*,)?pref(,[^;]*)?(;|$)' <<<"$params"
+  fi
+}
+
+# A copy's bytes as the target serves them, its lines unfolded (0168 T8).
+# THE LEDGER KEEPS A DAV COPY'S ID RELATIVE TO THE WRITER'S DAV ROOT, with a
+# leading slash (`targetIdRelativeTo` in the writers): `/addressbooks/users/
+# <user>/<book>/<file>`, which is no server path on its own. So it is read
+# under /remote.php/dav first, then as a path. An id that is a URL is read as
+# its path, and a bare one is asked of each collection under the target
+# account's home (<home> under remote.php/dav/).
+target_copy_of() { # target_copy_of <href needle> <home under remote.php/dav/>
+  local id home col
+  id="$(q "SELECT coalesce(target_ref->>'id', '') FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $HREF_EXPR LIKE '%$1' AND status IN ('copied','updated') LIMIT 1")"
+  [ -n "$id" ] || return 1
+  case "$id" in
+    *://*) target_copy_at "$(sed -E 's|^[a-zA-Z]+://[^/]*||' <<<"$id")"; return ;;
+    /remote.php/*) target_copy_at "$id"; return ;;
+    /*) target_copy_at "/remote.php/dav${id}" || target_copy_at "/remote.php/dav/$2${id#/}" || target_copy_at "$id" && return 0
+        echo "target_copy_of: the target serves no copy at the ledger's id ${id}, read under /remote.php/dav, under the home $2, or as a path" >&2
+        return 1 ;;
+  esac
+  home="/remote.php/dav/$2"
+  while IFS= read -r col; do
+    [ -n "$col" ] && [ "${col%/}" != "${home%/}" ] || continue
+    target_copy_at "${col%/}/${id}" && return 0
+  done < <(curl -fsS -X PROPFIND -H 'Depth: 1' -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" "${NC}${home}" 2>/dev/null \
+             | grep -oE '<([A-Za-z0-9]+:)?href>[^<]*</([A-Za-z0-9]+:)?href>' \
+             | sed -E 's#</?([A-Za-z0-9]+:)?href>##g')
+  echo "target_copy_of: no collection under ${home} serves the ledger's id ${id}" >&2
+  return 1
+}
+target_copy_at() { # target_copy_at <absolute path>: its lines, unfolded; non-zero when it cannot be read
+  local body
+  body="$(curl -fsS -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" "${NC}$1" 2>/dev/null)" || return 1
+  [ -n "$body" ] || return 1
+  tr -d '\r' <<<"$body" \
+    | awk 'NR > 1 && /^[ \t]/ { line = line substr($0, 2); next } NR > 1 { print line } { line = $0 } END { if (NR) print line }'
 }
 
 HASH="$(pick_disposable)"
@@ -2421,6 +2554,31 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   else
     echo "prepare: SEEDING FAILED — the diagnosis below will say what the ledger holds."
   fi
+
+  # THE ADDRESS CHANGES, DECLARED BEFORE THE COPY (workplan 0168 T8). The DAV
+  # organisation's row changes the address canary's old address to the target
+  # account's own, read from its server as the seeder read it for event 3; the
+  # mail organisation's row names the From of its seeded message, so the mail
+  # pass below runs with a confirmed row that names its sender.
+  ADDR_OLD="openmig-old-${BALANCE_TAG}@example.invalid"
+  ADDR_OWN=""
+  if own_set_body="$(curl -fsS -X PROPFIND -H 'Depth: 0' \
+      -H 'Content-Type: application/xml; charset=utf-8' \
+      -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+      --data-binary '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><c:calendar-user-address-set/></d:prop></d:propfind>' \
+      "${NC}/remote.php/dav/principals/users/${TARGET_DAV_USER}/")"; then
+    ADDR_OWN="$(grep -o 'mailto:[^<"]*' <<<"$own_set_body" | sed 's/^mailto://' | tr '[:upper:]' '[:lower:]' | awk 'NR==1' || true)"
+  fi
+  address_changes_left_behind "$APPLY_TOKEN" dav
+  if [ -z "$ADDR_OWN" ]; then
+    echo "address change (dav): ${TARGET_DAV_USER} has no address of its own to change to"
+    fail_at "the target account's own address could not be read, so the address canary has no new address (0168 T8)"
+  else
+    address_change_confirm "$APPLY_TOKEN" dav "$ADDR_OLD" "$ADDR_OWN" || ADDR_OWN=""
+  fi
+  ADDR_MAIL_OLD="source@dev.local"
+  ADDR_MAIL_NEW="openmig-new@example.invalid"
+  address_change_confirm "$VERIFY_TOKEN" mail "$ADDR_MAIL_OLD" "$ADDR_MAIL_NEW" || ADDR_MAIL_OLD=""
 
   TOK_P="$APPLY_TOKEN"
   # An explicit JSON body: the endpoint runs req.body through zod, and an absent
@@ -2567,6 +2725,115 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
         fail_at "the large file's content_hash does not match the source (0120 T6)"
       fi
     fi
+  fi
+
+  # ---------- THE ADDRESS THAT CHANGED, ON REAL BYTES (workplan 0168 T8; ADR-0055) ----------
+  #
+  # The seeder put an event and a card in the source that name
+  # ${ADDR_OLD}, and prepare confirmed a row changing it to ${ADDR_OWN}, the
+  # target account's own address, before the sync. What is asserted, on the
+  # copies the target serves:
+  #
+  #   1. THE CARD: its first EMAIL is the new address with PREF=1, and the old
+  #      one is still on the card (D2), so old mail still finds the person.
+  #   2. THE EVENT: its ORGANIZER is the new address, and carries
+  #      SCHEDULE-AGENT=CLIENT, as does the canary attendee, whose address is
+  #      not in the table and is unchanged (D3). Its DESCRIPTION, which names
+  #      the old address in prose, is unchanged (D4). Here the target account
+  #      IS the organiser, so a line without SCHEDULE-AGENT=CLIENT is one its
+  #      own server mails from: the catcher check further down hears it.
+  #   3. BOTH LEDGER ROWS record the table they were written under
+  #      (`item.address_digest`, never NULL here): the change is declared.
+  #   4. THE ROW, DELETED, CONVERGES BACK: the next pass rewrites both copies to
+  #      what the source says, the digest goes back to NULL, and still nothing
+  #      reaches the catcher.
+  #
+  # Polled, as the task lane is: the sync that copied the item the apply half
+  # waited for may not have reached these two yet.
+  if [ -n "${ADDR_OWN:-}" ]; then
+    ADDR_EVENT="openmig-demo-event-${BALANCE_TAG}-4.ics"
+    ADDR_CARD="openmig-demo-contact-${BALANCE_TAG}-a.vcf"
+    addr_rows_like() { # addr_rows_like <digest predicate>
+      q "SELECT count(*) FROM item WHERE $TASK_SCOPE AND ($HREF_EXPR LIKE '%${ADDR_EVENT}' OR $HREF_EXPR LIKE '%${ADDR_CARD}') AND status IN ('copied','updated') AND $1"
+    }
+    addr_rows=0
+    i=0
+    while [ $i -lt "$PREP_POLLS" ]; do
+      addr_rows="$(addr_rows_like "address_digest IS NOT NULL")"
+      [ "${addr_rows:-0}" -ge 2 ] && break
+      i=$((i + 1))
+      sleep "$POLL_SLEEP"
+    done
+    if [ "${addr_rows:-0}" -lt 2 ]; then
+      echo "::error::the address canary's two copies are not both recorded under the address table."
+      q "SELECT $HREF_EXPR, domain, status, coalesce(address_digest, '(no digest)') FROM item WHERE $TASK_SCOPE AND ($HREF_EXPR LIKE '%${ADDR_EVENT}' OR $HREF_EXPR LIKE '%${ADDR_CARD}')" \
+        | sed 's/^/  /'
+      fail_at "the address canary's copies carry no address digest under tag ${BALANCE_TAG}: the change was not applied, or not declared (0168 T4, T8)"
+    else
+      echo "prepare: the address canary's two copies are recorded under the address table"
+    fi
+
+    card_copy="$(target_copy_of "$ADDR_CARD" "addressbooks/users/${TARGET_DAV_USER}/" || true)"
+    card_emails="$(grep -i '^EMAIL[;:]' <<<"$card_copy" || true)"
+    card_first="$(awk 'NR==1' <<<"$card_emails")"
+    if [ -z "$card_copy" ]; then
+      fail_at "the address canary's card is not on the target, so the change to it is unproven (0168 T8)"
+    elif grep -qiF "$ADDR_OWN" <<<"$card_first" && card_line_preferred "$card_copy" "$card_first" \
+         && grep -qiF "$ADDR_OLD" <<<"$card_emails"; then
+      echo "prepare: the card on the target has ${ADDR_OWN} first and preferred ($(card_pref_mark "$card_copy")), and keeps ${ADDR_OLD}"
+    else
+      echo "the address canary's card on the target does not carry the change as declared:"
+      sed 's/^/    /' <<<"$card_emails"
+      fail_at "the card's EMAIL lines are not the new address first, marked preferred as its version marks it ($(card_pref_mark "$card_copy")), with the old one kept (0168 D2, T8)"
+    fi
+
+    event_copy="$(target_copy_of "$ADDR_EVENT" "calendars/${TARGET_DAV_USER}/" || true)"
+    event_org="$(grep -i '^ORGANIZER[;:]' <<<"$event_copy" || true)"
+    event_att="$(grep -i '^ATTENDEE[;:]' <<<"$event_copy" || true)"
+    event_desc="$(grep -i '^DESCRIPTION[;:]' <<<"$event_copy" || true)"
+    if [ -z "$event_copy" ]; then
+      fail_at "the address canary's event is not on the target, so the change to it is unproven (0168 T8)"
+    elif grep -qiF "mailto:${ADDR_OWN}" <<<"$event_org" && grep -q 'SCHEDULE-AGENT=CLIENT' <<<"$event_org" \
+         && grep -qF "openmig-attendee-${BALANCE_TAG}@example.invalid" <<<"$event_att" \
+         && ! grep -qv 'SCHEDULE-AGENT=CLIENT' <<<"$event_att" \
+         && grep -qF "openmig-old-${BALANCE_TAG}@example.invalid" <<<"$event_desc"; then
+      echo "prepare: the event on the target is organised by ${ADDR_OWN} with SCHEDULE-AGENT=CLIENT,"
+      echo "  its outside attendee unchanged and neutralised, and its description unchanged"
+    else
+      echo "the address canary's event on the target does not carry the change as declared:"
+      grep -iE '^(ORGANIZER|ATTENDEE|DESCRIPTION)[;:]' <<<"$event_copy" | sed 's/^/    /'
+      fail_at "the event's ORGANIZER is not the new address with SCHEDULE-AGENT=CLIENT, or its attendee or description changed (0168 D3, D4, T8)"
+    fi
+
+    # 4. Deleted, and converged back on the next pass, through the same doors.
+    address_change_delete "$APPLY_TOKEN" dav "$ADDR_OLD"
+    back_out="$(curl -sS -X POST -H 'Content-Type: application/json' -d '{"type":"delta"}' \
+      -H "Authorization: Bearer $APPLY_TOKEN" -w '\n%{http_code}' \
+      "$API/api/migrations/$APPLY_MAPPING/sync")"
+    echo "prepare: sync after the row was deleted -> HTTP ${back_out##*$'\n'}"
+    addr_left=2
+    i=0
+    while [ $i -lt "$PREP_POLLS" ]; do
+      addr_left="$(addr_rows_like "address_digest IS NOT NULL")"
+      [ "${addr_left:-2}" = "0" ] && break
+      i=$((i + 1))
+      sleep "$POLL_SLEEP"
+    done
+    card_back="$(target_copy_of "$ADDR_CARD" "addressbooks/users/${TARGET_DAV_USER}/" || true)"
+    event_back_org="$(target_copy_of "$ADDR_EVENT" "calendars/${TARGET_DAV_USER}/" | grep -i '^ORGANIZER[;:]' || true)"
+    if [ "${addr_left:-2}" = "0" ] && [ -n "$card_back" ] && ! grep -qiF "$ADDR_OWN" <<<"$card_back" \
+       && grep -qiF "mailto:${ADDR_OLD}" <<<"$event_back_org" && grep -q 'SCHEDULE-AGENT=CLIENT' <<<"$event_back_org"; then
+      echo "prepare: with the row deleted, the next pass put both copies back as the source has them"
+    else
+      echo "the address canary did not converge back after its row was deleted:"
+      echo "    rows still under a digest: ${addr_left:-?}"
+      grep -i '^EMAIL[;:]' <<<"$card_back" | sed 's/^/    /'
+      echo "    ${event_back_org:-(no ORGANIZER read)}"
+      fail_at "a deleted address change did not converge back on the next pass (ADR-0055 decision 6, 0168 T8)"
+    fi
+    # The silence is asserted with the rest, below ("the mail nobody should
+    # get"): the canary attendee is the one event 1 and event 3 carry, so that
+    # count covers the seed, the changed copy and this convergence alike.
   fi
 fi
 
@@ -3016,6 +3283,44 @@ sync_and_wait "$APPLY_TENANT" "$APPLY_MAPPING" "$APPLY_TOKEN" dav
 
 # Tenant A — mail, against the demo Stalwart.
 verify_mapping "$VERIFY_TENANT" "$VERIFY_SUB" "$VERIFY_MAPPING" mail mail
+
+# ---------- MAIL, UNCHANGED BY A CONFIRMED ADDRESS CHANGE (workplan 0168 T8; ADR-0055 decision 4) ----------
+#
+# Prepare confirmed a row in tenant A's table changing ${ADDR_MAIL_OLD}, the
+# From of its seeded message <seed-1@dev.local>, and the mail pass above ran
+# with it. Mail is never changed, in any byte. So the message's raw bytes are
+# hashed on the source and on the target, through the demo Stalwart's own IMAP,
+# and every copy the target holds must hash as the source's: one copy, the same
+# SHA-256. A rewritten header differs; a second copy, made because a rewrite
+# changed the generated Message-ID's key material, is counted. The row is then
+# taken back. On a run where prepare did not run there is no row, and this
+# stands down, saying so.
+if [ -n "${ADDR_MAIL_OLD:-}" ]; then
+  note "mail, unchanged by a confirmed address change (0168 T8)"
+  mail_hash() { # mail_hash <user> <password>
+    IMAP_HOST="${SMOKE_STALWART_IMAP_HOST:-127.0.0.1}" IMAP_PORT="${SMOKE_STALWART_IMAPS_PORT:-1994}" IMAP_TLS=true \
+      IMAP_USER="$1" IMAP_PASSWORD="$2" MESSAGE_ID='<seed-1@dev.local>' \
+      node "${REPO_ROOT}/test/e2e/message-sha256.mjs"
+  }
+  src_copies="$(mail_hash source@dev.local source_password)" || src_copies=""
+  dst_copies="$(mail_hash target@dev.local target_password)" || dst_copies=""
+  src_sha="$(jq -r 'if length == 1 then .[0].sha256 else empty end' <<<"${src_copies:-[]}" 2>/dev/null || true)"
+  dst_n="$(jq -r 'length' <<<"${dst_copies:-[]}" 2>/dev/null || echo 0)"
+  dst_sha="$(jq -r '[.[].sha256] | unique | if length == 1 then .[0] else empty end' <<<"${dst_copies:-[]}" 2>/dev/null || true)"
+  if [ -z "$src_copies" ] || [ -z "$dst_copies" ] || [ -z "$src_sha" ]; then
+    echo "could not hash <seed-1@dev.local> on both accounts (source: ${src_copies:-unread}, target: ${dst_copies:-unread})"
+    fail_at "the seeded message's bytes could not be read on both sides, so mail's being unchanged is unproven (0168 T8)"
+  elif [ "$dst_n" = "1" ] && [ "$dst_sha" = "$src_sha" ]; then
+    echo "<seed-1@dev.local>: one copy on the target, sha256 ${dst_sha}, the source's bytes exactly,"
+    echo "  after a pass with a confirmed change of its sender ${ADDR_MAIL_OLD}"
+  else
+    echo "::error::THE SEEDED MESSAGE ON THE TARGET IS NOT THE SOURCE'S BYTES (ADR-0055 decision 4)."
+    echo "  source  ${src_copies}"
+    echo "  target  ${dst_copies}"
+    fail_at "mail was changed, or copied twice, under a confirmed address change (0168 T8)"
+  fi
+  address_change_delete "$VERIFY_TOKEN" mail "$ADDR_MAIL_OLD"
+fi
 
 # Tenant B — calendar, contacts, files and tasks, against the demo Nextcloud.
 # The same mapping the apply half then acts on.
@@ -4552,17 +4857,9 @@ else
   echo "archive at a path on the server: no row stored ($archive_rows_before -> $archive_rows_after)"
 fi
 
-# THE DEMO NEXTCLOUD, AS THIS SCRIPT REACHES IT FROM OUTSIDE THE STACK. Read
-# here, before the export archive, because that section is now the first to
-# write to it (0148 T9); the Nextcloud door further down uses the same `$NC`.
-nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
-# THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST is the failure this
-# reads .env to avoid: an operator who binds the DAV backend to a private mesh
-# address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
-# every assertion below curling a loopback address nothing listens on any more,
-# and the gate would report a target failure that is really a moved port.
-nc_host="$(smoke_env_value NEXTCLOUD_BIND)"
-NC="http://${nc_host:-localhost}:${nc_port:-8083}"
+# THE DEMO NEXTCLOUD is `$NC`, read before the address changes this run
+# declares (0168 T8), the first section to read the target; the export
+# archive below and the Nextcloud door further down use the same one.
 
 # AND THE PROOF BACK: AN EXPORT READ FROM THE DESTINATION'S OWN FILES
 # (0148 T9, D11).
@@ -6394,6 +6691,9 @@ if [ -n "$BALANCE_TAG" ]; then
   else
     echo "nothing addressed to the canary reached the catcher during seed or sync,"
     echo "  for the third party's meeting (event 1) or the target's own (event 3)"
+    if [ -n "${ADDR_OWN:-}" ]; then
+      echo "  or the address canary (event 4), changed to ${ADDR_OWN} and converged back (0168 T8)"
+    fi
   fi
 
   # ---------- the moment, pressed (0104 T2, final stage) ----------

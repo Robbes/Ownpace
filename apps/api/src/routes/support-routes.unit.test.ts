@@ -982,3 +982,26 @@ describe('money to give back (0111; the owner, 2026-10-11)', () => {
     expect((await post(`/api/support/money-to-give-back/${byHand}/given-back`)).status).toBe(401);
   });
 });
+
+describe("an organisation's address changes, counted and never named (workplan 0168 D7)", () => {
+  it('serves how many rows and how many confirmed, no address, recorded as the one read', async () => {
+    await rows(
+      `INSERT INTO address_change (tenant_id, old_key, old_address, new_address, state, set_by, confirmed_by, confirmed_at)
+       VALUES ($1, 'ab@gmail.com', 'a.b@gmail.com', 'ab@example.org', 'confirmed', 's', 's', now()),
+              ($1, 'cd@example.net', 'cd@example.net', 'cd@example.org', 'proposed', 's', NULL, NULL)`,
+      [TENANT_A],
+    );
+    try {
+      caller = OPERATOR;
+      const res = await get(`/api/support/tenants/${TENANT_A}`);
+      expect(res.status).toBe(200);
+      expect(res.body.addressChanges).toEqual({ rows: 2, confirmed: 1 });
+      for (const address of ['gmail.com', 'example.net', 'ab@example.org', 'cd@example.org']) {
+        expect(res.text).not.toContain(address);
+      }
+      expect(await logRows()).toEqual([{ operator_user_id: OPERATOR, tenant_id: TENANT_A, view_name: 'tenant' }]);
+    } finally {
+      await rows(`DELETE FROM address_change WHERE tenant_id = $1`, [TENANT_A]);
+    }
+  });
+});

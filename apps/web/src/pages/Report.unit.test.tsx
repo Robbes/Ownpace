@@ -211,6 +211,36 @@ describe('a migration’s report, as a page', () => {
     expect(screen.queryByText('What arrived')).not.toBeInTheDocument();
   });
 
+  it('says the addresses that changed, in the report’s own sentences, in the reader’s language (0168 S8)', async () => {
+    const said = {
+      heading: { en: 'Addresses changed', nl: 'Gewijzigde adressen' },
+      lines: [
+        { en: '1 address change was confirmed for this organisation.', nl: '1 adreswijziging is bevestigd voor deze organisatie.' },
+        { en: 'Contacts: 4 copies carry a new address.', nl: 'Contacten: 4 kopieën hebben een nieuw adres.' },
+      ],
+    };
+    fetchReportMock.mockResolvedValue({
+      report: { ...REPORT, addressChanges: { rows: 1, digest: 'd1', byDomain: [{ domain: 'contact', changed: 4, older: 0 }], said } },
+      markdown: '# report',
+    });
+    const { unmount } = renderAt();
+    const section = (await screen.findByRole('heading', { level: 3, name: 'Addresses changed' })).closest('section')!;
+    expect(within(section).getByText('1 address change was confirmed for this organisation.')).toBeInTheDocument();
+    expect(within(section).getByText('Contacts: 4 copies carry a new address.')).toBeInTheDocument();
+    unmount();
+
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    renderAt();
+    const nl = (await screen.findByRole('heading', { level: 3, name: 'Gewijzigde adressen' })).closest('section')!;
+    expect(within(nl).getByText('Contacten: 4 kopieën hebben een nieuw adres.')).toBeInTheDocument();
+  });
+
+  it('says nothing of addresses where the report carries no change', async () => {
+    renderAt();
+    await screen.findByText('Everything has arrived, but some items still wait on your decision.');
+    expect(screen.queryByRole('heading', { name: 'Addresses changed' })).not.toBeInTheDocument();
+  });
+
   it('in Dutch, with Dutch digits', async () => {
     window.localStorage.setItem('ownpace.locale', 'nl');
     renderAt();

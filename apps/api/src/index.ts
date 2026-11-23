@@ -32,6 +32,7 @@ import type { AuthenticatedRequest, JwtPayload } from './types/api.ts';
 import tenantRoutes from './routes/tenants/index.ts';
 import mappingRoutes from './routes/migrations/index.ts';
 import peopleRoutes from './routes/people.ts';
+import addressChangeRoutes from './routes/address-changes.ts';
 import grantRoutes from './routes/grant.ts';
 import viewRoutes from './routes/view.ts';
 import decisionRoutes from './routes/decisions.ts';
@@ -256,6 +257,11 @@ app.use('/api/migrations', mappingRoutes);
  * appliance answers `GET /people` in the same shapes, with one implicit person.
  */
 app.use('/api/people', peopleRoutes);
+/**
+ * The organisation's address changes, old to new (ADR-0055; workplan 0168 T2).
+ * The appliance answers `/address-changes` in the same shapes.
+ */
+app.use('/api/address-changes', addressChangeRoutes);
 /**
  * The migrator's own surface (workplan 0108 T4, ADR-0035).
  *

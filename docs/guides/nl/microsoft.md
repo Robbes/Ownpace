@@ -91,6 +91,10 @@ De kaart **Microsoft 365-account** is één verbinding met één gedelegeerde to
 
 **Taken** zijn Microsoft To Do. Vinkt u ze aan, dan vraagt de toestemming ook `Tasks.Read`. Elke To Do-lijst wordt een takenlijst op het doel, en elke taak houdt haar titel, notities, status, belang, vervaldatum, checklist en herhaling.
 
+### Een nieuw adres, als het uwe niet mee kan {#new-address}
+
+Een adres dat eindigt op `@outlook.com`, `@hotmail.com`, `@live.com` of `@msn.com`, of op de `.onmicrosoft.com`-naam van uw organisatie, hoort bij Microsoft en kan dus niet mee. **Migratie starten** herkent deze adressen nog niet vanzelf: vink bij **Waar gaat het naartoe?** het vakje **Ik krijg ook een ander adres** aan, dan volgt de stap **Uw nieuwe adres**, waarin u zegt welk adres het vervangt. Contacten met het oude adres krijgen het nieuwe als eerste adres en houden het oude, zodat oude mail de persoon nog vindt. Afspraken en taken die u zelf hebt gemaakt, noemen u met het nieuwe adres, zodat u ze kunt blijven wijzigen. De **Deel-checklist** stelt het nieuwe adres voor u voor. Uw mail wordt nooit gewijzigd: elk bericht blijft precies zoals het is verstuurd. Niemand krijgt iets toegestuurd. Het nieuwe adres wijzigt u achteraf op uw pagina.
+
 ## Als de test iets meldt {#when-test-says}
 
 Twee weigeringen zijn **beleid van de tenant**, en opnieuw proberen helpt niet:

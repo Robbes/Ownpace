@@ -92,6 +92,8 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   // The person a migration is for (ADR-0050, amended 2026-09-28).
   // A person's links (0153 T5 (b)) are their own file, mounted on the people router.
   { prefix: '/api/people', files: ['src/routes/people.ts', 'src/routes/person-link-routes.ts'] },
+  // The organisation's address changes (ADR-0055; workplan 0168 T2).
+  { prefix: '/api/address-changes', files: ['src/routes/address-changes.ts'] },
   { prefix: '/api/decisions', files: ['src/routes/decisions.ts'] },
   // Every queue at once, for the screen that showed only the one above.
   { prefix: '/api/attention', files: ['src/routes/attention.ts'] },

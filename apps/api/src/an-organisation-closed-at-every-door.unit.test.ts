@@ -622,6 +622,10 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   // Connect Cirrux Drive (0160 T5): its authorize, and its callback before the
   // code is exchanged, as a grant link's consent asks.
   'routes/migrations/cirrux-oauth-routes.ts': 2,
+  // A person's answer about their new address through their link (0168 §4.4,
+  // D6): on the grant page only, whose every route asks, so it asks too. It
+  // starts nothing; the progress page's answer, like the page, does not ask.
+  'routes/link-address-changes.ts': 1,
 };
 
 /** How a door asks: answering the refusal itself, or reading it to answer in its own form. */

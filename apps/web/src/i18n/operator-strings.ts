@@ -191,6 +191,11 @@ export const OPERATOR_STRINGS = {
   'support.platform.unread': 'The platform status could not be read.',
   'support.platform.checked': 'Checked {when}.',
   'support.noDomains': 'Nothing has run yet.',
+  // Their address changes, counted and never named (workplan 0168 D7).
+  'support.addressChanges': 'Address changes',
+  'support.addressChanges.none': 'No address changes.',
+  'support.addressChanges.counts':
+    '{rows} address change(s), {confirmed} of them confirmed. Their own screen says which addresses; here you see only the counts.',
   'support.waiting.none': 'Nothing is waiting on them.',
   'support.waiting.some':
     'Waiting on them: {count} decision(s). Their own screen says which; here you see only the count.',
