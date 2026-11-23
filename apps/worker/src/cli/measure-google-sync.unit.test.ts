@@ -634,6 +634,16 @@ describe('what Google answers, and the verdict', () => {
 });
 
 describe('reading a multistatus', () => {
+  it('reads an answer that opens <response> many times and never closes it in linear time (workplan 0163)', () => {
+    // The element pattern scanned from every opening tag to the end of such an
+    // answer: before the change this one took 15 seconds. The bound is
+    // far above a linear read.
+    const started = performance.now();
+    const counted = countMultistatus('<D:response><D:propstat>'.repeat(40_000));
+    expect([counted.members.ok, counted.members.gone, counted.token]).toEqual([0, 0, undefined]);
+    expect(performance.now() - started).toBeLessThan(1500);
+  });
+
   it('takes a 404 inside a propstat for a property without a value, never for a removal', () => {
     const counted = countMultistatus(multistatus(there('/a.ics') + gone('/b.ics')));
     expect([counted.members.ok, counted.members.gone, [...counted.members.other]]).toEqual([1, 1, []]);

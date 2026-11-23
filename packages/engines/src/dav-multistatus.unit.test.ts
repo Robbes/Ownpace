@@ -270,3 +270,25 @@ describe('findHrefByUid', () => {
     ).toBeUndefined();
   });
 });
+
+describe('a body that opens an element and never closes it (workplan 0163, 2026-11-23)', () => {
+  // `<p:name…>([\s\S]*?)</p:name>` scanned from every opening tag to the end of
+  // such a body: quadratic, and the server is whatever host a person named.
+  // Before the change, on the machine that wrote this, the first body took 23
+  // seconds and the second 30; the bound is far above a linear read.
+  const GENEROUS_MS = 1500;
+
+  it('splits a body of 100,000 unclosed <response> in linear time', () => {
+    const started = performance.now();
+    expect(parseMultiStatus('<d:response>'.repeat(100_000))).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(GENEROUS_MS);
+  });
+
+  it('reads a resourcetype of 40,000 tags that never end in linear time', () => {
+    const body = `<d:response><d:href>/a/</d:href><d:resourcetype>${'<collection '.repeat(40_000)}</d:resourcetype></d:response>`;
+    const started = performance.now();
+    expect(hasResourceType(body, 'collection')).toBe(false);
+    expect(isCollection(body)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(GENEROUS_MS);
+  });
+});

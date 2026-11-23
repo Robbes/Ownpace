@@ -17,6 +17,8 @@
  * package.
  */
 
+import { elementsIn, namesElement, type XmlElement } from '@openmig/shared';
+
 /** One <response> element of a 207 Multi-Status body. */
 export interface MultiStatusResponse {
   /** The (still percent-encoded) href, exactly as the server wrote it. */
@@ -25,16 +27,30 @@ export interface MultiStatusResponse {
   readonly xml: string;
 }
 
-/** Match an element by local name, ignoring any namespace prefix. */
-function elementPattern(localName: string, flags: string): RegExp {
-  return new RegExp(`<(?:[A-Za-z0-9._-]+:)?${localName}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[A-Za-z0-9._-]+:)?${localName}>`, flags);
+/** A namespace prefix, `d:`, at the start of a tag. */
+const PREFIX = /^[A-Za-z0-9._-]+:/;
+
+/** An opening tag's rest after its name: nothing, or attributes after a space. */
+const opensHere = (rest: string): boolean => rest === '' || /^\s/.test(rest);
+
+/**
+ * The elements with this local name, ignoring any namespace prefix: as
+ * `<(?:p:)?name(?:\s[^>]*)?>([\s\S]*?)<\/(?:p:)?name>` read them, in time linear
+ * in the body's length (`elementsIn`, workplan 0163).
+ */
+function elements(xml: string, localName: string, first: boolean): XmlElement[] {
+  return elementsIn(
+    xml,
+    (tag) => namesElement(tag, localName, PREFIX, opensHere),
+    (tag) => tag.startsWith('/') && namesElement(tag.slice(1), localName, PREFIX, (rest) => rest === ''),
+    first,
+  );
 }
 
 /** Split a 207 body into its <response> blocks. */
 export function parseMultiStatus(xml: string): MultiStatusResponse[] {
   const out: MultiStatusResponse[] = [];
-  for (const match of xml.matchAll(elementPattern('response', 'g'))) {
-    const block = match[1] ?? '';
+  for (const { text: block } of elements(xml, 'response', false)) {
     const href = firstElementText(block, 'href');
     if (href === undefined) continue; // a <response> without an href is not addressable
     out.push({ href: href.trim(), xml: block });
@@ -44,22 +60,21 @@ export function parseMultiStatus(xml: string): MultiStatusResponse[] {
 
 /** Text of the first element with this local name, or undefined. */
 export function firstElementText(xml: string, localName: string): string | undefined {
-  const match = elementPattern(localName, '').exec(xml);
-  return match ? match[1] : undefined;
+  return elements(xml, localName, true)[0]?.text;
 }
 
 /** Does this response describe a collection (a directory / calendar / address book)? */
 export function isCollection(responseXml: string): boolean {
-  const resourceType = firstElementText(responseXml, 'resourcetype');
-  if (resourceType === undefined) return false;
-  return /<(?:[A-Za-z0-9._-]+:)?collection(?:\s[^>]*)?\/?>/.test(resourceType);
+  return hasResourceType(responseXml, 'collection');
 }
 
 /** Does this response's resourcetype include the given DAV collection kind? */
 export function hasResourceType(responseXml: string, localName: string): boolean {
   const resourceType = firstElementText(responseXml, 'resourcetype');
   if (resourceType === undefined) return false;
-  return new RegExp(`<(?:[A-Za-z0-9._-]+:)?${localName}(?:\\s[^>]*)?/?>`).test(resourceType);
+  // `<(?:p:)?name(?:\s[^>]*)?/?>`, a tag at a time (workplan 0163).
+  const tags = resourceType.matchAll(/<([^<>]*)>/g);
+  return [...tags].some((m) => namesElement(m[1] ?? '', localName, PREFIX, (rest) => rest === '/' || opensHere(rest)));
 }
 
 /**
