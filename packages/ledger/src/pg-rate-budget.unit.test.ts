@@ -19,7 +19,7 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { createPgliteDb } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import { PgByteBudget, PgRateBudget } from './pg-rate-budget.ts';
-import type { LedgerDriver, LedgerConnection } from './driver.ts';
+import { statementsInTurn, type LedgerDriver, type StatementsInTurn } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
 
 // UUID family 5aab0000-…, unused elsewhere in the repo.
@@ -27,7 +27,7 @@ const TENANT = '5aab0000-e29b-41d4-a716-446655441701';
 const OTHER_TENANT = '5aab0000-e29b-41d4-a716-446655441702';
 
 let driver: LedgerDriver;
-let conn: LedgerConnection;
+let conn: StatementsInTurn;
 let db: PgDatabase;
 
 beforeAll(async () => {
@@ -35,7 +35,7 @@ beforeAll(async () => {
   driver = made.driver;
   db = made.db;
   await runMigrations({ driver, logger: () => {} });
-  conn = await driver.acquire();
+  conn = statementsInTurn(driver);
   for (const id of [TENANT, OTHER_TENANT]) {
     await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1, $2, 'active')`, [id, id]);
   }
