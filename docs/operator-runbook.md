@@ -1115,7 +1115,7 @@ human, the organisation's managers) are never listed. Nor are three more:
 - **An account that was let in and removed less than 7 days ago.** Removing a
   member, on the Team page or with `operator.sh leave`, deletes the member row
   and records `member.removed` in `audit_log` with the subject in
-  `detail.userId` (the Team page's record carries no address); the row's own
+  `detail.userId` (neither record carries an address); the row's own
   time, `at`, says when. Privacy §9's 30 days are for an account *that we never
   let in*; such an account was let in. The script keeps it while the newest
   removal recorded for it is younger than 7 days, the erasure window's number.

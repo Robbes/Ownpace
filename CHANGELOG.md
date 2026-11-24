@@ -73,6 +73,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   count now goes by the job, `orchestrator_ref`; compute hours still count each attempt's
   seconds, and no price reads the count. The owner, 2026-11-24: *"count a retried pass once, in a
   small alpha.19 PR: yes."*
+- **`operator.sh leave` records a removal without the address** (workplan 0139). Its
+  `member.removed` record, kept in the organisation's `audit_log` until the organisation is
+  erased, carried the address of the platform operator it removed beside their subject. It now
+  names the subject, the membership's id, role and status, the door and whether the organisation
+  was left empty, and no address, as the Team page's removal does (0135 T8). Nothing read the
+  address: the strays duty reads the subject. The undo the script prints for an organisation it
+  leaves empty still names it, on the terminal. Records written before keep it until their
+  organisation is erased, and the audit export gives it as a pseudonym.
 
 ### Security
 

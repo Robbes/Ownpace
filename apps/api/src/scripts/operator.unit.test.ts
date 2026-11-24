@@ -28,6 +28,7 @@ import {
   leaveRefusal,
   leavesNobodyBehind,
   notAnOperatorRefusal,
+  removeMembership,
   subjectRefusal,
   type LeaveFacts,
 } from './operator.ts';
@@ -215,6 +216,56 @@ describe('leaving an organisation without stranding it', () => {
     expect(refusal).toContain('DELETE /api/tenants/<tenant-id>/members/<member-id>');
     expect(refusal).toContain('./deploy/compose/operator.sh add 387847603254984715');
     expect(refusal).toContain('NOTHING WAS REMOVED');
+  });
+});
+
+/**
+ * THE RECORD NAMES NO ADDRESS (workplan 0139, 2026-11-24).
+ *
+ * A removal at the machine is recorded in the organisation's `audit_log`,
+ * which is kept until the organisation is erased: long after the membership
+ * it records. The strays duty reads the subject, and the Team page's removal
+ * records no address either (0135 T8). Until 2026-11-24 this record also
+ * carried the address of the operator it removed, which nothing read.
+ */
+describe('the record of a removal at the machine', () => {
+  it('names the subject, the membership and the door, and no address', async () => {
+    const sent: Array<{ text: string; values?: readonly unknown[] }> = [];
+    const pool = {
+      connect: async () => ({
+        query: async (text: string, values?: readonly unknown[]) => {
+          sent.push({ text, values });
+          return { rows: [], rowCount: text.trimStart().startsWith('DELETE') ? 1 : null };
+        },
+        release: () => undefined,
+      }),
+    } as unknown as Parameters<typeof removeMembership>[0];
+    const row: Parameters<typeof removeMembership>[1] = {
+      member_id: '01390000-e29b-41d4-a716-446655440001',
+      tenant_id: '01390000-e29b-41d4-a716-446655440002',
+      tenant_name: 'Acme Families',
+      email: 'operator@acme.test',
+      role: 'owner',
+      status: 'active',
+      other_members: 0,
+      other_owners: 0,
+      live_mappings: 0,
+    };
+
+    await removeMembership(pool, row, 'sub-operator-0139', true);
+
+    const record = sent.find((q) => q.text.includes('INSERT INTO audit_log'));
+    expect(record, 'the removal wrote no record').toBeDefined();
+    expect(JSON.parse(String(record!.values![3]))).toEqual({
+      memberId: row.member_id,
+      userId: 'sub-operator-0139',
+      role: 'owner',
+      status: 'active',
+      via: 'operator.sh leave',
+      leftEmpty: true,
+    });
+    expect(JSON.stringify(record!.values), 'the record carries an address').not.toContain('@');
+    expect(sent.at(-1)?.text).toBe('COMMIT');
   });
 });
 
