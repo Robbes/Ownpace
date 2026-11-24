@@ -1,20 +1,21 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * A GRAPH CALENDAR'S WINDOW, BEFORE THE FETCH (workplan 0170 T4, §4.3).
+ * A GRAPH CALENDAR'S WINDOW, BEFORE THE READ (workplan 0170 T4, §4.3).
  *
- * Graph's events delta takes no date filter, and every event it lists costs a
- * second request for its iCalendar (`$value`). With `since`, an entry plainly
- * over before the window is not fetched; a series with no end, an occurrence,
- * an exception, a removal and anything whose times do not read are. Its
- * cursor is marked with its window, so a listing with no window, or another,
- * does not read on from a deltaLink that claims what the window set aside.
+ * The calendar's events are listed whole either way (no v1.0 delta fits a
+ * calendar's events: `graph-calendar-source.ts`), and a series costs a second
+ * request for its exceptions and cancellations. With `since`, an entry plainly
+ * over before the window is not built and its series not read; a series with
+ * no end, an occurrence, an exception, a removal and anything whose times do
+ * not read are. The cursor keeps every id the listing saw, window or not, so
+ * it claims nothing about an event it did not list.
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import { GraphCalendarSource, graphEntryMayBeInWindow } from './graph-calendar-source.ts';
 import type { GraphEvent } from './graph-calendar-source.types.ts';
-import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
+import { fakeGraphCalendars } from './__testing__/graph-calendar-fake.ts';
 import type { TokenProvider } from '@openmig/shared';
 
 const SINCE = new Date('2026-08-26T00:00:00.000Z');
@@ -33,7 +34,6 @@ function entry(id: string, over: Partial<GraphEvent> = {}): GraphEvent {
     subject: id,
     isAllDay: false,
     isCancelled: false,
-    isRecurring: false,
     type: 'singleInstance',
     start: { dateTime: '2026-09-10T10:00:00.0000000', timeZone: 'UTC' },
     end: { dateTime: '2026-09-10T11:00:00.0000000', timeZone: 'UTC' },
@@ -41,29 +41,14 @@ function entry(id: string, over: Partial<GraphEvent> = {}): GraphEvent {
   };
 }
 
-const ICS = (uid: string): string =>
-  ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', `UID:${uid}`, 'DTSTART:20260910T100000Z', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
-
-/** A delta of `entries`, and each event's `$value`; records every URL. */
-function graph(entries: GraphEvent[]): { client: HttpClient; urls: string[] } {
-  const urls: string[] = [];
-  const client: HttpClient = {
-    request: vi.fn(async (options: HttpRequestOptions): Promise<HttpResponse> => {
-      urls.push(options.url);
-      const value = /\/events\/([^/]+)\/\$value$/.exec(options.url);
-      if (value) return { status: 200, body: ICS(value[1]!), headers: {} };
-      return {
-        status: 200,
-        body: JSON.stringify({ value: entries, '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/me/calendars/cal1/events/delta?$deltatoken=d1' }),
-        headers: {},
-      };
-    }),
-  };
-  return { client, urls };
+/** A listing of `entries` in one calendar, and every request made of it. */
+function graph(entries: GraphEvent[]) {
+  return fakeGraphCalendars([{ id: 'cal1', name: 'Calendar', events: entries }]);
 }
 
-const fetched = (urls: string[]): string[] =>
-  urls.flatMap((u) => /\/events\/([^/]+)\/\$value$/.exec(u)?.[1] ?? []).sort();
+/** The series whose exceptions and cancellations were read. */
+const seriesRead = (requests: ReadonlyArray<{ url: string }>): string[] =>
+  requests.flatMap((r) => /\/events\/([^/?]+)\?/.exec(r.url)?.[1] ?? []).sort();
 
 describe('graphEntryMayBeInWindow', () => {
   it('leaves a single event that ended before since, and keeps one that ends after', () => {
@@ -106,50 +91,40 @@ describe('a Graph calendar listing with a window', () => {
       type: 'seriesMaster',
       end: { dateTime: '2024-01-08T09:30:00.0000000', timeZone: 'UTC' },
       start: { dateTime: '2024-01-08T09:00:00.0000000', timeZone: 'UTC' },
-      recurrence: { range: { type: 'endDate', endDate: '2025-06-30' } },
+      recurrence: { pattern: { type: 'weekly', interval: 1, daysOfWeek: ['monday'] }, range: { type: 'endDate', endDate: '2025-06-30' } },
     }),
     entry('standup', {
       type: 'seriesMaster',
       end: { dateTime: '2019-01-07T09:30:00.0000000', timeZone: 'UTC' },
       start: { dateTime: '2019-01-07T09:00:00.0000000', timeZone: 'UTC' },
-      recurrence: { range: { type: 'noEnd' } },
+      recurrence: { pattern: { type: 'weekly', interval: 1, daysOfWeek: ['monday'] }, range: { type: 'noEnd' } },
     }),
   ];
 
-  it('fetches only what may be in the window', async () => {
-    const { client, urls } = graph(entries);
+  it('builds only what may be in the window, and reads only those series', async () => {
+    const { client, requests } = graph(entries);
     const source = new GraphCalendarSource(tokens, 'tenant', undefined, { httpClient: client });
     const result = await source.listSince(FOLDER, undefined, { since: SINCE });
 
-    expect(fetched(urls)).toEqual(['standup', 'upcoming']);
+    expect(seriesRead(requests)).toEqual(['standup']);
     expect(result.items.map((i) => i.item.uid).sort()).toEqual(['standup', 'upcoming']);
   });
 
-  it('fetches every event without a window', async () => {
-    const { client, urls } = graph(entries);
+  it('builds every event without a window', async () => {
+    const { client, requests } = graph(entries);
     const source = new GraphCalendarSource(tokens, 'tenant', undefined, { httpClient: client });
     const result = await source.listSince(FOLDER);
 
-    expect(fetched(urls)).toEqual(['ended', 'old', 'standup', 'upcoming']);
-    expect(result.nextCursor.value.startsWith('graph-delta:')).toBe(true);
+    expect(seriesRead(requests)).toEqual(['ended', 'standup']);
+    expect(result.items.map((i) => i.item.uid).sort()).toEqual(['ended', 'old', 'standup', 'upcoming']);
   });
 
-  it('marks its cursor with its window, which only the same window reads on from', async () => {
-    const first = graph(entries);
-    const source = new GraphCalendarSource(tokens, 'tenant', undefined, { httpClient: first.client });
-    const { nextCursor } = await source.listSince(FOLDER, undefined, { since: SINCE });
-    expect(nextCursor.value).toBe(`graph-delta-window:${SINCE.getTime()}:graph-delta:/calendars/cal1:https://graph.microsoft.com/v1.0/me/calendars/cal1/events/delta?$deltatoken=d1`);
-
-    const deltaUrl = async (options?: { since: Date }): Promise<string> => {
-      const g = graph([]);
-      const s = new GraphCalendarSource(tokens, 'tenant', undefined, { httpClient: g.client });
-      await s.listSince(FOLDER, nextCursor, options);
-      return g.urls[0]!;
-    };
-    // The same window reads on from its deltaLink.
-    expect(await deltaUrl({ since: SINCE })).toContain('$deltatoken=d1');
-    // No window, or another one, lists whole.
-    expect(await deltaUrl()).not.toContain('$deltatoken');
-    expect(await deltaUrl({ since: new Date('2026-07-01T00:00:00Z') })).not.toContain('$deltatoken');
+  it('keeps every id it listed in its cursor, window or not, so a later listing reports no removal it did not see', async () => {
+    const { client } = graph(entries);
+    const source = new GraphCalendarSource(tokens, 'tenant', undefined, { httpClient: client });
+    const windowed = await source.listSince(FOLDER, undefined, { since: SINCE });
+    const whole = await source.listSince(FOLDER, windowed.nextCursor);
+    expect(whole.removed).toBeUndefined();
+    expect(windowed.nextCursor.value).toBe(whole.nextCursor.value);
   });
 });

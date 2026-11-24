@@ -161,6 +161,11 @@ export const en = {
   'confirm.progress.totalNotKnown': '{done} copied · total not known',
   // Discovery counted none, and none arrived: a real answer, not a gap.
   'confirm.progress.noneFound': 'none found to copy',
+  // CALENDARS FOUND, NO EVENT READ (2026-11-24): not *none found*. Calendars
+  // that exist are where events are kept, so finding them and reading nothing
+  // is a listing that may be failing, or calendars truly empty; said in amber.
+  'confirm.progress.listedButEmpty.one': '1 calendar found, but not one event read from it',
+  'confirm.progress.listedButEmpty.many': '{count} calendars found, but not one event read from them',
   'confirm.progress.failed': 'failed',
   'confirm.progress.retrying': 'retrying',
   // LEFT ALONE IS NOT COPIED (0124 T2). Two different rows wear the ledger's
@@ -411,6 +416,8 @@ export const nl: Record<keyof typeof en, string> = {
   'confirm.progress.ofAbout': '{done} van ~{total}',
   'confirm.progress.totalNotKnown': '{done} gemigreerd · totaal niet bekend',
   'confirm.progress.noneFound': 'niets gevonden om te migreren',
+  'confirm.progress.listedButEmpty.one': '1 agenda gevonden, maar er is geen enkele afspraak uit gelezen',
+  'confirm.progress.listedButEmpty.many': "{count} agenda's gevonden, maar er is geen enkele afspraak uit gelezen",
   'confirm.progress.failed': 'mislukt',
   'confirm.progress.retrying': 'in nieuwe poging',
   'confirm.progress.leftAsIs': '{count} ongemoeid gelaten: deze stonden al op het nieuwe systeem, of waren sindsdien gewijzigd',

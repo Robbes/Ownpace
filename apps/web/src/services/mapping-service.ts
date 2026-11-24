@@ -9,8 +9,8 @@ import type {
   FailureSide,
   MappingLifecycle,
 } from '@openmig/shared';
-import { DISCOVERY_DOMAINS, SCOPE_FAMILIES } from '@openmig/shared';
-import type { DiscoveryDomain, ProbeUnit, QualificationKey } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, SCOPE_FAMILIES, WINDOWED_DOMAINS } from '@openmig/shared';
+import type { DiscoveryDomain, MigrationWindowView, ProbeUnit, QualificationKey } from '@openmig/shared';
 import type { Locale } from '../i18n/strings.ts';
 
 // Schema definitions
@@ -347,6 +347,15 @@ const ConnectionRefSchema = z.object({
   kind: z.string(),
 });
 
+/** Shared's `MigrationWindowView`, as `GET /migrations/:id` serves it (0170 §5.2). */
+const WindowedDomainEnum = z.enum(WINDOWED_DOMAINS);
+export const WindowSchema = z.object({
+  recentOnly: z.boolean(),
+  since: z.string().nullable(),
+  in: z.array(WindowedDomainEnum),
+  copying: z.array(WindowedDomainEnum),
+}) satisfies z.ZodType<MigrationWindowView>;
+
 export const MappingSchema = z.object({
   id: z.string(),
   tenantId: z.string(),
@@ -402,6 +411,13 @@ export const MappingSchema = z.object({
    * than it: absent is "not a test", and never an empty marker.
    */
   testMarker: z.string().optional().catch(undefined),
+  /**
+   * THE LAST 90 DAYS FIRST (workplan 0170 §5.2): whether this migration copies
+   * only the last 90 days, and which data types have their last 90 days in or
+   * are still copying them. Absent from a server older than it, and caught to
+   * undefined: the page then says nothing about the window, rather than guess.
+   */
+  window: WindowSchema.optional().catch(undefined),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -575,6 +591,12 @@ export interface CreateMappingInput {
   };
   /** Absent/empty = merge into the account root (the default). */
   targetFolderPrefix?: string;
+  /**
+   * Only the last 90 days of mail, files and calendars, and every contact and
+   * task (workplan 0170 §5.2). Sent only where the migration carries one of
+   * those three: the server refuses it on a migration of contacts and tasks.
+   */
+  recentOnly?: boolean;
 }
 
 // The run shapes live in @openmig/shared (`RunReport`/`RunsResponse`) and the
@@ -1307,6 +1329,18 @@ export const mappingApi = {
     return z
       .object({ id: z.string(), added: DomainEnum, domains: z.array(DomainEnum) })
       .parse(response.data);
+  },
+
+  /**
+   * COPY EVERYTHING (workplan 0170 §5.3): a migration of only the last 90
+   * days is broadened to everything. One way only: nothing turns a migration
+   * of everything back into one of 90 days. Sends the one field, for the
+   * reason the schedule's call does; the next pass copies the older items,
+   * and what is already there stays.
+   */
+  copyEverything: async (mappingId: string) => {
+    const response = await apiClient.put(`/migrations/${mappingId}`, { recentOnly: false });
+    return z.object({ id: z.string(), updatedAt: z.string() }).parse(response.data);
   },
 
   pause: async (mappingId: string) => {
