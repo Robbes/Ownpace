@@ -53,6 +53,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   1.32.0 does, in the same nineteen files, and its auditor persona reports the same 32 findings.
   `a-workflow-zizmor-would-flag` now holds each `semver-*-days` a Dependabot entry sets to the
   three days as well. Nothing deployed changes.
+- **The box for changing an address says when to tick it** (workplan 0168; the owner,
+  2026-11-24: *"yes to all, build them"*). On *Where does it go?*, *I am also changing my email
+  address* (*Ik krijg ook een ander e-mailadres*) names the email address. One line under it says
+  to tick it only when leaving an email address of one's own behind, and a screen reader reads it
+  with the box; *Why?* opens the rest: an old company's domain as the example, that the next step
+  asks what replaces it in contacts, calendars, tasks and shares, and that mail and content are
+  never changed. The page of address changes says the same last sentence, in the owner's Dutch:
+  *"Mail en inhoud worden nooit gewijzigd."*
 
 ### Fixed
 

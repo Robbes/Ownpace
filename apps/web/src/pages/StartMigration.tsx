@@ -2449,13 +2449,15 @@ export const ToStep: React.FC<{
    */
   onLeaveOut?: ((type: DiscoveryDomain) => void) | undefined;
   /**
-   * *I am also changing my address* (0168 §6.2): the own domain being given
-   * up, which no list can detect. Ticked, the address step follows.
+   * *I am also changing my email address* (0168 §6.2): the own domain being
+   * given up, which no list can detect. Ticked, the address step follows. A
+   * one-line hint under it says when to tick it, and *Why?* folds the rest.
    */
   alsoChanging?: { readonly on: boolean; readonly onChange: (on: boolean) => void };
 }> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow, lands, onLeaveOut, alsoChanging }) => {
   const { t, locale } = useLocale();
   const accountLabel = useAccountLabel();
+  const alsoChangingHintId = React.useId();
   if (accounts.loading) return <p className="text-sm text-gray-500">{t('common.loading')}</p>;
   const word = (d: DiscoveryDomain) => t(DOMAIN_STRING_KEY[d]).toLocaleLowerCase(locale);
   const chosenCards = [
@@ -2618,14 +2620,23 @@ export const ToStep: React.FC<{
       ))}
       {lands && lands.planned.length > 0 && <WhereTheCopiesLand {...lands} />}
       {alsoChanging && (
-        <label className="flex min-h-[44px] items-center gap-2 text-sm text-gray-800">
-          <input
-            type="checkbox"
-            checked={alsoChanging.on}
-            onChange={(e) => alsoChanging.onChange(e.target.checked)}
+        <div>
+          <label className="flex min-h-[44px] items-center gap-2 text-sm text-gray-800">
+            <input
+              type="checkbox"
+              checked={alsoChanging.on}
+              onChange={(e) => alsoChanging.onChange(e.target.checked)}
+              aria-describedby={alsoChangingHintId}
+            />
+            {t('start.to.alsoChanging')}
+          </label>
+          <Hint
+            id={alsoChangingHintId}
+            className="ml-6"
+            text={t('start.to.alsoChanging.hint')}
+            why={t('start.to.alsoChanging.why')}
           />
-          {t('start.to.alsoChanging')}
-        </label>
+        </div>
       )}
     </div>
   );
