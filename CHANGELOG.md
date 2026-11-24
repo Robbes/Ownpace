@@ -67,6 +67,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and the cutover and owner-test runbooks, `docs/release.md`, the self-host quickstart and
   README and the ledger's README no longer name a removed runner, mode or step. Dated and
   comparing mentions stay.
+- **The sync count counts a retried pass once** (workplan 0121, after 0167). On pg-boss each
+  attempt of a pass opens a run row of its own, so a pass that failed once and was retried
+  counted as two sync operations in `/api/billing/usage` and in what an invoice freezes. The
+  count now goes by the job, `orchestrator_ref`; compute hours still count each attempt's
+  seconds, and no price reads the count. The owner, 2026-11-24: *"count a retried pass once, in a
+  small alpha.19 PR: yes."*
 
 ### Security
 
