@@ -331,6 +331,22 @@ describe('iCloud Photos, written against Apple’s description', () => {
     }
   });
 
+  it('puts a photo in no album under the export’s top wrapper folder, not the zip’s name (owner, 2026-11-24)', async () => {
+    await writeZip('export/part-7.zip', driveFiles());
+    await writeZip('export/part-8.zip', photoFiles());
+    const { handle, items } = await openAll({ path: join(work, 'export'), parts: 2 });
+    try {
+      // The wrapper inside the zip names the folder; the zip's own file name never does.
+      expect(byName(items, 'IMG_0002.HEIC').placeIn).toEqual(['iCloud Photos']);
+      expect(byName(items, 'IMG_0003.MOV').placeIn).toEqual(['iCloud Photos']);
+      // Never at the root, where the person's iCloud Drive files land.
+      expect(byName(items, 'IMG_0002.HEIC').placeIn).not.toContain('');
+      expect(items.flatMap((i) => i.placeIn)).not.toContain('part-8');
+    } finally {
+      await handle.close();
+    }
+  });
+
   it('reads a Drive part and a photos part together', async () => {
     await writeZip('export/1.zip', driveFiles());
     await writeZip('export/2.zip', photoFiles());

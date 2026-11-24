@@ -4,6 +4,11 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, the owner's answer on T1.** Where a photo in no album lands: under the export's
+own top wrapper folder (for example `iCloud Photos`), never the iCloud Drive root. The owner:
+*"B ok yes"*. §2.2 says so, and a unit case pins it with a zip whose file name differs from the
+wrapper.
+
 **2026-11-24, T1 built, in review (draft, not merged before alpha.19 is tagged).** Apple's reader
 reads Drive and photos zips built after 0116's layout; its unit cases pass. Three shared shapes
 grew, additively, beyond §9's file list, and the pull request says so: `parts` on the archive
@@ -118,7 +123,10 @@ header names an image file column and a checksum column. The reader is written a
 own description of the export and the parser takes the header's column names from one table in
 the file, so the first real export corrects one table, not the reader. Media files are the files
 beside it with an image or video extension; albums, if the export carries album CSVs, become
-`folders` as Takeout's albums do. **When a zip holds neither manifest, `open()` throws
+`folders` as Takeout's albums do. **A photo in no album lands under the export's own top
+wrapper folder** (for example `iCloud Photos`), so photos never mix with the person's iCloud
+Drive root. The owner agreed on 2026-11-24, answering pull request #2134's question: *"B ok
+yes"*. **When a zip holds neither manifest, `open()` throws
 `ArchiveUnreadable`** with *"This does not look like an Apple export we know"*, never an empty
 import (the factory's rule, :58-62).
 
