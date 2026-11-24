@@ -89,8 +89,12 @@ export function managedOpener(
     const name = DEPS_NAME[domain];
     if (name === 'mail') {
       const mail = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'mail');
-      // A 90-day migration counts only its window (workplan 0170).
-      const count = mailSourceSideCount(mail, await readRecentOnly(pool, tenantId, mappingId));
+      // A 90-day migration counts only its window (workplan 0170). Its
+      // setting is read only for a source with a count of its own (Gmail).
+      const count =
+        mailSourceSideCount(mail) === undefined
+          ? undefined
+          : mailSourceSideCount(mail, await readRecentOnly(pool, tenantId, mappingId));
       return { target: mail.target, close: () => mail.close(), ...(count ? { sourceSideCount: count } : {}) };
     }
     const deps =
