@@ -122,6 +122,14 @@ export const en = {
   'finish.step5.nothingChanges.pre': 'Nothing is added to or removed from either system.',
   'finish.step5.nothingChanges.post':
     ' What is on the new system stays exactly as it is — this only stops Ownpace watching the old one.',
+  // Only the last 90 days (workplan 0170, D8): no switch-over before Copy
+  // everything, which is chosen on the migration's page, or on the appliance
+  // in its mapping file.
+  'finish.recentOnly.title': 'Copy everything first',
+  'finish.recentOnly.body':
+    'This migration copies only the last 90 days. Switching over comes after Copy everything.',
+  'finish.recentOnly.link': "Copy everything is on the migration's page.",
+  'finish.recentOnly.link.selfHost': 'How to copy everything on a self-hosted appliance',
   'finish.button.disabledTitle':
     'Confirm step 4 first — finishing before delivery has moved loses anything that arrives afterwards.',
   // Each data type ended or kept copying on its own (workplan 0128 T3, T5
@@ -250,6 +258,11 @@ export const nl: Record<keyof typeof en, string> = {
     'Er wordt aan geen van beide systemen iets toegevoegd of verwijderd.',
   'finish.step5.nothingChanges.post':
     ' Wat op het nieuwe systeem staat, blijft precies zoals het is — dit stopt alleen het meekijken met het oude.',
+  'finish.recentOnly.title': 'Eerst alles kopiëren',
+  'finish.recentOnly.body':
+    'Deze migratie kopieert alleen de afgelopen 90 dagen. Overstappen komt na Alles kopiëren.',
+  'finish.recentOnly.link': 'Alles kopiëren staat op de pagina van de migratie.',
+  'finish.recentOnly.link.selfHost': 'Zo kopieert u alles op een zelf gehoste appliance',
   'finish.button.disabledTitle':
     'Bevestig eerst stap 4; wie afrondt voordat de bezorging is omgezet, verliest alles wat daarna nog op het oude systeem binnenkomt.',
   'finish.each.title': 'Per gegevenstype',

@@ -47,3 +47,45 @@ export function caldavComponentFilter(component: CalendarComponent, prefix: stri
           </${p}comp-filter>
         </${p}filter>`;
 }
+
+/** A UTC instant as RFC 5545 writes one: `20260826T000000Z`. */
+export function caldavUtc(at: Date): string {
+  return at.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+/**
+ * A CALDAV:filter for the objects of one component with an instance that ends
+ * after `start` (RFC 4791 §9.9, a `time-range` with no end): the listing of a
+ * window (workplan 0170 §4.3).
+ *
+ * The server expands recurrence, so a series whose any occurrence overlaps is
+ * returned whole, as a resource, with its overrides. Not every server expands
+ * it the same way, which is why a window over CalDAV also asks
+ * `caldavPropertyFilter` for every series (`caldav-source.ts`).
+ */
+export function caldavTimeRangeFilter(component: CalendarComponent, prefix: string, start: Date): string {
+  const p = `${prefix}:`;
+  return `<${p}filter>
+          <${p}comp-filter name="VCALENDAR">
+            <${p}comp-filter name="${component}">
+              <${p}time-range start="${caldavUtc(start)}"/>
+            </${p}comp-filter>
+          </${p}comp-filter>
+        </${p}filter>`;
+}
+
+/**
+ * A CALDAV:filter for the objects of one component that carry a property at
+ * all (RFC 4791 §9.7.2: an empty `prop-filter` tests that it is defined).
+ * Sibling filters are a conjunction, so `RRULE` and `RDATE` are asked apart.
+ */
+export function caldavPropertyFilter(component: CalendarComponent, prefix: string, property: string): string {
+  const p = `${prefix}:`;
+  return `<${p}filter>
+          <${p}comp-filter name="VCALENDAR">
+            <${p}comp-filter name="${component}">
+              <${p}prop-filter name="${property}"/>
+            </${p}comp-filter>
+          </${p}comp-filter>
+        </${p}filter>`;
+}
