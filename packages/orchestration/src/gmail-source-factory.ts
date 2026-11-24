@@ -28,7 +28,7 @@
  */
 
 import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress, shownFields } from '@openmig/shared';
-import type { MailFolder, MailItem, RawMessage, SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
+import type { ListOptions, MailFolder, MailItem, RawMessage, SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
 import { GoogleTokenProvider, type ImapByteMeter } from '@openmig/connectors';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory.ts';
@@ -127,11 +127,13 @@ export class GmailFolderView implements SourceConnector {
     return gmailVisibleFolders(await this.inner.listFolders());
   }
 
+  /** Forwards the window too, so Gmail is asked `SEARCH SINCE` like any IMAP server (workplan 0170 §4.1). */
   listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): ReturnType<SourceConnector['listSince']> {
-    return this.inner.listSince(folder, cursor);
+    return this.inner.listSince(folder, cursor, options);
   }
 
   fetch(item: MailItem): Promise<RawMessage> {
