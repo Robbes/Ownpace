@@ -44,7 +44,8 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROUTE = join(dirname(fileURLToPath(import.meta.url)), 'connections.ts');
+// The guard and the dispatch moved out of connections.ts, word for word (0006 §N, CQ-06).
+const ROUTE = join(dirname(fileURLToPath(import.meta.url)), 'qualify-and-remember.ts');
 
 function source(): string {
   return readFileSync(ROUTE, 'utf8');
