@@ -107,6 +107,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   address: the strays duty reads the subject. The undo the script prints for an organisation it
   leaves empty still names it, on the terminal. Records written before keep it until their
   organisation is erased, and the audit export gives it as a pseudonym.
+- **An address this service will not connect to is said as ours, with the way out** (workplan
+  0136). On managed, a host a tenant gives us is refused when it is inside this service's own
+  network, and that refusal had no failure category: it read `unknown`, so a migration's screen
+  called our own sentence *"the provider's own message"* and offered *Send it to us*. The refusal
+  now states a new category, `internal_address`, which travels on the error and along its
+  `cause`. The screen says, in the owner's Dutch, *"Geen verbinding gemaakt, pas het serveradres
+  aan. Druk op de pagina Accounts op Inloggegevens vervangen en vul een internetadres van de
+  server in; daarna wordt verdergegaan waar gestopt was."*, with *Open Accounts* beside it on
+  the progress strip, and nothing of what is inside this service. Like the other refusals that
+  need a person, a failing migration is asked less often until somebody acts. The API answers the
+  failure *"We did not connect to this address."*, without the host. Rows recorded before keep
+  their category until the next pass.
 
 ### Security
 

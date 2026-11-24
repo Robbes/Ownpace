@@ -34,7 +34,7 @@
  */
 
 import type { SourceConnector, MailFolder, MailItem, RawMessage, SyncCursor } from '@openmig/shared';
-import { log } from '@openmig/shared';
+import { log, statedFailureCategoryOf } from '@openmig/shared';
 
 /**
  * Authentication-class IMAP failures, incl. the shapes O365 answers for a
@@ -45,6 +45,12 @@ import { log } from '@openmig/shared';
  */
 export function isImapAuthFailure(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
+  // A failure that states its own category is not read from its words. Our
+  // refusal of an address inside this service's network names the typed host,
+  // and a host such as `mail401.example.org` would match `401` below: the
+  // fallback would then replace our refusal with a sentence that only quotes
+  // it, and its category with Graph's (2026-11-24).
+  if (statedFailureCategoryOf(error) !== undefined) return false;
   const message = error.message.toLowerCase();
   return (
     message.includes('authentication failed') ||

@@ -304,8 +304,9 @@ const LiveProgress: React.FC<{
                       slice): "reconnect it" then points at the right account. */}
                   {d.failedSide && <> {t(FAILURE_SIDE_KEY[d.failedSide])}</>}
                   {/* The page that sentence names, one press away: on a phone
-                      Accounts sits behind the menu button. */}
-                  {d.lastErrorCategory === 'auth_expired' && (
+                      Accounts sits behind the menu button. An address inside
+                      our network is changed on the same page (2026-11-24). */}
+                  {(d.lastErrorCategory === 'auth_expired' || d.lastErrorCategory === 'internal_address') && (
                     <>
                       {' '}
                       <Link to="/connections" className="font-medium underline">
