@@ -624,7 +624,19 @@ services:
     # applied it to the OTA instance, and after the owner's hand check
     # there, as for v4.20.3: one sign-in in a browser (login v1), and one
     # forgot-password mail, read in the mail catcher and its link opened.
-    image: ghcr.io/zitadel/zitadel:v4.20.4
+    #
+    # v4.20.5, from the pin watch (issue #1934): the one commit after v4.20.4,
+    # in apps/login alone, as read when v4.20.4 moved (above). login v2 does
+    # not run here, so cmd/defaults.yaml, the setup steps and everything this
+    # stack runs are v4.20.4's. Its images, read through ghcr.io's registry on
+    # 2026-11-24 without being run, agree: per platform, the two base layers
+    # are v4.20.4's byte for byte, and the layer that holds the binary differs
+    # by 1 byte (linux/amd64) and 24 bytes (linux/arm64) compressed, what a new
+    # version string alone makes. Past its three-day floor (2026-11-18). It
+    # waits for the owner's yes, then the route issue #1934 gives: the OTA
+    # instance's `zitadel` database dumped by hand first, E2E (managed) on its
+    # branch, and the owner's hand check there, as for v4.20.4.
+    image: ghcr.io/zitadel/zitadel:v4.20.5
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging

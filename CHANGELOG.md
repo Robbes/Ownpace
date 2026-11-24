@@ -6,6 +6,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The identity provider moves to Zitadel v4.20.5** (workplan 0119; the pin watch's #1934), from
+  v4.20.4. Its one commit after v4.20.4 is in login v2, which does not run here, so nothing the
+  stack runs changes: per platform its images keep v4.20.4's base layers, and the binary's differs
+  by what a new version string makes. The OTA instance's database was dumped by hand before E2E
+  (managed) applied it there, and live takes it from alpha.19's tag.
 - **pnpm 11.29.0** (workplan 0119; the pin watch's #2088), from alpha.18's 11.28.13, in
   `package.json`'s `packageManager`, which CI and the images read. npm published it on 2026-11-22
   at 13:58 UTC; it is taken inside its three-day floor, on the owner's word of 2026-11-23:
