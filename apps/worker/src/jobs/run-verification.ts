@@ -125,6 +125,8 @@ export async function verifyForTheOwner(
           config: verificationConfigFor(enabled, stopped, testMarker),
           verificationReader,
           targetReindexers: targets.reindexers,
+          // Gmail's own count, where the source has one (the owner, 2026-11-24).
+          sourceSideCounts: targets.sourceSideCounts,
           // Asked before each listing of a target and each sample it
           // downloads (0139 T7): the readers were built before this run
           // began, so a close while it runs is not seen by the builders.

@@ -599,6 +599,9 @@ describe('what the check found, in the reader’s words (owner, 2026-10-18)', ()
     expect(core).toContain('id: `ADDRESS_OLDER_TABLE_${dataType}`');
     expect(core).toContain('id: `ADDRESS_NOT_COMPARED_${dataType}`');
     expect(core).toContain('id: `ADDRESS_UNGUARDED_${dataType}`');
+    // The two about the old account's own count (the owner, 2026-11-24).
+    expect(core).toContain('id: `NEVER_COPIED_${dataType}`');
+    expect(core).toContain('id: `SOURCE_COUNT_OWN_RECORD_${dataType}`');
   });
 });
 
@@ -765,5 +768,65 @@ describe('a test migration’s check (workplan 0162 T3)', () => {
 
     expect(shown(STRINGS.en['verify.ready'])).toHaveLength(1);
     expect(shown(A_TEST_IS_NOT_SWITCHED_OVER.en)).toEqual([]);
+  });
+});
+
+/**
+ * COUNTED BY THE OLD ACCOUNT ITSELF (the owner, 2026-11-24). What Gmail held
+ * before the last completed pass started and no pass copied is said in the
+ * reader's language, apart from copies the new system lost. Past the switch,
+ * when the old account can no longer be asked, the screen says the count is
+ * our own record.
+ */
+describe("the old account's own count (2026-11-24)", () => {
+  const issue = (id: string, severity: 'ERROR' | 'WARNING', message: string) => ({ id, severity, message });
+  const mail = (change: Record<string, unknown>) => ({ ...(domainFor('mail') as object), ...change }) as never;
+
+  async function renderIn(locale: 'en' | 'nl', result: VerificationResult) {
+    window.localStorage.setItem('ownpace.locale', locale);
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-11-24T12:00:00Z',
+      finishedAt: '2026-11-24T12:03:00Z',
+      report: { 'mapping-1': result },
+    });
+    render(
+      <LocaleProvider>
+        <MemoryRouter><Verify /></MemoryRouter>
+      </LocaleProvider>,
+    );
+    await screen.findByRole('link', { name: 'mapping-1' });
+  }
+
+  const shown = (text: string) => screen.queryAllByText(text, { exact: false }).filter((el) => el.closest('details') === null);
+
+  it.each([
+    ['en', '2 email items in your old account were never copied', '1 email items are on the old system but not on the new one'],
+    ['nl', '2 items (e-mail) in uw oude account zijn nooit gekopieerd', '1 items (e-mail) staan op het oude systeem maar niet op het nieuwe'],
+  ] as const)('says never copied apart from missing on the new system, in %s', async (locale, never, missing) => {
+    await renderIn(locale, {
+      ...RESULT,
+      overallStatus: 'FAIL',
+      canProceedToCutover: false,
+      mail: mail({
+        status: 'FAIL',
+        missingOnTarget: 3,
+        neverCopied: 2,
+        issues: [issue('NEVER_COPIED_mail', 'ERROR', 'x'), issue('MISSING_mail', 'ERROR', 'y')],
+      }),
+    });
+    expect(shown(never)).toHaveLength(1);
+    expect(shown(missing)).toHaveLength(1);
+  });
+
+  it.each([
+    ['en', 'Your old account could not be asked how many email items it holds'],
+    ['nl', 'Uw oude account kon niet worden gevraagd hoeveel items (e-mail) het bevat'],
+  ] as const)('says the count is our own record when the old account cannot be asked, in %s', async (locale, said) => {
+    await renderIn(locale, {
+      ...RESULT,
+      mail: mail({ issues: [issue('SOURCE_COUNT_OWN_RECORD_mail', 'WARNING', 'Invalid credentials')] }),
+    });
+    expect(shown(said)).toHaveLength(1);
   });
 });

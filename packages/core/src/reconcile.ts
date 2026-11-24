@@ -78,6 +78,11 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     // A test migration's marked listing (workplan 0162): the source says so
     // about itself, and the loop makes a mailbox at its first marked message.
     ...(source.markedOnly ? { markedOnly: true } : {}),
+    // Gmail (the owner, 2026-11-24): All Mail is listed last and yields only
+    // what no other folder carried, and a message under two labels is in two
+    // places rather than moved. Both are the source's word about itself.
+    catchAll: (folder) => folder.catchAll === true,
+    ...(source.severalPlacesAtOnce ? { severalPlacesAtOnce: true } : {}),
     // FOLDERS THE OWNER ASKED US TO LEAVE BEHIND never reach the loop.
     //
     // Filtered here rather than inside the loop because a skipped folder is not
