@@ -178,6 +178,30 @@ export interface SourceConnector {
    * still lists, marked or set aside (`unmarked`).
    */
   readonly markedOnly?: true;
+  /**
+   * One message can be in several folders at once on this source: Gmail,
+   * whose labels each present as a folder. Set by `GmailFolderView` and by
+   * nothing else. The sync loop then reads a second folder in the same pass
+   * as a second place rather than a move (`DomainSyncDeps.severalPlacesAtOnce`).
+   */
+  readonly severalPlacesAtOnce?: true;
+  /**
+   * How many messages the source holds, by its OWN count rather than by what
+   * was copied: Gmail's All Mail, which holds every message once, Spam and
+   * Trash aside. Read by the Check so that a message no pass ever copied
+   * fails it, which a figure taken from the ledger cannot do. Absent from
+   * every source that has no such folder.
+   *
+   * Only what arrived (INTERNALDATE) before `before`, the last completed
+   * pass's start, so mail that arrived since never fails a Check; and one per
+   * Message-ID, as the ledger keys it, so two messages sharing one never fail
+   * it for good (the owner, 2026-11-24).
+   *
+   * With `since`, a 90-day migration's window start (workplan 0170), only what
+   * arrived on or after it as well: a windowed migration copies nothing older,
+   * so counting it would fail every windowed Check.
+   */
+  countEveryMessage?(options: { readonly before: Date; readonly since?: Date }): Promise<number>;
 }
 
 /**
@@ -3053,6 +3077,39 @@ export interface LedgerVerificationReader {
     mappingId: MappingId,
     domain: DiscoveryDomain,
   ): Promise<AddressChangesInLedger>;
+
+  /**
+   * What the source's own count is held to, per data type (the owner,
+   * 2026-11-24): when the last completed pass started, and whether the data
+   * type is past its switch. Optional, as a reader without a status table has
+   * nothing to say; then the source's figure is not used.
+   */
+  sourceCountWindow?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<SourceCountWindow>;
+
+  /**
+   * How many items of this data type the person chose to leave behind
+   * (`left_behind`, §11.2): outside `countItems`, yet still in the source's
+   * own count. Added to the recorded side when the source's figure is used,
+   * so left-behind mail never reads as never copied (the owner, 2026-11-24:
+   * "E yes"). Optional: a reader without it leaves the comparison as it was.
+   */
+  countLeftBehind?(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<number>;
+}
+
+/** What `LedgerVerificationReader.sourceCountWindow` answers. */
+export interface SourceCountWindow {
+  /**
+   * When the last completed pass of this data type started, ISO 8601, or
+   * undefined when none has completed. Only what the source holds from before
+   * it is counted: mail that arrived since has had no pass to copy it.
+   */
+  readonly lastCompletedPassStartedAt?: string;
+  /** The data type is past its switch: the source no longer decides what exists. */
+  readonly pastTheSwitch: boolean;
 }
 
 /** What `LedgerVerificationReader.addressChangesOf` answers. Counts and keys, never addresses. */

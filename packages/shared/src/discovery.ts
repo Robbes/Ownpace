@@ -51,6 +51,18 @@ export interface DomainDiscovery {
    */
   readonly excludedItems?: number;
   /**
+   * How many items the SOURCE ITSELF says it holds, read from it rather than
+   * from what will be copied: Gmail's All Mail, every message once, Spam and
+   * Trash aside (the owner, 2026-11-24). Confirm shows it beside `items`, and
+   * the Check compares what was copied against the same figure.
+   *
+   * Stored inside `perCollection`, on the collection it was read from, and
+   * totalled when read (`sourceTotalFromCollections`), so it needs no column.
+   * Absent for every source with no such collection: absent is "not read",
+   * never zero.
+   */
+  readonly sourceTotal?: number;
+  /**
    * Native editor files this migration's export policy will REFUSE for measured
    * instability, by Google editor kind — `{ presentation: 3 }` (0042 T7,
    * ADR-0046, owner's decision 2026-09-16).
@@ -108,6 +120,12 @@ export interface DiscoveryCollection {
   readonly generatedIdItems?: number;
   /** Items in this collection the source could not list, and will not migrate. */
   readonly unlistedItems?: number;
+  /**
+   * The source's own count of this collection, where it holds every item
+   * again (Gmail's All Mail): `items` is then only what no other collection
+   * carried, and this is all it holds. See `DomainDiscovery.sourceTotal`.
+   */
+  readonly sourceTotal?: number;
   /**
    * Why this collection will NOT be migrated, when it will not be.
    *
@@ -289,6 +307,17 @@ export function domainsCountedBeforeTheirError(
       (row) => (Boolean(row.lastError) || row.lastErrorWithheld === true) && (row.collections > 0 || row.items > 0),
     )
     .map((row) => row.domain);
+}
+
+/**
+ * The domain's `sourceTotal`, totalled from its collections: undefined when no
+ * collection carries one, so "not read" never reads as a count of nought.
+ */
+export function sourceTotalFromCollections(
+  perCollection: ReadonlyArray<DiscoveryCollection> | undefined,
+): number | undefined {
+  const read = (perCollection ?? []).filter((c) => c.sourceTotal !== undefined);
+  return read.length === 0 ? undefined : read.reduce((sum, c) => sum + (c.sourceTotal ?? 0), 0);
 }
 
 /**
