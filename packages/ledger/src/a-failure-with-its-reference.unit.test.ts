@@ -19,7 +19,7 @@ import { asTenantId, asMappingId } from '@openmig/shared';
 import { runMigrations } from './migrate.ts';
 import { createPgliteDb } from './pglite-driver.ts';
 import { PgMigrationStatusStore } from './migration-status-store.ts';
-import type { LedgerDriver, LedgerConnection } from './driver.ts';
+import { statementsInTurn, type LedgerDriver, type StatementsInTurn } from './driver.ts';
 
 // UUID family 0e2d0000-…, unused elsewhere in the repo.
 const TENANT = asTenantId('0e2d0000-e29b-41d4-a716-446655440001');
@@ -28,7 +28,7 @@ const SRC = '0e2d0000-e29b-41d4-a716-446655440021';
 const MAPPING = asMappingId('0e2d0000-e29b-41d4-a716-446655440031');
 
 let driver: LedgerDriver;
-let conn: LedgerConnection;
+let conn: StatementsInTurn;
 let store: PgMigrationStatusStore;
 
 const reference = async () =>
@@ -39,7 +39,7 @@ beforeAll(async () => {
   const made = await createPgliteDb({});
   driver = made.driver;
   await runMigrations({ driver, logger: () => {} });
-  conn = await driver.acquire();
+  conn = statementsInTurn(driver);
   store = new PgMigrationStatusStore(made.db);
   await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1, 't', 'active')`, [TENANT]);
   await conn.query(

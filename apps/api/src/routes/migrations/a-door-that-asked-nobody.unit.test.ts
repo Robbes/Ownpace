@@ -30,7 +30,8 @@ import { join } from 'node:path';
 const SOURCE = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf-8');
 
 /** How the handler asks: the status read inside the transaction, and the migration's marker. */
-const ASKS = 'updateTransition(previousStatus, updateData.status, previous?.testMarker ?? undefined)';
+// And whether it copies only the last 90 days (workplan 0170 D8), read beside them.
+const ASKS = 'updateTransition(previousStatus, updateData.status, previous?.testMarker ?? undefined, wasRecentOnly)';
 
 /** The PUT handler's text, from its route registration to the next one. */
 const PUT = (() => {
@@ -57,7 +58,9 @@ describe('the update route asks the lifecycle before it writes', () => {
   it('reads the test marker in the same statement as the status, and hands it on', () => {
     const readAt = PUT.indexOf('const previous = updateData.status');
     const read = PUT.slice(readAt, PUT.indexOf('const previousStatus = previous?.status;'));
-    expect(read).toContain('.select({ status: schema.mailboxMapping.status, testMarker: schema.mailboxMapping.testMarker })');
+    expect(read).toMatch(/\.select\(\{\s*status: schema\.mailboxMapping\.status,\s*testMarker: schema\.mailboxMapping\.testMarker,/);
+    // The override in the same statement, for workplan 0170's D8 and broadening.
+    expect(read).toContain('override: schema.mailboxMapping.sourceConfigOverride');
     expect(PUT.indexOf(ASKS)).toBeGreaterThan(readAt);
   });
 

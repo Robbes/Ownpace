@@ -1,6 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
-import type { DomainDiscovery, DiscoveryCollection, SyncCursor } from '@openmig/shared';
+import type { DomainDiscovery, DiscoveryCollection, ListOptions, SyncCursor } from '@openmig/shared';
 import { refuseOnceClosed, type OrganisationIsOpen } from './while-the-organisation-is-open.ts';
 
 /**
@@ -21,6 +21,7 @@ export interface ListingSource<F, I> {
   listSince(
     folder: F,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<I>;
     nextCursor: SyncCursor;
@@ -33,6 +34,13 @@ export interface ListingSource<F, I> {
 
 /** Optional hooks to label collections and read per-item byte sizes. */
 export interface DiscoverOptions<F, I> {
+  /**
+   * Count only the window a 90-day migration copies (workplan 0170 §3.2), so
+   * *Review and start* shows what it will copy. Asked of the source as
+   * `since`, and checked here item by item, as the sync loop checks it. Absent
+   * for a migration of everything, whose discovery reads in full.
+   */
+  readonly window?: { readonly since: Date; readonly holds: (item: I) => boolean };
   /** Label for a collection; defaults to the folder's `name` then `path`. */
   readonly folderName?: (folder: F) => string;
   /** Cheap per-item byte size, when the listing carries it (mail/files). Return undefined to skip. */
@@ -156,7 +164,12 @@ export async function discoverSource<F, I>(
     // Each collection is one read of the account: asked about before it.
     await refuseOnceClosed(options.organisationIsOpen);
     // Metadata-only: listSince returns item descriptors; bodies come from fetch(), never called here.
-    const { items: folderItems, unkeyable, unlisted } = await source.listSince(folder);
+    const window = options.window;
+    const listed = window
+      ? await source.listSince(folder, undefined, { since: window.since })
+      : await source.listSince(folder);
+    const { unkeyable, unlisted } = listed;
+    const folderItems = window ? listed.items.filter((item) => window.holds(item)) : listed.items;
     const folderGeneratedId = unkeyable ?? 0;
     // Left behind, not given an id: the source could not list them at all
     // (Graph mail with no `internetMessageId`). Counted apart from `items` and

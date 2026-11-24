@@ -126,6 +126,52 @@ export interface LedgerConnection {
    * must reset that state itself instead.
    */
   release(err?: Error): void;
+  /**
+   * Run the holder's own work under this connection's mark.
+   *
+   * Only a single-connection driver needs it, and only `pgliteDriver` has it.
+   * There, the handle used outside transactions waits for the holder before
+   * each statement; a statement on it from INSIDE the holder's work would wait
+   * for itself. Work run through here is recognised as the holder's, and its
+   * statements run on this connection directly. Call it through
+   * `runAsHolder`, which does nothing extra for a driver without it.
+   */
+  within?<T>(work: () => Promise<T>): Promise<T>;
+}
+
+/**
+ * Statements outside any transaction, each on a connection taken in its turn.
+ *
+ * For owner work that runs beside other callers, such as a test file's seed
+ * rows. Holding ONE connection for that instead (acquired in a `beforeAll`,
+ * released in the `afterAll`) holds the only session of a single-connection
+ * driver for as long, and everything else that needs it waits until then.
+ * `release()` is here so such a file can keep its `afterAll`; there is nothing
+ * to give back.
+ */
+export interface StatementsInTurn {
+  query: LedgerConnection['query'];
+  release(): void;
+}
+
+export function statementsInTurn(driver: LedgerDriver): StatementsInTurn {
+  return {
+    async query<R = Record<string, unknown>>(text: string, params?: readonly unknown[]) {
+      const conn = await driver.acquire();
+      try {
+        return await conn.query<R>(text, params);
+      } finally {
+        // No transaction was opened, so a failed statement leaves nothing to reset.
+        conn.release();
+      }
+    },
+    release() {},
+  };
+}
+
+/** Run a holder's work under its connection's mark, where the driver has one. */
+export function runAsHolder<T>(conn: LedgerConnection, work: () => Promise<T>): Promise<T> {
+  return conn.within ? conn.within(work) : work();
 }
 
 /**
