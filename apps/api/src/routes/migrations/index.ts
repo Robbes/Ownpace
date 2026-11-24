@@ -3582,13 +3582,8 @@ router.put(
         // A test migration's marker goes with it: the update that declares its
         // cutover, or enters the lane, is refused (workplan 0162 §2 (e)).
         if (updateData.status && previousStatus) {
-          const transition = updateTransition(
-            previousStatus,
-            updateData.status,
-            previous?.testMarker ?? undefined,
-            // D8 (a): not switched over while it copies only the last 90 days.
-            wasRecentOnly,
-          );
+          // And not switched over while it copies only the last 90 days (workplan 0170 D8).
+          const transition = updateTransition(previousStatus, updateData.status, previous?.testMarker ?? undefined, wasRecentOnly);
           if ('refuse' in transition) {
             // A literal discriminant, not `'refused' in outcome`: TS normalises the
             // two return shapes into one union with the other's keys optional,
