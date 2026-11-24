@@ -4,6 +4,14 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, T9 built (in review, not merged):** free space at the destination is read and
+said before Start, as §6 and D3 (a), D4 (a) describe. §6.2's interface is as fixed. Three things
+the plan left open, decided in the build and said in its pull request: the route's answer carries
+a `destination` (the host, or *Cirrux*) for the screen's `{destination}`; a pool of calendars,
+contacts or tasks alone, and an `unlimited` answer, draw no line; a question that fails as a whole
+is said in one more line (`start.check.space.notRead`). Free space is read per migration, so two
+migrations into one account are not added together.
+
 **2026-11-24: planned, for alpha.20. Nothing built.** This plan fixes the shared interfaces so
 that separate build sessions can take its tasks as parallel pull requests (§9). The owner waived
 every waiting period. alpha.19 is still being finished (workplan 0170, a Microsoft calendar
@@ -21,7 +29,7 @@ open earlier. No database change is expected (§8). Every claim about the code b
 | T6 Shared calendars: whose calendar it is | builder | 📋 Planned | §4.2–4.4. Ownership read from CalDAV, Google and Graph; a calendar the account does not own is left out by default, listed on *Review and start*. L. |
 | T7 Shared calendars: their sharing carried over | builder | 📋 Planned | §4.5–4.6. Google's ACL and CalDAV's invite list become share rows; Nextcloud calendar shares applied over CalDAV; the files-share defect fixed. L. After T6's interface. |
 | T8 Flags and read state kept in step | builder | 📋 Planned | §5. A keyword pass on every later pass; CONDSTORE where the server has it; the IMAP target's `\Seen` default fixed; the architecture's line corrected to what is built. L. |
-| T9 Free space before Start | builder | 📋 Planned | §6. `capacity()` on each destination; one read-only route; the check on *Review and start*. M. |
+| T9 Free space before Start | builder | 🔨 **Built 2026-11-24**, in review | §6. `capacity()` on WebDAV, IMAP, JMAP (mail and files) and Cirrux Drive; `GET …/destination-space` on managed and the appliance; one line per pool on *Start a migration*, *Review and start* and the appliance's confirm page; *Start anyway* when short (D4 (a)), Start allowed when unknown (D3 (a)). Unit-proved over recorded answers; the Stalwart and Nextcloud integration cases not run (no container runtime in the building session), left to T11. M. |
 | T10 Finish: aliases and the MX check | builder | 📋 Planned | §7. The addresses that receive mail listed on Finish; the MX record checked from the screen. M. |
 | T11 Proofs | builder | 📋 Planned | §10. The integration cases on Stalwart, Nextcloud and `local-pg.sh`, and the managed E2E smoke's cases. M. Last. |
 | T12 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T11 merges. |
