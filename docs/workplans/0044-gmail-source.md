@@ -28,6 +28,18 @@ All Mail with its `since` and counts Gmail's own total over that windowed listin
   `source-count-window.integration.test.ts` (now 4, `countLeftBehind` against Postgres via
   `./scripts/local-pg.sh`). Without the left-behind term, 3 tests fail. Without the window,
   2 fail.
+- *Two follow-ups, decided at the owner's request ("Decide"), no code change:*
+  - *Phase A of a migration of everything.* No false FAIL arises. Phase B runs in the same
+    firing as phase A, and the data type is marked completed only after phase B
+    (`orchestration.ts`, `firstCopyOwed`). Until then there is no completed pass, so there is
+    no Gmail figure, and the Check uses the ledger's count. Once there is one, the older mail
+    has been copied. Kept as it is.
+  - *Left-behind mail is subtracted as a number.* Kept. Every left-behind row was listed by a
+    pass, so it arrived before that pass and inside any window the pass read. The only miss
+    is a left-behind message later deleted in Gmail, which can hide one loss. That is the same
+    lower bound as mail deleted after its copy, and it can never invent a loss. Matching by
+    key would mean comparing Gmail's listing with the ledger row by row on every Check, which
+    is not worth it for this.
 
 **2026-11-24: All Mail is read last, as Archive (the owner's decision, for alpha.20).** *"Gmail
 mail archived without a label is never copied. Fix: read All Mail last, copy only what wasn't
