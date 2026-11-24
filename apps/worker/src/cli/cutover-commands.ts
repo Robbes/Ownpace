@@ -35,6 +35,8 @@ import {
 import {
   log,
   A_TEST_IS_NOT_SWITCHED_OVER,
+  A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER,
+  recentOnlyIsSwitchedOver,
   cutoverTransition,
   rollbackTransition,
   isAfterCutover,
@@ -103,6 +105,13 @@ export interface CutoverCliDeps {
    * `complete` refuse it before anything is read or written.
    */
   testMarker?: string;
+  /**
+   * Whether the migration copies only the last 90 days (workplan 0170 D8);
+   * the entrypoint reads it from the row's `source_config_override`
+   * (`readRecentOnly`). Not switched over while it does, by the one rule
+   * `recentOnlyIsSwitchedOver` keeps.
+   */
+  recentOnly?: boolean;
 }
 
 /** Whether this cutover moves mail, and so has an MX record to check, point and revert. */
@@ -179,11 +188,20 @@ export function confirmed(
  * say why: before `--yes` is asked for, and before anything is read or
  * written. True when the step must stop; the caller exits.
  */
-export function refusedAsATest(deps: Pick<CutoverCliDeps, 'testMarker'>): boolean {
-  if (deps.testMarker === undefined) return false;
-  CutoverCliOutput.error(A_TEST_IS_NOT_SWITCHED_OVER.en);
-  CutoverCliOutput.info('Nothing was changed.');
-  return true;
+export function refusedAsATest(deps: Pick<CutoverCliDeps, 'testMarker' | 'recentOnly'>): boolean {
+  if (deps.testMarker !== undefined) {
+    CutoverCliOutput.error(A_TEST_IS_NOT_SWITCHED_OVER.en);
+    CutoverCliOutput.info('Nothing was changed.');
+    return true;
+  }
+  // And a migration that copies only the last 90 days, until it is broadened
+  // (workplan 0170 D8, the owner: *"no, not before"*).
+  if (!recentOnlyIsSwitchedOver(deps.recentOnly === true)) {
+    CutoverCliOutput.error(A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER.en);
+    CutoverCliOutput.info('Nothing was changed.');
+    return true;
+  }
+  return false;
 }
 
 /**

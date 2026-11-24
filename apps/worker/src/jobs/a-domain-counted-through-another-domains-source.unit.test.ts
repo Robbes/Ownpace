@@ -51,6 +51,8 @@ const asked: string[] = [];
 let closed = 0;
 
 vi.mock('@openmig/orchestration/build-deps-from-mapping', () => ({
+  // A migration of everything, whose discovery counts in full (workplan 0170 §3.2).
+  readRecentOnly: () => Promise.resolve(undefined),
   buildDomainDepsFromMapping: (
     _pool: unknown,
     _tenantId: string,
