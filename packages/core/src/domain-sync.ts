@@ -45,6 +45,7 @@ import type {
 } from '@openmig/shared';
 import { HALT_IN_WORDS, PASS_REREAD_EVERY_MS } from '@openmig/shared';
 import type { DiscoveryDomain } from '@openmig/shared';
+import { windowCursorKey, type ListOptions } from '@openmig/shared';
 
 export type { PassMetrics, UnreadCollection };
 
@@ -694,12 +695,38 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * reads as a move, as it always did.
    */
   readonly severalPlacesAtOnce?: boolean;
+  /**
+   * This pass reads a window, not the whole source (workplan 0170 §3.2).
+   * Absent, nothing below changes.
+   *
+   * Five things follow, and only five. The listing is asked for `since`, and
+   * every item it returns is checked with `holds`: what fails it is set aside
+   * as a test marker sets an item aside (`unmarked`, `setAsideKeys`), never
+   * copied, recorded or counted. Mail folders are taken Inbox, then Sent, then
+   * the rest. No content cursor is read or written: a cursor stored after a
+   * window listing would tell the next full pass that the older items had
+   * been seen; a 90-day migration's pass (`only`) keeps its own under
+   * `windowCursorKey`. Nothing is concluded from absence, since a window
+   * listing is not a listing of the collection (`fullyEnumerated`): so an
+   * item older than the window is never read as deleted. And the result says
+   * whether the window is in (`DomainSyncResult.windowComplete`); the caller
+   * decides what that means for the data type's completion.
+   */
+  readonly window?: {
+    readonly since: Date;
+    /** Whether the item is in the window, from its listing alone. */
+    readonly holds: (item: Item) => boolean;
+    /** A 90-day migration's pass (§3.1), rather than phase A of a migration of everything. */
+    readonly only: boolean;
+  };
   /** List folders on the source */
   readonly listFolders: () => Promise<ReadonlyArray<Folder>>;
   /** List items in a folder since a cursor */
   readonly listSince: (
     folder: Folder,
     cursor?: { readonly value: string },
+    /** Only with a `window`: what the listing may leave out (`ListOptions`). */
+    options?: ListOptions,
   ) => Promise<{
     items: ReadonlyArray<Item>;
     nextCursor: { readonly value: string };
@@ -1020,6 +1047,12 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
 
 /** Summary of a domain sync pass. */
 export interface DomainSyncResult {
+  /**
+   * Only for a pass with a `window` (workplan 0170 §3.3): whether it reached
+   * the end of every collection, with no pause, stop or unread collection, so
+   * the window is in. Absent for every other pass.
+   */
+  readonly windowComplete?: boolean;
   /**
    * Collections this pass could not list, even after the source's own
    * retries, and so skipped (2026-09-29; 0055 T3 (e), the owner's "2a").
@@ -1401,6 +1434,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     markedOnly = false,
     catchAll,
     severalPlacesAtOnce = false,
+    window,
     deadline,
     now = Date.now,
     whyItStops,
@@ -1597,7 +1631,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * into one the loop cannot break: a cursor-less pass, the exact case in
    * which absence-counting would otherwise run, counts nothing.
    */
-  let fullyEnumerated = snapshot !== true;
+  // Nor for a window (workplan 0170 §3.2 4): a listing of the last 90 days
+  // is not a listing of the collection, and an item older than the window is
+  // missing from it because it was never asked for, not because it was deleted.
+  let fullyEnumerated = snapshot !== true && window === undefined;
 
   /**
    * Set the moment the download meter reads empty (0090 T4), and never
@@ -1823,7 +1860,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   if (!paused()) await stopIfToldTo();
 
   const listedNothing = paused();
-  const folders = listedNothing ? [] : await timed(phases, 'listCollectionsMs', () => listFolders());
+  const listed = listedNothing ? [] : await timed(phases, 'listCollectionsMs', () => listFolders());
+  // A window's mail is taken Inbox, then Sent, then the rest in the order the
+  // source lists them (workplan 0170 §3.2 2), so the newest mail a person
+  // reads first is in first. Every other pass keeps the source's order.
+  const folders = window && domain === 'email' ? inboxThenSent(listed) : listed;
   // Stopped before listing a single folder: nothing was looked at, so nothing
   // may be concluded from what was not seen.
   if (listedNothing) fullyEnumerated = false;
@@ -1856,10 +1897,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // the re-list is idempotent, and no other folder is affected — a far
     // cheaper price than two subtly different names for the same collection.
     const collectionPath = collectionPathOf(folder);
+    // Where this collection's cursor lives: its content cursor, or for a
+    // window a 90-day migration's own (`windowCursorKey`), or for phase A
+    // nowhere at all (workplan 0170 §3.2 3).
+    const cursorKey = cursorKeyFor(collectionPath, window);
+    const prev = cursors && cursorKey !== undefined ? await cursors.get(tenantId, mappingId, cursorKey) : undefined;
     // Gmail's All Mail (`catchAll`): what it lists that another collection
     // already carried is left as it is, below.
     const catchAllHere = catchAll?.(folder) === true;
-    const prev = cursors ? await cursors.get(tenantId, mappingId, collectionPath) : undefined;
 
     // A COLLECTION AN EARLIER PASS MADE READY IS MADE READY AGAIN ONLY WHEN
     // SOMETHING IS WRITTEN INTO IT (2026-09-29).
@@ -1901,7 +1946,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // and not a folder, and ends the pass as before.
     let listing: Awaited<ReturnType<typeof listSince>>;
     try {
-      listing = await timed(phases, 'collectionListingMs', () => listSince(folder, prev));
+      listing = await timed(phases, 'collectionListingMs', () =>
+        window ? listSince(folder, prev, { since: window.since }) : listSince(folder, prev),
+      );
     } catch (err) {
       const message = (err as Error)?.message ?? String(err);
       const category = classifyFailure(message, 'source', statedFailureCategoryOf(err));
@@ -1938,7 +1985,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     }
     unreadInARow = 0;
     listedOne = true;
-    const { items, nextCursor, removed, listedElsewhere, unmarked } = listing;
+    const { nextCursor, removed, listedElsewhere } = listing;
+    // A WINDOW SETS ASIDE WHAT IS OLDER THAN IT, as a marker sets aside what
+    // does not carry it (workplan 0170 §3.2 1). A source may ignore `since`;
+    // this check is the one that decides.
+    const { items, unmarked } = window ? splitByWindow(listing.items, listing.unmarked, window.holds) : listing;
     const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
     seenByCollection.set(collectionPath, seenHere);
     // Whether an item of this collection waited at the data ceiling: then its
@@ -3049,7 +3100,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // its cursor for the same reason a retrying one does: advancing it would
     // retire that item, and the yes would lift a hold on nothing.
     const heldHere = heldAtCeiling > heldBeforeThisCollection;
-    if (cursors && !retryablePending && !paused() && !firstReadSawNothing && !heldHere) {
+    if (cursors && cursorKey !== undefined && !retryablePending && !paused() && !firstReadSawNothing && !heldHere) {
       // Held, not advanced, while this collection's removals are unresolved:
       // they are resolved at the end of the pass, or on a later pass if this
       // one stops before reaching every collection (below).
@@ -3070,9 +3121,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           someRemovalCanBeReported(ledger, tenantId, mappingId, domain, removed ?? []),
         ))
       ) {
-        cursorsHeldForRemovals.push({ collectionPath, cursor: nextCursor });
+        cursorsHeldForRemovals.push({ collectionPath: cursorKey, cursor: nextCursor });
       } else {
-        await cursors.set(tenantId, mappingId, collectionPath, nextCursor);
+        await cursors.set(tenantId, mappingId, cursorKey, nextCursor);
       }
     } else if (firstReadSawNothing) {
       // Said out loud, because the alternative is the silence this bug lived
@@ -3467,6 +3518,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   }
 
   return {
+    // Whether the window is in: every collection reached, none unread, and the
+    // pass not paused, past its deadline or told to stop (workplan 0170 §3.3).
+    ...(window
+      ? {
+          windowComplete:
+            reachedEveryCollection &&
+            unreadCollections.length === 0 &&
+            !budgetPause &&
+            !deadlinePause &&
+            !haltPause,
+        }
+      : {}),
     collectionsListed: folders.length,
     scanned,
     created,
@@ -4105,4 +4168,46 @@ async function detectPathKeyedMoves(args: {
   }
 
   return { moves, deletions, drift };
+}
+
+/**
+ * Where a collection's cursor is kept in a pass (workplan 0170 §3.2 3): its
+ * content cursor for an ordinary pass, a 90-day migration's own for its
+ * window, and nowhere for phase A, which reads none and writes none.
+ */
+function cursorKeyFor(collectionPath: string, window: { readonly only: boolean } | undefined): string | undefined {
+  if (!window) return collectionPath;
+  return window.only ? windowCursorKey(collectionPath) : undefined;
+}
+
+/**
+ * A window's listing, split: what it holds stays in `items`, the rest joins
+ * whatever a marker set aside, so the loop asks both the same two things
+ * (`unmarked`): that the read saw something, and that their keys are alive.
+ */
+export function splitByWindow<Item>(
+  listed: ReadonlyArray<Item>,
+  unmarked: ReadonlyArray<Item> | undefined,
+  holds: (item: Item) => boolean,
+): { items: ReadonlyArray<Item>; unmarked: ReadonlyArray<Item> | undefined } {
+  const items: Item[] = [];
+  const aside: Item[] = [...(unmarked ?? [])];
+  for (const item of listed) (holds(item) ? items : aside).push(item);
+  return { items, unmarked: aside.length > 0 ? aside : unmarked };
+}
+
+/**
+ * Mail folders in a window's order: Inbox, then Sent, by their special use
+ * (RFC 6154), then the rest as listed. Stable, and blind to anything that is
+ * not a mail folder: a folder with no `specialUse` keeps its place.
+ */
+export function inboxThenSent<Folder>(folders: ReadonlyArray<Folder>): ReadonlyArray<Folder> {
+  const rank = (f: Folder): number => {
+    const use = (f as { readonly specialUse?: unknown }).specialUse;
+    return use === 'inbox' ? 0 : use === 'sent' ? 1 : 2;
+  };
+  return folders
+    .map((folder, index) => ({ folder, index }))
+    .sort((a, b) => rank(a.folder) - rank(b.folder) || a.index - b.index)
+    .map(({ folder }) => folder);
 }

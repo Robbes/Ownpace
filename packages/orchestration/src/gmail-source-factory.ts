@@ -30,7 +30,7 @@
  */
 
 import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress, shownFields } from '@openmig/shared';
-import type { MailFolder, MailItem, RawMessage, SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
+import type { ListOptions, MailFolder, MailItem, RawMessage, SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
 import { GoogleTokenProvider, type ImapByteMeter } from '@openmig/connectors';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory.ts';
@@ -224,11 +224,13 @@ export class GmailFolderView implements SourceConnector {
     return this.allMail;
   }
 
+  /** Forwards the window too, so Gmail is asked `SEARCH SINCE` like any IMAP server (workplan 0170 §4.1). */
   async listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): ReturnType<SourceConnector['listSince']> {
-    if (!folder.catchAll) return this.inner.listSince(folder, cursor);
+    if (!folder.catchAll) return this.inner.listSince(folder, cursor, options);
     const allMail = await this.allMailFolder();
     if (!allMail) {
       // Never an empty listing (hard rule 9): Archive was presented by a
@@ -238,7 +240,7 @@ export class GmailFolderView implements SourceConnector {
           'cannot be read. Show All Mail in IMAP in Gmail\'s settings (Labels).',
       );
     }
-    return this.inner.listSince(allMail, cursor);
+    return this.inner.listSince(allMail, cursor, options);
   }
 
   fetch(item: MailItem): Promise<RawMessage> {
