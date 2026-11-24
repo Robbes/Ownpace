@@ -85,6 +85,16 @@ import {
   ADDRESS_TABLE_MOVED,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
+import {
+  A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER,
+  RECENT_ONLY_FIELD,
+  RECENT_WINDOW_DAYS,
+  isWindowedDomain,
+  parseRecentOnly,
+  readWindowView,
+  recentOnlyIsSwitchedOver,
+} from '@openmig/shared';
+import { PgCursorStore } from '@openmig/ledger';
 import { HttpTokenRevoker } from '@openmig/connectors';
 import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-credentials';
 import type { TokenRevoker } from '@openmig/shared';
@@ -929,6 +939,31 @@ export function proposedRevisions(
   return proposed;
 }
 
+/**
+ * The override a new migration stores (migration 0021, workplan 0170 §5.1):
+ * a reused connection's own answers, and a 90-day migration's setting, anchored
+ * at the moment it is created so its window never slides. `null` when it has
+ * neither, as every migration of everything with its own connection had.
+ */
+export function createdOverride(
+  body: Pick<z.infer<typeof CreateMappingSchema>, 'sourceType' | 'sourceConfig' | 'sourceConnectionId' | 'recentOnly'>,
+  now: Date,
+): Record<string, unknown> | null {
+  const override = {
+    ...(body.sourceConnectionId ? sourceConfigOverride(body) : {}),
+    ...(body.recentOnly === true
+      ? { [RECENT_ONLY_FIELD]: { days: RECENT_WINDOW_DAYS, anchor: now.toISOString() } }
+      : {}),
+  };
+  return body.sourceConnectionId || body.recentOnly === true ? override : null;
+}
+
+/** A stored override without the 90-day setting: what a SOURCE is configured by. */
+function sourceOwnOverride(override: unknown): Record<string, unknown> {
+  const { [RECENT_ONLY_FIELD]: _migrationsOwn, ...own } = (override as Record<string, unknown> | null) ?? {};
+  return own;
+}
+
 /** The target half of the same split: the account, never the server. */
 export function targetConfigOverride(
   body: Pick<z.infer<typeof CreateMappingSchema>, 'targetType' | 'targetConfig'>,
@@ -1306,6 +1341,16 @@ export const CreateMappingBase = z.object({
     schedule: z.string().optional(), // Cron expression
   }).default({ domains: ['email'] }),
   /**
+   * Copy only the last 90 days of mail, files and calendars, and all contacts
+   * and tasks (workplan 0170 §5.2): for trying a destination with fresh data.
+   * At create, `true` stores `{ days: 90, anchor: <now> }` in the mapping's
+   * `source_config_override`. On update, `false` broadens it to everything,
+   * which is always allowed; `true` on a migration of everything is refused
+   * (§5.3). Absent: a migration of everything, whose first copy still brings
+   * the last 90 days first.
+   */
+  recentOnly: z.boolean().optional(),
+  /**
    * Put everything this mapping writes under one folder on the target (owner
    * decision 2026-08-16): absent/empty = MERGE, the default and the product's
    * philosophy; a per-source subfolder (`Gmail`, `O365/mail`) is the opt-in
@@ -1417,6 +1462,17 @@ export const CreateMappingBase = z.object({
 export const CREATABLE_STATUSES: ReadonlyArray<string> = ['paused', 'active'];
 
 export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => {
+  // A 90-day migration of contacts and tasks alone would copy what a
+  // migration of everything copies (workplan 0170 §5.2): said, not stored.
+  if (body.recentOnly === true && !body.syncConfig.domains.some((d) => isWindowedDomain(d))) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['recentOnly'],
+      message:
+        'Only the last 90 days applies to mail, files and calendars; contacts and tasks are ' +
+        'always copied whole. Choose Everything, or add mail, files or calendars.',
+    });
+  }
   if (body.status !== undefined && !CREATABLE_STATUSES.includes(body.status)) {
     ctx.addIssue({
       code: 'custom',
@@ -2909,7 +2965,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
              * reusing: a mapping with its own connection already has these on
              * it, and writing them twice would create two places to disagree.
              */
-            sourceConfigOverride: body.sourceConnectionId ? sourceConfigOverride(body) : null,
+            sourceConfigOverride: createdOverride(body, new Date()),
             targetConfigOverride: body.targetConnectionId ? targetConfigOverride(body) : null,
             // The organisation's marker, read above: never the body's.
             testMarker: testMarker ?? null,
@@ -3206,10 +3262,26 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
        */
       sourceConfig: {
         ...(sourceConn?.config as Record<string, unknown> ?? {}),
-        ...((mapping.sourceConfigOverride as Record<string, unknown> | null) ?? {}),
+        // Without the 90-day setting, which is the migration's and is read as
+        // `window` below, never a source field (workplan 0170 §5.2).
+        ...sourceOwnOverride(mapping.sourceConfigOverride),
         username: usernameFor(sourceConn),
         password: '***',
       },
+      /**
+       * THE LAST 90 DAYS (workplan 0170 §5.2): whether this migration copies
+       * only them, the window's start, and which data types have theirs in
+       * and which are still copying them, from the window records in its
+       * cursor store, so the page shows the milestone without a table.
+       */
+      window: await withTenantDb(tenantId, pool, (db) =>
+        readWindowView(
+          new PgCursorStore(db),
+          tenantId as TenantId,
+          mappingId as MappingId,
+          parseRecentOnly((mapping.sourceConfigOverride as Record<string, unknown> | null)?.[RECENT_ONLY_FIELD]),
+        ),
+      ),
       targetConfig: {
         ...(targetConn?.config as Record<string, unknown> ?? {}),
         ...((mapping.targetConfigOverride as Record<string, unknown> | null) ?? {}),
@@ -3465,10 +3537,16 @@ router.put(
         // transition and there is nothing to record. Its test marker beside it
         // (workplan 0162): a test migration is never switched over, and the
         // marker is read from the migration's own row, where it never changes.
-        const previous = updateData.status
+        const previous = updateData.status || body.recentOnly !== undefined
           ? (
               await db
-                .select({ status: schema.mailboxMapping.status, testMarker: schema.mailboxMapping.testMarker })
+                .select({
+                  status: schema.mailboxMapping.status,
+                  testMarker: schema.mailboxMapping.testMarker,
+                  // Whether it copies only the last 90 days (workplan 0170):
+                  // for D8's refusal below, and for a broadening.
+                  override: schema.mailboxMapping.sourceConfigOverride,
+                })
                 .from(schema.mailboxMapping)
                 .where(
                   and(
@@ -3479,6 +3557,20 @@ router.put(
             )[0]
           : undefined;
         const previousStatus = previous?.status;
+        const previousOverride = previous?.override as Record<string, unknown> | null | undefined;
+        const wasRecentOnly = parseRecentOnly(previousOverride?.[RECENT_ONLY_FIELD]) !== undefined;
+        /**
+         * ONLY THE LAST 90 DAYS, ONE WAY (workplan 0170 §5.3), by the table
+         * both editions ask (`mayRevise('recentOnly')`). `false` on a 90-day
+         * migration broadens it: the key leaves the override, and the next
+         * pass of each windowed data type lists in full. `true` on a migration
+         * of everything narrows it, refused whether or not it copied anything.
+         * Restating what it is changes nothing.
+         */
+        const broadens = body.recentOnly === false && wasRecentOnly;
+        if (body.recentOnly === true && !wasRecentOnly) {
+          return { kind: 'recent_narrowing' } as const;
+        }
         // THE LIFECYCLE IS ASKED BEFORE THE ROW IS WRITTEN (ADR-0049). Until
         // 2026-09-20 this route wrote whatever status its schema admitted:
         // `cutover` -> `active` went through here while `/start` refused it,
@@ -3490,7 +3582,13 @@ router.put(
         // A test migration's marker goes with it: the update that declares its
         // cutover, or enters the lane, is refused (workplan 0162 §2 (e)).
         if (updateData.status && previousStatus) {
-          const transition = updateTransition(previousStatus, updateData.status, previous?.testMarker ?? undefined);
+          const transition = updateTransition(
+            previousStatus,
+            updateData.status,
+            previous?.testMarker ?? undefined,
+            // D8 (a): not switched over while it copies only the last 90 days.
+            wasRecentOnly,
+          );
           if ('refuse' in transition) {
             // A literal discriminant, not `'refused' in outcome`: TS normalises the
             // two return shapes into one union with the other's keys optional,
@@ -3545,7 +3643,7 @@ router.put(
               and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)),
             );
         }
-        const currentOverride = !revisesFormat && !rootRevised
+        const currentOverride = !revisesFormat && !rootRevised && !broadens
           ? undefined
           : ((
               await db
@@ -3561,8 +3659,13 @@ router.put(
         // The override the row holds next: the format merged over it, and the
         // root folder checked against its source (`revisedRoot`).
         let nextOverride: Record<string, unknown> | undefined;
+        if (broadens) {
+          // Merged, never replaced (0125 §5): only the one key goes.
+          const { [RECENT_ONLY_FIELD]: _broadened, ...rest } = currentOverride ?? {};
+          nextOverride = rest;
+        }
         if (revisesFormat || rootRevised) {
-          nextOverride = { ...(currentOverride ?? {}), ...revisedFormat };
+          nextOverride = { ...(nextOverride ?? currentOverride ?? {}), ...revisedFormat };
           if (rootRevised && rootSource) {
             const root = revisedRoot(rootRevised, rootSource, nextOverride);
             if (!root.ok) return { kind: 'root_refused', field: root.field, message: root.message } as const;
@@ -3608,6 +3711,18 @@ router.put(
         return { kind: 'updated', row } as const;
       });
 
+      if (outcome.kind === 'recent_narrowing') {
+        // The table's own refusal, as every revision refused here is given.
+        res.status(409).json({
+          error: 'revision_refused',
+          message: 'Some of what was asked for cannot change on a migration that already exists.',
+          refused: refusalsFor(['recentOnly'], { recentOnly: 'narrowing' }).map((r) => ({
+            field: r.field,
+            reason: r.reason,
+          })),
+        });
+        return;
+      }
       if (outcome.kind === 'copied_since') {
         // The table's own refusals, as the check before the transaction gives them.
         res.status(409).json({
@@ -4095,6 +4210,21 @@ router.post(
           message: A_TEST_IS_NOT_SWITCHED_OVER.en,
           hint: 'Nothing was changed.',
           code: 'test_migration',
+        });
+        return;
+      }
+      // Nor one that copies only the last 90 days, until it is broadened
+      // (workplan 0170 D8, the owner: *"no, not before"*).
+      const recentOnly =
+        parseRecentOnly((mappings[0]!.sourceConfigOverride as Record<string, unknown> | null)?.[RECENT_ONLY_FIELD]) !==
+        undefined;
+      if (!recentOnlyIsSwitchedOver(recentOnly)) {
+        res.status(409).json({
+          error: 'cutover_refused',
+          message: A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER.en,
+          messageNl: A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER.nl,
+          hint: 'Nothing was changed.',
+          code: 'recent_only',
         });
         return;
       }

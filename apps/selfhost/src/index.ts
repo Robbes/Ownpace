@@ -43,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, dataTypesPastCutover, HALT_IN_WORDS, firstCopyOf, type FirstCopyFacts } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, dataTypesPastCutover, HALT_IN_WORDS, firstCopyOf, readWindowView, type FirstCopyFacts } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -98,6 +98,7 @@ import type {
   PersonMigration,
 } from '@openmig/shared';
 import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
+import { anchorRecentOnly } from './recent-only-anchor.ts';
 import { addressTableAtStart, handleAddressChanges, readAddressDoor, seedAddressChanges } from './address-changes.ts';
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition, updateTransition } from './lifecycle.ts';
@@ -827,6 +828,43 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     });
   };
 
+  /**
+   * A 90-DAY MIGRATION'S ANCHOR (workplan 0170 §5.4): written into the row's
+   * `source_config_override` the first time the mapping is recorded, read
+   * back on every boot after, so a restart never moves the window. After
+   * `assertMappingRevision`, which has already refused a file that narrowed a
+   * migration of everything, and allowed one that broadened.
+   *
+   * The loaded config is given the anchored setting in place: every pass,
+   * discovery and page of this process reads `m.config`, and one that saw the
+   * file's unanchored setting could not run a window at all (`planWindow`).
+   */
+  const applyRecentOnlyAnchor = async (m: LoadedMapping): Promise<void> => {
+    await withTenantContext(m.config.tenantId as string, async (client) => {
+      const { rows } = await client.query(
+        `SELECT source_config_override FROM mailbox_mapping WHERE id = $1`,
+        [m.mailboxMappingId],
+      );
+      const stored = (rows[0] as { source_config_override?: Record<string, unknown> | null } | undefined)
+        ?.source_config_override;
+      const decided = anchorRecentOnly(m.config.recentOnly, stored, new Date());
+      if (decided.write !== undefined) {
+        await client.query(`UPDATE mailbox_mapping SET source_config_override = $2 WHERE id = $1`, [
+          m.mailboxMappingId,
+          decided.write === null ? null : JSON.stringify(decided.write),
+        ]);
+      }
+      if (decided.setting) {
+        log.info(
+          `[selfhost] ${m.config.mappingId}: copies only the last ${decided.setting.days} days, counted ` +
+            `from ${decided.setting.anchor}. Remove recentOnly from the mapping file to copy everything.`,
+        );
+      }
+      const { recentOnly: _fromFile, ...rest } = m.config;
+      (m as { config: MappingConfig }).config = decided.setting ? { ...rest, recentOnly: decided.setting } : rest;
+    });
+  };
+
   // Read the current mailbox_mapping status.
   //
   // Narrowed to `MappingLifecycle` rather than returned as a bare string,
@@ -1230,6 +1268,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     // exist first (this writes to it), and a mapping whose scope or provider
     // changed under a ledger full of items must not reach a pass at all.
     await assertMappingRevision(m);
+    await applyRecentOnlyAnchor(m);
     await recordPathsFor(m);
 
     const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
@@ -1810,6 +1849,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             adopted,
             found,
             ...(facts === undefined ? {} : { stops: pathStopChoices(facts), endings: pathEndingChoices(facts, graceEnds) }),
+            // The last 90 days, as managed reads them (workplan 0170 §5.4).
+            window: await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+              readWindowView(
+                new PgCursorStore(tdb),
+                m.config.tenantId as TenantId,
+                m.mailboxMappingId as MappingId,
+                m.config.recentOnly,
+              ),
+            ),
           });
         }
         // The channel's state travels with the status an owner already polls.
@@ -3716,7 +3764,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return sendJson(res, 400, { error: 'invalid_request', message: reason, reason });
         }
         const from = await mappingStatus(m);
-        const transition = updateTransition(from, to);
+        // Not into the lane while it copies only the last 90 days (workplan 0170 D8).
+        const transition = updateTransition(from, to, undefined, m.config.recentOnly !== undefined);
         if ('refuse' in transition) {
           return sendJson(res, 409, {
             error: 'lifecycle_refused',
