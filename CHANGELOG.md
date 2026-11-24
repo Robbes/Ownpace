@@ -4,6 +4,31 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.19] - 2026-11-24
+
+The managed edition takes any CalDAV, CardDAV or WebDAV server as a source: *Start a migration*
+and the *Any server, by protocol* lane offer **Calendar server (CalDAV)**, **Contacts server
+(CardDAV)** and **File server (WebDAV)** beside IMAP, each labelled **Experimental** until a real
+run proves it, and a Nextcloud is left through these three. A migration that stops at an address
+inside this service's own network now says, in our own words and no longer as the provider's
+message, to replace the server address on the Accounts page, after which the pass carries on where
+it stopped. The **Test** button and the sharing checklist no longer name that network. On
+*Where does it go?*, a line under *I am also changing my email address* says to tick it only when
+leaving an email address of one's own behind. A pass the job runner retried counts as one sync
+operation in the billing usage and in what an invoice freezes; `operator.sh leave` records a
+removal without the address; and contacts reach a Stalwart v1.2.0 server over JMAP, whose answer
+to `ContactCard/parse` the writer now reads. Underneath, the test mail server runs Stalwart
+v1.2.0's Alpine build, which live never runs; pnpm moves to 11.29.0; and the code comments,
+refusals and docs that still described Trigger.dev describe the `worker` service on pg-boss, whose
+containers the capacity rehearsal's sample now measures. <!-- ZITADEL: The identity provider moves
+to Zitadel v4.20.5, whose one change is in login v2, which does not run here; the move is one-way
+for the identity provider's database. --> In CI, the migration lint moves to Atlas v1.4.1, the
+migration report to squawk 2.74.0 and the workflow audit to zizmor 1.33.1. alpha.19 is not
+deployed to live: on 2026-11-24 the owner decided to tag it without deploying it, and to deploy
+alpha.20 to live on 2026-11-26. Live stays on alpha.18, deployed there one-way on 2026-11-24 at
+14:37:44 UTC, and alpha.19's changes reach live with alpha.20's deploy. alpha.19 adds no migration
+to either chain.
+
 ### Added
 
 - **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
