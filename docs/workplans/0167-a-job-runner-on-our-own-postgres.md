@@ -22,6 +22,17 @@ says what a retry is on pg-boss, a run row of its own. Left as they are: `rehear
 three lines for a runner other than pg-boss, which `on_pg_boss` never reaches, and the lines that
 name Trigger.dev's runner containers to prove none starts. Text only: no behaviour changes.
 
+**2026-11-24: the docs T9 left in the present tense, for alpha.19.** In the current-state docs
+outside the workplans, ADRs and design records: `docs/deployment.md` named the plane, the tasks'
+prebuilt base and their deploy as what runs; the incident runbook's scheduled-syncs row sent the
+operator to Trigger.dev's dashboard, its supervisor, `--only tasks` and `plane-limit.sh`; the breach
+procedure's hard stop and its record of the runs were the dashboard's; the cutover runbook named a
+trigger mode, and the owner-test runbook, `docs/release.md`, the self-host quickstart and README and
+the ledger's README named Trigger.dev as the runner. Each now says what runs since alpha.18.
+`site/legal/` is left as the owner read it for alpha.18, and the architecture doc, `AGENTS.md`, the
+bring-up doc, the operator runbook and `docs/testing.md` were already dated where they name it. Docs
+only.
+
 **2026-11-23: T9, Trigger.dev removed from the managed edition, for alpha.18.** On branch
 `claude/ownpace-public-readiness-y7orc6-0167-t9`, from alpha.17 (`5b51a82b`). The owner's word,
 2026-11-23, verbatim: *"i will remove trigger.dev, but the machine runs OTA and managed, so both
