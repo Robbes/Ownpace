@@ -9,7 +9,7 @@
  * - **the list**: a provider keeps the address (`cannotTakeAlong`), a
  *   Microsoft 365 tenant's `.onmicrosoft.com` domain among them (the owner,
  *   2026-11-23: *"Yes, any .onmicrosoft.com"*);
- * - **the tick**: the person said *I am also changing my address*, as before;
+ * - **the tick**: the person said *I am also changing my email address*, as before;
  * - **by itself**, the new account's login on another domain (the owner,
  *   2026-11-23, decision (b): *"Ask by itself when the new account's login is
  *   on another domain than the old address; never for a .onmicrosoft.com

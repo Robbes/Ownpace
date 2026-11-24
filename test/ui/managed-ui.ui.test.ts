@@ -2022,7 +2022,7 @@ describe('Start a migration, from an own domain to a login on another domain, on
       await page.getByText('name@example.nl').first().waitFor({ timeout: 10_000 });
       await next('Volgende');
       await page.getByRole('heading', { level: 2, name: 'Waar gaat het naartoe?' }).waitFor({ timeout: 10_000 });
-      expect(await page.getByRole('checkbox', { name: 'Ik krijg ook een ander adres' }).isChecked()).toBe(false);
+      expect(await page.getByRole('checkbox', { name: 'Ik krijg ook een ander e-mailadres' }).isChecked()).toBe(false);
       await page.getByText('Stap 5 van 7').waitFor({ timeout: 10_000 });
       await next('Klaarzetten');
       await page.getByRole('heading', { level: 2, name: 'Uw nieuwe adres' }).waitFor({ timeout: 15_000 });
