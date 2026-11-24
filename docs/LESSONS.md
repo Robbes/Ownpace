@@ -150,6 +150,7 @@ reading a file drops off its entry by itself.
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
 
 ### `.github/workflows/migration-locks.yml`
@@ -249,6 +250,7 @@ reading a file drops off its entry by itself.
 ### `SECURITY.md`
 
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `TRADEMARK.md`
@@ -2112,6 +2114,7 @@ reading a file drops off its entry by itself.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
 - [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
 
 ### `docs/rls-guide.md`
@@ -3158,6 +3161,14 @@ reading a file drops off its entry by itself.
 
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
 
+### `scripts/fixtures/image-sbom/nginx-1.31.9-alpine-slim.sbom.json`
+
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
+
+### `scripts/fixtures/image-sbom/node-26.13.1-trixie-slim.sbom.json`
+
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
+
 ### `scripts/fixtures/release/changelog-2026-10-23.md`
 
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
@@ -3364,6 +3375,7 @@ reading a file drops off its entry by itself.
 ### `scripts/release-verify.mjs`
 
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
 
 ### `scripts/rotate-db-passwords.unit.test.ts`
 
@@ -6502,6 +6514,19 @@ Reads:
 - `deploy/selfhost/setup-stalwart.sh`
 - `scripts/idp-pin-watch.mjs`
 - `scripts/image-scan.mjs`
+
+### [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts)
+
+AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
+
+Reads:
+
+- `.github/workflows/images.yml`
+- `SECURITY.md`
+- `docs/release.md`
+- `scripts/fixtures/image-sbom/nginx-1.31.9-alpine-slim.sbom.json`
+- `scripts/fixtures/image-sbom/node-26.13.1-trixie-slim.sbom.json`
+- `scripts/release-verify.mjs`
 
 ### [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts)
 

@@ -474,6 +474,10 @@ export const ACTION_IMAGES_WORKFLOW = '.github/workflows/images.yml';
 export const ACTION_IMAGES = [
   { action: 'docker/setup-qemu-action', input: 'image', repo: 'tonistiigi/binfmt', channel: 'latest' },
   { action: 'docker/setup-buildx-action', input: 'driver-opts', option: 'image', repo: 'moby/buildkit', channel: 'buildx-stable-1' },
+  // The SBOM generator BuildKit runs for build-push-action's `sbom:` (SBOM-1,
+  // 2026-11-24): `stable-1` is BuildKit's default when no `generator=` names
+  // one, so it is the channel the row compares with.
+  { action: 'docker/build-push-action', input: 'sbom', option: 'generator', repo: 'docker/buildkit-syft-scanner', channel: 'stable-1' },
 ];
 /** Said beside an action's image whose channel names another build. */
 export const channelNote = (spec) =>
@@ -1351,11 +1355,25 @@ export function actionImages(workflow) {
     const spec = ACTION_IMAGES.find((s) => s.action === action);
     for (const step of stepsUsing(workflow, action)) {
       const opts = (step.with['driver-opts'] ?? '').split(/[,\n]/).map((o) => o.trim());
-      const named = [
-        ...(step.with.image !== undefined ? [{ input: 'image', ref: step.with.image }] : []),
-        ...opts.filter((o) => o.startsWith('image=')).map((o) => ({ input: 'driver-opts', ref: o.slice('image='.length) })),
-      ];
-      const defaulted = spec && named.length === 0 && (spec.action !== 'docker/setup-buildx-action' || ['', 'docker-container'].includes(step.with.driver ?? ''));
+      // build-push-action's `sbom:` may be an expression (`… && 'generator=<ref>' || ''`):
+      // every `generator=` in it, and an SBOM asked for with none is the default.
+      const pushes = action === 'docker/build-push-action';
+      const sbom = pushes ? (step.with.sbom ?? '').trim() : '';
+      const generators = [...sbom.matchAll(/generator=([^\s,'"}]+)/g)].map((m) => ({ input: 'sbom', ref: m[1] }));
+      const asked = pushes && sbom !== '' && sbom !== 'false';
+      const named = pushes
+        ? generators
+        : [
+            ...(step.with.image !== undefined ? [{ input: 'image', ref: step.with.image }] : []),
+            ...opts.filter((o) => o.startsWith('image=')).map((o) => ({ input: 'driver-opts', ref: o.slice('image='.length) })),
+          ];
+      if (pushes && /type=sbom/.test(step.with.attests ?? '') && !/generator=/.test(step.with.attests ?? '')) {
+        throw new Error(`${action} asks for an SBOM in \`attests\` with no generator, so BuildKit runs its default, \`docker/buildkit-syft-scanner:stable-1\``);
+      }
+      const defaulted =
+        spec &&
+        named.length === 0 &&
+        (pushes ? asked : spec.action !== 'docker/setup-buildx-action' || ['', 'docker-container'].includes(step.with.driver ?? ''));
       if (defaulted) throw new Error(`${action} names no image in \`${spec.input}\`, so it runs its default, \`${spec.repo}:${spec.channel}\``);
       for (const { input, ref } of named) {
         const image = parseRef(ref);

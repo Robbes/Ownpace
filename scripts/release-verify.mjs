@@ -32,6 +32,11 @@
  *   commit, `sha-<commit>` the same index, `latest` withheld from a
  *   pre-release and given to a release. Read from the registry's own API
  *   with an anonymous pull token.
+ * - **The images' own SBOMs** (SBOM-1, from 0.2.0-alpha.20 on): for each
+ *   published image and each platform, `ownpace-<image>-X.Y.Z.<os>-<arch>.spdx.json`
+ *   is attached, downloads, is SPDX, lists operating-system packages, and is
+ *   named after the index the version tag resolves to (`scripts/image-sbom.mjs`).
+ *   A tag before alpha.20 gets a note.
  * - **The signatures:** `cosign verify` by digest, first with the exact
  *   identity of `images.yml` at the tag and GitHub's issuer, then with the
  *   regexp `docs/release.md` documents, so the command a reader copies is
@@ -58,6 +63,7 @@ import { pathToFileURL } from 'node:url';
 import { github, pass, refuse, note, render, report, short } from './release-github.mjs';
 import { nodeRuntimeVersion } from './package-appliance.mjs';
 import { compareSemVer, parseSemVer } from './release-names-agree.mjs';
+import { FIRST_IMAGE_SBOM_RELEASE, SBOM_PLATFORMS, checkImageSbom, sbomFileName } from './image-sbom.mjs';
 
 export const IMAGES = ['api', 'web', 'selfhost', 'worker'];
 /**
@@ -475,6 +481,50 @@ async function zipLines(body, version, readAt) {
   return lines;
 }
 
+/** Whether the release at `tag` (bare) carries its images' SBOMs: from FIRST_IMAGE_SBOM_RELEASE on. */
+export const imageSbomsAt = (tag) => compareSemVer(tag, FIRST_IMAGE_SBOM_RELEASE) >= 0;
+
+/** The SBOM files a release at `version` carries, one per image published at it and platform (from FIRST_IMAGE_SBOM_RELEASE on: `imageSbomsAt`). */
+export function imageSbomFiles(version) {
+  const tag = bare(version);
+  return IMAGES.filter((image) => publishedAt(image, tag)).flatMap((image) =>
+    SBOM_PLATFORMS.map((platform) => ({ image, platform, file: sbomFileName(image, tag, platform) })),
+  );
+}
+
+/**
+ * Each image's SBOM on the release (SBOM-1): attached, downloaded, and judged
+ * by `checkImageSbom` against the index digest the version tag names now
+ * (`digests`, from the image checks). Missing on a tag from alpha.20 on is a
+ * refusal, as a missing `bom.json` is; before it, a note.
+ */
+export async function checkImageSboms(release, version, digests, seams = {}) {
+  const tag = bare(version);
+  if (!imageSbomsAt(tag)) {
+    return [note('image-sbom', `the images' own SBOMs are attached from ${FIRST_IMAGE_SBOM_RELEASE} on, and ${version} is older`)];
+  }
+  const lines = [];
+  for (const { image, platform, file } of imageSbomFiles(version)) {
+    const check = `image-sbom-${image}`;
+    const asset = (release?.assets ?? []).find((a) => a.name === file);
+    if (!asset) {
+      lines.push(refuse(check, `${file} is not attached`));
+      continue;
+    }
+    if (asset.state !== 'uploaded' || !(asset.size > 0)) {
+      lines.push(refuse(check, `${file} is ${asset.state === 'uploaded' ? 'empty' : `${asset.state}, not uploaded`}`));
+      continue;
+    }
+    if (!digests[image]) {
+      lines.push(refuse(check, `${file} is attached, and ownpace-${image}:${tag} could not be read, so there is no index to hold it to`));
+      continue;
+    }
+    const got = await downloadAsset(asset, check, seams);
+    lines.push(got.reason ? refuse(check, got.reason) : checkImageSbom(asJson(got.body), { image, digest: digests[image], platform, file }));
+  }
+  return lines;
+}
+
 /**
  * Why `VERSION` and `COMMIT` cannot be verified, or null: a tag that is not
  * `v` and a SemVer version (`VERSION=latest`, say) is a refusal line, not a
@@ -597,6 +647,7 @@ async function main() {
   const lines = [...checkRelease(release, version), ...(await checkAssets(release, version, atCommit(client, commit)))];
   const images = await checkImages({ version, commit });
   lines.push(...images.lines);
+  lines.push(...(await checkImageSboms(release, version, images.digests)));
   lines.push(await checkVersion({ version, commit }));
   lines.push(note('next', 'still the owner’s: prose in the release body if the pointers need it, the announcement, and docs/release.md §5'));
   report(lines);

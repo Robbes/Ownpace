@@ -131,6 +131,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **Every published image carries its own SBOM, and the release carries a copy of each** (SBOM-1,
+  the owner's decision of 2026-11-24, after an outside, read-only check compared the release's SBOM
+  with its own). `bom.json` is made from the lockfile and lists no operating-system package of the
+  images. `ownpace-api`, `-web`, `-selfhost` and `-worker` are now built with a BuildKit SBOM
+  attestation beside their provenance, from a generator pinned by digest
+  (`docker/buildkit-syft-scanner:1.12.1`): SPDX, listing the Debian packages of the distroless
+  runtime (Alpine's under web) and the npm packages installed in the image. Each build reads it
+  back from GHCR by digest, every push to `main` keeps the files with the run, and a release tag
+  attaches eight next to `bom.json`, `ownpace-<image>-<version>.linux-amd64.spdx.json` and
+  `….linux-arm64.spdx.json`; one that cannot be read fails the run. Release's verify refuses a
+  release from alpha.20 on without each file, or with one that lists no OS package or names
+  another index than the version tag's. An image's SBOM cannot see inside a bundled JavaScript
+  file; `bom.json` can (docs/release.md §3).
 - **The test mail server runs Stalwart v1.2.0's Alpine build** (workplan 0166 T9; ADR-0022, the
   owner's decisions of 2026-11-23: *"Stalwart: in alpha 19"*, then *"Pick stalwart v1.2.0, since
   it's part of our test/dev setup. Not part of our own pace solution."* and, on its three-day

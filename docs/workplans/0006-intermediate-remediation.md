@@ -25,6 +25,14 @@
 > executes it**. Every finding below quotes its evidence; re-verify paths before editing
 > (AGENTS.md: don't trust paths blindly).
 
+> **SBOM-1, the images (2026-11-24, branch `claude/ownpace-public-readiness-y7orc6-a20-image-sbom`,
+> not yet merged).** The owner decided, for alpha.20, that every published image carries its own
+> SBOM, its base's OS packages included, and that the release carries a copy per image and
+> platform. `images.yml` builds the four images with a BuildKit SBOM attestation, reads it back by
+> digest (`scripts/image-sbom.mjs`), keeps it with every `main` run and attaches it on a tag;
+> `release-verify.mjs` checks it. Held by `scripts/an-image-that-carries-no-list-of-itself.unit.test.ts`.
+> The first proof on GitHub's runners is the first push to `main` after the merge.
+
 ## Why this plan exists
 The feature workplans (0007+) assume the test suite tells the truth and the docs don't mislead
 agents. Several findings undermine that assumption — most critically, **the core idempotency
