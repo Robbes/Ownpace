@@ -498,8 +498,9 @@ export const en = {
     'Nothing answered at that address: name did not resolve, connection was refused, or a timeout. Check the host name and the port.',
   'probe.said.certificate':
     'The server\'s certificate did not verify for that name, or has expired, so the test stopped before signing in.',
+  // Nothing of what is inside this service (the owner, 2026-11-24).
   'probe.said.insideOurNetwork':
-    'That address is inside this service\'s own network, or the server sent the test on to one that is, so we did not connect to it. Give the address the server has on the internet.',
+    'We did not connect to that address. Enter an internet address of the server.',
   'probe.said.unknown':
     'The test failed, and what came back is not shown here. Check the address and the port.',
   'probe.said.reference': 'Reference {reference}.',
@@ -1102,7 +1103,7 @@ export const nl: Record<keyof typeof en, string> = {
   'probe.said.certificate':
     'Het certificaat van de server kwam niet overeen of is verlopen, waardoor de test stopte voordat er werd ingelogd.',
   'probe.said.insideOurNetwork':
-    'Dat adres ligt binnen het eigen netwerk van deze dienst, of de server stuurde de test door naar een adres dat daar ligt: geen verbinding gemaakt. Gebruik het adres dat de server op internet heeft.',
+    'Geen verbinding gemaakt met dat adres. Vul een internetadres van de server in.',
   'probe.said.unknown':
     'De test mislukte door onbekende reden. Controleer het adres en de poort.',
   'probe.said.reference': 'Referentie {reference}.',
