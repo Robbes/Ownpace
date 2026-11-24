@@ -69,7 +69,10 @@ describe('the delta-sync task', () => {
     // the share is still this type's and never the whole pass.
     expect(LOOP).toMatch(/const passStops[^=]*=\s*\{\s*deadline: typeDeadline,/);
     for (const branch of BRANCHES) {
-      const at = LOOP.indexOf(`await ${branch}(`);
+      // Called directly, or as the pass `withWindow` runs once or twice
+      // (workplan 0170: the last 90 days first), with the same arguments.
+      const direct = LOOP.indexOf(`await ${branch}(`);
+      const at = direct > -1 ? direct : LOOP.indexOf(`=>\n                ${branch}(`);
       expect(at, `${branch} is no longer called in the loop`).toBeGreaterThan(-1);
       const call = LOOP.slice(at, LOOP.indexOf(')', LOOP.indexOf('}', at)) + 1);
       expect(call, `${branch} is not handed its share`).toMatch(/\.\.\.passStops\b/);

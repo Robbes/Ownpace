@@ -100,6 +100,7 @@ import {
   hasCirruxDriveGrant,
   type CirruxClientEnv,
 } from '@openmig/shared';
+import { parseRecentOnly, type RecentOnlySetting } from '@openmig/shared';
 import { PgLedger, PgCursorStore, organisationIsOpen, plainDb, tenantScopedDb, withTenant, type PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -665,9 +666,12 @@ async function loadDomainConnections(
       const override = (role === 'source'
         ? mapping.sourceConfigOverride
         : mapping.targetConfigOverride) as Record<string, unknown> | null;
+      // The 90-day setting (workplan 0170 §5.1) is the migration's, not the
+      // source's: it is read by `readRecentOnly` and never handed to a connector.
+      const { recentOnly: _migrationsOwn, ...sourceOwn } = override ?? {};
       const config = {
         ...((conn.config ?? {}) as Record<string, unknown>),
-        ...(override ?? {}),
+        ...sourceOwn,
       };
       let creds: Record<string, string>;
       if (conn.secretRef) {
@@ -1897,4 +1901,26 @@ export function buildTargetWriterFromCredentials(
     default:
       throw new Error(`Unsupported target type: ${(targetConfig as { type: string }).type}`);
   }
+}
+
+/**
+ * A managed migration's 90-day setting (workplan 0170 §5.1), from its
+ * `source_config_override`, or `undefined` for a migration of everything.
+ * Read through the one parser the appliance's mapping file is read with, so a
+ * stored value the parser refuses fails the pass rather than reading as
+ * everything (hard rule 9).
+ */
+export async function readRecentOnly(
+  pool: Pool,
+  tenantId: string,
+  mappingId: string,
+): Promise<RecentOnlySetting | undefined> {
+  const rows = await withTenant(pool, tenantId, (txDb) =>
+    txDb
+      .select({ sourceConfigOverride: mailboxMapping.sourceConfigOverride })
+      .from(mailboxMapping)
+      .where(and(eq(mailboxMapping.tenantId, tenantId), eq(mailboxMapping.id, mappingId))),
+  );
+  const override = rows[0]?.sourceConfigOverride as Record<string, unknown> | null | undefined;
+  return parseRecentOnly(override?.recentOnly);
 }

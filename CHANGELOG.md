@@ -4,6 +4,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **The last 90 days first, and a migration of only them** (workplan 0170 T1; the owner, 2026-11-24:
+  *"yes, plan it as a workplan, 90 days"*). Every first copy of mail, files and calendars now
+  copies the last 90 days first, then everything older in the same pass: mail Inbox first, then
+  Sent, then the other folders. Contacts and tasks are copied whole, as before. A migration can
+  also copy only the last 90 days of mail, files and calendars, and all contacts and tasks, to try
+  a destination with fresh data: `recentOnly: true` when it is created, or `{ "recentOnly": {
+  "days": 90 } }` in the appliance's mapping file. It can be broadened to everything later
+  without starting over (`recentOnly: false`, or the key taken out of the file); a migration of
+  everything is never narrowed to 90 days. Nothing outside the window is ever read as deleted. A
+  migration of only the last 90 days is not switched over before it is broadened (the owner:
+  *"D8: no, not before"*). Both editions run one rule, and the read of a migration says which
+  data types have their last 90 days in (`window`). No database change: the window's record is
+  kept with the cursors, and the setting in the migration's own override. The screens and the
+  sources' server-side date filters follow in 0170's other tasks; until then every source lists
+  as before and the window is applied as items are listed.
+
 ### Fixed
 
 - **The appliance on PGlite no longer fails a pass when two data types start at once.** On

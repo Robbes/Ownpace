@@ -83,6 +83,7 @@ import type {
   FileFolder,
   FileItem,
   FileSource,
+  ListOptions,
   MailFolder,
   MailItem,
   PermissionListing,
@@ -329,8 +330,14 @@ export class MarkedOnlyMail implements SourceConnector {
     return this.inner.listFolders();
   }
 
-  async listSince(folder: MailFolder, cursor?: SyncCursor): ReturnType<SourceConnector['listSince']> {
-    const listed = await this.inner.listSince(folder, cursor);
+  async listSince(
+    folder: MailFolder,
+    cursor?: SyncCursor,
+    options?: ListOptions,
+  ): ReturnType<SourceConnector['listSince']> {
+    // The window's `since` passes through (workplan 0170 §3.5): the marker
+    // selects from whatever the inner source lists.
+    const listed = await this.inner.listSince(folder, cursor, options);
     const { items: _all, unkeyable: _counted, unmarked, ...rest } = listed;
     const split = byMarker(listed.items, (item) => carriesMarker(item.subject, this.marker), unmarked);
     // Promised a copy under a generated id: only what is kept will get one.
@@ -358,8 +365,14 @@ export class MarkedOnlyCalendar implements CalendarSource {
     return this.inner.listFolders();
   }
 
-  async listSince(folder: CalendarFolder, cursor?: SyncCursor): ReturnType<CalendarSource['listSince']> {
-    const listed = await this.inner.listSince(folder, cursor);
+  async listSince(
+    folder: CalendarFolder,
+    cursor?: SyncCursor,
+    options?: ListOptions,
+  ): ReturnType<CalendarSource['listSince']> {
+    // The window's `since` passes through (workplan 0170 §3.5): the marker
+    // selects from whatever the inner source lists.
+    const listed = await this.inner.listSince(folder, cursor, options);
     const titles = calendarTitles(listed.items);
     const { items: _all, unmarked, ...rest } = listed;
     return { ...rest, ...byMarker(listed.items, (_item, n) => carriesMarker(titles[n], this.marker), unmarked) };
@@ -429,8 +442,14 @@ export class MarkedOnlyFiles implements FileSource {
     return this.inner.listFolders();
   }
 
-  async listSince(folder: FileFolder, cursor?: SyncCursor): ReturnType<FileSource['listSince']> {
-    const listed = await this.inner.listSince(folder, cursor);
+  async listSince(
+    folder: FileFolder,
+    cursor?: SyncCursor,
+    options?: ListOptions,
+  ): ReturnType<FileSource['listSince']> {
+    // The window's `since` passes through (workplan 0170 §3.5): the marker
+    // selects from whatever the inner source lists.
+    const listed = await this.inner.listSince(folder, cursor, options);
     const { items: _all, unmarked, ...rest } = listed;
     return {
       ...rest,

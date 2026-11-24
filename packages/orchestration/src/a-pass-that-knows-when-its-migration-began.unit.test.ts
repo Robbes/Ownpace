@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPgliteDb, runMigrations, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
-import { parseMappingConfig, phasesOfTheMigration, type MigrationStatusStore, type PassPhases, type SwitchedOffState } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, parseMappingConfig, phasesOfTheMigration, type MigrationStatus, type MigrationStatusStore, type PassPhases, type SwitchedOffState } from '@openmig/shared';
 import type { AddressChangesForPass } from '@openmig/core';
 
 const handed: Array<{ domain: string; addressChanges?: AddressChangesForPass }> = [];
@@ -72,7 +72,10 @@ const store: MigrationStatusStore = {
   markFailed: async () => {},
   markSwitchedOff: async (): Promise<SwitchedOffState> => ({ state: 'skipped' }),
   markSwitchedOn: async () => {},
-  getStatus: async () => [],
+  // Every data type copied once before, so no pass here owes the last 90 days
+  // first (workplan 0170), which `runs-the-last-90-days-first` holds.
+  getStatus: async () =>
+    DISCOVERY_DOMAINS.map((domain) => ({ domain, completedAt: '2026-09-01T00:00:00.000Z' }) as MigrationStatus),
 };
 
 let driver: LedgerDriver;
