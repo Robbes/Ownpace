@@ -22,6 +22,7 @@ const {
   mappingApiGet,
   mappingRenameMock,
   mappingVisitMock,
+  mappingCopyEverythingMock,
   mappingDiscoveryMock,
   fetchAllDiscoveryMock,
   fetchRunsMock,
@@ -37,6 +38,7 @@ const {
   mappingApiGet: vi.fn(),
   mappingRenameMock: vi.fn(),
   mappingVisitMock: vi.fn(),
+  mappingCopyEverythingMock: vi.fn(),
   mappingDiscoveryMock: vi.fn(),
   fetchAllDiscoveryMock: vi.fn(),
   fetchRunsMock: vi.fn(),
@@ -52,6 +54,7 @@ vi.mock('../services/mapping-service', () => ({
     getDiscovery: mappingDiscoveryMock,
     rename: mappingRenameMock,
     recordVisit: mappingVisitMock,
+    copyEverything: mappingCopyEverythingMock,
   },
 }));
 
@@ -1520,5 +1523,184 @@ describe('the new address, on a migration’s page (0168 §6.3, D5)', () => {
     fireEvent.click(button);
     expect(await screen.findByRole('alert')).toHaveTextContent(ADDRESS_TABLE_MOVED.en);
     await vi.waitFor(() => expect(addressTableMock.mock.calls.length).toBeGreaterThan(asked));
+  });
+});
+
+/**
+ * THE LAST 90 DAYS FIRST (workplan 0170 §7.2, §7.3): each state of a
+ * migration's window, as its page draws it. A migration of only the last 90
+ * days, before and after *Copy everything*; one of everything while its last
+ * 90 days are copied (phase A), and once they are in and the older items come
+ * (phase B).
+ */
+describe('the last 90 days first (0170)', () => {
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+  const stripRow = (domain: string, state: string, over: Record<string, unknown> = {}) => ({
+    domain,
+    state,
+    itemsSynced: 12,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+    ...over,
+  });
+  const progressRow = (domain: string, state: string, over: Record<string, unknown> = {}) => ({
+    domain,
+    state,
+    phase: 'active',
+    itemsSynced: 12,
+    bytesTransferred: 0,
+    ...over,
+  });
+  const kept = { lastSyncedAt: yesterday };
+  const windowOf = (over: Record<string, unknown> = {}) => ({
+    recentOnly: false,
+    since: '2026-08-26T00:00:00.000Z',
+    in: [],
+    copying: [],
+    ...over,
+  });
+  const line = () => document.querySelector('[data-window-line]')?.textContent;
+  const chip = () => document.querySelector('[data-chip="last-90-days"]');
+  const progressOf = (domains: unknown[], check: Record<string, unknown> = { state: 'not_run' }) => ({
+    mappings: [{ mappingId: 'acme-mail', domains, check }],
+  });
+
+  /** Kept in step, the check passed and nothing blocks Finish: ready to switch, but for D8. */
+  function aRecentOnlyMigrationReadyButForD8(recentOnly = true) {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        syncConfig: { domains: ['email', 'contact'] },
+        domainStatus: [stripRow('email', 'completed', kept), stripRow('contact', 'completed', kept)],
+        window: windowOf({ recentOnly, in: ['email'] }),
+      }),
+    );
+    fetchProgressMock.mockResolvedValue(
+      progressOf([progressRow('email', 'completed', kept), progressRow('contact', 'completed', kept)], {
+        state: 'passed',
+        at: yesterday,
+      }),
+    );
+    fetchAttentionMock.mockResolvedValue({
+      mappings: [
+        {
+          mappingId: 'acme-mail',
+          pendingDecisions: 0,
+          deletionsWaiting: 0,
+          movesWaiting: 0,
+          failuresWaiting: 0,
+          readyForCutover: true,
+          autoApplied: 0,
+          sharingOpen: 0,
+        },
+      ],
+    });
+  }
+
+  it('a 90-day migration: its chip, kept in step for the window, and Copy everything where the switch would be', async () => {
+    aRecentOnlyMigrationReadyButForD8();
+    renderHub();
+    await vi.waitFor(() => expect(chip()).not.toBeNull());
+    expect(chip()!.textContent).toBe('Last 90 days');
+    expect(chip()!.getAttribute('href')).toBe('/docs/start#last-90-days-only');
+    // D8: never Ready to switch, whatever the check says.
+    await vi.waitFor(() => expect(line()).toBe('Kept in step for the last 90 days.'));
+    const header = screen.getByRole('heading', { name: 'Acme mail' }).parentElement!;
+    expect(header.textContent).toContain('Kept in step');
+    expect(header.textContent).not.toContain('Ready to switch');
+    // Finish waits for Copy everything, and is not the next step.
+    await vi.waitFor(() => expect(step('finish').textContent).toContain('After Copy everything'));
+    expect(step('finish').textContent).toContain('Not yet');
+    expect(step('finish').textContent).not.toContain('Needs you');
+    expect(screen.getByRole('button', { name: 'Copy everything' })).toBeInTheDocument();
+  });
+
+  it('Copy everything asks once, then broadens it; nothing is sent before the second press', async () => {
+    aRecentOnlyMigrationReadyButForD8();
+    mappingCopyEverythingMock.mockResolvedValue({ id: 'acme-mail', updatedAt: yesterday });
+    renderHub();
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy everything' }));
+    expect(screen.getByText('Copy everything older too? What is there stays.')).toBeInTheDocument();
+    expect(mappingCopyEverythingMock).not.toHaveBeenCalled();
+
+    // Cancel closes it, and sends nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Copy everything older too? What is there stays.')).toBeNull();
+    expect(mappingCopyEverythingMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy everything' }));
+    const group = screen.getByRole('group', { name: 'Copy everything' });
+    fireEvent.click(within(group).getByRole('button', { name: 'Copy everything' }));
+    await vi.waitFor(() => expect(mappingCopyEverythingMock).toHaveBeenCalledWith('acme-mail'));
+    // The page reads the migration again rather than guess its new state.
+    await vi.waitFor(() => expect(mappingApiGet.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('says the server’s refusal beside the button', async () => {
+    aRecentOnlyMigrationReadyButForD8();
+    mappingCopyEverythingMock.mockRejectedValue(new Error('This migration is being switched over.'));
+    renderHub();
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy everything' }));
+    const group = screen.getByRole('group', { name: 'Copy everything' });
+    fireEvent.click(within(group).getByRole('button', { name: 'Copy everything' }));
+    expect(await screen.findByText(/^Not changed:/)).toHaveTextContent('This migration is being switched over.');
+  });
+
+  it('broadened: no chip, no Copy everything, and Finish as for any migration', async () => {
+    aRecentOnlyMigrationReadyButForD8(false);
+    renderHub();
+    const header = (await screen.findByRole('heading', { name: 'Acme mail' })).parentElement!;
+    await vi.waitFor(() => expect(header.textContent).toContain('Ready to switch'));
+    expect(chip()).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Copy everything' })).toBeNull();
+    // Its older items are in too: the milestone has nothing more to say.
+    expect(line()).toBeUndefined();
+    expect(step('finish').textContent).not.toContain('After Copy everything');
+    expect(step('finish').textContent).toContain('Needs you');
+  });
+
+  it('phase A running: Copying your last 90 days first', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        syncConfig: { domains: ['email', 'file'] },
+        domainStatus: [stripRow('email', 'in_progress'), stripRow('file', 'in_progress')],
+        window: windowOf({ in: ['email'], copying: ['file'] }),
+      }),
+    );
+    fetchProgressMock.mockResolvedValue(
+      progressOf([progressRow('email', 'in_progress'), progressRow('file', 'in_progress')]),
+    );
+    renderHub();
+    await vi.waitFor(() => expect(line()).toBe('Copying your last 90 days first.'));
+    expect(chip()).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Copy everything' })).toBeNull();
+  });
+
+  it('phase A done, phase B running: the milestone, and older items still coming', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        syncConfig: { domains: ['email', 'calendar', 'contact'] },
+        domainStatus: [stripRow('email', 'in_progress'), stripRow('calendar', 'completed', kept)],
+        window: windowOf({ in: ['email', 'calendar'] }),
+      }),
+    );
+    fetchProgressMock.mockResolvedValue(
+      progressOf([
+        progressRow('email', 'in_progress'),
+        progressRow('calendar', 'completed', kept),
+        progressRow('contact', 'completed', kept),
+      ]),
+    );
+    renderHub();
+    await vi.waitFor(() => expect(line()).toBe('Your last 90 days are in. Older items are still coming.'));
+  });
+
+  it('says nothing of a window the server does not report', async () => {
+    renderHub();
+    await screen.findByRole('heading', { name: 'Acme mail' });
+    await vi.waitFor(() => expect(step('finish').textContent).toContain('Not yet'));
+    expect(line()).toBeUndefined();
+    expect(chip()).toBeNull();
   });
 });

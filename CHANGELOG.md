@@ -6,6 +6,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The last 90 days first, on the screens** (workplan 0170 T5; the owner, 2026-11-24: *"fit in
+  UX!"*). *Start a migration* asks **How much?** under the data types: **Everything**, selected,
+  whose last 90 days come first and everything older after, or **Only the last 90 days**, to try
+  a destination with fresh data (mail, files and calendars of 90 days, every contact and task).
+  The check screen says the choice again. A migration of only the last 90 days shows a **Last 90
+  days** chip beside its stage, reads *Kept in step for the last 90 days.*, is never *Ready to
+  switch*, and its Finish step says *After Copy everything* (the owner's D8: *"no, not before"*);
+  its page offers **Copy everything**, one way only, behind the confirmation *Copy everything
+  older too? What is there stays.* A migration of everything says *Copying your last 90 days
+  first.* while they are copied, then *Your last 90 days are in. Older items are still coming.*
+  A new guide, *How a migration copies* / *Hoe een migratie kopieert*, in English and Dutch,
+  says the order, what a 90-day migration copies, *Copy everything*, and the appliance's
+  mapping-file setting. No word *trial* or *proef* anywhere.
+
 - **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
   of 2026-11-24: *"yes to all, build them. But dont add the nextcloud as source card, add only
   the generic cards as source."*). Three source cards in the *Any server, by protocol* lane beside
