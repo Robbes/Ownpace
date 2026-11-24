@@ -11,9 +11,9 @@ stays, empty. alpha.19 carries what `main` merged after alpha.18's C, `2c32fa7d`
 tag names: 27 pull requests, 26 of them merged from 2026-11-23 at 21:17 UTC to 2026-11-24 at 15:51
 UTC, after the tag, and #2100, the identity provider's move, merged after them. None came from
 Dependabot. The summary says that alpha.19 is not deployed to live and that its changes reach live
-with alpha.20's deploy; no entry on `main` spoke of live's deploy from alpha.18. <!-- ZITADEL: One
+with alpha.20's deploy; no entry on `main` spoke of live's deploy from alpha.18. One
 entry's words change: the identity provider's (#2100), which said live takes v4.20.5 from
-alpha.19's tag, says it takes it with alpha.20's deploy. -->
+alpha.19's tag, says it takes it with alpha.20's deploy.
 
 - the records of alpha.18's release, and of live's deploys of alpha.16 and alpha.17 (#2095);
   alpha.19's counted nights waived in the owner's words (#2118), and alpha.20's (#2121);

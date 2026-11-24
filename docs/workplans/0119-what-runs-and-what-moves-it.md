@@ -14,9 +14,9 @@ deploy. What alpha.19 moves:
 - the identity provider's pin, from Zitadel `v4.20.4` to `v4.20.5` (#2100, its entry of the same
   day): the one commit after v4.20.4 is in login v2, which does not run here, and the move is
   one-way for the identity provider's database, so the OTA instance's was dumped before E2E
-  (managed) applied it there; <!-- ZITADEL: record here the owner's hand check on the OTA instance
-  (one sign-in through login v1, one forgot-password mail), which the entry of #2100 leaves to
-  alpha.19's fold. -->
+  (managed) applied it there, and the owner's hand check on the OTA instance after it was ok on
+  2026-11-24: one sign-in through login v1, and one forgot-password mail opened from the mail
+  catcher, whose link opened the page to set a new password;
 - `packageManager`'s pnpm, 11.28.13 to 11.29.0, which CI and the images read, with the lockfile as
   it was (#2093);
 - the test mail server, Stalwart `v1.1.1` to `v1.2.0-alpine` by tag and index digest, in

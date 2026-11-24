@@ -20,9 +20,9 @@ removal without the address; and contacts reach a Stalwart v1.2.0 server over JM
 to `ContactCard/parse` the writer now reads. Underneath, the test mail server runs Stalwart
 v1.2.0's Alpine build, which live never runs; pnpm moves to 11.29.0; and the code comments,
 refusals and docs that still described Trigger.dev describe the `worker` service on pg-boss, whose
-containers the capacity rehearsal's sample now measures. <!-- ZITADEL: The identity provider moves
-to Zitadel v4.20.5, whose one change is in login v2, which does not run here; the move is one-way
-for the identity provider's database. --> In CI, the migration lint moves to Atlas v1.4.1, the
+containers the capacity rehearsal's sample now measures. The identity provider moves to Zitadel
+v4.20.5, whose one change is in login v2, which does not run here; the move is one-way for the
+identity provider's database. In CI, the migration lint moves to Atlas v1.4.1, the
 migration report to squawk 2.74.0 and the workflow audit to zizmor 1.33.1. alpha.19 is not
 deployed to live: on 2026-11-24 the owner decided to tag it without deploying it, and to deploy
 alpha.20 to live on 2026-11-26. Live stays on alpha.18, deployed there one-way on 2026-11-24 at
@@ -53,7 +53,7 @@ to either chain.
   v4.20.4. Its one commit after v4.20.4 is in login v2, which does not run here, so nothing the
   stack runs changes: per platform its images keep v4.20.4's base layers, and the binary's differs
   by what a new version string makes. The OTA instance's database was dumped by hand before E2E
-  (managed) applied it there, and live takes it from alpha.19's tag.
+  (managed) applied it there, and live takes it with alpha.20's deploy.
 - **The Test answer and the sharing checklist say less about an address this service will not
   connect to** (workplan 0136; the owner, 2026-11-24: *"yes, follow-up"*). Where they named this
   service's own network, the **Test** button on Accounts now says *"We did not connect to that
