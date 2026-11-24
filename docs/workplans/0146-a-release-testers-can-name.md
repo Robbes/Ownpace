@@ -2,7 +2,17 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-23 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24: alpha.19's counted nights waived, in the owner's words (T4).** On the branch
+`claude/ownpace-public-readiness-y7orc6-a19-waiver`; not merged. Asking for workplan 0170 in the
+alpha in progress, the owner wrote *"I waive all waiting/days, try to get it in the upcomming alpha
+we are still working on."*, and asked whether those words are alpha.19's waiver: *"I waive all
+waiting/days: yes"*. `v0.2.0-alpha.19` joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs`
+with those words; both list guards name it, and `v0.2.0-alpha.20` is now the version a waiver is
+refused for; `docs/release.md` lists it. It waives the nights and nothing else: the commit, the
+gates and the E2E runs in their place are read as for alpha.18. The guards: 119 of 119, and both
+fail with the new line taken out.
 
 **2026-11-23, night: `v0.2.0-alpha.18` is released, its nights waived (T2, T4).** Read from
 GitHub on 2026-11-23. Times are UTC.
