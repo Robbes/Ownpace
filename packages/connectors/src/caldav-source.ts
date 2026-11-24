@@ -31,7 +31,20 @@ import {
   RemoteRefusal,
 } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
-import { caldavComponentFilter, davRefusalBody, elementsIn, log, namesPrefixedElement } from '@openmig/shared';
+import {
+  caldavComponentFilter,
+  caldavPropertyFilter,
+  caldavTimeRangeFilter,
+  componentsNamed,
+  davRefusalBody,
+  declaredZones,
+  elementsIn,
+  icalTimeToIso,
+  log,
+  namesPrefixedElement,
+  parseIcalComponents,
+} from '@openmig/shared';
+import type { ListOptions } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
@@ -184,6 +197,7 @@ export class CalDAVSource implements CalendarSource {
   async listSince(
     folder: CalendarFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<RawCalendarEvent>;
     nextCursor: SyncCursor;
@@ -199,6 +213,22 @@ export class CalDAVSource implements CalendarSource {
 
     // Build the collection path from folder
     const collectionPath = this.buildCollectionPath(folder, this.calendarHomeSet);
+
+    // A WINDOW (workplan 0170 §4.3): events only, never tasks.
+    if (options?.since !== undefined && this.component === 'VEVENT') {
+      const objects = await this.windowListing(collectionPath, options.since);
+      const items: RawCalendarEvent[] = [];
+      for (const obj of objects) {
+        const event = this.parseCalendarObject(obj);
+        if (event) items.push(event);
+      }
+      // No cursor, whatever cursor came in: `calendar-query` gives no token,
+      // and an empty cursor claims nothing, so a pass that stores it, as a
+      // window's or by mistake as a content cursor, still reads every older
+      // event when it reads with no window. No removals: a listing of a
+      // window names none (§6).
+      return { items, nextCursor: { value: '' } };
+    }
 
     // Perform sync-collection REPORT
     const result = await this.syncCollection(collectionPath, cursor);
@@ -964,25 +994,7 @@ export class CalDAVSource implements CalendarSource {
   private async calendarQueryAll(
     collectionPath: string,
   ): Promise<{ objects: CalDAVCalendarObject[] }> {
-    const query = `<?xml version="1.0" encoding="utf-8"?>
-      <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
-        <D:prop>
-          <D:getetag/>
-          <C:calendar-data/>
-        </D:prop>
-        ${caldavComponentFilter(this.component, 'C')}
-      </C:calendar-query>`;
-
-    const response = await this.send({
-      method: 'REPORT',
-      url: this.resolveHref(collectionPath),
-      body: query,
-      headers: {
-        'Content-Type': 'application/xml',
-        Depth: '1',
-        Authorization: await this.authorizationHeader(),
-      },
-    });
+    const response = await this.calendarQuery(collectionPath, caldavComponentFilter(this.component, 'C'));
 
     if (response.status !== 207) {
       throw new RemoteRefusal(
@@ -993,6 +1005,74 @@ export class CalDAVSource implements CalendarSource {
 
     const { objects } = this.parseSyncCollectionResponse(response.body);
     return { objects };
+  }
+
+  /** One `calendar-query` REPORT with a filter, its answer as it came. */
+  private async calendarQuery(collectionPath: string, filter: string): Promise<HttpResponse> {
+    const query = `<?xml version="1.0" encoding="utf-8"?>
+      <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+        <D:prop>
+          <D:getetag/>
+          <C:calendar-data/>
+        </D:prop>
+        ${filter}
+      </C:calendar-query>`;
+
+    return this.send({
+      method: 'REPORT',
+      url: this.resolveHref(collectionPath),
+      body: query,
+      headers: {
+        'Content-Type': 'application/xml',
+        Depth: '1',
+        Authorization: await this.authorizationHeader(),
+      },
+    });
+  }
+
+  /**
+   * THE EVENTS OF A WINDOW, AND NEVER FEWER (workplan 0170 §4.3, D1 (a)).
+   *
+   * Three `calendar-query` REPORTs, their objects merged by href:
+   *
+   *  1. a `time-range` from a day before `since` (RFC 4791 §9.9), which a
+   *     server answers with every event that ends after it, a series whose
+   *     any occurrence does among them. The day is for floating times and
+   *     dates, which a server reads in a zone of its choosing;
+   *  2. every event with an RRULE, and 3. every event with an RDATE
+   *     (`prop-filter`, §9.7.2). A server that does not expand recurrence
+   *     for `time-range`, or expands it otherwise, would leave out a series
+   *     that began years ago and still recurs; these two put every series in
+   *     front of the sync loop, whose `eventInWindow` sets aside the ones
+   *     that ended before the window.
+   *
+   * The source may return more than the window, never less (`ListOptions`):
+   * when a server refuses any of the three, the calendar is listed whole, and
+   * the loop decides every event.
+   */
+  private async windowListing(collectionPath: string, since: Date): Promise<CalDAVCalendarObject[]> {
+    const from = new Date(since.getTime() - 86_400_000);
+    const filters = [
+      caldavTimeRangeFilter(this.component, 'C', from),
+      caldavPropertyFilter(this.component, 'C', 'RRULE'),
+      caldavPropertyFilter(this.component, 'C', 'RDATE'),
+    ];
+    const byHref = new Map<string, CalDAVCalendarObject>();
+    for (const filter of filters) {
+      const response = await this.calendarQuery(collectionPath, filter);
+      if (response.status !== 207) {
+        log.warn(
+          `[caldav] a calendar's server answered a window's calendar-query with ${response.status}, not 207, ` +
+            'so this pass lists the calendar whole and the window is decided event by event. ' +
+            davRefusalBody(response.body),
+        );
+        return (await this.calendarQueryAll(collectionPath)).objects;
+      }
+      for (const obj of this.parseSyncCollectionResponse(response.body).objects) {
+        if (!byHref.has(obj.href)) byHref.set(obj.href, obj);
+      }
+    }
+    return [...byHref.values()];
   }
 
   /**
@@ -1457,23 +1537,33 @@ export class CalDAVSource implements CalendarSource {
    * Extract start time from iCalendar data.
    */
   private extractStart(icalendar: string): string {
-    // Try DTSTART first
-    const startMatch = icalendar.match(/DTSTART(?:;[^:]+)?[:\s]([^\r\n]+)/i);
-    if (startMatch && startMatch[1]) {
-      return this.convertIcalDateToIso(startMatch[1].trim());
-    }
-    return new Date().toISOString();
+    return this.ownTime(icalendar, 'DTSTART') ?? '';
   }
 
   /**
    * Extract end time from iCalendar data.
    */
   private extractEnd(icalendar: string): string | undefined {
-    const endMatch = icalendar.match(/DTEND(?:;[^:]+)?[:\s]([^\r\n]+)/i);
-    if (endMatch && endMatch[1]) {
-      return this.convertIcalDateToIso(endMatch[1].trim());
-    }
-    return undefined;
+    return this.ownTime(icalendar, 'DTEND');
+  }
+
+  /**
+   * A DTSTART or DTEND read from the object's OWN component (workplan 0170
+   * §4.3). This used to match the first `DTSTART` anywhere in the object, so
+   * in a VCALENDAR whose VTIMEZONE comes first, as Google's and Apple's do, it
+   * read the zone's `STANDARD` or `DAYLIGHT` start (often 1970); a time in a
+   * `TZID` was read as if it were UTC; and an object with no DTSTART, a task
+   * with only a DUE, was given the moment it was listed. Now: the series
+   * rather than an override (RECURRENCE-ID), a `TZID` time in UTC where the
+   * zone is known, a date as before, and no DTSTART as no start (`''`).
+   */
+  private ownTime(icalendar: string, name: 'DTSTART' | 'DTEND'): string | undefined {
+    const roots = parseIcalComponents(icalendar);
+    const own = componentsNamed(roots, this.component);
+    const series = own.find((c) => !c.properties.some((p) => p.name === 'RECURRENCE-ID')) ?? own[0];
+    const property = series?.properties.find((p) => p.name === name);
+    if (property === undefined) return undefined;
+    return icalTimeToIso(property, declaredZones(roots));
   }
 
   /**
@@ -1490,44 +1580,6 @@ export class CalDAVSource implements CalendarSource {
   private extractLocation(icalendar: string): string | undefined {
     const match = icalendar.match(/LOCATION[:\s]([^\r\n]+)/i);
     return match && match[1] ? match[1].trim() : undefined;
-  }
-
-  /**
-   * Convert iCalendar date format to ISO 8601.
-   */
-  private convertIcalDateToIso(dateStr: string): string {
-    // Handle both formats:
-    // - Date-time: 20240101T120000Z or 20240101T120000
-    // - Date: 20240101
-    
-    const dateOnlyMatch = dateStr.match(/^(\d{4})(\d{2})(\d{2})$/);
-    if (dateOnlyMatch) {
-      // Date-only (all-day event)
-      const year = dateOnlyMatch[1];
-      const month = dateOnlyMatch[2];
-      const day = dateOnlyMatch[3];
-      return `${year}-${month}-${day}T00:00:00Z`;
-    }
-
-    const dateTimeMatch = dateStr.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
-    if (dateTimeMatch) {
-      const year = dateTimeMatch[1];
-      const month = dateTimeMatch[2];
-      const day = dateTimeMatch[3];
-      const hour = dateTimeMatch[4];
-      const minute = dateTimeMatch[5];
-      const second = dateTimeMatch[6];
-      const isUtc = dateTimeMatch[7] === 'Z';
-      
-      if (isUtc) {
-        return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
-      } else {
-        return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
-      }
-    }
-
-    // Fallback: return as-is or current time
-    return new Date().toISOString();
   }
 
   /**

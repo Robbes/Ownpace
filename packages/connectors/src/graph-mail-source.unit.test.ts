@@ -175,6 +175,44 @@ describe('listSince', () => {
     expect(seen).toEqual([`${BASE}/delta-token-1`]);
   });
 
+  describe('with since (workplan 0170 §4.1, §11 question 1)', () => {
+    const SINCE = new Date('2026-08-26T00:00:00Z');
+    function windowRoutes() {
+      return listingRoutes({
+        [`${BASE}/me/mailFolders/id-inbox/messages/delta`]: json(200, {
+          value: [
+            { id: 'g-old', internetMessageId: '<old@x>', receivedDateTime: '2025-07-01T10:00:00Z' },
+            { id: 'g-new', internetMessageId: '<new@x>', receivedDateTime: '2026-10-01T10:00:00Z' },
+          ],
+          '@odata.deltaLink': `${BASE}/delta-token-1`,
+        }),
+      });
+    }
+
+    it('sends no $filter: a filtered messages delta lists at most 5,000 messages, and the rest would be lost', async () => {
+      const { client, seen } = fakeClient(windowRoutes());
+      const s = source(client);
+      await s.listFolders();
+      await s.listSince(inboxFolder, undefined, { since: SINCE });
+      const delta = seen.filter((url) => url.includes('/messages/delta'));
+      expect(delta).toEqual([`${BASE}/me/mailFolders/id-inbox/messages/delta?$select=id,internetMessageId,receivedDateTime,isRead,isDraft,flag`]);
+      expect(delta.some((url) => /\$filter|receivedDateTime\s*ge/i.test(url))).toBe(false);
+    });
+
+    it('lists the same items and the same cursor as without since: the loop sets aside what is older', async () => {
+      const a = source(fakeClient(windowRoutes()).client);
+      await a.listFolders();
+      const windowed = await a.listSince(inboxFolder, undefined, { since: SINCE });
+      const b = source(fakeClient(windowRoutes()).client);
+      await b.listFolders();
+      const whole = await b.listSince(inboxFolder);
+      expect(windowed).toEqual(whole);
+      // So the deltaLink it returns was made by a whole listing, and claims
+      // nothing that was not seen: true for a later full listing too.
+      expect(windowed.items.map((i) => i.sourceRef)).toEqual(['g-old', 'g-new']);
+    });
+  });
+
   it('counts the messages it cannot list instead of dropping them silently, as unlisted and never as unkeyable', async () => {
     const { client } = fakeClient(
       listingRoutes({

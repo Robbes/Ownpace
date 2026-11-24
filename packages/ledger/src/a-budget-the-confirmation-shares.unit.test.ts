@@ -31,7 +31,7 @@ import { runMigrations } from './migrate.ts';
 import { ConfirmationStore } from './confirmation-store.ts';
 import { RunStore } from './run-store.ts';
 import { readerOverTarget, runConfirmationPass } from '@openmig/core';
-import type { LedgerDriver, LedgerConnection } from './driver.ts';
+import { statementsInTurn, type LedgerDriver, type StatementsInTurn } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
 import {
   fileNaturalKeyHash,
@@ -55,7 +55,7 @@ const DST = '00470000-e29b-41d4-a716-446655440005';
 const PROVIDER = 'gmail-imap';
 
 let driver: LedgerDriver;
-let conn: LedgerConnection;
+let conn: StatementsInTurn;
 let db: PgDatabase;
 let store: ConfirmationStore;
 let runs: RunStore;
@@ -188,7 +188,7 @@ beforeAll(async () => {
   driver = made.driver;
   db = made.db;
   await runMigrations({ driver, logger: () => {} });
-  conn = await driver.acquire();
+  conn = statementsInTurn(driver);
   await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1, 'Budget tests', 'active')`, [
     TENANT,
   ]);

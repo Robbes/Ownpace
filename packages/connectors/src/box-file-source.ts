@@ -37,6 +37,7 @@ import type {
   FileFolder,
   FileItem,
   FileSource,
+  ListOptions,
   RawFileItem,
   SyncCursor,
   TokenProvider,
@@ -51,6 +52,7 @@ import type { BoxFileSourceConfig, BoxItem, BoxItemList, BoxTransport } from './
 // beside `MAX_BUFFERED_FILE_BYTES` and re-exports it from there, so this
 // import resolves either way and can be retargeted when that lands.
 import { STREAM_FILES_LARGER_THAN_BYTES } from './webdav-source.ts';
+import { splitByWindow } from './file-window.ts';
 
 /** What the transport hands back — named so `download()` can promise it. */
 type BoxResponse = Awaited<ReturnType<BoxTransport>>;
@@ -122,21 +124,31 @@ export class BoxFileSource implements FileSource {
    * a time, inside the sync loop's bounded concurrency. The cursor is NOT a
    * delta token (see the module header): every pass sees every file, and the
    * ledger makes the second pass create nothing.
+   *
+   * WITH A WINDOW (`options.since`, workplan 0170 §4.2): folder items have no
+   * date filter, so the folder is listed whole and a file modified before
+   * `since` goes back as `unmarked` (`splitByWindow`), by `modified_at`, which
+   * is what `modifiedAt` already is. Such a listing is kept out of the
+   * `listKeys` memo (`ListOptions`). The cursor is the same sentinel, never
+   * read back.
    */
   async listSince(
     folder: FileFolder,
     _cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
+    options?: ListOptions,
+  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor; unmarked?: ReadonlyArray<RawFileItem> }> {
     const folderId = await this.resolveFolderId(folder.path);
-    const items: RawFileItem[] = [];
+    const listed: RawFileItem[] = [];
     for (const file of await this.listChildren(folderId, 'file')) {
-      items.push({ item: this.toFileItem(file, this.childPath(folder.path, file.name)) });
+      listed.push({ item: this.toFileItem(file, this.childPath(folder.path, file.name)) });
     }
     // For `listKeys`, asked immediately after for the same folder — same
-    // listing, so the two cannot disagree about what is there.
-    this.lastListing = { path: folder.path, keys: items.map((i) => i.item.path) };
+    // listing, so the two cannot disagree about what is there. Never under a
+    // window (`ListOptions`), and cleared then, so no earlier memo answers.
+    this.lastListing =
+      options?.since === undefined ? { path: folder.path, keys: listed.map((i) => i.item.path) } : undefined;
     return {
-      items,
+      ...splitByWindow(listed, options?.since),
       // Deliberately not a delta token (see the module header).
       nextCursor: { value: `full-listing:${folder.path}` },
     };

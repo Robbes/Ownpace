@@ -969,3 +969,87 @@ describe('a rate limit is waited out once, not failed (workplan 0143 T10)', () =
     expect(classifyFailure(failure, 'source')).toBe('rate_limited');
   });
 });
+
+/**
+ * WORKPLAN 0170 §4.2: a listing under a window. Drive filters on the server,
+ * `modifiedTime >= …` in `q`, for files and never for the folders a window's
+ * files go into; and a windowed listing is never the memo `listKeys` answers
+ * from (`ListOptions`), since it is not the folder's key set.
+ */
+describe('a listing under a window (workplan 0170)', () => {
+  const SINCE = new Date('2026-08-26T00:00:00Z');
+  const WINDOW_TERM = `modifiedTime >= '2026-08-26T00:00:00'`;
+  const ENCODED_WINDOW_TERM = encodeURIComponent(WINDOW_TERM);
+  const ROOT_FOLDERS = `q='root'%20in%20parents%20and%20trashed%3Dfalse%20and%20mimeType%3D`;
+  const SUB_FILES = `q='sub-1'%20in%20parents%20and%20trashed%3Dfalse%20and%20mimeType!%3D`;
+  const SUBFOLDER = { id: 'sub-1', name: 'a', mimeType: 'application/vnd.google-apps.folder' };
+  const OLD = { ...BINARY, id: 'old-1', name: 'old.pdf', modifiedTime: '2025-01-01T10:00:00Z' };
+  const NEW = { ...BINARY, id: 'new-1', name: 'new.pdf', modifiedTime: '2026-11-01T10:00:00Z' };
+  /** Drive's answer, by query: the window's files to a windowed `q`, every file otherwise. */
+  const drive = () =>
+    fakeDrive({
+      // First, so a windowed `q` matches it before the plain one it extends.
+      [`${SUB_FILES}${encodeURIComponent(`'application/vnd.google-apps.folder'`)}${encodeURIComponent(' and ')}${ENCODED_WINDOW_TERM}`]:
+        { files: [NEW] },
+      [ROOT_FOLDERS]: { files: [SUBFOLDER] },
+      [SUB_FILES]: { files: [OLD, NEW] },
+    });
+  const fileQueries = (calls: ReadonlyArray<Call>) =>
+    calls.map((c) => decodeURIComponent(c.url)).filter((u) => u.includes('mimeType!='));
+
+  it('without `since` asks for every file, as it always did', async () => {
+    const { transport, calls } = drive();
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const { items } = await source.listSince({ path: 'a' });
+
+    expect(items.map((i) => i.item.path)).toEqual(['a/old.pdf', 'a/new.pdf']);
+    expect(fileQueries(calls).every((u) => !u.includes('modifiedTime >='))).toBe(true);
+  });
+
+  it('with `since` asks Drive for the window in `q`, for the files and never the folders', async () => {
+    const { transport, calls } = drive();
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const { items } = await source.listSince({ path: 'a' }, undefined, { since: SINCE });
+
+    expect(items.map((i) => i.item.path)).toEqual(['a/new.pdf']);
+    expect(fileQueries(calls)).toHaveLength(1);
+    expect(fileQueries(calls)[0]).toContain(`and ${WINDOW_TERM}`);
+    const folderQueries = calls
+      .map((c) => decodeURIComponent(c.url))
+      .filter((u) => u.includes(`mimeType='application/vnd.google-apps.folder'`));
+    expect(folderQueries.length).toBeGreaterThan(0);
+    expect(folderQueries.every((u) => !u.includes('modifiedTime >='))).toBe(true);
+  });
+
+  it('a windowed listing is never the memo `listKeys` answers from: the older file is still a key', async () => {
+    const { transport, calls } = drive();
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    // A full listing first, whose memo the windowed one must clear, not leave.
+    await source.listSince({ path: 'a' });
+    await source.listSince({ path: 'a' }, undefined, { since: SINCE });
+    const before = fileQueries(calls).length;
+
+    expect(await source.listKeys({ path: 'a' })).toEqual(['a/old.pdf', 'a/new.pdf']);
+    const after = fileQueries(calls);
+    expect(after.length, 'listKeys listed for itself').toBe(before + 1);
+    expect(after.at(-1), 'and in full').not.toContain('modifiedTime >=');
+  });
+
+  it('the cursor claims nothing: read back without a window, the older file is listed', async () => {
+    const { transport } = drive();
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const { nextCursor } = await source.listSince({ path: 'a' }, undefined, { since: SINCE });
+    const after = await source.listSince({ path: 'a' }, nextCursor);
+
+    expect(after.items.map((i) => i.item.path)).toEqual(['a/old.pdf', 'a/new.pdf']);
+  });
+
+  it('writes the window as Drive documents a date-time: UTC, whole seconds', async () => {
+    const { driveQueryTime } = await import('./google-drive-source.ts');
+    expect(driveQueryTime(new Date('2026-08-26T07:08:09.123Z'))).toBe('2026-08-26T07:08:09');
+  });
+});

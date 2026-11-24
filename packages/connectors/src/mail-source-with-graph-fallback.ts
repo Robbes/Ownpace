@@ -33,7 +33,7 @@
  *   (rule 9): the operator sees the whole picture, not just the second half.
  */
 
-import type { SourceConnector, MailFolder, MailItem, RawMessage, SyncCursor } from '@openmig/shared';
+import type { ListOptions, SourceConnector, MailFolder, MailItem, RawMessage, SyncCursor } from '@openmig/shared';
 import { log, statedFailureCategoryOf } from '@openmig/shared';
 
 /**
@@ -128,11 +128,13 @@ export class MailSourceWithGraphFallback implements SourceConnector {
     }
   }
 
+  /** Forwards the window too (workplan 0170 §4.1), to whichever transport is active. */
   listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): ReturnType<SourceConnector['listSince']> {
-    return this.active.listSince(folder, cursor);
+    return this.active.listSince(folder, cursor, options);
   }
 
   fetch(item: MailItem): Promise<RawMessage> {

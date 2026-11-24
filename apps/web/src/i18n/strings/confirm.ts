@@ -45,6 +45,10 @@ export const en = {
   'discovery.unlisted.strong.one': 'will not be migrated',
   'discovery.unlisted.strong.many': 'will not be migrated',
   'discovery.unlisted.post': '— nothing on your old server changes.',
+  // Gmail's own count beside ours (the owner, 2026-11-24): All Mail holds
+  // every message once, so the Check has a figure no copy can make up.
+  'discovery.gmailTotal':
+    'Gmail itself counts {count} messages, not counting Spam and Trash. The check compares against this number.',
   'discovery.errorWithheld.cell': 'Stopped on an error',
   'discovery.errorWithheld':
     "The provider's message for a count that stopped is not shown: the person connected this account themselves, and it can name their files.",
@@ -157,6 +161,11 @@ export const en = {
   'confirm.progress.totalNotKnown': '{done} copied · total not known',
   // Discovery counted none, and none arrived: a real answer, not a gap.
   'confirm.progress.noneFound': 'none found to copy',
+  // CALENDARS FOUND, NO EVENT READ (2026-11-24): not *none found*. Calendars
+  // that exist are where events are kept, so finding them and reading nothing
+  // is a listing that may be failing, or calendars truly empty; said in amber.
+  'confirm.progress.listedButEmpty.one': '1 calendar found, but not one event read from it',
+  'confirm.progress.listedButEmpty.many': '{count} calendars found, but not one event read from them',
   'confirm.progress.failed': 'failed',
   'confirm.progress.retrying': 'retrying',
   // LEFT ALONE IS NOT COPIED (0124 T2). Two different rows wear the ledger's
@@ -331,6 +340,8 @@ export const nl: Record<keyof typeof en, string> = {
   'discovery.unlisted.strong.one': 'wordt niet gemigreerd',
   'discovery.unlisted.strong.many': 'worden niet gemigreerd',
   'discovery.unlisted.post': '— er verandert niets op uw oude server.',
+  'discovery.gmailTotal':
+    'Gmail telt zelf {count} berichten, zonder Spam en Prullenbak. De verificatie vergelijkt met dit aantal.',
   'discovery.errorWithheld.cell': 'Gestopt op een fout',
   'discovery.errorWithheld':
     'De melding van de aanbieder bij een inventarisatie die stopte, wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden vermelden.',
@@ -405,6 +416,8 @@ export const nl: Record<keyof typeof en, string> = {
   'confirm.progress.ofAbout': '{done} van ~{total}',
   'confirm.progress.totalNotKnown': '{done} gemigreerd · totaal niet bekend',
   'confirm.progress.noneFound': 'niets gevonden om te migreren',
+  'confirm.progress.listedButEmpty.one': '1 agenda gevonden, maar er is geen enkele afspraak uit gelezen',
+  'confirm.progress.listedButEmpty.many': "{count} agenda's gevonden, maar er is geen enkele afspraak uit gelezen",
   'confirm.progress.failed': 'mislukt',
   'confirm.progress.retrying': 'in nieuwe poging',
   'confirm.progress.leftAsIs': '{count} ongemoeid gelaten: deze stonden al op het nieuwe systeem, of waren sindsdien gewijzigd',

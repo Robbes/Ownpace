@@ -56,6 +56,17 @@ export const en = {
   'start.what.files.all': 'All of {place}',
   'start.what.files.one': 'Only one folder',
   'start.what.files.one.line': 'You choose it once the account is connected.',
+  // HOW MUCH (workplan 0170 §7.1, the owner's D2 to D4): every migration
+  // copies its last 90 days first and the rest after, with no switch; a
+  // migration can instead stop at those 90 days, to try a destination with
+  // current data. Never the word *trial*: the person tries the destination.
+  'start.what.amount.label': 'How much?',
+  'start.what.amount.all': 'Everything',
+  'start.what.amount.all.hint': 'The last 90 days come first, then everything older.',
+  'start.what.amount.recent': 'Only the last 90 days',
+  'start.what.amount.recent.hint': 'To try destinations with your current data.',
+  'start.what.amount.recent.why':
+    "Mail, files and calendars from the last 90 days, and all contacts and tasks. Try as many destinations as you like this way. You can copy everything later, from the migration's page, without starting over. Nothing older is deleted or changed.",
   'start.place.myDrive': 'My Drive',
   'start.what.photos': 'Photos',
   // A PROVIDER'S EXPORT UNDER ITS TILE (0153 open question 5, item 2): a tick
@@ -225,6 +236,13 @@ export const nl: Record<keyof typeof en, string> = {
   'start.what.files.all': 'Alles in {place}',
   'start.what.files.one': 'Alleen één map',
   'start.what.files.one.line': 'Die kiest u zodra het account verbonden is.',
+  'start.what.amount.label': 'Hoeveel?',
+  'start.what.amount.all': 'Alles',
+  'start.what.amount.all.hint': 'Eerst de laatste 90 dagen, daarna alles wat ouder is.',
+  'start.what.amount.recent': 'Alleen de afgelopen 90 dagen',
+  'start.what.amount.recent.hint': 'Om doelplatformen met uw actuele gegevens uit te proberen.',
+  'start.what.amount.recent.why':
+    "Mail, bestanden en agenda's van de laatste 90 dagen, en alle contacten en taken. Zo kunt u zoveel bestemmingen proberen als u wilt. Later kunt u alles kopiëren, vanaf de pagina van de migratie, zonder opnieuw te beginnen. Niets wat ouder is, wordt verwijderd of gewijzigd.",
   'start.place.myDrive': 'Mijn Drive',
   'start.what.photos': "Foto's",
   'start.what.export.google-takeout': "Foto's: uit een Takeout-export",

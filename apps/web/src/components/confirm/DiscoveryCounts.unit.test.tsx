@@ -65,6 +65,20 @@ describe('the counts', () => {
   });
 });
 
+describe("Gmail's own count (the owner, 2026-11-24)", () => {
+  it("says what Gmail itself holds beside what will be copied, and that the check compares against it", () => {
+    render(<DiscoveryCounts domains={[record({ items: 120, sourceTotal: 1234 })]} />);
+    const note = screen.getByRole('note');
+    expect(note).toHaveTextContent(/Gmail itself counts 1,234 messages, not counting Spam and Trash/);
+    expect(note).toHaveTextContent(/The check compares against this number/);
+  });
+
+  it('says nothing about it for a source that has no such count', () => {
+    render(<DiscoveryCounts domains={[record()]} />);
+    expect(screen.queryByText(/Gmail itself counts/)).not.toBeInTheDocument();
+  });
+});
+
 describe('the two things the customer has to be told', () => {
   it('warns that generated Message-IDs are written to THEIR COPY, not the original', () => {
     render(<DiscoveryCounts domains={[record({ generatedIdItems: 4 })]} />);
