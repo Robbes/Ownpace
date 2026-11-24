@@ -4,6 +4,31 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, T1 built** (on `claude/ownpace-public-readiness-y7orc6-0170-t1`; the interface pushed
+first, as `1b23bc4`, for T2 to T5). What was built differently from §3 and §5, and why:
+
+- **The managed worker runs passes in `run-delta-sync.ts`, not `runAllDomains`** (§3.2 says both
+  editions use `runAllDomains`; only the appliance does). So the rule is one module,
+  `packages/orchestration/src/recent-window-pass.ts` (`planWindow`, `runWithWindow`), which both
+  dispatchers call, and `apps/worker` gained the calls (`run-delta-sync.ts`, `run-discovery.ts`,
+  and for D8 `run-cutover.ts` and the CLI).
+- **Phase A then phase B per data type, in the same firing**, not every lane's phase A before any
+  phase B. The managed worker gives each data type its own share of the pass's time, and phase B
+  inside that share keeps the share honest; the appliance does the same, so the editions copy in
+  one order (hard rule 5). Mail and the DAV types still run in parallel lanes.
+- **Phase A is owed when the data type's window record is not `in` and its first copy has never
+  completed** (`migration_status.completed_at`), not "the first time a data type is copied" alone:
+  so every migration made before this, and a 90-day migration broadened after its window was in,
+  gets no phase A. A RETRY that clears the record therefore costs no extra window pass.
+- **`RecentOnlySetting.anchor` is optional** in the type: the appliance's mapping file carries
+  `{ "days": 90 }`, and the anchor is written at first record. `planWindow` refuses to run a
+  window without one.
+- **`fileInWindow` holds every directory**, as well as an item with no date (D6).
+- **D8 reaches every door of the switch-over**: the update route (`code: recent_only`), the cutover
+  door, the cutover job, the operator CLI's `approve`, `execute` and `complete`, and the
+  appliance's lane door, all through `recentOnlyIsSwitchedOver` (`lifecycle.ts`).
+- **The appliance's `/status` carries the same `window`** as managed's read, for T5.
+
 **2026-11-24, later still: D8 answered.** The owner, verbatim: *"D8: no, not before"*. A migration
 of only the last 90 days is not switched over before it is broadened to everything: switching over
 follows *Copy everything* and its phase B (§6, §10). T1's refusal is the rule, not a placeholder
@@ -25,9 +50,9 @@ change is expected (§3.4).
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T1 Core engine and contract | builder | 📋 Planned | §3, §5, §6. Merges first. Fixes `ListOptions`, the window predicates, the window record, the 90-day setting in both editions, the revision rule, the API fields. |
-| T2 Mail sources | builder | 📋 Planned | §4.1. IMAP and Gmail `SEARCH SINCE`; Graph mail `$filter`. Builds on T1's interface; may open in parallel against T1's branch. |
-| T3 File sources | builder | 📋 Planned | §4.2. Google Drive `q`; OneDrive, Dropbox, Box, WebDAV and the archive after listing. |
+| T1 Core engine and contract | builder | 🔨 **Built, PR open**: unit, typecheck and lint green; E2E (self-hosted, Postgres and PGlite) and E2E (managed) to be dispatched by the owner | §3, §5, §6. The interface first (`1b23bc4`): `ListOptions`, `recent-window.ts`, `recentOnly`. Then the window in `runDomainSync`, `recent-window-pass.ts` for both dispatchers, discovery, the revision rule, the API (`recentOnly`, `window`, `openapi.yaml`), the appliance's anchor and `/status`, and D8 at every door. No database change. |
+| T2 Mail sources | builder | 🔨 **Built 2026-11-24** | §4.1. IMAP and Gmail: `UID SEARCH SINCE` the UTC day before `since` (an internal date's own date, to UTC-12), then a fetch of those UIDs; a server that refuses the SEARCH has the folder listed whole and the window kept by each message's internal date, the same answer as a server that honours `SINCE`. A window listing's cursor names its window (`since:{ms}:{uidValidity}:{uidNext}`) and is a full scan to a listing without one or with a wider one, so it can never stand in for a content cursor. Graph mail: **no `$filter`**, §11 question 1. `MailSourceWithGraphFallback` and `GmailFolderView` forward `options`. Unit only; the Stalwart proof is T6's. |
+| T3 File sources | builder | 🔨 **Built 2026-11-24** | §4.2. Google Drive asks with `q` and `modifiedTime >= …` when `since` is given; OneDrive, Dropbox, Box, WebDAV and the archive filter after listing with `fileInWindow` (`file-window.ts`), and an archive item with no date is in the window (D6). A windowed listing stays out of the memo `listKeys` reads, and no cursor that claims items before `since` is stored as a content cursor. E2E (self-hosted) on Postgres and PGlite: green before the merge (runs 45487961798, 45488960904). |
 | T4 Calendar sources | builder | 📋 Planned | §4.3. CalDAV `time-range`; Graph calendar before the per-event fetch; the DTSTART parse fixed. |
 | T5 Web UX and guides | builder | 📋 Planned | §7. The choice in *Start a migration*, the 90-day state on the migration page, *Copy everything*, the milestone, copy in English and Dutch, the guides. Dutch reviewed by the owner. |
 | T6 Proofs | builder | 📋 Planned | §8. Integration on Stalwart and Nextcloud, `local-pg.sh`, the appliance's mapping file, and the managed E2E smoke's 90-day case. |
@@ -246,7 +271,7 @@ call, from the code as it stands on `main`:
 |---|---|---|
 | IMAP, and every IMAP account (Soverin, Apple, Cirrux, Infomaniak, IMAP for Microsoft) | `imapflow-source.ts`, `fetchListing`: `fetchAll('1:*', …)` by sequence; date is `internalDate` → `MailItem.receivedAt` | With `since`: `client.search({ since }, { uid: true })`, then `fetchAll(uids, …, { uid: true })`. `SINCE` is by day and ignores the time, so it may return a few extra; the loop drops them. An empty search answers no items and no cursor claim. |
 | Gmail (over IMAP) | `gmail-source-factory.ts`, `GmailFolderView` delegates to `ImapFlowSource` | The same `SEARCH SINCE`, which Gmail honours. No `X-GM-RAW`: one path for every IMAP server. |
-| Microsoft Graph mail | `graph-mail-source.ts`, `listSince`: `GET {scope}/mailFolders/{id}/messages/delta?$select=…` | With `since` and no cursor: add `$filter=receivedDateTime ge {iso}` to the first URL. The deltaLink carries it, so a 90-day migration's window cursor stays within the window. To confirm against Microsoft's documentation in T2: messages delta accepts `receivedDateTime ge` only. `MailSourceWithGraphFallback` forwards `options`. |
+| Microsoft Graph mail | `graph-mail-source.ts`, `listSince`: `GET {scope}/mailFolders/{id}/messages/delta?$select=…` | With `since` and no cursor: add `$filter=receivedDateTime ge {iso}` to the first URL. The deltaLink carries it, so a 90-day migration's window cursor stays within the window. To confirm against Microsoft's documentation in T2: messages delta accepts `receivedDateTime ge` only. `MailSourceWithGraphFallback` forwards `options`. **T2 did not add the `$filter`: a filtered delta lists at most 5,000 messages (§11 question 1).** |
 
 ### 4.2 Files (T3)
 
@@ -486,9 +511,16 @@ Asked 2026-11-24, answered the same day (§1, verbatim).
 
 ## 11. Open questions
 
-1. Whether Graph's messages delta accepts `receivedDateTime ge` in every tenant, including shared
-   mailboxes through `/users/{addr}`. T2 checks against Microsoft's documentation and one real
-   tenant read; if not, Graph mail filters after listing like the file sources.
+1. ✅ **Answered in T2, 2026-11-24: no `$filter` on Graph mail; it filters after listing.**
+   Microsoft's page for messages delta (Microsoft Learn, *message: delta*, v1.0, and *Get
+   incremental changes to messages in a folder*) supports `receivedDateTime ge` and carries it in
+   the nextLink and deltaLink, but also says: *"Applying `$filter` in a delta query returns only
+   up to 5,000 messages."* An Inbox can hold more than that in 90 days, and the rest would never
+   be listed, with nothing to show it. The page also does not mention shared mailboxes; it lists
+   `GET /users/{id}/mailFolders/{id}/messages/delta`, with no difference between delegated and
+   application permissions. So the listing stays whole, its deltaLink is true for any later
+   listing, and the loop sets aside what is older before anything is downloaded. No real tenant
+   read was needed to decide it.
 2. Whether a 90-day migration over CalDAV should also read a sync token, so a deletion at the
    source is reported while it runs. Left out of alpha.19 (§6); asked again after a real run.
 3. ~~D8 (§10).~~ Answered 2026-11-24: (a), no switch-over before *Copy everything*.
