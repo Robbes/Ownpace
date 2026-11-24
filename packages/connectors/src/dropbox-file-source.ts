@@ -34,6 +34,7 @@ import type {
   FileFolder,
   FileItem,
   FileSource,
+  ListOptions,
   RawFileItem,
   SyncCursor,
   TokenProvider,
@@ -58,6 +59,7 @@ import type {
 // beside `MAX_BUFFERED_FILE_BYTES` and re-exports it from here, so this import
 // keeps resolving either way and can be retargeted when that lands.
 import { STREAM_FILES_LARGER_THAN_BYTES } from './webdav-source.ts';
+import { splitByWindow } from './file-window.ts';
 
 /** What the transport hands back — named so `download()` can promise it. */
 type DropboxResponse = Awaited<ReturnType<DropboxTransport>>;
@@ -486,22 +488,34 @@ export class DropboxFileSource implements FileSource {
     }
   }
 
+  /**
+   * The folder's files, metadata only.
+   *
+   * WITH A WINDOW (`options.since`, workplan 0170 §4.2): `list_folder` has no
+   * date filter, so the folder is listed whole and a file modified before
+   * `since` goes back as `unmarked` (`splitByWindow`). Such a listing is kept
+   * out of the `listKeys` memo (`ListOptions`). The cursor is the same
+   * sentinel, never read back.
+   */
   async listSince(
     folder: FileFolder,
     _cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
+    options?: ListOptions,
+  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor; unmarked?: ReadonlyArray<RawFileItem> }> {
     const apiPath = folder.path === '' ? this.rootPath : `${this.rootPath}/${folder.path}`;
-    const items: RawFileItem[] = [];
+    const listed: RawFileItem[] = [];
     for (const entry of await this.listAll(apiPath)) {
       if (entry['.tag'] !== 'file') continue;
       const item = this.toFileItem(entry);
-      if (item) items.push({ item });
+      if (item) listed.push({ item });
     }
     // For `listKeys`, asked immediately after for the same folder — same
-    // listing, so the two cannot disagree about what is there.
-    this.lastListing = { path: folder.path, keys: items.map((i) => i.item.path) };
+    // listing, so the two cannot disagree about what is there. Never under a
+    // window (`ListOptions`), and cleared then, so no earlier memo answers.
+    this.lastListing =
+      options?.since === undefined ? { path: folder.path, keys: listed.map((i) => i.item.path) } : undefined;
     return {
-      items,
+      ...splitByWindow(listed, options?.since),
       // Deliberately not a delta token (see the module comment).
       nextCursor: { value: `full-listing:${folder.path}` },
     };
