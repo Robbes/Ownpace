@@ -2050,6 +2050,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             // well as by category (workplan 0150 D9). Managed reads its
             // connection's kind; both say `dropbox` for Dropbox.
             sourceKind: m.config.source.type,
+            // And the destination's (workplan 0160, T2b), by the same rule.
+            targetKind: m.config.target.type,
           };
         }
         return sendJson(res, 200, out);

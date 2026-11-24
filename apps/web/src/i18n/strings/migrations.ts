@@ -296,6 +296,11 @@ export const en = {
   // about passwords.
   'failure.authExpired':
     'The connection to this account has expired. On the Accounts page, press Reconnect or Replace credentials, whichever its row shows, and this will carry on from where it stopped \u2014 nothing is lost.',
+  // A Cirrux account's FILES (workplan 0160, T2b): they fail on its Drive
+  // sign-in, and its row's button for that is Connect Cirrux Drive, by the
+  // words on it (`account.cirrux.connect`), not either of the two above.
+  'failure.authExpired.cirruxDrive':
+    'Cirrux Drive is not connected to this account. On the Accounts page, press Connect Cirrux Drive on its row, and the files carry on from where they stopped.',
   // The link after that sentence, to the Accounts page it names.
   'failure.openAccounts': 'Open Accounts',
   'failure.rateLimited':
@@ -370,6 +375,12 @@ export const en = {
   // store (Nextcloud refuses `.htaccess`) can come from any source.
   'failure.formatRefused':
     'The destination will not accept this KIND of file. The account itself is fine \u2014 it is this file\u2019s format or name that is not allowed there. Rename it in the old account, change the export format on the mapping, or leave these items behind.',
+  // The same category on a CIRRUX account (workplan 0160, T2b), where it is
+  // only ever a name: Cirrux takes any kind of file, counts no capitals or
+  // accents, and refuses a few names. The owner read `target_refused`'s
+  // sentence over a capitals clash, naming causes that were none of them.
+  'failure.formatRefused.cirrux':
+    'Not migrated: Cirrux Drive will not store it under this name. A file there may have the same name in other capitals or accents, or Cirrux refuses the name itself. Rename one of them, then press Try again, or leave it behind.',
   'failure.network':
     'We could not reach the server. This is usually brief, and it retries by itself.',
   // The one whose text must carry the way OUT of self-service.
@@ -682,6 +693,8 @@ export const nl: Record<keyof typeof en, string> = {
   'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
   'failure.authExpired':
     'De verbinding met dit account is verlopen. Druk op de pagina Accounts op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna wordt verdergegaan waar gestopt was \u2014 er gaat niets verloren.',
+  'failure.authExpired.cirruxDrive':
+    'Cirrux Drive is niet verbonden met dit account. Druk op de pagina Accounts bij dit account op Cirrux Drive verbinden; daarna gaan de bestanden verder waar ze gestopt waren.',
   'failure.openAccounts': 'Naar Accounts',
   'failure.rateLimited':
     'De aanbieder vroeg ons (automatisch) om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
@@ -701,6 +714,8 @@ export const nl: Record<keyof typeof en, string> = {
     'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: geen vrije ruimte meer, een grens aan de grootte van één geüpload bestand, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Als de doelserver antwoord gaf met een interne fout, dan kan die terug worden gelezen in het logboek van de bestemming zelf, niet in het antwoord dat wij terugkregen.',
   'failure.formatRefused':
     'De bestemming accepteert dit SOORT bestand niet. Met het account zelf is niets mis \u2014 het is de indeling of de naam van dit bestand die daar niet is toegestaan. Geef het in het oude account een andere naam, wijzig het exportformaat op de koppeling, of laat deze items achter.',
+  'failure.formatRefused.cirrux':
+    'Niet gemigreerd: Cirrux Drive slaat het onder deze naam niet op. Er staat daar misschien een bestand met dezelfde naam in andere hoofdletters of accenten, of Cirrux weigert de naam zelf. Geef een van beide een andere naam en klik daarna op Probeer opnieuw, of laat het achter.',
   'failure.network':
     'We konden de server niet bereiken. Dit is meestal tijdelijk, en er wordt vanzelf opnieuw geprobeerd.',
   'failure.unknown':

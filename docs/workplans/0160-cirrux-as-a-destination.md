@@ -4,6 +4,24 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, later: T2b's four screen findings fixed, for alpha.20** (the owner: *"alpha.20
+(advice): yes on all"*). (1) The capitals clash, a folder name taken by a file and a name Cirrux
+refuses are `format_refused`, a name the destination will not store, and on a Cirrux migration
+the Failures page reads `failure.formatRefused.cirrux` instead of `target_refused`'s list of
+causes. The *missing copy* no longer fails at all (4). (2) *Live progress* on a Cirrux account's
+files reads `failure.authExpired.cirruxDrive`, naming **Connect Cirrux Drive**, unless the pass
+placed the failure at the source; the remedy is chosen by `remedyKey` from the destination's
+kind, which the failure queue now serves as `targetKind`. (3) A delete pressed, or a receipt
+refused, while deleting by hand is off says so in the reader's words and, on managed, points at
+*Turn on deleting by hand* above; it showed the appliance's `allowApplyDeletions: true` advice.
+(4) The counting: a replace that found its copy deleted in Cirrux for good threw, and the
+ledger's `recordFailure` turned the copied row into a failed one, so the strip counted no copy
+and one failure more (*0 of ~3*, and *3 failed* beside *2 could not be copied*). The writer
+answers `goneFromTarget` now (0168 B2): the row is left as it was, and verification reports the
+copy missing. Not changed: the *~3* and *~175.3 MB* totals are discovery's snapshot, which still
+counts the file removed since (0154 T2, *About is literal*). Not proven on the test environment
+yet.
+
 **2026-11-24: T2b, the owner's live Drive test, on the test environment: every step ran, and
 none of §6's readings was proven wrong** (§6b; T4 for the file face). The OTA client arrived from
 Cirrux with a client secret beside the ID; the secret is set nowhere, since this service is a

@@ -5267,7 +5267,11 @@ paths:
         connection's kind: `dropbox`, `google`, …), because a remedy is chosen
         by source as well as by category: a Dropbox Paper doc is
         `policy_refused`, and Drive's sentence for that names a setting
-        Dropbox does not have (workplan 0150 D9).
+        Dropbox does not have (workplan 0150 D9). It names the destination
+        too (`targetKind`, the target connection's kind), because a Cirrux
+        account's `format_refused` is a name Cirrux will not store, and its
+        files' `auth_expired` is renewed with Connect Cirrux Drive (workplan
+        0160, T2b).
       responses:
         '200':
           description: The failure queue.

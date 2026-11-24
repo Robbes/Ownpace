@@ -430,31 +430,83 @@ describe('the apply button itself', () => {
     expect(await screen.findByText('Removed from the target.')).toBeInTheDocument();
   });
 
-  it("shows the server's refusal in its own words rather than an error", async () => {
-    fetchDeletions.mockResolvedValue(
-      queue({ confirmed: [deletion({ naturalKeyHash: 'h2' })] }),
-    );
-    // The gates the UI cannot see live on the server, so a refusal is a normal
-    // outcome here. What must survive is the reason: "not enabled" and "the
-    // target copy was edited" call for completely different responses from an
-    // operator, and a generic failure message tells them neither.
-    applyDeletion.mockRejectedValue(
-      new DecisionRefusedError(
-        {
-          error: 'not_enabled',
-          reason: 'This mapping does not have allowApplyDeletions set.',
-        },
-        403,
-      ),
-    );
+  /**
+   * DELETING BY HAND IS OFF, SAID TO A MANAGED OWNER (workplan 0160, T2b).
+   * This showed the server's sentence, written for the appliance: *"Set
+   * `allowApplyDeletions: true` in its config to enable it"*, on a managed
+   * screen whose owner has no config file and a switch right above. The
+   * refusal is said by its code now, with what this reader can do.
+   */
+  const SERVER_SENTENCE =
+    'Removing items from the target is switched off for this mapping. Set ' +
+    '`allowApplyDeletions: true` in its config to enable it, and read the runbook first.';
+
+  it('says deleting by hand is off, and that the switch above turns it on, never the config file', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h2' })] }));
+    applyDeletion.mockRejectedValue(new DecisionRefusedError({ error: 'not_enabled', reason: SERVER_SENTENCE }, 403));
     renderScreen();
 
     fireEvent.click(await screen.findByText('Delete it here too'));
     fireEvent.click(screen.getByText('Confirm delete'));
 
     expect(
-      await screen.findByText('This mapping does not have allowApplyDeletions set.'),
+      await screen.findByText(
+        'Deleting by hand is off for this migration, so it was not deleted. To delete it, first press Turn on deleting by hand above.',
+      ),
     ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/allowApplyDeletions|in its config/);
+  });
+
+  it('says the same in Dutch', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h2' })] }));
+    applyDeletion.mockRejectedValue(new DecisionRefusedError({ error: 'not_enabled', reason: SERVER_SENTENCE }, 403));
+    renderDutch();
+
+    fireEvent.click(await screen.findByText('Verwijder het hier ook'));
+    fireEvent.click(screen.getByText(STRINGS.nl['deletions.applyArmed']));
+
+    expect(
+      await screen.findByText(
+        'Handmatig verwijderen staat uit voor deze migratie, dus het is niet verwijderd. Om het te verwijderen, drukt u eerst hierboven op Handmatig verwijderen inschakelen.',
+      ),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/allowApplyDeletions/);
+  });
+
+  it('says a receipt the job refused for the same reason in the same words', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h3' })] }));
+    applyDeletion.mockResolvedValue({
+      mode: 'queued',
+      receipt: {
+        state: 'refused',
+        requestedAt: '2026-11-24T10:00:00Z',
+        finishedAt: '2026-11-24T10:00:01Z',
+        code: 'not_enabled',
+        reason: SERVER_SENTENCE,
+      },
+    });
+    renderScreen();
+
+    fireEvent.click(await screen.findByText('Delete it here too'));
+    fireEvent.click(screen.getByText('Confirm delete'));
+
+    expect(await screen.findByText(/To delete it, first press Turn on deleting by hand above\./)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/allowApplyDeletions/);
+  });
+
+  it("keeps the server's own words for a refusal this page has no words for", async () => {
+    // The gates the UI cannot see live on the server, so a refusal is a normal
+    // outcome here, and its reason must survive rather than a generic failure.
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h4' })] }));
+    applyDeletion.mockRejectedValue(
+      new DecisionRefusedError({ error: 'a_gate_from_later', reason: 'A gate this page does not know yet.' }, 403),
+    );
+    renderScreen();
+
+    fireEvent.click(await screen.findByText('Delete it here too'));
+    fireEvent.click(screen.getByText('Confirm delete'));
+
+    expect(await screen.findByText('A gate this page does not know yet.')).toBeInTheDocument();
   });
 });
 

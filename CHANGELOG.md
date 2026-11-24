@@ -73,6 +73,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Four screen findings from the owner's live Cirrux Drive test** (workplan 0160, T2b; the
+  owner, 2026-11-24: *"alpha.20 (advice): yes on all"*). A file refused because Cirrux Drive
+  already holds one whose name differs only in capitals or accents, or whose name Cirrux refuses,
+  is `format_refused` now, a name the destination will not store, and on a Cirrux migration the
+  Failures page says so in Cirrux's terms instead of *"The destination refused to accept
+  this. Common causes are no space left…"*. After *Disconnect Cirrux Drive*, *Live progress*
+  names the row's own button, **Connect Cirrux Drive**, where it said *Reconnect or Replace
+  credentials*. A delete pressed while deleting by hand is off says so in the reader's words and
+  points at the switch above, where it showed the appliance's *"Set `allowApplyDeletions: true`
+  in its config"*. And a changed file whose copy was deleted in Cirrux Drive for good is
+  reported as gone from the target (workplan 0168 B2), not thrown: the throw made the copied row
+  a failed one, so *Live progress* stopped counting the copy and counted a failure more. The
+  failure queue names the destination's kind (`targetKind`) beside its source's.
 - **Text that still described Trigger.dev in the present tense** (workplan 0167, after T9). Code
   comments in the API, the worker, the packages and the deploy scripts now say what runs since
   alpha.18 (pg-boss, in the `worker` service) and no longer point at files T9 removed, and the
