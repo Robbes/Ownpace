@@ -347,15 +347,16 @@ export const SHARE_REFUSAL = {
     en: "The new system's certificate did not verify for its name, or has expired, so nothing was shared.",
     nl: 'Het certificaat van het nieuwe systeem kwam niet overeen met de naam of is verlopen, dus er is niets gedeeld.',
   },
+  // Nothing of what is inside this service (the owner, 2026-11-24): the same
+  // two sentences as the Test answer, about the new system's address, and
+  // where to change it.
   insideOurNetwork: {
     en:
-      "The new system's address is inside this service's own network, or the server sent the request on " +
-      'to one that is, so we did not connect to it and nothing was shared. Give the address the server has ' +
-      'on the internet, on the Accounts page.',
+      "We did not connect to the new system's address, so nothing was shared. On the Accounts page, " +
+      'enter an internet address of the server.',
     nl:
-      'Het adres van het nieuwe systeem ligt binnen het eigen netwerk van deze dienst, of de server stuurde ' +
-      'het verzoek door naar een adres dat daar ligt: er is geen verbinding gemaakt en niets gedeeld. ' +
-      'Gebruik op de pagina Accounts het adres dat de server op internet heeft.',
+      'Geen verbinding gemaakt met het adres van het nieuwe systeem, dus er is niets gedeeld. Vul op de ' +
+      'pagina Accounts een internetadres van de server in.',
   },
   noOrigin: {
     en:

@@ -4,8 +4,44 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, build: the Test answer and the sharing refusal say less, and the OTA stack keeps names
+of its own.** On the branch `claude/ownpace-public-readiness-y7orc6-neutral-refusals`, for alpha.19;
+merged as #2110 on 2026-11-24 at about 13:15 UTC (`aaccdfcb`). Asked whether the **Test** answer on Accounts and the sharing checklist's refusal should
+say less too, as the failure line now does (the entry below), the owner answered *"yes, follow-up"*,
+and then: *"merge when green, no need to show me. But do please note that in OTA/test we need to keep
+being able to add the internal addressess."*
+
+- The Test answer (`probe-answer.ts`, and the web's `probe.said.insideOurNetwork`): *"We did not
+  connect to that address. Enter an internet address of the server."*, in Dutch *"Geen verbinding
+  gemaakt met dat adres. Vul een internetadres van de server in."*, the Dutch the owner was shown.
+  The outcome code stays `insideOurNetwork`, and the reference still ends the sentence.
+- The sharing checklist's refusal (`share-refusals.ts`): *"We did not connect to the new system's
+  address, so nothing was shared. On the Accounts page, enter an internet address of the server."*,
+  in Dutch *"Geen verbinding gemaakt met het adres van het nieuwe systeem, dus er is niets gedeeld.
+  Vul op de pagina Accounts een internetadres van de server in."* The owner was shown the two
+  sentences without *dus er is niets gedeeld* and *op de pagina Accounts*; both are kept because
+  every other refusal on the checklist says whether anything was shared and where the address is
+  changed.
+- OTA and test: `OWNPACE_REACHABLE_HOSTS` may list a test server on a private network beside the
+  demo's two, by a name the stack resolves; an address is never admitted by the list. The demo phase
+  keeps every name it finds, and the gate's persist step (#2105) writes the whole list back, so a
+  name added by hand stays. Live's list stays empty, as `stand-up-live.sh` and `deploy-live.sh`
+  require. Written down in `docs/managed-bring-up.md` (the `.env` reference, the demo phase, the
+  rule, and the troubleshooting row) and in `managed.env.example`.
+
+Guards: `share-refusals.unit.test.ts` (the sentence in both languages, and no word for a network,
+inside or internal in either), `probe-answer.unit.test.ts` (the same for the Test answer),
+`a-probe-that-does-not-read-aloud.unit.test.ts`, `an-answer-a-dutch-tester-read-in-english.unit.test.ts`
+and `Connections.unit.test.tsx`; and `scripts/demo-hosts-persisted.unit.test.ts`, which runs the
+gate's restore step, the demo phase's `admit_demo_hosts` and the persist step in that order, twice,
+finds the hand-added name and the demo's two in the persisted `.env`, and checks that the Fill step
+never names the key and that Compose reads it with a default. No E2E: the change is sentences, docs
+and tests, and the smoke reads none of these sentences.
+
 **2026-11-24, build: the rule's refusal has a failure category of its own, `internal_address`.** On
-the branch `claude/ownpace-public-readiness-y7orc6-internal-address`, for alpha.19; not merged. On
+the branch `claude/ownpace-public-readiness-y7orc6-internal-address`, for alpha.19, merged as #2107
+on 2026-11-24 at about 12:28 UTC (`560875f0`), after CI and E2E (managed) run 45390173330, E2E
+(self-hosted) on Postgres run 45391192540 and on PGlite run 45392130524 were green on its head. On
 the OTA test environment a Dropbox → Nextcloud migration's files were refused by T1's rule, and the
 screen read *"We could not classify this one. The provider's own message is below — if it does not
 help, send it to us and we will look. It happened at the destination. Send it to us."* above the
@@ -35,7 +71,8 @@ on the account. The owner, the same day: *"yes, build the classification fix"*.
   redirect named, so the failure is always answered *"We did not connect to this address."*
   (`NOT_CONNECTED`), which names no host and nothing inside this service, whichever side and
   whatever the source. The **Test** answer on Accounts and the sharing checklist's refusal keep
-  0136's sentence for now; whether they say less too is put to the owner.
+  0136's sentence for now; whether they say less too is put to the owner (they do: the entry
+  above).
 - The column is `text` with no CHECK (migration 0033), so no schema change. 0048, 0049 and 0051's
   COMMENTs list the categories and no test requires them to name every one; they were not
   updated for `too_large` either, and no migration was added.
@@ -46,7 +83,8 @@ undici's `fetch failed`, not overwritten, not matched from prose, through `tenan
 `reachableHost` with the rule on), `packages/core/src/a-destination-inside-our-network.unit.test.ts`
 (the owner's case: a real WebDAV target writer, refused, is `internal_address` on the target side
 and would have been `unknown`), and cases added to `failure-category`, `a-migration-that-cannot-succeed`,
-`failure-answer`, `LiveProgress` and `mail-source-with-graph-fallback`. E2E (managed) is not yet run.
+`failure-answer`, `LiveProgress` and `mail-source-with-graph-fallback`. The E2E runs are named at the
+top of this entry.
 
 **2026-11-15, records: #1915 merged, and live's registry on a network of its own since alpha.9's
 deploy (T3, T4).** Docs only, on the branch
@@ -953,7 +991,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 | T1 Refuse internal addresses after DNS, on every connection and every redirect | ✅ **done**, merged 2026-09-27: (a)'s three slices (the rule, #1216; every client of a tenant's host going through it, #1223; the rule switched on in the managed API and tasks, #1230) and (b) (the bring-up's network check, #1224); the refusal's Dutch came with T3's screens, merged as #1234; advised before the first invitation (D1) — *was:* 🔨 **Built 2026-09-27**, the third slice not merged | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | ✅ **done** in #1230, merged 2026-09-27 (`55ee81c8`), with T1 (a)'s third slice; read empty on live, in its `.env` and API container, 2026-10-29 (Status, 2026-10-31); `deploy-live.sh` refuses live's `.env` when the list names a host, at every deploy after the one to a tag carrying that refusal (#1752, merged 2026-10-31, `fca784f7`; Status, 2026-10-31; *was:* built on branch `claude/ownpace-public-readiness-y7orc6-deploy-live-alpha-refusals`, not merged) — *was:* 🔨 **Built 2026-09-27** with T1 (a)'s third slice, not merged; 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | ✅ **done**: the answer merged as #1227, the limit as #1228, the screens' half as #1234; the second step (the failures a pass records in our words on the failures queue and the routes beside it, the Check page's report and the apply receipts among them) in #1499, merged 2026-10-05 (`59f04be1`); a share's refusal on apply, in our words in English and Dutch, in #1606, merged 2026-10-16 (`1fc3c0bd`); the Sharing page says a folder press's refused rows, under the folder and in each row, in #1645, merged 2026-10-21 (`f04ec785`) — *was:* the share's refusal on apply not yet (Status, 2026-10-05); the second step 🔨 built 2026-10-05, not merged; the failures route to come; 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
-| T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation; its first bullet, the socket proxy on a network only the supervisor shares, with its guard, ✅ **merged** as #1784 on 2026-11-02 (`2cae9602`), after E2E (managed) run 41408096908 was green on its head (Status, 2026-11-02, records); the registry on a network nothing else shares, with its guard rules, ✅ **merged** as #1902 on 2026-11-14 (`5bb9efcf`), on the owner's word, after E2E (managed) run 43636503225 was green on its head (Status, 2026-11-14, records) — *was:* the registry 🔨 built 2026-11-14 on branch `claude/ownpace-public-readiness-y7orc6-registry-network`, not merged (2026-11-14); its first bullet 🔨 built 2026-11-02 on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged (2026-11-02) | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
+| T4 The API and the task runners off the control plane's network | ⛔ **Moot 2026-11-23**: both parts merged (#1784, #1902), and the control plane itself was removed for alpha.18 by 0167 T9, merged as #2083 on 2026-11-23 at about 16:25 UTC (`a10b2c24`) — *was:* 📋 **Proposed**, after the first invitation; its first bullet, the socket proxy on a network only the supervisor shares, with its guard, ✅ **merged** as #1784 on 2026-11-02 (`2cae9602`), after E2E (managed) run 41408096908 was green on its head (Status, 2026-11-02, records); the registry on a network nothing else shares, with its guard rules, ✅ **merged** as #1902 on 2026-11-14 (`5bb9efcf`), on the owner's word, after E2E (managed) run 43636503225 was green on its head (Status, 2026-11-14, records) — *was:* the registry 🔨 built 2026-11-14 on branch `claude/ownpace-public-readiness-y7orc6-registry-network`, not merged (2026-11-14); its first bullet 🔨 built 2026-11-02 on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged (2026-11-02) | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | ✅ **done** in #1175, merged 2026-09-25; before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
 | T6 Guard tests for each | ✅ **(a) with each task** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step with its guard and 38 mutations merged as #1499 (2026-10-05); T3's share refusal with `a-share-refused-in-our-words` and 15 mutations merged as #1606 (2026-10-16); the folder press's refused rows with 13 cases and 20 mutations merged as #1645 (2026-10-21); T4's first bullet with `a-network-the-tenant-cannot-see` (37 tests; 12 mutations of the file on disk, and `main`'s file, each failed it) merged as #1784 on 2026-11-02 (`2cae9602`); T4's registry adds 31 tests to it (20 mutations and 6 tenant-facing services, each failing it; 8 mutations of the file on disk, and `main`'s file, each failed it), merged as #1902 on 2026-11-14 (`5bb9efcf`) — *was:* T4's registry on branch `claude/ownpace-public-readiness-y7orc6-registry-network`, not merged (2026-11-14); T4's first bullet on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged (2026-11-02); T3's second step and share refusal not merged; #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | ✅ **done** in #1499, merged 2026-10-05 (`59f04be1`), with T3's second step: `solution-architecture.md` v1.14 and `SECURITY.md` (Status block) — *was:* 🔨 **Built 2026-10-05** on T3's second step's branch, not merged; 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |

@@ -70,6 +70,7 @@ export const REVISABLE_FIELDS = [
   'target.type',
   'target.account',
   'target.folderPrefix',
+  'recentOnly',
 ] as const;
 
 export type RevisableField = (typeof REVISABLE_FIELDS)[number];
@@ -95,6 +96,12 @@ interface Rule {
   readonly field: RevisableField;
   readonly verdict: RevisionVerdict;
   /**
+   * Allowed only when the change BROADENS (workplan 0170 §5.3): asked through
+   * `RevisionFacts.recentOnly`, and `verdict` is the answer every other
+   * direction gets, a caller that cannot say included.
+   */
+  readonly broadening?: RevisionVerdict;
+  /**
    * Refused only once the migration has copied something (0153 open question
    * 5, item 4). Before that nothing sits outside the new value, so the reason
    * the row gives is not yet true. Asked through `RevisionFacts`; a caller
@@ -110,6 +117,12 @@ interface Rule {
 export interface RevisionFacts {
   /** Whether its ledger holds an item. Absent means it may. */
   readonly copiedAnything?: boolean;
+  /**
+   * Which way `recentOnly` moves (workplan 0170 §5.3): from the last 90 days
+   * to everything, or from everything to the last 90 days. Absent is read as
+   * narrowing, the direction that is refused.
+   */
+  readonly recentOnly?: 'broadening' | 'narrowing';
 }
 
 const RULES: ReadonlyArray<Rule> = [
@@ -266,6 +279,33 @@ const RULES: ReadonlyArray<Rule> = [
         'is there. To copy into another folder, start a new migration.',
     },
   },
+  {
+    /**
+     * ONLY THE LAST 90 DAYS, ONE WAY (workplan 0170 §5.3, the owner's D2:
+     * *"One should be able to broaden the migration from 'only 90 days' to
+     * 'all'. We dont do the other way around"*).
+     *
+     * Broadening needs nothing of the ledger: phase A wrote no content cursor
+     * and a 90-day migration kept its own apart, so the next pass of each
+     * windowed data type lists in full and copies the older items beside what
+     * is there. Narrowing would leave copied items outside the window with
+     * nothing to say whether they are still wanted, the root folder's
+     * problem, and is refused whether or not anything was copied.
+     */
+    field: 'recentOnly',
+    broadening: {
+      allowed: true,
+      consequence: 'The older items are copied next; what is already there stays.',
+    },
+    verdict: {
+      allowed: false,
+      reason:
+        'A migration of everything cannot be changed to only the last 90 days: what it has ' +
+        'copied from before them would sit outside it, with nothing recording whether it is ' +
+        'still wanted. To try a destination with the last 90 days, start a new migration ' +
+        'and choose Only the last 90 days.',
+    },
+  },
 ];
 
 /**
@@ -292,6 +332,7 @@ export function mayRevise(field: RevisableField, facts: RevisionFacts = {}): Rev
   // Only a caller that KNOWS nothing was copied is let through: `undefined`
   // is the appliance's comparison, which cannot say, and keeps its refusal.
   if (rule.onceCopied && facts.copiedAnything === false) return { allowed: true };
+  if (rule.broadening && facts.recentOnly === 'broadening') return rule.broadening;
   return rule.verdict;
 }
 
@@ -358,6 +399,9 @@ export interface RevisionComparison {
   }>;
 }
 
+/** What a snapshot records for a 90-day migration, and how a refusal names it. */
+export const RECENT_ONLY_SNAPSHOT = 'only the last 90 days';
+
 /** How an absent value reads in a refusal, so "gone" never prints as nothing. */
 const NOT_DECLARED = '(not set)';
 
@@ -380,13 +424,19 @@ export function compareRevision(
 ): RevisionComparison {
   if (previous === undefined) return { firstRecord: true, changed: [], refusals: [] };
   const changed = REVISABLE_FIELDS.filter((f) => previous[f] !== current[f]);
+  // The one field whose answer depends on its direction: a value dropped is
+  // the 90-day setting taken away, which broadens (workplan 0170 §5.3).
+  const facts: RevisionFacts = {
+    recentOnly:
+      previous.recentOnly !== undefined && current.recentOnly === undefined ? 'broadening' : 'narrowing',
+  };
   return {
     firstRecord: false,
     changed,
     // `refusalsFor` is the one place that decides WHICH changes are refused;
     // this only adds what each one was and is, so an operator reading the
     // refusal does not have to go and diff the file themselves.
-    refusals: refusalsFor(changed).map((r) => ({
+    refusals: refusalsFor(changed, facts).map((r) => ({
       field: r.field,
       from: previous[r.field] ?? NOT_DECLARED,
       to: current[r.field] ?? NOT_DECLARED,
@@ -421,6 +471,7 @@ export function revisionSnapshotOf(config: {
     readonly nativeFilePolicies?: NativeFilePolicies | DropboxNativeFilePolicies | undefined;
   };
   readonly target: { readonly type: string; readonly user?: unknown };
+  readonly recentOnly?: unknown;
 }): RevisionSnapshot {
   // Declared optional-and-`unknown` rather than narrowed here: every config
   // union member satisfies it (a member without the field simply has it
@@ -430,6 +481,9 @@ export function revisionSnapshotOf(config: {
   // asked that.
   const { source, target } = config;
   return {
+    // Whether, never its anchor: the appliance writes the anchor itself after
+    // the first record, and that is not a change (workplan 0170 §5.4).
+    ...(config.recentOnly !== undefined ? { recentOnly: RECENT_ONLY_SNAPSHOT } : {}),
     'source.type': source.type,
     'target.type': target.type,
     ...('rootFolderId' in source && typeof source.rootFolderId === 'string'

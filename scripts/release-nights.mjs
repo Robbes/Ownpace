@@ -245,6 +245,10 @@ export const WAIVER_VERSIONS = [
   'v0.2.0-alpha.17',
   // The owner, 2026-11-23: "ill waive the waiting for alpha 18, also the 3day limit for LCM, so we could take newer verrsion more early."
   'v0.2.0-alpha.18',
+  // The owner, 2026-11-24: "I waive all waiting/days, try to get it in the upcomming alpha we are still working on." Asked whether those words are alpha.19's waiver: "I waive all waiting/days: yes".
+  'v0.2.0-alpha.19',
+  // The owner, 2026-11-24: "for 20 i also waive al waiting/days."
+  'v0.2.0-alpha.20',
 ];
 /** A GitHub login, as GITHUB_ACTOR gives it; an app's bot ends in `[bot]`. */
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}(?:\[bot\])?$/;
