@@ -229,7 +229,7 @@ the tag pushed by hand for that case, so the order above holds.
 
 **Which versions.** Only those in `WAIVER_VERSIONS` in
 `scripts/release-nights.mjs`, each there with the owner's words and the day:
-today `v0.2.0-alpha.3`, `v0.2.0-alpha.4`, `v0.2.0-alpha.5`, `v0.2.0-alpha.6`, `v0.2.0-alpha.7`, `v0.2.0-alpha.8`, `v0.2.0-alpha.9`, `v0.2.0-alpha.10`, `v0.2.0-alpha.11`, `v0.2.0-alpha.12`, `v0.2.0-alpha.13`, `v0.2.0-alpha.14`, `v0.2.0-alpha.15`, `v0.2.0-alpha.16`, `v0.2.0-alpha.17` and `v0.2.0-alpha.18`. A waiver for any other version is refused. The
+today `v0.2.0-alpha.3`, `v0.2.0-alpha.4`, `v0.2.0-alpha.5`, `v0.2.0-alpha.6`, `v0.2.0-alpha.7`, `v0.2.0-alpha.8`, `v0.2.0-alpha.9`, `v0.2.0-alpha.10`, `v0.2.0-alpha.11`, `v0.2.0-alpha.12`, `v0.2.0-alpha.13`, `v0.2.0-alpha.14`, `v0.2.0-alpha.15`, `v0.2.0-alpha.16`, `v0.2.0-alpha.17`, `v0.2.0-alpha.18` and `v0.2.0-alpha.19`. A waiver for any other version is refused. The
 next one is a pull request that adds its version there, quoting the owner,
 merged before the dispatch; the guard holds that each is a pre-release.
 
