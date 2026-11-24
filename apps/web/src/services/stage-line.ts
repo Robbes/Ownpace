@@ -45,7 +45,14 @@ import { bytesOfAbout, progressTotals } from './progress-totals.ts';
 /** What a line's sentence reads of a row: its counts and its last pass. */
 export type LineRow = Pick<
   DomainProgress,
-  'domain' | 'itemsSynced' | 'itemsFound' | 'itemsAdopted' | 'bytesTransferred' | 'bytesFound' | 'lastSyncedAt'
+  | 'domain'
+  | 'itemsSynced'
+  | 'itemsFound'
+  | 'itemsAdopted'
+  | 'bytesTransferred'
+  | 'bytesFound'
+  | 'lastSyncedAt'
+  | 'listedButEmpty'
 >;
 
 /**
@@ -89,6 +96,8 @@ export type LinePart =
   | { readonly kind: 'bytesOfAbout'; readonly done: string; readonly total: string }
   | { readonly kind: 'totalNotKnown'; readonly done: number }
   | { readonly kind: 'noneFound' }
+  /** Calendars found and no event read from them: said in amber, never as *none found* (`listedButEmpty`). */
+  | { readonly kind: 'listedButEmpty'; readonly count: number }
   | { readonly kind: 'leftAsIs'; readonly count: number }
   | { readonly kind: 'lastPass'; readonly at: string }
   | { readonly kind: 'checkPassed'; readonly at: string };
@@ -96,6 +105,7 @@ export type LinePart =
 /** How far it is: the bytes for files when both sides were measured, the items otherwise. */
 function countPart(row: LineRow | undefined, locale: Locale): LinePart | undefined {
   if (!row) return undefined;
+  if (row.listedButEmpty !== undefined) return { kind: 'listedButEmpty', count: row.listedButEmpty };
   if (row.domain === 'file') {
     const bytes = bytesOfAbout(row, locale);
     if (bytes) return { kind: 'bytesOfAbout', done: bytes.done, total: bytes.total };

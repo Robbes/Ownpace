@@ -1,232 +1,116 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * Graph Calendar Source Types
- * 
- * Types for Microsoft Graph Calendar API implementation.
- * Follows Microsoft Graph API v1.0 for calendar synchronization.
+ * Microsoft Graph's calendar resources, as v1.0 documents them.
+ *
+ * Only the fields `graph-calendar-source.ts` reads, each optional unless
+ * Graph always sends it: a `$select` names what is asked for, and Graph's own
+ * pages mark most of them nullable.
+ *
+ * - calendar: https://learn.microsoft.com/en-us/graph/api/resources/calendar?view=graph-rest-1.0
+ * - event: https://learn.microsoft.com/en-us/graph/api/resources/event?view=graph-rest-1.0
  */
 
-/**
- * Configuration for Graph Calendar source connection.
- */
-export interface GraphCalendarSourceConfig {
-  /** Microsoft Graph API base URL (default: https://graph.microsoft.com/v1.0) */
-  baseUrl?: string;
-  /** Azure AD tenant ID */
-  tenantId: string;
-}
+import type { GraphDateTimeTimeZone, GraphRecurrencePattern, GraphRecurrenceRange } from './graph-todo-source.types.ts';
 
-/**
- * Microsoft Graph calendar object.
- */
+/** A calendar — `GET {scope}/calendars`. */
 export interface GraphCalendar {
-  /** The calendar ID */
   readonly id: string;
-  /** Display name of the calendar */
   readonly name: string;
-  /** Default calendar flag */
-  readonly isDefaultCalendar: boolean;
-  /** Change key for optimistic concurrency */
-  readonly changeKey: string;
-  /** Calendar color */
+  readonly isDefaultCalendar?: boolean;
+  readonly changeKey?: string;
   readonly color?: string;
-  /** Hex color code */
   readonly hexColor?: string;
-  /** Is shared calendar flag */
-  readonly isShared?: boolean;
-  /** Can be shared flag */
+  /** `false` for a calendar the user may only read: a subscribed one, a holiday calendar, one shared read-only. */
+  readonly canEdit?: boolean;
   readonly canShare?: boolean;
-  /** Can read/write items flag */
-  readonly canViewOnly?: boolean;
+  readonly isRemovable?: boolean;
+  readonly isSharedWithMe?: boolean;
 }
 
-/**
- * Microsoft Graph event object (metadata only).
- */
+export interface GraphEventAddress {
+  readonly name?: string;
+  readonly address?: string;
+}
+
+export interface GraphAttendee {
+  readonly type?: 'required' | 'optional' | 'resource';
+  readonly status?: {
+    readonly response?: 'none' | 'organizer' | 'tentativelyAccepted' | 'accepted' | 'declined' | 'notResponded';
+    readonly time?: string;
+  };
+  readonly emailAddress?: GraphEventAddress;
+}
+
+export interface GraphLocation {
+  readonly displayName?: string;
+  readonly address?: {
+    readonly street?: string;
+    readonly city?: string;
+    readonly state?: string;
+    readonly countryOrRegion?: string;
+    readonly postalCode?: string;
+  };
+}
+
+/** An event — a series master, a single event, or one of a series' exceptions. */
 export interface GraphEvent {
-  /** The event ID */
   readonly id: string;
+  /**
+   * "A unique identifier for an event across calendars. This ID is different
+   * for each occurrence in a recurring series." So the series master's is the
+   * UID of the whole series, and an exception's is not used.
+   */
+  readonly iCalUId?: string;
   /** The item's version: it changes every time the event does (`graphItemVersion`). */
   readonly changeKey?: string;
-  /** The same validator as a weak ETag. */
   readonly '@odata.etag'?: string;
+  readonly createdDateTime?: string;
   readonly lastModifiedDateTime?: string;
-  /** Event subject/title */
-  readonly subject: string;
-  /** Event body content */
-  readonly body?: {
-    readonly contentType: 'text' | 'html';
-    readonly content: string;
-  };
-  /** Start time */
-  readonly start?: {
-    readonly dateTime: string;
-    readonly timeZone?: string;
-  };
-  /** End time */
-  readonly end?: {
-    readonly dateTime: string;
-    readonly timeZone?: string;
-  };
-  /** Location */
-  readonly location?: {
-    readonly displayName: string;
-    readonly address?: {
-      readonly street?: string;
-      readonly city?: string;
-      readonly state?: string;
-      readonly countryOrRegion?: string;
-      readonly postalCode?: string;
-    };
-  };
-  /** Is all day event */
-  readonly isAllDay: boolean;
-  /** Is cancelled flag */
-  readonly isCancelled: boolean;
-  /** Is recurring flag */
-  readonly isRecurring: boolean;
-  /**
-   * What the entry is: a single event, a series (`seriesMaster`), one of its
-   * occurrences, or a changed occurrence (`exception`). Read by a window
-   * (workplan 0170 §4.3) before the event's iCalendar is fetched.
-   */
+  readonly subject?: string;
+  readonly body?: { readonly contentType?: 'text' | 'html'; readonly content?: string };
+  readonly start?: GraphDateTimeTimeZone;
+  readonly end?: GraphDateTimeTimeZone;
+  /** The zone the organizer set the start in: a Windows name, or an IANA one. */
+  readonly originalStartTimeZone?: string;
+  readonly originalEndTimeZone?: string;
+  /** An exception's original start, always UTC. Not returned for a single event. */
+  readonly originalStart?: string;
+  readonly location?: GraphLocation;
+  readonly isAllDay?: boolean;
+  readonly isCancelled?: boolean;
+  readonly isReminderOn?: boolean;
+  readonly reminderMinutesBeforeStart?: number;
   readonly type?: 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
-  /** A series' recurrence as Graph spells it (`patternedRecurrence`); only its range is read. */
+  readonly seriesMasterId?: string;
+  /** `OID.{seriesMasterId}.{YYYY-MM-DD}` for an exception; null for a master. */
+  readonly occurrenceId?: string | null;
   readonly recurrence?: {
-    readonly range?: {
-      readonly type?: 'endDate' | 'noEnd' | 'numbered';
-      /** `YYYY-MM-DD`, the last day an occurrence may fall on. */
-      readonly endDate?: string;
-      readonly numberOfOccurrences?: number;
-      readonly recurrenceTimeZone?: string;
-    };
+    readonly pattern?: GraphRecurrencePattern;
+    readonly range?: GraphRecurrenceRange;
   } | null;
-  /** A delta's word that the event is gone. */
-  readonly '@removed'?: { readonly reason?: string };
-  /** Event status */
   readonly showAs?: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown';
-  /** Sensitivity level */
-  readonly sensitivity?: 'normal' | 'personal' | 'private' | 'sensitive';
-  /** Organizer */
-  readonly organizer?: {
-    readonly emailAddress: {
-      readonly name: string;
-      readonly address: string;
-    };
-  };
-  /** Attendees */
-  readonly attendees?: Array<{
-    readonly type: 'required' | 'optional' | 'organizer';
-    readonly status: {
-      readonly response: 'none' | 'accepted' | 'tentative' | 'declined';
-      readonly time: string;
-    };
-    readonly emailAddress: {
-      readonly name: string;
-      readonly address: string;
-    };
-  }>;
-  /** Recurrence pattern */
-  readonly recurrenceRule?: {
-    readonly pattern: {
-      readonly type: 'daily' | 'weekly' | 'absoluteMonthly' | 'relativeMonthly' | 'absoluteYearly' | 'relativeYearly';
-      readonly interval: number;
-      readonly month?: number;
-      readonly dayOfMonth?: number;
-      readonly daysOfWeek?: Array<'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday'>;
-      readonly firstDayOfWeek?: 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday';
-      readonly index?: 'first' | 'second' | 'third' | 'fourth' | 'last';
-    };
-    readonly range: {
-      readonly type: 'noEnd' | 'endDate' | 'numbered';
-      readonly startDate?: string;
-      readonly endDate?: string;
-      readonly numberOfIterations?: number;
-    };
-  };
-  /** Response status */
-  readonly responseStatus?: {
-    readonly response: 'none' | 'organizer' | 'tentativelyAccepted' | 'accepted' | 'declined' | 'unknown';
-    readonly time: string;
-  };
-  /** Web link to the event */
-  readonly webLink?: string;
-  /** OData delta link for incremental sync */
-  readonly '@odata.deltaLink'?: string;
-  /** OData next link for pagination */
-  readonly '@odata.nextLink'?: string;
+  readonly sensitivity?: 'normal' | 'personal' | 'private' | 'confidential';
+  readonly categories?: ReadonlyArray<string>;
+  readonly organizer?: { readonly emailAddress?: GraphEventAddress };
+  readonly attendees?: ReadonlyArray<GraphAttendee>;
+  /** A delta's word that the event is gone; a plain listing never carries it. */
+  readonly '@removed'?: { readonly reason?: string };
 }
 
 /**
- * Graph API response for calendar list.
+ * A series master read on its own, for what only that read returns:
+ * `cancelledOccurrences` ("occurrenceId property values of canceled instances
+ * … Requires $select") and `exceptionOccurrences` ("Requires $select and
+ * $expand"). https://learn.microsoft.com/en-us/graph/api/event-get?view=graph-rest-1.0
  */
-export interface GraphCalendarListResponse {
-  /** List of calendars */
-  readonly value: GraphCalendar[];
-  /** Next page link for pagination */
-  readonly '@odata.nextLink'?: string;
-}
-
-/**
- * Graph API response for events list.
- */
-export interface GraphEventListResponse {
-  /** List of events */
-  readonly value: GraphEvent[];
-  /** Delta link for incremental sync */
-  readonly '@odata.deltaLink'?: string;
-  /** Next page link for pagination */
-  readonly '@odata.nextLink'?: string;
-}
-
-/**
- * Graph API response for delta query.
- */
-export interface GraphDeltaQueryResponse {
-  /** List of changed events */
-  readonly value: GraphEvent[];
-  /** Delta link for next incremental sync */
-  readonly '@odata.deltaLink': string;
-  /** Next page link for pagination */
-  readonly '@odata.nextLink'?: string;
-}
-
-/**
- * Parsed iCalendar component from Graph event.
- */
-export interface ParsedIcalComponent {
-  /** Component type (VEVENT, VCALENDAR, etc.) */
-  type: string;
-  /** Key-value properties */
-  properties: Record<string, string | string[]>;
-  /** Nested components */
-  components: ParsedIcalComponent[];
-  /** Raw iCal string */
-  raw: string;
-}
-
-/**
- * Graph calendar event with iCal data.
- */
-export interface GraphCalendarEvent {
-  /** Event ID from Graph */
+export interface GraphSeriesDetail {
   readonly id: string;
-  /** iCal data */
-  readonly icalendar: string;
-  /** Parsed iCal component */
-  readonly parsed: ParsedIcalComponent;
-  /** Natural key (UID + RECURRENCE-ID if present) */
-  readonly naturalKey: string;
-  /** Is cancelled flag */
-  readonly isCancelled: boolean;
+  readonly cancelledOccurrences?: ReadonlyArray<string>;
+  readonly exceptionOccurrences?: ReadonlyArray<GraphEvent>;
 }
 
-/**
- * Delta cursor for Graph Calendar sync.
- */
-export interface GraphDeltaCursor {
-  /** The delta token/URL */
-  readonly deltaLink: string;
-  /** Calendar folder path this cursor applies to */
-  readonly folderPath: string;
+/** A page of a Graph listing. */
+export interface GraphCalendarPage<T> {
+  readonly value: T[];
+  readonly '@odata.nextLink'?: string;
 }
