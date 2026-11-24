@@ -4,6 +4,11 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, later still: D8 answered.** The owner, verbatim: *"D8: no, not before"*. A migration
+of only the last 90 days is not switched over before it is broadened to everything: switching over
+follows *Copy everything* and its phase B (§6, §10). T1's refusal is the rule, not a placeholder
+until an answer. Every decision of §10 is answered.
+
 **2026-11-24, later: the owner's answers to §10, recorded.** D1, D4, D6 and D7 as advised. D2
 reframed: a migration of the last 90 days is not a trial of Ownpace but a person trying a
 destination with their fresh data; it can be broadened to everything, and never narrowed from
@@ -27,7 +32,7 @@ change is expected (§3.4).
 | T5 Web UX and guides | builder | 📋 Planned | §7. The choice in *Start a migration*, the 90-day state on the migration page, *Copy everything*, the milestone, copy in English and Dutch, the guides. Dutch reviewed by the owner. |
 | T6 Proofs | builder | 📋 Planned | §8. Integration on Stalwart and Nextcloud, `local-pg.sh`, the appliance's mapping file, and the managed E2E smoke's 90-day case. |
 | T7 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T6 merges. |
-| T8 The owner's decisions | owner | ⏳ **Owner** | §10: D1 to D7 answered 2026-11-24; D8 open. |
+| T8 The owner's decisions | owner | ✅ Done | §10: D1 to D8 answered 2026-11-24. |
 
 ## 1. The owner's words
 
@@ -53,6 +58,8 @@ The owner's answers to §10, the same day, verbatim:
 > 5: revice, keep same as managed.
 > 6: yes, one uploads all.
 > 7: yes.
+
+And to D8 (§10), the same day, verbatim: *"D8: no, not before"*.
 
 ## 2. What happens today, and why not a global sort
 
@@ -347,9 +354,9 @@ edit, which its guide says.
   phase A is done and its phase B is not (`copying`), since the destination is knowingly half full.
 - **The cutover lanes.** Phase A and B happen before a data type's cutover and never after: the
   continuous lane (0117) and a data type's own cutover (0128 T5) start from a data type whose
-  first copy is complete, which phase A alone is not. Whether a 90-day migration may be switched
-  over before it is broadened is D8, open; until it is answered T1 refuses it, and the page offers
-  *Copy everything* where the switch-over would be.
+  first copy is complete, which phase A alone is not. A 90-day migration is not switched over
+  before it is broadened (D8, answered): T1 refuses it, and the page offers *Copy everything*
+  where the switch-over would be.
 
 ## 7. The UX (T5)
 
@@ -440,7 +447,7 @@ appliance, the mapping file's `recentOnly` and how to broaden it.
 
 | Task | Pull request | Depends on | Merges |
 |---|---|---|---|
-| T1 | `packages/shared` (`ports.ts`, `recent-window.ts`, `config.ts`, `config-revision.ts`), `packages/core` (`domain-sync.ts`, the wrappers, `discovery.ts`), `packages/orchestration` (`orchestration.ts`, `build-deps*.ts`, `marked-only.ts`), `apps/api` (create and update routes, the read, `openapi.yaml`), `apps/selfhost` (the anchor at first record, the boot's revision check) | D8 only for lifting the cutover refusal | 1st |
+| T1 | `packages/shared` (`ports.ts`, `recent-window.ts`, `config.ts`, `config-revision.ts`), `packages/core` (`domain-sync.ts`, the wrappers, `discovery.ts`), `packages/orchestration` (`orchestration.ts`, `build-deps*.ts`, `marked-only.ts`), `apps/api` (create and update routes, the read, `openapi.yaml`), `apps/selfhost` (the anchor at first record, the boot's revision check) | none (D8 answered: the cutover refusal stays) | 1st |
 | T2 | `imapflow-source.ts`, `graph-mail-source.ts`, `mail-source-with-graph-fallback.ts` | T1's interface | after T1, any order with T3, T4 |
 | T3 | `graph-drive-source.ts`, `google-drive-source.ts`, `dropbox-file-source.ts`, `box-file-source.ts`, `webdav-source.ts`, `archive-file-source.ts` | T1's interface | after T1 |
 | T4 | `caldav-source.ts`, `caldav-query.ts`, `graph-calendar-source.ts`, `recent-window.ts`'s `eventInWindow` | T1's interface | after T1 |
@@ -471,11 +478,11 @@ Asked 2026-11-24, answered the same day (§1, verbatim).
   choice in its mapping file (§5.4).
 - **D6. An archive item with no date.** ✅ **In the window**: *"one uploads all"*.
 - **D7. The anchor of a migration of everything.** ✅ **When its phase A starts.**
-- **D8. May a 90-day migration be switched over before it is broadened?** Open, raised by D2.
-  (a) No: switching over follows *Copy everything* and its phase B. (b) Yes, with a sentence that
-  the older items stay at the source. **Advice: (a)** for alpha.19: the switch-over is the step
-  where a person stops using the old account, and its checks assume a whole copy; someone who
-  settles on a destination broadens first. T1 builds (a), which (b) would lift in one rule.
+- **D8. May a 90-day migration be switched over before it is broadened?** ✅ **(a), no**: *"D8:
+  no, not before"*. Switching over follows *Copy everything* and its phase B. Raised by D2, with
+  the options (a) no, and (b) yes, with a sentence that the older items stay at the source. The
+  advice was (a): the switch-over is the step where a person stops using the old account, and its
+  checks assume a whole copy; someone who settles on a destination broadens first.
 
 ## 11. Open questions
 
@@ -484,4 +491,4 @@ Asked 2026-11-24, answered the same day (§1, verbatim).
    tenant read; if not, Graph mail filters after listing like the file sources.
 2. Whether a 90-day migration over CalDAV should also read a sync token, so a deletion at the
    source is reported while it runs. Left out of alpha.19 (§6); asked again after a real run.
-3. D8 (§10).
+3. ~~D8 (§10).~~ Answered 2026-11-24: (a), no switch-over before *Copy everything*.
