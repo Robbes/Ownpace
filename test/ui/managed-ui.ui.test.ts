@@ -1025,6 +1025,19 @@ function startFlowFixtures(): { NEW: string; added: Record<string, unknown> } {
       reason: null,
       fits: [NEW],
     },
+    // Free space at the destination (0171 T9): Soverin says 20 GB free for
+    // the 3.4 GB counted, so the line says it fits and Start stays *Start*.
+    [`GET /api/migrations/${NEW}/destination-space`]: {
+      pools: [
+        {
+          pool: 'imap.soverin.net',
+          destination: 'imap.soverin.net',
+          dataTypes: ['email'],
+          needBytes: 3_400_000_000,
+          capacity: { known: true, freeBytes: 20_000_000_000, totalBytes: 25_000_000_000, pool: 'imap.soverin.net' },
+        },
+      ],
+    },
   };
   return { NEW, added };
 }
