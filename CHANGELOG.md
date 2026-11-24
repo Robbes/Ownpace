@@ -24,6 +24,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The managed edition's job runner is on pg-boss 12.39.0, from 12.38.2, and its job schema moves
+  from version 46 to 47, one way** (workplan 0119; the owner, 2026-11-24: *"alpha.20 (advice): yes
+  on all"*). pg-boss's migration adds one nullable column, `pgboss.schedule.sent_on`, in one
+  transaction under its own lock; the worker runs it when it first starts on 12.39.0, and the
+  runner's `PG_BOSS_SCHEMA_VERSION` is 47, so a worker or API of an earlier release refuses the
+  migrated schema rather than run on it. The deploy to this release is therefore one-way, which
+  `deploy-live.sh` says; the way back is the copy taken before it. No job, queue or schedule of
+  ours changes.
+
 - **The Test answer and the sharing checklist say less about an address this service will not
   connect to** (workplan 0136; the owner, 2026-11-24: *"yes, follow-up"*). Where they named this
   service's own network, the **Test** button on Accounts now says *"We did not connect to that
