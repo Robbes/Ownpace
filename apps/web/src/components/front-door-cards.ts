@@ -82,6 +82,15 @@ export interface FrontDoorCard {
  */
 export const SOURCE_CARDS = [
   { id: 'imap', name: 'IMAP', hintKey: 'account.proto.imap.hint', guide: 'imap#imap-source' },
+  // THE DAV PROTOCOLS AS SOURCES (workplan 0169; the owner, 2026-11-24: *"add
+  // only the generic cards as source"*), beside IMAP in the protocol lane.
+  // Their hints are the source side's, what each reads from a server being
+  // left, and their guides are the `dav` guide's source sections. There is NO
+  // Nextcloud source card: a Nextcloud is reached through these three, and
+  // Nextcloud stays a target card only.
+  { id: 'caldav', name: 'CalDAV', hintKey: 'account.proto.caldavSource.hint', guide: 'dav#caldav-source' },
+  { id: 'carddav', name: 'CardDAV', hintKey: 'account.proto.carddavSource.hint', guide: 'dav#carddav-source' },
+  { id: 'webdav', name: 'WebDAV', hintKey: 'account.proto.webdavSource.hint', guide: 'dav#webdav-source' },
   // The ACCOUNT (workplan 0114), first among the Microsoft cards for the same
   // reason `google` leads its family: it is the usual choice, and it is the
   // only one of the three that a person without an IT department can finish.

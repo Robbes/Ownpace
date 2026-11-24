@@ -64,6 +64,8 @@ export {
 export type { SchedulingVerdict } from './target-scheduling.ts';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import {
+  buildCalendarSourceFromConnection,
+  buildContactSourceFromConnection,
   buildFileSourceFromConnection,
   buildSourceConnectorFromCredentials,
 } from './build-deps-from-mapping.ts';
@@ -613,6 +615,18 @@ async function probeSourceNow(
     // connection yet" (the owner, 2026-09-06, on a grant that worked).
     case MICROSOFT_ACCOUNT_KIND:
       return probeMicrosoftAccount(config, creds, deps);
+    // THE DAV PROTOCOLS AS SOURCES (workplan 0169). Through the builders a
+    // pass uses, each kind its own face: a CalDAV source lists its calendars,
+    // a CardDAV source its address books, a WebDAV source its folders. Every
+    // address here is one the tester typed, so a refusal carries its parts
+    // (0136 T3), and every request goes through `tenantFetch`, which refuses a
+    // host inside our own network on managed (0136 T1).
+    case 'caldav':
+      return probeListable(() => buildCalendarSourceFromConnection({ config, creds, kind }, undefined), 'calendar', kind, true);
+    case 'carddav':
+      return probeListable(() => buildContactSourceFromConnection({ config, creds, kind }, undefined), 'addressBook', kind, true);
+    case 'webdav':
+      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }, undefined), 'folder', kind, true);
     case 'imap':
     case 'o365':
       // The managed mail builder handles both: a password, a static token, or

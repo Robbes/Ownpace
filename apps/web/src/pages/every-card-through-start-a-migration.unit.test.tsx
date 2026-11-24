@@ -102,6 +102,11 @@ const WALKS: Readonly<Record<MigratableSourceCard['id'], Walk>> = {
   dropbox: { tiles: ['Dropbox'] },
   box: { tiles: ['Box'] },
   apple: { tiles: ['Apple iCloud'] },
+  // The DAV protocols as sources (workplan 0169), each a tile of its own,
+  // named for what a person has.
+  caldav: { tiles: ['Calendar server \\(CalDAV\\)'] },
+  carddav: { tiles: ['Contacts server \\(CardDAV\\)'] },
+  webdav: { tiles: ['File server \\(WebDAV\\)'] },
   // Google's photos, from a Takeout export (0153 open question 5, item 2).
   archive: {
     tiles: ['Google'],
@@ -110,6 +115,14 @@ const WALKS: Readonly<Record<MigratableSourceCard['id'], Walk>> = {
       await user.click(within(group(/^From Google/)).getByRole('checkbox', { name: /^Photos: from a Takeout export/ }));
     },
   },
+};
+
+/** The cards whose row is named in plain words rather than by the card. */
+const PLAIN_ROW_NAMES: Readonly<Record<string, string>> = {
+  imap: 'Another mail provider',
+  caldav: 'Calendar server (CalDAV)',
+  carddav: 'Contacts server (CardDAV)',
+  webdav: 'File server (WebDAV)',
 };
 
 const renderStart = () =>
@@ -160,8 +173,9 @@ describe('every card a migration is made from is reached through Start a migrati
       const user = userEvent.setup();
       renderStart();
       await walkTo(user, walk);
-      // Another mail provider is the IMAP card, named for what a person has.
-      const name = card === 'imap' ? 'Another mail provider' : providerDisplayName(card);
+      // Another mail provider is the IMAP card, named for what a person has;
+      // so are the DAV protocol cards (workplan 0169).
+      const name = PLAIN_ROW_NAMES[card] ?? providerDisplayName(card);
       const row = (await screen.findAllByRole('listitem')).find((r) => within(r).queryByText(name) !== null);
       expect(row, `no row for ${card} (${name})`).toBeDefined();
       // The form a person fills: its address at the least.

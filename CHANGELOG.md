@@ -4,6 +4,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
+  of 2026-11-24: *"yes to all, build them. But dont add the nextcloud as source card, add only
+  the generic cards as source."*). Three source cards in the *Any server, by protocol* lane beside
+  IMAP, and three tiles on *Start a migration*: **Calendar server (CalDAV)**, **Contacts server
+  (CardDAV)** and **File server (WebDAV)**. Each takes a host and a port, or a DAV base URL, and a
+  login, carries only its protocol's data types, and is labelled **Experimental** until a real
+  run proves it. The create route accepts the three as source types and still refuses
+  `nextcloud`, which stays a destination card only; a Nextcloud is left through these three. The
+  worker builds them with the DAV connectors the appliance has used since workplan 0007, Test
+  lists each one's calendars, address books or folders, and every host typed for them passes the
+  same check against addresses inside the service's own network as an IMAP source or a DAV
+  target. The permission report reads a WebDAV source's shares at the base URL it was given, and
+  no longer calls a plain WebDAV server a Nextcloud. No database change: the three kinds have
+  been allowed on a connection since the first migration, for the DAV targets. The DAV guide, in
+  English and Dutch, has a section for each. Answers 0141's open question 9 with (b).
+
 ### Changed
 
 - **pnpm 11.29.0** (workplan 0119; the pin watch's #2088), from alpha.18's 11.28.13, in

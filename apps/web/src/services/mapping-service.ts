@@ -438,6 +438,10 @@ export const CreateMappingResponseSchema = z.object({
     'box',
     // An EXPORT ARCHIVE (workplan 0116 T1; a mapping source since T5/T6).
     'archive',
+    // The DAV protocols as sources (workplan 0169).
+    'caldav',
+    'carddav',
+    'webdav',
   ]),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak']),
   status: MappingLifecycleSchema,
@@ -471,7 +475,12 @@ export interface CreateMappingInput {
     // An EXPORT ARCHIVE (workplan 0116 T5/T6): a mapping can be created from
     // one since placement and idempotency were built. Its credential is a
     // location, carried in `sourceConfig.provider` and `.path`.
-    | 'archive';
+    | 'archive'
+    // The DAV protocols as sources (workplan 0169): host and port, or the
+    // base URL in `sourceConfig.url`, and a login.
+    | 'caldav'
+    | 'carddav'
+    | 'webdav';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud' | 'cirrux' | 'infomaniak';
   /** Reuse a stored connection instead of creating one (workplan 0064). When
    *  set, its credentials are used and none need re-sending. */
@@ -486,6 +495,8 @@ export interface CreateMappingInput {
      *  refuses the wrong set by name. */
     host?: string;
     port?: number;
+    /** A DAV source's base URL (workplan 0169), which wins over host and port. */
+    url?: string;
     username: string;
     password?: string;
     useSsl?: boolean;

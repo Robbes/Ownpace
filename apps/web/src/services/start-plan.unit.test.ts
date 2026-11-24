@@ -34,8 +34,8 @@ const RESTRICTED = { google: DISCOVERY_DOMAINS };
 const NARROW = { google: ['calendar', 'contact', 'task'] } as const;
 
 describe('what a provider can give here (step 3)', () => {
-  it('lists the drawing’s six, in its order', () => {
-    expect(START_PROVIDERS).toEqual(['google', 'microsoft', 'apple', 'dropbox', 'box', 'imap']);
+  it('lists the drawing’s six, then the three DAV protocols (workplan 0169), in its order', () => {
+    expect(START_PROVIDERS).toEqual(['google', 'microsoft', 'apple', 'dropbox', 'box', 'imap', 'caldav', 'carddav', 'webdav']);
   });
 
   it('offers Google’s five whichever way the deployment asks for them', () => {

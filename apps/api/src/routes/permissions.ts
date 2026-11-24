@@ -923,7 +923,7 @@ function inventoryScansFrom(
                   'delen in Google Agenda leest Ownpace nog niet; alleen delen op Google Drive. ' +
                   'Noteer met wie u elke agenda deelde voordat u overstapt',
               }))
-            : family === 'dav'
+            : family === 'dav' && sourceKind !== 'webdav'
               ? // Same courtesy for a Nextcloud tenant (0104 T2): the file
                 // share scan covers files; calendar sharing stays by hand.
                 notReadListing(notReadSaid({
@@ -979,13 +979,17 @@ function inventoryScansFrom(
       }
       if (davSourceConnection) {
         const config = (davSourceConnection.config ?? {}) as {
+          url?: string;
           baseUrl?: string;
           host?: string;
           port?: number;
           useSsl?: boolean;
         };
         const creds = davSourceConnection.credentials();
+        // `url` first: the base URL a WebDAV source's door takes (workplan
+        // 0169), which wins over host and port as `davUrl`'s precedence says.
         const webdavUrl =
+          config.url ??
           config.baseUrl ??
           `${config.useSsl === false ? 'http' : 'https'}://${config.host}${config.port ? `:${config.port}` : ''}`;
         return scanNextcloudShares({

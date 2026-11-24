@@ -1,6 +1,6 @@
 # CalDAV, CardDAV en WebDAV — agenda's, contacten en bestanden op een server
 
-Drie kaarten voor drie soorten gegevens, met dezelfde velden: **CalDAV** voor agenda's en takenlijsten, **CardDAV** voor contacten en **WebDAV** voor bestanden. Veel servers bieden alle drie aan onder één account. Elke kaart omvat alleen haar eigen soort, dus elke soort gaat naar haar eigen kaart, en **Migratie starten** maakt voor elk een migratie. Is uw server een Nextcloud, dan combineert de kaart **Nextcloud** de drie in één account: zie [de Nextcloud-handleiding](nextcloud.md). Deze dienst meldt zich aan met een gebruikersnaam en een wachtwoord; er is geen knop om toestemming te geven.
+Drie kaarten voor drie soorten gegevens, met dezelfde velden: **CalDAV** voor agenda's en takenlijsten, **CardDAV** voor contacten en **WebDAV** voor bestanden. Ze werken in beide richtingen: naar een server waar u naartoe gaat, en vanaf een server die u verlaat ([CalDAV als bron](#caldav-source) en de twee delen daarna). Veel servers bieden alle drie aan onder één account. Elke kaart omvat alleen haar eigen soort, dus elke soort gaat naar haar eigen kaart, en **Migratie starten** maakt voor elk een migratie. Is uw server een Nextcloud, dan combineert de kaart **Nextcloud** de drie in één account: zie [de Nextcloud-handleiding](nextcloud.md). Deze dienst meldt zich aan met een gebruikersnaam en een wachtwoord; er is geen knop om toestemming te geven.
 
 ## Wat u nodig hebt {#before}
 
@@ -32,6 +32,20 @@ Voor bestanden. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in
 - **Gebruikersnaam** en **Wachtwoord**: die van het account op de server, met een app-wachtwoord waar de server dat aanbiedt.
 
 U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart, en druk op **Toevoegen en testen**. **Waar gaat het naartoe?** biedt het dan aan onder **Uw accounts**. In de **Instelchecklist** staat de voorbereiding voor elk van de drie als lijst die onthoudt wat u al gedaan hebt.
+
+### CalDAV als bron {#caldav-source}
+
+Dezelfde drie kaarten lezen ook vanaf een server die u verlaat, ook een Nextcloud: er is geen Nextcloud-kaart om er een te verlaten, dus een Nextcloud verlaat u via deze drie. Vink bij **Welk account verlaat of migreert u?** **Agendaserver (CalDAV)** aan voor agenda's en takenlijsten, **Contactenserver (CardDAV)** voor contacten of **Bestandsserver (WebDAV)** voor bestanden. Vul bij **Uw accounts verbinden** de velden in die [De velden](#fields) beschrijft, voor het account dat u verlaat. Dat account wordt alleen gelezen: er wordt niets naar geschreven of uit verwijderd. De drie dragen het label **Experimenteel** tot een echte migratie ze bewijst.
+
+Voor agenda's en takenlijsten. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. De test toont de agenda's van het account, opgezocht vanaf het adres van de server. Staat de DAV-root van de server achter een pad, zoals `/remote.php/dav` bij een Nextcloud, vul dan dat volledige adres in bij **DAV-basis-URL**.
+
+### CardDAV als bron {#carddav-source}
+
+Voor contacten. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat, of **DAV-basis-URL** voor een root achter een pad. De test toont de adresboeken van het account, op dezelfde manier opgezocht als de agenda's hierboven.
+
+### WebDAV als bron {#webdav-source}
+
+Voor bestanden. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. Ze worden gelezen uit de map waar het adres naartoe leidt, en uit elke map daaronder. Met alleen een host en een poort is dat de hoofdmap van de server. Voor de bestanden van één account vult u het volledige WebDAV-adres van zijn map in bij **DAV-basis-URL**: bij een Nextcloud is dat het adres onderaan de pagina met bestandsinstellingen, eindigend op `/remote.php/dav/files/` met de gebruikersnaam.
 
 ## Wat er meegaat {#what-moves}
 
