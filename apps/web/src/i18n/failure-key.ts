@@ -31,6 +31,7 @@ export const FAILURE_KEY: Record<FailureCategory, StringKey> = {
   quota_exceeded: 'failure.quotaExceeded',
   policy_refused: 'failure.policyRefused',
   too_large: 'failure.tooLarge',
+  internal_address: 'failure.internalAddress',
   source_refused: 'failure.sourceRefused',
   target_refused: 'failure.targetRefused',
   format_refused: 'failure.formatRefused',

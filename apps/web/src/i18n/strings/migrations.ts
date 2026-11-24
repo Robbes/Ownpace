@@ -207,6 +207,8 @@ export const en = {
     'Some items were left out by this migration\u2019s own settings, not by either account.',
   'view.failure.tooLarge':
     'Some files were left out: they are larger than this service migrates during the Alpha.',
+  'view.failure.internalAddress':
+    'This service does not connect to the address given for one of your accounts. Whoever set this up can change it.',
   'view.failure.sourceRefused':
     'Your old account would not release some items. Nothing was sent to your new account.',
   'view.failure.targetRefused': 'Your new account would not accept some items.',
@@ -324,6 +326,16 @@ export const en = {
   // setting changes the answer, so the remedy names none.
   'failure.tooLarge':
     'Not migrated: larger than this service copies during the Alpha. Copy these files by hand, or leave them behind.',
+  // The eleventh category (2026-11-24): our own refusal of an address inside
+  // this service's network (`HostInsideOurNetwork`, workplan 0136). It read
+  // `unknown` until then, which called our sentence the provider's and
+  // offered "Send it to us". The way out is the account's address, so it
+  // names the page and the button that change it, as `failure.authExpired`
+  // does, and the line links to the page with `failure.openAccounts`. A kind
+  // whose host somebody types has no consent button, so its row says
+  // Replace credentials.
+  'failure.internalAddress':
+    'Not connected: this account\u2019s server address is inside this service\u2019s own network, or the server sent us on to one that is. On the Accounts page, press Replace credentials and give the address the server has on the internet; this then carries on from where it stopped.',
   // Also shortened on 2026-09-22 from the owner's draft, but kept GENERAL: this
   // category is not Drive's alone — a mail or calendar source that refuses an
   // item lands here too — so the owner's "like maps" belongs in the per-item
@@ -597,6 +609,8 @@ export const nl: Record<keyof typeof en, string> = {
     'Sommige items konden niet worden gemigreerd door de instellingen van deze migratie, niet door uw accounts.',
   'view.failure.tooLarge':
     'Sommige bestanden konden niet worden gemigreerd: ze zijn groter dan deze dienst tijdens de Alpha aankan.',
+  'view.failure.internalAddress':
+    'Deze dienst maakt geen verbinding met het adres dat voor een van uw accounts is opgegeven. Wie dit heeft ingesteld kan het aanpassen.',
   'view.failure.sourceRefused':
     'Uw oude omgeving gaf sommige items niet vrij. Deze gingen niet naar uw nieuwe omgeving.',
   'view.failure.targetRefused': 'Uw nieuwe account kon sommige items niet in ontvangst nemen.',
@@ -679,6 +693,8 @@ export const nl: Record<keyof typeof en, string> = {
     'Nog niet gemigreerd: Dropbox Paper-documenten, die Dropbox alleen als export kan laten ophalen. Kies een bestandsformaat onder Exportformaat voor Paper-documenten, en klik op Probeer opnieuw \u2014 of laat deze items achter. Andere documenten die Dropbox in een eigen (intern)formaat bewaart, worden niet geëxporteerd: exporteer ze zelf vanuit Dropbox, of laat ze achter.',
   'failure.tooLarge':
     'Niet gemigreerd: bestandsomvang groter dan Ownpace tijdens de Alpha aankan. Kopieer deze bestanden met de hand, of laat ze achter.',
+  'failure.internalAddress':
+    'Geen verbinding gemaakt: het serveradres van dit account ligt binnen het eigen netwerk van deze dienst, of de server stuurde ons door naar een adres dat daarbinnen ligt. Druk op de pagina Accounts op Inloggegevens vervangen en vul het adres in dat de server op internet heeft; daarna wordt verdergegaan waar gestopt was.',
   'failure.sourceRefused':
     'Niet gemigreerd: het oude account wilde dit niet laten lezen, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
   'failure.targetRefused':

@@ -39,7 +39,8 @@
  * fixed host (Google, Microsoft, Dropbox, Box, Apple's published roots) keeps
  * its words (0080, 0115 T5). A failure whose side is not known may be the
  * target's, so it is answered by the rule. A refusal of ours (`policy_refused`,
- * `too_large`) reads as we wrote it.
+ * `too_large`) reads as we wrote it, except `internal_address`, which is the
+ * rule's own refusal and is always said in the rule's sentence (see `OURS`).
  *
  * NOT YET HERE. A share's refusal on apply (`sharing/…`) is answered on its
  * own request with what the target's OCS endpoint said: OCS's message is the
@@ -213,7 +214,18 @@ export function sourceNamesItsHost(kind: string | undefined, config: Record<stri
   });
 }
 
-/** The refusals that are ours: no provider was asked (`failure-category.ts`). */
+/**
+ * The refusals that are ours and read as we wrote them: no provider was asked
+ * (`failure-category.ts`).
+ *
+ * `internal_address` is ours too, and is deliberately NOT here (2026-11-24).
+ * Its stored text is `HostInsideOurNetwork`'s, which names a host: the one
+ * typed, or one a server's redirect named, and the second is that server's
+ * word. So it is always answered by the rule, whichever side and whatever the
+ * source, in the rule's own sentence for it (`INSIDE_OUR_NETWORK` above),
+ * which names no host. That sentence is ours, and the screen's remedy for the
+ * category says so: it is never offered as a provider's message.
+ */
 const OURS: ReadonlySet<FailureCategory> = new Set<FailureCategory>(['policy_refused', 'too_large']);
 
 /** Whose host a migration's failures may come from. Every target's host was typed. */
@@ -234,6 +246,7 @@ export function failureAnswers(hosts: FailureHosts): FailureAnswers {
   /** Whether a failure from this side, of this category, is answered by the rule. */
   const reaches = (category: FailureCategory | undefined, side: 'source' | 'target' | undefined): boolean => {
     if (category !== undefined && OURS.has(category)) return false;
+    if (category === 'internal_address') return true;
     return side === 'source' ? hosts.sourceTyped : true;
   };
   // A run's event carries no side, so it is answered by the rule whatever the

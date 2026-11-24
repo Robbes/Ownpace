@@ -134,9 +134,34 @@ describe('a failed domain says what to do about it', () => {
     expect(screen.getByRole('link', { name: 'Open Accounts' })).toHaveAttribute('href', '/connections');
   });
 
-  it('offers that link only for an expired connection', () => {
+  it('offers that link only where the remedy is on the Accounts page', () => {
     render(<LiveProgress domains={[row({ lastErrorCategory: 'rate_limited' })]} />);
     expect(screen.queryByRole('link', { name: 'Open Accounts' })).toBeNull();
+  });
+
+  /**
+   * THE OWNER'S CASE, 2026-11-24. A Dropbox → Nextcloud migration's files were
+   * refused by our own rule for an address inside this service's network, and
+   * the strip read `unknown`'s *"We could not classify this one. The
+   * provider's own message is below"* above our own sentence, with *"Send it
+   * to us"*. The pass now states `internal_address`, and the strip says the
+   * way out and links to the page it names.
+   */
+  it('says an address inside our network as ours, with the way to the Accounts page', () => {
+    const ours =
+      "That address is inside this service's own network, or the server sent the test on to one that is, " +
+      'so we did not connect to it. Give the address the server has on the internet.';
+    render(
+      <LiveProgress
+        domains={[row({ lastErrorCategory: 'internal_address', failedSide: 'target', lastError: ours })]}
+      />,
+    );
+    expect(screen.getByText(/press Replace credentials and give the address the server has on the internet/)).toBeTruthy();
+    expect(screen.getByText(/It happened at the destination/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Open Accounts' })).toHaveAttribute('href', '/connections');
+    expect(screen.queryByText(/We could not classify this one/)).toBeNull();
+    expect(screen.queryByText(/provider\u2019s own message/)).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Send it to us' })).toBeNull();
   });
 
   /** One outline per page: under the review screen's h3, or a migration page's h2. */
