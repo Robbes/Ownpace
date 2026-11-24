@@ -22,6 +22,8 @@ import type { DiscoveryDomain } from './discovery.ts';
 import type { MailItem } from './mail.ts';
 import type { FileItem } from './file.ts';
 import type { RawCalendarEvent } from './calendar.ts';
+import type { CursorStore } from './ports.ts';
+import type { MappingId, TenantId } from './ids.ts';
 
 /** How many days a window holds. */
 export const RECENT_WINDOW_DAYS = 90;
@@ -160,6 +162,17 @@ function icalTime(
   return Number.isFinite(ms) ? { ms, dateOnly: false } : undefined;
 }
 
+/**
+ * A pass's window, as the orchestration hands it to a data type's pass
+ * (`runShadowPass`, `runCalendarSync`, `runFileSync`), which adds the
+ * predicate for its own items. Absent, the pass reads the whole source.
+ */
+export interface PassWindow {
+  readonly since: Date;
+  /** A 90-day migration's pass, rather than phase A of a migration of everything. */
+  readonly only: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // The window record, in the `cursor` table (§3.3)
 // ---------------------------------------------------------------------------
@@ -248,4 +261,28 @@ export interface MigrationWindowView {
   readonly in: ReadonlyArray<WindowedDomain>;
   /** The windowed data types whose phase A has started and is not done. */
   readonly copying: ReadonlyArray<WindowedDomain>;
+}
+
+/**
+ * A migration's window as its read says it (§5.2), from the records in its
+ * cursor store. `since` is the 90-day setting's own when it has one, and
+ * otherwise the earliest record's, which is the anchor phase A recorded (D7).
+ */
+export async function readWindowView(
+  cursors: Pick<CursorStore, 'get'>,
+  tenantId: TenantId,
+  mappingId: MappingId,
+  recentOnly: RecentOnlySetting | undefined,
+): Promise<MigrationWindowView> {
+  const isIn: WindowedDomain[] = [];
+  const copying: WindowedDomain[] = [];
+  let since: string | null =
+    recentOnly?.anchor !== undefined ? windowSince(new Date(recentOnly.anchor), recentOnly.days).toISOString() : null;
+  for (const domain of WINDOWED_DOMAINS) {
+    const record = parseWindowRecord((await cursors.get(tenantId, mappingId, windowRecordKey(domain)))?.value);
+    if (!record) continue;
+    (record.state === 'in' ? isIn : copying).push(domain);
+    if (recentOnly === undefined && (since === null || record.since < since)) since = record.since;
+  }
+  return { recentOnly: recentOnly !== undefined, since, in: isIn, copying };
 }

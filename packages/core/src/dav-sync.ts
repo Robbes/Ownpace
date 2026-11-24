@@ -45,6 +45,7 @@ import { applyTargetFolderPrefix,
   type AddressTable,
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncResult } from './domain-sync.ts';
+import { eventInWindow, fileInWindow, type PassWindow } from '@openmig/shared';
 import { fileTooLarge } from './largest-file.ts';
 
 /**
@@ -227,6 +228,8 @@ function cursorsUnderTheTable(
  * Dependencies for calendar (CalDAV) sync.
  */
 export interface CalendarSyncDeps extends PassClock, SourceAuthority {
+  /** This pass reads the last 90 days only (workplan 0170 §3.2). Absent: the whole source. */
+  readonly window?: PassWindow;
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: CalendarSource;
@@ -275,7 +278,16 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     cursors: cursorsUnderTheTable(cursors, deps.addressChanges, 'icalendar'),
     concurrency,
     listFolders: () => source.listFolders(),
-    listSince: (folder, cursor) => source.listSince(folder, cursor),
+    listSince: (folder, cursor, options) =>
+      options ? source.listSince(folder, cursor, options) : source.listSince(folder, cursor),
+    ...(deps.window
+      ? {
+          window: {
+            ...deps.window,
+            holds: (item: RawCalendarEvent) => eventInWindow(item, deps.window!.since),
+          },
+        }
+      : {}),
     fetchRaw: async (item) => {
       // The address table first (ADR-0055), then the writer's own steps.
       const { body, addressDigest } = changed(deps.addressChanges, 'icalendar', item.icalendar);
@@ -530,6 +542,8 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
  * Dependencies for file (WebDAV) sync.
  */
 export interface FileSyncDeps extends PassClock, SourceAuthority {
+  /** This pass reads the last 90 days only (workplan 0170 §3.2). Absent: the whole source. */
+  readonly window?: PassWindow;
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: FileSource;
@@ -568,7 +582,11 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     cursors,
     concurrency,
     listFolders: () => source.listFolders(),
-    listSince: (folder, cursor) => source.listSince(folder, cursor),
+    listSince: (folder, cursor, options) =>
+      options ? source.listSince(folder, cursor, options) : source.listSince(folder, cursor),
+    ...(deps.window
+      ? { window: { ...deps.window, holds: (raw: RawFileItem) => fileInWindow(raw.item, deps.window!.since) } }
+      : {}),
     // The download happens HERE, inside the loop's bounded concurrency —
     // not during listing.
     //

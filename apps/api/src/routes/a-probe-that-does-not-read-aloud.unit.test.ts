@@ -436,11 +436,12 @@ describe('with the rule switched on (0136 T1)', () => {
         .send({ side: 'target', targetType: 'nextcloud', targetConfig: { url: davBase, ...CREDS } });
       expect(test.body.ok).toBe(false);
       expect(test.body.outcome).toEqual({ code: 'insideOurNetwork' });
-      expect(test.body.reason).toMatch(/inside this service's own network.* Reference [0-9a-f]{8}\.$/);
+      expect(test.body.reason).toMatch(/^We did not connect to that address\..* Reference [0-9a-f]{8}\.$/);
+      expect(test.body.reason).not.toMatch(/network/i);
       for (const door of await everyDoor()) {
         expect(door.body, `${door.door} named the address`).not.toContain('127.0.0.1');
         expect(door.body, door.door).not.toContain(MARKER);
-        if (door.reason !== undefined) expect(door.reason, door.door).toMatch(/inside this service's own network/);
+        if (door.reason !== undefined) expect(door.reason, door.door).toMatch(/^We did not connect to that address\./);
       }
       const imap = await request(app)
         .post('/api/migrations/test-connection')

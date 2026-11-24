@@ -6,6 +6,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The last 90 days first, and a migration of only them** (workplan 0170 T1; the owner, 2026-11-24:
+  *"yes, plan it as a workplan, 90 days"*). Every first copy of mail, files and calendars now
+  copies the last 90 days first, then everything older in the same pass: mail Inbox first, then
+  Sent, then the other folders. Contacts and tasks are copied whole, as before. A migration can
+  also copy only the last 90 days of mail, files and calendars, and all contacts and tasks, to try
+  a destination with fresh data: `recentOnly: true` when it is created, or `{ "recentOnly": {
+  "days": 90 } }` in the appliance's mapping file. It can be broadened to everything later
+  without starting over (`recentOnly: false`, or the key taken out of the file); a migration of
+  everything is never narrowed to 90 days. Nothing outside the window is ever read as deleted. A
+  migration of only the last 90 days is not switched over before it is broadened (the owner:
+  *"D8: no, not before"*). Both editions run one rule, and the read of a migration says which
+  data types have their last 90 days in (`window`). No database change: the window's record is
+  kept with the cursors, and the setting in the migration's own override. The screens and the
+  sources' server-side date filters follow in 0170's other tasks; until then every source lists
+  as before and the window is applied as items are listed.
 - **The last 90 days first, on the screens** (workplan 0170 T5; the owner, 2026-11-24: *"fit in
   UX!"*). *Start a migration* asks **How much?** under the data types: **Everything**, selected,
   whose last 90 days come first and everything older after, or **Only the last 90 days**, to try
@@ -38,6 +53,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The Test answer and the sharing checklist say less about an address this service will not
+  connect to** (workplan 0136; the owner, 2026-11-24: *"yes, follow-up"*). Where they named this
+  service's own network, the **Test** button on Accounts now says *"We did not connect to that
+  address. Enter an internet address of the server."* (*"Geen verbinding gemaakt met dat adres. Vul
+  een internetadres van de server in."*), and a share the checklist could not apply says *"We did
+  not connect to the new system's address, so nothing was shared. On the Accounts page, enter an
+  internet address of the server."* The OTA stack and a test box may still list test servers of
+  their own on a private network in `OWNPACE_REACHABLE_HOSTS`, by name; the E2E (managed) gate keeps
+  such a name, and live's list stays empty (`docs/managed-bring-up.md`).
 - **pnpm 11.29.0** (workplan 0119; the pin watch's #2088), from alpha.18's 11.28.13, in
   `package.json`'s `packageManager`, which CI and the images read. npm published it on 2026-11-22
   at 13:58 UTC; it is taken inside its three-day floor, on the owner's word of 2026-11-23:

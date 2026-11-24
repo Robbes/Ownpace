@@ -2,7 +2,64 @@
 
 > **In one line:** The 253 open code scanning alerts rebuilt from the uploads that make them (Trivy's image scans, one category per image, Trivy's repository scan and Semgrep), counted per category and severity, with what alpha.14 can fix, what waits on upstream, what is accepted and what only the owner can dismiss.
 
-## Status — 2026-11-23 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24: the twelve open image alerts on `main`, read again for alpha.19 (T8). None can be
+fixed by a change here; four are not reachable at all and go to §3 D.** The alerts: #2094, #2095,
+#2096 and #2091, #2090, #2093 (OpenSSL in `ownpace-selfhost`, `-api` and `-worker`), #1746
+(`zitadel`), and #1747, #1693, #259, #254, #242 (`gatus`). Read with Trivy v0.76.2 (built from its
+module at that tag through the Go module proxy) and its database of 2026-11-24 07:08 UTC, every
+image for linux/arm64, and with each image's own files, every blob checked against its digest:
+
+- **OpenSSL, the six Debian-image alerts: no fix published, and nothing in the images loads the
+  library.** Two advisories, two alerts per image:
+  - CVE-2026-107494, *unbounded QUIC frame queueing* (RETIRE_CONNECTION_ID; the incomplete fix of
+    CVE-2026-84784), and CVE-2026-124709, *memory leak in QUIC stream handling* (OpenSSL's
+    advisory of 2026-11-17). Both are in `libssl3t64` 3.5.7-1~deb13u3, Debian's status for both is
+    *affected* with no fixed version, and both are in OpenSSL's own QUIC stack.
+  - The newest `gcr.io/distroless/nodejs26-debian13:nonroot` (`ffa8a754…`, Debian 13.8) carries
+    `libssl3t64` 3.5.9-1~deb13u1, and Trivy reads both advisories there too: 3.5.9 is the point
+    release of 2026-09-29, whose fixes Debian had already backported into ~deb13u3 (its changelog
+    in the image says so). So moving the digest the three Dockerfiles pin (`767ffb7e…`) closes
+    neither; it changes `base-files`, `libc6` and `libssl3t64` and nothing else (the Node layer is
+    the same). Dependabot's docker group will offer it as usual.
+  - **Not affected.** The distroless image ships `libssl.so.3` as a Debian package, but its one
+    program, `/nodejs/bin/node` v26.13.1, is linked against neither `libssl.so.3` nor
+    `libcrypto.so.3` (its `NEEDED` entries: libatomic, libdl, libm, libstdc++, libgcc_s,
+    libpthread, libc, the loader): Node carries its own OpenSSL, 3.5.9, built in. No native addon
+    in the workspace links either library, and nothing in `apps/` or `packages/` uses `node:quic`
+    or HTTP/3, which in Node is off unless `--experimental-quic` is given and runs on ngtcp2, not
+    on OpenSSL's QUIC stack. No service of either stack listens on UDP.
+  - **What closes them:** Debian's fix for trixie, which the next distroless digest takes and a
+    rebuild of each image then carries; or the owner's dismissal (§3 D). Until then each new
+    image keeps the two alerts.
+- **`zitadel`, #1746, `golang.org/x/net/html` CVE-2026-78661: v4.20.5 does not fix it.** v4.20.5
+  (index `cb21fe73…`, 2026-11-18) is the newest release on ghcr.io: no v4.20.6, v4.21 or v5 tag,
+  release or candidate, among the 3,738 tags read today. Its binary's layer could not be read
+  from here (ghcr.io's blob host is outside this environment's network), so the build info was
+  not read; what was: its layers keep v4.20.4's byte for byte but the binary's, which differs by
+  24 bytes compressed on linux/arm64 (#2100's reading), what a new version string makes, and its
+  `go.mod` names x/net v0.61.0 (§3 B, read 2026-11-21). #2100 is left as it is. **What closes
+  it:** a Zitadel release on x/net 0.62.0 or later; the pin watch's row shows it.
+- **`gatus` v5.38.0, five alerts. No gatus release since v5.38.0** (2026-10-28): ghcr.io's tags,
+  Docker Hub's and the Go module proxy's `@latest` agree. Its binary, read from the linux/arm64
+  image (index `085ed63d…`, through Docker Hub's mirror at mirror.gcr.io), is Go 1.27.3 with the
+  modules the scan names; its symbol table says which packages are in it:
+  - **#254, `golang.org/x/image/vp8l` CVE-2026-46603: not affected.** No `x/image/vp8l` or
+    `x/image/webp` symbol: only `x/image/font` and `x/image/math/fixed` are linked. §3 D.
+  - **#1747, `golang.org/x/net/html` CVE-2026-78661: not affected.** No `x/net/html` symbol. §3 D.
+  - **#1693, go-jose v4 v4.1.4 CVE-2026-116587 (JWK RSA parameters): no fix in a release.** It is
+    linked, through go-oidc; gatus parses a JWK only for OIDC sign-in, which `gatus.yaml` does not
+    configure (no `security:` block). Left open, as §3 C leaves an accepted finding.
+  - **#259, `golang.org/x/net/http2` CVE-2026-78669 (fixed in 0.60.0), and #242,
+    `klauspost/compress` CVE-2026-63209 (fixed in 1.18.7): no fix in a release.** Both linked.
+  - **Upstream's unreleased `latest`** (`20d582f0…`, built 2026-11-23), scanned the same way, reads
+    go-jose v4.1.4 and x/image v0.40.0 only: x/net and compress are already moved on its branch.
+    So gatus's next release would close #259 and #242 (and #1747), and leave #1693 and #254.
+    `latest` is no release, and the pin stays on a release.
+  - **What closes them:** a gatus release past v5.38.0 (the pin watch's row), then its pin moved
+    here and E2E (managed); for #1693 and #254 also one built on go-jose 4.1.6 and x/image 0.45.0.
+- **Nothing was dismissed, and no pin moved.** The owner's four dismissals are §3 D's new rows.
 
 **2026-11-23, night: the Stalwart base moves to v1.2.0's Alpine build, for alpha.19, on the owner's
 word, its three days waived (T9).** The owner's first answer, recorded below, was *"Stalwart: in
@@ -341,7 +398,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | T5 effect in the Trigger.dev webapp | builder | 🔨 **Built 2026-11-21** (D2: yes; the Status entry of 2026-11-21, after the answers: T5) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
 | T6 Monday's scan, read into §1 | builder | ✅ **Read 2026-11-23** (the Status entry of 2026-11-23, evening): run 45227762752, 19 images; the v4.8.8 builds left the list with the plane first (T9), so their reading is moot | The weekly run of 2026-11-23 was to be the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). §1 stays the reading of 2026-11-21 and §3 as it was; the entry says what moved. |
 | T7 The owner's dismissals | owner | ✅ **Done 2026-11-21** (D4), the five of §3 D, 17:32 to 17:50 UTC | The 5 alerts of §3 D, each with its reason. |
-| T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
+| T8 What waits on upstream | builder | 📋 **Planned**; read again 2026-11-24 (the Status entry of that day): nothing fired | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
 | T9 The outside check of 2026-11-23 | builder | ✅ **Read 2026-11-23**; the Stalwart base moves for alpha.19 (the Status entries of 2026-11-23) | The Stalwart base's krb5 and zlib1g stay in alpha.18, and the pin moves to v1.2.0's Alpine build for alpha.19, by tag and index digest, on the owner's answers (*"Stalwart: in alpha 19"*, then *"Pick stalwart v1.2.0, since it's part of our test/dev setup. Not part of our own pace solution."* and *"v1.2.0 now (waive)"*, its three days waived): no krb5, and zlib 1.3.2-r1; the Dockerfile rules stand as decided. The Trigger.dev files go with its removal. |
 
 ## 1. The inventory
@@ -503,10 +560,11 @@ That is 12 of the 49.
 | What | Alerts | Trigger |
 |---|---|---|
 | `registry` 3.1.2: go-jose v4, compress, x/net, Go 1.26.8 | 8 | a release or a Docker Hub rebuild of `registry:3.1.2` built past them; the pin watch lists a new tag or digest |
-| `gatus` v5.38.0: go-jose v4, compress, x/image, x/net | 5 | a gatus release past v5.38.0; the pin watch's row |
+| `gatus` v5.38.0: go-jose v4, compress, x/image, x/net | 5, 2 of them not reachable (§3 D) | a gatus release past v5.38.0; the pin watch's row. Upstream's unreleased `latest` (2026-11-23) has moved x/net and compress, not go-jose or x/image |
 | `caddy` 2.11.9: x/net v0.60.0 | 1 | a Caddy release on x/net 0.62.0 or later; Dependabot or the pin watch |
 | `caddy` 2.11.9: go-jose v3 v3.0.5 | 1 | a go-jose v3 fix, or Caddy dropping v3 (the Caddy Dockerfile's note) |
 | `zitadel` v4.20.4: x/net v0.61.0 | 1 | a release on x/net 0.62.0. v4.20.5, which issue #1934 offers, still names x/net v0.61.0 in its `go.mod` (read 2026-11-21) |
+| `ownpace-api`, `-worker`, `-selfhost`: `libssl3t64` CVE-2026-107494 and CVE-2026-124709 | 6 (2 each) | Debian's fix for trixie, taken by the next distroless digest; the newest (`ffa8a754…`, 3.5.9-1~deb13u1) still has both (read 2026-11-24). Not reachable: §3 D |
 | `turbo-stream` 2.4.1 and `deepmerge-ts` 7.1.5 in the webapp | 2 | a Trigger.dev release that leaves Remix 2's exact pin and `@prisma/config`'s; asked upstream in triggerdotdev/trigger.dev#5084 |
 | The Debian 12 findings with no fix in both Debian images | 16 (8 each), 2 of them dismissed in D | a Debian fix, which a rebuild of the base takes; or the base leaving Debian 12 (Redis: 0119 §3 item 3's revisit; the webapp: upstream's runner stage) |
 
@@ -528,6 +586,9 @@ fix ships, and stays visible until then.
 | `path-join-resolve-traversal` | `apps/worker/src/index.ts:92` | Semgrep | *False positive*: the path is the worker CLI's own `--config` (0163 §4.3) |
 | `unknown-value-with-script-tag` | `apps/api/src/routes/migrations/google-consent.ts:834` | Semgrep | *False positive*: the value goes through `jsString` (0163 §4.3) |
 | `js-open-redirect-from-function` | `apps/web/src/pages/Billing.tsx:770` | Semgrep | *False positive*: the address is followed only when it is `https:` on Mollie's host (#1990) |
+| CVE-2026-107494, CVE-2026-124709 (#2094, #2095, #2096, #2091, #2090, #2093) | `libssl3t64` 3.5.7-1~deb13u3 | `trivy-image-ownpace-selfhost-*`, `-api-*`, `-worker-*` | *Won't fix*: no fix published; nothing in the image loads libssl.so.3 (Node links its own OpenSSL) and nothing uses QUIC (0166, 2026-11-24) |
+| CVE-2026-46603 (#254) | `golang.org/x/image` v0.40.0 | `trivy-image-gatus` | *False positive*: x/image/vp8l is not compiled into gatus v5.38.0; only x/image/font and math/fixed are (0166, 2026-11-24) |
+| CVE-2026-78661 (#1747) | `golang.org/x/net` v0.58.0 | `trivy-image-gatus` | *False positive*: x/net/html is not compiled into gatus v5.38.0 (0166, 2026-11-24) |
 
 With A and D done, 32 stay open, all in B: 14 Debian findings and 18 in upstream binaries and
 packages.
