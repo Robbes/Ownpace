@@ -86,7 +86,13 @@ export interface DataTypeVerification {
   matchedCount: number;
   missingOnTarget: number;
   extraOnTarget: number;
-  
+  /**
+   * Of `missingOnTarget`, those the source itself holds and no pass ever
+   * copied (Gmail's All Mail, counted up to the last completed pass's start,
+   * one per Message-ID; the owner, 2026-11-24). Absent when none.
+   */
+  neverCopied?: number;
+
   // Content verification
   /**
    * How many items were actually EXAMINED, not how many were asked for.

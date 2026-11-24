@@ -51,7 +51,14 @@ export function issueSentence(
   const is = (prefix: string) => issue.id === `${prefix}_${d.dataType}`;
   if (is('TARGET_FOLDER_MISSING')) return { key: 'verify.issue.folderMissing' };
   if (is('TARGET_UNREAD')) return { key: 'verify.issue.targetUnread' };
-  if (is('MISSING') && d.missingOnTarget > 0) return { key: 'verify.issue.missing', n: d.missingOnTarget };
+  // `missingOnTarget` counts the never copied too; each sentence says its own.
+  const neverCopied = d.neverCopied ?? 0;
+  if (is('MISSING') && d.missingOnTarget - neverCopied > 0) {
+    return { key: 'verify.issue.missing', n: d.missingOnTarget - neverCopied };
+  }
+  // Counted by the old account itself (the owner, 2026-11-24).
+  if (is('NEVER_COPIED') && neverCopied > 0) return { key: 'verify.issue.neverCopied', n: neverCopied };
+  if (is('SOURCE_COUNT_OWN_RECORD')) return { key: 'verify.issue.ownRecord' };
   if (is('CHECKSUM') && d.checksumMismatches > 0) {
     return { key: 'verify.issue.checksum', n: d.checksumMismatches };
   }

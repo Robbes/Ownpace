@@ -49,6 +49,14 @@ export const en = {
   'hub.filesFrom.all': 'Its files are read from {place}.',
   'hub.filesFrom.path': 'Its files are read from {folder} only.',
   'hub.filesFrom.id': 'Its files are read from one folder only: {folder}.',
+  // A MIGRATION OF ONLY THE LAST 90 DAYS (workplan 0170 §7.2): its chip
+  // beside the stage, and the one way to everything, with its confirmation.
+  // Nothing goes the other way, from everything back to 90 days.
+  'hub.window.chip': 'Last 90 days',
+  'hub.window.copyEverything': 'Copy everything',
+  'hub.window.copyEverything.confirm': 'Copy everything older too? What is there stays.',
+  'hub.window.copyEverything.saving': 'Saving…',
+  'hub.window.copyEverything.failed': 'Not changed:',
   'hub.details': 'Details',
   'hub.migrationId': 'Migration ID:',
   'timeLeft.label': 'How long:',
@@ -493,6 +501,11 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.filesFrom.all': 'De bestanden worden uit {place} gelezen.',
   'hub.filesFrom.path': 'De bestanden worden alleen uit {folder} gelezen.',
   'hub.filesFrom.id': 'De bestanden worden alleen uit één map gelezen: {folder}.',
+  'hub.window.chip': 'Laatste 90 dagen',
+  'hub.window.copyEverything': 'Alles kopiëren',
+  'hub.window.copyEverything.confirm': 'Ook alles wat ouder is kopiëren? Wat er staat, blijft.',
+  'hub.window.copyEverything.saving': 'Opslaan…',
+  'hub.window.copyEverything.failed': 'Niet gewijzigd:',
   'hub.details': 'Details',
   'hub.migrationId': 'Migratie-ID:',
   'timeLeft.label': 'Hoe lang:',

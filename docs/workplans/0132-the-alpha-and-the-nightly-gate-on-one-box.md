@@ -4,6 +4,26 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24: the front refused the TLS handshake for one name at a time, twice, and recovered by
+itself.** Times are UTC.
+
+- **At 15:22, in a run.** E2E (managed) run 45424451225's first attempt, on #2100's branch, stopped
+  in the bring-up. The identity provider reported ready after 10 seconds. Then the front before it
+  refused the handshake for the provider's name six times over a minute (curl exit 35, `tlsv1
+  alert internal error`), so the read gave up after its 62 seconds (2026-11-22's entry below).
+  Every container was up and none unhealthy. The second attempt was green, from 15:27 to 15:50
+  (0119's Status).
+- **From before 17:46 to about 17:51, outside any run.** The owner found the OTA instance's app
+  name not answering. Through the same front, the identity provider's name answered 200 and the
+  app's name refused the handshake (curl exit 35, `tlsv1 alert internal error`). On the machine,
+  every container was up and healthy, and the mesh was connected. The web answered 200 on the
+  machine itself, and at the address the front reaches it on. It came back by itself, with
+  nothing changed.
+- **So the refusal is the front's, one name at a time, and not the stack's.** It is the fifth in
+  a month: four in runs (2026-10-28, 2026-11-15, 2026-11-22 and this one) and the first seen
+  outside one. Nothing changes for it today. If it comes back, the reverse proxy's events in
+  NetBird's dashboard for that minute are the next thing to read.
+
 **2026-11-24, afternoon: live runs `v0.2.0-alpha.18`, one-way over alpha.17 by ledger migration
 0075, on a copy of alpha.17's databases (T6, T9).** The owner deployed it on 2026-11-24 from
 14:20, the day after its tag, pasting the sheet's checked blocks one at a time, and ran the checks

@@ -119,7 +119,8 @@ describe('the route honours the rule rather than restating it', () => {
     // subject: ADR-0033's one-subject-per-mapping rule, undone by a settings save.
     // Built before the write since the root folder joins it (0153 open
     // question 5, item 4), and still over what the row holds.
-    expect(SOURCE).toMatch(/nextOverride = \{ \.\.\.\(currentOverride \?\? \{\}\), \.\.\.revisedFormat \}/);
+    // Over what a broadening in the same request left (workplan 0170), else the row's.
+    expect(SOURCE).toMatch(/nextOverride = \{ \.\.\.\(nextOverride \?\? currentOverride \?\? \{\}\), \.\.\.revisedFormat \}/);
     expect(SOURCE).toContain('sourceConfigOverride: nextOverride');
   });
 

@@ -1607,3 +1607,99 @@ describe('listTopLevelFolders and storageUsage — the drive answers a Test in t
     await expect(source.listTopLevelFolders()).rejects.toThrow(/Files\.Read|accessDenied|nope/);
   });
 });
+
+/**
+ * WORKPLAN 0170 §4.2: a listing under a window. driveItem delta has no date
+ * filter, so the read is made whole and an older file goes back as
+ * `unmarked`. Its cursor is a deltaLink, which tells the next read that every
+ * file it returned was seen, the set-aside ones among them: so it is handed
+ * out tagged as a window's, resumed only by a listing with a window, and read
+ * as no cursor at all by one without (`ListOptions`).
+ */
+describe('a listing under a window (workplan 0170)', () => {
+  const SINCE = new Date('2026-08-26T00:00:00Z');
+  const tokenProvider = {
+    getToken: async () => ({ accessToken: 'tok', expiresAt: Date.now() / 1000 + 3600 }),
+    refresh: async () => ({ accessToken: 'tok', expiresAt: Date.now() / 1000 + 3600 }),
+    isTokenValid: () => true,
+    getTokenStatus: () => ({ isValid: true, timeUntilExpiry: 3600 }),
+  } as unknown as import('@openmig/shared').TokenProvider;
+  const file = (id: string, name: string, modified: string) => ({
+    id,
+    name,
+    parentReference: { path: '/drive/root:' },
+    file: { mimeType: 'text/plain' },
+    size: 10,
+    lastModifiedDateTime: modified,
+    cTag: `c-${id}`,
+  });
+  /** A first read returns both files; a read from its deltaLink, nothing new. */
+  const drive = () => {
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      urls.push(String(url));
+      const body = String(url).includes('deltatoken=after-first')
+        ? { value: [], '@odata.deltaLink': 'https://graph.test/delta?deltatoken=after-second' }
+        : {
+            value: [
+              file('old', 'old.txt', '2025-01-01T10:00:00Z'),
+              file('new', 'new.txt', '2026-11-01T10:00:00Z'),
+            ],
+            '@odata.deltaLink': 'https://graph.test/delta?deltatoken=after-first',
+          };
+      return { status: 200, text: async () => JSON.stringify(body), headers: new Map() };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return { urls, source: new GraphDriveSource({ tokenProvider, tenantId: 't' }) };
+  };
+  const paths = (items: ReadonlyArray<{ item: { path: string } }> | undefined) =>
+    (items ?? []).map((i) => i.item.path);
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('without `since` lists every file and hands out an ordinary cursor, as it always did', async () => {
+    const { source } = drive();
+
+    const listed = await source.listSince({ path: '/' });
+
+    expect(paths(listed.items)).toEqual(['/old.txt', '/new.txt']);
+    expect(listed.unmarked).toBeUndefined();
+    expect(listed.nextCursor.value.startsWith('graph-drive-window:')).toBe(false);
+  });
+
+  it('with `since` keeps the window and hands the older file back as `unmarked`', async () => {
+    const { source } = drive();
+
+    const listed = await source.listSince({ path: '/' }, undefined, { since: SINCE });
+
+    expect(paths(listed.items)).toEqual(['/new.txt']);
+    expect(paths(listed.unmarked)).toEqual(['/old.txt']);
+    expect(listed.nextCursor.value.startsWith('graph-drive-window:')).toBe(true);
+  });
+
+  it("a window's cursor read back WITHOUT a window is no cursor: the folder is listed in full", async () => {
+    const { source, urls } = drive();
+
+    const { nextCursor } = await source.listSince({ path: '/' }, undefined, { since: SINCE });
+    const after = await source.listSince({ path: '/' }, nextCursor);
+
+    // Resumed from the deltaLink, the older file would never come back: the
+    // link says it was seen, and it was set aside, never copied.
+    expect(urls.at(-1)).not.toContain('deltatoken=after-first');
+    expect(paths(after.items)).toEqual(['/old.txt', '/new.txt']);
+  });
+
+  it("a window's cursor read back WITH a window resumes from its deltaLink", async () => {
+    const { source, urls } = drive();
+
+    const { nextCursor } = await source.listSince({ path: '/' }, undefined, { since: SINCE });
+    const after = await source.listSince({ path: '/' }, nextCursor, { since: SINCE });
+
+    expect(urls.at(-1)).toContain('deltatoken=after-first');
+    expect(after.items).toHaveLength(0);
+    expect(after.nextCursor.value.startsWith('graph-drive-window:')).toBe(true);
+    expect(after.nextCursor.value).toContain('deltatoken=after-second');
+  });
+});
