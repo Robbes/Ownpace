@@ -2109,13 +2109,21 @@ self-service.
    drive.delete`. `drive.delete` only ever moves a file to Cirrux's trash, after
    a person approved removing it. One client per deployment: the OTA stack and
    live each have their own callback, and so their own client.
-2. **The client ID, in `deploy/compose/.env`**, where the gate reads it on the
-   OTA stack as for any key:
+2. **The client ID, in the `.env` the stack runs from.** On the OTA stack that is
+   the persisted `~/.persistent/ownpace-managed/.env`, which the gate restores
+   every run (*The OTA stack: the nightly gate, or a pull*), and
+   `deploy/compose/.env` too where that is a copy rather than a link; on live,
+   live's own. From a checkout on `main` (one from before alpha.18 still builds
+   Trigger.dev and stops), then restart the API and the worker, which both read
+   it:
 
    ```bash
-   ./deploy/compose/env-upsert.sh deploy/compose/.env CIRRUX_OAUTH_CLIENT_ID=<the client ID>
+   ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-managed/.env CIRRUX_OAUTH_CLIENT_ID=<the client ID>
    ./deploy/compose/bootstrap-managed.sh --only app
    ```
+
+   Workplan 0160 §6b, step 1, has the whole sequence for the OTA stack, as run
+   on 2026-11-24. A client secret, if Cirrux sends one, is set nowhere.
 
    The worker needs it more than any other client: a pass refreshes each Cirrux
    account's Drive sign-in and writes the successor back, so without it every

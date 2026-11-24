@@ -2,7 +2,81 @@
 
 > **In one line:** Cirrux, a Dutch workspace hosted in Frankfurt, as a place to migrate into: mail, calendars, contacts and tasks over the IMAP and DAV servers it publishes, and files into its Drive through its own OAuth API, a sign-in a person adds to the account.
 
-## Status — 2026-11-20 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24: T2b, the owner's live Drive test, on the test environment: every step ran, and
+none of §6's readings was proven wrong** (§6b; T4 for the file face). The OTA client arrived from
+Cirrux with a client secret beside the ID; the secret is set nowhere, since this service is a
+public client with PKCE and reads none, and the sign-in worked without it. Times are UTC.
+
+1. **The client ID** went into the persisted `.env` (`deploy/compose/.env` is a link to it there),
+   and the app phase restarted the API and the worker; both carry it. Step 1 as written was
+   stale: it named `set-task-env.sh` and `deploy-tasks.sh`, which alpha.18 removed. Run from the
+   operator's checkout, which was older than alpha.18, the app phase built Trigger.dev and stopped
+   before `up`; from `main` it passed. And the gate adds `OWNPACE_REACHABLE_HOSTS` to its own copy
+   of the `.env` only, after it persists the file, so the restart took the demo's Nextcloud away
+   from the stack (*"that address is inside this service's own network"*) until the key was
+   written to the persisted file by hand; the gate persists it since #2105. Step 1 is corrected.
+2. `GET /api/provider-accounts` answered `cirrux.client: "deployment"`, and `GET
+   /api/redirect-uris` listed `cirrux.migration` as the OTA callback Cirrux registered.
+3. **Test** on the Cirrux account from T2: *Carries:* without Files, and **Connect Cirrux Drive**
+   offered.
+4. **Connect Cirrux Drive** (08:38): the window said *"Cirrux Drive is connected. Signed in to
+   Cirrux as `<login>`, `<workspace>`. Files can now go to this account's Drive."*; the row
+   *"Cirrux Drive is connected, and the account has been measured again."* and *Carries: Email ·
+   Calendar · Contacts · Files · Tasks*. The next **Test** found *Files none, 219.8 MB*. The
+   **Test** box under the row kept the earlier answer, without Files, until pressed again.
+5. **Test** twice, a minute apart: both measured the Drive, no error, and the owner stayed signed
+   in to Cirrux: two refreshes, each successor stored. *Found: Files none* counts folders at the
+   top of the Drive (`qualifyCirruxDrive`), so a file there leaves it at none while the size grows.
+6. The screens offer no Nextcloud or other WebDAV **source**, so the source was a Dropbox folder:
+   a 10-byte text file, a 14.8 MB file, a 160.5 MB file and, added before the first pass, a 2.2 GB
+   one; in Cirrux Drive, a folder of the same name with a file differing from the 14.8 MB one only
+   in capitals. Generic DAV sources are passed on as work of their own.
+7. **A migration of files only** (first pass 09:46): one folder, the one made; the text file and
+   the 160.5 MB file created, the latter through the chunked upload in `CXDRV2`, and it plays in
+   full from Cirrux: Cirrux decrypted every part (§6's readings 1 to 3, 20 and 21 hold). The
+   capitals file was refused (*"Cirrux Drive already holds … Cirrux treats the two names as one:
+   capitals and accents written another way do not count there. Nothing was copied and the file
+   in Cirrux was not changed"*), and Cirrux's file was unchanged. The 2.2 GB file was refused before
+   a byte was read (*"… is 2.2 GB, and Cirrux Drive takes files up to 2 GB each (2 GiB), however
+   they are sent. It was not moved."*). Cirrux's own Drive page says 2 GB per file in its web app
+   (§1), so no uploader here can carry a larger file into Cirrux.
+8. **A replace**: the text file edited at the source arrived in Cirrux under the same file, through
+   the chunked flow under `base_ctag`. **A conflict** could not be made: Cirrux's web app has no
+   way to put a new version of a file in place, so the owner deleted the copy, emptied it from the
+   trash and uploaded another file of the same name. The writer found its copy gone (*"changed at
+   the source, and its copy is no longer in Cirrux Drive, so it was not replaced"*) and left the new
+   file alone. Not observed: `409 version_conflict` on a `base_ctag`, which only Cirrux's API or apps
+   can provoke.
+9. **An approved removal** of the 160.5 MB file, deleted at the source, once *deleting by hand* was
+   on: *Deleted on the new system too*, and the file was in Cirrux's trash.
+10. **After fifteen minutes**: the pass at 10:16 came 19 minutes after the one before, and it and
+    the next succeeded (*file: 0 created, 0 updated, 0 skipped*): the worker refreshed and wrote
+    back, and nobody was signed out.
+11. **Disconnect Cirrux Drive** (10:27): *"Cirrux Drive is disconnected: Ownpace deleted its sign-in,
+    and no file goes to this account until you connect it again. Cirrux offers apps no way to end a
+    sign-in, so at Cirrux it stays valid until it goes unused for 30 days. To end it sooner, revoke
+    Ownpace in Cirrux Mail under Settings → Security, where the apps you have authorized are
+    listed."*; *Carries:* without Files. **Sync now**: the files failed with *"This Cirrux account has
+    no Cirrux Drive connected, so nothing was written for 'file', here or to any other destination.
+    On the Accounts page, press Connect Cirrux Drive on this account, and 'file' carries on at the
+    next pass."*, and nothing was written. Ownpace was listed under Cirrux's Settings → Security;
+    the owner revoked it there, connected again, and the pass at 10:29 created a file added at the
+    source meanwhile.
+12. The migration was deleted. The account was kept, since another migration uses it, so the
+    receipt that names the Drive sign-in was not observed.
+
+No failure named `undecryptable_content`, `upload_size_mismatch`, `invalid_grant` or `name_taken`
+(the capitals file was refused before an upload, by the writer's own key), and nobody was signed
+out. Seen on the screens and left for later, with the owner's agreement: the plain headline of the
+capitals refusal and of the missing copy is the generic *"The destination refused to accept this.
+Common causes are no space left…"*; the migration's headline after the disconnect says *"press
+Reconnect or Replace credentials"* where the row's button is **Connect Cirrux Drive**; a deletion
+waiting while deleting by hand is off says *"Set `allowApplyDeletions: true` in its config"*; *Live
+progress* counted a removed file and none of the copied ones (*0 of ~3 · 0 of ~175.3 MB*), and once
+said *3 failed* beside *2 could not be copied*; and the Nextcloud account's Test names no size where
+Dropbox's does.
 
 **2026-11-20, late: the owner's test sent no mail, and Cirrux's copies keep their guests**
 (ADR-0043, amended; §1's row on the marker; §4, step 11). Run on the test environment with this
@@ -182,8 +256,8 @@ discovery from the host's root finds the calendars is the first thing T2 measure
 | T1 The `cirrux` destination | builder | 🔨 **Built 2026-11-19** | §3. Every host and port from `https://cirrux.co/help/setup` and `https://cirrux.co/help/calendar`; the DAV base URL left empty because no path is published. |
 | T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: contacts failed with a 501, calendars with a 404, then each event with a 404, each corrected in T3; then Cirrux emailed the guests of the events written, and the migration is paused; tasks and mail have had no turn yet | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. Steps 10 and 11, the guests test on the test environment, come first (2026-11-20): §5's sixth correction merges only on their answer. |
 | T3 What T2 corrects | builder | 🔨 **Five corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them; a new one is read back where the server put it; nothing written to Cirrux names a guest or an organiser; an event there that already lists a guest is neither rewritten nor deleted. **A sixth 2026-11-20**: the guests are written again, marked, as at Nextcloud, once §4's step 11 sends no mail | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states. |
-| T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
-| T2b The first live Drive test | owner | 📋 **Proposed** | §6b: once Cirrux has sent the OTA client, its ID in the OTA stack's `.env`, *Connect Cirrux Drive*, one small migration of files, a replace, a conflict, an approved removal, a refresh after fifteen minutes, and *Disconnect Cirrux Drive*. |
+| T4 The proof written down | builder | 🔨 **Files recorded 2026-11-24** (T2b); the other faces wait on T2 | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
+| T2b The first live Drive test | owner | ✅ **Run 2026-11-24** on the test environment | §6b, and Status of 2026-11-24: connect, two refreshes, a files migration (a simple and a chunked upload, a capitals clash and a file over 2 GiB refused), a replace, an approved removal to the trash, a refresh after nineteen minutes, a disconnect and a reconnect. Not observed: `409 version_conflict`, and the account's deletion receipt. |
 | T5 Files into Cirrux Drive | builder, owner | 🔨 **Built 2026-11-19, to 2 GiB** | §6; ADR-0052. The consent door, the rotating write-back one refresh at a time, the face and its Test, the writer (simple upload to 100 MB; the chunked upload to 2 GiB and every replace in Cirrux's `CXDRV2` format, streamed; `base_ctag`; the trash for approved removals), the Accounts page's button. |
 | T7 Disconnect Cirrux Drive | builder | 🔨 **Built 2026-11-19** | §6, *Disconnect Cirrux Drive*; ADR-0052 amended. The grant alone removed under the row's lock, the record's file face and the audit line in the same transaction, the access tokens dropped (at once in the API, within a minute in a pass), a pass's files refused under `auth_expired`. Nothing asked of Cirrux, which publishes no revocation. |
 | T6 Cirrux Docs | — | 🅿️ **Parked** | §7. A preview editor for early-access accounts; files stay files. |
@@ -557,8 +631,9 @@ One public client per deployment, `CIRRUX_OAUTH_CLIENT_ID`, read by the API and 
   files once its record measured the Drive, and never a new one; the standing failure naming the
   button; the card's hint, a fourth checklist step, the guides' *Files: Cirrux Drive*, the
   receipt and the retirement sentence naming the Drive sign-in.
-- **The deployment**: `CIRRUX_OAUTH_CLIENT_ID` in `managed.yml` for the API, in
-  `set-task-env.sh` for the worker, in `managed.env.example`; `GET /api/redirect-uris` lists the
+- **The deployment**: `CIRRUX_OAUTH_CLIENT_ID` in `managed.yml` for the API and the `worker`
+  service (until alpha.18, `set-task-env.sh` passed it to Trigger.dev's tasks), in
+  `managed.env.example`; `GET /api/redirect-uris` lists the
   callback as `cirrux.migration`.
 
 Two departures from the plan as split: `CXDRV2` and its known-answer vector landed in the first
@@ -700,20 +775,35 @@ Postgres 16 (`./scripts/local-pg.sh`).
 
 When Cirrux has answered the request with a client ID for the OTA callback:
 
-1. In the OTA stack's checkout, put the ID in the persisted `.env` the gate reads, and in
-   `deploy/compose/.env` too where that is a copy rather than a link (*The OTA stack: the nightly
-   gate, or a pull* in `docs/managed-bring-up.md` says which, and how to tell), then pass it on
-   to the API and the worker:
+1. In the OTA stack's checkout (`~/ownpace-managed`), first bring the checkout to `main`: the
+   nightly gate deploys from the runner's own checkout, so this one can be far behind, and a
+   checkout from before alpha.18 still builds Trigger.dev and stops. Then put the ID in the
+   persisted `.env` the gate reads, and in `deploy/compose/.env` too where that is a copy rather
+   than a link (*The OTA stack: the nightly gate, or a pull* in `docs/managed-bring-up.md`), and
+   restart the API and the worker, which both read it (`managed.yml`); the app phase recreates
+   the worker with the API:
 
    ```bash
-   ./deploy/compose/env-upsert.sh <the .env the gate reads> CIRRUX_OAUTH_CLIENT_ID=<the client ID Cirrux sent>
+   cd ~/ownpace-managed
+   git status --short                      # nothing tracked changed
+   git fetch origin && git switch --detach origin/main
+   read -r -p 'Cirrux client ID: ' t
+   ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-managed/.env "CIRRUX_OAUTH_CLIENT_ID=$t"
+   [ "$(readlink -f deploy/compose/.env)" = "$(readlink -f ~/.persistent/ownpace-managed/.env)" ] && echo 'a link' || ./deploy/compose/env-upsert.sh deploy/compose/.env "CIRRUX_OAUTH_CLIENT_ID=$t"
+   unset t
    ./deploy/compose/bootstrap-managed.sh --only app
-   ./deploy/compose/set-task-env.sh
-   ./deploy/compose/deploy-tasks.sh
+   for s in api worker; do docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' ownpace-managed-$s | grep -q '^CIRRUX_OAUTH_CLIENT_ID=.' && echo "$s set" || echo "$s EMPTY"; done
    ```
 
-   The ID is no secret, and it is the deployment's: it goes in no connection and no screen. Run
-   the four lines while no E2E (managed) run is in progress, as for any key the gate reads.
+   The ID is no secret, and it is the deployment's: it goes in no connection and no screen. If
+   Cirrux also sends a client secret, it is set nowhere: nothing here reads one. Run the lines
+   while no E2E (managed) run is in progress, as for any key the gate reads. The app phase must
+   print `hosts inside this network admitted by name (OWNPACE_REACHABLE_HOSTS): nextcloud,stalwart`;
+   until the gate persists that key (#2105), a persisted `.env` without it takes the demo's
+   Nextcloud away from the stack, and
+   `./deploy/compose/env-upsert.sh ~/.persistent/ownpace-managed/.env OWNPACE_REACHABLE_HOSTS=nextcloud,stalwart`
+   before the app phase puts it back. The API's image has no shell, so the check reads the
+   containers' environment with `docker inspect`.
 2. Check the two answers the screens read: `GET /api/provider-accounts` has `cirrux.client:
    "deployment"`, and `GET /api/redirect-uris` lists `cirrux.migration` as
    `https://app.ota.ownpace.eu/api/migrations/cirrux/callback`, the string Cirrux registered.
@@ -723,7 +813,8 @@ When Cirrux has answered the request with a client ID for the OTA callback:
    words, and the row's **Carries:** and **Found:** afterwards.
 5. Press **Test** twice, a minute apart. Both measure the Drive; each refreshes the sign-in once
    and stores the successor. Check that you are still signed in to Cirrux in the browser.
-6. In a file source you own (a Nextcloud or a Dropbox folder), make a folder with: a small text
+6. In a file source you own (a Dropbox folder: the screens offer no Nextcloud or other WebDAV
+   source, 2026-11-24), make a folder with: a small text
    file, a file of about 20 MB, and, if you have one, a file over 100 MB. In Cirrux Drive, make
    a folder of the same name with one file whose name differs from one of them only in capitals.
 7. Start one migration of files only, from that folder into the Cirrux account, and let one pass
@@ -788,9 +879,9 @@ it is. Revisit when Cirrux Docs is open to every account and someone asks.
   account's own inbox for the first minutes. The account is an attendee of most events it was
   invited to, so an invitation that still went out would reach it first. Then the calendar, task
   and mail lines the pass reports.
-- For T5: the two clients are requested from Cirrux (the live and the OTA callback, §6). When
-  the OTA one arrives, T2b's steps in §6b; when the live one arrives, step 1 of §6b on live, with
-  live's own callback.
+- For T5: the two clients are requested from Cirrux (the live and the OTA callback, §6). The OTA
+  one arrived, and T2b's steps in §6b ran on 2026-11-24. When the live one arrives, step 1 of §6b
+  on live, with live's own `.env` and callback.
 - Nothing with a workspace API key or a webhook.
 
 ## Open questions
