@@ -70,6 +70,8 @@ export * from './specialUse.ts';
 export * from './cursor.ts';
 export * from './concurrency.ts';
 export * from './config.ts';
+// Workplan 0170: the last 90 days first, and a migration of only them.
+export * from './recent-window.ts';
 export * from './target-domains.ts';
 // Workplan 0148 T9 — which destinations an export can be read from, beside
 // the table it derives from.
