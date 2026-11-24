@@ -4,6 +4,45 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **What moves from Microsoft 365 now says OneDrive, and names the online archive** (workplan
+  0026; the owner, 2026-11-24: *"two promises: YES, change the wording."*). Wording only, no
+  new feature. The scope manifest's Microsoft **Files** row said *OneDrive and SharePoint
+  libraries*, while the drive source reads only the signed-in account's own OneDrive; it now says
+  OneDrive, and **SharePoint and Teams files** is a new *does not migrate* row with the way round
+  it: copy the files into your OneDrive first. **Online archive** is a second new row: neither
+  mail source reads Exchange's online archive, where Microsoft's default policy moves mail older
+  than two years, so move its folders into the mailbox first. The Microsoft guide (English and
+  Dutch) gained a *Not yet* section saying both, the site's leaving page lists both rows, and
+  the architecture document's §10.2 no longer says the archive is migrated. The manifest's
+  version moves to 2026-11-24.
+
+## [0.2.0-alpha.19] - 2026-11-24
+
+The managed edition takes any CalDAV, CardDAV or WebDAV server as a source: *Start a migration*
+and the *Any server, by protocol* lane offer **Calendar server (CalDAV)**, **Contacts server
+(CardDAV)** and **File server (WebDAV)** beside IMAP, each labelled **Experimental** until a real
+run proves it, and a Nextcloud is left through these three. A migration that stops at an address
+inside this service's own network now says, in our own words and no longer as the provider's
+message, to replace the server address on the Accounts page, after which the pass carries on where
+it stopped. The **Test** button and the sharing checklist no longer name that network. On
+*Where does it go?*, a line under *I am also changing my email address* says to tick it only when
+leaving an email address of one's own behind. A pass the job runner retried counts as one sync
+operation in the billing usage and in what an invoice freezes; `operator.sh leave` records a
+removal without the address; and contacts reach a Stalwart v1.2.0 server over JMAP, whose answer
+to `ContactCard/parse` the writer now reads. Underneath, the test mail server runs Stalwart
+v1.2.0's Alpine build, which live never runs; pnpm moves to 11.29.0; and the code comments,
+refusals and docs that still described Trigger.dev describe the `worker` service on pg-boss, whose
+containers the capacity rehearsal's sample now measures. The identity provider moves to Zitadel
+v4.20.5, whose one change is in login v2, which does not run here; the move is one-way for the
+identity provider's database. In CI, the migration lint moves to Atlas v1.4.1, the
+migration report to squawk 2.74.0 and the workflow audit to zizmor 1.33.1. alpha.19 is not
+deployed to live: on 2026-11-24 the owner decided to tag it without deploying it, and to deploy
+alpha.20 to live on 2026-11-26. Live stays on alpha.18, deployed there one-way on 2026-11-24 at
+14:37:44 UTC, and alpha.19's changes reach live with alpha.20's deploy. alpha.19 adds no migration
+to either chain.
+
 ### Added
 
 - **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
@@ -24,18 +63,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
-- **What moves from Microsoft 365 now says OneDrive, and names the online archive** (workplan
-  0026; the owner, 2026-11-24: *"two promises: YES, change the wording."*). Wording only, no
-  new feature. The scope manifest's Microsoft **Files** row said *OneDrive and SharePoint
-  libraries*, while the drive source reads only the signed-in account's own OneDrive; it now says
-  OneDrive, and **SharePoint and Teams files** is a new *does not migrate* row with the way round
-  it: copy the files into your OneDrive first. **Online archive** is a second new row: neither
-  mail source reads Exchange's online archive, where Microsoft's default policy moves mail older
-  than two years, so move its folders into the mailbox first. The Microsoft guide (English and
-  Dutch) gained a *Not yet* section saying both, the site's leaving page lists both rows, and
-  the architecture document's §10.2 no longer says the archive is migrated. The manifest's
-  version moves to 2026-11-24.
-
+- **The identity provider moves to Zitadel v4.20.5** (workplan 0119; the pin watch's #1934), from
+  v4.20.4. Its one commit after v4.20.4 is in login v2, which does not run here, so nothing the
+  stack runs changes: per platform its images keep v4.20.4's base layers, and the binary's differs
+  by what a new version string makes. The OTA instance's database was dumped by hand before E2E
+  (managed) applied it there, and live takes it with alpha.20's deploy.
 - **The Test answer and the sharing checklist say less about an address this service will not
   connect to** (workplan 0136; the owner, 2026-11-24: *"yes, follow-up"*). Where they named this
   service's own network, the **Test** button on Accounts now says *"We did not connect to that
