@@ -48,6 +48,47 @@ export interface DomainProgress {
   readonly lastSyncedAt?: string;
   /** When a pass last touched it. */
   readonly lastActiveAt?: string;
+  /**
+   * Calendars the last pass listed and read no event from, when nothing was
+   * ever copied or left as it was (`listedButEmpty`). Absent otherwise.
+   */
+  readonly listedButEmpty?: number;
+}
+
+/** What `listedButEmpty` reads of a row: its counts and its last pass's metrics. */
+export interface ListedButEmptyFacts {
+  readonly domain: DiscoveryDomain;
+  readonly itemsSynced: number;
+  readonly itemsAdopted?: number;
+  readonly lastPass?: { readonly items?: number; readonly collectionsOpened?: number };
+}
+
+/**
+ * CALENDARS FOUND, AND NO EVENT READ FROM THEM (2026-11-24).
+ *
+ * A Microsoft 365 migration listed a personal account's four calendars, read
+ * no event from any of them, and its row said a green *Kept in step* and
+ * *none found to copy*, while the account held a weekly event and a holiday
+ * calendar. The run log had said it all along (*"4 collection(s) listed and
+ * NOT ONE ITEM scanned"*), and the screen did not.
+ *
+ * A calendar that exists is the place events are kept, so calendars found and
+ * nothing read from any is either a listing that is failing or calendars that
+ * are truly empty, and the row says so in amber, rather than reading like a
+ * source with nothing in it. The count of calendars, when the last completed
+ * pass opened some and read no item, and nothing of this data type was ever
+ * copied or left as it was; `undefined` otherwise, including for a pass that
+ * recorded no metrics, which says nothing it did not measure (hard rule 9).
+ *
+ * Calendars only: an empty mail folder or file folder is ordinary, and an
+ * account's calendars are not.
+ */
+export function listedButEmpty(row: ListedButEmptyFacts): number | undefined {
+  if (row.domain !== 'calendar') return undefined;
+  if (row.itemsSynced > 0 || (row.itemsAdopted ?? 0) > 0) return undefined;
+  const opened = row.lastPass?.collectionsOpened;
+  if (opened === undefined || opened <= 0 || row.lastPass?.items !== 0) return undefined;
+  return opened;
 }
 
 /**
@@ -82,6 +123,7 @@ export interface PhaseFacts {
 
 /** One data type's line facts, from its status row and its phase. */
 export function domainProgressOf(row: DomainStatusReport, path: PhaseFacts): DomainProgress {
+  const emptyCalendars = listedButEmpty(row);
   return {
     domain: row.domain,
     state: row.state,
@@ -94,6 +136,7 @@ export function domainProgressOf(row: DomainStatusReport, path: PhaseFacts): Dom
     ...(row.bytesFound !== undefined ? { bytesFound: row.bytesFound } : {}),
     ...(row.lastSyncedAt !== undefined ? { lastSyncedAt: row.lastSyncedAt } : {}),
     ...(row.lastActiveAt !== undefined ? { lastActiveAt: row.lastActiveAt } : {}),
+    ...(emptyCalendars !== undefined ? { listedButEmpty: emptyCalendars } : {}),
   };
 }
 

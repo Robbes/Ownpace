@@ -363,10 +363,18 @@ const BYDAY: Readonly<Record<string, string>> = {
 
 const SETPOS: Readonly<Record<string, number>> = { first: 1, second: 2, third: 3, fourth: 4, last: -1 };
 
-/** Undefined when the pattern is one this mapping does not know — carried as a plain task rather than guessed. */
+/**
+ * Undefined when the pattern is one this mapping does not know — carried as a plain task rather than guessed.
+ *
+ * `untilOf` writes a range's last day as UNTIL. By default it is a DATE, which
+ * is right for a task and an all-day event; a timed event's DTSTART is a
+ * DATE-TIME, and RFC 5545 §3.3.10 has UNTIL follow it, in UTC, so the Graph
+ * calendar source passes its own (`graph-calendar-source.ts`).
+ */
 export function recurrenceToRrule(
   pattern: GraphRecurrencePattern | undefined,
   range: GraphRecurrenceRange | undefined,
+  untilOf: (endDate: string) => string | undefined = dateOfYmd,
 ): string | undefined {
   if (!pattern) return undefined;
   const parts: string[] = [];
@@ -402,7 +410,7 @@ export function recurrenceToRrule(
   }
   if (range?.type === 'numbered' && range.numberOfOccurrences) parts.push(`COUNT=${range.numberOfOccurrences}`);
   if (range?.type === 'endDate') {
-    const until = dateOfYmd(range.endDate);
+    const until = range.endDate ? untilOf(range.endDate) : undefined;
     if (until) parts.push(`UNTIL=${until}`);
   }
   return parts.join(';');
