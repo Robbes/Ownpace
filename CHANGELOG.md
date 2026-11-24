@@ -48,6 +48,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   floating time or a date), RRULE's UNTIL and COUNT, RDATE, and overrides; what it cannot bound
   is held. The start a CalDAV event carries is read from its own VEVENT, in UTC, no longer a
   VTIMEZONE's 1970 start or the moment it was listed.
+- **The last 90 days first, on the screens** (workplan 0170 T5; the owner, 2026-11-24: *"fit in
+  UX!"*). *Start a migration* asks **How much?** under the data types: **Everything**, selected,
+  whose last 90 days come first and everything older after, or **Only the last 90 days**, to try
+  destinations with your current data (mail, files and calendars of 90 days, every contact and task).
+  The check screen says the choice again. A migration of only the last 90 days shows a **Last 90
+  days** chip beside its stage, reads *Kept in step for the last 90 days.*, is never *Ready to
+  switch*, and its Finish step says *After Copy everything* (the owner's D8: *"no, not before"*);
+  its page offers **Copy everything**, one way only, behind the confirmation *Copy everything
+  older too? What is there stays.* A migration of everything says *Copying your last 90 days
+  first.* while they are copied, then *Your last 90 days are in. Older items are still coming.*
+  A new guide, *How a migration copies* / *Hoe een migratie kopieert*, in English and Dutch,
+  says the order, what a 90-day migration copies, *Copy everything*, and the appliance's
+  mapping-file setting. No word *trial* or *proef* anywhere.
 
 ### Changed
 
@@ -99,6 +112,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and read no event, and nothing of them was ever copied, the card's line and the migration
   page's strip now say *4 calendars found, but not one event read from them*, in amber, in
   English and Dutch.
+- **Gmail mail archived without a label was never copied** (workplan 0044, the owner's decision
+  of 2026-11-24). Over IMAP such a message lives only in All Mail, which the Gmail source
+  dropped, so Gmail's own Archive button made mail no pass copied, and the Check passed
+  because it counted from the ledger. All Mail is now read last, after every real folder, and
+  what no other folder carried is copied into a folder called Archive (the target's archive
+  mailbox on JMAP). A sighting there of mail already copied is never a move, a message under
+  two labels is copied once and not reported as moved, and mail archived after its copy stays
+  where it is, neither a deletion nor a move. Review and start shows Gmail's own All Mail
+  count beside what will be copied, and Check the migration compares against it, so a message
+  Gmail holds and no pass copied fails the check. The check counts only what arrived before
+  the last completed pass started, and one message per Message-ID, so new mail and two
+  messages sharing an id never fail it; after the switch, when Gmail can no longer be asked,
+  it counts against Ownpace's own record and says so on the screen. A migration of only the
+  last 90 days counts only the mail inside its window, as that is all it copies, and mail the
+  person chose to leave behind is added to what was recorded (the owner: *"E yes"*), so neither
+  fails the check. On an IMAP destination Archive is the folder the server marks as its archive,
+  where it has one. A migration started earlier copies its archived mail on its next pass.
 
 ## [0.2.0-alpha.19] - 2026-11-24
 

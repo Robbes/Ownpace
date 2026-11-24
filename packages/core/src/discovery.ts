@@ -131,6 +131,20 @@ export async function discoverTarget(
   return { targetExisting, targetColliding };
 }
 
+/**
+ * A collection that holds every item again (Gmail's All Mail, listed last;
+ * `MailFolder.catchAll`). Read structurally, like the folder's name.
+ */
+function isCatchAll<F>(folder: F): boolean {
+  return (folder as { catchAll?: boolean }).catchAll === true;
+}
+
+/** A listed mail item's own Message-ID, or undefined (no key of its own). */
+function messageIdOf<I>(item: I): string | undefined {
+  const id = (item as { messageId?: string }).messageId;
+  return id ? id : undefined;
+}
+
 /** Best-effort default label from a folder's `name`/`path` fields. */
 function defaultFolderName<F>(folder: F): string {
   const f = folder as { name?: string; path?: string };
@@ -154,7 +168,18 @@ export async function discoverSource<F, I>(
   let generatedId = 0;
   let unlistedItems = 0;
   let excludedItems = 0;
+  let sourceTotal: number | undefined;
   const perCollection: DiscoveryCollection[] = [];
+  /**
+   * WHAT WILL BE COPIED, ONCE (the owner, 2026-11-24). Where a source lists a
+   * catch-all collection (Gmail: All Mail, last), one message is listed once
+   * per label and once more there, and the sync copies it once, where a pass
+   * first sees it. So each Message-ID is counted once, in the first
+   * collection that lists it, and the catch-all counts only what no other
+   * collection carried. Kept only for such a source: absent, every collection
+   * counts what it lists, as it always did.
+   */
+  const counted = folders.some(isCatchAll) ? new Set<string>() : undefined;
 
   for (const folder of folders) {
     // Counted, then set aside. An excluded collection is still LISTED — the
@@ -169,8 +194,32 @@ export async function discoverSource<F, I>(
       ? await source.listSince(folder, undefined, { since: window.since })
       : await source.listSince(folder);
     const { unkeyable, unlisted } = listed;
-    const folderItems = window ? listed.items.filter((item) => window.holds(item)) : listed.items;
-    const folderGeneratedId = unkeyable ?? 0;
+    // A 90-day migration counts only its window (workplan 0170 §3.2), the
+    // catch-all's own total included, as the Check's count does.
+    const listedItems = window ? listed.items.filter((item) => window.holds(item)) : listed.items;
+    const catchAll = isCatchAll(folder);
+    // The catch-all's own listing IS the source's own count: all of its
+    // messages. Kept beside what will be copied, so Confirm can say what
+    // Gmail itself holds.
+    if (catchAll) sourceTotal = (sourceTotal ?? 0) + listedItems.length;
+    const folderItems =
+      counted === undefined || excluded !== undefined
+        ? listedItems
+        : listedItems.filter((item) => {
+            const id = messageIdOf(item);
+            // No Message-ID: its key is made from its bytes, which discovery
+            // never reads. Counted where it is listed, except in the
+            // catch-all, which also lists every such message a label holds.
+            if (id === undefined) return !catchAll;
+            if (counted.has(id)) return false;
+            counted.add(id);
+            return true;
+          });
+    const folderGeneratedId = catchAll
+      ? 0
+      : counted !== undefined
+        ? folderItems.filter((item) => messageIdOf(item) === undefined).length
+        : (unkeyable ?? 0);
     // Left behind, not given an id: the source could not list them at all
     // (Graph mail with no `internetMessageId`). Counted apart from `items` and
     // from `generatedIdItems`, which both mean "will be on the target".
@@ -213,6 +262,7 @@ export async function discoverSource<F, I>(
       name: nameOf(folder),
       items: folderItems.length,
       ...(folderHasBytes ? { bytes: folderBytes } : {}),
+      ...(catchAll ? { sourceTotal: listedItems.length } : {}),
       ...(folderGeneratedId > 0 ? { generatedIdItems: folderGeneratedId } : {}),
       ...(folderUnlisted > 0 ? { unlistedItems: folderUnlisted } : {}),
     });
@@ -228,6 +278,7 @@ export async function discoverSource<F, I>(
     ...(generatedId > 0 ? { generatedIdItems: generatedId } : {}),
     ...(unlistedItems > 0 ? { unlistedItems } : {}),
     ...(excludedItems > 0 ? { excludedItems } : {}),
+    ...(sourceTotal !== undefined ? { sourceTotal } : {}),
     perCollection,
   };
 }

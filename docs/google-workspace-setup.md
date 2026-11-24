@@ -467,16 +467,26 @@ The mapping needs only the address, because everything else is fixed by Google:
 
 **What happens to labels.** Gmail's IMAP surface presents each label as a folder, and those
 migrate as folders. It also presents three *views* that contain other folders' messages
-again — All Mail, Starred and Important. Copying those would duplicate every message once
-per view it appears in, so Ownpace drops the three views (recognised by Google's own
-`\All`/`\Flagged`/`\Important` attributes, which survive localisation) and migrates
-everything real: INBOX, your labels, Sent, Drafts. Trash and Spam are excluded from the copy
-by default like every other IMAP source, while the bin is still read for deletion evidence.
-A message carrying several labels appears in several folders, but the ledger keys mail by
-Message-ID, so it is **copied once** — into the folder where a pass first sees it. A later
-sighting under another label is never re-copied; it can surface in the **Moves** queue as a
-source-side placement report, which is information, not action. If your labelling is heavy,
-expect that queue to describe Gmail's labels rather than anything you did.
+again — All Mail, Starred and Important. Starred and Important are dropped (recognised by
+Google's own `\Flagged`/`\Important` attributes, which survive localisation). **All Mail is
+read last** (by its `\All` attribute), after INBOX, the labels, Sent and Drafts: the ledger
+keys mail by Message-ID and copies a message once, into the folder where a pass first sees
+it, so All Mail adds only what no other folder carried — mail archived without a label, and
+mail under a label hidden from IMAP — into a folder called **Archive** on the target (JMAP:
+the account's `archive`-role mailbox; IMAP: the folder the server marks `\Archive`, RFC 6154,
+and a folder called `Archive` only on a server that marks none). Up to and including alpha.19 that mail was not copied at all. A
+message under several labels is copied once and is not reported as a move; a sighting in All
+Mail is never one. Trash and Spam are excluded from the copy by default like every other IMAP
+source, while the bin is still read for deletion evidence. Mail archived after it was copied
+stays where it was copied: neither a deletion nor a move. The Check compares against Gmail's
+own All Mail count, so a message no pass copied fails it. It counts from All Mail's listing
+only what arrived (`INTERNALDATE`) before the last completed pass started, a few minutes'
+margin for the two clocks aside, and one per Message-ID, so neither new mail nor two messages
+sharing an id fails it. A 90-day migration (workplan 0170) counts only its window: All Mail
+is listed with the window's `since` (`UID SEARCH SINCE`) and what arrived before it is left
+out. Mail left behind by the owner's choice (`left_behind`) is added to the recorded side, so
+it never reads as never copied. After the switch, when Gmail cannot be asked (the account deleted, or
+access withdrawn), the Check counts against the ledger, as it did before, and says so.
 
 ## Calendar and Contacts as sources
 
