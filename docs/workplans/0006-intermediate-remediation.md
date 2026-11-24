@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to M done (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-24: A to M, and O, done (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -18,6 +18,7 @@
 | K — Errors caught and dropped, again: the 12 spots the same check (ERR-1) named on `75d7949d`, 2026-11-21 | ✅ Done 2026-11-21, merged in #2022 (`a01edafe`) from branch `claude/ownpace-public-readiness-y7orc6-err1-nov21`: no real bug; 7 spots narrowed or made to say their failure, all in tests and their set-up; 5 swallow nothing, of which 3 are left as they were, one gains a test (the Cirrux connector) and one a single parse; nothing in the product changes. See §K | asked for, 2026-11-21 |
 | L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | ✅ Done 2026-11-21, merged in #2023 (`5ba9688a`) from branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`; read again 2026-11-24, unchanged (§L): none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
 | M — A comparison that is not a secret: the line a read-only check (JS-07) named in `caldav-source.ts`, 2026-11-24 | ✅ Read 2026-11-24: a false positive, a CalDAV sync token compared with the client's own (§M); nothing changed | the owner was given a reason to paste |
+| O — The same list read again in a loop (PERF-4, five spots) and "green in CI proves less than it seems" (QUAL-3): a read-only check on `20038a66`, 2026-11-24 | ✅ Read and done 2026-11-24 (§O): one PERF-4 spot true, the pin watch listing the open issues once per row, now once per run; four PERF-4 spots and QUAL-3 false, nothing changed | asked for, 2026-11-24 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -378,6 +379,48 @@ check most likely matched the word *token*.
 
 **Decided.** A false positive, read on 2026-11-24; nothing changed. The owner was given a reason
 to paste.
+
+## O — A list read again in a loop, and green CI (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check read `main` at `20038a66` (#2123) and named five spots
+under PERF-4, "the same data read or parsed again inside a loop", and one finding under QUAL-3,
+"green in CI proves less than it seems". Each was read on `main` at `20038a66`, where all six
+still stand as the check gives them.
+
+**PERF-4.**
+
+| Spot on `20038a66` | Verdict | Why |
+|---|---|---|
+| `scripts/idp-pin-watch.mjs:1876` | **True, fixed** | `main()` kept the issue of each of the report's seven rows with `keepIssue(row, gh, row.title)`, and each call ran `gh issue list --state open --limit 1000 --json number,title,body`: seven requests to GitHub for the same list, each parsed again. Now `keepIssues` lists the open issues once (`openIssues`) and hands that list to `keepIssue` for every row. `keepIssue` takes it as an optional fourth argument and, left without it, lists them itself as before, so its existing callers and tests are unchanged. One list can serve every row because every row has a title of its own: the seven `TITLES` are distinct, and the guard's *the routine pins* test already holds that `watch()` gives seven distinct titles. A row opens, edits or closes only issues under its own title, so nothing one row writes changes what the next row finds. `keepIssues` refuses two rows under one title, a row without one counting as the identity provider's, as `keepIssue`'s default does. A list that cannot be read is every row's error, as it was when each row read it. Shown by `a-pin-that-knows-it-is-behind.unit.test.ts`, *every row from one list of the open issues (PERF-4)*: five rows, one `issue list`; with the list not handed on, the test fails |
+| `scripts/lessons.mjs:184` | False | `collect()` maps over `guardFiles(dir)`, and each pass reads a different guard file, once |
+| `scripts/lessons.mjs:259` | False | Not in a loop: the one read of `docs/LESSONS.md`, in `--check` mode |
+| `scripts/release-verify.mjs:442` | False | `asJson` parses bom.json's bytes once per release check. Its one caller is `checkAssets` (`:429`), whose one caller, `main` (`:597`), runs it once |
+| `scripts/workplan-index.mjs:304` | False | `check()` reads the README once per run; its one caller is the CLI's `--check` (`:359`) |
+
+**QUAL-3.** The check took `main` at `20038a66`, whose push run of CI skipped the test jobs, for
+green that proves little. False:
+
+- `20038a66` (#2123) changes two files, both under `docs/workplans/`. Its push run,
+  45415351286, ran `detect-changes`, `docs-hygiene` and `fixture-uuid-check`, skipped `lint`,
+  `unit-tests`, `ui-tests`, `migration-lint` and `integration-tests`, and `ci-complete` passed.
+  That is by design: `detect-changes` found no code change, and `ci-complete` fails any gate
+  that was owed and skipped.
+- The code in that tree is the code of its parent, `8f46f61c` (#2118). That commit's push run,
+  45411654993, ran and passed `unit-tests (all)`, `lint`, `ui-tests` and
+  `integration-tests (ubuntu-24.04-arm)`.
+- Every pull request must be up to date with `main` before it merges, and `ci-complete` is
+  required on it (`docs/testing.md`), so each tree that lands was validated on its pull request
+  too.
+- No step in `.github/workflows/ci.yml` has `continue-on-error`, and each run read its own
+  commit (`head_sha` of both runs), not an earlier one.
+- `ci.yml` already explains the docs-only skip and the cancelled middle runs of a burst of
+  merges (the comments at lines 141 to 190), and
+  `a-run-that-was-cancelled-and-called-green.unit.test.ts` guards them.
+
+No workflow changed.
+
+**Decided.** PERF-4 at `idp-pin-watch.mjs` fixed; the other four PERF-4 spots and QUAL-3 read
+as false on 2026-11-24, and nothing changed for them.
 
 ---
 
