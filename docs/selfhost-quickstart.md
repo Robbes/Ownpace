@@ -5,7 +5,7 @@ Postgres + one app container that migrates itself on startup, discovers what a
 new mapping will move, waits for you to review and confirm it, then runs on an
 in-process schedule and serves a local status endpoint. It runs **all five
 domains** (mail / calendar / contacts / tasks / files) with the same engines as the
-managed edition, and loads **none** of the managed-only machinery (no Trigger.dev,
+managed edition, and loads **none** of the managed-only machinery (no pg-boss worker,
 no billing).
 
 > **Footprint note.** Both editions run on Postgres, and the appliance can run it

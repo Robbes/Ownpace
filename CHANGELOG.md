@@ -60,6 +60,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   starts since alpha.18, so every line read `tasks=0`. It now reads every stack's `worker`
   container and its memory, where each pass runs, and this stack's passes in flight, as the tick
   counts them; `docs/performance.md` says how the sitting sets the caps since T9.
+- **Docs that still described Trigger.dev in the present tense** (workplan 0167, after T9).
+  `docs/deployment.md` names the `worker` service on pg-boss where it named the plane and the
+  tasks' prebuilt base; the incident runbook's scheduled-syncs row and the breach procedure's
+  hard stop and run records name `operator.sh jobs` where they named Trigger.dev's dashboard;
+  and the cutover and owner-test runbooks, `docs/release.md`, the self-host quickstart and
+  README and the ledger's README no longer name a removed runner, mode or step. Dated and
+  comparing mentions stay.
 
 ### Security
 
