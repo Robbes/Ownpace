@@ -549,6 +549,33 @@ jobs:
           set -euo pipefail
           ./deploy/compose/bootstrap-managed.sh --from data --with-demo --no-smoke
 
+      - name: Persist the demo's admitted hosts
+        # THE ONE KEY THE BRING-UP ADDS AFTER THE COPY-BACK (workplan 0160,
+        # T2b, 2026-11-24). The demo phase's admit_demo_hosts writes
+        # OWNPACE_REACHABLE_HOSTS=nextcloud,stalwart into the checkout's .env,
+        # after the Fill step has copied that file back to PERSIST_DIR. So the
+        # persisted .env never carried it, and a hand-run
+        # `bootstrap-managed.sh --only app` from the operator's checkout, which
+        # links that file, recreated the api and the worker without it: the
+        # OTA stack then refused its own Nextcloud ("that address is inside
+        # this service's own network") until the next nightly. This step
+        # writes that one key back, with the value the bring-up used, and
+        # nothing else. PERSIST_DIR is the restore's, whose .env was refused
+        # there if it were live's. scripts/demo-hosts-persisted.unit.test.ts
+        # runs this.
+        run: |
+          set -euo pipefail
+          . deploy/compose/env-read.sh
+          COMPOSE_PROJECT="$(compose_project deploy/compose)"
+          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
+          hosts="$(env_value deploy/compose/.env OWNPACE_REACHABLE_HOSTS)"
+          if [ -z "$hosts" ]; then
+            echo "::error::the bring-up with --with-demo left OWNPACE_REACHABLE_HOSTS empty in the checkout's .env; admit_demo_hosts should have set it"
+            exit 1
+          fi
+          ./deploy/compose/env-upsert.sh "${PERSIST_DIR}/.env" "OWNPACE_REACHABLE_HOSTS=${hosts}"
+          echo "persisted OWNPACE_REACHABLE_HOSTS=${hosts} to ${PERSIST_DIR}/.env, so a hand-run app phase keeps the demo's hosts"
+
       - name: The provider step, run a second time, adds nothing (#711)
         # On the owner's box every re-run of the app phase added a Google
         # sign-in provider — nine buttons after a week — because configure_idp
