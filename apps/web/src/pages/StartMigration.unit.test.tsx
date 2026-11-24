@@ -2286,13 +2286,13 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     const user = userEvent.setup();
     renderAt();
     await toWhere(user);
-    const hint = 'Only when you give up an address of your own.';
+    const hint = 'Only when you leave an email address of your own behind.';
     const line = screen.getByText(hint);
     expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).toHaveAccessibleDescription(
       hint,
     );
     const rest =
-      'For example an old company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and shares. Mail is never changed.';
+      'For example an old company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and shares. Mail and content are never changed.';
     const fold = within(line.parentElement!);
     expect(fold.getByText(rest)).not.toBeVisible();
     await user.click(fold.getByText('Why?'));

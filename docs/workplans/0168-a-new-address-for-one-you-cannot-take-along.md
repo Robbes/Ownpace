@@ -14,13 +14,18 @@ branch `claude/ownpace-public-readiness-y7orc6-address-tick-hint`, from `main` a
 - **One line under the box, tied to it by `aria-describedby`, and the rest behind *Why?*** (the
   `Hint` component, 0118's hint and fold). The proposal's three sentences ran over 0118's budget
   for a hint, one sentence of at most twelve words (`words-that-fit-on-one-line.unit.test.ts`), so
-  they are split as 0118 splits every hint. The line: *"Only when you give up an address of your
-  own."* / *"Alleen als u een eigen adres opgeeft."* Behind *Why?*: *"For example an old
-  company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and
-  shares. Mail is never changed."* / *"Bijvoorbeeld het domein van een oud bedrijf. De volgende
-  stap vraagt wat ervoor in de plaats komt in uw contacten, agenda's, taken en deelrechten. Mail
-  wordt nooit gewijzigd."* *Deelrechten* rather than the proposal's *gedeelde bestanden*: the
-  product's word for shares, as `addresses.where` and the check step say it.
+  they are split as 0118 splits every hint. The line: *"Only when you leave an email address of
+  your own behind."* / *"Alleen als u een eigen mailadres achterlaat."* Behind *Why?*: *"For
+  example an old company’s domain. The next step asks what replaces it in your contacts,
+  calendars, tasks and shares. Mail and content are never changed."* / *"Bijvoorbeeld het domein
+  van een oud bedrijf. De volgende stap vraagt wat ervoor in de plaats komt in uw contacten,
+  agenda's, taken en deelrechten. Mail en inhoud worden nooit gewijzigd."* *Deelrechten* rather
+  than the proposal's *gedeelde bestanden*: the product's word for shares, as `addresses.where`
+  and the check step say it.
+- **The owner's Dutch**, read on the split: *"'Alleen als u een eigen adres opgeeft' change into
+  'Alleen als u een eigen mailadres achterlaat.' and 'Mail wordt nooit gewijzigd.' into 'Mail en
+  inhoud worden nooit gewijzigd.'"* The English is conformed to it, and `addresses.where`, which
+  said the same last sentence on the page of address changes, says the new one in both languages.
 - **The Microsoft guide** names the box by its new label in both languages, and the UI test reads
   the Dutch label.
 - **Proved by** a new case in `apps/web/src/pages/StartMigration.unit.test.tsx`: the line is the
