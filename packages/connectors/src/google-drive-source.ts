@@ -54,6 +54,7 @@ import {
   type GoogleEditorKind,
   type FileFolder,
   type FileItem,
+  type ListOptions,
   type PermissionGrant,
   type PermissionListing,
   type RawFileItem,
@@ -256,6 +257,15 @@ export function isNativeEditorFile(mimeType: string): boolean {
  * takes neither parameter — an export is addressed by file id alone — which
  * is why the export URL builder does not use these.
  */
+/**
+ * An instant as a `q` term's date-time: RFC 3339 in UTC, seconds and no
+ * fraction, the form Drive's search documentation shows (`modifiedTime >
+ * '2012-06-04T12:00:00'`, UTC when no offset is given).
+ */
+export function driveQueryTime(at: Date): string {
+  return at.toISOString().slice(0, 19);
+}
+
 const LIST_ALL_DRIVES = 'supportsAllDrives=true&includeItemsFromAllDrives=true';
 const GET_ALL_DRIVES = 'supportsAllDrives=true';
 
@@ -424,15 +434,24 @@ export class GoogleDriveSource implements FileSource {
    * The cursor is returned for the loop's benefit and is NOT a delta token —
    * see the file header. Every pass sees every file; the ledger makes the second
    * pass create nothing.
+   *
+   * WITH A WINDOW (`options.since`, workplan 0170 §4.2) Drive filters on the
+   * server: `modifiedTime >= …` in `q`, so a file older than the window is
+   * never listed at all. Such a listing is not the folder's key set, so it is
+   * kept out of the `listKeys` memo (`ListOptions`): `listKeys` then lists
+   * for itself. The cursor is the same sentinel, never read back, so it can
+   * claim nothing about the files the filter left out.
    */
   async listSince(
     folder: FileFolder,
     _cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
+    const since = options?.since;
     const folderId = await this.resolveFolderId(folder.path);
     const items: RawFileItem[] = [];
 
-    for (const file of await this.listChildren(folderId, false)) {
+    for (const file of await this.listChildren(folderId, false, since)) {
       // TALLIED HERE BECAUSE THE WALK IS ALREADY HAPPENING (0042 T7). The
       // preflight lists every folder to count items; asking `refusalFor` about
       // each file as it goes costs a map lookup and no request at all, where a
@@ -492,7 +511,11 @@ export class GoogleDriveSource implements FileSource {
 
     // For `listKeys`, which the loop asks immediately after this for the same
     // folder. Same listing, so the two cannot disagree about what is there.
-    this.lastListing = { path: folder.path, keys: items.map((i) => i.item.path) };
+    // Never a windowed one, which is not the folder's key set: a memo of it
+    // would make every older file read as gone. Cleared rather than left, so
+    // an earlier listing's memo cannot answer in its place either.
+    this.lastListing =
+      since === undefined ? { path: folder.path, keys: items.map((i) => i.item.path) } : undefined;
 
     return {
       items,
@@ -1054,14 +1077,20 @@ export class GoogleDriveSource implements FileSource {
     return response;
   }
 
-  /** Children of a folder: either the sub-folders, or everything that is not one. */
-  private async listChildren(folderId: string, foldersOnly: boolean): Promise<DriveFile[]> {
+  /**
+   * Children of a folder: either the sub-folders, or everything that is not one.
+   *
+   * `since` narrows the files to those modified on or after it (workplan 0170
+   * §4.2); never the folders, which are where a window's files go.
+   */
+  private async listChildren(folderId: string, foldersOnly: boolean, since?: Date): Promise<DriveFile[]> {
     const clause = foldersOnly
       ? `mimeType='${DRIVE_FOLDER_MIME}'`
       : `mimeType!='${DRIVE_FOLDER_MIME}'`;
+    const window = !foldersOnly && since !== undefined ? ` and modifiedTime >= '${driveQueryTime(since)}'` : '';
     // `trashed=false` matters: a trashed file is still listed otherwise, and
     // copying somebody's bin into their new system is not a migration.
-    const q = `'${folderId}' in parents and trashed=false and ${clause}`;
+    const q = `'${folderId}' in parents and trashed=false and ${clause}${window}`;
     const fields = 'nextPageToken,files(id,name,mimeType,size,md5Checksum,modifiedTime,createdTime)';
 
     const found: DriveFile[] = [];
