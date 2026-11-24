@@ -4,6 +4,14 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, later: alpha.20's counted nights waived, in the owner's words (T4).** On the branch
+`claude/ownpace-public-readiness-y7orc6-a20-waiver`; not merged. The owner wrote, the same day:
+*"for 20 i also waive al waiting/days."* `v0.2.0-alpha.20` joins `WAIVER_VERSIONS` in
+`scripts/release-nights.mjs` with those words; both list guards name it, and `v0.2.0-alpha.21` is
+now the version a waiver is refused for; `docs/release.md` lists it. It waives the nights and
+nothing else: the commit, the gates and the E2E runs in their place are read as for alpha.19. The
+guards: 119 of 119, and both fail with the new line taken out.
+
 **2026-11-24: alpha.19's counted nights waived, in the owner's words (T4).** On the branch
 `claude/ownpace-public-readiness-y7orc6-a19-waiver`; merged as #2118 on 2026-11-24 at about 14:13
 UTC (`8f46f61c`). Asking for workplan 0170 in the
