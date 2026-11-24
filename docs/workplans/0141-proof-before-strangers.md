@@ -5,8 +5,8 @@
 ## Status — 2026-11-20 (update this block at the end of every session)
 
 **2026-11-20, last: the O365 lane is withdrawn, and its workflow deleted (T13 (a)).** On the
-branch `claude/ownpace-public-readiness-y7orc6-o365-lane-withdrawn`, from `main` at `bf9ede75`; not
-merged. The owner asked it with the CI checks proposal (#1978, its D2): *"why do we still have an
+branch `claude/ownpace-public-readiness-y7orc6-o365-lane-withdrawn`, from `main` at `bf9ede75`;
+merged as #1980 on 2026-11-21 at about 02:13 UTC (`a4e9f331`). The owner asked it with the CI checks proposal (#1978, its D2): *"why do we still have an
 O365 workflow? Perhaps we need to delete that file."* Advised there to delete it (its D7), the
 owner answered *"D7: yes"*.
 - **Why.** The lane never ran a test. Its four runs: the two of 2026-09-06 were cancelled before
