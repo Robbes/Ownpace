@@ -21,6 +21,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   kept with the cursors, and the setting in the migration's own override. The screens and the
   sources' server-side date filters follow in 0170's other tasks; until then every source lists
   as before and the window is applied as items are listed.
+### Fixed
+
+- **The appliance on PGlite no longer fails a pass when two data types start at once.** On
+  `persistence: pglite` there is one database session. The handle the appliance's status and
+  cursor stores were built on sent its statements to that session without waiting for the
+  driver's queue, so one could land in the middle of another data type opening its tenant
+  transaction: it ran with no organisation set, failed (`invalid input syntax for type uuid`),
+  and took that transaction down with it (`current transaction is aborted`). The handle now
+  waits its turn for each statement, and a statement sent from inside a transaction's own work
+  runs in that transaction rather than waiting for itself. Postgres was never affected.
+  Workplan 0016's note of 2026-11-24.
 
 ## [0.2.0-alpha.19] - 2026-11-24
 

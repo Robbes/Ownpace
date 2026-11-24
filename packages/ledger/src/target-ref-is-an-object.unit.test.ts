@@ -25,6 +25,7 @@ import { it, expect, beforeAll, afterAll } from 'vitest';
 import { createPgliteDb } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import { PgLedger } from './ledger.ts';
+import { statementsInTurn, type StatementsInTurn } from './driver.ts';
 
 const T = '9b2e0000-e29b-41d4-a716-4466554471a1';
 const C = '9b2e0000-e29b-41d4-a716-4466554471a2';
@@ -35,12 +36,12 @@ const M = '9b2e0000-e29b-41d4-a716-4466554471a5';
 let db: Awaited<ReturnType<typeof createPgliteDb>>['db'];
 let driver: Awaited<ReturnType<typeof createPgliteDb>>['driver'];
 let close: Awaited<ReturnType<typeof createPgliteDb>>['close'];
-let conn: Awaited<ReturnType<typeof driver.acquire>>;
+let conn: StatementsInTurn;
 
 beforeAll(async () => {
   ({ db, driver, close } = await createPgliteDb());
   await runMigrations({ driver, logger: () => {} });
-  conn = await driver.acquire();
+  conn = statementsInTurn(driver);
   await conn.query(`INSERT INTO tenant (id,name) VALUES ($1,'target-ref')`, [T]);
   await conn.query(
     `INSERT INTO connection (id,tenant_id,role,kind,display_name,config,status)
