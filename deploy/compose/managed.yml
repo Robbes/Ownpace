@@ -171,7 +171,7 @@ services:
     # registry serves this name, so `docker compose pull` passes it by rather
     # than failing on it, and `up` builds it when it is missing without first
     # asking whatever answers on this host's port 443 for it.
-    image: localhost/postgres:18.7-alpine-6adabb723757
+    image: localhost/postgres:18.7-alpine-8a9f2fb59c72
     build: ./postgres
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-db
@@ -1784,9 +1784,16 @@ services:
   # 7.4.21 besides. Not apache2's: 2.4.69-1~deb13u1 still, installed by the
   # PHP base, so CVE-2026-119618 (fixed in 2.4.71-1~deb13u1) waits for that
   # base's rebuild and Nextcloud's after it, and libxml2's CVE-2026-6653 has
-  # no fix.
+  # no fix. SINCE 2026-11-24 (alpha.20) the pin is upstream's rebuild of
+  # 35.0.3-apache, index digest 2567f3c36f59…, pushed that day at 13:51:50 UTC:
+  # the same Nextcloud (version.php still 35.0.3.2, so no `occ upgrade`) on
+  # PHP 8.5.13 in place of 8.5.12, and in its Debian packages apache2
+  # 2.4.71-1~deb13u1 (the fix above), libssl3t64 3.5.9-1~deb13u1, libc6
+  # deb13u5, Kerberos', libnghttp2's, libfreetype6's, libopenexr's and rsync's
+  # next deb13 updates and linux-libc-dev 6.12.118-1, read off both indexes,
+  # every blob checked against its sha256 and nothing run.
   nextcloud:
-    image: nextcloud:35.0.3-apache@sha256:8a7a65b8bae82a79568fec2ed9cf3e374a1944eda2a22ebe130d79463336fee3
+    image: nextcloud:35.0.3-apache@sha256:2567f3c36f59f21ba8e7f6f788cbfc96324a8306b0f19f71be8878ddbf31c38f
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
     restart: unless-stopped
     logging: *logging

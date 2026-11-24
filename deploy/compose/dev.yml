@@ -18,7 +18,7 @@
 services:
   # Ledger database
   postgres:
-    image: localhost/postgres:18.7-alpine-6adabb723757 # managed.yml's build: the official image without gosu, as uid 70 (./postgres/Dockerfile); base: Alpine 3.x (current)
+    image: localhost/postgres:18.7-alpine-8a9f2fb59c72 # managed.yml's build: the official image without gosu, as uid 70 (./postgres/Dockerfile); base: Alpine 3.x (current)
     build: ./postgres
     pull_policy: never # built here, never pulled: no registry serves the name (managed.yml says why)
     environment:
@@ -47,7 +47,7 @@ services:
   # self-host E2E removes the container before each run and so installs
   # afresh.
   nextcloud:
-    image: nextcloud:35.0.3-apache@sha256:8a7a65b8bae82a79568fec2ed9cf3e374a1944eda2a22ebe130d79463336fee3 # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
+    image: nextcloud:35.0.3-apache@sha256:2567f3c36f59f21ba8e7f6f788cbfc96324a8306b0f19f71be8878ddbf31c38f # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
     container_name: ownpace-dev-nextcloud # fixed name so provisioning scripts can `docker exec` it deterministically
     environment:
       SQLITE_DATABASE: nextcloud
