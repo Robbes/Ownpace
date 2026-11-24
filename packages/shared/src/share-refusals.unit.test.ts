@@ -93,6 +93,19 @@ describe('the sentences', () => {
     expect(nl).toMatch(/[.]$/);
   });
 
+  it('an address this service will not connect to: nothing of what is inside it, and where to change it (the owner, 2026-11-24)', () => {
+    const { en, nl } = shareRefusalSaid({ kind: 'insideOurNetwork' });
+    expect(en).toBe(
+      "We did not connect to the new system's address, so nothing was shared. On the Accounts page, enter an internet address of the server.",
+    );
+    expect(nl).toBe(
+      'Geen verbinding gemaakt met het adres van het nieuwe systeem, dus er is niets gedeeld. Vul op de pagina Accounts een internetadres van de server in.',
+    );
+    expect(en).not.toMatch(/network|inside|internal/i);
+    // `internetadres` is the way out; `intern` or `interne` on its own would not be.
+    expect(nl).not.toMatch(/netwerk|binnen|\binterne?\b/i);
+  });
+
   it('no grantee is ours, in both languages', () => {
     expect(NO_GRANTEE_TO_SHARE_WITH.en).toContain('nobody to share with');
     expect(NO_GRANTEE_TO_SHARE_WITH.nl).not.toBe(NO_GRANTEE_TO_SHARE_WITH.en);

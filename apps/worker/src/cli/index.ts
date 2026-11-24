@@ -30,7 +30,7 @@ import {
 } from '@openmig/ledger';
 import { asTenantId, asMappingId, DISCOVERY_DOMAINS, type TenantId, type MappingId, type DiscoveryDomain } from '@openmig/shared';
 import { reindexFromTarget } from '@openmig/core';
-import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
+import { buildDepsFromMapping, readRecentOnly } from '@openmig/orchestration/build-deps-from-mapping';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 import {
   checkGraphAccess,
@@ -379,10 +379,13 @@ async function main() {
   // A test migration's marker, from its own row, where it never changes
   // (workplan 0162 T3): approve, execute and complete refuse a test.
   const testMarker = await testMarkerOf(pool, tenantId, mappingId);
+  // And whether it copies only the last 90 days (workplan 0170 D8).
+  const recentOnly = (await readRecentOnly(pool, tenantId, mappingId)) !== undefined;
 
   const deps: cutoverCli.CutoverCliDeps = {
     tenantId: tenantId as TenantId,
     mappingId: mappingId as MappingId,
+    recentOnly,
     cutoverPersistence,
     dnsDomain: domain,
     targetMailServer: targetMailServer || `mail.${domain}`,

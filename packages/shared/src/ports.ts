@@ -12,6 +12,7 @@ import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from '
 import type { CalendarFolder, RawCalendarEvent } from './calendar.ts';
 import type { ContactFolder, RawContact } from './contact.ts';
 import type { FileFolder, FileItem, RawFileItem } from './file.ts';
+import type { PassWindow } from './recent-window.ts';
 
 /** Opaque, source-defined cursor for incremental listing (e.g. UIDVALIDITY+UIDNEXT). */
 export interface SyncCursor {
@@ -2713,6 +2714,8 @@ export interface Scheduler {
 export interface ReconcileDeps extends PassClock, SourceAuthority {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
+  /** This pass reads the last 90 days only (workplan 0170 §3.2). Absent: the whole mailbox. */
+  readonly window?: PassWindow;
   readonly source: SourceConnector;
   readonly target: TargetWriter;
   readonly ledger: Ledger;
@@ -2756,6 +2759,12 @@ export interface ReconcileDeps extends PassClock, SourceAuthority {
 
 /** Summary of a single shadow pass. */
 export interface ReconcileResult {
+  /**
+   * Only for a pass with a `window` (workplan 0170 §3.3): whether it reached
+   * the end of every folder, with no pause, stop or unread folder. Absent for
+   * every other pass.
+   */
+  readonly windowComplete?: boolean;
   /**
    * How many collections the SOURCE listed for this pass.
    *
