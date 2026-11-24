@@ -319,11 +319,18 @@ export class MarkedOnlyMail implements SourceConnector {
   private readonly inner: SourceConnector;
   declare readonly measureMailbox?: (options?: { readonly sampleSize?: number }) => Promise<unknown>;
   declare readonly countMessages?: () => Promise<unknown>;
+  /**
+   * Gmail's labels are several places at once under a marker too. Its count
+   * of every message (`countEveryMessage`) is NOT forwarded: a test copies
+   * only what is marked, so the account's whole count is no measure of it.
+   */
+  readonly severalPlacesAtOnce?: true;
 
   constructor(inner: SourceConnector, marker: string) {
     this.inner = inner;
     this.marker = assertUsableMarker(marker);
     forwardWhereOffered(this, inner, MAIL_MEASURES);
+    if (inner.severalPlacesAtOnce) this.severalPlacesAtOnce = true;
   }
 
   listFolders(): Promise<ReadonlyArray<MailFolder>> {

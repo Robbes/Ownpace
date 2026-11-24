@@ -132,6 +132,9 @@ export async function runCutoverGate(
         // type with none is reported NOT_VERIFIABLE rather than measured
         // against another's listing.
         targetReindexers: targets.reindexers,
+        // Gmail's own count, where the source has one (the owner,
+        // 2026-11-24): a message it holds and no pass copied fails the gate.
+        sourceSideCounts: targets.sourceSideCounts,
         // Asked before each read of a target (0139 T7): a close while the gate
         // runs stops it with the close's refusal, and no verdict is recorded.
         organisationIsOpen: organisationStillOpen(pool, tenantId),

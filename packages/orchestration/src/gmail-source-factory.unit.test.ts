@@ -273,10 +273,13 @@ describe('the wrapper delegates, explicitly', () => {
     },
   };
 
-  it('filters listFolders and passes listSince/fetch through untouched', async () => {
+  it('lists All Mail last as Archive and passes listSince/fetch through untouched', async () => {
     const wrapped = new GmailFolderView(inner);
 
-    expect(await wrapped.listFolders()).toEqual([inbox]);
+    expect(await wrapped.listFolders()).toEqual([
+      inbox,
+      { path: 'Archive', name: 'Archive', specialUse: 'archive', listAttributes: ['\\All'], catchAll: true },
+    ]);
     expect(await wrapped.listSince(inbox, { value: 'c-1' })).toEqual({
       items: [item],
       nextCursor: { value: 'c-2' },
@@ -294,7 +297,7 @@ describe('the wrapper delegates, explicitly', () => {
 });
 
 describe('GmailFolderView measures what it SHOWS (2026-09-02)', () => {
-  it('delegates measureMailbox to the inner source over the visible folders only — All Mail is not counted twice', async () => {
+  it('delegates measureMailbox to the inner source over All Mail alone — every message once, nothing twice', async () => {
     const given: Array<ReadonlyArray<{ path: string }> | undefined> = [];
     const inner = {
       listFolders: async () => [
@@ -313,8 +316,9 @@ describe('GmailFolderView measures what it SHOWS (2026-09-02)', () => {
     };
     const view = new GmailFolderView(inner as never);
     const m = await view.measureMailbox();
-    expect(m).toEqual({ folders: 2, messages: 7, bytes: 700, estimated: false });
-    expect(given[0]?.map((f) => f.path)).toEqual(['INBOX', 'Work']);
+    // `folders` is what a pass reads: INBOX, Work and Archive (All Mail).
+    expect(m).toEqual({ folders: 3, messages: 7, bytes: 700, estimated: false });
+    expect(given[0]?.map((f) => f.path)).toEqual(['[Gmail]/All Mail']);
   });
 
   it('says so when the inner source cannot measure, rather than answering nothing', async () => {

@@ -10,11 +10,13 @@ import {
   addressTableDigest,
   guardsAnAddressRewrite,
   waitsForAnAddressChange,
+  sourceStillDecides,
   type AddressChangesInLedger,
+  type SourceCountWindow,
   type TenantId,
   type MappingId,
 } from '@openmig/shared';
-import { readAddressChangeWaitsFor } from './path-phases.ts';
+import { readAddressChangeWaitsFor, readPathPhases } from './path-phases.ts';
 import { createPgDb } from './db.ts';
 import type { PgDatabase } from './db-types.ts';
 import * as schema from './schema-pg.ts';
@@ -49,6 +51,12 @@ export interface LedgerVerificationReader {
 
   /** The address table's part of one data type (ADR-0055), as the shared port says. */
   addressChangesOf(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<AddressChangesInLedger>;
+
+  /** When the last completed pass started, and whether past the switch, as the shared port says. */
+  sourceCountWindow(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<SourceCountWindow>;
+
+  /** How many items the person chose to leave behind (`left_behind`), as the shared port says. */
+  countLeftBehind(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<number>;
 }
 
 /**
@@ -125,6 +133,24 @@ export function createLedgerVerificationReader(
       return result[0]?.count ?? 0;
     },
     
+    async countLeftBehind(tenantId, mappingId, domain): Promise<number> {
+      // What `countItems` leaves out as accepted (§11.2), counted apart so the
+      // Check can put it on the recorded side beside the source's own figure,
+      // which still holds it (the owner, 2026-11-24: "E yes").
+      const result = await db
+        .select({ count: sql`count(*)`.mapWith(Number) })
+        .from(schema.item)
+        .where(
+          and(
+            eq(schema.item.tenantId, tenantId),
+            eq(schema.item.mappingId, mappingId),
+            eq(schema.item.domain, domain),
+            eq(schema.item.status, 'left_behind'),
+          ),
+        );
+      return result[0]?.count ?? 0;
+    },
+
     async totalSizeBytes(tenantId, mappingId, domain): Promise<number> {
       const result = await db
         .select({ 
@@ -276,5 +302,58 @@ export function createLedgerVerificationReader(
         ...(waitsFor !== undefined ? { waitsFor } : {}),
       };
     },
+
+    async sourceCountWindow(tenantId, mappingId, domain): Promise<SourceCountWindow> {
+      const [status] = await db
+        .select({
+          state: schema.migrationStatus.state,
+          startedAt: schema.migrationStatus.startedAt,
+          completedAt: schema.migrationStatus.completedAt,
+          lastPassMetrics: schema.migrationStatus.lastPassMetrics,
+        })
+        .from(schema.migrationStatus)
+        .where(
+          and(
+            eq(schema.migrationStatus.tenantId, tenantId),
+            eq(schema.migrationStatus.mappingId, mappingId),
+            eq(schema.migrationStatus.domain, domain),
+          ),
+        )
+        .limit(1);
+      const phases = await readPathPhases(db, tenantId, mappingId);
+      const started = status ? lastCompletedPassStart(status) : undefined;
+      return {
+        ...(started !== undefined ? { lastCompletedPassStartedAt: started.toISOString() } : {}),
+        // No phases read: not known to be past anything, so not past it.
+        pastTheSwitch: phases !== null && !sourceStillDecides(phases, domain),
+      };
+    },
   };
+}
+
+/**
+ * When the last COMPLETED pass of one data type started, from its status row
+ * (the owner, 2026-11-24: count what arrived before it). Undefined when none
+ * has completed.
+ *
+ * - `completed`: `started_at` is that pass's own start (`markInProgress`
+ *   writes it at the top of every pass).
+ * - Any other state: a later pass has begun and `started_at` is ITS start, so
+ *   the completed one's is the time it completed less the wall time it took
+ *   (`last_pass_metrics.wallMs`). Both survive the later pass's start. The
+ *   wall time is measured inside the pass, so this lands at or after the real
+ *   start, never before what the pass listed.
+ */
+export function lastCompletedPassStart(status: {
+  readonly state: string;
+  readonly startedAt: Date | string;
+  readonly completedAt: Date | string | null;
+  readonly lastPassMetrics: unknown;
+}): Date | undefined {
+  const at = (v: Date | string): Date => (v instanceof Date ? v : new Date(v));
+  if (status.completedAt === null) return undefined;
+  if (status.state === 'completed') return at(status.startedAt);
+  const wallMs = (status.lastPassMetrics as { wallMs?: unknown } | null)?.wallMs;
+  if (typeof wallMs !== 'number' || !Number.isFinite(wallMs) || wallMs < 0) return undefined;
+  return new Date(at(status.completedAt).getTime() - wallMs);
 }

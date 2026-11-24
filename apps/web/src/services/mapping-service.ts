@@ -703,6 +703,8 @@ export const DiscoveryCollectionSchema = z.object({
   generatedIdItems: z.number().optional(),
   /** Items in this collection the source could not list; NOT migrated. */
   unlistedItems: z.number().optional(),
+  /** The source's own count of a collection that holds everything again (Gmail's All Mail). */
+  sourceTotal: z.number().optional(),
   /** Why this collection will NOT be migrated, when it will not be. */
   excluded: z.string().optional(),
 });
@@ -715,6 +717,8 @@ export const DiscoveryRecordSchema = z.object({
   generatedIdItems: z.number().optional(),
   /** Items the source holds but could not list, so cannot migrate; NOT part of `items`. */
   unlistedItems: z.number().optional(),
+  /** What the source itself says it holds (Gmail's All Mail), beside what will be copied. */
+  sourceTotal: z.number().optional(),
   /** What the destination already holds, and how much of it we will adopt. */
   targetExisting: z.number().optional(),
   targetColliding: z.number().optional(),
