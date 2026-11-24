@@ -152,7 +152,7 @@ const join = (folder: string, name: string): string =>
   folder === '' ? name : name === '' ? folder : `${folder}/${name}`;
 
 /** An item is its bytes AND its name: two differently named files with equal bytes are two files. */
-const itemKey = (contentHash: string, name: string): string => `${contentHash}\u0000${name}`;
+const itemKey = (hash: string, name: string): string => `${hash}\u0000${name}`;
 
 /**
  * A CSV, RFC 4180: quoted fields, doubled quotes, CR LF or LF, a leading BOM.
@@ -589,7 +589,7 @@ export function createApplePrivacyArchiveReader(store: ArchiveStore = localStore
     const items: ArchiveItem[] = [];
     const whereabouts = new Map<string, string>();
     const usedAlbums = new Set<string>();
-    for (const [key, { copies, hash, sizeBytes, createdAt }] of byKey) {
+    for (const [key, { copies, hash: contentHash, sizeBytes, createdAt }] of byKey) {
       const first = copies[0]!;
       whereabouts.set(key, first.treePath);
       const placeIn = new Set<string>();
@@ -616,8 +616,10 @@ export function createApplePrivacyArchiveReader(store: ArchiveStore = localStore
       }
       const driveRow = driveRows.get(key);
       const photoRow = services.has('icloud-photos') ? photoRows.get(first.name) : undefined;
+      // Our own SHA-256 (the seam's rule 2); `archive-file-source.ts` is what
+      // puts it in `FileItem.contentHash`, and says so in that field's guard.
       items.push({
-        contentHash: hash,
+        contentHash,
         path: first.name,
         sizeBytes,
         kind: 'original',
