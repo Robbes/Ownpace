@@ -21,6 +21,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   kept with the cursors, and the setting in the migration's own override. The screens and the
   sources' server-side date filters follow in 0170's other tasks; until then every source lists
   as before and the window is applied as items are listed.
+- **The mail sources read the last 90 days first** (workplan 0170 T2, for its §4.1). Given a
+  window, an IMAP source, Gmail's included, asks the server `UID SEARCH SINCE` the day before it
+  and fetches only the messages that search answers, so a window pass no longer downloads the
+  headers of a whole folder. The day of margin covers a server that dates mail in a zone as far
+  west as UTC-12; the few extra messages are set aside by the sync loop. The cursor such a listing
+  returns names its window, so a later full listing never takes it for proof that the older mail
+  was seen. Microsoft Graph mail lists in full: its date filter on messages delta stops at 5,000
+  messages, Microsoft's own page says, which a 90-day Inbox can pass. Nothing changes for a
+  listing without a window.
 - **The last 90 days first, on the screens** (workplan 0170 T5; the owner, 2026-11-24: *"fit in
   UX!"*). *Start a migration* asks **How much?** under the data types: **Everything**, selected,
   whose last 90 days come first and everything older after, or **Only the last 90 days**, to try
