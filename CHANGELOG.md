@@ -55,6 +55,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   one card; spread into the `ContactCard/set` create, the list was refused as `invalidProperties`.
   The writer reads either shape and takes the card with the contact's own UID, refusing a blob
   whose cards do not say which one it is. Its refusals now name the properties a server refused.
+- **The capacity rehearsal's sample measures the workers, not the runners alpha.18 removed**
+  (workplan 0143 T9). `rehearse-capacity.sh --sample` counted `runner-*` containers, which no stack
+  starts since alpha.18, so every line read `tasks=0`. It now reads every stack's `worker`
+  container and its memory, where each pass runs, and this stack's passes in flight, as the tick
+  counts them; `docs/performance.md` says how the sitting sets the caps since T9.
 
 ### Security
 
