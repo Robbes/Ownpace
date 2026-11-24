@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to M done (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-24: A to M done, Q fixed on its branch (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -18,6 +18,7 @@
 | K — Errors caught and dropped, again: the 12 spots the same check (ERR-1) named on `75d7949d`, 2026-11-21 | ✅ Done 2026-11-21, merged in #2022 (`a01edafe`) from branch `claude/ownpace-public-readiness-y7orc6-err1-nov21`: no real bug; 7 spots narrowed or made to say their failure, all in tests and their set-up; 5 swallow nothing, of which 3 are left as they were, one gains a test (the Cirrux connector) and one a single parse; nothing in the product changes. See §K | asked for, 2026-11-21 |
 | L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | ✅ Done 2026-11-21, merged in #2023 (`5ba9688a`) from branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`; read again 2026-11-24, unchanged (§L): none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
 | M — A comparison that is not a secret: the line a read-only check (JS-07) named in `caldav-source.ts`, 2026-11-24 | ✅ Read 2026-11-24: a false positive, a CalDAV sync token compared with the client's own (§M); nothing changed | the owner was given a reason to paste |
+| Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | 🔨 Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, not yet merged: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). The first proof in CI comes on `main` | asked for, 2026-11-24 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -378,6 +379,53 @@ check most likely matched the word *token*.
 
 **Decided.** A false positive, read on 2026-11-24; nothing changed. The owner was given a reason
 to paste.
+
+## Q — The release's SBOM lists what the product runs (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check (SBOM-1) compared the `bom.json` attached to
+`v0.2.0-alpha.18` with the packages it found in this repository, and reported two findings:
+"2 packages in both lists with another version" and "194 packages not in our list". Read again
+here against the published `bom.json` and `pnpm-lock.yaml` on `main` at `cdd6e89`.
+
+**The cause.** Security Scan's "Generate CycloneDX SBOM" ran `cyclonedx-npm`, which builds the
+SBOM from `npm ls` at the repository root. This is a pnpm workspace, and the root `package.json`
+names 3 dependencies and 25 devDependencies and no `workspaces`, so `npm ls` saw nothing of the
+14 workspace projects but what the root itself pulls in.
+
+| Finding | Kind | What it is |
+|---|---|---|
+| 2 packages in both lists with another version | Explained | `magic-string` (1.4.5 and 1.4.3) and `ansi-styles` (4.3.0 and 5.2.0) each have two versions in the tree, and the old BOM listed one of each (1.4.5, 4.3.0). Both second copies are dev tooling of `apps/web`. The new BOM lists all four, each `scope: excluded` |
+| 194 packages not in our list | **Real; fixed here** | alpha.18's BOM held 545 distinct name@version pairs and lacked **56 production packages** the apps import, among them `jose` (`apps/api/src/middleware/auth.ts`), `helmet` (`apps/api/src/index.ts`), `@mollie/api-client`, `pg-boss` (`packages/scheduler`), `axios`, `follow-redirects` and `react-router`. It marked nothing as dev, though 344 of its pairs are dev tooling, and named no `@openmig/*` package. On today's lockfile, 208 of its 753 entries are not in that BOM; the check counted 194 on the commit it read |
+
+**Fixed.**
+
+- The step runs `pnpm sbom --sbom-format cyclonedx --out bom.json` (pnpm 11.29.0, pinned in
+  `packageManager` and already installed in the job), keeping its name and its fatal-on-a-tag
+  handling. It reads every workspace project from the lockfile: 643 components, a license on each,
+  the 257 production packages `required` and the 386 dev ones `scope: excluded`.
+  `metadata.component` stays `ownpace@<version>`, so `release-verify.mjs`'s `checkBom` passes as
+  before. Not `--lockfile-only`, which lists no license at all.
+- A step right after it, *The SBOM lists every production package*, runs
+  `scripts/sbom-complete.mjs`: every package in pnpm's own production set (`pnpm ls -r --prod
+  --depth Infinity`, read separately from the SBOM) must be a component and not excluded, and the
+  set must hold `jose`, `helmet`, `pg-boss` and `axios`, so an empty answer cannot pass. Run on
+  alpha.18's `bom.json` it refuses with the 56; on the new one it passes, 257 of 257.
+  `scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts` holds it on a fixture cut
+  from both outputs, and refuses each production package by name when it is deleted or marked dev.
+- `scripts/a-pin-that-knows-it-is-behind.unit.test.ts` is anchored on the new command, and still
+  refuses an npx that may install, put back on the line.
+
+**What the new BOM still leaves out.** 110 of the lockfile's 753 entries: all optional, and all
+installed only on another platform (105 bound by `os`, `cpu` or `libc`, such as `@esbuild/*` and
+`@rollup/rollup-*`, and 5 WebAssembly fallbacks such as `@napi-rs/wasm-runtime`). The SBOM
+describes the tree installed on the runner that builds it.
+
+**Left for later.**
+
+- Dropping the `@cyclonedx/cyclonedx-npm` devDependency, and any override that exists only for
+  it, once the new step has run on a tag.
+- An SBOM per image, for the operating-system packages of the base images, which no npm or pnpm
+  BOM lists.
 
 ---
 

@@ -144,6 +144,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   published it on 2026-11-23 at 18:25 UTC; CONTRIBUTING.md's three days are waived for this test
   image alone, on the owner's words above. stalwart-cli stays at v1.0.14, which reads v1.2.0's
   schema. Live never runs this image.
+- **The release's `bom.json` lists every package the product runs** (workplan 0006 §Q; SBOM-1,
+  from an outside, read-only check). Security Scan built it with `cyclonedx-npm`, which reads only
+  the root `package.json`, so alpha.18's SBOM lacked 56 production packages the apps import
+  (`jose`, `helmet`, `pg-boss`, `axios`, `@mollie/api-client` and `react-router` among them) and
+  marked none of its dev tooling as dev. It is now built by `pnpm sbom` from the lockfile: every
+  workspace project, a license on every component, dev-only packages marked `scope: excluded`.
+  A new step after it, `scripts/sbom-complete.mjs`, fails when a package in pnpm's production set
+  is missing from `bom.json` or marked dev.
 
 ## [0.2.0-alpha.18] - 2026-11-23
 

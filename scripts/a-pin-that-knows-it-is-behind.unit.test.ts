@@ -2561,8 +2561,9 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
   it("refuses a file named `-latest` or under a `latest` path, and an npx that may install, in any workflow, by a mutation of the real one (#1777's review)", () => {
     const file = '.github/workflows/security-scan.yml';
     const scan = REAL.read(file)!;
-    const sbom = /\n( +)if ! npx --yes=false @cyclonedx\/cyclonedx-npm /;
-    expect(sbom.test(scan), `the SBOM step's npx is not in ${file}`).toBe(true);
+    // Anchored on the SBOM step's command: an npx there until 2026-11-24, `pnpm sbom` since (workplan 0006 §Q).
+    const sbom = /\n( +)if ! pnpm sbom --sbom-format cyclonedx /;
+    expect(sbom.test(scan), `the SBOM step's command is not in ${file}`).toBe(true);
     const mutate = (to: string): string => scan.replace(sbom, (all, indent: string) => `\n${indent}${to}${all}`);
     // The download #1773 replaced, word for word, in a workflow atlasPin never reads.
     const atlas = 'curl -sSf -o /tmp/atlas https://atlasbinaries.com/atlas/atlas-community-linux-amd64-latest && chmod +x /tmp/atlas';
@@ -2572,9 +2573,12 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
     }
     // A release whose name only contains the word is not a channel.
     expect(floatingFetches(mutate('curl -sSfLO https://example.org/v1.2.3/latestish-1.2.3.tar.gz'))).toEqual([]);
-    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx -y @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
-    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
-    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx --yes @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
+    // The npx this step ran until 2026-11-24, put back: allowed as it was, refused in each form that may install.
+    const npx = (flag: string): string => mutate(`npx ${flag}@cyclonedx/cyclonedx-npm --output-format JSON --output-file bom.json`);
+    expect(floatingFetches(npx('--yes=false '))).toEqual([]);
+    for (const flag of ['-y ', '', '--yes ']) {
+      expect(floatingFetches(npx(flag)).join('\n'), flag).toMatch(/runs npx, which installs from npm/);
+    }
   });
 
   it('reads both action images from images.yml, each by a release tag and its digest, and every other workflow without fault', () => {
