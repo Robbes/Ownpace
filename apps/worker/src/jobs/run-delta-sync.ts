@@ -40,7 +40,9 @@ import type {
   UnreadCollection,
 } from '@openmig/shared';
 import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
-import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
+import { buildDepsFromMapping, buildDomainDepsFromMapping, readRecentOnly } from '@openmig/orchestration/build-deps-from-mapping';
+import { planWindow, runWithWindow, type WindowedResult } from '@openmig/orchestration/recent-window-pass';
+import type { CursorStore, PassWindow } from '@openmig/shared';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
 import {
   withTenant,
@@ -451,6 +453,9 @@ export const runDeltaSyncRun = leavesAReference(
         ).then((completed) => domains.filter((d) => !completed.includes(d))),
       );
       let finishedAFirstCopy = false;
+      // The 90-day setting (workplan 0170 §5.1), read once for the run, as the
+      // appliance reads its mapping file once per firing.
+      const recentOnly = await readRecentOnly(pool, tenantId, mappingId);
       // Everything of the person's in? Asked only by a pass that finished a
       // first copy, once its data types are marked, and never allowed to fail
       // the pass: a pass that copied everything is no less done for a mail
@@ -603,6 +608,32 @@ export const runDeltaSyncRun = leavesAReference(
           // tasks" does not re-read a mailbox that was already right.
           const fullScan = scansFromTheBeginning(domain);
 
+          /**
+           * THE LAST 90 DAYS FIRST (workplan 0170 §3), by the rule the
+           * appliance's `runAllDomains` runs too (`recent-window-pass.ts`): a
+           * windowed data type's first copy reads its last 90 days, then the
+           * rest in the same pass; a 90-day migration reads its window only.
+           * The record lives in the cursor store, so it is read from the
+           * builder's own even on a full rescan, which passes none.
+           */
+          let firstCopyOwed = false;
+          const withWindow = async <R extends WindowedResult>(
+            cursors: CursorStore | undefined,
+            run: (window: PassWindow | undefined) => Promise<R>,
+          ): Promise<R> => {
+            const plan = await planWindow({
+              tenantId,
+              mappingId,
+              domain,
+              cursors,
+              ...(recentOnly ? { recentOnly } : {}),
+              copiedOnce: () => Promise.resolve(!unfinishedAtStart.has(domain)),
+            });
+            const ran = await runWithWindow({ tenantId, mappingId, domain, cursors, plan, run });
+            firstCopyOwed = ran.firstCopyOwed;
+            return ran.result;
+          };
+
           // Build + run + close the deps per domain, on this job's pool (0138
           // T1 part 2). Literal domain args pick the right overload.
           // THE FIELDS THE LOG LINE NEEDS, NAMED. This type listed only the
@@ -656,11 +687,14 @@ export const runDeltaSyncRun = leavesAReference(
             // row security binds it too (workplan 0138 T1).
             const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
             try {
-              const pass = await runShadowPass({
-                ...deps,
-                ...passStops,
-                ...(fullScan ? { cursors: undefined } : {}),
-              });
+              const pass = await withWindow(deps.cursors, (window) =>
+                runShadowPass({
+                  ...deps,
+                  ...passStops,
+                  ...(fullScan ? { cursors: undefined } : {}),
+                  ...(window ? { window } : {}),
+                }),
+              );
               result = {
                 // Carried, not dropped: the mail branch reshapes the pass's
                 // result by hand, and every field left out of this literal is
@@ -688,7 +722,14 @@ export const runDeltaSyncRun = leavesAReference(
           } else if (domain === 'calendar') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar');
             try {
-              result = await runCalendarSync({ ...deps, ...passStops, ...(fullScan ? { cursors: undefined } : {}) });
+              result = await withWindow(deps.cursors, (window) =>
+                runCalendarSync({
+                  ...deps,
+                  ...passStops,
+                  ...(fullScan ? { cursors: undefined } : {}),
+                  ...(window ? { window } : {}),
+                }),
+              );
             } finally { await deps.close(); }
           } else if (domain === 'contact') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact');
@@ -714,7 +755,14 @@ export const runDeltaSyncRun = leavesAReference(
             // a move this pass records from being auto-applied by this pass.
             const passStartedAt = new Date().toISOString();
             try {
-              result = await runFileSync({ ...deps, ...passStops, ...(fullScan ? { cursors: undefined } : {}) });
+              result = await withWindow(deps.cursors, (window) =>
+                runFileSync({
+                  ...deps,
+                  ...passStops,
+                  ...(fullScan ? { cursors: undefined } : {}),
+                  ...(window ? { window } : {}),
+                }),
+              );
               // Not after a pass that was told to stop: applying a relocation
               // removes the old copy on the target, which is exactly the kind
               // of write a Pause, a withdrawn grant or a closed organisation
@@ -840,7 +888,9 @@ export const runDeltaSyncRun = leavesAReference(
           // And one whose new items waited at the data ceiling has not
           // finished either: they are copied on the pass after the yes.
           const held = result.heldAtCeiling ?? 0;
-          if (!pause && unread.length === 0 && held === 0) {
+          // And one whose last 90 days are not all in yet has not either: its
+          // older items wait for the pass that finishes them (workplan 0170).
+          if (!pause && unread.length === 0 && held === 0 && !firstCopyOwed) {
             await withTenant(pool, tenantId, async (db) => {
               await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain, result.metrics);
             });

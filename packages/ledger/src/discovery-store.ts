@@ -6,6 +6,7 @@ import {
   type DomainDiscovery,
   type TenantId,
   type MappingId,
+  sourceTotalFromCollections,
   unlistedFromCollections,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
@@ -148,6 +149,8 @@ export class PgDiscoveryStore implements DiscoveryStore {
       // Totalled from the stored breakdown: the count has no column (see
       // `unlistedFromCollections`).
       const unlistedItems = unlistedFromCollections(perCollection);
+      // And the source's own count, where it has one (Gmail's All Mail).
+      const sourceTotal = sourceTotalFromCollections(perCollection);
       const record: DiscoveryRecord = {
         domain: row.domain as DiscoveryDomain,
         collections: row.collections,
@@ -167,6 +170,7 @@ export class PgDiscoveryStore implements DiscoveryStore {
           : {}),
         ...(row.targetColliding != null ? { targetColliding: Number(row.targetColliding) } : {}),
         ...(unlistedItems > 0 ? { unlistedItems } : {}),
+        ...(sourceTotal !== undefined ? { sourceTotal } : {}),
         ...(perCollection ? { perCollection } : {}),
         ...(row.lastError ? { lastError: row.lastError } : {}),
       };

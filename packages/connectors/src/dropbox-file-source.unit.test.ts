@@ -493,3 +493,69 @@ describe("the 'Dropbox' root alias — the whole account, not a subfolder (2026-
     );
   });
 });
+
+/**
+ * WORKPLAN 0170 §4.2: a listing under a window. `list_folder` has no date
+ * filter, so the source lists whole and hands an older file back as
+ * `unmarked`; and the `listKeys` memo never holds a windowed listing, which is
+ * not the folder's key set (`ListOptions`).
+ */
+describe('a listing under a window (workplan 0170)', () => {
+  const SINCE = new Date('2026-08-26T00:00:00Z');
+  const folder = () =>
+    fakeDropbox({
+      '': [
+        {
+          entries: [
+            FILE('/old.txt', { server_modified: '2025-01-01T10:00:00Z' }),
+            FILE('/new.txt', { server_modified: '2026-11-01T10:00:00Z' }),
+          ],
+          cursor: 'c',
+          has_more: false,
+        },
+      ],
+    });
+
+  it('without `since` lists every file, as it always did, and sets nothing aside', async () => {
+    const { transport } = folder();
+    const source = new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT });
+
+    const listed = await source.listSince({ path: '' });
+
+    expect(listed.items.map((i) => i.item.path)).toEqual(['old.txt', 'new.txt']);
+    expect(listed.unmarked).toBeUndefined();
+  });
+
+  it('with `since` keeps the window and hands the older file back as `unmarked`', async () => {
+    const { transport } = folder();
+    const source = new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT });
+
+    const listed = await source.listSince({ path: '' }, undefined, { since: SINCE });
+
+    expect(listed.items.map((i) => i.item.path)).toEqual(['new.txt']);
+    expect(listed.unmarked?.map((i) => i.item.path)).toEqual(['old.txt']);
+  });
+
+  it('a windowed listing is never the memo `listKeys` answers from: the older file is still a key', async () => {
+    const { transport, calls } = folder();
+    const source = new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT });
+
+    // A full listing first, whose memo the windowed one must clear, not leave.
+    await source.listSince({ path: '' });
+    await source.listSince({ path: '' }, undefined, { since: SINCE });
+    const before = calls.length;
+
+    expect(await source.listKeys({ path: '' })).toEqual(['old.txt', 'new.txt']);
+    expect(calls.length, 'listKeys listed for itself').toBeGreaterThan(before);
+  });
+
+  it('the cursor claims nothing: read back without a window, the older file is listed', async () => {
+    const { transport } = folder();
+    const source = new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT });
+
+    const { nextCursor } = await source.listSince({ path: '' }, undefined, { since: SINCE });
+    const after = await source.listSince({ path: '' }, nextCursor);
+
+    expect(after.items.map((i) => i.item.path)).toEqual(['old.txt', 'new.txt']);
+  });
+});

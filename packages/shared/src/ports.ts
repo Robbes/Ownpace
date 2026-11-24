@@ -12,6 +12,7 @@ import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from '
 import type { CalendarFolder, RawCalendarEvent } from './calendar.ts';
 import type { ContactFolder, RawContact } from './contact.ts';
 import type { FileFolder, FileItem, RawFileItem } from './file.ts';
+import type { PassWindow } from './recent-window.ts';
 
 /** Opaque, source-defined cursor for incremental listing (e.g. UIDVALIDITY+UIDNEXT). */
 export interface SyncCursor {
@@ -61,6 +62,23 @@ export function discardedScanCursorKey(collectionPath: string): string {
   return `\u0001discarded\u0001${collectionPath}`;
 }
 
+/**
+ * What a listing may be asked to leave out (workplan 0170 §3.5).
+ *
+ * Passed as the third argument of `listSince` on the mail, calendar and file
+ * ports. Not on `ContactSource`: contacts are never windowed.
+ */
+export interface ListOptions {
+  /**
+   * Only items on or after this instant are wanted. A source MAY filter by it on the server, and
+   * MAY return items before it: the loop checks every item itself. It MUST NOT keep a listing
+   * made with `since` where `listKeys` reads it (Google Drive, Dropbox and Box memo their last
+   * listing for `listKeys` today), and it MUST NOT return a cursor that claims an item before
+   * `since` was seen when that cursor could be stored as a content cursor.
+   */
+  readonly since?: Date;
+}
+
 /** A source mailbox the engine reads from. READ-ONLY. */
 export interface SourceConnector {
   /** Enumerate folders with special-use detection (RFC 6154). */
@@ -72,6 +90,7 @@ export interface SourceConnector {
   listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<MailItem>;
     nextCursor: SyncCursor;
@@ -120,9 +139,10 @@ export interface SourceConnector {
      */
     removed?: ReadonlyArray<string>;
     /**
-     * Items this read RETURNED that a test migration's marker set aside
-     * (`MarkedOnly`, workplan 0162): their own title does not carry the
-     * marker, so they are not in `items`. The sync loop asks two things of
+     * Items this read RETURNED that a selection set aside: a test
+     * migration's marker (`MarkedOnly`, workplan 0162), whose own title does
+     * not carry the marker, or a window's (workplan 0170 §3.2), an item older
+     * than the window. Either way they are not in `items`. The sync loop asks two things of
      * them and nothing else, and writes nothing about them anywhere.
      *
      * Whether there were any, so a read the marker emptied is not mistaken
@@ -158,6 +178,30 @@ export interface SourceConnector {
    * still lists, marked or set aside (`unmarked`).
    */
   readonly markedOnly?: true;
+  /**
+   * One message can be in several folders at once on this source: Gmail,
+   * whose labels each present as a folder. Set by `GmailFolderView` and by
+   * nothing else. The sync loop then reads a second folder in the same pass
+   * as a second place rather than a move (`DomainSyncDeps.severalPlacesAtOnce`).
+   */
+  readonly severalPlacesAtOnce?: true;
+  /**
+   * How many messages the source holds, by its OWN count rather than by what
+   * was copied: Gmail's All Mail, which holds every message once, Spam and
+   * Trash aside. Read by the Check so that a message no pass ever copied
+   * fails it, which a figure taken from the ledger cannot do. Absent from
+   * every source that has no such folder.
+   *
+   * Only what arrived (INTERNALDATE) before `before`, the last completed
+   * pass's start, so mail that arrived since never fails a Check; and one per
+   * Message-ID, as the ledger keys it, so two messages sharing one never fail
+   * it for good (the owner, 2026-11-24).
+   *
+   * With `since`, a 90-day migration's window start (workplan 0170), only what
+   * arrived on or after it as well: a windowed migration copies nothing older,
+   * so counting it would fail every windowed Check.
+   */
+  countEveryMessage?(options: { readonly before: Date; readonly since?: Date }): Promise<number>;
 }
 
 /**
@@ -172,6 +216,7 @@ export interface CalendarSource {
   listSince(
     folder: CalendarFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<RawCalendarEvent>;
     nextCursor: SyncCursor;
@@ -221,7 +266,7 @@ export interface CalendarSource {
      * this at all.
      */
     removed?: ReadonlyArray<string>;
-    /** Items the marker set aside. See `SourceConnector.listSince`. */
+    /** Items a selection set aside, a test marker's or a window's. See `SourceConnector.listSince`. */
     unmarked?: ReadonlyArray<RawCalendarEvent>;
   }>;
   /** Lists only what a test migration's marker selects. See `SourceConnector.markedOnly`. */
@@ -330,6 +375,7 @@ export interface FileSource {
   listSince(
     folder: FileFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<RawFileItem>;
     nextCursor: SyncCursor;
@@ -385,7 +431,7 @@ export interface FileSource {
      * Absent from every source whose listing is a folder's own children.
      */
     listedElsewhere?: number;
-    /** Files the marker set aside. See `SourceConnector.listSince`. */
+    /** Files a selection set aside, a test marker's or a window's. See `SourceConnector.listSince`. */
     unmarked?: ReadonlyArray<RawFileItem>;
   }>;
   /**
@@ -2692,6 +2738,8 @@ export interface Scheduler {
 export interface ReconcileDeps extends PassClock, SourceAuthority {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
+  /** This pass reads the last 90 days only (workplan 0170 §3.2). Absent: the whole mailbox. */
+  readonly window?: PassWindow;
   readonly source: SourceConnector;
   readonly target: TargetWriter;
   readonly ledger: Ledger;
@@ -2735,6 +2783,12 @@ export interface ReconcileDeps extends PassClock, SourceAuthority {
 
 /** Summary of a single shadow pass. */
 export interface ReconcileResult {
+  /**
+   * Only for a pass with a `window` (workplan 0170 §3.3): whether it reached
+   * the end of every folder, with no pause, stop or unread folder. Absent for
+   * every other pass.
+   */
+  readonly windowComplete?: boolean;
   /**
    * How many collections the SOURCE listed for this pass.
    *
@@ -3003,6 +3057,39 @@ export interface LedgerVerificationReader {
     mappingId: MappingId,
     domain: DiscoveryDomain,
   ): Promise<AddressChangesInLedger>;
+
+  /**
+   * What the source's own count is held to, per data type (the owner,
+   * 2026-11-24): when the last completed pass started, and whether the data
+   * type is past its switch. Optional, as a reader without a status table has
+   * nothing to say; then the source's figure is not used.
+   */
+  sourceCountWindow?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<SourceCountWindow>;
+
+  /**
+   * How many items of this data type the person chose to leave behind
+   * (`left_behind`, §11.2): outside `countItems`, yet still in the source's
+   * own count. Added to the recorded side when the source's figure is used,
+   * so left-behind mail never reads as never copied (the owner, 2026-11-24:
+   * "E yes"). Optional: a reader without it leaves the comparison as it was.
+   */
+  countLeftBehind?(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<number>;
+}
+
+/** What `LedgerVerificationReader.sourceCountWindow` answers. */
+export interface SourceCountWindow {
+  /**
+   * When the last completed pass of this data type started, ISO 8601, or
+   * undefined when none has completed. Only what the source holds from before
+   * it is counted: mail that arrived since has had no pass to copy it.
+   */
+  readonly lastCompletedPassStartedAt?: string;
+  /** The data type is past its switch: the source no longer decides what exists. */
+  readonly pastTheSwitch: boolean;
 }
 
 /** What `LedgerVerificationReader.addressChangesOf` answers. Counts and keys, never addresses. */

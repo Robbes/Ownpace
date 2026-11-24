@@ -88,6 +88,34 @@ describe('PgDiscoveryStore (0013 T2)', () => {
     expect(rows[0]?.bytes).toBeUndefined();
   });
 
+  it("round-trips Gmail's own count inside its All Mail row, and reads none for a pass without it", async () => {
+    // The figure Confirm shows beside what will be copied (the owner,
+    // 2026-11-24). It has no column: it travels inside `perCollection`, on the
+    // collection it was read from, and the read totals it.
+    const store = new PgDiscoveryStore(db);
+    await store.upsertDiscovery(TENANT_A, MAPPING_A, 'email', {
+      collections: 2,
+      items: 12,
+      sourceTotal: 30,
+      perCollection: [
+        { name: 'INBOX', items: 10 },
+        { name: 'Archive', items: 2, sourceTotal: 30 },
+      ],
+    });
+    let rows = await store.getDiscovery(TENANT_A, MAPPING_A);
+    expect(rows[0]?.sourceTotal).toBe(30);
+    expect(rows[0]?.items).toBe(12);
+
+    // A source with no such folder: absent, never 0.
+    await store.upsertDiscovery(TENANT_A, MAPPING_A, 'email', {
+      collections: 1,
+      items: 10,
+      perCollection: [{ name: 'INBOX', items: 10 }],
+    });
+    rows = await store.getDiscovery(TENANT_A, MAPPING_A);
+    expect(rows[0]).not.toHaveProperty('sourceTotal');
+  });
+
   it('round-trips the generated-id count, and clears it when a later pass finds none', async () => {
     // This is the number that tells a customer how many of their messages we
     // had to give an ID to. Losing it in persistence would put us back to the

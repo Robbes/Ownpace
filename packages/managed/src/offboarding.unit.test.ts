@@ -31,7 +31,7 @@ import {
   CLOSE_WINDOWS_DAYS,
   isCloseWindow,
 } from './offboarding.ts';
-import type { LedgerDriver, LedgerConnection } from '@openmig/ledger';
+import { statementsInTurn, type LedgerDriver, type StatementsInTurn } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 
 // UUID family 5abb0000-…, unused elsewhere in the repo.
@@ -52,7 +52,7 @@ const MAPPING2 = '5abb0000-e29b-41d4-a716-446655441931';
 const NOW = new Date('2026-08-18T12:00:00.000Z');
 
 let driver: LedgerDriver;
-let conn: LedgerConnection;
+let conn: StatementsInTurn;
 let db: PgDatabase;
 
 async function count(table: string, where = ''): Promise<number> {
@@ -231,7 +231,7 @@ beforeAll(async () => {
   // `tenant_pricing` and `tenant_closure` are all in it (ADR-0036), and the
   // purge under test is the thing that reads and empties them.
   await runManagedMigrations({ driver, logger: () => {} });
-  conn = await driver.acquire();
+  conn = statementsInTurn(driver);
 }, 120_000);
 
 afterAll(async () => {

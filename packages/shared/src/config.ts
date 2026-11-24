@@ -12,6 +12,7 @@ import type { ThrottleConfig } from './throttling.ts';
 import type { SpecialUse } from './mail.ts';
 import { DISCOVERY_DOMAINS, type DiscoveryDomain } from './discovery.ts';
 import { ARCHIVE_PROVIDERS, isArchiveProvider, type ArchiveProvider } from './archive-providers.ts';
+import { RECENT_WINDOW_DAYS, type RecentOnlySetting } from './recent-window.ts';
 import {
   GOOGLE_EDITOR_KINDS,
   type GoogleEditorKind,
@@ -819,6 +820,50 @@ export interface MappingConfig {
    * items land under the new prefix, so the target ends up with both layouts.
    */
   readonly targetFolderPrefix?: string;
+  /**
+   * Copy only the last 90 days of mail, files and calendars, and all contacts
+   * and tasks (workplan 0170 §5.1). For a person trying a destination with
+   * their fresh data; absent for a migration of everything, which needs no
+   * setting at all, since the last 90 days first is how every first copy runs.
+   *
+   * Broadened by removing it, never added to a migration that had none
+   * (`config-revision.ts`). Managed reads it from the mapping's
+   * `source_config_override`; the appliance from its mapping file, and writes
+   * the `anchor` itself when it first records the mapping.
+   */
+  readonly recentOnly?: RecentOnlySetting;
+}
+
+/**
+ * Validate a mapping's `recentOnly` (workplan 0170 §5.1, §5.4), or refuse with
+ * the reason. One parser for the appliance's mapping file and managed's
+ * stored override.
+ *
+ * `days` is 90, the only window this product offers: a file that names another
+ * number is told so, rather than given a window nobody chose. `anchor`, when
+ * present, is an ISO 8601 instant.
+ */
+export function parseRecentOnly(value: unknown): RecentOnlySetting | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new ConfigError(`recentOnly: must be an object such as { "days": ${RECENT_WINDOW_DAYS} }`);
+  }
+  const record = value as Record<string, unknown>;
+  const stranger = Object.keys(record).find((key) => key !== 'days' && key !== 'anchor');
+  if (stranger !== undefined) {
+    throw new ConfigError(`recentOnly.${stranger}: no such setting (expected days, anchor)`);
+  }
+  if (record.days !== RECENT_WINDOW_DAYS) {
+    throw new ConfigError(
+      `recentOnly.days: must be ${RECENT_WINDOW_DAYS}, the last ${RECENT_WINDOW_DAYS} days ` +
+        'are the one window a migration offers',
+    );
+  }
+  if (record.anchor === undefined) return { days: RECENT_WINDOW_DAYS };
+  if (typeof record.anchor !== 'string' || !Number.isFinite(Date.parse(record.anchor))) {
+    throw new ConfigError('recentOnly.anchor: must be an ISO 8601 date and time, such as 2026-11-24T10:00:00Z');
+  }
+  return { days: RECENT_WINDOW_DAYS, anchor: new Date(record.anchor).toISOString() };
 }
 
 /**
@@ -1468,6 +1513,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     root.autoApplyRelocations === undefined
       ? undefined
       : reqBoolean(root, 'autoApplyRelocations', 'autoApplyRelocations');
+  const recentOnly = parseRecentOnly(root.recentOnly);
 
   return {
     tenantId,
@@ -1484,6 +1530,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     ...(allowApplyDeletions !== undefined ? { allowApplyDeletions } : {}),
     ...(autoApplyRelocations !== undefined ? { autoApplyRelocations } : {}),
     ...(targetFolderPrefix !== undefined ? { targetFolderPrefix } : {}),
+    ...(recentOnly !== undefined ? { recentOnly } : {}),
   };
 }
 
