@@ -47,7 +47,8 @@ passed. Now:
   a removal resolves the same path the same way. JMAP keeps the role.
 - Evidence: `gmail-mail-archived-without-a-label.unit.test.ts` (17), the core
   `verification-the-sources-own-count.unit.test.ts` (9), `the-last-completed-pass-start.unit.test.ts`
-  (5), `imapflow-dav-target.unit.test.ts` (4 new), `Verify.unit.test.tsx` (4 new). The cut-off,
+  (5), `source-count-window.integration.test.ts` (3, through `./scripts/local-pg.sh`),
+  `imapflow-dav-target.unit.test.ts` (4 new), `Verify.unit.test.tsx` (4 new). The cut-off,
   the one-per-Message-ID count and the fallback each fail their tests when removed.
 
 **2026-11-01, index pass (0147 T3):** T4 said *Waiting on the owner*, and since 2026-09-22 it
