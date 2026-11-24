@@ -49,6 +49,11 @@ to either chain.
 
 ### Changed
 
+- **The identity provider moves to Zitadel v4.20.5** (workplan 0119; the pin watch's #1934), from
+  v4.20.4. Its one commit after v4.20.4 is in login v2, which does not run here, so nothing the
+  stack runs changes: per platform its images keep v4.20.4's base layers, and the binary's differs
+  by what a new version string makes. The OTA instance's database was dumped by hand before E2E
+  (managed) applied it there, and live takes it from alpha.19's tag.
 - **The Test answer and the sharing checklist say less about an address this service will not
   connect to** (workplan 0136; the owner, 2026-11-24: *"yes, follow-up"*). Where they named this
   service's own network, the **Test** button on Accounts now says *"We did not connect to that

@@ -30,6 +30,32 @@ identity provider's pin is enough to make the deploy that takes these to live, a
 alpha.18, one-way by the deploy's own rule, whatever else alpha.20 brings (0146's entry). Not
 moved: the Postgres, PgBouncer, Gatus, Mailpit, Nextcloud, nginx and pg-boss (`12.38.2`) pins.
 
+**2026-11-24: the identity provider's pin moves to Zitadel v4.20.5, for alpha.19 (the pin watch's
+#1934).** v4.20.4's move left it on purpose: its one commit after v4.20.4 is in `apps/login` alone,
+login v2, which does not run here (`managed.yml`'s comment above the pin). Read again on 2026-11-24
+through ghcr.io's registry, without running them: per platform, v4.20.5's two base layers are
+v4.20.4's byte for byte, and the layer that holds the binary differs by 1 byte (linux/amd64) and 24
+bytes (linux/arm64) compressed, what a new version string alone makes. Its three-day floor ended on
+2026-11-21. The owner, 2026-11-24: *"Zitadel v4.20.5: ok, after 18 deploy"*. So after alpha.18's
+deploy to live it takes the route issue #1934 gives: the owner dumps the OTA instance's `zitadel`
+database first (`dump-idp.sh`), E2E (managed) applies it there, and the owner checks one sign-in and
+one forgot-password mail, as for v4.20.4; live takes it from alpha.19's tag.
+
+On 2026-11-24 (UTC), in that order:
+- The owner dumped the OTA instance's `zitadel` database at 15:19:59, with `dump-idp.sh`. The dump
+  read back 701 entries.
+- E2E (managed) run 45424451225, on this branch, applied v4.20.5 on the OTA instance. The move is
+  one-way, so the dump is the way back.
+  - Its first attempt stopped in the bring-up. The provider reported ready after 10 seconds, but
+    the front before it then refused the TLS handshake six times over a minute (curl exit 35).
+    Every container was up and none unhealthy, as on 2026-10-28, 2026-11-15 and 2026-11-22
+    (0132's Status).
+  - The second attempt was green, from 15:27 to 15:50.
+- The owner's hand check follows; alpha.19's fold records it.
+
+The owner decided on 2026-11-24 to tag alpha.19 without deploying it, and to deploy alpha.20 to
+live on 2026-11-26. So live takes v4.20.5 with alpha.20.
+
 **2026-11-23, night, later: the workflow audit runs zizmor 1.33.1, moved on purpose from 1.32.0,
 for alpha.19, inside its three-day floor on the owner's waiver.** The pin watch's summary issue
 (#1671) listed 1.33.1 behind 1.32.0. The owner, 2026-11-23: *"Pull pnpm, zizmor and squawk
