@@ -430,7 +430,7 @@ describe('Usage Metering - Integration', () => {
       await seedRun(TEST_TENANT_ID, { seconds: 1200, orchestratorRef: 'job-1', minute: 15 });
       // Another job, another pass.
       await seedRun(TEST_TENANT_ID, { seconds: 1800, orchestratorRef: 'job-2', minute: 45 });
-      // A row with no job id (a full copy's) counts as itself.
+      // A row with no job id (written before the pass recorded one) counts as itself.
       await seedRun(TEST_TENANT_ID, { seconds: 0, kind: 'initial_copy', minute: 90 });
 
       const usage = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);

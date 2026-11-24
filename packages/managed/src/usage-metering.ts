@@ -271,8 +271,9 @@ export async function deriveComputeForPeriod(
       // One pass per job: pg-boss hands a retried job back under its own id,
       // and each attempt opens a row of its own (startRun) carrying that id as
       // `orchestrator_ref`, so COUNT(*) counted a retried pass once per
-      // attempt. A row without a ref (a full copy's) counts as itself. The
-      // seconds stay per row: each attempt held the machine for its own.
+      // attempt. A row without a ref (one written before the pass recorded it,
+      // or by a runner that gave no id) counts as itself. The seconds stay per
+      // row: each attempt held the machine for its own.
       passes: sql<string>`COUNT(DISTINCT COALESCE(${schema.run.orchestratorRef}, ${schema.run.id}::text))`,
     })
     .from(schema.run)
