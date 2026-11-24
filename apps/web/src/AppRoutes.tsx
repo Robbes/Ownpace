@@ -42,6 +42,8 @@ import {
   ApplianceLog,
 } from './pages/Support.tsx';
 import Invitations from './pages/Invitations.tsx';
+import Give from './pages/Give.tsx';
+import Gifts from './pages/Gifts.tsx';
 import Decisions from './pages/Decisions.tsx';
 import Deletions from './pages/Deletions.tsx';
 import Moves from './pages/Moves.tsx';
@@ -208,6 +210,16 @@ const AppRoutes: React.FC = () => {
         element={
           <ManagedOnly>
             <RequestAccess />
+          </ManagedOnly>
+        }
+      />
+      {/* The address a gift card prints (workplan 0172): the same door, with
+          the gift code's field open. Public for the door's reason. */}
+      <Route
+        path="/redeem"
+        element={
+          <ManagedOnly>
+            <RequestAccess giftDoor />
           </ManagedOnly>
         }
       />
@@ -476,6 +488,16 @@ const AppRoutes: React.FC = () => {
             </ManagedOnly>
           }
         />
+        {/* Give Ownpace (workplan 0172): a member's own gift. Managed only —
+            the appliance has nobody to let in. */}
+        <Route
+          path="give"
+          element={
+            <ManagedOnly>
+              <Give />
+            </ManagedOnly>
+          }
+        />
         {/* The operator's screens below are in English whatever the app's
             language (EnglishOnly; ADR-0013, amended 2026-10-11). */}
         {/* The access queue (workplan 0093 T7). Managed only — the appliance
@@ -502,6 +524,18 @@ const AppRoutes: React.FC = () => {
             typed URL reaches it and shows nothing, because to the database
             that is what the rows are. Gating it here would be a second, weaker
             copy of a rule the database already enforces. */}
+        {/* The operator's gifts (workplan 0172), on the access queue's terms:
+            not gated here, because migration 0064's policies are the rule. */}
+        <Route
+          path="gifts"
+          element={
+            <ManagedOnly>
+              <EnglishOnly>
+                <Gifts />
+              </EnglishOnly>
+            </ManagedOnly>
+          }
+        />
         <Route
           path="support"
           element={

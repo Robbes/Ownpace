@@ -392,9 +392,29 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
       // types a stored builder as already finished and `.where` becomes
       // uncallable.
       const query = db.select(QUEUE_COLUMNS).from(accessRequest).$dynamic();
-      return await (state ? query.where(eq(accessRequest.state, state)) : query).orderBy(
+      const rows = await (state ? query.where(eq(accessRequest.state, state)) : query).orderBy(
         accessRequest.createdAt,
       );
+      /**
+       * THE GIFT'S MARK (workplan 0172). A request that came with a gift code
+       * says so, and from whom: the giver's address, read through the support
+       * view under the same operator predicate. Read beside the queue, not
+       * joined into it, because `gift` is a row of its own and the queue's
+       * columns stay the table's. A gift whose giver has since left reads as
+       * a gift from nobody named.
+       */
+      const marks = (
+        (await db.execute(sql`
+          SELECT g.redeemed_request_id AS request_id,
+                 (SELECT m.email FROM public.support_tenant_members m
+                   WHERE m.user_id = g.giver_user_id AND m.tenant_id = g.tenant_id LIMIT 1) AS giver_email
+            FROM public.gift g
+           WHERE g.redeemed_request_id IS NOT NULL`)) as unknown as { rows: Array<Record<string, unknown>> }
+      ).rows;
+      const giftOf = new Map(
+        marks.map((m) => [String(m.request_id), { from: m.giver_email === null ? null : String(m.giver_email) }]),
+      );
+      return rows.map((r) => ({ ...r, gift: giftOf.get(r.id) ?? null }));
     });
 
     res.json({ requests });

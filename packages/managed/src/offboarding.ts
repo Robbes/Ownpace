@@ -134,6 +134,11 @@ export const PURGED_TABLES = [
   // 0071): other people's addresses, which is exactly what an erasure erases
   // (0168 §5). The tenant key would cascade; named so the receipt counts it.
   'address_change',
+  // The gifts made from this organisation (workplan 0172, managed 0064): who
+  // gave a place, and a fingerprint of its code. The request a gift became is
+  // the recipient's, not this organisation's, and stays. The tenant key would
+  // cascade; named so the receipt counts them.
+  'gift',
   // A person's links (0153 T5 (b), managed migration 0034) go before the
   // person they open: the person's key would cascade, and naming them counts
   // them on the receipt.

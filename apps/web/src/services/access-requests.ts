@@ -28,6 +28,11 @@ export interface AccessRequest {
   readonly decidedAt: string | null;
   readonly decisionNote: string | null;
   readonly createdAt: string;
+  /**
+   * The gift's mark (workplan 0172): set when the request came with a gift
+   * code, with the giver's address, or null when the giver has since left.
+   */
+  readonly gift: { readonly from: string | null } | null;
 }
 
 /** Everything, or one state. Oldest first — the queue is worked from the top. */

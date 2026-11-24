@@ -375,7 +375,8 @@ describe('llms.txt lists every page a visitor reaches, by its own words (ADR-002
       // the site's that nothing links any more, fails here first.
       const unreached = pages.filter((p) => !reached.has(own(p)));
       expect(unreached.map((p) => `${p.locale}:${p.key}`).sort(), 'the pages no visitor reaches from the home page').toEqual(
-        (alpha ? ['alpha', 'guide'] : ['alpha']).flatMap((k) => all.map((l) => `${l}:${k}`)).sort(),
+        // And the gift page in the Alpha's (workplan 0172), which nothing links yet: §7, question 5.
+        (alpha ? ['alpha', 'gift', 'guide'] : ['alpha']).flatMap((k) => all.map((l) => `${l}:${k}`)).sort(),
       );
     });
   }

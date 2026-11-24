@@ -908,3 +908,57 @@ export const moneyGivenBack = pgTable('money_given_back', {
   /** The operator's subject. */
   givenBackBy: text('given_back_by').notNull(),
 });
+
+// ========================= Gifts (workplan 0172) =========================
+
+/**
+ * A place in the alpha given as a present (managed migration 0064). The code is
+ * shown once and kept as `codeHash`; nothing about the recipient is a column,
+ * which `a-gift-that-keeps-no-recipient.unit.test.ts` holds. Read and written
+ * by `gift-store.ts`.
+ */
+export const gift = pgTable(
+  'gift',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** The giver's organisation when they gave it; the purge's key. */
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    /** The giver, as `tenant_member.user_id` holds them. */
+    giverUserId: text('giver_user_id').notNull(),
+    codeHash: text('code_hash').notNull().unique('gift_code_hash_key'),
+    /** The card's language, for the operator. */
+    locale: text('locale', { enum: ['en', 'nl'] }).notNull().default('en'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    redeemedAt: timestamp('redeemed_at', { withTimezone: true }),
+    redeemedRequestId: uuid('redeemed_request_id').references(() => accessRequest.id, {
+      onDelete: 'set null',
+    }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedBy: text('revoked_by'),
+  },
+  (t) => [
+    index('gift_giver_idx').on(t.giverUserId, t.createdAt),
+    index('gift_request_idx').on(t.redeemedRequestId),
+    index('gift_tenant_idx').on(t.tenantId),
+  ],
+);
+
+/** How many gifts each person may hold: one row (managed migration 0064). */
+export const giftRule = pgTable('gift_rule', {
+  id: boolean('id').primaryKey().default(true),
+  giftsPerPerson: integer('gifts_per_person').notNull().default(1),
+  setBy: text('set_by'),
+  setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The operator's number of gifts for one person (managed migration 0064). */
+export const giftAllowance = pgTable('gift_allowance', {
+  userId: text('user_id').primaryKey(),
+  gifts: integer('gifts').notNull(),
+  setBy: text('set_by').notNull(),
+  setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+  note: text('note'),
+});

@@ -159,7 +159,7 @@ describe('the premise this number is sized against', () => {
     // Seven, and each is deliberate:
     //
     //   the knock          — this limit's whole subject, and the only one of
-    //                        the seven a stranger is *invited* to use
+    //                        the eight a stranger is *invited* to use
     //   the grant link     — 0108: the link itself is the credential, and the
     //                        route grants nothing without it
     //   the progress link  — 0108 T8 (c): the same kind of credential, and the
@@ -176,8 +176,13 @@ describe('the premise this number is sized against', () => {
     //                        page's own link middleware, change the state of
     //                        a row linked to that person and nothing else; it
     //                        starts nothing and sends nothing
+    //   the gift code      — 0172: a door only somebody holding a code made
+    //                        by a person already let in can use, with its own
+    //                        refusing limit (`GIFT_REDEEM_LIMIT`); what it
+    //                        writes is a request the operator still decides,
+    //                        so it is not a self-service signup either
     //
-    // AN EIGHTH is the question. If it is a self-service signup, this number is
+    // A NINTH is the question. If it is a self-service signup, this number is
     // no longer sized for the door in front of it, and raising it is only half
     // the change: the key is still `req.ip`, which behind an ingress is the
     // ingress. Set `TRUST_PROXY` so the bucket is per CALLER first, then raise
@@ -187,6 +192,7 @@ describe('the premise this number is sized against', () => {
     expect(openWrites()).toEqual([
       'routes/access-requests.ts POST /',
       'routes/billing/webhooks.ts POST /mollie',
+      'routes/gifts.ts POST /redeem',
       'routes/grant.ts POST /:link/google/authorize',
       'routes/grant.ts PUT /:link/address-changes/:ref',
       'routes/link-reports.ts POST /:link/report',

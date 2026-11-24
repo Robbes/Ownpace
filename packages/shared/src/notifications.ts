@@ -883,6 +883,12 @@ export type NotificationEvent =
       readonly organisation?: string;
       /** Their own guess at a package — triage, never a commitment. */
       readonly tier?: string;
+      /**
+       * The request came with a gift code (workplan 0172). Whose gift it is
+       * the queue shows: the door that sends this is anonymous and cannot read
+       * who a giver is, and the mail needs only the fact.
+       */
+      readonly fromGift?: true;
     }
   | {
       /**
@@ -1550,6 +1556,7 @@ const ACCESS_REQUESTED = {
   from: 'From:',
   organisation: 'Organisation:',
   tier: 'Package they guessed at:',
+  fromGift: 'It came with a gift code; the queue shows whose.',
 } as const;
 
 /** Money owed back to a customer, as the hourly push tells the operator of it. */
@@ -1660,6 +1667,7 @@ export function renderEvent(
       // operator would go looking for it.
       if (event.organisation) lines.push(`${ACCESS_REQUESTED.organisation} ${event.organisation}`);
       if (event.tier) lines.push(`${ACCESS_REQUESTED.tier} ${event.tier}`);
+      if (event.fromGift) lines.push(ACCESS_REQUESTED.fromGift);
       break;
     case 'access_granted':
       lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');

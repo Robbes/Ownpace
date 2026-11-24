@@ -259,3 +259,27 @@
     @apply bg-destructive text-destructive-foreground;
   }
 }
+
+/*
+ * The gift card, printed alone (workplan 0172). While *Give Ownpace* shows a
+ * card it puts `printing-gift` on the body, and the browser's print, or its
+ * "Save as PDF", draws the card and nothing else: no menu, no list, no code
+ * twice. A class on the body rather than an inline <style>, which the app's
+ * CSP would refuse.
+ */
+@media print {
+  body.printing-gift * {
+    visibility: hidden;
+  }
+  body.printing-gift .gift-card,
+  body.printing-gift .gift-card * {
+    visibility: visible;
+  }
+  body.printing-gift .gift-card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none;
+  }
+}

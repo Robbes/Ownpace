@@ -6,6 +6,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **Gift invitations: a place in the Alpha given as a present** (workplan 0172; the owner's
+  decisions of 2026-11-24, G1 and G3). A person in the Alpha opens **Give Ownpace**, makes their
+  one gift, and gets a card with a code to print or save as a PDF, in English or Dutch: their
+  name, an optional first name and message (both kept in the browser only), the code, where it is
+  used, a few words on Ownpace, and the date it is valid until, two years on. The recipient types
+  the code at the request-access door (**I have a gift code**, or the card's address `/redeem`),
+  which makes an access request marked *Gift from* the giver in the access queue; the operator
+  approves it like any other, and approval gives the recipient an organisation of their own. A
+  gift lets nobody in by itself. The code is shown once and kept only as a fingerprint; every bad
+  code (unknown, used, revoked, expired) gets the same refusal, behind a rate limit; the giver can
+  revoke an unused gift. Nothing about the recipient is asked for or stored with the gift. The
+  operator's new **Gifts** screen (English) shows every gift and whose it is, how many requests
+  have been granted and are waiting, and sets the number of gifts for everyone or for one person
+  without a deploy; there is no cap on admissions, and the screen says so. The site has a gift
+  page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0064 adds `gift`,
+  `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation.
+
 - **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
   of 2026-11-24: *"yes to all, build them. But dont add the nextcloud as source card, add only
   the generic cards as source."*). Three source cards in the *Any server, by protocol* lane beside

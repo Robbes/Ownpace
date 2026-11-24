@@ -48,6 +48,7 @@ import redirectUriRoutes from './routes/redirect-uris.ts';
 import setupRoutes from './routes/setup.ts';
 import connectionRoutes from './routes/connections.ts';
 import accessRequestRoutes from './routes/access-requests.ts';
+import giftRoutes from './routes/gifts.ts';
 import meRoutes from './routes/me.ts';
 import invitationRoutes from './routes/invitations.ts';
 import readyRoutes from './routes/ready.ts';
@@ -214,6 +215,14 @@ app.get('/metrics', (req: Request, res: Response) => {
  * — and its own file carries the four things that make a public WRITE safe.
  */
 app.use('/api/access-requests', accessRequestRoutes);
+
+/**
+ * Gifts (workplan 0172): a place in the alpha given as a present. Beside the
+ * access requests because its door is the same kind of door, anonymous and
+ * writing a request; the giver's and the operator's halves authenticate in
+ * the file itself.
+ */
+app.use('/api/gifts', giftRoutes);
 
 /**
  * Who am I, and where may I go (ADR-0042).

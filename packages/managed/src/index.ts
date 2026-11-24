@@ -86,3 +86,4 @@ export * from './legal-versions.ts';
 export * from './legal-acceptance.ts';
 // An organisation marked as a test, and its marker (workplan 0162 T1, managed migration 0062).
 export * from './test-organisation.ts';
+export * from './gift-store.ts';
