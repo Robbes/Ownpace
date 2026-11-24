@@ -1,0 +1,428 @@
+# Workplan 0170 — The last 90 days first
+
+> **In one line:** A migration's first copy of mail, files and calendars brings the last 90 days first and the rest after it, and a trial copies only those 90 days (plus every contact and task) and can be extended to everything from the migration's page without starting over.
+
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24: planned, for alpha.19. Nothing built.** This plan fixes the shared interfaces so
+that six build tasks (T1 to T6) can run as separate pull requests, in parallel where §9 allows.
+The owner waived every waiting period and asked for it in the alpha now in progress. No database
+change is expected (§3.4). The owner's decisions in §10 are open; each task names the ones it
+needs before it merges.
+
+| Task | Owner | Status | Notes |
+|---|---|---|---|
+| T1 Core engine and contract | builder | 📋 Planned | §3, §5, §6. Merges first. Fixes `ListOptions`, the window predicates, the window record, the trial setting, the revision rule, the API fields. |
+| T2 Mail sources | builder | 📋 Planned | §4.1. IMAP and Gmail `SEARCH SINCE`; Graph mail `$filter`. Builds on T1's interface; may open in parallel against T1's branch. |
+| T3 File sources | builder | 📋 Planned | §4.2. Google Drive `q`; OneDrive, Dropbox, Box, WebDAV and the archive after listing. |
+| T4 Calendar sources | builder | 📋 Planned | §4.3. CalDAV `time-range`; Graph calendar before the per-event fetch; the DTSTART parse fixed. |
+| T5 Web UX and guides | builder | 📋 Planned | §7. The choice in *Start a migration*, the trial on the migration page, *Copy everything*, the milestone, copy in English and Dutch, the guides. Dutch reviewed by the owner. |
+| T6 Proofs | builder | 📋 Planned | §8. Integration on Stalwart and Nextcloud, `local-pg.sh`, and the managed E2E smoke's window case. |
+| T7 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T6 merges. |
+| T8 The owner's decisions | owner | ⏳ **Owner** | §10, D1 to D7. |
+
+## 1. The owner's words
+
+The question, 2026-11-24, verbatim: *"reason on whether we can move the most fresh data per
+object first (like fifo), and moving older material after that. Like some kind of ordering. Would
+that make sense?"*
+
+The proposal back was *a recent window first, then the rest*, not a global newest-first sort (§2).
+The owner's answer, verbatim: *"yes, plan it as a workplan, 90 days. I waive all waiting/days, try
+to get it in the upcomming alpha we are still working on. ... Also add one feature (fit in UX!) for
+people that just want to first test seperate targets and want to test with only syncing the 90 day
+newers data (and all contacts/tasks)."*
+
+## 2. What happens today, and why not a global sort
+
+Within each folder or collection, a pass copies in the order the source lists. IMAP reads `1:*`
+by sequence, oldest first (`ImapFlowSource.fetchListing`,
+`packages/connectors/src/imapflow-source.ts`, `client.fetchAll('1:*', { uid, flags, envelope,
+internalDate, size })`), and `runDomainSync` (`packages/core/src/domain-sync.ts`) takes the items
+as listed, reading the ledger 500 keys ahead (`LEDGER_READ_AHEAD`). The ledger records every item
+once, by its natural key, so the order changes nothing about correctness, resumption or later
+passes (ADR-0020).
+
+A global newest-first sort across every folder would need the whole listing of an account in
+memory before the first copy, and a resumption point that is not a folder's cursor. A window does
+neither: it is a filter on the listing each folder already makes, and the second phase is today's
+first pass.
+
+## 3. The design
+
+### 3.1 Two phases of a first copy, and a trial
+
+- **Phase A, the window.** The first time a data type is copied, a pass lists only what falls in
+  the window, and copies it.
+  - Mail: received on or after `since`. Inbox first, then Sent, then the other folders in the
+    order the source lists them.
+  - Files: modified on or after `since`.
+  - Calendars: every event that ends on or after `since`, which includes every upcoming one. A
+    recurring series is copied whole, with all its overrides, when any of its occurrences falls on
+    or after `since` (§10 D1).
+  - Contacts and tasks: everything, with no window. They are small, and a person needs them whole.
+- **Phase B, the rest.** The next pass of that data type is today's first pass: a full listing
+  with no cursor. The ledger's read-ahead skips everything phase A copied (`quietSkip`), so phase
+  B costs a listing plus the older items. Everything after phase B is unchanged.
+- **A trial** is phase A without phase B. Every pass of a trial is a window pass. *Copy
+  everything* ends the trial: the next pass of each windowed data type is phase B.
+
+`since` is the start of the UTC day 90 days before the anchor. For an ordinary migration the
+anchor is the moment its first windowed pass of that data type starts, recorded with the window
+(§3.3). For a trial it is the moment the migration is created, stored in its setting (§5.1), so a
+trial's window grows with time and never slides: an item copied in a trial never leaves its window.
+
+### 3.2 Where the window lives in the engine
+
+**In `runAllDomains`** (`packages/orchestration/src/orchestration.ts`). Each lane
+(`planDomainLanes`) runs its data types twice where a window is owed: first a window pass of every
+data type in the lane whose phase A is not done, then the ordinary pass of each. So across a
+migration, the last 90 days of every data type are in before any lane starts on older material.
+For a trial, every pass is the window pass and there is no second round.
+
+`runOneDomain(domain, { window })` hands the window to the domain wrappers (`mail-sync`,
+`dav-sync`, the file wrapper), which set a new dep on `DomainSyncDeps`:
+
+```ts
+/** This pass reads a window, not the whole source (workplan 0170). */
+readonly window?: {
+  readonly since: Date;
+  /** Whether the item is in the window, from its listing alone. */
+  readonly holds: (item: Item) => boolean;
+  /** A trial's pass (§3.1), or phase A of an ordinary first copy. */
+  readonly trial: boolean;
+};
+```
+
+**In `runDomainSync`**, a window changes five things and nothing else:
+
+1. **The listing.** `listSince(folder, cursor, { since })` (§3.5). Every item the source returns
+   is checked with `window.holds`; what fails it is set aside exactly as a test marker sets an
+   item aside (`unmarked`, workplan 0162 §4): not copied, not recorded, and its key goes into
+   `setAsideKeys` so a reported removal or a bin entry never resolves it as deleted. Connectors
+   may ignore `since`; the loop's check is the one that decides.
+2. **The folder order, mail only.** Folders are taken Inbox, then Sent (by special use, RFC
+   6154), then the rest in listing order. Only in a window pass.
+3. **The cursor.** A window pass never writes a collection's content cursor. An IMAP cursor is
+   `uidValidity:uidNext`; stored after a `SINCE` listing it would tell phase B that every older
+   message had been seen, and they would never be copied, with no ledger row to show it. A trial
+   stores its cursors under their own namespace, `windowCursorKey(collectionPath)` (§3.3), as the
+   bin scan does (`discardedScanCursorKey`), so *Copy everything* finds no content cursor and
+   phase B lists in full.
+4. **Absence.** A window listing is not a complete listing of the collection. No ledger row is
+   counted absent, and no path-keyed move or deletion is inferred (`detectPathKeyedMoves` is not
+   called), as for `markedOnly` and `snapshot`. Reported removals and the owner's bin are positive
+   evidence and are still read, against every item the source still lists, in the window or set
+   aside. **So a trial never reads "outside the window" as "deleted"**: an item older than the
+   window was never copied, and an item that leaves the window (an event moved to an old date) is
+   set aside, not absent.
+5. **Completion.** A phase A pass does not call `markCompleted` for its data type, so the stage
+   stays *Copying*, verification is not offered, and `firstCopyOf` waits for phase B. A trial's
+   window pass does call it: a trial is complete when its window is in, and its *in step* means in
+   step for the window.
+
+The discovery read (`packages/core/src/discovery.ts`, `source.listSince(folder)`) takes the same
+window for a trial, so *Review and start* counts what the trial will copy. For an ordinary
+migration discovery reads in full, as today. The bin scan (`packages/core/src/reconcile.ts`)
+never takes a window.
+
+### 3.3 The record that phase A is done, without a schema change
+
+The `cursor` table (ledger migration 0001) already keys free text per mapping. Two reserved keys,
+built with U+0001 as `discardedScanCursorKey` is, so no real collection can produce them:
+
+```ts
+// packages/shared/src/recent-window.ts
+/** Where a data type's window is recorded: its `since`, and whether phase A is done. */
+export function windowRecordKey(domain: DiscoveryDomain): string; // `\u0001window-record\u0001${domain}`
+/** A trial's own cursor for a collection, apart from its content cursor. */
+export function windowCursorKey(collectionPath: string): string;  // `\u0001window\u0001${collectionPath}`
+/** The record's value, JSON in `SyncCursor.value`. */
+export interface WindowRecord {
+  readonly since: string;             // ISO 8601, UTC midnight
+  readonly state: 'copying' | 'in';   // 'in' once phase A reached the end of every collection
+}
+```
+
+Written by `runAllDomains` through the `CursorStore` it already holds: `copying` when phase A
+starts, `in` when the window pass ends with every collection reached
+(`unfinishedCollections.size === 0`, no budget pause). A phase A that stops halfway stays
+`copying`, and the next pass does phase A again; the ledger skips what it copied.
+
+`CursorStore.clear` (the operator's RETRY) also clears these. That costs one more window pass, which
+copies nothing new, and moves an ordinary migration's anchor; it never loses an item, because phase
+B follows. A trial's anchor is in its setting, not here, so a retry leaves its window where it was.
+
+### 3.4 No database change
+
+The window record is in `cursor`; the trial setting is in `mailbox_mapping.source_config_override`
+(§5.1), the per-mapping JSON that already holds the export formats (0125 §5). If a build finds it
+needs a column after all, it stops and says why in this plan before writing a migration.
+
+### 3.5 The shared interfaces (fixed here, built by T1)
+
+`packages/shared/src/ports.ts`:
+
+```ts
+/** What a listing may be asked to leave out (workplan 0170). */
+export interface ListOptions {
+  /**
+   * Only items on or after this instant are wanted. A source MAY filter by it on the server, and
+   * MAY return items before it: the loop checks every item itself. It MUST NOT keep a listing
+   * made with `since` where `listKeys` reads it (Google Drive, Dropbox and Box memo their last
+   * listing for `listKeys` today), and it MUST NOT return a cursor that claims an item before
+   * `since` was seen when that cursor could be stored as a content cursor.
+   */
+  readonly since?: Date;
+}
+```
+
+`listSince(folder, cursor?, options?: ListOptions)` on `SourceConnector`, `CalendarSource` and
+`FileSource`. Not on `ContactSource`: contacts are never windowed. The `unmarked` field's comment
+widens to *items a selection set aside, a test marker's or a window's*; the name stays, so no
+caller changes. `MarkedOnly*` (`packages/orchestration/src/marked-only.ts`) forwards `options`.
+
+`packages/shared/src/recent-window.ts`, beside the two keys above:
+
+```ts
+export const RECENT_WINDOW_DAYS = 90;
+export const WINDOWED_DOMAINS = ['email', 'file', 'calendar'] as const satisfies readonly DiscoveryDomain[];
+/** The start of the UTC day `days` before `anchor`. */
+export function windowSince(anchor: Date, days?: number): Date;
+export function mailInWindow(item: MailItem, since: Date): boolean;      // receivedAt >= since
+export function fileInWindow(item: FileItem, since: Date): boolean;      // modifiedAt >= since
+export function eventInWindow(raw: RawCalendarEvent, since: Date): boolean;
+```
+
+T1 ships `eventInWindow` holding everything it cannot decide (no parsable DTSTART, any RRULE), so
+a window never loses an event before T4; T4 replaces its body (§4.3). Tasks (`VTODO`) use the
+calendar port and are never windowed: their data type is `task`.
+
+## 4. Each source, and how it filters by date
+
+A source that filters on the server saves the listing; one that cannot is filtered by the loop
+after listing, which saves the downloads and uploads, the cost that matters. Each row's file and
+call, from the code as it stands on `main`:
+
+### 4.1 Mail (T2)
+
+| Source | File and call today | Window |
+|---|---|---|
+| IMAP, and every IMAP account (Soverin, Apple, Cirrux, Infomaniak, IMAP for Microsoft) | `imapflow-source.ts`, `fetchListing`: `fetchAll('1:*', …)` by sequence; date is `internalDate` → `MailItem.receivedAt` | With `since`: `client.search({ since }, { uid: true })`, then `fetchAll(uids, …, { uid: true })`. `SINCE` is by day and ignores the time, so it may return a few extra; the loop drops them. An empty search answers no items and no cursor claim. |
+| Gmail (over IMAP) | `gmail-source-factory.ts`, `GmailFolderView` delegates to `ImapFlowSource` | The same `SEARCH SINCE`, which Gmail honours. No `X-GM-RAW`: one path for every IMAP server. |
+| Microsoft Graph mail | `graph-mail-source.ts`, `listSince`: `GET {scope}/mailFolders/{id}/messages/delta?$select=…` | With `since` and no cursor: add `$filter=receivedDateTime ge {iso}` to the first URL. The deltaLink carries it, so a trial's window cursor stays within the window. To confirm against Microsoft's documentation in T2: messages delta accepts `receivedDateTime ge` only. `MailSourceWithGraphFallback` forwards `options`. |
+
+### 4.2 Files (T3)
+
+| Source | File and call today | Window |
+|---|---|---|
+| OneDrive and SharePoint | `graph-drive-source.ts`: `GET {scope}/drive/root/delta`; date `lastModifiedDateTime` → `modifiedAt` | No date filter on driveItem delta. After listing, in `toRawFileItems`/`fromChanges`. |
+| Google Drive | `google-drive-source.ts`, `listChildren`: `files.list` with `q='{id}' in parents and trashed=false …` | With `since`: `and modifiedTime >= '{rfc3339}'` in `q`, for files only (never `foldersOnly`). The `lastListing` memo that `listKeys` reads is not written by a listing with `since`. |
+| Dropbox | `dropbox-file-source.ts`: `files/list_folder` and `/continue`; date `server_modified` | No date filter. After listing; the `listKeys` memo is not written by a listing with `since`. |
+| Box | `box-file-source.ts`: `GET /folders/{id}/items?fields=…modified_at…` | No date filter on folder items. After listing; the same memo rule. `content_modified_at` is not added: `modified_at` is what `modifiedAt` already is. |
+| WebDAV (any server, Nextcloud among them) | `webdav-source.ts`: `PROPFIND` `Depth: 1`, `getlastmodified` | No filter in PROPFIND. After listing. `listKeys` makes its own PROPFIND, unaffected. |
+| The export archive | `archive-file-source.ts`, a snapshot: `open()` walks and hashes every item; date is the sidecar's `photoTakenTime` → `createdAt` → `modifiedAt` | After listing, which saves the uploads but not the walk. An item with no date (`modifiedAt` the epoch) is **in** the window: the archive's date is when a photo was taken, and a person trying a target wants their photos, not none of them. See D6. |
+
+### 4.3 Calendars (T4)
+
+| Source | File and call today | Window |
+|---|---|---|
+| CalDAV: any server, Google (`google-dav-source-factory.ts`) and Apple (`dav-factories.ts`) | `caldav-source.ts`: `REPORT sync-collection`; fallback `calendar-query` with no `time-range` (`shared/src/caldav-query.ts`) | With `since` and no cursor: `calendar-query` with `<C:time-range start="{since}"/>` inside the VEVENT `comp-filter`. The server expands recurrence (RFC 4791 §9.9) and returns a series whose any occurrence is in range, as a whole resource. This path returns no sync token, so a trial lists its window each pass and has no removal report for calendars (§6). For `VTODO` (tasks) never. |
+| Microsoft Graph calendar | `graph-calendar-source.ts`: `GET {scope}/calendars/{id}/events/delta`, then one `$value` per event | No date filter kept: `calendarView/delta` returns occurrences, not series, which changes the item and its key. Filter on the delta entry's `end` and `type` (`seriesMaster` kept) **before** the per-event `$value` fetch, which saves the requests. |
+
+**A defect T4 fixes on the way.** `extractStart` in `caldav-source.ts` matches the first
+`DTSTART` in the object, with no anchor to the VEVENT, so in a VCALENDAR whose VTIMEZONE comes
+first it reads the time zone's `STANDARD`/`DAYLIGHT` start (often 1970); with no DTSTART it falls
+back to now. `eventInWindow` parses DTSTART, DTEND or DURATION, RRULE's `UNTIL` and `COUNT`, and
+RDATE from the VEVENT itself, and holds the event when it cannot decide.
+
+## 5. The contract and the API (T1)
+
+### 5.1 Where the choice is stored
+
+`source_config_override.trial`, beside the export formats:
+
+```json
+{ "trial": { "days": 90, "anchor": "2026-11-24T10:00:00Z" } }
+```
+
+Absent for every migration that is not a trial. `MappingConfig` gains `readonly trial?: {
+readonly days: number; readonly anchor: string }`, read in `build-deps-from-mapping.ts` from the
+merged override and by `parseMappingConfig` (`packages/shared/src/config.ts`) if D5 says the
+appliance takes it now. An ordinary migration needs no setting at all: phase A is how every first
+copy runs.
+
+### 5.2 The create route
+
+`CreateMappingBase` (`apps/api/src/routes/migrations/index.ts`) gains `trial: z.boolean().optional()`.
+`true` writes the override with `days: 90` and `anchor` = the request's time. The superRefine
+refuses `trial` on a migration with no windowed data type (contacts and tasks only), in our words,
+since it would be the same as an ordinary one. `openapi.yaml` documents the field on
+`CreateMappingRequest`, and the read of a migration gains:
+
+```yaml
+window:
+  type: object
+  properties:
+    trial: { type: boolean }
+    since: { type: string, format: date-time, nullable: true }
+    in: { type: array, items: { $ref: '#/components/schemas/DiscoveryDomain' } }  # phase A done
+    copying: { type: array, items: { $ref: '#/components/schemas/DiscoveryDomain' } }
+```
+
+read from the window records (§3.3), so the page can show the milestone without a new table.
+
+### 5.3 *Copy everything* is a revision
+
+A new field in `packages/shared/src/config-revision.ts`'s `REVISABLE_FIELDS`: `trial`. Its rule:
+ending a trial is allowed at any time, with the consequence *"The older items are copied next; what
+is already there stays."* Starting a trial on a migration that is not one is refused once it has
+copied anything, with *start a new migration* (as `source.type` is refused). On managed, through
+`PUT /api/migrations/:mappingId` with `{ trial: false }`, which removes the key from the override
+(merged, never replaced, 0125 §5). The next pass of each windowed data type finds no content
+cursor, lists in full, and is phase B. The appliance compares `revision_state` at boot by the same
+table (0125 T2).
+
+## 6. What deltas, deletions, verification and the cutover lanes do with a window
+
+- **Deltas.** Phase A writes no content cursor; phase B writes them as today. A trial writes
+  window cursors only (§3.2 3). Graph mail's filtered deltaLink, IMAP's `uidNext` after `SINCE`,
+  a WebDAV etag cursor of the window's items: each is read again only by a trial, never by phase B.
+- **Deletion detection.** Off by absence in every window pass (§3.2 4). Reported removals and the
+  bin still count. A trial over CalDAV has no removal report (its `calendar-query` has no sync
+  token): a deletion at the source shows only through the bin, or after *Copy everything*. Said in
+  the guide.
+- **Verification counts.** The source count is the ledger's (`getSourceCountFromLedger`), so in a
+  trial both sides count the window. Verification is not run while any data type's phase A is done
+  and its phase B is not (`copying`), since the target is knowingly half full.
+- **The cutover lanes.** Phase A and B happen before a data type's cutover and never after: the
+  continuous lane (0117) and a data type's own cutover (0128 T5) start from a data type whose
+  first copy is complete, which phase A alone is not. A trial cannot be cut over (D2): *Switch
+  over* is replaced by *Copy everything* while the migration is a trial.
+
+## 7. The UX (T5)
+
+Copy below is a proposal; the owner reviews all Dutch. Each hint is one sentence of at most 12
+words, the rest behind *Why?* (0118 §2, `words-that-fit-on-one-line.unit.test.ts`).
+
+### 7.1 *Start a migration*, the *What moves?* step
+
+Under the data types, one choice of two, *Everything* selected:
+
+| Key | English | Dutch |
+|---|---|---|
+| `start.what.amount.label` | How much? | Hoeveel? |
+| `start.what.amount.all` | Everything | Alles |
+| `start.what.amount.all.hint` | The last 90 days come first, then everything older. | Eerst de laatste 90 dagen, daarna alles wat ouder is. |
+| `start.what.amount.trial` | Try it: last 90 days | Proberen: laatste 90 dagen |
+| `start.what.amount.trial.hint` | Mail, files and calendars from 90 days; all contacts and tasks. | Mail, bestanden en agenda's van 90 dagen; alle contacten en taken. |
+| `start.what.amount.trial.why` | To try a new place before you move. You can copy everything later, from the migration's page, without starting over. Nothing older is deleted or changed. | Om een nieuwe plek te proberen voordat u verhuist. Later kunt u alles kopiëren, vanaf de pagina van de migratie, zonder opnieuw te beginnen. Niets wat ouder is, wordt verwijderd of gewijzigd. |
+
+Shown only when a windowed data type is ticked. The check step names it: *Trial: the last 90
+days* / *Proef: de laatste 90 dagen*.
+
+### 7.2 The migration's page (`MappingDetail.tsx`)
+
+- A trial shows a chip beside the stage, *Trial · last 90 days* / *Proef · laatste 90 dagen*, and
+  in the header, where *Switch over* would be, **Copy everything** / **Alles kopiëren**, with a
+  confirmation: *"Copy everything older too? What is there stays."* / *"Ook alles wat ouder is
+  kopiëren? Wat er staat, blijft."*
+- Its stage reads *Kept in step* for the window (`kept_in_step`), and the line under it
+  (`stage-line.ts`) says *for the last 90 days* / *voor de laatste 90 dagen*.
+
+### 7.3 The milestone
+
+When every windowed data type's record is `in` and the migration is not a trial, `stage-line.ts`
+gains one part, `recentIn`, ahead of the counts:
+
+| Key | English | Dutch |
+|---|---|---|
+| `people.line.recentIn` | Your last 90 days are in. | De laatste 90 dagen staan erin. |
+| `people.line.olderComing` | Older items are still coming. | Oudere items komen nog. |
+
+While phase A runs, the line says *Copying your last 90 days first* / *Eerst uw laatste 90 dagen*.
+During phase B the counts read *of about* as today, and the folder that looks half full is
+explained by *Older items are still coming.* Mail arrives in the new mailbox newest first; its
+dates are kept, so a mail program sorts it right.
+
+### 7.4 The guides
+
+One section per guide is too many: the window is the same everywhere. A new section in each
+language's IMAP guide is the wrong home too. T5 adds `docs/guides/en/start.md` and
+`docs/guides/nl/start.md`, *How a migration copies* / *Hoe een migratie kopieert*, with
+`{#last-90-days-first}` and `{#trial}`, added to `SERVED_GUIDES`, and links them from the hint's
+*Why?* and from the trial chip. What each section says: the order, what a trial copies, that
+*Copy everything* does not start over, that a trial over CalDAV sees deletions only through the
+bin, and that a trial cannot be switched over.
+
+## 8. Proofs (T6, with each task's own unit tests)
+
+- **Unit, in each task.** T1: the window pass writes no content cursor and records `in` only when
+  every collection was reached; nothing set aside is counted absent or resolved deleted; Inbox,
+  Sent, rest; `markCompleted` not called by phase A and called by a trial; the revision rule both
+  ways; the create route and the spec. T2 to T4: each source's request with and without `since`,
+  and the memo rule (§3.5) for Drive, Dropbox and Box. T4: `eventInWindow` over a VTIMEZONE first,
+  a series ending before `since`, one with an override in the window, an all-day event, a COUNT.
+- **Integration (T6)**, through Testcontainers in CI and on `./scripts/local-pg.sh` where no
+  container runtime is:
+  - Stalwart: an IMAP source seeded with `APPEND` at internal dates of 400, 100, 30 and 1 days ago
+    in Inbox, Sent and a third folder. Phase A copies the two recent ones, Inbox before the third
+    folder; phase B the rest; a third pass copies nothing. A trial copies two, writes no content
+    cursor, and after *Copy everything* copies the other two with no duplicate.
+  - Nextcloud: CalDAV with an old single event, an old weekly series without end, a series that
+    ended a year ago, and an upcoming event: phase A copies the second and fourth whole. WebDAV
+    with an old and a new file: the same two-phase result, and in a trial deleting nothing when the
+    old file is moved.
+  - Idempotency: the existing property tests run once with a window (hard rule 1).
+- **E2E (managed).** One case in `deploy/compose/smoke-managed.sh`: a trial migration over the demo
+  mail source, seeded with one old and one new message, copies one, then *Copy everything* through
+  the API copies the other. Run by the owner (T7); never dispatched by a build session.
+
+## 9. The tasks, as pull requests
+
+| Task | Pull request | Depends on | Merges |
+|---|---|---|---|
+| T1 | `packages/shared` (`ports.ts`, `recent-window.ts`, `config.ts`, `config-revision.ts`), `packages/core` (`domain-sync.ts`, the wrappers, `discovery.ts`), `packages/orchestration` (`orchestration.ts`, `build-deps*.ts`, `marked-only.ts`), `apps/api` (create and update routes, the read, `openapi.yaml`) | D2, D3 for the revision rule's words | 1st |
+| T2 | `imapflow-source.ts`, `graph-mail-source.ts`, `mail-source-with-graph-fallback.ts` | T1's interface | after T1, any order with T3, T4 |
+| T3 | `graph-drive-source.ts`, `google-drive-source.ts`, `dropbox-file-source.ts`, `box-file-source.ts`, `webdav-source.ts`, `archive-file-source.ts` | T1's interface; D6 | after T1 |
+| T4 | `caldav-source.ts`, `caldav-query.ts`, `graph-calendar-source.ts`, `recent-window.ts`'s `eventInWindow` | T1's interface; D1 | after T1 |
+| T5 | `apps/web` (`StartMigration.tsx`, `MappingDetail.tsx`, `stage-line.ts`, `i18n/strings/*`), `docs/guides/*/start.md`, `guide-handle.ts` | T1's API fields; D3, D4; the owner's Dutch | after T1 |
+| T6 | the integration tests and the smoke case | T1 to T4 | last; then T7 |
+
+T2, T3, T4 and T5 can be built in parallel once T1's branch is pushed, against its interface; each
+brings `main` in by merging it after T1 merges (never a rebase). Each source task works without the others: a
+source that ignores `since` is correct, only slower (§3.5).
+
+## 10. The owner's decisions
+
+- **D1. What 90 days means for a calendar.** (a) Every event that ends on or after `since`,
+  including all upcoming ones, and every recurring series with an occurrence on or after it,
+  copied whole. (b) Only events that start on or after `since`, series by their first occurrence.
+  (c) Calendars whole, like contacts: they are small. **Advice: (a).** A weekly meeting set up a
+  year ago is in this week's agenda, and (b) would leave it out.
+- **D2. May a trial be switched over?** (a) No: only after *Copy everything* and its phase B. (b)
+  Yes, with a sentence that the older items stay behind. **Advice: (a) for alpha.19.** Moving only
+  the last 90 days for good is a different promise, and the cutover's checks assume a whole copy.
+- **D3. The names on screen.** *Trial · last 90 days* / *Proef · laatste 90 dagen*, *Try it: last
+  90 days* / *Proberen: laatste 90 dagen*, *Copy everything* / *Alles kopiëren*, and the milestone
+  *Your last 90 days are in.* / *De laatste 90 dagen staan erin.* **Advice: as written in §7**,
+  with your Dutch.
+- **D4. Is the window offered at all on an ordinary migration, or always on?** (a) Always on,
+  with no choice. (b) A box to switch it off. **Advice: (a).** It changes only the order, and the
+  ledger makes the order safe.
+- **D5. The appliance.** (a) Phase A now, since it is the engine, and the trial in its mapping
+  file (`"trial": { "days": 90, "anchor": … }`) now too. (b) Phase A now, the trial in a later
+  release. **Advice: (b).** Phase A comes free with T1; the trial needs the appliance's revision at
+  boot and its own screen, which alpha.19 does not need.
+- **D6. An archive item with no date.** (a) In the window. (b) Outside it. **Advice: (a)**, §4.2.
+- **D7. The anchor of an ordinary migration.** (a) When its phase A starts. (b) When the migration
+  is created. **Advice: (a)**: a migration set up and started a week later still brings that
+  week's 90 days first.
+
+## 11. Open questions
+
+1. Whether Graph's messages delta accepts `receivedDateTime ge` in every tenant, including shared
+   mailboxes through `/users/{addr}`. T2 checks against Microsoft's documentation and one real
+   tenant read; if not, Graph mail filters after listing like the file sources.
+2. Whether a trial over CalDAV should also read a sync token, so a deletion at the source is
+   reported during the trial. Left out of alpha.19 (§6); asked again after a real trial.
