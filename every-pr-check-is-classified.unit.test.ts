@@ -123,6 +123,16 @@ const NOT_REQUIRABLE = new Map([
       'PR touching none of those paths the workflow never runs and neither leg is reported. A Trigger.dev ' +
       'move touches deploy/compose, so its pull request does run them, red until the Dockerfiles are read again.',
   ],
+  // images.yml's image-sboms job (SBOM-1, 0.2.0-alpha.20): it copies each
+  // image's own SBOM onto the release, so it runs on a version tag and nowhere
+  // else.
+  [
+    "attach the images' SBOMs to the release",
+    'images.yml runs this job on a version tag alone (`if: startsWith(github.ref, ' +
+      "'refs/tags/')`), so on a pull request it is reported as skipped, and the workflow's " +
+      '`paths:` filter keeps it off most pull requests altogether. Required, it would gate nothing; ' +
+      "Release's verify reads what it attaches.",
+  ],
   // images.yml's build of deploy/compose/docker-socket-proxy (workplan 0119,
   // 2026-10-30): the same workflow, so the same `paths:` filter silences it.
   [
