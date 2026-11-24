@@ -239,7 +239,7 @@ export const nl: Record<keyof typeof en, string> = {
   'start.what.amount.label': 'Hoeveel?',
   'start.what.amount.all': 'Alles',
   'start.what.amount.all.hint': 'Eerst de laatste 90 dagen, daarna alles wat ouder is.',
-  'start.what.amount.recent': 'Alleen de laatste 90 dagen',
+  'start.what.amount.recent': 'Alleen de afgelopen 90 dagen',
   'start.what.amount.recent.hint': 'Om doelplatformen met uw actuele gegevens uit te proberen.',
   'start.what.amount.recent.why':
     "Mail, bestanden en agenda's van de laatste 90 dagen, en alle contacten en taken. Zo kunt u zoveel bestemmingen proberen als u wilt. Later kunt u alles kopiëren, vanaf de pagina van de migratie, zonder opnieuw te beginnen. Niets wat ouder is, wordt verwijderd of gewijzigd.",

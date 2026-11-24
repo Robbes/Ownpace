@@ -1,6 +1,6 @@
 # Hoe een migratie kopieert
 
-Elke migratie kopieert in dezelfde volgorde, waar ze ook uit leest: eerst de laatste 90 dagen, daarna alles wat ouder is. U kunt ook een migratie maken van alleen de laatste 90 dagen, om doelplatformen met uw actuele gegevens uit te proberen, en later alles kopiëren.
+Elke migratie kopieert in dezelfde volgorde, waar ze ook uit leest: eerst de laatste 90 dagen, daarna alles wat ouder is. U kunt ook een migratie maken van alleen de afgelopen 90 dagen, om doelplatformen met uw actuele gegevens uit te proberen, en later alles kopiëren.
 
 ## Eerst de afgelopen 90 dagen {#last-90-days-first}
 
@@ -22,7 +22,7 @@ Mail komt in de nieuwe mailbox met de nieuwste eerst binnen. Elk bericht houdt z
 
 ## Alleen de afgelopen 90 dagen {#last-90-days-only}
 
-Kies bij **Wat wilt u migreren?**, onder **Hoeveel?**, voor **Alleen de laatste 90 dagen**. De migratie kopieert dan:
+Kies bij **Wat wilt u migreren?**, onder **Hoeveel?**, voor **Alleen de afgelopen 90 dagen**. De migratie kopieert dan:
 
 - mail, bestanden en agenda's van de laatste 90 dagen, zoals in het eerste deel hierboven;
 - alle contacten en alle taken.
@@ -32,8 +32,8 @@ Dit is bedoeld om doelplatformen met uw actuele gegevens uit te proberen voordat
 - **Niets wat ouder is, wordt verwijderd of gewijzigd**, bij de bron noch bij de bestemming. Een item dat ouder is dan 90 dagen blijft waar het is, en telt nooit als verwijderd.
 - **De 90 dagen tellen vanaf de dag waarop u de migratie maakte.** Vanaf daar groeit de periode mee met nieuwe mail en wijzigingen; ze schuift nooit op. Wat gekopieerd is, blijft gekopieerd.
 - **De pagina van de migratie toont een label, Laatste 90 dagen**, naast de fase. Zodra de 90 dagen erin staan, is de fase **Wordt bijgehouden**, en de regel eronder **Wordt bijgehouden voor de laatste 90 dagen.**
-- **Een verwijdering in een agenda.** Zolang een migratie alleen de laatste 90 dagen kopieert, komt een afspraak die op een agendaserver is verwijderd alleen bij **Verwijderingen** als ze in de prullenbak van de bron staat. Na **Alles kopiëren** worden verwijderingen gemeld zoals bij elke migratie.
-- **Geen overstap.** Een migratie van alleen de laatste 90 dagen stapt niet over: op haar pagina staat bij **Afronden** **Na Alles kopiëren**. Overstappen is voor een migratie die alles heeft gekopieerd.
+- **Een verwijdering in een agenda.** Zolang een migratie alleen de afgelopen 90 dagen kopieert, komt een afspraak die op een agendaserver is verwijderd alleen bij **Verwijderingen** als ze in de prullenbak van de bron staat. Na **Alles kopiëren** worden verwijderingen gemeld zoals bij elke migratie.
+- **Geen overstap.** Een migratie van alleen de afgelopen 90 dagen stapt niet over: op haar pagina staat bij **Afronden** **Na Alles kopiëren**. Overstappen is voor een migratie die alles heeft gekopieerd.
 
 ## Alles kopiëren {#copy-everything}
 
@@ -41,11 +41,11 @@ Hebt u een bestemming gekozen, open dan de pagina van die migratie en druk op **
 
 - De migratie begint niet opnieuw. Haar volgende ronde kopieert de oudere items; wat al bij de bestemming staat, blijft zoals het is, en niets wordt twee keer gekopieerd.
 - Daarna gaat ze verder zoals elke migratie van alles: ze wordt bijgehouden, geverifieerd, en stapt over bij **Afronden** zodra u zover bent.
-- Terug kan niet. Een migratie van alles wordt geen migratie van alleen de laatste 90 dagen; begin daarvoor een nieuwe migratie.
+- Terug kan niet. Een migratie van alles wordt geen migratie van alleen de afgelopen 90 dagen; begin daarvoor een nieuwe migratie.
 
 ## Op een zelf gehoste appliance {#self-hosted}
 
-Op een zelf gehoste appliance stelt u een migratie van alleen de laatste 90 dagen in in haar mappingbestand:
+Op een zelf gehoste appliance stelt u een migratie van alleen de afgelopen 90 dagen in in haar mappingbestand:
 
 ```json
 { "recentOnly": { "days": 90 } }
