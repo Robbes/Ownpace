@@ -19,7 +19,9 @@
  * *(0)* link points at no work.
  *
  * Finish says the mail's switch only where a migration carries mail; one
- * that moves no mail switches to the new system and ends. Once every
+ * that moves no mail switches to the new system and ends. One of only the
+ * last 90 days is not switched over before it is broadened (workplan 0170,
+ * D8), so Finish says *After Copy everything* until it is. Once every
  * migration has switched and one is kept in step after it, Finish says that.
  *
  * While a read is on its way its rows say nothing yet. A read that failed says
@@ -68,6 +70,11 @@ export interface StepsRow {
   readonly notStarted?: boolean;
   /** The data types it carries; undefined where they are not known, and Finish then names the mail. */
   readonly domains?: readonly string[];
+  /**
+   * Only its last 90 days, not yet broadened (workplan 0170): it is not
+   * switched over before *Copy everything* (the owner's D8), and Finish says so.
+   */
+  readonly recentOnly?: boolean;
 }
 
 /** Which reads are still on their way: the rows resting on one say nothing yet. */
@@ -143,6 +150,7 @@ export const CutoverSteps: React.FC<{
     if (step.key === 'finish') {
       if (step.state === undefined) return t('person.step.unread');
       if (step.state === 'done') return step.continuous ? t('person.step.finish.continuous') : t('person.step.finish.done');
+      if (migrations.some((m) => m.recentOnly === true)) return t('person.step.finish.recentOnly');
       return noMail ? t('person.step.finish.notYet.noMail') : t('person.step.finish.notYet');
     }
     if (step.count === undefined) return t('person.step.unread');
