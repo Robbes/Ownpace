@@ -33,6 +33,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The Test answer and the sharing checklist say less about an address this service will not
+  connect to** (workplan 0136; the owner, 2026-11-24: *"yes, follow-up"*). Where they named this
+  service's own network, the **Test** button on Accounts now says *"We did not connect to that
+  address. Enter an internet address of the server."* (*"Geen verbinding gemaakt met dat adres. Vul
+  een internetadres van de server in."*), and a share the checklist could not apply says *"We did
+  not connect to the new system's address, so nothing was shared. On the Accounts page, enter an
+  internet address of the server."* The OTA stack and a test box may still list test servers of
+  their own on a private network in `OWNPACE_REACHABLE_HOSTS`, by name; the E2E (managed) gate keeps
+  such a name, and live's list stays empty (`docs/managed-bring-up.md`).
 - **pnpm 11.29.0** (workplan 0119; the pin watch's #2088), from alpha.18's 11.28.13, in
   `package.json`'s `packageManager`, which CI and the images read. npm published it on 2026-11-22
   at 13:58 UTC; it is taken inside its three-day floor, on the owner's word of 2026-11-23:

@@ -62,7 +62,7 @@ describe('the sentence for each thing that can happen', () => {
   it.each<[WhatHappened['kind'], RegExp]>([
     ['unreachable', /^Nothing answered at that address/],
     ['certificate', /certificate did not verify/],
-    ['insideOurNetwork', /inside this service's own network/],
+    ['insideOurNetwork', /^We did not connect to that address\. Enter an internet address of the server\.$/],
     ['unknown', /^The test failed, and what came back is not shown here/],
   ])('%s: a sentence of ours', (kind, words) => {
     expect(whatHappenedSentence({ kind } as WhatHappened)).toMatch(words);
@@ -101,6 +101,11 @@ describe('the probe result', () => {
     );
     expect(answered.outcome).toEqual({ code: 'insideOurNetwork' });
     if (!answered.ok) expect(answered.reason).not.toContain('db.internal.example');
+  });
+
+  it("the rule's refusal says nothing of what is inside this service (the owner, 2026-11-24)", () => {
+    const sentence = whatHappenedSentence({ kind: 'insideOurNetwork' });
+    expect(sentence).not.toMatch(/network|inside|service|internal/i);
   });
 
   it('the full text goes to the log once, under the reference, with a warn event for the operator', () => {
