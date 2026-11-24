@@ -21,7 +21,8 @@
  * owner's hand test, 2026-11-24: it had sat under the last card); the consent panel carries its own beside the button (as
  * the wizard did, until it retired: 0153 D5), which points at it (`aria-describedby`), because there it comes
  * after the button and a screen reader would otherwise reach the button first
- * (the review of 2026-09-26); each names Safari and Chrome and the other
+ * (the review of 2026-09-26); each names Firefox, Safari and Chrome, in that
+ * order (the owner, 2026-11-24: Firefox first), and the other
  * app's own "Open in browser"; and Dropbox's and Microsoft's buttons carry
  * none, because how they behave in an embedded browser is not known (0140 §1).
  */
@@ -79,8 +80,8 @@ const words = (locale: Locale, key: string): string => {
 
 /** What every version of the line has to name, in each language. */
 const A_REAL_BROWSER: Readonly<Record<Locale, RegExp>> = {
-  en: /Safari or Chrome/,
-  nl: /Safari of Chrome/,
+  en: /Firefox, Safari or Chrome/,
+  nl: /Firefox, Safari of Chrome/,
 };
 const THE_OTHER_APPS_OPTION: Readonly<Record<Locale, RegExp>> = {
   en: /'Open in browser'/,
@@ -147,7 +148,7 @@ const describedBy = (button: HTMLElement): string =>
 const before = (a: Node, b: Node): boolean =>
   (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
-describe('the grant page says to open the link in Safari or Chrome, before the button (0140 T3 (a))', () => {
+describe('the grant page says to open the link in Firefox, Safari or Chrome, before the button (0140 T3 (a))', () => {
   for (const locale of LOCALES) {
     it(`${locale}: the line is there, above Continue with Google, and says the link still works`, async () => {
       readMock.mockResolvedValue(SUBJECT);

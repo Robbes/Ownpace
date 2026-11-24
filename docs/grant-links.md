@@ -51,8 +51,8 @@ where the link is made.
 own browser, and Google is reported to refuse its sign-in there. The page says what to do,
 above its first button: *If this page opened inside another app, such as a chat or mail app, use
 that app's 'Open in browser' option or copy the link into your favorite browser, such as
-Safari or Chrome. The link still works.* It does: opening a link spends nothing, so opening it again in Safari or Chrome is
-safe.
+Firefox, Safari or Chrome. The link still works.* It does: opening a link spends nothing, so opening it again in
+Firefox, Safari or Chrome is safe.
 
 **Worth doing once:** give your organisation a phone number, under **Team & organization →
 Organization → Phone number**. It is optional. When it is set, the page the other person opens
@@ -303,10 +303,10 @@ connection stores none, the deployment's.
 **If Google's page said no, not this one,** and the link was opened inside another app, that
 app's own browser is the likely cause: Google is reported to refuse its sign-in there. A fresh
 link does not help with that; the same link, opened in the phone's or computer's own browser,
-such as Safari or Chrome, rather than the one built into the chat or mail app, does. The page
-says so, above its first button: *If this page opened inside another app, such as a chat or mail app, use
-that app's 'Open in browser' option or copy the link into your favorite browser, such as
-Safari or Chrome. The link still works.*
+such as Firefox, Safari or Chrome, rather than the one built into the chat or mail app, does.
+The page says so, above its first button: *If this page opened inside another app, such as a
+chat or mail app, use that app's 'Open in browser' option or copy the link into your favorite
+browser, such as Firefox, Safari or Chrome. The link still works.*
 
 ## Two things this is not
 

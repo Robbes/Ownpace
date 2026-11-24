@@ -85,7 +85,7 @@ export const en = {
   // Connections page have no grant link to reopen. A consent sentence, kept
   // whole (0118 §2), not a `.hint`.
   'account.google.inAppBrowser':
-    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Safari or Chrome, then sign in to Ownpace there.',
+    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Firefox, Safari or Chrome, then sign in to Ownpace there.',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
   // Connect Cirrux Drive (workplan 0160 T5): on a Cirrux account's row, the
   // sign-in that adds files to an account whose app password carries the rest.
@@ -825,7 +825,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.google.readsOnly':
     'Voor e-mail, agenda’s en contacten beschrijft Google een ruimere toestemming dan Ownpace gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in dit account.',
   'account.google.inAppBrowser':
-    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Safari of Chrome, en meld u in die browser aan bij Ownpace.',
+    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Firefox, Safari of Chrome, en meld u in die browser aan bij Ownpace.',
   'account.cirrux.connect': 'Cirrux Drive verbinden',
   'account.cirrux.again': 'Cirrux Drive opnieuw verbinden',
   'account.cirrux.connect.hint': 'Opent de aanmeldpagina van Cirrux; daar geeft u Ownpace toegang.',
