@@ -123,6 +123,10 @@ export function useLineSentence(): (stage: Stage | undefined, facts: SentenceFac
         return t('confirm.progress.totalNotKnown', { done: formatNumber(part.done, locale) });
       case 'noneFound':
         return t('confirm.progress.noneFound');
+      case 'listedButEmpty':
+        return part.count === 1
+          ? t('confirm.progress.listedButEmpty.one')
+          : t('confirm.progress.listedButEmpty.many', { count: formatNumber(part.count, locale) });
       case 'leftAsIs':
         return t('people.line.leftAsIs', { count: formatNumber(part.count, locale) });
       case 'lastPass':
@@ -181,7 +185,11 @@ export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?
       {m.domains.map((domain) => {
         const facts = progress ? factsOf(m, domain, progress) : undefined;
         const stage = facts ? lineStage(facts) : listStage(m);
-        const sentence = facts ? sentenceOf(stage, facts).text : undefined;
+        const said = facts ? sentenceOf(stage, facts) : undefined;
+        const sentence = said?.text;
+        // Calendars found and nothing read from them is not *none found*: it
+        // is said in amber, beside whatever the stage says (`listedButEmpty`).
+        const amber = said?.says[0] === 'listedButEmpty';
         // AN EXPORT'S LINE (0153 open question 5, item 2; drawn in
         // `wf-person-page.svg`): its files are its photos (owner decision D5),
         // and before it starts it waits for the export, which the line says,
@@ -216,7 +224,11 @@ export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?
                 </Link>
               </span>
             ) : facts ? (
-              sentence && <span className="text-gray-600">{sentence}</span>
+              sentence && (
+                <span className={amber ? 'text-amber-800' : 'text-gray-600'} {...(amber ? { 'data-tone': 'amber' } : {})}>
+                  {sentence}
+                </span>
+              )
             ) : (
               <span className="text-gray-500">
                 {m.lastSyncAt ? t('people.lastPass', { when: relativeToNow(m.lastSyncAt) }) : t('people.noPassYet')}

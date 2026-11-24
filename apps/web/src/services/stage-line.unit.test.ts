@@ -5,7 +5,16 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { CheckFacts, DomainProgress, MappingAttention } from '@openmig/shared';
-import { fitLine, lineParts, lineStage, linesProgressOf, type LineFacts } from './stage-line.ts';
+import type { MigrationWindowView } from '@openmig/shared';
+import {
+  fitLine,
+  lineParts,
+  lineStage,
+  linesProgressOf,
+  windowParts,
+  windowStage,
+  type LineFacts,
+} from './stage-line.ts';
 
 const GB = 1024 ** 3;
 const NOT_RUN: CheckFacts = { state: 'not_run' };
@@ -174,5 +183,70 @@ describe('a migration’s lines’ facts, from the two reads', () => {
   it('is nothing while the progress read has no row for the migration', () => {
     expect(linesProgressOf(undefined, 'm', attention(), true)).toBeUndefined();
     expect(linesProgressOf(report, 'other', attention(), true)).toBeUndefined();
+  });
+});
+
+/**
+ * THE LAST 90 DAYS FIRST (workplan 0170 §7.2, §7.3): what a migration's window
+ * says under its name, in each of its states, and the stage a migration of
+ * only the last 90 days never reaches (D8).
+ */
+describe('the window (0170)', () => {
+  const view = (over: Partial<MigrationWindowView> = {}): MigrationWindowView => ({
+    recentOnly: false,
+    since: '2026-08-26T00:00:00.000Z',
+    in: [],
+    copying: [],
+    ...over,
+  });
+  const kinds = (parts: ReturnType<typeof windowParts>) => parts.map((p) => p.kind);
+
+  it('never says Ready to switch of a 90-day migration, and changes nothing else', () => {
+    expect(windowStage('ready_to_switch', view({ recentOnly: true }))).toBe('kept_in_step');
+    expect(windowStage('copying', view({ recentOnly: true }))).toBe('copying');
+    expect(windowStage('ready_to_switch', view())).toBe('ready_to_switch');
+    expect(windowStage('ready_to_switch', undefined)).toBe('ready_to_switch');
+  });
+
+  it('a 90-day migration, kept in step: for the last 90 days', () => {
+    const w = view({ recentOnly: true, in: ['email', 'file'] });
+    const kept = { email: 'kept_in_step', file: 'kept_in_step' } as const;
+    expect(kinds(windowParts(w, ['email', 'file', 'contact'], kept))).toEqual(['keptForRecent']);
+    // Still copying its window: the stage says so, and the line nothing more.
+    expect(windowParts(w, ['email', 'file'], { email: 'kept_in_step', file: 'copying' })).toEqual([]);
+  });
+
+  it('phase A running: the last 90 days first', () => {
+    const w = view({ in: ['email'], copying: ['calendar'] });
+    expect(kinds(windowParts(w, ['email', 'calendar'], { email: 'copying', calendar: 'copying' }))).toEqual([
+      'recentFirst',
+    ]);
+  });
+
+  it('phase A done everywhere, phase B running: the milestone, then the older items', () => {
+    const w = view({ in: ['email', 'file'] });
+    expect(kinds(windowParts(w, ['email', 'file', 'task'], { email: 'copying', file: 'kept_in_step' }))).toEqual([
+      'recentIn',
+      'olderComing',
+    ]);
+  });
+
+  it('phase B of one data type while another has not begun its window: only the older items', () => {
+    expect(kinds(windowParts(view({ in: ['email'] }), ['email', 'file'], { email: 'copying' }))).toEqual([
+      'olderComing',
+    ]);
+  });
+
+  it('broadened, or every phase B done: nothing', () => {
+    expect(windowParts(view({ in: ['email'] }), ['email'], { email: 'kept_in_step' })).toEqual([]);
+  });
+
+  it('claims no phase B on a stage it has not read (hard rule 9)', () => {
+    expect(windowParts(view({ in: ['email'] }), ['email'], {})).toEqual([]);
+  });
+
+  it('says nothing for contacts and tasks alone, or without a window read', () => {
+    expect(windowParts(view({ recentOnly: true }), ['contact', 'task'], { contact: 'kept_in_step' })).toEqual([]);
+    expect(windowParts(undefined, ['email'], { email: 'copying' })).toEqual([]);
   });
 });

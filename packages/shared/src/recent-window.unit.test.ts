@@ -124,20 +124,21 @@ describe('eventInWindow', () => {
     expect(eventInWindow(event(past), SINCE)).toBe(false);
   });
 
-  it('holds every series, and every event it cannot decide', () => {
-    const series = vcal('BEGIN:VEVENT', 'UID:u1', 'DTSTART:20200101T100000Z', 'RRULE:FREQ=WEEKLY;COUNT=3', 'END:VEVENT');
-    const rdate = vcal('BEGIN:VEVENT', 'UID:u1', 'DTSTART:20200101T100000Z', 'RDATE:20200201T100000Z', 'END:VEVENT');
+  it('holds every event it cannot decide', () => {
+    // Series, RDATEs and DURATIONs are decided since T4: recent-window-events.unit.test.ts.
     const noStart = vcal('BEGIN:VEVENT', 'UID:u1', 'SUMMARY:x', 'END:VEVENT');
-    const duration = vcal('BEGIN:VEVENT', 'UID:u1', 'DTSTART:20200101T100000Z', 'DURATION:PT1H', 'END:VEVENT');
     const garbled = vcal('BEGIN:VEVENT', 'UID:u1', 'DTSTART:yesterday', 'END:VEVENT');
-    for (const ics of [series, rdate, noStart, duration, garbled, 'not an icalendar']) {
+    for (const ics of [noStart, garbled, 'not an icalendar']) {
       expect(eventInWindow(event(ics), SINCE)).toBe(true);
     }
   });
 
-  it('holds an end within a day of since, which a time zone may move', () => {
-    const edge = vcal('BEGIN:VEVENT', 'UID:u1', 'DTSTART:20260825T080000', 'DTEND:20260825T090000', 'END:VEVENT');
+  it('holds a floating end that a time zone may move into the window, and leaves one none can', () => {
+    // A floating time is read at the widest offsets there are, UTC-12 to UTC+14.
+    const edge = vcal('BEGIN:VEVENT', 'UID:u1', 'DTSTART:20260825T140000', 'DTEND:20260825T150000', 'END:VEVENT');
     expect(eventInWindow(event(edge), SINCE)).toBe(true);
+    const before = vcal('BEGIN:VEVENT', 'UID:u1', 'DTSTART:20260825T080000', 'DTEND:20260825T090000', 'END:VEVENT');
+    expect(eventInWindow(event(before), SINCE)).toBe(false);
   });
 
   it('reads an all-day event as lasting its day', () => {
