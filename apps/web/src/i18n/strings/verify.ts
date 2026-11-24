@@ -64,6 +64,14 @@ export const en = {
   'verify.issue.missing':
     '{n} {type} items are on the old system but not on the new one. Let another pass run, then check again.',
   'verify.issue.checksum': '{n} sampled {type} items differ from the original. Confirmed shows which.',
+  // Counted by the old account itself (Gmail's All Mail, the owner,
+  // 2026-11-24): what it held before the last completed pass started, and no
+  // pass copied. And past the switch, when it can no longer be asked, the
+  // count is our own record, said beside the verdict.
+  'verify.issue.neverCopied':
+    '{n} {type} items in your old account were never copied, although they arrived before the last completed pass. Let another pass run, then check again.',
+  'verify.issue.ownRecord':
+    'Your old account could not be asked how many {type} items it holds: it may be deleted, or our access withdrawn. So this check counts against our own record of what was copied.',
   // A new address (workplan 0168, S2 and S11 of the reviews): copies a change
   // of the address table waits for, which never count as a match. Past a data
   // type's switch the change waits for a person's press, never for a pass.
@@ -154,6 +162,10 @@ export const nl: Record<keyof typeof en, string> = {
     '{n} items ({type}) staan op het oude systeem maar niet op het nieuwe. Laat nog een ronde lopen en verifieer daarna opnieuw.',
   'verify.issue.checksum':
     '{n} items ({type}) uit de steekproef wijken af van het origineel. Bevestigd laat zien welke.',
+  'verify.issue.neverCopied':
+    '{n} items ({type}) in uw oude account zijn nooit gekopieerd, hoewel ze binnenkwamen vóór de laatste voltooide ronde. Laat nog een ronde lopen en verifieer daarna opnieuw.',
+  'verify.issue.ownRecord':
+    'Uw oude account kon niet worden gevraagd hoeveel items ({type}) het bevat: het is misschien verwijderd, of onze toegang is ingetrokken. Deze verificatie telt daarom met wat wij zelf hebben vastgelegd als gekopieerd.',
   'verify.issue.addressOlder':
     '{n} items ({type}) wachten op een adreswijziging, die de volgende ronde doorvoert. Geen ervan telt als overeenkomend.',
   'verify.issue.addressOlderPress':

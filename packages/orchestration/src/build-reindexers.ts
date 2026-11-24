@@ -33,19 +33,25 @@
 import type { Pool } from 'pg';
 import type { DiscoveryDomain, TargetReindexer } from '@openmig/shared';
 import { DISCOVERY_DOMAINS } from '@openmig/shared';
-import { buildDomainDepsFromMapping } from './build-deps-from-mapping.ts';
+import { buildDomainDepsFromMapping, readRecentOnly } from './build-deps-from-mapping.ts';
 import {
   GATE_NAME,
   asReindexer,
   fanOutTargets,
-  type OpenTarget,
   type VerificationDomain,
 } from './target-fan-out.ts';
+import { mailSourceSideCount, withTheSourceSideCount, type OpenedWithCount, type SourceSideCount } from './source-side-count.ts';
 
 export { GATE_NAME, LEDGER_DOMAIN, type VerificationDomain } from './target-fan-out.ts';
 
 export interface TargetReindexers {
   readonly reindexers: Partial<Record<VerificationDomain, TargetReindexer>>;
+  /**
+   * The source's own count per data type, where it has one: Gmail's All Mail
+   * (`mailSourceSideCount`, the owner's decision of 2026-11-24). Handed to
+   * `createRealVerificationDeps` as `sourceSideCounts`.
+   */
+  readonly sourceSideCounts: Partial<Record<VerificationDomain, SourceSideCount>>;
   /** Close every domain's deps. They are built on the caller's pool, which this leaves open. */
   close(): Promise<void>;
 }
@@ -64,7 +70,11 @@ export interface TargetReindexers {
  * translated at this edge, through a TOTAL `Record` — a sixth domain fails to
  * compile rather than opening nothing.
  */
-export function managedOpener(pool: Pool, tenantId: string, mappingId: string): OpenTarget {
+export function managedOpener(
+  pool: Pool,
+  tenantId: string,
+  mappingId: string,
+): (domain: DiscoveryDomain) => Promise<OpenedWithCount> {
   const DEPS_NAME: Readonly<Record<DiscoveryDomain, 'mail' | 'calendar' | 'contact' | 'file' | 'task'>> = {
     email: 'mail',
     calendar: 'calendar',
@@ -77,10 +87,18 @@ export function managedOpener(pool: Pool, tenantId: string, mappingId: string): 
     // `buildDomainDepsFromMapping` accepts exactly one literal, and the union
     // is not itself one of those literals as far as overload resolution goes.
     const name = DEPS_NAME[domain];
+    if (name === 'mail') {
+      const mail = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'mail');
+      // A 90-day migration counts only its window (workplan 0170). Its
+      // setting is read only for a source with a count of its own (Gmail).
+      const count =
+        mailSourceSideCount(mail) === undefined
+          ? undefined
+          : mailSourceSideCount(mail, await readRecentOnly(pool, tenantId, mappingId));
+      return { target: mail.target, close: () => mail.close(), ...(count ? { sourceSideCount: count } : {}) };
+    }
     const deps =
-      name === 'mail'
-        ? await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'mail')
-        : name === 'calendar'
+      name === 'calendar'
           ? await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar')
           : name === 'contact'
             ? await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact')
@@ -116,9 +134,10 @@ export async function buildTargetReindexers(
   tenantId: string,
   mappingId: string,
 ): Promise<TargetReindexers> {
+  const counted = withTheSourceSideCount(managedOpener(pool, tenantId, mappingId));
   const fanned = await fanOutTargets<TargetReindexer>({
     wanted: DISCOVERY_DOMAINS,
-    open: managedOpener(pool, tenantId, mappingId),
+    open: counted.open,
     keep: (target) => asReindexer<TargetReindexer>(target),
     label: `[verification] mapping ${mappingId}:`,
   });
@@ -127,5 +146,5 @@ export async function buildTargetReindexers(
   for (const domain of fanned.domains) {
     reindexers[GATE_NAME[domain]] = fanned.byDomain[domain];
   }
-  return { reindexers, close: () => fanned.close() };
+  return { reindexers, sourceSideCounts: counted.counts(fanned.domains), close: () => fanned.close() };
 }
