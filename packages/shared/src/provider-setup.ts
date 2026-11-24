@@ -261,6 +261,26 @@ const IMAP_BASIC: ReadonlyArray<SetupStep> = [
   },
 ];
 
+/**
+ * A DAV SOURCE (workplan 0169): where the server is, and a password it takes
+ * for the protocol. IMAP's two steps in DAV's words, because the account
+ * already exists: it is the one being left.
+ */
+const DAV_SOURCE: ReadonlyArray<SetupStep> = [
+  {
+    key: 'server_address',
+    titleKey: 'setup.davsource.server_address.title',
+    detailKey: 'setup.davsource.server_address.detail',
+    yieldsKey: 'setup.davsource.server_address.yields',
+  },
+  {
+    key: 'app_password',
+    titleKey: 'setup.davsource.app_password.title',
+    detailKey: 'setup.davsource.app_password.detail',
+    yieldsKey: 'setup.davsource.app_password.yields',
+  },
+];
+
 const WEBDAV_TARGET: ReadonlyArray<SetupStep> = [
   {
     key: 'account_exists',
@@ -455,6 +475,9 @@ const SOURCE_PROFILE: Readonly<Record<string, ReadonlyArray<SetupStep>>> = {
   graph: GRAPH,
   apple: APPLE,
   imap: IMAP_BASIC,
+  caldav: DAV_SOURCE,
+  carddav: DAV_SOURCE,
+  webdav: DAV_SOURCE,
 };
 
 const TARGET_PROFILE: Readonly<Record<string, ReadonlyArray<SetupStep>>> = {

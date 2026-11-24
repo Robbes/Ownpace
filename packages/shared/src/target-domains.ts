@@ -317,7 +317,15 @@ export type WizardSourceType =
   // its own, deliberately: 0116 §2 requires that a third export be a new
   // reader and nothing else, and a type per export would drag every table in
   // this file back into the diff each time one arrived.
-  | 'archive';
+  | 'archive'
+  // THE DAV PROTOCOLS AS SOURCES (workplan 0169; the owner, 2026-11-24:
+  // *"add only the generic cards as source"*). Any server that speaks the
+  // words. Each carries what its protocol carries and nothing else, the
+  // same faces the three carry as targets (`TARGET_TYPE_DOMAINS`). There is
+  // no `nextcloud` source: a Nextcloud is reached through these three.
+  | 'caldav'
+  | 'carddav'
+  | 'webdav';
 
 /** Domains a wizard source can serve, where the source constrains it at all. */
 export const SOURCE_TYPE_DOMAINS: Partial<
@@ -357,6 +365,11 @@ export const SOURCE_TYPE_DOMAINS: Partial<
   // ticked passed the create door and could only fail at its first pass
   // (found while mapping 0153 T4, whose *What moves?* must not offer it).
   apple: PROVIDER_ACCOUNT_DOMAINS.apple,
+  // A protocol carries the faces its protocol carries (workplan 0169), read
+  // from the target table so the two sides of one protocol cannot disagree.
+  caldav: TARGET_TYPE_DOMAINS.caldav,
+  carddav: TARGET_TYPE_DOMAINS.carddav,
+  webdav: TARGET_TYPE_DOMAINS.webdav,
 };
 
 /**
@@ -423,6 +436,11 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
   },
   dropbox: { name: 'Dropbox', reads: 'the Dropbox API only' },
   box: { name: 'Box', reads: 'the Box API only' },
+  // Not a credential's reach but a protocol's (workplan 0169): the login is
+  // the server's, and the words it speaks are what limit the faces.
+  caldav: { name: 'CalDAV', credential: 'protocol', reads: 'calendars and task lists only' },
+  carddav: { name: 'CardDAV', credential: 'protocol', reads: 'address books only' },
+  webdav: { name: 'WebDAV', credential: 'protocol', reads: 'files only' },
 };
 
 /**
