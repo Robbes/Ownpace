@@ -30,7 +30,7 @@ import { createPgliteDb } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import { ConfirmationStore } from './confirmation-store.ts';
 import { RunStore, toRunReport, type RunKind } from './run-store.ts';
-import type { LedgerDriver, LedgerConnection } from './driver.ts';
+import { statementsInTurn, type LedgerDriver, type StatementsInTurn } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
 import {
   answerFromStored,
@@ -67,7 +67,7 @@ const EVERY_ANSWER: readonly TargetAnswer[] = [
 ];
 
 let driver: LedgerDriver;
-let conn: LedgerConnection;
+let conn: StatementsInTurn;
 let db: PgDatabase;
 let store: ConfirmationStore;
 let runs: RunStore;
@@ -78,7 +78,7 @@ beforeAll(async () => {
   driver = made.driver;
   db = made.db;
   await runMigrations({ driver, logger: () => {} });
-  conn = await driver.acquire();
+  conn = statementsInTurn(driver);
   await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1, 'Confirmation tests', 'active')`, [
     TENANT,
   ]);

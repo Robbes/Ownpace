@@ -59,6 +59,11 @@ export interface StepsMigration {
    * queue then says nothing was compared, so it is *Not yet*, never *Done*.
    */
   readonly notStarted?: boolean;
+  /**
+   * Only its last 90 days, not yet broadened (workplan 0170): never switched
+   * over before *Copy everything* (the owner's D8), so its Finish waits.
+   */
+  readonly recentOnly?: boolean;
 }
 
 /**
@@ -189,7 +194,7 @@ export function cutoverSteps(
   // passed, and no failure that blocks Finish. Failures that could not be
   // counted are never none, so such a migration is never ready (hard rule 9).
   const readyToSwitch = (m: StepsMigration): boolean => {
-    if (m.status !== 'active' || factsOf(m)?.state !== 'passed') return false;
+    if (m.recentOnly === true || m.status !== 'active' || factsOf(m)?.state !== 'passed') return false;
     const a = read(m);
     return a !== 'unread' && Number(a?.failuresWaiting ?? 0) === 0;
   };

@@ -145,4 +145,20 @@ describe('MailSourceWithGraphFallback', () => {
     expect(imap.listSince).toHaveBeenCalledTimes(1);
     expect(imap.fetch).toHaveBeenCalledTimes(1);
   });
+
+  it('forwards the window to IMAP, and to Graph once it has fallen back (workplan 0170)', async () => {
+    const options = { since: new Date('2026-08-26T00:00:00Z') };
+    const cursor = { value: 'c-1' };
+
+    const imap = fakeSource({});
+    await new MailSourceWithGraphFallback(imap, vi.fn()).listSince(IMAP_FOLDERS[0]!, cursor, options);
+    expect(imap.listSince).toHaveBeenCalledWith(IMAP_FOLDERS[0], cursor, options);
+
+    const refused = fakeSource({ listFolders: vi.fn().mockRejectedValue(new Error('AUTHENTICATE failed.')) });
+    const graph = fakeSource({ listFolders: vi.fn().mockResolvedValue(GRAPH_FOLDERS) });
+    const fellBack = new MailSourceWithGraphFallback(refused, () => graph);
+    await fellBack.listFolders();
+    await fellBack.listSince(GRAPH_FOLDERS[0]!, cursor, options);
+    expect(graph.listSince).toHaveBeenCalledWith(GRAPH_FOLDERS[0], cursor, options);
+  });
 });

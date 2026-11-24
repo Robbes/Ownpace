@@ -21,7 +21,7 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { createPgliteDb } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import { PgMigrationStatusStore } from './migration-status-store.ts';
-import type { LedgerDriver, LedgerConnection } from './driver.ts';
+import { statementsInTurn, type LedgerDriver, type StatementsInTurn } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
 import {
   UNREAD_NOTE_PREFIX,
@@ -58,7 +58,7 @@ const CEILING: PauseReason = {
 };
 
 let driver: LedgerDriver;
-let conn: LedgerConnection;
+let conn: StatementsInTurn;
 let db: PgDatabase;
 let store: PgMigrationStatusStore;
 
@@ -67,7 +67,7 @@ beforeAll(async () => {
   driver = made.driver;
   db = made.db;
   await runMigrations({ driver, logger: () => {} });
-  conn = await driver.acquire();
+  conn = statementsInTurn(driver);
   await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1, 'Unread folder tests', 'active')`, [
     TENANT,
   ]);

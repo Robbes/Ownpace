@@ -36,13 +36,21 @@
  * Past its cutover (`done` or `continuous`) the same list is where a data
  * type ended is kept copying again, or one kept is ended; the migration is
  * done once every data type has ended.
+ *
+ * ONLY THE LAST 90 DAYS IS NOT SWITCHED OVER (workplan 0170, D8: *"no, not
+ * before"*). While a migration copies only the last 90 days
+ * (`window.recentOnly`), the server refuses its switch-over, so this page
+ * offers none: no step 4, no *End* or *Keep copying*. In their place it says
+ * that the switch-over comes after *Copy everything*, and links to where that
+ * is chosen: the migration's page on managed, the guide's section on the
+ * mapping file on the appliance. Once broadened, the page is as it was.
  */
 
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { AlertCircle, AlertTriangle, Check, Loader2, Circle } from 'lucide-react';
-import type { DomainStatusReport, MappingLifecycle, PathEndingChoice } from '@openmig/shared';
+import type { DomainStatusReport, MappingLifecycle, MigrationWindowView, PathEndingChoice } from '@openmig/shared';
 import { A_TEST_IS_NOT_FINISHED } from '@openmig/shared';
 import {
   fetchDeletions,
@@ -65,6 +73,7 @@ import CompletionReportDownload from '../components/CompletionReportDownload.tsx
 import EachDataTypeEnds from '../components/finish/EachDataTypeEnds.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
+import { isSelfHost } from '../services/edition.ts';
 
 type PassState = 'running' | 'finished' | 'queued' | { readonly failed: string };
 
@@ -133,6 +142,12 @@ interface FinishRow {
    * or undefined when the server sent none: then no ending is offered.
    */
   readonly endings: ReadonlyArray<PathEndingChoice> | undefined;
+  /**
+   * The migration's window (0170 §5.2), or undefined when the server sent
+   * none. Only `recentOnly` is read here: such a migration is not switched
+   * over before *Copy everything* (D8).
+   */
+  readonly window: MigrationWindowView | undefined;
 }
 
 const stoppedIn = (domains: readonly DomainStatusReport[] | undefined) =>
@@ -229,6 +244,7 @@ const Finish: React.FC = () => {
           needingDecision: env.needsDecision.length,
           stopped: stoppedIn(mappingDomains.data?.domains),
           endings: mappingDomains.data?.endings,
+          window: mappingDomains.data?.window,
         },
       ];
     }
@@ -239,6 +255,7 @@ const Finish: React.FC = () => {
       needingDecision: m.domains.reduce((n, d) => n + d.itemsNeedingDecision, 0),
       stopped: stoppedIn(m.domains),
       endings: m.endings,
+      window: m.window,
     }));
   }
 
@@ -293,7 +310,11 @@ const Finish: React.FC = () => {
         const finishable = m.lifecycle === 'active' || m.lifecycle === 'cutover';
         // Step 4 is asked for mail only, while mail is before its cutover:
         // either of its presses is its cutover (D3, D8).
-        const mailWaits = m.endings?.some((e) => e.domain === 'email' && e.phase === 'active') ?? false;
+        // Only the last 90 days (0170 D8): no switch-over before Copy
+        // everything, so neither step 4 nor the endings are offered.
+        const recentOnly = m.window?.recentOnly === true;
+        const mailWaits =
+          !recentOnly && (m.endings?.some((e) => e.domain === 'email' && e.phase === 'active') ?? false);
         const needingDecision = m.needingDecision;
         const openMoves = moves.data?.[id]?.open.length ?? 0;
         const openDeletions = deletions.data?.[id]?.confirmed.length ?? 0;
@@ -646,6 +667,27 @@ const Finish: React.FC = () => {
                 </Step>
                 )}
 
+                {recentOnly ? (
+                  // Where the switch-over would be, what comes first: Copy
+                  // everything, chosen on the migration's page (managed) or in
+                  // the mapping file (the appliance, as its guide says).
+                  <Step n={4} title={t('finish.recentOnly.title')}>
+                    <div data-finish-recent-only>
+                      <p>{t('finish.recentOnly.body')}</p>
+                      <p className="mt-1">
+                        {perMapping && !isSelfHost() ? (
+                          <Link to={`/mappings/${encodeURIComponent(id)}`} className={PROSE_LINK}>
+                            {t('finish.recentOnly.link')}
+                          </Link>
+                        ) : (
+                          <Link to="/docs/start#self-hosted" className={PROSE_LINK}>
+                            {t('finish.recentOnly.link.selfHost')}
+                          </Link>
+                        )}
+                      </p>
+                    </div>
+                  </Step>
+                ) : (
                 <Step n={mailWaits ? 5 : 4} title={t('finish.step5.title')}>
                   <p className="mb-2">
                     <b>{t('finish.step5.nothingChanges.pre')}</b>
@@ -653,6 +695,7 @@ const Finish: React.FC = () => {
                   </p>
                   <EachDataTypeEnds mappingId={id} endings={m.endings} deliveryMoved={deliveryMoved[id] ?? false} />
                 </Step>
+                )}
               </ol>
               </>
             )}

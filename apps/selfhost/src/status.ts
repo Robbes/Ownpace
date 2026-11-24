@@ -13,6 +13,7 @@
  * the types live.
  */
 
+import type { MigrationWindowView } from '@openmig/shared';
 import type {
   DiscoveryDomain,
   FoundCount,
@@ -65,6 +66,8 @@ export interface MappingStatusInput {
    * from `pathEndingChoices`. Omitted, as `stops` may be.
    */
   readonly endings?: readonly PathEndingChoice[];
+  /** The last 90 days (workplan 0170 §5.4), from `readWindowView`. Omitted, as `stops` may be. */
+  readonly window?: MigrationWindowView;
 }
 
 /**
@@ -88,7 +91,7 @@ export function buildStatusReport(
     status: 'ok',
     ...(notifications ? { notifications } : {}),
     mappings: inputs.map(
-      ({ mappingId, migrationStatus, sourceType, targetType, name, statuses, failures = [], adopted, found, stops, endings }) => ({
+      ({ mappingId, migrationStatus, sourceType, targetType, name, statuses, failures = [], adopted, found, stops, endings, window }) => ({
         mappingId,
         migrationStatus,
         // Spread, not `sourceType: sourceType`: a caller that did not supply
@@ -104,6 +107,7 @@ export function buildStatusReport(
         domains: buildDomainStatusReports(statuses, failures, adopted, found),
         ...(stops === undefined ? {} : { stops }),
         ...(endings === undefined ? {} : { endings }),
+        ...(window === undefined ? {} : { window }),
       }),
     ),
   };

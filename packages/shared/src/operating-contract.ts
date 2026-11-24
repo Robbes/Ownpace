@@ -37,6 +37,7 @@
  * queue that cannot say where something went is not one anybody can act on.
  */
 
+import type { MigrationWindowView } from './recent-window.ts';
 import type { DiscoveryDomain, FoundCount } from './discovery.ts';
 import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { PauseReason } from './pause-reason.ts';
@@ -592,6 +593,12 @@ export interface StatusReport {
      * it, and the page then offers no ending rather than guessing one.
      */
     readonly endings?: readonly PathEndingChoice[];
+    /**
+     * THE LAST 90 DAYS (workplan 0170 §5.2, §5.4): the same `window` the
+     * managed read of a migration carries. Optional, as `stops` is: a payload
+     * built before it omits it, and the page then shows no window.
+     */
+    readonly window?: MigrationWindowView;
     /**
      * THE MIGRATION'S TEST MARKER (workplan 0162 T1; ADR-0053), when it is a
      * test: the text an item's own title must contain to be copied
