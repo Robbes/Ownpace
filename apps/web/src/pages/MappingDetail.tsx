@@ -37,8 +37,8 @@ import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { fetchAllDiscovery, fetchAttention, fetchRuns, fetchStatus } from '../services/operating-service.ts';
 import { fetchProgress } from '../services/progress-service.ts';
 import { checksOf } from '../services/cutover-steps.ts';
-import { linesProgressOf } from '../services/stage-line.ts';
-import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import { linesProgressOf, windowParts, windowStage, type WindowPart } from '../services/stage-line.ts';
+import { useT, useFormatters, useLocale, type StringKey } from '../i18n/index.tsx';
 import type { Locale } from '../i18n/strings.ts';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
@@ -50,6 +50,7 @@ import CompletionReportDownload from '../components/CompletionReportDownload.tsx
 import LiveProgress from '../components/LiveProgress.tsx';
 import { lineStages, stagesByDomain } from '../components/MigrationLines.tsx';
 import StateChip from '../components/StateChip.tsx';
+import { CopyEverything } from '../components/CopyEverything.tsx';
 import { connectionKindName } from '../components/ProviderTile.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
@@ -61,6 +62,7 @@ import {
   timeBeforeStart,
   timeWhileCopying,
   type DiscoveryDomain,
+  type Stage,
 } from '@openmig/shared';
 import { providerName } from '../components/ProviderTile.tsx';
 import { serverMessage } from '../services/api.ts';
@@ -133,6 +135,14 @@ export function filesFromLine(
   const place = kind === 'google' || kind === 'google_drive' ? t('start.place.myDrive') : (connectionKindName(kind!, locale) ?? kind!);
   return t('hub.filesFrom.all', { place });
 }
+
+/** The window line's words, part by part (workplan 0170 §7.3). */
+const WINDOW_WORDS: Readonly<Record<WindowPart['kind'], StringKey>> = {
+  keptForRecent: 'people.line.keptForRecent',
+  recentFirst: 'people.line.recentFirst',
+  recentIn: 'people.line.recentIn',
+  olderComing: 'people.line.olderComing',
+};
 
 /**
  * The latest pass any of its data types completed: what the list carries as a
@@ -332,8 +342,27 @@ const MappingDetail: React.FC = () => {
     attentionQuery.data?.mappings.find((a) => a.mappingId === id),
     attentionQuery.isSuccess,
   );
-  const stages = lineFacts && lines ? stagesByDomain(lineFacts, lines) : {};
-  const migrationStage = lineFacts ? leastAdvancedStage(lineStages(lineFacts, lines)) : undefined;
+  // THE LAST 90 DAYS FIRST (workplan 0170 §7.2, §7.3, §5.4): the detail read
+  // on managed, the status on the appliance, which carry the same `window`. A
+  // migration of only the last 90 days is never *Ready to switch* (D8), so
+  // each stage passes through `windowStage`, and managed's header offers *Copy
+  // everything* instead; on the appliance that is its mapping file's, as the
+  // guide's section the chip opens says.
+  const migrationWindow = isSelfHost()
+    ? status.data?.mappings.find((m) => m.mappingId === id)?.window
+    : detail.data?.window;
+  const recentOnly = migrationWindow?.recentOnly === true;
+  const stages: Partial<Record<DiscoveryDomain, Stage>> = {};
+  for (const [domain, stage] of Object.entries(lineFacts && lines ? stagesByDomain(lineFacts, lines) : {})) {
+    const said = windowStage(stage, migrationWindow);
+    if (said) stages[domain as DiscoveryDomain] = said;
+  }
+  const migrationStage = lineFacts
+    ? windowStage(leastAdvancedStage(lineStages(lineFacts, lines).map((s) => windowStage(s, migrationWindow))), migrationWindow)
+    : undefined;
+  const windowLine = windowParts(migrationWindow, lineFacts?.domains ?? [], stages)
+    .map((part) => t(WINDOW_WORDS[part.kind]))
+    .join(' ');
 
   // What is left, and whether the provider slowed it: from the rows still in
   // their FIRST COPY, the totals T2 set each count against. Kept in step has
@@ -401,6 +430,19 @@ const MappingDetail: React.FC = () => {
               {t('mappings.action.reviewAndStart')}
             </Link>
           )}
+          {/* ONLY THE LAST 90 DAYS (0170 §7.2): its one way to everything,
+              where a switch-over would be, and its chip beside the stage,
+              which opens the guide's section on it. */}
+          {recentOnly && !isSelfHost() && <CopyEverything mappingId={id} />}
+          {recentOnly && (
+            <Link
+              to={isSelfHost() ? '/docs/start#self-hosted' : '/docs/start#last-90-days-only'}
+              data-chip="last-90-days"
+              className="text-xs font-medium rounded-full px-2 py-0.5 bg-blue-50 text-blue-800 hover:underline"
+            >
+              {t('hub.window.chip')}
+            </Link>
+          )}
           {migrationStage ? (
             <StateChip entity="stage" state={migrationStage} />
           ) : (
@@ -409,6 +451,12 @@ const MappingDetail: React.FC = () => {
         </div>
       </div>
       {pauseFailed && <p className="mt-1 text-sm text-red-700">{pauseFailed}</p>}
+      {/* THE MILESTONE (0170 §7.3): the last 90 days first, then the rest. */}
+      {windowLine && (
+        <p className="mt-1 text-sm text-gray-700" data-window-line>
+          {windowLine}
+        </p>
+      )}
       {/* WHICH accounts, by name — the mapping's own, not the tenant's first
           (the API read the wrong ones until 2026-09-11). A migration named
           "G to Sov" that is in fact wired to the Nextcloud target is a fact
@@ -555,6 +603,7 @@ const MappingDetail: React.FC = () => {
               status: lifecycle,
               label: detail.data?.name ?? id,
               notStarted: migrationStage === 'not_started',
+              ...(recentOnly ? { recentOnly: true } : {}),
               ...(carried !== undefined ? { domains: carried } : {}),
             },
           ]}

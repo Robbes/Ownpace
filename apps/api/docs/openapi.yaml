@@ -31,7 +31,7 @@ openapi: 3.1.0
 
 info:
   title: Ownpace — managed API
-  version: 0.2.0-alpha.18
+  version: 0.2.0-alpha.19
   summary: Migrate mail, calendar, contacts and files off US cloud, on your own schedule.
   description: |
     The multi-tenant managed edition. Every request is scoped to one tenant by
@@ -2635,6 +2635,14 @@ paths:
         migration that is not a test. A test migration is never finished, so
         its `endingChoices` offer nothing: each data type is listed where it
         is, with `offers: []`.
+
+        `window` (workplan 0170 §5.2, `MigrationWindow`) is the last 90 days:
+        whether this migration copies only them (`recentOnly`), the window's
+        start (`since`), and which of mail, files and calendars have their last
+        90 days in (`in`) and which are still copying them (`copying`). Every
+        first copy brings the last 90 days first, so a migration of everything
+        has a window too, until its first copy is complete. `sourceConfig`
+        never carries `recentOnly`.
       responses:
         '200':
           description: |
@@ -2693,6 +2701,17 @@ paths:
         between the same two accounts already copies into is a `409`
         `duplicate_mapping`, in the words create answers with. The migration's
         own read says it as `targetFolderPrefix`, or null.
+
+        `recentOnly: false` broadens a migration that copies only the last 90
+        days to everything (workplan 0170 §5.3): always allowed; the older items
+        are copied next, and what is already there stays. `recentOnly: true` on
+        a migration of everything is a `409` `revision_refused` on
+        `recentOnly`, whether or not it has copied anything: start a new
+        migration to try a destination with the last 90 days. Restating what a
+        migration already is changes nothing. A migration that copies only the
+        last 90 days is not switched over (workplan 0170 D8): a `status` of
+        `cutover` or `continuous` is a `409` `lifecycle_refused` with `code:
+        recent_only`, in English and Dutch.
 
         Fields that cannot change on a migration that already holds items are
         REFUSED rather than dropped: the source or target system, the source
@@ -2757,11 +2776,11 @@ paths:
                     properties:
                       error: { type: string, enum: [revision_refused, lifecycle_refused, duplicate_mapping] }
                       message: { type: string }
-                      messageNl: { type: string, description: 'The same sentence in Dutch, on a test_migration refusal.' }
+                      messageNl: { type: string, description: 'The same sentence in Dutch, on a test_migration or recent_only refusal.' }
                       hint: { type: string }
                       code:
                         type: string
-                        enum: [own_door, after_cutover, finished, before_cutover, unknown, test_migration]
+                        enum: [own_door, after_cutover, finished, before_cutover, unknown, test_migration, recent_only]
                       from: { type: string }
                       to: { type: string }
                       existingMappingId: { type: string }
@@ -3425,8 +3444,11 @@ paths:
             that one, or roll it back first), `not_a_path` (the migration does
             not carry the `domain` named), `test_migration` (a test migration
             is never switched over, workplan 0162 T3: delete it when the test
-            is over; asked before the ledger). `state` names the ledger state
-            that refused, where one did.
+            is over; asked before the ledger), `recent_only` (a migration that
+            copies only the last 90 days is not switched over until it is
+            broadened with `recentOnly: false`, workplan 0170 D8; with
+            `messageNl`; asked before the ledger). `state` names the ledger
+            state that refused, where one did.
 
             `platform_held`: the ledger would allow it, and an operator hold is
             open (`PlatformHeld`). `account_closed`: the ledger would allow it,
@@ -3440,8 +3462,9 @@ paths:
                     properties:
                       error: { type: string, enum: [cutover_refused] }
                       message: { type: string }
+                      messageNl: { type: string, description: 'The same sentence in Dutch, on a recent_only refusal.' }
                       hint: { type: string }
-                      code: { type: string, enum: [under_way, closed, cut_over_by_data_type, whole_under_way, not_a_path, test_migration] }
+                      code: { type: string, enum: [under_way, closed, cut_over_by_data_type, whole_under_way, not_a_path, test_migration, recent_only] }
                       state: { type: string, enum: [CUTOVER_IN_PROGRESS, GRACE_PERIOD, COMPLETED] }
                   - { $ref: '#/components/schemas/PlatformHeld' }
                   - { $ref: '#/components/schemas/AccountClosed' }
@@ -10711,4 +10734,33 @@ components:
             `cutover`, `done` and `continuous` are refused here with a 400 that
             says so. Each is reached once the migration exists, through the
             cutover, Finish and Keep copying, which check what they need.
+        recentOnly:
+          type: boolean
+          description: |
+            Copy only the last 90 days of mail, files and calendars, and all
+            contacts and tasks (workplan 0170 §5.2), to try a destination with
+            fresh data. `true` stores `{ "days": 90, "anchor": <now> }` in the
+            migration's `source_config_override`, so the window grows with time
+            and never slides. A `400` on `recentOnly` when the migration has
+            none of mail, files or calendars. Absent or `false`: a migration of
+            everything, whose first copy still brings the last 90 days first.
+            Broadened later with `PUT` `recentOnly: false`; never narrowed.
       required: [sourceConfig, targetConfig]
+    MigrationWindow:
+      type: object
+      description: |
+        The last 90 days of a migration (workplan 0170 §5.2), read from the
+        window records in its cursor store: `window` on `GET
+        /api/migrations/{mappingId}`.
+      properties:
+        recentOnly: { type: boolean, description: 'This migration copies only the last 90 days, and has not been broadened.' }
+        since: { type: string, format: date-time, nullable: true, description: 'The window''s start, a UTC midnight; null while no windowed pass has begun.' }
+        in:
+          type: array
+          description: The data types whose last 90 days are in.
+          items: { type: string, enum: [email, calendar, file] }
+        copying:
+          type: array
+          description: The data types still copying their last 90 days.
+          items: { type: string, enum: [email, calendar, file] }
+      required: [recentOnly, since, in, copying]

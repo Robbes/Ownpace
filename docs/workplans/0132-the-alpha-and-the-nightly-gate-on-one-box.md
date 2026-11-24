@@ -2,7 +2,69 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-23 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24: the front refused the TLS handshake for one name at a time, twice, and recovered by
+itself.** Times are UTC.
+
+- **At 15:22, in a run.** E2E (managed) run 45424451225's first attempt, on #2100's branch, stopped
+  in the bring-up. The identity provider reported ready after 10 seconds. Then the front before it
+  refused the handshake for the provider's name six times over a minute (curl exit 35, `tlsv1
+  alert internal error`), so the read gave up after its 62 seconds (2026-11-22's entry below).
+  Every container was up and none unhealthy. The second attempt was green, from 15:27 to 15:50
+  (0119's Status).
+- **From before 17:46 to about 17:51, outside any run.** The owner found the OTA instance's app
+  name not answering. Through the same front, the identity provider's name answered 200 and the
+  app's name refused the handshake (curl exit 35, `tlsv1 alert internal error`). On the machine,
+  every container was up and healthy, and the mesh was connected. The web answered 200 on the
+  machine itself, and at the address the front reaches it on. It came back by itself, with
+  nothing changed.
+- **So the refusal is the front's, one name at a time, and not the stack's.** It is the fifth in
+  a month: four in runs (2026-10-28, 2026-11-15, 2026-11-22 and this one) and the first seen
+  outside one. Nothing changes for it today. If it comes back, the reverse proxy's events in
+  NetBird's dashboard for that minute are the next thing to read.
+
+**2026-11-24, afternoon: live runs `v0.2.0-alpha.18`, one-way over alpha.17 by ledger migration
+0075, on a copy of alpha.17's databases (T6, T9).** The owner deployed it on 2026-11-24 from
+14:20, the day after its tag, pasting the sheet's checked blocks one at a time, and ran the checks
+after it the same afternoon. Times are UTC, on 2026-11-24 unless said. No values.
+
+- **The deploy log (T6 step 9).** 2026-11-24, `v0.2.0-alpha.18`: took at 14:37:44 UTC; one-way.
+  - The tag is tag object `4d7cc879…` on `2c32fa7d` (#2089, the fold), made on 2026-11-23 at
+    about 21:00 by Release run 45264370415. Its message names *Proved by: CI run #6199, Security
+    Scan run #6350 on main, windows-payload run #63* and the gate scan, run 45264815130.
+  - The owner waived its counted nights, for this version alone (`WAIVER_VERSIONS`, #2069). Block
+    6e cited the tag message's waiver line in `deploys.log` at 14:41:42.
+  - alpha.18 removes Trigger.dev's plane from both stacks (workplan 0167 T9). It also carries
+    0168's follow-ups and ledger migration 0075 (0146's Status, 2026-11-23, the fold).
+- **The self-hosted runner, stopped for the deploy (R1).** It was stopped after a check that it ran
+  no job, so no E2E run could start on the Docker daemon live shares. It started again at R2, at
+  about 14:46.
+- **Read-only checks first (0a to 0d)**, each as the sheet expects.
+- **The hold (T6 step 2)** went on at 14:20:17, by its own row, with 0 passes in flight.
+  - Block 2's read, ten minutes later, was clean: 0 in flight.
+  - 2d: in live's checkout, the deploy shell read the pnpm the tag pins, 11.28.13, and no job runner
+    named.
+- **The dry run (block 3)** exited 0.
+  - 3a, on the owner's word that day, deleted the copy taken before alpha.17 (5 entries). The take
+    would otherwise have kept that copy and taken none of alpha.17's.
+  - 3b as the sheet expects.
+- **The take (block 4)** at 14:37:44: one-way, with the exposure check clean. A leftover BuildKit
+  builder container from the removed plane's builds is noted for the owner's clean-up after block 8.
+- **The copy before alpha.18 (block 5)** was taken at 14:35:25, of alpha.17's databases. The daily
+  duties keep it for at most 7 days, as every such copy.
+- **After the take (blocks 6a to 6h):**
+  - live at `2c32fa7d`, its jobs on pg-boss, and the worker running and healthy;
+  - no container of Trigger.dev's plane left, with its volumes and networks kept until block 8
+    removes them by name, once alpha.18 is proven;
+  - 17 job queues, none failed;
+  - ledger migration 0075 applied at 14:36;
+  - one organisation on the instance, the accessibility statement linked from the site, and
+    sign-in working.
+- **The hold went off (block 7)** at 14:45:55, after 25 minutes and 38 seconds. 7b's checks were as
+  the sheet expects. 7c, 7d and block 8 follow on 2026-11-25.
+- **Next:** alpha.19 is tagged without a deploy (0146's Status, 2026-11-24, evening). Live goes
+  from alpha.18 to alpha.20, planned for 2026-11-26.
 
 **2026-11-23, evening: live runs `v0.2.0-alpha.17`, one-way over alpha.16 by ledger migrations 0071
 to 0074 and managed migration 0063, on a copy of alpha.16's databases (T6, T9).** The owner

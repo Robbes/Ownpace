@@ -247,7 +247,12 @@ source, and Cirrux makes none (§5). The writer now asks the server where the ac
 books are, and writes into the one the mailbox has. The rest of T2 (§4, step 8) is still to run.
 Main's scheduled E2E (managed) at 12:01 UTC, queued behind T1's branch run, refused the test
 database at 0068 (*newer than this build understands*), as that guard is meant to: it ran main as
-it was before #1941, and main carries 0068 since.
+it was before #1941, and main carries 0068 since. *2026-11-23, the same again:* the scheduled E2E
+(managed) of 2026-11-23, run 45183707271, failed because its seed refused a schema newer than its
+build (0075, *newer than this build understands*): #2080's branch E2E (managed), run 45175853703,
+had migrated the shared OTA database before #2080 merged (on 2026-11-23 at about 15:49 UTC,
+`d9c7dccd`). The guard did its job, and the next E2E (managed) on `main`, run 45256793178, was
+green.
 
 **2026-11-19: T0 read and T1 built.** Cirrux's help site was
 read page by page (42 help and API pages and 6 common

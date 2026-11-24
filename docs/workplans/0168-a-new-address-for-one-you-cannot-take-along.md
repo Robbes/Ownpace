@@ -8,7 +8,8 @@
 OTA stack's *Where does it go?*: the box stood *"without any explanation (i icon) or 'why'"*. The
 proposal back was a clearer label and a hint line under the box, as the step's other hints are,
 rather than an (i) that a phone cannot hover. The owner's answer: *"yes to all, build them"*. On
-branch `claude/ownpace-public-readiness-y7orc6-address-tick-hint`, from `main` at `ecc84250`:
+branch `claude/ownpace-public-readiness-y7orc6-address-tick-hint`, from `main` at `ecc84250`; merged as
+#2103 on 2026-11-24 at about 10:25 UTC (`7dfe58d9`):
 - **The label names the email address**: *I am also changing my email address* / *Ik krijg ook
   een ander e-mailadres*, since *address* alone could be a postal one.
 - **One line under the box, tied to it by `aria-describedby`, and the rest behind *Why?*** (the

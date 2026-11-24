@@ -32,6 +32,7 @@ import type {
   PauseReason,
   Stage,
 } from '@openmig/shared';
+import { listedButEmpty } from '@openmig/shared';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
@@ -104,6 +105,11 @@ export interface LiveProgressRow {
    * switching it off: the same `stopped`, a different way back.
    */
   readonly stoppedByOwner?: true;
+  /**
+   * The last completed pass's metrics, of which the strip reads two: how many
+   * collections it opened and how many items it read (`listedButEmpty`).
+   */
+  readonly lastPass?: { readonly items?: number; readonly collectionsOpened?: number };
 }
 
 const LiveProgress: React.FC<{
@@ -150,8 +156,15 @@ const LiveProgress: React.FC<{
           // never *"of 0"* (hard rule 9).
           const totals = progressTotals(d);
           const done = formatNumber(d.itemsSynced, locale);
+          // CALENDARS FOUND, NO EVENT READ (2026-11-24): never *none found
+          // to copy* in green, which is what a source with nothing in it says.
+          const emptyCalendars = listedButEmpty(d);
           const count =
-            totals.kind === 'ofAbout'
+            emptyCalendars !== undefined
+              ? emptyCalendars === 1
+                ? t('confirm.progress.listedButEmpty.one')
+                : t('confirm.progress.listedButEmpty.many', { count: formatNumber(emptyCalendars, locale) })
+              : totals.kind === 'ofAbout'
               ? t('confirm.progress.ofAbout', { done, total: formatNumber(totals.total, locale) })
               : totals.kind === 'noneFound'
                 ? t('confirm.progress.noneFound')
@@ -208,7 +221,7 @@ const LiveProgress: React.FC<{
               ) : (
                 <StateChip entity="domain" state={d.state} />
               )}
-              <span>
+              <span {...(emptyCalendars !== undefined ? { className: 'text-amber-800', 'data-tone': 'amber' } : {})}>
                 {count}
                 {bytes && (
                   <>

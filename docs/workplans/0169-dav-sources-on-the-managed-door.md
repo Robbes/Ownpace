@@ -4,8 +4,10 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
-**2026-11-24: built, on `claude/ownpace-public-readiness-y7orc6-dav-sources`, for alpha.19.** Not
-merged; it waits for the managed E2E run, which the owner starts. No database change: the three
+**2026-11-24: built, on `claude/ownpace-public-readiness-y7orc6-dav-sources`, for alpha.19; merged
+as #2104 on 2026-11-24 at about 12:04 UTC (`7f091778`)**, after E2E (managed) run 45382336433 went
+green on its branch and E2E (self-hosted) on Postgres, run 45388431027, and on PGlite, run
+45389247665, went green on its head (`e2f20452`). No database change: the three
 kinds have been allowed on `connection.kind` since the baseline, because the DAV targets store
 them.
 
@@ -27,7 +29,7 @@ answered.
 | T5 The guides | builder | ✅ **Done 2026-11-24** | `dav#caldav-source`, `dav#carddav-source`, `dav#webdav-source`, in both languages. |
 | T6 Tests | builder | ✅ **Done 2026-11-24** | §5. |
 | T7 Records | builder | ✅ **Done 2026-11-24** | This plan, the feature matrix, 0141's open question 9, the CHANGELOG. |
-| T8 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner; then the merge. |
+| T8 The managed E2E run | owner | ✅ **Done 2026-11-24** | E2E (managed) run 45382336433 green on the branch; E2E (self-hosted) runs 45388431027 (Postgres) and 45389247665 (PGlite) green on its head; merged as #2104. |
 | T9 A real run, which lifts the label | owner | ⏳ **Owner** | One pass through the managed door against a real DAV account, recorded in the feature matrix's Live proofs table (0141 T1's rule); then `SOURCE_PROOFS` flips in the same pull request. |
 
 ## 1. What existed
@@ -108,4 +110,4 @@ changes what they read.
 
 ## 6. Open
 
-Nothing of the owner's. T8 and T9 are the owner's runs.
+Nothing of the owner's. T9 is the owner's run; T8 is done.
