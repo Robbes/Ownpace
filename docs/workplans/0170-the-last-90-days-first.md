@@ -24,7 +24,7 @@ change is expected (§3.4).
 | T2 Mail sources | builder | 📋 Planned | §4.1. IMAP and Gmail `SEARCH SINCE`; Graph mail `$filter`. Builds on T1's interface; may open in parallel against T1's branch. |
 | T3 File sources | builder | 📋 Planned | §4.2. Google Drive `q`; OneDrive, Dropbox, Box, WebDAV and the archive after listing. |
 | T4 Calendar sources | builder | 📋 Planned | §4.3. CalDAV `time-range`; Graph calendar before the per-event fetch; the DTSTART parse fixed. |
-| T5 Web UX and guides | builder | 📋 Planned | §7. The choice in *Start a migration*, the 90-day state on the migration page, *Copy everything*, the milestone, copy in English and Dutch, the guides. Dutch reviewed by the owner. |
+| T5 Web UX and guides | builder | 🟡 Built, in review | §7. On branch `claude/ownpace-public-readiness-y7orc6-0170-t5`, from T1's: *How much?* on *What moves?*, said again on the check screen; on the migration page the *Last 90 days* chip, *Copy everything* with its confirmation, never *Ready to switch*, Finish *After Copy everything* (D8); the milestone line (`windowParts`); `docs/guides/*/start.md`, served as `start`. Unit tests for each state. Waits for T1's API fields (§5.1, §5.2), the owner's Dutch, and the E2E runs. |
 | T6 Proofs | builder | 📋 Planned | §8. Integration on Stalwart and Nextcloud, `local-pg.sh`, the appliance's mapping file, and the managed E2E smoke's 90-day case. |
 | T7 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T6 merges. |
 | T8 The owner's decisions | owner | ⏳ **Owner** | §10: D1 to D7 answered 2026-11-24; D8 open. |
