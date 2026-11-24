@@ -407,7 +407,9 @@ only because of the cycle. Done:
   opens no door, and each caller (the create, the Test and the rotation in `connections.ts`, and
   the Cirrux Drive consent) asks before it.
 - `a-qualifier-wired-to-a-guard-that-never-lets-it-run.unit.test.ts`, which reads the qualifying
-  guard and dispatch as text, reads them in the new file.
+  guard and dispatch as text, reads them in the new file, and
+  `scripts/a-client-the-worker-never-got.unit.test.ts` looks there for the API's
+  `cirruxDeploymentClient(` call.
 - Guard: `apps/api/src/routes/no-way-back-to-the-connection-routes.unit.test.ts` walks the
   relative static and dynamic imports reachable from `connections.ts` within `apps/api/src` and
   fails on any path back to it. With the old lazy import put back it fails, naming the path

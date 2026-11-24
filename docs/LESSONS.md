@@ -391,7 +391,6 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/src/routes/connections.ts`
 
-- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts) — A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
@@ -501,6 +500,10 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `apps/api/src/routes/qualify-and-remember.ts`
+
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 ### `apps/api/src/routes/ready.ts`
 
@@ -3836,9 +3839,9 @@ A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 Reads:
 
-- `apps/api/src/routes/connections.ts`
 - `apps/api/src/routes/migrations/cirrux-oauth-routes.ts`
 - `apps/api/src/routes/migrations/index.ts`
+- `apps/api/src/routes/qualify-and-remember.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `packages/orchestration/src/account-qualification.ts`
