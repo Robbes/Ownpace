@@ -62,6 +62,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   says the order, what a 90-day migration copies, *Copy everything*, and the appliance's
   mapping-file setting. No word *trial* or *proef* anywhere.
 
+### Changed
+
+- **Image pins moved for alpha.20** (workplan 0119; the owner, 2026-11-24: *"yes on all"*, floors
+  waived): the web image's and the public site's nginx `1.31.9-alpine-slim` to
+  `1.31.10-alpine-slim@sha256:c293b287…` (nginx 1.31.10-r1, libssl3/libcrypto3 3.5.9-r1, same
+  Alpine 3.24 root filesystem); and upstream's rebuilds, same versions, of `postgres:18.7-alpine`
+  (`0115267a…`, gosu 1.20; both database builds are now `localhost/postgres:18.7-alpine-8a9f2fb59c72`),
+  `node:26.13.1-trixie-slim` (`abe7e5a8…`, Debian 13.8), `gcr.io/distroless/nodejs26-debian13:nonroot`
+  (`ffa8a754…`, `libssl3t64` 3.5.9-1~deb13u1, which still carries both OpenSSL CVEs, workplan 0166),
+  and Nextcloud `35.0.3-apache` (`2567f3c3…`) and `34.0.6-apache` (`031b30f0…`), on PHP 8.5.13 with
+  apache2 2.4.71-1~deb13u1.
+
 ### Fixed
 
 - **The appliance on PGlite no longer fails a pass when two data types start at once.** On
