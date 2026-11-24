@@ -20,7 +20,7 @@
 | T4 Graph contacts source (delta) | ✅ Done | `GraphContactsSource` in `packages/connectors/src/graph-contacts-source.ts` |
 | T5 throttling & rate budgets (429/Retry-After) | ✅ Done | `ThrottleLimiter` in `packages/shared/src/throttling.ts` |
 | T6 OneDrive files source (Graph delta) | ✅ Done | `GraphDriveSource` in `packages/connectors/src/graph-drive-source.ts` |
-| T7 secret-gated e2e harness against the real tenant | 🟡 **Corrected 2026-09-24 (0147 T3): harness built, acceptance not met** — *was:* ✅ Done | `test/e2e/o365-scenario.ts` + `.github/workflows/e2e-o365.yml` |
+| T7 secret-gated e2e harness against the real tenant | ⛔ **Moot 2026-11-21**: the O365 lane was deleted in #1980, merged on 2026-11-21 at about 02:13 UTC (`a4e9f331`), never having run a test; the harness runs by hand only (0141 T13 (a)) — *was:* 🟡 **Corrected 2026-09-24 (0147 T3): harness built, acceptance not met** — *was:* ✅ Done | `test/e2e/o365-scenario.ts` + `.github/workflows/e2e-o365.yml` |
 
 > Read `AGENTS.md` and `docs/architecture/solution-architecture.md` first (§13 connectors,
 > §10 idempotency anchors, §21 throttling; ADR-0006 access model, ADR-0012 Graph-over-EWS).
