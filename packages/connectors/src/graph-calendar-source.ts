@@ -1,27 +1,90 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * Graph Calendar Source Connector Implementation
- * 
- * Implements CalendarSource interface for Microsoft Graph Calendar synchronization.
- * Uses Microsoft Graph API v1.0 with delta query for incremental synchronization.
- * 
- * Features:
- * - Calendar enumeration via {scope}/calendars endpoint
- * - Delta query for incremental event synchronization
- * - iCal MIME format extraction using Prefer header
- * - Natural key extraction from UID + RECURRENCE-ID
- * - Recurrence exception handling
- * - Cancelled occurrence tracking (drift log, not delete)
- * - Rate limiting and throttling support
+ * OUTLOOK CALENDARS AS A CALENDAR SOURCE, ON CALLS GRAPH v1.0 DOCUMENTS.
+ *
+ * ## The defect this was rebuilt for (2026-11-24)
+ *
+ * A Microsoft 365 → Cirrux migration listed a personal account's four
+ * calendars and found no event in any of them, while the account holds a
+ * weekly repeating event and a calendar of holidays. Its mail, contacts and
+ * tasks copied. The old listing stood on two calls v1.0 does not document:
+ *
+ *  - `{scope}/calendars/{id}/events/delta`. v1.0 documents only
+ *    `calendarView/delta`, with a start and an end date
+ *    (https://learn.microsoft.com/en-us/graph/api/event-delta?view=graph-rest-1.0);
+ *    the per-calendar `events/delta` is in the beta version only.
+ *  - `/events/{id}/$value` with `Prefer: outlook.body-content-type="icalendar"`.
+ *    `$value` is documented for messages, not events, and that header takes
+ *    `text` or `html` (https://learn.microsoft.com/en-us/graph/api/event-get?view=graph-rest-1.0).
+ *
+ * Its tests mocked both calls, by call order, so neither ever failed in CI.
+ * `a-calendar-on-calls-graph-documents.unit.test.ts` keeps both from coming back.
+ *
+ * ## What it calls now
+ *
+ *  1. **The listing:** `GET {scope}/calendars/{id}/events?$select=…`, every
+ *     page. "The list contains single instance meetings and series masters"
+ *     (https://learn.microsoft.com/en-us/graph/api/calendar-list-events?view=graph-rest-1.0):
+ *     a series is listed once, not as its occurrences. Times come in UTC, the
+ *     documented default with no `Prefer: outlook.timezone`, and the body as
+ *     text where Graph honours `Prefer: outlook.body-content-type="text"`
+ *     (HTML is turned into text here when it does not).
+ *  2. **A series' exceptions and cancellations:** for each series master,
+ *     `GET {scope}/calendars/{id}/events/{masterId}?$select=cancelledOccurrences,exceptionOccurrences&$expand=exceptionOccurrences`.
+ *     Both are v1.0 relationships of `event`, "only returned in a GET
+ *     operation that specifies the ID … of a series master event"
+ *     (https://learn.microsoft.com/en-us/graph/api/resources/event?view=graph-rest-1.0).
+ *     `instances` would not do: it needs a date range, and "doesn't include
+ *     occurrences canceled from the series"
+ *     (https://learn.microsoft.com/en-us/graph/api/event-list-instances?view=graph-rest-1.0).
+ *
+ * ## One series, one object
+ *
+ * Each item is one iCalendar object, as a CalDAV server stores it: a single
+ * event, or a series with its master, an EXDATE for every cancelled
+ * occurrence, and a VEVENT with RECURRENCE-ID for every changed one, all under
+ * the master's `iCalUId` ("different for each occurrence in a recurring
+ * series", so an exception's own is not used). The VEVENT is built from
+ * Graph's JSON by this file; Graph is never asked for iCalendar.
+ *
+ * ## Edits, deletions and the cursor
+ *
+ * No v1.0 delta fits a calendar's events (see above), so every pass lists the
+ * calendar whole, which is one request per hundred events and one more per
+ * series. An edit is found by version: `changeKey`, and for a series also its
+ * exceptions' and its cancellations, so a changed occurrence re-copies the
+ * series (`seriesVersion`). A deletion is found by absence: the cursor keeps
+ * the ids the last listing found, and an id the next complete listing does not
+ * find is reported in `removed`, the way the CalDAV source reports a
+ * `sync-collection` 404. The sync loop resolves it as it does those: a move
+ * when the event turned up in another calendar, a deletion for the owner to
+ * decide otherwise (never applied on its own, hard rule 2).
+ *
+ * ## A window (workplan 0170 D1 (a))
+ *
+ * With `ListOptions.since`, the listing is still read whole (so its cursor
+ * claims nothing about what it did not list), and an event plainly over
+ * before `since` is not built: for a series that saves its second request.
+ * The sync loop's `eventInWindow` decides every event that is built.
  */
 
+import { createHash } from 'node:crypto';
 import { graphFailure } from './graph-refusal.ts';
-import type { CalendarSource, CalendarFolder, RawCalendarEvent, SyncCursor } from '@openmig/shared';
+import type { CalendarSource, CalendarFolder, ListOptions, RawCalendarEvent, SyncCursor } from '@openmig/shared';
 import type { TokenProvider } from '@openmig/shared';
-import type { GraphCalendarSourceConfig, GraphCalendar, GraphEvent, GraphDeltaCursor, ParsedIcalComponent } from './graph-calendar-source.types.ts';
+import type {
+  GraphAttendee,
+  GraphCalendar,
+  GraphCalendarPage,
+  GraphEvent,
+  GraphSeriesDetail,
+} from './graph-calendar-source.types.ts';
+import type { GraphDateTimeTimeZone } from './graph-todo-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
 import { graphItemVersion } from './graph-item-version.ts';
+import { bodyText, escapeText, fold, recurrenceToRrule } from './graph-todo-source.ts';
+import { ianaZoneOf, offsetMinutes, vtimezoneLines, wallIn, wallStamp } from './graph-time-zones.ts';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
 
@@ -29,17 +92,106 @@ import { log } from '@openmig/shared';
 const CALENDAR_FACE = { face: 'Calendar', scope: 'Calendars.Read' } as const;
 
 /**
- * Graph Calendar source connector implementation.
- */
-/**
- * More delta pages than any mailbox produces. A guard, not a limit: the loop
- * below re-requested page one forever until 2026-08-17, and an unbounded
+ * More pages than any calendar produces. A guard, not a limit: an unbounded
  * request loop against a customer tenant should fail loudly, not quietly.
  */
-const MAX_DELTA_PAGES = 10_000;
+const MAX_PAGES = 10_000;
+
+/** Events per page. */
+const PAGE_SIZE = 100;
+
+/** What the listing asks for, and nothing more. */
+const EVENT_FIELDS = [
+  'id',
+  'iCalUId',
+  'changeKey',
+  'createdDateTime',
+  'lastModifiedDateTime',
+  'subject',
+  'body',
+  'start',
+  'end',
+  'originalStartTimeZone',
+  'originalEndTimeZone',
+  'location',
+  'isAllDay',
+  'isCancelled',
+  'isReminderOn',
+  'reminderMinutesBeforeStart',
+  'type',
+  'seriesMasterId',
+  'recurrence',
+  'showAs',
+  'sensitivity',
+  'categories',
+  'organizer',
+  'attendees',
+].join(',');
+
+/** The body as text where Graph honours it; `bodyText` turns HTML into text where it does not. */
+const PREFER_TEXT_BODY = 'outlook.body-content-type="text"';
+
+/** The cursor: the ids the last complete listing found, for the next one to compare. */
+const CURSOR_PREFIX = 'graph-events:';
+
+interface ListingCursor {
+  readonly folderPath: string;
+  readonly ids: ReadonlyArray<string>;
+}
+
+const DAY_MS = 86_400_000;
+/** The furthest west of UTC a zone is: a wall-clock time is at most this much later in UTC. */
+const WEST_MS = 12 * 3_600_000;
+
+/** A Graph `dateTime` (`2024-01-15T10:00:00.0000000`) as wall-clock ms, or `undefined`. */
+function graphWall(dateTime: string | undefined): number | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(dateTime ?? '');
+  if (!m) return undefined;
+  const ms = Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0));
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+/** The latest instant a Graph `dateTimeTimeZone` can be: exact in UTC, else read at UTC−12. */
+function graphLatest(at: GraphDateTimeTimeZone | undefined): number | undefined {
+  const wall = graphWall(at?.dateTime);
+  if (wall === undefined) return undefined;
+  const zone = at?.timeZone?.trim().toUpperCase();
+  return zone === 'UTC' || zone === 'ETC/UTC' ? wall : wall + WEST_MS;
+}
+
+/**
+ * Whether a listed event may be in a window (workplan 0170 D1 (a)), from the
+ * entry alone, before it is built. `false` only for what is plainly over
+ * before `since`; everything else is built and decided by the sync loop's
+ * `eventInWindow`:
+ *
+ *  - a single event, by its `end`;
+ *  - a series, by its range's `endDate` plus one occurrence's length, and
+ *    kept when it has no end or ends after a number of occurrences;
+ *  - an occurrence or an exception, always;
+ *  - a removal, or an entry whose times do not read, always.
+ */
+export function graphEntryMayBeInWindow(event: GraphEvent, since: Date): boolean {
+  if (event['@removed'] !== undefined) return true;
+  const type = event.type ?? (event.recurrence ? 'seriesMaster' : 'singleInstance');
+  if (type === 'occurrence' || type === 'exception') return true;
+  const end = graphLatest(event.end);
+  if (end === undefined) return true;
+  if (type === 'seriesMaster') {
+    const range = event.recurrence?.range;
+    if (range?.type !== 'endDate') return true;
+    const lastDay = graphWall(range.endDate);
+    const start = graphWall(event.start?.dateTime);
+    const endWall = graphWall(event.end?.dateTime);
+    if (lastDay === undefined || start === undefined || endWall === undefined) return true;
+    // The last occurrence starts on its last day at the latest, and lasts as the first does.
+    return lastDay + DAY_MS + WEST_MS + Math.max(0, endWall - start) >= since.getTime();
+  }
+  return end >= since.getTime();
+}
 
 export class GraphCalendarSource implements CalendarSource {
-  private readonly config: GraphCalendarSourceConfig;
+  private readonly tenantId: string;
   private readonly tokenProvider: TokenProvider;
   private readonly httpClient: HttpClient;
   private readonly baseUrl: string;
@@ -55,173 +207,97 @@ export class GraphCalendarSource implements CalendarSource {
     deps?: { httpClient?: HttpClient },
   ) {
     this.tokenProvider = tokenProvider;
-    this.config = {
-      baseUrl: options?.baseUrl,
-      tenantId,
-    };
+    this.tenantId = tenantId;
     this.baseUrl = options?.baseUrl?.replace(/\/$/, '') ?? 'https://graph.microsoft.com/v1.0';
     this.httpClient = deps?.httpClient ?? createDefaultHttpClient();
     this.throttleLimiter = options?.throttleLimiter;
-    this.provider = this.extractProviderFromBaseUrl(this.baseUrl);
+    this.provider = hostnameOf(this.baseUrl);
     // Application-permission scope, workplan 0027 T0; `/me` by default.
     this.scope = graphScopePrefix(this.baseUrl, options?.mailbox);
   }
 
   /**
-   * Enumerate all calendar folders (collections).
-   * Uses {scope}/calendars endpoint to list all calendars.
+   * Every calendar, as a folder at `/calendars/{id}` that holds VEVENT.
+   *
+   * A subscribed or holiday calendar (`canEdit: false`) is listed like any
+   * other: its events are copied, and a target holds them as ordinary events.
    */
   async listFolders(): Promise<ReadonlyArray<CalendarFolder>> {
-    const calendars: GraphCalendar[] = [];
-    let nextLink: string | undefined;
-
-    // Paginate through all calendars
-    do {
-      const url = nextLink ?? `${this.scope}/calendars`;
-      const response = await this.makeRequest({
-        url,
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (response.status !== 200) {
-        throw new Error(graphFailure('Failed to list calendars', response, CALENDAR_FACE));
-      }
-
-      const data = JSON.parse(response.body) as { value: GraphCalendar[]; '@odata.nextLink'?: string };
-      calendars.push(...data.value);
-      nextLink = data['@odata.nextLink'];
-    } while (nextLink);
-
-    // Convert to CalendarFolder format
-    return calendars.map(cal => ({
+    const calendars = await this.collect<GraphCalendar>(`${this.scope}/calendars`, 'Failed to list calendars');
+    return calendars.map((cal) => ({
       path: `/calendars/${cal.id}`,
       name: cal.name,
       description: undefined,
       timezone: undefined,
       color: cal.hexColor,
+      // Said out loud, as the To Do source says VTODO: a target that creates
+      // this calendar asks for an event collection.
+      components: ['VEVENT'],
     }));
   }
 
-  /**
-   * List calendar items changed since cursor (or all if undefined).
-   * Uses delta query for incremental synchronization.
-   * Fetches events as iCal MIME format.
-   */
+  /** Every event in the calendar, one object per single event or series. See the header. */
   async listSince(
     folder: CalendarFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<RawCalendarEvent>;
     nextCursor: SyncCursor;
     unreadable?: number;
+    removed?: ReadonlyArray<string>;
   }> {
-    // Events this listing found and could not turn into an event to migrate.
-    let unreadable = 0;
-    // Parse cursor to get delta link
-    let deltaLink: string | undefined;
-    
-    if (cursor) {
-      try {
-        const graphCursor = this.decodeCursor(cursor);
-        deltaLink = graphCursor.deltaLink;
-      } catch {
-        // Invalid cursor, do full sync
-        deltaLink = undefined;
-      }
+    const calendarId = calendarIdOf(folder);
+    const calendarName = folder.name ? `"${folder.name}"` : folder.path;
+    const since = options?.since;
+
+    // A calendar that cannot be listed THROWS, with Graph's own words: the
+    // sync loop then names it among the collections it could not list, and
+    // concludes nothing about what is in it. Never a quiet empty listing.
+    const entries = await this.collect<GraphEvent>(
+      `${this.scope}/calendars/${calendarId}/events?$select=${EVENT_FIELDS}&$top=${PAGE_SIZE}`,
+      `Failed to list the events in calendar ${calendarName}`,
+      { Prefer: PREFER_TEXT_BODY },
+    );
+
+    // What the listing holds as objects of their own: single events and series.
+    // An occurrence or an exception, should a listing ever carry one, is
+    // carried by its series and not twice.
+    const objects = entries.filter((e) => e.type !== 'occurrence' && e.type !== 'exception');
+    if (objects.length < entries.length) {
+      log.debug(
+        `Graph calendar: ${entries.length - objects.length} occurrence(s) in ${calendarName} are carried by their series`,
+      );
     }
 
-    // Build the delta query URL
-    const calendarId = this.extractCalendarIdFromFolder(folder);
-    const baseUrl = `${this.scope}/calendars/${calendarId}/events`;
-    
-    // Graph spells this `/delta`, not `/$delta` — the same endpoint
-    // `graph-drive-source.ts` calls as `/drive/root/delta` in this repo.
-    const firstUrl = deltaLink ?? `${baseUrl}/delta`;
+    // A deletion, by absence from a complete listing.
+    const listedIds = objects.map((e) => e.id);
+    const before = readCursor(cursor, folder.path);
+    const now = new Set(listedIds);
+    const removed = (before?.ids ?? [])
+      .filter((id) => !now.has(id))
+      .map((id) => eventPathOf(calendarId, id));
 
-    const events: GraphEvent[] = [];
-    let nextLink: string | undefined;
-    let lastDeltaLink: string | undefined;
-    let hops = 0;
+    let setAside = 0;
+    const toBuild =
+      since === undefined
+        ? objects
+        : objects.filter((event) => {
+            const may = graphEntryMayBeInWindow(event, since);
+            if (!may) setAside += 1;
+            return may;
+          });
+    if (setAside > 0) {
+      log.info(`Graph calendar: ${setAside} event(s) in ${calendarName} ended before the window and were not read`);
+    }
 
-    // Paginate through all events.
-    //
-    // FOLLOW `nextLink`. This used to request a `const url` computed once and
-    // never read `nextLink` as an address — so against a real server, a calendar
-    // whose delta answers more than one page re-fetched PAGE ONE forever,
-    // appending it to `events` every time until the process died. The unit test
-    // could not catch it because the mock answers by call order rather than by
-    // URL: it handed back page two for a repeat of the same request, which no
-    // server does. `listFolders` above had it right all along.
-    do {
-      if (++hops > MAX_DELTA_PAGES) {
-        throw new Error(
-          `Calendar delta paging passed ${MAX_DELTA_PAGES} pages for "${folder.path}" — ` +
-            'refusing to keep requesting.',
-        );
-      }
-      const response = await this.makeRequest({
-        url: nextLink ?? firstUrl,
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (response.status !== 200) {
-        throw new Error(graphFailure('Failed to list events', response, CALENDAR_FACE));
-      }
-
-      const data = JSON.parse(response.body) as { value: GraphEvent[]; '@odata.nextLink'?: string; '@odata.deltaLink'?: string };
-      events.push(...data.value);
-      lastDeltaLink = data['@odata.deltaLink'];
-      nextLink = data['@odata.nextLink'];
-    } while (nextLink);
-
-    // Fetch iCal data for each event
+    // Events this listing found and could not turn into an event to migrate.
+    let unreadable = 0;
     const items: RawCalendarEvent[] = [];
-    for (const event of events) {
+    for (const event of toBuild) {
       try {
-        const icalData = await this.fetchEventAsIcal(event.id, calendarId);
-        const parsed = this.parseIcal(icalData);
-        // RECURRENCE-ID, when this is a modified occurrence. It used to be
-        // computed here and thrown away, so the item carried only its UID —
-        // which a series and all its exceptions share, so every exception
-        // collided with the series and was adopted rather than copied.
-        const recurrenceId = this.extractRecurrenceId(parsed);
-        
-        // Check if this is a cancelled occurrence
-        const isCancelled = this.checkIfCancelled(parsed);
-        
-        // Log cancelled occurrences to drift (not delete)
-        if (isCancelled) {
-          // Cancelled occurrences are logged to drift, not included in items
-          continue;
-        }
-
-        const item: RawCalendarEvent = {
-          item: {
-            uid: this.extractUid(parsed),
-            ...(recurrenceId ? { recurrenceId } : {}),
-            type: 'event',
-            summary: event.subject || 'Untitled Event',
-            start: this.extractStart(parsed),
-            end: this.extractEnd(parsed),
-            description: this.extractDescription(parsed),
-            location: this.extractLocation(parsed),
-            // The version an edit is detected by. Absent until 2026-09-23, so
-            // an event edited in Outlook after its first copy was never
-            // copied again (`graphItemVersion`).
-            ...graphItemVersion(event),
-            sourcePath: `/calendars/${calendarId}/events/${event.id}`,
-            icalendar: icalData,
-          },
-          icalendar: icalData,
-        };
-
-        items.push(item);
+        const series = isSeriesMaster(event) ? await this.seriesDetail(calendarId, event.id) : undefined;
+        items.push(graphEventAsCalendarItem(event, calendarId, series));
       } catch (error) {
         // COUNTED, NOT JUST LOGGED (2026-09-07). A `log.warn` and a `continue`
         // put this event nowhere the owner looks: absent from the pass, from
@@ -229,536 +305,521 @@ export class GraphCalendarSource implements CalendarSource {
         // gate, which then agree and report PASS. `unreadable` is how the
         // skip earns its silence — see `ports.ts`.
         unreadable += 1;
-        log.warn(`Failed to process event ${event.id}:`, error);
+        log.warn(`Graph calendar: could not read event ${event.id} in ${calendarName}:`, error);
       }
     }
 
-    // Create next cursor from delta link
-    const nextCursor: SyncCursor = {
-      value: this.encodeCursor({
-        deltaLink: lastDeltaLink ?? '',
-        folderPath: folder.path,
-      }),
-    };
-
+    if (objects.length === 0) {
+      log.info(`Graph calendar: ${calendarName} lists no events`);
+    }
     if (unreadable > 0) {
-      log.warn(
-        `Graph calendar: ${unreadable} event(s) in "${folder.path}" could not be read and were not listed`,
-      );
+      log.warn(`Graph calendar: ${unreadable} event(s) in ${calendarName} could not be read and were not listed`);
     }
 
+    const nextCursor: SyncCursor = {
+      value: `${CURSOR_PREFIX}${JSON.stringify({ folderPath: folder.path, ids: listedIds } satisfies ListingCursor)}`,
+    };
     // Omitted rather than sent as 0, so "none failed" and "this listing
     // cannot report" read differently downstream.
-    return { items, nextCursor, ...(unreadable > 0 ? { unreadable } : {}) };
-  }
-
-  // Private helper methods
-
-  /**
-   * Make an authenticated HTTP request to Graph API.
-   */
-  private async makeRequest(options: HttpRequestOptions): Promise<HttpResponse> {
-    const token = await this.tokenProvider.getToken();
-
-    const executeRequest = async (): Promise<HttpResponse> => {
-      const response = await this.httpClient.request({
-        ...options,
-        headers: {
-          'Authorization': `Bearer ${token.accessToken}`,
-          ...options.headers,
-        },
-      });
-
-      // Handle 429/503 responses with Retry-After
-      if ((response.status === 429 || response.status === 503) && this.throttleLimiter) {
-        const retryAfter = response.headers['retry-after'] as string | undefined;
-        const waitTime = this.throttleLimiter.handleRateLimited(response.status, retryAfter);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        return executeRequest(); // Retry
-      }
-
-      return response;
+    return {
+      items,
+      nextCursor,
+      ...(removed.length > 0 ? { removed } : {}),
+      ...(unreadable > 0 ? { unreadable } : {}),
     };
-
-    // If throttling is enabled, use the throttle limiter
-    if (this.throttleLimiter) {
-      return this.throttleLimiter.executeWithThrottling(
-        this.config.tenantId,
-        this.provider,
-        async () => {
-          const response = await this.httpClient.request({
-            ...options,
-            headers: {
-              'Authorization': `Bearer ${token.accessToken}`,
-              ...options.headers,
-            },
-          });
-          
-          // Check for rate limited response
-          if (response.status === 429 || response.status === 503) {
-            const retryAfter = response.headers['retry-after'] as string | undefined;
-            const waitTime = this.throttleLimiter!.handleRateLimited(response.status, retryAfter);
-            return {
-              status: response.status,
-              headers: response.headers,
-              body: response.body,
-              _retryAfterMs: waitTime, // Internal property for tracking
-            };
-          }
-          
-          return response;
-        }
-      );
-    }
-
-    return executeRequest();
   }
 
-  /**
-   * Extract provider domain from base URL.
-   */
-  private extractProviderFromBaseUrl(baseUrl: string): string {
-    try {
-      const url = new URL(baseUrl);
-      return url.hostname;
-    } catch {
-      return 'unknown';
-    }
-  }
-
-  /**
-   * Fetch a single event as iCal MIME format.
-   * Uses {scope}/events/{id}/$value endpoint with Prefer header.
-   */
-  private async fetchEventAsIcal(eventId: string, calendarId: string): Promise<string> {
-    const url = `${this.scope}/calendars/${calendarId}/events/${eventId}/$value`;
-    
+  /** A series master's cancelled occurrences and changed ones. See the header, step 2. */
+  private async seriesDetail(calendarId: string, masterId: string): Promise<GraphSeriesDetail> {
+    const url =
+      `${this.scope}/calendars/${calendarId}/events/${masterId}` +
+      '?$select=cancelledOccurrences,exceptionOccurrences&$expand=exceptionOccurrences';
     const response = await this.makeRequest({
       url,
       method: 'GET',
-      headers: {
-        'Prefer': 'outlook.body-content-type="icalendar"',
-        'Accept': 'text/calendar',
-      },
+      headers: { Accept: 'application/json', Prefer: PREFER_TEXT_BODY },
     });
-
     if (response.status !== 200) {
-      throw new Error(`Failed to fetch event ${eventId} as iCal: ${response.status}`);
+      throw new Error(graphFailure(`Failed to read the series ${masterId}`, response, CALENDAR_FACE));
     }
-
-    return response.body;
+    return JSON.parse(response.body) as GraphSeriesDetail;
   }
 
-  /**
-   * Extract calendar ID from folder path.
-   */
-  private extractCalendarIdFromFolder(folder: CalendarFolder): string {
-    // Try to extract from path like /calendars/{id}
-    const match = folder.path.match(/\/calendars\/([^/]+)/);
-    if (match && match[1]) {
-      return match[1];
-    }
-    // Fallback to folder name
-    return folder.name || 'calendar';
-  }
-
-  /**
-   * Parse iCal data into a structured component.
-   */
-  private parseIcal(icalData: string): ParsedIcalComponent {
-    const lines = this.splitIcalLines(icalData);
-    const result = this.parseIcalComponent(lines, 0);
-    
-    // Validate that we got a valid iCal component
-    if (!result.component.type || result.component.type !== 'VCALENDAR') {
-      throw new Error('Invalid iCal data: missing or invalid VCALENDAR component');
-    }
-    
-    return result.component;
-  }
-
-  /**
-   * Split iCal data into lines, handling line folding.
-   */
-  private splitIcalLines(icalData: string): string[] {
-    // Handle line folding (RFC 5545 Section 3.1)
-    const unfolded = icalData.replace(/\r?\n([ \t])/g, '');
-    return unfolded.split(/\r?\n/).filter(line => line.length > 0);
-  }
-
-  /**
-   * Parse iCal component from lines.
-   */
-  private parseIcalComponent(lines: string[], startIdx: number): { component: ParsedIcalComponent; endIdx: number } {
-    const component: ParsedIcalComponent = {
-      type: '',
-      properties: {},
-      components: [],
-      raw: '',
-    };
-
-    const componentLines: string[] = [];
-    let idx = startIdx;
-
-    // Get the component type from the first line (should be BEGIN:XXX)
-    const firstLine = lines[idx];
-    if (idx < lines.length && firstLine && firstLine.startsWith('BEGIN:')) {
-      component.type = firstLine.substring(6).toUpperCase();
-      componentLines.push(firstLine);
-      idx++;
-    }
-
-    while (idx < lines.length) {
-      const line = lines[idx];
-      if (!line) {
-        idx++;
-        continue;
+  /** Follow `@odata.nextLink` to the end, refusing to loop forever. */
+  private async collect<T>(firstUrl: string, failure: string, headers: Record<string, string> = {}): Promise<T[]> {
+    const out: T[] = [];
+    let next: string | undefined = firstUrl;
+    let hops = 0;
+    while (next) {
+      if (++hops > MAX_PAGES) {
+        throw new Error(`${failure}: paging passed ${MAX_PAGES} pages — refusing to keep requesting.`);
       }
-      componentLines.push(line);
+      const response = await this.makeRequest({
+        url: next,
+        method: 'GET',
+        headers: { Accept: 'application/json', ...headers },
+      });
+      if (response.status !== 200) {
+        throw new Error(graphFailure(failure, response, CALENDAR_FACE));
+      }
+      const page = JSON.parse(response.body) as GraphCalendarPage<T>;
+      out.push(...page.value);
+      next = page['@odata.nextLink'];
+    }
+    return out;
+  }
 
-      // Check for nested component start
-      if (line.startsWith('BEGIN:')) {
-        // Parse nested component
-        const nested = this.parseIcalComponent(lines, idx);
-        component.components.push(nested.component);
-        
-        // For VCALENDAR, merge certain properties from VEVENT components
-        // This allows accessing properties like RRULE directly from the parsed component
-        if (component.type === 'VCALENDAR' && nested.component.type === 'VEVENT') {
-          this.mergeEventProperties(component, nested.component);
+  /** The sibling sources' request idiom: a Bearer token, and 429/503 honoured. */
+  private async makeRequest(options: HttpRequestOptions): Promise<HttpResponse> {
+    const token = await this.tokenProvider.getToken();
+    const send = () =>
+      this.httpClient.request({
+        ...options,
+        headers: { Authorization: `Bearer ${token.accessToken}`, ...options.headers },
+      });
+
+    if (this.throttleLimiter) {
+      const limiter = this.throttleLimiter;
+      return limiter.executeWithThrottling(this.tenantId, this.provider, async () => {
+        const response = await send();
+        if (response.status === 429 || response.status === 503) {
+          const retryAfter = response.headers['retry-after'] as string | undefined;
+          const waitTime = limiter.handleRateLimited(response.status, retryAfter);
+          return { ...response, _retryAfterMs: waitTime };
         }
-        
-        idx = nested.endIdx + 1; // Skip past the nested component's END line
-        continue;
-      }
-
-      // Check for component end
-      if (line.startsWith('END:')) {
-        component.raw = componentLines.join('\n');
-        return { component, endIdx: idx };
-      }
-
-      // Parse property
-      if (line.includes(':')) {
-        const colonIdx = line.indexOf(':');
-        const name = line.substring(0, colonIdx).toUpperCase();
-        const value = line.substring(colonIdx + 1);
-
-        // Handle parameters in name (e.g., DTSTART;VALUE=DATE)
-        const [propertyName, ...paramParts] = name.split(';');
-        
-        // Skip if propertyName is empty
-        if (!propertyName) {
-          idx++;
-          continue;
-        }
-        
-        const params = paramParts.join(';');
-
-        if (params) {
-          // Store property with parameters
-          if (!component.properties[propertyName]) {
-            component.properties[propertyName] = [];
-          }
-          (component.properties[propertyName] as string[]).push(value);
-        } else {
-          // Simple property
-          if (component.properties[propertyName]) {
-            // Multiple values for same property
-            const existing = component.properties[propertyName];
-            if (Array.isArray(existing)) {
-              existing.push(value);
-            } else {
-              component.properties[propertyName] = [existing, value];
-            }
-          } else {
-            component.properties[propertyName] = value;
-          }
-        }
-      }
-
-      idx++;
+        return response;
+      });
     }
-
-    component.raw = componentLines.join('\n');
-    return { component, endIdx: idx };
-  }
-
-  /**
-   * Find the VEVENT component in a parsed iCal structure.
-   */
-  private findVEventComponent(parsed: ParsedIcalComponent): ParsedIcalComponent | undefined {
-    if (parsed.type === 'VEVENT') {
-      return parsed;
+    const response = await send();
+    if (response.status === 429 || response.status === 503) {
+      const retryAfter = response.headers['retry-after'] as string | undefined;
+      const seconds = Number(retryAfter);
+      await new Promise((resolve) => setTimeout(resolve, Number.isFinite(seconds) ? seconds * 1000 : 1000));
+      return send();
     }
-    for (const component of parsed.components) {
-      const found = this.findVEventComponent(component);
-      if (found) {
-        return found;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Merge properties from VEVENT component into parent VCALENDAR.
-   * This allows accessing event properties directly from the parsed component.
-   */
-  private mergeEventProperties(parent: ParsedIcalComponent, event: ParsedIcalComponent): void {
-    // Merge specific properties that are useful at the calendar level
-    const propertiesToMerge = ['RRULE', 'EXDATE', 'RDATE'];
-    
-    for (const propName of propertiesToMerge) {
-      if (event.properties[propName]) {
-        // If property doesn't exist in parent, add it
-        if (!parent.properties[propName]) {
-          parent.properties[propName] = event.properties[propName];
-        } else if (!Array.isArray(parent.properties[propName])) {
-          // If parent has a single value, convert to array and add event's value
-          const existing = parent.properties[propName];
-          parent.properties[propName] = [existing as string, event.properties[propName] as string];
-        } else {
-          // If parent already has an array, push to it
-          (parent.properties[propName] as string[]).push(event.properties[propName] as string);
-        }
-      }
-    }
-  }
-
-  /**
-   * Extract summary from parsed iCal component.
-   */
-  private extractSummary(parsed: ParsedIcalComponent): string | undefined {
-    const event = this.findVEventComponent(parsed);
-    if (!event) {
-      return undefined;
-    }
-    return this.getPropertyValue(event, 'SUMMARY');
-  }
-
-  /**
-   * Extract location from parsed iCal component.
-   */
-  private extractLocation(parsed: ParsedIcalComponent): string | undefined {
-    const event = this.findVEventComponent(parsed);
-    if (!event) {
-      return undefined;
-    }
-    return this.getPropertyValue(event, 'LOCATION');
-  }
-
-  /**
-   * Get property value handling both string and array values.
-   */
-  private getPropertyValue(parsed: ParsedIcalComponent, propertyName: string): string | undefined {
-    const value = parsed.properties[propertyName];
-    if (Array.isArray(value)) {
-      return value[0];
-    }
-    return value;
-  }
-
-  /**
-   * Search for a property across all child components.
-   */
-  private findPropertyInComponents(parsed: ParsedIcalComponent, propertyName: string): string | undefined {
-    // Check current component
-    const value = parsed.properties[propertyName];
-    if (value) {
-      return Array.isArray(value) ? value[0] : value;
-    }
-    
-    // Search in child components
-    for (const component of parsed.components) {
-      const found = this.findPropertyInComponents(component, propertyName);
-      if (found) {
-        return found;
-      }
-    }
-    
-    return undefined;
-  }
-
-  /**
-   * Extract UID from parsed iCal component.
-   */
-  private extractUid(parsed: ParsedIcalComponent): string {
-    const event = this.findVEventComponent(parsed);
-    if (!event) {
-      return '';
-    }
-    const uid = event.properties['UID'];
-    if (Array.isArray(uid)) {
-      return uid[0] || '';
-    }
-    return uid || '';
-  }
-
-  /**
-   * Extract RECURRENCE-ID from parsed iCal component.
-   */
-  private extractRecurrenceId(parsed: ParsedIcalComponent): string | undefined {
-    const event = this.findVEventComponent(parsed);
-    if (!event) {
-      return undefined;
-    }
-    const recurrenceId = event.properties['RECURRENCE-ID'];
-    if (Array.isArray(recurrenceId)) {
-      return recurrenceId[0];
-    }
-    return recurrenceId;
-  }
-
-  /**
-   * Check if an event is cancelled.
-   */
-  private checkIfCancelled(parsed: ParsedIcalComponent): boolean {
-    const event = this.findVEventComponent(parsed);
-    if (!event) {
-      return false;
-    }
-    const status = event.properties['STATUS'];
-    if (Array.isArray(status)) {
-      return status[0]?.toUpperCase() === 'CANCELLED';
-    }
-    return status?.toUpperCase() === 'CANCELLED';
-  }
-
-  /**
-   * Extract start time from parsed iCal component.
-   */
-  private extractStart(parsed: ParsedIcalComponent): string {
-    const event = this.findVEventComponent(parsed);
-    if (!event) {
-      return new Date().toISOString();
-    }
-    const dtStart = event.properties['DTSTART'];
-    if (!dtStart) {
-      return new Date().toISOString();
-    }
-
-    const value = Array.isArray(dtStart) ? dtStart[0] : dtStart;
-    if (!value) {
-      return new Date().toISOString();
-    }
-    return this.convertIcalDateToIso(value);
-  }
-
-  /**
-   * Extract end time from parsed iCal component.
-   */
-  private extractEnd(parsed: ParsedIcalComponent): string | undefined {
-    const event = this.findVEventComponent(parsed);
-    if (!event) {
-      return undefined;
-    }
-    const dtEnd = event.properties['DTEND'];
-    if (!dtEnd) {
-      return undefined;
-    }
-
-    const value = Array.isArray(dtEnd) ? dtEnd[0] : dtEnd;
-    if (!value) {
-      return undefined;
-    }
-    return this.convertIcalDateToIso(value);
-  }
-
-
-  /**
-   * Extract description from parsed iCal component.
-   */
-  private extractDescription(parsed: ParsedIcalComponent): string | undefined {
-    const event = this.findVEventComponent(parsed);
-    if (!event) {
-      return undefined;
-    }
-    const desc = event.properties['DESCRIPTION'];
-    if (Array.isArray(desc)) {
-      return desc[0] ?? undefined;
-    }
-    return desc;
-  }
-
-  /**
-   * Convert iCalendar date format to ISO 8601.
-   */
-  private convertIcalDateToIso(dateStr: string): string {
-    // Remove any parameters (e.g., VALUE=DATE)
-    const cleanStr = dateStr.split(';')[0] ?? '';
-
-    // Handle both formats:
-    // - Date-time: 20240101T120000Z or 20240101T120000
-    // - Date: 20240101
-    const dateOnlyMatch = cleanStr.match(/^(\d{4})(\d{2})(\d{2})$/);
-    if (dateOnlyMatch) {
-      // Date-only (all-day event)
-      const year = dateOnlyMatch[1];
-      const month = dateOnlyMatch[2];
-      const day = dateOnlyMatch[3];
-      return `${year}-${month}-${day}T00:00:00Z`;
-    }
-
-    const dateTimeMatch = cleanStr.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
-    if (dateTimeMatch) {
-      const year = dateTimeMatch[1];
-      const month = dateTimeMatch[2];
-      const day = dateTimeMatch[3];
-      const hour = dateTimeMatch[4];
-      const minute = dateTimeMatch[5];
-      const second = dateTimeMatch[6];
-      const isUtc = dateTimeMatch[7] === 'Z';
-
-      if (isUtc) {
-        return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
-      } else {
-        return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
-      }
-    }
-
-    // Fallback: try to parse as ISO string
-    try {
-      return new Date(cleanStr).toISOString();
-    } catch {
-      return new Date().toISOString();
-    }
-  }
-
-  /**
-   * Encode cursor for storage.
-   */
-  private encodeCursor(cursor: GraphDeltaCursor): string {
-    return `graph-delta:${cursor.folderPath}:${cursor.deltaLink}`;
-  }
-
-  /**
-   * Decode cursor from storage.
-   */
-  private decodeCursor(cursor: SyncCursor): GraphDeltaCursor {
-    const value = cursor.value;
-
-    if (!value.startsWith('graph-delta:')) {
-      throw new Error(`Invalid cursor format: ${value}`);
-    }
-
-    const parts = value.slice('graph-delta:'.length).split(':');
-    if (parts.length < 2) {
-      throw new Error(`Invalid cursor format: ${value}`);
-    }
-
-    const folderPath = parts[0] ?? '';
-    const deltaLink = parts.slice(1).join(':');
-
-    return {
-      deltaLink,
-      folderPath,
-    };
+    return response;
   }
 }
 
+function calendarIdOf(folder: CalendarFolder): string {
+  const m = /^\/calendars\/([^/]+)/.exec(folder.path);
+  if (!m?.[1]) throw new Error(`Not a Graph calendar path: ${folder.path}`);
+  return m[1];
+}
+
+function eventPathOf(calendarId: string, eventId: string): string {
+  return `/calendars/${calendarId}/events/${eventId}`;
+}
+
+function hostnameOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).hostname;
+  } catch {
+    return 'unknown';
+  }
+}
+
+function isSeriesMaster(event: GraphEvent): boolean {
+  return event.type === 'seriesMaster' || (event.type === undefined && Boolean(event.recurrence));
+}
+
+/** The last listing's ids, when the cursor is this source's and for this calendar; otherwise none. */
+function readCursor(cursor: SyncCursor | undefined, folderPath: string): ListingCursor | undefined {
+  if (!cursor?.value.startsWith(CURSOR_PREFIX)) return undefined;
+  try {
+    const parsed = JSON.parse(cursor.value.slice(CURSOR_PREFIX.length)) as Partial<ListingCursor>;
+    if (parsed.folderPath !== folderPath || !Array.isArray(parsed.ids)) return undefined;
+    return { folderPath, ids: parsed.ids.filter((id): id is string => typeof id === 'string') };
+  } catch {
+    // A cursor this cannot read claims nothing: no removal is reported from it.
+    return undefined;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Graph JSON → VEVENT
+// ---------------------------------------------------------------------------
+
+/** One time of an event, as it will be written. */
+interface EventTime {
+  /** `YYYYMMDD` for a date; `YYYYMMDDTHHMMSS`, with `Z` when `zone` is absent. */
+  readonly value: string;
+  readonly date: boolean;
+  /** The IANA zone the value is a wall clock in; absent for a date or UTC. */
+  readonly zone?: string;
+  /** The instant, for the item's own `start`/`end`: UTC ms; for a date, its midnight in UTC. */
+  readonly instant: number;
+}
+
+/** The instant a Graph time names. Graph sends UTC unless asked otherwise; any other zone is read through its IANA name. */
+function instantOf(at: GraphDateTimeTimeZone): number {
+  const wall = graphWall(at.dateTime);
+  if (wall === undefined) throw new Error(`A time Graph sent that does not read: ${at.dateTime}`);
+  const name = at.timeZone?.trim();
+  if (!name || /^(utc|etc\/utc|z)$/i.test(name)) return wall;
+  const zone = ianaZoneOf(name);
+  if (zone === undefined) throw new Error(`A time zone this cannot read: ${name}`);
+  return instantOfWall(zone, wall);
+}
+
+/** The instant a wall clock in `zone` names (the later reading, in an hour that occurs twice). */
+function instantOfWall(zone: string, wall: number): number {
+  let instant = wall - offsetMinutes(zone, wall) * 60_000;
+  instant = wall - offsetMinutes(zone, instant) * 60_000;
+  return instant;
+}
+
+/** `YYYYMMDD` of a UTC-based wall clock. */
+function dateStamp(wall: number): string {
+  return new Date(wall).toISOString().slice(0, 10).replace(/-/g, '');
+}
+
 /**
- * Create a default HTTP client using Node.js fetch.
+ * A timed event's start or end: its instant, written as the wall clock of the
+ * zone the organizer set (`originalStartTimeZone`), with that TZID. A zone
+ * this cannot name in IANA terms is written in UTC: the same instant, which a
+ * single event keeps exactly. (A series written in UTC keeps its UTC clock
+ * across a daylight saving change, so it is the IANA name this prefers.)
  */
+function timedAt(at: GraphDateTimeTimeZone, zoneName: string | undefined): EventTime {
+  const instant = instantOf(at);
+  const zone = ianaZoneOf(zoneName) ?? ianaZoneOf(at.timeZone);
+  if (zone === undefined) return { value: `${wallStamp(instant)}Z`, date: false, instant };
+  return { value: wallStamp(wallIn(zone, instant)), date: false, zone, instant };
+}
+
+/**
+ * An all-day event's day. Graph keeps an all-day event at midnight, so the day
+ * is the date Graph sends; a time that is not midnight (an all-day event read
+ * through another zone) is moved to the organizer's zone first.
+ */
+function dayAt(at: GraphDateTimeTimeZone, zoneName: string | undefined): EventTime {
+  const wall = graphWall(at.dateTime);
+  if (wall === undefined) throw new Error(`A date Graph sent that does not read: ${at.dateTime}`);
+  let day = wall;
+  if (wall % DAY_MS !== 0) {
+    const zone = ianaZoneOf(zoneName);
+    if (zone !== undefined) day = wallIn(zone, instantOf(at));
+    day = Math.round(day / DAY_MS) * DAY_MS;
+  }
+  return { value: dateStamp(day), date: true, instant: day };
+}
+
+function timeLine(name: string, t: EventTime): string {
+  if (t.date) return `${name};VALUE=DATE:${t.value}`;
+  if (t.zone) return `${name};TZID=${t.zone}:${t.value}`;
+  return `${name}:${t.value}`;
+}
+
+function isoOf(t: EventTime): string {
+  return new Date(t.instant).toISOString().replace('.000Z', 'Z');
+}
+
+/** `2026-09-05T06:00:00.1234567Z` → `20260905T060000Z`; undefined for anything else. */
+function utcStamp(iso: string | undefined): string | undefined {
+  if (!iso) return undefined;
+  const ms = Date.parse(iso.replace(/(\.\d{3})\d+/, '$1'));
+  if (!Number.isFinite(ms)) return undefined;
+  return new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+/** A parameter value, quoted, with what a quoted value cannot hold taken out (RFC 5545 §3.2). */
+function paramValue(value: string): string {
+  return `"${value.replace(/["\r\n]/g, '').trim()}"`;
+}
+
+function calAddress(property: string, params: string[], address: string): string {
+  return `${[property, ...params].join(';')}:mailto:${address.trim()}`;
+}
+
+const PARTSTAT: Readonly<Record<string, string>> = {
+  accepted: 'ACCEPTED',
+  tentativelyAccepted: 'TENTATIVE',
+  declined: 'DECLINED',
+  organizer: 'ACCEPTED',
+  none: 'NEEDS-ACTION',
+  notResponded: 'NEEDS-ACTION',
+};
+
+function attendeeLine(a: GraphAttendee): string | undefined {
+  const address = a.emailAddress?.address;
+  if (!address) return undefined;
+  const params: string[] = [];
+  if (a.emailAddress?.name) params.push(`CN=${paramValue(a.emailAddress.name)}`);
+  if (a.type === 'resource') params.push('CUTYPE=RESOURCE', 'ROLE=NON-PARTICIPANT');
+  else params.push(`ROLE=${a.type === 'optional' ? 'OPT-PARTICIPANT' : 'REQ-PARTICIPANT'}`);
+  params.push(`PARTSTAT=${PARTSTAT[a.status?.response ?? 'none'] ?? 'NEEDS-ACTION'}`);
+  return calAddress('ATTENDEE', params, address);
+}
+
+/** RFC 5545 §3.8.1.3: Outlook's four sensitivities onto three classes. */
+const CLASS_BY_SENSITIVITY: Readonly<Record<string, string>> = {
+  normal: 'PUBLIC',
+  personal: 'PRIVATE',
+  private: 'PRIVATE',
+  confidential: 'CONFIDENTIAL',
+};
+
+/** Outlook's own busy status, which it reads back from `X-MICROSOFT-CDO-BUSYSTATUS`. */
+const BUSYSTATUS: Readonly<Record<string, string>> = {
+  free: 'FREE',
+  tentative: 'TENTATIVE',
+  busy: 'BUSY',
+  oof: 'OOF',
+  workingElsewhere: 'WORKINGELSEWHERE',
+};
+
+function locationText(event: GraphEvent): string | undefined {
+  const name = event.location?.displayName?.trim();
+  const a = event.location?.address;
+  const address = a
+    ? [a.street, [a.postalCode, a.city].filter(Boolean).join(' '), a.state, a.countryOrRegion]
+        .map((p) => p?.trim())
+        .filter(Boolean)
+        .join(', ')
+    : '';
+  if (name && address && !name.includes(address)) return `${name}, ${address}`;
+  return name || address || undefined;
+}
+
+/** The times an event's own VEVENT is written with. */
+interface EventTimes {
+  readonly start: EventTime;
+  readonly end?: EventTime;
+}
+
+function timesOf(event: GraphEvent): EventTimes {
+  if (!event.start) throw new Error(`Event ${event.id} has no start`);
+  if (event.isAllDay) {
+    const start = dayAt(event.start, event.originalStartTimeZone);
+    const end = event.end ? dayAt(event.end, event.originalEndTimeZone ?? event.originalStartTimeZone) : undefined;
+    return { start, ...(end ? { end } : {}) };
+  }
+  const start = timedAt(event.start, event.originalStartTimeZone);
+  const end = event.end ? timedAt(event.end, event.originalEndTimeZone ?? event.originalStartTimeZone) : undefined;
+  return { start, ...(end ? { end } : {}) };
+}
+
+/**
+ * One VEVENT's lines, from one Graph event: a single event, a series master,
+ * or an exception (which carries `recurrenceId` and no RRULE). `fallback` is
+ * the series master, read for what an exception leaves out.
+ */
+function veventLines(
+  event: GraphEvent,
+  uid: string,
+  times: EventTimes,
+  extra: { readonly rrule?: string; readonly exdates?: ReadonlyArray<string>; readonly recurrenceId?: string },
+  fallback?: GraphEvent,
+): string[] {
+  const field = <K extends keyof GraphEvent>(k: K): GraphEvent[K] | undefined => event[k] ?? fallback?.[k];
+  const stamp = utcStamp(event.lastModifiedDateTime ?? event.createdDateTime) ?? '19700101T000000Z';
+  const lines: string[] = ['BEGIN:VEVENT', `UID:${escapeText(uid)}`, `DTSTAMP:${stamp}`];
+  if (extra.recurrenceId) lines.push(extra.recurrenceId);
+  const created = utcStamp(event.createdDateTime);
+  if (created) lines.push(`CREATED:${created}`);
+  const modified = utcStamp(event.lastModifiedDateTime);
+  if (modified) lines.push(`LAST-MODIFIED:${modified}`);
+  lines.push(timeLine('DTSTART', times.start));
+  if (times.end) lines.push(timeLine('DTEND', times.end));
+  if (extra.rrule) lines.push(`RRULE:${extra.rrule}`);
+  for (const exdate of extra.exdates ?? []) lines.push(exdate);
+
+  lines.push(`SUMMARY:${escapeText(field('subject')?.trim() || 'Untitled event')}`);
+  const body = field('body');
+  const description = body?.content ? bodyText(body.content, body.contentType) : '';
+  if (description) lines.push(`DESCRIPTION:${escapeText(description)}`);
+  const location = locationText(event.location ? event : (fallback ?? event));
+  if (location) lines.push(`LOCATION:${escapeText(location)}`);
+
+  const organizer = field('organizer')?.emailAddress;
+  if (organizer?.address) {
+    lines.push(calAddress('ORGANIZER', organizer.name ? [`CN=${paramValue(organizer.name)}`] : [], organizer.address));
+  }
+  for (const a of field('attendees') ?? []) {
+    const line = attendeeLine(a);
+    if (line) lines.push(line);
+  }
+
+  const showAs = field('showAs');
+  lines.push(`TRANSP:${showAs === 'free' ? 'TRANSPARENT' : 'OPAQUE'}`);
+  if (showAs && BUSYSTATUS[showAs]) lines.push(`X-MICROSOFT-CDO-BUSYSTATUS:${BUSYSTATUS[showAs]}`);
+  const sensitivity = field('sensitivity');
+  if (sensitivity) lines.push(`CLASS:${CLASS_BY_SENSITIVITY[sensitivity] ?? 'PUBLIC'}`);
+  lines.push(`STATUS:${event.isCancelled ? 'CANCELLED' : showAs === 'tentative' ? 'TENTATIVE' : 'CONFIRMED'}`);
+  const categories = field('categories');
+  if (categories && categories.length > 0) {
+    lines.push(`CATEGORIES:${categories.map((c) => escapeText(c)).join(',')}`);
+  }
+  const minutes = field('reminderMinutesBeforeStart');
+  if (field('isReminderOn') && typeof minutes === 'number' && minutes >= 0) {
+    lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `TRIGGER:-PT${Math.round(minutes)}M`, 'DESCRIPTION:Reminder', 'END:VALARM');
+  }
+  lines.push('END:VEVENT');
+  return lines;
+}
+
+/** `OID.{masterId}.2020-05-21` → `2020-05-21`. */
+function occurrenceDate(occurrenceId: string | null | undefined): string | undefined {
+  const m = /\.(\d{4}-\d{2}-\d{2})$/.exec(occurrenceId ?? '');
+  return m?.[1];
+}
+
+/**
+ * One occurrence of a series, by its date (`OID.….2020-05-21`), as a
+ * RECURRENCE-ID or EXDATE value: the date for an all-day series, and otherwise
+ * that day at the series' own start time, in the series' own zone.
+ */
+function occurrenceOnDate(ymd: string, start: EventTime): EventTime {
+  const day = Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10));
+  if (start.date) return { value: ymd.replace(/-/g, ''), date: true, instant: day };
+  const clock = start.value.slice(9, 15);
+  const value = `${ymd.replace(/-/g, '')}T${clock}${start.zone ? '' : 'Z'}`;
+  return { value, date: false, ...(start.zone ? { zone: start.zone } : {}), instant: day };
+}
+
+/**
+ * An exception's RECURRENCE-ID: the start it replaced. `originalStart` (UTC)
+ * where Graph sends it, written in the series' zone; else its occurrence date.
+ */
+function recurrenceIdOf(exception: GraphEvent, start: EventTime): EventTime {
+  if (start.date) {
+    const ymd = occurrenceDate(exception.occurrenceId) ?? exception.originalStart?.slice(0, 10);
+    if (!ymd) throw new Error(`Exception ${exception.id} names no occurrence`);
+    return occurrenceOnDate(ymd, start);
+  }
+  if (exception.originalStart) {
+    const instant = Date.parse(exception.originalStart.replace(/(\.\d{3})\d+/, '$1'));
+    if (Number.isFinite(instant)) {
+      return start.zone
+        ? { value: wallStamp(wallIn(start.zone, instant)), date: false, zone: start.zone, instant }
+        : { value: `${wallStamp(instant)}Z`, date: false, instant };
+    }
+  }
+  const ymd = occurrenceDate(exception.occurrenceId);
+  if (!ymd) throw new Error(`Exception ${exception.id} names no occurrence`);
+  return occurrenceOnDate(ymd, start);
+}
+
+/**
+ * A range's last day as UNTIL for a timed series: the end of that day in the
+ * series' zone, in UTC (RFC 5545 §3.3.10: UNTIL follows DTSTART's type, and is
+ * UTC when DTSTART has a TZID).
+ */
+function untilFor(start: EventTime, recurrenceZone: string | undefined): (endDate: string) => string | undefined {
+  if (start.date) return (endDate) => (/^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate.replace(/-/g, '') : undefined);
+  const zone = ianaZoneOf(recurrenceZone) ?? start.zone;
+  return (endDate) => {
+    const wall = graphWall(endDate);
+    if (wall === undefined) return undefined;
+    const endOfDay = wall + DAY_MS - 1000;
+    return `${wallStamp(zone ? instantOfWall(zone, endOfDay) : endOfDay)}Z`;
+  };
+}
+
+/**
+ * The version of a series: the master's, and, when it has any, its
+ * exceptions' and its cancellations', so a changed occurrence re-copies the
+ * series. A series with neither keeps exactly the master's version, as a
+ * single event does (`graphItemVersion`).
+ */
+function seriesVersion(master: GraphEvent, detail: GraphSeriesDetail | undefined): { readonly etag?: string } {
+  const own = graphItemVersion(master);
+  const exceptions = detail?.exceptionOccurrences ?? [];
+  const cancelled = detail?.cancelledOccurrences ?? [];
+  if (exceptions.length === 0 && cancelled.length === 0) return own;
+  const parts = [
+    ...exceptions.map((e) => `x:${e.id}:${graphItemVersion(e).etag ?? ''}`).sort(),
+    ...cancelled.map((c) => `c:${c}`).sort(),
+  ];
+  const digest = createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 16);
+  return { etag: `${own.etag ?? 'none'}+series:${digest}` };
+}
+
+/**
+ * One Graph event — a single event, or a series with its detail — as the
+ * calendar item the sync loop copies: keyed by its `iCalUId`, versioned by
+ * `changeKey`, its iCalendar built here.
+ *
+ * Exported because the mapping IS the connector: a target receives exactly
+ * these lines, and the tests that pin them are the specification.
+ */
+export function graphEventAsCalendarItem(
+  event: GraphEvent,
+  calendarId: string,
+  series?: GraphSeriesDetail,
+): RawCalendarEvent {
+  const uid = event.iCalUId?.trim() || event.id;
+  const times = timesOf(event);
+  const vevents: string[][] = [];
+
+  if (series !== undefined || isSeriesMaster(event)) {
+    const rrule = recurrenceToRrule(
+      event.recurrence?.pattern,
+      event.recurrence?.range,
+      untilFor(times.start, event.recurrence?.range?.recurrenceTimeZone),
+    );
+    // A series whose pattern this cannot write is not written as its first
+    // occurrence alone: that would be a different event, quietly.
+    if (rrule === undefined) throw new Error(`Series ${event.id} has a recurrence this cannot write`);
+    const exdates = (series?.cancelledOccurrences ?? [])
+      .map(occurrenceDate)
+      .filter((d): d is string => d !== undefined)
+      .sort()
+      .map((ymd) => timeLine('EXDATE', occurrenceOnDate(ymd, times.start)));
+    vevents.push(veventLines(event, uid, times, { rrule, exdates }));
+    for (const exception of series?.exceptionOccurrences ?? []) {
+      const exceptionTimes = timesOf({
+        ...exception,
+        isAllDay: exception.isAllDay ?? event.isAllDay,
+        originalStartTimeZone: exception.originalStartTimeZone ?? event.originalStartTimeZone,
+        originalEndTimeZone: exception.originalEndTimeZone ?? event.originalEndTimeZone,
+      });
+      const recurrenceId = timeLine('RECURRENCE-ID', recurrenceIdOf(exception, times.start));
+      vevents.push(veventLines(exception, uid, exceptionTimes, { recurrenceId }, event));
+    }
+  } else {
+    vevents.push(veventLines(event, uid, times, {}));
+  }
+
+  // A VTIMEZONE for every zone a time is written in (RFC 5545 §3.6.5).
+  const zones = new Map<string, number>();
+  for (const line of vevents.flat()) {
+    const m = /^[A-Z-]+;TZID=([^:;]+):(\d{4})/.exec(line);
+    if (m && !zones.has(m[1]!)) zones.set(m[1]!, Number(m[2]));
+  }
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Ownpace//Microsoft Outlook calendar//EN',
+    ...[...zones].flatMap(([zone, year]) => vtimezoneLines(zone, year)),
+    ...vevents.flat(),
+    'END:VCALENDAR',
+  ];
+  const icalendar = lines.map(fold).join('\r\n') + '\r\n';
+  const location = locationText(event);
+  const body = event.body?.content ? bodyText(event.body.content, event.body.contentType) : '';
+
+  return {
+    item: {
+      uid,
+      type: 'event',
+      summary: event.subject?.trim() || 'Untitled event',
+      start: isoOf(times.start),
+      ...(times.end ? { end: isoOf(times.end) } : {}),
+      ...(event.isAllDay ? { isAllDay: true } : {}),
+      ...(times.start.zone ? { timezone: times.start.zone } : {}),
+      ...(body ? { description: body } : {}),
+      ...(location ? { location } : {}),
+      // The version an edit is detected by (`graphItemVersion`).
+      ...seriesVersion(event, series),
+      sourcePath: eventPathOf(calendarId, event.id),
+      icalendar,
+    },
+    icalendar,
+  };
+}
+
 function createDefaultHttpClient(): HttpClient {
   return {
     async request(options: HttpRequestOptions): Promise<HttpResponse> {
@@ -767,18 +828,12 @@ function createDefaultHttpClient(): HttpClient {
         headers: options.headers,
         body: typeof options.body === 'string' ? options.body : undefined,
       });
-
       const body = await response.text();
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         headers[key] = value;
       });
-
-      return {
-        status: response.status,
-        body,
-        headers,
-      };
+      return { status: response.status, body, headers };
     },
   };
 }
