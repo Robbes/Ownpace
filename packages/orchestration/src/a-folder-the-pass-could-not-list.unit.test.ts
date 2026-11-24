@@ -27,6 +27,7 @@ import {
   parseMappingConfig,
   phasesOfTheMigration,
   type BudgetPause,
+  type MigrationStatus,
   type MigrationStatusStore,
   type SwitchedOffState,
   type UnreadCollection,
@@ -108,7 +109,9 @@ const recording = (withNote: boolean): MigrationStatusStore => ({
   markFailed: async (_t, _m, _d, error) => void writes.push(['markFailed', error]),
   markSwitchedOff: async (): Promise<SwitchedOffState> => ({ state: 'skipped' }),
   markSwitchedOn: async () => {},
-  getStatus: async () => [],
+  // The calendar copied once before, so the pass owes no last 90 days first
+  // (workplan 0170): what is under test is the unread folder.
+  getStatus: async () => [{ domain: 'calendar', completedAt: '2026-09-01T00:00:00.000Z' } as MigrationStatus],
   ...(withNote
     ? {
         noteUnreadCollections: async (_t, _m, _d, unread) =>
@@ -199,9 +202,10 @@ describe("the managed worker's task", () => {
 
   it('marks a data type completed only when the pass neither paused nor left a folder unread', () => {
     expect(worker).toMatch(/const unread = result\.unreadCollections \?\? \[\];/);
-    // Nor held new items at the data ceiling (0109 T6), the third thing it asks.
+    // Nor held new items at the data ceiling (0109 T6), the third thing it
+    // asks; nor left its last 90 days short of the end (workplan 0170), the fourth.
     expect(worker).toMatch(
-      /if \(!pause && unread\.length === 0 && held === 0\) \{\s*await withTenant[\s\S]{0,160}?markCompleted\(/,
+      /if \(!pause && unread\.length === 0 && held === 0 && !firstCopyOwed\) \{\s*await withTenant[\s\S]{0,160}?markCompleted\(/,
     );
     expect(worker.match(/markCompleted\(/g)).toHaveLength(1);
   });

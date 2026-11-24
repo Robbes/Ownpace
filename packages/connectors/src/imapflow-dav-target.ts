@@ -82,6 +82,13 @@ import {
 import { isCertificateError, isSelectableFolder } from './imapflow-source.ts';
 
 /**
+ * The root collection that stands for the destination's own archive folder
+ * (`ImapFlowDavMailTarget.mailboxFor`): where Gmail's All Mail is presented
+ * (`GMAIL_ARCHIVE_PATH` in orchestration, the same word).
+ */
+export const ARCHIVE_COLLECTION = 'Archive';
+
+/**
  * The mail write path, on `imapflow`.
  *
  * Deliberately the same constructor config as `ImapDavMailTarget`, so the
@@ -228,14 +235,39 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
     }));
   }
 
+  /**
+   * The mailbox a collection is written to and removed from, on THIS server.
+   *
+   * The same path, except for one: a collection called `Archive` at the root
+   * (Gmail's All Mail lands there; the owner's decision of 2026-11-24) goes to
+   * the folder the server marks with the RFC 6154 `\Archive` attribute, when
+   * it has one, whatever its name ("Archives", "Archief"). A folder called
+   * `Archive` is created only on a server that marks none. A JMAP target does
+   * the same by role (`JmapTarget.ensureMailbox`).
+   *
+   * BY PATH ALONE, never by the folder's own special use, because a removal
+   * knows only the ledger's collection path (`apply-deletion.ts`): the mailbox
+   * a copy was written to must be the one its removal opens, or a UID is
+   * looked up in the wrong mailbox. Both `ensureMailbox` and `removeItem` ask
+   * here. Under a folder prefix the path is not at the root, and it is left as
+   * it is, as the JMAP role is.
+   */
+  private async mailboxFor(collection: string, listed?: ReadonlyArray<MailFolder>): Promise<string> {
+    if (collection !== ARCHIVE_COLLECTION) return collection;
+    const folders = listed ?? (await this.listMailboxes());
+    return folders.find((f) => f.specialUse === 'archive')?.path ?? collection;
+  }
+
   async ensureMailbox(folder: MailFolder): Promise<string> {
     const client = await this.live();
-    const mailboxName = folder.path || folder.name;
-    if (!mailboxName) {
+    const asked = folder.path || folder.name;
+    if (!asked) {
       throw new Error('Mailbox name or path is required');
     }
 
     const existing = await this.listMailboxes();
+    // The server's own archive folder, for `Archive` (`mailboxFor`).
+    const mailboxName = await this.mailboxFor(asked, existing);
     if (existing.some((f) => f.path === mailboxName)) {
       return mailboxName;
     }
@@ -588,7 +620,9 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
   ): Promise<RemovalResult> {
     const client = await this.live();
 
-    const mailbox = options?.collection;
+    // The mailbox the copy was written to: the same resolution `ensureMailbox`
+    // made, so `Archive` opens the server's own archive folder.
+    const mailbox = options?.collection ? await this.mailboxFor(options.collection) : undefined;
     if (!mailbox) {
       throw new Error(
         `Cannot remove IMAP message ${targetId}: no mailbox was supplied. An IMAP UID only ` +

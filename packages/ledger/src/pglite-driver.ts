@@ -52,8 +52,30 @@
  *    the baseline stays byte-identical to what real Postgres gets, so the
  *    squash equivalence proof stays valid. Load the contrib; do not edit the
  *    SQL.
+ *
+ * 5. **The shared handle waits its turn too** (2026-11-24). `createPgliteDb()`
+ *    also hands out a drizzle handle for use OUTSIDE `withTenant` — the
+ *    appliance builds its status store and cursor store on it. It used to send
+ *    each statement straight to the one session, past the queue in finding 1.
+ *    `withTenant` opens its transaction in three statements (`BEGIN`,
+ *    `SET LOCAL ROLE`, `set_config`), and a statement that landed between the
+ *    role and the tenant ran as `app_user` with an empty tenant: the policies'
+ *    `''::uuid` raised 22P02 and aborted the other caller's transaction (25P02
+ *    on its next statement). Any statement that landed later ran inside a
+ *    transaction it did not belong to, and was rolled back with it.
+ *
+ *    So that handle now takes the queue for each statement: wait, run the one
+ *    statement, give it back. It must NOT wait when it is used from inside a
+ *    holder's own work — a store built on it, awaited inside a `withTenant`
+ *    callback, would wait for itself forever. `acquire()` therefore marks its
+ *    holder in an `AsyncLocalStorage`, entered around the holder's work with
+ *    `LedgerConnection.within`, and a statement sent under the current
+ *    holder's mark runs on the session directly: inside that transaction, as
+ *    it always has. A mark that outlives its holder (work left running after
+ *    release) no longer matches, and waits like anyone else.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
@@ -124,6 +146,35 @@ async function openInMemory(): Promise<PGlite> {
   return PGlite.create({ loadDataDir: await pristineCluster, extensions: { pgcrypto } });
 }
 
+/** A PGlite driver, and the one way to get a handle for use outside a transaction. */
+export interface PgliteLedgerDriver extends LedgerDriver {
+  /**
+   * A drizzle handle for statements outside any `withTenant`, each taking the
+   * driver's queue in turn (finding 5). Never the raw instance.
+   */
+  sharedDb(): Promise<PgDatabase>;
+}
+
+/**
+ * The PGlite instance as drizzle sees it, with every statement sent in its turn.
+ *
+ * Drizzle's PGlite session sends statements through `query()` and opens
+ * transactions through `transaction()`; `exec()` is the simple protocol. Those
+ * three wait their turn. Everything else passes through to the instance.
+ */
+function queued(db: PGlite, inTurn: <T>(run: () => Promise<T>) => Promise<T>): PGlite {
+  const gated = new Set<PropertyKey>(['query', 'exec', 'transaction']);
+  return new Proxy(db, {
+    get(target, prop) {
+      const value: unknown = Reflect.get(target, prop, target);
+      if (typeof value !== 'function') return value;
+      const bound = (value as (...a: unknown[]) => unknown).bind(target);
+      if (!gated.has(prop)) return bound;
+      return (...args: unknown[]) => inTurn(() => bound(...args) as Promise<unknown>);
+    },
+  });
+}
+
 /**
  * A PGlite-backed `LedgerDriver`.
  *
@@ -131,12 +182,47 @@ async function openInMemory(): Promise<PGlite> {
  * Postgres booting), and doing that inside the first `acquire()` keeps it off
  * the process's critical path until something actually needs the database.
  */
-export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
+export function pgliteDriver(options: PgliteDriverOptions = {}): PgliteLedgerDriver {
   const role = options.role === undefined ? undefined : assertRoleName(options.role);
   let opening: Promise<PGlite> | null = null;
   // The serialisation queue. Each `acquire()` chains onto the previous holder's
   // release, so at most one caller holds the connection at a time.
   let busy: Promise<void> = Promise.resolve();
+  // Who holds the session now, and whose work is running (finding 5). A
+  // statement on the shared handle under the current holder's mark is that
+  // holder's own, and runs without waiting.
+  let holder: symbol | null = null;
+  const holding = new AsyncLocalStorage<symbol>();
+
+  /** Wait for the previous holder, then hold the session; resolves to the release. */
+  async function takeTurn(): Promise<() => void> {
+    const previous = busy;
+    let releaseGate!: () => void;
+    busy = new Promise<void>((resolve) => (releaseGate = resolve));
+    await previous;
+    return releaseGate;
+  }
+
+  /**
+   * Run ONE statement of the shared handle in its turn (finding 5).
+   *
+   * Directly when it comes from the current holder's own work; otherwise it
+   * takes the queue like `acquire()`, and holds the session for exactly this
+   * statement. Its own mark covers a drizzle `transaction()` callback, so the
+   * statements that callback sends on the shared handle run inside it too.
+   */
+  async function inTurn<T>(run: () => Promise<T>): Promise<T> {
+    if (holder !== null && holding.getStore() === holder) return run();
+    const releaseGate = await takeTurn();
+    const mark = Symbol('pglite statement');
+    holder = mark;
+    try {
+      return await holding.run(mark, run);
+    } finally {
+      holder = null;
+      releaseGate();
+    }
+  }
 
   async function open(): Promise<PGlite> {
     if (!opening) {
@@ -161,10 +247,9 @@ export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
 
       // Wait for the previous holder, then install our own gate. Finding 1:
       // this is the whole reason the seam lets `acquire()` be async.
-      const previous = busy;
-      let releaseGate!: () => void;
-      busy = new Promise<void>((resolve) => (releaseGate = resolve));
-      await previous;
+      const releaseGate = await takeTurn();
+      const mark = Symbol('pglite holder');
+      holder = mark;
 
       // Finding 3: re-assert after every wait, because the migration chain's
       // pg_dump preamble turns it off and there is only one session.
@@ -184,12 +269,16 @@ export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
           await db.exec(sql).catch(rethrowWithoutValues);
         },
         db: drizzlePglite(db, { schema: schemaPg }) as unknown as PgDatabase,
+        // Finding 5: the holder's work, marked, so the shared handle used
+        // inside it runs on this session rather than waiting for itself.
+        within: <T>(work: () => Promise<T>) => holding.run(mark, work),
         release: (err?: Error) => {
           // Guard against a double release handing the connection to two
           // waiters at once — which on a single-connection driver is the same
           // failure serialising exists to prevent.
           if (released) return;
           released = true;
+          if (holder === mark) holder = null;
 
           if (!err) {
             releaseGate();
@@ -212,6 +301,11 @@ export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
       };
     },
 
+    /** The shared handle `createPgliteDb()` hands out (finding 5). */
+    async sharedDb(): Promise<PgDatabase> {
+      return drizzlePglite(queued(await open(), inTurn), { schema: schemaPg }) as unknown as PgDatabase;
+    },
+
     async end(): Promise<void> {
       if (!opening) return;
       const db = await opening;
@@ -226,9 +320,10 @@ export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
  *
  * Mirrors what `createPgDb()` returns for the `pg` path, so the entrypoint can
  * choose a backend and then wire the stores identically either way. The drizzle
- * handle is bound to the one PGlite instance — which is safe here precisely
- * because there IS only one connection: there is no pool to hand a statement to
- * a different session than the transaction it belongs to.
+ * handle is bound to the one PGlite instance, and each statement it sends takes
+ * the driver's queue (finding 5). This comment used to call the bare handle
+ * safe because there is only one connection; that one connection is exactly
+ * why it was not.
  */
 export async function createPgliteDb(options: PgliteDriverOptions = {}): Promise<{
   readonly db: PgDatabase;
@@ -240,7 +335,7 @@ export async function createPgliteDb(options: PgliteDriverOptions = {}): Promise
   // drizzle handle exists before anything asks for it. Cold start is ~3 s and
   // belongs at startup, not inside the first request.
   const conn = await driver.acquire();
-  const db = conn.db;
   conn.release();
+  const db = await driver.sharedDb();
   return { db, driver, close: () => driver.end() };
 }
