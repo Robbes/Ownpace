@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, applyNewAddressesHere, readAddressChangesForReport, type PathEnding } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, applyNewAddressesHere, readAddressChangesForReport, runAsHolder, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler by its own subpath, so self-host never loads
 // managed code — hard rule 5. The managed runner, pg-boss's, has a subpath of
 // its own; the package index re-exported the Trigger.dev client until alpha.18.
@@ -452,7 +452,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     const client = await persistenceBackend.driver.acquire();
     try {
       await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
-      return await fn(client as unknown as { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> });
+      // As the holder: a store on the shared handle awaited inside `fn` runs on
+      // this connection instead of waiting for it (PGlite's finding 5).
+      return await runAsHolder(client, () =>
+        fn(client as unknown as { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }),
+      );
     } finally {
       client.release();
     }
