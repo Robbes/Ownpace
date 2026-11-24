@@ -263,8 +263,8 @@ describe('the wrapper delegates, explicitly', () => {
       innerCalls.push('listFolders');
       return [inbox, view];
     },
-    listSince: async (f, cursor) => {
-      innerCalls.push(`listSince:${f.path}:${cursor?.value}`);
+    listSince: async (f, cursor, options) => {
+      innerCalls.push(`listSince:${f.path}:${cursor?.value}${options?.since ? `:since=${options.since.toISOString()}` : ''}`);
       return { items: [item], nextCursor: { value: 'c-2' } };
     },
     fetch: async (i) => {
@@ -283,6 +283,13 @@ describe('the wrapper delegates, explicitly', () => {
     });
     expect(await wrapped.fetch(item)).toBe(raw);
     expect(innerCalls).toEqual(['listFolders', 'listSince:INBOX:c-1', `fetch:<m1@x>`]);
+  });
+
+  it('passes the window through, so Gmail is asked SEARCH SINCE like any IMAP server (workplan 0170)', async () => {
+    innerCalls.length = 0;
+    const since = new Date('2026-08-26T00:00:00Z');
+    await new GmailFolderView(inner).listSince(inbox, undefined, { since });
+    expect(innerCalls).toEqual(['listSince:INBOX:undefined:since=2026-08-26T00:00:00.000Z']);
   });
 });
 

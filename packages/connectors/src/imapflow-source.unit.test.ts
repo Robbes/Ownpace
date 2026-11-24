@@ -67,6 +67,10 @@ let logouts: number;
 let failNextOperations: { count: number; error: Error } | null;
 /** The options the LAST FakeImapFlow was constructed with, for TLS assertions. */
 let lastOptions: Record<string, unknown> | undefined;
+/** Whether the fake server answers SEARCH with NO (imapflow resolves `false`). */
+let searchRefused: boolean;
+/** The zone the fake server reads an internal date's DATE in, for SEARCH SINCE. */
+let serverZoneHours: number;
 /** Set to make connect() itself throw, e.g. a certificate refusal. */
 let connectError: Error | null;
 /** The 'error' handler the connector registered on the LAST client, if any. */
@@ -124,9 +128,27 @@ vi.mock('imapflow', () => {
       this.mailbox = { path, ...boxState };
       return { path, release: () => calls.push(`release(${path})`) };
     }
-    async fetchAll(range: string, query: Record<string, unknown>) {
-      calls.push(`fetchAll(${range},${Object.keys(query).sort().join('+')})`);
-      return messages;
+    async fetchAll(range: string, query: Record<string, unknown>, options?: { uid?: boolean }) {
+      calls.push(`fetchAll(${range},${Object.keys(query).sort().join('+')}${options?.uid ? ',uid' : ''})`);
+      if (!options?.uid) return messages;
+      const wanted = uidsOf(range);
+      return messages.filter((m) => wanted.has(m.uid));
+    }
+    /**
+     * `UID SEARCH SINCE`, as a server answers it: the DATE of each message's
+     * internal date, read in the server's zone (`serverZoneHours`), against
+     * the date asked, with the time disregarded (RFC 3501 §6.4.4).
+     */
+    async search(query: { since?: Date }, options?: { uid?: boolean }) {
+      calls.push(`search(since=${query.since?.toISOString().slice(0, 10)},uid=${String(options?.uid)})`);
+      if (searchRefused) return false;
+      const asked = query.since!.toISOString().slice(0, 10);
+      return messages
+        .filter((m) => {
+          const local = new Date(m.internalDate!.getTime() + serverZoneHours * 3_600_000);
+          return local.toISOString().slice(0, 10) >= asked;
+        })
+        .map((m) => m.uid);
     }
     async fetchOne(seq: string, query: Record<string, unknown>, options: Record<string, unknown>) {
       calls.push(`fetchOne(${seq},uid=${String(options.uid)})`);
@@ -136,6 +158,16 @@ vi.mock('imapflow', () => {
   }
   return { ImapFlow: FakeImapFlow };
 });
+
+/** The UIDs an IMAP sequence set names, `3:5,9` → {3,4,5,9}. */
+function uidsOf(range: string): Set<number> {
+  const out = new Set<number>();
+  for (const part of range.split(',')) {
+    const [a, b] = part.split(':').map(Number);
+    for (let uid = a!; uid <= (b ?? a!); uid++) out.add(uid);
+  }
+  return out;
+}
 
 function maybeFail(): void {
   if (failNextOperations && failNextOperations.count > 0) {
@@ -168,9 +200,9 @@ function imapRefusal(status: 'NO' | 'BAD', text: string, command?: string): Erro
 
 // Imported AFTER the mock is declared, the way vitest hoisting requires.
 const { RemoteRefusal } = await import('@openmig/shared');
-const { ImapFlowSource, isCertificateError, isSelectableFolder, imapRefusalDetail } = await import(
-  './imapflow-source.ts'
-);
+const { ImapFlowSource, isCertificateError, isSelectableFolder, imapRefusalDetail, packUids, searchSinceFor } =
+  await import('./imapflow-source.ts');
+const { decodeImapCursor: decodeSharedImapCursor } = await import('@openmig/shared');
 
 function source(extra: Record<string, unknown> = {}) {
   return new ImapFlowSource({
@@ -215,6 +247,8 @@ beforeEach(() => {
   lastOptions = undefined;
   connectError = null;
   lastErrorHandler = undefined;
+  searchRefused = false;
+  serverZoneHours = 0;
   mailboxes = [
     { path: 'INBOX', name: 'INBOX', flags: new Set(['\\HasNoChildren']) },
     { path: 'Sent', name: 'Sent', flags: new Set(['\\Sent']) },
@@ -399,6 +433,140 @@ describe('the cursor', () => {
   it('falls back to a full scan on a malformed cursor', async () => {
     const listed = await source().listSince(INBOX, { value: 'not-a-cursor' });
     expect(listed.items).toHaveLength(2);
+  });
+});
+
+// =======================================================================
+// 3b. The window: SEARCH SINCE, and a cursor that names it (workplan 0170)
+// =======================================================================
+
+describe('a listing with since (workplan 0170 §4.1)', () => {
+  const DAY = 86_400_000;
+  /** The window's start: a UTC midnight, as `windowSince` makes it. */
+  const SINCE = new Date('2026-08-26T00:00:00Z');
+
+  beforeEach(() => {
+    boxState = { uidValidity: 42n, uidNext: 20, exists: 4 };
+    messages = [
+      { uid: 3, envelope: { messageId: '<old@dev.local>' }, size: 1, internalDate: new Date(SINCE.getTime() - 400 * DAY) },
+      { uid: 7, envelope: { messageId: '<eve@dev.local>' }, size: 1, internalDate: new Date(SINCE.getTime() - 2 * 3_600_000) },
+      { uid: 8, envelope: { messageId: '<edge@dev.local>' }, size: 1, internalDate: new Date(SINCE.getTime() + 30 * 60_000) },
+      { uid: 9, envelope: { messageId: '<new@dev.local>' }, size: 1, internalDate: new Date(SINCE.getTime() + 60 * DAY) },
+    ];
+  });
+
+  it('without since lists as it always did: every message, no SEARCH, a plain cursor', async () => {
+    const listed = await source().listSince(INBOX);
+    expect(listed.items.map((i) => i.sourceRef)).toEqual(['INBOX:3', 'INBOX:7', 'INBOX:8', 'INBOX:9']);
+    expect(calls.some((c) => c.startsWith('search'))).toBe(false);
+    expect(calls).toContain('fetchAll(1:*,envelope+flags+internalDate+size+uid)');
+    expect(listed.nextCursor.value).toBe('42:20');
+  });
+
+  it('asks the server SEARCH SINCE a day early, and fetches only the UIDs it answered', async () => {
+    const listed = await source().listSince(INBOX, undefined, { since: SINCE });
+    expect(calls).toContain('search(since=2026-08-25,uid=true)');
+    // By UID, as one packed set: never `1:*`, and never the 400-day-old one.
+    expect(calls).toContain('fetchAll(7:9,envelope+flags+internalDate+size+uid,uid)');
+    // The message from the evening before `since` is the margin's extra: a
+    // source MAY return items before `since`, and the loop sets it aside.
+    expect(listed.items.map((i) => i.sourceRef)).toEqual(['INBOX:7', 'INBOX:8', 'INBOX:9']);
+  });
+
+  it('never answers fewer when the server reads dates far west of UTC', async () => {
+    // At UTC-12, a message received 00:30 UTC on `since`'s day is dated the
+    // day before. Asking SINCE `since`'s own day would leave it out for good.
+    serverZoneHours = -12;
+    const listed = await source().listSince(INBOX, undefined, { since: SINCE });
+    expect(listed.items.map((i) => i.sourceRef)).toContain('INBOX:8');
+    expect(listed.items.map((i) => i.sourceRef)).toContain('INBOX:9');
+  });
+
+  it('searches from the UTC day before, whatever the time in since', () => {
+    expect(searchSinceFor(new Date('2026-08-26T00:00:00Z')).toISOString()).toBe('2026-08-25T00:00:00.000Z');
+    expect(searchSinceFor(new Date('2026-08-26T23:59:59Z')).toISOString()).toBe('2026-08-25T00:00:00.000Z');
+    expect(searchSinceFor(new Date('2026-03-01T00:00:00Z')).toISOString()).toBe('2026-02-28T00:00:00.000Z');
+  });
+
+  it('an empty answer fetches nothing and lists nothing', async () => {
+    messages = [messages[0]!];
+    const listed = await source().listSince(INBOX, undefined, { since: SINCE });
+    expect(listed.items).toEqual([]);
+    expect(calls.some((c) => c.startsWith('fetchAll'))).toBe(false);
+  });
+
+  it('a SEARCH the server refused is thrown, never read as an empty window (hard rule 9)', async () => {
+    searchRefused = true;
+    await expect(source().listSince(INBOX, undefined, { since: SINCE })).rejects.toThrow(
+      /refused SEARCH SINCE in "INBOX"/,
+    );
+  });
+
+  it('resumes from a plain cursor inside the window: only UIDs at or after it are fetched', async () => {
+    const listed = await source().listSince(INBOX, { value: '42:9' }, { since: SINCE });
+    expect(calls).toContain('fetchAll(9,envelope+flags+internalDate+size+uid,uid)');
+    expect(listed.items.map((i) => i.sourceRef)).toEqual(['INBOX:9']);
+  });
+
+  it('fetches nothing when the cursor is past every UID the search answered', async () => {
+    const listed = await source().listSince(INBOX, { value: '42:15' }, { since: SINCE });
+    expect(listed.items).toEqual([]);
+    expect(calls.some((c) => c.startsWith('fetchAll'))).toBe(false);
+  });
+
+  describe('the cursor rule: a window cursor never claims the older messages were seen', () => {
+    it('names its window, so no reader of a plain IMAP cursor can take it for one', async () => {
+      const listed = await source().listSince(INBOX, undefined, { since: SINCE });
+      expect(listed.nextCursor.value).toBe(`since:${SINCE.getTime()}:42:20`);
+      // Neither decoder in this repository reads it as `uidValidity:uidNext`.
+      expect(decodeSharedImapCursor(listed.nextCursor)).toBeUndefined();
+    });
+
+    it('so an empty window names its window too', async () => {
+      boxState = { uidValidity: 42n, uidNext: 20, exists: 0 };
+      const listed = await source().listSince(INBOX, undefined, { since: SINCE });
+      expect(listed.nextCursor.value).toBe(`since:${SINCE.getTime()}:42:20`);
+    });
+
+    it('is a full listing when a listing WITHOUT since is handed it: the older messages are not skipped', async () => {
+      const windowed = await source().listSince(INBOX, undefined, { since: SINCE });
+      calls = [];
+      const full = await source().listSince(INBOX, windowed.nextCursor);
+      expect(full.items.map((i) => i.sourceRef)).toEqual(['INBOX:3', 'INBOX:7', 'INBOX:8', 'INBOX:9']);
+      expect(calls).toContain('fetchAll(1:*,envelope+flags+internalDate+size+uid)');
+      // And what that full listing returns is a plain cursor again.
+      expect(full.nextCursor.value).toBe('42:20');
+    });
+
+    it('is not honoured by a WIDER window either', async () => {
+      const cursor = { value: `since:${SINCE.getTime()}:42:9` };
+      const wider = await source().listSince(INBOX, cursor, { since: new Date(SINCE.getTime() - 400 * DAY - DAY) });
+      expect(wider.items.map((i) => i.sourceRef)).toEqual(['INBOX:3', 'INBOX:7', 'INBOX:8', 'INBOX:9']);
+    });
+
+    it('is honoured by the same window, which is how a 90-day migration resumes', async () => {
+      const listed = await source().listSince(INBOX, { value: `since:${SINCE.getTime()}:42:9` }, { since: SINCE });
+      expect(listed.items.map((i) => i.sourceRef)).toEqual(['INBOX:9']);
+      expect(listed.nextCursor.value).toBe(`since:${SINCE.getTime()}:42:9`);
+    });
+
+    it('a plain cursor handed to a window listing comes back as a window cursor', async () => {
+      const listed = await source().listSince(INBOX, { value: '42:5' }, { since: SINCE });
+      expect(listed.nextCursor.value.startsWith(`since:${SINCE.getTime()}:`)).toBe(true);
+    });
+
+    it('a window cursor from another UIDVALIDITY is a full window search', async () => {
+      const listed = await source().listSince(INBOX, { value: `since:${SINCE.getTime()}:41:9` }, { since: SINCE });
+      expect(listed.items.map((i) => i.sourceRef)).toEqual(['INBOX:7', 'INBOX:8', 'INBOX:9']);
+    });
+  });
+});
+
+describe('packUids', () => {
+  it('writes consecutive runs as ranges, in order, once each', () => {
+    expect(packUids([9, 3, 4, 5, 7, 5])).toBe('3:5,7,9');
+    expect(packUids([1])).toBe('1');
+    expect(packUids([2, 3])).toBe('2:3');
   });
 });
 

@@ -68,7 +68,7 @@
 import { ImapFlow } from 'imapflow';
 import { log } from '@openmig/shared';
 import { reachableHost } from '@openmig/shared/reachable-host';
-import type { SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
+import type { ListOptions, SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
 import type { MailFolder, MailItem, RawMessage, SpecialUse } from '@openmig/shared';
 import {
   encodeImapCursor,
@@ -343,17 +343,30 @@ export class ImapFlowSource implements SourceConnector {
   // Listing
   // ---------------------------------------------------------------------
 
+  /**
+   * The folder's messages, from `cursor` on, and only those received on or
+   * after `options.since` when it is given (workplan 0170 §4.1).
+   *
+   * With `since` the server filters: `UID SEARCH SINCE`, then a fetch of the
+   * UIDs it answered and nothing else. The search asks from a day EARLY
+   * (`searchSinceFor`), so it may answer a few messages before `since`, which
+   * the sync loop sets aside, and never answers fewer. The cursor such a
+   * listing returns names its window (`windowCursor`), and is only honoured by
+   * a listing whose window is the same or narrower.
+   */
   async listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{ items: ReadonlyArray<MailItem>; nextCursor: SyncCursor; unkeyable?: number }> {
-    return this.withConnection((client) => this.listSinceInternal(client, folder, cursor));
+    return this.withConnection((client) => this.listSinceInternal(client, folder, cursor, options?.since));
   }
 
   private async listSinceInternal(
     client: ImapFlow,
     folder: MailFolder,
-    cursor?: SyncCursor,
+    cursor: SyncCursor | undefined,
+    since: Date | undefined,
   ): Promise<{ items: ReadonlyArray<MailItem>; nextCursor: SyncCursor; unkeyable?: number }> {
     const lock = await client.getMailboxLock(folder.path, { readOnly: true });
     try {
@@ -371,8 +384,8 @@ export class ImapFlowSource implements SourceConnector {
 
       if (cursor) {
         try {
-          const decoded = decodeImapCursor(cursor);
-          if (decoded.uidValidity === uidValidity) {
+          const decoded = readCursor(cursor, since);
+          if (decoded !== undefined && decoded.uidValidity === uidValidity) {
             // UIDVALIDITY changed means the server re-numbered the mailbox and
             // the cursor is meaningless — a full scan, exactly as `ImapSource`
             // does, rather than resuming from a UID that now names a different
@@ -393,7 +406,12 @@ export class ImapFlowSource implements SourceConnector {
       // an error on some servers and an empty result on others, and a thrown
       // error here would read as "this folder could not be listed" — which the
       // sync loop treats very differently from "this folder is empty".
-      const messages = box.exists === 0 ? [] : await this.fetchListing(client);
+      const messages =
+        box.exists === 0
+          ? []
+          : since === undefined
+            ? await this.fetchListing(client)
+            : await this.fetchWindow(client, folder, since, cursorUidNext);
 
       for (const msg of messages) {
         const uid = msg.uid;
@@ -433,7 +451,12 @@ export class ImapFlowSource implements SourceConnector {
 
       return {
         items,
-        nextCursor: { value: encodeImapCursor(uidValidity, maxUidNext) },
+        nextCursor: {
+          value:
+            since === undefined
+              ? encodeImapCursor(uidValidity, maxUidNext)
+              : windowCursor(since, encodeImapCursor(uidValidity, maxUidNext)),
+        },
         ...(unkeyable > 0 ? { unkeyable } : {}),
       };
     } finally {
@@ -457,6 +480,29 @@ export class ImapFlowSource implements SourceConnector {
       internalDate: true,
       size: true,
     });
+  }
+
+  /**
+   * The messages a window holds, by UID: `UID SEARCH SINCE`, then a fetch of
+   * exactly the UIDs the search answered at or after the cursor's `uidNext`.
+   *
+   * A search the server refused resolves `false` in imapflow, which an
+   * unguarded caller reads as "no messages". It is thrown instead (hard rule
+   * 9): a window that answered nothing because the server said NO would end
+   * the folder's first copy with nothing copied and nothing said.
+   */
+  private async fetchWindow(client: ImapFlow, folder: MailFolder, since: Date, fromUid: number | undefined) {
+    const found = await client.search({ since: searchSinceFor(since) }, { uid: true });
+    if (!Array.isArray(found)) {
+      throw new Error(`IMAP: the server refused SEARCH SINCE in "${folder.path}"`);
+    }
+    const uids = fromUid === undefined ? found : found.filter((uid) => uid >= fromUid);
+    if (uids.length === 0) return [];
+    return client.fetchAll(
+      packUids(uids),
+      { uid: true, flags: true, envelope: true, internalDate: true, size: true },
+      { uid: true },
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -560,6 +606,84 @@ export class ImapFlowSource implements SourceConnector {
       await closeQuietly(client);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// The window (workplan 0170 §4.1)
+// ---------------------------------------------------------------------------
+
+const DAY_MS = 86_400_000;
+
+/**
+ * The date to ask `SEARCH SINCE` for: the UTC day BEFORE `since`'s.
+ *
+ * `SINCE` compares the date of each message's INTERNALDATE, "disregarding
+ * time and timezone" (RFC 3501 §6.4.4, RFC 9051 §6.4.4): the date as written
+ * in the message's own zone, or in the server's when it stores none. A message
+ * received at 00:30 UTC on `since`'s day carries the day before as its date in
+ * any zone west of UTC, as far as UTC-12, and asking for `since`'s own day
+ * would leave it out. A day earlier covers every zone; the extra messages it
+ * answers are set aside by the loop's `mailInWindow`. imapflow writes the
+ * date from the UTC day (`formatDate`), or sends `YOUNGER` with the seconds
+ * since it when the server has WITHIN (RFC 5032), which is exact and wider.
+ */
+export function searchSinceFor(since: Date): Date {
+  const day = Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), since.getUTCDate());
+  return new Date(day - DAY_MS);
+}
+
+/**
+ * A cursor returned by a window listing: `since:{ms}:{uidValidity}:{uidNext}`.
+ *
+ * A listing with `since` sees nothing older than it, so its `uidNext` claims
+ * only that every message ON OR AFTER `since` below it was seen. Kept as a
+ * plain `uidValidity:uidNext`, a later full listing handed it (phase B, or a
+ * migration broadened with *Copy everything*) would skip every older message
+ * below it for good, with no ledger row to show they were never copied
+ * (workplan 0170 §3.2 3). So the cursor names its window, and `readCursor`
+ * honours it only for a listing at least as narrow. The engine also stores a
+ * window pass's cursor under its own key (`windowCursorKey`); this holds even
+ * if a cursor reached the wrong key.
+ */
+function windowCursor(since: Date, cursor: string): string {
+  return `since:${since.getTime()}:${cursor}`;
+}
+
+/**
+ * The UIDVALIDITY and UIDNEXT a cursor may resume from, for a listing with
+ * `since` (or none), or `undefined` when it may not: a window's cursor read by
+ * a listing with no window, or with a wider one, is a full scan, as a
+ * malformed cursor is. A plain cursor serves every listing: it claims every
+ * message below its `uidNext`, which covers any window.
+ */
+function readCursor(cursor: SyncCursor, since: Date | undefined): { uidValidity: number; uidNext: number } | undefined {
+  const window = /^since:(\d+):(.*)$/.exec(cursor.value);
+  if (!window) return decodeImapCursor(cursor);
+  if (since === undefined || since.getTime() < Number(window[1])) return undefined;
+  return decodeImapCursor({ value: window[2]! });
+}
+
+/**
+ * UIDs as an IMAP sequence set, consecutive runs written as ranges (`3:7,9`),
+ * so ninety days of mail is one short command line rather than thousands of
+ * numbers. imapflow joins an array with commas as it is.
+ */
+export function packUids(uids: ReadonlyArray<number>): string {
+  const sorted = [...new Set(uids)].sort((a, b) => a - b);
+  const parts: string[] = [];
+  let start = sorted[0];
+  let prev = start;
+  for (let i = 1; i <= sorted.length; i++) {
+    const uid = sorted[i];
+    if (uid !== undefined && prev !== undefined && uid === prev + 1) {
+      prev = uid;
+      continue;
+    }
+    if (start !== undefined) parts.push(start === prev ? `${start}` : `${start}:${prev}`);
+    start = uid;
+    prev = uid;
+  }
+  return parts.join(',');
 }
 
 /**
