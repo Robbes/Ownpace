@@ -421,7 +421,8 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
       you own) goes first on your `PATH`, and pnpm installs into it without
       `sudo`. Run the deploy in that shell, as yourself, not under `sudo`,
       whose `secure_path` finds the system's node. The script runs `pnpm
-      install`, the task deploy and the site build on that node, and pnpm
+      install` and the site build on that node (until alpha.18 the task
+      deploy too), and pnpm
       only warns (`Unsupported engine`) below `engines` and goes straight on
       to the rebuild; the script itself refuses a node below the tag's
       `engines`, before anything moves, naming the node's path and version.

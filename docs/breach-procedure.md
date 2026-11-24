@@ -22,8 +22,9 @@ Persoonsgegevens (step 4) is due within 72 hours of it where feasible.
   [Draining first](./managed-bring-up.md#draining-first-and-telling-customers-why).
 - **Stop the passes already running.** The hold lets them finish on their own clock. Pausing
   the affected migrations stops their running passes starting new items within about fifteen
-  seconds; each finishes the items it has begun. The hard stop is still the Trigger.dev
-  dashboard of live's plane: open each run that is still executing and cancel it.
+  seconds; each finishes the items it has begun. The hard stop is `./deploy/compose/operator.sh jobs cancel <run-id>` for each run still
+  active (the operator runbook, *The jobs on pg-boss*): a run row's `orchestrator_ref` is its id, and a
+  cancelled run stops at its next heartbeat, within 30 s.
 - **A leaked key or password**: see [Keys](#keys) below before you change anything, because
   replacing a key can make stored data unreadable.
 - **A tester's own credential**: deleting the connection revokes what the provider lets us
@@ -67,8 +68,10 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
   (0129 T4). Addresses and file names in it are pseudonyms made with a key in the database, and
   the same address always gives the same pseudonym, so the assessment can tell whether a given
   tester's address appears.
-- **Trigger.dev's own record of each run**: its dashboard shows every run's input, output, error
-  and logs. Note the runs around the moment, and copy what matters from there too.
+- **pg-boss's own record of each run**: `./deploy/compose/operator.sh jobs failures` lists the
+  failed runs with their tags and errors, `jobs show <run-id>` one run's state, attempts and times,
+  and the worker's log holds what the runs printed. pg-boss keeps a failed run 7 days by default.
+  Note the runs around the moment, and copy what matters from there too.
 
 ## 3. Assess
 

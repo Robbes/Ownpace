@@ -245,7 +245,7 @@ landing on its own receipt. So Stage 4 is Stage 2's drills through the managed
 journey:
 
 1. Bring up `deploy/compose/managed.yml` on the machine (worker included — the
-   destructive path runs through Trigger.dev there, so a missing worker shows
+   destructive path runs through the worker's pg-boss queues there, so a missing worker shows
    up as receipts stuck `queued`, which is itself worth seeing once).
 2. Walk **Start a migration** (`/start`): tick **Google** on
    **Which account are you leaving?**, and **Files** alone on **What moves?**,

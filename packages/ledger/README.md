@@ -44,7 +44,7 @@ erDiagram
 - **Decision queue (§11.2).** `decision` is the "actions required" inbox; `policy_preset` sets per-category auto vs ask.
 - **Cutover gate (§11/§20).** `verification` feeds the gate; `cutover` tracks state.
 - **Optional extra backup — retracted (ADR-0015 update, 2026-08-02).** `backup_target` is reserved schema: the feature was never built, and a second Ownpace instance/mapping to a second target achieves the same result. Nothing reads or writes this table.
-- **Runs & audit.** `run`/`run_event` give status/progress (links to the Trigger.dev run via `orchestrator_ref`); `audit_log` records control actions.
+- **Runs & audit.** `run`/`run_event` give status/progress (`orchestrator_ref` holds the job runner's id for the run: on the managed edition, the pg-boss job's); `audit_log` records control actions.
 
 ## Secrets
 No secrets in the ledger. `connection.secret_ref` / `backup_target.secret_ref` point to the vault.
