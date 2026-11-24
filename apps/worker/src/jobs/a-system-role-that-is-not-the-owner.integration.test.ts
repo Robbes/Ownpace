@@ -265,6 +265,9 @@ const EXPECTED: Record<string, readonly string[]> = {
   // 0057): only the purge.
   credit_notice: PURGED_ONLY(),
   grant_link_allowance: PURGED_ONLY(),
+  // A place in the Alpha given as a present, by the organisation that gave it
+  // (workplan 0172, managed 0064): only the purge.
+  gift: PURGED_ONLY(),
   // That the organisation is a test, and its marker (workplan 0162 T1, managed 0062): only the purge.
   test_organisation: PURGED_ONLY(),
   payment_method: PURGED_ONLY(),
