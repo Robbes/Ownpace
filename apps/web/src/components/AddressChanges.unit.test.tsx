@@ -95,7 +95,7 @@ describe("the person's page: Addresses", () => {
     expect(screen.queryByText(/other@gmail\.com/)).not.toBeInTheDocument();
     expect(screen.getByText('Confirmed by admin@example.org for Child')).toBeInTheDocument();
     // Used in tasks too (0168 T4, the review's S9).
-    expect(screen.getByText('Used in contacts, calendars, tasks and shares. Mail is never changed.')).toBeInTheDocument();
+    expect(screen.getByText('Used in contacts, calendars, tasks and shares. Mail and content are never changed.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Not right? name@gmail.com' }));
     expect(updateAddressChange).toHaveBeenCalledWith('name@gmail.com', { state: 'proposed' });
   });
