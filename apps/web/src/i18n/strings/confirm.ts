@@ -45,6 +45,10 @@ export const en = {
   'discovery.unlisted.strong.one': 'will not be migrated',
   'discovery.unlisted.strong.many': 'will not be migrated',
   'discovery.unlisted.post': '— nothing on your old server changes.',
+  // Gmail's own count beside ours (the owner, 2026-11-24): All Mail holds
+  // every message once, so the Check has a figure no copy can make up.
+  'discovery.gmailTotal':
+    'Gmail itself counts {count} messages, not counting Spam and Trash. The check compares against this number.',
   'discovery.errorWithheld.cell': 'Stopped on an error',
   'discovery.errorWithheld':
     "The provider's message for a count that stopped is not shown: the person connected this account themselves, and it can name their files.",
@@ -331,6 +335,8 @@ export const nl: Record<keyof typeof en, string> = {
   'discovery.unlisted.strong.one': 'wordt niet gemigreerd',
   'discovery.unlisted.strong.many': 'worden niet gemigreerd',
   'discovery.unlisted.post': '— er verandert niets op uw oude server.',
+  'discovery.gmailTotal':
+    'Gmail telt zelf {count} berichten, zonder Spam en Prullenbak. De verificatie vergelijkt met dit aantal.',
   'discovery.errorWithheld.cell': 'Gestopt op een fout',
   'discovery.errorWithheld':
     'De melding van de aanbieder bij een inventarisatie die stopte, wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden vermelden.',

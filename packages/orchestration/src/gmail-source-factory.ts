@@ -16,12 +16,14 @@
  *
  * WHAT IS GMAIL'S OWN: labels. Gmail's IMAP surface presents each label as a
  * folder AND presents three views that contain other folders' messages again —
- * All Mail (`\All`), Starred (`\Flagged`) and Important (`\Important`). Copy
- * those and every message is migrated once per view it appears in; worse, the
- * ledger keys mail by Message-ID, so the second sighting reads as the item
- * having MOVED, and the moves queue fills with reports describing Gmail's UI
- * rather than anything the owner did. `gmailVisibleFolders` drops the three
- * views and keeps everything real: INBOX, the owner's labels, Sent, Drafts.
+ * All Mail (`\All`), Starred (`\Flagged`) and Important (`\Important`).
+ * Starred and Important are dropped. All Mail is read LAST, as Archive
+ * (`gmailFoldersInPassOrder`, the owner's decision of 2026-11-24): a message
+ * archived without a label lives only there, and dropping it lost every such
+ * message without a word. Read last, and keyed by Message-ID, it yields only
+ * what no other folder carried; the sync loop never reads its other sightings
+ * as moves (`MailFolder.catchAll`), nor a message under two labels as moved
+ * (`severalPlacesAtOnce`).
  * Trash and Spam are left to the existing `excludeSpecialUse` machinery, which
  * excludes them from the COPY while the mail engine scans the trash for
  * deletion evidence — exactly as it does for every other IMAP source.
@@ -98,17 +100,83 @@ export const GMAIL_CONNECTION_KIND = 'gmail';
  */
 const GMAIL_VIEW_ATTRIBUTES = new Set(['\\all', '\\flagged', '\\important']);
 
+/** All Mail's attribute, lower-cased as `GMAIL_VIEW_ATTRIBUTES` holds it. */
+const ALL_MAIL_ATTRIBUTE = '\\all';
+
+/**
+ * Where All Mail's own messages land on the destination: a folder called
+ * Archive, with the RFC 6154 archive role. A JMAP target gives it the account's
+ * one archive mailbox (`role: "archive"`, matched before a name, as Sent is);
+ * an IMAP target writes it to the folder called Archive, made if absent.
+ */
+export const GMAIL_ARCHIVE_PATH = 'Archive';
+
+const hasAttribute = (f: MailFolder, wanted: (a: string) => boolean): boolean =>
+  (f.listAttributes ?? []).some((a) => wanted(a.toLowerCase()));
+
+/** Is this Gmail's All Mail? By its `\All` attribute, never by its name. */
+export function isGmailAllMail(folder: MailFolder): boolean {
+  return hasAttribute(folder, (a) => a === ALL_MAIL_ATTRIBUTE);
+}
+
 /** The folders that are real: everything except Gmail's view-folders. */
 export function gmailVisibleFolders(
   folders: ReadonlyArray<MailFolder>,
 ): ReadonlyArray<MailFolder> {
-  return folders.filter(
-    (f) => !(f.listAttributes ?? []).some((a) => GMAIL_VIEW_ATTRIBUTES.has(a.toLowerCase())),
-  );
+  return folders.filter((f) => !hasAttribute(f, (a) => GMAIL_VIEW_ATTRIBUTES.has(a)));
 }
 
 /**
- * A SourceConnector that hides Gmail's view-folders and delegates the rest.
+ * The folders a Gmail pass reads, in the order it reads them (the owner,
+ * 2026-11-24): every real folder first (INBOX, the labels, Sent, Drafts), and
+ * All Mail LAST, presented as Archive.
+ *
+ * WHY ALL MAIL AT ALL. Over IMAP a message archived with no label lives only
+ * in All Mail. Gmail's own Archive button makes exactly such messages, and so
+ * does mail under a label hidden from IMAP. With All Mail dropped they were
+ * never copied, and nothing said so.
+ *
+ * WHY LAST. Mail is keyed by Message-ID and copied once, into the folder where
+ * a pass first sees it. Read after everything else, All Mail yields only what
+ * no other folder carried. The sync loop leaves the rest exactly as it is
+ * (`MailFolder.catchAll`): never a second copy, never a move.
+ *
+ * WHY "ARCHIVE". It is where a person expects their archived mail, and the
+ * RFC 6154 role says the same to a server. The path is the presented one, so
+ * the ledger's collection, its cursor key and the destination folder are one
+ * name; the view maps it back to All Mail's own path on every read. A real
+ * label at exactly that path is folded into it: every message under such a
+ * label is in All Mail too, and lands in the same destination folder, and two
+ * folders under one path would share one cursor.
+ *
+ * `\Flagged` and `\Important` stay dropped: what they hold is in a real folder
+ * or in All Mail already. With no All Mail listed (a person can hide it from
+ * IMAP in Gmail's settings), the real folders are all there is.
+ */
+export function gmailFoldersInPassOrder(
+  folders: ReadonlyArray<MailFolder>,
+): { readonly folders: ReadonlyArray<MailFolder>; readonly allMail?: MailFolder } {
+  // The first one Google lists; it lists one. A second would be read under
+  // the same presented path, so it is not read at all.
+  const allMail = folders.find(isGmailAllMail);
+  const real = gmailVisibleFolders(folders);
+  if (!allMail) return { folders: real };
+  const archive: MailFolder = {
+    path: GMAIL_ARCHIVE_PATH,
+    name: GMAIL_ARCHIVE_PATH,
+    specialUse: 'archive',
+    ...(allMail.listAttributes ? { listAttributes: allMail.listAttributes } : {}),
+    catchAll: true,
+  };
+  return { folders: [...real.filter((f) => f.path !== GMAIL_ARCHIVE_PATH), archive], allMail };
+}
+
+/** An inner source that can count one folder by the server's own count. */
+type CountsAFolder = SourceConnector & { countFolder?: (folder: MailFolder) => Promise<number> };
+
+/**
+ * A SourceConnector that reads Gmail as Gmail is: the real folders, then All
+ * Mail as Archive (`gmailFoldersInPassOrder`), and delegates the rest.
  *
  * Explicit delegation of the interface's three methods rather than a spread —
  * a spread of a class instance loses its prototype methods and produces an
@@ -118,20 +186,44 @@ export function gmailVisibleFolders(
  * worth pinning, and they need no IMAP server to prove.
  */
 export class GmailFolderView implements SourceConnector {
+  /** A message under two labels is in two places, not moved (`SourceConnector.severalPlacesAtOnce`). */
+  readonly severalPlacesAtOnce = true as const;
   private readonly inner: SourceConnector;
+  /** All Mail as Google listed it, from the last listing: what Archive reads. */
+  private allMail: MailFolder | undefined;
+  private listed = false;
   constructor(inner: SourceConnector) {
     this.inner = inner;
   }
 
   async listFolders(): Promise<ReadonlyArray<MailFolder>> {
-    return gmailVisibleFolders(await this.inner.listFolders());
+    const { folders, allMail } = gmailFoldersInPassOrder(await this.inner.listFolders());
+    this.allMail = allMail;
+    this.listed = true;
+    return folders;
   }
 
-  listSince(
+  /** All Mail's own folder, listing first if this view has not listed yet. */
+  private async allMailFolder(): Promise<MailFolder | undefined> {
+    if (!this.listed) await this.listFolders();
+    return this.allMail;
+  }
+
+  async listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
   ): ReturnType<SourceConnector['listSince']> {
-    return this.inner.listSince(folder, cursor);
+    if (!folder.catchAll) return this.inner.listSince(folder, cursor);
+    const allMail = await this.allMailFolder();
+    if (!allMail) {
+      // Never an empty listing (hard rule 9): Archive was presented by a
+      // listing that had All Mail, and this one has not.
+      throw new Error(
+        "Gmail's All Mail is no longer listed over IMAP, so the mail archived without a label " +
+          'cannot be read. Show All Mail in IMAP in Gmail\'s settings (Labels).',
+      );
+    }
+    return this.inner.listSince(allMail, cursor);
   }
 
   fetch(item: MailItem): Promise<RawMessage> {
@@ -139,13 +231,40 @@ export class GmailFolderView implements SourceConnector {
   }
 
   /**
+   * How many messages Gmail holds, by its own count: All Mail's EXISTS, one
+   * EXAMINE (`ImapFlowSource.countFolder`). Every message once, Spam and Trash
+   * aside. Read by Confirm and by the Check (the owner, 2026-11-24).
+   *
+   * Refuses rather than guesses when All Mail is not listed: then Gmail has
+   * no figure of its own to give, and a count summed over labels would count
+   * a message once per label.
+   */
+  async countEveryMessage(): Promise<number> {
+    const inner = this.inner as CountsAFolder;
+    if (typeof inner.countFolder !== 'function') {
+      throw new Error('This Gmail source cannot count its messages.');
+    }
+    const allMail = await this.allMailFolder();
+    if (!allMail) {
+      throw new Error(
+        "Gmail's All Mail is not listed over IMAP, so Gmail's own count of your messages cannot " +
+          "be read. Show All Mail in IMAP in Gmail's settings (Labels).",
+      );
+    }
+    return inner.countFolder(allMail);
+  }
+
+  /**
    * How much mail, through the VIEW (2026-09-02): the owner's first
    * measured Test showed Drive and nothing for mail, because this wrapper
    * delegated the interface's three methods and the measure lived on the
    * inner source, a method the qualification asks for by shape and found
-   * absent. Delegated now — and over the folders this view SHOWS, so
-   * "[Gmail]/All Mail" and the other label views are not counted on top of
-   * the folders they duplicate. Absent when the inner cannot measure.
+   * absent. Delegated now.
+   *
+   * Over All Mail alone where Google lists it (2026-11-24): it holds every
+   * message once, label-less archived mail included, so it is the whole
+   * mailbox and nothing twice. Without it, over the real folders, as before.
+   * `folders` is the number of folders a pass reads.
    */
   async measureMailbox(
     options: { readonly sampleSize?: number } = {},
@@ -159,7 +278,11 @@ export class GmailFolderView implements SourceConnector {
     if (typeof inner.measureMailbox !== 'function') {
       throw new Error('This mail source cannot measure its mailbox.');
     }
-    return inner.measureMailbox({ ...options, folders: await this.listFolders() });
+    const shown = await this.listFolders();
+    const allMail = this.allMail;
+    if (!allMail) return inner.measureMailbox({ ...options, folders: shown });
+    const measured = await inner.measureMailbox({ ...options, folders: [allMail] });
+    return { ...measured, folders: shown.length };
   }
 }
 

@@ -85,6 +85,21 @@ export interface VerificationDeps {
   
   // Data access
   getSourceCount(dataType: VerificationDomain): Promise<number>;
+  /**
+   * The SOURCE's own count of this data type, read from the source rather
+   * than from the ledger: Gmail's All Mail, every message once, Spam and Trash
+   * aside (the owner, 2026-11-24). Undefined for a data type it does not
+   * cover. Absent for every source that has no such figure, and then nothing
+   * changes.
+   *
+   * Why the ledger's count is not enough: it counts what a pass RECORDED, so a
+   * message no pass ever listed is on neither side of the comparison, and the
+   * gate passed over a loss (Gmail's label-less archived mail, before All
+   * Mail was read). With this figure, what Gmail holds and no pass copied is
+   * missing, and the data type FAILs. A figure it cannot read throws, and the
+   * data type is NOT_VERIFIABLE with the reason, never measured without it.
+   */
+  getSourceSideCount?(dataType: VerificationDomain): Promise<number | undefined>;
   getTargetCount(dataType: VerificationDomain): Promise<number>;
   
   // Sample retrieval for checksum verification
@@ -416,7 +431,25 @@ export async function runVerification(
     // when nothing about the migration was. Not measuring it also saves a
     // target round trip on a domain there is nothing to say about.
     const recorded = await deps.getSourceCount(dataType);
-    if (recorded === 0) {
+    // Nothing recorded is a SKIP only when the source has nothing either: a
+    // Gmail whose every message no pass copied is the loss this gate exists to
+    // catch. Asked only here, where it can change the answer; a figure that
+    // cannot be read is the data type's own NOT_VERIFIABLE, quoted.
+    let heldAtSource: number | undefined;
+    if (recorded === 0 && deps.getSourceSideCount) {
+      try {
+        heldAtSource = await deps.getSourceSideCount(dataType);
+      } catch (err) {
+        if (isCredentialRefusal(err) && err.refusal.code === ACCOUNT_CLOSED) throw err;
+        return notMeasured(
+          dataType,
+          'NOT_VERIFIABLE',
+          `No ${dataType} item was copied, and the old account's own count could not be read: ` +
+            `${err instanceof Error ? err.message : String(err)}. Cutover is blocked.`,
+        );
+      }
+    }
+    if (recorded === 0 && !(heldAtSource !== undefined && heldAtSource > 0)) {
       return notMeasured(
         dataType,
         'SKIPPED',
@@ -547,19 +580,38 @@ async function verifyDataType(
   const { dataType, config } = deps;
   
   // Get counts
-  const sourceCount = await deps.getSourceCount(dataType);
+  const recorded = await deps.getSourceCount(dataType);
+  // The source's own figure where it has one (Gmail's All Mail): the count
+  // this data type is measured against, so what it holds and no pass copied
+  // is missing (the owner, 2026-11-24). Otherwise the ledger's, as before.
+  const heldAtSource = deps.getSourceSideCount ? await deps.getSourceSideCount(dataType) : undefined;
+  const sourceCount = heldAtSource ?? recorded;
   const targetCount = await deps.getTargetCount(dataType);
   
   // Find discrepancies
   const missingOnTarget = await deps.findMissingOnTarget(dataType);
   const extraOnTarget = await deps.findExtraOnTarget(dataType);
+  /**
+   * What the source holds beyond everything a pass recorded: never copied.
+   * A lower bound, and deliberately so. A message deleted at the source after
+   * its copy is still recorded, so it can hide one such loss; it can never
+   * invent one. Zero without a source figure.
+   */
+  const neverCopied = heldAtSource === undefined ? 0 : Math.max(0, heldAtSource - recorded);
+  const missingCount = missingOnTarget.length + neverCopied;
   
   // Calculate matched count: items that exist on both source and target
-  // matchedCount = source items - items missing on target
-  const matchedCount = sourceCount - missingOnTarget.length;
+  // matchedCount = source items - items missing on target. Against the
+  // source's own figure: the recorded copies that are there, never more than
+  // the source holds.
+  const matchedCount =
+    heldAtSource === undefined
+      ? sourceCount - missingOnTarget.length
+      : Math.max(0, Math.min(heldAtSource, recorded - missingOnTarget.length));
   
-  // Sample-based checksum verification
-  const sampleSize = calculateSampleSize(sourceCount, config);
+  // Sample-based checksum verification: drawn from what was recorded, which
+  // is what the ledger can sample.
+  const sampleSize = calculateSampleSize(recorded, config);
   const sourceSamples = await deps.getSourceSamples(dataType, sampleSize);
   // Ask the target for THESE items, not for its own first `sampleSize`. See
   // getTargetSamples: the populations differ whenever the target holds anything
@@ -712,12 +764,16 @@ async function verifyDataType(
   const contentHeld = deps.targetCanHash(dataType) && sourceCount > 0 && hashedByTarget === 0;
   const allWaitForAnAddress = sourceSamples.length > 0 && olderSampled === sourceSamples.length;
 
-  const status = contentHeld
+  // NEVER COPIED IS A FAIL, whatever the tolerance (the owner, 2026-11-24):
+  // the tolerance is for copies the target lost or a pass has yet to retry;
+  // a message the source holds and no pass recorded is the silent loss this
+  // figure exists to catch. The remedy is a pass, then the check again.
+  const status = contentHeld || neverCopied > 0
     ? 'FAIL'
     : determineVerificationStatus(
         matchPercentage,
         checksumMatchPercentage,
-        missingOnTarget.length,
+        missingCount,
         extraOnTarget.length,
         config,
         sourceCount
@@ -797,6 +853,16 @@ async function verifyDataType(
       message:
         `${checksumUnavailable} of ${sourceSamples.length} sampled ${dataType} item(s) could not be ` +
         `content-verified: the target does not expose a content hash. Count parity still applies.`,
+    });
+  }
+
+  if (neverCopied > 0) {
+    issues.push({
+      id: `NEVER_COPIED_${dataType}`,
+      severity: 'ERROR',
+      message:
+        `The old account itself counts ${heldAtSource} ${dataType} item(s), and ${recorded} were ` +
+        `copied: ${neverCopied} were never copied. Run a pass, then check again.`,
     });
   }
 
@@ -885,7 +951,8 @@ async function verifyDataType(
     sourceCount,
     targetCount,
     matchedCount,
-    missingOnTarget: missingOnTarget.length,
+    // Never copied is missing from the target too, and counted with it.
+    missingOnTarget: missingCount,
     extraOnTarget: extraOnTarget.length,
     // What was actually compared, NOT what was asked for. The clamp in
     // `calculateSampleSize` makes these agree for the ledger-backed deps, where

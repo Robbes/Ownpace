@@ -158,6 +158,21 @@ export interface SourceConnector {
    * still lists, marked or set aside (`unmarked`).
    */
   readonly markedOnly?: true;
+  /**
+   * One message can be in several folders at once on this source: Gmail,
+   * whose labels each present as a folder. Set by `GmailFolderView` and by
+   * nothing else. The sync loop then reads a second folder in the same pass
+   * as a second place rather than a move (`DomainSyncDeps.severalPlacesAtOnce`).
+   */
+  readonly severalPlacesAtOnce?: true;
+  /**
+   * How many messages the source holds, by its OWN count rather than by what
+   * was copied: Gmail's All Mail, which holds every message once, Spam and
+   * Trash aside (one EXAMINE, its EXISTS). Read by the Check so that a message
+   * no pass ever copied fails it, which a figure taken from the ledger cannot
+   * do. Absent from every source that has no such folder.
+   */
+  countEveryMessage?(): Promise<number>;
 }
 
 /**

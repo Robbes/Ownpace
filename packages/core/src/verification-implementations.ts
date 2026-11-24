@@ -54,6 +54,13 @@ export interface RealVerificationDeps {
   targetReindexers?: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files' | 'tasks', TargetReindexer>>;
   verificationReader: LedgerVerificationReader;
   /**
+   * The SOURCE's own count per data type, where it has one: Gmail's All Mail
+   * (the owner, 2026-11-24). A data type with one is measured against it
+   * rather than against the ledger's own count, so a message no pass copied
+   * is missing (`VerificationDeps.getSourceSideCount`). Absent: as before.
+   */
+  sourceSideCounts?: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files' | 'tasks', () => Promise<number>>>;
+  /**
    * Is the organisation still open? Asked before each listing of a target
    * (`VerificationDeps.organisationIsOpen`, workplan 0139 T7), and here before
    * each sample downloaded from it (`getTargetSamplesFromReindexer`). The
@@ -93,6 +100,14 @@ export function createRealVerificationDeps(
     targetCanHash: (dataType) => reindexerFor(dataType)?.contentHashFor !== undefined,
     getSourceCount: (dataType) =>
       getSourceCountFromLedger(verificationReader, tenantId, mappingId, dataType),
+    ...(deps.sourceSideCounts && Object.keys(deps.sourceSideCounts).length > 0
+      ? {
+          getSourceSideCount: async (dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks') => {
+            const count = deps.sourceSideCounts?.[dataType];
+            return count ? await count() : undefined;
+          },
+        }
+      : {}),
     getTargetCount: (dataType) =>
       getTargetCountFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType),
     getSourceSamples: (dataType, count) =>

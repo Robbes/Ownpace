@@ -673,6 +673,27 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * (`unmarked`, `setAsideKeys`).
    */
   readonly markedOnly?: boolean;
+  /**
+   * A collection that holds every item the source has, again (Gmail's All
+   * Mail): true for it, absent or false for every other. Listed LAST by its
+   * source, so it yields only the items no other collection carried.
+   *
+   * An item it lists that the ledger already holds under ANOTHER collection is
+   * left exactly as it is: not copied again, not reported as moved, and any
+   * move already recorded for it is not cleared. The sighting says only that
+   * the item exists, which every other collection already said. An item it
+   * lists that nothing else carried is copied into it, as into any other.
+   * Absent for every source but Gmail's.
+   */
+  readonly catchAll?: (folder: Folder) => boolean;
+  /**
+   * One item can be in several collections AT ONCE on this source (Gmail's
+   * labels), so a sighting elsewhere in the same pass as a sighting where the
+   * ledger has it is a second place, not a move: skipped, and never reported.
+   * Absent for every source but Gmail's, where a second collection still
+   * reads as a move, as it always did.
+   */
+  readonly severalPlacesAtOnce?: boolean;
   /** List folders on the source */
   readonly listFolders: () => Promise<ReadonlyArray<Folder>>;
   /** List items in a folder since a cursor */
@@ -1378,6 +1399,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     firstCopyAllowed,
     snapshot,
     markedOnly = false,
+    catchAll,
+    severalPlacesAtOnce = false,
     deadline,
     now = Date.now,
     whyItStops,
@@ -1531,6 +1554,13 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * the one move a second time.
    */
   const movedByTheLoop = new Set<string>();
+  /**
+   * The collection each key was FIRST listed in this pass, kept only where
+   * one item can be in several collections at once (`severalPlacesAtOnce`):
+   * a later sighting elsewhere is a second place when the first was where
+   * the ledger has it. Empty, and never written, for every other source.
+   */
+  const firstListedIn = new Map<string, string>();
   /** Items created THIS pass — the other half of the correlation. */
   const createdThisPass: Array<{
     naturalKeyHash: string;
@@ -1826,6 +1856,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // the re-list is idempotent, and no other folder is affected — a far
     // cheaper price than two subtly different names for the same collection.
     const collectionPath = collectionPathOf(folder);
+    // Gmail's All Mail (`catchAll`): what it lists that another collection
+    // already carried is left as it is, below.
+    const catchAllHere = catchAll?.(folder) === true;
     const prev = cursors ? await cursors.get(tenantId, mappingId, collectionPath) : undefined;
 
     // A COLLECTION AN EARLIER PASS MADE READY IS MADE READY AGAIN ONLY WHEN
@@ -2018,6 +2051,12 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       let itemName = displayName?.(item);
       const version = sourceVersion?.(item);
       if (naturalKeyHash !== undefined) seenHere.add(naturalKeyHash);
+      // Where this pass first listed the key, before this sighting counts.
+      let firstHere: string | undefined;
+      if (severalPlacesAtOnce && naturalKeyHash !== undefined) {
+        firstHere = firstListedIn.get(naturalKeyHash);
+        if (firstHere === undefined) firstListedIn.set(naturalKeyHash, collectionPath);
+      }
       // And under the document's own id, where the source gives one (0042 T10).
       const listedAs = identity?.(item);
       if (listedAs && naturalKeyHash !== undefined) {
@@ -2110,6 +2149,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               ledger.clearAbsent(tenantId, mappingId, domain, key),
             );
           }
+          // ALREADY CARRIED ELSEWHERE, SEEN AGAIN IN GMAIL'S ALL MAIL. The
+          // copy is where the ledger says; this sighting only says the
+          // message still exists. Never a move, never a second copy, and a
+          // move already recorded stays as it is (the owner, 2026-11-24).
+          if (catchAllHere && (known.collection ?? '') !== collectionPath) {
+            skipped += 1;
+            return;
+          }
           const action = classifyKnownItem(known, version, collectionPath, digestNow);
           // WHAT THIS COPY WAITS FOR (workplan 0168 S3). A copy we wrote whose
           // rows moved, and that this pass leaves as it is, is marked with the
@@ -2159,6 +2206,12 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           const retriesASourceRewrite = retriesARewrite && !retriesAnAddressRewrite;
           const addressRewrite = action === 'rewrite-addresses' || retriesAnAddressRewrite;
           const sourceRewrite = action === 'rewrite' || retriesASourceRewrite;
+          // A SECOND PLACE, NOT A MOVE (Gmail's labels): this pass listed the
+          // item where the ledger has it, so it is in both. Left as it is.
+          if (action === 'moved' && firstHere !== undefined && firstHere === known.collection) {
+            skipped += 1;
+            return;
+          }
           if (action === 'moved') {
             // The source shows this item somewhere else. Do NOTHING to the
             // target: writing it into the new collection would leave the old
@@ -2195,7 +2248,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // Not moved — so any move we recorded earlier is over, and its queue
           // entry has to go with it. An entry that outlived its cause has
           // people acting on a layout that was already put back.
-          if (known.movedToCollection !== undefined) {
+          // Not by All Mail, though: it holds the item wherever it is filed,
+          // so seeing it there says nothing about a move.
+          if (known.movedToCollection !== undefined && !catchAllHere) {
             await timed(phases, 'ledgerWriteMs', () =>
               ledger.clearMove(tenantId, mappingId, domain, key),
             );
@@ -2483,6 +2538,13 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // source. The key it was FOUND under, so an old row is not read as
           // gone.
           seenHere.add(derivedKey);
+          // Carried elsewhere and seen again in All Mail: left as it is, as on
+          // the keyed path, a failed copy included (it is retried where it
+          // was listed first, never written into All Mail's folder).
+          if (knownAfterFetch && catchAllHere && (knownAfterFetch.collection ?? '') !== collectionPath) {
+            skipped += 1;
+            return;
+          }
           if (knownAfterFetch) {
             // A ROW IS NOT PROOF OF A COPY. This branch used to be
             // `skipped += 1; return`, which is precisely the bug
