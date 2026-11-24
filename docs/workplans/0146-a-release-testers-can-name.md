@@ -4,6 +4,69 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, evening: the fold for `v0.2.0-alpha.19` (T2); alpha.19 is not deployed to live.**
+`package.json` and the API contract say `0.2.0-alpha.19`, `scripts/release-line.json` lists it, and
+everything under [Unreleased] moves to its section, dated 2026-11-24, under a summary; [Unreleased]
+stays, empty. alpha.19 carries what `main` merged after alpha.18's C, `2c32fa7d`, the commit its
+tag names: 27 pull requests, 26 of them merged from 2026-11-23 at 21:17 UTC to 2026-11-24 at 15:51
+UTC, after the tag, and #2100, the identity provider's move, merged after them. None came from
+Dependabot. The summary says that alpha.19 is not deployed to live and that its changes reach live
+with alpha.20's deploy; no entry on `main` spoke of live's deploy from alpha.18. One
+entry's words change: the identity provider's (#2100), which said live takes v4.20.5 from
+alpha.19's tag, says it takes it with alpha.20's deploy.
+
+- the records of alpha.18's release, and of live's deploys of alpha.16 and alpha.17 (#2095);
+  alpha.19's counted nights waived in the owner's words (#2118), and alpha.20's (#2121);
+- workplan 0169, CalDAV, CardDAV and WebDAV sources on the managed door, labelled experimental,
+  with no Nextcloud source card (#2104);
+- workplan 0136: an address inside this service's own network with a failure category of its own,
+  `internal_address`, said as ours with the way out (#2107), and the Test answer and the sharing
+  refusal saying less, with the OTA stack keeping its own names (#2110);
+- the box for changing an address saying when to tick it (0168, #2103), a pass the job runner
+  retried counted once (0121, #2099), and `operator.sh leave` recording a removal without the
+  address (0139, #2102);
+- what workplan 0167 T9 left: code comments in the present tense (#2092), the refusals and printed
+  lines naming what it removed (#2097) and the current docs describing Trigger.dev (#2101), with
+  the capacity sample reading the workers (0143 T9, #2098);
+- the test mail server on Stalwart v1.2.0's Alpine build, on the owner's word, and the JMAP contact
+  writer reading its `ContactCard/parse` (ADR-0022, 0166 T9, #2091);
+- the identity provider's pin moved to Zitadel v4.20.5 (#2100), pnpm 11.29.0 (#2093), and, in CI
+  alone, Atlas v1.4.1 (#2090), squawk 2.74.0 (#2094) and zizmor 1.33.1 (#2096);
+- workplan 0160 T2b: the owner's live Drive test recorded (#2106), and the gate persisting the
+  demo's admitted hosts after the bring-up (#2105);
+- workplan 0170, the last 90 days first: its plan (#2108), the owner's answers (#2109) and D8, with
+  0006's PERF-1 read again and JS-07 a false positive (#2111); 0166's twelve open image alerts read
+  again (#2112); the alpha.20 workplan, 0171 (#2123); and the Status blocks catching up with merged
+  work (#2120).
+
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`: the
+  small open pull requests go into alpha.20.
+- **In the nights' place,** waived for alpha.19 (*"I waive all waiting/days, try to get it in the
+  upcomming alpha we are still working on."*, and, asked whether those words are alpha.19's waiver,
+  *"I waive all waiting/days: yes"*, #2118): E2E (managed) and E2E (self-hosted) on Postgres and on
+  PGlite, dispatched on `main` at C, one at a time, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** C's checks, its push runs and its Windows smoke, the image scans, and
+  the three E2E lanes at C, one at a time; then the Release run, which the owner starts from their
+  own account, with `commit` set to C and `waive_nights` set to the reason in their own words, and
+  the approval in the `release` environment.
+- **No deploy to live.** The owner decided on 2026-11-24 to tag alpha.19 without deploying it, and
+  to deploy alpha.20 to live on 2026-11-26. Live stays on alpha.18, which it runs since 2026-11-24
+  at 14:37:44 UTC; that deploy, from alpha.17, was one-way, by ledger migration 0075. So no deploy
+  sheet is filled from this tag, and what alpha.19 changes reaches live with alpha.20's deploy from
+  alpha.18. Between alpha.18's C and this one no file in either migration chain is added, changed
+  or removed, and the identity provider's pin moves from Zitadel `v4.20.4` to `v4.20.5` (#2100;
+  0119's entry of the same day). The deploy's own rule calls any move of that pin one-way, so
+  alpha.20's deploy from alpha.18 is one-way by that pin, whatever else alpha.20 brings.
+
+**2026-11-24, later: alpha.20's counted nights waived, in the owner's words (T4).** On the branch
+`claude/ownpace-public-readiness-y7orc6-a20-waiver`; merged as #2121 on 2026-11-24 at about 15:51
+UTC (`cdd6e899`). The owner wrote, the same day:
+*"for 20 i also waive al waiting/days."* `v0.2.0-alpha.20` joins `WAIVER_VERSIONS` in
+`scripts/release-nights.mjs` with those words; both list guards name it, and `v0.2.0-alpha.21` is
+now the version a waiver is refused for; `docs/release.md` lists it. It waives the nights and
+nothing else: the commit, the gates and the E2E runs in their place are read as for alpha.19. The
+guards: 119 of 119, and both fail with the new line taken out.
+
 **2026-11-24: alpha.19's counted nights waived, in the owner's words (T4).** On the branch
 `claude/ownpace-public-readiness-y7orc6-a19-waiver`; merged as #2118 on 2026-11-24 at about 14:13
 UTC (`8f46f61c`). Asking for workplan 0170 in the
