@@ -50,7 +50,8 @@
  * recover on the normal cadence — slowing those would delay exactly the
  * recovery the cadence exists for. Only the ones that need somebody to act
  * (`auth_expired`, `source_refused`, `target_refused`, `format_refused`,
- * `unknown`) are worth asking about less. That list is not maintained here —
+ * `internal_address`, `unknown`, and our own refusals) are worth asking about
+ * less. That list is not maintained here —
  * it is the complement of the set below, so the two refusals added on
  * 2026-09-17 landed on the needs-a-person side with no edit to this file.
  * Correctly: somebody has to re-enable downloading on the file, or pick an

@@ -331,7 +331,7 @@ describe('the failures route answers in our words (0136 T3, second step)', () =>
   it('says a socket error without the name it tried, and the rule refusal without the host', async () => {
     const said = await failures();
     expect(said[hashOf('socket')]).toMatch(/^Nothing answered at that address/);
-    expect(said[hashOf('rule')]).toMatch(/^That address is inside this service's own network/);
+    expect(said[hashOf('rule')]).toBe('We did not connect to this address.');
   });
 
   it('reads our own refusal, and an IMAP server\'s NO, as they were stored', async () => {

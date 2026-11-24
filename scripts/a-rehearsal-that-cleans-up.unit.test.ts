@@ -188,7 +188,10 @@ const ci = args.indexOf('-c');
 const sql = ci >= 0 ? args[ci + 1] : fs.readFileSync(0, 'utf8');
 fs.appendFileSync(process.env.STUB_SQL_LOG, sql + '\\n-- (end of one psql call)\\n');
 if (!process.env.STUB_PGLITE) {
-  process.stdout.write(process.env.STUB_PSQL_ANSWER || '');
+  // The sample's count of passes in flight has an answer of its own, when a
+  // case gives one, so it cannot be mistaken for numbackends.
+  const passes = process.env.STUB_PASSES_ANSWER !== undefined && /FROM run WHERE status = 'running'/.test(sql);
+  process.stdout.write((passes ? process.env.STUB_PASSES_ANSWER : process.env.STUB_PSQL_ANSWER) || '');
   process.exit(0);
 }
 (async () => {
@@ -895,12 +898,16 @@ describe('seed, then remove, leaves nothing of the rehearsal', () => {
 
 describe('a sample line carries every field T9 records', () => {
   const STATS = [
-    'runner-cm1abc|210.5MiB / 125GiB',
-    'runner-cm2def|1.5GiB / 125GiB',
-    // A runner that exited while `docker stats` collected: the CLI has no
+    // Every pass runs in its stack's worker since alpha.18: this stack's, and
+    // another stack's on the same daemon, both counted.
+    'rehearsal-stub-worker|2.5GiB / 4GiB',
+    'another-stack-worker|1.5GiB / 4GiB',
+    // A worker that exited while `docker stats` collected: the CLI has no
     // numbers for it, and says so this way.
-    'runner-cm3ghi|-- / --',
+    'third-stack-worker|-- / --',
     'rehearsal-stub-postgres-1|800MiB / 125GiB',
+    // What alpha.17 and before ran each pass in. Not a worker, so not counted.
+    'runner-cm1abc|210.5MiB / 125GiB',
     '',
   ].join('\n');
   const POOLS = [
@@ -918,6 +925,7 @@ describe('a sample line carries every field T9 records', () => {
     s.env.STUB_STATS = join(s.root, 'stats');
     s.env.STUB_POOLS = join(s.root, 'pools');
     s.env.STUB_PSQL_ANSWER = '37\n';
+    s.env.STUB_PASSES_ANSWER = '4\n';
     return s;
   }
 
@@ -936,15 +944,16 @@ describe('a sample line carries every field T9 records', () => {
     return existsSync(dir) ? readdirSync(dir).map((f) => join(dir, f)) : [];
   };
 
-  it('prints the containers, the host, the pooler and the database, and appends it to a file', () => {
+  it('prints the workers, the passes in flight, the host, the pooler and the database, and appends it to a file', () => {
     const s = sampleStage();
     const r = run(s, ['--sample', '--count', '1']);
     expect(r.status, r.out).toBe(0);
     expect(fieldsOf(r.out)).toEqual({
-      // The runner it could not read is counted, and says `?` for itself alone.
-      tasks: '3',
-      task_mem_mib: 'runner-cm1abc:211,runner-cm2def:1536,runner-cm3ghi:?',
-      task_mem_max_mib: '1536',
+      // The worker it could not read is counted, and says `?` for itself alone.
+      workers: '3',
+      worker_mem_mib: 'rehearsal-stub-worker:2560,another-stack-worker:1536,third-stack-worker:?',
+      worker_mem_max_mib: '2560',
+      passes_in_flight: '4',
       mem_available_mib: '96000',
       mem_total_mib: '128000',
       swap_used_mib: '1024',
@@ -965,12 +974,24 @@ describe('a sample line carries every field T9 records', () => {
     expect(text).toMatch(/^# /m);
   });
 
-  it('says `?` for the largest memory when no runner could be read, and still counts them', () => {
-    const s = sampleStage(['runner-cm9xyz|-- / --', 'rehearsal-stub-postgres-1|800MiB / 125GiB', ''].join('\n'));
+  it('says `?` for the largest memory when no worker could be read, and still counts them', () => {
+    const s = sampleStage(['rehearsal-stub-worker|-- / --', 'rehearsal-stub-postgres-1|800MiB / 125GiB', ''].join('\n'));
     const r = run(s, ['--sample', '--count', '1']);
     expect(r.status, r.out).toBe(0);
     const f = fieldsOf(r.out);
-    expect([f.tasks, f.task_mem_mib, f.task_mem_max_mib]).toEqual(['1', 'runner-cm9xyz:?', '?']);
+    expect([f.workers, f.worker_mem_mib, f.worker_mem_max_mib]).toEqual(['1', 'rehearsal-stub-worker:?', '?']);
+  });
+
+  it('counts the passes in flight with the window the tick uses, and says `?` when it cannot, never 0', () => {
+    const s = sampleStage();
+    const r = run(s, ['--sample', '--count', '1']);
+    expect(r.status, r.out).toBe(0);
+    const script = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8');
+    const seconds = /^STALE_RUN_AFTER_SECONDS=(\d+)$/m.exec(script)?.[1];
+    const sql = readFileSync(s.env.STUB_SQL_LOG!, 'utf8');
+    expect(sql).toContain(`FROM run WHERE status = 'running' AND started_at > now() - interval '${seconds} seconds'`);
+    const unread = run(s, ['--sample', '--count', '1'], { STUB_PASSES_ANSWER: '' });
+    expect(fieldsOf(unread.out).passes_in_flight).toBe('?');
   });
 
   it('asks the pooler at the address its own healthcheck proves', () => {
@@ -1000,7 +1021,7 @@ describe('a sample line carries every field T9 records', () => {
     const s = sampleStage();
     const r = run(s, ['--sample', '--count', '1'], { STUB_STATS_FAIL: '1' });
     expect(r.status, r.out).toBe(0);
-    expect(r.out).toContain('tasks=? task_mem_mib=? task_mem_max_mib=?');
+    expect(r.out).toContain('workers=? worker_mem_mib=? worker_mem_max_mib=?');
   });
 
   it('says `?` for the connections it could not count, never 0', () => {

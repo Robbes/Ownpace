@@ -4,6 +4,16 @@
 
 ## Status — 2026-11-23 (update this block at the end of every session)
 
+**2026-11-23, night: T9's sample reads the workers (0167 T9's leftover).** `rehearse-capacity.sh
+--sample` counted `runner-*` containers, which no stack has started since alpha.18, so its task
+fields read `tasks=0` on every line. It now writes `workers`, `worker_mem_mib` and
+`worker_mem_max_mib` for every `<project>-worker` container on the daemon, both stacks', since each
+pass runs in its stack's worker as a process the worker forks, and `passes_in_flight`: run rows
+still `running` within `STALE_RUN_AFTER_SECONDS`, the window the tick counts against
+`MAX_PASSES_IN_FLIGHT`. A value it cannot read is `?`, never 0, as before. `docs/performance.md`
+says how the sitting sets the caps: in the stack's `.env`, then the bring-up, which sizes the
+worker. The sitting is still the owner's.
+
 **2026-11-23: alpha.18 removes Trigger.dev (workplan 0167 T9).** The plane's machine presets
 and its environment limit (`plane-limit.sh`) are gone with it; the pass cap in
 `managed-sync-tick` stands, and the worker holds every queue together to `MAX_PASSES_IN_FLIGHT` + 2

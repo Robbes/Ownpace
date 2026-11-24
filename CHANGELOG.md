@@ -4,6 +4,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
+  of 2026-11-24: *"yes to all, build them. But dont add the nextcloud as source card, add only
+  the generic cards as source."*). Three source cards in the *Any server, by protocol* lane beside
+  IMAP, and three tiles on *Start a migration*: **Calendar server (CalDAV)**, **Contacts server
+  (CardDAV)** and **File server (WebDAV)**. Each takes a host and a port, or a DAV base URL, and a
+  login, carries only its protocol's data types, and is labelled **Experimental** until a real
+  run proves it. The create route accepts the three as source types and still refuses
+  `nextcloud`, which stays a destination card only; a Nextcloud is left through these three. The
+  worker builds them with the DAV connectors the appliance has used since workplan 0007, Test
+  lists each one's calendars, address books or folders, and every host typed for them passes the
+  same check against addresses inside the service's own network as an IMAP source or a DAV
+  target. The permission report reads a WebDAV source's shares at the base URL it was given, and
+  no longer calls a plain WebDAV server a Nextcloud. No database change: the three kinds have
+  been allowed on a connection since the first migration, for the DAV targets. The DAV guide, in
+  English and Dutch, has a section for each. Answers 0141's open question 9 with (b).
+
 ### Changed
 
 - **The identity provider moves to Zitadel v4.20.5** (workplan 0119; the pin watch's #1934), from
@@ -11,6 +29,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   stack runs changes: per platform its images keep v4.20.4's base layers, and the binary's differs
   by what a new version string makes. The OTA instance's database was dumped by hand before E2E
   (managed) applied it there, and live takes it from alpha.19's tag.
+- **The Test answer and the sharing checklist say less about an address this service will not
+  connect to** (workplan 0136; the owner, 2026-11-24: *"yes, follow-up"*). Where they named this
+  service's own network, the **Test** button on Accounts now says *"We did not connect to that
+  address. Enter an internet address of the server."* (*"Geen verbinding gemaakt met dat adres. Vul
+  een internetadres van de server in."*), and a share the checklist could not apply says *"We did
+  not connect to the new system's address, so nothing was shared. On the Accounts page, enter an
+  internet address of the server."* The OTA stack and a test box may still list test servers of
+  their own on a private network in `OWNPACE_REACHABLE_HOSTS`, by name; the E2E (managed) gate keeps
+  such a name, and live's list stays empty (`docs/managed-bring-up.md`).
 - **pnpm 11.29.0** (workplan 0119; the pin watch's #2088), from alpha.18's 11.28.13, in
   `package.json`'s `packageManager`, which CI and the images read. npm published it on 2026-11-22
   at 13:58 UTC; it is taken inside its three-day floor, on the owner's word of 2026-11-23:
@@ -40,6 +67,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   1.32.0 does, in the same nineteen files, and its auditor persona reports the same 32 findings.
   `a-workflow-zizmor-would-flag` now holds each `semver-*-days` a Dependabot entry sets to the
   three days as well. Nothing deployed changes.
+- **The box for changing an address says when to tick it** (workplan 0168; the owner,
+  2026-11-24: *"yes to all, build them"*). On *Where does it go?*, *I am also changing my email
+  address* (*Ik krijg ook een ander e-mailadres*) names the email address. One line under it says
+  to tick it only when leaving an email address of one's own behind, and a screen reader reads it
+  with the box; *Why?* opens the rest: an old company's domain as the example, that the next step
+  asks what replaces it in contacts, calendars, tasks and shares, and that mail and content are
+  never changed. The page of address changes says the same last sentence, in the owner's Dutch:
+  *"Mail en inhoud worden nooit gewijzigd."*
 
 ### Fixed
 
@@ -60,6 +95,44 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   one card; spread into the `ContactCard/set` create, the list was refused as `invalidProperties`.
   The writer reads either shape and takes the card with the contact's own UID, refusing a blob
   whose cards do not say which one it is. Its refusals now name the properties a server refused.
+- **The capacity rehearsal's sample measures the workers, not the runners alpha.18 removed**
+  (workplan 0143 T9). `rehearse-capacity.sh --sample` counted `runner-*` containers, which no stack
+  starts since alpha.18, so every line read `tasks=0`. It now reads every stack's `worker`
+  container and its memory, where each pass runs, and this stack's passes in flight, as the tick
+  counts them; `docs/performance.md` says how the sitting sets the caps since T9.
+- **Docs that still described Trigger.dev in the present tense** (workplan 0167, after T9).
+  `docs/deployment.md` names the `worker` service on pg-boss where it named the plane and the
+  tasks' prebuilt base; the incident runbook's scheduled-syncs row and the breach procedure's
+  hard stop and run records name `operator.sh jobs` where they named Trigger.dev's dashboard;
+  and the cutover and owner-test runbooks, `docs/release.md`, the self-host quickstart and
+  README and the ledger's README no longer name a removed runner, mode or step. Dated and
+  comparing mentions stay.
+- **The sync count counts a retried pass once** (workplan 0121, after 0167). On pg-boss each
+  attempt of a pass opens a run row of its own, so a pass that failed once and was retried
+  counted as two sync operations in `/api/billing/usage` and in what an invoice freezes. The
+  count now goes by the job, `orchestrator_ref`; compute hours still count each attempt's
+  seconds, and no price reads the count. The owner, 2026-11-24: *"count a retried pass once, in a
+  small alpha.19 PR: yes."*
+- **`operator.sh leave` records a removal without the address** (workplan 0139). Its
+  `member.removed` record, kept in the organisation's `audit_log` until the organisation is
+  erased, carried the address of the platform operator it removed beside their subject. It now
+  names the subject, the membership's id, role and status, the door and whether the organisation
+  was left empty, and no address, as the Team page's removal does (0135 T8). Nothing read the
+  address: the strays duty reads the subject. The undo the script prints for an organisation it
+  leaves empty still names it, on the terminal. Records written before keep it until their
+  organisation is erased, and the audit export gives it as a pseudonym.
+- **An address this service will not connect to is said as ours, with the way out** (workplan
+  0136). On managed, a host a tenant gives us is refused when it is inside this service's own
+  network, and that refusal had no failure category: it read `unknown`, so a migration's screen
+  called our own sentence *"the provider's own message"* and offered *Send it to us*. The refusal
+  now states a new category, `internal_address`, which travels on the error and along its
+  `cause`. The screen says, in the owner's Dutch, *"Geen verbinding gemaakt, pas het serveradres
+  aan. Druk op de pagina Accounts op Inloggegevens vervangen en vul een internetadres van de
+  server in; daarna wordt verdergegaan waar gestopt was."*, with *Open Accounts* beside it on
+  the progress strip, and nothing of what is inside this service. Like the other refusals that
+  need a person, a failing migration is asked less often until somebody acts. The API answers the
+  failure *"We did not connect to this address."*, without the host. Rows recorded before keep
+  their category until the next pass.
 
 ### Security
 

@@ -2028,7 +2028,7 @@ describe('a Test at a typed address reads in the page’s language (0136 T3)', (
     const said = { kind: 'insideOurNetwork' as const, reference: '1a2b3c4d' };
     testConnection.mockResolvedValue({
       ok: false,
-      reason: 'That address is inside this service’s own network … Reference 1a2b3c4d.',
+      reason: 'We did not connect to that address. … Reference 1a2b3c4d.',
       outcome: { code: 'insideOurNetwork' },
       said,
       qualification: {
@@ -2036,7 +2036,7 @@ describe('a Test at a typed address reads in the page’s language (0136 T3)', (
           calendar: {
             answer: 'unknown',
             reason: 'refused',
-            detail: 'Unmeasured — that address is inside this service’s own network … Reference 1a2b3c4d.',
+            detail: 'Unmeasured — we did not connect to that address. … Reference 1a2b3c4d.',
             said,
           },
         },
@@ -2047,10 +2047,12 @@ describe('a Test at a typed address reads in the page’s language (0136 T3)', (
     fireEvent.click(await screen.findByText(STRINGS.nl['connections.test']));
 
     expect(
-      await screen.findByText(/^Dat adres ligt binnen het eigen netwerk van deze dienst.*Referentie 1a2b3c4d\.$/),
+      await screen.findByText(/^Geen verbinding gemaakt met dat adres\. Vul een internetadres van de server in\. Referentie 1a2b3c4d\.$/),
     ).toBeTruthy();
-    expect(screen.getByText(/^Agenda: Niet gemeten — dat adres ligt binnen het eigen netwerk/)).toBeTruthy();
-    expect(screen.queryByText(/inside this service’s own network/)).toBeNull();
+    expect(screen.getByText(/^Agenda: Niet gemeten — geen verbinding gemaakt met dat adres\./)).toBeTruthy();
+    expect(screen.queryByText(/we did not connect to that address/i)).toBeNull();
+    // Nothing of what is inside this service, in either language (the owner, 2026-11-24).
+    expect(screen.queryByText(/eigen netwerk|own network/)).toBeNull();
   });
 
   it('the limit on tests says so in Dutch, not in the server’s English', async () => {

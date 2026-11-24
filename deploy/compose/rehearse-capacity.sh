@@ -11,8 +11,8 @@
 # is the owner's (0143 T9, "The sitting").
 #
 #   --seed N M      N rehearsal organisations, M migrations each, on */15
-#   --sample        one line every 10 s: the task containers, the host, the
-#                   pooler and the database
+#   --sample        one line every 10 s: the workers, the passes in flight,
+#                   the host, the pooler and the database
 #   --remove        takes back every row of the rehearsal, and counts it
 #
 # NEVER ON LIVE. The script refuses a `.env` carrying live's marker, in every
@@ -651,18 +651,21 @@ do_remove() {
 # ---------------------------------------------------------------------------
 PROC_ROOT="${REHEARSAL_PROC:-/proc}"
 
-# "tasks=… task_mem_mib=… task_mem_max_mib=…" for every runner container on
-# this Docker daemon — both stacks', because the machine is what is measured.
-# A runner whose memory `docker stats` could not read (it prints `-- / --` for
-# one that exited while it collected, which is what runners do at the quarter
-# hour) is counted, and written as `name:?`; the largest is taken over the
-# ones it could read, and is `?` when it could read none. Only a failed
-# `docker stats` makes all three `?`.
-task_fields() {
+# "workers=… worker_mem_mib=… worker_mem_max_mib=…" for every worker
+# container on this Docker daemon, `<project>-worker` (managed.yml's
+# container_name): both stacks', because the machine is what is measured.
+# Since alpha.18 every pass runs in its stack's worker, as a process the worker
+# forks (workplan 0167), so a worker's memory is that of its runs together;
+# until then each ran in a `runner-*` container of its own, which this counted.
+# A worker whose memory `docker stats` could not read (it prints `-- / --` for
+# one that exited while it collected) is counted, and written as `name:?`; the
+# largest is taken over the ones it could read, and is `?` when it could read
+# none. Only a failed `docker stats` makes all three `?`.
+worker_fields() {
   local stats
   if ! stats="$(docker stats --no-stream --format '{{.Name}}|{{.MemUsage}}' 2>&1)"; then
     printf '[rehearsal] docker stats failed: %s\n' "$stats" >&2
-    printf 'tasks=? task_mem_mib=? task_mem_max_mib=?'
+    printf 'workers=? worker_mem_mib=? worker_mem_max_mib=?'
     return 0
   fi
   if ! awk -F'|' '
@@ -676,7 +679,7 @@ task_fields() {
         if (unit == "TiB" || unit == "TB") return num * 1048576
         return -1
       }
-      $1 ~ /^runner-/ {
+      $1 ~ /-worker$/ {
         split($2, parts, " / ")
         m = mib(parts[1])
         if (m < 0) {
@@ -690,9 +693,9 @@ task_fields() {
         n++
       }
       END {
-        printf "tasks=%d task_mem_mib=%s task_mem_max_mib=%s", n, (n ? list : "none"), (nread || !n ? max + 0 : "?")
+        printf "workers=%d worker_mem_mib=%s worker_mem_max_mib=%s", n, (n ? list : "none"), (nread || !n ? max + 0 : "?")
       }' <<<"$stats"; then
-    printf 'tasks=? task_mem_mib=? task_mem_max_mib=?'
+    printf 'workers=? worker_mem_mib=? worker_mem_max_mib=?'
   fi
 }
 
@@ -751,8 +754,21 @@ backend_fields() {
   printf 'numbackends=%s' "$nb"
 }
 
+# "passes_in_flight=…": this stack's passes in flight, every organisation's,
+# counted as the tick counts them against MAX_PASSES_IN_FLIGHT: run rows still
+# `running` and younger than STALE_RUN_AFTER_SECONDS. Since alpha.18 they are
+# what share the worker's memory above.
+pass_fields() {
+  local n
+  if ! n="$(printf "SELECT count(*) FROM run WHERE status = 'running' AND started_at > now() - interval '%s seconds';\n" "$STALE_RUN_AFTER_SECONDS" | db 2>&1)" || ! [[ "$n" =~ ^[0-9]+$ ]]; then
+    printf '[rehearsal] the passes in flight could not be counted: %s\n' "$n" >&2
+    n='?'
+  fi
+  printf 'passes_in_flight=%s' "$n"
+}
+
 sample_line() {
-  printf '%s %s %s %s %s' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(task_fields)" "$(host_fields)" "$(pool_fields)" "$(backend_fields)"
+  printf '%s %s %s %s %s %s' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(worker_fields)" "$(pass_fields)" "$(host_fields)" "$(pool_fields)" "$(backend_fields)"
 }
 
 do_sample() {
@@ -764,7 +780,8 @@ do_sample() {
   if [ ! -s "$file" ]; then
     {
       printf '# rehearse-capacity.sh --sample on compose project %s, every %s s (workplan 0143 T9).\n' "$COMPOSE_PROJECT" "$interval"
-      printf '# tasks, task_mem_mib: runner containers on this Docker daemon (both stacks) and each one'"'"'s memory.\n'
+      printf '# workers, worker_mem_mib: the worker containers on this Docker daemon (both stacks), where every pass runs, and each one'"'"'s memory.\n'
+      printf '# passes_in_flight: this stack'"'"'s run rows still running, in the window the tick counts (MAX_PASSES_IN_FLIGHT).\n'
       printf '# mem_*, swap_used_mib, load*: the host. pool_*: PgBouncer SHOW POOLS, clients waiting and the longest wait.\n'
       printf '# numbackends: connections to this stack'"'"'s Postgres. ? means the value could not be read, never 0.\n'
     } >>"$file"

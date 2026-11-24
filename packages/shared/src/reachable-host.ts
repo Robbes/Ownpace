@@ -80,6 +80,7 @@ import type { Dispatcher, buildConnector as UndiciBuildConnector } from 'undici'
 import Agent from 'undici/lib/dispatcher/agent.js';
 import buildConnector from 'undici/lib/core/connect.js';
 import Dispatcher1Wrapper from 'undici/lib/dispatcher/dispatcher1-wrapper.js';
+import { withFailureCategory } from './stated-failure-category.ts';
 
 /**
  * Every range a host we are asked to reach may not resolve into.
@@ -187,6 +188,13 @@ export function refusedHostShape(host: string): 'not a host name' | 'a single-la
  * THE REFUSAL, in our words. It names the host as it was typed and never the
  * address it resolved to: which address that was is the service's business,
  * and saying it would tell the person what is inside our network.
+ *
+ * IT STATES ITS OWN CATEGORY, `internal_address` (2026-11-24). The sentence is
+ * ours, and read as prose it fell to `unknown`, whose screen called it *"the
+ * provider's own message"* and offered *"Send it to us"* instead of the way
+ * out, a different address on the account. The tag travels on this object and
+ * along any `cause` chain that holds it (`statedFailureCategoryOf`), which is
+ * how undici's `fetch failed` carries it when `tenantFetch` is not the caller.
  */
 export class HostInsideOurNetwork extends Error {
   /** A code a screen can key its own sentence on (0136 T1, in both languages). */
@@ -201,6 +209,7 @@ export class HostInsideOurNetwork extends Error {
     );
     this.name = 'HostInsideOurNetwork';
     this.host = host;
+    withFailureCategory('internal_address', this);
   }
 }
 

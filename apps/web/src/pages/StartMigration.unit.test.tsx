@@ -201,14 +201,15 @@ describe('Who is it for? (screen 1)', () => {
 });
 
 describe('Which account are you leaving or moving? (screen 2)', () => {
-  it('draws six tiles with none ticked, and waits for one', async () => {
+  // Nine since workplan 0169: the drawing's six, and the three DAV protocols.
+  it('draws nine tiles with none ticked, and waits for one', async () => {
     const user = userEvent.setup();
     renderAt();
     await user.type(await screen.findByLabelText('Name'), 'Anna Jansen');
     await user.click(next());
     const tiles = screen.getAllByRole('checkbox');
     expect(tiles.map((c) => c.getAttribute('aria-checked') ?? String((c as HTMLInputElement).checked))).toEqual(
-      Array(6).fill('false'),
+      Array(9).fill('false'),
     );
     expect(next()).toHaveAccessibleDescription('Tick at least one account.');
     await user.click(screen.getByRole('checkbox', { name: /^Google/ }));
@@ -243,21 +244,22 @@ describe('Which account are you leaving or moving? (screen 2)', () => {
     expect(why.closest('label')).toBeNull();
   });
 
-  it('has no export line, and its fold names IMAP alone, ticks Another mail provider, and leads to no wizard', async () => {
-    // 0153 open question 5: every export has a provider (item 2), and the one
-    // source protocol is IMAP, which is a tile. CalDAV, CardDAV, WebDAV and
-    // JMAP are destinations, and the fold no longer names them as ways in.
+  it('has no export line, and its fold names the source protocols, ticks Another mail provider, and leads to no wizard', async () => {
+    // 0153 open question 5: every export has a provider (item 2). The source
+    // protocols are IMAP and, since workplan 0169 (the owner, 2026-11-24),
+    // CalDAV, CardDAV and WebDAV, each a tile; JMAP is a destination only.
     const user = userEvent.setup();
     peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
     renderAt('/start?person=p-anna');
     await screen.findByRole('radio', { name: 'Anna Jansen' });
     await user.click(next());
     expect(screen.queryByText(/export archive/i)).not.toBeInTheDocument();
-    await user.click(screen.getByText('Other ways to connect (IMAP)'));
+    await user.click(screen.getByText('Other ways to connect (IMAP, CalDAV, CardDAV, WebDAV)'));
     expect(screen.getByText(/Any other mail provider works: choose Another mail provider/)).toBeInTheDocument();
-    // Calendars, contacts and files from other servers are destinations only,
-    // said without a protocol's name (the owner, 2026-10-14).
-    expect(screen.getByText(/Other servers can receive them/)).toBeInTheDocument();
+    // Calendars, contacts and files are read from any DAV server since workplan
+    // 0169, a Nextcloud among them, through its tile: no Nextcloud card.
+    expect(screen.getByText(/any server that speaks CalDAV, CardDAV or WebDAV, a Nextcloud among them/)).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /^Nextcloud/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Add one migration by hand' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Choose Another mail provider' }));
     expect(screen.getByRole('checkbox', { name: 'Another mail provider' })).toBeChecked();
@@ -2270,12 +2272,33 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     renderAt();
     await toWhere(user);
     expect(screen.getByText('Step 5 of 6')).toBeInTheDocument();
-    await user.click(screen.getByRole('checkbox', { name: 'I am also changing my address' }));
+    await user.click(screen.getByRole('checkbox', { name: 'I am also changing my email address' }));
     expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
     await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Your new address' });
     expect(screen.getByText("You are leaving name@example.org. Your new account's address is first@example.org.")).toBeInTheDocument();
     expect(screen.queryByText(/on another domain/)).not.toBeInTheDocument();
+  });
+
+  // The owner, 2026-11-24 ("yes to all, build them"): the box says when to
+  // tick it, in one line under it that a screen reader reads with the box,
+  // and what follows behind *Why?*, as 0118's hints fold the rest.
+  it('says under the box when to tick it, a screen reader hears it with the box, and Why? opens the rest', async () => {
+    accounts('name@example.org');
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    const hint = 'Only when you leave an email address of your own behind.';
+    const line = screen.getByText(hint);
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).toHaveAccessibleDescription(
+      hint,
+    );
+    const rest =
+      'For example an old company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and shares. Mail and content are never changed.';
+    const fold = within(line.parentElement!);
+    expect(fold.getByText(rest)).not.toBeVisible();
+    await user.click(fold.getByText('Why?'));
+    expect(fold.getByText(rest)).toBeVisible();
   });
 
   // The owner, 2026-11-23, decision (b): "Ask by itself when the new account's
@@ -2287,7 +2310,7 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     const user = userEvent.setup();
     renderAt();
     await toWhere(user);
-    expect(screen.getByRole('checkbox', { name: 'I am also changing my address' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).not.toBeChecked();
     expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
     await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Your new address' });
@@ -2327,7 +2350,7 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     const user = userEvent.setup();
     renderAt();
     await toWhere(user);
-    expect(screen.getByRole('checkbox', { name: 'I am also changing my address' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).not.toBeChecked();
     expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
     await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Your new address' });
@@ -2351,7 +2374,7 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     const user = userEvent.setup();
     renderAt();
     await toWhere(user);
-    expect(screen.getByRole('checkbox', { name: 'I am also changing my address' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).not.toBeChecked();
     expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
     await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Your new address' });

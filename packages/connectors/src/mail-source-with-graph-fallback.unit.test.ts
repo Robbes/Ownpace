@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { SourceConnector, MailFolder } from '@openmig/shared';
+import { withFailureCategory } from '@openmig/shared';
 import {
   MailSourceWithGraphFallback,
   isImapAuthFailure,
@@ -46,6 +47,16 @@ describe('isImapAuthFailure', () => {
       expect(isImapAuthFailure(new Error(msg))).toBe(false);
     },
   );
+
+  it('does not classify an error that states its own category, whatever its words say', () => {
+    // Our refusal of an address inside this service's network names the typed
+    // host; `401` in that host is not a login failure (2026-11-24).
+    const refused = withFailureCategory(
+      'internal_address',
+      new Error("mail401.example.org is an address inside this service's own network, so we do not connect to it."),
+    );
+    expect(isImapAuthFailure(refused)).toBe(false);
+  });
 
   it('does not classify a non-Error', () => {
     expect(isImapAuthFailure('AUTHENTICATE failed')).toBe(false);

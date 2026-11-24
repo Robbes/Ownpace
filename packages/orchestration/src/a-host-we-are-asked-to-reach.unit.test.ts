@@ -19,6 +19,11 @@
  * - An IMAP host typed as `127.0.0.1` is refused before a socket opens, and
  *   the stub listening there sees no connection.
  *
+ * The same holds for a DAV SOURCE (workplan 0169): a CalDAV, CardDAV or WebDAV
+ * source's host is typed by a tester as a DAV target's is, and its Test goes
+ * through the same rule, whether the host is typed as a base URL or as a host
+ * and a port.
+ *
  * With the rule off, as on the appliance, the same probes typed as
  * `127.0.0.1` do reach the stub and do follow its redirect. That is the
  * control: it shows the stub can be reached and its redirect followed, so the
@@ -30,7 +35,7 @@ import http from 'node:http';
 import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { refuseInternalAddresses, type ResolveAll } from '@openmig/shared/reachable-host';
-import { probeTargetConnection } from './probe-connection.ts';
+import { probeSourceConnection, probeTargetConnection } from './probe-connection.ts';
 
 /** Where the stub's redirect sends a client: itself, by the loopback address. */
 const INSIDE = '/inside';
@@ -98,6 +103,15 @@ const HTTP_TARGETS = [
   { kind: 'jmap', config: (origin: string) => ({ type: 'jmap', baseUrl: origin }) },
 ] as const;
 
+/**
+ * Each DAV SOURCE a tester types a host for (workplan 0169), as the create
+ * route stores it: by its base URL, and by host and port.
+ */
+const DAV_SOURCES = (['caldav', 'carddav', 'webdav'] as const).flatMap((kind) => [
+  { kind, typed: 'a base URL', config: (host: string) => ({ host: '', url: `http://${host}:${port}/dav/` }) },
+  { kind, typed: 'a host and a port', config: (host: string) => ({ host, port, useSsl: false }) },
+]);
+
 describe('the Test button, with the rule on', () => {
   it.each(HTTP_TARGETS)('a $kind target: reached by its admitted name, and its redirect inward not followed', async ({ kind, config }) => {
     release = refuseInternalAddresses({ allow: ['dav.test'], resolve });
@@ -130,9 +144,43 @@ describe('the Test button, with the rule on', () => {
   });
 });
 
+describe('the Test button on a DAV source, with the rule on (workplan 0169)', () => {
+  it.each(DAV_SOURCES)('a $kind source typed as $typed: reached by its admitted name, and its redirect inward not followed', async ({ kind, config }) => {
+    release = refuseInternalAddresses({ allow: ['dav.test'], resolve });
+
+    const result = await probeSourceConnection(kind, config('dav.test'), CREDS);
+
+    expect(result.ok).toBe(false);
+    expect(
+      arrivals.filter((a) => a.host === `dav.test:${port}`).length,
+      'nothing arrived by the admitted name, so the probe did not go through the rule',
+    ).toBeGreaterThan(0);
+    expect(
+      arrivals.filter((a) => a.path.startsWith(INSIDE)),
+      'a request followed the redirect to the loopback address',
+    ).toEqual([]);
+  });
+
+  it.each(DAV_SOURCES)('a $kind source typed as $typed at 127.0.0.1: refused before a request arrives, in our words', async ({ kind, config }) => {
+    release = refuseInternalAddresses({ resolve });
+
+    const result = await probeSourceConnection(kind, config('127.0.0.1'), CREDS);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/127\.0\.0\.1 is an address inside this service's own network/);
+    expect(arrivals).toEqual([]);
+  });
+});
+
 describe('the control: the same probes with the rule off, as on the appliance', () => {
   it.each(HTTP_TARGETS)('a $kind target at 127.0.0.1 is reached, and its redirect followed', async ({ kind, config }) => {
     await probeTargetConnection(kind, config(`http://127.0.0.1:${port}`), CREDS);
+
+    expect(arrivals.filter((a) => a.path.startsWith(INSIDE)).length).toBeGreaterThan(0);
+  });
+
+  it.each(DAV_SOURCES)('a $kind source typed as $typed at 127.0.0.1 is reached, and its redirect followed', async ({ kind, config }) => {
+    await probeSourceConnection(kind, config('127.0.0.1'), CREDS);
 
     expect(arrivals.filter((a) => a.path.startsWith(INSIDE)).length).toBeGreaterThan(0);
   });

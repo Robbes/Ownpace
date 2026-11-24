@@ -2,7 +2,89 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-11-15 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24, build: the Test answer and the sharing refusal say less, and the OTA stack keeps names
+of its own.** On the branch `claude/ownpace-public-readiness-y7orc6-neutral-refusals`, for alpha.19;
+not merged. Asked whether the **Test** answer on Accounts and the sharing checklist's refusal should
+say less too, as the failure line now does (the entry below), the owner answered *"yes, follow-up"*,
+and then: *"merge when green, no need to show me. But do please note that in OTA/test we need to keep
+being able to add the internal addressess."*
+
+- The Test answer (`probe-answer.ts`, and the web's `probe.said.insideOurNetwork`): *"We did not
+  connect to that address. Enter an internet address of the server."*, in Dutch *"Geen verbinding
+  gemaakt met dat adres. Vul een internetadres van de server in."*, the Dutch the owner was shown.
+  The outcome code stays `insideOurNetwork`, and the reference still ends the sentence.
+- The sharing checklist's refusal (`share-refusals.ts`): *"We did not connect to the new system's
+  address, so nothing was shared. On the Accounts page, enter an internet address of the server."*,
+  in Dutch *"Geen verbinding gemaakt met het adres van het nieuwe systeem, dus er is niets gedeeld.
+  Vul op de pagina Accounts een internetadres van de server in."* The owner was shown the two
+  sentences without *dus er is niets gedeeld* and *op de pagina Accounts*; both are kept because
+  every other refusal on the checklist says whether anything was shared and where the address is
+  changed.
+- OTA and test: `OWNPACE_REACHABLE_HOSTS` may list a test server on a private network beside the
+  demo's two, by a name the stack resolves; an address is never admitted by the list. The demo phase
+  keeps every name it finds, and the gate's persist step (#2105) writes the whole list back, so a
+  name added by hand stays. Live's list stays empty, as `stand-up-live.sh` and `deploy-live.sh`
+  require. Written down in `docs/managed-bring-up.md` (the `.env` reference, the demo phase, the
+  rule, and the troubleshooting row) and in `managed.env.example`.
+
+Guards: `share-refusals.unit.test.ts` (the sentence in both languages, and no word for a network,
+inside or internal in either), `probe-answer.unit.test.ts` (the same for the Test answer),
+`a-probe-that-does-not-read-aloud.unit.test.ts`, `an-answer-a-dutch-tester-read-in-english.unit.test.ts`
+and `Connections.unit.test.tsx`; and `scripts/demo-hosts-persisted.unit.test.ts`, which runs the
+gate's restore step, the demo phase's `admit_demo_hosts` and the persist step in that order, twice,
+finds the hand-added name and the demo's two in the persisted `.env`, and checks that the Fill step
+never names the key and that Compose reads it with a default. No E2E: the change is sentences, docs
+and tests, and the smoke reads none of these sentences.
+
+**2026-11-24, build: the rule's refusal has a failure category of its own, `internal_address`.** On
+the branch `claude/ownpace-public-readiness-y7orc6-internal-address`, for alpha.19, merged as #2107
+on 2026-11-24 at about 12:28 UTC (`560875f0`), after CI and E2E (managed) run 45390173330, E2E
+(self-hosted) on Postgres run 45391192540 and on PGlite run 45392130524 were green on its head. On
+the OTA test environment a Dropbox → Nextcloud migration's files were refused by T1's rule, and the
+screen read *"We could not classify this one. The provider's own message is below — if it does not
+help, send it to us and we will look. It happened at the destination. Send it to us."* above the
+rule's own sentence. `HostInsideOurNetwork` had no category, so it fell to `unknown`, whose remedy
+calls the text the provider's and offers *Send it to us* instead of the way out, a different address
+on the account. The owner, the same day: *"yes, build the classification fix"*.
+
+- `FAILURE_CATEGORIES` has an eleventh, `internal_address`, never matched from prose:
+  `HostInsideOurNetwork` states it in its constructor (`withFailureCategory`), so
+  `statedFailureCategoryOf` finds it on the error and along a `cause` chain. Every path a pass takes
+  was traced: `tenantFetch` rethrows the refusal itself, the IMAP doors call `reachableHost` before
+  imapflow sees anything, and the DAV and JMAP wrappers rethrow the same object or keep it as
+  `cause`. No caller tags a caught error above it. One place read it as words: the O365 IMAP →
+  Graph fallback took any message holding `401` as a login failure, and a typed host can hold
+  `401`. It now leaves an error that states its own category alone.
+- Not self-healing: `failing-backoff`'s guard names it on the needs-a-person side.
+- Screens: `failure.internalAddress` and `view.failure.internalAddress`, in English and Dutch. The
+  remedy names the Accounts page and *Replace credentials*, and the progress strip links *Open
+  Accounts* beside it, as for `auth_expired`. The owner read the first remedy, which named this
+  service's own network, and answered: *"this tell too much about our internals. Make it like
+  'Geen verbinding gemaakt, pas het serveradres aan. Druk op de pagina Accounts op Inloggegevens
+  vervangen en vul het adres een server internet adres in; daarna wordt verdergegaan waar
+  gestopt was.'"* The remedy is that, with *vul een internetadres van de server in* for the
+  phrase in the middle, and the English is conformed to it. The view's sentence the owner
+  approved as written (*"2: ok"*).
+- API: not in `failure-answer.ts`'s `OURS`. The stored text names a host, the one typed or one a
+  redirect named, so the failure is always answered *"We did not connect to this address."*
+  (`NOT_CONNECTED`), which names no host and nothing inside this service, whichever side and
+  whatever the source. The **Test** answer on Accounts and the sharing checklist's refusal keep
+  0136's sentence for now; whether they say less too is put to the owner (they do: the entry
+  above).
+- The column is `text` with no CHECK (migration 0033), so no schema change. 0048, 0049 and 0051's
+  COMMENTs list the categories and no test requires them to name every one; they were not
+  updated for `too_large` either, and no migration was added.
+- OpenAPI's four `enum` lists and the runbook's two `CASE` lists name it.
+
+Guards: `packages/shared/src/an-address-we-would-not-connect-to.unit.test.ts` (7: stated, under
+undici's `fetch failed`, not overwritten, not matched from prose, through `tenantFetch` and
+`reachableHost` with the rule on), `packages/core/src/a-destination-inside-our-network.unit.test.ts`
+(the owner's case: a real WebDAV target writer, refused, is `internal_address` on the target side
+and would have been `unknown`), and cases added to `failure-category`, `a-migration-that-cannot-succeed`,
+`failure-answer`, `LiveProgress` and `mail-source-with-graph-fallback`. The E2E runs are named at the
+top of this entry.
 
 **2026-11-15, records: #1915 merged, and live's registry on a network of its own since alpha.9's
 deploy (T3, T4).** Docs only, on the branch

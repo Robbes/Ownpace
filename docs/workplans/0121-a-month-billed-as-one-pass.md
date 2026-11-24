@@ -4,6 +4,18 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-11-23, night: a pass the job runner retried counts once (0167's pg-boss).** Since alpha.16
+each attempt of a delta pass opens a run row of its own (`startRun`), and pg-boss hands a failed job
+back under the same id, which the pass records as `orchestrator_ref`. So `passCount`, the sync
+operations `/api/billing/usage` serves and an invoice freezes (the screen stopped showing them on
+2026-10-05, below), counted a retried pass once per attempt. It now counts distinct
+`orchestrator_ref`s, a row without one (written before the pass recorded the job's id, or by a
+runner that gave none) as itself; since `run-full-sync` went, every billable row is the delta
+pass's. Compute stays per row, since each attempt held the machine for its own seconds, and no price
+reads the count (`calculateCost`). Run against a real Postgres (`scripts/local-pg.sh`), the new case
+reads 4 passes without the change and 3 with it. Asked on 2026-11-23, with the advice to count a
+pass once, the owner said on 2026-11-24: *"count a retried pass once, in a small alpha.19 PR: yes."*
+
 **2026-10-05: the customer's screen shows what moved, not what Ownpace spends (0131's Status).**
 The owner asked why Billing showed Storage, API calls and compute hours, and settled what T4's
 *"insight"* means: *"show the usages that counts: data moved and number of objects moved"*. Current

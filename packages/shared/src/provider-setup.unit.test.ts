@@ -56,9 +56,10 @@ describe('the step definitions', () => {
 
   it('answers an empty list for a provider with no prerequisites — a real answer', () => {
     expect(setupStepsFor('source', 'not-a-provider')).toEqual([]);
-    // ...and the side matters: a target webdav has steps, a source webdav does not.
-    expect(setupStepsFor('target', 'webdav').length).toBeGreaterThan(0);
-    expect(setupStepsFor('source', 'webdav')).toEqual([]);
+    // ...and the side matters: a target webdav makes sure the account exists,
+    // a source webdav (workplan 0169) finds the server of the one being left.
+    expect(setupStepsFor('target', 'webdav').map((s) => s.key)).toContain('account_exists');
+    expect(setupStepsFor('source', 'webdav').map((s) => s.key)).toEqual(['server_address', 'app_password']);
   });
 
   it('lists the providers each side can offer', () => {

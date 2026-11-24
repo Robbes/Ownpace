@@ -1115,7 +1115,7 @@ human, the organisation's managers) are never listed. Nor are three more:
 - **An account that was let in and removed less than 7 days ago.** Removing a
   member, on the Team page or with `operator.sh leave`, deletes the member row
   and records `member.removed` in `audit_log` with the subject in
-  `detail.userId` (the Team page's record carries no address); the row's own
+  `detail.userId` (neither record carries an address); the row's own
   time, `at`, says when. Privacy §9's 30 days are for an account *that we never
   let in*; such an account was let in. The script keeps it while the newest
   removal recorded for it is younger than 7 days, the erasure window's number.
@@ -1422,6 +1422,7 @@ COPY (
            WHEN i.last_error_category = 'quota_exceeded' THEN 'a daily limit was reached'
            WHEN i.last_error_category = 'policy_refused' THEN 'left out by this migration''s own settings'
            WHEN i.last_error_category = 'too_large'      THEN 'larger than this service copies during the Alpha'
+           WHEN i.last_error_category = 'internal_address' THEN 'the account''s address is inside this service''s own network'
            WHEN i.last_error_category = 'source_refused' THEN 'the old account would not hand it over'
            WHEN i.last_error_category = 'target_refused' THEN 'the new account would not accept it'
            WHEN i.last_error_category = 'format_refused' THEN 'the new account does not accept this kind of file'
@@ -1477,6 +1478,7 @@ COPY (
            WHEN s.last_error_category = 'quota_exceeded' THEN 'a daily limit was reached'
            WHEN s.last_error_category = 'policy_refused' THEN 'left out by this migration''s own settings'
            WHEN s.last_error_category = 'too_large'      THEN 'larger than this service copies during the Alpha'
+           WHEN s.last_error_category = 'internal_address' THEN 'the account''s address is inside this service''s own network'
            WHEN s.last_error_category = 'source_refused' THEN 'the old account would not hand it over'
            WHEN s.last_error_category = 'target_refused' THEN 'the new account would not accept it'
            WHEN s.last_error_category = 'format_refused' THEN 'the new account does not accept this kind of file'

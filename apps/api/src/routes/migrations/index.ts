@@ -195,8 +195,8 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 
 /** Map the web source type to a connection.kind (protocol-based). */
 export function sourceKindFor(
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box' | 'archive',
-): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'google' | 'microsoft' | 'apple' | 'dropbox' | 'box' | 'archive' {
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box' | 'archive' | 'caldav' | 'carddav' | 'webdav',
+): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'google' | 'microsoft' | 'apple' | 'dropbox' | 'box' | 'archive' | 'caldav' | 'carddav' | 'webdav' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
   // added, and the literal build-deps-from-mapping branches on
   // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
@@ -235,6 +235,11 @@ export function sourceKindFor(
   // account at all: the row's credential is a path, and WHICH export it is
   // lives in the config so a third export needs no nineteenth kind here.
   if (sourceType === 'archive') return 'archive';
+  // THE DAV PROTOCOLS (workplan 0169). One word on both sides, and kinds the
+  // CHECK has carried since the baseline, because the DAV targets store them:
+  // no migration. `sourceFaceBuilder` gives an unclaimed kind the protocol
+  // default, `dav`, for every face but mail, which is the builder these are.
+  if (sourceType === 'caldav' || sourceType === 'carddav' || sourceType === 'webdav') return sourceType;
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
@@ -359,6 +364,19 @@ export function sourceConnectionConfig(
       // other stores and ignores. The superRefine has already refused garbage
       // with a field-anchored message, so a throw here is a coding error.
       ...(carriesGoogleNativeFiles(body.sourceType) ? exportFormatOf(cfg) : {}),
+    };
+  }
+  if (body.sourceType === 'caldav' || body.sourceType === 'carddav' || body.sourceType === 'webdav') {
+    // A DAV SOURCE (workplan 0169), in the shape a DAV TARGET stores
+    // (`targetConnectionConfig`) and `davUrl` reads: host, port and TLS, and
+    // the base URL where one was typed, which wins over host and port. No
+    // `type`: nothing on the DAV path branches on one, and the mail path that
+    // does never opens a DAV row. The login is the encrypted credential's.
+    return {
+      host: cfg.host,
+      port: cfg.port,
+      useSsl: cfg.useSsl,
+      ...(cfg.url?.trim() ? { url: cfg.url.trim() } : {}),
     };
   }
   if (body.sourceType === 'graph') {
@@ -858,6 +876,12 @@ export function sourceConfigOverride(
     case 'graph':
       // The tenant is the app registration's, which the connection holds.
       return keep({ mailbox: cfg.username });
+    case 'caldav':
+    case 'carddav':
+    case 'webdav':
+      // Nothing (workplan 0169): a DAV login reads its own collections, so
+      // whose data it is belongs to the connection, as the server does.
+      return {};
     default:
       // imap and oauth2: the server is the connection's, the mailbox is ours.
       return keep({ user: cfg.username });
@@ -967,6 +991,14 @@ export function sourceCredentialRecord(
       ...(body.sourceConfig.clientId ? { clientId: body.sourceConfig.clientId } : {}),
       ...(body.sourceConfig.clientSecret ? { clientSecret: body.sourceConfig.clientSecret } : {}),
       ...(body.sourceConfig.tenantId ? { tenantId: body.sourceConfig.tenantId } : {}),
+    };
+  }
+  if (body.sourceType === 'caldav' || body.sourceType === 'carddav' || body.sourceType === 'webdav') {
+    // The login `davEndpointFromCreds` reads (workplan 0169): the same two
+    // keys a DAV target's secret carries.
+    return {
+      username: body.sourceConfig.username,
+      ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
     };
   }
   if (body.sourceType === 'apple') {
@@ -1144,7 +1176,10 @@ export function archiveLocationOnReuse(
  *  nothing, and neither side errors at runtime. */
 export const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph', 'microsoft', 'apple', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google', 'dropbox', 'box', 'archive']),
+  // The DAV protocols since workplan 0169, the generic cards only (the
+  // owner, 2026-11-24: *"dont add the nextcloud as source card"*), so
+  // `nextcloud` stays a target type and this enum refuses it as a source.
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'microsoft', 'apple', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google', 'dropbox', 'box', 'archive', 'caldav', 'carddav', 'webdav']),
   /**
    * Reuse a connection that already exists instead of creating another
    * (workplan 0064). When set, the credentials and provider config come from
@@ -1163,6 +1198,12 @@ export const CreateMappingBase = z.object({
     // where both fields are visible, not here.
     host: z.string().optional(),
     port: z.number().optional(),
+    /**
+     * DAV sources (workplan 0169): the full base URL, for a server whose DAV
+     * root is behind a path. When present it wins over host+port (`davUrl`'s
+     * precedence), as on a DAV target.
+     */
+    url: z.string().optional(),
     username: z.string(),
     password: z.string().optional(),
     useSsl: z.boolean().default(true),
@@ -1754,6 +1795,40 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     const sourceRefusal = sourceDomainRefusal('gmail', body.syncConfig.domains);
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
+    }
+  } else if (body.sourceType === 'caldav' || body.sourceType === 'carddav' || body.sourceType === 'webdav') {
+    // A DAV SOURCE (workplan 0169): a server to sign in to, named by its base
+    // URL or by host and port, and the login. The demand is a DAV target's,
+    // in a source's words.
+    if (!body.sourceConfig.url?.trim()) {
+      const where = (['host', 'port'] as const).filter((k) =>
+        k === 'host' ? !body.sourceConfig.host?.trim() : body.sourceConfig.port === undefined,
+      );
+      if (where.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['sourceConfig', where[0]!],
+          message:
+            `A '${body.sourceType}' source connects to a server: sourceConfig is missing ` +
+            `${where.join(' and ')}, or the DAV base URL (url) that names both.`,
+          params: { guide: `dav#${body.sourceType}-source` },
+        });
+      }
+    }
+    const login = (['username', 'password'] as const).filter((k) => !body.sourceConfig[k]);
+    if (login.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', login[0]!],
+        message:
+          `A '${body.sourceType}' source signs in with the account's login: sourceConfig is ` +
+          `missing ${login.join(' and ')}.`,
+        params: { guide: `dav#${body.sourceType}-source` },
+      });
+    }
+    const davRefusal = sourceDomainRefusal(body.sourceType, body.syncConfig.domains);
+    if (davRefusal) {
+      ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: davRefusal });
     }
   } else if (body.sourceType === 'imap') {
     const missing = (['host', 'port'] as const).filter((k) => body.sourceConfig[k] === undefined);

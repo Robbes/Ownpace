@@ -1,6 +1,6 @@
 # CalDAV, CardDAV and WebDAV — calendars, contacts and files on a server
 
-Three cards for three kinds of data, with the same fields: **CalDAV** for calendars and task lists, **CardDAV** for contacts and **WebDAV** for files. Many servers offer all three under one account. Each card carries only its own kind, so each kind goes to its own card, and **Start a migration** makes a migration for each. If your server is a Nextcloud, the **Nextcloud** card combines the three in one account: see [the Nextcloud guide](nextcloud.md). This service signs in with a user name and a password; there is no consent button.
+Three cards for three kinds of data, with the same fields: **CalDAV** for calendars and task lists, **CardDAV** for contacts and **WebDAV** for files. They work in both directions: to a server you move to, and from a server you are leaving ([CalDAV as a source](#caldav-source) and the two sections after it). Many servers offer all three under one account. Each card carries only its own kind, so each kind goes to its own card, and **Start a migration** makes a migration for each. If your server is a Nextcloud, the **Nextcloud** card combines the three in one account: see [the Nextcloud guide](nextcloud.md). This service signs in with a user name and a password; there is no consent button.
 
 ## What you need {#before}
 
@@ -32,6 +32,20 @@ For files. Fill in **Host**, **Port**, **Username** and **Password** as [The fie
 - **Username** and **Password**: those of the account on the server, with an app password where the server offers one.
 
 You can also add the account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the card, and press **Add and test**. **Where does it go?** then offers it under **Your accounts**. The **Setup checklist** has the preparation for each of the three as a list that remembers what you have done.
+
+### CalDAV as a source {#caldav-source}
+
+The same three cards also read from a server you are leaving, a Nextcloud among them: there is no Nextcloud card for leaving one, so a Nextcloud is left through these three. On **Which account are you leaving or moving?**, tick **Calendar server (CalDAV)** for calendars and task lists, **Contacts server (CardDAV)** for contacts or **File server (WebDAV)** for files. On **Connect your accounts**, fill in the fields [The fields](#fields) describes, for the account you are leaving. That account is only read: nothing is written to it or deleted from it. The three carry the **Experimental** label until a real run proves them.
+
+For calendars and task lists. Fill in **Host**, **Port**, **Username** and **Password** as [The fields](#fields) says. The test lists the account's calendars, looked up from the server's address. A server whose DAV root is behind a path, such as `/remote.php/dav` on a Nextcloud, needs that full address in **DAV base URL**.
+
+### CardDAV as a source {#carddav-source}
+
+For contacts. Fill in **Host**, **Port**, **Username** and **Password** as [The fields](#fields) says, or **DAV base URL** for a root behind a path. The test lists the account's address books, looked up the same way as the calendars above.
+
+### WebDAV as a source {#webdav-source}
+
+For files. Fill in **Host**, **Port**, **Username** and **Password** as [The fields](#fields) says. They are read from the folder the address leads to, and from every folder below it. With only a host and a port, that is the server's root. For the files of one account, type the full WebDAV address of its folder in **DAV base URL**: on a Nextcloud, that is the address at the bottom of the Files settings page, ending in `/remote.php/dav/files/` and the user name.
 
 ## What moves {#what-moves}
 

@@ -4,7 +4,7 @@ A single-tenant bundle for a NAS / mini-PC / Pi: one **app** container that
 migrates itself on startup, schedules your mappings with an in-process
 scheduler, and serves a local status endpoint + the operating UI — backed by
 either a small **bundled Postgres** (default) or **embedded PGlite** (no
-database container at all). No Trigger.dev, no billing — hard
+database container at all). No pg-boss worker, no billing — hard
 rule 5 (see `docs/workplans/0010-selfhost-edition.md`).
 
 ## Quick start

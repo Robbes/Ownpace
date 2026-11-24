@@ -109,7 +109,9 @@ describe('partitionFrontDoor — the one algorithm both doors render', () => {
     // no members to collect, and collecting it under Google or Apple would
     // hide the half of it that is not theirs.
     expect(p.providers).toEqual(['apple', 'archive', 'box', 'dropbox']);
-    expect(p.protocols).toEqual(['imap']);
+    // The DAV protocols joined IMAP as sources in workplan 0169, the generic
+    // cards only (the owner, 2026-11-24): no Nextcloud among the providers.
+    expect(p.protocols).toEqual(['caldav', 'carddav', 'imap', 'webdav']);
   });
 
   it('splits the target vocabulary: the account kinds are the provider lane, the five protocols the other', () => {

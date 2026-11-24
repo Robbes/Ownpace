@@ -103,9 +103,12 @@ function namedInValidator(): Set<string> {
 }
 
 describe('every source type the API accepts is named by the validator', () => {
-  it('declares twelve source types, so the list has not silently moved', () => {
+  it('declares sixteen source types, so the list has not silently moved', () => {
     // A canary on the canary: if the enum shrinks or grows, the reasoning in
     // this file's header is stale and should be re-read rather than trusted.
+    // Sixteen since workplan 0169 added `caldav`, `carddav` and `webdav`:
+    // a host or a base URL and a login, which the catch-all would have
+    // refused for a missing tenant, client and secret.
     // Thirteen since workplan 0116 T1 added `archive`, and its stake is
     // different in kind from every predecessor: an archive has no account, no
     // tenant, no client and no secret — its whole credential is a path — so
@@ -120,7 +123,7 @@ describe('every source type the API accepts is named by the validator', () => {
     // a delegated grant, its tenant is optional, and its client pair may be
     // the deployment's. Falling into that catch-all would have demanded a
     // tenantId and a client secret from somebody who pressed a button.
-    expect(declaredSourceTypes()).toHaveLength(13);
+    expect(declaredSourceTypes()).toHaveLength(16);
   });
 
   it.each(

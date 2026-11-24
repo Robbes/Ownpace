@@ -34,12 +34,12 @@ export const en = {
   'start.from.otherMail': 'Another mail provider',
   'start.from.otherMail.inSentence': 'another mail provider',
   'start.from.needOne': 'Tick at least one account.',
-  // OTHER WAYS TO CONNECT, without the wizard (0153 open question 5): IMAP
-  // is the one source protocol; CalDAV, CardDAV, WebDAV and JMAP are where
-  // things go, and this fold promised them as sources.
-  'start.from.other': 'Other ways to connect (IMAP)',
+  // OTHER WAYS TO CONNECT, without the wizard (0153 open question 5): the
+  // source protocols, IMAP and, since workplan 0169, CalDAV, CardDAV and
+  // WebDAV. JMAP is where things go only, so the fold does not name it.
+  'start.from.other': 'Other ways to connect (IMAP, CalDAV, CardDAV, WebDAV)',
   'start.from.other.line':
-    'Any other mail provider works: choose Another mail provider. Calendars, contacts and files are read only from the providers above. Other servers can receive them: you choose that on Where does it go?',
+    'Any other mail provider works: choose Another mail provider. Calendars and tasks, contacts and files can be read from any server that speaks CalDAV, CardDAV or WebDAV, a Nextcloud among them: choose its tile above.',
   'start.from.other.choose': 'Choose Another mail provider',
   'start.what.heading': 'What moves?',
   'start.what.hint': 'Each sign-in asks only for what you tick here.',
@@ -209,9 +209,9 @@ export const nl: Record<keyof typeof en, string> = {
   'start.from.otherMail': 'Een andere mailaanbieder',
   'start.from.otherMail.inSentence': 'een andere mailaanbieder',
   'start.from.needOne': 'Vink minstens één account aan.',
-  'start.from.other': 'Andere manieren om te verbinden (IMAP)',
+  'start.from.other': 'Andere manieren om te verbinden (IMAP, CalDAV, CardDAV, WebDAV)',
   'start.from.other.line':
-    'Elke andere mailaanbieder werkt: kies Een andere mailaanbieder. Agenda’s, contacten en bestanden worden alleen gelezen bij de aanbieders hierboven. Andere servers kunnen ze wel ontvangen: dat kiest u bij Waar gaat het naartoe?',
+    'Elke andere mailaanbieder werkt: kies Een andere mailaanbieder. Agenda’s en taken, contacten en bestanden kunnen worden gelezen van elke server die CalDAV, CardDAV of WebDAV spreekt, ook een Nextcloud: kies de tegel hierboven.',
   'start.from.other.choose': 'Een andere mailaanbieder kiezen',
   'start.what.heading': 'Wat wilt u migreren?',
   'start.what.hint': 'Elke aanmelding vraagt alleen om wat u hier aanvinkt.',

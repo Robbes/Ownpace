@@ -210,7 +210,12 @@ export const BILLABLE_RUN_KINDS = ['initial_copy', 'incremental'] as const;
 export interface ComputeUsage {
   /** Wall-clock hours across every billable pass that finished in the period. */
   computeHours: number;
-  /** How many such passes ran — the "sync operations" the invoice counts. */
+  /**
+   * How many such passes ran — the "sync operations" the billing API serves
+   * and an invoice freezes.
+   * A pass the job runner retried counts once: each attempt opens a run row of
+   * its own, and every one of them carries the job's id (`orchestrator_ref`).
+   */
   passCount: number;
   /** Seconds per domain, from `run.stats.domainSeconds`. Empty before #866. */
   byDomain: Record<string, number>;
@@ -263,7 +268,13 @@ export async function deriveComputeForPeriod(
   const [totals] = await db
     .select({
       seconds: sql<string>`COALESCE(SUM(EXTRACT(EPOCH FROM (${schema.run.finishedAt} - ${schema.run.startedAt}))), 0)`,
-      passes: sql<string>`COUNT(*)`,
+      // One pass per job: pg-boss hands a retried job back under its own id,
+      // and each attempt opens a row of its own (startRun) carrying that id as
+      // `orchestrator_ref`, so COUNT(*) counted a retried pass once per
+      // attempt. A row without a ref (one written before the pass recorded it,
+      // or by a runner that gave no id) counts as itself. The seconds stay per
+      // row: each attempt held the machine for its own.
+      passes: sql<string>`COUNT(DISTINCT COALESCE(${schema.run.orchestratorRef}, ${schema.run.id}::text))`,
     })
     .from(schema.run)
     .where(window);
