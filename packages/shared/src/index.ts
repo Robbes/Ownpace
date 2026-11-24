@@ -22,6 +22,8 @@ export * from './mail-headers.ts';
 export * from './mail-subject.ts';
 export * from './mail-arrival.ts';
 export * from './ports.ts';
+// Free space at the destination, read before Start (workplan 0171 T9).
+export * from './destination-capacity.ts';
 export * from './operating-contract.ts';
 // The queues' guidance in the reader's words, English and Dutch, beside the
 // operator's that the contract serves (the owner, 2026-10-18).
