@@ -218,7 +218,7 @@ export const nl: Record<keyof typeof en, string> = {
   'people.line.checkPassed': 'De verificatie is {when} geslaagd',
   'people.line.to': 'naar',
   'people.line.keptForRecent': 'Wordt bijgehouden voor de laatste 90 dagen.',
-  'people.line.recentFirst': 'Eerst uw laatste 90 dagen.',
+  'people.line.recentFirst': 'Eerst de afgelopen 90 dagen.',
   'people.line.recentIn': 'De laatste 90 dagen staan erin.',
   'people.line.olderComing': 'Oudere items komen nog.',
   'people.loadFailed': 'Kon niet laden bij wie elke migratie hoort.',

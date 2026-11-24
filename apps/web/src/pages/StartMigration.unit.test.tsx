@@ -363,7 +363,7 @@ describe('What moves? (screen 3)', () => {
     expect(all).toBeChecked();
     expect(recent).not.toBeChecked();
     expect(all).toHaveAccessibleDescription('The last 90 days come first, then everything older.');
-    expect(recent).toHaveAccessibleDescription('To try a destination with fresh data; contacts and tasks whole.');
+    expect(recent).toHaveAccessibleDescription('To try destinations with your current data.');
     // The rest under Why?, and the guide's section beside it.
     expect(within(howMuch).getByText(/Try as many destinations as you like this way\./)).not.toBeVisible();
     expect(within(howMuch).getByRole('link', { name: /How a migration copies/ })).toHaveAttribute(

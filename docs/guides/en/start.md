@@ -1,6 +1,6 @@
 # How a migration copies
 
-Every migration copies in the same order, whatever it reads from: the last 90 days first, then everything older. You can also make a migration of only the last 90 days, to try a destination with fresh data, and copy everything later.
+Every migration copies in the same order, whatever it reads from: the last 90 days first, then everything older. You can also make a migration of only the last 90 days, to try destinations with your current data, and copy everything later.
 
 ## The last 90 days first {#last-90-days-first}
 
@@ -27,7 +27,7 @@ On **What moves?**, under **How much?**, choose **Only the last 90 days**. The m
 - mail, files and calendars of the last 90 days, as in the first part above;
 - every contact and every task.
 
-It is meant for trying a destination with your fresh data before you decide. Make one such migration for each destination you want to try: each copies the same 90 days to its own destination.
+It is meant for trying destinations with your current data before you decide. Make one such migration for each destination you want to try: each copies the same 90 days to its own destination.
 
 - **Nothing older is deleted or changed**, at the source or at the destination. An item older than 90 days is left where it is, and never counted as deleted.
 - **The 90 days are counted from the day you made the migration.** The window grows from there as new mail and changes arrive; it never moves on. What was copied stays copied.

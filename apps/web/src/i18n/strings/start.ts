@@ -59,12 +59,12 @@ export const en = {
   // HOW MUCH (workplan 0170 §7.1, the owner's D2 to D4): every migration
   // copies its last 90 days first and the rest after, with no switch; a
   // migration can instead stop at those 90 days, to try a destination with
-  // fresh data. Never the word *trial*: the person tries the destination.
+  // current data. Never the word *trial*: the person tries the destination.
   'start.what.amount.label': 'How much?',
   'start.what.amount.all': 'Everything',
   'start.what.amount.all.hint': 'The last 90 days come first, then everything older.',
   'start.what.amount.recent': 'Only the last 90 days',
-  'start.what.amount.recent.hint': 'To try a destination with fresh data; contacts and tasks whole.',
+  'start.what.amount.recent.hint': 'To try destinations with your current data.',
   'start.what.amount.recent.why':
     "Mail, files and calendars from the last 90 days, and all contacts and tasks. Try as many destinations as you like this way. You can copy everything later, from the migration's page, without starting over. Nothing older is deleted or changed.",
   'start.place.myDrive': 'My Drive',
@@ -240,7 +240,7 @@ export const nl: Record<keyof typeof en, string> = {
   'start.what.amount.all': 'Alles',
   'start.what.amount.all.hint': 'Eerst de laatste 90 dagen, daarna alles wat ouder is.',
   'start.what.amount.recent': 'Alleen de laatste 90 dagen',
-  'start.what.amount.recent.hint': 'Om een bestemming met verse gegevens te proberen; contacten en taken helemaal.',
+  'start.what.amount.recent.hint': 'Om doelplatformen met uw actuele gegevens uit te proberen.',
   'start.what.amount.recent.why':
     "Mail, bestanden en agenda's van de laatste 90 dagen, en alle contacten en taken. Zo kunt u zoveel bestemmingen proberen als u wilt. Later kunt u alles kopiëren, vanaf de pagina van de migratie, zonder opnieuw te beginnen. Niets wat ouder is, wordt verwijderd of gewijzigd.",
   'start.place.myDrive': 'Mijn Drive',

@@ -24,7 +24,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The last 90 days first, on the screens** (workplan 0170 T5; the owner, 2026-11-24: *"fit in
   UX!"*). *Start a migration* asks **How much?** under the data types: **Everything**, selected,
   whose last 90 days come first and everything older after, or **Only the last 90 days**, to try
-  a destination with fresh data (mail, files and calendars of 90 days, every contact and task).
+  destinations with your current data (mail, files and calendars of 90 days, every contact and task).
   The check screen says the choice again. A migration of only the last 90 days shows a **Last 90
   days** chip beside its stage, reads *Kept in step for the last 90 days.*, is never *Ready to
   switch*, and its Finish step says *After Copy everything* (the owner's D8: *"no, not before"*);

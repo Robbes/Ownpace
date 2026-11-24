@@ -1,8 +1,8 @@
 # Hoe een migratie kopieert
 
-Elke migratie kopieert in dezelfde volgorde, waar ze ook uit leest: eerst de laatste 90 dagen, daarna alles wat ouder is. U kunt ook een migratie maken van alleen de laatste 90 dagen, om een bestemming met verse gegevens te proberen, en later alles kopiëren.
+Elke migratie kopieert in dezelfde volgorde, waar ze ook uit leest: eerst de laatste 90 dagen, daarna alles wat ouder is. U kunt ook een migratie maken van alleen de laatste 90 dagen, om doelplatformen met uw actuele gegevens uit te proberen, en later alles kopiëren.
 
-## Eerst de laatste 90 dagen {#last-90-days-first}
+## Eerst de afgelopen 90 dagen {#last-90-days-first}
 
 De eerste kopie van mail, bestanden en agenda's komt in twee delen:
 
@@ -15,19 +15,19 @@ Zo kopieert elke migratie. Het is geen instelling, en u hoeft er niets voor te k
 
 Op de pagina van de migratie zegt de regel onder de naam hoe ver ze is:
 
-- **Eerst uw laatste 90 dagen.** Het eerste deel loopt nog.
+- **Eerst de afgelopen 90 dagen.** Het eerste deel loopt nog.
 - **De laatste 90 dagen staan erin. Oudere items komen nog.** Het eerste deel is klaar, voor mail, bestanden en agenda's, en de oudere items komen eraan. Een map die er bij de bestemming half leeg uitziet, is een map waarvan de oudere items er nog niet zijn.
 
 Mail komt in de nieuwe mailbox met de nieuwste eerst binnen. Elk bericht houdt zijn eigen datum, dus uw mailprogramma sorteert het zoals het was.
 
-## Alleen de laatste 90 dagen {#last-90-days-only}
+## Alleen de afgelopen 90 dagen {#last-90-days-only}
 
 Kies bij **Wat wilt u migreren?**, onder **Hoeveel?**, voor **Alleen de laatste 90 dagen**. De migratie kopieert dan:
 
 - mail, bestanden en agenda's van de laatste 90 dagen, zoals in het eerste deel hierboven;
 - alle contacten en alle taken.
 
-Dit is bedoeld om een bestemming met uw verse gegevens te proberen voordat u besluit. Maak zo'n migratie voor elke bestemming die u wilt proberen: elke migratie kopieert dezelfde 90 dagen naar haar eigen bestemming.
+Dit is bedoeld om doelplatformen met uw actuele gegevens uit te proberen voordat u besluit. Maak zo'n migratie voor elke bestemming die u wilt proberen: elke migratie kopieert dezelfde 90 dagen naar haar eigen bestemming.
 
 - **Niets wat ouder is, wordt verwijderd of gewijzigd**, bij de bron noch bij de bestemming. Een item dat ouder is dan 90 dagen blijft waar het is, en telt nooit als verwijderd.
 - **De 90 dagen tellen vanaf de dag waarop u de migratie maakte.** Vanaf daar groeit de periode mee met nieuwe mail en wijzigingen; ze schuift nooit op. Wat gekopieerd is, blijft gekopieerd.
