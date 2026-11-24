@@ -57,7 +57,14 @@
 > without the fix (one start offset out of 200 gives tenant 25P02, outside read
 > 22P02) and passes with it. The P2 note that the bare handle was safe
 > "because there IS only one connection" had it backwards; this is P4's
-> lesson again, at the corner of two lanes and one session.
+> lesson again, at the corner of two lanes and one session. **Tests that held
+> the session:** twelve unit files acquired one connection in `beforeAll`, kept
+> it for the file, and meanwhile used the shared handle; with the queue those
+> waited forever. They now send their seed statements through
+> `statementsInTurn(driver)` (each statement on its own turn), and the shared
+> marker-column case runs its work through `runAsHolder`. No appliance code
+> held a connection that way: `forget-me`, the app-event sink, the operator log
+> and the audit-export key use the held connection's own handle.
 
 ## What is already done (do not redo)
 
