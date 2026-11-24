@@ -1,8 +1,33 @@
 # Workplan 0044 — Gmail as a first-class mail source
 
-> **In one line:** Gmail as a first-class mail source over IMAP with XOAUTH2: `gmail-source-factory.ts` on Drive's OAuth client and `GOOGLE_MAIL_REFRESH_TOKEN`, All Mail/Starred/Important views dropped, in both editions, the config parser, create API and wizard.
+> **In one line:** Gmail as a first-class mail source over IMAP with XOAUTH2 on Drive's OAuth client, in both editions: Starred and Important dropped, All Mail read last into Archive, and Gmail's own count on Confirm and Check.
 
-## Status — 2026-11-01 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24: All Mail is read last, as Archive (the owner's decision, for alpha.19).** *"Gmail
+mail archived without a label is never copied. Fix: read All Mail last, copy only what wasn't
+copied yet into an Archive folder, and count from Gmail itself on Confirm and Check. YES"*
+Decision 3 below dropped All Mail with Starred and Important; over IMAP a message archived
+with no label lives only there, so none was copied and the Check, counting from the ledger,
+passed. Now:
+- `GmailFolderView` lists the real folders, then All Mail LAST, presented as `Archive`
+  (`specialUse: 'archive'`, `catchAll: true`); its reads map back to All Mail's own path.
+  Starred and Important stay dropped. A real label at exactly `Archive` folds into it.
+- The sync loop (`DomainSyncDeps.catchAll`) leaves a message All Mail lists that the ledger
+  holds under another folder exactly as it is: no copy, no move, no move cleared. Gmail says
+  `severalPlacesAtOnce`, so a second label in the same pass as the recorded one is a second
+  place, not a move. Archiving after the copy is neither a deletion (the bin is the only
+  evidence, unchanged) nor a move; the copy stays where it is, and is not copied into Archive
+  as well, which would be a second copy of one message.
+- Discovery counts each Message-ID once and records All Mail's own figure
+  (`DomainDiscovery.sourceTotal`, stored in its `perCollection` row, no column); Confirm says
+  it. The Check takes the same figure from Gmail (`countEveryMessage`, one EXAMINE) in all three
+  doors and FAILs on what Gmail holds beyond what was recorded (`NEVER_COPIED_mail`).
+- Evidence: `gmail-mail-archived-without-a-label.unit.test.ts` (a fake Gmail with Google's LIST
+  attributes and a Dutch All Mail name), `verification-the-sources-own-count.unit.test.ts`,
+  the confirm screen's and the discovery store's tests; each new guard fails without its part.
+- Open: workplan 0170's window (`ListOptions.since`) must reach the All Mail listing and its
+  count once T1 and T2 merge.
 
 **2026-11-01, index pass (0147 T3):** T4 said *Waiting on the owner*, and since 2026-09-22 it
 has not been true: `gmail` has run against the owner's own Google account routinely, and is ✅

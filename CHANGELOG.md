@@ -73,6 +73,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Gmail mail archived without a label was never copied** (workplan 0044, the owner's decision
+  of 2026-11-24). Over IMAP such a message lives only in All Mail, which the Gmail source
+  dropped, so Gmail's own Archive button made mail no pass copied, and the Check passed
+  because it counted from the ledger. All Mail is now read last, after every real folder, and
+  what no other folder carried is copied into a folder called Archive (the target's archive
+  mailbox on JMAP). A sighting there of mail already copied is never a move, a message under
+  two labels is copied once and not reported as moved, and mail archived after its copy stays
+  where it is, neither a deletion nor a move. Review and start shows Gmail's own All Mail
+  count beside what will be copied, and Check the migration compares against it, so a message
+  Gmail holds and no pass copied fails the check. A migration started earlier copies its
+  archived mail on its next pass.
 - **Text that still described Trigger.dev in the present tense** (workplan 0167, after T9). Code
   comments in the API, the worker, the packages and the deploy scripts now say what runs since
   alpha.18 (pg-boss, in the `worker` service) and no longer point at files T9 removed, and the
