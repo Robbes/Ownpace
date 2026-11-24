@@ -30,6 +30,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   was seen. Microsoft Graph mail lists in full: its date filter on messages delta stops at 5,000
   messages, Microsoft's own page says, which a 90-day Inbox can pass. Nothing changes for a
   listing without a window.
+- **The file sources take the last 90 days first** (workplan 0170 T3, for its §4.2). Given a
+  window, Google Drive asks only for files modified since its start; OneDrive, Dropbox, Box,
+  WebDAV and an imported archive list as before and keep the files inside the window, and an
+  archive item with no date counts as inside it. A windowed listing is never remembered as the
+  whole folder, and no cursor that would claim older files as seen is kept. Nothing changes for
+  a listing without a window.
 - **Calendar sources read the last 90 days first** (workplan 0170 T4, D1 (a)). Asked for a
   window, a CalDAV source (any server, Google, Apple) lists a calendar with a `time-range` from a
   day before its start, plus every recurring series, so a server that does not expand recurrence
