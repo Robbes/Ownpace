@@ -2,7 +2,22 @@
 
 > **In one line:** Provider consent for testers on `ownpace-live`: its Google OAuth client, test users, Testing or Production, a Microsoft registration ADR and publisher verification, read-only Dropbox scope, Box and Apple as experimental, the sign-in buttons.
 
-## Status — 2026-11-20 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24: the owner's hand test of a person's grant link on OTA, and three changes from it
+(T3 (a)).** The owner opened a person's grant link on the OTA instance and signed in with their
+own Google account. A sign-in with another account was refused, the page naming both addresses,
+with nothing stored and the link still live. The right account was granted; the page after Google
+handed out the progress link; the progress page showed both migrations, the Withdraw box and 90
+days' validity. Built from it on the branch
+`claude/ownpace-public-readiness-y7orc6-a20-grant-page-polish`, not merged: the person's page
+says where to open the link above its account cards, before the first button, as the migration's
+page always did, where it had sat under the last card; `docs/grant-links.md` says "the phone's or
+computer's own browser, such as Safari or Chrome" where it said "a real browser" (the owner:
+*"are there non-real-browsers?"*); and the page after Google carries a **Copy link** button
+beside the progress link, in English and Dutch, which selects the link and says so when the
+clipboard is refused (the owner, *"Yes"*: they could not copy the link out of a private window
+on a phone).
 
 **2026-11-20, later: a live `.env` whose `API_URL` is not live's own address is refused before a
 deploy moves anything (T11).** Built on the branch

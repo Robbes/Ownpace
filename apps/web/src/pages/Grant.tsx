@@ -254,6 +254,10 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
           migration's page offers it: the report names the person and every
           migration of theirs. Offered only where a report can reach somebody. */}
       <ReportThisLink kind="grant" link={link} organisation={data.organisation} next="linkReport.next.grant" />
+      {/* Before the first button, as on the migration's page: a link opened in
+          a chat or mail app's own browser is refused by Google, so this has to
+          be read before pressing (the owner's hand test, 2026-11-24). */}
+      <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
 
       {data.accounts.map((a, i) => (
         <React.Fragment key={a.account}>
@@ -320,7 +324,6 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
       ))}
 
       <p className="mt-6 text-sm text-gray-600">{t('grant.until', { date: dateTime(data.expiresAt) })}</p>
-      <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
       <p className="mt-6 text-sm text-gray-500">
         {t('grant.disclosure')}{' '}
         <a className="underline" href={legal.privacy}>
@@ -518,7 +521,7 @@ const Grant: React.FC = () => {
               where Google is reported to refuse its consent (workplan 0140
               T3 (a); outside knowledge, 0140 §1). Always shown, with no
               sniffing for user agents, and before the button: opening the
-              link again in a real browser spends nothing (`grant.ts`), and
+              link again in the phone's own browser spends nothing (`grant.ts`), and
               the line says so. */}
           <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
 

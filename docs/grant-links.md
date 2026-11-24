@@ -49,9 +49,9 @@ where the link is made.
 
 **If they open it inside another app.** A link tapped in a chat or mail app opens in that app's
 own browser, and Google is reported to refuse its sign-in there. The page says what to do,
-above its button: *If this page opened inside another app, such as a chat or mail app, use
-that app's 'Open in browser' option or copy the link into Safari or Chrome. The link still
-works.* It does: opening a link spends nothing, so opening it again in Safari or Chrome is
+above its first button: *If this page opened inside another app, such as a chat or mail app, use
+that app's 'Open in browser' option or copy the link into your favorite browser, such as
+Safari or Chrome. The link still works.* It does: opening a link spends nothing, so opening it again in Safari or Chrome is
 safe.
 
 **Worth doing once:** give your organisation a phone number, under **Team & organization →
@@ -156,7 +156,9 @@ What will be read, the refusals of the link and of the migration, and the page a
 in that language. Taking the access back and reporting the link still answer in English for now
 (workplan 0145 T6). The page after Google follows the language the grant page was in when they
 pressed the button. It asks them to keep their progress link, by a bookmark or a copy, because a
-page opened inside another app may not keep a bookmark.
+page opened inside another app may not keep a bookmark. A **Copy link** button beside the link
+copies it and says *Copied.*; where the browser does not allow copying, as a private window on a
+phone may not, it selects the link instead and says so, so the phone's own Copy is one press away.
 
 ### Only the account the page names
 
@@ -300,10 +302,11 @@ connection stores none, the deployment's.
 
 **If Google's page said no, not this one,** and the link was opened inside another app, that
 app's own browser is the likely cause: Google is reported to refuse its sign-in there. A fresh
-link does not help with that; the same link, opened in a real browser, does. The page says so,
-above its button: *If this page opened inside another app, such as a chat or mail app, use
-that app's 'Open in browser' option or copy the link into Safari or Chrome. The link still
-works.*
+link does not help with that; the same link, opened in the phone's or computer's own browser,
+such as Safari or Chrome, rather than the one built into the chat or mail app, does. The page
+says so, above its first button: *If this page opened inside another app, such as a chat or mail app, use
+that app's 'Open in browser' option or copy the link into your favorite browser, such as
+Safari or Chrome. The link still works.*
 
 ## Two things this is not
 
