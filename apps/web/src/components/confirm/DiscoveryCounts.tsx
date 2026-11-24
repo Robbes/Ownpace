@@ -100,6 +100,10 @@ export const DiscoveryCounts: React.FC<{
   // stay behind, so the owner reads that before Start rather than finding it
   // out from a mailbox that came up short.
   const unlisted = domains.reduce((sum, d) => sum + (d.unlistedItems ?? 0), 0);
+  // GMAIL'S OWN COUNT (the owner, 2026-11-24): All Mail's figure, read from
+  // Gmail, beside what will be copied. The Check compares against it, so the
+  // number a person approves here is the number a loss would fail.
+  const sourceTotal = domains.find((d) => d.domain === 'email')?.sourceTotal;
   // Items the destination already holds under a key matching something in the
   // source: we keep the destination's copy. Non-destructive and the right
   // default, but it decides what the customer ends up with, so it belongs here
@@ -264,6 +268,12 @@ export const DiscoveryCounts: React.FC<{
           {t(generatedId === 1 ? 'discovery.generatedId.pre.one' : 'discovery.generatedId.pre.many')}{' '}
           <strong>{t('discovery.generatedId.strong')}</strong>{' '}
           {t('discovery.generatedId.post')}
+        </p>
+      )}
+
+      {sourceTotal !== undefined && (
+        <p className="mt-2 text-sm text-gray-700" role="note">
+          {t('discovery.gmailTotal', { count: number(sourceTotal) })}
         </p>
       )}
 
