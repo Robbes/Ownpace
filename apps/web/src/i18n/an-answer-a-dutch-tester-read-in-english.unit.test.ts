@@ -90,8 +90,8 @@ describe('what happened at a typed address, in the reader’s language', () => {
     [
       'an address inside our own network',
       { kind: 'insideOurNetwork', reference: REF },
-      `That address is inside this service's own network, or the server sent the test on to one that is, so we did not connect to it. Give the address the server has on the internet. Reference ${REF}.`,
-      `Dat adres ligt binnen het eigen netwerk van deze dienst, of de server stuurde de test door naar een adres dat daar ligt: geen verbinding gemaakt. Gebruik het adres dat de server op internet heeft. Referentie ${REF}.`,
+      `We did not connect to that address. Enter an internet address of the server. Reference ${REF}.`,
+      `Geen verbinding gemaakt met dat adres. Vul een internetadres van de server in. Referentie ${REF}.`,
     ],
     [
       'anything else',
@@ -127,7 +127,7 @@ describe('the Test result: the parts first, and the text it was given without th
     expect(probeText(nl, { code: 'unreachable' }, reason, 'nl', unreachable)).toMatch(/^Op dat adres antwoordde niets/);
     expect(
       probeText(nl, { code: 'insideOurNetwork' }, reason, 'nl', { kind: 'insideOurNetwork', reference: REF }),
-    ).toMatch(/^Dat adres ligt binnen het eigen netwerk van deze dienst/);
+    ).toMatch(/^Geen verbinding gemaakt met dat adres\./);
   });
 
   it('without a reference the parts are not ours to say: the appliance’s full text shows, as before', () => {
