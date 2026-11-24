@@ -148,15 +148,14 @@ describe('a failed domain says what to do about it', () => {
    * way out and links to the page it names.
    */
   it('says an address inside our network as ours, with the way to the Accounts page', () => {
-    const ours =
-      "That address is inside this service's own network, or the server sent the test on to one that is, " +
-      'so we did not connect to it. Give the address the server has on the internet.';
+    const ours = 'We did not connect to this address.';
     render(
       <LiveProgress
         domains={[row({ lastErrorCategory: 'internal_address', failedSide: 'target', lastError: ours })]}
       />,
     );
-    expect(screen.getByText(/press Replace credentials and give the address the server has on the internet/)).toBeTruthy();
+    expect(screen.getByText(/press Replace credentials and enter an internet address of the server/)).toBeTruthy();
+    expect(screen.queryByText(/own network/)).toBeNull();
     expect(screen.getByText(/It happened at the destination/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Open Accounts' })).toHaveAttribute('href', '/connections');
     expect(screen.queryByText(/We could not classify this one/)).toBeNull();

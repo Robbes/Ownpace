@@ -172,7 +172,7 @@ describe('what nothing answered, a certificate and the rule', () => {
       `${MARKER}.example is an address inside this service's own network, so we do not connect to it. ` +
         'Give the address the server has on the internet.',
     );
-    expect(said).toMatch(/^That address is inside this service's own network/);
+    expect(said).toBe('We did not connect to this address.');
     expect(said).not.toContain(MARKER);
   });
 
@@ -315,7 +315,7 @@ describe('which failures the rule reaches', () => {
         said.status({ ...status('source', 'internal_address'), lastError: refused }).lastError,
       ];
       for (const answer of answers) {
-        expect(answer).toMatch(/^That address is inside this service's own network/);
+        expect(answer).toBe('We did not connect to this address.');
         expect(answer).not.toContain('nextcloud.example.org');
       }
     }

@@ -22,12 +22,20 @@ on the account. The owner, the same day: *"yes, build the classification fix"*.
   Graph fallback took any message holding `401` as a login failure, and a typed host can hold
   `401`. It now leaves an error that states its own category alone.
 - Not self-healing: `failing-backoff`'s guard names it on the needs-a-person side.
-- Screens: `failure.internalAddress` and `view.failure.internalAddress`, in English and Dutch (the
-  Dutch awaits the owner's review). The remedy names the Accounts page and *Replace credentials*, and
-  the progress strip links *Open Accounts* beside it, as for `auth_expired`.
+- Screens: `failure.internalAddress` and `view.failure.internalAddress`, in English and Dutch. The
+  remedy names the Accounts page and *Replace credentials*, and the progress strip links *Open
+  Accounts* beside it, as for `auth_expired`. The owner read the first remedy, which named this
+  service's own network, and answered: *"this tell too much about our internals. Make it like
+  'Geen verbinding gemaakt, pas het serveradres aan. Druk op de pagina Accounts op Inloggegevens
+  vervangen en vul het adres een server internet adres in; daarna wordt verdergegaan waar
+  gestopt was.'"* The remedy is that, with *vul een internetadres van de server in* for the
+  phrase in the middle, and the English is conformed to it. The view's sentence the owner
+  approved as written (*"2: ok"*).
 - API: not in `failure-answer.ts`'s `OURS`. The stored text names a host, the one typed or one a
-  redirect named, so the category is always answered in the rule's own sentence, which names none,
-  whichever side and whatever the source.
+  redirect named, so the failure is always answered *"We did not connect to this address."*
+  (`NOT_CONNECTED`), which names no host and nothing inside this service, whichever side and
+  whatever the source. The **Test** answer on Accounts and the sharing checklist's refusal keep
+  0136's sentence for now; whether they say less too is put to the owner.
 - The column is `text` with no CHECK (migration 0033), so no schema change. 0048, 0049 and 0051's
   COMMENTs list the categories and no test requires them to name every one; they were not
   updated for `too_large` either, and no migration was added.

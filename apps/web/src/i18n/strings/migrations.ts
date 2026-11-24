@@ -331,11 +331,11 @@ export const en = {
   // `unknown` until then, which called our sentence the provider's and
   // offered "Send it to us". The way out is the account's address, so it
   // names the page and the button that change it, as `failure.authExpired`
-  // does, and the line links to the page with `failure.openAccounts`. A kind
-  // whose host somebody types has no consent button, so its row says
-  // Replace credentials.
+  // does, and the line links to the page with `failure.openAccounts`. It says
+  // nothing of what is inside this service: the owner, on the first wording,
+  // "this tell too much about our internals", and the Dutch is theirs.
   'failure.internalAddress':
-    'Not connected: this account\u2019s server address is inside this service\u2019s own network, or the server sent us on to one that is. On the Accounts page, press Replace credentials and give the address the server has on the internet; this then carries on from where it stopped.',
+    'Not connected, change the server address. On the Accounts page, press Replace credentials and enter an internet address of the server; then it carries on from where it stopped.',
   // Also shortened on 2026-09-22 from the owner's draft, but kept GENERAL: this
   // category is not Drive's alone — a mail or calendar source that refuses an
   // item lands here too — so the owner's "like maps" belongs in the per-item
@@ -694,7 +694,7 @@ export const nl: Record<keyof typeof en, string> = {
   'failure.tooLarge':
     'Niet gemigreerd: bestandsomvang groter dan Ownpace tijdens de Alpha aankan. Kopieer deze bestanden met de hand, of laat ze achter.',
   'failure.internalAddress':
-    'Geen verbinding gemaakt: het serveradres van dit account ligt binnen het eigen netwerk van deze dienst, of de server stuurde ons door naar een adres dat daarbinnen ligt. Druk op de pagina Accounts op Inloggegevens vervangen en vul het adres in dat de server op internet heeft; daarna wordt verdergegaan waar gestopt was.',
+    'Geen verbinding gemaakt, pas het serveradres aan. Druk op de pagina Accounts op Inloggegevens vervangen en vul een internetadres van de server in; daarna wordt verdergegaan waar gestopt was.',
   'failure.sourceRefused':
     'Niet gemigreerd: het oude account wilde dit niet laten lezen, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
   'failure.targetRefused':
