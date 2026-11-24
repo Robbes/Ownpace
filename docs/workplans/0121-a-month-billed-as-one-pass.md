@@ -13,8 +13,8 @@ operations `/api/billing/usage` serves and an invoice freezes (the screen stoppe
 runner that gave none) as itself; since `run-full-sync` went, every billable row is the delta
 pass's. Compute stays per row, since each attempt held the machine for its own seconds, and no price
 reads the count (`calculateCost`). Run against a real Postgres (`scripts/local-pg.sh`), the new case
-reads 4 passes without the change and 3 with it. Waits for the owner's yes: asked on 2026-11-23,
-with the advice to count a pass once.
+reads 4 passes without the change and 3 with it. Asked on 2026-11-23, with the advice to count a
+pass once, the owner said on 2026-11-24: *"count a retried pass once, in a small alpha.19 PR: yes."*
 
 **2026-10-05: the customer's screen shows what moved, not what Ownpace spends (0131's Status).**
 The owner asked why Billing showed Storage, API calls and compute hours, and settled what T4's
