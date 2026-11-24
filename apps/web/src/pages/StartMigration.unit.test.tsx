@@ -201,14 +201,15 @@ describe('Who is it for? (screen 1)', () => {
 });
 
 describe('Which account are you leaving or moving? (screen 2)', () => {
-  it('draws six tiles with none ticked, and waits for one', async () => {
+  // Nine since workplan 0169: the drawing's six, and the three DAV protocols.
+  it('draws nine tiles with none ticked, and waits for one', async () => {
     const user = userEvent.setup();
     renderAt();
     await user.type(await screen.findByLabelText('Name'), 'Anna Jansen');
     await user.click(next());
     const tiles = screen.getAllByRole('checkbox');
     expect(tiles.map((c) => c.getAttribute('aria-checked') ?? String((c as HTMLInputElement).checked))).toEqual(
-      Array(6).fill('false'),
+      Array(9).fill('false'),
     );
     expect(next()).toHaveAccessibleDescription('Tick at least one account.');
     await user.click(screen.getByRole('checkbox', { name: /^Google/ }));
@@ -243,21 +244,22 @@ describe('Which account are you leaving or moving? (screen 2)', () => {
     expect(why.closest('label')).toBeNull();
   });
 
-  it('has no export line, and its fold names IMAP alone, ticks Another mail provider, and leads to no wizard', async () => {
-    // 0153 open question 5: every export has a provider (item 2), and the one
-    // source protocol is IMAP, which is a tile. CalDAV, CardDAV, WebDAV and
-    // JMAP are destinations, and the fold no longer names them as ways in.
+  it('has no export line, and its fold names the source protocols, ticks Another mail provider, and leads to no wizard', async () => {
+    // 0153 open question 5: every export has a provider (item 2). The source
+    // protocols are IMAP and, since workplan 0169 (the owner, 2026-11-24),
+    // CalDAV, CardDAV and WebDAV, each a tile; JMAP is a destination only.
     const user = userEvent.setup();
     peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
     renderAt('/start?person=p-anna');
     await screen.findByRole('radio', { name: 'Anna Jansen' });
     await user.click(next());
     expect(screen.queryByText(/export archive/i)).not.toBeInTheDocument();
-    await user.click(screen.getByText('Other ways to connect (IMAP)'));
+    await user.click(screen.getByText('Other ways to connect (IMAP, CalDAV, CardDAV, WebDAV)'));
     expect(screen.getByText(/Any other mail provider works: choose Another mail provider/)).toBeInTheDocument();
-    // Calendars, contacts and files from other servers are destinations only,
-    // said without a protocol's name (the owner, 2026-10-14).
-    expect(screen.getByText(/Other servers can receive them/)).toBeInTheDocument();
+    // Calendars, contacts and files are read from any DAV server since workplan
+    // 0169, a Nextcloud among them, through its tile: no Nextcloud card.
+    expect(screen.getByText(/any server that speaks CalDAV, CardDAV or WebDAV, a Nextcloud among them/)).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /^Nextcloud/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Add one migration by hand' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Choose Another mail provider' }));
     expect(screen.getByRole('checkbox', { name: 'Another mail provider' })).toBeChecked();

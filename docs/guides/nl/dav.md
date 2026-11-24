@@ -37,15 +37,15 @@ U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoe
 
 Dezelfde drie kaarten lezen ook vanaf een server die u verlaat, ook een Nextcloud: er is geen Nextcloud-kaart om er een te verlaten, dus een Nextcloud verlaat u via deze drie. Vink bij **Welk account verlaat of migreert u?** **Agendaserver (CalDAV)** aan voor agenda's en takenlijsten, **Contactenserver (CardDAV)** voor contacten of **Bestandsserver (WebDAV)** voor bestanden. Vul bij **Uw accounts verbinden** de velden in die [De velden](#fields) beschrijft, voor het account dat u verlaat. Dat account wordt alleen gelezen: er wordt niets naar geschreven of uit verwijderd. De drie dragen het label **Experimenteel** tot een echte migratie ze bewijst.
 
-Voor agenda's en takenlijsten. De test toont de agenda's van het account, opgezocht vanaf het adres van de server. Staat de DAV-root van de server achter een pad, zoals `/remote.php/dav` bij een Nextcloud, vul dan dat volledige adres in bij **DAV-basis-URL**.
+Voor agenda's en takenlijsten. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. De test toont de agenda's van het account, opgezocht vanaf het adres van de server. Staat de DAV-root van de server achter een pad, zoals `/remote.php/dav` bij een Nextcloud, vul dan dat volledige adres in bij **DAV-basis-URL**.
 
 ### CardDAV als bron {#carddav-source}
 
-Voor contacten. De test toont de adresboeken van het account, op dezelfde manier opgezocht als de agenda's hierboven.
+Voor contacten. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat, of **DAV-basis-URL** voor een root achter een pad. De test toont de adresboeken van het account, op dezelfde manier opgezocht als de agenda's hierboven.
 
 ### WebDAV als bron {#webdav-source}
 
-Voor bestanden. Ze worden gelezen uit de map waar het adres naartoe leidt, en uit elke map daaronder. Met alleen een host en een poort is dat de hoofdmap van de server. Voor de bestanden van één account vult u het volledige WebDAV-adres van zijn map in bij **DAV-basis-URL**: bij een Nextcloud is dat het adres onderaan de pagina met bestandsinstellingen, eindigend op `/remote.php/dav/files/` met de gebruikersnaam.
+Voor bestanden. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. Ze worden gelezen uit de map waar het adres naartoe leidt, en uit elke map daaronder. Met alleen een host en een poort is dat de hoofdmap van de server. Voor de bestanden van één account vult u het volledige WebDAV-adres van zijn map in bij **DAV-basis-URL**: bij een Nextcloud is dat het adres onderaan de pagina met bestandsinstellingen, eindigend op `/remote.php/dav/files/` met de gebruikersnaam.
 
 ## Wat er meegaat {#what-moves}
 
