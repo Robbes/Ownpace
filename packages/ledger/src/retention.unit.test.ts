@@ -33,7 +33,7 @@ import {
   DEFAULT_RUN_RETENTION_DAYS,
 } from './retention.ts';
 import { createPgliteDb } from './pglite-driver.ts';
-import type { LedgerDriver, LedgerConnection } from './driver.ts';
+import { statementsInTurn, type LedgerDriver, type StatementsInTurn } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
 
 // UUID family 5a9b0000-…, unused elsewhere in the repo.
@@ -51,7 +51,7 @@ const NOW = new Date('2026-08-18T12:00:00.000Z');
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
 
 let driver: LedgerDriver;
-let conn: LedgerConnection;
+let conn: StatementsInTurn;
 let db: PgDatabase;
 
 async function count(table: string): Promise<number> {
@@ -67,7 +67,7 @@ beforeAll(async () => {
   driver = made.driver;
   db = made.db;
   await runMigrations({ driver, logger: () => {} });
-  conn = await driver.acquire();
+  conn = statementsInTurn(driver);
 }, 120_000);
 
 afterAll(async () => {

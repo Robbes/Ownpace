@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import { createHash } from 'node:crypto';
-import type { FileFolder, FileItem, FileSource, RawFileItem, SyncCursor } from '@openmig/shared';
+import type { FileFolder, FileItem, FileSource, ListOptions, RawFileItem, SyncCursor } from '@openmig/shared';
 import type {
   ArchiveHandle,
   ArchiveItem,
@@ -16,6 +16,7 @@ import type {
 // beside `MAX_BUFFERED_FILE_BYTES` and re-exports it from there, so this
 // import resolves either way and can be retargeted when that lands.
 import { STREAM_FILES_LARGER_THAN_BYTES } from './webdav-source.ts';
+import { splitByWindow } from './file-window.ts';
 
 /**
  * AN EXPORT ARCHIVE AS A FILE SOURCE (workplan 0116 T5 + T6).
@@ -204,13 +205,24 @@ export class ArchiveFileSource implements FileSource {
     return [ROOT, ...folders.map((path) => ({ path, name: path }))];
   }
 
+  /**
+   * A folder's items, from the one walk `open` makes.
+   *
+   * WITH A WINDOW (`options.since`, workplan 0170 §4.2): the walk is made
+   * whole, and an item dated before `since` goes back as `unmarked`
+   * (`splitByWindow`), which saves its upload but not the walk. An item with
+   * no date carries the epoch and is IN the window (D6, *"one uploads all"*):
+   * `fileInWindow` holds it.
+   */
   async listSince(
     folder: FileFolder,
     _cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
+    options?: ListOptions,
+  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor; unmarked?: ReadonlyArray<RawFileItem> }> {
     // The cursor is ignored: an archive has no change feed, so every pass
     // lists everything and the ledger's fast-path decides what is new. The
-    // cursor returned is a marker rather than a position, as Dropbox's is.
+    // cursor returned is a marker rather than a position, as Dropbox's is,
+    // so it claims nothing about an item a window set aside.
     const { items, manifest } = await this.open();
     const here =
       folder.path === ''
@@ -220,7 +232,7 @@ export class ArchiveFileSource implements FileSource {
     // inside the loop's bounded concurrency (`FileSource.listSince`).
     const listed: RawFileItem[] = here.map((item) => ({ item: placed(item, folder.path) }));
     if (folder.path === '') listed.push({ item: manifestItem(manifest) });
-    return { items: listed, nextCursor: { value: `full-listing:${folder.path}` } };
+    return { ...splitByWindow(listed, options?.since), nextCursor: { value: `full-listing:${folder.path}` } };
   }
 
   async fetch(item: FileItem): Promise<RawFileItem> {
