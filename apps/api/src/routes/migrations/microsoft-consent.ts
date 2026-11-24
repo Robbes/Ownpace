@@ -54,6 +54,8 @@ import {
   microsoftAuthEndpoint,
   microsoftScopesFor,
   microsoftTokenEndpoint,
+  cannotTakeAlong,
+  isMicrosoftTenantDomain,
   type Bilingual,
 } from '@openmig/shared';
 
@@ -63,6 +65,14 @@ export function microsoftConsentUrl(p: {
   redirectUri: string;
   state: string;
   domains: ReadonlyArray<string>;
+  /**
+   * A grant link's named account (workplan 0171 §3.3): offered first, and a
+   * convenience only, since the ending refuses any other account that signs
+   * in. Absent on the owner's own Connect with Microsoft.
+   */
+  loginHint?: string;
+  /** `consumers` for a personal address, `organizations` otherwise; with `loginHint` only. */
+  domainHint?: 'consumers' | 'organizations';
 }): string {
   const url = new URL(microsoftAuthEndpoint(p.tenant));
   url.searchParams.set('client_id', p.clientId);
@@ -73,6 +83,8 @@ export function microsoftConsentUrl(p: {
   url.searchParams.set('state', p.state);
   // See the header: the wrong-mailbox failure is a successful migration.
   url.searchParams.set('prompt', 'select_account');
+  if (p.loginHint) url.searchParams.set('login_hint', p.loginHint);
+  if (p.loginHint && p.domainHint) url.searchParams.set('domain_hint', p.domainHint);
   return url.toString();
 }
 
@@ -81,6 +93,14 @@ export type MicrosoftExchangeResult =
       readonly ok: true;
       readonly refreshToken: string;
       readonly grantedScopes: ReadonlyArray<string>;
+      /**
+       * Who signed in, as the token response carries it (workplan 0171 §3.3):
+       * the ID token the identity scopes bring, and the access token that
+       * reads `/me`. Read by a grant link's ending and dropped by the
+       * owner's, which hands the refresh token to the owner's own window.
+       */
+      readonly idToken?: string;
+      readonly accessToken?: string;
     }
   | {
       readonly ok: false;
@@ -257,9 +277,9 @@ export async function exchangeMicrosoftCode(
       said: MICROSOFT_EXCHANGE_FOR_THE_OWNER.refused,
     };
   }
-  let json: { refresh_token?: string; scope?: string };
+  let json: { refresh_token?: string; scope?: string; id_token?: string; access_token?: string };
   try {
-    json = JSON.parse(text) as { refresh_token?: string; scope?: string };
+    json = JSON.parse(text) as typeof json;
   } catch {
     return {
       ok: false,
@@ -281,5 +301,20 @@ export async function exchangeMicrosoftCode(
     ok: true,
     refreshToken: json.refresh_token,
     grantedScopes: (json.scope ?? '').split(/\s+/).filter(Boolean),
+    ...(typeof json.id_token === 'string' ? { idToken: json.id_token } : {}),
+    ...(typeof json.access_token === 'string' ? { accessToken: json.access_token } : {}),
   };
+}
+
+/**
+ * Where Microsoft should send a grant link's named account (workplan 0171
+ * §3.3): `consumers` for an address on one of Microsoft's own consumer
+ * domains (`cannotTakeAlong` names Microsoft for it, and it is not a tenant's
+ * `onmicrosoft.com` name), `organizations` for anything else.
+ */
+export function microsoftDomainHint(account: string): 'consumers' | 'organizations' {
+  const at = account.lastIndexOf('@');
+  const domain = at < 0 ? '' : account.slice(at + 1).trim().toLowerCase();
+  if (domain === '' || isMicrosoftTenantDomain(domain)) return 'organizations';
+  return cannotTakeAlong(account)?.provider === 'Microsoft' ? 'consumers' : 'organizations';
 }

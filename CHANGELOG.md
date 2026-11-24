@@ -6,6 +6,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **Grant links for a Microsoft account** (workplan 0171 T3; the owner's decisions D5 (a) and D7
+  (a) of 2026-11-24). A grant link can now connect a Microsoft 365 account, personal or work, as
+  it has connected a Google account: the person opens the link, presses **Continue with Microsoft
+  as** *their account* (*Doorgaan met Microsoft als …*), signs in on Microsoft's own page, and the
+  token is stored on their migration and shown to nobody. The grant is bound to the account the
+  migration names: Microsoft's answer must come from the sign-in of the organisation it names and
+  be meant for this deployment's app, and the named address must be the account's sign-in name,
+  its primary address or one of its proxy addresses; for a personal account, its sign-in name.
+  Any other account stores nothing and leaves the link working, with *"You signed in as …; this
+  link is for …"* (*"U meldde zich aan als …; deze link is voor …"*). A person's link lists each
+  account with its own provider and button. Underneath, one provider seam
+  (`apps/api/src/routes/grant-providers.ts`) now says which providers a link can connect, and the
+  readiness check, the routes and the page ask it, ready for Dropbox and Apple (T4, T5). The
+  authorize route is `POST /api/grant/:link/:provider/authorize`, with Google's old address kept;
+  the readiness refusal `source_not_google` is renamed `source_not_grantable`. **Every new
+  Microsoft consent also asks `openid email profile User.Read`** (D7 (a)): who signed in, and
+  their own profile, which Finish needs for the addresses that receive mail. A connection made
+  before alpha.20 lacks it until it is connected again. A Microsoft account saved for somebody
+  else is saved without a token, and Start waits until their grant brings one. No database
+  change.
+
 - **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
   of 2026-11-24: *"yes to all, build them. But dont add the nextcloud as source card, add only
   the generic cards as source."*). Three source cards in the *Any server, by protocol* lane beside

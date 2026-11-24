@@ -96,6 +96,8 @@ import {
   connectionsFor,
   destinationsFor,
   grantableByLink,
+  grantProvidersServed,
+  type GrantLinkProvider,
   migrationsFor,
   offers,
   EXPORT_CARD,
@@ -398,10 +400,13 @@ const StartMigration: React.FC = () => {
       google?: DiscoveryDomain[];
       microsoft?: DiscoveryDomain[];
       googleClient?: 'deployment' | 'connection';
+      grantProviders?: GrantLinkProvider[];
     } = {};
     if (providerAccounts?.google) facts.google = providerAccounts.google.domains;
     if (providerAccounts?.google?.client) facts.googleClient = providerAccounts.google.client;
     if (providerAccounts?.microsoft) facts.microsoft = providerAccounts.microsoft.domains;
+    // Whose grant links this deployment serves (workplan 0171 §3.2).
+    if (providerAccounts) facts.grantProviders = grantProvidersServed(providerAccounts);
     return facts;
   }, [providerAccounts]);
 

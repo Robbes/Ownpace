@@ -70,6 +70,9 @@ const OTHER = 'other@example.invalid';
  * Each function the module exports, called the way its callers call it, with
  * the findings each call must carry through.
  */
+/** The providers a grant link is designed for (workplan 0171 §3.2). */
+const PROVIDERS = ['microsoft', 'dropbox', 'apple'] as const;
+
 const CALLS: Readonly<Record<string, () => Array<{ pair: Bilingual; findings: string[] }>>> = {
   notReady: () =>
     Object.values(prose.NOT_READY_BECAUSE).map((what) => ({ pair: prose.notReady(what), findings: [] })),
@@ -80,6 +83,19 @@ const CALLS: Readonly<Record<string, () => Array<{ pair: Bilingual; findings: st
   ],
   unconfirmedAccount: () => [{ pair: prose.unconfirmedAccount(NAMED), findings: [NAMED] }],
   anotherAccount: () => [{ pair: prose.anotherAccount(OTHER, NAMED), findings: [OTHER, NAMED] }],
+  // At a provider other than Google (workplan 0171 §3.4): the same checks, once
+  // per provider a link is designed for.
+  noNamedAccountAt: () => PROVIDERS.map((p) => ({ pair: prose.noNamedAccountAt(p), findings: [] })),
+  unconfirmedAccountAt: () => PROVIDERS.map((p) => ({ pair: prose.unconfirmedAccountAt(p, NAMED), findings: [NAMED] })),
+  anotherAccountAt: () =>
+    PROVIDERS.map((p) => ({ pair: prose.anotherAccountAt(p, OTHER, NAMED), findings: [OTHER, NAMED] })),
+  stoppedAtProvider: () =>
+    PROVIDERS.flatMap((p) => [
+      { pair: prose.stoppedAtProvider(p, 'access_denied'), findings: [] },
+      { pair: prose.stoppedAtProvider(p, SAID), findings: [SAID] },
+    ]),
+  nothingCameBackFrom: () => PROVIDERS.map((p) => ({ pair: prose.nothingCameBackFrom(p), findings: [] })),
+  exchangeRefusedAt: () => PROVIDERS.map((p) => ({ pair: prose.exchangeRefusedAt(p), findings: [] })),
 };
 
 function withoutFindings(s: string, findings: ReadonlyArray<string>): string {
