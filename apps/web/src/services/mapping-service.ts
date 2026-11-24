@@ -349,7 +349,7 @@ const ConnectionRefSchema = z.object({
 
 /** Shared's `MigrationWindowView`, as `GET /migrations/:id` serves it (0170 §5.2). */
 const WindowedDomainEnum = z.enum(WINDOWED_DOMAINS);
-const WindowSchema = z.object({
+export const WindowSchema = z.object({
   recentOnly: z.boolean(),
   since: z.string().nullable(),
   in: z.array(WindowedDomainEnum),

@@ -54,7 +54,7 @@ change is expected (§3.4).
 | T2 Mail sources | builder | 📋 Planned | §4.1. IMAP and Gmail `SEARCH SINCE`; Graph mail `$filter`. Builds on T1's interface; may open in parallel against T1's branch. |
 | T3 File sources | builder | 📋 Planned | §4.2. Google Drive `q`; OneDrive, Dropbox, Box, WebDAV and the archive after listing. |
 | T4 Calendar sources | builder | 📋 Planned | §4.3. CalDAV `time-range`; Graph calendar before the per-event fetch; the DTSTART parse fixed. |
-| T5 Web UX and guides | builder | 🟡 Built, in review | §7, §5.4. On branch `claude/ownpace-public-readiness-y7orc6-0170-t5`, with T1's merged in: *How much?* on *What moves?*, said again on the check screen; on the migration page, from `window` on the detail (managed) or `/status` (the appliance), the *Last 90 days* chip, never *Ready to switch*, Finish *After Copy everything* (D8), and the milestone line (`windowParts`); *Copy everything* with its confirmation on managed (the appliance's is its mapping file); `docs/guides/*/start.md`, served as `start`. Unit tests for each state. Waits for the owner's Dutch and the E2E runs. |
+| T5 Web UX and guides | builder | 🟡 Built, in review | §7, §5.4. On branch `claude/ownpace-public-readiness-y7orc6-0170-t5`, with T1's merged in: *How much?* on *What moves?*, said again on the check screen; on the migration page, from `window` on the detail (managed) or `/status` (the appliance), the *Last 90 days* chip, never *Ready to switch*, Finish *After Copy everything* (D8), and the milestone line (`windowParts`); *Copy everything* with its confirmation on managed (the appliance's is its mapping file); `docs/guides/*/start.md`, served as `start`; the Finish page offers no switch-over while the migration is of only the last 90 days, and links to *Copy everything* instead (D8). Unit tests for each state. Waits for the owner's Dutch and the E2E runs. |
 | T6 Proofs | builder | 📋 Planned | §8. Integration on Stalwart and Nextcloud, `local-pg.sh`, the appliance's mapping file, and the managed E2E smoke's 90-day case. |
 | T7 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T6 merges. |
 | T8 The owner's decisions | owner | ✅ Done | §10: D1 to D8 answered 2026-11-24. |
@@ -476,7 +476,7 @@ appliance, the mapping file's `recentOnly` and how to broaden it.
 | T2 | `imapflow-source.ts`, `graph-mail-source.ts`, `mail-source-with-graph-fallback.ts` | T1's interface | after T1, any order with T3, T4 |
 | T3 | `graph-drive-source.ts`, `google-drive-source.ts`, `dropbox-file-source.ts`, `box-file-source.ts`, `webdav-source.ts`, `archive-file-source.ts` | T1's interface | after T1 |
 | T4 | `caldav-source.ts`, `caldav-query.ts`, `graph-calendar-source.ts`, `recent-window.ts`'s `eventInWindow` | T1's interface | after T1 |
-| T5 | `apps/web` (`StartMigration.tsx`, `MappingDetail.tsx`, `stage-line.ts`, `i18n/strings/*`), `docs/guides/*/start.md`, `guide-handle.ts` | T1's API fields; the owner's Dutch | after T1 |
+| T5 | `apps/web` (`StartMigration.tsx`, `MappingDetail.tsx`, `Finish.tsx`, `stage-line.ts`, `i18n/strings/*`), `docs/guides/*/start.md`, `guide-handle.ts` | T1's API fields; the owner's Dutch | after T1 |
 | T6 | the integration tests, the appliance's boot cases and the smoke case | T1 to T4 | last; then T7 |
 
 T2, T3, T4 and T5 can be built in parallel once T1's branch is pushed, against its interface; each
