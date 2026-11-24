@@ -10,7 +10,8 @@ login v2, which does not run here (`managed.yml`'s comment above the pin). Read 
 through ghcr.io's registry, without running them: per platform, v4.20.5's two base layers are
 v4.20.4's byte for byte, and the layer that holds the binary differs by 1 byte (linux/amd64) and 24
 bytes (linux/arm64) compressed, what a new version string alone makes. Its three-day floor ended on
-2026-11-21. It takes the route issue #1934 gives: the owner dumps the OTA instance's `zitadel`
+2026-11-21. The owner, 2026-11-24: *"Zitadel v4.20.5: ok, after 18 deploy"*. So after alpha.18's
+deploy to live it takes the route issue #1934 gives: the owner dumps the OTA instance's `zitadel`
 database first (`dump-idp.sh`), E2E (managed) applies it there, and the owner checks one sign-in and
 one forgot-password mail, as for v4.20.4; live takes it from alpha.19's tag.
 
