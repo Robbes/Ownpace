@@ -36,6 +36,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   archive item with no date counts as inside it. A windowed listing is never remembered as the
   whole folder, and no cursor that would claim older files as seen is kept. Nothing changes for
   a listing without a window.
+- **Calendar sources read the last 90 days first** (workplan 0170 T4, D1 (a)). Asked for a
+  window, a CalDAV source (any server, Google, Apple) lists a calendar with a `time-range` from a
+  day before its start, plus every recurring series, so a server that does not expand recurrence
+  still shows the sync loop a series that began years ago and still recurs; a server that refuses
+  any of those queries has its calendar listed whole. The listing gives no cursor, and tasks are
+  never windowed. Graph calendars set aside an event plainly over before the window before its
+  iCalendar is fetched, and mark their cursor with the window, so a listing of everything never
+  reads on from it. `eventInWindow` now decides D1 (a) from the event itself: DTEND or DURATION,
+  time zones (IANA, a VTIMEZONE's own offsets for a Windows name, the widest offsets for a
+  floating time or a date), RRULE's UNTIL and COUNT, RDATE, and overrides; what it cannot bound
+  is held. The start a CalDAV event carries is read from its own VEVENT, in UTC, no longer a
+  VTIMEZONE's 1970 start or the moment it was listed.
 
 ### Fixed
 

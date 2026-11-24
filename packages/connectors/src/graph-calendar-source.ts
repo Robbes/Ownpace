@@ -16,7 +16,7 @@
  */
 
 import { graphFailure } from './graph-refusal.ts';
-import type { CalendarSource, CalendarFolder, RawCalendarEvent, SyncCursor } from '@openmig/shared';
+import type { CalendarSource, CalendarFolder, ListOptions, RawCalendarEvent, SyncCursor } from '@openmig/shared';
 import type { TokenProvider } from '@openmig/shared';
 import type { GraphCalendarSourceConfig, GraphCalendar, GraphEvent, GraphDeltaCursor, ParsedIcalComponent } from './graph-calendar-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
@@ -37,6 +37,62 @@ const CALENDAR_FACE = { face: 'Calendar', scope: 'Calendars.Read' } as const;
  * request loop against a customer tenant should fail loudly, not quietly.
  */
 const MAX_DELTA_PAGES = 10_000;
+
+/** A window's cursor: `graph-delta-window:{since, ms}:{the delta cursor}`. */
+const WINDOW_CURSOR_PREFIX = 'graph-delta-window:';
+const WINDOW_CURSOR = /^graph-delta-window:(-?\d+):(.*)$/s;
+
+const DAY_MS = 86_400_000;
+/** The furthest west of UTC a zone is: a wall-clock time is at most this much later in UTC. */
+const WEST_MS = 12 * 3_600_000;
+
+/** A Graph `dateTime` (`2024-01-15T10:00:00.0000000`) as wall-clock ms, or `undefined`. */
+function graphWall(dateTime: string | undefined): number | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(dateTime ?? '');
+  if (!m) return undefined;
+  const ms = Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0));
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+/** The latest instant a Graph `dateTimeTimeZone` can be: exact in UTC, else read at UTC−12. */
+function graphLatest(at: { readonly dateTime: string; readonly timeZone?: string } | undefined): number | undefined {
+  const wall = graphWall(at?.dateTime);
+  if (wall === undefined) return undefined;
+  const zone = at?.timeZone?.trim().toUpperCase();
+  return zone === 'UTC' || zone === 'ETC/UTC' ? wall : wall + WEST_MS;
+}
+
+/**
+ * Whether a delta entry may be in a window (workplan 0170 D1 (a)), from the
+ * entry alone, before its iCalendar is fetched. `false` only for what is
+ * plainly over before `since`; everything else is fetched and decided by the
+ * sync loop's `eventInWindow`:
+ *
+ *  - a single event, by its `end`;
+ *  - a series, by its range's `endDate` plus one occurrence's length, and
+ *    kept when it has no end or ends after a number of occurrences;
+ *  - an occurrence or an exception, always: its series may be in the window,
+ *    and a series is copied with every override it has;
+ *  - a removal, or an entry whose times do not read, always.
+ */
+export function graphEntryMayBeInWindow(event: GraphEvent, since: Date): boolean {
+  if (event['@removed'] !== undefined) return true;
+  const type = event.type ?? (event.recurrence ? 'seriesMaster' : 'singleInstance');
+  if (type === 'occurrence' || type === 'exception') return true;
+  const end = graphLatest(event.end);
+  if (end === undefined) return true;
+  if (type === 'seriesMaster') {
+    const range = event.recurrence?.range;
+    if (range?.type !== 'endDate') return true;
+    const lastDay = graphWall(range.endDate);
+    const start = graphWall(event.start?.dateTime);
+    const endWall = graphWall(event.end?.dateTime);
+    if (lastDay === undefined || start === undefined || endWall === undefined) return true;
+    // The last occurrence starts on its last day at the latest, and lasts as the first does.
+    return lastDay + DAY_MS + WEST_MS + Math.max(0, endWall - start) >= since.getTime();
+  }
+  return end >= since.getTime();
+}
 
 export class GraphCalendarSource implements CalendarSource {
   private readonly config: GraphCalendarSourceConfig;
@@ -113,6 +169,7 @@ export class GraphCalendarSource implements CalendarSource {
   async listSince(
     folder: CalendarFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<RawCalendarEvent>;
     nextCursor: SyncCursor;
@@ -120,16 +177,23 @@ export class GraphCalendarSource implements CalendarSource {
   }> {
     // Events this listing found and could not turn into an event to migrate.
     let unreadable = 0;
+    const since = options?.since;
     // Parse cursor to get delta link
     let deltaLink: string | undefined;
     
     if (cursor) {
-      try {
-        const graphCursor = this.decodeCursor(cursor);
-        deltaLink = graphCursor.deltaLink;
-      } catch {
-        // Invalid cursor, do full sync
-        deltaLink = undefined;
+      // A window's cursor is read only by the same window: anything else
+      // lists whole (see `WINDOW_CURSOR` below).
+      const windowed = WINDOW_CURSOR.exec(cursor.value);
+      const sameWindow = windowed === null || (since !== undefined && Number(windowed[1]) === since.getTime());
+      if (sameWindow) {
+        try {
+          const graphCursor = this.decodeCursor(windowed === null ? cursor : { value: windowed[2]! });
+          deltaLink = graphCursor.deltaLink;
+        } catch {
+          // Invalid cursor, do full sync
+          deltaLink = undefined;
+        }
       }
     }
 
@@ -180,9 +244,25 @@ export class GraphCalendarSource implements CalendarSource {
       nextLink = data['@odata.nextLink'];
     } while (nextLink);
 
+    // A WINDOW, BEFORE THE FETCH (workplan 0170 §4.3). Graph's events delta
+    // takes no date filter (`calendarView/delta` would, but it lists
+    // occurrences rather than series, which changes the item and its key), so
+    // the entries are read here, and an event plainly over before `since` is
+    // not fetched at all: that request per event is the cost a window saves.
+    // The sync loop's `eventInWindow` decides every event that is fetched.
+    let setAside = 0;
+    const toFetch = since === undefined ? events : events.filter((event) => {
+      const may = graphEntryMayBeInWindow(event, since);
+      if (!may) setAside += 1;
+      return may;
+    });
+    if (setAside > 0) {
+      log.info(`Graph calendar: ${setAside} event(s) in "${folder.path}" ended before the window and were not fetched`);
+    }
+
     // Fetch iCal data for each event
     const items: RawCalendarEvent[] = [];
-    for (const event of events) {
+    for (const event of toFetch) {
       try {
         const icalData = await this.fetchEventAsIcal(event.id, calendarId);
         const parsed = this.parseIcal(icalData);
@@ -234,11 +314,16 @@ export class GraphCalendarSource implements CalendarSource {
     }
 
     // Create next cursor from delta link
+    const encoded = this.encodeCursor({
+      deltaLink: lastDeltaLink ?? '',
+      folderPath: folder.path,
+    });
+    // A window's deltaLink claims the events it set aside as seen, so it is
+    // marked with its window, and a listing with no window, or another one,
+    // does not read on from it (`ListOptions`: never a cursor that claims an
+    // item before `since` where it could be stored as a content cursor).
     const nextCursor: SyncCursor = {
-      value: this.encodeCursor({
-        deltaLink: lastDeltaLink ?? '',
-        folderPath: folder.path,
-      }),
+      value: since === undefined ? encoded : `${WINDOW_CURSOR_PREFIX}${since.getTime()}:${encoded}`,
     };
 
     if (unreadable > 0) {
