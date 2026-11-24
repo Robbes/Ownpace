@@ -30,6 +30,7 @@
 
 import { graphFailure } from './graph-refusal.ts';
 import type {
+  ListOptions,
   SourceConnector,
   MailFolder,
   MailItem,
@@ -207,10 +208,23 @@ export class GraphMailSource implements SourceConnector {
    * query; subsequent calls resume from the persisted deltaLink. Pages are
    * followed to the end so the returned cursor always advances past
    * everything reported.
+   *
+   * **`options.since` is not sent to Graph (workplan 0170 §4.1, §11 question
+   * 1).** Messages delta accepts `$filter=receivedDateTime ge {value}`, but
+   * Microsoft's own page for it says: *"Applying `$filter` in a delta query
+   * returns only up to 5,000 messages."* An Inbox holds more than that in 90
+   * days often enough, and the messages past the cap would never be listed,
+   * with nothing to say so. So the listing stays whole, as every
+   * deltaLink it returns claims, and the sync loop sets aside what is older
+   * than the window before anything is downloaded, which is the cost that
+   * matters. The cursor is therefore true for any later listing, a full one
+   * included: it was made by one.
    */
   async listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
+    // Accepted and deliberately unused: see above.
+    _options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<MailItem>;
     nextCursor: SyncCursor;
