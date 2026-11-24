@@ -546,7 +546,7 @@ const sqlLit = (value: string): string => `'${value.split("'").join("''")}'`;
  * THE COUNT IS CHECKED BEFORE THE COMMIT. Reporting a removal that removed
  * nothing is the failure this file's own header was written about.
  */
-async function removeMembership(
+export async function removeMembership(
   pool: Pool,
   row: MembershipRow,
   subject: string,
@@ -566,10 +566,14 @@ async function removeMembership(
         // `entity_id` stays null and the id rides in `detail`, which is the
         // shape every other writer in the repo uses — see the note in
         // `mapping-status-audit.ts` about not making a reader learn a third one.
+        //
+        // NO ADDRESS. The record is kept until the organisation is erased,
+        // long after the membership it records, and the subject is what the
+        // strays duty reads; the Team page's removal records none either
+        // (0135 T8). Until 2026-11-24 this one carried it (workplan 0139).
         JSON.stringify({
           memberId: row.member_id,
           userId: subject,
-          email: row.email,
           role: row.role,
           status: row.status,
           via: 'operator.sh leave',
@@ -848,9 +852,9 @@ async function main(): Promise<void> {
                 `      VALUES (${sqlLit(row.tenant_id)}::uuid, ${sqlLit(userId)}, ` +
                 `${sqlLit(row.email)}, ${sqlLit(row.role)}, ${sqlLit(row.status)}, now());\n` +
                 '      COMMIT;\n\n' +
-                '    The audit_log row just written holds what the membership was, if the\n' +
-                '    values above ever need checking against something other than this\n' +
-                '    terminal.',
+                '    The audit_log row just written holds what the membership was, but\n' +
+                '    not its address, if the values above ever need checking against\n' +
+                '    something other than this terminal.',
             );
           }
         }

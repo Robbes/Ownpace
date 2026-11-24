@@ -2,7 +2,37 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-11-22 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24: is personal data ever deleted? Two tables an outside check named, and the record
+`operator.sh leave` writes.** An outside, read-only check of `c482f8fd` (DATA-2, *"Is personal
+data ever deleted?"*) named `group_def` (ledger migration 0001) and `tenant_member` (managed
+migration 0001) as tables of personal data with no deletion it could see. Read on `main` at
+`2bb5e931`, both are deleted, so nothing changes for them:
+- **Erasure.** `purgeTenant` (`packages/managed/src/offboarding.ts`, workplan 0085) names both in
+  `PURGED_TABLES`, and `managed-purge-closed` runs it every hour for each organisation closed past
+  its window. `offboarding.unit.test.ts` holds every table with a `tenant_id` to that list or to
+  `RETAINED_TABLES` (invoices and the erasure record), so a table added with one cannot be left
+  out.
+- **Before erasure.** A member removed on the Team page or with `operator.sh leave` is deleted,
+  not marked. A distribution list goes with the connection that found it, and the rows of both
+  with their organisation (`ON DELETE CASCADE`). §9 keeps members, invitations and the lists a
+  migration found until the organisation's data is erased, and says so.
+- **One address that outlived its membership.** `operator.sh leave`'s `member.removed` record
+  carried the address of the platform operator it removed beside their subject, in the
+  organisation's `audit_log`, which is kept until the organisation is erased. Nothing read it:
+  `idp-strays.sh` reads `detail.userId`, and the Team page's record has no address (0135 T8).
+  Built on branch `claude/ownpace-public-readiness-y7orc6-leave-keeps-no-address`, from `main` at
+  `2bb5e931`, not merged: the record names no address, and the undo the script prints for an
+  organisation left empty still names it, on the terminal. The runbook's strays paragraph says
+  neither record carries one. Records written before keep it until their organisation is erased,
+  and the audit export gives it as a pseudonym.
+- **Proved by** a new case in `apps/api/src/scripts/operator.unit.test.ts`: `removeMembership`'s
+  record, written through a stand-in pool, names the subject, the membership and the door, and no
+  address. Red on `main`'s record (`removeMembership` exported, nothing else changed: the address
+  is in it), green on the branch. `a-member-removed-is-recorded.unit.test.ts` (7 cases), the
+  audit-field and strays tests and `offboarding.unit.test.ts` (135 cases between them) pass
+  unchanged.
 
 **2026-11-22: a closed organisation takes nobody in, on live since alpha.14's deploy (T7 (b)).**
 #1972, the change of the entry below, merged on 2026-11-21 (`4ecf0e41`), and live runs it since its
