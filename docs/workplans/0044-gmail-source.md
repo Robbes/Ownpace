@@ -4,7 +4,32 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
-**2026-11-24: All Mail is read last, as Archive (the owner's decision, for alpha.19).** *"Gmail
+**2026-11-24, last: the 90-day window on the count, and left-behind mail (decision E).**
+Workplan 0170's T2 branch (with T1) is merged in, not rebased. Discovery lists a window's
+All Mail with its `since` and counts Gmail's own total over that windowed listing.
+- *A 90-day migration counts only its window.* `countEveryMessage` takes the window's
+  `since`: All Mail is listed with it (T2's `UID SEARCH SINCE`), and only what arrived
+  on or after it counts, beside the cut-off (`countArrivedBefore`). `mailSourceSideCount`
+  takes the migration's `recentOnly` setting (the appliance's `MappingConfig.recentOnly`,
+  the managed `readRecentOnly`), and works out `since` with the same `windowSince` of the
+  anchor that its passes use. With no anchor yet there is no figure. A migration of
+  everything still counts everything, phase A included.
+- *Left-behind mail is accounted for* (the owner, decision E: "E yes"). What the person
+  chose to leave behind (`left_behind`, §11.2) is outside `countItems` and inside Gmail's
+  count. The Check now adds it to the recorded side: `LedgerVerificationReader.countLeftBehind`,
+  `VerificationDeps.getLeftBehindCount`, read only beside a source figure. Gmail's figure
+  less what was left behind is what belongs on the target. A message really missing still
+  FAILs, and the `NEVER_COPIED_mail` message names how many were left behind.
+- Evidence: `gmail-mail-archived-without-a-label.unit.test.ts` (now 22: a windowed count
+  leaves older mail out and asks `SEARCH SINCE`; an unwindowed count is unchanged; no anchor,
+  no figure; a 90-day Check passes over older mail it never copies, where a migration of
+  everything FAILs; left-behind mail passes and a real loss still FAILs), core
+  `verification-the-sources-own-count.unit.test.ts` (now 12), and
+  `source-count-window.integration.test.ts` (now 4, `countLeftBehind` against Postgres via
+  `./scripts/local-pg.sh`). Without the left-behind term, 3 tests fail. Without the window,
+  2 fail.
+
+**2026-11-24: All Mail is read last, as Archive (the owner's decision, for alpha.20).** *"Gmail
 mail archived without a label is never copied. Fix: read All Mail last, copy only what wasn't
 copied yet into an Archive folder, and count from Gmail itself on Confirm and Check. YES"*
 Decision 3 below dropped All Mail with Starred and Important; over IMAP a message archived
@@ -27,7 +52,7 @@ passed. Now:
   attributes and a Dutch All Mail name), `verification-the-sources-own-count.unit.test.ts`,
   the confirm screen's and the discovery store's tests; each new guard fails without its part.
 - Open: workplan 0170's window (`ListOptions.since`) must reach the All Mail listing and its
-  count once T1 and T2 merge.
+  count once T1 and T2 merge. *Done, see the entry above.*
 
 **2026-11-24, later: the owner's two answers, and the destination's archive folder.**
 - *Never copied stays a hard FAIL, without false alarms* (the owner: "ok"). The Check's

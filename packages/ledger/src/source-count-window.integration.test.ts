@@ -18,8 +18,9 @@ import { eq } from 'drizzle-orm';
 import { createPgDb } from './db.ts';
 import { createLedgerVerificationReader } from './verification-queries.ts';
 import { PgMigrationStatusStore } from './migration-status-store.ts';
+import { PgLedger } from './ledger.ts';
 import * as schemaPg from './schema-pg.ts';
-import type { TenantId, MappingId } from '@openmig/shared';
+import type { TenantId, MappingId, LedgerRecord } from '@openmig/shared';
 
 const TEST_DB_URL = process.env.TEST_DATABASE_URL;
 if (!TEST_DB_URL) {
@@ -97,5 +98,54 @@ describe('sourceCountWindow (0044, 2026-11-24)', () => {
     const reader = createLedgerVerificationReader({ db });
     const window = await reader.sourceCountWindow(TENANT, MAPPING, 'calendar');
     expect(window.lastCompletedPassStartedAt).toBeUndefined();
+  });
+});
+
+// LEFT BEHIND, COUNTED APART (the owner, 2026-11-24: "E yes"). The Check puts
+// what the person chose to leave behind on the recorded side beside Gmail's
+// own count; `countItems` leaves it out, `countLeftBehind` counts only it.
+describe('countLeftBehind (0044, 2026-11-24)', () => {
+  let db: ReturnType<typeof createPgDb>;
+  const MAPPING_LB = `${P}12` as MappingId;
+
+  beforeAll(async () => {
+    db = createPgDb(TEST_DB_URL);
+    await db.insert(schemaPg.tenant).values({ id: TENANT, name: 'T-window', status: 'active', settings: {} }).onConflictDoNothing();
+    await db.insert(schemaPg.connection).values({ id: `${P}21`, tenantId: TENANT, role: 'source', kind: 'imap', displayName: 'src', config: {}, status: 'connected' }).onConflictDoNothing();
+    await db.insert(schemaPg.mailbox).values({ id: `${P}31`, tenantId: TENANT, connectionId: `${P}21`, kind: 'user', status: 'active' }).onConflictDoNothing();
+    await db.insert(schemaPg.mailbox).values({ id: `${P}32`, tenantId: TENANT, connectionId: `${P}21`, kind: 'user', status: 'active' }).onConflictDoNothing();
+    await db.insert(schemaPg.mailboxMapping).values({ id: MAPPING_LB, tenantId: TENANT, sourceMailboxId: `${P}31`, targetMailboxId: `${P}32`, mode: 'mirror', status: 'active' }).onConflictDoNothing();
+  });
+
+  afterAll(async () => {
+    await db.delete(schemaPg.tenant).where(eq(schemaPg.tenant.id, TENANT));
+    await db.close();
+  });
+
+  it('counts only left_behind rows of the data type, beside what countItems counts', async () => {
+    const ledger = new PgLedger(db);
+    const write = (key: string, status: LedgerRecord['status'], itemType: LedgerRecord['itemType'] = 'email') =>
+      ledger.recordIfAbsent({
+        tenantId: TENANT,
+        mappingId: MAPPING_LB,
+        itemType,
+        naturalKeyHash: key,
+        contentHash: `c-${key}`,
+        targetId: `t-${key}`,
+        createdAt: new Date().toISOString(),
+        sizeBytes: 0,
+        status,
+      } as LedgerRecord);
+    await write('copied', 'copied');
+    await write('failed', 'failed');
+    await write('left1', 'left_behind');
+    await write('left2', 'left_behind');
+    await write('left-file', 'left_behind', 'file');
+
+    const reader = createLedgerVerificationReader({ db });
+    expect(await reader.countLeftBehind(TENANT, MAPPING_LB, 'email')).toBe(2);
+    expect(await reader.countItems(TENANT, MAPPING_LB, 'email')).toBe(2);
+    expect(await reader.countLeftBehind(TENANT, MAPPING_LB, 'calendar')).toBe(0);
+    expect(await reader.countLeftBehind(TENANT, MAPPING, 'email')).toBe(0);
   });
 });

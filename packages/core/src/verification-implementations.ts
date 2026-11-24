@@ -129,6 +129,18 @@ export function createRealVerificationDeps(
             if (started === undefined) return undefined;
             return count({ before: new Date(Date.parse(started) - SOURCE_CLOCK_MARGIN_MS) });
           },
+          // Left behind (§11.2) goes on the recorded side beside the source's
+          // own figure (the owner, 2026-11-24: "E yes").
+          ...(verificationReader.countLeftBehind
+            ? {
+                getLeftBehindCount: (dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks') =>
+                  verificationReader.countLeftBehind!(
+                    tenantId,
+                    mappingId,
+                    mapDataTypeToDomain(dataType) as DiscoveryDomain,
+                  ),
+              }
+            : {}),
           pastTheSwitch: async (dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks') =>
             (await verificationReader.sourceCountWindow?.(
               tenantId,

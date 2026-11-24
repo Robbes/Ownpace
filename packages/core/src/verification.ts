@@ -115,6 +115,15 @@ export interface VerificationDeps {
    * absent, an unreadable count is NOT_VERIFIABLE, as it was.
    */
   pastTheSwitch?(dataType: VerificationDomain): Promise<boolean>;
+  /**
+   * How many items of this data type the person chose to leave behind
+   * (`left_behind`, §11.2). The ledger's count leaves them out, as they will
+   * never be on the target; the source's own figure still holds them. Asked
+   * only beside that figure, and added to the recorded side, so left-behind
+   * mail never reads as never copied (the owner, 2026-11-24: "E yes").
+   * Absent: none is added, as before.
+   */
+  getLeftBehindCount?(dataType: VerificationDomain): Promise<number>;
   getTargetCount(dataType: VerificationDomain): Promise<number>;
   
   // Sample retrieval for checksum verification
@@ -669,7 +678,16 @@ async function verifyDataType(
   // is missing (the owner, 2026-11-24). Otherwise the ledger's, as before,
   // and past the switch with the old account out of reach, the ledger's with
   // the report saying so (`side.ownRecord`).
-  const heldAtSource = side.held;
+  //
+  // LEFT BEHIND IS ACCOUNTED FOR (the owner, 2026-11-24: "E yes"). What the
+  // person chose to leave behind (§11.2) is outside `recorded` and inside the
+  // source's figure, so it goes on the recorded side: it is neither never
+  // copied nor expected on the target. Read only beside a source figure.
+  const leftBehind =
+    side.held !== undefined && deps.getLeftBehindCount ? await deps.getLeftBehindCount(dataType) : 0;
+  // What the source holds that belongs on the target: its own figure less
+  // what was left behind, never below zero.
+  const heldAtSource = side.held === undefined ? undefined : Math.max(0, side.held - leftBehind);
   const sourceCount = heldAtSource ?? recorded;
   const targetCount = await deps.getTargetCount(dataType);
   
@@ -682,7 +700,7 @@ async function verifyDataType(
    * its copy is still recorded, so it can hide one such loss; it can never
    * invent one. Zero without a source figure.
    */
-  const neverCopied = heldAtSource === undefined ? 0 : Math.max(0, heldAtSource - recorded);
+  const neverCopied = side.held === undefined ? 0 : Math.max(0, side.held - (recorded + leftBehind));
   const missingCount = missingOnTarget.length + neverCopied;
   
   // Calculate matched count: items that exist on both source and target
@@ -946,8 +964,10 @@ async function verifyDataType(
       id: `NEVER_COPIED_${dataType}`,
       severity: 'ERROR',
       message:
-        `The old account itself counts ${heldAtSource} ${dataType} item(s) that arrived before the last ` +
-        `completed pass started, and ${recorded} were copied: ${neverCopied} were never copied. ` +
+        `The old account itself counts ${side.held} ${dataType} item(s) that arrived before the last ` +
+        `completed pass started, and ${recorded} were copied` +
+        (leftBehind > 0 ? ` and ${leftBehind} left behind by your choice` : '') +
+        `: ${neverCopied} were never copied. ` +
         'Run a pass, then check again.',
     });
   }

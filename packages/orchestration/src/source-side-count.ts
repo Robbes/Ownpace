@@ -14,7 +14,13 @@
  * rather than opening the old account a second way.
  */
 
-import { DEFAULT_EXCLUDE_SPECIAL_USE, type SourceConnector, type SpecialUse } from '@openmig/shared';
+import {
+  DEFAULT_EXCLUDE_SPECIAL_USE,
+  windowSince,
+  type RecentOnlySetting,
+  type SourceConnector,
+  type SpecialUse,
+} from '@openmig/shared';
 import type { OpenTarget, OpenedTarget, VerificationDomain } from './target-fan-out.ts';
 
 /**
@@ -24,18 +30,29 @@ import type { OpenTarget, OpenedTarget, VerificationDomain } from './target-fan-
  * - a source with no count of its own (every one but Gmail's);
  * - a test migration (`markedOnly`), which copies only what is marked;
  * - a mapping that leaves out more than Spam and Trash (`excludeSpecialUse`):
- *   the account's whole count then holds mail the owner chose not to copy.
+ *   the account's whole count then holds mail the owner chose not to copy;
+ * - a 90-day migration with no anchor yet: no windowed pass has run, so no
+ *   pass has completed and there would be nothing to hold the copies to.
+ *
+ * A 90-day migration (`recentOnly`, workplan 0170) counts only its window,
+ * from the same `since` its passes list with (`windowSince` of its anchor),
+ * since that is all it copies.
  */
-export function mailSourceSideCount(deps: {
-  /** Optional: a deps double that builds only a target has none, and then there is no count. */
-  readonly source?: SourceConnector;
-  readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
-}): ((options: { readonly before: Date }) => Promise<number>) | undefined {
+export function mailSourceSideCount(
+  deps: {
+    /** Optional: a deps double that builds only a target has none, and then there is no count. */
+    readonly source?: SourceConnector;
+    readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
+  },
+  recentOnly?: RecentOnlySetting,
+): SourceSideCount | undefined {
   const { source } = deps;
   if (!source || source.markedOnly || typeof source.countEveryMessage !== 'function') return undefined;
   const excluded = deps.excludeSpecialUse ?? DEFAULT_EXCLUDE_SPECIAL_USE;
   if (excluded.some((role) => role !== 'trash' && role !== 'junk')) return undefined;
-  return (options) => source.countEveryMessage!(options);
+  if (recentOnly && recentOnly.anchor === undefined) return undefined;
+  const since = recentOnly?.anchor !== undefined ? windowSince(new Date(recentOnly.anchor), recentOnly.days) : undefined;
+  return (options) => source.countEveryMessage!(since ? { ...options, since } : options);
 }
 
 /** The source's own count of what arrived before a time (`SourceConnector.countEveryMessage`). */

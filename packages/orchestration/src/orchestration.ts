@@ -1533,7 +1533,8 @@ async function openSyncDomainDeps(
   switch (domain) {
     case 'email': {
       const d = await buildDeps(config, builtWith);
-      const count = mailSourceSideCount(d);
+      // A 90-day migration counts only its window (workplan 0170).
+      const count = mailSourceSideCount(d, config.recentOnly);
       return { target: d.target, ledger: d.ledger, close: d.close, ...(count ? { sourceSideCount: count } : {}) };
     }
     case 'calendar': {

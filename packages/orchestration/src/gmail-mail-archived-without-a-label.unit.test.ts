@@ -20,6 +20,8 @@ import {
   asTenantId,
   naturalKeyHash,
   type LedgerVerificationReader,
+  type ListOptions,
+  type RecentOnlySetting,
   type SourceCountWindow,
   type MailFolder,
   type MailItem,
@@ -151,15 +153,22 @@ class FakeGmail implements SourceConnector {
     return LIST.filter((f) => !f.attributes.includes('\\Noselect')).map((f) => this.folder(f.path));
   }
 
+  /** Each `since` a listing was asked with (`SEARCH SINCE`), or `undefined` for a whole listing. */
+  readonly sinceAsked: Array<string | undefined> = [];
+
   async listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{ items: ReadonlyArray<MailItem>; nextCursor: SyncCursor }> {
     const from = cursor ? Number(cursor.value) : 0;
+    this.sinceAsked.push(options?.since?.toISOString());
     const items: MailItem[] = [];
     for (const m of this.messages) {
       const uid = m.uids.get(folder.path);
       if (!this.holds(m, folder.path) || uid === undefined || uid < from) continue;
+      // SEARCH SINCE, by day as IMAP has it: the view still filters the rest.
+      if (options?.since && m.at.slice(0, 10) < options.since.toISOString().slice(0, 10)) continue;
       items.push({
         messageId: m.id,
         folder,
@@ -342,6 +351,40 @@ describe('Gmail: All Mail is read last, as Archive', () => {
   });
 });
 
+describe("Gmail's count of a 90-day migration (workplan 0170)", () => {
+  /** A 90-day migration created on 5 November: its window starts 7 August. */
+  const RECENT = { days: 90, anchor: '2026-11-05T12:00:00.000Z' } as const;
+  const SINCE = new Date('2026-08-07T00:00:00.000Z');
+
+  it('a windowed count leaves older mail out, and asks Gmail SEARCH SINCE', async () => {
+    const gmail = new FakeGmail();
+    gmail.deliver('<recent@example.org>', ['INBOX']);
+    gmail.deliver('<old@example.org>', [], '2026-06-01T00:00:00.000Z');
+    // The day the window starts is in it, as `mailInWindow` has it.
+    gmail.deliver('<edge@example.org>', [], '2026-08-07T00:00:00.000Z');
+    const view = new GmailFolderView(gmail);
+    expect(await view.countEveryMessage({ before: new Date(PASS_STARTED), since: SINCE })).toBe(2);
+    expect(gmail.sinceAsked.at(-1)).toBe(SINCE.toISOString());
+    // The window comes from the migration's own setting.
+    expect(await mailSourceSideCount({ source: view }, RECENT)!({ before: new Date(PASS_STARTED) })).toBe(2);
+  });
+
+  it('an unwindowed count is unchanged: every message, and a whole listing', async () => {
+    const gmail = new FakeGmail();
+    gmail.deliver('<recent@example.org>', ['INBOX']);
+    gmail.deliver('<old@example.org>', [], '2026-06-01T00:00:00.000Z');
+    const view = new GmailFolderView(gmail);
+    expect(await view.countEveryMessage({ before: new Date(PASS_STARTED) })).toBe(2);
+    expect(gmail.sinceAsked.at(-1)).toBeUndefined();
+    expect(await mailSourceSideCount({ source: view })!({ before: new Date(PASS_STARTED) })).toBe(2);
+  });
+
+  it('a 90-day migration with no anchor yet has no figure: no windowed pass has run', () => {
+    const view = new GmailFolderView(new FakeGmail());
+    expect(mailSourceSideCount({ source: view }, { days: 90 })).toBeUndefined();
+  });
+});
+
 describe('Gmail on Confirm: what will be copied, and what Gmail itself counts', () => {
   it('counts each message once, label-less archived mail included, beside All Mail\'s own figure', async () => {
     const gmail = new FakeGmail();
@@ -374,7 +417,7 @@ describe('Gmail on Confirm: what will be copied, and what Gmail itself counts', 
 
 describe("Gmail on the Check: measured against Gmail's own count", () => {
   /** The ledger's side, read from what the pass recorded and the target holds. */
-  async function readerOf(w: World, window: SourceCountWindow): Promise<LedgerVerificationReader> {
+  async function readerOf(w: World, window: SourceCountWindow, leftBehind = 0): Promise<LedgerVerificationReader> {
     const hashes: string[] = [];
     for await (const e of w.target.listEntries()) hashes.push(naturalKeyHash(e.naturalKey));
     return {
@@ -383,6 +426,7 @@ describe("Gmail on the Check: measured against Gmail's own count", () => {
       getAllNaturalKeyHashes: async (_t: unknown, _m: unknown, domain: string) => (domain === 'email' ? hashes : []),
       getSamples: async () => [],
       sourceCountWindow: async () => window,
+      countLeftBehind: async (_t: unknown, _m: unknown, domain: string) => (domain === 'email' ? leftBehind : 0),
     } as unknown as LedgerVerificationReader;
   }
 
@@ -394,13 +438,17 @@ describe("Gmail on the Check: measured against Gmail's own count", () => {
       readonly window?: SourceCountWindow;
       /** Gmail cannot be asked: the account deleted, or our access withdrawn. */
       readonly gmailGone?: true;
+      /** A 90-day migration's setting (workplan 0170). */
+      readonly recentOnly?: RecentOnlySetting;
+      /** How many the person chose to leave behind (§11.2), as the ledger counts them. */
+      readonly leftBehind?: number;
     } = {},
   ) {
     const count = options.gmailGone
       ? async () => {
           throw new Error('Invalid credentials (Failure)');
         }
-      : mailSourceSideCount({ source: new GmailFolderView(w.gmail) });
+      : mailSourceSideCount({ source: new GmailFolderView(w.gmail) }, options.recentOnly);
     return runVerification(
       createRealVerificationDeps({
         tenantId,
@@ -420,6 +468,7 @@ describe("Gmail on the Check: measured against Gmail's own count", () => {
         verificationReader: await readerOf(
           w,
           options.window ?? { lastCompletedPassStartedAt: PASS_STARTED, pastTheSwitch: false },
+          options.leftBehind,
         ),
         targetReindexers: { mail: w.target },
         ...(withGmailsCount && count ? { sourceSideCounts: { mail: count } } : {}),
@@ -531,6 +580,42 @@ describe("Gmail on the Check: measured against Gmail's own count", () => {
     const own = r.mail.issues.find((i) => i.id === 'SOURCE_COUNT_OWN_RECORD_mail');
     expect(own).toMatchObject({ severity: 'WARNING' });
     expect(own?.message).toContain('Invalid credentials (Failure)');
+  });
+
+  it('a 90-day migration does not fail over older mail it never copies; a migration of everything does', async () => {
+    const w = world();
+    w.gmail.deliver('<inbox@example.org>', ['INBOX']);
+    // Archived without a label long before the window, so no windowed pass
+    // copies it (modelled by a pass that never reads All Mail).
+    w.gmail.deliver('<old@example.org>', [], '2026-06-01T00:00:00.000Z');
+    await passWithoutAllMail(w);
+
+    const windowed = await check(w, true, { recentOnly: { days: 90, anchor: '2026-11-05T12:00:00.000Z' } });
+    expect(windowed.mail.status).toBe('PASS');
+    expect(windowed.mail.issues.map((i) => i.id)).not.toContain('NEVER_COPIED_mail');
+
+    const everything = await check(w, true);
+    expect(everything.mail.status).toBe('FAIL');
+    expect(everything.mail.neverCopied).toBe(1);
+  });
+
+  it('mail left behind by choice passes the Check; a message really missing still FAILS (the owner: "E yes")', async () => {
+    const w = world();
+    w.gmail.deliver('<inbox@example.org>', ['INBOX']);
+    // Never copied: one of them the person chose to leave behind (§11.2).
+    w.gmail.deliver('<left@example.org>', []);
+    w.gmail.deliver('<lost@example.org>', []);
+    await passWithoutAllMail(w);
+
+    const oneLeft = await check(w, true, { leftBehind: 1 });
+    expect(oneLeft.mail.status).toBe('FAIL');
+    expect(oneLeft.mail.neverCopied).toBe(1);
+
+    // Both left behind: nothing reads as never copied.
+    const bothLeft = await check(w, true, { leftBehind: 2 });
+    expect(bothLeft.mail.status).toBe('PASS');
+    expect(bothLeft.mail.issues.map((i) => i.id)).not.toContain('NEVER_COPIED_mail');
+    expect(bothLeft.mail).toMatchObject({ sourceCount: 1, matchedCount: 1, missingOnTarget: 0 });
   });
 
   it("is no measure of a test migration or of one that leaves out more than Spam and Trash", () => {

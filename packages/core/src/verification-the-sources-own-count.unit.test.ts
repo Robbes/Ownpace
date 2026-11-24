@@ -157,3 +157,55 @@ describe("the source's own count", () => {
     });
   });
 });
+
+// LEFT BEHIND IS ACCOUNTED FOR (the owner, 2026-11-24: "E yes"). Mail the
+// person chose to leave behind (§11.2) is outside the ledger's count and
+// inside Gmail's, so it read as never copied and FAILed the Check. It is now
+// on the recorded side.
+describe('mail left behind by choice, beside the source\'s own count', () => {
+  it('a mailbox with left-behind mail PASSES the Check', async () => {
+    const r = await runVerification(
+      deps({
+        getSourceCount: async () => 97,
+        getTargetCount: async () => 97,
+        getSourceSideCount: async () => 100,
+        getLeftBehindCount: async () => 3,
+      }),
+    );
+    expect(r.mail.issues.map((i) => i.id)).not.toContain('NEVER_COPIED_mail');
+    expect(r.mail.neverCopied).toBeUndefined();
+    expect(r.mail).toMatchObject({ status: 'PASS', sourceCount: 97, matchedCount: 97 });
+  });
+
+  it('a message really missing still FAILS, and the issue names what was left behind', async () => {
+    const r = await runVerification(
+      deps({
+        getSourceCount: async () => 96,
+        getTargetCount: async () => 96,
+        getSourceSideCount: async () => 100,
+        getLeftBehindCount: async () => 3,
+      }),
+    );
+    expect(r.mail.status).toBe('FAIL');
+    expect(r.mail.neverCopied).toBe(1);
+    expect(r.mail.issues.find((i) => i.id === 'NEVER_COPIED_mail')?.message).toMatch(
+      /counts 100 mail item\(s\) .* and 96 were copied and 3 left behind by your choice: 1 were never copied/,
+    );
+  });
+
+  it('without a source figure, left behind is not even asked', async () => {
+    let asked = 0;
+    const r = await runVerification(
+      deps({
+        getSourceCount: async () => 5,
+        getTargetCount: async () => 5,
+        getLeftBehindCount: async () => {
+          asked++;
+          return 3;
+        },
+      }),
+    );
+    expect(asked).toBe(0);
+    expect(r.mail).toMatchObject({ status: 'PASS', sourceCount: 5 });
+  });
+});

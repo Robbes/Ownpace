@@ -54,6 +54,9 @@ export interface LedgerVerificationReader {
 
   /** When the last completed pass started, and whether past the switch, as the shared port says. */
   sourceCountWindow(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<SourceCountWindow>;
+
+  /** How many items the person chose to leave behind (`left_behind`), as the shared port says. */
+  countLeftBehind(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<number>;
 }
 
 /**
@@ -130,6 +133,24 @@ export function createLedgerVerificationReader(
       return result[0]?.count ?? 0;
     },
     
+    async countLeftBehind(tenantId, mappingId, domain): Promise<number> {
+      // What `countItems` leaves out as accepted (§11.2), counted apart so the
+      // Check can put it on the recorded side beside the source's own figure,
+      // which still holds it (the owner, 2026-11-24: "E yes").
+      const result = await db
+        .select({ count: sql`count(*)`.mapWith(Number) })
+        .from(schema.item)
+        .where(
+          and(
+            eq(schema.item.tenantId, tenantId),
+            eq(schema.item.mappingId, mappingId),
+            eq(schema.item.domain, domain),
+            eq(schema.item.status, 'left_behind'),
+          ),
+        );
+      return result[0]?.count ?? 0;
+    },
+
     async totalSizeBytes(tenantId, mappingId, domain): Promise<number> {
       const result = await db
         .select({ 

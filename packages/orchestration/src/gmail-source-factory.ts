@@ -177,13 +177,19 @@ export function gmailFoldersInPassOrder(
  * counted once, kept apart from the others by its own `sourceRef`. A message
  * whose arrival time does not parse is counted too: leaving out what cannot be
  * read would hide a loss rather than report it.
+ *
+ * With `since`, a 90-day migration's window (workplan 0170), only what arrived
+ * on or after it counts too, as a windowed pass copies only that
+ * (`mailInWindow`); a message with no arrival time is in, as it is there.
  */
-export function countArrivedBefore(items: ReadonlyArray<MailItem>, before: Date): number {
+export function countArrivedBefore(items: ReadonlyArray<MailItem>, before: Date, since?: Date): number {
   const cutOff = before.getTime();
+  const from = since?.getTime();
   const seen = new Set<string>();
   for (const item of items) {
     const at = Date.parse(item.receivedAt);
     if (Number.isFinite(at) && at >= cutOff) continue;
+    if (from !== undefined && Number.isFinite(at) && at < from) continue;
     seen.add(item.messageId ? `id:${item.messageId}` : `ref:${item.sourceRef}`);
   }
   return seen.size;
@@ -266,11 +272,15 @@ export class GmailFolderView implements SourceConnector {
    * Read from All Mail's listing, the same one a pass makes (envelopes and
    * INTERNALDATE, no bodies), so the count and the copy see one mailbox.
    *
+   * A 90-day migration (workplan 0170) gives `since`, its window's start: only
+   * what arrived on or after it counts, as only that is copied, and Gmail is
+   * asked `SEARCH SINCE` as a windowed pass asks it. Without it, everything.
+   *
    * Refuses rather than guesses when All Mail is not listed: then Gmail has
    * no figure of its own to give, and a count summed over labels would count
    * a message once per label.
    */
-  async countEveryMessage(options: { readonly before: Date }): Promise<number> {
+  async countEveryMessage(options: { readonly before: Date; readonly since?: Date }): Promise<number> {
     const allMail = await this.allMailFolder();
     if (!allMail) {
       throw new Error(
@@ -278,8 +288,11 @@ export class GmailFolderView implements SourceConnector {
           "be read. Show All Mail in IMAP in Gmail's settings (Labels).",
       );
     }
-    const { items } = await this.inner.listSince(allMail);
-    return countArrivedBefore(items, options.before);
+    const { since } = options;
+    const { items } = since
+      ? await this.inner.listSince(allMail, undefined, { since })
+      : await this.inner.listSince(allMail);
+    return countArrivedBefore(items, options.before, since);
   }
 
   /**

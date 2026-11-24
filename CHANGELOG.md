@@ -45,9 +45,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Gmail holds and no pass copied fails the check. The check counts only what arrived before
   the last completed pass started, and one message per Message-ID, so new mail and two
   messages sharing an id never fail it; after the switch, when Gmail can no longer be asked,
-  it counts against Ownpace's own record and says so on the screen. On an IMAP destination
-  Archive is the folder the server marks as its archive, where it has one. A migration started
-  earlier copies its archived mail on its next pass.
+  it counts against Ownpace's own record and says so on the screen. A migration of only the
+  last 90 days counts only the mail inside its window, as that is all it copies, and mail the
+  person chose to leave behind is added to what was recorded (the owner: *"E yes"*), so neither
+  fails the check. On an IMAP destination Archive is the folder the server marks as its archive,
+  where it has one. A migration started earlier copies its archived mail on its next pass.
 
 ## [0.2.0-alpha.19] - 2026-11-24
 

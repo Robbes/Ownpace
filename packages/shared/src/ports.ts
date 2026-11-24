@@ -196,8 +196,12 @@ export interface SourceConnector {
    * pass's start, so mail that arrived since never fails a Check; and one per
    * Message-ID, as the ledger keys it, so two messages sharing one never fail
    * it for good (the owner, 2026-11-24).
+   *
+   * With `since`, a 90-day migration's window start (workplan 0170), only what
+   * arrived on or after it as well: a windowed migration copies nothing older,
+   * so counting it would fail every windowed Check.
    */
-  countEveryMessage?(options: { readonly before: Date }): Promise<number>;
+  countEveryMessage?(options: { readonly before: Date; readonly since?: Date }): Promise<number>;
 }
 
 /**
@@ -3065,6 +3069,15 @@ export interface LedgerVerificationReader {
     mappingId: MappingId,
     domain: DiscoveryDomain,
   ): Promise<SourceCountWindow>;
+
+  /**
+   * How many items of this data type the person chose to leave behind
+   * (`left_behind`, §11.2): outside `countItems`, yet still in the source's
+   * own count. Added to the recorded side when the source's figure is used,
+   * so left-behind mail never reads as never copied (the owner, 2026-11-24:
+   * "E yes"). Optional: a reader without it leaves the comparison as it was.
+   */
+  countLeftBehind?(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<number>;
 }
 
 /** What `LedgerVerificationReader.sourceCountWindow` answers. */
