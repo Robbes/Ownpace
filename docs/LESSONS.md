@@ -457,6 +457,10 @@ reading a file drops off its entry by itself.
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
 
+### `apps/api/src/routes/migrations/microsoft-signed-in-account.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
 ### `apps/api/src/routes/migrations/operating-routes.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
@@ -3769,6 +3773,7 @@ Reads:
 - `apps/api/src/routes/migrations/google-consent.ts`
 - `apps/api/src/routes/migrations/index.ts`
 - `apps/api/src/routes/migrations/microsoft-consent.ts`
+- `apps/api/src/routes/migrations/microsoft-signed-in-account.ts`
 - `apps/api/src/routes/migrations/operating-routes.ts`
 - `apps/api/src/routes/permissions.ts`
 - `apps/api/src/routes/platform-status.ts`

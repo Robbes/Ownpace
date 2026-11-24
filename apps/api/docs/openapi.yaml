@@ -3686,6 +3686,12 @@ paths:
                           that language joins a list (workplan 0145 T6); until then
                           the server sent an English sentence as `reads`.
                       scope: { type: string }
+                      provider:
+                        type: string
+                        enum: [google, microsoft, dropbox, apple]
+                        description: |
+                          Whose sign-in the button opens (workplan 0171 §3.2): the
+                          path segment of `POST /api/grant/{link}/{provider}/authorize`.
                       readOnlyAtProvider:
                         type: boolean
                         description: |
@@ -3742,16 +3748,37 @@ paths:
             The link could not be checked just now. Ours, not the caller's.
             The body is `{error, message, messageNl}`, as for 401.
 
-  /api/grant/{link}/google/authorize:
+  /api/grant/{link}/{provider}/authorize:
     parameters:
       - name: link
         in: path
         required: true
         schema: { type: string }
+      - name: provider
+        in: path
+        required: true
+        description: |
+          Whose sign-in to start (workplan 0171 §3.2): `google` (this route's
+          address until alpha.20, unchanged) or `microsoft`. It must be the
+          provider the link asks for (`provider` on `GET /api/grant/{link}`),
+          or the answer is 409 `not_this_provider`. A provider with no grant
+          entry yet (`dropbox`, `apple`, until workplan 0171 T4 and T5) or any
+          other value is 404.
+        schema: { type: string, enum: [google, microsoft, dropbox, apple] }
     post:
       tags: [Grant links]
-      summary: Start the Google sign-in for this link
+      summary: Start the provider's sign-in for this link
       description: |
+        For a Microsoft account (workplan 0171 §3.3) the same, at Microsoft:
+        the deployment's Entra application or the connection's own whole pair,
+        the named account as `login_hint`, `domain_hint` by its domain, and
+        beside the data scopes `openid email profile User.Read`. The ending,
+        at `/api/migrations/microsoft/callback`, checks the ID token's issuer
+        and audience and reads `/me`, and stores the token only when the named
+        account is the sign-in name, the primary address or a proxy address.
+
+        For Google, as follows.
+
         The client id and secret are read from the mapping's own source
         connection and decrypted server-side, or are the deployment's where
         the connection stores none. Unlike the owner's
@@ -9544,6 +9571,10 @@ components:
                 type: array
                 items: { type: string, enum: [email, calendar, contact, file, task] }
               scope: { type: string, nullable: true, description: 'The one consent it asks, in Google''s words; null when it cannot be asked.' }
+              provider:
+                type: string
+                enum: [google, microsoft, dropbox, apple]
+                description: Whose sign-in this account's button opens (workplan 0171 §3.2).
               readOnlyAtProvider: { type: boolean }
               notReady:
                 nullable: true

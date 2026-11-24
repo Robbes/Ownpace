@@ -150,7 +150,8 @@ A Microsoft 365 account, personal (Outlook.com, Hotmail) or work, is asked the s
 card says Microsoft where a Google card says Google: **Continue with Microsoft as** *that account*,
 the permission Microsoft will ask for in words (*Outlook: read your email*, *OneDrive: read your
 files*, and so on), and the exact string under *Technical details*. Every Microsoft permission a
-link asks for is a read permission, so the box says *Read-only*. The button goes to Microsoft's
+link asks for is one of the read permissions *Connect with Microsoft* asks for, so the box says
+*Read-only*. The button goes to Microsoft's
 own sign-in, offering the named account first, at the consumer sign-in for an address on one of
 Microsoft's own domains and at the work sign-in for any other.
 
