@@ -27,11 +27,12 @@ import type { OpenTarget, OpenedTarget, VerificationDomain } from './target-fan-
  *   the account's whole count then holds mail the owner chose not to copy.
  */
 export function mailSourceSideCount(deps: {
-  readonly source: SourceConnector;
+  /** Optional: a deps double that builds only a target has none, and then there is no count. */
+  readonly source?: SourceConnector;
   readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
 }): (() => Promise<number>) | undefined {
   const { source } = deps;
-  if (source.markedOnly || typeof source.countEveryMessage !== 'function') return undefined;
+  if (!source || source.markedOnly || typeof source.countEveryMessage !== 'function') return undefined;
   const excluded = deps.excludeSpecialUse ?? DEFAULT_EXCLUDE_SPECIAL_USE;
   if (excluded.some((role) => role !== 'trash' && role !== 'junk')) return undefined;
   return () => source.countEveryMessage!();
