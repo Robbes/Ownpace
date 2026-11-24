@@ -2,14 +2,67 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-23 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24, evening: what alpha.19 moves, which live takes with alpha.20.** The fold for
+`v0.2.0-alpha.19` (0146's entry of the same day) carries what `main` merged after alpha.18's C,
+`2c32fa7d`: 27 pull requests (0146's entry lists them). The owner decided on 2026-11-24 to tag
+alpha.19 without deploying it, and to deploy alpha.20 to live on 2026-11-26, so live stays on
+alpha.18 (live since 2026-11-24 at 14:37:44 UTC) and nothing below reaches it before alpha.20's
+deploy. What alpha.19 moves:
+
+- the identity provider's pin, from Zitadel `v4.20.4` to `v4.20.5` (#2100, its entry of the same
+  day): the one commit after v4.20.4 is in login v2, which does not run here, and the move is
+  one-way for the identity provider's database, so the OTA instance's was dumped before E2E
+  (managed) applied it there, and the owner's hand check on the OTA instance after it was ok on
+  2026-11-24: one sign-in through login v1, and one forgot-password mail opened from the mail
+  catcher, whose link opened the page to set a new password;
+- `packageManager`'s pnpm, 11.28.13 to 11.29.0, which CI and the images read, with the lockfile as
+  it was (#2093);
+- the test mail server, Stalwart `v1.1.1` to `v1.2.0-alpine` by tag and index digest, in
+  development, the integration tests, both E2E workflows and the OTA demo, and never on live
+  (#2091);
+- in CI only, the migration lint's Atlas v1.4.0 to v1.4.1 (#2090), the migration report's squawk
+  2.73.0 to 2.74.0 (#2094) and the workflow audit's zizmor 1.32.0 to 1.33.1 (#2096).
+
+No migration in either chain moves, and no npm package: `pnpm-lock.yaml` is alpha.18's. So the
+identity provider's pin is enough to make the deploy that takes these to live, alpha.20's from
+alpha.18, one-way by the deploy's own rule, whatever else alpha.20 brings (0146's entry). Not
+moved: the Postgres, PgBouncer, Gatus, Mailpit, Nextcloud, nginx and pg-boss (`12.38.2`) pins.
+
+**2026-11-24: the identity provider's pin moves to Zitadel v4.20.5, for alpha.19 (the pin watch's
+#1934).** v4.20.4's move left it on purpose: its one commit after v4.20.4 is in `apps/login` alone,
+login v2, which does not run here (`managed.yml`'s comment above the pin). Read again on 2026-11-24
+through ghcr.io's registry, without running them: per platform, v4.20.5's two base layers are
+v4.20.4's byte for byte, and the layer that holds the binary differs by 1 byte (linux/amd64) and 24
+bytes (linux/arm64) compressed, what a new version string alone makes. Its three-day floor ended on
+2026-11-21. The owner, 2026-11-24: *"Zitadel v4.20.5: ok, after 18 deploy"*. So after alpha.18's
+deploy to live it takes the route issue #1934 gives: the owner dumps the OTA instance's `zitadel`
+database first (`dump-idp.sh`), E2E (managed) applies it there, and the owner checks one sign-in and
+one forgot-password mail, as for v4.20.4; live takes it from alpha.19's tag.
+
+On 2026-11-24 (UTC), in that order:
+- The owner dumped the OTA instance's `zitadel` database at 15:19:59, with `dump-idp.sh`. The dump
+  read back 701 entries.
+- E2E (managed) run 45424451225, on this branch, applied v4.20.5 on the OTA instance. The move is
+  one-way, so the dump is the way back.
+  - Its first attempt stopped in the bring-up. The provider reported ready after 10 seconds, but
+    the front before it then refused the TLS handshake six times over a minute (curl exit 35).
+    Every container was up and none unhealthy, as on 2026-10-28, 2026-11-15 and 2026-11-22
+    (0132's Status).
+  - The second attempt was green, from 15:27 to 15:50.
+- The owner's hand check follows; alpha.19's fold records it.
+
+The owner decided on 2026-11-24 to tag alpha.19 without deploying it, and to deploy alpha.20 to
+live on 2026-11-26. So live takes v4.20.5 with alpha.20.
 
 **2026-11-23, night, later: the workflow audit runs zizmor 1.33.1, moved on purpose from 1.32.0,
 for alpha.19, inside its three-day floor on the owner's waiver.** The pin watch's summary issue
 (#1671) listed 1.33.1 behind 1.32.0. The owner, 2026-11-23: *"Pull pnpm, zizmor and squawk
 earlier. I waive unneeded days/waiting."* PyPI lists 1.33.0's upload at 2026-11-22 16:36 UTC and
 1.33.1's at 22:26 UTC, so the floor would have ended on 2026-11-25 at 22:26. On branch
-`claude/ownpace-public-readiness-y7orc6-zizmor-1331`, from `main` at `a788a223`; zizmor runs in CI
+`claude/ownpace-public-readiness-y7orc6-zizmor-1331`, from `main` at `a788a223`; merged as #2096 on
+2026-11-23 at about 22:54 UTC (`ed4112df`); zizmor runs in CI
 alone, so nothing deployed changes.
 
 - **What moved.** `ZIZMOR_IMAGE` in `zizmor.yml` is `ghcr.io/zizmorcore/zizmor:1.33.1` by index
@@ -50,6 +103,7 @@ alone, so nothing deployed changes.
   1.32.0.
 
 **2026-11-23, night: squawk 2.74.0 inside its three-day floor, on the owner's word, for alpha.19.**
+Merged as #2094 on 2026-11-23 at about 22:33 UTC (`3fdb8cd7`).
 The owner, 2026-11-23, after alpha.18's tag: *"Pull pnpm, zizmor and squawk earlier. I waive
 unneeded days/waiting."* The Migration locks workflow moves from v2.73.0 to v2.74.0 (npm, 2026-11-23
 at 00:26 UTC; the pin watch's #1671). squawk publishes no checksum file, so each sum is that of the
@@ -63,7 +117,7 @@ first, on the pull request's head `97b51841`, downloaded both v2.74.0 assets fro
 found the two sums pinned, and `squawk (report only)` passed.
 
 **2026-11-23, night: pnpm 11.29.0 inside its three-day floor, on the owner's word, for
-alpha.19.** The owner, 2026-11-23, after alpha.18's tag: *"Pull pnpm, zizmor and squawk earlier.
+alpha.19.** Merged as #2093 on 2026-11-23 at about 22:06 UTC (`fd1fc8a1`). The owner, 2026-11-23, after alpha.18's tag: *"Pull pnpm, zizmor and squawk earlier.
 I waive unneeded days/waiting."* `packageManager` moves from 11.28.13 to 11.29.0 (npm, 2026-11-22
 at 13:58 UTC), and `pnpm install`, frozen and not, leaves the lockfile as it was (#2088). zizmor
 and squawk move in pull requests of their own.
@@ -77,7 +131,8 @@ reading of `1.4.0-community` gives, byte for byte, the two sums pinned before. T
 Go build information differs in the version in `-ldflags` alone: the same upstream commit
 `e933d0b70620`, build date, Go 1.26.10, flags and 89 dependencies, in files of the same size. So
 the lint and its dev database run as they did, and nothing deployed changes. It merges after
-alpha.18's tag, from which `main` takes nothing until then.
+alpha.18's tag, from which `main` takes nothing until then; merged as #2090 on 2026-11-23 at about
+21:17 UTC (`548f388e`).
 
 **2026-11-23, evening: what alpha.18 moves, and what moves for live from alpha.17.** The fold for
 `v0.2.0-alpha.18` (0146's entry of the same day) carries what `main` merged after alpha.17's C,
@@ -9689,7 +9744,7 @@ a decision each, §3, for the owner.
 | T0 The audit | ✅ Done 2026-09-06 | §2. Registries queried directly (Docker Hub v2 API, GHCR token + paginated tag list, `git ls-remote` for the actions); `pnpm outdated -r` for npm. |
 | T1 Dependabot learns the images | ✅ Done 2026-09-06 | `docker` over the three Dockerfiles, `docker-compose` over `deploy/compose` and `deploy/selfhost`, weekly, minor+patch grouped, majors one PR each. The one-way images and the deliberate pins are ignored by name (§2.1). `@trigger.dev/*` ignored in npm: it moves through `trigger-version.sh` or not at all. The three digest-only pins (`node@sha256:…` ×3, `postgres@sha256:…`) carry their tag now — same digests, no version moved — because Dependabot compares tags, and a bare digest has nothing to compare. |
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
-| T3 The owner's decisions | ⏳ **Owner**, item 6's proof only: the O365 gate's first run on a runner, 41418432093 on `main` (2026-11-02, 09:10 to 09:11 UTC), failed at *Validate required secrets*, because `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets; setting them (`docs/test-tenant.md`) is the owner's, 0141 T13 (a), whose runner label the owner added on 2026-11-02 (Status, 2026-11-02, records). Every item is decided: item 9's version move was taken on 2026-11-02, option 2, ClickHouse 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since its E2E (managed) run 41400187583 and on live from the tag that carries it (Status, 2026-11-02, records) — *was:* ⏳ **Owner**, item 6's proof only: the O365 gate waits for the owner's step on the runner label named after the machine, 0141 T13 (a): add it to the runner, or drop it from `runs-on` (2026-11-01, later, Status); item 9's version move built on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02); ⏳ **Owner**, item 9's version move and item 6's proof: #1774 (merged 2026-11-01) records that item 9's revisit trigger fired on 2026-11-01 (CVE-2026-116366) (2026-11-01); 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; a third, 41273625023 for #1767, queued from 2026-11-01 04:34 UTC because `e2e-o365.yml` asks for the runner label named after the machine, which the self-hosted runner did not carry, was cancelled on 2026-11-02 at 02:00 UTC without a runner; the owner added the label at about 07:40 UTC, and the fourth, 41418432093 on `main`, failed at its secrets check, `O365_CLIENT_ID` and `O365_TENANT_ID` not set: setting them is the owner's step; *was:* a third has been queued since 2026-11-01 04:34 UTC, the label missing (2026-11-01); the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). Taken 2026-11-02: ClickHouse 26.8.36.3-lts, item 9's option 2, *"Go with ClickHouse 26.8.36.3-lts."* (#1782, option 1, 26.3.62.3, superseded). Taken 2026-11-13: Trigger.dev v4.8.5 before its three-day floor, for v4.8.5 alone, the third of three options, *"alpha.8 on Saturday: waive 4.8.5's three days, as for Postgres, and do the box steps Saturday morning"*, answered *"3. Continue, work autonomously"*; and *"90, admin off, MFA no."*: `CLI_LOGIN_IDLE_TIMEOUT_DAYS: "90"` and `ADMIN_API_ENABLED: "false"` on `trigger-api` (Status, 2026-11-13). Taken 2026-11-21: Trigger.dev v4.8.8 in alpha.14, *"Q4: yes, but asap"*, before its three-day floor, under the owner's waiver of alpha.14's waits, *"I also waive waitings for alpha 14."*, for this item by name (Status, 2026-11-21, latest still). |
+| T3 The owner's decisions | ⛔ **Moot 2026-11-21**, item 6's proof, the only part left open: the O365 lane was deleted in #1980, merged on 2026-11-21 at about 02:13 UTC (`a4e9f331`), so the gate it waited for no longer exists (0141 T13 (a)) — *was:* ⏳ **Owner**, item 6's proof only: the O365 gate's first run on a runner, 41418432093 on `main` (2026-11-02, 09:10 to 09:11 UTC), failed at *Validate required secrets*, because `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets; setting them (`docs/test-tenant.md`) is the owner's, 0141 T13 (a), whose runner label the owner added on 2026-11-02 (Status, 2026-11-02, records). Every item is decided: item 9's version move was taken on 2026-11-02, option 2, ClickHouse 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since its E2E (managed) run 41400187583 and on live from the tag that carries it (Status, 2026-11-02, records) — *was:* ⏳ **Owner**, item 6's proof only: the O365 gate waits for the owner's step on the runner label named after the machine, 0141 T13 (a): add it to the runner, or drop it from `runs-on` (2026-11-01, later, Status); item 9's version move built on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02); ⏳ **Owner**, item 9's version move and item 6's proof: #1774 (merged 2026-11-01) records that item 9's revisit trigger fired on 2026-11-01 (CVE-2026-116366) (2026-11-01); 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; a third, 41273625023 for #1767, queued from 2026-11-01 04:34 UTC because `e2e-o365.yml` asks for the runner label named after the machine, which the self-hosted runner did not carry, was cancelled on 2026-11-02 at 02:00 UTC without a runner; the owner added the label at about 07:40 UTC, and the fourth, 41418432093 on `main`, failed at its secrets check, `O365_CLIENT_ID` and `O365_TENANT_ID` not set: setting them is the owner's step; *was:* a third has been queued since 2026-11-01 04:34 UTC, the label missing (2026-11-01); the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). Taken 2026-11-02: ClickHouse 26.8.36.3-lts, item 9's option 2, *"Go with ClickHouse 26.8.36.3-lts."* (#1782, option 1, 26.3.62.3, superseded). Taken 2026-11-13: Trigger.dev v4.8.5 before its three-day floor, for v4.8.5 alone, the third of three options, *"alpha.8 on Saturday: waive 4.8.5's three days, as for Postgres, and do the box steps Saturday morning"*, answered *"3. Continue, work autonomously"*; and *"90, admin off, MFA no."*: `CLI_LOGIN_IDLE_TIMEOUT_DAYS: "90"` and `ADMIN_API_ENABLED: "false"` on `trigger-api` (Status, 2026-11-13). Taken 2026-11-21: Trigger.dev v4.8.8 in alpha.14, *"Q4: yes, but asap"*, before its three-day floor, under the owner's waiver of alpha.14's waits, *"I also waive waitings for alpha 14."*, for this item by name (Status, 2026-11-21, latest still). |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
 | T5 The second Nextcloud major in CI | ✅ Done 2026-10-28 | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); merged after the alpha.2 tag, on 2026-10-27 as #1705 (`d6acd430`). Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. 2026-10-26, for alpha.3 on `…-nextcloud-35-demo` (#1678 and #1705 merged), merged 2026-10-28 as #1720 (`3d2f129e`): the demo, the dev stack and the tier to 35.0.2 by digest and the leg to 34.0.5, the major customers who have not upgraded still run; **the owner's OK came on 2026-10-26** ("Yes, in alpha.3", Status), and E2E (managed) run 40774398411 on it (2026-10-28, 21:44–21:52 UTC, `nextcloud:35.0.2` healthy) was the OTA demo's one-way upgrade, after the copies (Status of 2026-10-26; the way back in `managed-bring-up.md`). |
 

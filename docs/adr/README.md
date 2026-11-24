@@ -86,7 +86,7 @@ first.
 | [0052](./0052-a-rotating-refresh-token-is-written-back.md) | A rotating refresh token is written back, one refresh at a time | **Accepted 2026-11-19** by the owner, for Cirrux Drive in alpha.12 (0160 T5); amends 0037 and 0041; built, not yet run against a live Cirrux client (0160 T2b) |
 | [0053](./0053-a-test-organisation-copies-only-what-is-marked.md) | A test organisation copies only what is marked | **Accepted 2026-11-20** by the owner, as workplan 0162 §2 proposed it; built in 0162 (T2 the marker at the source, T3 never finished or switched over, T1 the organisation and its marker); not yet run on live (0162 T4) |
 | [0054](./0054-the-managed-editions-jobs-run-on-pg-boss.md) | The managed edition's jobs run on pg-boss, on our own Postgres | **Accepted 2026-11-22** by the owner (workplan 0167 T4), in place of self-hosted Trigger.dev; supersedes 0004's managed half. In force since 0167 T7 turned the switch on (`pg-boss` by `managed.yml`'s default); Trigger.dev removed in alpha.18 (0167 T9) |
-| [0055](./0055-a-new-address-is-a-declared-change.md) | A new address is a declared change, applied to cards and calendars, never to mail | **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it; not built yet (0168 T1–T8) |
+| [0055](./0055-a-new-address-is-a-declared-change.md) | A new address is a declared change, applied to cards and calendars, never to mail | **Accepted 2026-11-22** by the owner, as workplan 0168 proposed it; built in 0168 (T1–T9), merged as #2067 on 2026-11-23 at about 06:31 UTC (`04e455d9`), first released in alpha.17 and amended for alpha.18 (the CHANGELOG's two sections) |
 
 ## Reading the statuses
 
