@@ -125,6 +125,10 @@ Rules for the whole page:
    - **A tool CI alone runs** (zizmor, squawk, Atlas): no E2E. Nothing deployed changes
      (0119, Status of 2026-11-23).
 
+   *Confirmed by the owner, 2026-11-24 ("A ok"):* E2E (managed) on the branch first for
+   managed-stack pins, both backends for the appliance, all three runs at the fold under waived
+   nights (step 4), and none for CI-only tools.
+
    The owner or the maintainer dispatches these, never an agent on its own.
 4. **Merge.** Then the release, exactly as [release.md](./release.md) §1 and §2 describe it:
    - **The fold.** It merges last, and its squash is C. The freeze starts there.
