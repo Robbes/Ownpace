@@ -405,3 +405,21 @@ export function exchangeRefusedAt(provider: string): Bilingual {
       `aangekomen. Open uw link opnieuw; gebeurt het weer, ${TELL.nl}`,
   };
 }
+
+/**
+ * The person page's refusal for an account whose migrations run through two
+ * different applications of its provider, so one sign-in cannot serve them
+ * both. It names the account's own provider: a Microsoft account is never told
+ * about Google applications. Google's sentence is the one it has always been.
+ */
+export function twoClientsAt(provider: string): Bilingual {
+  const name = providerName(provider);
+  return {
+    en:
+      `Your migrations from this account are set up with two different ${name} applications, so ` +
+      'one sign-in cannot serve them both. Ask the person who sent you this link to set them up alike.',
+    nl:
+      `Uw migraties vanuit dit account zijn ingesteld met twee verschillende ${name}-applicaties, dus ` +
+      'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om ze gelijk in te stellen.',
+  };
+}

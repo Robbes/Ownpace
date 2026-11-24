@@ -4,6 +4,11 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, the owner's answer on T3.** ADR-0035 is amended: from alpha.20 a grant link also
+covers Microsoft accounts, personal and work, through this seam; Dropbox and Apple follow in T4 and
+T5. The owner: *"C yes agreed, amend and in PR"*. The person page's two-applications refusal now
+names the account's own provider (`twoClientsAt`), in English and Dutch.
+
 **2026-11-24, T3 built, in review (draft pull request, not merged before alpha.19 is tagged).**
 The grant-link provider seam and Microsoft's link, personal and work, bound to the named account;
 `User.Read` on every new Microsoft consent (D7 (a)). Two additions to §3.2's fixed interface:

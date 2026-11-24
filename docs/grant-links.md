@@ -138,8 +138,9 @@ token and asks nothing else of them.** They can close it and get on with their d
 account is connected already says **Connected** instead, and the link is spent once every account
 on it is. On a link made to ask again, a connected account's card says it was connected before
 and offers **Connect again with Google as** *that account*. A card that cannot be asked, such as
-one whose migrations run through two different Google applications, says why instead of offering
-the button, in words they can pass on to you.
+one whose migrations run through two different applications of its provider (two Google
+applications, or two Microsoft ones), says why instead of offering the button, in words they can
+pass on to you.
 
 A migration a link cannot serve, such as one reading an IMAP mailbox or a company's own Microsoft
 app, is left off the page: its credential still comes to you by hand.

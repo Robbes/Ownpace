@@ -515,4 +515,64 @@ describe('a person’s link with a Microsoft account on it (0171 §3.2)', () => 
     // The Gmail on the same link is Google's to grant, and untouched.
     expect(await mappingSecret(GMAIL)).toBeNull();
   });
+
+  it('refuses a Microsoft account read through two Microsoft applications in Microsoft’s name, never Google’s', async () => {
+    // A second migration of the same personal account, through the
+    // connection's own Entra application instead of the deployment's.
+    const [conn, box, mapping] = [
+      '71710000-e29b-41d4-a716-446655440015',
+      '71710000-e29b-41d4-a716-446655440025',
+      '71710000-e29b-41d4-a716-446655440035',
+    ];
+    const ownPair = JSON.stringify(
+      SecretStore.encryptCredentials({ clientId: '00000000-0000-0000-0000-0000000000bb', clientSecret: 'own' }).encrypted,
+    );
+    // One connection per statement: the route below needs the ledger too.
+    const q = async (sql: string, p: unknown[] = []) => {
+      const c = await driver.acquire();
+      try {
+        await c.query(sql, p);
+      } finally {
+        await c.release();
+      }
+    };
+    try {
+      await q(
+        `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+         VALUES ($1,$2,'source','microsoft','own',$3::jsonb,'connected',$4)`,
+        [conn, TENANT, JSON.stringify({ user: PERSONAL_NAMED }), ownPair],
+      );
+      await q(
+        `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address) VALUES ($1,$2,$3,'user','m@example.invalid')`,
+        [box, TENANT, conn],
+      );
+      await q(
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, target_config_override, status)
+         VALUES ($1,$2,$3,$4,'{"user":"dest@example.org"}'::jsonb,'paused')`,
+        [mapping, TENANT, box, TARGET_BOX],
+      );
+      await q(`INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1,$2,'calendar',true)`, [
+        TENANT,
+        mapping,
+      ]);
+      await q('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3)', [mapping, PERSON, TENANT]);
+
+      const { token } = await mintPersonLink();
+      const res = await request(app).get(`/api/grant/${token}`);
+      expect(res.status).toBe(200);
+      const card = (
+        res.body.accounts as Array<{ account: string; notReady: { reason: string; reasonNl: string } | null }>
+      ).find((a) => a.account === PERSONAL_NAMED)!;
+      expect(card.notReady?.reason).toContain('two different Microsoft applications');
+      expect(card.notReady?.reasonNl).toContain('twee verschillende Microsoft-applicaties');
+      expect(card.notReady?.reason).not.toMatch(/Google/);
+      expect(card.notReady?.reasonNl).not.toMatch(/Google/);
+    } finally {
+      await q('DELETE FROM person_migration WHERE mapping_id = $1', [mapping]);
+      await q('DELETE FROM scope_selection WHERE mapping_id = $1', [mapping]);
+      await q('DELETE FROM mailbox_mapping WHERE id = $1', [mapping]);
+      await q('DELETE FROM mailbox WHERE id = $1', [box]);
+      await q('DELETE FROM connection WHERE id = $1', [conn]);
+    }
+  });
 });

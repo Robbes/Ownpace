@@ -96,6 +96,7 @@ const CALLS: Readonly<Record<string, () => Array<{ pair: Bilingual; findings: st
     ]),
   nothingCameBackFrom: () => PROVIDERS.map((p) => ({ pair: prose.nothingCameBackFrom(p), findings: [] })),
   exchangeRefusedAt: () => PROVIDERS.map((p) => ({ pair: prose.exchangeRefusedAt(p), findings: [] })),
+  twoClientsAt: () => ['google', ...PROVIDERS].map((p) => ({ pair: prose.twoClientsAt(p), findings: [] })),
 };
 
 function withoutFindings(s: string, findings: ReadonlyArray<string>): string {
@@ -191,5 +192,26 @@ describe('which language a request asked for', () => {
       reason: 'English',
       reasonNl: 'Nederlands',
     });
+  });
+});
+
+describe('two applications for one account name its own provider (0171 T3)', () => {
+  it('keeps Google’s sentence as it always was', () => {
+    expect(prose.twoClientsAt('google')).toEqual({
+      en:
+        'Your migrations from this account are set up with two different Google applications, so ' +
+        'one sign-in cannot serve them both. Ask the person who sent you this link to set them up alike.',
+      nl:
+        'Uw migraties vanuit dit account zijn ingesteld met twee verschillende Google-applicaties, dus ' +
+        'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om ze gelijk in te stellen.',
+    });
+  });
+
+  it('never names Google for a Microsoft account, in either language', () => {
+    const pair = prose.twoClientsAt('microsoft');
+    expect(pair.en).toContain('two different Microsoft applications');
+    expect(pair.nl).toContain('twee verschillende Microsoft-applicaties');
+    expect(pair.en).not.toMatch(/Google/);
+    expect(pair.nl).not.toMatch(/Google/);
   });
 });

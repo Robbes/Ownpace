@@ -24,8 +24,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Microsoft consent also asks `openid email profile User.Read`** (D7 (a)): who signed in, and
   their own profile, which Finish needs for the addresses that receive mail. A connection made
   before alpha.20 lacks it until it is connected again. A Microsoft account saved for somebody
-  else is saved without a token, and Start waits until their grant brings one. No database
-  change.
+  else is saved without a token, and Start waits until their grant brings one. A person's link
+  that cannot ask an account because two applications read it names that account's own provider,
+  so a Microsoft account is no longer told about Google applications. ADR-0035 is amended
+  (the owner, 2026-11-24). No database change.
 
 - **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
   of 2026-11-24: *"yes to all, build them. But dont add the nextcloud as source card, add only

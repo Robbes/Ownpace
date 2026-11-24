@@ -41,7 +41,7 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import { personLink, personMigration, tenantMember } from '@openmig/managed/schema-managed';
-import type { Bilingual } from '@openmig/shared';
+import { twoClientsAt, type Bilingual } from '@openmig/shared';
 import {
   credential,
   grantReadiness,
@@ -105,20 +105,6 @@ export interface PersonGrantSubject {
   /** In the order their first migration was added to the person. */
   readonly accounts: readonly PersonGrantAccount[];
 }
-
-/**
- * The refusal for an account whose migrations run through different Google
- * clients. Written for the person holding the link, to forward, as the other
- * not-ready sentences are.
- */
-export const TWO_CLIENTS: Bilingual = {
-  en:
-    'Your migrations from this account are set up with two different Google applications, so ' +
-    'one sign-in cannot serve them both. Ask the person who sent you this link to set them up alike.',
-  nl:
-    'Uw migraties vanuit dit account zijn ingesteld met twee verschillende Google-applicaties, dus ' +
-    'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om ze gelijk in te stellen.',
-};
 
 /** Whether a source's stored credentials, the connection's and the migration's, give it a way in. */
 function hasAWayIn(sourceKind: string, connectionSecretRef: string | null, mappingSecretRef: string | null): boolean {
@@ -213,8 +199,9 @@ export async function readPersonGrantSubject(
     const clients = new Set(
       g.entries.map((e) => (e.ask.client === 'deployment' ? 'deployment' : `connection:${e.connectionSecretRef ?? ''}`)),
     );
+    // Two clients of one provider: one sign-in cannot serve both, said in that provider's name.
     if (clients.size > 1) {
-      return { account: g.account, provider: g.provider, migrations, granted, ask: { ok: false, reason: TWO_CLIENTS } };
+      return { account: g.account, provider: g.provider, migrations, granted, ask: { ok: false, reason: twoClientsAt(g.provider) } };
     }
     const first = g.entries[0]!;
     return {
