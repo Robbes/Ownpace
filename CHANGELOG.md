@@ -35,6 +35,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   says the order, what a 90-day migration copies, *Copy everything*, and the appliance's
   mapping-file setting. No word *trial* or *proef* anywhere.
 
+### Fixed
+
+- **The appliance on PGlite no longer fails a pass when two data types start at once.** On
+  `persistence: pglite` there is one database session. The handle the appliance's status and
+  cursor stores were built on sent its statements to that session without waiting for the
+  driver's queue, so one could land in the middle of another data type opening its tenant
+  transaction: it ran with no organisation set, failed (`invalid input syntax for type uuid`),
+  and took that transaction down with it (`current transaction is aborted`). The handle now
+  waits its turn for each statement, and a statement sent from inside a transaction's own work
+  runs in that transaction rather than waiting for itself. Postgres was never affected.
+  Workplan 0016's note of 2026-11-24.
+
 ## [0.2.0-alpha.19] - 2026-11-24
 
 The managed edition takes any CalDAV, CardDAV or WebDAV server as a source: *Start a migration*
