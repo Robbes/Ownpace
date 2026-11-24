@@ -22,6 +22,7 @@ import type { DiscoveryDomain } from './discovery.ts';
 import type { MailItem } from './mail.ts';
 import type { FileItem } from './file.ts';
 import type { RawCalendarEvent } from './calendar.ts';
+import { componentsNamed, declaredZones, latestEnd, parseIcalComponents } from './ical-occurrences.ts';
 
 /** How many days a window holds. */
 export const RECENT_WINDOW_DAYS = 90;
@@ -38,8 +39,6 @@ export type WindowedDomain = (typeof WINDOWED_DOMAINS)[number];
 export function isWindowedDomain(domain: DiscoveryDomain): domain is WindowedDomain {
   return (WINDOWED_DOMAINS as ReadonlyArray<DiscoveryDomain>).includes(domain);
 }
-
-const DAY_MS = 86_400_000;
 
 /**
  * The start of the UTC day `days` before `anchor`.
@@ -84,80 +83,36 @@ export function fileInWindow(item: FileItem, since: Date): boolean {
 }
 
 /**
- * An event is in the window when it ends on or after `since` (D1). This body
- * HOLDS everything it cannot decide, so a window never loses an event before
- * workplan 0170 T4 replaces it with a full reading of DTSTART, DTEND,
- * DURATION, RRULE and RDATE (§4.3):
+ * An event is in the window when it ends on or after `since`, and a recurring
+ * series when any of its occurrences does, whole, with every override it
+ * carries (D1 (a)). Decided from the iCalendar object alone, by
+ * `latestEnd` (`ical-occurrences.ts`, workplan 0170 §4.3): out only when the
+ * latest moment any occurrence can end is before `since`.
+ *
+ * In, whatever its dates:
  *
  *  - a task or a journal entry (never windowed: their data type is `task`);
- *  - an object with no VEVENT, or one whose VEVENT carries an RRULE or an
- *    RDATE (a series is copied whole when any occurrence is in);
- *  - a VEVENT with no DTSTART this can parse, or with a DURATION;
- *  - an end within a day of `since`, since a floating or TZID time is read
- *    here as UTC and may be up to a day out.
+ *  - an object with no VEVENT, or one this cannot read;
+ *  - an object whose every VEVENT is an override (RECURRENCE-ID) with no
+ *    series beside it, as Graph lists an exception apart from its series:
+ *    the series' other occurrences are not here to read;
+ *  - a VEVENT with no DTSTART this can parse, an RRULE whose last occurrence
+ *    this cannot bound (a COUNT over BY-parts), or an RDATE it cannot read.
  *
- * Each VEVENT is read from its own lines, never a VTIMEZONE's `STANDARD` or
- * `DAYLIGHT` start. An object with several VEVENTs (a series and its
- * overrides) is in when any of them is.
+ * An object with several VEVENTs (a series and its overrides) is in when any
+ * of them is: an override moved into the window brings its series with it.
  */
 export function eventInWindow(raw: RawCalendarEvent, since: Date): boolean {
   if (raw.item.type !== 'event') return true;
-  const events = vevents(raw.icalendar);
+  const roots = parseIcalComponents(raw.icalendar);
+  const events = componentsNamed(roots, 'VEVENT');
   if (events.length === 0) return true;
-  const edge = since.getTime() - DAY_MS;
-  return events.some((lines) => {
-    if (lines.some((l) => /^(RRULE|RDATE)[;:]/i.test(l))) return true;
-    if (lines.some((l) => /^DURATION[;:]/i.test(l))) return true;
-    const start = icalTime(lines, 'DTSTART');
-    if (start === undefined) return true;
-    const end = icalTime(lines, 'DTEND');
-    // No DTEND: a date-only DTSTART lasts the day, a date-time none (RFC 5545 §3.6.1).
-    const ends = end?.ms ?? (start.dateOnly ? start.ms + DAY_MS : start.ms);
-    return ends >= edge;
+  if (events.every((e) => e.properties.some((p) => p.name === 'RECURRENCE-ID'))) return true;
+  const zones = declaredZones(roots);
+  return events.some((e) => {
+    const end = latestEnd(e, zones);
+    return end === undefined || end >= since.getTime();
   });
-}
-
-/** The unfolded content lines of each VEVENT in an iCalendar object. */
-function vevents(icalendar: string): ReadonlyArray<ReadonlyArray<string>> {
-  const lines = icalendar.replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
-  const out: string[][] = [];
-  let current: string[] | undefined;
-  let depth = 0;
-  for (const line of lines) {
-    const upper = line.toUpperCase();
-    if (current === undefined) {
-      if (upper === 'BEGIN:VEVENT') {
-        current = [];
-        depth = 0;
-      }
-      continue;
-    }
-    if (upper.startsWith('BEGIN:')) depth += 1;
-    else if (upper === 'END:VEVENT' && depth === 0) {
-      out.push(current);
-      current = undefined;
-      continue;
-    } else if (upper.startsWith('END:')) depth -= 1;
-    // A VALARM's own properties are not the event's.
-    if (depth === 0) current.push(line);
-  }
-  return out;
-}
-
-/** A DTSTART or DTEND value as UTC milliseconds, or `undefined` when it does not parse. */
-function icalTime(
-  lines: ReadonlyArray<string>,
-  name: 'DTSTART' | 'DTEND',
-): { readonly ms: number; readonly dateOnly: boolean } | undefined {
-  const line = lines.find((l) => l.toUpperCase().startsWith(`${name}:`) || l.toUpperCase().startsWith(`${name};`));
-  if (line === undefined) return undefined;
-  const value = line.slice(line.indexOf(':') + 1).trim();
-  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(value);
-  if (date) return { ms: Date.UTC(+date[1]!, +date[2]! - 1, +date[3]!), dateOnly: true };
-  const time = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/.exec(value);
-  if (!time) return undefined;
-  const ms = Date.UTC(+time[1]!, +time[2]! - 1, +time[3]!, +time[4]!, +time[5]!, +time[6]!);
-  return Number.isFinite(ms) ? { ms, dateOnly: false } : undefined;
 }
 
 // ---------------------------------------------------------------------------
