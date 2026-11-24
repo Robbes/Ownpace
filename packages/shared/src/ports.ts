@@ -12,6 +12,7 @@ import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from '
 import type { CalendarFolder, RawCalendarEvent } from './calendar.ts';
 import type { ContactFolder, RawContact } from './contact.ts';
 import type { FileFolder, FileItem, RawFileItem } from './file.ts';
+import type { PassWindow } from './recent-window.ts';
 
 /** Opaque, source-defined cursor for incremental listing (e.g. UIDVALIDITY+UIDNEXT). */
 export interface SyncCursor {
@@ -61,6 +62,23 @@ export function discardedScanCursorKey(collectionPath: string): string {
   return `\u0001discarded\u0001${collectionPath}`;
 }
 
+/**
+ * What a listing may be asked to leave out (workplan 0170 §3.5).
+ *
+ * Passed as the third argument of `listSince` on the mail, calendar and file
+ * ports. Not on `ContactSource`: contacts are never windowed.
+ */
+export interface ListOptions {
+  /**
+   * Only items on or after this instant are wanted. A source MAY filter by it on the server, and
+   * MAY return items before it: the loop checks every item itself. It MUST NOT keep a listing
+   * made with `since` where `listKeys` reads it (Google Drive, Dropbox and Box memo their last
+   * listing for `listKeys` today), and it MUST NOT return a cursor that claims an item before
+   * `since` was seen when that cursor could be stored as a content cursor.
+   */
+  readonly since?: Date;
+}
+
 /** A source mailbox the engine reads from. READ-ONLY. */
 export interface SourceConnector {
   /** Enumerate folders with special-use detection (RFC 6154). */
@@ -72,6 +90,7 @@ export interface SourceConnector {
   listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<MailItem>;
     nextCursor: SyncCursor;
@@ -120,9 +139,10 @@ export interface SourceConnector {
      */
     removed?: ReadonlyArray<string>;
     /**
-     * Items this read RETURNED that a test migration's marker set aside
-     * (`MarkedOnly`, workplan 0162): their own title does not carry the
-     * marker, so they are not in `items`. The sync loop asks two things of
+     * Items this read RETURNED that a selection set aside: a test
+     * migration's marker (`MarkedOnly`, workplan 0162), whose own title does
+     * not carry the marker, or a window's (workplan 0170 §3.2), an item older
+     * than the window. Either way they are not in `items`. The sync loop asks two things of
      * them and nothing else, and writes nothing about them anywhere.
      *
      * Whether there were any, so a read the marker emptied is not mistaken
@@ -172,6 +192,7 @@ export interface CalendarSource {
   listSince(
     folder: CalendarFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<RawCalendarEvent>;
     nextCursor: SyncCursor;
@@ -221,7 +242,7 @@ export interface CalendarSource {
      * this at all.
      */
     removed?: ReadonlyArray<string>;
-    /** Items the marker set aside. See `SourceConnector.listSince`. */
+    /** Items a selection set aside, a test marker's or a window's. See `SourceConnector.listSince`. */
     unmarked?: ReadonlyArray<RawCalendarEvent>;
   }>;
   /** Lists only what a test migration's marker selects. See `SourceConnector.markedOnly`. */
@@ -330,6 +351,7 @@ export interface FileSource {
   listSince(
     folder: FileFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
   ): Promise<{
     items: ReadonlyArray<RawFileItem>;
     nextCursor: SyncCursor;
@@ -385,7 +407,7 @@ export interface FileSource {
      * Absent from every source whose listing is a folder's own children.
      */
     listedElsewhere?: number;
-    /** Files the marker set aside. See `SourceConnector.listSince`. */
+    /** Files a selection set aside, a test marker's or a window's. See `SourceConnector.listSince`. */
     unmarked?: ReadonlyArray<RawFileItem>;
   }>;
   /**
@@ -2692,6 +2714,8 @@ export interface Scheduler {
 export interface ReconcileDeps extends PassClock, SourceAuthority {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
+  /** This pass reads the last 90 days only (workplan 0170 §3.2). Absent: the whole mailbox. */
+  readonly window?: PassWindow;
   readonly source: SourceConnector;
   readonly target: TargetWriter;
   readonly ledger: Ledger;
@@ -2735,6 +2759,12 @@ export interface ReconcileDeps extends PassClock, SourceAuthority {
 
 /** Summary of a single shadow pass. */
 export interface ReconcileResult {
+  /**
+   * Only for a pass with a `window` (workplan 0170 §3.3): whether it reached
+   * the end of every folder, with no pause, stop or unread folder. Absent for
+   * every other pass.
+   */
+  readonly windowComplete?: boolean;
   /**
    * How many collections the SOURCE listed for this pass.
    *
