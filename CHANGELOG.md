@@ -6,6 +6,91 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The last 90 days first, and a migration of only them** (workplan 0170 T1; the owner, 2026-11-24:
+  *"yes, plan it as a workplan, 90 days"*). Every first copy of mail, files and calendars now
+  copies the last 90 days first, then everything older in the same pass: mail Inbox first, then
+  Sent, then the other folders. Contacts and tasks are copied whole, as before. A migration can
+  also copy only the last 90 days of mail, files and calendars, and all contacts and tasks, to try
+  a destination with fresh data: `recentOnly: true` when it is created, or `{ "recentOnly": {
+  "days": 90 } }` in the appliance's mapping file. It can be broadened to everything later
+  without starting over (`recentOnly: false`, or the key taken out of the file); a migration of
+  everything is never narrowed to 90 days. Nothing outside the window is ever read as deleted. A
+  migration of only the last 90 days is not switched over before it is broadened (the owner:
+  *"D8: no, not before"*). Both editions run one rule, and the read of a migration says which
+  data types have their last 90 days in (`window`). No database change: the window's record is
+  kept with the cursors, and the setting in the migration's own override. The screens and the
+  sources' server-side date filters follow in 0170's other tasks; until then every source lists
+  as before and the window is applied as items are listed.
+- **Calendar sources read the last 90 days first** (workplan 0170 T4, D1 (a)). Asked for a
+  window, a CalDAV source (any server, Google, Apple) lists a calendar with a `time-range` from a
+  day before its start, plus every recurring series, so a server that does not expand recurrence
+  still shows the sync loop a series that began years ago and still recurs; a server that refuses
+  any of those queries has its calendar listed whole. The listing gives no cursor, and tasks are
+  never windowed. Graph calendars set aside an event plainly over before the window before its
+  iCalendar is fetched, and mark their cursor with the window, so a listing of everything never
+  reads on from it. `eventInWindow` now decides D1 (a) from the event itself: DTEND or DURATION,
+  time zones (IANA, a VTIMEZONE's own offsets for a Windows name, the widest offsets for a
+  floating time or a date), RRULE's UNTIL and COUNT, RDATE, and overrides; what it cannot bound
+  is held. The start a CalDAV event carries is read from its own VEVENT, in UTC, no longer a
+  VTIMEZONE's 1970 start or the moment it was listed.
+
+### Fixed
+
+- **Microsoft 365 and Outlook.com calendars are copied again** (workplan 0059 T5; 0141 T2 waits
+  on it). A migration from a personal Microsoft account listed its four calendars and found no
+  event in any of them, while one held a weekly repeating event and another the year's holidays;
+  its mail, contacts and tasks copied. The Graph calendar source stood on two calls Graph v1.0
+  does not document: a calendar's `events/delta` (v1.0 has only `calendarView/delta`, with a start
+  and an end date) and an event's `$value` with an iCalendar body (that header takes `text` or
+  `html`). Its tests mocked both, by call order. It now lists each calendar with
+  `GET …/calendars/{id}/events` and `$select`, and reads each series' cancelled and changed
+  occurrences from the series master (`cancelledOccurrences`, `exceptionOccurrences`). It builds
+  every VEVENT from Graph's JSON: UID from `iCalUId`, times in the organizer's zone as an IANA
+  TZID with its VTIMEZONE (Windows zone names mapped by CLDR), all-day events as dates, RRULE from
+  the recurrence (To Do's mapping, with UNTIL in UTC for a timed series), EXDATE for a cancelled
+  occurrence, a RECURRENCE-ID VEVENT for a changed one, and summary, body as text, location,
+  organizer, attendees, busy status, class, categories and the reminder. A series and its
+  exceptions travel as one object. A read-only holiday or subscribed calendar is copied like any
+  other; one Graph will not list fails that calendar by name instead of listing as empty. Every
+  pass lists a calendar whole, so an edit is found by `changeKey` (a series' also by its
+  exceptions and cancellations), and an event gone from the listing is reported as removed, for
+  the owner to decide as with any source-reported deletion. With 0170's window the listing is
+  still read whole and an event over before the window is not built, which replaces the
+  window-marked delta cursor T4 describes above. A guard fails if `events/delta` or an event's
+  `$value` comes back, and the tests answer by address, in Graph's documented shapes.
+- **Calendars found and nothing read from them are said in amber.** The same migration's calendar
+  row read a green *Kept in step* and *none found to copy*. When a calendar pass opened calendars
+  and read no event, and nothing of them was ever copied, the card's line and the migration
+  page's strip now say *4 calendars found, but not one event read from them*, in amber, in
+  English and Dutch.
+
+## [0.2.0-alpha.19] - 2026-11-24
+
+The managed edition takes any CalDAV, CardDAV or WebDAV server as a source: *Start a migration*
+and the *Any server, by protocol* lane offer **Calendar server (CalDAV)**, **Contacts server
+(CardDAV)** and **File server (WebDAV)** beside IMAP, each labelled **Experimental** until a real
+run proves it, and a Nextcloud is left through these three. A migration that stops at an address
+inside this service's own network now says, in our own words and no longer as the provider's
+message, to replace the server address on the Accounts page, after which the pass carries on where
+it stopped. The **Test** button and the sharing checklist no longer name that network. On
+*Where does it go?*, a line under *I am also changing my email address* says to tick it only when
+leaving an email address of one's own behind. A pass the job runner retried counts as one sync
+operation in the billing usage and in what an invoice freezes; `operator.sh leave` records a
+removal without the address; and contacts reach a Stalwart v1.2.0 server over JMAP, whose answer
+to `ContactCard/parse` the writer now reads. Underneath, the test mail server runs Stalwart
+v1.2.0's Alpine build, which live never runs; pnpm moves to 11.29.0; and the code comments,
+refusals and docs that still described Trigger.dev describe the `worker` service on pg-boss, whose
+containers the capacity rehearsal's sample now measures. The identity provider moves to Zitadel
+v4.20.5, whose one change is in login v2, which does not run here; the move is one-way for the
+identity provider's database. In CI, the migration lint moves to Atlas v1.4.1, the
+migration report to squawk 2.74.0 and the workflow audit to zizmor 1.33.1. alpha.19 is not
+deployed to live: on 2026-11-24 the owner decided to tag it without deploying it, and to deploy
+alpha.20 to live on 2026-11-26. Live stays on alpha.18, deployed there one-way on 2026-11-24 at
+14:37:44 UTC, and alpha.19's changes reach live with alpha.20's deploy. alpha.19 adds no migration
+to either chain.
+
+### Added
+
 - **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
   of 2026-11-24: *"yes to all, build them. But dont add the nextcloud as source card, add only
   the generic cards as source."*). Three source cards in the *Any server, by protocol* lane beside
@@ -21,21 +106,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   no longer calls a plain WebDAV server a Nextcloud. No database change: the three kinds have
   been allowed on a connection since the first migration, for the DAV targets. The DAV guide, in
   English and Dutch, has a section for each. Answers 0141's open question 9 with (b).
-- **Calendar sources read the last 90 days first** (workplan 0170 T4, D1 (a)). Asked for a
-  window, a CalDAV source (any server, Google, Apple) lists a calendar with a `time-range` from a
-  day before its start, plus every recurring series, so a server that does not expand recurrence
-  still shows the sync loop a series that began years ago and still recurs; a server that refuses
-  any of those queries has its calendar listed whole. The listing gives no cursor, and tasks are
-  never windowed. Graph calendars set aside an event plainly over before the window before its
-  iCalendar is fetched, and mark their cursor with the window, so a listing of everything never
-  reads on from it. `eventInWindow` now decides D1 (a) from the event itself: DTEND or DURATION,
-  time zones (IANA, a VTIMEZONE's own offsets for a Windows name, the widest offsets for a
-  floating time or a date), RRULE's UNTIL and COUNT, RDATE, and overrides; what it cannot bound
-  is held. The start a CalDAV event carries is read from its own VEVENT, in UTC, no longer a
-  VTIMEZONE's 1970 start or the moment it was listed.
 
 ### Changed
 
+- **The identity provider moves to Zitadel v4.20.5** (workplan 0119; the pin watch's #1934), from
+  v4.20.4. Its one commit after v4.20.4 is in login v2, which does not run here, so nothing the
+  stack runs changes: per platform its images keep v4.20.4's base layers, and the binary's differs
+  by what a new version string makes. The OTA instance's database was dumped by hand before E2E
+  (managed) applied it there, and live takes it with alpha.20's deploy.
+- **The Test answer and the sharing checklist say less about an address this service will not
+  connect to** (workplan 0136; the owner, 2026-11-24: *"yes, follow-up"*). Where they named this
+  service's own network, the **Test** button on Accounts now says *"We did not connect to that
+  address. Enter an internet address of the server."* (*"Geen verbinding gemaakt met dat adres. Vul
+  een internetadres van de server in."*), and a share the checklist could not apply says *"We did
+  not connect to the new system's address, so nothing was shared. On the Accounts page, enter an
+  internet address of the server."* The OTA stack and a test box may still list test servers of
+  their own on a private network in `OWNPACE_REACHABLE_HOSTS`, by name; the E2E (managed) gate keeps
+  such a name, and live's list stays empty (`docs/managed-bring-up.md`).
 - **pnpm 11.29.0** (workplan 0119; the pin watch's #2088), from alpha.18's 11.28.13, in
   `package.json`'s `packageManager`, which CI and the images read. npm published it on 2026-11-22
   at 13:58 UTC; it is taken inside its three-day floor, on the owner's word of 2026-11-23:
@@ -76,33 +163,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
-- **Microsoft 365 and Outlook.com calendars are copied again** (workplan 0059 T5; 0141 T2 waits
-  on it). A migration from a personal Microsoft account listed its four calendars and found no
-  event in any of them, while one held a weekly repeating event and another the year's holidays;
-  its mail, contacts and tasks copied. The Graph calendar source stood on two calls Graph v1.0
-  does not document: a calendar's `events/delta` (v1.0 has only `calendarView/delta`, with a start
-  and an end date) and an event's `$value` with an iCalendar body (that header takes `text` or
-  `html`). Its tests mocked both, by call order. It now lists each calendar with
-  `GET …/calendars/{id}/events` and `$select`, and reads each series' cancelled and changed
-  occurrences from the series master (`cancelledOccurrences`, `exceptionOccurrences`). It builds
-  every VEVENT from Graph's JSON: UID from `iCalUId`, times in the organizer's zone as an IANA
-  TZID with its VTIMEZONE (Windows zone names mapped by CLDR), all-day events as dates, RRULE from
-  the recurrence (To Do's mapping, with UNTIL in UTC for a timed series), EXDATE for a cancelled
-  occurrence, a RECURRENCE-ID VEVENT for a changed one, and summary, body as text, location,
-  organizer, attendees, busy status, class, categories and the reminder. A series and its
-  exceptions travel as one object. A read-only holiday or subscribed calendar is copied like any
-  other; one Graph will not list fails that calendar by name instead of listing as empty. Every
-  pass lists a calendar whole, so an edit is found by `changeKey` (a series' also by its
-  exceptions and cancellations), and an event gone from the listing is reported as removed, for
-  the owner to decide as with any source-reported deletion. With 0170's window the listing is
-  still read whole and an event over before the window is not built, which replaces the
-  window-marked delta cursor T4 describes above. A guard fails if `events/delta` or an event's
-  `$value` comes back, and the tests answer by address, in Graph's documented shapes.
-- **Calendars found and nothing read from them are said in amber.** The same migration's calendar
-  row read a green *Kept in step* and *none found to copy*. When a calendar pass opened calendars
-  and read no event, and nothing of them was ever copied, the card's line and the migration
-  page's strip now say *4 calendars found, but not one event read from them*, in amber, in
-  English and Dutch.
 - **Text that still described Trigger.dev in the present tense** (workplan 0167, after T9). Code
   comments in the API, the worker, the packages and the deploy scripts now say what runs since
   alpha.18 (pg-boss, in the `worker` service) and no longer point at files T9 removed, and the

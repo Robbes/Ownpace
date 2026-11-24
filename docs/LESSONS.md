@@ -1062,6 +1062,7 @@ reading a file drops off its entry by itself.
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The scripts a managed bring-up cannot get wrong, tested.
+- [demo-hosts-persisted](../scripts/demo-hosts-persisted.unit.test.ts) — THE DEMO'S ADMITTED HOSTS, PERSISTED (workplan 0160, T2b, 2026-11-24).
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -1142,6 +1143,7 @@ reading a file drops off its entry by itself.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [demo-hosts-persisted](../scripts/demo-hosts-persisted.unit.test.ts) — THE DEMO'S ADMITTED HOSTS, PERSISTED (workplan 0160, T2b, 2026-11-24).
 - [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
@@ -1535,6 +1537,7 @@ reading a file drops off its entry by itself.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
+- [demo-hosts-persisted](../scripts/demo-hosts-persisted.unit.test.ts) — THE DEMO'S ADMITTED HOSTS, PERSISTED (workplan 0160, T2b, 2026-11-24).
 
 ### `deploy/compose/rehearse-capacity.sh`
 
@@ -1748,6 +1751,7 @@ reading a file drops off its entry by itself.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [demo-hosts-persisted](../scripts/demo-hosts-persisted.unit.test.ts) — THE DEMO'S ADMITTED HOSTS, PERSISTED (workplan 0160, T2b, 2026-11-24).
 - [job-runner-mode](../scripts/job-runner-mode.unit.test.ts) — ONE READER FOR WHICH RUNNER THE JOBS RUN ON (workplan 0167 T7, ADR-0054).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
@@ -6644,10 +6648,14 @@ THE DEMO'S ADMITTED HOSTS, PERSISTED (workplan 0160, T2b, 2026-11-24).
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.yml`
+- `deploy/compose/refuse-live-env.sh`
 - `deploy/compose/stack-kind.sh`
+- `deploy/compose/stand-up-live.sh`
 
 ### [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts)
 

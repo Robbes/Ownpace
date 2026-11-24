@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-21: A to J done (rows corrected 2026-08-01, the work having landed long before); K built on a branch, not merged; L built on a branch, not merged
+## Status — 2026-11-24: A to M done (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -15,8 +15,9 @@
 | H — Re-enable `no-unused-vars` lint rule | ✅ Done — `eslint.config.js` enables `@typescript-eslint/no-unused-vars` | approved |
 | I — Worker CLI config-path bug | ✅ Done — `--config` resolves against `process.cwd()` (`apps/worker/src/index.ts`) | approved |
 | J — Errors caught and dropped: 25 sites a read-only check for swallowed errors (ERR-1) named on `646b9de2` | ✅ Done 2026-11-19, merged in #1944 (`cd1ff1bc`): 23 sites changed, 2 left as they were (nothing swallowed). See §J | asked for, 2026-11-19 |
-| K — Errors caught and dropped, again: the 12 spots the same check (ERR-1) named on `75d7949d`, 2026-11-21 | 🔨 Built 2026-11-21 (UTC) on branch `claude/ownpace-public-readiness-y7orc6-err1-nov21`: no real bug; 7 spots narrowed or made to say their failure, all in tests and their set-up; 5 swallow nothing, of which 3 are left as they were, one gains a test (the Cirrux connector) and one a single parse; nothing in the product changes. See §K | asked for, 2026-11-21 |
-| L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | 🔨 Built 2026-11-21 (21:20 UTC) on branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`, not merged: none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
+| K — Errors caught and dropped, again: the 12 spots the same check (ERR-1) named on `75d7949d`, 2026-11-21 | ✅ Done 2026-11-21, merged in #2022 (`a01edafe`) from branch `claude/ownpace-public-readiness-y7orc6-err1-nov21`: no real bug; 7 spots narrowed or made to say their failure, all in tests and their set-up; 5 swallow nothing, of which 3 are left as they were, one gains a test (the Cirrux connector) and one a single parse; nothing in the product changes. See §K | asked for, 2026-11-21 |
+| L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | ✅ Done 2026-11-21, merged in #2023 (`5ba9688a`) from branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`; read again 2026-11-24, unchanged (§L): none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
+| M — A comparison that is not a secret: the line a read-only check (JS-07) named in `caldav-source.ts`, 2026-11-24 | ✅ Read 2026-11-24: a false positive, a CalDAV sync token compared with the client's own (§M); nothing changed | the owner was given a reason to paste |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -353,6 +354,30 @@ source they check.
   synchronous. Moving the inflate alone would halve the wait for renderings only; moving all
   hashing off the event loop would change the reconcile core's `contentHash` hook. Neither is
   planned.
+
+**2026-11-24, a second reading (the same check, on `c482f8fd`).** The check came back with the
+status "Needs attention" and 25 spots, line 135 of `notifier-wiring.unit.test.ts` again counted
+twice. Read on `main` at `7dfe58d9`: twenty-four are spots of the table above, on the lines it
+gives. One is new: `apps/selfhost/src/a-fault-the-appliance-answers-with-a-reference.unit.test.ts:45`,
+a `writeFileSync` of the test's own temporary mapping file, in a test added on 2026-11-23, kind
+(c). `selfhost-queues.integration.test.ts:179` is not on the new list, though its call is still
+there. Nothing changed: D1 and D2 stand, and the owner was given the same reason to paste.
+
+## M — A comparison that is not a secret (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check (JS-07) flagged `packages/connectors/src/caldav-source.ts:744`,
+unchanged on `main` since `c482f8fd`, as a comparison of a secret that does not take constant
+time. The line is `page.syncToken === next`.
+
+**Read.** It compares the sync token a CalDAV server returned for a page of a `sync-collection`
+report (RFC 6578) with the token the client sent for that page, so that a server that keeps
+handing back the same token cannot make the sync loop for ever. A sync token is an opaque bookmark:
+it travels in plain responses and marks where the next sync starts, and it is not a password, a
+key or a code. Both values are the client's own, so a difference in timing reveals nothing. The
+check most likely matched the word *token*.
+
+**Decided.** A false positive, read on 2026-11-24; nothing changed. The owner was given a reason
+to paste.
 
 ---
 

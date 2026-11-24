@@ -46,6 +46,34 @@ export const A_TEST_IS_NOT_SWITCHED_OVER: Bilingual = {
 };
 
 /**
+ * MAY A 90-DAY MIGRATION BE SWITCHED OVER BEFORE IT IS BROADENED? No (workplan
+ * 0170 D8, the owner, 2026-11-24: *"D8: no, not before"*). The switch-over is
+ * the step where a person stops using the old account, and its checks assume a
+ * whole copy; someone who settles on a destination presses *Copy everything*
+ * first.
+ *
+ * ONE RULE, which every door of the switch-over asks through
+ * `recentOnlyIsSwitchedOver`, so the editions and the doors cannot answer it
+ * differently; its guard test holds it at `false`.
+ */
+export const A_RECENT_ONLY_MIGRATION_SWITCHES_OVER = false;
+
+/** Whether a migration may be switched over, by D8 alone; `recentOnly` is whether it copies only the last 90 days. */
+export function recentOnlyIsSwitchedOver(recentOnly: boolean): boolean {
+  return !recentOnly || A_RECENT_ONLY_MIGRATION_SWITCHES_OVER;
+}
+
+/** What a 90-day migration is told at the cutover's doors (workplan 0170 D8). */
+export const A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER: Bilingual = {
+  en:
+    'This migration copies only the last 90 days, so it is not switched over yet: press Copy ' +
+    'everything first, and switch over once the older items are in.',
+  nl:
+    'Deze migratie kopieert alleen de laatste 90 dagen, dus ze stapt nog niet over: kies eerst ' +
+    'Alles kopiëren, en stap over als de oudere items erin staan.',
+};
+
+/**
  * After cutover, the source is no longer the authority on what exists.
  *
  * Workplan 0117 **D4**, owner 2026-09-09: *"indeed, after cutover the source is
@@ -532,7 +560,8 @@ export type UpdateRefuseCode =
   | 'finished'
   | 'before_cutover'
   | 'unknown'
-  | 'test_migration';
+  | 'test_migration'
+  | 'recent_only';
 
 export type UpdateTransition =
   | { readonly apply: true; readonly from: string; readonly to: string }
@@ -558,8 +587,26 @@ const A_TEST_REFUSED: UpdateTransition = {
   code: 'test_migration',
 };
 
-/** Decide what a status update from `from` to `to` may do; `testMarker` as above. */
-export function updateTransition(from: string, to: string, testMarker?: string): UpdateTransition {
+/** What a 90-day migration is answered when an update would switch it over (workplan 0170 D8). */
+const A_RECENT_ONLY_REFUSED: UpdateTransition = {
+  refuse: A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER.en,
+  refuseNl: A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER.nl,
+  hint: 'Nothing was changed.',
+  code: 'recent_only',
+};
+
+/**
+ * Decide what a status update from `from` to `to` may do; `testMarker` as
+ * above, and `recentOnly` whether the migration copies only the last 90 days
+ * (workplan 0170 D8): refused the cutover and the lane as a test is, as
+ * `recentOnlyIsSwitchedOver` says.
+ */
+export function updateTransition(
+  from: string,
+  to: string,
+  testMarker?: string,
+  recentOnly = false,
+): UpdateTransition {
   const known = (s: string): boolean => (MAPPING_LIFECYCLES as readonly string[]).includes(s);
   if (!known(from) || !known(to)) {
     // Hard rule 9, as in the other decisions: a state this product does not
@@ -629,6 +676,9 @@ export function updateTransition(from: string, to: string, testMarker?: string):
   // cutover declared: `cutover` from before it, `active` or `paused`. See the
   // note above the table.
   if (testMarker !== undefined && to === 'cutover' && !isAfterCutover(from)) return A_TEST_REFUSED;
+  if (!recentOnlyIsSwitchedOver(recentOnly) && (to === 'cutover' || to === 'continuous')) {
+    return A_RECENT_ONLY_REFUSED;
+  }
   return { apply: true, from, to };
 }
 

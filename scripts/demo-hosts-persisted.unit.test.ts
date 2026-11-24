@@ -17,6 +17,19 @@
  * persisted `.env` gets the key once, with the checkout's value, its other
  * lines unchanged, twice in a row; an existing stale value is replaced; an
  * empty key in the checkout fails the step and writes nothing.
+ *
+ * A NAME ADDED BY HAND STAYS (the owner, 2026-11-24: *"in OTA/test we need to
+ * keep being able to add the internal addressess"*). The OTA stack and a test
+ * box may list names of their own beside the demo's two: a test server on a
+ * private network, by a name the stack resolves (an address is never admitted
+ * by the list, `reachableAddress`). Live's list stays empty, and
+ * `stand-up-live.sh` and `deploy-live.sh` refuse it otherwise. So a run of the
+ * gate must keep such a name: the restore copies the persisted `.env` in, the
+ * Fill step never names the key (and Compose reads it with a default, so the
+ * required-key backfill never writes it), the demo phase's `admit_demo_hosts`
+ * adds only the demo's missing names, and the persist step writes the whole
+ * list back. The restore, `admit_demo_hosts` and the persist step are run here
+ * in that order, twice.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -48,7 +61,9 @@ function aRunner(checkoutEnv: string, persistedEnv: string): { root: string; hom
   tempDirs.push(root, home);
   const compose = join(root, 'deploy/compose');
   mkdirSync(compose, { recursive: true });
-  for (const f of ['managed.yml', 'env-read.sh', 'env-upsert.sh', 'stack-kind.sh']) copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
+  for (const f of ['managed.yml', 'env-read.sh', 'env-upsert.sh', 'stack-kind.sh', 'refuse-live-env.sh']) {
+    copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
+  }
   writeFileSync(join(compose, '.env'), checkoutEnv);
   const persistDir = join(home, '.persistent', PROJECT);
   mkdirSync(persistDir, { recursive: true });
@@ -57,8 +72,8 @@ function aRunner(checkoutEnv: string, persistedEnv: string): { root: string; hom
   return { root, home, persisted };
 }
 
-function runStep(r: { root: string; home: string }): { status: number | null; out: string } {
-  const p = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', STEPS[PERSIST]?.run ?? 'exit 99'], {
+function runStep(r: { root: string; home: string }, step = PERSIST): { status: number | null; out: string } {
+  const p = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', STEPS[step]?.run ?? 'exit 99'], {
     cwd: r.root,
     env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: r.home },
     encoding: 'utf8',
@@ -106,5 +121,63 @@ describe("the gate persists the demo's admitted hosts after the bring-up", () =>
     expect(run.status).not.toBe(0);
     expect(run.out).toContain('left OWNPACE_REACHABLE_HOSTS empty');
     expect(readFileSync(r.persisted, 'utf8')).toBe('NODE_ENV=development\n');
+  });
+});
+
+describe('a name added by hand on the OTA stack survives a run of the gate', () => {
+  const RESTORE = STEPS.findIndex((st) => st.name?.startsWith('Restore the one-time setup') === true);
+  const FILL = STEPS.findIndex((st) => st.name === 'Fill in everything the repo already knows how to supply');
+  const BOOTSTRAP = readFileSync(join(COMPOSE_DIR, 'bootstrap-managed.sh'), 'utf8');
+  const lift = (name: string): string => {
+    const at = BOOTSTRAP.indexOf(`${name}() {`);
+    return at < 0 ? '' : BOOTSTRAP.slice(at, BOOTSTRAP.indexOf('\n}\n', at) + 3);
+  };
+
+  /** The demo phase's `admit_demo_hosts`, against the checkout's `.env`, as the bring-up runs it. */
+  function admit(r: { root: string }): { status: number | null; out: string } {
+    const compose = join(r.root, 'deploy/compose');
+    const program = [
+      'set -euo pipefail',
+      `SCRIPT_DIR="${compose}"`,
+      `ENV_FILE="${join(compose, '.env')}"`,
+      '. "${SCRIPT_DIR}/env-read.sh"',
+      'note() { echo "    $*"; }',
+      lift('env_get'),
+      lift('admit_demo_hosts'),
+      'admit_demo_hosts',
+    ].join('\n');
+    const p = spawnSync('bash', ['--noprofile', '--norc', '-c', program], { encoding: 'utf8', timeout: 30_000 });
+    return { status: p.status, out: `${p.stdout}${p.stderr}` };
+  }
+
+  it('holds the steps it rides on, in this order', () => {
+    expect(RESTORE).toBeGreaterThanOrEqual(0);
+    expect(FILL).toBeGreaterThan(RESTORE);
+    expect(BRING_UP).toBeGreaterThan(FILL);
+    expect(PERSIST).toBeGreaterThan(BRING_UP);
+    expect(lift('admit_demo_hosts'), 'admit_demo_hosts was not found').toContain('env-upsert.sh');
+  });
+
+  it('the Fill step never names the key, and Compose reads it with a default, so no backfill writes it', () => {
+    expect(STEPS[FILL]?.run ?? '').not.toContain('OWNPACE_REACHABLE_HOSTS');
+    const managed = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8');
+    expect(managed).not.toMatch(/\$\{OWNPACE_REACHABLE_HOSTS:\?/);
+    expect(managed).toContain('${OWNPACE_REACHABLE_HOSTS:-}');
+  });
+
+  it('restored, kept by the demo phase, and written back: the hand-added name and the demo’s two, twice in a row', () => {
+    const r = aRunner('', '# the OTA stack\nNODE_ENV=development\nOWNPACE_REACHABLE_HOSTS=files.example.test\n');
+    for (let i = 0; i < 2; i++) {
+      const restore = runStep(r, RESTORE);
+      expect(restore.status, restore.out).toBe(0);
+      const demo = admit(r);
+      expect(demo.status, demo.out).toBe(0);
+      const persist = runStep(r);
+      expect(persist.status, persist.out).toBe(0);
+    }
+    const after = readFileSync(r.persisted, 'utf8');
+    expect(lines(after, 'OWNPACE_REACHABLE_HOSTS')).toEqual(['OWNPACE_REACHABLE_HOSTS=files.example.test,nextcloud,stalwart']);
+    expect(lines(after, 'NODE_ENV')).toEqual(['NODE_ENV=development']);
+    expect(after).toContain('# the OTA stack\n');
   });
 });

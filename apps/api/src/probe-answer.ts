@@ -87,12 +87,11 @@ export function whatHappenedSentence(said: WhatHappened): string {
         "The server's certificate did not verify for that name, or has expired, so the " +
         'test stopped before signing in.'
       );
+    // Says nothing of what is inside this service: the owner, 2026-11-24, on
+    // the failure line that said it (*"this tell too much about our
+    // internals"*), and of this one: *"yes, follow-up"*.
     case 'insideOurNetwork':
-      return (
-        "That address is inside this service's own network, or the server sent the test on " +
-        'to one that is, so we did not connect to it. Give the address the server has on ' +
-        'the internet.'
-      );
+      return 'We did not connect to that address. Enter an internet address of the server.';
     case 'unknown':
       return 'The test failed, and what came back is not shown here. Check the address and the port.';
   }
