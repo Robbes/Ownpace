@@ -33,6 +33,8 @@ export const SERVED_GUIDES = [
   'microsoft',
   'nextcloud',
   'soverin',
+  // How every migration copies, whatever it reads from (workplan 0170 §7.4).
+  'start',
 ] as const;
 
 export type ServedGuide = (typeof SERVED_GUIDES)[number];

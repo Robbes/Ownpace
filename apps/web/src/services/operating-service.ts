@@ -10,6 +10,7 @@
 
 import axios, { type AxiosInstance } from 'axios';
 import type {
+  MigrationWindowView,
   RunsResponse,
   ApplyDeletionsFlag,
   ApplyQueuedResponse,
@@ -47,7 +48,7 @@ import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from
 import { onUnauthorized } from './api.ts';
 import { rememberFault } from './recent-errors.ts';
 import type { Locale } from '../i18n/strings.ts';
-import { EndingChoiceSchema, type EndingChoiceView } from './mapping-service.ts';
+import { EndingChoiceSchema, WindowSchema, type EndingChoiceView } from './mapping-service.ts';
 
 const client: AxiosInstance = axios.create({
   baseURL: operatingBaseUrl(),
@@ -834,11 +835,24 @@ export interface MappingDataTypes {
    * rather than guessing one.
    */
   readonly endings?: readonly EndingChoiceView[];
+  /**
+   * The migration's window (workplan 0170 §5.2), or undefined when the server
+   * sent none: an API from before 0170, or a window this page cannot read. A
+   * migration of only the last 90 days is not switched over before *Copy
+   * everything* (D8), so the Finish page reads it to offer no switch-over.
+   */
+  readonly window?: MigrationWindowView;
 }
 
 /** Endings as the page offers them, or undefined when there are none it can read. */
 function readEndings(raw: unknown): readonly EndingChoiceView[] | undefined {
   const parsed = EndingChoiceSchema.array().safeParse(raw);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** The window as the page reads it, or undefined when there is none it can read. */
+function readWindow(raw: unknown): MigrationWindowView | undefined {
+  const parsed = WindowSchema.safeParse(raw);
   return parsed.success ? parsed.data : undefined;
 }
 
@@ -855,13 +869,25 @@ export async function fetchMappingDataTypes(mappingId: string): Promise<MappingD
     const status = await fetchStatus();
     const mapping = status.mappings.find((m) => m.mappingId === mappingId);
     const endings = readEndings(mapping?.endings);
-    return { domains: mapping?.domains ?? [], ...(endings === undefined ? {} : { endings }) };
+    const window = readWindow(mapping?.window);
+    return {
+      domains: mapping?.domains ?? [],
+      ...(endings === undefined ? {} : { endings }),
+      ...(window === undefined ? {} : { window }),
+    };
   }
   const detail = (
-    await client.get<{ domainStatus?: DomainStatusReport[]; endingChoices?: unknown }>(mappingPath(mappingId))
+    await client.get<{ domainStatus?: DomainStatusReport[]; endingChoices?: unknown; window?: unknown }>(
+      mappingPath(mappingId),
+    )
   ).data;
   const endings = readEndings(detail.endingChoices);
-  return { domains: detail.domainStatus ?? [], ...(endings === undefined ? {} : { endings }) };
+  const window = readWindow(detail.window);
+  return {
+    domains: detail.domainStatus ?? [],
+    ...(endings === undefined ? {} : { endings }),
+    ...(window === undefined ? {} : { window }),
+  };
 }
 
 /** Why the ending door refused, as it said it (0128 T5, slice 7a). */

@@ -48,6 +48,8 @@ import {
   asTenantId,
   asMappingId,
   A_TEST_IS_NOT_SWITCHED_OVER,
+  A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER,
+  recentOnlyIsSwitchedOver,
   DISCOVERY_DOMAINS,
   type DiscoveryDomain,
 } from '@openmig/shared';
@@ -67,6 +69,7 @@ import { log as appLog } from '@openmig/shared';
 import { openTaskPools } from './task-pools.ts';
 import { finalSyncReport, type FinalSyncReport } from './final-sync.ts';
 import { runCutoverGate, testMarkerOf } from './cutover-gate.ts';
+import { readRecentOnly } from '@openmig/orchestration/build-deps-from-mapping';
 
 // Job input schema
 export const CutoverJobSchema = z.object({
@@ -127,6 +130,8 @@ export interface CutoverPreparationDeps {
    * written.
    */
   testMarker?: string;
+  /** Whether it copies only the last 90 days (workplan 0170 D8): refused as a test is. */
+  recentOnly?: boolean;
   cutoverStore: Pick<
     CutoverStateStore,
     'initializeCutover' | 'loadCutoverState' | 'transitionState' | 'getEventHistory' | 'loadLedgers'
@@ -214,6 +219,10 @@ export async function prepareCutover(
   if (deps.testMarker !== undefined) {
     deps.log(`${A_TEST_IS_NOT_SWITCHED_OVER.en} Nothing was changed.`);
     throw new CutoverRefused(A_TEST_IS_NOT_SWITCHED_OVER.en, 'Nothing was changed.');
+  }
+  if (!recentOnlyIsSwitchedOver(deps.recentOnly === true)) {
+    deps.log(`${A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER.en} Nothing was changed.`);
+    throw new CutoverRefused(A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER.en, 'Nothing was changed.');
   }
 
   // The whole migration's preparation does not begin once a data type has a
@@ -388,6 +397,8 @@ export const runCutoverRun = leavesAReference(
         mappingId,
         ...(domain !== undefined ? { domain } : {}),
         ...(testMarker !== undefined ? { testMarker } : {}),
+        // And whether it copies only the last 90 days (workplan 0170 D8).
+        recentOnly: (await readRecentOnly(pool, tenantId, mappingId)) !== undefined,
         cutoverStore,
         // The shared log, not `ctx.logger`: Trigger.dev v4's TaskRunContext
         // carries run metadata only (task/attempt/run/queue/environment/...) and

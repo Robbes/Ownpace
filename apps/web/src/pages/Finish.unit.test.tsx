@@ -56,6 +56,12 @@ const {
   };
 });
 
+const editionFlag = vi.hoisted(() => ({ selfhost: false }));
+vi.mock('../services/edition', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/edition.ts')>()),
+  isSelfHost: () => editionFlag.selfhost,
+}));
+
 vi.mock('../services/operating-service', () => ({
   fetchVerifyReport,
   fetchStatus,
@@ -1034,5 +1040,115 @@ describe('a test migration on the Finish page (workplan 0162 T3)', () => {
     expect(await screen.findByText(NOT_FINISHED[locale])).toBeInTheDocument();
     expect(screen.queryByText(NOT_FINISHED[locale === 'en' ? 'nl' : 'en'])).not.toBeInTheDocument();
     expect(screen.queryByText(/anyway, leaving them behind|toch beëindigen/)).not.toBeInTheDocument();
+  });
+});
+
+describe('only the last 90 days is not switched over (workplan 0170, D8)', () => {
+  // The owner, 2026-11-24: "D8: no, not before". While a migration copies only
+  // the last 90 days, the server refuses its switch-over, so the page offers
+  // none: no step 4, no End or Keep. It says the switch-over comes after Copy
+  // everything, and links to where that is chosen. Once broadened, the page is
+  // as it was.
+  const windowOf = (recentOnly: boolean) => ({
+    recentOnly,
+    since: recentOnly ? '2026-08-26T00:00:00.000Z' : null,
+    in: [],
+    copying: [],
+  });
+
+  function renderPerMapping(id = 'acme-mail') {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[`/mappings/${id}/finish`]}>
+          <Routes>
+            <Route path="/mappings/:mappingId/finish" element={<Finish />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  afterEach(() => {
+    editionFlag.selfhost = false;
+  });
+
+  it('offers no switch-over while recent-only, and links to Copy everything on the migration’s page', async () => {
+    fetchMappingDataTypes.mockResolvedValue({ domains: [], endings: MAIL_ENDING.active, window: windowOf(true) });
+    renderPerMapping();
+
+    expect(
+      await screen.findByText(
+        'This migration copies only the last 90 days. Switching over comes after Copy everything.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('4. Copy everything first')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: "Copy everything is on the migration's page." });
+    expect(link.getAttribute('href')).toBe('/mappings/acme-mail');
+    // No switch-over, in any of its forms.
+    expect(screen.queryByRole('button', { name: END_MAIL })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Keep migrating/ })).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByText(/End or keep copying each data type/)).toBeNull();
+  });
+
+  it('is the page as it was once broadened', async () => {
+    fetchMappingDataTypes.mockResolvedValue({ domains: [], endings: MAIL_ENDING.active, window: windowOf(false) });
+    renderPerMapping();
+
+    expect(await screen.findByRole('button', { name: END_MAIL })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+    expect(screen.getByText(/5\. End or keep copying each data type/)).toBeInTheDocument();
+    expect(screen.queryByText(/Switching over comes after Copy everything/)).toBeNull();
+    expect(document.querySelector('[data-finish-recent-only]')).toBeNull();
+  });
+
+  it('links the appliance to its guide’s section on the mapping file, in per-mapping mode', async () => {
+    editionFlag.selfhost = true;
+    fetchMappingDataTypes.mockResolvedValue({ domains: [], endings: MAIL_ENDING.active, window: windowOf(true) });
+    renderPerMapping();
+
+    const link = await screen.findByRole('link', { name: 'How to copy everything on a self-hosted appliance' });
+    expect(link.getAttribute('href')).toBe('/docs/start#self-hosted');
+    expect(screen.queryByRole('button', { name: END_MAIL })).toBeNull();
+  });
+
+  it('reads the window from /status in the whole-appliance mode', async () => {
+    fetchStatus.mockResolvedValue({
+      ...statusReport('active'),
+      mappings: [{ ...statusReport('active').mappings[0]!, window: windowOf(true) }],
+    });
+    renderScreen();
+
+    const link = await screen.findByRole('link', { name: 'How to copy everything on a self-hosted appliance' });
+    expect(link.getAttribute('href')).toBe('/docs/start#self-hosted');
+    expect(screen.queryByRole('button', { name: END_MAIL })).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  it('says it in Dutch to a Dutch reader', async () => {
+    globalThis.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchMappingDataTypes.mockResolvedValue({ domains: [], endings: MAIL_ENDING.active, window: windowOf(true) });
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter initialEntries={['/mappings/acme-mail/finish']}>
+              <Routes>
+                <Route path="/mappings/:mappingId/finish" element={<Finish />} />
+              </Routes>
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+
+      expect(
+        await screen.findByText('Deze migratie kopieert alleen de afgelopen 90 dagen. Overstappen komt na Alles kopiëren.'),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Alles kopiëren staat op de pagina van de migratie.' })).toBeInTheDocument();
+    } finally {
+      globalThis.localStorage.removeItem('ownpace.locale');
+    }
   });
 });

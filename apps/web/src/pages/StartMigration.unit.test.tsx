@@ -352,6 +352,42 @@ describe('What moves? (screen 3)', () => {
     expect(within(dropbox).getByRole('combobox')).toBeInTheDocument();
   });
 
+  /** HOW MUCH (workplan 0170 §7.1): everything, selected, or only the last 90 days. */
+  it('asks how much under the data types, Everything selected, with only the last 90 days beside it', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Google']);
+    const howMuch = screen.getByRole('group', { name: 'How much?' });
+    const all = within(howMuch).getByRole('radio', { name: 'Everything' });
+    const recent = within(howMuch).getByRole('radio', { name: 'Only the last 90 days' });
+    expect(all).toBeChecked();
+    expect(recent).not.toBeChecked();
+    expect(all).toHaveAccessibleDescription('The last 90 days come first, then everything older.');
+    expect(recent).toHaveAccessibleDescription('To try destinations with your current data.');
+    // The rest under Why?, and the guide's section beside it.
+    expect(within(howMuch).getByText(/Try as many destinations as you like this way\./)).not.toBeVisible();
+    expect(within(howMuch).getByRole('link', { name: /How a migration copies/ })).toHaveAttribute(
+      'href',
+      '/docs/start#last-90-days-only',
+    );
+    // Never a trial: the person tries the destination.
+    expect(howMuch.textContent).not.toMatch(/trial/i);
+    await user.click(recent);
+    expect(recent).toBeChecked();
+    expect(all).not.toBeChecked();
+  });
+
+  it('does not ask how much where only contacts and tasks move: they are copied whole', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Google']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const name of ['Email', 'Calendar', 'Files']) await user.click(within(google).getByRole('checkbox', { name }));
+    expect(screen.queryByRole('group', { name: 'How much?' })).not.toBeInTheDocument();
+    await user.click(within(google).getByRole('checkbox', { name: 'Calendar' }));
+    expect(screen.getByRole('group', { name: 'How much?' })).toBeInTheDocument();
+  });
+
   it('waits while nothing is ticked, and says why', async () => {
     const user = userEvent.setup();
     renderAt();
@@ -912,6 +948,32 @@ describe('Check, then start (screen 6)', () => {
     expect(startMock).toHaveBeenCalledWith('m-mail');
     expect(startMock).toHaveBeenCalledWith('m-files');
     expect(await screen.findByText('The person’s page')).toBeInTheDocument();
+  });
+
+  it('sets up only the last 90 days where that was chosen, and says it on the check screen', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Dropbox', 'Another mail provider']);
+    await user.click(screen.getByRole('radio', { name: 'Only the last 90 days' }));
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByText('Connected as anna@example.nl');
+    await onTo(user, 'Where does it go?');
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock).toHaveBeenCalledTimes(2);
+    for (const domains of [['email'], ['file']]) {
+      expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ syncConfig: { domains }, recentOnly: true }));
+    }
+    expect(document.querySelector('[data-recent-only]')).toHaveTextContent('Only the last 90 days');
+  });
+
+  it('sends nothing of the window for everything, the default, and says nothing of it', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toCheck(user);
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    for (const [input] of createMock.mock.calls) expect(input).not.toHaveProperty('recentOnly');
+    expect(document.querySelector('[data-recent-only]')).toBeNull();
   });
 
   it('says a refused set-up under Set up, and asks again only for what was not made', async () => {
