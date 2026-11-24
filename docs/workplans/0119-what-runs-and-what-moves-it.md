@@ -37,6 +37,14 @@ itself, so `minimumReleaseAgeExclude` gains no entry.
   `PG_BOSS_SCHEMA_VERSION` in `packages/scheduler/src/pg-boss/job-runner.ts` is 47;
   `a-job-schema-the-runner-was-not-proved-on` fails until the two agree. The pin watch has no
   pg-boss row, so none moves.
+- **The migration, run.** On a throwaway cluster from `scripts/local-pg.sh`: a schema installed by
+  12.38.2 read version 46, with one queue, one schedule (`*/5 * * * *`, UTC) and one job; started
+  under 12.39.0 it read 47, `pgboss.schedule` had gained `sent_on` (`timestamp with time zone`,
+  nullable) and nothing else, and the schedule and the job were still there, `sent_on` NULL. The
+  lockfile moves five lines: the specifier, the resolution and the integrity
+  (`sha512-4KE+T1JV…`, the registry's own) of pg-boss alone; the three dependencies resolve to
+  `cron-parser` 5.10.6, `rrule-temporal` 2.3.0 and `serialize-error` 13.1.0, the versions in the
+  tree already.
 - **For live:** one-way. `deploy-live.sh` already reads a move of pg-boss's version in the lockfile
   or of `PG_BOSS_SCHEMA_VERSION` as one-way (*moves pg-boss in pnpm-lock.yaml: 12.38.2 ->
   12.39.0*, *moves pg-boss's schema version (PG_BOSS_SCHEMA_VERSION): 46 -> 47*); 0146's Status
