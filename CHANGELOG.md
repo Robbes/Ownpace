@@ -73,6 +73,33 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   waits its turn for each statement, and a statement sent from inside a transaction's own work
   runs in that transaction rather than waiting for itself. Postgres was never affected.
   Workplan 0016's note of 2026-11-24.
+- **Microsoft 365 and Outlook.com calendars are copied again** (workplan 0059 T5; 0141 T2 waits
+  on it). A migration from a personal Microsoft account listed its four calendars and found no
+  event in any of them, while one held a weekly repeating event and another the year's holidays;
+  its mail, contacts and tasks copied. The Graph calendar source stood on two calls Graph v1.0
+  does not document: a calendar's `events/delta` (v1.0 has only `calendarView/delta`, with a start
+  and an end date) and an event's `$value` with an iCalendar body (that header takes `text` or
+  `html`). Its tests mocked both, by call order. It now lists each calendar with
+  `GET …/calendars/{id}/events` and `$select`, and reads each series' cancelled and changed
+  occurrences from the series master (`cancelledOccurrences`, `exceptionOccurrences`). It builds
+  every VEVENT from Graph's JSON: UID from `iCalUId`, times in the organizer's zone as an IANA
+  TZID with its VTIMEZONE (Windows zone names mapped by CLDR), all-day events as dates, RRULE from
+  the recurrence (To Do's mapping, with UNTIL in UTC for a timed series), EXDATE for a cancelled
+  occurrence, a RECURRENCE-ID VEVENT for a changed one, and summary, body as text, location,
+  organizer, attendees, busy status, class, categories and the reminder. A series and its
+  exceptions travel as one object. A read-only holiday or subscribed calendar is copied like any
+  other; one Graph will not list fails that calendar by name instead of listing as empty. Every
+  pass lists a calendar whole, so an edit is found by `changeKey` (a series' also by its
+  exceptions and cancellations), and an event gone from the listing is reported as removed, for
+  the owner to decide as with any source-reported deletion. With 0170's window the listing is
+  still read whole and an event over before the window is not built, which replaces the
+  window-marked delta cursor T4 describes above. A guard fails if `events/delta` or an event's
+  `$value` comes back, and the tests answer by address, in Graph's documented shapes.
+- **Calendars found and nothing read from them are said in amber.** The same migration's calendar
+  row read a green *Kept in step* and *none found to copy*. When a calendar pass opened calendars
+  and read no event, and nothing of them was ever copied, the card's line and the migration
+  page's strip now say *4 calendars found, but not one event read from them*, in amber, in
+  English and Dutch.
 
 ## [0.2.0-alpha.19] - 2026-11-24
 

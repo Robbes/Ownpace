@@ -29,6 +29,7 @@ const DomainProgressSchema = z.object({
   bytesFound: z.number().optional(),
   lastSyncedAt: z.string().optional(),
   lastActiveAt: z.string().optional(),
+  listedButEmpty: z.number().optional(),
 });
 
 const CheckFactsSchema = z.discriminatedUnion('state', [
