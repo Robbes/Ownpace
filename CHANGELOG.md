@@ -21,6 +21,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   kept with the cursors, and the setting in the migration's own override. The screens and the
   sources' server-side date filters follow in 0170's other tasks; until then every source lists
   as before and the window is applied as items are listed.
+- **The mail sources read the last 90 days first** (workplan 0170 T2, for its §4.1). Given a
+  window, an IMAP source, Gmail's included, asks the server `UID SEARCH SINCE` the day before it
+  and fetches only the messages that search answers, so a window pass no longer downloads the
+  headers of a whole folder. The day of margin covers a server that dates mail in a zone as far
+  west as UTC-12; the few extra messages are set aside by the sync loop. The cursor such a listing
+  returns names its window, so a later full listing never takes it for proof that the older mail
+  was seen. Microsoft Graph mail lists in full: its date filter on messages delta stops at 5,000
+  messages, Microsoft's own page says, which a 90-day Inbox can pass. Nothing changes for a
+  listing without a window.
 - **Calendar sources read the last 90 days first** (workplan 0170 T4, D1 (a)). Asked for a
   window, a CalDAV source (any server, Google, Apple) lists a calendar with a `time-range` from a
   day before its start, plus every recurring series, so a server that does not expand recurrence
