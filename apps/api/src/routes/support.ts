@@ -110,6 +110,17 @@ import {
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
+import {
+  CURSOR_TIME_FORMAT,
+  SUPPORT_PAGE,
+  parseRetainedCursor,
+  parseTenantsCursor,
+  retainedCursor,
+  tenantsCursor,
+  type InvoiceAfter,
+  type NumbersAfter,
+  type RetainedAfter,
+} from '../support-page.ts';
 import { readiness } from './ready.ts';
 import { readStatusPage, type PlatformStatus } from './platform-status.ts';
 
@@ -204,11 +215,28 @@ function usageForScreen(row: Row | undefined) {
 }
 
 /**
- * Level 1 — every organisation.
+ * Level 1 — every organisation, a page at a time (workplan 0006 §P).
  *
  * Recorded as ONE read with a null tenant. A row per organisation would be a
  * lie about how many decisions were made: the operator made one, to look at
  * the list.
+ *
+ * ## Paging, and what a later page records
+ *
+ * By name, then id, `SUPPORT_PAGE` rows a page; `next` is the cursor that
+ * continues after the last row served, `null` on the last page. Names are not
+ * unique, so the id is what gives every row one place: without it two
+ * organisations of the same name could straddle a page break and one of them
+ * be skipped.
+ *
+ * Every page writes its own `support_read` row, the later ones too. *Show
+ * more* is the operator deciding to look at organisations they had not seen,
+ * and the log records what was actually looked at, so a second page is a
+ * second read, as each page of `/log` is. One row for the first page alone
+ * would let an operator read every organisation past the first hundred with
+ * nothing to show for it. The row carries no query and no count: the database
+ * refuses both for any view but `people`, `log` and `audit_export` (managed
+ * migrations 0019, 0025, 0026), and this change does not widen that.
  */
 router.get('/tenants', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -218,13 +246,21 @@ router.get('/tenants', authenticateSubject, async (req: AuthenticatedRequest, re
         .status(401)
         .json({ error: 'Unauthorized', message: 'No subject on this request' });
     }
-    const tenants = await withSubject(pool(), userId, async (db) => {
+    const after = parseTenantsCursor(req.query.after);
+    if (after === undefined) {
+      return void res
+        .status(400)
+        .json({ error: 'Bad request', field: 'after', message: 'after is not a cursor this list gave' });
+    }
+    const page = await withSubject(pool(), userId, async (db) => {
       const result = await db.execute(
         sql`SELECT tenant_id, tenant_name, tenant_status, joined_at,
                    migration_count, failing_domain_count, pending_decision_count,
                    connection_count, member_count, last_pass_at, closed_at, purge_after
               FROM public.support_tenants
-             ORDER BY tenant_name`,
+             WHERE ${after ? sql`(tenant_name, tenant_id) > (${after.name}, ${after.id}::uuid)` : sql`true`}
+             ORDER BY tenant_name, tenant_id
+             LIMIT ${SUPPORT_PAGE + 1}`,
       );
       const rows = result.rows as Row[];
       // Logged even when the list comes back empty: to a non-operator it is
@@ -233,9 +269,16 @@ router.get('/tenants', authenticateSubject, async (req: AuthenticatedRequest, re
       // while an empty list and no row is somebody who was never an operator.
       // Skipping the call on zero rows would erase that difference.
       await recordSupportRead(db, { operatorUserId: userId, tenantId: null, view: 'tenants' });
-      return rows;
+      return { served: rows.slice(0, SUPPORT_PAGE), more: rows.length > SUPPORT_PAGE };
     });
-    res.json({ tenants });
+    const last = page.served[page.served.length - 1];
+    res.json({
+      tenants: page.served,
+      next:
+        page.more && last
+          ? tenantsCursor({ name: String(last.tenant_name), id: String(last.tenant_id) })
+          : null,
+    });
   } catch (error) {
     serverFault(res, 'support_tenants_failed', 'reading the support tenant list', error);
   }
@@ -927,6 +970,24 @@ router.post(
  * Recorded with a NULL tenant, like the tenant LIST and for a stronger version
  * of the same reason: there is no tenant to name, and no tenant left to name
  * it about.
+ *
+ * ## Paging (workplan 0006 §P)
+ *
+ * Both lists, `SUPPORT_PAGE` rows each a page, in the order they always had,
+ * each with a last column that makes a row's place unique: the invoice's id
+ * after its period, and the erasure's `tenant_ref` after its purge. Only a
+ * purge writes `retained_invoice_ids` and `invoice_numbers`, and a tenant is
+ * purged once, so one `tenant_ref` is one row of the numbers list. A NULL
+ * `purged_at` sorts last and is paged like any other value, though a row
+ * reaches either view only once purged.
+ *
+ * One cursor carries where each list continues, or that it has ended; `next`
+ * is `null` once both have. A later page reads only the list that has more,
+ * and serves the other empty, so *Show more* adds rows to whichever list they
+ * belong to and never repeats one.
+ *
+ * Each page writes its own `support_read` row, for the reason `/tenants`
+ * gives: a later page is rows the operator had not seen, looked at by choice.
  */
 router.get(
   '/retained-invoices',
@@ -939,21 +1000,46 @@ router.get(
           .status(401)
           .json({ error: 'Unauthorized', message: 'No subject on this request' });
       }
-      const { invoices, numbers } = await withSubject(pool(), userId, async (db) => {
-        const result = await db.execute(
-          sql`SELECT tenant_ref, erasure_requested_at, purged_at, invoice_id,
-                     billed_to_name, period_start, period_end, status, total,
-                     currency, paid_at
-                FROM public.support_retained_invoices
-               ORDER BY purged_at DESC NULLS LAST, period_start DESC`,
-        );
+      const after = parseRetainedCursor(req.query.after);
+      if (after === undefined) {
+        return void res
+          .status(400)
+          .json({ error: 'Bad request', field: 'after', message: 'after is not a cursor this list gave' });
+      }
+      // On the first page both lists start; on a later one, only a list the
+      // cursor says has more is read at all.
+      const readInvoices = after === null || after.invoices !== null;
+      const readNumbers = after === null || after.numbers !== null;
+      const page = await withSubject(pool(), userId, async (db) => {
+        const invoices = readInvoices
+          ? ((
+              await db.execute(
+                sql`SELECT tenant_ref, erasure_requested_at, purged_at, invoice_id,
+                           billed_to_name, period_start, period_end, status, total,
+                           currency, paid_at,
+                           to_char(purged_at AT TIME ZONE 'UTC', ${CURSOR_TIME_FORMAT}) AS page_purged_at,
+                           period_start::text AS page_period_start
+                      FROM public.support_retained_invoices
+                     WHERE ${after?.invoices ? invoicesAfter(after.invoices) : sql`true`}
+                     ORDER BY purged_at DESC NULLS LAST, period_start DESC, invoice_id DESC
+                     LIMIT ${SUPPORT_PAGE + 1}`,
+              )
+            ).rows as Row[])
+          : [];
         // The numbers of the copies an erasure deleted (0111 T10): what the
         // books hold, found there by number. One screen, so one read below.
-        const held = await db.execute(
-          sql`SELECT tenant_ref, erasure_requested_at, purged_at, invoice_numbers
-                FROM public.support_erased_invoice_numbers
-               ORDER BY purged_at DESC NULLS LAST`,
-        );
+        const numbers = readNumbers
+          ? ((
+              await db.execute(
+                sql`SELECT tenant_ref, erasure_requested_at, purged_at, invoice_numbers,
+                           to_char(purged_at AT TIME ZONE 'UTC', ${CURSOR_TIME_FORMAT}) AS page_purged_at
+                      FROM public.support_erased_invoice_numbers
+                     WHERE ${after?.numbers ? numbersAfter(after.numbers) : sql`true`}
+                     ORDER BY purged_at DESC NULLS LAST, tenant_ref DESC
+                     LIMIT ${SUPPORT_PAGE + 1}`,
+              )
+            ).rows as Row[])
+          : [];
         // Logged even when empty, for the reason `/tenants` gives: an operator
         // on a platform that has erased nobody and a non-operator who may see
         // nothing produce the same empty list, and only the log row tells them
@@ -963,9 +1049,33 @@ router.get(
           tenantId: null,
           view: 'retained_invoices',
         });
-        return { invoices: result.rows as Row[], numbers: held.rows as Row[] };
+        return { invoices, numbers };
       });
-      res.json({ invoices, numbers });
+
+      const invoices = page.invoices.slice(0, SUPPORT_PAGE);
+      const numbers = page.numbers.slice(0, SUPPORT_PAGE);
+      const lastInvoice = page.invoices.length > SUPPORT_PAGE ? invoices[invoices.length - 1] : undefined;
+      const lastNumbers = page.numbers.length > SUPPORT_PAGE ? numbers[numbers.length - 1] : undefined;
+      const next: RetainedAfter = {
+        invoices: lastInvoice
+          ? {
+              purgedAt: (lastInvoice.page_purged_at as string | null) ?? null,
+              periodStart: String(lastInvoice.page_period_start),
+              invoiceId: String(lastInvoice.invoice_id),
+            }
+          : null,
+        numbers: lastNumbers
+          ? {
+              purgedAt: (lastNumbers.page_purged_at as string | null) ?? null,
+              tenantRef: String(lastNumbers.tenant_ref),
+            }
+          : null,
+      };
+      res.json({
+        invoices: invoices.map(withoutPageKeys),
+        numbers: numbers.map(withoutPageKeys),
+        next: next.invoices || next.numbers ? retainedCursor(next) : null,
+      });
     } catch (error) {
       serverFault(
         res,
@@ -976,6 +1086,33 @@ router.get(
     }
   },
 );
+
+/** The columns read only to build the cursor, which the response does not carry. */
+function withoutPageKeys(row: Row): Row {
+  const { page_purged_at: _purgedAt, page_period_start: _periodStart, ...served } = row;
+  return served;
+}
+
+/**
+ * After a kept invoice, in `purged_at DESC NULLS LAST, period_start DESC,
+ * invoice_id DESC`. A row comparison cannot say NULLS LAST, so the first
+ * column is spelled out: a later purge time, the same one and a later rest, or
+ * no purge time at all (those sort after every time).
+ */
+function invoicesAfter(at: InvoiceAfter) {
+  const rest = sql`(period_start, invoice_id) < (${at.periodStart}::date, ${at.invoiceId}::uuid)`;
+  if (at.purgedAt === null) return sql`(purged_at IS NULL AND ${rest})`;
+  const t = sql`${at.purgedAt}::timestamptz`;
+  return sql`(purged_at < ${t} OR (purged_at = ${t} AND ${rest}) OR purged_at IS NULL)`;
+}
+
+/** After an erasure's numbers, in `purged_at DESC NULLS LAST, tenant_ref DESC`. */
+function numbersAfter(at: NumbersAfter) {
+  const rest = sql`tenant_ref < ${at.tenantRef}`;
+  if (at.purgedAt === null) return sql`(purged_at IS NULL AND ${rest})`;
+  const t = sql`${at.purgedAt}::timestamptz`;
+  return sql`(purged_at < ${t} OR (purged_at = ${t} AND ${rest}) OR purged_at IS NULL)`;
+}
 
 /**
  * MONEY TO GIVE BACK (workplan 0111; the owner, 2026-10-11): the credit notes

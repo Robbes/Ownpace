@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to M done (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-24: A to M done; P built, in a draft pull request for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -18,6 +18,7 @@
 | K — Errors caught and dropped, again: the 12 spots the same check (ERR-1) named on `75d7949d`, 2026-11-21 | ✅ Done 2026-11-21, merged in #2022 (`a01edafe`) from branch `claude/ownpace-public-readiness-y7orc6-err1-nov21`: no real bug; 7 spots narrowed or made to say their failure, all in tests and their set-up; 5 swallow nothing, of which 3 are left as they were, one gains a test (the Cirrux connector) and one a single parse; nothing in the product changes. See §K | asked for, 2026-11-21 |
 | L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | ✅ Done 2026-11-21, merged in #2023 (`5ba9688a`) from branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`; read again 2026-11-24, unchanged (§L): none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
 | M — A comparison that is not a secret: the line a read-only check (JS-07) named in `caldav-source.ts`, 2026-11-24 | ✅ Read 2026-11-24: a false positive, a CalDAV sync token compared with the client's own (§M); nothing changed | the owner was given a reason to paste |
+| P — Two support lists that served every row: the routes a read-only check (PERF-2) named in `apps/api/src/routes/support.ts`, 2026-11-24 | 🟡 Built 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-support-paging`, a draft pull request for alpha.20: both routes page by keyset, a hundred rows a page, and both screens have *Show more*; every page is its own `support_read` row. See §P | 2026-11-24: page both, with *Show more*, in alpha.20 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -378,6 +379,66 @@ check most likely matched the word *token*.
 
 **Decided.** A false positive, read on 2026-11-24; nothing changed. The owner was given a reason
 to paste.
+
+## P — Two support lists that served every row (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check (PERF-2) named two operator-only routes in
+`apps/api/src/routes/support.ts` that answer with every row they can see. Read on `main` at
+`20038a6`:
+
+| Spot on `20038a6` | Route | What it read |
+|---|---|---|
+| `apps/api/src/routes/support.ts:223` | `GET /support/tenants` | every organisation, from `public.support_tenants`, `ORDER BY tenant_name`, no `LIMIT` |
+| `apps/api/src/routes/support.ts:944` | `GET /support/retained-invoices` | every invoice an erasure kept, from `public.support_retained_invoices`, `ORDER BY purged_at DESC NULLS LAST, period_start DESC`, and every erasure's invoice numbers, from `public.support_erased_invoice_numbers`, `ORDER BY purged_at DESC NULLS LAST`; no `LIMIT` on either |
+
+Both lists grow with the platform: one row per organisation, and one per erasure and per
+invoice kept, which are never deleted. Neither does harm at today's size; both would answer
+slower, and send the browser a larger table, every year.
+
+**Decided (the owner, 2026-11-24).** *"page both (Show more) in alpha.20; a plain maximum would
+hide rows from the operator."*
+
+**Done.**
+
+- **Keyset paging on both routes**, a hundred rows a page (`SUPPORT_PAGE`), in
+  `apps/api/src/support-page.ts`. Each list keeps its order and gains a last key that gives every
+  row one place: `tenant_id` after `tenant_name`, which is not unique; `invoice_id` after
+  `period_start`; `tenant_ref` after the erasure's `purged_at`. Only a purge writes
+  `retained_invoice_ids` and `invoice_numbers`, and a tenant is purged once, so one `tenant_ref` is
+  one row of the numbers list. The response carries `next`, an opaque cursor (base64url of a small
+  JSON object), and `null` on the last page; `?after=` continues. Times in a cursor are text to
+  the microsecond, as the log's are, so rows stamped in the same millisecond are not skipped. A
+  NULL `purged_at`, which sorts last, is paged with the rest. On `/retained-invoices` one cursor
+  says where each list goes on or that it has ended; a later page reads only a list that has more.
+- **A cursor that does not parse is a `400`** naming `after`, before any read and with nothing
+  recorded: not base64url, not JSON, an extra or missing field, an id that is not a uuid, a day
+  or a time that does not exist, a time cut to milliseconds, the other route's cursor, or the
+  parameter given twice.
+- **Every page is its own `support_read` row.** *Show more* is the operator choosing to look at
+  rows they had not seen, and the log records what was looked at, as each page of `/log` already
+  is; a row for the first page alone would let an operator read every organisation past the first
+  hundred with nothing to show for it. The row carries no query and no count: the database refuses
+  both for these views (managed migrations 0019, 0025, 0026), and this change does not widen that.
+  Said in the comments above both routes.
+- **The screens** (`apps/web/src/pages/Support.tsx`) read the routes with `useInfiniteQuery` and
+  show **Show more** under the list only while the last page said there is more, so a list of one
+  page looks as it did. Pressed, it fetches the next page and adds it below. On the retained
+  invoices screen one button continues both lists. The filter on the organisations list counts the
+  organisations shown so far.
+- `apps/api/docs/openapi.yaml`: `after`, `next`, the `400`, and the `numbers` list the spec had
+  never described.
+
+**Shown by.** `apps/api/src/routes/support-paging.unit.test.ts`, against PGlite with both
+migration chains: 202 organisations, five of them with the same name across the first page
+break, come back as 100, 100 and 2, each once, in the database's order; 104 kept invoices and 250
+erasures with numbers come back as pages of (100, 100), (4, 100) and (0, 50), the first invoice
+page ending inside the rows with no purge time and the numbers' breaks between two purge times
+one microsecond apart; three pages write three rows; an empty list is one page with `next` null;
+fourteen kinds of bad cursor are each a `400` with nothing recorded. Two mutations were each
+caught: dropping the id from the organisations' keyset, and cutting the numbers' cursor time to
+milliseconds. `apps/web/src/pages/a-list-shown-a-page-at-a-time.unit.test.tsx`: *Show more*
+appears only when there is more, fetches with the cursor given, adds below, and goes on the last
+page.
 
 ---
 

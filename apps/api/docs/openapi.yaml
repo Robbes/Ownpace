@@ -7857,19 +7857,42 @@ paths:
         list, with no organisation named, because looking at the list is one
         decision rather than one per customer. A non-operator's request records
         nothing, by the same predicate.
+
+        A page at a time (workplan 0006 §P): a hundred organisations, by name
+        and then id, and `next` to continue after the last one. Each page is
+        its own row in the read log, the later ones too: a later page is
+        organisations the operator had not seen, looked at by choice.
+      parameters:
+        - $ref: '#/components/parameters/SupportPageAfter'
       responses:
         '200':
           description: |
-            The organisations this caller may see. Empty for anybody who is not
-            a platform operator.
+            One page of the organisations this caller may see. Empty, with
+            `next` null, for anybody who is not a platform operator.
           content:
             application/json:
               schema:
                 type: object
+                required: [tenants, next]
                 properties:
                   tenants:
                     type: array
+                    maxItems: 100
                     items: { $ref: '#/components/schemas/SupportTenant' }
+                  next:
+                    type: string
+                    nullable: true
+                    description: |
+                      The cursor for the next page, to send back as `after`;
+                      null on the last page.
+        '400':
+          description: |
+            `after` is not a cursor this list gave: not base64url, not JSON, or
+            not the shape this route writes. Nothing is read and nothing is
+            recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportPageRefused' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/support/people:
@@ -8074,19 +8097,62 @@ paths:
         non-operator gets `200` with an empty list. Every serving is recorded
         in the support read log with no organisation named, because there is
         none to name.
+
+        A page at a time (workplan 0006 §P): up to a hundred of each list, in
+        the order each always had, with the invoice's id and the erasure's
+        `tenant_ref` as the last key. One `next` carries where each list goes
+        on; a later page reads only a list that has more and serves the other
+        empty. Each page is its own row in the read log.
+      parameters:
+        - $ref: '#/components/parameters/SupportPageAfter'
       responses:
         '200':
           description: |
-            Invoices retained across an erasure. Empty for anybody who is not a
+            One page of what erasures kept. Empty for anybody who is not a
             platform operator, and empty on a platform that has erased nobody.
           content:
             application/json:
               schema:
                 type: object
+                required: [invoices, numbers, next]
                 properties:
                   invoices:
                     type: array
+                    maxItems: 100
+                    description: |
+                      Issued invoices the books do not hold, kept detached here.
+                      Newest purge first, then the latest period.
                     items: { $ref: '#/components/schemas/SupportRetainedInvoice' }
+                  numbers:
+                    type: array
+                    maxItems: 100
+                    description: |
+                      Per erasure, the Moneybird numbers of the invoice copies
+                      it deleted (workplan 0111 T10), to look up in the books.
+                      Newest purge first.
+                    items:
+                      type: object
+                      required: [tenant_ref, erasure_requested_at, purged_at, invoice_numbers]
+                      properties:
+                        tenant_ref: { type: string, description: sha256 of the erased tenant's id }
+                        erasure_requested_at: { type: string, format: date-time }
+                        purged_at: { type: string, format: date-time, nullable: true }
+                        invoice_numbers:
+                          type: array
+                          items: { type: string }
+                  next:
+                    type: string
+                    nullable: true
+                    description: |
+                      The cursor for the next page, to send back as `after`;
+                      null once neither list has more.
+        '400':
+          description: |
+            `after` is not a cursor this list gave. Nothing is read and nothing
+            is recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportPageRefused' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/support/money-to-give-back:
@@ -8745,6 +8811,14 @@ components:
       required: true
       description: The access request's id, from the operator queue.
       schema: { type: string, format: uuid }
+    SupportPageAfter:
+      name: after
+      in: query
+      required: false
+      description: |
+        Where the page starts: the `next` the previous page gave, as it came.
+        Opaque; leave it out for the first page. Given once.
+      schema: { type: string, maxLength: 2048 }
 
   responses:
     BadRequest:
@@ -8921,6 +8995,14 @@ components:
           nullable: true
           description: The books' number, which the customer quotes; none until the invoice is numbered.
         kind: { type: string, enum: [invoice, credit_note] }
+    SupportPageRefused:
+      type: object
+      description: A support list refused a cursor it did not give.
+      required: [error, field, message]
+      properties:
+        error: { type: string, example: Bad request }
+        field: { type: string, enum: [after] }
+        message: { type: string }
     SupportRetainedInvoice:
       type: object
       description: |
