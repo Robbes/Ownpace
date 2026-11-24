@@ -59,9 +59,9 @@ import {
   GATE_NAME,
   asReindexer,
   fanOutTargets,
-  type OpenTarget,
   type VerificationDomain,
 } from './target-fan-out.ts';
+import { mailSourceSideCount, withTheSourceSideCount, type OpenedWithCount, type SourceSideCount } from './source-side-count.ts';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery.ts';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 import { domainFailedEvent, recordAppEvent, statedFailureCategoryOf } from '@openmig/shared';
@@ -1396,9 +1396,12 @@ export async function verifyMapping(
   if (config.domains?.files?.enabled) wanted.push('file');
   if (config.domains?.tasks?.enabled) wanted.push('task');
 
+  // Gmail's own count rides with the mail deps the opener builds anyway
+  // (the owner, 2026-11-24; `source-side-count.ts`).
+  const counted = withTheSourceSideCount(applianceOpener(config, ledger));
   const fanned = await fanOutTargets<TargetReindexer>({
     wanted,
-    open: applianceOpener(config, ledger),
+    open: counted.open,
     keep: (target) => asReindexer<TargetReindexer>(target),
     label: `[verify] ${config.mappingId}:`,
   });
@@ -1436,6 +1439,7 @@ export async function verifyMapping(
         },
         verificationReader,
         targetReindexers: reindexers,
+        sourceSideCounts: counted.counts(fanned.domains),
       }),
     );
   } finally {
@@ -1488,10 +1492,17 @@ function enabledSyncDomains(config: MappingConfig): DiscoveryDomain[] {
  * there is no pool to open (`ledger-injection.unit.test.ts` exists because it
  * once did not).
  */
-export function applianceOpener(config: MappingConfig, ledger: LedgerOptions): OpenTarget {
+export function applianceOpener(
+  config: MappingConfig,
+  ledger: LedgerOptions,
+): (domain: DiscoveryDomain) => Promise<OpenedWithCount> {
   return async (domain) => {
     const deps = await openSyncDomainDeps(config, domain, ledger);
-    return { target: deps.target, close: () => deps.close() };
+    return {
+      target: deps.target,
+      close: () => deps.close(),
+      ...(deps.sourceSideCount ? { sourceSideCount: deps.sourceSideCount } : {}),
+    };
   };
 }
 
@@ -1500,7 +1511,13 @@ async function openSyncDomainDeps(
   config: MappingConfig,
   domain: DiscoveryDomain,
   ledgerOptions: LedgerOptions,
-): Promise<{ target: unknown; ledger: Ledger; close: () => Promise<void> }> {
+): Promise<{
+  target: unknown;
+  ledger: Ledger;
+  close: () => Promise<void>;
+  /** Mail only: the source's own count, where it has one (Gmail's All Mail). */
+  sourceSideCount?: SourceSideCount;
+}> {
   // Whether this is a test migration (workplan 0162), from the reader every
   // gate asks: these callers open a target and never list the source, but
   // the source each builder makes here is the marked one all the same, so
@@ -1516,7 +1533,9 @@ async function openSyncDomainDeps(
   switch (domain) {
     case 'email': {
       const d = await buildDeps(config, builtWith);
-      return { target: d.target, ledger: d.ledger, close: d.close };
+      // A 90-day migration counts only its window (workplan 0170).
+      const count = mailSourceSideCount(d, config.recentOnly);
+      return { target: d.target, ledger: d.ledger, close: d.close, ...(count ? { sourceSideCount: count } : {}) };
     }
     case 'calendar': {
       const d = buildDomainDeps(config, 'calendar', builtWith);
