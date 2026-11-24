@@ -42,6 +42,7 @@ import {
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { serverFault } from '../../server-fault.ts';
+import { refusedAsClosed } from '../../closed-organisation.ts';
 
 const router = Router();
 
@@ -141,6 +142,9 @@ router.get('/:mappingId/finish/addresses', authenticate, async (req: Authenticat
   try {
     const ids = idsOf(req, res);
     if (!ids) return;
+    // Both read with the access the organisation gave, so a closed one is
+    // refused first, as the permission report is (0085 T2).
+    if (await refusedAsClosed(res, ids.tenantId, pool())) return;
     const row = await finishRowOf(ids.tenantId, ids.mappingId);
     if (!row) return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
     const address = row.address?.trim() || undefined;
@@ -163,6 +167,9 @@ router.post('/:mappingId/finish/mx-check', authenticate, async (req: Authenticat
   try {
     const ids = idsOf(req, res);
     if (!ids) return;
+    // Both read with the access the organisation gave, so a closed one is
+    // refused first, as the permission report is (0085 T2).
+    if (await refusedAsClosed(res, ids.tenantId, pool())) return;
     const row = await finishRowOf(ids.tenantId, ids.mappingId);
     if (!row) return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
     const wait = pace.take(`${ids.tenantId}:${ids.mappingId}`);
