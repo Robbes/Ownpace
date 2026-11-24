@@ -4,6 +4,31 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, T1 built** (on `claude/ownpace-public-readiness-y7orc6-0170-t1`; the interface pushed
+first, as `1b23bc4`, for T2 to T5). What was built differently from §3 and §5, and why:
+
+- **The managed worker runs passes in `run-delta-sync.ts`, not `runAllDomains`** (§3.2 says both
+  editions use `runAllDomains`; only the appliance does). So the rule is one module,
+  `packages/orchestration/src/recent-window-pass.ts` (`planWindow`, `runWithWindow`), which both
+  dispatchers call, and `apps/worker` gained the calls (`run-delta-sync.ts`, `run-discovery.ts`,
+  and for D8 `run-cutover.ts` and the CLI).
+- **Phase A then phase B per data type, in the same firing**, not every lane's phase A before any
+  phase B. The managed worker gives each data type its own share of the pass's time, and phase B
+  inside that share keeps the share honest; the appliance does the same, so the editions copy in
+  one order (hard rule 5). Mail and the DAV types still run in parallel lanes.
+- **Phase A is owed when the data type's window record is not `in` and its first copy has never
+  completed** (`migration_status.completed_at`), not "the first time a data type is copied" alone:
+  so every migration made before this, and a 90-day migration broadened after its window was in,
+  gets no phase A. A RETRY that clears the record therefore costs no extra window pass.
+- **`RecentOnlySetting.anchor` is optional** in the type: the appliance's mapping file carries
+  `{ "days": 90 }`, and the anchor is written at first record. `planWindow` refuses to run a
+  window without one.
+- **`fileInWindow` holds every directory**, as well as an item with no date (D6).
+- **D8 reaches every door of the switch-over**: the update route (`code: recent_only`), the cutover
+  door, the cutover job, the operator CLI's `approve`, `execute` and `complete`, and the
+  appliance's lane door, all through `recentOnlyIsSwitchedOver` (`lifecycle.ts`).
+- **The appliance's `/status` carries the same `window`** as managed's read, for T5.
+
 **2026-11-24, later still: D8 answered.** The owner, verbatim: *"D8: no, not before"*. A migration
 of only the last 90 days is not switched over before it is broadened to everything: switching over
 follows *Copy everything* and its phase B (§6, §10). T1's refusal is the rule, not a placeholder
@@ -25,7 +50,7 @@ change is expected (§3.4).
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T1 Core engine and contract | builder | 📋 Planned | §3, §5, §6. Merges first. Fixes `ListOptions`, the window predicates, the window record, the 90-day setting in both editions, the revision rule, the API fields. |
+| T1 Core engine and contract | builder | 🔨 **Built, PR open**: unit, typecheck and lint green; E2E (self-hosted, Postgres and PGlite) and E2E (managed) to be dispatched by the owner | §3, §5, §6. The interface first (`1b23bc4`): `ListOptions`, `recent-window.ts`, `recentOnly`. Then the window in `runDomainSync`, `recent-window-pass.ts` for both dispatchers, discovery, the revision rule, the API (`recentOnly`, `window`, `openapi.yaml`), the appliance's anchor and `/status`, and D8 at every door. No database change. |
 | T2 Mail sources | builder | 🔨 **Built 2026-11-24** | §4.1. IMAP and Gmail: `UID SEARCH SINCE` the UTC day before `since` (an internal date's own date, to UTC-12), then a fetch of those UIDs; a server that refuses the SEARCH has the folder listed whole and the window kept by each message's internal date, the same answer as a server that honours `SINCE`. A window listing's cursor names its window (`since:{ms}:{uidValidity}:{uidNext}`) and is a full scan to a listing without one or with a wider one, so it can never stand in for a content cursor. Graph mail: **no `$filter`**, §11 question 1. `MailSourceWithGraphFallback` and `GmailFolderView` forward `options`. Unit only; the Stalwart proof is T6's. |
 | T3 File sources | builder | 📋 Planned | §4.2. Google Drive `q`; OneDrive, Dropbox, Box, WebDAV and the archive after listing. |
 | T4 Calendar sources | builder | 📋 Planned | §4.3. CalDAV `time-range`; Graph calendar before the per-event fetch; the DTSTART parse fixed. |
