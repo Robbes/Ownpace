@@ -172,7 +172,7 @@ describe('what nothing answered, a certificate and the rule', () => {
       `${MARKER}.example is an address inside this service's own network, so we do not connect to it. ` +
         'Give the address the server has on the internet.',
     );
-    expect(said).toMatch(/^That address is inside this service's own network/);
+    expect(said).toBe('We did not connect to this address.');
     expect(said).not.toContain(MARKER);
   });
 
@@ -295,6 +295,30 @@ describe('which failures the rule reaches', () => {
     expect(said.item(item('policy_refused')).lastError).toBe(stored);
     expect(said.item(item('too_large')).lastError).toBe(stored);
     expect(said.status(status(undefined, 'policy_refused')).lastError).toBe(stored);
+  });
+
+  /**
+   * THE OWNER'S CASE, 2026-11-24: the rule refused a destination's address and
+   * the pass stated `internal_address`. The answer is the rule's own sentence,
+   * with no host, on either side and whatever the source: a host a redirect
+   * named is a server's word. It is not one of the refusals read as stored.
+   */
+  it("an address inside our network: always the rule's sentence, without the host", () => {
+    const refused =
+      "nextcloud.example.org is an address inside this service's own network, so we do not connect to it. " +
+      'Give the address the server has on the internet.';
+    for (const sourceTyped of [true, false]) {
+      const said = failureAnswers({ sourceTyped });
+      const answers = [
+        said.item({ ...item('internal_address'), lastError: refused }).lastError,
+        said.status({ ...status('target', 'internal_address'), lastError: refused }).lastError,
+        said.status({ ...status('source', 'internal_address'), lastError: refused }).lastError,
+      ];
+      for (const answer of answers) {
+        expect(answer).toBe('We did not connect to this address.');
+        expect(answer).not.toContain('nextcloud.example.org');
+      }
+    }
   });
 
   it('nothing but the text, and nothing on a row without one', () => {

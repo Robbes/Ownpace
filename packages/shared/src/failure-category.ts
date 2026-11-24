@@ -90,7 +90,7 @@
  */
 
 /**
- * The nine. Each earns its place by changing what the person does next — that
+ * The eleven. Each earns its place by changing what the person does next — that
  * was the owner's test, and it is why there is no `provider_error` or
  * `internal`: neither tells anybody to do anything different.
  *
@@ -133,6 +133,18 @@
  * for a video on OneDrive. Asked whether it should be `policy_refused`, a
  * category of its own, or none, the owner answered *"yes 'too large' sounds
  * good"*.
+ *
+ * ## The eleventh is an address we will not connect to, chosen on 2026-11-24
+ *
+ * On the managed edition a host a tenant gives us is refused when it resolves
+ * inside this service's own network (`HostInsideOurNetwork`, workplan 0136).
+ * The sentence is ours, and until this it reached a screen as `unknown`: a
+ * Dropbox → Nextcloud migration on the OTA test environment read *"We could
+ * not classify this one. The provider's own message is below"* above our own
+ * sentence, and offered *"Send it to us"* instead of the way out, which is to
+ * change the account's address. Neither side was asked anything, and no
+ * setting on the migration changes the answer: the address on the account
+ * does. The owner: *"yes, build the classification fix"*.
  */
 export const FAILURE_CATEGORIES = [
   /** The credential no longer works. Reconnect. By far the most common. */
@@ -168,6 +180,16 @@ export const FAILURE_CATEGORIES = [
    * `policy_refused`.
    */
   'too_large',
+  /**
+   * THIS SERVICE declined to connect: the account's address is inside this
+   * service's own network, or the server sent us on to one that is (workplan
+   * 0136, `HostInsideOurNetwork`). Nothing was asked of either side. The
+   * remedy is the account's address, on the Accounts page.
+   *
+   * Never matched from prose: STATED by the code that refused, like
+   * `policy_refused` and `too_large`.
+   */
+  'internal_address',
   /**
    * The SOURCE would not hand the item over — so nothing was ever sent, and
    * the destination is not the thing to go and look at.

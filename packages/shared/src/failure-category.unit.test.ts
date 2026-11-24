@@ -207,7 +207,7 @@ describe('unknown is an answer, not a gap', () => {
 });
 
 describe('the vocabulary itself', () => {
-  it('is exactly the ten the owner accepted', () => {
+  it('is exactly the eleven the owner accepted', () => {
     // Adding one is a product decision, not a refactor: the test the owner set
     // was "does it change what you do next". This pin is how that stays true —
     // it went red when the two refusals below were added, which is the point.
@@ -237,6 +237,13 @@ describe('the vocabulary itself', () => {
     //                   was asked, but no setting on the mapping changes the
     //                   answer: the file is copied by hand.
     //
+    // The ten became eleven on 2026-11-24, on the owner's choice ("yes, build
+    // the classification fix"), when our own refusal of an address inside this
+    // service's network read `unknown` and was called the provider's message:
+    //
+    //   internal_address  THIS SERVICE declined to connect. Nobody was asked,
+    //                     and the remedy is the account's address.
+    //
     // ORDER IS PART OF THE PIN. The refusals sit together and in the order a
     // reader meets them, which is the order the item travels: did we even ask
     // for it, did the source hand it over, did the destination take it, did the
@@ -247,6 +254,7 @@ describe('the vocabulary itself', () => {
       'quota_exceeded',
       'policy_refused',
       'too_large',
+      'internal_address',
       'source_refused',
       'target_refused',
       'format_refused',
@@ -295,7 +303,8 @@ describe('the vocabulary itself', () => {
         // The stated route, with a message that matches NOTHING, so the only
         // thing that can produce this answer is the statement itself.
         .concat(classifyFailure('a Google Form has no file to copy', 'source', 'policy_refused'))
-        .concat(classifyFailure('a file larger than one pass may carry', 'source', 'too_large')),
+        .concat(classifyFailure('a file larger than one pass may carry', 'source', 'too_large'))
+        .concat(classifyFailure('an address we would not connect to', 'target', 'internal_address')),
     );
     for (const c of FAILURE_CATEGORIES) {
       if (c === 'unknown') continue;

@@ -172,6 +172,11 @@ describe('only failures that cannot heal themselves', () => {
     // AND ON 2026-09-27. `too_large` joined it, the same way and for the same
     // reason: a file larger than a pass here may carry is as large on the next
     // pass, and only a person copying it by hand moves it (workplan 0143 T4).
+    //
+    // AND ON 2026-11-24. `internal_address` joined it: an account whose address
+    // is inside this service's own network is refused on every pass, the same
+    // way, until somebody gives it the address the server has on the internet
+    // (workplan 0136).
     const needsAPerson = FAILURE_CATEGORIES.filter(
       (c: FailureCategory) => !SELF_HEALING_CATEGORIES.has(c),
     );
@@ -179,6 +184,7 @@ describe('only failures that cannot heal themselves', () => {
       'auth_expired',
       'policy_refused',
       'too_large',
+      'internal_address',
       'source_refused',
       'target_refused',
       'format_refused',
