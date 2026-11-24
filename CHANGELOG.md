@@ -23,6 +23,33 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0064 adds `gift`,
   `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation.
 
+## [0.2.0-alpha.19] - 2026-11-24
+
+The managed edition takes any CalDAV, CardDAV or WebDAV server as a source: *Start a migration*
+and the *Any server, by protocol* lane offer **Calendar server (CalDAV)**, **Contacts server
+(CardDAV)** and **File server (WebDAV)** beside IMAP, each labelled **Experimental** until a real
+run proves it, and a Nextcloud is left through these three. A migration that stops at an address
+inside this service's own network now says, in our own words and no longer as the provider's
+message, to replace the server address on the Accounts page, after which the pass carries on where
+it stopped. The **Test** button and the sharing checklist no longer name that network. On
+*Where does it go?*, a line under *I am also changing my email address* says to tick it only when
+leaving an email address of one's own behind. A pass the job runner retried counts as one sync
+operation in the billing usage and in what an invoice freezes; `operator.sh leave` records a
+removal without the address; and contacts reach a Stalwart v1.2.0 server over JMAP, whose answer
+to `ContactCard/parse` the writer now reads. Underneath, the test mail server runs Stalwart
+v1.2.0's Alpine build, which live never runs; pnpm moves to 11.29.0; and the code comments,
+refusals and docs that still described Trigger.dev describe the `worker` service on pg-boss, whose
+containers the capacity rehearsal's sample now measures. The identity provider moves to Zitadel
+v4.20.5, whose one change is in login v2, which does not run here; the move is one-way for the
+identity provider's database. In CI, the migration lint moves to Atlas v1.4.1, the
+migration report to squawk 2.74.0 and the workflow audit to zizmor 1.33.1. alpha.19 is not
+deployed to live: on 2026-11-24 the owner decided to tag it without deploying it, and to deploy
+alpha.20 to live on 2026-11-26. Live stays on alpha.18, deployed there one-way on 2026-11-24 at
+14:37:44 UTC, and alpha.19's changes reach live with alpha.20's deploy. alpha.19 adds no migration
+to either chain.
+
+### Added
+
 - **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
   of 2026-11-24: *"yes to all, build them. But dont add the nextcloud as source card, add only
   the generic cards as source."*). Three source cards in the *Any server, by protocol* lane beside
@@ -41,6 +68,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The identity provider moves to Zitadel v4.20.5** (workplan 0119; the pin watch's #1934), from
+  v4.20.4. Its one commit after v4.20.4 is in login v2, which does not run here, so nothing the
+  stack runs changes: per platform its images keep v4.20.4's base layers, and the binary's differs
+  by what a new version string makes. The OTA instance's database was dumped by hand before E2E
+  (managed) applied it there, and live takes it with alpha.20's deploy.
 - **The Test answer and the sharing checklist say less about an address this service will not
   connect to** (workplan 0136; the owner, 2026-11-24: *"yes, follow-up"*). Where they named this
   service's own network, the **Test** button on Accounts now says *"We did not connect to that
