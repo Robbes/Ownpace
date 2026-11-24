@@ -242,7 +242,7 @@ Not (yet) migrated:
 | **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence — on the managed door since alpha.19 (workplan 0169), labelled **experimental** there until a run through it is recorded; a Nextcloud is left through these three cards, with no Nextcloud source card | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable (workplans 0049/0051); bin read for evidence; **orphan check** (`scripts/list-drive-orphans.ts`, workplan 0058) reports owned files under no folder at all — Drive's `is:unorganized`, which no walk from a root can reach | ⏳ OneDrive/SharePoint (`graph-drive`, workplan 0054); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (*Start a migration*'s **Show shared folders** + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest; a **Paper doc**, or any file Dropbox marks as not downloadable, is refused by name and parked on first sight, not exported (workplan 0150) | ⏳ (`box`, workplan 0056): All Files or a `rootFolderId`; the owner's own read-only platform app via the **Client Credentials Grant** — no refresh token, because Box rotates refresh tokens on every use and stored credentials are never written back (ADR-0052 makes one exception, for Cirrux Drive, which has no other grant; Box keeps this one); the numeric subject user id rides the mapping (one subject per mapping); `sha1` change detection; **bin read** (`/folders/trash/items`, original paths recovered from the `path_collection` ancestor chain the listing already carries) gives `trashed`-class deletion evidence, so a Box deletion can be APPLIED, not only reported; **web links** are pointers, not files — not enumerated |
 | **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target | 🚫 never a target |
 
-Also a target, ⏳ built and not yet run against a live Cirrux client: **Cirrux Drive** (`cirrux`,
+Also a target, ✅ run against a live Cirrux client on the test environment on 2026-11-24 (0160 T2b): **Cirrux Drive** (`cirrux`,
 workplan 0160 T5; ADR-0052). Cirrux Drive speaks no WebDAV; it is reached through Cirrux's own
 HTTP API (`https://cirrux.co/help/api/drive`) with a person's OAuth sign-in, from one public
 client per deployment that Cirrux registers by hand (`CIRRUX_OAUTH_CLIENT_ID`, PKCE `S256`, no
@@ -257,8 +257,14 @@ simple upload, and up to 2 GiB through the chunked upload, each part encrypted h
 through the same parts, and a copy edited in Cirrux since is left alone; folders are found by
 name, case-insensitively; `content_modified_at` is kept; an approved deletion moves the copy to
 Cirrux's trash, never a permanent delete; storage is checked before the first upload, and `429`
-is waited out. A file over 2 GiB is refused before it is read, with the reason. 0160 T2b is the
-owner's live run.
+is waited out. A file over 2 GiB is refused before it is read, with the reason; Cirrux itself
+stores no file over 2 GB (its Drive page). The owner's live run, 0160 T2b, from a Dropbox folder
+of four files (~2.4 GB): 2 copied (10 bytes simply, 160.5 MB through the chunked upload, which
+plays in full from Cirrux), 2 refused with their reasons (a name Cirrux holds in other capitals,
+left untouched; 2.2 GB, over the limit); a replace of the small file; an approved removal, to
+Cirrux's trash; the next passes, one nineteen minutes on with a refresh, creating nothing; the
+counts compared on Cirrux's own screen; a disconnect refusing the files, and a reconnect. Not
+observed: a conflict at Cirrux (`409 version_conflict`), which its web app cannot provoke.
 
 **Not a files target yet, and a measured "later" with its reason: kDrive** (`infomaniak`,
 workplan 0161). kDrive has WebDAV, at an address of its own for each drive,
