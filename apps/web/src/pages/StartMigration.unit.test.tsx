@@ -2279,18 +2279,24 @@ describe('Your new address (workplan 0168 §6.2)', () => {
   });
 
   // The owner, 2026-11-24 ("yes to all, build them"): the box says when to
-  // tick it, in a hint under it that a screen reader reads with the box.
-  it('says under the box when to tick it, and a screen reader hears it with the box', async () => {
+  // tick it, in one line under it that a screen reader reads with the box,
+  // and what follows behind *Why?*, as 0118's hints fold the rest.
+  it('says under the box when to tick it, a screen reader hears it with the box, and Why? opens the rest', async () => {
     accounts('name@example.org');
     const user = userEvent.setup();
     renderAt();
     await toWhere(user);
-    const hint =
-      'Tick this only if you are giving up an address of your own, such as an old company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and shares. Mail is never changed.';
-    expect(screen.getByText(hint)).toBeInTheDocument();
+    const hint = 'Only when you give up an address of your own.';
+    const line = screen.getByText(hint);
     expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).toHaveAccessibleDescription(
       hint,
     );
+    const rest =
+      'For example an old company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and shares. Mail is never changed.';
+    const fold = within(line.parentElement!);
+    expect(fold.getByText(rest)).not.toBeVisible();
+    await user.click(fold.getByText('Why?'));
+    expect(fold.getByText(rest)).toBeVisible();
   });
 
   // The owner, 2026-11-23, decision (b): "Ask by itself when the new account's

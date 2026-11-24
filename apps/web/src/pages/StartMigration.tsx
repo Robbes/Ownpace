@@ -2445,7 +2445,7 @@ export const ToStep: React.FC<{
   /**
    * *I am also changing my email address* (0168 §6.2): the own domain being
    * given up, which no list can detect. Ticked, the address step follows. A
-   * hint under it says when to tick it, as the step's other hints do.
+   * one-line hint under it says when to tick it, and *Why?* folds the rest.
    */
   alsoChanging?: { readonly on: boolean; readonly onChange: (on: boolean) => void };
 }> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow, lands, onLeaveOut, alsoChanging }) => {
@@ -2624,9 +2624,12 @@ export const ToStep: React.FC<{
             />
             {t('start.to.alsoChanging')}
           </label>
-          <p id={alsoChangingHintId} className="ml-6 text-sm text-gray-600">
-            {t('start.to.alsoChanging.hint')}
-          </p>
+          <Hint
+            id={alsoChangingHintId}
+            className="ml-6"
+            text={t('start.to.alsoChanging.hint')}
+            why={t('start.to.alsoChanging.why')}
+          />
         </div>
       )}
     </div>

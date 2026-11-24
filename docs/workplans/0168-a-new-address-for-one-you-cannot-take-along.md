@@ -11,18 +11,22 @@ rather than an (i) that a phone cannot hover. The owner's answer: *"yes to all, 
 branch `claude/ownpace-public-readiness-y7orc6-address-tick-hint`, from `main` at `ecc84250`:
 - **The label names the email address**: *I am also changing my email address* / *Ik krijg ook
   een ander e-mailadres*, since *address* alone could be a postal one.
-- **The hint, under the box and tied to it by `aria-describedby`**: *"Tick this only if you are
-  giving up an address of your own, such as an old company’s domain. The next step asks what
-  replaces it in your contacts, calendars, tasks and shares. Mail is never changed."* / *"Vink dit
-  alleen aan als u een eigen adres opgeeft, zoals het domein van een oud bedrijf. De volgende stap
-  vraagt wat ervoor in de plaats komt in uw contacten, agenda's, taken en deelrechten. Mail wordt
-  nooit gewijzigd."* *Deelrechten* rather than the proposal's *gedeelde bestanden*: the product's
-  word for shares, as `addresses.where` and the check step say it.
+- **One line under the box, tied to it by `aria-describedby`, and the rest behind *Why?*** (the
+  `Hint` component, 0118's hint and fold). The proposal's three sentences ran over 0118's budget
+  for a hint, one sentence of at most twelve words (`words-that-fit-on-one-line.unit.test.ts`), so
+  they are split as 0118 splits every hint. The line: *"Only when you give up an address of your
+  own."* / *"Alleen als u een eigen adres opgeeft."* Behind *Why?*: *"For example an old
+  company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and
+  shares. Mail is never changed."* / *"Bijvoorbeeld het domein van een oud bedrijf. De volgende
+  stap vraagt wat ervoor in de plaats komt in uw contacten, agenda's, taken en deelrechten. Mail
+  wordt nooit gewijzigd."* *Deelrechten* rather than the proposal's *gedeelde bestanden*: the
+  product's word for shares, as `addresses.where` and the check step say it.
 - **The Microsoft guide** names the box by its new label in both languages, and the UI test reads
   the Dutch label.
-- **Proved by** a new case in `apps/web/src/pages/StartMigration.unit.test.tsx`: the hint is under
-  the box, and it is the box's accessible description. The wizard's, the address step's and the
-  language tests (159), the guide tests (533), and the web app's typecheck and lint pass.
+- **Proved by** a new case in `apps/web/src/pages/StartMigration.unit.test.tsx`: the line is the
+  box's accessible description, and the rest is hidden until *Why?* is pressed. The wizard's and
+  the address step's tests, every test under `apps/web/src/i18n` (the copy budget among them), the
+  guide tests (533), and the web app's typecheck and lint pass.
 
 **2026-11-23, later still: *Your new address* asks by itself when the new account's login is on
 another domain, and about every `.onmicrosoft.com` address, on

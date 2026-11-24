@@ -74,11 +74,12 @@ export const en = {
   'start.address.needAddress': 'Type each new address as an address, like name@example.org.',
   'start.address.saveFailed': 'Not saved: {old}.',
   // On *Where does it go?*: the own domain being given up, which no list knows.
-  // The hint says when to tick it and what follows, under the box as the
-  // step's other hints are (the owner, 2026-11-24: "yes to all, build them").
+  // When to tick it, in one line under the box, and what follows behind
+  // *Why?* (0118's hint and fold; the owner, 2026-11-24: "yes to all, build them").
   'start.to.alsoChanging': 'I am also changing my email address',
-  'start.to.alsoChanging.hint':
-    'Tick this only if you are giving up an address of your own, such as an old company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and shares. Mail is never changed.',
+  'start.to.alsoChanging.hint': 'Only when you give up an address of your own.',
+  'start.to.alsoChanging.why':
+    'For example an old company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and shares. Mail is never changed.',
   // On *Check, then start*: one line per changed address. Only a confirmed
   // row changes anything (ADR-0055), so a row that waits says so (S1).
   'start.check.address': '{old} becomes {new} in contacts, calendars, tasks and shares',
@@ -218,8 +219,9 @@ export const nl: Record<keyof typeof en, string> = {
   'start.address.saveFailed': 'Niet opgeslagen: {old}.',
   'start.to.alsoChanging': 'Ik krijg ook een ander e-mailadres',
   // *Deelrechten* for shares, as `addresses.where` and the check step say it.
-  'start.to.alsoChanging.hint':
-    "Vink dit alleen aan als u een eigen adres opgeeft, zoals het domein van een oud bedrijf. De volgende stap vraagt wat ervoor in de plaats komt in uw contacten, agenda's, taken en deelrechten. Mail wordt nooit gewijzigd.",
+  'start.to.alsoChanging.hint': 'Alleen als u een eigen adres opgeeft.',
+  'start.to.alsoChanging.why':
+    "Bijvoorbeeld het domein van een oud bedrijf. De volgende stap vraagt wat ervoor in de plaats komt in uw contacten, agenda's, taken en deelrechten. Mail wordt nooit gewijzigd.",
   'start.check.address': "{old} wordt {new} in contacten, agenda's, taken en deelrechten",
   'start.check.address.forPerson':
     "{old} wordt {new} in contacten, agenda's, taken en deelrechten, bevestigd door u voor {person}",
