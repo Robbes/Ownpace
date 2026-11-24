@@ -85,6 +85,24 @@ export interface GraphEvent {
   readonly isCancelled: boolean;
   /** Is recurring flag */
   readonly isRecurring: boolean;
+  /**
+   * What the entry is: a single event, a series (`seriesMaster`), one of its
+   * occurrences, or a changed occurrence (`exception`). Read by a window
+   * (workplan 0170 §4.3) before the event's iCalendar is fetched.
+   */
+  readonly type?: 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  /** A series' recurrence as Graph spells it (`patternedRecurrence`); only its range is read. */
+  readonly recurrence?: {
+    readonly range?: {
+      readonly type?: 'endDate' | 'noEnd' | 'numbered';
+      /** `YYYY-MM-DD`, the last day an occurrence may fall on. */
+      readonly endDate?: string;
+      readonly numberOfOccurrences?: number;
+      readonly recurrenceTimeZone?: string;
+    };
+  } | null;
+  /** A delta's word that the event is gone. */
+  readonly '@removed'?: { readonly reason?: string };
   /** Event status */
   readonly showAs?: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown';
   /** Sensitivity level */

@@ -18,9 +18,10 @@
  */
 
 import { graphFailure } from './graph-refusal.ts';
-import type { FileSource, FileFolder, RawFileItem, SyncCursor, ThrottleLimiter, FileItem } from '@openmig/shared';
+import type { FileSource, FileFolder, ListOptions, RawFileItem, SyncCursor, ThrottleLimiter, FileItem } from '@openmig/shared';
 import type { GraphDriveSourceConfig, GraphDriveItem, GraphDriveDeltaResponse, GraphDriveDeltaCursor, ParsedPath, NormalizePathOptions } from './graph-drive-source.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
+import { splitByWindow } from './file-window.ts';
 import type { HttpClient as _HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { fileVersion, log, STREAM_FILES_LARGER_THAN_BYTES } from '@openmig/shared';
 
@@ -61,6 +62,11 @@ interface ResumePoint {
 
 const DRIVE_FEED_CURSOR = 'graph-drive-feed:';
 const FOLDER_DELTA_CURSOR = 'graph-drive-delta:';
+/**
+ * Before either of the above, a cursor a windowed listing handed out
+ * (workplan 0170): resumed only by a listing with a window. See `listSince`.
+ */
+const WINDOW_CURSOR = 'graph-drive-window:';
 
 export class GraphDriveSource implements FileSource {
   private readonly config: GraphDriveSourceConfig;
@@ -470,10 +476,50 @@ export class GraphDriveSource implements FileSource {
    *
    * Whichever way, a folder keeps only its DIRECT children (`placementOf`):
    * a delta is a whole subtree, and `listFolders` returns every folder.
+   *
+   * WITH A WINDOW (`options.since`, workplan 0170 §4.2): driveItem delta has
+   * no date filter, so the read is made as above and a file modified before
+   * `since` goes back as `unmarked` (`splitByWindow`). Its cursor is a
+   * deltaLink, which tells the next read that everything this one returned
+   * was seen, the set-aside files among them. So it is handed out tagged as a
+   * window's (`WINDOW_CURSOR`): read back with a window it resumes, as a
+   * 90-day migration's own cursor does (§3.2 3); read back without one it is
+   * no cursor at all, and the folder is listed in full. Stored as a content
+   * cursor by mistake, it can then never make a full pass skip a file the
+   * window left out (`ListOptions`).
    */
   async listSince(
     folder: FileFolder,
     cursor?: SyncCursor,
+    options?: ListOptions,
+  ): Promise<{
+    items: ReadonlyArray<RawFileItem>;
+    nextCursor: SyncCursor;
+    removed?: ReadonlyArray<string>;
+    unreadable?: number;
+    listedElsewhere?: number;
+    unmarked?: ReadonlyArray<RawFileItem>;
+  }> {
+    const since = options?.since;
+    let resumeFrom = cursor;
+    if (cursor?.value.startsWith(WINDOW_CURSOR)) {
+      resumeFrom = since === undefined ? undefined : { ...cursor, value: cursor.value.slice(WINDOW_CURSOR.length) };
+    }
+    const listed = await this.listOwnFiles(folder, resumeFrom);
+    if (since === undefined) return listed;
+    const { items, unmarked } = splitByWindow(listed.items, since);
+    return {
+      ...listed,
+      items,
+      ...(unmarked ? { unmarked } : {}),
+      nextCursor: { ...listed.nextCursor, value: `${WINDOW_CURSOR}${listed.nextCursor.value}` },
+    };
+  }
+
+  /** A folder's own files, every one the read returned: `listSince` without the window. */
+  private async listOwnFiles(
+    folder: FileFolder,
+    cursor: SyncCursor | undefined,
   ): Promise<{
     items: ReadonlyArray<RawFileItem>;
     nextCursor: SyncCursor;
