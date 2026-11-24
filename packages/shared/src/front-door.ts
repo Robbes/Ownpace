@@ -222,6 +222,13 @@ export const SOURCE_PROOFS: {
     box: EXPERIMENTAL,
     // Offered and labelled on both editions, managed included (0148 D10).
     archive: EXPERIMENTAL,
+    // On the managed door since alpha.19 (workplan 0169). The connectors are
+    // 0007's and the appliance nightly reads them against a Nextcloud we run,
+    // but no pass through the managed door against a real account is
+    // recorded yet, so the label stays until one is (0136 D5, 0131 T2).
+    caldav: EXPERIMENTAL,
+    carddav: EXPERIMENTAL,
+    webdav: EXPERIMENTAL,
   },
   faces: {
     google: {

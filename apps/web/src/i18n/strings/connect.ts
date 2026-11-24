@@ -296,6 +296,11 @@ export const en = {
   'account.proto.caldav.hint': 'Calendar protocol',
   'account.proto.carddav.hint': 'Contact protocol',
   'account.proto.webdav.hint': 'File storage',
+  // The same three protocols on the SOURCE side (workplan 0169): what each
+  // reads, said as the place a person is leaving.
+  'account.proto.caldavSource.hint': 'Calendars and tasks, from any CalDAV server',
+  'account.proto.carddavSource.hint': 'Contacts, from any CardDAV server',
+  'account.proto.webdavSource.hint': 'Files, from any WebDAV server',
   'account.proto.soverin.hint': 'One account — email, calendars and contacts',
   // Says what it carries AND what it does not: a person whose mail is
   // elsewhere should not have to discover that by ticking Email and
@@ -692,6 +697,14 @@ export const en = {
   'setup.imap.app_password.detail':
     'Most providers refuse a normal account password for IMAP when two-factor authentication is on, and want an app-specific password instead. Create one for the account being migrated.',
   'setup.imap.app_password.yields': 'a username and an app password.',
+  'setup.davsource.server_address.title': 'Find the server’s DAV address',
+  'setup.davsource.server_address.detail':
+    'The host your provider documents for CalDAV, CardDAV or WebDAV, usually on port 443. Where the DAV root is behind a path, such as /remote.php/dav on a Nextcloud, the full address goes in the DAV base URL box instead.',
+  'setup.davsource.server_address.yields': 'a host and a port, or a DAV base URL.',
+  'setup.davsource.app_password.title': 'Create an app password',
+  'setup.davsource.app_password.detail':
+    'Many servers refuse the account’s own password for CalDAV, CardDAV and WebDAV when two-factor authentication is on. Create an app password for the account you are leaving; it is only read, never written to.',
+  'setup.davsource.app_password.yields': 'a username and an app password.',
   'setup.webdav.account_exists.title': 'Make sure the destination account exists',
   'setup.webdav.account_exists.detail':
     'Create the account on the target server first, with enough quota for what is coming. Nothing here creates accounts.',
@@ -964,6 +977,9 @@ export const nl: Record<keyof typeof en, string> = {
   'account.proto.caldav.hint': 'Agendaprotocol',
   'account.proto.carddav.hint': 'Contactenprotocol',
   'account.proto.webdav.hint': 'Bestandsopslag',
+  'account.proto.caldavSource.hint': 'Agenda’s en taken, van elke CalDAV-server',
+  'account.proto.carddavSource.hint': 'Contacten, van elke CardDAV-server',
+  'account.proto.webdavSource.hint': 'Bestanden, van elke WebDAV-server',
   'account.proto.soverin.hint': 'Eén account — e-mail, agenda’s en contacten',
   'account.proto.nextcloud.hint':
     'Eén account — agenda’s, contacten, bestanden en taken (geen e-mail)',
@@ -1241,6 +1257,14 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.imap.app_password.detail':
     'De meeste aanbieders weigeren een gewoon accountwachtwoord voor IMAP zodra tweestapsverificatie aanstaat en willen een app-specifiek wachtwoord. Maak er één voor het account dat gemigreerd wordt.',
   'setup.imap.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
+  'setup.davsource.server_address.title': 'Zoek het DAV-adres van de server op',
+  'setup.davsource.server_address.detail':
+    'De host die uw aanbieder voor CalDAV, CardDAV of WebDAV documenteert, meestal op poort 443. Staat de DAV-root achter een pad, zoals /remote.php/dav bij een Nextcloud, dan komt het volledige adres in het vak DAV-basis-URL.',
+  'setup.davsource.server_address.yields': 'een host en een poort, of een DAV-basis-URL.',
+  'setup.davsource.app_password.title': 'Maak een app-wachtwoord',
+  'setup.davsource.app_password.detail':
+    'Veel servers weigeren het eigen wachtwoord van het account voor CalDAV, CardDAV en WebDAV zodra tweestapsverificatie aanstaat. Maak een app-wachtwoord voor het account dat u verlaat; het wordt alleen gelezen, nooit beschreven.',
+  'setup.davsource.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
   'setup.webdav.account_exists.title': 'Zorg dat het doelaccount bestaat',
   'setup.webdav.account_exists.detail':
     'Maak het account eerst aan op de doelserver, met genoeg quota voor wat eraan komt. Dit product maakt zelf geen accounts aan.',

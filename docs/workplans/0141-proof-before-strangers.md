@@ -1642,7 +1642,11 @@ night had run that commit (Status, 2026-10-23).
    - (c) the mapping written into the database, as `seed-managed.ts` writes the demo tenants'. The
      sitting then no longer walks the front door, which is half of what it proves.
 
-   Recommended: (a), because it needs no code and keeps the front door.
+   Recommended: (a), because it needs no code and keeps the front door. **Answered 2026-11-24:
+   (b), with WebDAV beside it**, on the owner's *"yes to all, build them. But dont add the
+   nextcloud as source card, add only the generic cards as source."* Built as workplan 0169:
+   CalDAV, CardDAV and WebDAV source cards in the protocol lane, labelled experimental, and no
+   Nextcloud source card, so the demo Nextcloud is picked as a source through those three.
 10. **The live-target lane's product half (T7, T13).** On the OTA stack the lane signs in with the
     identity provider's ID token, which lives until its `exp` and is never renewed, so the product
     half is armed only by hand, for a run. To keep it armed: a longer ID-token lifetime at the

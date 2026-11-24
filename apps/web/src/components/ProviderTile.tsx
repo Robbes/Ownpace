@@ -47,6 +47,11 @@ export const TILE_LETTERS: Readonly<Record<TileRole, Readonly<Record<string, str
     box: 'B',
     imap: '@',
     archive: 'E',
+    // The DAV protocols as sources (workplan 0169): the mark their
+    // destination tiles draw.
+    caldav: '+',
+    carddav: '+',
+    webdav: '+',
   },
   target: {
     soverin: 'S',
@@ -97,7 +102,14 @@ const SOURCE_COMPANY: Readonly<Record<string, string>> = {
  * protocol's name.
  */
 const PLAIN_NAMES: Readonly<Record<TileRole, Readonly<Record<string, Readonly<Record<ProviderNameLocale, string>>>>>> = {
-  source: { imap: { en: 'Other mail provider (IMAP)', nl: 'Andere mailaanbieder (IMAP)' } },
+  source: {
+    imap: { en: 'Other mail provider (IMAP)', nl: 'Andere mailaanbieder (IMAP)' },
+    // The DAV protocols as sources (workplan 0169), by the same rule: what a
+    // person has, with the protocol in brackets.
+    caldav: { en: 'Calendar server (CalDAV)', nl: 'Agendaserver (CalDAV)' },
+    carddav: { en: 'Contacts server (CardDAV)', nl: 'Contactenserver (CardDAV)' },
+    webdav: { en: 'File server (WebDAV)', nl: 'Bestandsserver (WebDAV)' },
+  },
   target: { jmap: { en: 'Mail server (JMAP)', nl: 'Mailserver (JMAP)' } },
 };
 

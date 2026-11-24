@@ -41,6 +41,7 @@ import {
   ARCHIVE_READABLE_TARGETS,
   DISCOVERY_DOMAINS,
   PROVIDER_ACCOUNT_DOMAINS,
+  SOURCE_TYPE_DOMAINS,
   TARGET_TYPE_DOMAINS,
   hasArchiveReader,
   type ArchiveProvider,
@@ -51,9 +52,11 @@ import {
 /**
  * The accounts a person may be leaving, in the drawing's order (step 2).
  * Each is a card the wizard and the Accounts page already know: an account
- * where the provider has one, and `imap` for *Another mail provider*.
+ * where the provider has one, `imap` for *Another mail provider*, and since
+ * workplan 0169 the three DAV protocols, for any server that speaks them (a
+ * Nextcloud among them: there is no Nextcloud source card).
  */
-export const START_PROVIDERS = ['google', 'microsoft', 'apple', 'dropbox', 'box', 'imap'] as const;
+export const START_PROVIDERS = ['google', 'microsoft', 'apple', 'dropbox', 'box', 'imap', 'caldav', 'carddav', 'webdav'] as const;
 export type StartProvider = (typeof START_PROVIDERS)[number];
 
 /** The data types in the order a person reads them, the way every screen lists them. */
@@ -115,6 +118,11 @@ export function offers(provider: StartProvider, served: ServedFacts = {}): Disco
       return ['file'];
     case 'imap':
       return ['email'];
+    // A protocol gives what it carries (workplan 0169), from the one table.
+    case 'caldav':
+    case 'carddav':
+    case 'webdav':
+      return inOrder(SOURCE_TYPE_DOMAINS[provider] ?? []);
   }
 }
 

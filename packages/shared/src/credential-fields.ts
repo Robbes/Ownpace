@@ -478,6 +478,26 @@ function archiveFields(): ReadonlyArray<CredentialField> {
 }
 
 /**
+ * The DAV targets' escape hatch (0105 T1): a full base URL, for a provider
+ * whose DAV root is NOT at the host root and whose `/.well-known` does not
+ * lead there. host+port alone can only say `https://host:port/`; a customer
+ * target like `https://mail.example.com/dav/` was inexpressible through this
+ * door until the field existed. Optional — when present it wins over
+ * host+port (`davUrl`'s existing precedence), when absent nothing changes.
+ * DAV types only: an IMAP target has no URL, and a JMAP target's baseUrl is
+ * derived (the clients append `/.well-known/jmap` themselves).
+ *
+ * Declared before `SOURCE_FIELDS` because the DAV SOURCES carry it too
+ * (workplan 0169), and that table is built as the module loads.
+ */
+const TARGET_DAV_URL: CredentialField = {
+  key: 'url',
+  labelKey: 'account.targetDavUrl',
+  placeholder: 'https://cloud.example.com/remote.php/dav',
+  hintKey: 'account.targetDavUrl.hint',
+};
+
+/**
  * oauth2 and graph authenticate with the customer's OWN Entra app
  * registration (0037 T6, ADR-0006's row-14 model), so what they ask for is a
  * registration and a mailbox — never a server address.
@@ -599,6 +619,15 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
   apple: appleAccountFields(),
   graph: o365Fields(),
   oauth2: o365Fields(),
+  // THE DAV PROTOCOLS AS SOURCES (workplan 0169; the owner, 2026-11-24:
+  // *"add only the generic cards as source"*). Any server that speaks the
+  // words, beside IMAP in the protocol lane: host and port, the base URL as
+  // the escape hatch for a server whose DAV root is behind a path (`davUrl`'s
+  // precedence, the same field the DAV targets carry), and one login. No
+  // Nextcloud source card: a Nextcloud is reached through these three.
+  caldav: davSourceFields(),
+  carddav: davSourceFields(),
+  webdav: davSourceFields(),
   imap: [
     { key: 'host', labelKey: 'account.host', required: true, placeholder: 'imap.example.com' },
     { key: 'port', labelKey: 'account.port', required: true, numeric: true, placeholder: '993' },
@@ -614,6 +643,29 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
     },
   ],
 };
+
+/**
+ * A DAV source's door (workplan 0169): where, then who. The same shape as a
+ * DAV target's door (`withDavUrl` over `TARGET_FIELDS`), with the source's
+ * own labels for the login, so the two sides read alike.
+ */
+function davSourceFields(): ReadonlyArray<CredentialField> {
+  return [
+    { key: 'host', labelKey: 'account.host', required: true, placeholder: 'dav.example.com' },
+    { key: 'port', labelKey: 'account.port', required: true, numeric: true, placeholder: '443' },
+    TARGET_DAV_URL,
+    USER,
+    {
+      key: 'password',
+      labelKey: 'account.sourcePassword',
+      required: true,
+      secret: true,
+      placeholder: '••••••••',
+      autoComplete: 'new-password',
+      revealable: true,
+    },
+  ];
+}
 
 /**
  * The EXAMPLE a target's host box shows, per protocol (2026-09-07).
@@ -666,22 +718,6 @@ const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
 
 const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak'] as const;
 
-/**
- * The DAV targets' escape hatch (0105 T1): a full base URL, for a provider
- * whose DAV root is NOT at the host root and whose `/.well-known` does not
- * lead there. host+port alone can only say `https://host:port/`; a customer
- * target like `https://mail.example.com/dav/` was inexpressible through this
- * door until the field existed. Optional — when present it wins over
- * host+port (`davUrl`'s existing precedence), when absent nothing changes.
- * DAV types only: an IMAP target has no URL, and a JMAP target's baseUrl is
- * derived (the clients append `/.well-known/jmap` themselves).
- */
-const TARGET_DAV_URL: CredentialField = {
-  key: 'url',
-  labelKey: 'account.targetDavUrl',
-  placeholder: 'https://cloud.example.com/remote.php/dav',
-  hintKey: 'account.targetDavUrl.hint',
-};
 
 // `soverin` is DAV-shaped at the door (0106 T4a): one account, the DAV base
 // URL as its escape hatch, exactly like the protocol trio. `cirrux` is the

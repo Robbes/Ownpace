@@ -145,6 +145,11 @@ const SCOPE_FAMILY_OF_SOURCE_KIND: Readonly<Record<string, ScopeFamily>> = {
   dropbox: 'dropbox',
   box: 'box',
   archive: 'archive',
+  // The DAV protocols as sources (workplan 0169): the kind is the type, and
+  // the family is the one the appliance's mapping files already say.
+  caldav: 'standards',
+  carddav: 'standards',
+  webdav: 'standards',
 };
 
 /**
@@ -198,6 +203,10 @@ const SCOPE_FAMILY_OF_SOURCE_CARD: Readonly<Record<WizardSourceType, ScopeFamily
   // contacts and Reminders as well.
   imap: 'imap',
   apple: 'standards',
+  // The DAV protocol cards (workplan 0169), as their mapping-file types are.
+  caldav: 'standards',
+  carddav: 'standards',
+  webdav: 'standards',
 };
 
 /**

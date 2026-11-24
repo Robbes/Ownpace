@@ -1336,8 +1336,8 @@ export const FromStep: React.FC<{
           export has a provider, so it sits under that provider's tile on the
           next screen. */}
       {/* OTHER WAYS TO CONNECT, without the wizard (0153 open question 5): the
-          one source protocol is IMAP, and it is the tile above. The fold named
-          CalDAV, CardDAV, WebDAV and JMAP too, which are destinations only. */}
+          source protocols, IMAP and since workplan 0169 CalDAV, CardDAV and
+          WebDAV, each a tile above. JMAP is a destination only. */}
       <details>
         <summary className="cursor-pointer text-sm text-blue-700">{t('start.from.other')}</summary>
         <p className="mt-2 text-sm text-gray-700">{t('start.from.other.line')}</p>
@@ -2054,8 +2054,14 @@ const NeedRow: React.FC<
   const choice = accounts.choice(key, saved, someoneElse);
   const signed = accounts.signed(choice);
   const name = providerDisplayName(need.card, locale);
-  // *Another mail provider* is the IMAP card, named as step 2 named it.
-  const title = need.card === 'imap' ? t('start.from.otherMail') : name;
+  // *Another mail provider* is the IMAP card, named as step 2 named it; the
+  // DAV protocol cards (workplan 0169) are named as their tiles name them.
+  const title =
+    need.card === 'imap'
+      ? t('start.from.otherMail')
+      : need.card === 'caldav' || need.card === 'carddav' || need.card === 'webdav'
+        ? providerName(need.card, 'source', locale)
+        : name;
   const initial = formDefaultsFor('source', need.card);
   return (
     <li className="rounded-lg border border-gray-200 p-4">
