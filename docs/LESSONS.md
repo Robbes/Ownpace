@@ -18,6 +18,14 @@ reading a file drops off its entry by itself.
 
 ## 1. By file — what constrains the thing you are about to edit
 
+### `.claude/hooks/session-start.sh`
+
+- [a-start-up-hook-read-as-a-risk](../scripts/a-start-up-hook-read-as-a-risk.unit.test.ts) — A START-UP HOOK READ AS A RISK, AND KEPT, BECAUSE IT DOES ONE THING.
+
+### `.claude/settings.json`
+
+- [a-start-up-hook-read-as-a-risk](../scripts/a-start-up-hook-read-as-a-risk.unit.test.ts) — A START-UP HOOK READ AS A RISK, AND KEPT, BECAUSE IT DOES ONE THING.
+
 ### `.github/ISSUE_TEMPLATE/bug_report.yml`
 
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
@@ -5910,6 +5918,15 @@ Reads:
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
 - `packages/shared/src/notifications.ts`
+
+### [a-start-up-hook-read-as-a-risk](../scripts/a-start-up-hook-read-as-a-risk.unit.test.ts)
+
+A START-UP HOOK READ AS A RISK, AND KEPT, BECAUSE IT DOES ONE THING.
+
+Reads:
+
+- `.claude/hooks/session-start.sh`
+- `.claude/settings.json`
 
 ### [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts)
 
