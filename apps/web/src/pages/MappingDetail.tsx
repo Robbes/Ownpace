@@ -342,11 +342,15 @@ const MappingDetail: React.FC = () => {
     attentionQuery.data?.mappings.find((a) => a.mappingId === id),
     attentionQuery.isSuccess,
   );
-  // THE LAST 90 DAYS FIRST (workplan 0170 §7.2, §7.3), from the detail read:
-  // managed only, as the appliance serves no detail. A migration of only the
-  // last 90 days is never *Ready to switch* (D8), so each stage passes through
-  // `windowStage`, and its header offers *Copy everything* instead.
-  const migrationWindow = detail.data?.window;
+  // THE LAST 90 DAYS FIRST (workplan 0170 §7.2, §7.3, §5.4): the detail read
+  // on managed, the status on the appliance, which carry the same `window`. A
+  // migration of only the last 90 days is never *Ready to switch* (D8), so
+  // each stage passes through `windowStage`, and managed's header offers *Copy
+  // everything* instead; on the appliance that is its mapping file's, as the
+  // guide's section the chip opens says.
+  const migrationWindow = isSelfHost()
+    ? status.data?.mappings.find((m) => m.mappingId === id)?.window
+    : detail.data?.window;
   const recentOnly = migrationWindow?.recentOnly === true;
   const stages: Partial<Record<DiscoveryDomain, Stage>> = {};
   for (const [domain, stage] of Object.entries(lineFacts && lines ? stagesByDomain(lineFacts, lines) : {})) {
@@ -356,7 +360,7 @@ const MappingDetail: React.FC = () => {
   const migrationStage = lineFacts
     ? windowStage(leastAdvancedStage(lineStages(lineFacts, lines).map((s) => windowStage(s, migrationWindow))), migrationWindow)
     : undefined;
-  const windowLine = windowParts(migrationWindow, detail.data?.syncConfig.domains ?? [], stages)
+  const windowLine = windowParts(migrationWindow, lineFacts?.domains ?? [], stages)
     .map((part) => t(WINDOW_WORDS[part.kind]))
     .join(' ');
 
@@ -429,10 +433,10 @@ const MappingDetail: React.FC = () => {
           {/* ONLY THE LAST 90 DAYS (0170 §7.2): its one way to everything,
               where a switch-over would be, and its chip beside the stage,
               which opens the guide's section on it. */}
-          {recentOnly && <CopyEverything mappingId={id} />}
+          {recentOnly && !isSelfHost() && <CopyEverything mappingId={id} />}
           {recentOnly && (
             <Link
-              to="/docs/start#last-90-days-only"
+              to={isSelfHost() ? '/docs/start#self-hosted' : '/docs/start#last-90-days-only'}
               data-chip="last-90-days"
               className="text-xs font-medium rounded-full px-2 py-0.5 bg-blue-50 text-blue-800 hover:underline"
             >

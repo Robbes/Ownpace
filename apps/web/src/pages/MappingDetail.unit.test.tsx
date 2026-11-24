@@ -1696,6 +1696,29 @@ describe('the last 90 days first (0170)', () => {
     await vi.waitFor(() => expect(line()).toBe('Your last 90 days are in. Older items are still coming.'));
   });
 
+  it('on the appliance: the chip and the D8 rule from /status, and no button, as its mapping file broadens it', async () => {
+    editionFlag.selfhost = true;
+    fetchStatusMock.mockResolvedValue({
+      status: 'ok',
+      mappings: [
+        {
+          mappingId: 'acme-mail',
+          migrationStatus: 'active',
+          domains: [stripRow('email', 'completed', kept)],
+          window: windowOf({ recentOnly: true, in: ['email'] }),
+        },
+      ],
+    });
+    fetchProgressMock.mockResolvedValue(progressOf([progressRow('email', 'completed', kept)]));
+    renderHub();
+    await vi.waitFor(() => expect(chip()).not.toBeNull());
+    expect(chip()!.getAttribute('href')).toBe('/docs/start#self-hosted');
+    await vi.waitFor(() => expect(line()).toBe('Kept in step for the last 90 days.'));
+    await vi.waitFor(() => expect(step('finish').textContent).toContain('After Copy everything'));
+    expect(screen.queryByRole('button', { name: 'Copy everything' })).toBeNull();
+    expect(mappingApiGet).not.toHaveBeenCalled();
+  });
+
   it('says nothing of a window the server does not report', async () => {
     renderHub();
     await screen.findByRole('heading', { name: 'Acme mail' });
