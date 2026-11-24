@@ -75,37 +75,22 @@ function fakeGraph(initial: { contacts?: FakeItem[]; events?: FakeItem[] }) {
       if (url.endsWith('/me/calendars')) {
         return json({ value: [{ id: 'cal-1', name: 'Calendar', isDefaultCalendar: true, changeKey: 'cal' }] });
       }
-      if (url.includes('/events/delta')) {
+      // The listing Graph v1.0 documents for a calendar's events
+      // (calendar-list-events): the whole calendar, every pass.
+      if (new URL(url).pathname.endsWith('/me/calendars/cal-1/events')) {
         return json({
           value: state.events.map((e) => ({
             id: e.id,
+            iCalUId: e.id,
             subject: e.subject,
+            start: { dateTime: '2026-09-24T09:00:00.0000000', timeZone: 'UTC' },
+            end: { dateTime: '2026-09-24T10:00:00.0000000', timeZone: 'UTC' },
             isAllDay: false,
             isCancelled: false,
-            isRecurring: false,
+            type: 'singleInstance',
             ...(e.changeKey ? { changeKey: e.changeKey } : {}),
           })),
-          '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/me/calendars/cal-1/events/delta?$deltatoken=t',
         });
-      }
-      const event = /\/events\/([^/]+)\/\$value$/.exec(url);
-      if (event) {
-        const e = state.events.find((x) => x.id === event[1]);
-        return {
-          status: 200,
-          headers: {},
-          body: [
-            'BEGIN:VCALENDAR',
-            'VERSION:2.0',
-            'BEGIN:VEVENT',
-            `UID:${e?.id}`,
-            'DTSTART:20260924T090000Z',
-            'DTEND:20260924T100000Z',
-            `SUMMARY:${e?.subject}`,
-            'END:VEVENT',
-            'END:VCALENDAR',
-          ].join('\r\n'),
-        };
       }
       return { status: 404, body: `no fake route for ${url}`, headers: {} };
     },
