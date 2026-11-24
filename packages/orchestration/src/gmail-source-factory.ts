@@ -171,8 +171,23 @@ export function gmailFoldersInPassOrder(
   return { folders: [...real.filter((f) => f.path !== GMAIL_ARCHIVE_PATH), archive], allMail };
 }
 
-/** An inner source that can count one folder by the server's own count. */
-type CountsAFolder = SourceConnector & { countFolder?: (folder: MailFolder) => Promise<number> };
+/**
+ * How many of these messages arrived before `before`, one per Message-ID
+ * (`GmailFolderView.countEveryMessage`). A message with no Message-ID is
+ * counted once, kept apart from the others by its own `sourceRef`. A message
+ * whose arrival time does not parse is counted too: leaving out what cannot be
+ * read would hide a loss rather than report it.
+ */
+export function countArrivedBefore(items: ReadonlyArray<MailItem>, before: Date): number {
+  const cutOff = before.getTime();
+  const seen = new Set<string>();
+  for (const item of items) {
+    const at = Date.parse(item.receivedAt);
+    if (Number.isFinite(at) && at >= cutOff) continue;
+    seen.add(item.messageId ? `id:${item.messageId}` : `ref:${item.sourceRef}`);
+  }
+  return seen.size;
+}
 
 /**
  * A SourceConnector that reads Gmail as Gmail is: the real folders, then All
@@ -231,19 +246,29 @@ export class GmailFolderView implements SourceConnector {
   }
 
   /**
-   * How many messages Gmail holds, by its own count: All Mail's EXISTS, one
-   * EXAMINE (`ImapFlowSource.countFolder`). Every message once, Spam and Trash
-   * aside. Read by Confirm and by the Check (the owner, 2026-11-24).
+   * How many messages Gmail holds, by its own count: All Mail, every message
+   * once, Spam and Trash aside. Read by the Check (the owner, 2026-11-24).
+   *
+   * WITHOUT FALSE ALARMS (the owner, 2026-11-24: "ok"). A message no pass
+   * copied FAILs the Check, so the count holds only what a pass could have
+   * copied:
+   *
+   * - only what arrived before `before`, the last completed pass's start, by
+   *   INTERNALDATE (`MailItem.receivedAt`). Mail that arrived since has had
+   *   no pass to copy it.
+   * - one per Message-ID, as the ledger keys mail. Two messages sharing one
+   *   are one copy, and counting both failed the Check for good.
+   * - a message with no Message-ID counts once: its key is made from its
+   *   bytes, which a count does not read.
+   *
+   * Read from All Mail's listing, the same one a pass makes (envelopes and
+   * INTERNALDATE, no bodies), so the count and the copy see one mailbox.
    *
    * Refuses rather than guesses when All Mail is not listed: then Gmail has
    * no figure of its own to give, and a count summed over labels would count
    * a message once per label.
    */
-  async countEveryMessage(): Promise<number> {
-    const inner = this.inner as CountsAFolder;
-    if (typeof inner.countFolder !== 'function') {
-      throw new Error('This Gmail source cannot count its messages.');
-    }
+  async countEveryMessage(options: { readonly before: Date }): Promise<number> {
     const allMail = await this.allMailFolder();
     if (!allMail) {
       throw new Error(
@@ -251,7 +276,8 @@ export class GmailFolderView implements SourceConnector {
           "be read. Show All Mail in IMAP in Gmail's settings (Labels).",
       );
     }
-    return inner.countFolder(allMail);
+    const { items } = await this.inner.listSince(allMail);
+    return countArrivedBefore(items, options.before);
   }
 
   /**

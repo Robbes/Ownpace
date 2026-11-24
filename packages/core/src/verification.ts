@@ -97,9 +97,24 @@ export interface VerificationDeps {
    * gate passed over a loss (Gmail's label-less archived mail, before All
    * Mail was read). With this figure, what Gmail holds and no pass copied is
    * missing, and the data type FAILs. A figure it cannot read throws, and the
-   * data type is NOT_VERIFIABLE with the reason, never measured without it.
+   * data type is NOT_VERIFIABLE with the reason, never measured without it,
+   * except past the data type's switch (`pastTheSwitch`).
+   *
+   * Undefined, too, when no pass has completed: the figure counts only what
+   * arrived before the last completed pass started (the owner, 2026-11-24),
+   * so without one there is nothing to hold the copies to.
    */
   getSourceSideCount?(dataType: VerificationDomain): Promise<number | undefined>;
+  /**
+   * Is this data type past its switch? Asked only when the source's own count
+   * could not be read. Past the switch the old account may be deleted, or its
+   * access withdrawn, and that is expected rather than a fault: the data type
+   * is then measured against our own record of what was copied, as it was
+   * before the source's figure existed, and the report says so
+   * (`SOURCE_COUNT_OWN_RECORD`; the owner, 2026-11-24). Before the switch, or
+   * absent, an unreadable count is NOT_VERIFIABLE, as it was.
+   */
+  pastTheSwitch?(dataType: VerificationDomain): Promise<boolean>;
   getTargetCount(dataType: VerificationDomain): Promise<number>;
   
   // Sample retrieval for checksum verification
@@ -292,6 +307,61 @@ export const TARGET_UNREAD = 'TARGET_UNREAD';
 export const TARGET_FOLDER_MISSING = 'TARGET_FOLDER_MISSING';
 
 /** A result for a domain that was not measured, with the reason attached. */
+/**
+ * What the source's own figure says about one data type (the owner,
+ * 2026-11-24), read once per data type:
+ *
+ * - `held`: the source's own count, to measure against. Absent where there is
+ *   none (every source but Gmail's, or no completed pass yet), and then the
+ *   ledger's count is used, as it always was.
+ * - `unreadable`: the figure could not be read before the switch. The data
+ *   type is NOT_VERIFIABLE with this reason.
+ * - `ownRecord`: it could not be read past the switch, where the old account
+ *   may be gone. Measured against the ledger, and said (`ownRecordIssue`).
+ */
+interface SourceSide {
+  readonly held?: number;
+  readonly unreadable?: string;
+  readonly ownRecord?: string;
+}
+
+async function readSourceSide(deps: VerificationDeps, dataType: VerificationDomain): Promise<SourceSide> {
+  if (!deps.getSourceSideCount) return {};
+  try {
+    const held = await deps.getSourceSideCount(dataType);
+    return held === undefined ? {} : { held };
+  } catch (err) {
+    // A closed organisation ends the run, as everywhere in this gate (0139 T7).
+    if (isCredentialRefusal(err) && err.refusal.code === ACCOUNT_CLOSED) throw err;
+    const reason = err instanceof Error ? err.message : String(err);
+    // PAST THE SWITCH THE OLD ACCOUNT MAY BE GONE (the owner, 2026-11-24:
+    // "ok"). Deleting it, or withdrawing our access, is what a person does
+    // once they have moved, so the Check does not stop at it: it measures
+    // against our own record of what was copied, as it did before Gmail's
+    // figure existed, and says so on the screen.
+    if (deps.pastTheSwitch && (await deps.pastTheSwitch(dataType))) return { ownRecord: reason };
+    return { unreadable: reason };
+  }
+}
+
+/**
+ * The count is our own record, because the old account could not be asked.
+ * A WARNING: it never holds anything by itself, and the verdict is the one the
+ * ledger's count gives, as before the source's figure existed.
+ */
+function ownRecordIssue(
+  dataType: VerificationDomain,
+  reason: string,
+): DataTypeVerification['issues'][number] {
+  return {
+    id: `SOURCE_COUNT_OWN_RECORD_${dataType}`,
+    severity: 'WARNING',
+    message:
+      `The old account could not be asked how many ${dataType} item(s) it holds (${reason}), so ` +
+      'this check counts against our own record of what was copied.',
+  };
+}
+
 function notMeasured(
   dataType: VerificationDomain,
   status: 'SKIPPED' | 'NOT_VERIFIABLE',
@@ -433,28 +503,29 @@ export async function runVerification(
     const recorded = await deps.getSourceCount(dataType);
     // Nothing recorded is a SKIP only when the source has nothing either: a
     // Gmail whose every message no pass copied is the loss this gate exists to
-    // catch. Asked only here, where it can change the answer; a figure that
-    // cannot be read is the data type's own NOT_VERIFIABLE, quoted.
-    let heldAtSource: number | undefined;
-    if (recorded === 0 && deps.getSourceSideCount) {
-      try {
-        heldAtSource = await deps.getSourceSideCount(dataType);
-      } catch (err) {
-        if (isCredentialRefusal(err) && err.refusal.code === ACCOUNT_CLOSED) throw err;
+    // catch. So the source's own figure is read first here; otherwise only
+    // once the target is known to be readable, below. Read once either way.
+    let side: SourceSide | undefined;
+    if (recorded === 0) {
+      side = await readSourceSide(deps, dataType);
+      if (side.unreadable !== undefined) {
         return notMeasured(
           dataType,
           'NOT_VERIFIABLE',
           `No ${dataType} item was copied, and the old account's own count could not be read: ` +
-            `${err instanceof Error ? err.message : String(err)}. Cutover is blocked.`,
+            `${side.unreadable}. Cutover is blocked.`,
         );
       }
-    }
-    if (recorded === 0 && !(heldAtSource !== undefined && heldAtSource > 0)) {
-      return notMeasured(
-        dataType,
-        'SKIPPED',
-        `No ${dataType} items were recorded for this mapping, so there is nothing to verify.`,
-      );
+      if (!(side.held !== undefined && side.held > 0)) {
+        const skipped = notMeasured(
+          dataType,
+          'SKIPPED',
+          `No ${dataType} items were recorded for this mapping, so there is nothing to verify.`,
+        );
+        return side.ownRecord === undefined
+          ? skipped
+          : { ...skipped, issues: [...skipped.issues, ownRecordIssue(dataType, side.ownRecord)] };
+      }
     }
 
     if (deps.canVerifyTarget && !deps.canVerifyTarget(dataType)) {
@@ -468,9 +539,21 @@ export async function runVerification(
         recorded,
       );
     }
+    // The source's own figure, read here when it was not above: a target that
+    // cannot be read decides first, and reading All Mail costs a listing.
+    side ??= await readSourceSide(deps, dataType);
+    if (side.unreadable !== undefined) {
+      return notMeasured(
+        dataType,
+        'NOT_VERIFIABLE',
+        `${recorded} ${dataType} item(s) were copied, but the old account's own count could not be ` +
+          `read: ${side.unreadable}. Cutover is blocked: what was never copied cannot be counted.`,
+        recorded,
+      );
+    }
     let measured: Awaited<ReturnType<typeof verifyDataType>>;
     try {
-      measured = await verifyDataType({ ...deps, dataType });
+      measured = await verifyDataType({ ...deps, dataType, side });
     } catch (err) {
       // ONE DATA TYPE'S TARGET, NOT THE WHOLE RUN (workplan 0156 T2). The
       // types are measured one after another, and nothing caught between
@@ -575,16 +658,18 @@ export async function runVerification(
  * same name in `runVerification`.
  */
 async function verifyDataType(
-  deps: VerificationDeps & { dataType: VerificationDomain }
+  deps: VerificationDeps & { dataType: VerificationDomain; side: SourceSide }
 ): Promise<{ readonly verification: DataTypeVerification; readonly contentHeld: boolean }> {
-  const { dataType, config } = deps;
+  const { dataType, config, side } = deps;
   
   // Get counts
   const recorded = await deps.getSourceCount(dataType);
   // The source's own figure where it has one (Gmail's All Mail): the count
   // this data type is measured against, so what it holds and no pass copied
-  // is missing (the owner, 2026-11-24). Otherwise the ledger's, as before.
-  const heldAtSource = deps.getSourceSideCount ? await deps.getSourceSideCount(dataType) : undefined;
+  // is missing (the owner, 2026-11-24). Otherwise the ledger's, as before,
+  // and past the switch with the old account out of reach, the ledger's with
+  // the report saying so (`side.ownRecord`).
+  const heldAtSource = side.held;
   const sourceCount = heldAtSource ?? recorded;
   const targetCount = await deps.getTargetCount(dataType);
   
@@ -861,10 +946,13 @@ async function verifyDataType(
       id: `NEVER_COPIED_${dataType}`,
       severity: 'ERROR',
       message:
-        `The old account itself counts ${heldAtSource} ${dataType} item(s), and ${recorded} were ` +
-        `copied: ${neverCopied} were never copied. Run a pass, then check again.`,
+        `The old account itself counts ${heldAtSource} ${dataType} item(s) that arrived before the last ` +
+        `completed pass started, and ${recorded} were copied: ${neverCopied} were never copied. ` +
+        'Run a pass, then check again.',
     });
   }
+
+  if (side.ownRecord !== undefined) issues.push(ownRecordIssue(dataType, side.ownRecord));
 
   if (missingOnTarget.length > 0) {
     issues.push({
@@ -953,6 +1041,7 @@ async function verifyDataType(
     matchedCount,
     // Never copied is missing from the target too, and counted with it.
     missingOnTarget: missingCount,
+    ...(neverCopied > 0 ? { neverCopied } : {}),
     extraOnTarget: extraOnTarget.length,
     // What was actually compared, NOT what was asked for. The clamp in
     // `calculateSampleSize` makes these agree for the ledger-backed deps, where

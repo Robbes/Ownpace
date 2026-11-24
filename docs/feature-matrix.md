@@ -61,7 +61,8 @@ source, omitted rather than guessed). Idempotent on Message-ID: a re-run copies 
 twice, even after a wiped ledger. Trash and Junk are **left behind by default**
 (`excludeSpecialUse`; set `[]` to take them), while the trash is still read as deletion
 evidence. Gmail: labels arrive as folders; Starred and Important are dropped by attribute, and All
-Mail is read last into **Archive**, so it adds only label-less archived mail; a multi-label
+Mail is read last into **Archive** (the destination's own archive folder: by role on JMAP, by
+`\Archive` on IMAP), so it adds only label-less archived mail; a multi-label
 message is copied once (first folder seen) and is not reported as a move. A name the
 server lists as `\Noselect` or `\NonExistent` — Gmail's `[Gmail]`, and the namespace
 containers other servers publish — is a **container, not a folder**: it holds no mail and

@@ -30,17 +30,20 @@ export function mailSourceSideCount(deps: {
   /** Optional: a deps double that builds only a target has none, and then there is no count. */
   readonly source?: SourceConnector;
   readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
-}): (() => Promise<number>) | undefined {
+}): ((options: { readonly before: Date }) => Promise<number>) | undefined {
   const { source } = deps;
   if (!source || source.markedOnly || typeof source.countEveryMessage !== 'function') return undefined;
   const excluded = deps.excludeSpecialUse ?? DEFAULT_EXCLUDE_SPECIAL_USE;
   if (excluded.some((role) => role !== 'trash' && role !== 'junk')) return undefined;
-  return () => source.countEveryMessage!();
+  return (options) => source.countEveryMessage!(options);
 }
+
+/** The source's own count of what arrived before a time (`SourceConnector.countEveryMessage`). */
+export type SourceSideCount = (options: { readonly before: Date }) => Promise<number>;
 
 /** An opened target that may carry its source's own count (mail only). */
 export interface OpenedWithCount extends OpenedTarget {
-  readonly sourceSideCount?: () => Promise<number>;
+  readonly sourceSideCount?: (options: { readonly before: Date }) => Promise<number>;
 }
 
 /**
@@ -50,9 +53,9 @@ export interface OpenedWithCount extends OpenedTarget {
  */
 export function withTheSourceSideCount(open: (domain: Parameters<OpenTarget>[0]) => Promise<OpenedWithCount>): {
   readonly open: OpenTarget;
-  readonly counts: (kept: ReadonlyArray<Parameters<OpenTarget>[0]>) => Partial<Record<VerificationDomain, () => Promise<number>>>;
+  readonly counts: (kept: ReadonlyArray<Parameters<OpenTarget>[0]>) => Partial<Record<VerificationDomain, SourceSideCount>>;
 } {
-  let mail: (() => Promise<number>) | undefined;
+  let mail: SourceSideCount | undefined;
   return {
     open: async (domain) => {
       const opened = await open(domain);

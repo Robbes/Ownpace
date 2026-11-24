@@ -168,11 +168,16 @@ export interface SourceConnector {
   /**
    * How many messages the source holds, by its OWN count rather than by what
    * was copied: Gmail's All Mail, which holds every message once, Spam and
-   * Trash aside (one EXAMINE, its EXISTS). Read by the Check so that a message
-   * no pass ever copied fails it, which a figure taken from the ledger cannot
-   * do. Absent from every source that has no such folder.
+   * Trash aside. Read by the Check so that a message no pass ever copied
+   * fails it, which a figure taken from the ledger cannot do. Absent from
+   * every source that has no such folder.
+   *
+   * Only what arrived (INTERNALDATE) before `before`, the last completed
+   * pass's start, so mail that arrived since never fails a Check; and one per
+   * Message-ID, as the ledger keys it, so two messages sharing one never fail
+   * it for good (the owner, 2026-11-24).
    */
-  countEveryMessage?(): Promise<number>;
+  countEveryMessage?(options: { readonly before: Date }): Promise<number>;
 }
 
 /**
@@ -3018,6 +3023,30 @@ export interface LedgerVerificationReader {
     mappingId: MappingId,
     domain: DiscoveryDomain,
   ): Promise<AddressChangesInLedger>;
+
+  /**
+   * What the source's own count is held to, per data type (the owner,
+   * 2026-11-24): when the last completed pass started, and whether the data
+   * type is past its switch. Optional, as a reader without a status table has
+   * nothing to say; then the source's figure is not used.
+   */
+  sourceCountWindow?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<SourceCountWindow>;
+}
+
+/** What `LedgerVerificationReader.sourceCountWindow` answers. */
+export interface SourceCountWindow {
+  /**
+   * When the last completed pass of this data type started, ISO 8601, or
+   * undefined when none has completed. Only what the source holds from before
+   * it is counted: mail that arrived since has had no pass to copy it.
+   */
+  readonly lastCompletedPassStartedAt?: string;
+  /** The data type is past its switch: the source no longer decides what exists. */
+  readonly pastTheSwitch: boolean;
 }
 
 /** What `LedgerVerificationReader.addressChangesOf` answers. Counts and keys, never addresses. */

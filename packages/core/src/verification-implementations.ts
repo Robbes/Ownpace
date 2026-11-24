@@ -27,6 +27,16 @@ import { refuseOnceClosed, type OrganisationIsOpen } from './while-the-organisat
 import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
+ * How far before the last completed pass's start the source's own count stops.
+ * The pass's start is our clock and a message's INTERNALDATE is the source's,
+ * so a message that arrived a moment before the start by one clock may have
+ * arrived after it by the other. Counting a few minutes less can only hide a
+ * loss until the next pass; counting a few more could fail a Check over mail
+ * no pass has had a chance to copy.
+ */
+export const SOURCE_CLOCK_MARGIN_MS = 5 * 60 * 1000;
+
+/**
  * Verification dependencies backed by ledger reader and target
  */
 export interface RealVerificationDeps {
@@ -59,7 +69,9 @@ export interface RealVerificationDeps {
    * rather than against the ledger's own count, so a message no pass copied
    * is missing (`VerificationDeps.getSourceSideCount`). Absent: as before.
    */
-  sourceSideCounts?: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files' | 'tasks', () => Promise<number>>>;
+  sourceSideCounts?: Partial<
+    Record<'mail' | 'calendar' | 'contacts' | 'files' | 'tasks', (options: { readonly before: Date }) => Promise<number>>
+  >;
   /**
    * Is the organisation still open? Asked before each listing of a target
    * (`VerificationDeps.organisationIsOpen`, workplan 0139 T7), and here before
@@ -104,8 +116,25 @@ export function createRealVerificationDeps(
       ? {
           getSourceSideCount: async (dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks') => {
             const count = deps.sourceSideCounts?.[dataType];
-            return count ? await count() : undefined;
+            if (!count || !verificationReader.sourceCountWindow) return undefined;
+            // Only what arrived before the last completed pass started (the
+            // owner, 2026-11-24). No completed pass: nothing to hold the copies
+            // to, and the ledger's count stands, as before.
+            const window = await verificationReader.sourceCountWindow(
+              tenantId,
+              mappingId,
+              mapDataTypeToDomain(dataType) as DiscoveryDomain,
+            );
+            const started = window.lastCompletedPassStartedAt;
+            if (started === undefined) return undefined;
+            return count({ before: new Date(Date.parse(started) - SOURCE_CLOCK_MARGIN_MS) });
           },
+          pastTheSwitch: async (dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks') =>
+            (await verificationReader.sourceCountWindow?.(
+              tenantId,
+              mappingId,
+              mapDataTypeToDomain(dataType) as DiscoveryDomain,
+            ))?.pastTheSwitch === true,
         }
       : {}),
     getTargetCount: (dataType) =>

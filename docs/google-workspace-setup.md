@@ -473,12 +473,17 @@ read last** (by its `\All` attribute), after INBOX, the labels, Sent and Drafts:
 keys mail by Message-ID and copies a message once, into the folder where a pass first sees
 it, so All Mail adds only what no other folder carried — mail archived without a label, and
 mail under a label hidden from IMAP — into a folder called **Archive** on the target (JMAP:
-the account's `archive`-role mailbox). Until alpha.19 that mail was not copied at all. A
+the account's `archive`-role mailbox; IMAP: the folder the server marks `\Archive`, RFC 6154,
+and a folder called `Archive` only on a server that marks none). Until alpha.19 that mail was not copied at all. A
 message under several labels is copied once and is not reported as a move; a sighting in All
 Mail is never one. Trash and Spam are excluded from the copy by default like every other IMAP
 source, while the bin is still read for deletion evidence. Mail archived after it was copied
 stays where it was copied: neither a deletion nor a move. The Check compares against Gmail's
-own All Mail count (`EXAMINE`'s `EXISTS`), so a message no pass copied fails it.
+own All Mail count, so a message no pass copied fails it. It counts from All Mail's listing
+only what arrived (`INTERNALDATE`) before the last completed pass started, a few minutes'
+margin for the two clocks aside, and one per Message-ID, so neither new mail nor two messages
+sharing an id fails it. After the switch, when Gmail cannot be asked (the account deleted, or
+access withdrawn), the Check counts against the ledger, as it did before, and says so.
 
 ## Calendar and Contacts as sources
 

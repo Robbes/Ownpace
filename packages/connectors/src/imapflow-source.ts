@@ -339,29 +339,6 @@ export class ImapFlowSource implements SourceConnector {
     });
   }
 
-  /**
-   * How many messages one folder holds, by the server's own count: one
-   * EXAMINE, its EXISTS (RFC 3501 §6.3.2). Nothing is listed or fetched.
-   *
-   * Asked of Gmail's All Mail, which holds every message once, Spam and Trash
-   * aside, so that the Check compares what was copied against Gmail's figure
-   * rather than against the ledger's own (the owner, 2026-11-24).
-   */
-  async countFolder(folder: MailFolder): Promise<number> {
-    return this.withConnection(async (client) => {
-      const lock = await client.getMailboxLock(folder.path, { readOnly: true });
-      try {
-        const box = client.mailbox;
-        if (!box || typeof box === 'boolean') {
-          throw new Error(`No mailbox opened for ${folder.path}`);
-        }
-        return Number(box.exists ?? 0);
-      } finally {
-        lock.release();
-      }
-    });
-  }
-
   // ---------------------------------------------------------------------
   // Listing
   // ---------------------------------------------------------------------

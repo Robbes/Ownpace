@@ -69,8 +69,9 @@ describe("the source's own count", () => {
     );
     expect(r.mail.status).toBe('FAIL');
     expect(r.mail.issues.find((i) => i.id === 'NEVER_COPIED_mail')?.message).toMatch(
-      /counts 10000 mail item\(s\), and 9999 were copied: 1 were never copied/,
+      /counts 10000 mail item\(s\) that arrived before the last completed pass started, and 9999 were copied: 1 were never copied/,
     );
+    expect(r.mail.neverCopied).toBe(1);
   });
 
   it('a Gmail that holds fewer than were copied (deleted since) is no loss', async () => {
@@ -94,5 +95,65 @@ describe("the source's own count", () => {
     );
     expect(some.mail.status).toBe('NOT_VERIFIABLE');
     expect(some.mail.issues[0]?.message).toMatch(/All Mail is not listed/);
+    // The old account's count, not the target, is what could not be read.
+    expect(some.mail.issues[0]?.message).toMatch(/old account's own count could not be read/);
+    expect(some.mail.issues[0]?.id).toBe('NOT_VERIFIABLE_mail');
+  });
+
+  it('before the switch, an unreadable count stays NOT_VERIFIABLE', async () => {
+    const r = await runVerification(
+      deps({
+        getSourceCount: async () => 3,
+        getTargetCount: async () => 3,
+        getSourceSideCount: async () => {
+          throw new Error('Invalid credentials (Failure)');
+        },
+        pastTheSwitch: async () => false,
+      }),
+    );
+    expect(r.mail.status).toBe('NOT_VERIFIABLE');
+  });
+
+  describe('after the switch, when the old account cannot be asked (the owner, 2026-11-24: "ok")', () => {
+    const gone = async (): Promise<number> => {
+      throw new Error('Invalid credentials (Failure)');
+    };
+
+    it('measures against our own record, as before, and says so', async () => {
+      const r = await runVerification(
+        deps({
+          getSourceCount: async () => 3,
+          getTargetCount: async () => 3,
+          getSourceSideCount: gone,
+          pastTheSwitch: async () => true,
+        }),
+      );
+      expect(r.mail.status).toBe('PASS');
+      expect(r.mail).toMatchObject({ sourceCount: 3, matchedCount: 3, missingOnTarget: 0 });
+      const own = r.mail.issues.find((i) => i.id === 'SOURCE_COUNT_OWN_RECORD_mail');
+      expect(own?.severity).toBe('WARNING');
+      expect(own?.message).toMatch(/our own record of what was copied/);
+      expect(own?.message).toMatch(/Invalid credentials/);
+    });
+
+    it('still FAILS what our own record says is missing on the new system', async () => {
+      const r = await runVerification(
+        deps({
+          getSourceCount: async () => 3,
+          getTargetCount: async () => 2,
+          findMissingOnTarget: async () => [{ id: 'k3', sourceRef: 'INBOX:3' }],
+          getSourceSideCount: gone,
+          pastTheSwitch: async () => true,
+        }),
+      );
+      expect(r.mail.status).toBe('FAIL');
+      expect(r.mail.issues.map((i) => i.id)).toContain('SOURCE_COUNT_OWN_RECORD_mail');
+    });
+
+    it('with nothing recorded, is SKIPPED as before, and still says why', async () => {
+      const r = await runVerification(deps({ getSourceSideCount: gone, pastTheSwitch: async () => true }));
+      expect(r.mail.status).toBe('SKIPPED');
+      expect(r.mail.issues.map((i) => i.id)).toContain('SOURCE_COUNT_OWN_RECORD_mail');
+    });
   });
 });

@@ -297,7 +297,8 @@ a real Gmail account (a disposable one is fine and better):
    which; if it does not, that sentence is the bug to send back.
 3. **Question two — the view filter**: after one pass, the target must have
    INBOX, your labels, Sent and Drafts, and an **Archive** folder holding the
-   mail you archived without a label — and must NOT have All Mail, Starred
+   mail you archived without a label (the server's own archive folder where it
+   has one, whatever it is called there) — and must NOT have All Mail, Starred
    or Important (in any language). If All Mail itself migrated, or Archive is
    missing while you have archived mail, the view missed Google's `\All`
    attribute in the real LIST response: send back the folder list from the run

@@ -61,7 +61,7 @@ import {
   fanOutTargets,
   type VerificationDomain,
 } from './target-fan-out.ts';
-import { mailSourceSideCount, withTheSourceSideCount, type OpenedWithCount } from './source-side-count.ts';
+import { mailSourceSideCount, withTheSourceSideCount, type OpenedWithCount, type SourceSideCount } from './source-side-count.ts';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery.ts';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 import { domainFailedEvent, recordAppEvent, statedFailureCategoryOf } from '@openmig/shared';
@@ -1471,7 +1471,7 @@ async function openSyncDomainDeps(
   ledger: Ledger;
   close: () => Promise<void>;
   /** Mail only: the source's own count, where it has one (Gmail's All Mail). */
-  sourceSideCount?: () => Promise<number>;
+  sourceSideCount?: SourceSideCount;
 }> {
   // Whether this is a test migration (workplan 0162), from the reader every
   // gate asks: these callers open a target and never list the source, but

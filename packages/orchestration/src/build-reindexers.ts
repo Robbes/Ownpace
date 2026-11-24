@@ -40,7 +40,7 @@ import {
   fanOutTargets,
   type VerificationDomain,
 } from './target-fan-out.ts';
-import { mailSourceSideCount, withTheSourceSideCount, type OpenedWithCount } from './source-side-count.ts';
+import { mailSourceSideCount, withTheSourceSideCount, type OpenedWithCount, type SourceSideCount } from './source-side-count.ts';
 
 export { GATE_NAME, LEDGER_DOMAIN, type VerificationDomain } from './target-fan-out.ts';
 
@@ -51,7 +51,7 @@ export interface TargetReindexers {
    * (`mailSourceSideCount`, the owner's decision of 2026-11-24). Handed to
    * `createRealVerificationDeps` as `sourceSideCounts`.
    */
-  readonly sourceSideCounts: Partial<Record<VerificationDomain, () => Promise<number>>>;
+  readonly sourceSideCounts: Partial<Record<VerificationDomain, SourceSideCount>>;
   /** Close every domain's deps. They are built on the caller's pool, which this leaves open. */
   close(): Promise<void>;
 }

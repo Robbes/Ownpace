@@ -29,6 +29,27 @@ passed. Now:
 - Open: workplan 0170's window (`ListOptions.since`) must reach the All Mail listing and its
   count once T1 and T2 merge.
 
+**2026-11-24, later: the owner's two answers, and the destination's archive folder.**
+- *Never copied stays a hard FAIL, without false alarms* (the owner: "ok"). The Check's
+  figure is now counted from All Mail's own listing (`GmailFolderView.countEveryMessage`, no
+  more EXAMINE/EXISTS): only what arrived (INTERNALDATE) before the last completed pass
+  started, five minutes' clock margin aside (`SOURCE_CLOCK_MARGIN_MS`), and one per
+  Message-ID. The pass's start comes from the data type's status row
+  (`LedgerVerificationReader.sourceCountWindow`, `lastCompletedPassStart`): `started_at` when
+  it is `completed`, else `completed_at` less the last pass's wall time. No completed pass: no
+  figure, and the ledger's count, as before. Still a lower bound.
+- *After the switch, when Gmail cannot be asked* (the owner: "ok"): a count that cannot be
+  read past the data type's switch (`pastTheSwitch`, from the path phases) falls back to the
+  ledger with a WARNING, `SOURCE_COUNT_OWN_RECORD_mail`, said on Verify in English and Dutch.
+  Before the switch it stays NOT_VERIFIABLE. `NEVER_COPIED_mail` has its own sentence too.
+- *IMAP destinations* write `Archive` into the folder the server marks `\Archive` (RFC 6154),
+  and create `Archive` only on a server that marks none (`ImapFlowDavMailTarget.mailboxFor`);
+  a removal resolves the same path the same way. JMAP keeps the role.
+- Evidence: `gmail-mail-archived-without-a-label.unit.test.ts` (17), the core
+  `verification-the-sources-own-count.unit.test.ts` (9), `the-last-completed-pass-start.unit.test.ts`
+  (5), `imapflow-dav-target.unit.test.ts` (4 new), `Verify.unit.test.tsx` (4 new). The cut-off,
+  the one-per-Message-ID count and the fallback each fail their tests when removed.
+
 **2026-11-01, index pass (0147 T3):** T4 said *Waiting on the owner*, and since 2026-09-22 it
 has not been true: `gmail` has run against the owner's own Google account routinely, and is ✅
 in the feature matrix since that day (`docs/feature-matrix.md`:10-14, :479). The runbook's

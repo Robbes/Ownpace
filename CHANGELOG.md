@@ -82,8 +82,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   two labels is copied once and not reported as moved, and mail archived after its copy stays
   where it is, neither a deletion nor a move. Review and start shows Gmail's own All Mail
   count beside what will be copied, and Check the migration compares against it, so a message
-  Gmail holds and no pass copied fails the check. A migration started earlier copies its
-  archived mail on its next pass.
+  Gmail holds and no pass copied fails the check. The check counts only what arrived before
+  the last completed pass started, and one message per Message-ID, so new mail and two
+  messages sharing an id never fail it; after the switch, when Gmail can no longer be asked,
+  it counts against Ownpace's own record and says so on the screen. On an IMAP destination
+  Archive is the folder the server marks as its archive, where it has one. A migration started
+  earlier copies its archived mail on its next pass.
 - **Text that still described Trigger.dev in the present tense** (workplan 0167, after T9). Code
   comments in the API, the worker, the packages and the deploy scripts now say what runs since
   alpha.18 (pg-boss, in the `worker` service) and no longer point at files T9 removed, and the

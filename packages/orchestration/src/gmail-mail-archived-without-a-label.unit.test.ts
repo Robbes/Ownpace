@@ -20,6 +20,7 @@ import {
   asTenantId,
   naturalKeyHash,
   type LedgerVerificationReader,
+  type SourceCountWindow,
   type MailFolder,
   type MailItem,
   type RawMessage,
@@ -63,12 +64,19 @@ interface Message {
   readonly labels: Set<string>;
   /** Its UID in each folder it has entered, issued on entry as IMAP does. */
   readonly uids: Map<string, number>;
+  /** When it arrived (INTERNALDATE), ISO 8601. */
+  readonly at: string;
 }
+
+/** When the fixtures' mail arrives, unless a test says otherwise: before every pass below. */
+const EARLY = '2026-11-01T00:00:00.000Z';
+/** When the last completed pass started, as the ledger's status row says. */
+const PASS_STARTED = '2026-11-10T00:00:00.000Z';
 
 /**
  * Gmail as its IMAP surface shows it: each label a folder, All Mail every
  * message once except Spam and Trash, and a fresh UID in a folder each time a
- * message enters it. `countFolder` answers as an EXAMINE's EXISTS.
+ * message enters it. Each message carries the time it arrived (INTERNALDATE).
  */
 class FakeGmail implements SourceConnector {
   private readonly messages: Message[] = [];
@@ -101,12 +109,13 @@ class FakeGmail implements SourceConnector {
   }
 
   /** A message arrives under these labels (none: archived with no label). */
-  deliver(id: string, labels: string[]): void {
+  deliver(id: string, labels: string[], at: string = EARLY): void {
     const m: Message = {
       id,
       bytes: new TextEncoder().encode(`Message-ID: ${id}\r\nSubject: ${id}\r\n\r\nbody of ${id}`),
       labels: new Set(labels),
       uids: new Map(),
+      at,
     };
     this.messages.push(m);
     for (const l of labels) this.enter(m, l);
@@ -155,7 +164,7 @@ class FakeGmail implements SourceConnector {
         messageId: m.id,
         folder,
         keywords: [],
-        receivedAt: '2026-11-01T00:00:00.000Z',
+        receivedAt: m.at,
         size: m.bytes.byteLength,
         sourceRef: `${folder.path}:${uid}`,
       });
@@ -165,10 +174,6 @@ class FakeGmail implements SourceConnector {
 
   async fetch(item: MailItem): Promise<RawMessage> {
     return { item, rfc822: this.find(item.messageId).bytes };
-  }
-
-  async countFolder(folder: MailFolder): Promise<number> {
-    return this.messages.filter((m) => this.holds(m, folder.path)).length;
   }
 }
 
@@ -321,7 +326,19 @@ describe('Gmail: All Mail is read last, as Archive', () => {
     gmail.deliver('<a@example.org>', ['INBOX', 'Work']);
     gmail.deliver('<b@example.org>', []);
     gmail.deliver('<c@example.org>', [SPAM]);
-    expect(await new GmailFolderView(gmail).countEveryMessage()).toBe(2);
+    expect(await new GmailFolderView(gmail).countEveryMessage({ before: new Date(PASS_STARTED) })).toBe(2);
+  });
+
+  it('counts only what arrived before the cut-off, and one per Message-ID', async () => {
+    const gmail = new FakeGmail();
+    gmail.deliver('<a@example.org>', ['INBOX']);
+    // Two messages with one Message-ID: one copy, so one in the count.
+    gmail.deliver('<twice@example.org>', ['INBOX']);
+    gmail.deliver('<twice@example.org>', []);
+    // Arrived after the last completed pass started: no pass has had it yet.
+    gmail.deliver('<new@example.org>', ['INBOX'], '2026-11-20T00:00:00.000Z');
+    expect(await new GmailFolderView(gmail).countEveryMessage({ before: new Date(PASS_STARTED) })).toBe(2);
+    expect(await new GmailFolderView(gmail).countEveryMessage({ before: new Date('2026-12-01') })).toBe(3);
   });
 });
 
@@ -357,7 +374,7 @@ describe('Gmail on Confirm: what will be copied, and what Gmail itself counts', 
 
 describe("Gmail on the Check: measured against Gmail's own count", () => {
   /** The ledger's side, read from what the pass recorded and the target holds. */
-  async function readerOf(w: World): Promise<LedgerVerificationReader> {
+  async function readerOf(w: World, window: SourceCountWindow): Promise<LedgerVerificationReader> {
     const hashes: string[] = [];
     for await (const e of w.target.listEntries()) hashes.push(naturalKeyHash(e.naturalKey));
     return {
@@ -365,11 +382,25 @@ describe("Gmail on the Check: measured against Gmail's own count", () => {
       totalSizeBytes: async () => 0,
       getAllNaturalKeyHashes: async (_t: unknown, _m: unknown, domain: string) => (domain === 'email' ? hashes : []),
       getSamples: async () => [],
+      sourceCountWindow: async () => window,
     } as unknown as LedgerVerificationReader;
   }
 
-  async function check(w: World, withGmailsCount: boolean) {
-    const count = mailSourceSideCount({ source: new GmailFolderView(w.gmail) });
+  async function check(
+    w: World,
+    withGmailsCount: boolean,
+    options: {
+      /** What the ledger's status says: the last completed pass's start, and the switch. */
+      readonly window?: SourceCountWindow;
+      /** Gmail cannot be asked: the account deleted, or our access withdrawn. */
+      readonly gmailGone?: true;
+    } = {},
+  ) {
+    const count = options.gmailGone
+      ? async () => {
+          throw new Error('Invalid credentials (Failure)');
+        }
+      : mailSourceSideCount({ source: new GmailFolderView(w.gmail) });
     return runVerification(
       createRealVerificationDeps({
         tenantId,
@@ -386,7 +417,10 @@ describe("Gmail on the Check: measured against Gmail's own count", () => {
           verifyFiles: false,
           verifyTasks: false,
         },
-        verificationReader: await readerOf(w),
+        verificationReader: await readerOf(
+          w,
+          options.window ?? { lastCompletedPassStartedAt: PASS_STARTED, pastTheSwitch: false },
+        ),
         targetReindexers: { mail: w.target },
         ...(withGmailsCount && count ? { sourceSideCounts: { mail: count } } : {}),
       }),
@@ -437,6 +471,66 @@ describe("Gmail on the Check: measured against Gmail's own count", () => {
     const r = await check(w, true);
     expect(r.mail.status).toBe('PASS');
     expect(r.mail).toMatchObject({ sourceCount: 2, matchedCount: 2, missingOnTarget: 0 });
+  });
+
+  it('does not fail over mail that arrived after the last completed pass started', async () => {
+    const w = world();
+    w.gmail.deliver('<inbox@example.org>', ['INBOX']);
+    await pass(w);
+    // Arrives in All Mail, with no label, after that pass started.
+    w.gmail.deliver('<since@example.org>', [], '2026-11-20T00:00:00.000Z');
+
+    const r = await check(w, true);
+    expect(r.mail.status).toBe('PASS');
+    expect(r.mail.issues.map((i) => i.id)).not.toContain('NEVER_COPIED_mail');
+  });
+
+  it('does not fail for good over two messages that share one Message-ID', async () => {
+    const w = world();
+    w.gmail.deliver('<twice@example.org>', ['INBOX']);
+    w.gmail.deliver('<twice@example.org>', ['INBOX']);
+    await pass(w);
+    expect(w.target.size()).toBe(1);
+
+    const r = await check(w, true);
+    expect(r.mail.status).toBe('PASS');
+    expect(r.mail).toMatchObject({ sourceCount: 1, missingOnTarget: 0 });
+  });
+
+  it('holds nothing to the figure before any pass has completed', async () => {
+    const w = world();
+    w.gmail.deliver('<inbox@example.org>', ['INBOX']);
+    w.gmail.deliver('<archived@example.org>', []);
+    await passWithoutAllMail(w);
+    // No completed pass in the status: the ledger's count, as before.
+    const r = await check(w, true, { window: { pastTheSwitch: false } });
+    expect(r.mail.issues.map((i) => i.id)).not.toContain('NEVER_COPIED_mail');
+    expect(r.mail.sourceCount).toBe(1);
+  });
+
+  it('before the switch, a Gmail that cannot be asked holds the Check (NOT_VERIFIABLE)', async () => {
+    const w = world();
+    w.gmail.deliver('<inbox@example.org>', ['INBOX']);
+    await pass(w);
+    const r = await check(w, true, { gmailGone: true });
+    expect(r.mail.status).toBe('NOT_VERIFIABLE');
+    expect(r.mail.issues[0]?.message).toContain('Invalid credentials (Failure)');
+  });
+
+  it('after the switch, a Gmail that cannot be asked is measured against our own record, and says so', async () => {
+    const w = world();
+    w.gmail.deliver('<inbox@example.org>', ['INBOX']);
+    w.gmail.deliver('<archived@example.org>', []);
+    await pass(w);
+    const r = await check(w, true, {
+      gmailGone: true,
+      window: { lastCompletedPassStartedAt: PASS_STARTED, pastTheSwitch: true },
+    });
+    expect(r.mail.status).toBe('PASS');
+    expect(r.mail).toMatchObject({ sourceCount: 2, matchedCount: 2, missingOnTarget: 0 });
+    const own = r.mail.issues.find((i) => i.id === 'SOURCE_COUNT_OWN_RECORD_mail');
+    expect(own).toMatchObject({ severity: 'WARNING' });
+    expect(own?.message).toContain('Invalid credentials (Failure)');
   });
 
   it("is no measure of a test migration or of one that leaves out more than Spam and Trash", () => {
