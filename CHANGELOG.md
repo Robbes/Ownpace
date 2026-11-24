@@ -73,6 +73,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **The appliance on PGlite no longer fails a pass when two data types start at once.** On
+  `persistence: pglite` there is one database session. The handle the appliance's status and
+  cursor stores were built on sent its statements to that session without waiting for the
+  driver's queue, so one could land in the middle of another data type opening its tenant
+  transaction: it ran with no organisation set, failed (`invalid input syntax for type uuid`),
+  and took that transaction down with it (`current transaction is aborted`). The handle now
+  waits its turn for each statement, and a statement sent from inside a transaction's own work
+  runs in that transaction rather than waiting for itself. Postgres was never affected.
+  Workplan 0016's note of 2026-11-24.
+
 - **Text that still described Trigger.dev in the present tense** (workplan 0167, after T9). Code
   comments in the API, the worker, the packages and the deploy scripts now say what runs since
   alpha.18 (pg-boss, in the `worker` service) and no longer point at files T9 removed, and the

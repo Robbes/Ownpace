@@ -37,6 +37,28 @@
 > good test. What shipped broken was the case none of them covered. When a
 > claim spans two axes, test the corner.
 
+> **Since closure, 2026-11-24 — the shared handle skipped the queue.** P2's
+> driver serialised `acquire()`, but `createPgliteDb()` also handed out a
+> drizzle handle straight on the PGlite instance, and the appliance builds its
+> status store and cursor store on it. Those statements went to the one session
+> past the queue. `withTenant` opens its transaction in three statements
+> (`BEGIN`, `SET LOCAL ROLE`, `set_config`); a statement landing between the
+> role and the tenant ran as `app_user` with an empty tenant, failed with 22P02
+> (`invalid input syntax for type uuid: ""`) and aborted the other caller's
+> transaction (25P02 on its next statement). Latent on `main`; workplan 0170
+> T1's recent-window pass put such reads at the very start of the mail and
+> calendar lanes, and the self-hosted E2E on PGlite failed every pass while
+> Postgres stayed green. **The fix:** that handle now takes the driver's queue
+> for each statement (finding 5 in `pglite-driver.ts`), and a statement sent
+> from inside a holder's own work (a store on the shared handle awaited inside
+> a `withTenant` callback) is recognised through an `AsyncLocalStorage` mark
+> and runs on the held session instead of waiting for itself.
+> `a-read-that-waits-for-the-transaction.unit.test.ts` reproduces the failure
+> without the fix (one start offset out of 200 gives tenant 25P02, outside read
+> 22P02) and passes with it. The P2 note that the bare handle was safe
+> "because there IS only one connection" had it backwards; this is P4's
+> lesson again, at the corner of two lanes and one session.
+
 ## What is already done (do not redo)
 
 - **[0015 T0](./0015-native-windows-installer.md) — the feasibility spike, PASS 15/15.**

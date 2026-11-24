@@ -126,6 +126,22 @@ export interface LedgerConnection {
    * must reset that state itself instead.
    */
   release(err?: Error): void;
+  /**
+   * Run the holder's own work under this connection's mark.
+   *
+   * Only a single-connection driver needs it, and only `pgliteDriver` has it.
+   * There, the handle used outside transactions waits for the holder before
+   * each statement; a statement on it from INSIDE the holder's work would wait
+   * for itself. Work run through here is recognised as the holder's, and its
+   * statements run on this connection directly. Call it through
+   * `runAsHolder`, which does nothing extra for a driver without it.
+   */
+  within?<T>(work: () => Promise<T>): Promise<T>;
+}
+
+/** Run a holder's work under its connection's mark, where the driver has one. */
+export function runAsHolder<T>(conn: LedgerConnection, work: () => Promise<T>): Promise<T> {
+  return conn.within ? conn.within(work) : work();
 }
 
 /**
