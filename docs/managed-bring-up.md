@@ -630,8 +630,15 @@ new volume with a list of its own, the same two.
   every job's run refuse to connect to a host a tester typed when it resolves
   inside this service's own network, except for the exact names this lists.
   An entry admits that name for every organisation on
-  the deployment. The `demo` phase adds the demo's two; nothing else belongs
-  here.
+  the deployment. The `demo` phase adds the demo's two. **The OTA stack and a
+  test box may list more**: a test server of your own on a private network
+  (the owner, 2026-11-24: *"in OTA/test we need to keep being able to add the
+  internal addressess"*). List it by a name the stack resolves, since an
+  address is never admitted by the list, and add it to the persisted `.env`
+  the gate restores. The `demo` phase adds only the demo's missing names, and
+  the gate writes the whole list back after its bring-up, so a name added by
+  hand stays (`scripts/demo-hosts-persisted.unit.test.ts`). Nothing else
+  belongs here, and on live nothing at all.
 
 Edit `.env` by hand, or use
 [`env-upsert.sh`](../deploy/compose/env-upsert.sh), which replaces a key where
@@ -741,8 +748,9 @@ Stalwart (IMAP source, JMAP target) and real Nextcloud (CalDAV/CardDAV/WebDAV)
 **First it admits the demo's two names.** The demo's connections reach its
 backends by compose name, `nextcloud` and `stalwart`, and the API and the tasks
 refuse both unless `OWNPACE_REACHABLE_HOSTS` lists them. So the phase adds
-whichever is missing to `.env` and keeps anything else listed, before the API
-starts and before the task variables are uploaded. Live never runs this phase,
+whichever is missing to `.env` and keeps anything else listed (a test server's
+name added by hand on the OTA stack, for one), before the API starts and before
+the task variables are uploaded. Live never runs this phase,
 so its list stays as its operator wrote it: the script refuses `--with-demo`,
 before anything runs, on a `.env` that carries live's marker or anything that
 could be a slip of it (`STACK_KIND`, `stack_may_be_live` in `stack-kind.sh`).
@@ -906,7 +914,9 @@ trusted domains are `localhost nextcloud`, so the UI answers on
 connect to a host a tester typed when it resolves inside this service's own
 network: loopback, the private ranges, link-local, CGNAT, unique-local, and a
 compose name. A redirect is checked the same way. The Test
-button then says the address is inside our network, without the address. The
+button then says *"We did not connect to that address. Enter an internet
+address of the server."*, without the address and without naming this network
+(the owner, 2026-11-24). The
 exact names in `OWNPACE_REACHABLE_HOSTS` are admitted, and this phase prints
 what the list holds; on live, nothing. Before the API starts, the phase also
 checks that every Docker network on the machine lies inside those ranges, and
@@ -4506,7 +4516,7 @@ journal of whatever ran it), 2 refused.
 | The sign-in screen shows the same provider button several times — nine Google buttons after a week of re-runs | An older `configure_idp` looked for an existing provider on the deprecated `/admin/v1/idps/_search` list, which does not list the template kind it creates, so every re-run of the app phase added one more. The current one reads `/admin/v1/idps/templates/_search`, keeps the oldest, and reports duplicates by count | `./deploy/compose/setup-zitadel.sh --offer-one Google` keeps the **oldest** button (the one your first sign-ins were linked to) and takes the others off the screen by removing their login-policy links — every provider stays, and so does everyone's link to it. The console's **instance** page does the same (Default settings → Login Behaviour and Security → Identity Providers, the 'available' toggle); an organisation-page toggle is undone by the next bring-up, which resets an organisation's own login policy on purpose. The script never deletes a provider. If a Google sign-in then asks to link the account, accept once |
 | The bring-up stops before the API with `N of M Docker networks lie outside the ranges the rule refuses` and `A Docker network on this machine lies outside the ranges a tester's host is refused in` | A network on this machine, this stack's or another stack's, has a subnet or a gateway outside the ranges the rule for a tester's host refuses. A host that resolves there would reach this machine through that network's gateway, and the rule would let it through | The `OUTSIDE` lines above the refusal name each network, its compose project, and the subnet or gateway outside. Set the daemon's `default-address-pools` inside `10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16` and recreate the network, or remove it if nothing uses it. Then `--from app` |
 | `ownpace-api` restarts at start-up, and the worker's runs fail before they connect anywhere, with `OWNPACE_REACHABLE_HOSTS: "<entry>" is not a host name` | The list takes exact host names only: no wildcards, ranges, addresses or ports. A process that cannot read it stops, rather than admit more than the list says | Fix the entry in `.env`, then `docker compose -f deploy/compose/managed.yml up -d api worker` |
-| On the gate's stack, the Test button says the demo Nextcloud or Stalwart is inside our network, the smoke's `test-connection` step fails, or a demo migration's pass fails with `host_inside_our_network` | `OWNPACE_REACHABLE_HOSTS` does not list the name, so the rule refuses it like any other host inside this network | On a demo box, `--from demo` adds the demo's names; or add `nextcloud,stalwart` to `.env` by hand. Then `up -d api worker`. On live, add nothing: this is the rule doing its job, and an entry admits that name for every organisation |
+| On the gate's stack, the Test button says *"We did not connect to that address"* for the demo Nextcloud or Stalwart (or for a test server of your own on a private network), the smoke's `test-connection` step fails, or a demo migration's pass fails with `host_inside_our_network` | `OWNPACE_REACHABLE_HOSTS` does not list the name, so the rule refuses it like any other host inside this network | On a demo box, `--from demo` adds the demo's names; or add `nextcloud,stalwart` to `.env` by hand. On the OTA stack or a test box, add a test server by the name the stack resolves, in the persisted `.env` too, so the gate keeps it. Then `up -d api worker`. On live, add nothing: this is the rule doing its job, and an entry admits that name for every organisation |
 
 ---
 
