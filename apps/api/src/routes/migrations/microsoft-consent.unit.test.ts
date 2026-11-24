@@ -60,11 +60,12 @@ describe('what the consent asks for', () => {
   });
 
   it('asks only for the faces that were ticked', () => {
-    expect(microsoftScopesFor(['calendar'])).toEqual(['offline_access', 'Calendars.Read']);
+    expect(microsoftScopesFor(['calendar'])).toEqual(['offline_access', 'User.Read', 'Calendars.Read']);
     // The fifth row (0114 T9): asked for only when the tasks face is ticked.
-    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', 'Tasks.Read']);
+    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', 'User.Read', 'Tasks.Read']);
     expect(microsoftScopesFor(['email', 'file'])).toEqual([
       'offline_access',
+      'User.Read',
       'Mail.Read',
       'Files.Read',
     ]);
@@ -75,7 +76,7 @@ describe('what the consent asks for', () => {
   it('asks for every face when nothing recognisable was ticked', () => {
     // A consent granting nothing is not a safer failure — it is a button that
     // silently does not work.
-    expect(microsoftScopesFor([])).toHaveLength(MICROSOFT_CONSENT_DOMAINS.length + 1);
+    expect(microsoftScopesFor([])).toHaveLength(MICROSOFT_CONSENT_DOMAINS.length + 2);
     expect(microsoftScopesFor(['nonsense'])).toContain('Mail.Read');
   });
 
@@ -93,7 +94,7 @@ describe('what the consent asks for', () => {
     // no connector served would have been consent spent on nothing. Now the
     // face is served, and the rule is the one every row has: asked for when
     // ticked, never otherwise.
-    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', 'Tasks.Read']);
+    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', 'User.Read', 'Tasks.Read']);
     expect(microsoftScopesFor(['email', 'calendar'])).toEqual(
       expect.not.arrayContaining(['Tasks.Read']),
     );

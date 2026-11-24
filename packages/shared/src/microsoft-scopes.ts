@@ -32,6 +32,18 @@ export function microsoftTokenEndpoint(tenant: string): string {
  */
 export const MICROSOFT_OFFLINE_SCOPE = 'offline_access';
 
+/**
+ * The person's own profile, asked on EVERY new consent (workplan 0171 D7 (a),
+ * the owner, 2026-11-24). Finish reads the addresses that receive mail from
+ * it (`GET /me?$select=mail,proxyAddresses`, §7.2), and a grant link binds
+ * the account that signed in with it (§3.3). It is the least scope Microsoft
+ * has, and one consent is simpler than a second one at Finish. A connection
+ * consented before alpha.20 lacks it: Finish says *not read; reconnect*.
+ * Not a face, so it is not in the map below: no data type is copied with it.
+ * Requested by `graphProfileTokenFrom` in `graph-domain-source-factory.ts`.
+ */
+export const MICROSOFT_PROFILE_SCOPE = 'User.Read';
+
 /** The resource every Graph scope belongs to; a token response may spell a
  *  scope with this prefix or without it, and `graphScopesGranted` reads both. */
 export const MICROSOFT_GRAPH_RESOURCE = 'https://graph.microsoft.com';
@@ -71,8 +83,8 @@ export const MICROSOFT_CONSENT_DOMAINS: ReadonlyArray<DiscoveryDomain> = Object.
 ) as ReadonlyArray<DiscoveryDomain>;
 
 /**
- * The scope string for the faces asked for — always with `offline_access`, and
- * never with a scope for a face nobody ticked.
+ * The scope string for the faces asked for — always with `offline_access` and
+ * `User.Read` (D7), and never with a scope for a face nobody ticked.
  *
  * An empty or unrecognised request asks for every face rather than none:
  * a consent that grants nothing is not a safer failure, it is a button that
@@ -84,7 +96,7 @@ export function microsoftScopesFor(domains: ReadonlyArray<string>): string[] {
   const scopes = chosen
     .map((d) => MICROSOFT_DOMAIN_SCOPES[d])
     .filter((s): s is string => typeof s === 'string');
-  return [MICROSOFT_OFFLINE_SCOPE, ...scopes];
+  return [MICROSOFT_OFFLINE_SCOPE, MICROSOFT_PROFILE_SCOPE, ...scopes];
 }
 
 /** The Graph scope a face is consented under, or undefined for a face no

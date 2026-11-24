@@ -11,6 +11,8 @@
 import axios, { type AxiosInstance } from 'axios';
 import type {
   RunsResponse,
+  FinishAddresses,
+  MxReading,
   ApplyDeletionsFlag,
   ApplyQueuedResponse,
   ApplyReceipt,
@@ -1078,3 +1080,22 @@ export async function requestFinalPass(mappingId: string): Promise<'finished' | 
   return 'queued';
 }
 
+
+/**
+ * Finish's step 4 (workplan 0171 T10, §7.2): the addresses at the old
+ * provider that deliver into this mailbox, read live. Both editions serve it
+ * at the mapping's own path.
+ */
+export async function fetchFinishAddresses(mappingId: string): Promise<FinishAddresses> {
+  return (await client.get<FinishAddresses>(`${mappingPath(mappingId)}/finish/addresses`)).data;
+}
+
+/** The answer of the MX check (§7.3): one line for the domain, or why none was asked. */
+export type MxCheckAnswer =
+  | { readonly domain: string; readonly reading: MxReading }
+  | { readonly domain: null; readonly reason: 'not_own_domain' };
+
+/** Check MX now (§7.3): read-only, paced by the server to one per ten seconds. */
+export async function checkMxNow(mappingId: string): Promise<MxCheckAnswer> {
+  return (await client.post<MxCheckAnswer>(`${mappingPath(mappingId)}/finish/mx-check`)).data;
+}

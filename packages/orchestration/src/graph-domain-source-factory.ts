@@ -88,6 +88,9 @@ const DELEGATED_SCOPES = {
   drive: 'https://graph.microsoft.com/Files.Read offline_access',
   // Microsoft To Do (workplan 0114 T9): the fifth face, read-only like the rest.
   todo: 'https://graph.microsoft.com/Tasks.Read offline_access',
+  // The person's own profile (workplan 0171 D7): Finish reads the addresses
+  // that receive mail from `/me`. Asked on every consent since alpha.20.
+  profile: 'https://graph.microsoft.com/User.Read offline_access',
 } as const;
 
 function graphTokenProviderFor(
@@ -196,6 +199,21 @@ export function buildGraphDriveSourceFrom(
     },
     throttleLimiter,
   );
+}
+
+/**
+ * A Graph token for reading the mailbox's own user (workplan 0171 T10, §7.2):
+ * `User.Read` under the delegated flow, for `/me`; `.default` under
+ * application permissions, for `/users/{mailbox}`, which `User.Read.All`
+ * answers. The same registration and refusals as the faces above.
+ */
+export function graphProfileTokenFrom(
+  endpoint: GraphDomainEndpoint,
+  creds: GraphEntraCredsAsFound,
+  naming: GraphFieldNaming = ENV_GRAPH_FIELD_NAMING,
+): () => Promise<string> {
+  const provider = graphTokenProviderFor('profile', 'Microsoft profile read', endpoint, creds, naming);
+  return async () => (await provider.getToken()).accessToken;
 }
 
 /** The env-specific half, shared by the three appliance build sites. */

@@ -80,8 +80,36 @@ export const en = {
   // which has no MX record of its own to change.
   'finish.step4.body':
     'Make new email arrive at the new system: with your own domain, change its mail settings (MX records) at your domain provider; with an address like @gmail.com, turn on forwarding to your new address. Then set up the mail app on your phone and computer for the new account.',
-  'finish.step4.more':
-    'This happens outside Ownpace\'s reach, so it is the one step here nobody can check for you.',
+  // Split by the kind of address (workplan 0171 §7.3): MX only for a domain
+  // the person controls, forwarding only for an address the provider keeps.
+  // The body above stays for a migration whose address is not known.
+  'finish.step4.body.own':
+    'Make new email arrive at the new system: change your domain\'s mail settings (MX records) at your domain provider. Then set up the mail app on your phone and computer for the new account.',
+  'finish.step4.body.kept':
+    'Make new email arrive at the new system: turn on forwarding at the old provider to your new address. Then set up the mail app on your phone and computer for the new account.',
+  'finish.step4.more': 'Changes can take up to a day to reach everyone. Check again before you tick.',
+  // The addresses that receive mail (workplan 0171 §7.2, T10).
+  'finish.aliases.title': 'Addresses that receive mail',
+  'finish.aliases.hint': 'Make each one at the new provider before you move MX.',
+  'finish.aliases.why':
+    'Once MX points at the new provider, mail to an address that does not exist there bounces. Group and list addresses are not shown here; check those at the old provider.',
+  'finish.aliases.made': 'Made at the new provider',
+  'finish.aliases.notRead': 'Not read from {provider}; reconnect to list them.',
+  'finish.aliases.apiOff': 'Not read from Google: the Gmail API is off for this service.',
+  'finish.aliases.notReadable': 'This source does not list its addresses; check them at the old provider.',
+  'finish.aliases.failed': 'Could not read the addresses:',
+  'finish.aliases.none': 'No other addresses found on your domain.',
+  'finish.aliases.reading': 'Reading the addresses…',
+  // The MX check (workplan 0171 §7.3; the owner's D8 (a)): one line, and the tick stays.
+  'finish.mx.check': 'Check MX now',
+  'finish.mx.ok': 'MX for {domain} points at {destination}.',
+  'finish.mx.other': 'MX for {domain} points at {hosts}; is that your new provider?',
+  'finish.mx.old': 'MX for {domain} still points at {hosts}.',
+  'finish.mx.disagree': 'DNS servers disagree yet; try again in a few minutes.',
+  'finish.mx.none': 'No MX record found for {domain}.',
+  'finish.mx.unreadable': 'The DNS servers could not be asked:',
+  'finish.mx.paced': 'Checked a moment ago; try again in a few seconds.',
+  'finish.mx.failed': 'The check did not go through:',
   // An address that cannot come along (workplan 0168 §2.1): guidance only,
   // because a migration sends nothing to anyone (ADR-0043).
   'finish.step4.autoreply':
@@ -185,8 +213,32 @@ export const nl: Record<keyof typeof en, string> = {
   'finish.step4.title': 'Zet de e-mailbezorging om naar het nieuwe systeem',
   'finish.step4.body':
     'Zorg dat nieuwe e-mail op het nieuwe systeem aankomt: hebt u een eigen domein, wijzig dan de mailinstellingen (MX-records) bij uw domeinaanbieder; hebt u een adres als @gmail.com, zet dan doorsturen aan naar uw nieuwe adres. Stel daarna de mail-app op uw telefoon en computer in voor het nieuwe account.',
+  'finish.step4.body.own':
+    'Zorg dat nieuwe e-mail op het nieuwe systeem aankomt: wijzig de mailinstellingen (MX-records) van uw domein bij uw domeinaanbieder. Stel daarna de mail-app op uw telefoon en computer in voor het nieuwe account.',
+  'finish.step4.body.kept':
+    'Zorg dat nieuwe e-mail op het nieuwe systeem aankomt: zet bij de oude aanbieder doorsturen aan naar uw nieuwe adres. Stel daarna de mail-app op uw telefoon en computer in voor het nieuwe account.',
   'finish.step4.more':
-    'Dit gebeurt buiten Ownpace; Ownpace kan dit niet controleren.',
+    'Een wijziging kan tot een dag duren voor iedereen haar ziet. Controleer opnieuw voordat u aanvinkt.',
+  'finish.aliases.title': 'Adressen die mail ontvangen',
+  'finish.aliases.hint': 'Maak elk ervan aan bij de nieuwe aanbieder voordat u MX omzet.',
+  'finish.aliases.why':
+    'Zodra MX naar de nieuwe aanbieder wijst, komt mail aan een adres dat daar niet bestaat terug. Adressen van groepen en lijsten staan hier niet; kijk die na bij de oude aanbieder.',
+  'finish.aliases.made': 'Aangemaakt bij de nieuwe aanbieder',
+  'finish.aliases.notRead': 'Niet gelezen bij {provider}; koppel opnieuw om ze te zien.',
+  'finish.aliases.apiOff': 'Niet gelezen bij Google: de Gmail API staat uit voor deze dienst.',
+  'finish.aliases.notReadable': 'Deze bron geeft haar adressen niet; kijk ze na bij de oude aanbieder.',
+  'finish.aliases.failed': 'De adressen konden niet worden gelezen:',
+  'finish.aliases.none': 'Geen andere adressen op uw domein gevonden.',
+  'finish.aliases.reading': 'De adressen worden gelezen…',
+  'finish.mx.check': 'Controleer MX nu',
+  'finish.mx.ok': 'MX van {domain} wijst naar {destination}.',
+  'finish.mx.other': 'MX van {domain} wijst naar {hosts}; is dat uw nieuwe aanbieder?',
+  'finish.mx.old': 'MX van {domain} wijst nog naar {hosts}.',
+  'finish.mx.disagree': 'DNS-servers zijn het nog niet eens; probeer het over een paar minuten.',
+  'finish.mx.none': 'Geen MX-record gevonden voor {domain}.',
+  'finish.mx.unreadable': 'De DNS-servers konden niet worden bereikt:',
+  'finish.mx.paced': 'Net gecontroleerd; probeer het over een paar seconden opnieuw.',
+  'finish.mx.failed': 'De controle is niet gelukt:',
   'finish.step4.autoreply':
     'Hebt u een adres als @gmail.com, zet dan bij de oude aanbieder ook een automatisch antwoord aan dat zegt dat uw adres is veranderd. Een migratie stuurt niemand iets, dus dit zet u zelf aan, in de instellingen van de oude aanbieder.',
   'finish.step4.warn.pre': 'Als u afrondt voordat dit is gedaan',

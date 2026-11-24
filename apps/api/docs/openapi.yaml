@@ -5681,6 +5681,90 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/migrations/{mappingId}/finish/addresses:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Operating]
+      summary: The addresses that receive mail at the old provider
+      description: |
+        Read-only, live, never stored (workplan 0171 §7.2). Read only when the
+        mailbox's own address is on a domain the person controls (`ownDomain`
+        set); otherwise `receiving` is null, because nothing moves with MX.
+        Microsoft is read through Graph (`User.Read` for `/me`, asked on every
+        consent since alpha.20; application permissions for `/users/{id}`);
+        Google through Gmail's `sendAs`. Addresses on the old provider's own
+        domains (`onmicrosoft.com`, `gmail.com`) are left out. A connection
+        consented before alpha.20 answers `not_read` with `why: reconnect`; a
+        Google project without the Gmail API answers `why: api_off`. IMAP,
+        Apple and any other source answer `not_readable`. A failure is
+        `failed` with the provider's words, never an empty list.
+      responses:
+        '200':
+          description: The mailbox's address, its own domain, and what was read.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [address, ownDomain, receiving]
+                properties:
+                  address: { type: string, nullable: true }
+                  ownDomain: { type: string, nullable: true }
+                  receiving:
+                    type: object
+                    nullable: true
+                    required: [state]
+                    properties:
+                      state: { type: string, enum: [read, not_read, not_readable, failed] }
+                      provider: { type: string, enum: [Microsoft, Google] }
+                      addresses: { type: array, items: { type: string } }
+                      why: { type: string, enum: [reconnect, api_off] }
+                      reason: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/finish/mx-check:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Operating]
+      summary: Check MX for the mailbox's domain
+      description: |
+        Read-only (workplan 0171 §7.3): asks three public DNS-over-HTTPS
+        resolvers for the MX of the mailbox's domain and reads the answer into
+        one line. `ok`: every host is the destination's known MX host; `old`:
+        every host is the old provider's; `other`: neither, shown for the
+        person to judge; `disagree`: fewer than two resolvers answered, or they
+        answered differently. `none`: the resolvers agree there is no MX
+        record; `unreadable`: no resolver could be asked, with their words.
+        An address the old provider keeps answers `domain: null`. Changes
+        nothing; a POST because a person presses it, paced to one per ten
+        seconds per migration.
+      responses:
+        '200':
+          description: The domain asked and what its MX says.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [domain]
+                properties:
+                  domain: { type: string, nullable: true }
+                  reason: { type: string, enum: [not_own_domain] }
+                  reading:
+                    type: object
+                    required: [line]
+                    properties:
+                      line: { type: string, enum: [ok, old, other, disagree, none, unreadable] }
+                      hosts: { type: array, items: { type: string } }
+                      destination: { type: string }
+                      provider: { type: string }
+                      reasons: { type: array, items: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429':
+          description: Checked less than ten seconds ago; `Retry-After` says when to ask again.
+
   /api/migrations/{mappingId}/finish:
     parameters:
       - $ref: '#/components/parameters/MappingId'

@@ -16,9 +16,12 @@
  *
  * The runbook's sequence is therefore the screen: prove the copy is complete →
  * clear the decision queues → run a final pass → move delivery → finish. Step
- * four is outside this tool — it is MX/DNS and client reconfiguration — so it
- * is the one precondition nothing can check and the only one the operator is
- * asked to attest to. Everything above it is checked, not taken on trust.
+ * four happens outside this tool — MX/DNS and client reconfiguration — so it
+ * is the one step the operator still attests to with a tick. Since alpha.20
+ * it is read as far as it can be (workplan 0171 T10, `DeliveryMoves`): the
+ * addresses that receive mail at the old provider, and MX checked on a button
+ * against three public resolvers. The tick stays (D8 (a)): DNS differs between
+ * resolvers for a day. Everything above it is checked, not taken on trust.
  *
  * TWO MODES, one checklist (workplan 0019 T5). Without a route param this is
  * the appliance's whole-appliance view, driven by `/status` (which managed
@@ -63,6 +66,7 @@ import StateChip from '../components/StateChip.tsx';
 import PermissionsHandover from '../components/finish/PermissionsHandover.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import EachDataTypeEnds from '../components/finish/EachDataTypeEnds.tsx';
+import DeliveryMoves from '../components/finish/DeliveryMoves.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 
@@ -619,16 +623,15 @@ const Finish: React.FC = () => {
                 </Step>
 
                 {/*
-                  The step this tool cannot check, and the one that makes the
-                  difference between finishing and losing mail. It is MX/DNS and
-                  client reconfiguration — outside the tool entirely — so it is
-                  asked rather than verified, and the consequence is spelled out
-                  instead of assumed understood.
+                  The step that makes the difference between finishing and
+                  losing mail. It is MX/DNS and client reconfiguration, outside
+                  the tool, so it is still asked; the addresses and MX are read
+                  for it (0171 T10), and the consequence is spelled out instead
+                  of assumed understood.
                 */}
                 {mailWaits && (
                 <Step n={4} title={t('finish.step4.title')} done={deliveryMoved[id]}>
-                  <Hint className="" tone="body" label="more" text={t('finish.step4.body')} why={t('finish.step4.more')} />
-                  <p className="mt-1">{t('finish.step4.autoreply')}</p>
+                  <DeliveryMoves mappingId={id} />
                   <p className="mt-1 text-amber-800">
                     <b>{t('finish.step4.warn.pre')}</b>
                     {t('finish.step4.warn.post')}
