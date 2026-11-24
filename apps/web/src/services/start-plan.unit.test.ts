@@ -92,8 +92,8 @@ describe('the export under a provider’s tile (step 3; 0153 open question 5, it
     expect(exportOf('google')).toEqual({ archive: 'google-takeout', readable: true });
   });
 
-  it('is Apple’s export, which no reader opens yet, and nothing for a provider with no export', () => {
-    expect(exportOf('apple')).toEqual({ archive: 'apple-privacy', readable: false });
+  it('is Apple’s export, which a reader opens since alpha.20 (0171 T1), and nothing for a provider with no export', () => {
+    expect(exportOf('apple')).toEqual({ archive: 'apple-privacy', readable: true });
     expect(exportOf('dropbox')).toBeUndefined();
     expect(exportOf('imap')).toBeUndefined();
   });

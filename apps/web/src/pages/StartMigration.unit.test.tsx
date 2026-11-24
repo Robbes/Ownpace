@@ -318,17 +318,18 @@ describe('What moves? (screen 3)', () => {
     );
   });
 
-  it('says under Apple that its export cannot be read yet, To be tested, with nothing to tick (0148 D7)', async () => {
+  it('offers Apple’s export under Apple with a tick box, no longer To be tested (0171 T1)', async () => {
+    // Until alpha.20: *To be tested*, the cannot-read line and nothing to
+    // tick (0148 D7). The reader landed; the screen follows the readers list.
     const user = userEvent.setup();
     renderAt();
     await toWhatMoves(user, ['Apple iCloud']);
     const apple = screen.getByRole('group', { name: 'From Apple iCloud' });
-    expect(within(apple).getByText("iCloud Drive and photos: from Apple's export")).toBeInTheDocument();
-    expect(within(apple).getByText('To be tested')).toBeInTheDocument();
+    expect(within(apple).getByRole('checkbox', { name: /iCloud Drive/ })).toBeInTheDocument();
+    expect(within(apple).queryByText('To be tested')).not.toBeInTheDocument();
     expect(
-      within(apple).getByText('We cannot read an Apple export yet. Request one only for your own records.'),
-    ).toBeInTheDocument();
-    expect(within(apple).queryByRole('checkbox', { name: /iCloud Drive/ })).not.toBeInTheDocument();
+      within(apple).queryByText('We cannot read an Apple export yet. Request one only for your own records.'),
+    ).not.toBeInTheDocument();
   });
 
   it('asks what Google Docs become under Files, and only while Files is ticked', async () => {

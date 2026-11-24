@@ -4,6 +4,14 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, T1 built, in review (draft, not merged before alpha.19 is tagged).** Apple's reader
+reads Drive and photos zips built after 0116's layout; its unit cases pass. Three shared shapes
+grew, additively, beyond §9's file list, and the pull request says so: `parts` on the archive
+location and source (so the count reaches the reader; T2 adds the form field and the API's
+schema), `modifiedUtcSeconds` on a zip entry, and an optional `modifiedAt` on the archive tree.
+The form's *To be tested* tag left with the list, so two web guards and the archive card's hint
+moved with it.
+
 **2026-11-24: planned, for alpha.20. Nothing built.** This plan fixes the shared interfaces so
 that separate build sessions can take its tasks as parallel pull requests (§9). The owner waived
 every waiting period. alpha.19 is still being finished (workplan 0170, a Microsoft calendar
@@ -13,7 +21,7 @@ open earlier. No database change is expected (§8). Every claim about the code b
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T1 Apple's export: the reader | builder | 📋 Planned | §2.2–2.4. `apple-privacy` gets a reader; iCloud Drive and photos; refuses what it does not know. L. |
+| T1 Apple's export: the reader | builder | 🔨 **Built 2026-11-24**, in review | §2.2–2.4. `apple-privacy-archive-reader.ts`, in `READERS` and `ARCHIVE_PROVIDERS_WITH_READERS`; Drive and photos found by their manifests; refuses neither-manifest, fewer parts than `parts`, two exports. Dates from the zip (UTC field, else DOS stamp read as UTC). 18 unit cases; the integration case not run here (no container runtime where it was built). Adds `ArchiveLocation.parts`/`ArchiveSource.parts` and an optional `ArchiveTree.modifiedAt`. |
 | T2 Apple's export: the screens, guides and site | builder | 📋 Planned | §2.5–2.6. *To be tested* becomes *Experimental*; the part count; the Advanced Data Protection warning; the time-zone sentence corrected. M. After T1's interface. |
 | T3 Grant links: the provider seam, and Microsoft | builder | 📋 Planned | §3.2–3.4. `grant.ts`, `Grant.tsx`, the readiness check, made per provider; Microsoft personal and work, bound to the named account. L. Merges before T4 and T5. |
 | T4 Grant links: Dropbox | builder | 📋 Planned | §3.5. S. On T3's seam. |
