@@ -495,11 +495,52 @@ describe('a listing with since (workplan 0170 §4.1)', () => {
     expect(calls.some((c) => c.startsWith('fetchAll'))).toBe(false);
   });
 
-  it('a SEARCH the server refused is thrown, never read as an empty window (hard rule 9)', async () => {
-    searchRefused = true;
-    await expect(source().listSince(INBOX, undefined, { since: SINCE })).rejects.toThrow(
-      /refused SEARCH SINCE in "INBOX"/,
-    );
+  describe('a server that refuses SEARCH SINCE: the folder listed whole, the window kept by date', () => {
+    // A refusal resolves `false` in imapflow. Read as "no messages" it would
+    // end the folder's first copy with nothing copied (hard rule 9); thrown,
+    // it failed the pass on a server that can list the folder perfectly well.
+    // So the folder is listed whole and the window is kept here, by date.
+    const refs = (listed: { items: ReadonlyArray<{ sourceRef: string }> }) => listed.items.map((i) => i.sourceRef);
+
+    it('lists the same messages as a server that answers SINCE, never an empty window', async () => {
+      const answered = await source().listSince(INBOX, undefined, { since: SINCE });
+      calls = [];
+      searchRefused = true;
+      const refused = await source().listSince(INBOX, undefined, { since: SINCE });
+
+      expect(refs(refused)).toEqual(refs(answered));
+      expect(refs(refused)).toEqual(['INBOX:7', 'INBOX:8', 'INBOX:9']);
+      expect(refused.items).toEqual(answered.items);
+      expect(refused.nextCursor).toEqual(answered.nextCursor);
+      // It asked, was refused, and listed the folder whole instead.
+      expect(calls).toContain('search(since=2026-08-25,uid=true)');
+      expect(calls).toContain('fetchAll(1:*,envelope+flags+internalDate+size+uid)');
+    });
+
+    it('resumes from a cursor inside the window the same way', async () => {
+      const answered = await source().listSince(INBOX, { value: '42:8' }, { since: SINCE });
+      searchRefused = true;
+      const refused = await source().listSince(INBOX, { value: '42:8' }, { since: SINCE });
+
+      expect(refs(refused)).toEqual(['INBOX:8', 'INBOX:9']);
+      expect(refused.items).toEqual(answered.items);
+      expect(refused.nextCursor).toEqual(answered.nextCursor);
+    });
+
+    it('answers nothing when nothing is inside the window, as the search would', async () => {
+      messages = [messages[0]!];
+      searchRefused = true;
+      const listed = await source().listSince(INBOX, undefined, { since: SINCE });
+      expect(listed.items).toEqual([]);
+      expect(listed.nextCursor.value).toBe(`since:${SINCE.getTime()}:42:20`);
+    });
+
+    it('keeps a message whose date it cannot read, for the loop to date and decide', async () => {
+      messages = [{ uid: 5, envelope: { messageId: '<nodate@dev.local>' }, size: 1, internalDate: undefined }];
+      searchRefused = true;
+      const listed = await source().listSince(INBOX, undefined, { since: SINCE });
+      expect(refs(listed)).toEqual(['INBOX:5']);
+    });
   });
 
   it('resumes from a plain cursor inside the window: only UIDs at or after it are fetched', async () => {

@@ -348,7 +348,8 @@ export class ImapFlowSource implements SourceConnector {
    * after `options.since` when it is given (workplan 0170 §4.1).
    *
    * With `since` the server filters: `UID SEARCH SINCE`, then a fetch of the
-   * UIDs it answered and nothing else. The search asks from a day EARLY
+   * UIDs it answered and nothing else. A server that refuses the search is
+   * listed whole and filtered here, by the same date (`fetchWindow`). The search asks from a day EARLY
    * (`searchSinceFor`), so it may answer a few messages before `since`, which
    * the sync loop sets aside, and never answers fewer. The cursor such a
    * listing returns names its window (`windowCursor`), and is only honoured by
@@ -487,14 +488,25 @@ export class ImapFlowSource implements SourceConnector {
    * exactly the UIDs the search answered at or after the cursor's `uidNext`.
    *
    * A search the server refused resolves `false` in imapflow, which an
-   * unguarded caller reads as "no messages". It is thrown instead (hard rule
-   * 9): a window that answered nothing because the server said NO would end
-   * the folder's first copy with nothing copied and nothing said.
+   * unguarded caller would read as "no messages": a window that answered
+   * nothing because the server said NO would end the folder's first copy with
+   * nothing copied and nothing said (hard rule 9). So a refusal is never read
+   * as empty. The folder is listed whole instead (`fetchListing`), and only
+   * the messages whose internal date is on or after the day the search would
+   * have asked from (`searchSinceFor`) are kept: the same answer a server
+   * that honours `SINCE` gives, read by the date in UTC, and never fewer
+   * than the window holds. Only slower, by one listing of the folder.
    */
   private async fetchWindow(client: ImapFlow, folder: MailFolder, since: Date, fromUid: number | undefined) {
-    const found = await client.search({ since: searchSinceFor(since) }, { uid: true });
+    const from = searchSinceFor(since);
+    const found = await client.search({ since: from }, { uid: true });
     if (!Array.isArray(found)) {
-      throw new Error(`IMAP: the server refused SEARCH SINCE in "${folder.path}"`);
+      log.warn(
+        `[imap] the server refused SEARCH SINCE in "${folder.path}"; ` +
+          'listing the folder whole and keeping the window by each message\'s date',
+      );
+      const all = await this.fetchListing(client);
+      return all.filter((msg) => withinWindow(msg.internalDate, from));
     }
     const uids = fromUid === undefined ? found : found.filter((uid) => uid >= fromUid);
     if (uids.length === 0) return [];
@@ -630,6 +642,19 @@ const DAY_MS = 86_400_000;
 export function searchSinceFor(since: Date): Date {
   const day = Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), since.getUTCDate());
   return new Date(day - DAY_MS);
+}
+
+/**
+ * Whether a message the whole-folder listing answered is kept by a window
+ * that starts at `from`, when the server refused `SEARCH SINCE`. A message
+ * with no internal date it can read is kept: the sync loop dates it and
+ * decides, as it does for every margin message, so a window never answers
+ * fewer than it holds.
+ */
+function withinWindow(internalDate: Date | string | undefined, from: Date): boolean {
+  const at = internalDate instanceof Date ? internalDate : typeof internalDate === 'string' ? new Date(internalDate) : undefined;
+  if (at === undefined || isNaN(at.getTime())) return true;
+  return at.getTime() >= from.getTime();
 }
 
 /**
