@@ -22,7 +22,7 @@ import { ConfirmationStore } from './confirmation-store.ts';
 import { RunStore, toRunReport } from './run-store.ts';
 import { runConfirmationPass, PROGRESS_EVERY } from '@openmig/core';
 import type { ConfirmationReader } from '@openmig/core';
-import type { LedgerDriver, LedgerConnection } from './driver.ts';
+import { statementsInTurn, type LedgerDriver, type StatementsInTurn } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
 import type { MappingId, TenantId } from '@openmig/shared';
 
@@ -34,7 +34,7 @@ const SRC = '00460000-e29b-41d4-a716-446655440004';
 const DST = '00460000-e29b-41d4-a716-446655440005';
 
 let driver: LedgerDriver;
-let conn: LedgerConnection;
+let conn: StatementsInTurn;
 let db: PgDatabase;
 let store: ConfirmationStore;
 let runs: RunStore;
@@ -93,7 +93,7 @@ beforeAll(async () => {
   driver = made.driver;
   db = made.db;
   await runMigrations({ driver, logger: () => {} });
-  conn = await driver.acquire();
+  conn = statementsInTurn(driver);
   await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1, 'Job tests', 'active')`, [TENANT]);
   await conn.query(
     `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
