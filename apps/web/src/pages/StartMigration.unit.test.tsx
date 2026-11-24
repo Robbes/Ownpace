@@ -2270,12 +2270,27 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     renderAt();
     await toWhere(user);
     expect(screen.getByText('Step 5 of 6')).toBeInTheDocument();
-    await user.click(screen.getByRole('checkbox', { name: 'I am also changing my address' }));
+    await user.click(screen.getByRole('checkbox', { name: 'I am also changing my email address' }));
     expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
     await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Your new address' });
     expect(screen.getByText("You are leaving name@example.org. Your new account's address is first@example.org.")).toBeInTheDocument();
     expect(screen.queryByText(/on another domain/)).not.toBeInTheDocument();
+  });
+
+  // The owner, 2026-11-24 ("yes to all, build them"): the box says when to
+  // tick it, in a hint under it that a screen reader reads with the box.
+  it('says under the box when to tick it, and a screen reader hears it with the box', async () => {
+    accounts('name@example.org');
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    const hint =
+      'Tick this only if you are giving up an address of your own, such as an old company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and shares. Mail is never changed.';
+    expect(screen.getByText(hint)).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).toHaveAccessibleDescription(
+      hint,
+    );
   });
 
   // The owner, 2026-11-23, decision (b): "Ask by itself when the new account's
@@ -2287,7 +2302,7 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     const user = userEvent.setup();
     renderAt();
     await toWhere(user);
-    expect(screen.getByRole('checkbox', { name: 'I am also changing my address' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).not.toBeChecked();
     expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
     await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Your new address' });
@@ -2327,7 +2342,7 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     const user = userEvent.setup();
     renderAt();
     await toWhere(user);
-    expect(screen.getByRole('checkbox', { name: 'I am also changing my address' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).not.toBeChecked();
     expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
     await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Your new address' });
@@ -2351,7 +2366,7 @@ describe('Your new address (workplan 0168 §6.2)', () => {
     const user = userEvent.setup();
     renderAt();
     await toWhere(user);
-    expect(screen.getByRole('checkbox', { name: 'I am also changing my address' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'I am also changing my email address' })).not.toBeChecked();
     expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
     await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Your new address' });

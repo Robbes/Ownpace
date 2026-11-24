@@ -74,7 +74,11 @@ export const en = {
   'start.address.needAddress': 'Type each new address as an address, like name@example.org.',
   'start.address.saveFailed': 'Not saved: {old}.',
   // On *Where does it go?*: the own domain being given up, which no list knows.
-  'start.to.alsoChanging': 'I am also changing my address',
+  // The hint says when to tick it and what follows, under the box as the
+  // step's other hints are (the owner, 2026-11-24: "yes to all, build them").
+  'start.to.alsoChanging': 'I am also changing my email address',
+  'start.to.alsoChanging.hint':
+    'Tick this only if you are giving up an address of your own, such as an old company’s domain. The next step asks what replaces it in your contacts, calendars, tasks and shares. Mail is never changed.',
   // On *Check, then start*: one line per changed address. Only a confirmed
   // row changes anything (ADR-0055), so a row that waits says so (S1).
   'start.check.address': '{old} becomes {new} in contacts, calendars, tasks and shares',
@@ -212,7 +216,10 @@ export const nl: Record<keyof typeof en, string> = {
   'start.address.needOldAddress': 'Typ elk oud adres als adres, zoals naam@example.org.',
   'start.address.needAddress': 'Typ elk nieuw adres als adres, zoals naam@example.org.',
   'start.address.saveFailed': 'Niet opgeslagen: {old}.',
-  'start.to.alsoChanging': 'Ik krijg ook een ander adres',
+  'start.to.alsoChanging': 'Ik krijg ook een ander e-mailadres',
+  // *Deelrechten* for shares, as `addresses.where` and the check step say it.
+  'start.to.alsoChanging.hint':
+    "Vink dit alleen aan als u een eigen adres opgeeft, zoals het domein van een oud bedrijf. De volgende stap vraagt wat ervoor in de plaats komt in uw contacten, agenda's, taken en deelrechten. Mail wordt nooit gewijzigd.",
   'start.check.address': "{old} wordt {new} in contacten, agenda's, taken en deelrechten",
   'start.check.address.forPerson':
     "{old} wordt {new} in contacten, agenda's, taken en deelrechten, bevestigd door u voor {person}",

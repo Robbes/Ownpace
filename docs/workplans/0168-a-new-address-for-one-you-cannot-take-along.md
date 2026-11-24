@@ -2,7 +2,27 @@
 
 > **In one line:** A declared table of address changes (old to new), shared by every migration of one family or team, applied to contacts' `EMAIL`, calendar `ORGANIZER`/`ATTENDEE` and share grantees, never to mail bytes or free text. The plan covers its step in *Start a migration* and the proposed ADR-0055.
 
-## Status — 2026-11-23 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24: *I am also changing my email address* says when to tick it.** The owner, on the
+OTA stack's *Where does it go?*: the box stood *"without any explanation (i icon) or 'why'"*. The
+proposal back was a clearer label and a hint line under the box, as the step's other hints are,
+rather than an (i) that a phone cannot hover. The owner's answer: *"yes to all, build them"*. On
+branch `claude/ownpace-public-readiness-y7orc6-address-tick-hint`, from `main` at `ecc84250`:
+- **The label names the email address**: *I am also changing my email address* / *Ik krijg ook
+  een ander e-mailadres*, since *address* alone could be a postal one.
+- **The hint, under the box and tied to it by `aria-describedby`**: *"Tick this only if you are
+  giving up an address of your own, such as an old company’s domain. The next step asks what
+  replaces it in your contacts, calendars, tasks and shares. Mail is never changed."* / *"Vink dit
+  alleen aan als u een eigen adres opgeeft, zoals het domein van een oud bedrijf. De volgende stap
+  vraagt wat ervoor in de plaats komt in uw contacten, agenda's, taken en deelrechten. Mail wordt
+  nooit gewijzigd."* *Deelrechten* rather than the proposal's *gedeelde bestanden*: the product's
+  word for shares, as `addresses.where` and the check step say it.
+- **The Microsoft guide** names the box by its new label in both languages, and the UI test reads
+  the Dutch label.
+- **Proved by** a new case in `apps/web/src/pages/StartMigration.unit.test.tsx`: the hint is under
+  the box, and it is the box's accessible description. The wizard's, the address step's and the
+  language tests (159), the guide tests (533), and the web app's typecheck and lint pass.
 
 **2026-11-23, later still: *Your new address* asks by itself when the new account's login is on
 another domain, and about every `.onmicrosoft.com` address, on
