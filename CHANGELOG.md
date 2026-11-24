@@ -6,6 +6,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The mail sources read the last 90 days first** (workplan 0170 T2, for its §4.1). Given a
+  window, an IMAP source, Gmail's included, asks the server `UID SEARCH SINCE` the day before it
+  and fetches only the messages that search answers, so a window pass no longer downloads the
+  headers of a whole folder. The day of margin covers a server that dates mail in a zone as far
+  west as UTC-12; the few extra messages are set aside by the sync loop. The cursor such a listing
+  returns names its window, so a later full listing never takes it for proof that the older mail
+  was seen. Microsoft Graph mail lists in full: its date filter on messages delta stops at 5,000
+  messages, Microsoft's own page says, which a 90-day Inbox can pass. Nothing changes for a
+  listing without a window.
 - **CalDAV, CardDAV and WebDAV sources on the managed door** (workplan 0169; the owner's decision
   of 2026-11-24: *"yes to all, build them. But dont add the nextcloud as source card, add only
   the generic cards as source."*). Three source cards in the *Any server, by protocol* lane beside

@@ -21,7 +21,7 @@ change is expected (§3.4).
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T1 Core engine and contract | builder | 📋 Planned | §3, §5, §6. Merges first. Fixes `ListOptions`, the window predicates, the window record, the 90-day setting in both editions, the revision rule, the API fields. |
-| T2 Mail sources | builder | 📋 Planned | §4.1. IMAP and Gmail `SEARCH SINCE`; Graph mail `$filter`. Builds on T1's interface; may open in parallel against T1's branch. |
+| T2 Mail sources | builder | 🔨 **Built 2026-11-24** | §4.1. IMAP and Gmail: `UID SEARCH SINCE` the UTC day before `since` (an internal date's own date, to UTC-12), then a fetch of those UIDs; a refused SEARCH is thrown. A window listing's cursor names its window (`since:{ms}:{uidValidity}:{uidNext}`) and is a full scan to a listing without one or with a wider one, so it can never stand in for a content cursor. Graph mail: **no `$filter`**, §11 question 1. `MailSourceWithGraphFallback` and `GmailFolderView` forward `options`. Unit only; the Stalwart proof is T6's. |
 | T3 File sources | builder | 📋 Planned | §4.2. Google Drive `q`; OneDrive, Dropbox, Box, WebDAV and the archive after listing. |
 | T4 Calendar sources | builder | 📋 Planned | §4.3. CalDAV `time-range`; Graph calendar before the per-event fetch; the DTSTART parse fixed. |
 | T5 Web UX and guides | builder | 📋 Planned | §7. The choice in *Start a migration*, the 90-day state on the migration page, *Copy everything*, the milestone, copy in English and Dutch, the guides. Dutch reviewed by the owner. |
@@ -239,7 +239,7 @@ call, from the code as it stands on `main`:
 |---|---|---|
 | IMAP, and every IMAP account (Soverin, Apple, Cirrux, Infomaniak, IMAP for Microsoft) | `imapflow-source.ts`, `fetchListing`: `fetchAll('1:*', …)` by sequence; date is `internalDate` → `MailItem.receivedAt` | With `since`: `client.search({ since }, { uid: true })`, then `fetchAll(uids, …, { uid: true })`. `SINCE` is by day and ignores the time, so it may return a few extra; the loop drops them. An empty search answers no items and no cursor claim. |
 | Gmail (over IMAP) | `gmail-source-factory.ts`, `GmailFolderView` delegates to `ImapFlowSource` | The same `SEARCH SINCE`, which Gmail honours. No `X-GM-RAW`: one path for every IMAP server. |
-| Microsoft Graph mail | `graph-mail-source.ts`, `listSince`: `GET {scope}/mailFolders/{id}/messages/delta?$select=…` | With `since` and no cursor: add `$filter=receivedDateTime ge {iso}` to the first URL. The deltaLink carries it, so a 90-day migration's window cursor stays within the window. To confirm against Microsoft's documentation in T2: messages delta accepts `receivedDateTime ge` only. `MailSourceWithGraphFallback` forwards `options`. |
+| Microsoft Graph mail | `graph-mail-source.ts`, `listSince`: `GET {scope}/mailFolders/{id}/messages/delta?$select=…` | With `since` and no cursor: add `$filter=receivedDateTime ge {iso}` to the first URL. The deltaLink carries it, so a 90-day migration's window cursor stays within the window. To confirm against Microsoft's documentation in T2: messages delta accepts `receivedDateTime ge` only. `MailSourceWithGraphFallback` forwards `options`. **T2 did not add the `$filter`: a filtered delta lists at most 5,000 messages (§11 question 1).** |
 
 ### 4.2 Files (T3)
 
@@ -479,9 +479,16 @@ Asked 2026-11-24, answered the same day (§1, verbatim).
 
 ## 11. Open questions
 
-1. Whether Graph's messages delta accepts `receivedDateTime ge` in every tenant, including shared
-   mailboxes through `/users/{addr}`. T2 checks against Microsoft's documentation and one real
-   tenant read; if not, Graph mail filters after listing like the file sources.
+1. ✅ **Answered in T2, 2026-11-24: no `$filter` on Graph mail; it filters after listing.**
+   Microsoft's page for messages delta (Microsoft Learn, *message: delta*, v1.0, and *Get
+   incremental changes to messages in a folder*) supports `receivedDateTime ge` and carries it in
+   the nextLink and deltaLink, but also says: *"Applying `$filter` in a delta query returns only
+   up to 5,000 messages."* An Inbox can hold more than that in 90 days, and the rest would never
+   be listed, with nothing to show it. The page also does not mention shared mailboxes; it lists
+   `GET /users/{id}/mailFolders/{id}/messages/delta`, with no difference between delegated and
+   application permissions. So the listing stays whole, its deltaLink is true for any later
+   listing, and the loop sets aside what is older before anything is downloaded. No real tenant
+   read was needed to decide it.
 2. Whether a 90-day migration over CalDAV should also read a sync token, so a deletion at the
    source is reported while it runs. Left out of alpha.19 (§6); asked again after a real run.
 3. D8 (§10).
