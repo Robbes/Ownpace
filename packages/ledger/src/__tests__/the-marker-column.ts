@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
 import { readPathPhases } from '../path-phases.ts';
 import type { PgDatabase } from '../db-types.ts';
-import type { LedgerConnection } from '../driver.ts';
+import { runAsHolder, type LedgerConnection } from '../driver.ts';
 
 /** What the cases need from the database under test. */
 export interface MarkerDatabase {
@@ -76,7 +76,9 @@ export function theMarkerColumn(database: MarkerDatabase): void {
   async function withConnection<T>(work: (conn: LedgerConnection) => Promise<T>): Promise<T> {
     const conn = await database.acquire();
     try {
-      return await work(conn);
+      // As the holder: the reader below goes through `database.db()`, which on
+      // PGlite waits for the one connection this case is holding.
+      return await runAsHolder(conn, () => work(conn));
     } finally {
       conn.release();
     }
