@@ -2,7 +2,33 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-23 (update this block at the end of every session)
+## Status — 2026-11-24 (update this block at the end of every session)
+
+**2026-11-24, evening: what alpha.19 moves, which live takes with alpha.20.** The fold for
+`v0.2.0-alpha.19` (0146's entry of the same day) carries what `main` merged after alpha.18's C,
+`2c32fa7d`: 27 pull requests (0146's entry lists them). The owner decided on 2026-11-24 to tag
+alpha.19 without deploying it, and to deploy alpha.20 to live on 2026-11-26, so live stays on
+alpha.18 (live since 2026-11-24 at 14:37:44 UTC) and nothing below reaches it before alpha.20's
+deploy. What alpha.19 moves:
+
+- the identity provider's pin, from Zitadel `v4.20.4` to `v4.20.5` (#2100, its entry of the same
+  day): the one commit after v4.20.4 is in login v2, which does not run here, and the move is
+  one-way for the identity provider's database, so the OTA instance's was dumped before E2E
+  (managed) applied it there, and the owner's hand check on the OTA instance after it was ok on
+  2026-11-24: one sign-in through login v1, and one forgot-password mail opened from the mail
+  catcher, whose link opened the page to set a new password;
+- `packageManager`'s pnpm, 11.28.13 to 11.29.0, which CI and the images read, with the lockfile as
+  it was (#2093);
+- the test mail server, Stalwart `v1.1.1` to `v1.2.0-alpine` by tag and index digest, in
+  development, the integration tests, both E2E workflows and the OTA demo, and never on live
+  (#2091);
+- in CI only, the migration lint's Atlas v1.4.0 to v1.4.1 (#2090), the migration report's squawk
+  2.73.0 to 2.74.0 (#2094) and the workflow audit's zizmor 1.32.0 to 1.33.1 (#2096).
+
+No migration in either chain moves, and no npm package: `pnpm-lock.yaml` is alpha.18's. So the
+identity provider's pin is enough to make the deploy that takes these to live, alpha.20's from
+alpha.18, one-way by the deploy's own rule, whatever else alpha.20 brings (0146's entry). Not
+moved: the Postgres, PgBouncer, Gatus, Mailpit, Nextcloud, nginx and pg-boss (`12.38.2`) pins.
 
 **2026-11-24: the identity provider's pin moves to Zitadel v4.20.5, for alpha.19 (the pin watch's
 #1934).** v4.20.4's move left it on purpose: its one commit after v4.20.4 is in `apps/login` alone,
