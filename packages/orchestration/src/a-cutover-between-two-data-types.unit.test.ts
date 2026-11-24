@@ -24,8 +24,10 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { createPgliteDb, runMigrations, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
 import {
+  DISCOVERY_DOMAINS,
   parseMappingConfig,
   phasesOfTheMigration,
+  type MigrationStatus,
   type MigrationStatusStore,
   type PassPhases,
   type SwitchedOffState,
@@ -103,7 +105,10 @@ const store: MigrationStatusStore = {
   markFailed: async () => {},
   markSwitchedOff: async (): Promise<SwitchedOffState> => ({ state: 'skipped' }),
   markSwitchedOn: async () => {},
-  getStatus: async () => [],
+  // Every data type copied once before, so no pass here owes the last 90 days
+  // first (workplan 0170), which `runs-the-last-90-days-first` holds.
+  getStatus: async () =>
+    DISCOVERY_DOMAINS.map((domain) => ({ domain, completedAt: '2026-09-01T00:00:00.000Z' }) as MigrationStatus),
 };
 
 /** The database's answer, which the test moves while the firing runs. */

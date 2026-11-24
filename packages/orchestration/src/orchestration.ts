@@ -67,6 +67,8 @@ import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@
 import { domainFailedEvent, recordAppEvent, statedFailureCategoryOf } from '@openmig/shared';
 import { DISCOVERY_DOMAINS, DOMAIN_CONFIG_KEY } from '@openmig/shared';
 import { sourceStillDecides, type PassPhases, type PathPhaseOf, type SourceAuthority } from '@openmig/shared';
+import type { CursorStore, PassWindow } from '@openmig/shared';
+import { discoveryWindowFor, planWindow, runWithWindow, type WindowedResult } from './recent-window-pass.ts';
 
 /**
  * Feed one completed pass into the Prometheus registry (§19 dashboards).
@@ -611,6 +613,32 @@ export async function runAllDomains(
      * `in_progress`, and the status row names them instead.
      */
     let unread: ReadonlyArray<UnreadCollection>;
+    /**
+     * Phase A of this data type ran and did not reach the end, so phase B did
+     * not run and its first copy is not complete (workplan 0170 §3.2 5).
+     */
+    let firstCopyOwed = false;
+    /**
+     * This data type's pass, with the window it owes (workplan 0170 §3): the
+     * last 90 days first, then the rest, or a 90-day migration's window.
+     */
+    const withWindow = async <R extends WindowedResult>(
+      cursors: CursorStore | undefined,
+      run: (window: PassWindow | undefined) => Promise<R>,
+    ): Promise<R> => {
+      const plan = await planWindow({
+        tenantId,
+        mappingId,
+        domain,
+        cursors,
+        ...(config.recentOnly ? { recentOnly: config.recentOnly } : {}),
+        copiedOnce: async () =>
+          (await statusStore.getStatus(tenantId, mappingId)).some((s) => s.domain === domain && !!s.completedAt),
+      });
+      const ran = await runWithWindow({ tenantId, mappingId, domain, cursors, plan, run });
+      firstCopyOwed = ran.firstCopyOwed;
+      return ran.result;
+    };
 
     try {
       // ASKED FIRST, before anything is built for this data type (2026-09-29):
@@ -643,7 +671,9 @@ export async function runAllDomains(
       if (domain === 'email') {
         const deps = { ...(await buildDeps(config, builtWith)), ...startsAs, ...askedWhy(domain) };
         try {
-          const result = await runShadowPass(deps);
+          const result = await withWindow(deps.cursors, (window) =>
+            runShadowPass(window ? { ...deps, window } : deps),
+          );
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
@@ -672,7 +702,9 @@ export async function runAllDomains(
         const built = { ...buildDomainDeps(config, 'calendar', builtWith), ...startsAs, ...askedWhy(domain) };
         try {
           const deps = { ...built, ...(await addressChangesOf(built.ledger)) };
-          const result = await runCalendarSync(deps);
+          const result = await withWindow(deps.cursors, (window) =>
+            runCalendarSync(window ? { ...deps, window } : deps),
+          );
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
@@ -794,12 +826,15 @@ export async function runAllDomains(
         // pass records is never auto-applied by the same pass that made it.
         const passStartedAt = new Date().toISOString();
         try {
-          const result = await runFileSync({
-            ...deps,
-            ...(config.targetFolderPrefix !== undefined
-              ? { targetFolderPrefix: config.targetFolderPrefix }
-              : {}),
-          });
+          const result = await withWindow(deps.cursors, (window) =>
+            runFileSync({
+              ...deps,
+              ...(config.targetFolderPrefix !== undefined
+                ? { targetFolderPrefix: config.targetFolderPrefix }
+                : {}),
+              ...(window ? { window } : {}),
+            }),
+          );
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
@@ -919,6 +954,14 @@ export async function runAllDomains(
               : '') +
             '. Nothing failed and nothing is owed a retry; the cursors stayed where they are ' +
             'and the next scheduled pass continues from them.',
+        );
+      } else if (firstCopyOwed) {
+        // Phase A stopped short of the end without a pause or a stop (an
+        // unread collection does that): the next firing runs it again, and
+        // the data type's first copy is not complete until phase B is.
+        log.info(
+          `[Worker] ${domain}: the last 90 days are not all in yet, so the older items wait ` +
+            'for the next pass; nothing failed.',
         );
       } else if (unread.length === 0) {
         await statusStore.markCompleted(tenantId, mappingId, domain, outcome.metrics);
@@ -1182,6 +1225,8 @@ export async function discoverAllDomains(
           opened.source as Parameters<typeof discoverSource>[0],
           {
             itemBytes,
+            // A 90-day migration counts its window (workplan 0170 §3.2).
+            ...((window) => (window ? { window } : {}))(discoveryWindowFor(domain, config.recentOnly)),
             ...(sourceKeys
               ? {
                   onNaturalKey: (item: unknown) => {
