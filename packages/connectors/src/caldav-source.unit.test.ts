@@ -808,8 +808,11 @@ END:VCALENDAR`;
 
       expect(unfolded).toBe('BEGIN:VCALENDAR\nDESCRIPTION:This is a long description that wasfolded to multiple lines\nSUMMARY:Test\nEND:VCALENDAR');
 
-      expect((source as any).convertIcalDateToIso('20240101T120000Z')).toBe('2024-01-01T12:00:00Z');
-      expect((source as any).convertIcalDateToIso('20240101T120000')).toBe('2024-01-01T12:00:00');
+      // The start is read from the VEVENT itself (workplan 0170 §4.3): UTC as UTC, floating as it is.
+      const at = (dtstart: string): string =>
+        (source as any).extractStart(`BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:u\r\nDTSTART:${dtstart}\r\nEND:VEVENT\r\nEND:VCALENDAR`);
+      expect(at('20240101T120000Z')).toBe('2024-01-01T12:00:00Z');
+      expect(at('20240101T120000')).toBe('2024-01-01T12:00:00');
     });
 
     it('should convert iCalendar date (all-day) to ISO 8601', () => {
@@ -819,7 +822,9 @@ END:VCALENDAR`;
         passwordEnv: 'TEST_PASSWORD',
       });
 
-      expect((source as any).convertIcalDateToIso('20240101')).toBe('2024-01-01T00:00:00Z');
+      expect(
+        (source as any).extractStart('BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:u\r\nDTSTART;VALUE=DATE:20240101\r\nEND:VEVENT\r\nEND:VCALENDAR'),
+      ).toBe('2024-01-01T00:00:00Z');
     });
   });
 

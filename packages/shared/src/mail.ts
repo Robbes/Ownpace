@@ -25,6 +25,13 @@ export interface MailFolder {
    * Optional: fakes and non-IMAP sources simply omit it.
    */
   readonly listAttributes?: ReadonlyArray<string>;
+  /**
+   * This folder holds every message the mailbox has, again: Gmail's All Mail
+   * (`\\All`). Listed LAST, so the sync copies from it only what no other
+   * folder carried (label-less archived mail), and never reads a message it
+   * lists as moved. Set by `GmailFolderView` and by nothing else.
+   */
+  readonly catchAll?: true;
 }
 
 export interface MailAddress {

@@ -17,6 +17,7 @@ import type {
   FileSource,
   FileFolder,
   FileItem,
+  ListOptions,
   RawFileItem,
   SyncCursor,
   TrashListing,
@@ -38,6 +39,7 @@ import {
   classifyTrashbinLocation,
 } from './webdav-trashbin.ts';
 import { RemoteRefusal, davRefusalParts } from '@openmig/shared';
+import { splitByWindow } from './file-window.ts';
 
 /**
  * WebDAV source connector implementation.
@@ -115,11 +117,21 @@ export class WebdavFileSource implements FileSource {
    * - ETag comparison (primary)
    * - Size comparison (secondary)
    * - mtime comparison (tertiary)
+   *
+   * WITH A WINDOW (`options.since`, workplan 0170 §4.2): PROPFIND has no date
+   * filter, so the folder is listed whole and a file modified before `since`
+   * goes back as `unmarked` (`splitByWindow`). The cursor is built from the
+   * window's files ONLY. It is an etag map, and every file in it reads as
+   * unchanged on the next listing: built from the whole listing, it would
+   * tell a later pass that every older file had been seen when none had been
+   * copied (`ListOptions`). Left out of it, an older file reads as changed
+   * and is listed again.
    */
   async listSince(
     folder: FileFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
+    options?: ListOptions,
+  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor; unmarked?: ReadonlyArray<RawFileItem> }> {
     const folderPath = this.normalizePath(folder.path);
 
     // folder.path is root-relative to THIS connection's own root (config.url + rootPath, see
@@ -130,8 +142,7 @@ export class WebdavFileSource implements FileSource {
     const response = await this.performPropfind(rootedPath, '1', false);
     
     // Parse entries and filter for files (not directories)
-    const items: RawFileItem[] = [];
-    let hasChanges = false;
+    const listed: RawFileItem[] = [];
     
     for (const entry of response.responses) {
       // Skip the folder itself (Depth: 1 returns the collection too)
@@ -143,7 +154,6 @@ export class WebdavFileSource implements FileSource {
       if (file) {
         // Check if file has changed since cursor (using basename as key)
         if (this.hasChanged(file, cursor)) {
-          hasChanges = true;
           // METADATA ONLY — the bytes come from fetch(), per item, inside the
           // sync loop's bounded concurrency.
           //
@@ -153,7 +163,7 @@ export class WebdavFileSource implements FileSource {
           // it accumulated the whole folder's bytes in `items` before a single
           // file had been written. 67 MB of e2e fixtures survives that; a real
           // file migration does not.
-          items.push({
+          listed.push({
             item: {
               ...file,
               sourceRef: entry.href,  // Keep full href for fetching
@@ -162,14 +172,18 @@ export class WebdavFileSource implements FileSource {
         }
       }
     }
-    
+
+    // The window's files, and the rest set aside. Without a window, all of them.
+    const { items, unmarked } = splitByWindow(listed, options?.since);
+
     // Create next cursor from current state
-    // For WebDAV, we use a simple cursor based on the latest ETag
+    // For WebDAV, we use a simple cursor based on the latest ETag. From
+    // `items` alone: never a file the window set aside (see above).
     const nextCursor: SyncCursor = {
-      value: this.buildCursor(folderPath, hasChanges ? items : []),
+      value: this.buildCursor(folderPath, items),
     };
     
-    return { items, nextCursor };
+    return { items, nextCursor, ...(unmarked ? { unmarked } : {}) };
   }
 
   /**

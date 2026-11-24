@@ -105,6 +105,8 @@ describe('the detail route reports what THIS migration runs under', () => {
     // said."* This asserts the pass still says that — a second merge rule
     // invented there would make this route right about a pass that had moved.
     expect(DEPS).toMatch(/Override-over-connection, key by key/);
-    expect(DEPS).toMatch(/\.\.\.\(\(conn\.config \?\? \{\}\) as Record<string, unknown>\),\s*\n\s*\.\.\.\(override \?\? \{\}\),/);
+    // The override without the 90-day setting, which is the migration's, not the source's (workplan 0170).
+    expect(DEPS).toMatch(/const \{ recentOnly: _migrationsOwn, \.\.\.sourceOwn \} = override \?\? \{\};/);
+    expect(DEPS).toMatch(/\.\.\.\(\(conn\.config \?\? \{\}\) as Record<string, unknown>\),\s*\n\s*\.\.\.sourceOwn,/);
   });
 });

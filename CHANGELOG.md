@@ -4,6 +4,64 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **The last 90 days first, and a migration of only them** (workplan 0170 T1; the owner, 2026-11-24:
+  *"yes, plan it as a workplan, 90 days"*). Every first copy of mail, files and calendars now
+  copies the last 90 days first, then everything older in the same pass: mail Inbox first, then
+  Sent, then the other folders. Contacts and tasks are copied whole, as before. A migration can
+  also copy only the last 90 days of mail, files and calendars, and all contacts and tasks, to try
+  a destination with fresh data: `recentOnly: true` when it is created, or `{ "recentOnly": {
+  "days": 90 } }` in the appliance's mapping file. It can be broadened to everything later
+  without starting over (`recentOnly: false`, or the key taken out of the file); a migration of
+  everything is never narrowed to 90 days. Nothing outside the window is ever read as deleted. A
+  migration of only the last 90 days is not switched over before it is broadened (the owner:
+  *"D8: no, not before"*). Both editions run one rule, and the read of a migration says which
+  data types have their last 90 days in (`window`). No database change: the window's record is
+  kept with the cursors, and the setting in the migration's own override. The screens and the
+  sources' server-side date filters follow in 0170's other tasks; until then every source lists
+  as before and the window is applied as items are listed.
+- **The mail sources read the last 90 days first** (workplan 0170 T2, for its §4.1). Given a
+  window, an IMAP source, Gmail's included, asks the server `UID SEARCH SINCE` the day before it
+  and fetches only the messages that search answers, so a window pass no longer downloads the
+  headers of a whole folder. The day of margin covers a server that dates mail in a zone as far
+  west as UTC-12; the few extra messages are set aside by the sync loop. The cursor such a listing
+  returns names its window, so a later full listing never takes it for proof that the older mail
+  was seen. Microsoft Graph mail lists in full: its date filter on messages delta stops at 5,000
+  messages, Microsoft's own page says, which a 90-day Inbox can pass. Nothing changes for a
+  listing without a window.
+- **The file sources take the last 90 days first** (workplan 0170 T3, for its §4.2). Given a
+  window, Google Drive asks only for files modified since its start; OneDrive, Dropbox, Box,
+  WebDAV and an imported archive list as before and keep the files inside the window, and an
+  archive item with no date counts as inside it. A windowed listing is never remembered as the
+  whole folder, and no cursor that would claim older files as seen is kept. Nothing changes for
+  a listing without a window.
+- **Calendar sources read the last 90 days first** (workplan 0170 T4, D1 (a)). Asked for a
+  window, a CalDAV source (any server, Google, Apple) lists a calendar with a `time-range` from a
+  day before its start, plus every recurring series, so a server that does not expand recurrence
+  still shows the sync loop a series that began years ago and still recurs; a server that refuses
+  any of those queries has its calendar listed whole. The listing gives no cursor, and tasks are
+  never windowed. Graph calendars set aside an event plainly over before the window before its
+  iCalendar is fetched, and mark their cursor with the window, so a listing of everything never
+  reads on from it. `eventInWindow` now decides D1 (a) from the event itself: DTEND or DURATION,
+  time zones (IANA, a VTIMEZONE's own offsets for a Windows name, the widest offsets for a
+  floating time or a date), RRULE's UNTIL and COUNT, RDATE, and overrides; what it cannot bound
+  is held. The start a CalDAV event carries is read from its own VEVENT, in UTC, no longer a
+  VTIMEZONE's 1970 start or the moment it was listed.
+- **The last 90 days first, on the screens** (workplan 0170 T5; the owner, 2026-11-24: *"fit in
+  UX!"*). *Start a migration* asks **How much?** under the data types: **Everything**, selected,
+  whose last 90 days come first and everything older after, or **Only the last 90 days**, to try
+  destinations with your current data (mail, files and calendars of 90 days, every contact and task).
+  The check screen says the choice again. A migration of only the last 90 days shows a **Last 90
+  days** chip beside its stage, reads *Kept in step for the last 90 days.*, is never *Ready to
+  switch*, and its Finish step says *After Copy everything* (the owner's D8: *"no, not before"*);
+  its page offers **Copy everything**, one way only, behind the confirmation *Copy everything
+  older too? What is there stays.* A migration of everything says *Copying your last 90 days
+  first.* while they are copied, then *Your last 90 days are in. Older items are still coming.*
+  A new guide, *How a migration copies* / *Hoe een migratie kopieert*, in English and Dutch,
+  says the order, what a 90-day migration copies, *Copy everything*, and the appliance's
+  mapping-file setting. No word *trial* or *proef* anywhere.
+
 ### Changed
 
 - **Grant pages: where to open the link, said before the first button, and a Copy link button**
@@ -16,6 +74,62 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the progress link (*Link kopiëren*), which says *Copied.* (*Gekopieerd.*), or selects the link
   and says so where the browser does not allow copying; without its script, the page offers no
   button. The grant-link guide and both alpha guides say the same.
+
+### Fixed
+
+- **The appliance on PGlite no longer fails a pass when two data types start at once.** On
+  `persistence: pglite` there is one database session. The handle the appliance's status and
+  cursor stores were built on sent its statements to that session without waiting for the
+  driver's queue, so one could land in the middle of another data type opening its tenant
+  transaction: it ran with no organisation set, failed (`invalid input syntax for type uuid`),
+  and took that transaction down with it (`current transaction is aborted`). The handle now
+  waits its turn for each statement, and a statement sent from inside a transaction's own work
+  runs in that transaction rather than waiting for itself. Postgres was never affected.
+  Workplan 0016's note of 2026-11-24.
+- **Microsoft 365 and Outlook.com calendars are copied again** (workplan 0059 T5; 0141 T2 waits
+  on it). A migration from a personal Microsoft account listed its four calendars and found no
+  event in any of them, while one held a weekly repeating event and another the year's holidays;
+  its mail, contacts and tasks copied. The Graph calendar source stood on two calls Graph v1.0
+  does not document: a calendar's `events/delta` (v1.0 has only `calendarView/delta`, with a start
+  and an end date) and an event's `$value` with an iCalendar body (that header takes `text` or
+  `html`). Its tests mocked both, by call order. It now lists each calendar with
+  `GET …/calendars/{id}/events` and `$select`, and reads each series' cancelled and changed
+  occurrences from the series master (`cancelledOccurrences`, `exceptionOccurrences`). It builds
+  every VEVENT from Graph's JSON: UID from `iCalUId`, times in the organizer's zone as an IANA
+  TZID with its VTIMEZONE (Windows zone names mapped by CLDR), all-day events as dates, RRULE from
+  the recurrence (To Do's mapping, with UNTIL in UTC for a timed series), EXDATE for a cancelled
+  occurrence, a RECURRENCE-ID VEVENT for a changed one, and summary, body as text, location,
+  organizer, attendees, busy status, class, categories and the reminder. A series and its
+  exceptions travel as one object. A read-only holiday or subscribed calendar is copied like any
+  other; one Graph will not list fails that calendar by name instead of listing as empty. Every
+  pass lists a calendar whole, so an edit is found by `changeKey` (a series' also by its
+  exceptions and cancellations), and an event gone from the listing is reported as removed, for
+  the owner to decide as with any source-reported deletion. With 0170's window the listing is
+  still read whole and an event over before the window is not built, which replaces the
+  window-marked delta cursor T4 describes above. A guard fails if `events/delta` or an event's
+  `$value` comes back, and the tests answer by address, in Graph's documented shapes.
+- **Calendars found and nothing read from them are said in amber.** The same migration's calendar
+  row read a green *Kept in step* and *none found to copy*. When a calendar pass opened calendars
+  and read no event, and nothing of them was ever copied, the card's line and the migration
+  page's strip now say *4 calendars found, but not one event read from them*, in amber, in
+  English and Dutch.
+- **Gmail mail archived without a label was never copied** (workplan 0044, the owner's decision
+  of 2026-11-24). Over IMAP such a message lives only in All Mail, which the Gmail source
+  dropped, so Gmail's own Archive button made mail no pass copied, and the Check passed
+  because it counted from the ledger. All Mail is now read last, after every real folder, and
+  what no other folder carried is copied into a folder called Archive (the target's archive
+  mailbox on JMAP). A sighting there of mail already copied is never a move, a message under
+  two labels is copied once and not reported as moved, and mail archived after its copy stays
+  where it is, neither a deletion nor a move. Review and start shows Gmail's own All Mail
+  count beside what will be copied, and Check the migration compares against it, so a message
+  Gmail holds and no pass copied fails the check. The check counts only what arrived before
+  the last completed pass started, and one message per Message-ID, so new mail and two
+  messages sharing an id never fail it; after the switch, when Gmail can no longer be asked,
+  it counts against Ownpace's own record and says so on the screen. A migration of only the
+  last 90 days counts only the mail inside its window, as that is all it copies, and mail the
+  person chose to leave behind is added to what was recorded (the owner: *"E yes"*), so neither
+  fails the check. On an IMAP destination Archive is the folder the server marks as its archive,
+  where it has one. A migration started earlier copies its archived mail on its next pass.
 
 ## [0.2.0-alpha.19] - 2026-11-24
 
