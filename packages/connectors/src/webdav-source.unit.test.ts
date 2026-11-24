@@ -648,3 +648,56 @@ describe('WebdavFileSource', () => {
     });
   });
 });
+
+/**
+ * WORKPLAN 0170 §4.2: a listing under a window. PROPFIND has no date filter,
+ * so the folder is listed whole and an older file goes back as `unmarked`.
+ * The cursor is an etag map, and every file in it reads as unchanged next
+ * time: so it holds the window's files only, and never claims an older file
+ * was seen (`ListOptions`). `listKeys` makes its own PROPFIND, unaffected.
+ */
+describe('a listing under a window (workplan 0170)', () => {
+  // In `samplePropfindResponse`, report.pdf is from 15 January 2024 and
+  // image.png from the 16th: a window from the 16th holds only the image.
+  const SINCE = new Date('2024-01-16T00:00:00Z');
+  const folder = { path: '/documents', name: 'Documents' };
+  const source = () =>
+    new WebdavFileSource(testConfig, {
+      httpClient: createMockHttpClient({ status: 207, body: samplePropfindResponse, headers: {} }),
+    });
+  const paths = (items: ReadonlyArray<{ item: { path: string } }> | undefined) =>
+    (items ?? []).map((i) => i.item.path);
+
+  it('without `since` lists every file, as it always did, and sets nothing aside', async () => {
+    const listed = await source().listSince(folder);
+
+    expect(paths(listed.items)).toEqual(['documents/report.pdf', 'documents/image.png']);
+    expect(listed.unmarked).toBeUndefined();
+  });
+
+  it('with `since` keeps the window and hands the older file back as `unmarked`', async () => {
+    const listed = await source().listSince(folder, undefined, { since: SINCE });
+
+    expect(paths(listed.items)).toEqual(['documents/image.png']);
+    expect(paths(listed.unmarked)).toEqual(['documents/report.pdf']);
+  });
+
+  it("the window's cursor never claims the older file: read back without a window, it is listed", async () => {
+    const webdav = source();
+
+    const { nextCursor } = await webdav.listSince(folder, undefined, { since: SINCE });
+    const after = await webdav.listSince(folder, nextCursor);
+
+    // In the etag map, report.pdf would read as unchanged and never be listed
+    // again, though it was set aside and never copied.
+    expect(paths(after.items)).toEqual(['documents/report.pdf']);
+  });
+
+  it("listKeys is the folder's whole key set, whatever the last listing's window", async () => {
+    const webdav = source();
+
+    await webdav.listSince(folder, undefined, { since: SINCE });
+
+    expect(await webdav.listKeys(folder)).toEqual(['documents/report.pdf', 'documents/image.png']);
+  });
+});
