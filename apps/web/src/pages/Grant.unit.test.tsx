@@ -424,8 +424,11 @@ describe("a person's link", () => {
 
   it('draws a card per account, saying where each of its migrations goes and what it copies', async () => {
     renderPage();
-    expect(await screen.findByRole('heading', { level: 2, name: 'anna@gmail.com' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'anna@work.example' })).toBeInTheDocument();
+    // One group, the accounts the data is copied from (0174 §4.5), each account a card under it.
+    expect(await screen.findByRole('heading', { level: 2, name: 'The accounts your data is copied from' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'The accounts your data is copied to' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'anna@gmail.com' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'anna@work.example' })).toBeInTheDocument();
     expect(screen.getByText('To anna, Nextcloud at cloud.example.org: your calendars and their events.')).toBeInTheDocument();
     expect(screen.getByText('To anna@soverin.net, Soverin: your contacts.')).toBeInTheDocument();
     expect(screen.getByText(/is moving your accounts and\/or content to a new provider/)).toBeInTheDocument();
@@ -433,7 +436,7 @@ describe("a person's link", () => {
 
   it('offers no button for a connected account, and says why an account cannot be asked', async () => {
     renderPage();
-    await screen.findByRole('heading', { level: 2, name: 'anna@gmail.com' });
+    await screen.findByRole('heading', { level: 3, name: 'anna@gmail.com' });
     expect(screen.getByText('Connected. Nothing more is needed for this account.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /as anna@gmail\.com/ })).not.toBeInTheDocument();
     expect(screen.getByText('Two applications, one sign-in.')).toBeInTheDocument();
