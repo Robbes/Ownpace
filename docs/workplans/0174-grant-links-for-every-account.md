@@ -329,6 +329,39 @@ const CIRRUX: GrantProvider = {
 - `consentToFollow` learns `api.cirrux.co`. The consent's PKCE verifier stays in the server-side
   pending state, as today.
 
+**Changed by T5, 2026-11-25, before its code (open question 1 answered).** Cirrux's API, read
+2026-11-25 (`https://cirrux.co/help/api/user`): `GET /v1/user/profile` answers `user` (`uuid`,
+`username`, *"the user's login handle"*, names, pictures) and `workspace` (`uuid`, `name`, `type`),
+and no email address, mailbox or domain; `GET /v1/workspace` the same workspace and nothing more.
+A mailbox's address is read only with `email.read` (`https://cirrux.co/help/api/mail`), a scope
+this deployment's Cirrux client is not registered for, and no page says which workspace an app
+password signs in to. So the ending cannot read *"the workspace the stored app password signs in
+to"*: nothing answers it. What T5 builds instead:
+- **The workspace is recorded on the account** (`CIRRUX_DRIVE_WORKSPACE_KEY`, the workspace's
+  `uuid`, in the account's encrypted record beside the grant), by the first Drive grant that lands
+  on it, the owner's or a link's. Every later grant on that account, on any link or the owner's
+  button, must reach the same workspace, or nothing is stored and the link stays live
+  (`mapping.grant_refused`, `refused: 'another_workspace'`). A new app password for another
+  mailbox drops the record with the grant (`keepingTheDriveGrant`); *Disconnect Cirrux Drive*
+  keeps it.
+- **The first grant on an account is bound by the app password, not by Cirrux.** The Drive card
+  is on the page only once the account's app password is stored, and the person who holds the
+  link is the one who signs in; Cirrux's answer cannot tell us more. The page names the login and
+  the workspace that signed in, as the owner's window does (0160 open question 14).
+- **The interface grows by three optional members**, said in T5's pull request: `consentUrl`'s
+  argument takes `challenge` (PKCE), `finish` takes a fourth argument `verifier`, and `GrantFinish`'s
+  success may carry `access` (the first access token, so the ending measures the Drive without
+  spending a refresh). The `secret` Cirrux's entry answers is `{ [CIRRUX_DRIVE_GRANT_KEY],
+  [CIRRUX_DRIVE_WORKSPACE_KEY] }`; `signedInAs` is null, because Cirrux vouches for no address, and
+  the Cirrux ending (not the address check other providers use) decides by the workspace.
+- **Where the doors' guard sits (§4.3).** A migration is made with no person and given to one
+  afterwards (`POST /api/people/:id/migrations`), so the guard is at three doors: the create
+  door refuses a granted destination unless its body names the person who granted it
+  (`personId`, managed only, for T6's wizard to send); the door that gives a migration to a person
+  refuses one into an account another person granted; and the edit door refuses any change to a
+  migration into a granted account that is not that person's. The owner's own *Connect Cirrux
+  Drive* on an account a person granted is refused with the rotation's sentence (D6).
+
 ### 4.5 What the person sees when both are asked (T4)
 
 The page keeps its one header (who asks, the organisation, its phone, the checked company) and
@@ -923,6 +956,8 @@ its addition and D8 in place under 1.0 (*"terms or the privacy policy: no one bu
 1. Whether Cirrux's API names the signed-in user or workspace on a token, so the Drive grant
    binds to it directly rather than through the stored app password (§4.4). Read
    `https://cirrux.co/help/api` when T5 starts, and cite it.
+   **Answered by T5, 2026-11-25:** it names the user (`uuid`, login handle) and the workspace
+   (`uuid`, `name`, `type`), never an address; the binding is as §4.4's T5 paragraph says.
 2. The published servers of Soverin, Cirrux and Infomaniak, for `PROVIDER_ENDPOINTS` (D3 (a)):
    read and cited per provider; a provider whose page cannot be read stays generic, its host
    shown for the person to judge, as 0171 T10 did for MX hosts.
