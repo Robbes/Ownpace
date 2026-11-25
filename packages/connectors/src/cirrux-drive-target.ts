@@ -87,6 +87,7 @@ import {
   type CirruxDriveFolder,
   type CirruxFolderListing,
 } from './cirrux-drive-api.ts';
+import { capacityFromCirruxStorage, type DestinationCapacity } from '@openmig/shared';
 import { dataKeyBytes, encryptedParts, expectedCiphertextBytes, cxdrv2ChunkCount } from './cirrux-drive-format.ts';
 
 /** Cirrux's own name for the Drive in a sentence. */
@@ -670,6 +671,18 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
   // ---------------------------------------------------------------------
   // The pool
   // ---------------------------------------------------------------------
+
+  /**
+   * The workspace's free space, for *Review and start* (workplan 0171 T9):
+   * the same `GET /workspace/storage` the pass reads, read once more here
+   * and not kept, so the pass still reads its own at its first upload. The
+   * pool is the workspace, from the profile: mail, Drive and documents share
+   * it. A read that fails throws, and the route says it was not answered.
+   */
+  async capacity(): Promise<DestinationCapacity> {
+    const [profile, storage] = await Promise.all([this.api.profile(), this.api.storage()]);
+    return capacityFromCirruxStorage(storage, `cirrux:${profile.workspace?.uuid ?? 'workspace'}`);
+  }
 
   /**
    * A file that would not fit in the workspace's storage pool is refused

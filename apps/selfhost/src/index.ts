@@ -107,6 +107,11 @@ import { landingPath, type LandingFacts } from './landing.ts';
 import { createVerifyRunner } from './verify-run.ts';
 import { applianceOpener } from '@openmig/orchestration';
 import {
+  destinationOpenersFromConfig,
+  needFromDiscovery,
+  readDestinationSpace,
+} from '@openmig/orchestration/destination-space';
+import {
   readConfirmedList,
   runningConfirmation,
   streamConfirmedListCsv,
@@ -3801,6 +3806,28 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         scheduleMapping(m);
         log.info(`[selfhost] ${m.config.mappingId}: keeps copying after its cutover (continuous lane)`);
         return sendJson(res, 200, { id, status: to, changed: true });
+      }
+
+      // GET /mappings/:id/destination-space — free space at each destination,
+      // read live before Start (workplan 0171 T9), the same shape managed's
+      // `GET /api/migrations/:id/destination-space` answers. Read-only:
+      // each writer is opened, asked, and closed; nothing is stored.
+      const spaceMatch =
+        req.method === 'GET' && req.url ? /^\/mappings\/([^/]+)\/destination-space$/.exec(req.url) : null;
+      if (spaceMatch) {
+        const id = decodeURIComponent(spaceMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const discovered = await discoveryStore.getDiscovery(
+          m.config.tenantId as TenantId,
+          m.mailboxMappingId as MappingId,
+        );
+        const pools = await readDestinationSpace(
+          destinationOpenersFromConfig(m.config, ledgerOptions),
+          needFromDiscovery(discovered),
+          { where: m.config.mappingId },
+        );
+        return sendJson(res, 200, { mappingId: id, pools });
       }
 
       const startMatch = req.method === 'POST' && req.url ? /^\/mappings\/([^/]+)\/start$/.exec(req.url) : null;

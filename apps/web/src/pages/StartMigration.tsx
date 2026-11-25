@@ -120,6 +120,7 @@ import {
   type StartProvider,
 } from '../services/start-plan.ts';
 import { MigrationCountSection, useMigrationCount } from '../components/ConfirmMigration.tsx';
+import { DestinationSpaceLines } from '../components/DestinationSpace.tsx';
 import { CeilingAtStartNote, measuredBytes } from '../components/CeilingAtStartNote.tsx';
 import { PathsAtStartNote } from '../components/PathsAtStartNote.tsx';
 import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
@@ -2899,6 +2900,13 @@ export const CheckStep: React.FC<{
     (id: string, bytes: number) => setMeasured((prev) => (prev[id] === bytes ? prev : { ...prev, [id]: bytes })),
     [],
   );
+  // Whose destination is known to be too small (workplan 0171 T9, D4 (a)):
+  // Start then reads *Start anyway*.
+  const [spaceHeld, setSpaceHeld] = React.useState<Readonly<Record<string, boolean>>>({});
+  const onSpaceHolds = React.useCallback(
+    (id: string, holds: boolean) => setSpaceHeld((prev) => (prev[id] === holds ? prev : { ...prev, [id]: holds })),
+    [],
+  );
   const [starting, setStarting] = React.useState(false);
   const [started, setStarted] = React.useState<ReadonlySet<string>>(new Set());
   const [startFailed, setStartFailed] = React.useState<Readonly<Record<string, string>>>({});
@@ -3035,6 +3043,7 @@ export const CheckStep: React.FC<{
             title={titles[m.key] ?? ''}
             onReady={onReady}
             onMeasured={onMeasured}
+            onSpaceHolds={onSpaceHolds}
             {...(m.notAdded === undefined ? {} : { notAdded: m.notAdded })}
             {...(startFailed[m.id] === undefined ? {} : { failed: startFailed[m.id] })}
           />
@@ -3135,7 +3144,13 @@ export const CheckStep: React.FC<{
                   aria-describedby={allReady ? undefined : waitsId}
                   className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {starting ? t('confirm.starting') : t('start.check.start')}
+                  {starting
+                    ? t('confirm.starting')
+                    : t(
+                        counted.some((m) => !started.has(m.id) && spaceHeld[m.id] === true)
+                          ? 'start.check.space.startAnyway'
+                          : 'start.check.start',
+                      )}
                 </button>
               )}
               {!allReady && (
@@ -3253,7 +3268,9 @@ const MigrationCheck: React.FC<{
   failed?: string;
   onReady: (mappingId: string, ready: boolean) => void;
   onMeasured?: (mappingId: string, bytes: number) => void;
-}> = ({ mappingId, title, notAdded, failed, onReady, onMeasured }) => {
+  /** Whether its destination is known to be too small (workplan 0171 T9). */
+  onSpaceHolds?: (mappingId: string, holds: boolean) => void;
+}> = ({ mappingId, title, notAdded, failed, onReady, onMeasured, onSpaceHolds }) => {
   const { t } = useLocale();
   const count = useMigrationCount(mappingId);
   const [acked, setAcked] = React.useState(false);
@@ -3278,6 +3295,8 @@ const MigrationCheck: React.FC<{
         heading={title}
         ackId={`start-ack-${mappingId}`}
       />
+      {/* Free space at the destination, once the count (the need) is in. */}
+      <DestinationSpaceLines mappingId={mappingId} enabled={!count.stillCounting} onHolds={onSpaceHolds} />
       {count.countUnfinished && (
         <p className="mt-2 text-sm text-amber-700" role="note">
           {t('confirm.countUnfinished')}
