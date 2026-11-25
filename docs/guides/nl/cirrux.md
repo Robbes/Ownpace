@@ -6,8 +6,8 @@ De servers hieronder zijn de servers die Cirrux publiceert op zijn [instellingen
 
 ## Wat u nodig hebt {#before}
 
-- Een Cirrux-mailbox, in een workspace met ruimte voor wat eraan komt. Cirrux deelt de opslag over de hele workspace: mail, Drive en documenten tellen mee voor één voorraad. Een workspace die zeven dagen boven zijn opslagniveau blijft, zet Cirrux over naar een groter niveau, en uploads die niet passen worden geweigerd tot er weer ruimte is ([billing](https://cirrux.co/help/billing)). Deze dienst maakt zelf geen accounts aan.
-- Een app-wachtwoord voor die mailbox. In Cirrux Mail: **Settings → Mailboxes**, kies de mailbox, open het tabblad **Passwords** en klik op **New app password**. Cirrux toont het één keer, dus kopieer het meteen. Het wachtwoord waarmee u zich bij Cirrux aanmeldt, werkt hier niet: Cirrux weigert het voor mail, agenda's en contacten. Ziet u geen tabblad **Passwords**, dan heeft de beheerder van de workspace apps buiten Cirrux uitgezet; vraag hem of haar dat weer aan te zetten.
+- Een Cirrux-mailbox, in een werkruimte met plaats voor wat eraan komt. Cirrux deelt de opslag over de hele werkruimte: mail, Drive en documenten tellen mee voor één voorraad. Een werkruimte die zeven dagen boven zijn opslagniveau blijft, zet Cirrux over naar een groter niveau, en uploads die niet passen worden geweigerd tot er weer ruimte is ([billing](https://cirrux.co/help/billing)). Deze dienst maakt zelf geen accounts aan.
+- Een app-wachtwoord voor die mailbox. In Cirrux Mail: **Settings → Mailboxes**, kies de mailbox, open het tabblad **Passwords** en klik op **New app password**. Cirrux toont het één keer, dus kopieer het meteen. Het wachtwoord waarmee u zich bij Cirrux aanmeldt, werkt hier niet: Cirrux weigert het voor mail, agenda's en contacten. Ziet u geen tabblad **Passwords**, dan heeft de beheerder van de werkruimte apps buiten Cirrux uitgezet; vraag hem of haar dat weer aan te zetten.
 - De keuze of er ook mail meegaat. Alleen dan is de mailserver nodig; agenda's, contacten en taken hebben er geen nodig.
 
 ## Koppelen {#connect}
@@ -33,6 +33,10 @@ De test schrijft niets. Hij meldt zich aan bij de agenda's en meet daarnaast elk
 
 U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart **Cirrux**, en druk op **Toevoegen en testen**. De vakken zijn daar op dezelfde manier vooraf ingevuld, open in beeld.
 
+## Als het account van iemand anders is {#somebody-else}
+
+Is het account van een collega, een familielid of een klant, dan hebt u diens wachtwoord niet nodig. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Anderen, met een link**. Vul de server en het account in, laat het wachtwoord leeg, en druk op **Bewaren voor** *die persoon*. De stap voor de bestemming vraagt **Van wie is het account bij …?**: kies *van die persoon zelf*, en die verbindt het met de link. Die persoon typt het wachtwoord zelf, op de pagina die uw toegangslink opent: die noemt de server waarbij het wachtwoord wordt gecontroleerd, test het voordat er iets wordt bewaard, en niemand ziet het daarna nog, u ook niet. Na vijf verkeerde wachtwoorden is dat account voor die link geblokkeerd; een nieuwe link begint opnieuw. Die persoon heeft een app-wachtwoord nodig van het tabblad **Passwords** van de mailbox, niet het wachtwoord waarmee die zich bij Cirrux aanmeldt. Het wordt gecontroleerd bij de eigen server van Cirrux. Gaan er bestanden naar Cirrux, dan biedt dezelfde kaart daarna **Cirrux Drive verbinden**, zodra het app-wachtwoord is bewaard: zie [Bestanden: Cirrux Drive](#drive). De eerste toegang tot Drive legt de werkruimte vast waarin die is gegeven, en een latere moet in dezelfde zijn.
+
 ## Wat er meegaat {#what-moves}
 
 - **E-mail**, wanneer het account is bewaard met de **Mailserver** ingevuld: de mappen en de berichten daarin. Mappen zijn in Cirrux labels. Een map die deze dienst aanmaakt, wordt een label met dezelfde naam, genest onder een ander label waar de naam een schuine streep heeft, en via IMAP is elk label weer een map ([submappen](https://cirrux.co/help/questions/subfolders-in-my-mailbox)).
@@ -48,7 +52,7 @@ U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoe
 Cirrux Drive is bereikbaar via de eigen koppeling van Cirrux voor apps, met de aanmelding van een persoon bij Cirrux ([Drive](https://cirrux.co/help/drive), [de koppeling](https://cirrux.co/help/api)). Bestanden zijn dus een tweede aanmelding op hetzelfde account, die u toevoegt nadat het account is bewaard. Of de knop er staat, hangt af van de dienst die u gebruikt: Cirrux registreert elke dienst die mensen mag aanmelden met de hand, en een dienst zonder zo'n registratie toont bestanden als niet omvat, met **This service has no Cirrux client on this deployment yet**, en zonder knop.
 
 1. Op de pagina **Accounts** staat bij het Cirrux-account **Cirrux Drive verbinden**. Druk erop.
-2. De aanmeldpagina van Cirrux opent in een nieuw venster. Meld u bij Cirrux aan als de persoon van wie de Drive is, en sta toe wat Cirrux vraagt: wie u bent en welke workspace, en het lezen, toevoegen, wijzigen en naar de prullenbak verplaatsen van de bestanden in uw Drive.
+2. De aanmeldpagina van Cirrux opent in een nieuw venster. Meld u bij Cirrux aan als de persoon van wie de Drive is, en sta toe wat Cirrux vraagt: wie u bent en welke werkruimte, en het lezen, toevoegen, wijzigen en naar de prullenbak verplaatsen van de bestanden in uw Drive.
 3. Het venster zegt **Cirrux Drive is verbonden**. Sluit het. Bij het account staat **Cirrux Drive is verbonden: bestanden kunnen naar dit account.**, en het account is opnieuw gemeten: **Omvat:** noemt nu bestanden, en **Gevonden:** wat er bovenin uw Drive staat.
 
 Daarna biedt de rij voor bestanden bij **Waar gaat het naartoe?** het account aan onder **Uw accounts**. Onder **Een nieuw account** biedt hij Cirrux niet aan: een nieuw account heeft geen Drive tot het is bewaard en verbonden.
@@ -60,7 +64,7 @@ Wat er met uw bestanden gebeurt:
 - **Een bestand dat al onder dezelfde naam in de map staat, geldt als de kopie**, en wordt niet beschreven. Verandert een bestand later bij de bron, dan wordt de kopie vervangen, tenzij de kopie in Cirrux is gewijzigd nadat deze dienst haar voor het laatst schreef: dan blijft de kopie in Cirrux zoals ze is, en wordt het bestand gemeld als conflict.
 - **Het tijdstip waarop een bestand voor het laatst is gewijzigd, blijft behouden**, zoals Cirrux het toont.
 - **Er wordt niets definitief verwijderd.** Een bestand dat bij de bron is verwijderd, wordt alleen uit Cirrux gehaald als u dat verwijderen goedkeurt, en dan gaat het naar de prullenbak van Cirrux, waar het 30 dagen terug te zetten is.
-- **De opslag wordt gecontroleerd voordat er iets wordt geüpload**: passen de bestanden niet in de opslag van de workspace, dan worden ze niet verstuurd, en de reden zegt dat.
+- **De opslag wordt gecontroleerd voordat er iets wordt geüpload**: passen de bestanden niet in de opslag van de werkruimte, dan worden ze niet verstuurd, en de reden zegt dat.
 - **Cirrux bepaalt het tempo**: 600 verzoeken per minuut voor één aanmelding. Vraagt Cirrux deze dienst langzamer te gaan, dan wacht hij zo lang als Cirrux zegt, en gaat daarna verder.
 
 De aanmelding wordt versleuteld bij het account bewaard, naast het app-wachtwoord. Cirrux vervangt haar telkens wanneer deze dienst haar vernieuwt, dus deze dienst bewaart elke nieuwe en gebruikt die één keer. Een aanmelding die 30 dagen niet wordt gebruikt, verloopt bij Cirrux. Werkt de aanmelding niet meer, dan mislukken de bestanden met een zin die **Cirrux Drive verbinden** noemt: druk er opnieuw op, en de bestanden gaan bij de volgende keer verder. Een nieuw app-wachtwoord van dezelfde mailbox houdt de Drive verbonden; een app-wachtwoord van een andere mailbox begint zonder.
