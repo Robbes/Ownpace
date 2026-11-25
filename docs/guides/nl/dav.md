@@ -47,6 +47,10 @@ Voor contacten. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in
 
 Voor bestanden. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. Ze worden gelezen uit de map waar het adres naartoe leidt, en uit elke map daaronder. Met alleen een host en een poort is dat de hoofdmap van de server. Voor de bestanden van één account vult u het volledige WebDAV-adres van zijn map in bij **DAV-basis-URL**: bij een Nextcloud is dat het adres onderaan de pagina met bestandsinstellingen, eindigend op `/remote.php/dav/files/` met de gebruikersnaam.
 
+## Als het account van iemand anders is {#somebody-else}
+
+Is het account van een collega, een familielid of een klant, dan hebt u diens wachtwoord niet nodig. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Anderen, met een link**. Vul de server en het account in, laat het wachtwoord leeg, en druk op **Bewaren voor** *die persoon*. Is het de bestemming, dan vraagt de stap **Van wie is het account bij …?**: kies *van die persoon zelf*, en die verbindt het met de link. Die persoon typt het wachtwoord zelf, op de pagina die uw toegangslink opent: die noemt de server waarbij het wachtwoord wordt gecontroleerd, test het voordat er iets wordt bewaard, en niemand ziet het daarna nog, u ook niet. Na vijf verkeerde wachtwoorden is dat account voor die link geblokkeerd; een nieuwe link begint opnieuw. Vraag die persoon een app-wachtwoord te gebruiken als de eigen aanbieder dat biedt.
+
 ## Wat er meegaat {#what-moves}
 
 - **CalDAV**: agenda's met hun afspraken, en takenlijsten wanneer u bij **Wat wilt u migreren?** **Taken** aanvinkt. De test telt de takenlijsten die het account al heeft, achter **Gevonden:**.

@@ -24,6 +24,10 @@ De test vraagt het sessiedocument op dat elke JMAP-server aanbiedt, op `/.well-k
 
 U kunt een JMAP-account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart **JMAP**, en druk op **Toevoegen en testen**. In de **Instelchecklist** staat de voorbereiding voor een JMAP-bestemming als lijst die onthoudt wat u al gedaan hebt.
 
+## Als het account van iemand anders is {#somebody-else}
+
+Is het account van een collega, een familielid of een klant, dan hebt u diens wachtwoord niet nodig. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Anderen, met een link**. Vul de server en het account in, laat het wachtwoord leeg, en druk op **Bewaren voor** *die persoon*. De stap voor de bestemming vraagt **Van wie is het account bij …?**: kies *van die persoon zelf*, en die verbindt het met de link. Die persoon typt het wachtwoord zelf, op de pagina die uw toegangslink opent: die noemt de server waarbij het wachtwoord wordt gecontroleerd, test het voordat er iets wordt bewaard, en niemand ziet het daarna nog, u ook niet. Na vijf verkeerde wachtwoorden is dat account voor die link geblokkeerd; een nieuwe link begint opnieuw. Vraag die persoon een app-wachtwoord te gebruiken als de eigen aanbieder dat biedt.
+
 ## Wat er meegaat {#what-moves}
 
 - **E-mail**: de mappen en de berichten daarin. Mappen die in het doel nog niet bestaan, worden aangemaakt.
