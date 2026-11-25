@@ -13,7 +13,7 @@
 # Dependabot moves this directory in the API's group (.github/dependabot.yml),
 # and scripts/a-worker-image-on-the-apis-base.unit.test.ts fails while the two
 # files' FROM lines differ, or the runtime stage stops being what it is below.
-FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS base
+FROM node:26.13.1-trixie-slim@sha256:abe7e5a82b61a8ef67b315b85497c9e65173387ccf2f4a029248184b8e020be5 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN npm install -g --omit=dev corepack@0.36.0 && corepack enable
@@ -41,7 +41,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # put in /tmp, which the compose service keeps in memory on a read-only root
 # (deploy/compose/managed.yml, `worker`), and it logs to stdout and stderr
 # only.
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:767ffb7e2ffa9f4280f1af7b99f7f0a1cafb79d0dcc0e0d3aba43843748008a5 AS runtime
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:ffa8a7545403036c94ec76674b5dbac2d425af2d679147cdf3e30180071487b7 AS runtime
 ENV NODE_ENV=production
 # THE COMMIT IN THE IMAGE, as the API's (images.yml passes GIT_SHA, and the
 # bring-up builds the api with it; it builds this one the same way once it

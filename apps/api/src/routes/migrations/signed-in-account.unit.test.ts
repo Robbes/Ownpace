@@ -151,3 +151,78 @@ describe('what the person who signed in is told', () => {
     }
   });
 });
+
+/**
+ * THE SAME THREE REFUSALS AT EVERY PROVIDER (workplan 0171 §3.2). Google's
+ * stay word for word as above, whether its ending passes an address or the
+ * seam's shape; another provider meets the same three, in its own name, and
+ * matches the named account against the sign-in name and every address the
+ * provider says is the same account, by case alone.
+ */
+describe('the refusals per provider (0171 §3.2)', () => {
+  const work = {
+    address: 'someone.upn@example.org',
+    confirmed: true,
+    alsoKnownAs: ['Someone@Example.org', 'alias@example.org'],
+  };
+
+  it('Google: unchanged, whether its ending passes an address or the seam’s shape', () => {
+    const asString = signedInAccountRefusal('someone@example.org', 'personal@gmail.com');
+    const asShape = signedInAccountRefusal('someone@example.org', { address: 'personal@gmail.com', confirmed: true });
+    expect(asShape).toEqual(asString);
+    expect(asString?.reason).toMatch(/You signed in to Google as personal@gmail\.com/);
+    // Google's fold, and only Google's: dots in a Gmail name are one account.
+    expect(signedInAccountRefusal('some.one@gmail.com', { address: 'someone@gmail.com', confirmed: true })).toBeNull();
+    // Google names no aliases: an alias it did not sign in as is another account.
+    expect(
+      signedInAccountRefusal('alias@example.org', { address: 'someone@example.org', confirmed: true, alsoKnownAs: ['alias@example.org'] }),
+    ).toMatchObject({ code: 'another_account' });
+  });
+
+  it('Microsoft: the sign-in name, the mail or a proxy address, without case', () => {
+    expect(signedInAccountRefusal('SOMEONE.UPN@example.org', work, 'microsoft')).toBeNull();
+    expect(signedInAccountRefusal('someone@example.org', work, 'microsoft')).toBeNull();
+    expect(signedInAccountRefusal('alias@EXAMPLE.org', work, 'microsoft')).toBeNull();
+  });
+
+  it('Microsoft: nothing beyond case is folded, so a dotted name is another account', () => {
+    expect(signedInAccountRefusal('some.one@example.org', work, 'microsoft')?.code).toBe('another_account');
+  });
+
+  it('Microsoft: another account, in the plan’s words, both addresses shown', () => {
+    const said = signedInAccountRefusal('someone@example.org', { address: 'other@example.org', confirmed: true }, 'microsoft');
+    expect(said?.code).toBe('another_account');
+    expect(said?.reason).toBe(
+      'You signed in as other@example.org; this link is for someone@example.org. Nothing was stored. ' +
+        'Sign out of Microsoft in this browser, then use the link again.',
+    );
+    expect(said?.reasonNl).toBe(
+      'U meldde zich aan als other@example.org; deze link is voor someone@example.org. Er is niets ' +
+        'opgeslagen. Meld u in deze browser af bij Microsoft en gebruik de link opnieuw.',
+    );
+  });
+
+  it('Microsoft: not confirmed, when nobody vouched or the provider did not confirm', () => {
+    for (const who of [null, { address: 'someone@example.org', confirmed: false }]) {
+      const said = signedInAccountRefusal('someone@example.org', who, 'microsoft');
+      expect(said?.code).toBe('unconfirmed');
+      expect(said?.reason).toMatch(/^Microsoft did not confirm which account you signed in with/);
+    }
+  });
+
+  it('Microsoft: no named account, in Microsoft’s name', () => {
+    for (const named of [null, '', 'me']) {
+      const said = signedInAccountRefusal(named, work, 'microsoft');
+      expect(said?.code).toBe('no_named_account');
+      expect(said?.reason).toMatch(/no longer names the Microsoft account it reads/);
+    }
+  });
+
+  it('Dropbox and Apple meet the same three in their own names (their entries join with T4 and T5)', () => {
+    for (const [provider, name] of [['dropbox', 'Dropbox'], ['apple', 'Apple']] as const) {
+      expect(signedInAccountRefusal(null, work, provider)?.reason).toContain(`the ${name} account it reads`);
+      expect(signedInAccountRefusal('a@example.org', null, provider)?.reason).toMatch(new RegExp(`^${name} did not confirm`));
+      expect(signedInAccountRefusal('a@example.org', work, provider)?.reason).toContain(`Sign out of ${name}`);
+    }
+  });
+});

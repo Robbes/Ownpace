@@ -75,13 +75,15 @@ describe('the ways a grant link is dead on arrival', () => {
     expect(refusal?.reason).toMatch(/no account to copy from yet/);
   });
 
-  it('refuses a source that is not one of the four Google kinds', () => {
+  it('refuses a source that no grant provider covers (renamed from source_not_google, 0171)', () => {
     const refusal = grantLinkRefusal({ ...READY, sourceKind: 'imap' });
-    expect(refusal?.code).toBe('source_not_google');
+    expect(refusal?.code).toBe('source_not_grantable');
     // Says what can be connected through a link, in the owner's words; the
     // stored kind, which is our word for the row, goes to the log (the
     // owner, 2026-10-14).
-    expect(refusal?.reason).toMatch(/does not copy from a Google account/);
+    // It names the providers a link can connect (workplan 0171 §3.2).
+    expect(refusal?.reason).toMatch(/sign in with Google or Microsoft, and this migration copies from neither/);
+    expect(refusal?.reason).toMatch(/a Microsoft 365 account can be connected through a link/);
     expect(refusal?.reason).toMatch(/connected by hand, on the Accounts page/);
     expect(refusal?.reason).not.toContain("'imap'");
     expect(refusal?.operatorDetail).toContain("'imap'");
@@ -101,7 +103,7 @@ describe('the ways a grant link is dead on arrival', () => {
     // the first thing wrong. The account is the source's own gap, so it comes
     // before the destination's.
     expect(grantLinkRefusal({ ...READY, sourceKind: 'imap', hasNamedAccount: false })?.code).toBe(
-      'source_not_google',
+      'source_not_grantable',
     );
     expect(grantLinkRefusal({ ...READY, hasNamedAccount: false, hasTarget: false })?.code).toBe(
       'no_named_account',
@@ -156,7 +158,7 @@ describe('the ways a grant link is dead on arrival', () => {
       hasClientSecret: false,
       hasWebUrl: false,
     });
-    expect(refusal?.code).toBe('source_not_google');
+    expect(refusal?.code).toBe('source_not_grantable');
   });
 
   it('never puts a credential value in a refusal, because it never receives one', () => {
@@ -389,8 +391,10 @@ describe('the Google kinds a link may be issued for', () => {
     }
     // The ones that transliterate but are not Google: proof the check is
     // membership rather than a string shape. `toString` is on every object.
+    // `o365` is a company's own app with application permissions, which no
+    // person grants by signing in; Dropbox joins with T4 (workplan 0171).
     for (const kind of ['google_photos', 'imap', 'o365', 'jmap', 'dropbox', 'toString']) {
-      expect(grantLinkRefusal({ ...READY, sourceKind: kind })?.code).toBe('source_not_google');
+      expect(grantLinkRefusal({ ...READY, sourceKind: kind })?.code).toBe('source_not_grantable');
     }
   });
 });
@@ -472,5 +476,83 @@ describe('the owner surface the router registers', () => {
     }
     expect(byKey.get('GET /:mappingId/links')).toContain('authenticate');
     expect(byKey.get('GET /:mappingId/links')?.length).toBe(2);
+  });
+});
+
+/**
+ * A MICROSOFT ACCOUNT'S LINK (workplan 0171 §3.2–3.3): the same order of
+ * refusals, each in Microsoft's words, and the ask it makes when ready.
+ */
+describe('the Microsoft account kind, through the same decision (0171 §3.3)', () => {
+  const MICROSOFT: GrantLinkReadiness = {
+    ...READY,
+    sourceKind: 'microsoft',
+    includedDomains: ['calendar', 'email', 'nonsense'],
+    hasClientId: false,
+    hasClientSecret: false,
+    hasDeploymentMicrosoftClient: true,
+  };
+
+  it('asks for the ticked faces it has a Graph scope for, and who signed in, read-only', () => {
+    const ask = askOf(grantLinkAsk(MICROSOFT));
+    expect(ask.provider).toBe('microsoft');
+    expect(ask.client).toBe('deployment');
+    // In the consent's own order (`MICROSOFT_CONSENT_DOMAINS`), unknown ones dropped.
+    expect(ask.domains).toEqual(['email', 'calendar']);
+    expect(ask.scope.split(' ')).toEqual([
+      'offline_access',
+      'openid',
+      'email',
+      'profile',
+      'User.Read',
+      'Mail.Read',
+      'Calendars.Read',
+    ]);
+    expect(ask.readOnlyAtProvider).toBe(true);
+    expect(grantLinkRefusal(MICROSOFT)).toBeNull();
+  });
+
+  it('runs on the connection’s own whole pair where it has one', () => {
+    expect(askOf(grantLinkAsk({ ...MICROSOFT, hasClientId: true, hasClientSecret: true })).client).toBe('connection');
+  });
+
+  it('refuses a migration that names no account, in Microsoft’s name', () => {
+    const refusal = grantLinkRefusal({ ...MICROSOFT, hasNamedAccount: false });
+    expect(refusal?.code).toBe('no_named_account');
+    expect(refusal?.reason).toMatch(/only accepted from the Microsoft account this migration reads/);
+  });
+
+  it('refuses a migration with no destination', () => {
+    expect(grantLinkRefusal({ ...MICROSOFT, hasTarget: false })?.code).toBe('no_target');
+  });
+
+  it('refuses one that copies nothing a Microsoft consent can ask for', () => {
+    expect(grantLinkRefusal({ ...MICROSOFT, includedDomains: [] })?.code).toBe('nothing_to_ask');
+    expect(grantLinkRefusal({ ...MICROSOFT, includedDomains: ['nonsense'] })?.code).toBe('nothing_to_ask');
+  });
+
+  it('refuses half a pair, naming the field, never completing it with the deployment’s', () => {
+    const refusal = grantLinkRefusal({ ...MICROSOFT, hasClientId: true });
+    expect(refusal?.code).toBe('client_not_configured');
+    expect(refusal?.reason).toMatch(/your own Microsoft app, and it has no Client secret saved/);
+  });
+
+  it('refuses where there is no Microsoft application at all; Google’s does not count', () => {
+    const refusal = grantLinkRefusal({ ...MICROSOFT, hasDeploymentMicrosoftClient: false, hasDeploymentClient: true });
+    expect(refusal?.code).toBe('client_not_configured');
+    expect(refusal?.reason).toMatch(/needs a Microsoft app to sign in through/);
+    expect(refusal?.operatorDetail).toContain('MICROSOFT_OAUTH_CLIENT_ID');
+  });
+
+  it('refuses a company’s own app (o365): nobody grants application permissions by signing in', () => {
+    expect(grantLinkRefusal({ ...MICROSOFT, sourceKind: 'o365' })?.code).toBe('source_not_grantable');
+  });
+
+  it('holds Start until somebody has connected the Microsoft account, in its own words', () => {
+    const waiting = awaitingGrantRefusal({ sourceKind: 'microsoft', hasRefreshToken: false, hasServiceAccountKey: false });
+    expect(waiting).toMatch(/nobody has connected its Microsoft account/);
+    expect(awaitingGrantRefusal({ sourceKind: 'microsoft', hasRefreshToken: true, hasServiceAccountKey: false })).toBeNull();
+    // A company's own app is not waited on: it carries its own credential.
+    expect(awaitingGrantRefusal({ sourceKind: 'o365', hasRefreshToken: false, hasServiceAccountKey: false })).toBeNull();
   });
 });

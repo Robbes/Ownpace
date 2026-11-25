@@ -311,7 +311,7 @@ async function startNextcloud(): Promise<{
   // Start container WITHOUT HTTP wait strategy - we'll use internal readiness check instead.
   // The default is the dev stack's image, tag and digest: the pin watch reads dev.yml, not this
   // file, and scripts/a-float-nothing-ever-pulled.unit.test.ts holds the two equal.
-  const nextcloudContainer = await (asked ? new GenericContainer(asked) : new GenericContainer('nextcloud:35.0.3-apache@sha256:8a7a65b8bae82a79568fec2ed9cf3e374a1944eda2a22ebe130d79463336fee3'))
+  const nextcloudContainer = await (asked ? new GenericContainer(asked) : new GenericContainer('nextcloud:35.0.3-apache@sha256:2567f3c36f59f21ba8e7f6f788cbfc96324a8306b0f19f71be8878ddbf31c38f'))
     .withEnvironment({
       SQLITE_DATABASE: 'nextcloud',
       NEXTCLOUD_ADMIN_USER: 'testadmin',
@@ -906,7 +906,7 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
   // volume as uid 70, the way every new volume of the stacks is made
   // (scripts/a-database-started-as-root.unit.test.ts). The build only removes
   // gosu, so pulling its base keeps every run from building an image.
-  const postgresContainer = await new GenericContainer('postgres:18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73')
+  const postgresContainer = await new GenericContainer('postgres:18.7-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71')
     .withUser('70:70')
     .withExposedPorts(5432)
     .withEnvironment({
