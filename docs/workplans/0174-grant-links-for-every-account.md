@@ -4,6 +4,32 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T1 to T6 on one branch, in review as one draft pull request: #2164**
+(`claude/ownpace-public-readiness-y7orc6-a21-grant-links`). It replaces #2157, #2156, #2159, #2160,
+#2161 and #2162, because the feature works only whole: one CI run and one E2E set. T1's head with
+T2 to T6 merged in that order (merge commits, no rebase), then one commit per disagreement, each
+pinned by a test:
+- D3's fields are T3's, `domains` and `notTheAddressMail` (§5.3); the page reads them.
+- The route answers exactly §5.3's bodies (422 `{ error, tries, faces? }`, 423 `{ error }`); the
+  page reads only those, and shows `server_not_a_name`, a 401 and 400/413/415 rightly.
+- A password's store spends the link only after reading the cards it leaves, so a Cirrux
+  destination's Drive card shows (pinned; the store already did so).
+- The page draws the Cirrux Drive card (§4.4), which neither T4 nor T5 had built.
+- One `forPerson` on both create doors (§8.2): the migration door's guard and its save read it.
+- `grantableByLink` holds Dropbox and the password kinds side by side.
+- `personFieldsFor` moves to `@openmig/shared`, so *Save for {person}* leaves Infomaniak's sync
+  user name to the person.
+- No *Replace credentials* on a row waiting for a person or connected by them (D6); the page says
+  the rotation door's sentence.
+- One Dutch: *verbonden*, *toegangslink*, *voor deze link* (`one-dutch-for-a-grant-link`).
+- The page hands over the progress link a password mints (§5.3 step 8).
+
+Proved on the builder's checkout: `pnpm typecheck`, `pnpm lint`, `pnpm test` (1481 files, 23873
+passed), `pnpm test:ui` (78 passed), the docs checks, the commit convention; the worker's
+`a-system-role-that-is-not-the-owner` integration test against PostgreSQL 16 from
+`./scripts/local-pg.sh` (41 passed). Not run here: the Stalwart integration file (no container
+runtime); CI and T8 run it. T7, T8 and T9 are still to come.
+
 **2026-11-25, T6 built (draft pull request on T1's branch, merges after T1).** The owner's side
 of *They do, with a link*, for every password kind and for destinations (§8.1, §8.2, §4.6):
 - `start-plan.ts`: `grantableByLink` answers yes for every password source kind, served or not;
@@ -227,12 +253,12 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T1 The seam grows: password kinds, destinations, one shape for the page | builder | 🔎 In review (draft PR) | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
-| T2 Dropbox on the seam | builder | 🔍 In review | §6. Supersedes 0171 T4. S. Built 2026-11-25 on 0171 T3's seam (#2136): the binding, an unverified email and another account refused with nothing stored and the link live, a refused exchange, `grantableByLink('dropbox')`; every new test shown failing on `main` first. By mock only: no real Dropbox account. |
-| T3 The own-password route: test, try count, store, spend | builder | 🔎 In review (draft PR) | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
-| T4 The own-password page, per kind, in English and Dutch | builder | 🔎 In review (draft PR) | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
-| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 🔎 In review (draft PR) | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
-| T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 🔎 In review (draft PR) | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
+| T1 The seam grows: password kinds, destinations, one shape for the page | builder | 🔎 In review, on one branch: #2164 | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
+| T2 Dropbox on the seam | builder | 🔎 In review, on one branch: #2164 | §6. Supersedes 0171 T4. S. Built 2026-11-25 on 0171 T3's seam (#2136): the binding, an unverified email and another account refused with nothing stored and the link live, a refused exchange, `grantableByLink('dropbox')`; every new test shown failing on `main` first. By mock only: no real Dropbox account. |
+| T3 The own-password route: test, try count, store, spend | builder | 🔎 In review, on one branch: #2164 | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
+| T4 The own-password page, per kind, in English and Dutch | builder | 🔎 In review, on one branch: #2164 | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
+| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 🔎 In review, on one branch: #2164 | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
+| T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 🔎 In review, on one branch: #2164 | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
 | T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
 | T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
 | T9 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T8 merges. |
