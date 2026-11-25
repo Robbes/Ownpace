@@ -4,6 +4,27 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24: alpha.20 will carry pg-boss 12.39.0, and its deploy to live is one-way.** On the
+branch `claude/ownpace-public-readiness-y7orc6-pg-boss-12-39`, a draft that waits for alpha.19's
+tag (0119's Status of the same day says what moves). pg-boss's migration from schema 46 to 47 adds
+one nullable column, `pgboss.schedule.sent_on`. Before it merges: E2E (self-hosted) on Postgres,
+then on PGlite, then E2E (managed) dispatched just before the merge, since that run moves OTA's
+job schema and `main`'s nightly refuses it until the merge.
+
+- **What alpha.20's deploy sheet must hold, read from the tree:**
+  - that the deploy is **one-way** for pg-boss, whatever else it carries: the dry run says *moves
+    pg-boss in pnpm-lock.yaml: 12.38.2 -> 12.39.0* and *moves pg-boss's schema version
+    (PG_BOSS_SCHEMA_VERSION): 46 -> 47*, and *would be one-way*;
+  - that the worker of alpha.20 migrates `pgboss` to 47 when it first starts, as the role that owns
+    the schema, `ownpace_jobs`; until it has, each enqueue of the API's is refused (*is not at
+    pg-boss schema version 47*) and the next one tries again, so the hold stays on until the
+    worker is healthy;
+  - the take before the checkout, which holds the app's database and so `pgboss` at 46: it is the
+    only way back, since alpha.19's worker and API refuse schema 47 by name and do not start
+    their jobs;
+  - after the bring-up: `operator.sh jobs` answers, and `SELECT version FROM pgboss.version` reads
+    47.
+
 **2026-11-24, evening: `v0.2.0-alpha.19` is released, its nights waived, and not deployed to live
 (T2, T4).** Read from GitHub on 2026-11-24. Times are UTC.
 

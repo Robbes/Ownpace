@@ -299,7 +299,7 @@ export function utc(at: Date | null): string {
 
 /**
  * An error as stored, reduced to its name and message, on one line and cut at
- * 300 characters. The runner stores `{ name, message }`. pg-boss 12.38.2 writes
+ * 300 characters. The runner stores `{ name, message }`. pg-boss 12.39.0 writes
  * its own under `value`, and only its own fixed sentences, never a payload:
  * `{ value: { message: 'job heartbeat timeout' } }` and `{ value: { message:
  * 'job timed out' } }` from its supervisor, and `{ value: 'pg-boss shut down
