@@ -127,7 +127,6 @@ describe('a deletion the owner kept is never applied (PgLedger, integration)', (
     domain: 'calendar' as const,
     ledger,
     target,
-    allowApplyDeletions: true,
     stillTheAuthority: async () => true,
   });
 

@@ -84,24 +84,15 @@ export const en = {
   // "applying", and the owner read "Applying deletions is ON" as deletions
   // happening by themselves. The first only lets the delete buttons work, one
   // item at a time; the second removes moved files' old copies unattended.
-  // So the first says BY HAND and the second AUTOMATIC, and neither borrows
-  // the other's words.
-  'applyFlag.readFailed': 'Could not read whether deleting by hand is on:',
-  'applyFlag.on': 'Deleting by hand is ON for this migration.',
-  'applyFlag.off': 'Deleting by hand is OFF for this migration (the default).',
-  'applyFlag.onMeans': 'Nothing is removed until you press a delete button on an item.',
-  'applyFlag.turnOff': 'Turn off',
-  'applyFlag.refusesUntilOn': 'While it is off, the delete buttons on this screen are refused.',
+  // So the first said BY HAND and the second AUTOMATIC, and neither borrowed
+  // the other's words. Since alpha.21 the first is gone (ADR-0024,
+  // 2026-11-25; workplan 0173): deleting by hand needs no switch, and only
+  // the automatic one is left on the page.
+  'applyFlag.readFailed': "Could not read whether the automatic removal of moved files' old copies is on:",
   'applyFlag.config.pre': "On this appliance the value lives in the mapping's config file",
   'applyFlag.config.post': '; edit the file and restart to change it.',
-  'applyFlag.turnOn': 'Turn on deleting by hand',
-  'applyFlag.turnOnArmed': 'Confirm: turn on deleting by hand',
   'autoApply.on': "Automatic removal of moved files' old copies is ON for this migration.",
   'autoApply.off': "Automatic removal of moved files' old copies is OFF for this migration (the default).",
-  // Stored ON while deleting by hand is off, which only the appliance's file
-  // can say (the managed switch turns both off): it waits, and does nothing.
-  'autoApply.onButWaiting':
-    "Automatic removal of moved files' old copies is set ON, and does nothing while deleting by hand is off.",
   'autoApply.hint': 'It runs without you: old copies of moved files only, never deletions.',
   'autoApply.why':
     'Only where the same bytes are confirmed present under the new name, the pairing is unique, the report survived a full pass, and no mass event is suspected. Everything it refuses stays on the Moves screen for you. Deletions are never removed automatically.',
@@ -359,22 +350,14 @@ export const nl: Record<keyof typeof en, string> = {
   'discovery.refusedNative.post':
     'met dit exportformaat. Kies er een die wel zou passen, of laat ze achter.',
   'confirm.refusedAck': 'Ik begrijp dat {kinds} ({n} bestanden) niet worden gemigreerd.',
-  'applyFlag.readFailed': 'Kon niet lezen of Handmatig verwijderen aan staat:',
-  'applyFlag.on': 'Handmatig verwijderen staat AAN voor deze migratie.',
-  'applyFlag.off': 'Handmatig verwijderen staat UIT voor deze migratie (de standaard).',
-  'applyFlag.onMeans': 'Er wordt niets verwijderd totdat u bij een item op een verwijderknop drukt.',
-  'applyFlag.turnOff': 'Uitschakelen',
-  'applyFlag.refusesUntilOn': 'Zolang dit uit staat, worden de verwijderknoppen op dit scherm geweigerd.',
+  'applyFlag.readFailed':
+    'Kon niet lezen of het automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden aan staat:',
   'applyFlag.config.pre': 'Op deze appliance staat de waarde in het configuratiebestand van de mapping',
   'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen.',
-  'applyFlag.turnOn': 'Handmatig verwijderen inschakelen',
-  'applyFlag.turnOnArmed': 'Bevestig: handmatig verwijderen inschakelen',
   'autoApply.on':
     'Automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden staat AAN voor deze migratie.',
   'autoApply.off':
     'Automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden staat UIT voor deze migratie (de standaard).',
-  'autoApply.onButWaiting':
-    'Automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden staat AAN, en doet niets zolang handmatig verwijderen uit staat.',
   'autoApply.hint':
     'Werkt automatisch: alleen oude kopieën van inmiddels verplaatste bestanden, nooit verwijderingen.',
   'autoApply.why':

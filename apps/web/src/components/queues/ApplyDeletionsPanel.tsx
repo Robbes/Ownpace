@@ -1,14 +1,16 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * Gate 1 of the destructive path, visible and — on managed, for an owner —
- * switchable (workplan 0019 T3).
+ * The one switch left on the destructive path, visible and — on managed, for
+ * an owner — switchable (workplan 0019 T3; ADR-0031): removing moved files'
+ * old copies unattended. Off by default; two presses to turn on, one to turn
+ * off — reducing capability never needs a ceremony.
  *
- * The flag used to be flipped by SQL, which meant the Deletions screen's
- * delete button was refused with no way to see why or change it. This panel
- * makes the current value a visible fact on the mapping, puts the shared
- * runbook warning IN FRONT of the enabling switch, and makes enabling a
- * two-step action (the same arm-then-confirm as the delete button itself).
- * Turning it OFF is one click — reducing capability never needs a ceremony.
+ * DELETING BY HAND HAS NO SWITCH (alpha.21; ADR-0024's amendment of
+ * 2026-11-25, workplan 0173). Until then this panel opened with *Turn on
+ * deleting by hand*, ADR-0024's gate 1, and the automatic removal showed only
+ * once that was on. The owner removed it: every delete is two presses on the
+ * page already. What the warning in front of that switch said is now
+ * `WhatADeleteDoes`, shown above the rows that offer a delete.
  *
  * On the appliance the value is config-file-owned (`source: 'config'`) and the
  * panel is read-only, naming the file instead of offering a switch that would
@@ -17,11 +19,11 @@
 
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Bot, ShieldCheck, ShieldOff } from 'lucide-react';
-import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
+import { AlertTriangle, Bot } from 'lucide-react';
+import { DELETE_BY_HAND_WARNING, DELETE_BY_HAND_WARNING_NL } from '@openmig/shared';
 import { useLocale, useT } from '../../i18n/index.tsx';
 import { Hint } from '../Hint.tsx';
-import { ActionButton, ConfirmButton, DestructiveButton, Refused } from './primitives.tsx';
+import { ActionButton, ConfirmButton, Refused } from './primitives.tsx';
 import {
   DecisionRefusedError,
   fetchApplyDeletionsFlag,
@@ -29,14 +31,25 @@ import {
 } from '../../services/operating-service.ts';
 import { serverMessage } from '../../services/api.ts';
 
+/**
+ * What a delete by hand does, above the rows that offer one (workplan 0173
+ * T3). The Dutch lives beside its English source in @openmig/shared (ADR-0026:
+ * one source of truth for destructive-path prose) — this only PICKS, it never
+ * rephrases (workplan 0024 T1).
+ */
+export const WhatADeleteDoes: React.FC = () => {
+  const { locale } = useLocale();
+  return (
+    <p className="mb-4 flex items-start gap-2 text-sm text-amber-800">
+      <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+      {locale === 'nl' ? DELETE_BY_HAND_WARNING_NL : DELETE_BY_HAND_WARNING}
+    </p>
+  );
+};
+
 export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const queryClient = useQueryClient();
   const t = useT();
-  // The Dutch warning lives beside its English source in @openmig/shared
-  // (ADR-0026: one source of truth for destructive-path prose) — the panel
-  // only PICKS, it never rephrases (workplan 0024 T1).
-  const { locale } = useLocale();
-  const applyFlagWarning = locale === 'nl' ? APPLY_FLAG_WARNING_NL : APPLY_FLAG_WARNING;
   const [changeError, setChangeError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
 
@@ -48,10 +61,10 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
     staleTime: 30_000,
   });
 
-  const change = (flags: { allowApplyDeletions?: boolean; autoApplyRelocations?: boolean }) => {
+  const change = (autoApplyRelocations: boolean) => {
     setChangeError(null);
     setPending(true);
-    setApplyDeletionsFlag(mappingId, flags)
+    setApplyDeletionsFlag(mappingId, { autoApplyRelocations })
       .then(() => queryClient.invalidateQueries({ queryKey }))
       .catch((err: unknown) => {
         setChangeError(
@@ -66,8 +79,8 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
   };
 
   if (error) {
-    // The flag gates the screen's one destructive button; not knowing its
-    // state is worth saying, not hiding (hard rule 9).
+    // Not knowing whether something removes copies unattended is worth
+    // saying, not hiding (hard rule 9).
     return (
       <p className="mb-4 text-sm text-amber-800">
         {t('applyFlag.readFailed')}{' '}
@@ -79,130 +92,41 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
 
   return (
     <div className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm">
+      {/* ADR-0031 (accepted 2026-08-16): unattended relocation apply. Its own
+          switch since 2026-11-25. Two-step on, one-click off; read-only on the
+          appliance, where the flag is config-file-owned. */}
       <div className="flex items-center gap-2">
-        {data.allowApplyDeletions ? (
-          <ShieldOff className="w-4 h-4 text-red-600 flex-shrink-0" />
-        ) : (
-          <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-        )}
         <span className="font-medium text-gray-900">
-          {data.allowApplyDeletions ? t('applyFlag.on') : t('applyFlag.off')}
+          {data.autoApplyRelocations ? t('autoApply.on') : t('autoApply.off')}
         </span>
-        {data.source === 'mapping' && data.allowApplyDeletions && (
-          <ActionButton
-            pending={pending}
-            // BOTH OFF, when the second was on (workplan 0156 T6). Turning
-            // only this one off hid the automatic removal's section and left
-            // it stored ON, so turning this back on, past a warning about
-            // "your explicit per-item decision", re-armed unattended removal
-            // without a word.
-            onClick={() =>
-              change(
-                data.autoApplyRelocations
-                  ? { allowApplyDeletions: false, autoApplyRelocations: false }
-                  : { allowApplyDeletions: false },
-              )
-            }
-          >
-            {t('applyFlag.turnOff')}
+        {data.source === 'mapping' && data.autoApplyRelocations && (
+          <ActionButton pending={pending} onClick={() => change(false)}>
+            {t('autoApply.turnOff')}
           </ActionButton>
         )}
       </div>
-
-      {data.allowApplyDeletions ? (
-        // What ON allows, said beside it: the owner read "ON" as deletions
-        // happening by themselves (0156 T6).
-        <p className="mt-1 text-gray-600">{t('applyFlag.onMeans')}</p>
-      ) : (
-        <p className="mt-1 text-gray-600">{t('applyFlag.refusesUntilOn')}</p>
-      )}
-
-      {/* Stored ON under a first switch that is off: the appliance's file can
-          say so, and a row from before both went off together can too. It
-          waits and does nothing, and is never out of sight. */}
-      {!data.allowApplyDeletions && data.autoApplyRelocations && (
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-gray-700">{t('autoApply.onButWaiting')}</span>
-          {data.source === 'mapping' && (
-            <ActionButton pending={pending} onClick={() => change({ autoApplyRelocations: false })}>
-              {t('autoApply.turnOff')}
-            </ActionButton>
-          )}
-        </div>
-      )}
-
+      <Hint text={t('autoApply.hint')} why={t('autoApply.why')} />
       {data.source === 'config' ? (
-        <p className="mt-2 text-gray-600">
+        <p className="mt-1 text-gray-600">
           {t('applyFlag.config.pre')}{' '}
-          (<code className="font-mono text-xs">allowApplyDeletions</code>)
+          (<code className="font-mono text-xs">autoApplyRelocations</code>)
           {t('applyFlag.config.post')}
         </p>
       ) : (
-        !data.allowApplyDeletions && (
+        !data.autoApplyRelocations && (
           <div className="mt-2">
-            {/* The warning comes BEFORE the switch, and the switch itself is
-                two-step — same ceremony as the delete button it enables. */}
-            <p className="flex items-start gap-2 text-amber-800">
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              {applyFlagWarning}
-            </p>
-            <div className="mt-2">
-              <DestructiveButton
-                pending={pending}
-                label={t('applyFlag.turnOn')}
-                armedLabel={t('applyFlag.turnOnArmed')}
-                onClick={() => change({ allowApplyDeletions: true })}
-              />
-            </div>
+            {/* Two presses and red, because it acts unattended; no bin,
+                because pressing it removes nothing (0156 T6). */}
+            <ConfirmButton
+              pending={pending}
+              tone="destructive"
+              icon={<Bot className="w-3 h-3" />}
+              label={t('autoApply.turnOn')}
+              armedLabel={t('autoApply.turnOnArmed')}
+              onClick={() => change(true)}
+            />
           </div>
         )
-      )}
-
-      {/* ADR-0031 (accepted 2026-08-16): unattended relocation apply. Only
-          meaningful once gate 1 is on — the engine refuses every item without
-          it — so the section renders only then, beside the switch it extends.
-          Same ceremony: two-step on, one-click off; read-only on the
-          appliance, where both flags are config-file-owned. */}
-      {data.allowApplyDeletions && (
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-900">
-              {data.autoApplyRelocations ? t('autoApply.on') : t('autoApply.off')}
-            </span>
-            {data.source === 'mapping' && data.autoApplyRelocations && (
-              <ActionButton
-                pending={pending}
-                onClick={() => change({ autoApplyRelocations: false })}
-              >
-                {t('autoApply.turnOff')}
-              </ActionButton>
-            )}
-          </div>
-          <Hint text={t('autoApply.hint')} why={t('autoApply.why')} />
-          {data.source === 'config' ? (
-            <p className="mt-1 text-gray-600">
-              {t('applyFlag.config.pre')}{' '}
-              (<code className="font-mono text-xs">autoApplyRelocations</code>)
-              {t('applyFlag.config.post')}
-            </p>
-          ) : (
-            !data.autoApplyRelocations && (
-              <div className="mt-2">
-                {/* Two presses and red, because it acts unattended; no bin,
-                    because pressing it removes nothing. The bin beside "ON"
-                    above read as "deletions are not on yet" (0156 T6). */}
-                <ConfirmButton
-                  pending={pending}
-                  tone="destructive"
-                  icon={<Bot className="w-3 h-3" />}
-                  label={t('autoApply.turnOn')}
-                  armedLabel={t('autoApply.turnOnArmed')}
-                  onClick={() => change({ autoApplyRelocations: true })}
-                />
-              </div>
-            )
-          )}
-        </div>
       )}
 
       {changeError && (

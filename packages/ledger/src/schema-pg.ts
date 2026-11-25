@@ -228,12 +228,18 @@ export const mailboxMapping = pgTable(
     // User-facing name + optional cron schedule (migration 0013).
     name: text('name'),
     schedule: text('schedule'),
-    // apply's gate 1 (0017 T4). DEFAULT FALSE: a mapping can remove nothing
-    // from the target until somebody turns this on for it, deliberately.
+    // UNREAD since alpha.21 (ADR-0024's amendment of 2026-11-25, workplan
+    // 0173). It was apply's gate 1 (0017 T4), a per-mapping switch for
+    // deleting by hand, DEFAULT FALSE. The owner removed that switch: no route
+    // or job reads this column any more. It stays here, and in the database,
+    // until a later release drops it (read against the migration-lock report,
+    // workplan 0165); `packages/shared/src/deleting-by-hand-needs-no-switch.
+    // unit.test.ts` fails if code reads it again.
     allowApplyDeletions: boolean('allow_apply_deletions').notNull().default(false),
     // ADR-0031 (accepted 2026-08-16): apply open RELOCATIONS unattended at the
-    // end of each file pass. DEFAULT FALSE for the same reason — and it runs
-    // with nobody looking, so four extra gates stand in front of every item.
+    // end of each file pass. DEFAULT FALSE: it runs with nobody looking, so
+    // four extra gates stand in front of every item. The one switch left on
+    // the destructive path (ADR-0031, amended 2026-11-25).
     // Migration 0014.
     autoApplyRelocations: boolean('auto_apply_relocations').notNull().default(false),
     // NULL = merge into the account root (the default; owner decision

@@ -59,8 +59,11 @@ const config = () =>
     mappingId: MAPPING,
     source: dav('caldav', 'https://cloud.example.invalid/remote.php/dav'),
     target: dav('caldav', 'https://cloud.example.invalid/remote.php/dav'),
-    // On: the case in which anything is removed at all.
-    allowApplyDeletions: true,
+    // A file from before alpha.21 that turned deleting by hand OFF. Since
+    // then the key turns nothing off (ADR-0024, 2026-11-25; workplan 0173):
+    // every answer below comes from the gates behind the old gate 1, never
+    // `not_enabled`.
+    allowApplyDeletions: false,
     domains: {
       calendar: {
         enabled: true,

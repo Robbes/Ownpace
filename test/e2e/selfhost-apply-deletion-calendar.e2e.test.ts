@@ -32,8 +32,9 @@
 //     documents catching before it ever reached a test run.
 //
 // PREREQUISITES: same running stack as selfhost-restart-resume.e2e.test.ts,
-// which MUST have run to completion first, and `allowApplyDeletions: true` on
-// the mapping (e2e.yml's config-generation step sets this).
+// which MUST have run to completion first. No switch has to be on: deleting
+// by hand needs none since alpha.21 (ADR-0024, amended 2026-11-25), and
+// e2e.yml's config-generation step sets none, so this proves exactly that.
 
 import { describe, it, expect } from 'vitest';
 import { execSync } from 'node:child_process';

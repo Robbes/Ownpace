@@ -5,10 +5,17 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { confirmGuard } from './components/queues/confirm-guard.ts';
 
 afterEach(() => {
   cleanup();
 });
+
+// A two-press button ignores a confirming click within 800 ms of arming
+// (workplan 0173 T0). Component tests press both in the same tick to test
+// what the press DOES; the guard has its own tests, which set it back
+// (`components/queues/primitives.unit.test.tsx`).
+confirmGuard.ms = 0;
 
 // jsdom has no layout, so its `window.scrollTo` only prints "Not implemented".
 // The app sends the page to the top on every wizard step and every new page

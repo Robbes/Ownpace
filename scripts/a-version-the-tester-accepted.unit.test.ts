@@ -145,6 +145,19 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // in place, as on 2026-10-14, 2026-10-21, 2026-11-22 and earlier on 2026-11-23. Only the two
   // privacy pins move. As before, an acceptance of 1.0 recorded before these words reach a stack
   // counts for them, and only the owner's own and test accounts can hold one.
+  // TERMS AND ALPHA RE-PINNED UNDER 1.0 on 2026-11-25 (the owner, of workplan 0173's Q4,
+  // verbatim: "terms or the privacy policy: no one but me accepted then, so change them and stay
+  // on 1.0"): alpha.21 removes the switch for deleting by hand (ADR-0024 gate 1, workplan 0173
+  // §10). Terms §2's first bullet says nothing is deleted at the target unless the customer
+  // approves it on the migration's Deletions page, each deletion or a list after one confirmation
+  // that names how many. On the owner's read of the Dutch the same day, the Dutch terms say
+  // bestemming for the target throughout, where they said doel ("All 8: yes");
+  // alpha §8's list of what an admin cannot do loses deleting by hand. The
+  // Last updated line moved to 2026-11-25 in those four files. No tester had accepted any
+  // version, so the numbers stay 1.0, edited in place, as on 2026-10-14, 2026-10-21, 2026-11-22
+  // and 2026-11-23. Only the alpha and terms pins move; privacy is unchanged. As before, an
+  // acceptance of 1.0 recorded before these words reach a stack counts for them, and only the
+  // owner's own and test accounts can hold one.
   // PRIVACY AND TERMS RE-PINNED UNDER 1.0 on 2026-11-25 (the owner, of workplan 0174's D8,
   // verbatim: "terms or the privacy policy: no one but me accepted then, so change them and stay
   // on 1.0"): from alpha.21 a grant link can ask a person to type their own password (workplan
@@ -162,12 +175,14 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // server the page names", not "once", as every press is one try of five; and a password the
   // person typed is withdrawn on their progress page for a source and a destination alike, as the
   // grant-link branch builds it (0174 §4.3).
-  'alpha.md@1.0': 'acc56aaf5e570d53687793a4e6951ae5732c5ce7273328a5ac5ed4201785018c',
-  'alpha.nl.md@1.0': 'bf9a41a1679f8ee912c8e611b52eb4daf93f0e4042f8c708c476dea99cfd4bfb',
+  // The terms' pins are of both changes together: workplan 0173's §2 (#2158, merged first) and this
+  // §5, recomputed on the merged files.
+  'alpha.md@1.0': '4e1c6cece0e428a5d4b44f12d542eb82a5723ff7a85ab3fe8923c32247cb72ee',
+  'alpha.nl.md@1.0': '8ac0875daae58e0b2bb9c151f6abb3b0f55dab652790d396c17de2297c90bcbe',
   'privacy.md@1.0': '8afcbca9dee6e50ae64c421dfff6c655bdce5e786086e4fc86b0602977755e8d',
   'privacy.nl.md@1.0': '1445ceec6741a4279010f0fafe1624701f3d1e590c55e63f29d891da5c1866d8',
-  'terms.md@1.0': '9ea49748d35d66ded8823581d24da13c2935a2319a4306749090a26b96ae0074',
-  'terms.nl.md@1.0': 'fb7247bc0b9312a7157cc999904b800b2007df2f8003c4beb4a9539a33e8c33e',
+  'terms.md@1.0': '0c905a3111a06bf080ec4f929c31e178eb52ef935262451448172ca7cd910d2f',
+  'terms.nl.md@1.0': '6da308638c45a9822855a8c74281ae33efd902cf586e30b850549509947bbcdb',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

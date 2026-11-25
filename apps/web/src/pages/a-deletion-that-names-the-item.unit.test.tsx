@@ -74,7 +74,7 @@ const rowOf = async (hash: string) => (await screen.findByTitle(hash)).closest('
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: true, source: 'mapping' });
+  fetchApplyDeletionsFlag.mockResolvedValue({ autoApplyRelocations: false, source: 'mapping' });
 });
 
 describe('a deleted item is named by what the ledger holds for it', () => {

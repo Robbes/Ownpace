@@ -534,9 +534,11 @@ system yourself — or, for `reported`/`trashed` evidence, ask this tool to do i
 curl -X POST http://127.0.0.1:8081/mappings/<mappingId>/deletions/<naturalKeyHash>/apply
 ```
 
-This is the ONE call in the whole appliance that deletes anything, so it is off
-by default. Add `"allowApplyDeletions": true` to the mapping's config to turn it
-on, and read the full write-up — the gates it checks, what "removed" means per
+This is the ONE call in the whole appliance that deletes anything. Since
+alpha.21 nothing has to be turned on for it, and nothing turns it off: the
+mapping's `allowApplyDeletions` is ignored (a file that says `false` is told so
+once, at start). The API asks no confirmation, so one call is one removal; the
+web page asks for two presses. Read the full write-up — the gates it checks, what "removed" means per
 target, and why a reappearing tombstoned item is never quietly re-copied — in
 the operator runbook before using it.
 

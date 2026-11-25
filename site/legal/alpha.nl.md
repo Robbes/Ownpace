@@ -10,7 +10,10 @@
      2026-10-19, still 1.0: §8 names the two deletion switches as the app
      does, and §6 says "aanmelden" as the app does; alpha.md's briefing has
      the words. #1639 numbered them 1.1; the owner put them back under 1.0 on
-     2026-10-21, as no tester had accepted any version.
+     2026-10-21, as no tester had accepted any version. Edited in place
+     again on 2026-11-25, still 1.0: §8 no longer lists *handmatig
+     verwijderen* among what a beheerder cannot do, as alpha.21 removes that
+     switch; alpha.md's briefing has the owner's words.
      The briefing for the reviewing lawyer,
      including which language governs and which answer changed which section,
      is the comment at the top of alpha.md — it applies to both files.
@@ -22,7 +25,7 @@
 
 **Gelden voor:** de Alpha van de **beheerde Ownpace-dienst** op `ownpace.eu`.
 **Versie:** 1.0
-**Laatst bijgewerkt:** 2026-10-19
+**Laatst bijgewerkt:** 2026-11-25
 
 ---
 
@@ -125,10 +128,10 @@ Uw account is alleen voor u. Deel uw inloggegevens met niemand.
 Nodig tijdens de Alpha niemand anders uit in uw organisatie. Wil iemand een migratie volgen,
 stuur die persoon dan de voortgangslink van die migratie: die toont aantallen en statussen,
 nooit de inhoud. Nodigt u toch iemand uit, geef die persoon dan de rol beheerder, en weet dat
-een beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, *handmatig
-verwijderen* of *het automatisch verwijderen van oude kopieën van inmiddels verplaatste
-bestanden* aan- of uitzetten, iemand eigenaar maken, en een eigenaar of een uitnodiging als
-eigenaar een andere rol geven of verwijderen. Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn. U bent zelf
+een beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, *het
+automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden* aan- of uitzetten,
+iemand eigenaar maken, en een eigenaar of een uitnodiging als eigenaar een andere rol geven of
+verwijderen. Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn. U bent zelf
 verantwoordelijk voor wie u uitnodigt.
 
 ## 9. Google vraagt opnieuw

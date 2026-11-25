@@ -66,7 +66,7 @@ import { openTaskPools } from './task-pools.ts';
  * ADR-0031 (accepted 2026-08-16): apply open relocations unattended, after a
  * completed file pass, on mappings that opted in.
  *
- * The flags are read FRESH from the mapping row at execution time — the pass
+ * The flag is read FRESH from the mapping row at execution time — the pass
  * is a window, and the mapping being switched off during it must win — and so
  * is the file data type's phase (2026-10-05): after cutover core applies
  * nothing, and this says so in the run log. All of
@@ -88,7 +88,6 @@ async function autoApplyOpenRelocations(
     db
       .select({
         auto: schemaPg.mailboxMapping.autoApplyRelocations,
-        allow: schemaPg.mailboxMapping.allowApplyDeletions,
         prefix: schemaPg.mailboxMapping.targetFolderPrefix,
       })
       .from(schemaPg.mailboxMapping)
@@ -103,11 +102,10 @@ async function autoApplyOpenRelocations(
       domain: 'file',
       ledger: deps.ledger,
       target: deps.target,
-      allowApplyDeletions: rows[0]?.allow === true,
       autoApplyRelocations: true,
       // The file data type's phase, asked fresh at the apply through the
       // question the deps builder made from `readPathPhases` (2026-10-05):
-      // after cutover the apply removes nothing. Read like the flags above,
+      // after cutover the apply removes nothing. Read like the flag above,
       // at execution time, because the pass is a window and an execute
       // during it must win.
       stillTheAuthority: deps.stillTheAuthority,

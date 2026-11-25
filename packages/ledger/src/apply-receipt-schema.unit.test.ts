@@ -3,10 +3,12 @@
 /**
  * What `0004_managed_apply.sql` must deliver (workplan 0017 T4).
  *
- * - `mailbox_mapping.allow_apply_deletions` exists and DEFAULTS TO FALSE:
- *   every mapping that predates the column, and every mapping created without
- *   an explicit opt-in, stays unable to remove anything from the target. The
- *   default IS the safety property, so it gets the first test.
+ * - `mailbox_mapping.allow_apply_deletions` exists, as `0004` made it. Since
+ *   alpha.21 NOTHING READS IT (ADR-0024's amendment of 2026-11-25, workplan
+ *   0173): deleting by hand needs no switch. It stays in the schema, unread,
+ *   with its old default, until a later release drops it; this pins that it
+ *   is still there to drop, and `deleting-by-hand-needs-no-switch` in
+ *   `packages/shared` pins that no code reads it.
  *
  * - `apply_receipt` refuses rows that lie about themselves — a queued row with
  *   an outcome time, a terminal row without one, a state outside the machine —
@@ -64,8 +66,8 @@ afterAll(async () => {
   await driver?.end();
 });
 
-describe('the enable flag', () => {
-  it('defaults to FALSE — a mapping can remove nothing until somebody says so', async () => {
+describe('the old enable flag, unread since alpha.21', () => {
+  it('is still in the schema with the default 0004 gave it, for a later release to drop', async () => {
     const { rows } = await conn.query<{ allow: boolean }>(
       `SELECT allow_apply_deletions AS allow FROM mailbox_mapping WHERE id = $1`,
       [MAPPING],

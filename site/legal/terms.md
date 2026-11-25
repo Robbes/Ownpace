@@ -16,6 +16,20 @@
   switches, both still off by default, the same promise. #1639 numbered these words 1.1, because
   1.0 was final and pinned; on 2026-10-21 the owner put them back under 1.0, as no tester had
   accepted any version, in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS.
+
+  Still 1.0, edited in place on 2026-11-25, on the owner's word (workplan 0173 Q4, verbatim:
+  "terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"):
+  §2's first bullet no longer names *deleting by hand* / *handmatig verwijderen* as a switch,
+  because alpha.21 removes that switch (ADR-0024 gate 1, workplan 0173 §10, the owner's choice
+  (a)). Nothing is deleted at the target unless the customer approves it on the migration's
+  *Deletions* page: each deletion, or a list after one confirmation that names how many. *The
+  automatic removal of moved files' old copies* stays a switch, off by default. The promise is
+  the same: nothing at the source, nothing at the target without the customer's own approval.
+  The Last updated line moved to 2026-11-25, in both languages; ACCEPTED_WORDS re-pins both
+  files under 1.0. The Dutch now says *bestemming* for the target throughout, where it said
+  *doel*: *in uw bestemming* and *in uw nieuwe bestemming* in that bullet, *nieuwe bestemming*
+  and *bestemmingsaccount* (paired with *bronaccount*) in the rest of §2, in §7 and in §10. That
+  is the owner's read of the Dutch, 2026-11-25 ("All 8: yes"). The English is unchanged there.
 -->
 <!--
   FINAL — v1.3, 2026-10-05 (the date on the Last updated line moves to the
@@ -624,10 +638,11 @@ what has been migrated.
 **What it will not do:**
 
 - **It never deletes anything at your source.** At your target, nothing is deleted either, unless you
-  switch on *deleting by hand* and approve each deletion. If you also switch on *the automatic
-  removal of moved files' old copies*, the old copy of a file that moved at your source is removed
-  at your target after strict checks, without asking you each time. Both are off by default,
-  until you explicitly turn these features on.
+  approve it yourself on the migration's *Deletions* page: each deletion, or a list of them after
+  one confirmation that names how many. If you switch on *the automatic removal of moved files'
+  old copies*, the old copy of a file that moved at your source is removed at your target after
+  strict checks, without asking you each time. That one is off by default, until you explicitly
+  turn it on.
 - **It does not sync back.** Data flows from source to target, never the other way. Your source
   remains your fallback for as long as you keep it.
 - **It cannot promise a perfect copy of everything.** File formats differ between providers, and
