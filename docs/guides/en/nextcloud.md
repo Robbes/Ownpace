@@ -35,6 +35,10 @@ The test writes nothing. It signs in and shows what the account carries (**Carri
 
 You can also add the account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the **Nextcloud** card, fill in the **DAV base URL** yourself, such as `https://cloud.example.com/remote.php/dav`, and press **Add and test**.
 
+## If the account is somebody else's {#somebody-else}
+
+If the account belongs to a colleague, a family member or a client, you do not need their password. In **Start a migration**, under **Who signs in to the accounts?**, choose **They do, with a link**. Fill in the server and the account, leave the password out, and press **Save for** *them*. The destination step asks **Whose account is …?**: choose *their own*, and they connect it with the link. They type the password themselves, on the page your grant link opens: it names the server the password is checked with, tests it before anything is stored, and nobody sees it again, you included. Five wrong passwords lock that account on that link; a new link starts again. They need an app password, made as [above](#app-password) says; the page shows them the same steps.
+
 ## What moves {#what-moves}
 
 - **Calendar**, **Contacts**, **Files** and **Tasks**, as far as you tick them on **What moves?**.

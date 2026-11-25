@@ -22,7 +22,10 @@
      with the exception"; the briefing's question 15).
      The briefing for the reviewing lawyer (open questions, what changed in
      each version, and what must be true before the draft marker comes off) is
-     the comment at the top of terms.md — it applies to both files. -->
+     the comment at the top of terms.md — it applies to both files.
+     Still 1.0, edited in place on 2026-11-25 (§5: a toegangslink that asks for a password names
+     the person's own aanbieder's server; the owner, workplan 0174 D8, verbatim: "terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"); the
+     end of terms.md's second comment has why. -->
 
 # Servicevoorwaarden
 
@@ -119,7 +122,10 @@ verkopen uw gegevens niet.
 Gebruik de dienst niet om rechten van anderen te schenden, om de wet te overtreden, om gegevens
 te migreren waar u geen recht op hebt, of om de dienst of de aanbieders waarmee die koppelt aan
 te vallen. Verkoop de dienst niet door als de uwe zonder schriftelijke afspraak — daar bestaat
-een MSP-pakket voor en we praten er liever over.
+een MSP-pakket voor en we praten er liever over. Een toegangslink die iemand om een wachtwoord
+vraagt, moet de server van diens eigen aanbieder noemen: een link sturen die een server noemt die
+u zelf beheert, om iemands wachtwoord te ontvangen, is een aanval op die persoon, en dan sluiten
+we het account.
 
 We kunnen een account opschorten dat een van die dingen doet. Behalve waar de wet of de situatie
 dat onmogelijk maakt, **laten we u eerst weten waarom en krijgt u gelegenheid te

@@ -33,6 +33,10 @@ The test writes nothing. It signs in to the calendars and also measures each par
 
 You can also add the account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the **Cirrux** card, and press **Add and test**. The boxes are pre-filled there in the same way, in plain view.
 
+## If the account is somebody else's {#somebody-else}
+
+If the account belongs to a colleague, a family member or a client, you do not need their password. In **Start a migration**, under **Who signs in to the accounts?**, choose **They do, with a link**. Fill in the server and the account, leave the password out, and press **Save for** *them*. The destination step asks **Whose account is …?**: choose *their own*, and they connect it with the link. They type the password themselves, on the page your grant link opens: it names the server the password is checked with, tests it before anything is stored, and nobody sees it again, you included. Five wrong passwords lock that account on that link; a new link starts again. They need an app password from the mailbox's **Passwords** tab, not the password they sign in to Cirrux with. It is checked with Cirrux's own server. When files go to Cirrux, the same card then offers **Connect Cirrux Drive**, once the app password is stored: see [Files: Cirrux Drive](#drive). The first Drive grant records the workspace it reached, and a later one must reach the same.
+
 ## What moves {#what-moves}
 
 - **Email**, when the account is saved with its **Mail server**: the folders and the messages in them. Folders in Cirrux are labels. A folder this service creates becomes a label of the same name, nested under another where the name has a slash, and over IMAP every label shows as a folder again ([subfolders](https://cirrux.co/help/questions/subfolders-in-my-mailbox)).

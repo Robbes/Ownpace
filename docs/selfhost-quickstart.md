@@ -33,6 +33,8 @@ no billing).
     containers — see [`windows-appliance-runbook.md`](./windows-appliance-runbook.md).
 - Source/target credentials (e.g. an app password or OAuth token for the source
   mailbox, a password for the JMAP/DAV target).
+  The appliance has no grant links (workplan 0174 D7): to let somebody type their own
+  password, use the managed service's grant link; the appliance has none.
 
 > ⚠️ **The Postgres data volume must be on a LOCAL filesystem.** Never place it on
 > a network share (SMB/NFS) — Postgres can corrupt on network filesystems. On a

@@ -1151,11 +1151,21 @@ function whereTo(locale) {
   return `
 <h2>${c.whereTitle}</h2>
 <p>${c.whereLede}</p>
+<p>${c.whereByLink}</p>
 <div class="cards">${DESTINATIONS.map(card).join('')}</div>
 `;
 }
 
 // ----------------------------------------------------------------- leaving --
+
+/**
+ * The Leaving… pages whose provider a person's grant link cannot connect
+ * (workplan 0174 §13): Box is held by the organisation's own app (ADR-0035
+ * decision 3, category C), so nobody grants it by signing in. Every other page
+ * says a link can (Google, Microsoft and Dropbox by sign-in, Apple and any
+ * other mail provider by the person's own password).
+ */
+const NO_GRANT_LINK = new Set(['box']);
 
 /** A provider's tile (0152 D4): the initial, hidden from a screen reader, which reads the name beside it. */
 const tile = (letter, size) => `<span class="tile${size === 20 ? '' : ` t${size}`}" aria-hidden="true">${esc(letter)}</span>`;
@@ -1312,6 +1322,7 @@ ${behind}
 <ul class="limits">${limits}</ul>
 <h2>${L.stepsTitle}</h2>
 <ul class="steps">${steps}</ul>
+${NO_GRANT_LINK.has(page.id) ? '' : `<p>${L.byLink}</p>`}
 <h2>${L.costTitle}</h2>
 <p>${cost}</p>
 <p class="fineprint">${esc(c.vatIncluded)}</p>

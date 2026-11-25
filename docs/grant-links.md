@@ -7,16 +7,19 @@ It exists because the alternative is worse in a specific way. Migrating a collea
 needs a credential for that mailbox, and the two obvious ways to get one are both bad: asking
 for their password, or sitting beside them while they sign in and copying a token out of a
 browser. Both put one person's private credential through another person's hands. A link
-removes the middle: they sign in on Google's or Microsoft's own page, and what comes back is stored against
-their migrations that read that account, encrypted, never shown to anyone.
+removes the middle: they sign in on their provider's own page (Google, Microsoft, Dropbox, Cirrux
+Drive), or, for an account that signs in with a password, type that password themselves on a page
+Ownpace shows only them (since alpha.21, workplan 0174). What comes back is stored encrypted,
+against the migrations it serves, and never shown to anyone, you included.
 
 **You send the link. We never do.** Ownpace does not email it, does not store the recipient's
 address, and does not know who you sent it to. That is deliberate: an address we never learn is
 an address we cannot leak, and you already know who the person is.
 
 **One link per person.** A link is made for a person, not for a migration: one grant link for all
-of their migrations, which asks each Google or Microsoft account of theirs once, and one progress link where
-they follow all of them (ADR-0035). A migration's page makes no link of its own. A migration's
+of their migrations, which asks each account of theirs once, the ones their data is copied from
+and, since alpha.21, the ones it is copied to, and one progress link where they follow all of
+them (ADR-0035). A migration's page makes no link of its own. A migration's
 link sent before that changed keeps working until it expires: see
 [Links sent before](#links-sent-before).
 
@@ -31,8 +34,13 @@ Anna**, say), under **One grant link for everything**:
 3. Copy the link and send it, however you normally reach that person.
 
 *Start a migration* offers the same link on its last screen when the person connects their own
-accounts (**They do, with a link**). It is one link either way, however many migrations it
-serves. You can press **Start** there once one count is in: the migrations still waiting for the
+accounts (**They do, with a link**). Since alpha.21 that covers every account a link can connect:
+for one that signs in with a password, you fill in its server and account and press **Save for**
+*the person*, and no password box is shown. The destination step asks **Whose account is** *the
+provider*? when the destination signs in with a password, or is Cirrux: **Mine, or the
+organisation's: I connect it**, or *the person*'s own, **they connect it with the link**. The last
+screen counts what the link asks for: *The link asks Anna for 2 accounts: …*. It is one link
+either way, however many migrations it serves. You can press **Start** there once one count is in: the migrations still waiting for the
 link start by themselves when the person connects (see [When the grant lands](#when-the-grant-lands)).
 
 **When every account of theirs is connected already**, the new link asks each of them to connect
@@ -77,12 +85,14 @@ gives each migration's reason, once each, and each names what to fix:
 |---|---|
 | The person has no migrations yet | Add one first. |
 | The migration has no source connection yet | Finish setting up the source first. |
-| The source is not an account a link can connect | Grant links cover a Google account, Gmail, Google Calendar, Google Contacts and Google Drive, and since alpha.20 a Microsoft 365 account, personal or work. A company's own Microsoft app (*Microsoft 365 (Graph API)* or *(IMAP)*) reads with application permissions, which nobody grants by signing in. Dropbox and Apple follow (workplan 0171 T4 and T5); until then, and for every other source, the credential still comes to you by hand. |
+| The source is not an account a link can connect | A person's link connects a Google account, Gmail, Google Calendar, Google Contacts and Google Drive, a Microsoft 365 account, personal or work (alpha.20), Dropbox, and since alpha.21 every source that signs in with a password: an IMAP mailbox, an Apple Account (iCloud), CalDAV, CardDAV and WebDAV (see [A password, typed by the person](#a-password-typed-by-the-person)). What it does not connect is what an organisation holds rather than a person: Box, a company's own Microsoft app (*Microsoft 365 (Graph API)* or *(IMAP)*), which reads with application permissions nobody grants by signing in, and Google's domain-wide delegation. An export archive has no credential at all. Those still come to you by hand, on the Accounts page. |
+| The destination is not one a link can connect | *This destination is not one a link can connect. Connect it yourself on the Accounts page.* A link connects a destination that signs in with a password (Soverin, Nextcloud, Cirrux, Infomaniak, JMAP, IMAP, CalDAV, CardDAV, WebDAV) when you saved it for the person, and Cirrux Drive once its app password is stored. Any other destination is yours to connect. A destination you connected with your own password is not on the link at all: it is not the person's to grant. |
 | The migration names no account | A grant is only accepted from the Google or Microsoft account the migration reads (see below), so a migration that names none cannot be granted. The account is set when a migration is created: create it again with the account's address. |
 | The migration has no destination yet | Set the destination first. The person you ask is shown where their data will go before they agree, so a link needs one to name. |
 | The migration copies no data types | Include at least one. A link for a Google account asks for exactly the data types the migration copies, so with none there is nothing to ask. |
 | No client id or client secret is stored, and the deployment has no Google client | Add them on the source connection — see [Google Workspace setup](./google-workspace-setup.md), step 3 — or ask whoever runs your Ownpace to set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. Your own client, when you store one, is always the one used. Half a pair is refused rather than finished with the deployment's other half. |
 | The same, for a Microsoft account | Add your own Entra app's Client ID and client secret (and its Tenant ID, for a single-tenant app) on the source connection, or ask whoever runs your Ownpace to set `MICROSOFT_OAUTH_CLIENT_ID` and `MICROSOFT_OAUTH_CLIENT_SECRET` ([Microsoft setup](./microsoft-setup.md)). Half a pair is refused the same way. |
+| The same, for Dropbox (*its Dropbox app is not set up yet*) | Add your own Dropbox app's App key and App secret on the source connection, or ask whoever runs your Ownpace to set `DROPBOX_OAUTH_CLIENT_ID` and `DROPBOX_OAUTH_CLIENT_SECRET`. Half a pair is refused the same way. |
 | Mail and files need scopes Google classes as restricted | Through the deployment's own Google client, a link asks for Gmail or Drive only where whoever runs your Ownpace has declared `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, once their application carries those scopes. Or add your own Google client on the source connection. Calendars, contacts and tasks need neither. |
 | `WEB_URL` is not set | A deployment setting. Whoever runs your Ownpace needs to set it and restart; a link built without it would point at the wrong machine. |
 | Your organisation already holds as many grant links as it may | Revoke one that is no longer needed, or wait until one is used or expires (see below). |
@@ -100,8 +110,13 @@ date or for good.
 
 ## What the other person sees
 
-The page says who is asking once, then shows a card for each Google account their migrations
-read. Before any button, it tells them:
+The page says who is asking once, then shows a card for each account the link asks for, in two
+groups: **The accounts your data is copied from**, then **The accounts your data is copied to**.
+A group with no card is left out. Each card says **Connected**, **Waiting** or **Locked on this
+link**, and a destination's card says what arrives there and from where. A card for an account
+that signs in with a password is described in [A password, typed by the
+person](#a-password-typed-by-the-person); the sign-in cards work as below. Before any button,
+the page tells them:
 
 - **who is asking** — your organisation, by name, and the address **you** sign in to Ownpace
   with, so they know which person is asking and not only which organisation. If your
@@ -142,8 +157,27 @@ one whose migrations run through two different applications of its provider (two
 applications, or two Microsoft ones), says why instead of offering the button, in words they can
 pass on to you.
 
-A migration a link cannot serve, such as one reading an IMAP mailbox or a company's own Microsoft
-app, is left off the page: its credential still comes to you by hand.
+A migration a link cannot serve, such as one reading Box or a company's own Microsoft app, is
+left off the page: its credential still comes to you by hand.
+
+### A Dropbox account (workplan 0174, alpha.21)
+
+A Dropbox account is asked the same way: **Continue with Dropbox as** *that account*, and the
+permission in words (*Dropbox: read your files*, and reading the account's name, email address
+and the space it uses). Dropbox takes no hint of which account to offer, so the account is checked
+after sign-in: Dropbox is asked who signed in, and the grant is kept only when that is the named
+address, apart from capitals, and Dropbox says the address is verified. Otherwise nothing is
+stored and the link still works. The person can also withdraw the access in their Dropbox
+settings, under *Connected apps*.
+
+### Cirrux Drive, on a destination (workplan 0174, alpha.21)
+
+When the person's own Cirrux account is the destination and files go there, the card offers
+**Connect Cirrux Drive** once the account's app password is stored, by you or by the person on the
+same page. Cirrux's sign-in names a workspace, never an address, so the first Drive grant on an
+account records the workspace it reached, and every later grant, through a link or your own
+*Connect Cirrux Drive*, must reach the same one; another workspace is refused and nothing is
+stored.
 
 ### A Microsoft account (workplan 0171, alpha.20)
 
@@ -183,6 +217,59 @@ pressed the button. It asks them to keep their progress link, by a bookmark or a
 page opened inside another app may not keep a bookmark. A **Copy link** button beside the link
 copies it and says *Copied.*; where the browser does not allow copying, as a private window on a
 phone may not, it selects the link instead and says so, so the phone's own Copy is one press away.
+
+## A password, typed by the person
+
+Since alpha.21 (workplan 0174) a link also connects an account that signs in with a password,
+source or destination: an IMAP mailbox, an Apple Account (iCloud, with an app-specific password),
+CalDAV, CardDAV and WebDAV; and as a destination Soverin, Nextcloud, Cirrux, Infomaniak, JMAP and
+IMAP. The point is the one above: **nobody's password has to pass through you.**
+
+**You fix where; they type the secret.** You save the account for the person with its server
+and its account name, and no password (*Start a migration*, **Save for** *the person*). The
+Accounts page shows it as *Waiting for* *the person*, with no **Test** until it is connected. On
+their page the server and the account are shown, not boxes; the person types the password, and
+only the fields their provider says only they know (Infomaniak's sync user name, when you left it
+empty).
+
+**Before any box, the card says where the password goes.** The server it will be checked with,
+its domain in bold, and *Type it only if this is your own provider's server.* For Apple, Cirrux
+and Infomaniak it is the server the provider publishes, whatever the account's row says, and the
+password is tried there only. Soverin's own pages could not be read when this was built, so its
+card shows the server you saved, as for any IMAP or DAV account. For an account that is an email address,
+the server's domain is compared with the address's own domain and with its mail servers' (MX);
+when it matches neither the card adds a warning, never a refusal: *This server is not one your
+address's mail uses, as far as we can tell.* A server you named by a number rather than a name is
+never tried, and nor is a name that leads into a private network: the card asks the person to
+tell you. The card also says that nobody can see the password again, not you, not your
+organisation, not Ownpace's staff, and that Ownpace never emails a link or asks for a password
+by email or phone. With no phone number set for your organisation, it tells them to check with
+you some other way first.
+
+**Tested before it is stored.** The password is checked with the same test the Accounts page
+runs, the login and each data type the migrations need, and stored, encrypted, only if it works.
+A refused login, a server that cannot be reached, and a data type the server refuses each say so
+in the person's language, by category, never in the server's own words. Nothing that failed is
+stored.
+
+**Five wrong passwords lock that account on that link.** Only the server refusing the login
+counts; a server that cannot be reached does not. The other accounts on the link go on. A new
+link starts again at five.
+
+**The password is never shown, logged or audited.** It goes from their browser in the body of one
+request, is tested, and is stored encrypted. It is in no address, log line, audit record, answer
+or job. The audit record says that an account was connected, by password, or that a try was
+refused and why, by category.
+
+**Where it is kept, and who may change it.** A source's password is stored on each migration that
+reads that account, as a sign-in's token is. A destination's password is stored on the
+destination account itself, which then records the person who connected it: it takes only that
+person's migrations, and its password can be changed only by them, through a new link from you
+(*… connected this account themselves. Make them a new grant link to change it.*). The person
+withdraws a password on their progress page, a source's or a destination's, as they withdraw a
+sign-in: **Remove my password**, behind a second press. Nothing more is then read from that
+account, or written to it, until they connect it again through a new link from you. Either way,
+changing the password at their provider makes the stored one useless.
 
 ### Only the account the page names
 
@@ -246,7 +333,11 @@ on whether you have started their move:
 The person's page says which applies beside each migration of theirs that waits for the grant:
 *Waits for Anna to connect, then starts by itself*; *Waits for Anna to connect. Once they have,
 open Details to review and start it*; or, for one that ran before and lost its connection, *Waits
-for Anna to connect again*. Pressing **Start** on such a migration says it too.
+for Anna to connect again*. Pressing **Start** on such a migration says it too. Since alpha.21 a
+migration starts only when both its source and its destination have a way in, and the page also
+says *Waits for Anna to connect the destination …*, and, for a password, how many wrong ones were
+typed on the live link and how many tries are left, or *… is locked on this link after five tries.
+Make Anna a new link.* It shows counts only, never what the server said.
 
 ## Managing them afterwards
 
@@ -259,6 +350,10 @@ them and what became of it:
 - **Revoked** — you switched it off.
 - **Expired unused** — it ran out before anybody got to it. This is the one to act on: somebody
   was asked and never managed to answer. Issue another and send it again.
+
+One account on a link can also be **Locked on this link**: five wrong passwords were typed for it
+(see [A password, typed by the person](#a-password-typed-by-the-person)). The link's other
+accounts still work. Make the person a new link: it starts again at five tries.
 
 Every grant is recorded: which link, which account, which destination, and when. So is every
 sign-in the page refused, but without the address that tried. Whoever runs your Ownpace can read
@@ -274,7 +369,7 @@ things, held by two different people, and that is the point:
 | To stop | Who does it | Where |
 |---|---|---|
 | a link being used | you | the person's page (a link sent before: the migration's page) |
-| access already granted | the person who granted it | their progress page (**Withdraw access**, per Google account), or their Google account's security settings, under the apps that have access |
+| access already granted | the person who granted it | their progress page (**Withdraw access**, per account), or their provider's settings, under the apps that have access; for a password, changing it at their provider |
 | everything, permanently | you | delete the migration |
 
 ### When the person takes their access back
