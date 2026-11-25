@@ -15,7 +15,7 @@ Last updated lines moved to 2026-11-25; `legal-versions.ts` keeps 1.0; the guard
 on 2026-11-25, so every commit subject follows the convention; the first pull request, #2155,
 was closed for it. The Dutch, the legal words included, waits on the owner's read.
 
-**2026-11-25, built: T0, T1, T2, T3, T4 and T6, in one pull request** (#2155, branch
+**2026-11-25, built: T0, T1, T2, T3, T4 and T6, in one pull request** (#2158, branch
 `claude/ownpace-public-readiness-y7orc6-a21-delete-by-hand`, draft, for alpha.21; it merges after
 alpha.20's tag). Gate 1 is gone from core, the shared contract, managed and the appliance:
 `not_enabled` left `ApplyRefusal`, `APPLY_REFUSAL_CODES` and `RUN_STOPPING_REFUSALS`; no route or
@@ -56,13 +56,13 @@ their answers.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The single press ignores a double click | builder | ✅ Built | §10. #2155, with the rest, for alpha.21. |
-| T1 Gate 1 out of core, the shared contract and the appliance | builder | ✅ Built | §10. #2155. `not_enabled` left the closed set; the appliance's key is read only to warn. |
-| T2 Managed: the routes and jobs stop reading the column | builder | ✅ Built | §10. #2155. No migration; the column is dropped in a later release. |
-| T3 The Deletions page and its words, EN and NL | builder | ✅ Built | §10. #2155. The Dutch waits on the owner's read. |
-| T4 Docs and the ADR amendments | builder | ✅ Built | §10. #2155. `site/legal/README.md` goes with T5. |
+| T0 The single press ignores a double click | builder | ✅ Built | §10. #2158, with the rest, for alpha.21. |
+| T1 Gate 1 out of core, the shared contract and the appliance | builder | ✅ Built | §10. #2158. `not_enabled` left the closed set; the appliance's key is read only to warn. |
+| T2 Managed: the routes and jobs stop reading the column | builder | ✅ Built | §10. #2158. No migration; the column is dropped in a later release. |
+| T3 The Deletions page and its words, EN and NL | builder | ✅ Built | §10. #2158. The Dutch waits on the owner's read. |
+| T4 Docs and the ADR amendments | builder | ✅ Built | §10. #2158. `site/legal/README.md` goes with T5. |
 | T5 The legal words: terms §2 and alpha §8 | builder + owner | ✅ Built | §10. EN and NL, in place under 1.0 (Q4, answered 2026-11-25), in the same pull request. The owner reads the Dutch. |
-| T6 E2E steps | builder | ✅ Built | §10. #2155. Not run: T7. |
+| T6 E2E steps | builder | ✅ Built | §10. #2158. Not run: T7. |
 | T7 The E2E runs | owner | ⏳ Owner | Self-hosted E2E (Postgres and PGlite) and the managed E2E, after T1 to T6 merge. |
 | T8 The owner's decisions | owner | ✅ Answered 2026-11-25 | §9: all six settled; Q4 in place under 1.0. |
 
