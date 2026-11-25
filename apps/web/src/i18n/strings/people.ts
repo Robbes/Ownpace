@@ -135,7 +135,7 @@ export const en = {
   // In place of the grant link, for a person none of whose migrations reads
   // Google: the server would only refuse one (`nothing_to_grant`).
   'person.links.noGoogle':
-    "A grant link is only for Google accounts, and none of {name}'s migrations reads one. Their other accounts are connected on the Accounts page.",
+    "None of {name}'s migrations reads an account a grant link can connect. Their accounts are connected on the Accounts page.",
   'person.steps.title': 'Before you switch',
   'person.steps.hint': 'Each step, summed across this person’s migrations.',
   'person.state.done': 'Done',
@@ -265,7 +265,7 @@ export const nl: Record<keyof typeof en, string> = {
   'person.awaiting.unread': 'Welke hiervan wachten tot {name} verbindt, kon niet worden gelezen.',
   'person.links.title': 'Voor {name}',
   'person.links.noGoogle':
-    'Een toegangslink is alleen voor Google-accounts, en geen van de migraties van {name} leest er een. Andere accounts verbindt u op de pagina Accounts.',
+    'Geen van de migraties van {name} leest een account dat een toegangslink kan verbinden. Hun accounts verbindt u op de pagina Accounts.',
   'person.steps.title': 'Voordat u overstapt',
   'person.steps.hint': 'Elke stap, opgeteld over de migraties van deze persoon.',
   'person.state.done': 'Klaar',

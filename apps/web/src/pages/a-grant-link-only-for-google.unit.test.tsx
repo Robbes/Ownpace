@@ -9,6 +9,11 @@
  * says why there is none, and still offers the progress link, which works for
  * every source.
  *
+ * Since workplan 0174 T6 a link also asks for a password the person types
+ * (iCloud, another mail provider, a DAV server), so Sophie's iCloud now has
+ * one, and the sentence names what no link connects (Box, an export) rather
+ * than Google alone.
+ *
  * And, on the same page, two things a reader could not do before: a failed
  * read offers to read again, and the wait while it loads is heard, not only
  * seen.
@@ -95,8 +100,8 @@ beforeEach(() => {
 
 describe('a grant link, offered only to a person a migration of whose reads Google', () => {
   it.each([
-    ['apple', 'iCloud'],
-    ['imap', 'another mail provider'],
+    ['box', 'Box'],
+    ['archive', 'an export'],
   ])('offers none for a person whose only migration reads %s (%s), says why, and keeps the progress link', async (kind) => {
     listMock.mockResolvedValue([migration({ id: 'm-sophie', name: 'Sophie mail', sourceType: kind })]);
     peopleMock.mockResolvedValue({ people: [person('p-sophie', 'Sophie', [{ id: 'm-sophie', status: 'active' }])], unassigned: [] });
@@ -106,7 +111,7 @@ describe('a grant link, offered only to a person a migration of whose reads Goog
     const section = await screen.findByRole('region', { name: 'For Sophie' });
     expect(
       within(section).getByText(
-        "A grant link is only for Google accounts, and none of Sophie's migrations reads one. Their other accounts are connected on the Accounts page.",
+        "None of Sophie's migrations reads an account a grant link can connect. Their accounts are connected on the Accounts page.",
       ),
     ).toBeInTheDocument();
     expect(within(section).queryByRole('heading', { name: EN['personLink.title'] })).not.toBeInTheDocument();
@@ -136,14 +141,31 @@ describe('a grant link, offered only to a person a migration of whose reads Goog
 
       const section = await screen.findByRole('region', { name: 'For Anna' });
       expect(within(section).getByRole('button', { name: EN['grantLink.issue'] })).toBeInTheDocument();
-      expect(within(section).queryByText(/A grant link is only for Google accounts/)).not.toBeInTheDocument();
+      expect(within(section).queryByText(/reads an account a grant link can connect/)).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(['apple', 'imap', 'caldav', 'carddav', 'webdav'])(
+    'offers the grant link for a person whose only migration reads %s, whose password they type (0174 T6)',
+    async (kind) => {
+      listMock.mockResolvedValue([migration({ id: 'm-sophie', name: 'Sophie mail', sourceType: kind })]);
+      peopleMock.mockResolvedValue({
+        people: [person('p-sophie', 'Sophie', [{ id: 'm-sophie', status: 'active' }])],
+        unassigned: [],
+      });
+
+      renderAt('/people/p-sophie');
+
+      const section = await screen.findByRole('region', { name: 'For Sophie' });
+      expect(within(section).getByRole('button', { name: EN['grantLink.issue'] })).toBeInTheDocument();
+      expect(within(section).queryByText(/reads an account a grant link can connect/)).not.toBeInTheDocument();
     },
   );
 
   it('still lists, and can revoke, a live grant link made before their Google migration went', async () => {
     // Their Google migration was deleted, or moved to somebody else, after
     // the link was made: what still works must still be seen and taken back.
-    listMock.mockResolvedValue([migration({ id: 'm-sophie', name: 'Sophie mail', sourceType: 'apple' })]);
+    listMock.mockResolvedValue([migration({ id: 'm-sophie', name: 'Sophie files', sourceType: 'box' })]);
     peopleMock.mockResolvedValue({ people: [person('p-sophie', 'Sophie', [{ id: 'm-sophie', status: 'active' }])], unassigned: [] });
     vi.mocked(personLinkApi.list).mockResolvedValue([
       {
@@ -167,7 +189,7 @@ describe('a grant link, offered only to a person a migration of whose reads Goog
 
   it('says it in Dutch too', () => {
     expect(STRINGS.nl['person.links.noGoogle']).toBe(
-      'Een toegangslink is alleen voor Google-accounts, en geen van de migraties van {name} leest er een. Andere accounts verbindt u op de pagina Accounts.',
+      'Geen van de migraties van {name} leest een account dat een toegangslink kan verbinden. Hun accounts verbindt u op de pagina Accounts.',
     );
   });
 });
