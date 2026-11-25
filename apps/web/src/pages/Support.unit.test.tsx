@@ -146,19 +146,19 @@ beforeEach(() => {
 
 describe('the list of organisations', () => {
   it('says every screen here is recorded, before showing anything', async () => {
-    listMock.mockResolvedValue([TENANT]);
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
     mount(<SupportTenants />);
     expect(await screen.findByText(OPERATOR_STRINGS['support.recorded'])).toBeInTheDocument();
   });
 
   it('names the boundary, so nobody goes looking for a screen that should not exist', async () => {
-    listMock.mockResolvedValue([TENANT]);
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
     mount(<SupportTenants />);
     expect(await screen.findByText(OPERATOR_STRINGS['support.metadataOnly'])).toBeInTheDocument();
   });
 
   it('shows the organisations, with the failing count called out', async () => {
-    listMock.mockResolvedValue([TENANT]);
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
     mount(<SupportTenants />);
     expect(await screen.findByText('Alpha BV')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe('the list of organisations', () => {
   });
 
   it('says the day somebody joined, with the time on hover, so the column stays narrow', async () => {
-    listMock.mockResolvedValue([TENANT]);
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
     mount(<SupportTenants />);
     const joined = await screen.findByText(formatDateTime(TENANT.joined_at, 'en', { timeStyle: undefined }));
     expect(joined).toHaveAttribute('title', formatDateTime(TENANT.joined_at, 'en'));
@@ -174,7 +174,7 @@ describe('the list of organisations', () => {
   });
 
   it('lets a keyboard scroll the table that is wider than a phone', async () => {
-    listMock.mockResolvedValue([TENANT]);
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
     mount(<SupportTenants />);
     await screen.findByText('Alpha BV');
     const box = screen.getByRole('region', { name: OPERATOR_STRINGS['support.heading'] });
@@ -183,7 +183,7 @@ describe('the list of organisations', () => {
   });
 
   it('leads to the log, across every organisation (0129 T2)', async () => {
-    listMock.mockResolvedValue([TENANT]);
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
     mount(<SupportTenants />);
     expect(await screen.findByRole('link', { name: OPERATOR_STRINGS['support.log.link'] })).toHaveAttribute(
       'href',
@@ -195,7 +195,7 @@ describe('the list of organisations', () => {
     // The API answers 200 with `[]` on purpose rather than 403. A screen that
     // spun forever, or said "something went wrong", would turn a correct
     // refusal into a support ticket about the support screen.
-    listMock.mockResolvedValue([]);
+    listMock.mockResolvedValue({ tenants: [], next: null });
     mount(<SupportTenants />);
     expect(await screen.findByText(OPERATOR_STRINGS['support.noOrganisations'])).toBeInTheDocument();
   });
@@ -426,6 +426,7 @@ describe('what an erasure kept of the invoices', () => {
         },
       ],
       numbers: [],
+      next: null,
     });
     mount(<SupportRetainedInvoices />, '/support/retained-invoices', '/support/retained-invoices');
     expect(await screen.findByText('Gamma BV')).toBeInTheDocument();
@@ -480,7 +481,7 @@ describe('the log stays a record of reads somebody made', () => {
     // React Query's own listener heard nothing and the test was asserting that
     // an event nobody was listening for changed nothing. A guard that cannot
     // fail is worse than no guard, because it reads in a diff as coverage.
-    listMock.mockResolvedValue([TENANT]);
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
     const { unmount } = mount(<SupportTenants />);
     await screen.findByText('Alpha BV');
     focusManager.setFocused(false);
@@ -557,7 +558,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
     // A migration stopped on a decision is not broken; it is waiting for
     // somebody who probably does not know it. One "needs attention" number
     // would collapse the two calls an operator has to make into one.
-    listMock.mockResolvedValue([TENANT]);
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
     mount(<SupportTenants />);
     await screen.findByText('Alpha BV');
     expect(screen.getByText(OPERATOR_STRINGS['support.col.failing'])).toBeInTheDocument();
@@ -911,7 +912,7 @@ describe('finding a person', () => {
     searchMock.mockReset();
     openedMock.mockReset();
     consoleUrl.value = 'https://id.test/ui/console/users/{sub}';
-    listMock.mockResolvedValue([]);
+    listMock.mockResolvedValue({ tenants: [], next: null });
   });
 
   /** Type a term and submit, the way somebody actually uses the box. */

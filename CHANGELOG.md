@@ -108,6 +108,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   (`ffa8a754…`, `libssl3t64` 3.5.9-1~deb13u1, which still carries both OpenSSL CVEs, workplan 0166),
   and Nextcloud `35.0.3-apache` (`2567f3c3…`) and `34.0.6-apache` (`031b30f0…`), on PHP 8.5.13 with
   apache2 2.4.71-1~deb13u1.
+- **The two support lists that served every row now come a page at a time** (an outside,
+  read-only check, PERF-2; the owner, 2026-11-24: *"page both (Show more) in alpha.20; a plain
+  maximum would hide rows from the operator"*; workplan 0006 §P). `GET /support/tenants` and
+  `GET /support/retained-invoices` serve a hundred rows a page, by keyset on each list's own order
+  with a unique last key, and a `next` cursor to send back as `after`; a cursor that does not parse
+  is a `400`. The operator's organisations screen and the screen of invoices kept after an erasure
+  show **Show more** only when there is more, so a list of one page looks as before. Every page is
+  its own row in the support read log, the later ones too: each is rows the operator chose to look
+  at. The API description has the new parameter and fields.
 
 ### Fixed
 
