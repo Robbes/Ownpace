@@ -4,6 +4,26 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, evening: T7, T8 and T9 done.** Every task of this plan is merged or answered.
+- **T7** merged as #2163 (`d048432f`).
+- **T8** merged as #2169 (`b26638ce`). Its section of the managed smoke stopped at its first step on
+  its first run, E2E (managed) 45702715126, on three faults of its own, none in the product: the
+  smoke's SQL helper hands its statement to a shell inside double quotes, which took the quotes off
+  the IMAP row's JSON (it is built with `jsonb_build_object` now); the create door asks
+  `targetConfig.password` as a string even for a destination that is reused (sent empty, as the web
+  sends it); and the leak check called a log or table that holds nothing since the section began
+  unreadable (a container or query that does not answer still fails it). Fixed in `c66f756b`; E2E
+  (managed) 45704845453 green on it.
+- **T9, the managed E2E after T8:** green on #2170's head with T8 merged, run 45711848965 (22:16 to
+  22:22 UTC), after 45704845453 on T8's own.
+- **The fix found on the test environment** (the entry below) merged as #2170 (`bc05d0c3`), with E2E
+  on Postgres 45710052260, PGlite 45711052309 and managed 45711848965, all green.
+- **The withdrawn permission, in the owner's words** (*"Ok"*, 2026-11-25), merged as #2171
+  (`0ed0ddd5`): the migration page said *"Nothing reads or migrates their account now"*, the wrong verb
+  for a destination, which is written to and never read. It says *"The person being migrated withdrew
+  their permission on {date}, so this migration copies nothing"* and *"Send them a new grant link if
+  they agree to continue"*, in English and Dutch, and the pass's run line the same.
+
 **2026-11-25, T8 built: the proofs, in review as a draft pull request**
 (`claude/ownpace-public-readiness-y7orc6-a21-grant-t8`). Nothing here runs a real E2E; T9 is the
 owner's.
@@ -405,9 +425,9 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 | T4 The own-password page, per kind, in English and Dutch | builder | ✅ Merged 2026-11-25: #2167 | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
 | T5 Destinations on the link: Cirrux Drive and password destinations | builder | ✅ Merged 2026-11-25: #2167 | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. With §4.3's withdrawal on the branch: *Remove my password* on the person's progress page, the Drive grant with it, the hold lifted only when both sides have a way in. |
 | T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | ✅ Merged 2026-11-25: #2167 | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
-| T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 🔎 In review: #2163 | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
-| T8 Proofs: integration and the managed smoke | builder | 🔎 In review, draft pull request | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log, D3 both ways; the managed smoke's section with two migrations (an IMAP source and a `nextcloud` destination share no data type). The IMAP destination probe now reads `tlsVerify`. M. |
-| T9 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T8 merges. |
+| T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | ✅ Merged 2026-11-25: #2163 | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
+| T8 Proofs: integration and the managed smoke | builder | ✅ Merged 2026-11-25: #2169 | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log, D3 both ways; the managed smoke's section with two migrations (an IMAP source and a `nextcloud` destination share no data type). The IMAP destination probe now reads `tlsVerify`. M. |
+| T9 The managed E2E run | owner | ✅ Green 2026-11-25: run 45711848965 | Started by the owner on the self-hosted runner, after T8 merges. On #2170's head, with T8 merged. |
 | T10 The owner's decisions | owner | ✅ Answered 2026-11-25 | §12: D1 to D9 as advised; D3 with the MX warning; D8 in place under 1.0. |
 
 ## 1. The owner's words
