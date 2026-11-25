@@ -4,6 +4,31 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, later: the two parts the plan required and the branch had not built, on #2164.**
+- **D3 (a), the published servers (§5.8, §14 question 2).** Cirrux and Infomaniak join Apple in
+  `PROVIDER_ENDPOINTS`, read from their own help pages and cited; Soverin stays generic, because
+  its pages could not be read from the builder's checkout. A password for a pinned kind is tested
+  only against the published server whatever the row says, the GET names it as *{provider}'s own
+  server*, and the store writes the same servers to the row and the migrations' overrides, so the
+  pass goes where the test went: silently pinned, not refused at the create door (§5.8 says why).
+  A generic kind's host that resolves inside a private network is refused before a try is
+  claimed: 409 `server_not_public`, a sentence in English and Dutch, the page showing it.
+- **§4.3, withdrawing a destination.** The person's progress page lists each destination they
+  connected, with *Remove my password*: their keys leave the connection, the owner's stay,
+  `person_granted_connection` is deleted, every migration into it is held until they grant again,
+  one audit row each with no value, and §5.9's sentence in both languages. On Cirrux the Drive
+  grant goes with it. A withdrawal's hold now lifts only where both sides have a way in, in every
+  ending that stores a grant.
+
+Proved on the builder's checkout: `a-password-sent-only-to-its-providers-server` (7),
+`a-destination-the-person-takes-back` (5), the new case in `a-password-the-link-never-says`,
+`a-password-the-person-removes` (5, the page), the view service's two, and the page's published
+line and `server_not_public`; 17 of them shown failing with the sources reversed, the rest
+asserting what was already true (Soverin generic, an outward host tried, the page's published
+line). The full gates are in the pull request. Not proved here: a real Cirrux, Infomaniak or
+Soverin login, and a running pass stopped by a destination's withdrawal (the hold is the one a
+source's withdrawal has used since 0108, and its pass-side tests are unchanged).
+
 **2026-11-25, T1 to T6 on one branch, in review as one draft pull request: #2164**
 (`claude/ownpace-public-readiness-y7orc6-a21-grant-links`). It replaces #2157, #2156, #2159, #2160,
 #2161 and #2162, because the feature works only whole: one CI run and one E2E set. T1's head with
@@ -255,9 +280,9 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 |---|---|---|---|
 | T1 The seam grows: password kinds, destinations, one shape for the page | builder | 🔎 In review, on one branch: #2164 | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
 | T2 Dropbox on the seam | builder | 🔎 In review, on one branch: #2164 | §6. Supersedes 0171 T4. S. Built 2026-11-25 on 0171 T3's seam (#2136): the binding, an unverified email and another account refused with nothing stored and the link live, a refused exchange, `grantableByLink('dropbox')`; every new test shown failing on `main` first. By mock only: no real Dropbox account. |
-| T3 The own-password route: test, try count, store, spend | builder | 🔎 In review, on one branch: #2164 | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
+| T3 The own-password route: test, try count, store, spend | builder | 🔎 In review, on one branch: #2164 | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. With §5.8's D3 (a) on the branch: Cirrux and Infomaniak pinned to their published servers (Soverin generic, §14 question 2), `server_not_public`. |
 | T4 The own-password page, per kind, in English and Dutch | builder | 🔎 In review, on one branch: #2164 | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
-| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 🔎 In review, on one branch: #2164 | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
+| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 🔎 In review, on one branch: #2164 | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. With §4.3's withdrawal on the branch: *Remove my password* on the person's progress page, the Drive grant with it, the hold lifted only when both sides have a way in. |
 | T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 🔎 In review, on one branch: #2164 | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
 | T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
 | T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
@@ -499,6 +524,45 @@ Withdrawing (the person's progress page) works per account for destinations too:
 keys the person typed are removed from the connection, the managed row is deleted, and nothing
 writes to that account until they grant again. There is no provider to revoke a password at; the
 page says *"Change this password at {provider} too, if you want to be sure"* (§5.9).
+
+**As built (T3, T5; on #2164, 2026-11-25).** The person's progress page answers `destinations`
+beside `accounts`: each destination `person_granted_connection` names them for, by its provider
+and an opaque `ref` (a hash of the connection and when it was connected, so a new grant changes
+it), never by its address. *Remove my password*, behind a second press, posts
+`{ destination: ref }` to `POST /api/view/:link/withdraw`, which already took `{ account }`
+(`withdrawPersonDestination`, `person-progress.ts`). One transaction:
+- the destination is read again by its `ref` and its row locked; a stale `ref` (a new grant, a
+  second tab, another person's) answers 409 `changed` and removes nothing;
+- the connection's `secret_ref` keeps only the owner's values (`withoutThePersonsKeys`,
+  `@openmig/shared`): every secret of the kind, a field the person filled because the owner left
+  it empty (Infomaniak's sync user name), and on Cirrux the Drive sign-in go; the user name taken
+  from the owner's config stays; a record left empty is `NULL`. The row says `error`, as a row
+  saved for a person does before anybody gives it a password;
+- `person_granted_connection` is deleted, by the `granted_at` that was read;
+- every migration into the account is **held** by `grant_withdrawn_at` (ledger migration 0063):
+  the tick starts no pass, a running pass stops before its next data type. Readiness
+  (`awaitingGrantRefusal`) answers *its destination has no password* and the person's next link
+  asks for it again, as before they first gave it;
+- one `mapping.grant_withdrawn` row per migration, with `role: 'target'`, the provider and
+  whether a Drive sign-in went; never a value. The guard `a-password-the-link-never-says` runs
+  the withdrawal with a sentinel and finds it in no response, log line or row.
+
+**The hold lifts only when both sides have a way in.** Before this, a source's new grant cleared
+`grant_withdrawn_at` in the write that stored it. With a destination that can be withdrawn too,
+that would let a source granted again start a pass into a destination with no password, which
+fails at its first write. So every ending that stores a grant (the migration's own link, a
+person's sign-in, a person's password for either role, and Cirrux Drive's) calls `liftTheHold`
+after its write, in its transaction, and the hold goes only from the migrations that have a way in
+on both sides, judged as Start judges them (`hasAWayInOnBothSides`, moved to
+`withdrawal-hold.ts`). T3's test that a source's password clears a withdrawal now says the hold
+stays while the destination has no password, and lifts once it has.
+
+**Cirrux.** The Drive grant the person gave on the same link goes with the password: its
+`driveRefreshToken` leaves the record in the same write. Nothing is asked of Cirrux, which
+documents no revocation an app can call (`token-revocation.ts`, `CIRRUX_DRIVE_AT_CIRRUX`); the
+page says Cirrux Mail lists the apps the person allowed under its security settings. The
+workspace the first Drive grant recorded (`driveWorkspace`) stays: it is not a secret, and it
+binds a later grant to the same Cirrux workspace (§4.4), which is the safe direction.
 
 ### 4.4 Cirrux Drive on the link (T5)
 
@@ -816,6 +880,39 @@ provider publishes its server (Apple today; Soverin, Cirrux and Infomaniak added
 host, which must be a DNS name (never an IP literal, as `rawIpCallbackRefusal` refuses one for
 callbacks) and is refused when it resolves to a private or loopback address. The page asks the
 question and the person decides.
+
+**As built (T3, T4; on #2164, 2026-11-25).**
+- **Published servers.** `PROVIDER_ENDPOINTS` (`provider-endpoints.ts`) gains Cirrux
+  (`api.cirrux.co` for calendars, contacts and reminders; IMAP `imap.cirrux.co`, 993) and
+  Infomaniak (`sync.infomaniak.com` for calendars and contacts, *"utilisez uniquement"*; IMAP
+  `mail.infomaniak.com`, 993), each cited with its page and the day it was read (§14 question 2).
+  Soverin stays generic. `pinsItsServer(kind)` says which kinds are held to their table.
+- **Tried only there.** For those kinds the route tests on `pinnedToPublished(kind, config)`:
+  the DAV host and port, the mail host and port are the published ones; a DAV address survives
+  only when it names a published host (Infomaniak's assistant shows a path on
+  `sync.infomaniak.com`); `useSsl` and `tlsVerify` are dropped. Apple's two DAV hosts are left to
+  the per-face fallback, as an Apple row always was. The GET names exactly those hosts with
+  `published: true`, and the page says *{provider}'s own server*.
+- **Silently pinned, not refused at the create door.** The store writes the same pinned config to
+  the connection, and narrows each migration's override (`withoutUnpublishedHosts`), in the
+  transaction that stores the password, so the pass connects where the test did. The create door
+  is not where this is held, for three reasons: rows saved before alpha.21, rows given to a person
+  by the door that does so, and a migration's override never pass the create door, and the pin
+  sits where the password is used, so it covers all of them; a refusal there would make an owner
+  retype hosts the directory already pre-fills, for no protection the pin does not give; and the
+  page shows only the published server, so what the person reads is where the password goes.
+  Pinned by `a-password-sent-only-to-its-providers-server`.
+- **No fallback for an owner's row.** The table answered `publishedEndpoint` as a fallback for
+  any row with no host. For Cirrux and Infomaniak, whose doors ask for hosts, it does not
+  (`doorAsks`): a row the owner saved without its mail server still says which field is missing
+  (`account-qualification`), and an owner who connected their own account keeps what they typed.
+- **A private address.** The probe's rule could say it cleanly: `reachableHost` (0136 T1)
+  throws `HostInsideOurNetwork` for a name that resolves inside a network, before any socket is
+  opened. So the route asks it for each of a generic kind's hosts before a try is claimed, and
+  answers 409 `server_not_public` with `SERVER_NOT_PUBLIC` in English and Dutch; nothing is
+  tried and nothing counted, and the page shows the sentence as it shows `server_not_a_name`'s. A
+  name that does not resolve is left to the test, which answers `unreachable` as before. On the
+  appliance the rule is off and the check answers no, as the probe's does.
 
 ### 5.9 The words (T4)
 
@@ -1201,6 +1298,26 @@ its addition and D8 in place under 1.0 (*"terms or the privacy policy: no one bu
 2. The published servers of Soverin, Cirrux and Infomaniak, for `PROVIDER_ENDPOINTS` (D3 (a)):
    read and cited per provider; a provider whose page cannot be read stays generic, its host
    shown for the person to judge, as 0171 T10 did for MX hosts.
+   **Answered on #2164, 2026-11-25:**
+   - **Cirrux, pinned.** `https://cirrux.co/help/setup` (seen 2026-11-25), Manual Configuration:
+     Calendar, Contacts and Reminders each at *"api.cirrux.co"*, no port (HTTPS, 443); IMAP
+     *"imap.cirrux.co"*, *"993 (SSL) or 143 (STARTTLS)"*; SMTP `smtp.cirrux.co` (no face here).
+     `https://cirrux.co/help/calendar` (seen 2026-11-25): *"point your client at api.cirrux.co"*.
+     No WebDAV host is published; Cirrux Drive is a sign-in to the API (`CONSENT_HOSTS.cirrux`).
+   - **Infomaniak, pinned.** `https://www.infomaniak.com/fr/support/faq/1544` (seen 2026-11-25):
+     *"Pour l'adresse du serveur, utilisez uniquement sync.infomaniak.com"*, for contacts and
+     calendars, no port; `https://www.infomaniak.com/fr/support/faq/2046` (seen 2026-11-25): the
+     account address `https://sync.infomaniak.com`; `https://www.infomaniak.com/fr/support/faq/2427`
+     (seen 2026-11-25): *"Serveur IMAP entrant = mail.infomaniak.com"*, *"Port IMAP = 993 + SSL"*.
+     kDrive's WebDAV address is per drive (`https://<kDrive ID>.connect.kdrive.infomaniak.com`,
+     faq/2409) and is no face of the kind.
+   - **Soverin, generic.** `soverin.com/help/setup`, `soverin.com/help/calendar-setup` and the help
+     desk the search engines list for Soverin could not be fetched from the builder's checkout on
+     2026-11-25 (the name did not resolve through its network), and a search engine's summary is
+     not Soverin's page. So Soverin is not pinned: the page shows the owner's host with its
+     registrable domain in bold and D3's MX warning, as for any IMAP or DAV account, and the
+     person judges it. The directory's Soverin values (read 2026-09-03) are a lead for whoever
+     reads the page next, not a source here.
 3. Which status the path that saves a Google or Microsoft account by its address alone writes
    today (§8.2). The CHECK has no *waiting* value and this plan adds none; if the build finds the
    observation cannot be made from the rows, it says so here before writing a shared migration.
