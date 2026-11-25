@@ -44,7 +44,13 @@
  */
 
 import React from 'react';
-import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import {
   fetchPlatformPause,
   startPlatformPause,
@@ -174,6 +180,38 @@ const Section: React.FC<{ title: string; empty: string; rows: number; children: 
     </section>
   );
 
+/**
+ * *Show more*, under a list the API serves a page at a time (workplan 0006
+ * §P; the owner, 2026-11-24: a plain maximum would hide rows from the
+ * operator). Shown only while the last page fetched said there is more, so
+ * a list of one page looks as it always did; pressed, it fetches the next
+ * page and adds it below. Each press is a read the log records, which is why
+ * it waits to be pressed rather than loading on scroll.
+ */
+const ShowMore: React.FC<{
+  query: {
+    hasNextPage: boolean;
+    isFetchingNextPage: boolean;
+    isFetchNextPageError: boolean;
+    fetchNextPage: () => Promise<unknown>;
+  };
+}> = ({ query }) => {
+  const t = useOperatorT();
+  if (!query.hasNextPage) return null;
+  return (
+    <div className="mt-3 mb-6 flex flex-wrap items-center gap-3 text-sm">
+      <button
+        type="button"
+        className="rounded-md border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        disabled={query.isFetchingNextPage}
+        onClick={() => void query.fetchNextPage()}
+      >
+        {query.isFetchingNextPage ? t('common.loading') : t('support.more')}
+      </button>
+      {query.isFetchNextPageError && <span className="text-red-700">{t('common.requestFailed')}</span>}
+    </div>
+  );
+};
 
 /**
  * THE PLATFORM STATUS THE CUSTOMER SEES (workplan 0110 T5, the last half), on
@@ -544,12 +582,22 @@ export const SupportTenants: React.FC = () => {
   const t = useOperatorT();
   const { dateTime } = useFormatters();
   const { locale } = useLocale();
-  const query = useQuery({ queryKey: ['support', 'tenants'], queryFn: listSupportTenants, ...ONCE });
-  // Filtered here, from the one list already read: a filter that asked the
-  // API again would write a read into the log for each choice.
+  // A page at a time (workplan 0006 §P): the first as the screen always
+  // showed it, and *Show more* for each next one, which the log records as
+  // its own read.
+  const query = useInfiniteQuery({
+    queryKey: ['support', 'tenants'],
+    queryFn: ({ pageParam }) => listSupportTenants(pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next ?? undefined,
+    ...ONCE,
+  });
+  // Filtered here, from the pages already read: a filter that asked the API
+  // again would write a read into the log for each choice. So the counts in
+  // the filter are of the organisations shown so far.
   const [filter, setFilter] = React.useState<TenantFilter>('all');
 
-  const tenants: SupportTenant[] = query.data ?? [];
+  const tenants: SupportTenant[] = query.data?.pages.flatMap((page) => page.tenants) ?? [];
   const unused = tenants.filter((tenant) => notInUse(tenant).length > 0);
   const closed = tenants.filter((tenant) => tenant.tenant_status !== 'active');
   const shown = filter === 'unused' ? unused : filter === 'closed' ? closed : tenants;
@@ -721,6 +769,8 @@ export const SupportTenants: React.FC = () => {
           </table>
         </div>
       )}
+
+      <ShowMore query={query} />
     </div>
   );
 };
@@ -1748,14 +1798,19 @@ export const SupportMigrationDetail: React.FC = () => {
 export const SupportRetainedInvoices: React.FC = () => {
   const t = useOperatorT();
   const { dateTime, day, currency } = useFormatters();
-  const query = useQuery({
+  // A page at a time (workplan 0006 §P). One *Show more* for both lists: the
+  // next page carries rows for whichever of the two has more.
+  const query = useInfiniteQuery({
     queryKey: ['support', 'retained-invoices'],
-    queryFn: listRetainedInvoices,
+    queryFn: ({ pageParam }) => listRetainedInvoices(pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next ?? undefined,
     ...ONCE,
   });
 
-  const invoices: SupportRetainedInvoice[] = query.data?.invoices ?? [];
-  const numbers: SupportErasedInvoiceNumbers[] = query.data?.numbers ?? [];
+  const pages = query.data?.pages ?? [];
+  const invoices: SupportRetainedInvoice[] = pages.flatMap((page) => page.invoices);
+  const numbers: SupportErasedInvoiceNumbers[] = pages.flatMap((page) => page.numbers);
 
   return (
     <div>
@@ -1850,6 +1905,8 @@ export const SupportRetainedInvoices: React.FC = () => {
           </table>
         </Section>
       )}
+
+      <ShowMore query={query} />
     </div>
   );
 };
