@@ -41,7 +41,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # put in /tmp, which the compose service keeps in memory on a read-only root
 # (deploy/compose/managed.yml, `worker`), and it logs to stdout and stderr
 # only.
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:ffa8a7545403036c94ec76674b5dbac2d425af2d679147cdf3e30180071487b7 AS runtime
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:a84242e747fbb5aaaa0180c273b6f7130ca34b3300082192ef58eea96089eb3c AS runtime
 ENV NODE_ENV=production
 # THE COMMIT IN THE IMAGE, as the API's (images.yml passes GIT_SHA, and the
 # bring-up builds the api with it; it builds this one the same way once it
