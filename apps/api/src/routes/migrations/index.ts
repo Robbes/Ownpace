@@ -146,6 +146,7 @@ import cirruxOauthRoutes from './cirrux-oauth-routes.ts';
 // here and never will be — they authenticate a link, not a session, so they
 // live behind their own middleware rather than behind `authenticate`.
 import linkRoutes from './link-routes.ts';
+import finishChecksRoutes from './finish-checks-routes.ts';
 import destinationSpaceRoutes from './destination-space-route.ts';
 import { awaitingGrantRefusal } from './grant-link-readiness.ts';
 import { startsWhenGrantedFor } from './start-when-granted.ts';
@@ -1154,6 +1155,8 @@ router.use('/', microsoftOauthRoutes);
 // the database, on the account it was begun for, not in the wizard.
 router.use('/', cirruxOauthRoutes);
 router.use('/', linkRoutes);
+// Finish's addresses and MX check (workplan 0171 T10), read-only.
+router.use('/', finishChecksRoutes);
 // Free space at the destination, read live on Review and start (workplan 0171 T9).
 router.use('/', destinationSpaceRoutes);
 
