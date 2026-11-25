@@ -91,6 +91,12 @@ The **Microsoft 365 account** card is one connection holding one delegated grant
 
 **Tasks** are Microsoft To Do. Tick them and the consent asks for `Tasks.Read` as well; every To Do list becomes a task list on the target, and each task keeps its title, notes, status, importance, due date, checklist and repeat rule.
 
+### Not yet: SharePoint and Teams files, and the online archive {#not-yet}
+
+**Files** means the OneDrive of the account that signs in, and nothing else. The libraries of a SharePoint site, the files of a Teams channel (which are kept in such a library) and files others shared with you are not read yet. Until they are, copy the files you need into your own OneDrive before you start, for example with **Copy to** in SharePoint, and they come across with the rest.
+
+**Mail** means the mailbox itself. Exchange can also keep an **online archive** beside it, and under Microsoft's default policy mail older than two years moves there by itself. Neither card reads the online archive, so that mail is not migrated and not counted. The **Archive** folder inside your mailbox is something else, and does come across. Before you start, move the online archive's folders into the mailbox in Outlook, if it has room, and ask an administrator to pause the policy that moves mail to the archive, or it moves back.
+
 ### A new address, when yours cannot come with you {#new-address}
 
 An address ending in `@outlook.com`, `@hotmail.com`, `@live.com` or `@msn.com`, or in one of their local versions, such as `@hotmail.nl` or `@live.be`, belongs to Microsoft, so it cannot come with you. Neither can an address in your organisation's `.onmicrosoft.com` name. When the old account has one, **Start a migration** shows a step, **Your new address**, where you say which address replaces it. When your new account's address is on another domain than the old one, the step asks by itself as well; choose **No, keep it as it is** if that address is only temporary, until your own domain moves. For any other address it does not recognise, tick **I am also changing my email address** on **Where does it go?**, and the same step follows. Contacts that list the old address get the new one first and keep the old one, so old mail still finds the person. Events and tasks you organised list you at the new address, so you can still change them. The **Sharing checklist** suggests the new address for you. Your mail is never changed: every message stays exactly as it was sent. Nobody is sent anything. You can change the new address afterwards, on your page.

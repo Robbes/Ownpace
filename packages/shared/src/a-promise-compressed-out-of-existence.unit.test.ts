@@ -63,10 +63,10 @@ describe('the line is one line', () => {
     // nothing, and a reader who finds one learns to skip folds — which is how
     // a real disclosure ends up unread.
     //
-    // Deliberately not "longer than the line": `SharePoint extras` folds a
-    // shorter sentence than it shows, and that fold is the most valuable one
-    // in the column — the line lists what stays behind, the fold says the
-    // files themselves come across.
+    // Deliberately not "longer than the line": a fold may be short, and
+    // `SharePoint extras`' is among the most valuable in the column — the line
+    // lists what stays behind, the fold says which files come across and
+    // which do not yet.
     for (const entry of everyEntry()) {
       if (entry.more === undefined) continue;
       expect(entry.more.trim(), `"${entry.item}" folds nothing`).not.toBe('');
@@ -101,7 +101,13 @@ describe('the caveats a customer acts on are still there', () => {
     ['…so they capture it themselves', /Exchange Online PowerShell/i],
     ['a shared mailbox needs application permissions', /application permissions on the source/i],
     ['distribution lists are manual', /you recreate them yourself/i],
-    ['SharePoint files DO migrate', /files and folders[^.]*are migrated/i],
+    // OneDrive's, and only OneDrive's, since 2026-11-24 (the owner): it said
+    // the SharePoint files came across, and the source reads no site at all.
+    ['OneDrive files DO migrate', /OneDrive's files and folders[^.]*are migrated/i],
+    ['…a SharePoint site\'s or Teams\' files do not, yet', /SharePoint site[^.]*Teams channel[^.]*are not read yet/i],
+    ['…and they can be copied into OneDrive first', /copy the files you need into your own OneDrive/i],
+    ['the online archive is not migrated', /mail in the online archive is not migrated/i],
+    ['…and its folders can be moved into the mailbox first', /move the online archive’s folders into the mailbox/i],
     ['Google Photos come from a Takeout export', /Google Takeout export/i],
   ];
 
