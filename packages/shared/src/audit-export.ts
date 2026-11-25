@@ -126,6 +126,9 @@ export const AUDIT_DETAIL_FIELDS = {
   host: 'keep',
   // What Google answered when a grant was taken back (0108 T8 (c)): a state.
   atGoogle: 'keep',
+  // Whether a Cirrux Drive sign-in went with a destination's password when
+  // the person removed it (workplan 0174 §4.3): a yes or no, naming nobody.
+  drive: 'keep',
   // What Disconnect Cirrux Drive did at Cirrux (workplan 0160): a revocation
   // status (`unsupported`, since Cirrux offers nothing to call), naming nobody.
   revocation: 'keep',

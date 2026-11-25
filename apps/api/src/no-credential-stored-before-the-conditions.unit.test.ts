@@ -307,6 +307,9 @@ const SEALS_BY_FILE: Readonly<Record<string, number>> = {
   // A password typed on a person's link (workplan 0174 T3): a source's on
   // each of its migrations, a destination's on the connection.
   'routes/migrations/person-grant-ending.ts': 2,
+  // A person removing the password they gave a destination (workplan 0174
+  // §4.3): the record sealed again without their keys.
+  'routes/person-progress.ts': 1,
   'scripts/seed-managed.ts': 2,
 };
 
@@ -323,6 +326,10 @@ const SEALED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
     'a password the person typed on their own grant link (workplan 0174 T3, `storePersonPassword`). The ' +
     'person is not a party to the terms (terms §1) and has no account to accept them with; the member’s ' +
     'door to it is issuing the link, `POST /api/people/{personId}/links` (`person-link-routes.ts`), which asks.',
+  'routes/person-progress.ts':
+    'a person removing the password they gave a destination on their own progress page (workplan 0174 §4.3, ' +
+    '`withdrawPersonDestination`): the record is sealed again with less in it, never a new credential. The ' +
+    'person is not a party to the terms (terms §1), and taking access back stays open whatever was accepted.',
   'scripts/seed-managed.ts':
     'the operator’s seed of the demo tenants, run by hand on a stack as the database owner. It is no ' +
     'door anybody signs in to, and a stack that asks for acceptance is not seeded.',

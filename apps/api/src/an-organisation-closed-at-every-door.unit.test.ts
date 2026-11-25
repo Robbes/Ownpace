@@ -714,15 +714,20 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // a password source's records, a destination's, and the values a password
   // card shows. Read as before, to say what the link asks; no provider.
   'routes/migrations/person-grant-subject.ts': 7,
-  // Whether both sides have a way in before a grant starts a migration
-  // (workplan 0174 T1), read after `enqueueIfFree` has asked the close.
-  'routes/migrations/start-when-granted.ts': 3,
+  // Whether both sides have a way in (workplan 0174 T1): before a grant starts
+  // a migration, and since 0174 §4.3 before a grant lifts a withdrawal's hold.
+  // Moved from start-when-granted.ts word for word, so the endings can call it.
+  'routes/migrations/withdrawal-hold.ts': 3,
   'routes/permissions.ts': 9,
   // Measuring a stored account again (0006 §R, CQ-06): the row decrypted, the
   // account qualified, and the qualifying the doors share. Moved here from
   // connections.ts word for word; every caller asks the close (excused below).
   'routes/qualify-and-remember.ts': 3,
   'routes/withdraw-grant.ts': 1,
+  // A person removing the password they gave a destination (workplan 0174
+  // §4.3): the page reads whether a Cirrux Drive grant is held, and the
+  // withdrawal keeps the owner's values of the record it empties.
+  'routes/person-progress.ts': 2,
   // A password typed on a person's link (workplan 0174 T3): the stored records
   // read to build what the test is handed, after the route's own close.
   'routes/grant-password.ts': 2,
@@ -745,9 +750,14 @@ const USED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
     'reads whether each of a person’s migrations has a way in, to say which accounts their link still asks for ' +
     '(0153 T5 (b)). It reaches no provider. The grant page and the consent that use it ask (grant.ts, ' +
     'google-oauth-routes.ts), and the person’s ending reads the close in its own transaction.',
-  'routes/migrations/start-when-granted.ts':
-    'reads whether both sides of a migration have a way in before a grant starts it (workplan 0174 T1). It ' +
-    'reaches no provider, and asks the close and the hold first, through `enqueueIfFree`, before it reads.',
+  'routes/migrations/withdrawal-hold.ts':
+    'reads whether both sides of a migration have a way in (workplan 0174 T1, §4.3): for start-when-granted.ts, ' +
+    'which asks the close and the hold first, through `enqueueIfFree`, and for the grant endings that lift a ' +
+    'withdrawal’s hold, each of which reads the close in its own transaction first. It reaches no provider.',
+  'routes/person-progress.ts':
+    'a person taking back what they gave (workplan 0174 §4.3): the page reads whether a destination holds a ' +
+    'Cirrux Drive grant, and the withdrawal removes the person’s keys from a record. It reaches no provider, ' +
+    'and ends access; ending stays open after a close, as withdrawing a grant does (withdraw-grant.ts).',
   'routes/qualify-and-remember.ts':
     'measures an account for the doors that call it, and opens no door of its own. Its callers ask the close ' +
     'before it: the Test, the create and the rotation in connections.ts, and the Cirrux Drive consent in ' +
