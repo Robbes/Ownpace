@@ -386,7 +386,7 @@ describe('what is printed', () => {
   });
 
   it.each([
-    // pg-boss 12.38.2's own words, as it writes them (plans.js; manager.js, failWip and mapCompletionDataArg).
+    // pg-boss 12.39.0's own words (12.38.2's, unchanged), as it writes them (plans.js; manager.js, failWip and mapCompletionDataArg).
     [{ value: { message: 'job heartbeat timeout' } }, 'job heartbeat timeout'],
     [{ value: { message: 'job timed out' } }, 'job timed out'],
     [{ value: 'pg-boss shut down while active' }, 'pg-boss shut down while active'],

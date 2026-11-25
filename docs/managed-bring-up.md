@@ -5492,7 +5492,12 @@ managed.yml; its volumes stay*), which is not one-way by itself, and the
 other way round the same; a Trigger.dev pin is compared only when both have
 the plane. A move of pg-boss's version in `pnpm-lock.yaml` or of its schema
 version (`PG_BOSS_SCHEMA_VERSION`) between two tags that both carry it is
-one-way: pg-boss migrates its schema forward. The deploy from alpha.17 to
+one-way: pg-boss migrates its schema forward. The first such move is
+alpha.20's, pg-boss 12.38.2 to 12.39.0 and its schema 46 to 47 (one nullable
+column, `pgboss.schedule.sent_on`; workplan 0119, 2026-11-24): its worker
+migrates the schema when it starts, and alpha.19's worker and API refuse
+what it leaves, so the way back is the copy the take makes before the
+checkout. The deploy from alpha.17 to
 alpha.18 is the owner's, once: *Trigger.dev's plane, removed*, below.
 
 ### The OTA stack: the nightly gate, or a pull

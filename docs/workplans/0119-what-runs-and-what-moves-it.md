@@ -4,6 +4,54 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24: pg-boss 12.39.0, moved on purpose from 12.38.2, for alpha.20; the job schema moves
+from 46 to 47, one way.** The owner, 2026-11-24: *"alpha.20 (advice): yes on all"*, knowing it
+moves the job schema one way, and *"for 20 i also waive al waiting/days."* npm lists 12.39.0 at
+2026-11-21 16:41 UTC; Dependabot would have offered it on 2026-11-30. On branch
+`claude/ownpace-public-readiness-y7orc6-pg-boss-12-39`, from `main` at `8f46f61b`, a draft that
+waits for alpha.19's tag. The lockfile was resolved once the three-day floor had passed of
+itself, so `minimumReleaseAgeExclude` gains no entry.
+
+- **What the migration from 46 to 47 does**, read in both releases' packages from the npm registry,
+  not from GitHub (`dist/migrationStore.js`, `dist/plans.js`, `dist/schema.json`): one statement,
+  `ALTER TABLE pgboss.schedule ADD COLUMN IF NOT EXISTS sent_on timestamp with time zone`,
+  nullable and with no default, so no row is rewritten. pg-boss runs it in one transaction: its
+  advisory lock on the schema, an assertion that the version row reads 46, the column, then the
+  version row set to 47. Its `uninstall` drops the column again, but nothing here runs pg-boss's
+  rollback, and a runner of 12.38.2 refuses version 47 at its start (`PG_BOSS_SCHEMA_VERSION`), so
+  for us it is one way.
+- **What `sent_on` is for.** The latest occurrence of a schedule that was sent. `schedule()` sets
+  it to `job_now()` on a new row or a changed expression, zone or precision, and keeps it
+  otherwise; only 12.39.0's new per-second path, opt-in by `precision: 'second'`, reads it. The
+  runner's schedules are cron expressions in UTC at the minute, sent by the minute pass as before,
+  so the column is written and not read here.
+- **What else 12.39.0 changes in what the runner asks of it**, read in the same diff: a fetch on a
+  queue with singleton keys ranks a key's jobs by priority, then creation (12.38.2 left the order
+  open); a batch insert goes in sorted by singleton key, against a deadlock between two batches; a
+  transactional `work()` with an expiry above a day needs `transactionTimeoutSeconds`, and the
+  runner calls no `work()`. The failure sentences `operator.sh jobs` reads, the seven days before a
+  settled job is deleted, and the absence of an archive table are 12.38.2's; the comments that
+  name them say 12.39.0. Its dependency floors rise: `cron-parser` ^5.10.6, `rrule-temporal`
+  ^2.3.0, `serialize-error` ^13.1.0.
+- **What moved.** `packages/scheduler/package.json` pins `12.39.0`, `pnpm-lock.yaml` with it, and
+  `PG_BOSS_SCHEMA_VERSION` in `packages/scheduler/src/pg-boss/job-runner.ts` is 47;
+  `a-job-schema-the-runner-was-not-proved-on` fails until the two agree. The pin watch has no
+  pg-boss row, so none moves.
+- **The migration, run.** On a throwaway cluster from `scripts/local-pg.sh`: a schema installed by
+  12.38.2 read version 46, with one queue, one schedule (`*/5 * * * *`, UTC) and one job; started
+  under 12.39.0 it read 47, `pgboss.schedule` had gained `sent_on` (`timestamp with time zone`,
+  nullable) and nothing else, and the schedule and the job were still there, `sent_on` NULL. The
+  lockfile moves five lines: the specifier, the resolution and the integrity
+  (`sha512-4KE+T1JV…`, the registry's own) of pg-boss alone; the three dependencies resolve to
+  `cron-parser` 5.10.6, `rrule-temporal` 2.3.0 and `serialize-error` 13.1.0, the versions in the
+  tree already.
+- **For live:** one-way. `deploy-live.sh` already reads a move of pg-boss's version in the lockfile
+  or of `PG_BOSS_SCHEMA_VERSION` as one-way (*moves pg-boss in pnpm-lock.yaml: 12.38.2 ->
+  12.39.0*, *moves pg-boss's schema version (PG_BOSS_SCHEMA_VERSION): 46 -> 47*); 0146's Status
+  says what alpha.20's sheet must hold. **For OTA:** an E2E (managed) run on the branch migrates
+  OTA's shared database to 47, and `main`'s next nightly then refuses until the branch merges, as
+  on 2026-11-23 (run 45183707271). So that run is dispatched just before the merge, and not before.
+
 **2026-11-24: alpha.20's image pins — nginx 1.31.10 and five rebuilt bases — inside their floors on
 the owner's waiver.** The owner, 2026-11-24: *"alpha.20 (advice): yes on all"* and *"for 20 i also
 waive al waiting/days."* On branch `claude/ownpace-public-readiness-y7orc6-a20-images`, from `main`

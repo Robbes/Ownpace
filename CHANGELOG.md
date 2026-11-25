@@ -155,6 +155,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Dutch) gained a *Not yet* section saying both, the site's leaving page lists both rows, and
   the architecture document's §10.2 no longer says the archive is migrated. The manifest's
   version moves to 2026-11-24.
+- **The managed edition's job runner is on pg-boss 12.39.0, from 12.38.2, and its job schema moves
+  from version 46 to 47, one way** (workplan 0119; the owner, 2026-11-24: *"alpha.20 (advice): yes
+  on all"*). pg-boss's migration adds one nullable column, `pgboss.schedule.sent_on`, in one
+  transaction under its own lock; the worker runs it when it first starts on 12.39.0, and the
+  runner's `PG_BOSS_SCHEMA_VERSION` is 47, so a worker or API of an earlier release refuses the
+  migrated schema rather than run on it. The deploy to this release is therefore one-way, which
+  `deploy-live.sh` says; the way back is the copy taken before it. No job, queue or schedule of
+  ours changes.
 
 ### Fixed
 

@@ -499,8 +499,8 @@ importers:
         specifier: 'catalog:'
         version: 8.23.1
       pg-boss:
-        specifier: 12.38.2
-        version: 12.38.2(@opentelemetry/api@1.9.1)
+        specifier: 12.39.0
+        version: 12.39.0(@opentelemetry/api@1.9.1)
     devDependencies:
       '@types/pg':
         specifier: 'catalog:'
@@ -3139,8 +3139,8 @@ packages:
   path-to-regexp@8.4.2:
     resolution: {integrity: sha512-qRcuIdP69NPm4qbACK+aDogI5CBDMi1jKe0ry5rSQJz8JVLsC7jV8XpiJjGRLLol3N+R5ihGYcrPLTno6pAdBA==}
 
-  pg-boss@12.38.2:
-    resolution: {integrity: sha512-nvB9hB2cDJGSPUwYjN/Mth+EE3zvxffkp7uKXIiYloMAaxSoEiutmZi9mpSW85hNCcPChf3yicNXdwhIWkv2nA==}
+  pg-boss@12.39.0:
+    resolution: {integrity: sha512-4KE+T1JVr5tmMa9Blg9ILBli4ZdfleA55PiVthGuQu7neHgnr0JD/VJseCET/Sms3HscghDPVo6z5dhPpB2e7g==}
     engines: {node: '>=22.12.0'}
     hasBin: true
     peerDependencies:
@@ -6313,7 +6313,7 @@ snapshots:
 
   path-to-regexp@8.4.2: {}
 
-  pg-boss@12.38.2(@opentelemetry/api@1.9.1):
+  pg-boss@12.39.0(@opentelemetry/api@1.9.1):
     dependencies:
       '@opentelemetry/api': 1.9.1
       cron-parser: 5.10.6
