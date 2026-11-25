@@ -181,10 +181,12 @@ beforeAll(async () => {
         [id, TENANT, kind, JSON.stringify({ user })],
       );
     }
+    // The Nextcloud is the owner's own, with the owner's password: since
+    // workplan 0174 one without would be asked of the person too.
     await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'target','nextcloud','nc','{"host":"cloud.example.org","port":443}'::jsonb,'connected')`,
-      [TARGET_CONN, TENANT],
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1,$2,'target','nextcloud','nc','{"host":"cloud.example.org","port":443}'::jsonb,'connected',$3)`,
+      [TARGET_CONN, TENANT, JSON.stringify(SecretStore.encryptCredentials({ password: 'the-owners' }).encrypted)],
     );
     for (const [box, c] of [
       [BOX, CONN],
