@@ -4,6 +4,37 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T5 built (draft pull request on T1's branch, merges after T1).** Destinations on
+the link, as §4.3 and §4.4 say, with §4.4's binding changed before the code (its T5 paragraph:
+Cirrux names a workspace and no address, so the first Drive grant on an account records the
+workspace and every later one must reach it):
+- `grant-providers.ts`: the `cirrux` entry, `targetKinds: ['cirrux']`, served by `cirruxClient`;
+  three optional members on the seam (`consentUrl`'s `challenge`, `finish`'s `verifier`,
+  `GrantFinish`'s `access` and `shownAs`). `CIRRUX_DRIVE_WORKSPACE_KEY` in `cirrux-drive.ts`.
+- `person-grant-subject.ts`: the Drive card read per role from `GRANTED_TARGET_FACES`, offered
+  only once the account's password is stored, and kept, connected, once the person connected it.
+- `grant.ts`: `POST /:link/cirrux/authorize` takes the card's `ref` and begins the owner's Cirrux
+  consent (PKCE, the deployment's public client) with the person's link in its pending state.
+- `cirrux-link-ending.ts` (new), from `cirrux-oauth-routes.ts`'s one callback: the link live, the
+  migrations still hers, the app password stored, the grant under the row's lock and refused for
+  another workspace (`storeCirruxDriveGrantIn`, `another_workspace`), `person_granted_connection`
+  written, `mapping.granted` per migration with `role` and `via`, the link spent when every card is
+  connected. The owner's own callback records and holds to the workspace too.
+- `packages/managed/src/person-granted-connection.ts` (new): the row's write, and the refusals.
+  Guarded doors: the create door (`personId` in its body, for T6's wizard), the door that gives a
+  migration to a person, the edit door, the rotation door (D6), and the owner's *Connect Cirrux
+  Drive* on an account a person connected.
+- `consentToFollow('cirrux', …)` already follows `api.cirrux.co` only (0160); the test ties the
+  authorize URL to `CONSENT_HOSTS.cirrux`. The page's Drive card and its words are T4's.
+
+Proved: `a-drive-a-person-connects-on-their-link.unit.test.ts` (PGlite, both chains, Cirrux faked):
+the Drive card only after the app password; the ending stored with its workspace, the person's
+row, the audit rows; refused when the workspace differs (nothing stored, the link live), the
+owner's consent too; another person's migration refused at three doors; the rotation and the
+owner's Drive sign-in refused. All eight fail on T1's sources. The unit tests of the api,
+orchestration, managed, connectors, shared, the appliance's guards and `scripts/` pass. Not proved:
+a real Cirrux sign-in (no test account, §11); no integration test was added (T8).
+
 **2026-11-25, T1 built (draft pull request, merges after alpha.20's tag).** The seam grows as
 §4.1, §4.2, §5.1 and §9 say, and the interfaces T3 to T6 build against are on the branch
 `claude/ownpace-public-readiness-y7orc6-a21-grant-t1`:
@@ -60,7 +91,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 | T2 Dropbox on the seam | builder | 📋 Planned | §6. Supersedes 0171 T4. S. Needs only 0171 T3's seam, which is merged (#2136). |
 | T3 The own-password route: test, try count, store, spend | builder | 📋 Planned | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
 | T4 The own-password page, per kind, in English and Dutch | builder | 📋 Planned | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
-| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 📋 Planned | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
+| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 🔎 In review (draft PR) | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
 | T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 📋 Planned | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
 | T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
 | T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
