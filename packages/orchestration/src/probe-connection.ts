@@ -48,6 +48,7 @@ import {
 import type { MicrosoftFaceSourceBuilder } from './microsoft-account-test.ts';
 import type { ArchiveSource, SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { parseArchiveSource } from '@openmig/shared';
+import { isTemporaryFailure, plainFailureText, providerAnswerFromError, type PlainFailure } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import { ARCHIVE_CONNECTION_KIND, archiveReaderForLocation } from './archive-source-factory.ts';
 import { CalDAVSource, CarddavSource, DropboxFileSource, WebdavFileSource } from '@openmig/connectors';
@@ -133,6 +134,14 @@ export type ProbeResult =
        * 0080), and for every refusal of ours.
        */
       readonly said?: WhatHappenedAnswer;
+      /**
+       * WHAT A PROVIDER'S OWN SERVICE ANSWERED, IN PARTS (2026-11-25): its
+       * status and recognised error words, never its body. `reason` is its
+       * English; a screen says it in its reader's language. Set for a
+       * provider's published service (Google, Microsoft, Dropbox, Box,
+       * Apple) when the failure carried an HTTP status.
+       */
+      readonly plain?: PlainFailure;
       /**
        * The section of a served guide that says the rest (workplan 0148 T7):
        * a refusal of ours carries it on its pair, and an error whose words are
@@ -259,6 +268,47 @@ export function withProbeDeadline(
  * `reason` is the English either way, so nothing that only knows about
  * `reason` changes.
  */
+/**
+ * The provider whose own published service a kind reaches, by the name people
+ * know it by, or undefined for an address somebody typed.
+ */
+function publishedProviderOf(kind: string | undefined): string | undefined {
+  switch (kind) {
+    case GOOGLE_ACCOUNT_CONNECTION_KIND:
+    case GMAIL_CONNECTION_KIND:
+    case GOOGLE_CALENDAR_CONNECTION_KIND:
+    case GOOGLE_CONTACTS_CONNECTION_KIND:
+    case GOOGLE_DRIVE_CONNECTION_KIND:
+      return 'Google';
+    case MICROSOFT_ACCOUNT_KIND:
+    case 'o365':
+      return 'Microsoft';
+    case DROPBOX_CONNECTION_KIND:
+      return 'Dropbox';
+    case BOX_CONNECTION_KIND:
+      return 'Box';
+    case 'apple':
+      return 'Apple';
+    default:
+      return undefined;
+  }
+}
+
+/** A failure at a provider's own service, said from its parts (2026-11-25). */
+function providerAnswered(plain: PlainFailure): ProbeResult {
+  return {
+    ok: false,
+    reason: plainFailureText(plain).en,
+    outcome: !isTemporaryFailure(plain)
+      ? { code: 'providerRefused' }
+      : plain.kind === 'answered'
+        ? { code: 'providerTemporary', status: plain.status }
+        // Nothing answered at all (the network): temporary, with no status.
+        : { code: 'providerTemporary' },
+    plain,
+  };
+}
+
 function providerRefused(err: unknown, kind?: string, typedHost = false): ProbeResult {
   if (isCredentialRefusal(err)) return refusedByUs(err.refusal);
   // A THIRD CASE, between the two above (workplan 0115 T5): the provider's
@@ -273,6 +323,17 @@ function providerRefused(err: unknown, kind?: string, typedHost = false): ProbeR
   // Apple refusing the password it was given is a refused login (0174 D4).
   if (known) return { ...refusedByUs(known), refusedLogin: true };
   const guide = guideOf(err);
+  // A provider's own service: its status and its error words, never its body
+  // (2026-11-25, a Google 502 page printed whole on the Accounts page).
+  const provider = typedHost ? undefined : publishedProviderOf(kind);
+  const plain = provider === undefined ? undefined : providerAnswerFromError(err, provider);
+  if (plain) {
+    return {
+      ...providerAnswered(plain),
+      ...(loginWasRefused(err) ? { refusedLogin: true as const } : {}),
+      ...(guide === undefined ? {} : { guide }),
+    };
+  }
   return {
     ok: false,
     reason: text,
@@ -355,7 +416,9 @@ async function probeMicrosoftAccount(
     // refused), so that is what the Test says.
     return grant.refusal
       ? refusedByUs(grant.refusal)
-      : { ok: false, reason: grant.reason, outcome: { code: 'providerRefused' } };
+      : grant.plain
+        ? providerAnswered(grant.plain)
+        : { ok: false, reason: grant.reason, outcome: { code: 'providerRefused' } };
   }
   const carried = faces.find((face) => {
     const scope = microsoftFaceScope(face);
@@ -396,7 +459,7 @@ async function probeGoogleAccount(
     ? (faces.find((f) => googleGrantCarries(f, grant.granted)) ?? 'calendar')
     : 'calendar';
   const build = deps.googleFaceSource ?? googleFaceListable;
-  return probeListable(() => build(face, user, creds, config), GOOGLE_FACE_UNIT[face]);
+  return probeListable(() => build(face, user, creds, config), GOOGLE_FACE_UNIT[face], GOOGLE_ACCOUNT_CONNECTION_KIND);
 }
 
 /**
@@ -567,6 +630,7 @@ async function probeSourceNow(
       return probeListable(
         () => buildGmailSourceFrom(user, creds, STORED_GMAIL_CREDENTIAL_NAMES),
         'folder',
+        kind,
       );
     case GOOGLE_DRIVE_CONNECTION_KIND:
       return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }, undefined), 'folder', kind);
@@ -582,7 +646,7 @@ async function probeSourceNow(
           throw new Error('the file-source builder did not answer a Dropbox source for the dropbox kind');
         }
         return source;
-      }, 'folder');
+      }, 'folder', kind);
     case BOX_CONNECTION_KIND:
       // Box (workplan 0056): same route again — the builder holds the CCG
       // branching, so test-connection proves exactly what a pass builds.
@@ -600,11 +664,13 @@ async function probeSourceNow(
       return probeListable(
         () => buildGoogleCalendarDavSourceFrom(user, creds, STORED_GOOGLE_DAV_CREDENTIAL_NAMES),
         'calendar',
+        kind,
       );
     case GOOGLE_CONTACTS_CONNECTION_KIND:
       return probeListable(
         () => buildGoogleContactsDavSourceFrom(user, creds, STORED_GOOGLE_DAV_CREDENTIAL_NAMES),
         'addressBook',
+        kind,
       );
     // THE APPLE ACCOUNT ANSWERS WITH ITS CALENDAR FACE (workplan 0115 T5),
     // the choice T4a made for `soverin` and 0106 T3b for `google`, for the

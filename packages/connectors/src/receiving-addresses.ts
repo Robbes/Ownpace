@@ -16,6 +16,8 @@
  */
 
 import {
+  plainFailureText,
+  providerAnswerFromResponse,
   addressesFromGmailSendAs,
   addressesFromGraphUser,
   type ReceivingAddresses,
@@ -74,7 +76,8 @@ export async function readGraphReceivingAddresses(
     return { state: 'not_read', provider: 'Microsoft', why: 'reconnect' };
   }
   if (res.status !== 200) {
-    return { state: 'failed', provider: 'Microsoft', reason: `Graph answered ${res.status}: ${graphRefusalBody(res.body)}` };
+    // Its status and its error words, never its body (2026-11-25).
+    return { state: 'failed', provider: 'Microsoft', reason: plainFailureText(providerAnswerFromResponse('Microsoft', res.status, graphRefusalBody(res.body))).en };
   }
   try {
     return { state: 'read', provider: 'Microsoft', addresses: addressesFromGraphUser(JSON.parse(res.body)) };
@@ -120,7 +123,8 @@ export async function readGmailReceivingAddresses(
     return { state: 'not_read', provider: 'Google', why: 'reconnect' };
   }
   if (res.status !== 200) {
-    return { state: 'failed', provider: 'Google', reason: `Gmail answered ${res.status}: ${res.body.slice(0, 300)}` };
+    // Its status and its error words, never its body (2026-11-25).
+    return { state: 'failed', provider: 'Google', reason: plainFailureText(providerAnswerFromResponse('Google', res.status, res.body)).en };
   }
   try {
     return { state: 'read', provider: 'Google', addresses: addressesFromGmailSendAs(JSON.parse(res.body)) };

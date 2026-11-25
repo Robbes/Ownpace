@@ -24,6 +24,9 @@
  */
 
 import {
+  inLocale,
+  plainFailureText,
+  type PlainFailure,
   refusalText,
   DOMAIN_FOR_QUALIFICATION_KEY,
   QUALIFICATION_KEYS,
@@ -76,6 +79,8 @@ interface QualifiedFace {
    * English for the same thing; `saidText` says it in the reader's language.
    */
   readonly said?: WhatHappenedAnswer;
+  /** What a provider's own service answered, in parts (2026-11-25): said in the reader's language. */
+  readonly plain?: PlainFailure;
 }
 
 /**
@@ -186,11 +191,15 @@ export function probeText(
   fallback: string,
   locale: RefusalLocale = 'en',
   said?: WhatHappenedAnswer,
+  plain?: PlainFailure,
 ): string {
   // An address the tester typed, answered from its parts (0136 T3): ours,
   // whatever code the outcome carries, and said before the code is read.
   const fromParts = saidText(t, said);
   if (fromParts !== null) return fromParts;
+  // A provider's own service, from its status and words, never its body
+  // (2026-11-25): the same words as the API's `reason`, in this language.
+  if (plain) return inLocale(plainFailureText(plain), locale);
   if (!outcome) return fallback;
   switch (outcome.code) {
     case 'connected':
@@ -219,6 +228,10 @@ export function probeText(
     case 'timedOut':
       // Ours: unknown, not refused — the credentials may be fine.
       return t('probe.timedOut', { seconds: outcome.seconds });
+    case 'waitingForPerson':
+      // A person's sign-in account whose sign-in none of their migrations
+      // holds yet (0174 §8.2): nothing is wrong, and nothing was probed.
+      return t('probe.waitingForPerson', { person: outcome.person });
     case 'countedAtPreflight':
       // Ours: unknown, and nothing is wrong. An archive inside the migration's
       // own file target has no target to be read through until a migration
@@ -309,10 +322,11 @@ export function qualificationEvidence(
   qualification:
     | { domains: QualifiedDomains }
     | undefined,
-  options: { readonly measures?: boolean } = {},
+  options: { readonly measures?: boolean; readonly locale?: RefusalLocale } = {},
 ): string[] {
   if (!qualification) return [];
   const measures = options.measures !== false;
+  const locale = options.locale ?? 'en';
   const lines: string[] = [];
   for (const domain of QUALIFICATION_KEYS) {
     const d = faceOf(qualification.domains, domain);
@@ -323,9 +337,13 @@ export function qualificationEvidence(
       // parts, in the reader's language, as the server's `detail` says it.
       const fromParts = saidText(t, d.said);
       const said =
-        fromParts === null
-          ? d.detail
-          : t('probe.said.unmeasured', { sentence: `${fromParts.charAt(0).toLowerCase()}${fromParts.slice(1)}` });
+        fromParts !== null
+          ? t('probe.said.unmeasured', { sentence: `${fromParts.charAt(0).toLowerCase()}${fromParts.slice(1)}` })
+          : d.plain
+            // A provider's own service (2026-11-25): its status and words,
+            // in the reader's language, after the data type's name.
+            ? inLocale(plainFailureText(d.plain), locale)
+            : d.detail;
       lines.push(`${t(faceLabel(domain))}: ${said}`);
     } else if (measures && d.volume?.failed) {
       lines.push(`${t(faceLabel(domain))} — ${t('probe.measured.failed')}: ${d.volume.failed}`);

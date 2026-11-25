@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import apiClient from './api.ts';
 import { z } from 'zod';
-import type { ProbeOutcome, WhatHappenedAnswer } from '@openmig/shared';
+import type { PlainFailure, ProbeOutcome, WhatHappenedAnswer } from '@openmig/shared';
 import { DOMAIN_STATES, FAILURE_CATEGORIES, FAILURE_SIDES, MAPPING_LIFECYCLES, isGuideHandle } from '@openmig/shared';
 import type {
   DiscoveryRecord,
@@ -912,6 +912,12 @@ export interface TestConnectionResult {
    */
   said?: WhatHappenedAnswer;
   /**
+   * What a provider's own service answered, in parts (2026-11-25): its
+   * status and recognised words, never its body. Said in the reader's
+   * language (`plainFailureText`). Absent on every other answer.
+   */
+  plain?: PlainFailure;
+  /**
    * On a refusal, the section of a served guide that says the rest (workplan
    * 0148 T7), such as `box#connect`: beside the words, never in them.
    * `GuideLink` draws it in the reader's language.
@@ -968,6 +974,8 @@ export interface TestConnectionResult {
         };
         /** Refused at an address the tester typed: the parts and the reference (0136 T3). */
         said?: WhatHappenedAnswer;
+        /** What a provider's own service answered, in parts (2026-11-25). */
+        plain?: PlainFailure;
       }
     >
     >;
@@ -1474,6 +1482,13 @@ export interface ConnectionSummary {
    * on it, so the page offers none and says why.
    */
   connectedBy?: { personId: string; name: string };
+  /**
+   * Managed only (0174 §8.2, 2026-11-25): a Google, Microsoft or Dropbox
+   * account saved for a person, whose sign-in is on their migrations and not
+   * on this row. `waitingFor` or `connectedBy` says which; the row's own
+   * status says nothing until a Test measured through their sign-in.
+   */
+  signInOnMigrations?: true;
   createdAt: string;
   /** How many mailboxes depend on it — whether re-testing this matters. */
   /**

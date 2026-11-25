@@ -30,6 +30,8 @@
  * operator ends up re-doing the step that was already right.
  */
 
+import { plainFailureText, providerAnswerFromResponse } from '@openmig/shared';
+import { graphRefusalBody } from './graph-refusal.ts';
 import type { HttpClient } from './dav-http.types.ts';
 
 /** What one permission's smallest possible proof came back with. */
@@ -186,10 +188,11 @@ async function probe(
       capability,
       permission,
       ok: false,
-      // Graph's own body verbatim, truncated only so a console stays readable.
-      // It carries the error code an operator can search for; a summarised
-      // version of it would carry nothing.
-      detail: `Graph answered ${res.status}: ${res.body.slice(0, 400)}`,
+      // Graph's own error code and message, which an operator can search
+      // for, and never a body that is not Graph's error document: a 5xx
+      // answers with an HTML page, and a 5xx or 429 is a temporary error
+      // (2026-11-25).
+      detail: plainFailureText(providerAnswerFromResponse('Microsoft Graph', res.status, graphRefusalBody(res.body))).en,
       ...(ambiguity ? { ambiguity } : {}),
     };
   } catch (err) {

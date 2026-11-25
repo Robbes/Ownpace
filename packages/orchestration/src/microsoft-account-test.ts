@@ -47,8 +47,16 @@ import {
   microsoftTokenEndpoint,
   withDeploymentMicrosoftClient,
 } from '@openmig/shared';
-import { log, missingCredentials, shownFields } from '@openmig/shared';
-import type { BilingualRefusal, DiscoveryDomain, ProbeUnit, SourceConfig } from '@openmig/shared';
+import {
+  isTemporaryFailure,
+  log,
+  missingCredentials,
+  plainFailureText,
+  providerAnswerFromError,
+  providerAnswerFromResponse,
+  shownFields,
+} from '@openmig/shared';
+import type { BilingualRefusal, DiscoveryDomain, PlainFailure, ProbeUnit, SourceConfig } from '@openmig/shared';
 import {
   buildCalendarSourceFromConnection,
   buildContactSourceFromConnection,
@@ -56,6 +64,7 @@ import {
   buildSourceConnectorFromCredentials,
   buildTaskSourceFromConnection,
 } from './build-deps-from-mapping.ts';
+import { unansweredFace } from './account-qualification.ts';
 import type { AccountQualification, MeasuredVolume, QualifiedDomain } from './account-qualification.ts';
 
 /**
@@ -96,6 +105,8 @@ export type MicrosoftGrantRead =
   | {
       readonly ok: false;
       readonly reason: string;
+      /** What Microsoft answered, in parts: its status and its error words, never its body. */
+      readonly plain?: PlainFailure;
       /** Set when the fault is OURS — a stored row missing what the read
        *  needs — so the probe can answer in the credential vocabulary, in
        *  both languages, rather than as a provider's refusal. */
@@ -184,17 +195,24 @@ export async function readMicrosoftGrant(
       body: body.toString(),
     });
   } catch (err) {
+    // Nothing answered (the network) is temporary, said plainly (2026-11-25).
+    const plain = providerAnswerFromError(err, 'Microsoft');
+    if (plain) return { ok: false, reason: plainFailureText(plain).en, plain };
     return { ok: false, reason: `the token exchange failed: ${err instanceof Error ? err.message : String(err)}` };
   }
   if (!response.ok) {
-    const head = (await response.text()).slice(0, 300);
-    return { ok: false, reason: `the token exchange answered ${response.status}: ${head}` };
+    // The status and Microsoft's own error words (RFC 6749's), never the body
+    // (2026-11-25): a 5xx is a temporary error at Microsoft, not a refusal.
+    const plain = providerAnswerFromResponse('Microsoft', response.status, await response.text());
+    return { ok: false, reason: plainFailureText(plain).en, plain };
   }
   let token: { scope?: unknown };
   try {
     token = (await response.json()) as { scope?: unknown };
   } catch (err) {
-    return { ok: false, reason: `the token exchange answered something that is not JSON: ${err instanceof Error ? err.message : String(err)}` };
+    // Not the parser's message: it quotes the start of the body.
+    log.warn(`[microsoft] the token exchange answered something that is not JSON: ${err instanceof Error ? err.message : String(err)}`);
+    return { ok: false, reason: 'the token exchange answered something that is not a token, so nothing was measured.' };
   }
   return { ok: true, granted: graphScopesGranted(typeof token.scope === 'string' ? token.scope : '') };
 }
@@ -344,8 +362,13 @@ const FACE_WORD: Readonly<Record<DiscoveryDomain, string>> = {
   task: 'tasks',
 };
 
-function allUnknown(why: string): AccountQualification {
-  const domain: QualifiedDomain = { answer: 'unknown', reason: 'refused', detail: why };
+function allUnknown(why: string, plain?: PlainFailure): AccountQualification {
+  const domain: QualifiedDomain = {
+    answer: 'unknown',
+    reason: isTemporaryFailure(plain) ? 'temporary' : 'refused',
+    detail: why,
+    ...(plain ? { plain } : {}),
+  };
   return { domains: { mail: domain, calendar: domain, contact: domain, file: domain, task: domain } };
 }
 
@@ -376,7 +399,7 @@ export async function qualifyMicrosoftAccount(
   // measures too rather than answering "no clientId to read the grant from".
   const creds = withDeploymentMicrosoftClient(true, rawCreds);
   const grant = await readMicrosoftGrant(creds, options);
-  if (!grant.ok) return allUnknown(`Unmeasured — ${grant.reason}`);
+  if (!grant.ok) return grant.plain ? allUnknown(grant.reason, grant.plain) : allUnknown(`Unmeasured — ${grant.reason}`);
 
   const build = options.source ?? microsoftFaceSource;
   const faceFromGrant = async (face: DiscoveryDomain): Promise<QualifiedDomain> => {
@@ -422,14 +445,10 @@ export async function qualifyMicrosoftAccount(
       }
     } catch (err) {
       // A refusal is NOT a no: the consent carries the scope, so "cannot
-      // carry" would be false, and nothing answered, so it is not a yes.
-      return {
-        answer: 'unknown',
-        reason: 'refused',
-        detail: `The consent carries ${scope}, but the face did not answer: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      };
+      // carry" would be false, and nothing answered, so it is not a yes. Said
+      // from Microsoft's status and words, never its body; a 5xx or 429 is
+      // `temporary` (2026-11-25).
+      return unansweredFace(err, 'Microsoft');
     }
   };
 
