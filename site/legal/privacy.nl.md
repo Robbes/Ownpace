@@ -412,14 +412,15 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
   logt die zelf in bij de eigen aanbieder en geeft die Ownpace zelf toegang, vanaf een pagina
   die zegt wie het vroeg, van welk account en naar waar. Of, voor een account dat met een
   wachtwoord inlogt (Apple, een mailserver, een Nextcloud en dergelijke), typt die persoon dat
-  wachtwoord zelf op de pagina. We proberen het bij de server die de pagina noemt, en
-  bewaren het alleen als het werkt, versleuteld (§4.1). We tellen verkeerde pogingen op de link,
-  zonder het wachtwoord, en stoppen de link voor dat account na vijf. We schrijven het wachtwoord
-  nooit in een log of een vastlegging, en we laten het nooit aan iemand zien, ook niet aan u. Die
+  wachtwoord zelf op de pagina. We proberen het bij de server die de pagina noemt, en bewaren
+  het alleen als het werkt, versleuteld (§4.1). We tellen verkeerde pogingen op de link, zonder
+  het wachtwoord, en stoppen de link voor dat account na vijf. We schrijven het wachtwoord nooit
+  in een log of een vastlegging, en we laten het nooit aan iemand zien, ook niet aan u. Die
   persoon kan het intrekken op de eigen voortgangspagina, wat het hier verwijdert. Wijzigt die
-  persoon het wachtwoord bij de eigen aanbieder, dan is het onze onbruikbaar. Wij bewaren die toegang (versleuteld,
-  §4.1), het adres van dat account, en wanneer de link werd gemaakt, gebruikt en beëindigd. Die
-  persoon kan de toegang op elk moment intrekken. Op de eigen voortgangspagina verwijdert dat haar
+  persoon het wachtwoord bij de eigen aanbieder, dan is het onze onbruikbaar. Wij bewaren die
+  toegang (versleuteld, §4.1), het adres van dat account, en wanneer de link werd gemaakt,
+  gebruikt en beëindigd. Die persoon kan de toegang op elk moment intrekken. Op de eigen
+  voortgangspagina verwijdert dat haar
   hier, en trekt het haar ook in bij de aanbieder, waar die dat toestaat. Bij de aanbieder maakt
   het wat wij bewaren onbruikbaar, en verwijderen we haar wanneer u de migratie verwijdert of uw
   gegevens worden gewist. Om een Google-account te koppelen, moet het adres ook op de lijst van

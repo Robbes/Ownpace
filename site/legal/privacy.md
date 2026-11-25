@@ -1124,11 +1124,11 @@ A migration touches people who never signed up with us. This is what we hold abo
   their own provider and give Ownpace access themselves, from a page that says who asked, from
   which account and to where. Or, for an account that signs in with a password (Apple, a mail
   server, a Nextcloud and the like), they type that password themselves on the page. We try it
-  with the server the page names, and keep it only if it works, encrypted (§4.1). We count
-  wrong tries on the link, without the password, and stop the link for that account after five.
-  We never write the password in a log or a record, and we never show it to anybody, you
-  included. They can withdraw it on their progress page, which deletes it here.
-  Changing the password at their provider makes ours useless. We keep that access (encrypted, §4.1), the address of their
+  with the server the page names, and keep it only if it works, encrypted (§4.1). We count wrong
+  tries on the link, without the password, and stop the link for that account after five. We
+  never write the password in a log or a record, and we never show it to anybody, you included.
+  They can withdraw it on their progress page, which deletes it here. Changing the password at
+  their provider makes ours useless. We keep that access (encrypted, §4.1), the address of their
   account, and when the link was made, used and ended. They can withdraw the access at any time.
   On their progress page, that deletes it here, and revokes it at their provider where the
   provider allows that. At their provider, it makes what we hold useless, and we delete it when
