@@ -309,6 +309,21 @@ describe('where the password goes, before any box (0174 §5.8, D3)', () => {
     expect(el.querySelector('[data-not-the-address-mail]')).toBeNull();
   });
 
+  // D3 (a), 2026-11-25: Cirrux and Infomaniak pin their published servers as
+  // Apple does, and the route serves them `published: true`.
+  it.each([
+    ['cirrux', 'Cirrux', ['imap.cirrux.co', 'api.cirrux.co']],
+    ['infomaniak', 'Infomaniak', ['mail.infomaniak.com', 'sync.infomaniak.com']],
+  ] as const)('%s: names %s’s own server for a destination, with no warning', async (kind, provider, hosts) => {
+    readMock.mockResolvedValue(subject([card('target', kind, { server: { hosts: [...hosts], published: true } })]));
+    renderPage();
+    const el = await cardOf(`anna-${kind}@example.com`);
+    expect(el.querySelector('[data-server-line]')?.textContent).toBe(
+      `Your password is checked with ${provider}’s own server, ${hosts.join(' and ')}.`,
+    );
+    expect(el.querySelector('[data-not-the-address-mail]')).toBeNull();
+  });
+
   it.each(['en', 'nl'] as const)('%s: says to ask some other way when the organisation gave no phone', async (locale) => {
     readMock.mockResolvedValue(subject([card('source', 'imap')], { organisationPhone: null }));
     renderPage(locale);
@@ -446,6 +461,14 @@ describe('what the card says after the route answers (0174 §5.7)', () => {
     const nl =
       'Deze link noemt de server met een nummer in plaats van een naam, dus uw wachtwoord wordt er niet naartoe gestuurd. Laat het de persoon weten die u de link stuurde.';
     const el = await answer(passwordAnswerOf(409, { error: 'server_not_a_name', reason: en, reasonNl: nl }), 'imap', locale);
+    expect(await within(el).findByRole('alert')).toHaveTextContent(locale === 'nl' ? nl : en);
+  });
+
+  it.each(['en', 'nl'] as const)('%s: a server inside a private network (409 `server_not_public`): the route’s sentence', async (locale) => {
+    const en = 'This link names a server inside a private network, so your password is not sent to it. Tell the person who sent you the link.';
+    const nl =
+      'Deze link noemt een server in een afgeschermd netwerk, dus uw wachtwoord wordt er niet naartoe gestuurd. Laat het de persoon weten die u de link stuurde.';
+    const el = await answer(passwordAnswerOf(409, { error: 'server_not_public', reason: en, reasonNl: nl }), 'imap', locale);
     expect(await within(el).findByRole('alert')).toHaveTextContent(locale === 'nl' ? nl : en);
   });
 

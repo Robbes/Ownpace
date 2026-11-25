@@ -59,7 +59,8 @@ import {
   googleDeploymentClient,
   microsoftDeploymentClient,
   personFieldsFor,
-  publishedEndpoint,
+  pinsItsServer,
+  publishedServerHosts,
   type PersonField,
   type Bilingual,
   type CirruxClientEnv,
@@ -493,14 +494,14 @@ function hostOfUrl(value: unknown): string | null {
 
 /**
  * Where this account's password will be tried, from the owner's config, or
- * the provider's published servers for a kind that has them (Apple). Each host
- * once, in the order the faces are read: the DAV address or host, then the
- * mail server.
+ * the provider's published servers for a kind that pins them (Apple, Cirrux,
+ * Infomaniak; §5.8, D3 (a)), whatever the row says: the route tests on
+ * `pinnedToPublished`'s config, so the page names exactly where the password
+ * goes. Each host once, in the order the faces are read: for the owner's, the
+ * DAV address or host, then the mail server.
  */
 export function passwordServerOf(kind: PasswordKind, stored: Readonly<Record<string, unknown>>): GrantServer {
-  const faces = ['email', 'calendar', 'contact'] as const;
-  const published = faces.map((f) => publishedEndpoint(kind, f)?.host).filter((h): h is string => !!h);
-  if (published.length > 0) return { hosts: [...new Set(published)], published: true };
+  if (pinsItsServer(kind)) return { hosts: publishedServerHosts(kind), published: true };
   const hosts = [
     hostOfUrl(stored.url),
     shown(stored, 'host') || null,

@@ -51,8 +51,18 @@
 import type { Pool } from 'pg';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS, PgLedger, expiryFromDays, type LedgerDriver } from '@openmig/ledger';
-import { LINK_SPENT, log, organisationClosedRefusal, reasonPair, type Bilingual, type TenantId } from '@openmig/shared';
+import { DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS, PgLedger, expiryFromDays, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
+import {
+  LINK_SPENT,
+  log,
+  organisationClosedRefusal,
+  pinnedToPublished,
+  pinsItsServer,
+  reasonPair,
+  withoutUnpublishedHosts,
+  type Bilingual,
+  type TenantId,
+} from '@openmig/shared';
 import { personGrantedConnection, personLink, personMigration } from '@openmig/managed/schema-managed';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
@@ -484,6 +494,15 @@ export async function storePersonPassword(
         written.push(...account.migrations.map((m) => m.mappingId));
       }
 
+      // WHERE THE TEST WENT, KEPT (§5.8, D3 (a)). For a kind whose provider
+      // publishes its server, the test ran against that server whatever the
+      // row said (`pinnedToPublished`), so the row and each migration's
+      // override are written to say the same, in this transaction: the pass
+      // then sends the password where the test did, and nowhere the owner typed.
+      if (pinsItsServer(account.ask.kind)) {
+        await pinTheRow(db, target.tenantId, connectionId, account.ask.kind, account.role, written, now);
+      }
+
       // What the test measured, remembered where the Accounts page reads it.
       if (qualification !== undefined) {
         await db
@@ -516,6 +535,54 @@ export async function storePersonPassword(
     if (error instanceof PasswordNotStored) return error.answer;
     throw error;
   }
+}
+
+/**
+ * The row and the migrations' overrides, pinned to the published server
+ * (`pinnedToPublished`, `withoutUnpublishedHosts`), in the caller's
+ * transaction. Only what changes is written.
+ */
+async function pinTheRow(
+  db: PgDatabase,
+  tenantId: string,
+  connectionId: string,
+  kind: string,
+  role: 'source' | 'target',
+  mappingIds: ReadonlyArray<string>,
+  now: Date,
+): Promise<void> {
+  const [row] = await db
+    .select({ config: schema.connection.config })
+    .from(schema.connection)
+    .where(and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, tenantId)));
+  const before = objectOf(row?.config);
+  const pinned = pinnedToPublished(kind, before);
+  if (JSON.stringify(pinned) !== JSON.stringify(before)) {
+    await db
+      .update(schema.connection)
+      .set({ config: pinned as never, updatedAt: now })
+      .where(and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, tenantId)));
+  }
+  const column = role === 'source' ? schema.mailboxMapping.sourceConfigOverride : schema.mailboxMapping.targetConfigOverride;
+  for (const mappingId of mappingIds) {
+    const [m] = await db
+      .select({ override: column })
+      .from(schema.mailboxMapping)
+      .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
+    if (!m?.override || typeof m.override !== 'object') continue;
+    const was = objectOf(m.override);
+    const narrowed = withoutUnpublishedHosts(kind, was);
+    if (JSON.stringify(narrowed) === JSON.stringify(was)) continue;
+    await db
+      .update(schema.mailboxMapping)
+      .set(role === 'source' ? { sourceConfigOverride: narrowed as never, updatedAt: now } : { targetConfigOverride: narrowed as never, updatedAt: now })
+      .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
+  }
+}
+
+/** A config object, or an empty one. */
+function objectOf(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 /** When the card was connected while this test ran (a second tab), or before (§7.2). */

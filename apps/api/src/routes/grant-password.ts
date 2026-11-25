@@ -24,9 +24,11 @@
  * 3. Already connected through this link: 409 `already_connected`, and no
  *    test (§7.2: a replay makes no login and counts no try).
  * 4. A server the owner named by an IP literal: 409 `server_not_a_name`, no
- *    test (§5.8, D3 (a)). A host that resolves inside our own network is
- *    refused by the probe's own rule (`tenantFetch`, `reachableHost`, 0136 T1)
- *    and answers `unreachable`.
+ *    test (§5.8, D3 (a)). A name that resolves inside a private network: 409
+ *    `server_not_public`, no test, read by the probe's own rule
+ *    (`reachableHost`, 0136 T1) before a try is claimed. A kind whose
+ *    provider publishes its server (Apple, Cirrux, Infomaniak) is tried only
+ *    against that server, whatever the row says (`pinnedToPublished`).
  * 5. A try is claimed (§5.5, `person-link-tries.ts`): none left, 423
  *    `locked`, and no test. The sixth try is never tested.
  * 6. The test (§5.4, `password-test.ts`), within the door's budget.
@@ -62,7 +64,8 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import { LINK_SPENT, log, reasonPair, type Bilingual, type DiscoveryDomain } from '@openmig/shared';
+import { LINK_SPENT, log, pinnedToPublished, reasonPair, type Bilingual, type DiscoveryDomain } from '@openmig/shared';
+import { HostInsideOurNetwork, reachableHost } from '@openmig/shared/reachable-host';
 import { withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
 import { createKnockLimiter, type KnockLimiter } from '../knock-limit.ts';
@@ -110,6 +113,40 @@ export const SERVER_NOT_A_NAME: Bilingual = {
 
 type PersonLink = NonNullable<PersonLinkRequest['personLink']>;
 
+/**
+ * When the owner named a server that resolves inside a private network, so
+ * the password is not sent to it (§5.8, D3 (a)). The probe would refuse it
+ * too, by its own rule (`tenantFetch`, `reachableHost`, 0136 T1), but only as
+ * `unreachable`, which tells the person to try again in a few minutes. This
+ * says what is true: it will never be reached, and the one who sent the link
+ * must change it.
+ */
+export const SERVER_NOT_PUBLIC: Bilingual = {
+  en:
+    'This link names a server inside a private network, so your password is not sent to it. ' +
+    'Tell the person who sent you the link.',
+  nl:
+    'Deze link noemt een server in een afgeschermd netwerk, dus uw wachtwoord wordt er niet ' +
+    'naartoe gestuurd. Laat het de persoon weten die u de link stuurde.',
+};
+
+/**
+ * Whether a host resolves inside a network, by the probe's own rule: the
+ * same check, the same lookup, the same allow list (`reachableHost`, which
+ * answers the host as typed when the rule is off, as on the appliance). A
+ * name that does not resolve is not answered here: the test says
+ * `unreachable`, as before, and counts nothing.
+ */
+export async function insideANetwork(host: string): Promise<boolean> {
+  try {
+    await reachableHost(host);
+    return false;
+  } catch (error) {
+    if (error instanceof HostInsideOurNetwork) return true;
+    return false;
+  }
+}
+
 /** The source of the database, resolved on first use, as `grant.ts` does. */
 export type PoolSource = () => Pool | LedgerDriver;
 
@@ -117,6 +154,8 @@ export type PoolSource = () => Pool | LedgerDriver;
 export interface PasswordRouteDeps {
   readonly test?: PasswordTestDeps;
   readonly limiter?: KnockLimiter;
+  /** Whether a host resolves inside a network (`insideANetwork`), for a test that records the lookup. */
+  readonly inside?: (host: string) => Promise<boolean>;
 }
 
 /** The limiter, ahead of the link check: a guessed link spends from it too. */
@@ -214,7 +253,10 @@ async function testInput(
     const conn = account.role === 'source' ? rows.source : rows.target;
     if (!conn) return null;
     const { recentOnly: _own, ...override } = objectOf(account.role === 'source' ? rows.sourceOverride : rows.targetOverride);
-    const config = { ...objectOf(conn.config), ...override };
+    // A kind whose provider publishes its server is tried only there,
+    // whatever the row says (§5.8, D3 (a); `pinnedToPublished`). The store
+    // writes the same config to the row, so the pass goes where the test went.
+    const config = pinnedToPublished(account.ask.kind, { ...objectOf(conn.config), ...override });
     let mine: Record<string, string> = {};
     if (account.role === 'source') {
       const [m] = await db
@@ -288,6 +330,17 @@ export function passwordThroughLink(pool: PoolSource, deps: PasswordRouteDeps = 
       // A password is sent to a name, never a number (§5.8, D3 (a)).
       if (account.server && !account.server.published && account.server.hosts.some(isAddressLiteral)) {
         return void res.status(409).json({ error: 'server_not_a_name', ...reasonPair(SERVER_NOT_A_NAME) });
+      }
+      // Nor to a name inside a private network (§5.8, D3 (a)): refused before
+      // a try is claimed, so nothing is counted and nothing is sent.
+      if (account.server && !account.server.published) {
+        const inside = deps.inside ?? insideANetwork;
+        for (const host of account.server.hosts) {
+          if (await inside(host)) {
+            log.info(`[grant] a password on a person's link: server_not_public (ref ${account.ref})`);
+            return void res.status(409).json({ error: 'server_not_public', ...reasonPair(SERVER_NOT_PUBLIC) });
+          }
+        }
       }
 
       const target: PersonPasswordTarget = { linkId: link.linkId, tenantId: link.tenantId, personId: link.personId, ref: account.ref };
