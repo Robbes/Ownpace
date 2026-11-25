@@ -53,6 +53,9 @@ const BRAMS = U('35');
 /** Nobody's. */
 const NOBODYS = U('36');
 const ANNA = U('41');
+/** Anna's own Soverin account, saved for them with no password (workplan 0174). */
+const SOVERIN = U('13');
+const SOVERIN_BOX = U('51');
 const BRAM = U('42');
 
 let driver: LedgerDriver;
@@ -187,6 +190,12 @@ beforeEach(async () => {
     );
   }
   await q('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
+  // The grant has landed on the draft: what every caller of
+  // `startWhenGranted` has just written (workplan 0174 holds both sides).
+  await q('UPDATE mailbox_mapping SET source_secret_ref = $2, target_mailbox_id = NULL WHERE id = $1', [
+    DRAFT,
+    JSON.stringify(SecretStore.encryptCredentials({ refreshToken: '1//granted' }).encrypted),
+  ]);
 });
 
 describe('a grant lands on a migration of a person whose move was started', () => {
@@ -285,7 +294,48 @@ describe('a grant lands on a move started before and paused or finished since (t
   });
 });
 
+describe('a grant lands on one side while the other still waits (workplan 0174 §4.2)', () => {
+  it('starts nothing while the destination has no password, and starts once it has one', async () => {
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+       VALUES ($1,$2,'target','soverin','s','{"host":"dav.example.org","username":"anna@example.org"}'::jsonb,'connected')
+       ON CONFLICT (id) DO UPDATE SET secret_ref = NULL`,
+      [SOVERIN, TENANT],
+    );
+    await q(
+      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address) VALUES ($1,$2,$3,'user','anna@example.org')
+       ON CONFLICT (id) DO NOTHING`,
+      [SOVERIN_BOX, TENANT, SOVERIN],
+    );
+    await q('UPDATE mailbox_mapping SET target_mailbox_id = $2 WHERE id = $1', [DRAFT, SOVERIN_BOX]);
+
+    // The source's grant is in; the destination waits for its person's password.
+    expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT] })).toEqual([]);
+    expect(await statusOf(DRAFT)).toBe('paused');
+    expect(enqueued).toEqual([]);
+
+    // The second grant lands: the destination's password.
+    await q('UPDATE connection SET secret_ref = $2 WHERE id = $1', [
+      SOVERIN,
+      JSON.stringify(SecretStore.encryptCredentials({ password: 'theirs' }).encrypted),
+    ]);
+    expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT] })).toEqual([DRAFT]);
+    expect(await statusOf(DRAFT)).toBe('active');
+  });
+
+  it('starts nothing while the source has no way in, whatever lands on the destination', async () => {
+    await q('UPDATE mailbox_mapping SET source_secret_ref = NULL WHERE id = $1', [DRAFT]);
+    expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT] })).toEqual([]);
+    expect(await statusOf(DRAFT)).toBe('paused');
+  });
+});
+
 describe('Start on a migration that waits for its grant', () => {
+  beforeEach(async () => {
+    // Nothing has landed: the draft waits for its person.
+    await q('UPDATE mailbox_mapping SET source_secret_ref = NULL WHERE id = $1', [DRAFT]);
+  });
+
   it('says it starts by itself once its person has connected, when their move was started, paused since or not', async () => {
     for (const status of ['active', 'paused']) {
       await q(`UPDATE mailbox_mapping SET status = $3 WHERE id IN ($1, $2)`, [RUNNING, ALSO_RUNNING, status]);

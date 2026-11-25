@@ -149,6 +149,8 @@ import linkRoutes from './link-routes.ts';
 import finishChecksRoutes from './finish-checks-routes.ts';
 import destinationSpaceRoutes from './destination-space-route.ts';
 import { awaitingGrantRefusal } from './grant-link-readiness.ts';
+import { readGrantRows, storedCredentials } from './grant-subject.ts';
+import { credentialKeys } from './person-grant-subject.ts';
 import { startsWhenGrantedFor } from './start-when-granted.ts';
 // Its own module since 2026-09-23 (0108 T8a): the grant page names the same
 // accounts the detail route does, and importing this router to reach it would
@@ -4433,7 +4435,7 @@ async function loadMapping(
 }
 
 /**
- * Is this mapping still waiting for somebody to connect its Google account?
+ * Is this mapping still waiting for somebody to give it a way in, on either side?
  *
  * Composes the credentials the way a sync pass will (migration 0032: the
  * mapping's own over the connection's, key by key) and asks the decision in
@@ -4451,31 +4453,23 @@ async function awaitingGrant(
   mappingId: string,
   mappingSecretRef: string | null,
 ): Promise<string | null> {
-  const rows = await withTenantDb(tenantId, getSharedPool(), (db) =>
-    db
-      .select({ kind: schema.connection.kind, secretRef: schema.connection.secretRef })
-      .from(schema.mailboxMapping)
-      .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
-      .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
-      .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId))),
-  );
-  const source = rows[0];
-  if (!source) return null;
-
-  const read = (ref: string | null): Record<string, unknown> => {
-    if (!ref) return {};
-    try {
-      return SecretStore.decryptCredentials(ref);
-    } catch {
-      return {};
-    }
-  };
-  const creds = { ...read(source.secretRef), ...read(mappingSecretRef) };
-  const has = (key: string) => typeof creds[key] === 'string' && creds[key].trim().length > 0;
+  // Both sides since workplan 0174 §4.2: the source's grant or password, and
+  // the destination's password and granted faces, read from the same rows a
+  // person's grant page reads (`readGrantRows`).
+  const rows = await withTenantDb(tenantId, getSharedPool(), (db) => readGrantRows(db, tenantId, mappingId));
+  if (!rows) return null;
+  const creds = { ...storedCredentials(rows.source.secretRef), ...storedCredentials(mappingSecretRef) };
+  const keys = credentialKeys(creds);
   return awaitingGrantRefusal({
-    sourceKind: source.kind,
-    hasRefreshToken: has('refreshToken'),
-    hasServiceAccountKey: has('serviceAccountKey'),
+    sourceKind: rows.source.kind,
+    hasRefreshToken: keys.includes('refreshToken'),
+    hasServiceAccountKey: keys.includes('serviceAccountKey'),
+    sourceCredentialKeys: keys,
+    target: {
+      targetKind: rows.target?.kind ?? null,
+      includedDomains: rows.includedDomains,
+      targetCredentialKeys: rows.target ? credentialKeys(storedCredentials(rows.target.secretRef)) : [],
+    },
   });
 }
 

@@ -481,10 +481,14 @@ describe('a person’s link with a Microsoft account on it (0171 §3.2)', () => 
     const { token } = await mintPersonLink();
     const res = await request(app).get(`/api/grant/${token}`);
     expect(res.status).toBe(200);
-    const byAccount = Object.fromEntries(
-      (res.body.accounts as Array<{ account: string; provider: string }>).map((a) => [a.account, a.provider]),
-    );
+    const accounts = res.body.accounts as Array<{ account: string; provider: string; role: string; way: string }>;
+    const byAccount = Object.fromEntries(accounts.filter((a) => a.role === 'source').map((a) => [a.account, a.provider]));
     expect(byAccount).toEqual({ [PERSONAL_NAMED]: 'microsoft', 'someone@gmail.com': 'google' });
+    // The destination this fixture saves with no password is asked of the
+    // person too, since workplan 0174: one card, after the sources.
+    expect(accounts.filter((a) => a.role === 'target').map((a) => [a.account, a.provider, a.way])).toEqual([
+      ['dest@example.org', 'nextcloud', 'password'],
+    ]);
   });
 
   it('opens Microsoft for the Microsoft account, and refuses that account at Google’s door', async () => {

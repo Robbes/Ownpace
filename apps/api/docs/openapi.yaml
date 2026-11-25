@@ -9801,10 +9801,11 @@ components:
       type: object
       description: |
         What a PERSON'S grant link opens (ADR-0035, amended 2026-09-29;
-        workplan 0153 T5 (b)): who is asking, once, then each Google account
-        the person's migrations read, and the person's own address changes
-        (workplan 0168 §4.4). No migration id, no tenant id, no client id: the
-        authorize call names the account.
+        workplan 0153 T5 (b)): who is asking, once, then each account the
+        person's migrations read or write, sources first (workplan 0174
+        §4.1), and the person's own address changes (workplan 0168 §4.4). No
+        migration id, no tenant id, no client id: the authorize call names
+        the account, and a password card its `ref`.
       required: [kind, organisation, accounts, expiresAt, addressChanges]
       properties:
         kind: { type: string, enum: [person] }
@@ -9816,9 +9817,42 @@ components:
           type: array
           items:
             type: object
-            required: [account, granted, domains, migrations]
+            required: [ref, role, way, account, granted, domains, migrations]
             properties:
+              ref: { type: string, description: 'The card''s name on the page and in the password route: a hash of the role, the provider or kind, the connection and the account, never the address (workplan 0174 §4.1).' }
+              role: { type: string, enum: [source, target], description: 'Which side of its migrations the account is.' }
+              way: { type: string, enum: [sign-in, password], description: 'How the person gives a way in: a provider''s sign-in, or their own password.' }
               account: { type: string, description: 'The address, and the only one whose sign-in is kept for it.' }
+              server:
+                nullable: true
+                description: "Password cards only. Where the password is tried; published when these are the provider's own published servers (Apple)."
+                type: object
+                properties:
+                  hosts: { type: array, items: { type: string } }
+                  published: { type: boolean }
+              fields:
+                description: "Password cards only. What the owner fixed (who is owner, with its value) and what the person fills (who is person); a secret never carries a value."
+                type: array
+                items:
+                  type: object
+                  required: [key, who, labelKey, secret]
+                  properties:
+                    key: { type: string }
+                    who: { type: string, enum: [person, owner] }
+                    labelKey: { type: string }
+                    hintKey: { type: string }
+                    placeholder: { type: string }
+                    secret: { type: boolean }
+                    autoComplete: { type: string, enum: [username, new-password, 'off'] }
+                    revealable: { type: boolean }
+                    value: { type: string }
+              tries:
+                nullable: true
+                description: "Password cards only. Refused tries left on this link, and whether the card is locked after five (workplan 0174 §5.5)."
+                type: object
+                properties:
+                  left: { type: integer }
+                  locked: { type: boolean }
               granted: { type: boolean, description: 'Every one of its migrations has a way in already.' }
               again:
                 type: boolean
@@ -9832,8 +9866,8 @@ components:
               scope: { type: string, nullable: true, description: 'The one consent it asks, in Google''s words; null when it cannot be asked.' }
               provider:
                 type: string
-                enum: [google, microsoft, dropbox, apple]
-                description: Whose sign-in this account's button opens (workplan 0171 §3.2).
+                enum: [google, microsoft, dropbox, apple, cirrux, imap, caldav, carddav, webdav, jmap, soverin, nextcloud, infomaniak]
+                description: "A sign-in card's provider, whose sign-in its button opens (workplan 0171 §3.2); a password card's connection kind (workplan 0174 §5.1)."
               readOnlyAtProvider: { type: boolean }
               notReady:
                 nullable: true
@@ -9856,7 +9890,13 @@ components:
                         provider: { type: string }
                         host: { type: string, nullable: true }
                         account: { type: string, nullable: true }
-                    granted: { type: boolean }
+                    from:
+                      type: object
+                      description: "Where it comes from, which a destination's card names (workplan 0174 §4.1)."
+                      properties:
+                        provider: { type: string }
+                        account: { type: string, nullable: true }
+                    granted: { type: boolean, description: 'This card''s side of the migration has a way in.' }
         expiresAt: { type: string, format: date-time }
         addressChanges:
           type: array

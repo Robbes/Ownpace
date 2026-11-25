@@ -35,6 +35,8 @@ import { namesAGoogleAccount } from './signed-in-account.ts';
 import { checkedCompanyName, readVatStanding } from '../../services/vat-standing.ts';
 
 interface StoredConnection {
+  /** The connection's id: a person's grant card names its account by it (workplan 0174 §4.1). */
+  readonly id: string;
   readonly kind: string;
   readonly config: unknown;
   readonly secretRef: string | null;
@@ -67,6 +69,7 @@ export async function readGrantRows(
     .select({
       organisation: schema.tenant.name,
       organisationSettings: schema.tenant.settings,
+      connectionId: schema.connection.id,
       kind: schema.connection.kind,
       config: schema.connection.config,
       secretRef: schema.connection.secretRef,
@@ -86,6 +89,7 @@ export async function readGrantRows(
   if (row.targetMailboxId) {
     const targets = await db
       .select({
+        id: schema.connection.id,
         kind: schema.connection.kind,
         config: schema.connection.config,
         secretRef: schema.connection.secretRef,
@@ -110,7 +114,7 @@ export async function readGrantRows(
   return {
     organisation: row.organisation,
     organisationPhone: readTenantContactPhone(row.organisationSettings),
-    source: { kind: row.kind, config: row.config, secretRef: row.secretRef },
+    source: { id: row.connectionId, kind: row.kind, config: row.config, secretRef: row.secretRef },
     sourceOverride: row.sourceOverride,
     target,
     targetOverride: row.targetOverride,

@@ -337,7 +337,9 @@ type PersonLink = NonNullable<PersonLinkRequest['personLink']>;
 
 /** A person's migrations, grouped by account, read in their organisation's transaction. */
 function readPersonSubject(link: PersonLink): Promise<PersonGrantSubject | null> {
-  return withTenantDb(link.tenantId, pool(), (db) => readPersonGrantSubject(db, link.tenantId, link.personId));
+  return withTenantDb(link.tenantId, pool(), (db) =>
+    readPersonGrantSubject(db, link.tenantId, link.personId, process.env, { linkId: link.linkId }),
+  );
 }
 
 /**
@@ -365,18 +367,34 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
     askedBy,
     organisationPhone: subject.organisationPhone,
     accounts: subject.accounts.map((a) => ({
+      // The card's name on the page and in the password route (workplan 0174
+      // §4.1): a hash, never the address.
+      ref: a.ref,
+      // Which side it is, and how the person gives a way in (0174 §3).
+      role: a.role,
+      way: a.way,
       account: a.account,
-      // Whose sign-in this account's button opens (workplan 0171 §3.2).
+      // Sign-in: whose sign-in this account's button opens (workplan 0171
+      // §3.2). Password: the connection kind, for the page's words.
       provider: a.provider,
       granted: a.granted,
-      // Connected, and asked for again all the same (`asksAgainFor`).
+      // Connected, and asked for again all the same (`asksAgain`).
       again: asksAgainFor(link, a),
-      // What it will read and in which words, when one sign-in can serve it;
-      // otherwise why not, in both languages, for the person to forward.
+      // Password cards (0174 §5.2, §5.5, §5.8): where it is tried, what the
+      // owner fixed and what the person fills, and the tries left on this
+      // link. Never a secret's value: a secret field carries none.
+      ...(a.way === 'password'
+        ? { server: a.server ?? null, fields: a.fields ?? [], tries: a.tries ?? null }
+        : {}),
+      // What it will read and in which words, when it can be asked; otherwise
+      // why not, in both languages, for the person to forward.
       ...(a.ask.ok
-        ? { domains: a.ask.domains, scope: a.ask.scope, readOnlyAtProvider: a.ask.readOnlyAtProvider, notReady: null }
+        ? a.ask.way === 'sign-in'
+          ? { domains: a.ask.domains, scope: a.ask.scope, readOnlyAtProvider: a.ask.readOnlyAtProvider, notReady: null }
+          : { domains: a.ask.domains, scope: null, readOnlyAtProvider: false, notReady: null }
         : { domains: [], scope: null, readOnlyAtProvider: false, notReady: reasonPair(a.ask.reason) }),
-      migrations: a.migrations.map((m) => ({ domains: m.domains, to: m.to, granted: m.granted })),
+      // For a source, where each goes; for a destination, where each comes from.
+      migrations: a.migrations.map((m) => ({ domains: m.domains, to: m.to, from: m.from, granted: m.granted })),
     })),
     expiresAt: link.expiresAt.toISOString(),
     addressChanges,
@@ -403,7 +421,13 @@ async function authorizeForAPerson(
   // address at Google and at Microsoft is two accounts (workplan 0171).
   const account =
     typeof asked === 'string'
-      ? subject.accounts.find((a) => a.provider === provider && sameNamedAccount(provider, a.account, asked))
+      ? subject.accounts.find(
+          (a) =>
+            a.role === 'source' &&
+            a.way === 'sign-in' &&
+            a.provider === provider &&
+            sameNamedAccount(provider, a.account, asked),
+        )
       : undefined;
   if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
   if (account.granted && !asksAgainFor(link, account)) {
@@ -411,6 +435,10 @@ async function authorizeForAPerson(
   }
   if (!account.ask.ok) {
     return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason) });
+  }
+  // A sign-in source, found above; the type learns it here.
+  if (account.ask.way !== 'sign-in') {
+    return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
   }
 
   // WHOSE client, as decided, the values read only now.

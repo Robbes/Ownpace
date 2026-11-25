@@ -30,6 +30,7 @@ import { pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import { MANAGED_TIERS, PgDataAllowanceStore, runManagedMigrations } from '@openmig/managed';
 import type { LedgerDriver } from '@openmig/ledger';
 import type { TenantId } from '@openmig/shared';
+import { SecretStore } from '@openmig/core/secret-store';
 
 // UUID family 0157f000-…, unused elsewhere in the repo.
 const P = '0157f000-e29b-41d4-a716-4466554400';
@@ -133,9 +134,11 @@ beforeAll(async () => {
   ] as const) {
     await sql('INSERT INTO tenant (id, name) VALUES ($1, $2)', [tenantId, `pace doors ${n}`]);
     await sql(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1, $2, 'source', 'imap', 'i', '{}'::jsonb, 'connected')`,
-      [`${P}1${n}`, tenantId],
+      // With its password, as the create door stores one: since workplan 0174 a
+      // password source with none waits for a grant, and Start says so.
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1, $2, 'source', 'imap', 'i', '{}'::jsonb, 'connected', $3)`,
+      [`${P}1${n}`, tenantId, JSON.stringify(SecretStore.encryptCredentials({ password: 'p' }).encrypted)],
     );
     await sql(
       `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
