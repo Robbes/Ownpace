@@ -512,7 +512,7 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.filesFrom.all': 'De bestanden worden uit {place} gelezen.',
   'hub.filesFrom.path': 'De bestanden worden alleen uit {folder} gelezen.',
   'hub.filesFrom.id': 'De bestanden worden alleen uit één map gelezen: {folder}.',
-  'hub.window.chip': 'Laatste 90 dagen',
+  'hub.window.chip': 'Afgelopen 90 dagen',
   'hub.window.copyEverything': 'Alles kopiëren',
   'hub.window.copyEverything.confirm': 'Ook alles wat ouder is kopiëren? Wat er staat, blijft.',
   'hub.window.copyEverything.saving': 'Opslaan…',

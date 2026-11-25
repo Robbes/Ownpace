@@ -4,6 +4,8 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-25, the owner's two answers on the Dutch.** One word for *the last 90 days*, *afgelopen*, the chip too (*Afgelopen 90 dagen*; the owner: *"Q1: a"*), and *bestemmingen*, not *doelplatformen*, in the hint under *Alleen de afgelopen 90 dagen* (*"Q2: a"*). The screens, the server's sentence that holds a 90-day migration's switch, the glossary row and the Dutch guides (`start.md`, `google.md`) say so; §7's tables below keep the words as planned.
+
 **2026-11-24, T1 built** (on `claude/ownpace-public-readiness-y7orc6-0170-t1`; the interface pushed
 first, as `1b23bc4`, for T2 to T5). What was built differently from §3 and §5, and why:
 
