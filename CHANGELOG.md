@@ -135,6 +135,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the copy does. A person typing the password of such a destination on their grant link is tested
   the same way.
 
+### Security
+
+- **The api, worker and appliance images take `libzstd1` 1.5.7+dfsg-1+deb13u1, Debian's fix for
+  CVE-2026-124851** (workplan 0006 §U, IMG-5; code scanning alert #2098, high). The three images'
+  runtime, `gcr.io/distroless/nodejs26-debian13:nonroot`, moves from `ffa8a754…` to `a84242e7…`,
+  read from the registry on 2026-11-25: on amd64 and arm64 `libzstd1` is the one package that
+  moves, and Node stays 26.13.1. Nothing in the images loaded the old library: Node carries its own
+  zstd and OpenSSL, and the one file that links `libzstd.so.1`, Debian's `libcrypto.so.3`, is
+  loaded by nothing that runs. `libssl3t64` stays 3.5.9-1~deb13u1, so the two OpenSSL alerts per
+  image stay open (workplan 0166).
+
 ## [0.2.0-alpha.20] - 2026-11-25
 
 Every first copy of mail, files and calendars now brings the last 90 days first, then everything
