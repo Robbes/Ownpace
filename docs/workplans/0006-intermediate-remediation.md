@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-25: A to T done; P, Q and R merged for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-25: A to U done (U on its branch, not merged); P, Q and R merged for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -25,6 +25,7 @@
 | Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | ✅ Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, merged as #2133 on 2026-11-25 (`3a4ca1ae`), in alpha.20: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). Its first proof in CI, Security Scan's push run on `main` at the merge (run 45537860598), passed | asked for, 2026-11-24 |
 | S — A path from the command line (JS-06) and an address checked before it is followed (JS-10): two findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Read 2026-11-25: both false positives (§S); the worker CLI's own `--config`, already known to Semgrep's summary, and a consent address followed only on its provider's own host; nothing changed | the owner was given a reason to paste for each |
 | T — An error dropped where free space is read (ERR-1), two lists of packages (SBOM-1, twice), two doors open on purpose (GEN-33, twice) and a page built from constants (JS-02): six findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Done 2026-11-25 (§T): ERR-1 true and fixed in `destination-space.ts`, every dropped failure now a log line, with tests; SBOM-1 already fixed by §Q and #2137, and read again against alpha.20's published lists on 2026-11-25: the same as the lockfile's at C; GEN-33 both and JS-02 false positives, nothing changed | asked for, 2026-11-25 |
+| U — The api, worker and appliance images' runtime: `libzstd1` 1.5.7+dfsg-1, CVE-2026-124851 (IMG-5), code scanning alert #2098 on `ownpace-worker` at alpha.20 and `:edge`, 2026-11-25 | ✅ Fixed 2026-11-25 on branch `claude/ownpace-public-readiness-y7orc6-zstd-cve`, not merged (§U): the distroless `nodejs26-debian13:nonroot` digest `ffa8a754…` → `a84242e7…` in the api, worker and appliance Dockerfiles, which carries `libzstd1` 1.5.7+dfsg-1+deb13u1 and moves nothing else; not reachable in the images it was found in. Closes when a scan reads a rebuilt image | asked for, 2026-11-25 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -749,6 +750,51 @@ for each.
 - One sentence was wrong and is put right here: `scripts/image-sbom.mjs` and `docs/release.md` said
   nothing in an image's document is changed but its name; the script also adds a one-line `comment`
   naming the image by digest and the platform.
+
+## U — The runtime's zstd library (code scanning, IMG-5, 2026-11-25)
+
+**Evidence.** Code scanning alert #2098, Trivy, rule `CVE-2026-124851`, high: *Zstandard
+information disclosure via uninitialized buffer*, in `libzstd1` 1.5.7+dfsg-1, fixed in
+1.5.7+dfsg-1+deb13u1. First seen by Security Scan run #6637 at `70582df2` (alpha.20's release
+commit), in `trivy-image-ownpace-worker-release` (`ownpace-worker:0.2.0-alpha.20`) and
+`trivy-image-ownpace-worker-edge`.
+
+**Read, 2026-11-25.**
+
+- **The advisory.** NVD, Debian's security tracker, OSV, cve.org, GitHub's advisory database and
+  zstd's repository were all refused to this reading, so the CVE's own text was not read beyond
+  the alert's. What was read: the fixed package's own Debian changelog, in the new image at
+  `/usr/share/doc/libzstd1/changelog.Debian.gz`. Its one entry is `libzstd (1.5.7+dfsg-1+deb13u1)
+  trixie-security; urgency=medium`, `* CVE-2026-124851`, dated 24 Nov 2026. So Debian 13's fix is
+  a security upload of that one CVE.
+- **Where it is.** The package comes from the runtime stage,
+  `gcr.io/distroless/nodejs26-debian13:nonroot`, pinned at `ffa8a754…` in
+  `apps/api/Dockerfile`, `apps/worker/Dockerfile` and `apps/selfhost/Dockerfile` (held equal by
+  their guards). So `ownpace-api` and `ownpace-selfhost`, at alpha.20 and `:edge`, carry the same
+  package as the worker. The build stage's `node:26.13.1-trixie-slim` does not ship. The
+  other images carry no Debian `libzstd1`: `ownpace-web`'s nginx base has no zstd at all, but
+  `postgres:18.7-alpine` (`0115267a…`, both database builds, read on arm64) carries Alpine's
+  `zstd-libs` 1.5.7-r2, which PostgreSQL links. Alpine's security database was refused to this
+  reading, so whether Alpine counts 1.5.7-r2 as affected is not known here; the tag has no newer
+  digest. If a scan names it, the precedent is the libxml2 step both database builds once had
+  (CHANGELOG, CVE-2026-86144): an exact `apk add` of Alpine's fixed release.
+- **The fix.** The `nonroot` tag's index is now `a84242e7…`. Each platform's layers were read
+  from the registry, against their digests: on amd64 (`b9652610…`) and arm64 (`2d4b3d13…`) the
+  15 Debian packages are the old ones but `libzstd1`, now 1.5.7+dfsg-1+deb13u1; the image's
+  annotation still says Node 26.13.1, and the last layer, Node's, is the same size.
+- **Reachable? No.** `/nodejs/bin/node` links neither `libzstd.so.1` nor `libcrypto.so.3` (its
+  `NEEDED`: libatomic, libdl, libm, libstdc++, libgcc_s, libpthread, libc, the loader); Node's
+  zlib, zstd and OpenSSL are its own, built in. Of every ELF file in the image, the one that links
+  `libzstd.so.1` is Debian's `libcrypto.so.3`, which nothing loads (0166, 2026-11-24, for
+  OpenSSL). The worker's production closure (125 packages) has no native addon; the API's has one,
+  `better-sqlite3`, which links neither library. The image has no shell, apt, curl or git. To
+  reach the bug an attacker would need a process in the container that loads the system library
+  on data they shape, and none exists.
+- **What stays.** `libssl3t64` is 3.5.9-1~deb13u1 in both digests, so the two OpenSSL alerts per
+  image stay (0166 §B).
+
+**Done.** The three Dockerfiles move to `a84242e7…`. No open Dependabot pull request moved it.
+Closes when Security Scan's image scan reads images rebuilt from it; the alert is not dismissed.
 
 ---
 

@@ -132,7 +132,7 @@ RUN node scripts/package-appliance.mjs --out /payload \
 #   files on an existing volume keep that group, which nothing reads, and the
 #   owner's bits are uid 10001's either way.
 #   scripts/an-appliance-with-nothing-to-exec.unit.test.ts holds all of this.
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:ffa8a7545403036c94ec76674b5dbac2d425af2d679147cdf3e30180071487b7 AS runtime
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:a84242e747fbb5aaaa0180c273b6f7130ca34b3300082192ef58eea96089eb3c AS runtime
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown
