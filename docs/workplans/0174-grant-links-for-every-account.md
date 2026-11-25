@@ -4,6 +4,12 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, later: the owner's decisions.** *"All adviced."*: D1 to D9 as advised, (a) each,
+and D3 with the one addition put to the owner with it (§12, D3): a warning beside the server when
+it is not on the address's own domain or its mail's (MX). D8: the privacy policy and the terms
+change in place, under 1.0, and nobody is asked again (*"terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"*). The plan is final; T1 to T8
+go to builders for alpha.21, and merge after alpha.20's tag.
+
 **2026-11-25: planned, for alpha.21.** Written for the owner's review; builders take its tasks
 as parallel pull requests (§10). Nothing is built. Every claim about the code below was read on
 `main` at `32b620a`, with file and line. **This plan supersedes workplan 0171's T4 (Dropbox)
@@ -21,7 +27,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 | T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
 | T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
 | T9 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T8 merges. |
-| T10 The owner's decisions | owner | ⏳ **Owner** | §12: D1 to D9. |
+| T10 The owner's decisions | owner | ✅ Answered 2026-11-25 | §12: D1 to D9 as advised; D3 with the MX warning; D8 in place under 1.0. |
 
 ## 1. The owner's words
 
@@ -723,9 +729,12 @@ deleted with its person, or your data is erased.*
 > one that names a server you run, to receive somebody's password, is an attack on them and we
 > will close the account.
 
-§1's sentence (a person who grants through a link is not a party) stands. Versions bump as
-`site/legal/README.md` says; the acceptance flow asks again only if the owner says the change is
-material (D8).
+§1's sentence (a person who grants through a link is not a party) stands. **No version bumps
+(D8, answered 2026-11-25):** nobody but the owner has accepted either text, so both change in
+place under 1.0 and nobody is asked again (*"terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"*). T7 re-pins the new words under 1.0 in
+`scripts/a-version-the-tester-accepted.unit.test.ts`, with a dated note in its header in the owner's
+words, as the re-pin of 2026-10-21 did. Workplan 0173's T5 changes terms §2 and alpha §8 in the
+same release, under the same answer.
 
 ### 8.6 The guides, the doc and the site (T7)
 
@@ -800,6 +809,9 @@ password destinations (T5's half and T6); then Cirrux Drive; then Dropbox.
 
 ## 12. The owner's decisions
 
+**Answered 2026-11-25:** *"All adviced."* Each decision below is taken as advised, (a); D3 with
+its addition and D8 in place under 1.0 (*"terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"*), as their answers say.
+
 - **D1. Where a destination's password is kept.** (a) On the destination account's own row, as
   Cirrux Drive's grant is, with a managed row saying which person granted it, and that account
   refused for anybody else's migration; (b) a new column on the migration
@@ -819,6 +831,16 @@ password destinations (T5's half and T6); then Cirrux Drive; then Dropbox.
   account's domain. **Advice: (a).** (b) leaves out IMAP, DAV, JMAP and Nextcloud, half the
   owner's ask; (c) refuses every hosted provider whose server is not on the address's domain,
   which is most of them. The page, the terms' sentence and *Report this link* carry the rest.
+  **Answer, 2026-11-25: (a), with one addition.** For a generic kind whose account is an email
+  address, the server's registrable domain is compared with the address's own domain and with the
+  registrable domains of that domain's MX hosts, read once through the public resolvers Finish's
+  MX check already asks (0171 T10). When it matches none, the page adds a line beside the bold
+  domain: *This server is not one your address's mail uses, as far as we can tell. Type your
+  password only if you know it is your provider's.* (NL: *Deze server hoort niet bij de mail van
+  uw adres, voor zover wij kunnen zien. Typ uw wachtwoord alleen als u zeker weet dat het de
+  server van uw aanbieder is.*) A warning, never a refusal: a provider may serve IMAP or DAV from a
+  domain its MX hosts do not name. A lookup that fails says nothing either way. T3 answers the
+  match with the page's read, T4 shows it, T8 proves a match and a mismatch.
 - **D4. What counts as a try.** (a) Only the server refusing the login; (b) every failed test.
   **Advice: (a).** A down server or a refused mail face is not a guess at the password, and
   counting it would lock people out for our or their provider's fault.
@@ -832,7 +854,8 @@ password destinations (T5's half and T6); then Cirrux Drive; then Dropbox.
 - **D7. The appliance.** (a) Nothing in alpha.21, said in its guide (§8.3); (b) build links there
   too. **Advice: (a).** It has no person rows, no public address for a phone to reach, and no CSP
   yet; ADR-0035 left it open on purpose.
-- **D8. The privacy policy and terms.** (a) As drafted in §8.5, a new version of each, and **not**
+- **D8. The privacy policy and terms.** **Answer, 2026-11-25: as drafted in §8.5, in place under
+  1.0, and nobody is asked again** (*"terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"*). The options as put: (a) As drafted in §8.5, a new version of each, and **not**
   asked again of existing customers (the change adds a way for the account holder to type their
   own password and a rule against misuse; it takes nothing from anyone); (b) as drafted, and asked
   again; (c) changes. **Advice: (a)**, for the owner to judge: it is the owner's legal text.
