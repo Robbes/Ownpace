@@ -35,6 +35,7 @@ import {
   type FileBody,
 } from '@openmig/shared';
 import { davRefusalBody, STREAMED_REQUEST_INIT, withFailureCategory } from '@openmig/shared';
+import { capacityFromDavQuota, DAV_QUOTA_PROPFIND, type DestinationCapacity } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
 import { readEtag, readVersion, ownershipOf, ifMatchFor, goneOrEdited } from './dav-target-version.ts';
@@ -845,6 +846,35 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
   /** Normalize a root-relative path: no leading/trailing slashes, forward slashes only. */
   private normalizeRelativePath(path: string): string {
     return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  }
+
+  /**
+   * The account's free space (workplan 0171 T9): one `Depth: 0` PROPFIND for
+   * `quota-available-bytes` and `quota-used-bytes` (RFC 4331), nothing written.
+   *
+   * Asked of the endpoint's ROOT, not the folder prefix: the prefix may not
+   * exist before the first pass, and on Nextcloud a user's quota is the same
+   * on every folder of their files. The pool is that root's URL.
+   *
+   * A refused or failed PROPFIND throws (hard rule 9): the route says the
+   * destination did not answer, and a failure is never read as room.
+   */
+  async capacity(): Promise<DestinationCapacity> {
+    const url = this.buildUrlUnprefixed('');
+    const response = await this.httpClient.request({
+      method: 'PROPFIND',
+      url,
+      headers: {
+        Depth: '0',
+        'Content-Type': 'application/xml; charset=utf-8',
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+      body: DAV_QUOTA_PROPFIND,
+    });
+    if (response.status !== 207 && response.status !== 200) {
+      throw new Error(`PROPFIND for the quota at ${url} failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+    }
+    return capacityFromDavQuota(response.body, url);
   }
 
   private async directoryExists(path: string): Promise<boolean> {

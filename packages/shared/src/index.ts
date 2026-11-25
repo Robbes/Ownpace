@@ -22,6 +22,8 @@ export * from './mail-headers.ts';
 export * from './mail-subject.ts';
 export * from './mail-arrival.ts';
 export * from './ports.ts';
+// Free space at the destination, read before Start (workplan 0171 T9).
+export * from './destination-capacity.ts';
 export * from './operating-contract.ts';
 // The queues' guidance in the reader's words, English and Dutch, beside the
 // operator's that the contract serves (the owner, 2026-10-18).
@@ -145,6 +147,9 @@ export * from './calendar-scheduling.ts';
 
 // The forms an address takes, and the domains nobody can take along (workplan 0168 T1).
 export * from './address-forms.ts';
+// Finish's step 4: the addresses that receive mail and the MX check (workplan 0171 T10).
+export * from './finish-addresses.ts';
+export * from './finish-mx.ts';
 // A new address as a declared change to cards and events, never to mail (workplan 0168 T3, ADR-0055).
 export * from './address-changes.ts';
 

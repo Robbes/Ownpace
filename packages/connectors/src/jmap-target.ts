@@ -18,6 +18,8 @@ import type {
 } from "@openmig/shared";
 import { contentHash } from "@openmig/shared";
 import { arrivalTimeOf, log } from '@openmig/shared';
+import type { DestinationCapacity } from '@openmig/shared';
+import { jmapPool, jmapQuotaAnnounced, readJmapCapacity } from './jmap-quota.ts';
 
 /**
  * Above this many messages already on the target, stop enumerating it up front
@@ -161,8 +163,11 @@ interface JmapSession {
     name?: string;
     email?: string;
     isPrimary?: boolean;
+    accountCapabilities?: Record<string, unknown>;
   }>;
   primaryAccounts?: Record<string, string>;
+  /** The server's capabilities: `urn:ietf:params:jmap:quota` among them when it keeps quotas. */
+  capabilities?: Record<string, unknown>;
   apiUrl?: string;
   uploadUrl?: string;
   /**
@@ -186,6 +191,8 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   /** The session's `downloadUrl` template, if it advertised one. */
   private downloadUrlTemplate: string | null = null;
   private connectPromise: Promise<void> | null = null;
+  /** Whether the session lists `urn:ietf:params:jmap:quota` (workplan 0171 T9). */
+  private quotaAnnounced = false;
   /**
    * Message-ID -> target email id for what the account already held, built once
    * and kept current as we write. See `targetKeys()`.
@@ -306,6 +313,8 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     }
     
     this.accountId = resolvedAccountId;
+    // Quotas: listed on the session, or on the account (RFC 9425 §2).
+    this.quotaAnnounced = jmapQuotaAnnounced(session, resolvedAccountId);
     
     // Create the client with the session
     this.client = new JamClient({
@@ -1264,6 +1273,26 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   private async trashMailboxId(): Promise<string | undefined> {
     const mailboxes = await this.allMailboxes(true);
     return mailboxes.find((m) => m.role?.toLowerCase() === 'trash')?.id;
+  }
+
+  /**
+   * The account's free space, read once with `Quota/get` (RFC 9425; workplan
+   * 0171 T9), without writing. The pool is the account: mail, contacts and
+   * files written over JMAP to the same account share it.
+   *
+   * A server whose session does not list the capability is `not_offered`
+   * without a request. A request that fails throws, and the route says it
+   * was not answered: a failure is never read as room.
+   */
+  async capacity(): Promise<DestinationCapacity> {
+    await this.ensureConnected();
+    return readJmapCapacity({
+      apiUrl: this.apiUrl!,
+      authHeader: this.authHeader!,
+      accountId: this.accountId!,
+      announced: this.quotaAnnounced,
+      pool: jmapPool(this.config.baseUrl, this.accountId!),
+    });
   }
 
   /**

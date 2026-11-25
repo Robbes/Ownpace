@@ -299,8 +299,9 @@ const SEALS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/connections.ts': 2,
   'routes/migrations/cirrux-oauth-routes.ts': 1,
   'routes/migrations/index.ts': 2,
+  // One seal for both grant endings since workplan 0171 T3: a person's link
+  // seals through `grantedSecret` in grant-ending.ts, for every provider.
   'routes/migrations/grant-ending.ts': 1,
-  'routes/migrations/person-grant-ending.ts': 1,
   'scripts/seed-managed.ts': 2,
 };
 
@@ -310,11 +311,9 @@ const SEALED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
     'a migration’s grant link’s consent. The person granting is not a party to the terms (terms §1) and ' +
     'has no account to accept them with. The member’s door to it was issuing the link, which asked; since ' +
     '2026-10-03 no migration’s link is issued at all (the person’s replaced it), and one already sent was ' +
-    'issued behind that check and is honoured until it expires.',
-  'routes/migrations/person-grant-ending.ts':
-    'a person’s grant link’s consent (0153 T5 (b)), for grant-ending.ts’s reason: the person granting is not ' +
-    'a party to the terms. The member’s door to it is issuing the link, `POST /api/people/{personId}/links` ' +
-    '(`person-link-routes.ts`), which asks.',
+    'issued behind that check and is honoured until it expires. Since workplan 0171 T3 it also seals for a ' +
+    'person’s grant link (`grantedSecret`, called from person-grant-ending.ts), whose door is issuing the ' +
+    'link, `POST /api/people/{personId}/links` (`person-link-routes.ts`), which asks.',
   'scripts/seed-managed.ts':
     'the operator’s seed of the demo tenants, run by hand on a stack as the database owner. It is no ' +
     'door anybody signs in to, and a stack that asks for acceptance is not seeded.',

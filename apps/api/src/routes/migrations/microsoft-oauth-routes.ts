@@ -33,7 +33,13 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/auth.ts';
+import { authenticate, getDbPool } from '../../middleware/auth.ts';
+import { closedOrganisation } from '../../closed-organisation.ts';
+import { GRANT_PROVIDERS } from '../grant-providers.ts';
+import { storeGrantedToken } from './grant-ending.ts';
+import { mintPersonProgressLink, mintProgressLinkForMigration, storePersonGrant } from './person-grant-ending.ts';
+import { startWhenGranted } from './start-when-granted.ts';
+import { decideMicrosoftLinkEnding } from './microsoft-link-ending.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import {
   inLocale,
@@ -49,6 +55,7 @@ import {
   browserLocale,
   callbackPageHeaders,
   consentResultPage,
+  grantResultPage,
   noCodeFrom,
   providerReported,
   rawIpCallbackRefusal,
@@ -184,6 +191,49 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
   const pending = taken && taken.provider === 'microsoft' ? taken : undefined;
   if (!pending) return refuse(400, CONSENT_NOT_AWAITED);
   locale = localeOf(pending.locale);
+  // A grant link's consent (workplan 0171 §3.2): the same branches Google's
+  // callback has, in `microsoft-link-ending.ts`. The token goes into the
+  // database and stops there; the page is drawn from the decision alone.
+  if (pending.link ?? pending.personLink) {
+    const finish = GRANT_PROVIDERS.microsoft?.finish;
+    const decided = await decideMicrosoftLinkEnding(
+      pending,
+      { error: req.query.error, error_description: req.query.error_description, code: req.query.code },
+      {
+        closedOrganisation: (tenantId) => closedOrganisation(tenantId, getDbPool()),
+        finish: (code, redirectUri, client) => {
+          if (!finish) throw new Error('the Microsoft grant provider has no ending');
+          return finish(code, redirectUri, client);
+        },
+        storeGrantedToken: (target, granted) => storeGrantedToken(getDbPool(), target, granted),
+        storePersonGrant: (target, granted) => storePersonGrant(getDbPool(), target, granted),
+        afterMigration: async (target) => {
+          await startWhenGranted(getDbPool(), { tenantId: target.tenantId, mappingIds: [target.mappingId] });
+          return mintProgressLinkForMigration(getDbPool(), target);
+        },
+        afterPerson: async (target, granted) => {
+          await startWhenGranted(getDbPool(), { tenantId: target.tenantId, mappingIds: granted });
+          return mintPersonProgressLink(getDbPool(), target);
+        },
+      },
+    );
+    const html = decided.ok
+      ? grantResultPage(
+          decided.progressUrl
+            ? { ok: true, progressUrl: decided.progressUrl, permission: decided.permission }
+            : { ok: true, permission: decided.permission },
+          locale,
+        )
+      : grantResultPage(
+          {
+            ok: false,
+            reason: typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale),
+            ...(decided.link ? { link: decided.link } : {}),
+          },
+          locale,
+        );
+    return page(decided.status, html);
+  }
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
     const description =
       typeof req.query.error_description === 'string' ? req.query.error_description : '';
