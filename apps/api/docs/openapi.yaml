@@ -1963,15 +1963,29 @@ paths:
                   type: object
                   additionalProperties: { type: string }
                   description: Field key to what the person typed. Secrets included; never echoed back.
+                forPerson:
+                  type: string
+                  format: uuid
+                  description: |
+                    Managed only (workplan 0174 §8.2). Saved FOR THIS PERSON,
+                    who types its password themselves on their grant link's
+                    page: a password kind only (`not_by_link` otherwise), with
+                    no secret in `values` (`secret_for_person` otherwise) and
+                    every other required field, its server and account (D2).
+                    Not probed; stored with `status: error`, as an account
+                    saved by its address alone for a link always was.
       responses:
         '201':
-          description: Created, with what the probe found.
+          description: |
+            Created, with what the probe found; or, saved `forPerson`, only
+            `{ id, forPerson: true }`: nothing was probed.
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   id: { type: string, format: uuid }
+                  forPerson: { type: boolean, description: 'Saved for a person: not probed (0174 §8.2).' }
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
@@ -1990,7 +2004,16 @@ paths:
             which a managed migration cannot read. Refused before anything is
             probed or stored; the sentence says the export goes in a folder of
             the Nextcloud or WebDAV files the migration writes to.
+            With `forPerson` (0174 §8.2): `not_by_link`, a kind a person does
+            not connect with their own password; `secret_for_person`, a
+            secret sent for an account its holder types the password of
+            themselves; `missing_fields`, its server or account left out.
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`: `forPerson` names no person of this organisation. Nothing was stored.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409':
           description: |
             Nothing was probed or stored. `account_closed` (`AccountClosed`):

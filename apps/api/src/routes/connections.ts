@@ -101,6 +101,13 @@ import { loggableError } from '@openmig/shared';
 import { probeAnswers } from '../probe-answer.ts';
 import { refusedOverTestLimit } from '../probe-limit.ts';
 import { archiveOnServerRefusal } from './archive-on-the-server.ts';
+import {
+  PERSON_NOT_FOUND,
+  forPersonRefusal,
+  missingForPerson,
+  personOfThisOrganisation,
+  shapedForPerson,
+} from './account-for-a-person.ts';
 import { DOOR_BUDGET_MS, connectionsPool, qualifyAndRemember } from './qualify-and-remember.ts';
 
 const router = Router();
@@ -457,6 +464,12 @@ const AddSchema = z.object({
   /** Field key → what the person typed. Which keys are expected comes from
    *  the shared descriptor, so a form and this route cannot disagree. */
   values: z.record(z.string(), z.string()),
+  /**
+   * Saved for this person, who types its password on their grant link's page
+   * (workplan 0174 §8.2): a password kind only, no secret taken, not probed.
+   * See `account-for-a-person.ts`.
+   */
+  forPerson: z.string().uuid().optional(),
 });
 
 /**
@@ -506,7 +519,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         reason: 'Send { role, type, displayName, values }.',
       });
     }
-    const { role, type, displayName, values } = parsed.data;
+    const { role, type, displayName, values, forPerson } = parsed.data;
 
     const fields = credentialFieldsFor(role, type);
     if (fields.length === 0) {
@@ -515,7 +528,17 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         reason: `'${type}' is not a ${role} this product connects to.`,
       });
     }
-    const missing = fields.filter((f) => f.required && !values[f.key]?.trim()).map((f) => f.key);
+    // FOR A PERSON (0174 §8.2): a password kind, with no secret, refused
+    // without its server; judged before anything is shaped or stored.
+    const kindOfType = role === 'source' ? sourceKindFor(type as never) : type;
+    if (forPerson !== undefined) {
+      const refused = forPersonRefusal(role, kindOfType, fields, values);
+      if (refused) return void res.status(refused.status).json(refused.body);
+    }
+    const missing =
+      forPerson === undefined
+        ? fields.filter((f) => f.required && !values[f.key]?.trim()).map((f) => f.key)
+        : missingForPerson(role, kindOfType, fields, values);
     if (missing.length > 0) {
       return void res.status(400).json(missingFieldsRefusal(missing));
     }
@@ -539,7 +562,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     // accepts is one create would accept — port coerced because a form sends
     // strings and the schema wants a number.
     const shaped = {
-      ...values,
+      ...(forPerson === undefined ? values : shapedForPerson(role, kindOfType, fields, values)),
       ...(values.port ? { port: Number(values.port) } : {}),
       ...(values.mailPort ? { mailPort: Number(values.mailPort) } : {}),
     };
@@ -570,8 +593,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     }
     // And half a mail login (workplan 0161 T1): the mailbox's address without
     // its password, or the reverse, can sign in to nothing. Refused naming
-    // the missing box, before anything is probed or stored.
-    if (role === 'target') {
+    // the missing box, before anything is probed or stored. Not for a
+    // person's account: its password is theirs to type (0174 §8.2).
+    if (role === 'target' && forPerson === undefined) {
       const halfLogin = halfMailLogin(type, values);
       if (halfLogin) {
         return void res.status(400).json({ ...missingFieldsRefusal([halfLogin]), reason: halfMailLoginRefusal(halfLogin) });
@@ -609,6 +633,32 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     // Nor does anybody who has not accepted the current texts, while the
     // deployment asks (0139 T3).
     if (await refusedUntilAccepted(res, tenantId, req.userId, pool())) return;
+
+    // SAVED FOR A PERSON (0174 §8.2): the person must be this organisation's;
+    // nothing is probed, nothing qualified, and the row is stored `error`, as
+    // an account saved by its address alone for a link always was.
+    if (forPerson !== undefined) {
+      const saved = await withTenantDb(tenantId, pool(), async (db) => {
+        if (!(await personOfThisOrganisation(db, tenantId, forPerson))) return null;
+        return db
+          .insert(schema.connection)
+          .values({
+            tenantId,
+            role,
+            kind: kind as never,
+            displayName,
+            config,
+            secretRef: JSON.stringify(
+              SecretStore.encryptCredentials(creds as Record<string, string>).encrypted,
+            ),
+            status: 'error',
+          })
+          .returning({ id: schema.connection.id });
+      });
+      if (saved === null) return void res.status(PERSON_NOT_FOUND.status).json(PERSON_NOT_FOUND.body);
+      return void res.status(201).json({ id: saved[0]!.id, forPerson: true });
+    }
+
     // One test against the member's limit, now that it will connect (0136 T3).
     if (refusedOverTestLimit(req, res)) return;
     // What a host the tester typed said is answered from its parts (0136 T3).
