@@ -51,16 +51,38 @@ interface CapacityReader {
 
 const notAnswered: DestinationCapacity = { known: false, why: 'not_answered' };
 
-/** `capacity()` within the limit; the writer's own connection is closed once it settles, whenever that is. */
-async function askWithin(target: CapacityReader, timeoutMs: number): Promise<DestinationCapacity> {
+/** What an error says, for a log line. */
+const said = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/**
+ * `capacity()` within the limit; the writer's own connection is closed once it
+ * settles, whenever that is. `label` names the destination in a log line.
+ */
+async function askWithin(target: CapacityReader, timeoutMs: number, label: string): Promise<DestinationCapacity> {
   if (typeof target.capacity !== 'function') return { known: false, why: 'not_offered' };
   const asked = target.capacity();
+  let timedOut = false;
   // A writer that holds a connection (IMAP) lets it go after its answer, even
-  // one that came too late to be used.
-  void asked.finally(() => target.disconnect?.()).catch(() => undefined);
+  // one that came too late to be used. A failure within the limit is the
+  // race's below, which `readOne` logs; a failure after it, and a connection
+  // that would not close, are logged here, where nothing else would see them.
+  void asked
+    .then(
+      () => undefined,
+      (err: unknown) => {
+        if (timedOut) log.warn(`[destination-space] ${label} failed after its limit: ${said(err)}`);
+      },
+    )
+    .then(() => target.disconnect?.())
+    .catch((err: unknown) => {
+      log.warn(`[destination-space] ${label}: its connection did not close after the free-space answer: ${said(err)}`);
+    });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`no answer within ${timeoutMs / 1000} seconds`)), timeoutMs);
+    timer = setTimeout(() => {
+      timedOut = true;
+      reject(new Error(`no answer within ${timeoutMs / 1000} seconds`));
+    }, timeoutMs);
   });
   try {
     return await Promise.race([asked, late]);
@@ -72,18 +94,18 @@ async function askWithin(target: CapacityReader, timeoutMs: number): Promise<Des
 /** One opener, asked: always an answer, never a throw. */
 async function readOne(opener: DestinationOpener, timeoutMs: number, where: string): Promise<DestinationCapacity> {
   if (NOT_READ.has(opener.dataType)) return { known: false, why: 'not_offered' };
+  const label = `${where}: ${opener.dataType} at ${opener.destination}`;
   let opened: Awaited<ReturnType<DestinationOpener['open']>> | undefined;
   try {
     opened = await opener.open();
-    return await askWithin(opened.target as CapacityReader, timeoutMs);
+    return await askWithin(opened.target as CapacityReader, timeoutMs, label);
   } catch (err) {
-    log.warn(
-      `[destination-space] ${where}: ${opener.dataType} at ${opener.destination} did not say its free space: ` +
-        `${err instanceof Error ? err.message : String(err)}`,
-    );
+    log.warn(`[destination-space] ${label} did not say its free space: ${said(err)}`);
     return notAnswered;
   } finally {
-    await opened?.close().catch(() => undefined);
+    await opened?.close().catch((err: unknown) => {
+      log.warn(`[destination-space] ${label}: what was opened to ask did not close: ${said(err)}`);
+    });
   }
 }
 
