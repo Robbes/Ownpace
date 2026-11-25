@@ -4,6 +4,16 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, two more privacy lines, in the owner's words: #2171 (`0ed0ddd5`).** The owner answered
+*"Ok"* to both additions put to them at the merge of #2141, in place under 1.0, in English and Dutch:
+- §4.4 *Gifts* gains *"If we decline your request, the giver gets the gift back, and so can tell
+  that you were not let in."*, beside the request's own sentence;
+- §5 gains a row for a gift: letting a member give a place, and recognising a request as their gift,
+  on the contract with the giver, and for the request on the steps a person asks for before a
+  contract (Art. 6(1)(b)).
+
+`ACCEPTED_WORDS` re-pins both privacy files with a dated note; no tester has accepted any version.
+
 **2026-11-25, the privacy policy says it.** §4.4 ends with *Gifts* (*Cadeaus*) and §9 gains a row, a
 gift kept until the giver's organisation is deleted, in both languages and in place under 1.0, in
 the words the owner read (*"ok, I take your advice"*). `ACCEPTED_WORDS` re-pins both privacy files
