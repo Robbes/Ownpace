@@ -1141,6 +1141,42 @@ describe('someone else connects their own accounts, by a link where one reaches 
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
   });
 
+  it('leaves Infomaniak’s sync user name to the person when saved for them, as the door does (0174 §5.2, D2)', async () => {
+    const forPersonMock = vi.mocked(connectionsApi.addForPerson);
+    forPersonMock.mockResolvedValueOnce({ id: 'c-icloud' }).mockResolvedValueOnce({ id: 'c-infomaniak' });
+    const user = userEvent.setup();
+    renderAt();
+    await someoneElse(user, ['Apple']);
+    const apple = screen.getByRole('group', { name: 'From Apple iCloud' });
+    for (const face of ['Calendars', 'Contacts', 'Tasks Experimental']) {
+      const box = within(apple).queryByRole('checkbox', { name: face });
+      if (box) await user.click(box);
+    }
+    await onTo(user, 'Connect your accounts');
+    const icloud = (await screen.findByText(/types the password themselves/)).closest('[data-for-person]') as HTMLElement;
+    for (const box of within(icloud).getAllByRole('textbox')) await user.type(box, 'anna@icloud.invalid');
+    await user.click(within(icloud).getByRole('button', { name: 'Save for Anna Jansen' }));
+    await screen.findByText('By link: anna@icloud.invalid');
+
+    await onTo(user, 'Where does it go?');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Where email goes' }), 'new:infomaniak');
+    const infomaniak = screen.getByRole('heading', { level: 3, name: 'Add Infomaniak' }).closest('section')!;
+    await user.click(within(infomaniak).getByRole('radio', { name: 'Anna Jansen’s own: they connect it with the link' }));
+    const theirs = infomaniak.querySelector('[data-for-person]') as HTMLElement;
+    // Every server and account but the sync user name, which only Anna can read.
+    const syncUser = within(theirs).getByLabelText('Username');
+    for (const box of within(theirs).getAllByRole('textbox')) {
+      if (box !== syncUser && (box as HTMLInputElement).value === '') await user.type(box, 'anna@infomaniak.invalid');
+    }
+    const save = within(theirs).getByRole('button', { name: 'Save for Anna Jansen' });
+    expect(save).toBeEnabled();
+    await user.click(save);
+    expect(forPersonMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ role: 'target', type: 'infomaniak', forPerson: 'p-new' }),
+    );
+    expect(Object.keys(forPersonMock.mock.calls[1]![0].values)).not.toContain('username');
+  });
+
   it('chooses none of the saved accounts for somebody else, since one may be the starter’s own', async () => {
     listMock.mockResolvedValue([account({ knownValues: { username: 'me@example.nl' } })]);
     const user = userEvent.setup();

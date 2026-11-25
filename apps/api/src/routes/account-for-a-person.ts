@@ -44,8 +44,7 @@ import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import { person, personMigration } from '@openmig/managed/schema-managed';
-import { credentialFieldRequired, isPasswordKind, type CredentialField } from '@openmig/shared';
-import { personFieldsFor } from './grant-providers.ts';
+import { credentialFieldRequired, isPasswordKind, personFillableKeys, type CredentialField } from '@openmig/shared';
 import { credential, storedCredentials } from './migrations/grant-subject.ts';
 
 /** A refusal of the create door, as its other refusals are shaped. */
@@ -91,14 +90,9 @@ export function forPersonRefusal(
   return null;
 }
 
-/** The non-secret fields the person's page lets them fill, when the owner left them empty. */
+/** The non-secret fields the person's page lets them fill, when the owner left them empty (`@openmig/shared`). */
 function theirFields(role: 'source' | 'target', kind: string): ReadonlySet<string> {
-  if (!isPasswordKind(role, kind)) return new Set();
-  return new Set(
-    personFieldsFor(role, kind, {})
-      .filter((f) => f.who === 'person' && !f.secret)
-      .map((f) => f.key),
-  );
+  return isPasswordKind(role, kind) ? personFillableKeys(role, kind) : new Set();
 }
 
 /**

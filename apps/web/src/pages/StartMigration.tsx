@@ -56,6 +56,7 @@ import {
   isAddress,
   isWindowedDomain,
   mailLoginOf,
+  personFillableKeys,
   type ArchiveProvider,
   type DiscoveryDomain,
   type DropboxPaperPolicy,
@@ -2365,7 +2366,11 @@ const SaveForPerson: React.FC<{
   const [saving, setSaving] = React.useState(false);
   const [refused, setRefused] = React.useState<string | null>(null);
   const name = providerDisplayName(card, locale);
-  const missing = fields.some((f) => f.required === true && (values[f.key] ?? '').trim() === '');
+  // What the person's page lets them fill when left empty (Infomaniak's sync
+  // user name, D2), by the rule the card and the door read (`@openmig/shared`):
+  // never demanded here.
+  const theirs = isPasswordKind(role, card) ? personFillableKeys(role, card) : new Set<string>();
+  const missing = fields.some((f) => f.required === true && !theirs.has(f.key) && (values[f.key] ?? '').trim() === '');
   const save = async () => {
     setSaving(true);
     setRefused(null);

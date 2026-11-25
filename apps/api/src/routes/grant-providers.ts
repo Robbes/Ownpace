@@ -55,12 +55,12 @@ import {
   isPasswordKind,
   type PasswordKind,
   cirruxDeploymentClient,
-  credentialFieldsFor,
   dropboxDeploymentClient,
   googleDeploymentClient,
   microsoftDeploymentClient,
+  personFieldsFor,
   publishedEndpoint,
-  signsInToMailApart,
+  type PersonField,
   type Bilingual,
   type CirruxClientEnv,
   type DiscoveryDomain,
@@ -415,27 +415,10 @@ export function grantProvidersWithEntries(): GrantProviderId[] {
 // door's `forPerson`, 0174 T6); the seam re-exports them unchanged.
 export { PASSWORD_SOURCE_KINDS, PASSWORD_TARGET_KINDS, isPasswordKind, type PasswordKind } from '@openmig/shared';
 
-/**
- * One box or one shown value on the person's password card (0174 §5.2, D2).
- *
- * The owner fixes where and who (`who: 'owner'`, shown with its `value`, never
- * a box); the person types the secret, and only what the provider says only
- * they can know (`who: 'person'`). Labels, hints and autofill are the field
- * table's own, so the card and the owner's form cannot word one field two
- * ways. A secret never carries a `value`.
- */
-export interface PersonField {
-  readonly key: string;
-  readonly who: 'person' | 'owner';
-  readonly labelKey: string;
-  readonly hintKey?: string;
-  readonly placeholder?: string;
-  readonly secret: boolean;
-  readonly autoComplete?: 'username' | 'new-password' | 'off';
-  readonly revealable?: boolean;
-  /** An owner's field only: the value as the owner saved it. */
-  readonly value?: string;
-}
+// What the person fills and what the owner fixes (`PersonField`,
+// `personFieldsFor`, 0174 §5.2, D2) lives in `@openmig/shared` too, so the
+// *Save for {person}* form reads the rule the card and the door read.
+export { PERSON_MAY_FILL, personFieldsFor, personFillableKeys, type PersonField } from '@openmig/shared';
 
 /**
  * Where a password will be tried (0174 §5.8, D3): the hosts, and whether
@@ -490,60 +473,12 @@ export interface PasswordGrant {
   readonly test: (a: PasswordTestInput) => Promise<PasswordTest>;
 }
 
-/**
- * The non-secret fields the person fills when the owner left them empty
- * (0174 §5.2, D2): Infomaniak's sync username, which only the account holder
- * can read at config.infomaniak.com. Every other non-secret field is the
- * owner's.
- */
-const PERSON_MAY_FILL: Readonly<Partial<Record<PasswordKind, ReadonlyArray<string>>>> = {
-  infomaniak: ['username'],
-};
-
 /** A stored config value as the card shows it, or '' when there is none. */
 function shown(stored: Readonly<Record<string, unknown>>, key: string): string {
   const v = stored[key];
   if (typeof v === 'string') return v.trim();
   if (typeof v === 'number' && Number.isFinite(v)) return String(v);
   return '';
-}
-
-/**
- * The card's fields for one kind in one role, from the field table.
- *
- * A secret is always the person's. The mailbox's own login (a kind that signs
- * in to its mail apart, `MAIL_LOGIN_FIELDS`) is asked only when the owner
- * gave the account a mail server, which the create door demands exactly when
- * mail is copied: an account used for calendars only has no mail password to
- * type. A non-secret field is the owner's, shown when it has a value, and the
- * person's only where `PERSON_MAY_FILL` says so and the owner left it empty.
- */
-export function personFieldsFor(
-  role: GrantRole,
-  kind: PasswordKind,
-  stored: Readonly<Record<string, unknown>>,
-): ReadonlyArray<PersonField> {
-  const mail = shown(stored, 'mailHost') !== '';
-  const out: PersonField[] = [];
-  for (const f of credentialFieldsFor(role, kind)) {
-    if (f.loginPairedWith !== undefined && signsInToMailApart(kind) && !mail) continue;
-    const common = {
-      key: f.key,
-      labelKey: f.labelKey,
-      ...(f.hintKey === undefined ? {} : { hintKey: f.hintKey }),
-      ...(f.placeholder === undefined ? {} : { placeholder: f.placeholder }),
-      ...(f.autoComplete === undefined ? {} : { autoComplete: f.autoComplete }),
-      ...(f.revealable === undefined ? {} : { revealable: f.revealable }),
-    };
-    if (f.secret === true) {
-      out.push({ ...common, who: 'person', secret: true });
-      continue;
-    }
-    const value = shown(stored, f.key);
-    if (value !== '') out.push({ ...common, who: 'owner', secret: false, value });
-    else if (PERSON_MAY_FILL[kind]?.includes(f.key) === true) out.push({ ...common, who: 'person', secret: false });
-  }
-  return out;
 }
 
 /** The host of an address, or null when it is not one. */
