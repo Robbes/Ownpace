@@ -83,6 +83,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   that cannot ask an account because two applications read it names that account's own provider,
   so a Microsoft account is no longer told about Google applications. ADR-0035 is amended
   (the owner, 2026-11-24). No database change.
+- **Free space at the destination, checked before Start** (workplan 0171 T9; the owner's decisions
+  D3 and D4 of 2026-11-24, both *(a)*). Each Start screen (*Start a migration*'s last step,
+  *Review and start*, and the appliance's confirm page) now says, under a migration's count, how
+  much there is to copy and how much room the destination has: *"2.0 GB to copy; 5.0 GB free at
+  cloud.example.org."* Read live and never stored, from Nextcloud's or any WebDAV server's quota
+  (RFC 4331), IMAP's `GETQUOTAROOT` where the server announces `QUOTA` (RFC 9208), JMAP's
+  `Quota/get` where the session lists it (RFC 9425), and Cirrux Drive's workspace storage; data
+  types that land in the same account are added together against one number. Where the room is
+  known and too small, the line says so and Start reads **Start anyway**; where a destination does
+  not say, the line says that, with what to check, and Start is allowed. Calendars and contacts
+  are not asked. A new read-only route answers it on both editions:
+  `GET /api/migrations/{id}/destination-space` on managed, `GET /mappings/{id}/destination-space`
+  on the appliance. No database change.
 - **Finish reads step 4: the addresses that receive mail, and MX checked on a button**
   (workplan 0171 T10; the owner's decisions D7 (a) and D8 (a) of 2026-11-24). For a mailbox on a
   domain the person controls, step 4 lists the addresses at the old provider that deliver into it

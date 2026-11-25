@@ -43,6 +43,8 @@ import type {
   CreatePersonRequest,
   PeopleResponse,
   Person,
+  DestinationCapacity,
+  DiscoveryDomain,
 } from '@openmig/shared';
 import { MAPPING_LIFECYCLES } from '@openmig/shared';
 import { z } from 'zod';
@@ -974,6 +976,27 @@ export async function fetchAllDiscovery(): Promise<Readonly<Record<string, Disco
 
 export async function fetchScopeManifest(): Promise<ScopeManifest> {
   return (await client.get<ScopeManifest>('/scope-manifest')).data;
+}
+
+/** One pool's line before Start (workplan 0171 T9): what lands there, what it needs, what it has. */
+export interface DestinationSpacePool {
+  readonly pool: string;
+  readonly destination: string;
+  readonly dataTypes: ReadonlyArray<DiscoveryDomain>;
+  readonly needBytes: number;
+  readonly capacity: DestinationCapacity;
+}
+
+/**
+ * Free space at each destination of a migration, read live (workplan 0171
+ * T9). Under the mapping's own path on either edition: managed answers
+ * `/api/migrations/:id/destination-space`, the appliance
+ * `/mappings/:id/destination-space`, in one shape.
+ */
+export async function fetchDestinationSpace(mappingId: string): Promise<DestinationSpacePool[]> {
+  const data = (await client.get<{ pools?: unknown }>(`${mappingPath(mappingId)}/destination-space`)).data;
+  if (!Array.isArray(data.pools)) throw new Error('The free-space answer carried no list of pools.');
+  return data.pools as DestinationSpacePool[];
 }
 
 /**

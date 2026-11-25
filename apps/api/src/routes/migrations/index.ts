@@ -147,6 +147,7 @@ import cirruxOauthRoutes from './cirrux-oauth-routes.ts';
 // live behind their own middleware rather than behind `authenticate`.
 import linkRoutes from './link-routes.ts';
 import finishChecksRoutes from './finish-checks-routes.ts';
+import destinationSpaceRoutes from './destination-space-route.ts';
 import { awaitingGrantRefusal } from './grant-link-readiness.ts';
 import { startsWhenGrantedFor } from './start-when-granted.ts';
 // Its own module since 2026-09-23 (0108 T8a): the grant page names the same
@@ -1156,6 +1157,8 @@ router.use('/', cirruxOauthRoutes);
 router.use('/', linkRoutes);
 // Finish's addresses and MX check (workplan 0171 T10), read-only.
 router.use('/', finishChecksRoutes);
+// Free space at the destination, read live on Review and start (workplan 0171 T9).
+router.use('/', destinationSpaceRoutes);
 
 // Global pool - created once and reused
 let _dbPool: ReturnType<typeof getDbPool> | null = null;

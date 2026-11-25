@@ -88,6 +88,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
       'src/routes/migrations/cirrux-oauth-routes.ts',
       'src/routes/migrations/link-routes.ts',
       'src/routes/migrations/finish-checks-routes.ts',
+      'src/routes/migrations/destination-space-route.ts',
     ],
   },
   // The person a migration is for (ADR-0050, amended 2026-09-28).
