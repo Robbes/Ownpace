@@ -417,7 +417,7 @@ const GRANT_DOORS = (): readonly Door[] => [
   {
     name: 'a grant link’s consent',
     path: `/api/grant/${grantLink}/google/authorize`,
-    spec: '/api/grant/{link}/google/authorize',
+    spec: '/api/grant/{link}/{provider}/authorize',
     body: { locale: 'nl' },
     accepted: 200,
   },
@@ -621,6 +621,13 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   // D6): on the grant page only, whose every route asks, so it asks too. It
   // starts nothing; the progress page's answer, like the page, does not ask.
   'routes/link-address-changes.ts': 1,
+  // Finish's addresses and MX check (0171 T10): both read with the source's access.
+  'routes/migrations/finish-checks-routes.ts': 2,
+  // A Microsoft grant link's ending (workplan 0171 T3): before the code is
+  // exchanged, as Google's link ending asks. The callback hands the reading
+  // to the ending, which asks it.
+  'routes/migrations/microsoft-oauth-routes.ts': 1,
+  'routes/migrations/microsoft-link-ending.ts': 1,
 };
 
 /** How a door asks: answering the refusal itself, or reading it to answer in its own form. */
@@ -648,9 +655,12 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // Cirrux account's Drive (0160 T5): a rotation keeps its grant, and the
   // consent's measuring reads the row, after the consent's own close. One more
   // since a rotation keeps an Infomaniak account's mail login (0161 T1), read
-  // after the rotation's close, as the tenant is.
-  'routes/connections.ts': 17,
-  'routes/grant.ts': 2,
+  // after the rotation's close, as the tenant is. Three fewer since measuring
+  // a stored account again moved to its own module (0006 §R, CQ-06), below.
+  'routes/connections.ts': 14,
+  // One fewer since a link's client is read in one place for every provider
+  // (`linkClient`, workplan 0171 T3), after the route's own close.
+  'routes/grant.ts': 1,
   'routes/migrations/account-on-connection.ts': 1,
   // One more since Disconnect Cirrux Drive (0160), which opens the record
   // only to take the Drive sign-in out of it. It asks nothing of the close on
@@ -659,13 +669,24 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // test presses it on a closed organisation.
   'routes/migrations/cirrux-oauth-routes.ts': 4,
   'routes/migrations/google-oauth-routes.ts': 3,
+  // Finish's addresses (0171 T10): the source's record opened and its
+  // credentials merged as a pass merges them, after the route's own close.
+  'routes/migrations/finish-checks-routes.ts': 2,
   'routes/migrations/grant-subject.ts': 2,
+  // A Microsoft grant link's ending (workplan 0171 T3): the two stores, after
+  // the ending's own close; each store reads the close again in its transaction.
+  'routes/migrations/microsoft-link-ending.ts': 2,
+  'routes/migrations/microsoft-oauth-routes.ts': 2,
   // One more since the create door reads a reused Cirrux account's Drive
   // grant (0160 T5), after its own close.
   'routes/migrations/index.ts': 4,
   'routes/migrations/operating-routes.ts': 3,
   'routes/migrations/person-grant-subject.ts': 2,
   'routes/permissions.ts': 9,
+  // Measuring a stored account again (0006 §R, CQ-06): the row decrypted, the
+  // account qualified, and the qualifying the doors share. Moved here from
+  // connections.ts word for word; every caller asks the close (excused below).
+  'routes/qualify-and-remember.ts': 3,
   'routes/withdraw-grant.ts': 1,
 };
 
@@ -680,6 +701,10 @@ const USED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
     'reads whether each of a person’s migrations has a way in, to say which accounts their link still asks for ' +
     '(0153 T5 (b)). It reaches no provider. The grant page and the consent that use it ask (grant.ts, ' +
     'google-oauth-routes.ts), and the person’s ending reads the close in its own transaction.',
+  'routes/qualify-and-remember.ts':
+    'measures an account for the doors that call it, and opens no door of its own. Its callers ask the close ' +
+    'before it: the Test, the create and the rotation in connections.ts, and the Cirrux Drive consent in ' +
+    'cirrux-oauth-routes.ts (moved out of connections.ts, 0006 §R, CQ-06).',
   'routes/withdraw-grant.ts':
     'withdrawing a grant revokes it at the provider. That ends access, and ending stays open after a close.',
 };

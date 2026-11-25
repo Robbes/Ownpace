@@ -62,7 +62,9 @@
  */
 
 import { loadJmapSession } from './jmap-session.ts';
+import { jmapPool, jmapQuotaAnnounced, readJmapCapacity } from './jmap-quota.ts';
 import type {
+  DestinationCapacity,
   FileBody,
   FileTargetWriter,
   FileFolder,
@@ -290,6 +292,8 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
   /** Which FileNode draft the account speaks, read from its session at connect (`wireOf`). */
   private wire: NodeWire = V016_WIRE;
   private connectPromise: Promise<void> | null = null;
+  /** Whether the session lists `urn:ietf:params:jmap:quota` (workplan 0171 T9). */
+  private quotaAnnounced = false;
   /**
    * The account's file tree as of the first read this pass.
    *
@@ -385,6 +389,23 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     }
     this.accountId = resolved;
     this.wire = wireOf(session, resolved);
+    this.quotaAnnounced = jmapQuotaAnnounced(session, resolved);
+  }
+
+  /**
+   * The account's free space (workplan 0171 T9), read with `Quota/get` as the
+   * mail writer reads it: the same account is the same pool, so mail and
+   * files written to it are added together against one number.
+   */
+  async capacity(): Promise<DestinationCapacity> {
+    await this.ensureConnected();
+    return readJmapCapacity({
+      apiUrl: this.apiUrl!,
+      authHeader: this.authHeader!,
+      accountId: this.accountId!,
+      announced: this.quotaAnnounced,
+      pool: jmapPool(this.config.baseUrl, this.accountId!),
+    });
   }
 
   // ---------------------------------------------------------------------

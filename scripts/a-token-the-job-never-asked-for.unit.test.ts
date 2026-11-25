@@ -151,9 +151,10 @@ const CHECKOUTS_FIXED: Readonly<Record<string, ReadonlyArray<string>>> = {
   '.github/workflows/windows-payload.yml': ['build', 'release'],
 };
 
-/** The four jobs that run the release check, and so publish a release. */
+/** The five jobs that run the release check, and so publish a release (images.yml's `image-sboms` since 2026-11-24, SBOM-1). */
 const RELEASE_JOBS = [
   '.github/workflows/images.yml job build',
+  '.github/workflows/images.yml job image-sboms',
   '.github/workflows/security-scan.yml job security-scan',
   '.github/workflows/windows-payload.yml job build',
   '.github/workflows/windows-payload.yml job release',
@@ -401,7 +402,7 @@ describe('no workflow runs on an event that hands a stranger the token', () => {
 describe('a job that publishes a release restores no cache', () => {
   const found = docs.flatMap(({ path, workflow }) => releaseJobs(path, workflow));
 
-  it('found the four jobs that run the release check', () => {
+  it('found the five jobs that run the release check', () => {
     expect(found.map((f) => f.where).sort()).toEqual([...RELEASE_JOBS].sort());
   });
 

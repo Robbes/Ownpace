@@ -554,7 +554,12 @@ const MappingDetail: React.FC = () => {
 
       {progressDomains && progressDomains.length > 0 && (
         <div className="mt-4">
-          <LiveProgress domains={progressDomains} stages={stages} headingLevel={3} />
+          <LiveProgress
+            domains={progressDomains}
+            stages={stages}
+            headingLevel={3}
+            {...(detail.data?.targetType ? { targetKind: detail.data.targetType } : {})}
+          />
         </div>
       )}
 

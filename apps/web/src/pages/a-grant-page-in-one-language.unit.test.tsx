@@ -312,7 +312,7 @@ describe('the language switch on the grant page', () => {
     await screen.findByText(/You are about to give \(read\) access/);
     await userEvent.click(screen.getByRole('button', { name: 'NL' }));
     await userEvent.click(screen.getByRole('button', { name: 'Doorgaan met Google' }));
-    expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'nl');
+    expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'nl', 'google');
   });
 });
 

@@ -39,7 +39,8 @@
 # Until 2026-10-31 it was the digest compose.yml ran before this file
 # (77f58511…), so removing gosu was the only change an appliance's first `up`
 # made to its database. Then it was upstream's rebuild of 2026-10-26
-# (10a5c69a…), and since 2026-11-13 it is PostgreSQL 18.7 (75dcac3d…), the
+# (10a5c69a…), since 2026-11-13 PostgreSQL 18.7 (75dcac3d…), and since
+# alpha.20 upstream's rebuild of 18.7 of 2026-11-21 (0115267a…, gosu 1.20), the
 # managed stacks' base too each time, so the two Dockerfiles have the same
 # instructions and build under one name. A new base is a move of its own,
 # which Dependabot offers for this directory (its own `docker` entry, never a
@@ -71,7 +72,7 @@
 # to deploy/compose/postgres/Dockerfile's instructions but for the FROM; no
 # parser directive, COPY, ADD or --mount, which the hash would not cover, and
 # no package but at the exact version the instruction line names.
-FROM postgres:18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73
+FROM postgres:18.7-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
 
 # A plain rm: a base without gosu fails here, and this file has nothing left to do.
 RUN rm /usr/local/bin/gosu

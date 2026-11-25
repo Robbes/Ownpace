@@ -35,7 +35,8 @@ import type { ApplyReceipt, DeletionsQueue, EarlierExport, ItemDeletion } from '
 import { mayOfferApply } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.tsx';
 import { ApplyDeletionsPanel } from '../components/queues/ApplyDeletionsPanel.tsx';
-import { DeleteAllPanel } from '../components/queues/DeleteAllPanel.tsx';
+import { DeleteAllPanel, deletionRefusalKey } from '../components/queues/DeleteAllPanel.tsx';
+import { isSelfHost } from '../services/edition.ts';
 import {
   ActionButton,
   AfterCutoverNote,
@@ -130,6 +131,27 @@ const WhichItem: React.FC<{ domain: string; displayName: string | undefined; col
   );
 };
 
+/**
+ * DELETING BY HAND IS OFF, in the reader's words and with what this reader
+ * can do about it (workplan 0160, T2b): the switch above on managed, the
+ * mapping's file on the appliance. The server's sentence is the appliance's,
+ * and told a managed owner to set `allowApplyDeletions: true` in a config
+ * file they do not have. Every other refusal keeps the gates' own words, with
+ * its code, as a receipt always has (0019 T2): undefined here.
+ */
+function refusedInOurWords(t: ReturnType<typeof useT>, code: string): string | undefined {
+  const key = deletionRefusalKey(code);
+  if (code !== 'not_enabled' || key === undefined) return undefined;
+  return `${t(key)} ${t(isSelfHost() ? 'deletions.refused.notEnabled.config' : 'deletions.refused.notEnabled.turnOn')}`;
+}
+
+/** A receipt the job refused, said as a press's refusal is. */
+const RefusedReceipt: React.FC<{ receipt: ApplyReceipt }> = ({ receipt }) => {
+  const t = useT();
+  const words = receipt.state === 'refused' ? refusedInOurWords(t, receipt.code) : undefined;
+  return words !== undefined ? <Refused text={words} /> : <ReceiptStatus receipt={receipt} />;
+};
+
 const Row: React.FC<{
   d: ItemDeletion;
   outcome?: ItemOutcome;
@@ -148,7 +170,7 @@ const Row: React.FC<{
       ) : outcome?.state === 'refused' ? (
         <Refused text={outcome.text} />
       ) : outcome?.state === 'receipt' ? (
-        <ReceiptStatus receipt={outcome.receipt} />
+        <RefusedReceipt receipt={outcome.receipt} />
       ) : outcome?.state === 'waiting' ? (
         <WaitingItsTurn />
       ) : outcome?.state === 'unknown' ? (
@@ -334,7 +356,10 @@ const Deletions: React.FC<{
             state: 'refused',
             text:
               err instanceof DecisionRefusedError
-                ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
+                ? (refusedInOurWords(t, err.refusal.error) ??
+                  err.refusal.reason ??
+                  err.refusal.hint ??
+                  err.refusal.error)
                 : err instanceof Error
                   ? serverMessage(err)
                   : t('common.requestFailed'),

@@ -111,11 +111,11 @@ describe('Test on an archive connection', () => {
       {},
     );
     expect(r.ok).toBe(false);
-    // No reader for Apple yet — deliberately absent rather than stubbed, so
-    // the answer is "we have not built this", never "your export is empty".
-    expect(r.outcome?.code, JSON.stringify(r)).toBe('noProbe');
+    // Apple's reader (workplan 0171 T1) finds neither of its manifests in a
+    // Takeout, and says so — never "your export is empty".
+    expect(r.outcome?.code, JSON.stringify(r)).toBe('providerRefused');
     if (!r.ok) {
-      expect(r.reason).toContain('not a problem with your export');
+      expect(r.reason).toContain('does not look like an Apple export we know');
     }
   });
 
@@ -132,14 +132,14 @@ describe('Test on an archive connection', () => {
   });
 });
 
-describe('the readers, and the one that is absent on purpose', () => {
-  it('has a Google reader and no Apple one — an absence, not a stub', () => {
-    // 0116 T3b starts by opening a real Apple export and writing down what is
-    // inside. A stub answering "0 items" until then would be indistinguishable,
-    // on screen, from an export that really was empty.
-    expect(archiveProvidersWithReaders()).toEqual(['google-takeout']);
+describe('the readers, and an export with none', () => {
+  it('has a Google reader and, since alpha.20, an Apple one; anything else is absent, not a stub', () => {
+    // Apple's landed Experimental (workplan 0171 T1). An export with no reader
+    // stays absent rather than stubbed: a stub answering "0 items" would be
+    // indistinguishable, on screen, from an export that really was empty.
+    expect(archiveProvidersWithReaders()).toEqual(['google-takeout', 'apple-privacy']);
     expect(archiveReaderFor('google-takeout')?.provider).toBe('google-takeout');
-    expect(archiveReaderFor('apple-privacy')).toBeUndefined();
+    expect(archiveReaderFor('apple-privacy')?.provider).toBe('apple-privacy');
     expect(archiveReaderFor('meta-dyi')).toBeUndefined();
   });
 });
@@ -168,16 +168,15 @@ describe('the file face an archive claims', () => {
     expect(source.listTrashedPaths).toBeUndefined();
   });
 
-  it('refuses, by name, an export no reader is built for — a wiring gap, not a limit of the export', () => {
-    // The Apple reader is absent on purpose (T3b). The sentence has to say
-    // it is OUR gap: "your export cannot be migrated" is false, and would
-    // send somebody back to re-download 25 GB for nothing.
-    expect(() =>
-      buildFileSourceFromConnection({
-        kind: ARCHIVE_CONNECTION_KIND,
-        config: { type: 'archive', provider: 'apple-privacy', path: '/srv/exports/x' },
-        creds: {},
-      }, undefined),
-    ).toThrow(/wiring gap in this product, not a problem with your export/);
+  it('builds Apple’s export the same way, now that its reader exists (0171 T1)', () => {
+    // Until alpha.20 this refused as "a wiring gap in this product". The
+    // sentence is still there for an export with no reader; no export in the
+    // vocabulary is one today.
+    const source = buildFileSourceFromConnection({
+      kind: ARCHIVE_CONNECTION_KIND,
+      config: { type: 'archive', provider: 'apple-privacy', path: '/srv/exports/x', parts: 2 },
+      creds: {},
+    }, undefined);
+    expect(source.snapshot).toBe(true);
   });
 });

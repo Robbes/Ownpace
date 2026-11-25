@@ -32,6 +32,11 @@ export interface ZipTestFile {
   readonly encrypted?: boolean;
   /** The compression method number to WRITE, when testing an unsupported one (the data is stored). */
   readonly methodOverride?: number;
+  /**
+   * Emit the extended-timestamp extra field (`0x5455`) in the central
+   * directory with this modification time, seconds since the epoch (UTC).
+   */
+  readonly modifiedUtcSeconds?: number;
 }
 
 export interface ZipTestOptions {
@@ -157,8 +162,9 @@ export function buildZip(files: ReadonlyArray<ZipTestFile>, options: ZipTestOpti
     out.u32(c.crc);
     out.u32(zip64 ? 0xffffffff : c.csize);
     out.u32(zip64 ? 0xffffffff : c.usize);
+    const timestamp = c.file.modifiedUtcSeconds;
     out.u16(c.nameBytes.byteLength);
-    out.u16(zip64 ? 32 : 0);
+    out.u16((zip64 ? 32 : 0) + (timestamp === undefined ? 0 : 9));
     out.u16(0);
     out.u16(zip64 ? 0xffff : 0);
     out.u16(0);
@@ -172,6 +178,14 @@ export function buildZip(files: ReadonlyArray<ZipTestFile>, options: ZipTestOpti
       out.u64(c.csize);
       out.u64(c.offset);
       out.u32(0);
+    }
+    if (timestamp !== undefined) {
+      out.u16(0x5455);
+      out.u16(5);
+      out.push(Uint8Array.of(0x01));
+      const t = new Uint8Array(4);
+      new DataView(t.buffer).setInt32(0, timestamp, true);
+      out.push(t);
     }
   }
   const directorySize = out.length - directoryOffset;

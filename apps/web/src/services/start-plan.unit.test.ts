@@ -18,6 +18,7 @@ import {
   folderValue,
   foldersListable,
   grantableByLink,
+  grantProvidersServed,
   migrationsFor,
   nextcloudAddress,
   nextcloudDavUrl,
@@ -92,8 +93,8 @@ describe('the export under a provider’s tile (step 3; 0153 open question 5, it
     expect(exportOf('google')).toEqual({ archive: 'google-takeout', readable: true });
   });
 
-  it('is Apple’s export, which no reader opens yet, and nothing for a provider with no export', () => {
-    expect(exportOf('apple')).toEqual({ archive: 'apple-privacy', readable: false });
+  it('is Apple’s export, which a reader opens since alpha.20 (0171 T1), and nothing for a provider with no export', () => {
+    expect(exportOf('apple')).toEqual({ archive: 'apple-privacy', readable: true });
     expect(exportOf('dropbox')).toBeUndefined();
     expect(exportOf('imap')).toBeUndefined();
   });
@@ -275,6 +276,22 @@ describe('what somebody else can connect themselves, by a grant link (0108)', ()
   it('is nothing where the deployment carries no Google client, or has not said', () => {
     expect(grantableByLink('google', { ...NARROW, googleClient: 'connection' })).toBe(false);
     expect(grantableByLink('google', NARROW)).toBe(false);
+  });
+
+  it('is the Microsoft account, where the deployment serves Microsoft’s link (0171 §3.3)', () => {
+    expect(grantableByLink('microsoft', { ...NARROW, grantProviders: ['microsoft'] })).toBe(true);
+    // A company's own app reads with application permissions: no sign-in grants it.
+    for (const card of ['graph', 'oauth2']) {
+      expect(grantableByLink(card, { ...NARROW, grantProviders: ['google', 'microsoft'] })).toBe(false);
+    }
+    // Served for Microsoft only: Google's cards are not.
+    expect(grantableByLink('google', { ...NARROW, grantProviders: ['microsoft'] })).toBe(false);
+  });
+
+  it('reads the providers from the deployment’s own applications', () => {
+    expect(grantProvidersServed({ google: { client: 'deployment' }, microsoft: { client: 'connection' } })).toEqual(['google']);
+    expect(grantProvidersServed({ google: { client: 'connection' }, microsoft: { client: 'deployment' } })).toEqual(['microsoft']);
+    expect(grantProvidersServed(undefined)).toEqual([]);
   });
 
   it('is nothing for a provider with no link at all', () => {

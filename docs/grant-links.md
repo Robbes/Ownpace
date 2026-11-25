@@ -7,7 +7,7 @@ It exists because the alternative is worse in a specific way. Migrating a collea
 needs a credential for that mailbox, and the two obvious ways to get one are both bad: asking
 for their password, or sitting beside them while they sign in and copying a token out of a
 browser. Both put one person's private credential through another person's hands. A link
-removes the middle: they sign in on Google's own page, and what comes back is stored against
+removes the middle: they sign in on Google's or Microsoft's own page, and what comes back is stored against
 their migrations that read that account, encrypted, never shown to anyone.
 
 **You send the link. We never do.** Ownpace does not email it, does not store the recipient's
@@ -15,7 +15,7 @@ address, and does not know who you sent it to. That is deliberate: an address we
 an address we cannot leak, and you already know who the person is.
 
 **One link per person.** A link is made for a person, not for a migration: one grant link for all
-of their migrations, which asks each Google account of theirs once, and one progress link where
+of their migrations, which asks each Google or Microsoft account of theirs once, and one progress link where
 they follow all of them (ADR-0035). A migration's page makes no link of its own. A migration's
 link sent before that changed keeps working until it expires: see
 [Links sent before](#links-sent-before).
@@ -77,11 +77,12 @@ gives each migration's reason, once each, and each names what to fix:
 |---|---|
 | The person has no migrations yet | Add one first. |
 | The migration has no source connection yet | Finish setting up the source first. |
-| The source is not a Google account | Grant links cover a Google account, Gmail, Google Calendar, Google Contacts and Google Drive today. For other sources, the credential still comes to you by hand. |
-| The migration names no account | A grant is only accepted from the Google account the migration reads (see below), so a migration that names none cannot be granted. The account is set when a migration is created: create it again with the account's address. |
+| The source is not an account a link can connect | Grant links cover a Google account, Gmail, Google Calendar, Google Contacts and Google Drive, and since alpha.20 a Microsoft 365 account, personal or work. A company's own Microsoft app (*Microsoft 365 (Graph API)* or *(IMAP)*) reads with application permissions, which nobody grants by signing in. Dropbox and Apple follow (workplan 0171 T4 and T5); until then, and for every other source, the credential still comes to you by hand. |
+| The migration names no account | A grant is only accepted from the Google or Microsoft account the migration reads (see below), so a migration that names none cannot be granted. The account is set when a migration is created: create it again with the account's address. |
 | The migration has no destination yet | Set the destination first. The person you ask is shown where their data will go before they agree, so a link needs one to name. |
 | The migration copies no data types | Include at least one. A link for a Google account asks for exactly the data types the migration copies, so with none there is nothing to ask. |
 | No client id or client secret is stored, and the deployment has no Google client | Add them on the source connection — see [Google Workspace setup](./google-workspace-setup.md), step 3 — or ask whoever runs your Ownpace to set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. Your own client, when you store one, is always the one used. Half a pair is refused rather than finished with the deployment's other half. |
+| The same, for a Microsoft account | Add your own Entra app's Client ID and client secret (and its Tenant ID, for a single-tenant app) on the source connection, or ask whoever runs your Ownpace to set `MICROSOFT_OAUTH_CLIENT_ID` and `MICROSOFT_OAUTH_CLIENT_SECRET` ([Microsoft setup](./microsoft-setup.md)). Half a pair is refused the same way. |
 | Mail and files need scopes Google classes as restricted | Through the deployment's own Google client, a link asks for Gmail or Drive only where whoever runs your Ownpace has declared `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, once their application carries those scopes. Or add your own Google client on the source connection. Calendars, contacts and tasks need neither. |
 | `WEB_URL` is not set | A deployment setting. Whoever runs your Ownpace needs to set it and restart; a link built without it would point at the wrong machine. |
 | Your organisation already holds as many grant links as it may | Revoke one that is no longer needed, or wait until one is used or expires (see below). |
@@ -137,11 +138,34 @@ token and asks nothing else of them.** They can close it and get on with their d
 account is connected already says **Connected** instead, and the link is spent once every account
 on it is. On a link made to ask again, a connected account's card says it was connected before
 and offers **Connect again with Google as** *that account*. A card that cannot be asked, such as
-one whose migrations run through two different Google applications, says why instead of offering
-the button, in words they can pass on to you.
+one whose migrations run through two different applications of its provider (two Google
+applications, or two Microsoft ones), says why instead of offering the button, in words they can
+pass on to you.
 
-A migration a link cannot serve, such as one reading a Microsoft account, is left off the page:
-its credential still comes to you by hand.
+A migration a link cannot serve, such as one reading an IMAP mailbox or a company's own Microsoft
+app, is left off the page: its credential still comes to you by hand.
+
+### A Microsoft account (workplan 0171, alpha.20)
+
+A Microsoft 365 account, personal (Outlook.com, Hotmail) or work, is asked the same way. Its
+card says Microsoft where a Google card says Google: **Continue with Microsoft as** *that account*,
+the permission Microsoft will ask for in words (*Outlook: read your email*, *OneDrive: read your
+files*, and so on), and the exact string under *Technical details*. Every Microsoft permission a
+link asks for is one of the read permissions *Connect with Microsoft* asks for, so the box says
+*Read-only*. The button goes to Microsoft's
+own sign-in, offering the named account first, at the consumer sign-in for an address on one of
+Microsoft's own domains and at the work sign-in for any other.
+
+Beside the data it asks for **who signed in** (`openid`, `email`, `profile` and `User.Read`, the
+person's own profile). Every new Microsoft consent asks for these since alpha.20, the owner's
+own *Connect with Microsoft* too (decision D7 of workplan 0171): it is also what lets Finish list
+the addresses that receive mail. A connection made before alpha.20 lacks it until it is connected
+again.
+
+A work organisation whose administrator requires approval for new apps stops the person at
+Microsoft's page. The page after it says so in Microsoft's words (the Entra error code with it),
+nothing is stored, and the link is not used up: once an administrator has approved Ownpace's app
+for the organisation, the same link works.
 
 That page judges the permission Google actually recorded, not the one the link asked for. It
 calls the access read-only only when every permission Google recorded is the read-only one for
@@ -162,8 +186,8 @@ phone may not, it selects the link instead and says so, so the phone's own Copy 
 
 ### Only the account the page names
 
-The account a card names is a condition, not a label. Google tells Ownpace which account signed
-in, and access is accepted only from that one. So a link forwarded to
+The account a card names is a condition, not a label. Google or Microsoft tells Ownpace which
+account signed in, and access is accepted only from that one. So a link forwarded to
 somebody else, or opened in a browser signed in to the wrong account, connects nothing. Google
 offers the named account first, so the wrong one is rarely picked by accident.
 
@@ -179,7 +203,18 @@ Google application. Ownpace keeps nothing from it. If that account is not being 
 well, the person can remove the access in their Google account's security settings.
 
 A Gmail address matches however its dots are placed, with or without a `+suffix`. On a company
-domain the address must match exactly, apart from capitals. If the migration names an **alias**
+domain the address must match exactly, apart from capitals.
+
+**At Microsoft** the account is read in two steps. The answer must come from Microsoft's sign-in
+for the organisation it names, and be meant for this Ownpace's app; then Ownpace asks Microsoft
+for the account's own profile. The named address must be the account's sign-in name, its primary
+address, or one of its other addresses (its *proxy addresses*), apart from capitals. So for a
+Microsoft work account an alias **is** accepted. The address the sign-in claims to have is not
+enough on its own, because an organisation's administrator can set it to anything. A personal
+account has no such profile to read, and its sign-in name is compared. If somebody signs in with
+another account, the page says *You signed in as … ; this link is for …*, that nothing was
+stored, and to sign out of Microsoft in that browser before using the link again: Microsoft
+offers the account last signed in first. If the migration names an **alias**
 of the account, sign-in is refused, and the page shows the account's own address. A
 migration's account cannot be changed afterwards, so create it again with that address.
 
@@ -283,6 +318,11 @@ again. It is worded for them, not for you:
 Only a link that can no longer be used (spent, expired or withdrawn) tells them to ask you for a
 fresh one. When Google turned down the application, its exact answer is in the server log,
 beside the migration's id. That is where to look before you check the source connection.
+
+At Microsoft the same cases read the same way, with Microsoft's name: *Permission was not given
+at Microsoft*, *Microsoft did not accept the sign-in when it came back*, and an organisation's
+approval rule in Microsoft's own words. When Microsoft could not be reached while the sign-in was
+being checked, nothing is stored and the link is not used up; the page says it is ours to fix.
 
 ## "My link says it does not work"
 
