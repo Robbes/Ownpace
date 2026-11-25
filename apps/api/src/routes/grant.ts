@@ -81,8 +81,10 @@ import { Router } from 'express';
 import type { RequestHandler, Response } from 'express';
 import {
   NOT_READY_BECAUSE,
+  NOT_READY_BECAUSE_DROPBOX,
   NOT_READY_BECAUSE_MICROSOFT,
   cannotSignInYet,
+  dropboxDeploymentClient,
   googleDeploymentClient,
   localeOf,
   microsoftDeploymentClient,
@@ -235,9 +237,17 @@ const FOR_THE_MICROSOFT_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, Bi
   ...NOT_READY_BECAUSE_MICROSOFT,
 };
 
-/** Which of the two the link holder hears, by the source's provider when it is known. */
+/** The same, for a Dropbox migration (workplan 0174 §6). */
+const FOR_THE_DROPBOX_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, Bilingual>> = {
+  ...NOT_READY_BECAUSE,
+  ...NOT_READY_BECAUSE_DROPBOX,
+};
+
+/** Which of them the link holder hears, by the source's provider when it is known. */
 function forTheLinkHolder(provider: GrantProviderId | null): Readonly<Record<GrantLinkAskRefusalCode, Bilingual>> {
-  return provider === 'microsoft' ? FOR_THE_MICROSOFT_LINK_HOLDER : FOR_THE_LINK_HOLDER;
+  if (provider === 'microsoft') return FOR_THE_MICROSOFT_LINK_HOLDER;
+  if (provider === 'dropbox') return FOR_THE_DROPBOX_LINK_HOLDER;
+  return FOR_THE_LINK_HOLDER;
 }
 
 /**
@@ -246,6 +256,7 @@ function forTheLinkHolder(provider: GrantProviderId | null): Readonly<Record<Gra
  * one has no whole pair after all. Google's rule is unchanged (0108 T6);
  * Microsoft's carries the directory: the connection's own `tenantId` when its
  * own pair asks, the deployment's authority otherwise (`common` unless set).
+ * Dropbox's is the connection's whole pair or the deployment's app (0174 §6).
  */
 export function linkClient(
   provider: GrantProviderId,
@@ -261,6 +272,7 @@ export function linkClient(
     return { clientId, clientSecret, tenant: credential(creds, 'tenantId') || microsoftTenant() };
   }
   if (provider === 'microsoft') return microsoftDeploymentClient();
+  if (provider === 'dropbox') return dropboxDeploymentClient();
   return googleDeploymentClient();
 }
 

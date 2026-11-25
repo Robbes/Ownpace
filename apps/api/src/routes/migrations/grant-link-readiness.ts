@@ -64,6 +64,7 @@ import {
 } from './google-consent.ts';
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES } from './signed-in-account.ts';
+import { DROPBOX_CONSENT_SCOPES } from './dropbox-consent.ts';
 
 /**
  * `connection.kind` → the consent vocabulary, for the four Google sources.
@@ -143,6 +144,11 @@ export interface GrantLinkReadiness {
    * Read for a Microsoft source only; absent is no.
    */
   readonly hasDeploymentMicrosoftClient?: boolean;
+  /**
+   * Whether it carries a whole Dropbox app (workplan 0174 §6). Read for a
+   * Dropbox source only; absent is no.
+   */
+  readonly hasDeploymentDropboxClient?: boolean;
   /**
    * `GOOGLE_ACCOUNT_SCOPE_CLASS` as configured: a setting, not a secret. A
    * string rather than the environment, so nothing else in the environment
@@ -275,14 +281,14 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
     // owner's. Renamed from `source_not_google` when Microsoft joined (0171).
     return refuse(
       'source_not_grantable',
-      'A link asks somebody to sign in with Google or Microsoft, and this migration copies ' +
-        'from neither. Only a Google account, Gmail, Google Calendar, Google Contacts, Google ' +
-        'Drive and a Microsoft 365 account can be connected through a link; any other account ' +
-        'is still connected by hand, on the Accounts page.',
+      'A link asks somebody to sign in with Google, Microsoft or Dropbox, and this migration ' +
+        'copies from none of them. Only a Google account, Gmail, Google Calendar, Google ' +
+        'Contacts, Google Drive, a Microsoft 365 account and Dropbox can be connected through a ' +
+        'link; any other account is still connected by hand, on the Accounts page.',
       `source kind '${r.sourceKind}'`,
     );
   }
-  const name = provider.id === 'microsoft' ? 'Microsoft' : 'Google';
+  const name = provider.id === 'microsoft' ? 'Microsoft' : provider.id === 'dropbox' ? 'Dropbox' : 'Google';
   if (!r.hasNamedAccount) {
     // The owner's decision of 2026-09-23 (T8 (b)): *"bind to the account the
     // page already named (so filled in by the requester/facilitator)"*. With
@@ -303,6 +309,7 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
     );
   }
   if (provider.id === 'microsoft') return microsoftLinkAsk(r, refuse);
+  if (provider.id === 'dropbox') return dropboxLinkAsk(r, refuse);
 
   const scopeEnv = { GOOGLE_ACCOUNT_SCOPE_CLASS: r.scopeClass };
   let scope: string;
@@ -449,6 +456,61 @@ function microsoftLinkAsk(
 }
 
 /**
+ * A Dropbox link (workplan 0174 §6), past the checks every provider shares.
+ * Dropbox carries files and nothing else, so it asks for files when the
+ * migration copies them, through the connection's own whole pair or else the
+ * deployment's app (half a pair refused, as Google's and Microsoft's). What it
+ * asks is the owner's own Connect with Dropbox scopes: the two that read and
+ * `account_info.read`, which the ending's `get_current_account` needs. Every
+ * one of them reads, and the exchange refuses a grant that carries more, so
+ * it is read-only at Dropbox in Dropbox's own words.
+ */
+function dropboxLinkAsk(
+  r: Omit<GrantLinkReadiness, 'hasWebUrl'>,
+  refuse: (code: GrantLinkAskRefusalCode, reason: string, operatorDetail?: string) => GrantLinkDecision,
+): GrantLinkDecision {
+  if (!r.includedDomains.includes('file')) {
+    return refuse(
+      'nothing_to_ask',
+      'This migration copies no data types at the moment, so a link would have ' +
+        'nothing to ask for. Include at least one, then make the link.',
+    );
+  }
+  if (r.hasClientId !== r.hasClientSecret) {
+    const missing = r.hasClientId ? 'has no App secret saved' : 'has no App key saved';
+    return refuse(
+      'client_not_configured',
+      `This account uses your own Dropbox app, and it ${missing}. Add it to the account on ` +
+        'the Accounts page, then make the link. Otherwise the person you send it to lands ' +
+        'on a Dropbox error page about an app they have never heard of.',
+    );
+  }
+  const client = r.hasClientId ? 'connection' : r.hasDeploymentDropboxClient === true ? 'deployment' : null;
+  if (client === null) {
+    return refuse(
+      'client_not_configured',
+      "A link needs a Dropbox app to sign in through. Ownpace's own is not set up yet, " +
+        'which is on our side, and this account has no App key and App secret of your own ' +
+        'saved. Add your own Dropbox app to the account on the Accounts page, or contact us.',
+      'The consent needs a Dropbox app, and there is none: this source has neither an App ' +
+        'key nor an App secret stored, and this deployment has no Dropbox app of its own. ' +
+        'Add the pair on the source connection, or set DROPBOX_OAUTH_CLIENT_ID and ' +
+        'DROPBOX_OAUTH_CLIENT_SECRET on the deployment.',
+    );
+  }
+  return {
+    ok: true,
+    ask: {
+      provider: 'dropbox',
+      client,
+      scope: DROPBOX_CONSENT_SCOPES.join(' '),
+      domains: ['file'],
+      readOnlyAtProvider: true,
+    },
+  };
+}
+
+/**
  * Every way a grant link is dead on arrival, in the order the owner can act
  * on them. Returns null when the link would work.
  *
@@ -556,6 +618,13 @@ function sourceAwaitingRefusal(r: Parameters<typeof awaitingGrantRefusal>[0]): s
     );
   }
   if (r.hasRefreshToken || r.hasServiceAccountKey) return null;
+  if (provider.id === 'dropbox') {
+    return (
+      'This migration cannot start yet: nobody has connected its Dropbox. Create a grant ' +
+      'link and send it to the person being migrated — they sign in themselves, and their ' +
+      'password never reaches you or us.'
+    );
+  }
   if (provider.id === 'microsoft') {
     return (
       'This migration cannot start yet: nobody has connected its Microsoft account. Create a ' +

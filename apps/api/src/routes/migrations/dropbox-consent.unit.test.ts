@@ -3,8 +3,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { DROPBOX_AUTH_ENDPOINT } from '@openmig/shared';
 import {
+  DROPBOX_CURRENT_ACCOUNT_URL,
   DROPBOX_TOKEN_ENDPOINT,
   dropboxConsentUrl,
+  dropboxSignedInAccount,
   exchangeDropboxCode,
   missingDropboxScopes,
 } from './dropbox-consent.ts';
@@ -134,5 +136,59 @@ describe('the exchange: granted is read, never assumed', () => {
     expect((r as { reason: string }).reason).toContain('400');
     expect((r as { reason: string }).reason).toContain('code has expired');
     expect((r as { reason: string }).reason).not.toContain('app-secret');
+  });
+});
+
+describe('which Dropbox account signed in (workplan 0174 §6)', () => {
+  const ask = (status: number, body: unknown, accessToken: string | null = 'at-dbx') => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: { method?: string; headers?: Record<string, string> }) =>
+        new Response(JSON.stringify(body), { status }),
+    );
+    return { result: dropboxSignedInAccount({ accessToken: accessToken ?? undefined }, fetchMock as unknown as typeof fetch), fetchMock };
+  };
+
+  it('the exchange hands on the access token of the same answer, for this question only', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ refresh_token: 'rt', access_token: 'at', scope: 'files.metadata.read files.content.read' }),
+          { status: 200 },
+        ),
+    );
+    const result = await exchangeDropboxCode(
+      { code: 'c', clientId: 'k', clientSecret: 's', redirectUri: REDIRECT },
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(result).toMatchObject({ ok: true, refreshToken: 'rt', accessToken: 'at' });
+  });
+
+  it('asks get_current_account with the access token, as an RPC with no arguments', async () => {
+    const { result, fetchMock } = ask(200, { email: 'Someone@Example.Invalid', email_verified: true });
+    expect(await result).toEqual({ address: 'Someone@Example.Invalid', confirmed: true });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(DROPBOX_CURRENT_ACCOUNT_URL);
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual({ method: 'POST', headers: { Authorization: 'Bearer at-dbx' } });
+  });
+
+  it('an address Dropbox has not verified is not confirmed: only a strict true counts', async () => {
+    expect(await ask(200, { email: 'a@example.invalid', email_verified: false }).result).toEqual({
+      address: 'a@example.invalid',
+      confirmed: false,
+    });
+    expect((await ask(200, { email: 'a@example.invalid', email_verified: 'true' }).result)?.confirmed).toBe(false);
+    expect((await ask(200, { email: 'a@example.invalid' }).result)?.confirmed).toBe(false);
+  });
+
+  it('nobody vouched when there is no token, no email, or the token is refused for the route', async () => {
+    const none = ask(200, {}, null);
+    expect(await none.result).toBeNull();
+    expect(none.fetchMock).not.toHaveBeenCalled();
+    expect(await ask(200, { email_verified: true }).result).toBeNull();
+    expect(await ask(401, { error_summary: 'invalid_access_token/' }).result).toBeNull();
+    expect(await ask(403, {}).result).toBeNull();
+  });
+
+  it('a fault of Dropbox’s own is thrown, never turned into nobody (hard rule 9)', async () => {
+    await expect(ask(503, { error: 'down' }).result).rejects.toThrow(/get_current_account with 503/);
   });
 });

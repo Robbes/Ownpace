@@ -154,6 +154,21 @@ export const NOT_READY_BECAUSE_MICROSOFT = {
   },
 } as const satisfies Readonly<Record<string, Bilingual>>;
 
+/**
+ * The same, for a Dropbox migration (workplan 0174 §6). Dropbox calls its
+ * application an app, as its App Console does.
+ */
+export const NOT_READY_BECAUSE_DROPBOX = {
+  no_named_account: {
+    en: 'it does not name the Dropbox account it reads',
+    nl: 'die noemt niet welk Dropbox-account wordt gelezen',
+  },
+  client_not_configured: {
+    en: 'its Dropbox app is not set up yet',
+    nl: 'de Dropbox-app ervan is nog niet ingesteld',
+  },
+} as const satisfies Readonly<Record<string, Bilingual>>;
+
 /** The frame around a `NOT_READY_BECAUSE` reason, written to be forwarded. */
 export function notReady(what: Bilingual): Bilingual {
   return {

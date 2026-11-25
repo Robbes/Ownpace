@@ -20,12 +20,15 @@
  * - **Microsoft** is built here (§3.3): its consent bound to the named account
  *   with `login_hint`, and its ending, which exchanges the code and asks
  *   Microsoft who signed in (`microsoft-signed-in-account.ts`).
- * - **Dropbox** (workplan 0174 T2) and **Cirrux** (0174 T5, a destination's
- *   Drive) are in the id type, so the web's list and the routes can name
- *   them, and have no entry until their tasks add one: a provider without an
- *   entry is never grantable. **Apple** stays in the id type for the web's
- *   list, and never has an entry: since 0174 it is the `apple` password kind
- *   (below), not a sign-in.
+ * - **Dropbox** is built here since alpha.21 (workplan 0174 §6, superseding
+ *   0171 T4): its consent as the owner's own Connect with Dropbox asks it
+ *   (Dropbox takes no login hint), and its ending, which exchanges the code
+ *   and asks Dropbox who signed in (`dropboxSignedInAccount`).
+ * - **Cirrux** (0174 T5, a destination's Drive) is in the id type, so the
+ *   web's list and the routes can name it, and has no entry until its task
+ *   adds one: a provider without an entry is never grantable. **Apple** stays
+ *   in the id type for the web's list, and never has an entry: since 0174 it
+ *   is the `apple` password kind (below), not a sign-in.
  *
  * ## Two ways in, two roles (workplan 0174 §3, §4.1, §5.1, T1)
  *
@@ -62,6 +65,7 @@ import {
   type GoogleClientEnv,
   type MicrosoftClientEnv,
 } from '@openmig/shared';
+import { dropboxConsentUrl, dropboxSignedInAccount, exchangeDropboxCode } from './migrations/dropbox-consent.ts';
 import { consentUrl as googleConsentUrl } from './migrations/google-consent.ts';
 import {
   exchangeMicrosoftCode,
@@ -249,10 +253,44 @@ const MICROSOFT: GrantProvider = {
   },
 };
 
-/** The entries, by id. Dropbox and Cirrux join with 0174 T2 and T5; Apple is a password kind. */
+/**
+ * Dropbox (workplan 0174 §6, as 0171 §3.5 designed it). The consent is the
+ * owner's own Connect with Dropbox URL: `token_access_type=offline`, the read
+ * scopes and `account_info.read`, which `get_current_account` needs. Dropbox
+ * takes no login hint, so the named account is not offered first; the ending
+ * is what binds the grant to it. The secret stored is the refresh token alone,
+ * as the owner's own connect stores it; the App key and secret stay on the
+ * connection or the deployment.
+ */
+const DROPBOX: GrantProvider = {
+  id: 'dropbox',
+  sourceKinds: new Set(['dropbox']),
+  targetKinds: new Set(),
+  served: (facts) => facts.dropboxClient,
+  consentUrl: (a) => dropboxConsentUrl({ clientId: a.client.clientId, redirectUri: a.redirectUri, state: a.state }),
+  finish: async (code, redirectUri, client) => {
+    const exchanged = await exchangeDropboxCode({
+      code,
+      clientId: client.clientId,
+      clientSecret: client.clientSecret,
+      redirectUri,
+    });
+    if (!exchanged.ok) return { ok: false, reason: exchanged.reason, said: exchanged.said };
+    const signedInAs = await dropboxSignedInAccount({ accessToken: exchanged.accessToken });
+    return {
+      ok: true,
+      secret: { refreshToken: exchanged.refreshToken },
+      signedInAs,
+      grantedScopes: exchanged.grantedScopes,
+    };
+  },
+};
+
+/** The entries, by id. Cirrux joins with 0174 T5; Apple is a password kind. */
 export const GRANT_PROVIDERS: Readonly<Partial<Record<GrantProviderId, GrantProvider>>> = {
   google: GOOGLE,
   microsoft: MICROSOFT,
+  dropbox: DROPBOX,
 };
 
 /**

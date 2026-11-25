@@ -89,7 +89,17 @@ export function dropboxConsentUrl(p: {
 }
 
 export type DropboxExchangeResult =
-  | { readonly ok: true; readonly refreshToken: string; readonly grantedScopes: ReadonlyArray<string> }
+  | {
+      readonly ok: true;
+      readonly refreshToken: string;
+      readonly grantedScopes: ReadonlyArray<string>;
+      /**
+       * The short-lived access token of the same answer, for one question
+       * only: a grant link's ending asks Dropbox who signed in with it
+       * (`dropboxSignedInAccount`, workplan 0174 §6). Never stored.
+       */
+      readonly accessToken?: string;
+    }
   | {
       readonly ok: false;
       /** For the server log: Dropbox's own words, bounded. Never the secret. */
@@ -212,9 +222,9 @@ export async function exchangeDropboxCode(
       said: DROPBOX_EXCHANGE_FOR_THE_OWNER.refused,
     };
   }
-  let json: { refresh_token?: string; scope?: string };
+  let json: { refresh_token?: string; access_token?: string; scope?: string };
   try {
-    json = JSON.parse(text) as { refresh_token?: string; scope?: string };
+    json = JSON.parse(text) as { refresh_token?: string; access_token?: string; scope?: string };
   } catch {
     return {
       ok: false,
@@ -258,5 +268,57 @@ export async function exchangeDropboxCode(
       said: DROPBOX_EXCHANGE_FOR_THE_OWNER.noRefreshToken,
     };
   }
-  return { ok: true, refreshToken: json.refresh_token, grantedScopes: granted };
+  return {
+    ok: true,
+    refreshToken: json.refresh_token,
+    grantedScopes: granted,
+    ...(typeof json.access_token === 'string' && json.access_token !== '' ? { accessToken: json.access_token } : {}),
+  };
+}
+
+/** Dropbox's own account of the signed-in user (an `account_info.read` route). */
+export const DROPBOX_CURRENT_ACCOUNT_URL = 'https://api.dropboxapi.com/2/users/get_current_account';
+
+/** Who signed in at Dropbox, in the seam's shape (`SignedInAccount`). */
+export interface DropboxSignedIn {
+  readonly address: string;
+  readonly confirmed: boolean;
+}
+
+/**
+ * WHICH DROPBOX ACCOUNT SIGNED IN (workplan 0174 §6, 0171 §3.5).
+ *
+ * A grant link is bound to the account the migration names. Dropbox takes no
+ * login hint, so whoever is signed in to Dropbox in that browser is offered,
+ * and the binding is read after the exchange: `POST
+ * /2/users/get_current_account` with the new access token. Its `email` is the
+ * account's address and `email_verified` whether Dropbox confirmed it; an
+ * address somebody typed at sign-up and never confirmed says nothing about
+ * who controls it, so only a strict `true` counts.
+ *
+ * Null means *nobody vouched*: no access token came back, or Dropbox refused
+ * the token for this route (401/403). The caller stores nothing and the link
+ * stays live. A failure to reach Dropbox at all, or a fault of its own, is
+ * thrown, never turned into null (hard rule 9).
+ */
+export async function dropboxSignedInAccount(
+  p: { readonly accessToken: string | undefined },
+  fetchImpl: typeof fetch = fetch,
+): Promise<DropboxSignedIn | null> {
+  if (!p.accessToken) return null;
+  // An RPC route with no arguments: no body and no Content-Type, as Dropbox
+  // documents it; a JSON body of `null` is the other spelling it accepts.
+  const response = await fetchImpl(DROPBOX_CURRENT_ACCOUNT_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${p.accessToken}` },
+  });
+  if (response.status === 401 || response.status === 403) return null;
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Dropbox answered get_current_account with ${response.status}: ${text.slice(0, 200)}`);
+  }
+  const account = (await response.json()) as Record<string, unknown>;
+  const email = typeof account.email === 'string' ? account.email.trim() : '';
+  if (email === '') return null;
+  return { address: email, confirmed: account.email_verified === true };
 }

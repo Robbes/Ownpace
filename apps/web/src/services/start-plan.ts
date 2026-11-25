@@ -89,17 +89,20 @@ export interface ServedFacts {
 export type GrantLinkProvider = 'google' | 'microsoft' | 'dropbox' | 'apple';
 
 /**
- * Which providers' links this deployment serves, from the provider accounts
- * read: a provider whose account runs on the deployment's own application.
- * Google and Microsoft today; Dropbox and Apple join with their tasks (0171
- * T4, T5).
+ * Which providers' links this deployment serves: a provider whose sign-in runs
+ * on the deployment's own application. Google's and Microsoft's from the
+ * provider accounts read; Dropbox's (workplan 0174 §6) from the provider
+ * clients read, since Dropbox has no account kind and its fact lives there
+ * (`/api/provider-clients`). Apple joins with its task.
  */
 export function grantProvidersServed(
   accounts: Partial<Record<string, { readonly client?: 'deployment' | 'connection' } | undefined>> | undefined,
+  clients?: { readonly dropbox?: 'deployment' | 'connection' } | undefined,
 ): GrantLinkProvider[] {
   const served: GrantLinkProvider[] = [];
   if (accounts?.google?.client === 'deployment') served.push('google');
   if (accounts?.microsoft?.client === 'deployment') served.push('microsoft');
+  if (clients?.dropbox === 'deployment') served.push('dropbox');
   return served;
 }
 
@@ -248,9 +251,10 @@ export function exportMigration(
  * Whether the person a migration is for can connect this card themselves, by
  * a grant link (0108), so the one who starts it never holds their password.
  *
- * Google's cards and, since alpha.20, the Microsoft account have links
- * (workplan 0171), and only through the deployment's own application, since an
- * account saved for somebody else holds none. Through it,
+ * Google's cards, since alpha.20 the Microsoft account (workplan 0171), and
+ * since alpha.21 Dropbox (0174 §6) have links, and only through the
+ * deployment's own application, since an account saved for somebody else
+ * holds none. Through it,
  * mail and files are asked for only where the deployment declared Google's
  * restricted scopes (`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`); the link's own
  * readiness check refuses them otherwise, so they are not offered.
@@ -272,6 +276,9 @@ export function grantableByLink(card: string, served: ServedFacts = {}): boolean
     // with application permissions, which nobody grants by signing in.
     case 'microsoft':
       return providers.includes('microsoft');
+    // Dropbox (workplan 0174 §6): files, its only face, through the one sign-in.
+    case 'dropbox':
+      return providers.includes('dropbox');
     default:
       return false;
   }

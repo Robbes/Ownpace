@@ -130,9 +130,10 @@ function failureSentence(error: unknown, locale: Locale, t: ReturnType<typeof us
 /**
  * THE PAGE IN EACH PROVIDER'S WORDS (workplan 0171 §3.4). Google's are the
  * page as it was; a Microsoft account's link says Microsoft wherever they say
- * Google. Dropbox (T4) and Apple (T5) add their own rows with their tasks; the
- * API offers neither a link until then, and the page would say Google's words
- * for them, so `wordsOf` refuses to guess and falls back only for Google.
+ * Google, and since alpha.21 a Dropbox link says Dropbox (workplan 0174 §6).
+ * Apple adds its own with its task; the API offers it no link until then, and
+ * the page would say Google's words for it, so `wordsOf` refuses to guess and
+ * falls back only for Google.
  */
 interface ProviderWords {
   readonly name: string;
@@ -152,7 +153,7 @@ interface ProviderWords {
   readonly readsFile: StringKey;
 }
 
-const PROVIDER_WORDS: Readonly<Record<'google' | 'microsoft', ProviderWords>> = {
+const PROVIDER_WORDS: Readonly<Record<'google' | 'microsoft' | 'dropbox', ProviderWords>> = {
   google: {
     name: 'Google',
     readOnly: (held) => (held ? 'grant.readOnly' : 'grant.readsOnly'),
@@ -180,12 +181,27 @@ const PROVIDER_WORDS: Readonly<Record<'google' | 'microsoft', ProviderWords>> = 
     connect: 'grant.continue.microsoft',
     readsFile: 'grant.reads.file.microsoft',
   },
+  dropbox: {
+    name: 'Dropbox',
+    // Every scope a Dropbox link asks for reads (`dropboxLinkAsk`), and the
+    // exchange refuses a grant that carries more.
+    readOnly: () => 'grant.readOnly.dropbox',
+    scopeIntro: 'grant.scopeIntro.dropbox',
+    technicalLine: 'grant.scope.technical.line.dropbox',
+    signInAs: 'grant.signInAs.dropbox',
+    connecting: 'grant.connecting.dropbox',
+    withdraw: 'grant.withdraw.dropbox',
+    connectAs: 'grant.continue.dropbox',
+    connectAgainAs: 'grant.connectAgain.dropbox',
+    connect: 'grant.continue.dropbox',
+    readsFile: 'grant.reads.file.dropbox',
+  },
 };
 
 function wordsOf(provider: GrantProvider | undefined): ProviderWords {
   // Absent is Google: an answer from before the seam (the service defaults it
   // when it parses one; a page handed data directly may not have).
-  if (provider === undefined || provider === 'google' || provider === 'microsoft') {
+  if (provider === undefined || provider === 'google' || provider === 'microsoft' || provider === 'dropbox') {
     return PROVIDER_WORDS[provider ?? 'google'];
   }
   throw new Error(`the grant page has no words for ${provider} yet`);

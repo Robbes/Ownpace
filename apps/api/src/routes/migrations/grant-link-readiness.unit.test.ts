@@ -82,8 +82,9 @@ describe('the ways a grant link is dead on arrival', () => {
     // stored kind, which is our word for the row, goes to the log (the
     // owner, 2026-10-14).
     // It names the providers a link can connect (workplan 0171 §3.2).
-    expect(refusal?.reason).toMatch(/sign in with Google or Microsoft, and this migration copies from neither/);
-    expect(refusal?.reason).toMatch(/a Microsoft 365 account can be connected through a link/);
+    // And Dropbox since alpha.21 (workplan 0174 §6).
+    expect(refusal?.reason).toMatch(/sign in with Google, Microsoft or Dropbox, and this migration copies from none of them/);
+    expect(refusal?.reason).toMatch(/a Microsoft 365 account and Dropbox can be connected through a link/);
     expect(refusal?.reason).toMatch(/connected by hand, on the Accounts page/);
     expect(refusal?.reason).not.toContain("'imap'");
     expect(refusal?.operatorDetail).toContain("'imap'");
@@ -392,8 +393,9 @@ describe('the Google kinds a link may be issued for', () => {
     // The ones that transliterate but are not Google: proof the check is
     // membership rather than a string shape. `toString` is on every object.
     // `o365` is a company's own app with application permissions, which no
-    // person grants by signing in; Dropbox joins with T4 (workplan 0171).
-    for (const kind of ['google_photos', 'imap', 'o365', 'jmap', 'dropbox', 'toString']) {
+    // person grants by signing in. Dropbox has its own entry since alpha.21
+    // (workplan 0174 §6), so it is no longer here; its own block is below.
+    for (const kind of ['google_photos', 'imap', 'o365', 'jmap', 'toString']) {
       expect(grantLinkRefusal({ ...READY, sourceKind: kind })?.code).toBe('source_not_grantable');
     }
   });
@@ -554,5 +556,69 @@ describe('the Microsoft account kind, through the same decision (0171 §3.3)', (
     expect(awaitingGrantRefusal({ sourceKind: 'microsoft', hasRefreshToken: true, hasServiceAccountKey: false })).toBeNull();
     // A company's own app is not waited on: it carries its own credential.
     expect(awaitingGrantRefusal({ sourceKind: 'o365', hasRefreshToken: false, hasServiceAccountKey: false })).toBeNull();
+  });
+});
+
+/**
+ * A DROPBOX LINK (workplan 0174 §6): the same order of refusals, each in
+ * Dropbox's words, and the ask it makes when ready.
+ */
+describe('Dropbox, through the same decision (0174 §6)', () => {
+  const DROPBOX: GrantLinkReadiness = {
+    ...READY,
+    sourceKind: 'dropbox',
+    includedDomains: ['file'],
+    hasClientId: false,
+    hasClientSecret: false,
+    hasDeploymentDropboxClient: true,
+  };
+
+  it('asks for the read scopes and the account read, through the deployment’s app, read-only', () => {
+    const ask = askOf(grantLinkAsk(DROPBOX));
+    expect(ask.provider).toBe('dropbox');
+    expect(ask.client).toBe('deployment');
+    expect(ask.domains).toEqual(['file']);
+    expect(ask.scope.split(' ')).toEqual(['account_info.read', 'files.metadata.read', 'files.content.read']);
+    expect(ask.readOnlyAtProvider).toBe(true);
+    expect(grantLinkRefusal(DROPBOX)).toBeNull();
+  });
+
+  it('runs on the connection’s own whole pair where it has one', () => {
+    expect(askOf(grantLinkAsk({ ...DROPBOX, hasClientId: true, hasClientSecret: true })).client).toBe('connection');
+  });
+
+  it('refuses a migration that names no account, in Dropbox’s name', () => {
+    const refusal = grantLinkRefusal({ ...DROPBOX, hasNamedAccount: false });
+    expect(refusal?.code).toBe('no_named_account');
+    expect(refusal?.reason).toMatch(/only accepted from the Dropbox account this migration reads/);
+  });
+
+  it('refuses one that copies no files', () => {
+    expect(grantLinkRefusal({ ...DROPBOX, includedDomains: [] })?.code).toBe('nothing_to_ask');
+    expect(grantLinkRefusal({ ...DROPBOX, includedDomains: ['email'] })?.code).toBe('nothing_to_ask');
+  });
+
+  it('refuses half a pair in Dropbox’s own field names, never completing it with the deployment’s', () => {
+    const refusal = grantLinkRefusal({ ...DROPBOX, hasClientId: true });
+    expect(refusal?.code).toBe('client_not_configured');
+    expect(refusal?.reason).toMatch(/your own Dropbox app, and it has no App secret saved/);
+  });
+
+  it('refuses where there is no Dropbox app at all; Google’s and Microsoft’s do not count', () => {
+    const refusal = grantLinkRefusal({
+      ...DROPBOX,
+      hasDeploymentDropboxClient: false,
+      hasDeploymentClient: true,
+      hasDeploymentMicrosoftClient: true,
+    });
+    expect(refusal?.code).toBe('client_not_configured');
+    expect(refusal?.reason).toMatch(/needs a Dropbox app to sign in through/);
+    expect(refusal?.operatorDetail).toContain('DROPBOX_OAUTH_CLIENT_ID');
+  });
+
+  it('holds Start until somebody has connected the Dropbox, in its own words', () => {
+    const waiting = awaitingGrantRefusal({ sourceKind: 'dropbox', hasRefreshToken: false, hasServiceAccountKey: false });
+    expect(waiting).toMatch(/nobody has connected its Dropbox/);
+    expect(awaitingGrantRefusal({ sourceKind: 'dropbox', hasRefreshToken: true, hasServiceAccountKey: false })).toBeNull();
   });
 });

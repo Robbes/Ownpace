@@ -22,9 +22,11 @@ import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
+  dropboxDeploymentClient,
   googleDeploymentClient,
   microsoftDeploymentClient,
   readTenantContactPhone,
+  type DropboxClientEnv,
   type GoogleClientEnv,
   type MicrosoftClientEnv,
 } from '@openmig/shared';
@@ -190,10 +192,12 @@ export function credential(creds: Record<string, unknown>, key: string): string 
 
 /**
  * The variables this reads, and nothing else from the environment: Google's
- * client and scope class, and since workplan 0171 Microsoft's application.
+ * client and scope class, since workplan 0171 Microsoft's application, and
+ * since 0174 Dropbox's app.
  */
 export type GrantEnv = GoogleClientEnv &
-  MicrosoftClientEnv & { readonly GOOGLE_ACCOUNT_SCOPE_CLASS?: string | undefined };
+  MicrosoftClientEnv &
+  DropboxClientEnv & { readonly GOOGLE_ACCOUNT_SCOPE_CLASS?: string | undefined };
 
 /**
  * The rows, reduced to what `grantLinkAsk` takes. The credentials are decrypted
@@ -206,6 +210,7 @@ export function grantReadiness(
   const deployment = {
     hasDeploymentClient: googleDeploymentClient(env) !== null,
     hasDeploymentMicrosoftClient: microsoftDeploymentClient(env) !== null,
+    hasDeploymentDropboxClient: dropboxDeploymentClient(env) !== null,
     scopeClass: env.GOOGLE_ACCOUNT_SCOPE_CLASS,
   };
   if (!rows) {
