@@ -28,8 +28,16 @@ in a minute."*, in English and Dutch from one text. Applied to Google's token ex
 data type, Microsoft's exchange and data types, Dropbox, the Test's headline for every provider's
 published service, and the finish checks' receiving addresses and Graph's access check. Proved by
 `a-sign-in-saved-for-a-person` (5), `a-provider-error-page-read-aloud` (10), two page tests and
-six reworded assertions, all 23 shown failing on `main`'s code. Not proved here: a real person's
-sign-in measured on the test environment, and a real Google 5xx.
+six reworded assertions, all 23 shown failing on `main`'s code. (3) A second Test that evening
+said *"Files: … the face did not answer: fetch failed"*: undici's word for a request that got no
+answer, read as a refusal. Nothing answering is now `temporary` too, *"… could not be reached just
+now (the connection was cut off). Test again in a minute."*, the reason read from the network's
+code under `fetch failed` and said in words, never the code; a certificate or a refusal of ours
+under it keeps its own sentence. Applied to every data type, both token exchanges and the Test's
+headline (`providerTemporary`, with no status). Proved by 18 more cases in `provider-answer` and
+`a-provider-error-page-read-aloud`, shown failing on the branch's code before, and a page test in
+Dutch. Not proved here: a real person's sign-in measured on the test environment, a real Google
+5xx, and a real network failure.
 
 **2026-11-25, T1 to T6 merged as #2167** (`574d35fb`), which replaced #2164: #2164's tree at
 `e0acb093` rebuilt on `main` as one commit, because gitleaks read a placeholder that one of its

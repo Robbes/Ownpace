@@ -9,7 +9,20 @@
 
 import { describe, expect, it } from 'vitest';
 import { RemoteRefusal } from './remote-refusal.ts';
-import { plainFailureText, providerAnswerFromError, providerAnswerFromResponse, withoutABody } from './provider-answer.ts';
+import {
+  isTemporaryFailure,
+  plainFailureText,
+  providerAnswerFromError,
+  providerAnswerFromResponse,
+  withoutABody,
+  type NoAnswerCause,
+} from './provider-answer.ts';
+
+/** undici's shape: a `TypeError` *fetch failed*, with the network's code on its cause. */
+function fetchFailed(code?: string): TypeError {
+  const err = new TypeError('fetch failed');
+  return code === undefined ? err : Object.assign(err, { cause: Object.assign(new Error(`connect ${code}`), { code }) });
+}
 
 describe('providerAnswerFromError, by the connectors’ shapes', () => {
   it.each([
@@ -42,6 +55,43 @@ describe('providerAnswerFromError, by the connectors’ shapes', () => {
   });
 });
 
+describe('nothing answered at all: the network (the managed test environment, 2026-11-25)', () => {
+  it.each([
+    ['ECONNRESET', 'cut'],
+    ['UND_ERR_SOCKET', 'cut'],
+    ['ECONNREFUSED', 'refused'],
+    ['ETIMEDOUT', 'timedOut'],
+    ['UND_ERR_CONNECT_TIMEOUT', 'timedOut'],
+    ['UND_ERR_HEADERS_TIMEOUT', 'timedOut'],
+    ['ENOTFOUND', 'notFound'],
+    ['EAI_AGAIN', 'notFound'],
+    ['ENETUNREACH', 'noRoute'],
+  ])('fetch failed with %s under it', (code, cause) => {
+    expect(providerAnswerFromError(fetchFailed(code), 'Google')).toEqual({ kind: 'unreachable', provider: 'Google', cause });
+  });
+
+  it('reads a code on the error itself, and AbortSignal.timeout’s TimeoutError', () => {
+    const reset = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
+    expect(providerAnswerFromError(reset, 'Microsoft')).toEqual({ kind: 'unreachable', provider: 'Microsoft', cause: 'cut' });
+    const late = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    expect(providerAnswerFromError(late, 'Dropbox')).toEqual({ kind: 'unreachable', provider: 'Dropbox', cause: 'timedOut' });
+  });
+
+  it('a bare fetch failed, with nothing under it, is the network with no cause', () => {
+    expect(providerAnswerFromError(fetchFailed(), 'Google')).toEqual({ kind: 'unreachable', provider: 'Google' });
+  });
+
+  it('a certificate or a refusal of ours under fetch failed is not the network', () => {
+    expect(providerAnswerFromError(fetchFailed('CERT_HAS_EXPIRED'), 'Google')).toBeUndefined();
+    expect(providerAnswerFromError(fetchFailed('host_inside_our_network'), 'Google')).toBeUndefined();
+  });
+
+  it('is temporary, as a 5xx is', () => {
+    expect(isTemporaryFailure({ kind: 'unreachable', provider: 'Google' })).toBe(true);
+    expect(isTemporaryFailure({ kind: 'answered', provider: 'Google', status: 403 })).toBe(false);
+  });
+});
+
 describe('the sentences, both languages', () => {
   it('a 5xx or 429 is temporary, with no words', () => {
     expect(plainFailureText(providerAnswerFromResponse('Google', 503, '<html>x</html>'))).toEqual({
@@ -55,6 +105,26 @@ describe('the sentences, both languages', () => {
       en: 'Dropbox answered 401: the sign-in was not accepted.',
       nl: 'Dropbox antwoordde 401: de aanmelding is niet aanvaard.',
     });
+  });
+
+  it('nothing answered says why in plain words, and to test again', () => {
+    expect(plainFailureText({ kind: 'unreachable', provider: 'Google', cause: 'cut' })).toEqual({
+      en: 'Google could not be reached just now (the connection was cut off). Test again in a minute.',
+      nl: 'Google was zojuist niet bereikbaar (de verbinding werd verbroken). Test over een minuut opnieuw.',
+    });
+    expect(plainFailureText({ kind: 'unreachable', provider: 'Google' })).toEqual({
+      en: 'Google could not be reached just now. Test again in a minute.',
+      nl: 'Google was zojuist niet bereikbaar. Test over een minuut opnieuw.',
+    });
+  });
+
+  it('every reason nothing answered has words in both languages, never the code', () => {
+    const causes: NoAnswerCause[] = ['cut', 'refused', 'timedOut', 'notFound', 'noRoute'];
+    for (const cause of causes) {
+      const text = plainFailureText({ kind: 'unreachable', provider: 'P', cause });
+      expect(text.en).toMatch(/^P could not be reached just now \([a-z][a-z ]+\)\. Test again in a minute\.$/);
+      expect(text.nl).toMatch(/^P was zojuist niet bereikbaar \([a-z][a-z ]+\)\. Test over een minuut opnieuw\.$/);
+    }
   });
 
   it('caps a body that is not one', () => {

@@ -119,9 +119,11 @@ export type ProbeOutcome =
    */
   | { readonly code: 'waitingForPerson'; readonly person: string }
   /**
-   * The provider answered with a temporary error: a 5xx, or 429 (too many
-   * requests). Ours, with the status as data and nothing of the body
-   * (2026-11-25: a Google 502 page was printed whole on the Accounts page).
-   * UNKNOWN, never a refusal: the account may be fine; test again in a minute.
+   * The provider had a temporary error: a 5xx, or 429 (too many requests),
+   * with the status as data; or nothing answered from it just now (the
+   * connection was cut off, refused or timed out), with no status. Ours, and
+   * nothing of the body (2026-11-25: a Google 502 page was printed whole on
+   * the Accounts page, and a second Test said only *fetch failed*). UNKNOWN,
+   * never a refusal: the account may be fine; test again in a minute.
    */
-  | { readonly code: 'providerTemporary'; readonly status: number };
+  | { readonly code: 'providerTemporary'; readonly status?: number };

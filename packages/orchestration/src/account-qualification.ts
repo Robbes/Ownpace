@@ -159,8 +159,9 @@ export interface QualifiedDomain {
 
 /**
  * A face that was asked and did not answer, said plainly (2026-11-25): from
- * what the provider answered when it answered with a status (5xx and 429 are
- * `temporary`), else from the failure's own message with no body in it.
+ * what the provider answered when it answered with a status, or that nothing
+ * answered at all (5xx, 429 and the network are `temporary`), else from the
+ * failure's own message with no body in it.
  */
 export function unansweredFace(err: unknown, provider: string): QualifiedDomain {
   const plain = providerAnswerFromError(err, provider);
@@ -1632,6 +1633,9 @@ export async function readGoogleGrant(
     }
     return { ok: true, granted: new Set((token.scope ?? '').split(' ').filter(Boolean)) };
   } catch (err) {
+    // Nothing answered (the network) is temporary, said plainly (2026-11-25).
+    const plain = providerAnswerFromError(err, 'Google');
+    if (plain) return { ok: false, reason: plainFailureText(plain).en, plain };
     return {
       ok: false,
       reason: `Unmeasured — the token exchange failed: ${withoutABody(err instanceof Error ? err.message : String(err))}`,

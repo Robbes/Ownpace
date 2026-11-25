@@ -299,9 +299,12 @@ function providerAnswered(plain: PlainFailure): ProbeResult {
   return {
     ok: false,
     reason: plainFailureText(plain).en,
-    outcome: isTemporaryFailure(plain) && plain.kind === 'answered'
-      ? { code: 'providerTemporary', status: plain.status }
-      : { code: 'providerRefused' },
+    outcome: !isTemporaryFailure(plain)
+      ? { code: 'providerRefused' }
+      : plain.kind === 'answered'
+        ? { code: 'providerTemporary', status: plain.status }
+        // Nothing answered at all (the network): temporary, with no status.
+        : { code: 'providerTemporary' },
     plain,
   };
 }

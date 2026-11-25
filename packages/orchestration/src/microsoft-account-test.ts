@@ -47,7 +47,15 @@ import {
   microsoftTokenEndpoint,
   withDeploymentMicrosoftClient,
 } from '@openmig/shared';
-import { isTemporaryFailure, log, missingCredentials, plainFailureText, providerAnswerFromResponse, shownFields } from '@openmig/shared';
+import {
+  isTemporaryFailure,
+  log,
+  missingCredentials,
+  plainFailureText,
+  providerAnswerFromError,
+  providerAnswerFromResponse,
+  shownFields,
+} from '@openmig/shared';
 import type { BilingualRefusal, DiscoveryDomain, PlainFailure, ProbeUnit, SourceConfig } from '@openmig/shared';
 import {
   buildCalendarSourceFromConnection,
@@ -187,6 +195,9 @@ export async function readMicrosoftGrant(
       body: body.toString(),
     });
   } catch (err) {
+    // Nothing answered (the network) is temporary, said plainly (2026-11-25).
+    const plain = providerAnswerFromError(err, 'Microsoft');
+    if (plain) return { ok: false, reason: plainFailureText(plain).en, plain };
     return { ok: false, reason: `the token exchange failed: ${err instanceof Error ? err.message : String(err)}` };
   }
   if (!response.ok) {

@@ -179,6 +179,82 @@ describe('Dropbox', () => {
   });
 });
 
+describe('nothing answered at all (the managed test environment, the same evening)', () => {
+  // A second Test of a Google account said *"Files: … the face did not
+  // answer: fetch failed"*: undici's word for a request that got no answer,
+  // read as a refusal. The network's code is on its cause.
+  const fetchFailed = () =>
+    Object.assign(new TypeError('fetch failed'), {
+      cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+    });
+  const CUT_OFF = 'Google could not be reached just now (the connection was cut off). Test again in a minute.';
+
+  it('a data type whose request got no answer is temporary, said plainly, never “fetch failed”', async () => {
+    vi.stubGlobal('fetch', answering(200, '', { access_token: 'at', scope: ALL_SCOPES }));
+    const q = await qualifyGoogleGrant('google', GOOGLE_CREDS, {
+      tokenEndpoint: 'https://token.example.invalid',
+      reach: {
+        user: 'family@example.invalid',
+        listable: (domain: string) => ({
+          listFolders: async () => {
+            if (domain === 'file') throw fetchFailed();
+            return [{}];
+          },
+        }),
+      },
+    });
+    expect(q!.domains.file).toEqual({
+      answer: 'unknown',
+      reason: 'temporary',
+      detail: CUT_OFF,
+      plain: { kind: 'unreachable', provider: 'Google', cause: 'cut' },
+    });
+    expectPlain(q!.domains.file.detail);
+    expect(q!.domains.file.detail).not.toMatch(/fetch failed/);
+    expect(q!.domains.contact.answer).toBe('yes');
+  });
+
+  it('a token exchange that got no answer leaves every data type temporary', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(fetchFailed())));
+    const q = await qualifyGoogleGrant('google', GOOGLE_CREDS, { tokenEndpoint: 'https://token.example.invalid' });
+    for (const face of everyFace(q)) {
+      expect(face).toMatchObject({ answer: 'unknown', reason: 'temporary', detail: CUT_OFF });
+      expectPlain(face.detail);
+    }
+  });
+
+  it('Microsoft’s token exchange too, with no cause when undici gave none', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('fetch failed'))));
+    const pair = { clientId: 'app', clientSecret: 'placeholder', refreshToken: 'placeholder-token' };
+    const q = await qualifyMicrosoftAccount('microsoft', {}, pair, { tokenEndpoint: 'https://token.example.invalid' });
+    for (const face of everyFace(q)) {
+      expect(face).toMatchObject({
+        reason: 'temporary',
+        detail: 'Microsoft could not be reached just now. Test again in a minute.',
+      });
+    }
+  });
+
+  it('the Test’s headline is temporary, with no status', async () => {
+    vi.stubGlobal('fetch', answering(200, '', { access_token: 'at', scope: ALL_SCOPES }));
+    const r = await probeSourceConnection('google', { user: 'family@example.invalid' }, GOOGLE_CREDS, {
+      googleTokenEndpoint: 'https://token.example.invalid',
+      googleFaceSource: () => ({
+        listFolders: async () => {
+          throw fetchFailed();
+        },
+      }),
+    });
+    expect(r).toMatchObject({
+      ok: false,
+      reason: CUT_OFF,
+      outcome: { code: 'providerTemporary' },
+      plain: { kind: 'unreachable', provider: 'Google', cause: 'cut' },
+    });
+    expect(r.ok === false && r.outcome).toEqual({ code: 'providerTemporary' });
+  });
+});
+
 describe('the Test’s headline', () => {
   it('a Google 502 page is a temporary error at Google, with its status as data and no page', async () => {
     vi.stubGlobal('fetch', answering(200, '', { access_token: 'at', scope: ALL_SCOPES }));

@@ -157,8 +157,9 @@ export const QUALIFICATION_REASONS = [
   'refused',
   /**
    * We asked and the provider had a temporary error: a 5xx, or 429 (too many
-   * requests). Not a refusal: the account may be fine, and the sentence says
-   * to test again in a minute (2026-11-25, a Google 502 read as a refusal).
+   * requests), or nothing answered from it just now (the network). Not a
+   * refusal: the account may be fine, and the sentence says to test again in
+   * a minute (2026-11-25, a Google 502 and a `fetch failed` read as refusals).
    */
   'temporary',
 ] as const;

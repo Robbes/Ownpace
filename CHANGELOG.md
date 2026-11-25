@@ -145,8 +145,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   with an error, the Test, the Accounts page and the finish checks now say the status and a short
   plain reason, or the provider's own error words when they come as an error document we know;
   never the body, and capped. A 5xx or 429 reads *Google had a temporary error (502). Test again
-  in a minute.*, and is recorded as temporary, not as a refusal. The data type is named by its
-  name, and *clientId/refreshToken* no longer appears in a sentence anyone reads.
+  in a minute.*, and is recorded as temporary, not as a refusal. A request that got no answer at
+  all, which a second Test the same evening showed only as *fetch failed*, reads *Google could not
+  be reached just now (the connection was cut off). Test again in a minute.*, the reason in plain
+  words and never the network's code, and is temporary too. The data type is named by its name,
+  and *clientId/refreshToken* no longer appears in a sentence anyone reads.
   **Nederlands:** een Google-, Microsoft- of Dropbox-account dat voor iemand anders is opgeslagen,
   heet niet meer kapot. Zo'n account wordt alleen met het adres opgeslagen: de aanmelding via de
   toegangslink komt op de migraties van die persoon te staan, niet op het account. De pagina
@@ -154,7 +157,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   dat gebeurd is *{persoon} heeft dit account zelf verbonden*, zonder foutteken; Test meet het
   account dan met die aanmelding. En een foutpagina van een aanbieder staat niet meer op het
   scherm: u leest de status en een korte reden, en bij een 5xx of 429 *Google had een tijdelijke
-  fout (502). Test over een minuut opnieuw.*
+  fout (502). Test over een minuut opnieuw.* Kwam er helemaal geen antwoord, dan leest u *Google
+  was zojuist niet bereikbaar (de verbinding werd verbroken). Test over een minuut opnieuw.*
 
 ## [0.2.0-alpha.20] - 2026-11-25
 

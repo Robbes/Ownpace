@@ -302,6 +302,52 @@ describe('the connections screen', () => {
     }
   });
 
+  it('says in Dutch that a provider could not be reached, on the card and in the Test (2026-11-25)', async () => {
+    // The owner's second Test that evening: *"Files: … fetch failed"*.
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const unreachable = {
+      answer: 'unknown' as const,
+      reason: 'temporary',
+      detail: 'Google could not be reached just now (the connection was cut off). Test again in a minute.',
+      plain: { kind: 'unreachable' as const, provider: 'Google', cause: 'cut' as const },
+    };
+    const yes = { answer: 'yes' as const, detail: 'Read.' };
+    try {
+      list.mockResolvedValue([
+        conn({
+          kind: 'google',
+          displayName: 'Mine · Google',
+          qualification: { domains: { mail: yes, calendar: yes, contact: yes, file: unreachable, task: yes } },
+        }),
+      ]);
+      testConnection.mockResolvedValue({
+        ok: false,
+        reason: 'Google could not be reached just now. Test again in a minute.',
+        outcome: { code: 'providerTemporary' },
+        plain: { kind: 'unreachable', provider: 'Google' },
+      });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={client}>
+          <LocaleProvider>
+            <MemoryRouter>
+              <Connections />
+            </MemoryRouter>
+          </LocaleProvider>
+        </QueryClientProvider>,
+      );
+      const card = (await screen.findByText('Mine · Google')).closest('li') as HTMLElement;
+      expect(
+        within(card).getByText('Bestanden: Google was zojuist niet bereikbaar (de verbinding werd verbroken). Test over een minuut opnieuw.'),
+      ).toBeTruthy();
+      fireEvent.click(within(card).getByRole('button', { name: STRINGS.nl['connections.test'] }));
+      expect(await within(card).findByText(/^Google was zojuist niet bereikbaar\. Test over een minuut opnieuw\.$/)).toBeTruthy();
+      expect(card.textContent).not.toMatch(/fetch failed|could not be reached/);
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
   it('offers no new password on a row a person types it for, or typed it on themselves (0174 §4.3, §8.2, D6)', async () => {
     list.mockResolvedValue([
       conn({ id: 'c-waits', kind: 'soverin', role: 'target', displayName: 'Anna · Soverin', status: 'error', waitingFor: { personId: 'p-anna', name: 'Anna' } }),

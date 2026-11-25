@@ -19,18 +19,25 @@
  *   we know (`providerErrorWords`), or as the short line a connector already
  *   reduced a body to; never markup, never a JSON body, and capped;
  * - 5xx and 429 are a TEMPORARY error at the provider, with *test again in a
- *   minute*, and the qualification calls them `temporary`, not `refused`.
+ *   minute*, and the qualification calls them `temporary`, not `refused`;
+ * - and NOTHING ANSWERING AT ALL is temporary too (the same evening: a second
+ *   Test said *"Files: … the face did not answer: fetch failed"*). undici's
+ *   `fetch failed` carries the network's code on its `cause`, and a person
+ *   reads what it means (*the connection was cut off*), never the code.
  *
  * Both languages are here, so the API's English and the screen's are one text
  * (`a-sentence-the-screen-and-the-api-word-apart`'s lesson, by construction).
  * The full message is unchanged for the operator's log and the ledger.
  */
 
-import { PROVIDER_WORDS_CAP, RemoteRefusal, providerErrorWords } from './remote-refusal.ts';
+import { PROVIDER_WORDS_CAP, RemoteRefusal, providerErrorWords, whatHappened } from './remote-refusal.ts';
 import type { Bilingual } from './link-holder-refusals.ts';
 
 /** The longest the provider's own words may be in a sentence a person reads. */
 export const PROVIDER_ANSWER_WORDS_CAP = PROVIDER_WORDS_CAP;
+
+/** Why nothing answered, as a person is told it: the network's codes, read (`NO_ANSWER`). */
+export type NoAnswerCause = 'cut' | 'refused' | 'timedOut' | 'notFound' | 'noRoute';
 
 /** What a provider answered, in parts a sentence may be built from. */
 export type PlainFailure =
@@ -43,15 +50,23 @@ export type PlainFailure =
       readonly words?: string;
     }
   /** The account holds no sign-in from this provider yet (the row's, or a migration's). */
-  | { readonly kind: 'noSignIn'; readonly provider: string };
+  | { readonly kind: 'noSignIn'; readonly provider: string }
+  /**
+   * Nothing answered from the provider just now: the connection was cut off,
+   * refused or timed out, or its address could not be looked up. Temporary,
+   * like a 5xx: the account may be fine. `cause` is absent when undici said
+   * only `fetch failed`, with no code under it.
+   */
+  | { readonly kind: 'unreachable'; readonly provider: string; readonly cause?: NoAnswerCause };
 
 /** 5xx and 429: a temporary error at the provider, not a refusal. */
 export function isTemporaryStatus(status: number): boolean {
   return status === 429 || (status >= 500 && status <= 599);
 }
 
-/** Whether a failure is a temporary one at the provider. */
+/** Whether a failure is a temporary one at the provider: a 5xx or 429, or no answer at all. */
 export function isTemporaryFailure(failure: PlainFailure | undefined): boolean {
+  if (failure?.kind === 'unreachable') return true;
   return failure?.kind === 'answered' && isTemporaryStatus(failure.status);
 }
 
@@ -88,6 +103,47 @@ function isAStatus(n: unknown): n is number {
   return typeof n === 'number' && Number.isInteger(n) && n >= 400 && n <= 599;
 }
 
+/**
+ * Node's and undici's codes for a network that did not answer, by what a
+ * person is told: the codes `whatHappened` reads as `unreachable` for an
+ * address a tester typed, and `throttling.ts` retries, with two more that
+ * undici and Node give a connection closed under a request.
+ */
+const NO_ANSWER: ReadonlyMap<string, NoAnswerCause> = new Map<string, NoAnswerCause>([
+  ['ECONNRESET', 'cut'],
+  ['EPIPE', 'cut'],
+  ['ECONNABORTED', 'cut'],
+  ['UND_ERR_SOCKET', 'cut'],
+  ['UND_ERR_CLOSED', 'cut'],
+  ['ECONNREFUSED', 'refused'],
+  ['ETIMEDOUT', 'timedOut'],
+  ['UND_ERR_CONNECT_TIMEOUT', 'timedOut'],
+  ['UND_ERR_HEADERS_TIMEOUT', 'timedOut'],
+  ['UND_ERR_BODY_TIMEOUT', 'timedOut'],
+  ['ENOTFOUND', 'notFound'],
+  ['EAI_AGAIN', 'notFound'],
+  ['EHOSTUNREACH', 'noRoute'],
+  ['ENETUNREACH', 'noRoute'],
+]);
+
+/** Why nothing answered, from the codes on the error and the causes under it. */
+function noAnswerCause(links: readonly unknown[]): NoAnswerCause | undefined {
+  for (const e of links) {
+    if (typeof e !== 'object' || e === null) continue;
+    const code = (e as { code?: unknown }).code;
+    const cause = typeof code === 'string' ? NO_ANSWER.get(code) : undefined;
+    if (cause !== undefined) return cause;
+    // `AbortSignal.timeout`'s DOMException, which carries a name and no code.
+    if ((e as { name?: unknown }).name === 'TimeoutError') return 'timedOut';
+  }
+  return undefined;
+}
+
+/** undici's `fetch failed`: the `TypeError` fetch wraps every request that got no answer in. */
+function isFetchFailed(e: unknown): boolean {
+  return e instanceof Error && e.name === 'TypeError' && e.message === 'fetch failed';
+}
+
 /** The error and the causes under it, a few levels deep. */
 function chain(err: unknown): unknown[] {
   const all: unknown[] = [];
@@ -100,8 +156,10 @@ function chain(err: unknown): unknown[] {
 }
 
 /**
- * What a provider answered, read from a failure, or `undefined` when the
- * failure carries no HTTP status (a socket error, a refusal of ours).
+ * What a provider answered, read from a failure: its status, or that nothing
+ * answered at all (the network). `undefined` for anything else: a certificate
+ * that did not verify, or a refusal of ours, each of which says its own
+ * sentence.
  */
 export function providerAnswerFromError(err: unknown, provider: string): PlainFailure | undefined {
   const links = chain(err);
@@ -130,6 +188,12 @@ export function providerAnswerFromError(err: unknown, provider: string): PlainFa
     const words = rest === '' ? undefined : wordsFrom(rest);
     return { kind: 'answered', provider, status: Number(m[1]), ...(words === undefined ? {} : { words }) };
   }
+  // NOTHING ANSWERED (2026-11-25): no status anywhere, and the network's code
+  // says why; or undici's bare `fetch failed` with nothing under it that is a
+  // certificate, an answer, or a refusal of ours.
+  const cause = noAnswerCause(links);
+  if (cause !== undefined) return { kind: 'unreachable', provider, cause };
+  if (links.some(isFetchFailed) && whatHappened(err).kind === 'unknown') return { kind: 'unreachable', provider };
   return undefined;
 }
 
@@ -155,6 +219,15 @@ function statusReason(status: number): Bilingual {
   }
 }
 
+/** What a person reads for each reason nothing answered. */
+const NO_ANSWER_WORDS: Readonly<Record<NoAnswerCause, Bilingual>> = {
+  cut: { en: 'the connection was cut off', nl: 'de verbinding werd verbroken' },
+  refused: { en: 'the connection was refused', nl: 'de verbinding werd geweigerd' },
+  timedOut: { en: 'no answer came in time', nl: 'er kwam niet op tijd antwoord' },
+  notFound: { en: 'its address could not be looked up', nl: 'het adres kon niet worden opgezocht' },
+  noRoute: { en: 'there was no network route to it', nl: 'er was geen netwerkroute naartoe' },
+};
+
 function stopped(sentence: string): string {
   return /[.!?…]$/.test(sentence) ? sentence : `${sentence}.`;
 }
@@ -170,6 +243,14 @@ export function plainFailureText(failure: PlainFailure): Bilingual {
       nl:
         `Dit account heeft nog geen aanmelding bij ${p}, dus er is niets gemeten. Verbind het met ` +
         `${p}, of stuur een toegangslink naar de persoon van wie het account is.`,
+    };
+  }
+  if (failure.kind === 'unreachable') {
+    const p = failure.provider;
+    const why = failure.cause === undefined ? undefined : NO_ANSWER_WORDS[failure.cause];
+    return {
+      en: `${p} could not be reached just now${why === undefined ? '' : ` (${why.en})`}. Test again in a minute.`,
+      nl: `${p} was zojuist niet bereikbaar${why === undefined ? '' : ` (${why.nl})`}. Test over een minuut opnieuw.`,
     };
   }
   const { provider: p, status } = failure;
@@ -191,8 +272,8 @@ export function plainFailureText(failure: PlainFailure): Bilingual {
 
 /**
  * A failure's message with no body in it, for a sentence that has no status
- * to be said from (a socket error, a refusal of ours): cut where markup or a
- * JSON document begins, and capped.
+ * to be said from and is not the network (a refusal of ours, a certificate):
+ * cut where markup or a JSON document begins, and capped.
  */
 export function withoutABody(message: string): string {
   const at = message.search(/<\s*[!?a-z]|\{\s*"/i);
