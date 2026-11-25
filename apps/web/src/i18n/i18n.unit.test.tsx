@@ -15,7 +15,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { STRINGS, LOCALES } from './strings.ts';
-import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
+import { DELETE_BY_HAND_WARNING, DELETE_BY_HAND_WARNING_NL } from '@openmig/shared';
 import { LocaleProvider, useLocale, detectLocale } from './index.tsx';
 import { ReceiptStatus } from '../components/queues/primitives.tsx';
 
@@ -65,8 +65,8 @@ describe('the dictionary', () => {
   });
 
   it('the shared destructive-path warning exists in both languages and they differ', () => {
-    expect(APPLY_FLAG_WARNING_NL.trim()).not.toBe('');
-    expect(APPLY_FLAG_WARNING_NL).not.toBe(APPLY_FLAG_WARNING);
+    expect(DELETE_BY_HAND_WARNING_NL.trim()).not.toBe('');
+    expect(DELETE_BY_HAND_WARNING_NL).not.toBe(DELETE_BY_HAND_WARNING);
   });
 });
 

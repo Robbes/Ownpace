@@ -494,14 +494,17 @@ export async function fetchApplyDeletionsFlag(mappingId: string): Promise<ApplyD
 }
 
 /**
- * Flip gate 1 (managed only; owner role — the server enforces both).
+ * Turn the automatic removal of moved files' old copies on or off (managed
+ * only; owner role — the server enforces both). Deleting by hand has no switch
+ * since alpha.21 (ADR-0024, 2026-11-25), and the server refuses
+ * `allowApplyDeletions` by name.
  *
  * The appliance answers 405 here on purpose: its flag is config-file-owned,
  * and the panel never offers this call there (`source: 'config'`).
  */
 export async function setApplyDeletionsFlag(
   mappingId: string,
-  flags: { allowApplyDeletions?: boolean; autoApplyRelocations?: boolean },
+  flags: { autoApplyRelocations: boolean },
 ): Promise<ApplyDeletionsFlag> {
   try {
     return (

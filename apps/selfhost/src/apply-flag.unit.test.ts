@@ -8,9 +8,15 @@
  * `PATCH` answers 405 naming the file — an honest refusal, not a 404 that
  * sends somebody hunting for a different URL. Same real-appliance-on-PGlite
  * harness as verify-async.unit.test.ts.
+ *
+ * SINCE ALPHA.21 IT CARRIES ONE FLAG, `autoApplyRelocations` (ADR-0031).
+ * Deleting by hand has no switch (ADR-0024, 2026-11-25; workplan 0173): a file
+ * that still says `allowApplyDeletions` loads, the answer no longer names it,
+ * and a file that says `false` is told once, at start, that it turns nothing
+ * off.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -42,6 +48,10 @@ afterAll(() => {
 
 const MAPPING_ON = '22222222-2222-4222-8222-2222222222aa';
 const MAPPING_OFF = '22222222-2222-4222-8222-2222222222bb';
+const MAPPING_ABSENT = '22222222-2222-4222-8222-2222222222cc';
+
+/** What the appliance warned at start, as printed. */
+const warned: string[] = [];
 
 let handle: SelfhostHandle;
 let base: string;
@@ -78,17 +88,24 @@ beforeAll(async () => {
   delete process.env.OPENMIG_TEST_NOPE;
   const configDir = tempDir('ownpace-applyflag-cfg-');
   writeFileSync(join(configDir, 'mapping-on.json'), mappingJson(MAPPING_ON, true));
-  // The OFF mapping omits the field entirely: absent must read as off — a
-  // capability that destroys data is opted INTO, never defaulted on.
-  writeFileSync(join(configDir, 'mapping-off.json'), mappingJson(MAPPING_OFF));
+  // A file from before alpha.21 that turned deleting by hand off on purpose.
+  writeFileSync(join(configDir, 'mapping-off.json'), mappingJson(MAPPING_OFF, false));
+  writeFileSync(join(configDir, 'mapping-absent.json'), mappingJson(MAPPING_ABSENT));
 
-  handle = await start({
-    persistence: 'pglite',
-    pgliteDataDir: tempDir('ownpace-applyflag-db-'),
-    configDir,
-    port: 0,
-    host: '127.0.0.1',
+  const spy = vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+    warned.push(args.map(String).join(' '));
   });
+  try {
+    handle = await start({
+      persistence: 'pglite',
+      pgliteDataDir: tempDir('ownpace-applyflag-db-'),
+      configDir,
+      port: 0,
+      host: '127.0.0.1',
+    });
+  } finally {
+    spy.mockRestore();
+  }
   base = `http://127.0.0.1:${handle.port}`;
 }, 120_000);
 
@@ -96,17 +113,22 @@ afterAll(async () => {
   await handle?.stop();
 });
 
-describe('GET /mappings/{id}/apply-deletions', () => {
-  it('reports an opted-in mapping as on, config-owned', async () => {
-    const res = await fetch(`${base}/mappings/${MAPPING_ON}/apply-deletions`);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ allowApplyDeletions: true, autoApplyRelocations: false, source: 'config' });
+describe('a file that still says allowApplyDeletions (no switch since alpha.21)', () => {
+  it('loads, and a file saying false is warned about exactly once, at start', () => {
+    const aboutTheKey = warned.filter((w) => w.includes('allowApplyDeletions'));
+    expect(aboutTheKey).toHaveLength(1);
+    expect(aboutTheKey[0]).toMatch(/no longer turns deleting by hand off/);
+    expect(aboutTheKey[0]).toContain(MAPPING_OFF);
   });
+});
 
-  it('reports an absent flag as OFF — the default is the safe direction', async () => {
-    const res = await fetch(`${base}/mappings/${MAPPING_OFF}/apply-deletions`);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'config' });
+describe('GET /mappings/{id}/apply-deletions', () => {
+  it('answers the automatic-removal flag only, whatever the file says about deleting by hand', async () => {
+    for (const id of [MAPPING_ON, MAPPING_OFF, MAPPING_ABSENT]) {
+      const res = await fetch(`${base}/mappings/${id}/apply-deletions`);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ autoApplyRelocations: false, source: 'config' });
+    }
   });
 
   it('404s an unknown mapping', async () => {
@@ -120,18 +142,16 @@ describe('PATCH /mappings/{id}/apply-deletions', () => {
     const res = await fetch(`${base}/mappings/${MAPPING_ON}/apply-deletions`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ allowApplyDeletions: false }),
+      body: JSON.stringify({ autoApplyRelocations: true }),
     });
     expect(res.status).toBe(405);
     const body = (await res.json()) as { error: string; reason: string };
     expect(body.error).toBe('config_owned');
     expect(body.reason).toMatch(/config file/);
-    expect(body.reason).toMatch(/allowApplyDeletions/);
+    expect(body.reason).toMatch(/autoApplyRelocations/);
 
     // And nothing changed.
     const after = await fetch(`${base}/mappings/${MAPPING_ON}/apply-deletions`);
-    expect(((await after.json()) as { allowApplyDeletions: boolean }).allowApplyDeletions).toBe(
-      true,
-    );
+    expect(((await after.json()) as { autoApplyRelocations: boolean }).autoApplyRelocations).toBe(false);
   });
 });

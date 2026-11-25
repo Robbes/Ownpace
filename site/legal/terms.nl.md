@@ -6,6 +6,9 @@
   texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
+  Still 1.0, edited in place on 2026-11-25 (§2's first bullet: no switch for deleting by hand,
+  alpha.21; and *bestemming* for the target throughout, where it said *doel*, on the owner's
+  read); terms.md's first comment has the owner's words.
 -->
 <!-- Dutch translation of terms.md. Keep the SECTION NUMBERING identical, so the
      two can be diffed against each other when either changes. The alpha
@@ -25,7 +28,7 @@
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
 **Versie:** 1.0
-**Laatst bijgewerkt:** 2026-10-19
+**Laatst bijgewerkt:** 2026-11-25
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie, niet onder deze voorwaarden. Deze
@@ -60,25 +63,25 @@ de voorwaarden voor iedereen in uw organisatie.
 ## 2. Wat de dienst doet
 
 Ownpace kan uw e-mail, contacten, agenda's, taken en bestanden migreren van een bronaccount onder uw
-beheer naar een doelaccount, eveneens onder uw beheer. Het houdt bij wat gemigreerd is totdat u besluit
+beheer naar een bestemmingsaccount, eveneens onder uw beheer. Het houdt bij wat gemigreerd is totdat u besluit
 over te stappen. Ook biedt het inzicht in en overzicht van wat er is gemigreerd.
 
 **Wat het niet doet:**
 
-- **Het verwijdert nooit iets bij uw bron.** Bij uw doel wordt ook niets verwijderd, tenzij u *handmatig
-  verwijderen* aanzet en elke verwijdering goedkeurt. Zet u ook *het automatisch verwijderen van
-  oude kopieën van inmiddels verplaatste bestanden* aan, dan wordt de oude kopie van een bestand
-  dat bij uw bron is verplaatst, na strenge controles bij uw doel weggehaald, zonder dat we het u
-  elke keer vragen.
-  Beide staan standaard uit, tot u deze functies expliciet aanzet.
-- **Het synchroniseert niet terug.** Gegevens gaan van bron naar doel, nooit anders. Uw bron blijft
+- **Het verwijdert nooit iets bij uw bron.** In uw bestemming wordt ook niets verwijderd, tenzij u dat
+  zelf goedkeurt op de pagina *Verwijderingen* van de migratie: elke verwijdering, of een lijst ervan
+  na één bevestiging die zegt hoeveel. Zet u *het automatisch verwijderen van oude kopieën van
+  inmiddels verplaatste bestanden* aan, dan wordt de oude kopie van een bestand dat bij uw bron is
+  verplaatst, na strenge controles in uw nieuwe bestemming weggehaald, zonder dat we het u elke keer
+  vragen. Dat staat standaard uit, tot u het expliciet aanzet.
+- **Het synchroniseert niet terug.** Gegevens gaan van bron naar nieuwe bestemming, nooit anders. Uw bron blijft
   uw vangnet zolang u die aanhoudt.
 - **Het kan geen perfecte kopie van alles beloven.** Bestandsformaten verschillen per aanbieder en
   sommige gegevens kunnen door een veelvoud van redenen niet mee worden gemigreerd. Wat we niet
   kunnen migreren, **melden we u stuk voor stuk, met de reden** — we houden u op de hoogte!
 - **Het is geen back-updienst.** Het migreren is bedoeld om ooit op te houden, maar is niet per se
   een eenmalige migratie: u kunt rustig verder werken in uw bron en op een door u gekozen moment
-  overstappen naar uw doelaccount. Als u bent overgestapt, dan rondt u de migratie af, en stoppen
+  overstappen naar uw bestemmingsaccount. Als u bent overgestapt, dan rondt u de migratie af, en stoppen
   we met migreren. Maar laat u een migratie na de overstap doorlopen, dan blijven we synchroniseren
   en telt deze mee als een actieve migratie.
 
@@ -161,7 +164,7 @@ Wanneer u een betaald pakket bestelt, zegt de app bij de bestelknop dat u ons me
 vraagt direct te beginnen, binnen de 14 dagen, en dat u bij herroeping daarna betaalt voor het
 deel van de dienst dat al is geleverd, **naar evenredigheid van de afgesproken prijs**, en niet
 meer. Uw bestelling, met dat verzoek, bevestigen we u per e-mail. Herroepen raakt uw gegevens bij
-uw bron of uw doel niet; de beloften van §2 blijven onverkort gelden.
+uw bron of uw nieuwe bestemming niet; de beloften van §2 blijven onverkort gelden.
 
 Herroepen doet u met *Hier de overeenkomst herroepen* in de app, of met een ondubbelzinnige verklaring
 aan **support@ownpace.eu**, binnen de 14 dagen. U mag het modelformulier uit §15 gebruiken, maar
@@ -228,12 +231,12 @@ Dan herstellen we het. Laat het ons weten via support@ownpace.eu.
 dienst niet wat deze voorwaarden en de wet zeggen, dan hebt u de middelen die de wet u geeft:
 herstel, en waar de wet dat toestaat prijsverlaging, beëindiging van de overeenkomst of
 vergoeding van schade die wij hebben veroorzaakt. Wij zijn niet aansprakelijk voor verlies van
-gegevens bij uw bron of doel dat wij niet hebben veroorzaakt.
+gegevens bij uw bron of nieuwe bestemming dat wij niet hebben veroorzaakt.
 
 **Bent u zakelijke klant**, dan is onze totale aansprakelijkheid jegens u voor enige aanspraak
 beperkt tot **het bedrag dat u ons in de twaalf maanden vóór die aanspraak hebt betaald**. Die
 grens geldt ook voor aanspraken over gegevensbescherming tussen u en ons. We zijn niet
-aansprakelijk voor indirecte of gevolgschade, of voor verlies van gegevens bij uw bron of doel
+aansprakelijk voor indirecte of gevolgschade, of voor verlies van gegevens bij uw bron of nieuwe bestemming
 voor wat wij niet hebben veroorzaakt.
 
 **Geen enkele beperking in dit hoofdstuk geldt** voor schade door opzet of bewuste roekeloosheid
@@ -241,8 +244,8 @@ van ons of onze leiding, voor overlijden of letsel, voor de rechten die de AVG g
 mensen van wie de persoonsgegevens zijn, of voor andere aansprakelijkheid die de wet ons niet
 laat beperken.
 
-**Houd uw bronaccount aan tot u uw doel hebt gecontroleerd.** Het product is zo vormgegeven dat
-u zelf in de hand hebt wanneer u wenst over te stappen van bron naar doel — en het is de beste
+**Houd uw bronaccount aan tot u uw nieuwe bestemming hebt gecontroleerd.** Het product is zo vormgegeven dat
+u zelf in de hand hebt wanneer u wenst over te stappen van bron naar nieuwe bestemming — en het is de beste
 manier om ervoor te zorgen dat u dit hoofdstuk nooit nodig hebt.
 
 ## 11. Beëindigen

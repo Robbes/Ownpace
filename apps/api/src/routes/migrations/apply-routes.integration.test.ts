@@ -119,7 +119,8 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
       `INSERT INTO mailbox (id, tenant_id, connection_id, kind, status) VALUES ($1,$3,$2,'user','active'),($4,$3,$2,'user','active') ON CONFLICT DO NOTHING`,
       [SRC_MB, CONN, TENANT, TGT_MB],
     );
-    // No allow_apply_deletions named: the DEFAULT is under test first.
+    // No allow_apply_deletions named: the column keeps the default 0004 gave
+    // it (false), which nothing reads since alpha.21 (ADR-0024, 2026-11-25).
     await pool.query(
       `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status) VALUES ($1,$2,$3,$4,'mirror','active') ON CONFLICT DO NOTHING`,
       [MAPPING, TENANT, SRC_MB, TGT_MB],
@@ -137,32 +138,27 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
     await pool.end();
   });
 
-  it('gate 1 wins first: the flag DEFAULTS off, so even a confirmed item is 403 not_enabled', async () => {
-    // The safety property of migration 0004, observed end to end: nobody set
-    // the column, so nothing may be removed, evidence or not.
+  it('no switch: on a fresh mapping the gates behind the old gate 1 answer (ADR-0024, 2026-11-25)', async () => {
+    // Until alpha.21 this was 403 `not_enabled`: the column defaulted off and
+    // the route read it. Nothing reads it now, so the press on a mapping
+    // nobody turned anything on for reaches the gates that decide WHICH item
+    // may go — here gate 4, adopted bytes are not ours.
     const res = await request
-      .post(`/api/migrations/${MAPPING}/deletions/${HASH_CONFIRMED}/apply`)
+      .post(`/api/migrations/${MAPPING}/deletions/${HASH_ADOPTED}/apply`)
       .set(auth);
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe('not_enabled');
-    expect(res.body.reason).toMatch(/switched off/i);
+    expect(res.body.error).toBe('not_ours');
   });
 
   it('a refused apply left no receipt behind — refusals are answers, not jobs', async () => {
     const res = await request
-      .get(`/api/migrations/${MAPPING}/deletions/${HASH_CONFIRMED}/receipt`)
+      .get(`/api/migrations/${MAPPING}/deletions/${HASH_ADOPTED}/receipt`)
       .set(auth);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ state: 'none' });
   });
 
-  describe('with the mapping opted in', () => {
-    beforeAll(async () => {
-      await pool.query(`UPDATE mailbox_mapping SET allow_apply_deletions = true WHERE id = $1`, [
-        MAPPING,
-      ]);
-    });
-
+  describe('on the same mapping, with nothing turned on', () => {
     it('404s an unknown item as not_found', async () => {
       const res = await request
         .post(`/api/migrations/${MAPPING}/deletions/${HASH_NONE}/apply`)
@@ -345,11 +341,6 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
     }
 
     beforeAll(async () => {
-      // Self-contained: the flag tests below drive this to states of their
-      // own, so this block asserts the one it needs rather than inheriting.
-      await pool.query(`UPDATE mailbox_mapping SET allow_apply_deletions = true WHERE id = $1`, [
-        MAPPING,
-      ]);
       await seedFileItem(R_OLD, 'h-pair', { movedToKey: R_NEW, movedToCollection: 'Docs' });
       await seedFileItem(R_NEW, 'h-pair');
       await seedFileItem(R_MOVEONLY, 'h-moveonly', { movedToCollection: 'Archive' });
@@ -415,19 +406,25 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
       expect(res.body.receipt.state).toBe('queued');
     });
 
-    it('gate 1 still guards this route: flag off refuses even a real relocation', async () => {
+    it('the old column set false refuses nothing: a real relocation is permitted (no gate 1 since alpha.21)', async () => {
+      // A mapping turned off before alpha.21 keeps `false` in the column; it
+      // is unread. Until then this was 403 `not_enabled`.
       await pool.query(`UPDATE mailbox_mapping SET allow_apply_deletions = false WHERE id = $1`, [
         MAPPING,
       ]);
-      // A fresh relocated pair, so the joined-receipt short-circuit above
-      // cannot answer first.
+      // A fresh relocated pair of its own, so the joined-receipt short-circuit
+      // above cannot answer first, and the arrival holds the same bytes.
       const R_FLAGGED = '5'.repeat(64);
-      await seedFileItem(R_FLAGGED, 'h-flagged', { movedToKey: R_NEW, movedToCollection: 'Docs' });
+      const R_FLAGGED_NEW = '6'.repeat(64);
+      await seedFileItem(R_FLAGGED_NEW, 'h-flagged');
+      await seedFileItem(R_FLAGGED, 'h-flagged', { movedToKey: R_FLAGGED_NEW, movedToCollection: 'Docs' });
       const res = await request
         .post(`/api/migrations/${MAPPING}/moves/${R_FLAGGED}/apply`)
         .set(auth);
-      expect(res.status).toBe(403);
-      expect(res.body.error).toBe('not_enabled');
+      // Permitted, so the route queues — and this file's job queue throws.
+      expect(res.body.error, JSON.stringify(res.body)).not.toBe('not_enabled');
+      expect(res.status).toBe(502);
+      expect(res.body.error).toBe('Could not queue the removal');
     });
   });
 
@@ -435,7 +432,7 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
     // The owner, 2026-10-05, asked "should pressing Apply on a deletion or
     // move that was queued before cutover be refused?": "Refuse after
     // cutover (Recommended)". A migration of its own, so the cases above
-    // keep theirs: past its cutover, with the switch ON, and holding the two
+    // keep theirs: past its cutover (no switch to turn on since alpha.21), holding the two
     // entries a pass before the cutover would have left (a deletion the old
     // system reported, a file it renamed).
     const CUT_MAPPING = '5b4b0000-e29b-41d4-a716-446655440031';
@@ -453,8 +450,8 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
         [CUT_SRC_MB, CONN, TENANT, CUT_TGT_MB],
       );
       await pool.query(
-        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status, allow_apply_deletions)
-         VALUES ($1,$2,$3,$4,'mirror','continuous',true)`,
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status)
+         VALUES ($1,$2,$3,$4,'mirror','continuous')`,
         [CUT_MAPPING, TENANT, CUT_SRC_MB, CUT_TGT_MB],
       );
       await pool.query(
@@ -527,10 +524,11 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
     ).toBe(401);
   });
 
-  describe('the apply-deletions flag API (0019 T3)', () => {
-    // Gate 1 as an authorized API instead of a psql session. Runs LAST in this
-    // file on purpose: it drives the flag to known states itself rather than
-    // inheriting whatever the gates' tests left behind.
+  describe('the apply-deletions flag API (0019 T3): automatic removal of moved files only', () => {
+    // Since alpha.21 the one switch here is ADR-0031's; deleting by hand has
+    // none (ADR-0024, 2026-11-25). Runs LAST in this file on purpose: it drives
+    // the flag to known states itself rather than inheriting whatever the
+    // gates' tests left behind.
     const VIEWER_SUB = `viewer-${TENANT}`;
     const viewerAuth = () => ({
       Authorization: `Bearer ${jwt.sign(
@@ -546,17 +544,24 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
       await seedMembership(pool, TENANT, VIEWER_SUB, 'viewer');
     });
 
-    it('an owner turns it off and the flag reads back off', async () => {
-      const patched = await request
-        .patch(`/api/migrations/${MAPPING}/apply-deletions`)
-        .set(auth)
-        .send({ allowApplyDeletions: false });
-      expect(patched.status).toBe(200);
-      expect(patched.body).toEqual({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'mapping' });
-
+    it('reads off by default, with no deleting-by-hand field in the answer', async () => {
       const read = await request.get(`/api/migrations/${MAPPING}/apply-deletions`).set(auth);
       expect(read.status).toBe(200);
-      expect(read.body).toEqual({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'mapping' });
+      expect(read.body).toEqual({ autoApplyRelocations: false, source: 'mapping' });
+    });
+
+    it('refuses the old switch by name — 400, and nothing changes', async () => {
+      for (const value of [true, false]) {
+        const res = await request
+          .patch(`/api/migrations/${MAPPING}/apply-deletions`)
+          .set(auth)
+          .send({ allowApplyDeletions: value });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('invalid_body');
+        expect(res.body.reason).toMatch(/no switch since alpha\.21/);
+      }
+      const read = await request.get(`/api/migrations/${MAPPING}/apply-deletions`).set(auth);
+      expect(read.body).toEqual({ autoApplyRelocations: false, source: 'mapping' });
     });
 
     it('a viewer may READ the flag but not change it — role from the ROW, not the token', async () => {
@@ -568,30 +573,35 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
       const patched = await request
         .patch(`/api/migrations/${MAPPING}/apply-deletions`)
         .set(viewerAuth())
-        .send({ allowApplyDeletions: true });
+        .send({ autoApplyRelocations: true });
       expect(patched.status).toBe(403);
 
       // And the refusal changed nothing.
       const after = await request.get(`/api/migrations/${MAPPING}/apply-deletions`).set(auth);
-      expect(after.body.allowApplyDeletions).toBe(false);
+      expect(after.body.autoApplyRelocations).toBe(false);
     });
 
     it('rejects anything but a boolean — a truthy string must not arm the destructive path', async () => {
       const res = await request
         .patch(`/api/migrations/${MAPPING}/apply-deletions`)
         .set(auth)
-        .send({ allowApplyDeletions: 'yes' });
+        .send({ autoApplyRelocations: 'yes' });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('invalid_body');
     });
 
-    it('an owner turns it on, and an unknown mapping 404s', async () => {
-      const patched = await request
+    it('an owner turns it on and off, and an unknown mapping 404s', async () => {
+      const on = await request
         .patch(`/api/migrations/${MAPPING}/apply-deletions`)
         .set(auth)
-        .send({ allowApplyDeletions: true });
-      expect(patched.status).toBe(200);
-      expect(patched.body.allowApplyDeletions).toBe(true);
+        .send({ autoApplyRelocations: true });
+      expect(on.status).toBe(200);
+      expect(on.body).toEqual({ autoApplyRelocations: true, source: 'mapping' });
+      const off = await request
+        .patch(`/api/migrations/${MAPPING}/apply-deletions`)
+        .set(auth)
+        .send({ autoApplyRelocations: false });
+      expect(off.body).toEqual({ autoApplyRelocations: false, source: 'mapping' });
 
       expect(
         (await request.get(`/api/migrations/${NO_SUCH}/apply-deletions`).set(auth)).status,

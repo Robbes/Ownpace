@@ -14,7 +14,7 @@
  * `toNaturalKeyHash` beneath a Dutch heading.
  *
  * Shared, not in the web app's dictionary, for the reason
- * `APPLY_FLAG_WARNING_NL` is (`docs/i18n-prose-boundary.md`, class 4): the
+ * `DELETE_BY_HAND_WARNING_NL` is (`docs/i18n-prose-boundary.md`, class 4): the
  * words in front of the destructive path have one source, next to the
  * operator's, so a change to what an action does is made beside both. Update
  * BOTH languages or neither.
@@ -63,8 +63,8 @@ export const QUEUE_GUIDANCE: Readonly<
           // *Assumed* is the chip an `inferred` deletion carries
           // (`evidence.inferred` in the web app's dictionary).
           text:
-            'the copy on the new system is deleted as well. This works only while deleting by hand is on, ' +
-            'and never for an item marked Assumed.',
+            'the copy on the new system is deleted as well, after you confirm it. This never works for an ' +
+            'item marked Assumed.',
         },
         {
           // One press for the rows above (workplan 0164 T3; ADR-0024,
@@ -91,8 +91,8 @@ export const QUEUE_GUIDANCE: Readonly<
         {
           label: 'Verwijder het hier ook',
           text:
-            'de kopie op het nieuwe systeem wordt ook verwijderd. Dit kan alleen zolang Handmatig ' +
-            'verwijderen aan staat, en nooit voor een item met het label Vermoeden.',
+            'de kopie op het nieuwe systeem wordt ook verwijderd, nadat u dat hebt bevestigd. Dit kan ' +
+            'nooit voor een item met het label Vermoeden.',
         },
         {
           label: 'Verwijder deze allemaal hier ook',

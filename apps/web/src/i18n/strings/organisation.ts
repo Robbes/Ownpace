@@ -262,14 +262,14 @@ export const en = {
   'tenants.invite.role': 'Role',
   // Workplan 0137 T7: the two roles the alpha offers, and what the second one
   // may do. Checked against the API's owner-only routes: close and reopen
-  // (tenants/index.ts), the deleting-by-hand and automatic-removal switches
-  // (`allowApplyDeletions`, `autoApplyRelocations`), owner-only in both
-  // directions (operating-routes.ts), and granting owner (members.ts).
-  // `a-role-that-promises-less-than-it-allows.unit.test.ts` in apps/api pins
-  // that set and fails when it changes. The switches are named as the
-  // Deletions panel names them (0156 T6).
+  // (tenants/index.ts), the automatic-removal switch (`autoApplyRelocations`),
+  // owner-only in both directions (operating-routes.ts), and granting owner
+  // (members.ts). `a-role-that-promises-less-than-it-allows.unit.test.ts` in
+  // apps/api pins that set and fails when it changes. The switch is named as
+  // the Deletions panel names it (0156 T6). Deleting by hand had a switch
+  // here too until alpha.21; it has none since (ADR-0024, 2026-11-25).
   'tenants.invite.adminCan':
-    "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, make somebody an owner, and change or remove an owner.",
+    "An admin can do everything an owner can, except close or reopen the organisation, turn the automatic removal of moved files' old copies on or off, make somebody an owner, and change or remove an owner.",
   'tenants.ownerOrAdminOnly': 'During the Alpha, a person can only be an owner or an admin.',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
@@ -468,7 +468,7 @@ export const nl: Record<keyof typeof en, string> = {
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
   'tenants.invite.adminCan':
-    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden aan- of uitzetten, iemand eigenaar maken en een eigenaar een andere rol geven of verwijderen.',
+    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, het automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden aan- of uitzetten, iemand eigenaar maken en een eigenaar een andere rol geven of verwijderen.',
   'tenants.ownerOrAdminOnly': 'Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn.',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':

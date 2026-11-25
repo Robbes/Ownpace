@@ -90,7 +90,6 @@ const press = (key: string, target: unknown) =>
       domain: 'calendar',
       ledger: perCall,
       target,
-      allowApplyDeletions: true,
       stillTheAuthority: async () => true,
     },
     key,
@@ -181,7 +180,6 @@ describe('a deletion the owner kept is never applied (PgLedger on PGlite)', () =
           mappingId: MAPPING,
           domain: 'calendar',
           ledger: perCall,
-          allowApplyDeletions: true,
           stillTheAuthority: async () => true,
         },
         'pressed',
@@ -220,7 +218,6 @@ describe('a keep given to an earlier export ends when the copy is current again 
     domain: 'file' as const,
     ledger: perCall,
     target,
-    allowApplyDeletions: true,
     stillTheAuthority: async () => true,
   });
 

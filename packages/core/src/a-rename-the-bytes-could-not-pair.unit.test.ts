@@ -261,7 +261,6 @@ describe('a renamed Google document', () => {
         mappingId: MAPPING,
         domain: 'file',
         ledger: w.ledger,
-        allowApplyDeletions: true,
         target: {
           removeItem: vi.fn(async (targetId: string) => {
             w.stored.delete(targetId);
@@ -323,7 +322,6 @@ describe('a renamed Google document', () => {
           removeItem: vi.fn(async () => ({ kind: 'deleted' as const })),
           hasItem: vi.fn(async () => true),
         },
-        allowApplyDeletions: true,
         autoApplyRelocations: true,
         stillTheAuthority: async () => true,
       },
@@ -420,7 +418,6 @@ async function apply(ledger: MemoryLedger, present = true) {
     mappingId: MAPPING,
     domain: 'file' as const,
     ledger,
-    allowApplyDeletions: true,
     stillTheAuthority: BEFORE_CUTOVER,
   };
   const evaluated = await evaluateApplyRelocation(shared, OLD);
@@ -515,7 +512,6 @@ describe('unattended apply (ADR-0031)', () => {
         domain: 'file',
         ledger,
         target,
-        allowApplyDeletions: true,
         autoApplyRelocations: true,
         stillTheAuthority: async () => true,
       },
