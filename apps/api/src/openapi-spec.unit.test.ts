@@ -66,6 +66,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   { prefix: '/api/me', files: ['src/routes/me.ts'] },
   { prefix: '/api/invitations', files: ['src/routes/invitations.ts'] },
   { prefix: '/api/access-requests', files: ['src/routes/access-requests.ts'] },
+  { prefix: '/api/gifts', files: ['src/routes/gifts.ts'] },
   { prefix: '/api/scope-manifest', files: ['src/routes/scope-manifest.ts'] },
   { prefix: '/api/provider-accounts', files: ['src/routes/provider-accounts.ts'] },
   { prefix: '/api/provider-clients', files: ['src/routes/provider-clients.ts'] },

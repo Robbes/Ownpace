@@ -179,8 +179,13 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // §5, recomputed on the merged files.
   'alpha.md@1.0': '4e1c6cece0e428a5d4b44f12d542eb82a5723ff7a85ab3fe8923c32247cb72ee',
   'alpha.nl.md@1.0': '8ac0875daae58e0b2bb9c151f6abb3b0f55dab652790d396c17de2297c90bcbe',
-  'privacy.md@1.0': '8afcbca9dee6e50ae64c421dfff6c655bdce5e786086e4fc86b0602977755e8d',
-  'privacy.nl.md@1.0': '1445ceec6741a4279010f0fafe1624701f3d1e590c55e63f29d891da5c1866d8',
+  // PRIVACY RE-PINNED UNDER 1.0 AGAIN on 2026-11-25, for alpha.21's gift invitations (workplan
+  // 0172; the owner's read of the gift's privacy sentence, verbatim: "ok, I take your advice"):
+  // §4.4 ends with Gifts (Cadeaus): what is kept of a gift, and nothing of the person it is for;
+  // §9 gains a row, a gift kept until the giver's organisation is deleted. Only the privacy pins
+  // move; the terms and the Alpha conditions are unchanged.
+  'privacy.md@1.0': '52d988258106638245e6d799486a8d1de2183f5b4406a234d0c3104f8f816831',
+  'privacy.nl.md@1.0': 'b269369901ce789dfcd397ddd501c14b8525af8093aa21b774fa1d33c32d38e8',
   'terms.md@1.0': '0c905a3111a06bf080ec4f929c31e178eb52ef935262451448172ca7cd910d2f',
   'terms.nl.md@1.0': '6da308638c45a9822855a8c74281ae33efd902cf586e30b850549509947bbcdb',
 };

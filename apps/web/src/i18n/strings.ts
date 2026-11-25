@@ -32,6 +32,7 @@ import * as report from './strings/report.ts';
 import * as billing from './strings/billing.ts';
 import * as organisation from './strings/organisation.ts';
 import * as addresses from './strings/addresses.ts';
+import * as gifts from './strings/gifts.ts';
 
 /**
  * The dictionary, composed from its areas in `strings/`. A key belongs to one
@@ -55,6 +56,7 @@ const en = {
   ...billing.en,
   ...organisation.en,
   ...addresses.en,
+  ...gifts.en,
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
@@ -74,6 +76,7 @@ const nl: Record<keyof typeof en, string> = {
   ...billing.nl,
   ...organisation.nl,
   ...addresses.nl,
+  ...gifts.nl,
 };
 
 export type Locale = 'en' | 'nl';

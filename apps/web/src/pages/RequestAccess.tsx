@@ -33,6 +33,12 @@
  * the language switch beside the way back to the site, as the sign-in page
  * has. And *Send request* stays pale until an address is typed, so it says so
  * under it, tied to it, as the wizard does (0145 T7 (a)).
+ *
+ * **A gift code** (workplan 0172). *I have a gift code* opens one more field;
+ * the card's address, `/redeem`, and the site's gift page (`?gift=1`) arrive
+ * with it open. With a code the same request goes to `POST /api/gifts/redeem`,
+ * which records it marked as a gift, or refuses the code in one sentence for
+ * every cause, in the page's language (`linkRefusal`).
  */
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
@@ -47,6 +53,7 @@ import SiteMark from '../components/SiteMark.tsx';
 import BackToSite from '../components/BackToSite.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import { answersSentence } from '../services/request-answers.ts';
+import { linkRefusal } from '../services/link-refusal.ts';
 
 /**
  * ADR-0014's five, by name only.
@@ -78,7 +85,7 @@ interface AccessRequestBody {
   [TRAP_FIELD]?: string;
 }
 
-const RequestAccess: React.FC = () => {
+const RequestAccess: React.FC<{ readonly giftDoor?: boolean }> = ({ giftDoor = false }) => {
   const t = useT();
   const { locale, setLocale } = useLocale();
   const [search] = useSearchParams();
@@ -143,6 +150,11 @@ const RequestAccess: React.FC = () => {
     return TIERS.find((name) => name.toLowerCase() === asked?.toLowerCase()) ?? '';
   });
 
+  /** Open from the card's address or the site's gift page; otherwise by its own button. */
+  const [giftOpen, setGiftOpen] = useState(() => giftDoor || search.get('gift') === '1');
+  const [code, setCode] = useState('');
+  const withGift = giftOpen && code.trim() !== '';
+
   const send = useMutation({
     mutationFn: async (trap: string) => {
       const body: AccessRequestBody = { email: email.trim(), locale };
@@ -155,6 +167,7 @@ const RequestAccess: React.FC = () => {
       // The same rule for the trap, so a person's request is the one it was
       // before the trap existed.
       if (trap.trim()) body[TRAP_FIELD] = trap.trim();
+      if (withGift) return (await apiClient.post('/gifts/redeem', { ...body, code: code.trim() })).data;
       return (await apiClient.post('/access-requests', body)).data;
     },
   });
@@ -175,7 +188,9 @@ const RequestAccess: React.FC = () => {
           <div className="flex justify-center">
             <SiteMark className="w-12 h-12" />
           </div>
-          <h1 className="text-2xl font-extrabold text-gray-900">{t('access.sent')}</h1>
+          <h1 className="text-2xl font-extrabold text-gray-900">
+            {withGift ? t('access.gift.sent') : t('access.sent')}
+          </h1>
           <p className="text-sm text-gray-600">{t('access.sentDetail')}</p>
           {/* Still here once the request has gone (workplan 0131 T1): the page
               is the same address, and what was asked to join has not changed. */}
@@ -248,6 +263,36 @@ const RequestAccess: React.FC = () => {
             />
             <p className={hint}>{t('access.emailHint')}</p>
           </div>
+
+          {giftOpen ? (
+            <div>
+              <label htmlFor="gift-code" className={label}>
+                {t('access.gift.code')}
+              </label>
+              <input
+                id="gift-code"
+                name="gift-code"
+                type="text"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className={`${field} font-mono tracking-widest`}
+              />
+              <p className={hint}>{t('access.gift.hint')}</p>
+            </div>
+          ) : (
+            <p>
+              <button
+                type="button"
+                onClick={() => setGiftOpen(true)}
+                className="text-sm text-site-teal hover:underline"
+              >
+                {t('access.gift.toggle')}
+              </button>
+            </p>
+          )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
@@ -356,7 +401,11 @@ const RequestAccess: React.FC = () => {
               {t('access.failed')}{' '}
               {/* The server's own sentence, verbatim where there is one — a 429
                   says how long to wait, and paraphrasing it would lose that. */}
-              {send.error instanceof Error ? send.error.message : t('access.failedFallback')}
+              {withGift
+                ? linkRefusal(send.error, locale, t)
+                : send.error instanceof Error
+                  ? send.error.message
+                  : t('access.failedFallback')}
             </p>
           )}
 

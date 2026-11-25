@@ -64,6 +64,7 @@ const REQUEST: AccessRequest = {
   decidedAt: null,
   decisionNote: null,
   createdAt: '2026-08-20T10:00:00.000Z',
+  gift: null,
 };
 
 const renderQueue = () => {
@@ -98,6 +99,14 @@ describe('the queue', () => {
     renderQueue();
     expect(await screen.findByText('stranger@example.test')).toBeInTheDocument();
     expect(screen.getByText('two mailboxes off Google')).toBeInTheDocument();
+  });
+
+  // Workplan 0172: a request that came with a gift code says whose.
+  it('marks a request that came with a gift, with the giver', async () => {
+    listMock.mockResolvedValue([REQUEST, { ...REQUEST, id: 'req-2', email: 'cato@example.test', gift: { from: 'anna@example.test' } }]);
+    renderQueue();
+    expect(await screen.findByText('Gift from anna@example.test')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Gift from/)).toHaveLength(1);
   });
 
   it('says plainly when nobody is waiting', async () => {

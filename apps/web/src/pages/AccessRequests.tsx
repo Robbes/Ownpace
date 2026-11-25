@@ -155,6 +155,14 @@ const RequestCard: React.FC<{
           <p className="text-sm text-gray-600">
             {[request.name, request.organisation].filter(Boolean).join(' · ')}
           </p>
+          {/* The gift's mark (workplan 0172): whose gift brought them here. */}
+          {request.gift && (
+            <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+              {request.gift.from
+                ? t('accessQueue.giftFrom', { giver: request.gift.from })
+                : t('accessQueue.giftFromNobody')}
+            </p>
+          )}
         </div>
         <p className="text-xs text-gray-500">
           {t('accessQueue.asked')} {dateTime(request.createdAt)} · {request.locale}
