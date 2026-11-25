@@ -144,7 +144,7 @@ export const en = {
     'Read-only. Nothing is ever deleted or changed in your Dropbox, and nobody — not the organisation, not Ownpace — ever sees your password. You sign in to Dropbox yourself, on Dropbox’s own page.',
   'grant.scopeIntro.dropbox': 'The permission Dropbox will ask you for:',
   'grant.scope.dropbox.files': 'Dropbox: read your files.',
-  'grant.scope.dropbox.account': 'Your Dropbox account: read your name, your address and how much space you use.',
+  'grant.scope.dropbox.account': 'Your Dropbox account: read your name, your email address and how much space you use.',
   'grant.scope.technical.line.dropbox': 'Dropbox records this permission as:',
   'grant.signInAs.dropbox':
     'Sign in as {account}. Dropbox confirms which account signed in; other accounts are refused. If Dropbox offers another account, sign out of it first.',
@@ -282,7 +282,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw Dropbox, en niemand — niet de organisatie, niet Ownpace — ziet uw wachtwoord. U logt zelf in bij Dropbox, op de pagina van Dropbox zelf.',
   'grant.scopeIntro.dropbox': 'De toestemming die Dropbox u vraagt:',
   'grant.scope.dropbox.files': 'Dropbox: uw bestanden lezen.',
-  'grant.scope.dropbox.account': 'Uw Dropbox-account: uw naam, uw adres en uw gebruikte ruimte lezen.',
+  'grant.scope.dropbox.account': 'Uw Dropbox-account: uw naam, uw e-mailadres en uw gebruikte ruimte lezen.',
   'grant.scope.technical.line.dropbox': 'Dropbox legt deze toestemming vast als:',
   'grant.signInAs.dropbox':
     'Log in als {account}. Dropbox bevestigt met welk account u zich aanmeldt; andere accounts worden geweigerd. Biedt Dropbox een ander account aan, meld u daar dan eerst af.',

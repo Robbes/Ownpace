@@ -555,7 +555,7 @@ describe('a Dropbox link (0174 §6)', () => {
     // The two read scopes are one line, as Dropbox's own screen puts them.
     expect(screen.getAllByText('Dropbox: read your files.')).toHaveLength(1);
     expect(
-      screen.getByText('Your Dropbox account: read your name, your address and how much space you use.'),
+      screen.getByText('Your Dropbox account: read your name, your email address and how much space you use.'),
     ).toBeInTheDocument();
     expect(screen.getByText(/your files in Dropbox/)).toBeInTheDocument();
     expect(screen.queryByText(/another permission/i)).not.toBeInTheDocument();
