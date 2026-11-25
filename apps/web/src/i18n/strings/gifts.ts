@@ -13,9 +13,9 @@ export const en = {
   'nav.give': 'Give Ownpace',
   // ---- The giver's page.
   'give.title': 'Give Ownpace',
-  'give.intro': 'Give someone you care about a place in the Alpha, on a card.',
+  'give.intro': 'Give someone dear to you a place in the Alpha, on a card.',
   'give.how':
-    'They type the code when they ask for access. We still read every request and say yes ourselves, so a gift is a warm introduction rather than a key. It is valid for two years.',
+    'They type the code when they ask for access. We still read every request and say yes ourselves, so a gift is a personal recommendation rather than a key. It is valid for two years.',
   'give.privacy':
     'We never ask who it is for. The name and message you put on the card stay in this browser. We keep only that you gave a gift, a fingerprint of its code, and its dates.',
   'give.limit': 'Gifts you may give: {limit}. Given: {held}.',
@@ -26,7 +26,7 @@ export const en = {
   'give.failed': 'The gift could not be made.',
   'give.once': 'This code is shown only now. Print the card, or save it as a PDF, before you leave this page.',
   'give.giverName': 'Your name on the card',
-  'give.recipient': 'Their first name',
+  'give.recipient': 'The recipient’s first name',
   'give.message': 'A message',
   'give.notStored': 'Stays in this browser. It is not sent to us.',
   'give.print': 'Print or save as PDF',
@@ -60,11 +60,11 @@ export const en = {
 export const nl: Record<keyof typeof en, string> = {
   'nav.give': 'Geef Ownpace cadeau',
   'give.title': 'Geef Ownpace cadeau',
-  'give.intro': 'Geef iemand om wie u geeft een plaats in de Alpha, op een kaart.',
+  'give.intro': 'Geef iemand die u dierbaar is een plaats in de Alpha, op een kaart.',
   'give.how':
-    'Die persoon typt de code bij het aanvragen van toegang. We lezen elke aanvraag nog steeds zelf en zeggen zelf ja, dus een cadeau is een warme introductie en geen sleutel. Het is twee jaar geldig.',
+    'Die persoon typt de code bij het aanvragen van toegang. We lezen elke aanvraag nog steeds zelf en zeggen zelf ja, dus een cadeau is een persoonlijke aanbeveling, geen sleutel. Het is twee jaar geldig.',
   'give.privacy':
-    'We vragen nooit voor wie het is. De naam en de boodschap op de kaart blijven in deze browser. Wij bewaren alleen dat u een cadeau gaf, een vingerafdruk van de code en de data.',
+    'We vragen nooit voor wie het is. De naam en de boodschap op de kaart blijven in deze browser. Wij bewaren alleen dat u een cadeau gaf, een vingerafdruk van de code en de datums.',
   'give.limit': 'Cadeaus die u mag geven: {limit}. Gegeven: {held}.',
   'give.language': 'Taal van de kaart',
   'give.make': 'Maak mijn cadeau',
@@ -73,7 +73,7 @@ export const nl: Record<keyof typeof en, string> = {
   'give.failed': 'Het cadeau kon niet worden gemaakt.',
   'give.once': 'Deze code ziet u alleen nu. Print de kaart, of bewaar hem als pdf, voordat u deze pagina verlaat.',
   'give.giverName': 'Uw naam op de kaart',
-  'give.recipient': 'Hun voornaam',
+  'give.recipient': 'Voornaam van de ontvanger',
   'give.message': 'Een boodschap',
   'give.notStored': 'Blijft in deze browser. Het wordt niet naar ons gestuurd.',
   'give.print': 'Printen of bewaren als pdf',
@@ -92,7 +92,7 @@ export const nl: Record<keyof typeof en, string> = {
   'card.what':
     'Ownpace kopieert uw e-mail, agenda’s, contacten en bestanden van Google of Microsoft naar een Europese aanbieder, in uw eigen tempo, en houdt ze bij tot u overstapt.',
   'card.alpha':
-    'Ownpace is in een gratis Alpha, en we laten mensen zelf toe. Met deze kaart vraagt u ons om u toe te laten.',
+    'Ownpace zit in een gratis Alpha, en we laten mensen zelf toe. Met deze kaart vraagt u ons om u toe te laten.',
   'card.code': 'Uw code',
   'card.where': 'Gebruik hem op',
   'card.until': 'Geldig tot {date}',

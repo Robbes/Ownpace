@@ -13,8 +13,8 @@ access to the Alpha.
 ## What a gift is {#what-a-gift-is}
 
 The Alpha of Ownpace is free and by invitation. Each person in it may give one person a place as a
-gift. A gift is a warm introduction, not a key: we read every request and say yes ourselves. Your
-request reaches us marked as a gift from the giver.
+gift. A gift is a personal recommendation, not a key: we read every request and say yes ourselves.
+Your request reaches us marked as a gift from the giver.
 
 If we say yes, you get your own organisation in Ownpace. You do not join the giver's, and the giver
 sees nothing of your data.

@@ -13,8 +13,8 @@ toegang tot de Alpha aanvraagt.
 ## Wat een cadeau is {#wat-een-cadeau-is}
 
 De Alpha van Ownpace is gratis en op uitnodiging. Wie er al in zit, mag één persoon een plaats
-cadeau geven. Een cadeau is een warme introductie, geen sleutel: we lezen elke aanvraag zelf en
-zeggen zelf ja. Uw aanvraag komt bij ons binnen als cadeau van de gever.
+cadeau geven. Een cadeau is een persoonlijke aanbeveling, geen sleutel: we lezen elke aanvraag zelf
+en zeggen zelf ja. Uw aanvraag komt bij ons binnen als cadeau van de gever.
 
 Als we ja zeggen, krijgt u uw eigen organisatie in Ownpace. U komt niet in die van de gever, en de
 gever ziet niets van uw gegevens.

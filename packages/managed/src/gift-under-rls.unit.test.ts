@@ -26,6 +26,7 @@ import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from './migrate-managed.ts';
 import {
   GIFT_CODE_ALPHABET,
+  GIFT_REFUSAL,
   formatGiftCode,
   giftExpiry,
   giftFingerprint,
@@ -152,6 +153,13 @@ describe('the states and the dates', () => {
     expect(holdsAPlace(row({}), giftExpiry(at))).toBe(false);
     // Declined, the gift still reads as used: the card was used.
     expect(giftState(row({ redeemedAt: at, requestDeclinedAt: at }), at)).toBe('redeemed');
+  });
+});
+
+describe('the one refusal', () => {
+  it("names the giver as the owner put it (2026-11-25)", () => {
+    expect(GIFT_REFUSAL.nl).toMatch(/Vergelijk hem met de kaart, of vraag het aan degene die u de kaart gaf\.$/);
+    expect(GIFT_REFUSAL.en).toMatch(/Check it against the card, or ask the person who gave it to you\.$/);
   });
 });
 

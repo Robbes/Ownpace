@@ -24,6 +24,7 @@ import RequestAccess from './RequestAccess.tsx';
 import Give from './Give.tsx';
 import Gifts from './Gifts.tsx';
 import { LocaleProvider } from '../i18n/index.tsx';
+import { en as giftsEn, nl as giftsNl } from '../i18n/strings/gifts.ts';
 
 const postMock = vi.fn();
 const getMock = vi.fn();
@@ -119,7 +120,7 @@ describe('Give Ownpace', () => {
 
     expect(await screen.findByTestId('gift-code')).toHaveTextContent('K7QM-3XR2-PA9D-W4HN');
     expect(screen.getByText('app.example.test/redeem')).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/their first name/i), 'Cato');
+    await user.type(screen.getByLabelText(/the recipient’s first name/i), 'Cato');
     await user.type(screen.getByLabelText(/a message/i), 'Fijne feestdagen');
     const card = within(screen.getByTestId('gift-code').closest('section')!);
     expect(card.getByText('Voor Cato: een plaats in Ownpace')).toBeInTheDocument();
@@ -175,5 +176,21 @@ describe('the operator’s Gifts', () => {
     expect(screen.getByText(/nothing refuses a grant past a number/i)).toBeInTheDocument();
     expect(screen.getByText(/From anna@example\.test/)).toBeInTheDocument();
     expect(screen.getByText('Became the request from cato@example.test: open')).toBeInTheDocument();
+  });
+});
+
+describe("the owner's words (2026-11-25, workplan 0172 T8)", () => {
+  it('are the ones on the giver’s page and the card, Dutch first', () => {
+    expect(giftsNl['give.intro']).toBe('Geef iemand die u dierbaar is een plaats in de Alpha, op een kaart.');
+    expect(giftsEn['give.intro']).toBe('Give someone dear to you a place in the Alpha, on a card.');
+    expect(giftsNl['give.how']).toContain('dus een cadeau is een persoonlijke aanbeveling, geen sleutel.');
+    expect(giftsEn['give.how']).toContain('so a gift is a personal recommendation rather than a key.');
+    expect(giftsNl['give.privacy']).toMatch(/een vingerafdruk van de code en de datums\.$/);
+    expect(giftsNl['give.recipient']).toBe('Voornaam van de ontvanger');
+    expect(giftsEn['give.recipient']).toBe('The recipient’s first name');
+    expect(Object.values(giftsNl).some((v) => v.startsWith('Ownpace zit in een gratis Alpha, en we laten mensen zelf toe.'))).toBe(true);
+    for (const words of [...Object.values(giftsNl), ...Object.values(giftsEn)]) {
+      expect(words).not.toMatch(/om wie u geeft|warme introductie|warm introduction|Hun voornaam|Ownpace is in een gratis/);
+    }
   });
 });

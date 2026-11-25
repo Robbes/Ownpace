@@ -935,7 +935,13 @@ describe('the gift page is rendered for the alpha only (workplan 0172)', () => {
       expect(main).toMatch(new RegExp(`href="https?://[^"/]+/redeem\\?locale=${locale}"`));
       expect(main).not.toContain('[[REDEEM]]');
       expect(main).not.toMatch(/<form/);
-      expect(main.replace(/<[^>]+>/g, ' ')).toMatch(locale === 'en' ? /we read every request and say yes ourselves/ : /we lezen elke aanvraag zelf en\s+zeggen zelf ja/);
+      const text = main.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      expect(text).toMatch(locale === 'en' ? /we read every request and say yes ourselves/ : /we lezen elke aanvraag zelf en zeggen zelf ja/);
+      // The owner's words of 2026-11-25 (workplan 0172 T8).
+      expect(text).toContain(
+        locale === 'en' ? 'A gift is a personal recommendation, not a key' : 'Een cadeau is een persoonlijke aanbeveling, geen sleutel',
+      );
+      expect(text).not.toMatch(/warm introduction|warme introductie/);
     }
   });
 

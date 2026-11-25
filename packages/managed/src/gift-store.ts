@@ -188,7 +188,7 @@ export const GIFT_REFUSAL: Bilingual = {
     'it may have expired. Check it against the card, or ask the person who gave it to you.',
   nl:
     'Deze cadeaucode kan niet worden gebruikt. Misschien is hij verkeerd getypt, al gebruikt, ' +
-    'ingetrokken of verlopen. Vergelijk hem met de kaart, of vraag het aan wie hem u gaf.',
+    'ingetrokken of verlopen. Vergelijk hem met de kaart, of vraag het aan degene die u de kaart gaf.',
 };
 
 /** The address already has an open request: nothing is written, and the gift is not spent. */
