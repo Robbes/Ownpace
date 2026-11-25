@@ -163,6 +163,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   migrated schema rather than run on it. The deploy to this release is therefore one-way, which
   `deploy-live.sh` says; the way back is the copy taken before it. No job, queue or schedule of
   ours changes.
+- **Grant pages: where to open the link, said before the first button, and a Copy link button**
+  (workplan 0140; the owner's hand test on OTA, 2026-11-24). A person's grant page now says
+  where to open the link above its account cards, before the first **Continue with Google**, as
+  the one-link-per-migration page always did; it had sat under the last card. That line and the
+  consent panel's both name Firefox first: *"…copy the link into your favorite browser, such as
+  Firefox, Safari or Chrome."* (*"…zoals Firefox, Safari of Chrome."*; the owner: *"Add Firefox
+  as first real browser option."*). The page after Google has a **Copy link** button beside
+  the progress link (*Link kopiëren*), which says *Copied.* (*Gekopieerd.*), or selects the link
+  and says so where the browser does not allow copying; without its script, the page offers no
+  button. The grant-link guide and both alpha guides say the same.
 
 ### Fixed
 
