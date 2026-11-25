@@ -4,6 +4,52 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, afternoon: `v0.2.0-alpha.20` is released, its nights waived (T2, T4).** Read from
+GitHub on 2026-11-25. Times are UTC.
+
+- **C is `70582df2`**, the squash of #2152, the fold, committed on 2026-11-25 at 13:01:01. On C,
+  all green: CI run 45619336674 (13:01:06 to 13:32:14, `ci-complete` included), Security Scan run
+  45619336377, Images run 45619336353, Semgrep run 45619336280, Dockerfile lint run 45619336354
+  and Nextcloud's second major, run 45619336447. C did not move: nothing merged to `main` between
+  the fold and the tag.
+- **In the counted nights' place**, waived for alpha.20 (*"for 20 i also waive al waiting/days."*,
+  #2121), dispatched on `main` at C, all green: `windows-payload.yml` run 45619347933 (win-x64, its
+  smoke on Windows included, 13:01:10 to 13:02:23); E2E (self-hosted) on Postgres, run 45619353539
+  (13:01:12 to 13:06:41), then on PGlite, run 45620652966 (13:09:05 to 13:14:22), and E2E
+  (managed), run 45621878447 (13:16:21 to 13:22:20), one at a time, each once the run before it
+  had ended green. The scheduled E2E (managed), run 45622111528, ran on C after it (to 13:27:07),
+  green.
+- **The image scans did not run before the tag**, though the fold's entry below lists them as
+  owed. C's push run of Security Scan skips them (its image jobs are *skipped* on a push), and no
+  run asking for them was dispatched on C before the Release. They ran after the tag, on `main` at
+  C and before any merge, as `docs/release.md` §4 asks of every release: Security Scan run
+  45634772411, dispatched by hand, 14:30:19 to 14:32:26, 22 jobs, green, 19 images listed and
+  scanned. Before the next tag that dispatch runs on C beside the E2E runs, as alpha.19's did.
+- **Release.** The owner ran it from their own account, first as a preflight alone: run
+  45631293539 (`mode` `preflight`, 14:11:09 to 14:12:08), which passed. Then Release run
+  45632310711 (`mode` `release`), with `waive_nights` set to *"waived"*, in one attempt: its
+  preflight passed (14:16:51 to 14:17:32), and it waited at its approve job until the owner
+  approved in the `release` environment (the job ran 14:19:49 to 14:19:52); then the gate scan of C
+  (run 45632912539, on `release-gate/v0.2.0-alpha.20`, 14:20:08 to 14:21:10) and the tag
+  (14:21:41) succeeded. The publish job's Security Scan on the tag, run 45633265818 (14:22:04 to
+  14:23:15), made the release with its body and SBOM; the images, run 45633599288 (14:23:53 to
+  14:26:11), and the Windows zip, run 45633620361 (14:24:00 to 14:26:10), both on the tag, were
+  green; and verify passed, the run ending at 14:27:27.
+- **What the release carries, uploaded by `github-actions[bot]`** (#1977): `bom.json` (924,114
+  bytes, with the release at 14:23:08), `ownpace-appliance-win-x64-v0.2.0-alpha.20.zip`
+  (50,170,996 bytes, 14:26:02) and, for the first time (SBOM-1, #2137), each image's own SBOM for
+  both platforms: eight files `ownpace-{api,selfhost,web,worker}-0.2.0-alpha.20.linux-{amd64,arm64}.spdx.json`
+  (14:26:06 to 14:26:07). Verify, which reads them, passed.
+- **The tag.** `v0.2.0-alpha.20` is tag object `1ceab167…` on `70582df2`, made by
+  `github-actions[bot]` at 14:21:41. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/45632310711*, *Proved by: CI run #6467, Security
+  Scan run #6627 on main, windows-payload run #67; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/45632912539* and *Nights waived by Robbes, in
+  their words: "waived"*.
+- **The freeze ended with the tag.** The first merge after it was #2158, as `87ab6a3d`.
+- **The deploy to live** from alpha.18 is planned for 2026-11-26. It is one-way, as the fold's
+  entry below says; its sheet is filled from this tag.
+
 **2026-11-25: the fold for `v0.2.0-alpha.20` (T2).** `package.json` and the API contract say
 `0.2.0-alpha.20`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
 its section, dated 2026-11-25, under a summary; [Unreleased] stays, empty. alpha.20 carries what
