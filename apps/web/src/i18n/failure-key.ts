@@ -22,7 +22,7 @@
  * whole of how a new category gets a sentence.
  */
 
-import type { FailureCategory, FailureSide } from '@openmig/shared';
+import type { DiscoveryDomain, FailureCategory, FailureSide } from '@openmig/shared';
 import type { StringKey } from './strings.ts';
 
 export const FAILURE_KEY: Record<FailureCategory, StringKey> = {
@@ -57,11 +57,42 @@ export const FAILURE_KEY: Record<FailureCategory, StringKey> = {
  * directly, because that category never holds `policy_refused`
  * (`a-remedy-chosen-by-source` holds both halves).
  */
-export function remedyKey(category: FailureCategory, sourceKind?: string): StringKey {
+export function remedyKey(
+  category: FailureCategory,
+  sourceKind?: string,
+  on: RemedyFacts = {},
+): StringKey {
   if (category === 'policy_refused' && sourceKind === 'dropbox') {
     return 'failure.policyRefused.dropbox';
   }
+  if (on.targetKind === 'cirrux') {
+    // A NAME CIRRUX WILL NOT STORE (workplan 0160, T2b): the only
+    // `format_refused` a Cirrux account states, since Cirrux Drive takes any
+    // kind of file. Said in Cirrux's terms, capitals and accents, where the
+    // category's own sentence speaks of a KIND of file and an export format.
+    if (category === 'format_refused') return 'failure.formatRefused.cirrux';
+    // ITS FILES FAIL ON THE DRIVE SIGN-IN (0160, T2b), which the account's
+    // own button, *Connect Cirrux Drive*, renews: the row offers no
+    // *Reconnect* or *Replace credentials* for it, as the Accounts page
+    // already says (`connections.standing.authExpired`). Never for a
+    // failure the pass placed at the source, which is another account.
+    if (category === 'auth_expired' && on.domain === 'file' && on.side !== 'source') {
+      return 'failure.authExpired.cirruxDrive';
+    }
+  }
   return FAILURE_KEY[category];
+}
+
+/**
+ * What else chooses a remedy, where the screen knows it (workplan 0160, T2b):
+ * the destination's kind (a connection's `kind`, a mapping's `target.type`),
+ * the data type, and the side the pass named. Absent, the category and the
+ * source choose, as before.
+ */
+export interface RemedyFacts {
+  readonly targetKind?: string | undefined;
+  readonly domain?: DiscoveryDomain | undefined;
+  readonly side?: FailureSide | undefined;
 }
 
 /**

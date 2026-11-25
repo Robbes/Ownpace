@@ -96,6 +96,33 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   are not asked. A new read-only route answers it on both editions:
   `GET /api/migrations/{id}/destination-space` on managed, `GET /mappings/{id}/destination-space`
   on the appliance. No database change.
+- **Finish reads step 4: the addresses that receive mail, and MX checked on a button**
+  (workplan 0171 T10; the owner's decisions D7 (a) and D8 (a) of 2026-11-24). For a mailbox on a
+  domain the person controls, step 4 lists the addresses at the old provider that deliver into it
+  (*Addresses that receive mail*), read live from Microsoft Graph (`mail` and every `smtp:` proxy
+  address) or Gmail's send-as list, each with a tick, *Made at the new provider*; addresses on
+  the provider's own domains (`onmicrosoft.com`, `gmail.com`) are left out, and an IMAP or Apple
+  source says to check them at the old provider. *Check MX now* asks three public DNS-over-HTTPS
+  resolvers and answers one line: MX points at the new provider, still at the old one, at hosts
+  for the person to judge, or the DNS servers do not agree yet. The tick stays. Step 4's text is
+  split by the kind of address: MX for an own domain, forwarding and the automatic reply for an
+  address the provider keeps. Every new Microsoft consent asks `User.Read`, the person's own
+  profile; a connection consented before this release says *Not read from Microsoft; reconnect to
+  list them.* Two read-only routes on both editions, `GET …/finish/addresses` and `POST
+  …/finish/mx-check` (one check per ten seconds per migration). No database change.
+- **Apple's data export is read, Experimental** (workplan 0171 T1; the owner's decisions D6 and
+  D9 of 2026-11-24). An archive connection whose export is **Apple Data & Privacy** now has a
+  reader: iCloud Drive and iCloud Photos from the `.zip` parts Apple delivers, from the folder they
+  were put in unopened, or from an extracted copy. The reader finds each service's data by its own
+  list of files (`Drive Details.csv` for Drive), never by folder names, and keeps the person's
+  folders as they are. It is built on the one export opened so far, so it refuses what it does
+  not know: a zip with neither service's list (*"This does not look like an Apple export we
+  know"*), fewer `.zip` parts than the person said Apple gave them (an archive connection takes a
+  new optional `parts`), and two parts that belong to two different exports. A file is dated by
+  the zip itself; Apple's list of dates carries no time zone, so its dates are kept as text beside
+  each file and never parsed. Photos are written against Apple's description, not a real export.
+  The form's *To be tested* tag and cannot-read line go with the reader; the screen and guide
+  sentences for the part count and Advanced Data Protection follow in T2. No database change.
 
 ### Changed
 
@@ -173,6 +200,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   person chose to leave behind is added to what was recorded (the owner: *"E yes"*), so neither
   fails the check. On an IMAP destination Archive is the folder the server marks as its archive,
   where it has one. A migration started earlier copies its archived mail on its next pass.
+- **Four screen findings from the owner's live Cirrux Drive test** (workplan 0160, T2b; the
+  owner, 2026-11-24: *"alpha.20 (advice): yes on all"*). A file refused because Cirrux Drive
+  already holds one whose name differs only in capitals or accents, or whose name Cirrux refuses,
+  is `format_refused` now, a name the destination will not store, and on a Cirrux migration the
+  Failures page says so in Cirrux's terms instead of *"The destination refused to accept
+  this. Common causes are no space left…"*. After *Disconnect Cirrux Drive*, *Live progress*
+  names the row's own button, **Connect Cirrux Drive**, where it said *Reconnect or Replace
+  credentials*. A delete pressed while deleting by hand is off says so in the reader's words and
+  points at the switch above, where it showed the appliance's *"Set `allowApplyDeletions: true`
+  in its config"*. And a changed file whose copy was deleted in Cirrux Drive for good is
+  reported as gone from the target (workplan 0168 B2), not thrown: the throw made the copied row
+  a failed one, so *Live progress* stopped counting the copy and counted a failure more. The
+  failure queue names the destination's kind (`targetKind`) beside its source's.
 
 ## [0.2.0-alpha.19] - 2026-11-24
 

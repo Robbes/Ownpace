@@ -36,6 +36,7 @@ import {
 import type { ArchiveReader } from '@openmig/core/archive-reader';
 import {
   ArchiveFileSource,
+  createApplePrivacyArchiveReader,
   createTakeoutArchiveReader,
   webdavStore,
   type ArchiveStore,
@@ -55,21 +56,18 @@ export const ARCHIVE_CONNECTION_KIND = 'archive';
 /**
  * The readers, by export.
  *
- * `apple-privacy` is deliberately ABSENT rather than stubbed, and a stub would
- * be worse than nothing: answering "0 items" is indistinguishable, to the
- * person looking at the screen, from an export that really was empty. An
- * absent reader says *we have not built this*; a stub says *your export is
- * empty*, and only one of those is true.
+ * Both exports have one since alpha.20 (workplan 0171 T1). Apple's is
+ * EXPERIMENTAL: built on the one export 0116 opened (the owner's D9), with
+ * what that export could not answer stated as limits and refused rather than
+ * guessed — fewer parts than the person counted, two exports in one folder,
+ * a zip with neither service's manifest. Its dates are the zip's own (D6);
+ * the CSV's are kept as text, because the one export read as US Pacific and
+ * says no zone.
  *
- * WHAT IS STILL MISSING, since 2026-09-17, when an export was finally opened
- * (0116 §"What one real export answered" has it in full): the shape is known —
- * two wrapper levels, the person's tree intact beneath them, no sidecars, one
- * flat `Drive Details.csv` with no path column. What is NOT known is how a
- * multi-part export splits, what a package (`.pages`, `.numbers`) arrives as,
- * and which timezone `Created On` is in; the one export available read as US
- * Pacific rather than the account holder's. A reader written today would parse
- * dates nine hours out and explode an iWork document into its members, so it
- * waits on the second export 0116 specifies rather than on a first one.
+ * A reader that cannot open what it is given throws `ArchiveUnreadable`, never
+ * answers "0 items": that is indistinguishable, to the person looking at the
+ * screen, from an export that really was empty. A provider with no reader is
+ * ABSENT here rather than stubbed, for the same reason.
  *
  * A reader added here is added to `ARCHIVE_PROVIDERS_WITH_READERS` in shared
  * too, which is how the archive form drops its *To be tested* tag (0148 T3);
@@ -77,6 +75,7 @@ export const ARCHIVE_CONNECTION_KIND = 'archive';
  */
 const READERS: Readonly<Partial<Record<ArchiveProvider, (store?: ArchiveStore) => ArchiveReader>>> = {
   'google-takeout': (store) => createTakeoutArchiveReader(store),
+  'apple-privacy': (store) => createApplePrivacyArchiveReader(store),
 };
 
 /**

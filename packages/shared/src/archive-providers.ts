@@ -43,17 +43,17 @@ export function isArchiveProvider(value: unknown): value is ArchiveProvider {
  * The exports a reader is BUILT for (workplan 0148 T3, owner decision D7).
  *
  * `ARCHIVE_PROVIDERS` is what the create door accepts; this is the part of it
- * that can be read today. Apple's reader waits on a second real export (the
- * comment above `READERS` in `archive-source-factory.ts`), and until it lands
- * the form keeps the option and says so: a tag in its name and a line under
- * the field, both derived from this list, so a landed reader takes them away
- * with no other change.
+ * that can be read today. Since alpha.20 that is both: Apple's reader landed
+ * Experimental (workplan 0171 T1), built on the one export 0116 opened. An
+ * export missing from this list keeps its option on the form and says so —
+ * a tag in its name and a line under the field, both derived from here — so a
+ * landed reader takes them away with no other change.
  *
  * A copy, and it has to be: the readers live in orchestration and the form
  * reads shared, which cannot import orchestration. The copy is held equal to
  * `READERS` by `packages/orchestration/src/the-form-and-the-readers-agree.unit.test.ts`.
  */
-export const ARCHIVE_PROVIDERS_WITH_READERS: ReadonlyArray<ArchiveProvider> = ['google-takeout'];
+export const ARCHIVE_PROVIDERS_WITH_READERS: ReadonlyArray<ArchiveProvider> = ['google-takeout', 'apple-privacy'];
 
 export function hasArchiveReader(provider: ArchiveProvider): boolean {
   return ARCHIVE_PROVIDERS_WITH_READERS.includes(provider);
