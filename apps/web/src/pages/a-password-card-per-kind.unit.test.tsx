@@ -29,11 +29,13 @@ import { MemoryRouter, Routes, Route } from 'react-router';
 import { credentialFieldsFor } from '@openmig/shared';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
-import type { PasswordAnswer, PersonField } from '../services/grant-service.ts';
+import { passwordAnswerOf, type PasswordAnswer, type PersonField } from '../services/grant-service.ts';
 
 const { readMock, putMock } = vi.hoisted(() => ({ readMock: vi.fn(), putMock: vi.fn() }));
 
-vi.mock('../services/grant-service.ts', () => ({
+vi.mock('../services/grant-service.ts', async (importOriginal) => ({
+  // The real reading of the route's bodies (`passwordAnswerOf`), the calls mocked.
+  ...(await importOriginal<typeof import('../services/grant-service.ts')>()),
   grantApi: { read: readMock, authorize: vi.fn(), putPassword: putMock },
 }));
 vi.mock('../services/link-report-service.ts', () => ({
@@ -434,6 +436,38 @@ describe('what the card says after the route answers (0174 §5.7)', () => {
     expect(el.dataset.cardState).toBe('connected');
     expect(el.querySelector('form')).toBeNull();
     expect(screen.getByText('Every account is connected. You can close this page.')).toBeInTheDocument();
+  });
+
+  // The route's other answers, read from its own bodies (0174 §5.3, T3), so
+  // the card says something right for each and never a blank.
+  it.each(['en', 'nl'] as const)('%s: a server named by a number: T3’s sentence, in the page’s language', async (locale) => {
+    const en =
+      'This link names its server by a number instead of a name, so your password is not sent to it. Tell the person who sent you the link.';
+    const nl =
+      'Deze link noemt de server met een nummer in plaats van een naam, dus uw wachtwoord wordt er niet naartoe gestuurd. Laat het de persoon weten die u de link stuurde.';
+    const el = await answer(passwordAnswerOf(409, { error: 'server_not_a_name', reason: en, reasonNl: nl }), 'imap', locale);
+    expect(await within(el).findByRole('alert')).toHaveTextContent(locale === 'nl' ? nl : en);
+  });
+
+  it('revoked while the test ran (401 `link_spent`): the server’s sentence that nothing was stored', async () => {
+    const en = 'This link can no longer be used — it may have been used already, it may have expired, or the person who sent it may have withdrawn it. Nothing was stored.';
+    const el = await answer(passwordAnswerOf(401, { error: 'link_spent', reason: en, reasonNl: 'Er is niets opgeslagen.' }));
+    expect(await within(el).findByRole('alert')).toHaveTextContent(en);
+  });
+
+  it('refused at the door (401 `link_unusable`): the link’s own sentence', async () => {
+    const el = await answer(passwordAnswerOf(401, { error: 'link_unusable', message: 'This link does not work.', messageNl: 'Deze link werkt niet.' }), 'imap', 'nl');
+    expect(await within(el).findByRole('alert')).toHaveTextContent('Deze link werkt niet.');
+  });
+
+  it.each([
+    [400, 'values_not_the_fields'],
+    [413, 'body_too_large'],
+    [415, 'json_only'],
+  ] as const)('a body the route could not take (%s): the page’s own sentence, never a blank', async (status, error) => {
+    const el = await answer(passwordAnswerOf(status, { error }));
+    expect(await within(el).findByRole('alert')).toHaveTextContent(words('en', 'link.unreadable'));
+    expect(el.querySelector('form')).not.toBeNull();
   });
 
   it('no answer: the page’s own sentence', async () => {

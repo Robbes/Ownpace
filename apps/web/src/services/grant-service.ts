@@ -201,25 +201,32 @@ function facesOf(v: unknown): DiscoveryDomain[] {
 }
 
 /**
- * The answer's body, read as the route's shape (0174 §5.3): `connected` and
- * `faces` on success; on a refusal, `error` (or `category`) naming it, and
- * the tries left as `tries.left` (or `left`). Exported for the tests.
+ * The answer's body, read exactly as the route answers (0174 §5.3, settled
+ * on one branch with T3's route): `connected` and `faces` on success; 422
+ * `{ error, tries: { left, locked }, faces? }`; 423 `{ error: 'locked' }`;
+ * 409 `{ error: 'already_connected' }`, read as connected. Every other answer
+ * is a refusal with the server's sentence when it sent one: the link refused
+ * at the door (401, `message`/`messageNl`), revoked while the test ran (401
+ * `link_spent`, `reason`/`reasonNl`), a server named by a number (409
+ * `server_not_a_name`, `reason`/`reasonNl`); a body the route could not take
+ * (400, 413, 415) carries no sentence, and the page says its own. Exported
+ * for the tests.
  */
 export function passwordAnswerOf(status: number, body: unknown): PasswordAnswer {
   const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
   if (status >= 200 && status < 300 && b.connected === true) return { kind: 'connected', faces: facesOf(b.faces) };
-  const code = nonEmpty(b.error) ? b.error : nonEmpty(b.category) ? b.category : '';
+  const code = nonEmpty(b.error) ? b.error : '';
   // Connected through this link already (a second tab, a replay): nothing was tried, and it is connected.
   if (status === 409 && code === 'already_connected') return { kind: 'connected', faces: [] };
-  if (status === 423 || code === 'locked') return { kind: 'locked' };
-  if (code === 'refused_login') {
+  if (status === 423) return { kind: 'locked' };
+  if (status === 422 && code === 'refused_login') {
     const tries = b.tries && typeof b.tries === 'object' ? (b.tries as Record<string, unknown>) : {};
     if (tries.locked === true) return { kind: 'locked' };
-    const left = typeof tries.left === 'number' ? tries.left : typeof b.left === 'number' ? b.left : null;
+    const left = typeof tries.left === 'number' ? tries.left : null;
     return left === 0 ? { kind: 'locked' } : { kind: 'refused_login', left };
   }
-  if (code === 'unreachable') return { kind: 'unreachable' };
-  if (code === 'face_missing') return { kind: 'face_missing', faces: facesOf(b.faces) };
+  if (status === 422 && code === 'unreachable') return { kind: 'unreachable' };
+  if (status === 422 && code === 'face_missing') return { kind: 'face_missing', faces: facesOf(b.faces) };
   const en = nonEmpty(b.message) ? b.message : nonEmpty(b.reason) ? b.reason : null;
   const nl = nonEmpty(b.messageNl) ? b.messageNl : nonEmpty(b.reasonNl) ? b.reasonNl : null;
   return { kind: 'refusal', sentence: en === null ? null : { en, nl: nl ?? en } };

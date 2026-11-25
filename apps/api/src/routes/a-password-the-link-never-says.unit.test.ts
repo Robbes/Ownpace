@@ -226,7 +226,7 @@ describe('a password the link never says', () => {
     server.answer = () => UNREACHABLE;
     const { token } = await mintFor(driver, R);
     const res = await put(token, SOVERIN_REF, pw);
-    expect(res.body.category).toBe('unreachable');
+    expect(res.body).toEqual({ error: 'unreachable', tries: { left: 5, locked: false } });
     expect(await sayNothingOf(pw, [res])).toBe(0);
   });
 
@@ -237,7 +237,7 @@ describe('a password the link never says', () => {
     server.qualification = { domains: { mail: no, calendar: yes, contact: yes, file: yes, task: yes } } as AccountQualification;
     const { token } = await mintFor(driver, R);
     const res = await put(token, SOVERIN_REF, pw);
-    expect(res.body.category).toBe('face_missing');
+    expect(res.body.error).toBe('face_missing');
     expect(await sayNothingOf(pw, [res])).toBe(0);
   });
 

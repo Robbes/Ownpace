@@ -170,13 +170,13 @@ describe('five tries, then locked (§5.5; D4, D5)', () => {
     for (const left of [4, 3, 2, 1, 0]) {
       const res = await put(token, { ref: ICLOUD_REF, values: { password: 'placeholder-wrong' } });
       expect(res.status).toBe(422);
-      expect(res.body).toEqual({ error: 'refused_login', category: 'refused_login', tries: { left, locked: left === 0 } });
+      expect(res.body).toEqual({ error: 'refused_login', tries: { left, locked: left === 0 } });
     }
     expect(server.logins).toHaveLength(5);
 
     const sixth = await put(token, { ref: ICLOUD_REF, values: { password: ANNAS_ICLOUD } });
     expect(sixth.status).toBe(423);
-    expect(sixth.body).toEqual({ error: 'locked', tries: { left: 0, locked: true } });
+    expect(sixth.body).toEqual({ error: 'locked' });
     expect(server.logins).toHaveLength(5);
 
     const [row] = await q('SELECT refused, locked_at FROM person_link_try WHERE link_id = $1', [id]);
@@ -215,7 +215,7 @@ describe('five tries, then locked (§5.5; D4, D5)', () => {
     server.answer = () => UNREACHABLE;
     const down = await put(token, { ref: SOVERIN_REF, values: { password: ANNAS_SOVERIN } });
     expect(down.status).toBe(422);
-    expect(down.body).toEqual({ error: 'unreachable', category: 'unreachable', tries: { left: 5, locked: false } });
+    expect(down.body).toEqual({ error: 'unreachable', tries: { left: 5, locked: false } });
 
     // The login works, and the mail face says no: face_missing, no try.
     server.answer = () => CONNECTED;
@@ -226,7 +226,7 @@ describe('five tries, then locked (§5.5; D4, D5)', () => {
     } as AccountQualification;
     const face = await put(token, { ref: SOVERIN_REF, values: { password: ANNAS_SOVERIN } });
     expect(face.status).toBe(422);
-    expect(face.body).toEqual({ error: 'face_missing', category: 'face_missing', faces: ['email'], tries: { left: 5, locked: false } });
+    expect(face.body).toEqual({ error: 'face_missing', faces: ['email'], tries: { left: 5, locked: false } });
 
     const [row] = await q('SELECT refused, locked_at FROM person_link_try WHERE link_id = $1', [id]);
     expect([row!.refused, row!.locked_at]).toEqual([0, null]);

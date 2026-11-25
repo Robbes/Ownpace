@@ -59,7 +59,6 @@ describe('what the page reads from each answer (0174 §5.3, §5.7)', () => {
     ['connected', 200, { connected: true, faces: ['email', 'calendar'] }, { kind: 'connected', faces: ['email', 'calendar'] }],
     ['already connected, nothing tried', 409, { error: 'already_connected' }, { kind: 'connected', faces: [] }],
     ['refused, three left', 422, { error: 'refused_login', tries: { left: 3, locked: false } }, { kind: 'refused_login', left: 3 }],
-    ['refused, `category` and a top-level `left`', 422, { category: 'refused_login', left: 2 }, { kind: 'refused_login', left: 2 }],
     ['refused, the fifth', 422, { error: 'refused_login', tries: { left: 0, locked: true } }, { kind: 'locked' }],
     ['unreachable', 422, { error: 'unreachable', tries: { left: 5, locked: false } }, { kind: 'unreachable' }],
     ['a face refused', 422, { error: 'face_missing', faces: ['email', 'nonsense'] }, { kind: 'face_missing', faces: ['email'] }],
@@ -70,7 +69,23 @@ describe('what the page reads from each answer (0174 §5.3, §5.7)', () => {
       { error: 'link_refused', message: 'This link no longer works.', messageNl: 'Deze link werkt niet meer.' },
       { kind: 'refusal', sentence: { en: 'This link no longer works.', nl: 'Deze link werkt niet meer.' } },
     ],
-    ['a body with no sentence', 400, { error: 'invalid_body' }, { kind: 'refusal', sentence: null }],
+    [
+      'revoked while the test ran (`link_spent`)',
+      401,
+      { error: 'link_spent', reason: 'This link can no longer be used.', reasonNl: 'Deze link kan niet meer worden gebruikt.' },
+      { kind: 'refusal', sentence: { en: 'This link can no longer be used.', nl: 'Deze link kan niet meer worden gebruikt.' } },
+    ],
+    [
+      'a server named by a number (T3’s sentence)',
+      409,
+      { error: 'server_not_a_name', reason: 'This link names its server by a number.', reasonNl: 'Deze link noemt de server met een nummer.' },
+      { kind: 'refusal', sentence: { en: 'This link names its server by a number.', nl: 'Deze link noemt de server met een nummer.' } },
+    ],
+    ['a body the route could not read (400)', 400, { error: 'values_not_the_fields' }, { kind: 'refusal', sentence: null }],
+    ['a body too large (413)', 413, { error: 'body_too_large' }, { kind: 'refusal', sentence: null }],
+    ['not JSON (415)', 415, { error: 'json_only' }, { kind: 'refusal', sentence: null }],
+    // The route answers exactly §5.3's bodies; the names T4 once tolerated are not read.
+    ['no `category` for `error`', 422, { category: 'refused_login', tries: { left: 2, locked: false } }, { kind: 'refusal', sentence: null }],
   ] as const)('%s', (_, status, body, expected) => {
     expect(passwordAnswerOf(status, body)).toEqual(expected);
   });

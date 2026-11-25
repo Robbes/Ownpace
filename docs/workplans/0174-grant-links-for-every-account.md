@@ -651,16 +651,20 @@ same field two ways.
    *(T3, 2026-11-25: `linkSpent` and `progressUrl` added, so the page can say the link is done
    and hand over the progress page step 8 mints, as a sign-in's ending does. Additions only.)*
 
-**What the page reads from the answers (T4, 2026-11-25).** The route's shape above is unchanged;
-these are the bodies of the refusals, which steps 3, 4 and 6 name without spelling them. T3 answers
-them so; the page (`passwordAnswerOf`, `apps/web/src/services/grant-service.ts`) reads exactly these:
+**What the route answers and the page reads (T4 wrote them, T3 answers them; settled on one
+branch, 2026-11-25).** The route's shape above is unchanged; these are the bodies of the
+refusals, which steps 3, 4 and 6 name without spelling them. The route answers exactly these and
+the page (`passwordAnswerOf`, `apps/web/src/services/grant-service.ts`) reads exactly these; the
+`category` and top-level `left` T4 once also accepted are gone:
 - 422: `{ "error": "refused_login" | "unreachable" | "face_missing", "tries": { "left": n, "locked": b }, "faces"?: [...] }`.
-  `faces` on `face_missing` names the refused faces. The page also takes `category` for `error` and a
-  top-level `left` for `tries.left`.
+  `faces` on `face_missing` names the refused faces.
 - 423: `{ "error": "locked" }`. A `refused_login` whose tries are locked, or at 0 left, reads the same.
 - 409: `{ "error": "already_connected" }` reads as connected; nothing was tried.
-- Any other answer: the server's sentence for the link (`message`/`messageNl` or
-  `reason`/`reasonNl`, as `linkRefusal` reads them), else the page's own.
+- Every other answer is a refusal with the server's sentence when it sends one, else the page's
+  own (`link.unreadable`): 401 at the door (`message`/`messageNl`, `LINK_REFUSAL`); 401
+  `link_spent`, revoked while the test ran (`reason`/`reasonNl`, `LINK_SPENT`); 409
+  `server_not_a_name` (`reason`/`reasonNl`, T3's `SERVER_NOT_A_NAME`); 400, 413 and 415 carry no
+  sentence.
 
 **D3's fields on `GrantServer` (T3, T4; settled on one branch, 2026-11-25).** T1 left D3's
 comparison to T3 as optional fields. T3 and T4 named them differently; the shape is T3's, the

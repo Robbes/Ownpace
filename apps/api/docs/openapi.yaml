@@ -4229,7 +4229,7 @@ paths:
           description: '`json_only`: anything but `application/json`.'
         '422':
           description: |
-            The test failed, and nothing was stored. `category` is
+            The test failed, and nothing was stored. `error` is
             `refused_login` (the server refused the password: a try is
             counted), `unreachable` (no answer, a certificate, a timeout, an
             address that is not a server of this kind: no try counted) or
@@ -4240,10 +4240,10 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [error, category, tries]
+                required: [error, tries]
+                additionalProperties: false
                 properties:
                   error: { type: string, enum: [refused_login, unreachable, face_missing] }
-                  category: { type: string, enum: [refused_login, unreachable, face_missing] }
                   faces: { type: array, items: { type: string, enum: [email, calendar, contact, file, task] } }
                   tries:
                     type: object
@@ -4252,6 +4252,14 @@ paths:
                       locked: { type: boolean }
         '423':
           description: '`locked`: five refused logins on this link for this card. No test was made; a new link from the owner starts again.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                additionalProperties: false
+                properties:
+                  error: { type: string, enum: [locked] }
         '429':
           description: '`too_many_tests`: the caller''s hourly limit, with `Retry-After`.'
         '500':

@@ -296,7 +296,7 @@ export function passwordThroughLink(pool: PoolSource, deps: PasswordRouteDeps = 
       if (!claim.claimed) {
         log.info(`[grant] a password on a person's link: locked (ref ${account.ref})`);
         await recordPasswordRefused(pool(), target, mappingIds, 'locked');
-        return void res.status(423).json({ error: 'locked', tries: { left: 0, locked: true } });
+        return void res.status(423).json({ error: 'locked' });
       }
 
       const prepared = await testInput(pool(), link, { ...account, ask }, body.values);
@@ -323,7 +323,6 @@ export function passwordThroughLink(pool: PoolSource, deps: PasswordRouteDeps = 
         await recordPasswordRefused(pool(), target, mappingIds, category);
         return void res.status(422).json({
           error: category,
-          category,
           ...(run.test.faces === undefined ? {} : { faces: run.test.faces }),
           tries,
         });
