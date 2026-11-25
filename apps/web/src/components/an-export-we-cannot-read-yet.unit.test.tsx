@@ -149,12 +149,12 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-describe('today, Google Takeout is the only export with a reader', () => {
-  it('so Apple Data & Privacy is the export the form tags', () => {
-    // The premise of every concrete case below. When Apple's reader lands this
-    // changes with the reader, and the cases below stop tagging Apple.
-    expect([...ARCHIVE_PROVIDERS_WITH_READERS]).toEqual(['google-takeout']);
-    expect(ARCHIVE_PROVIDERS.filter((p) => !hasReader(p))).toEqual(['apple-privacy']);
+describe('since alpha.20, every export has a reader (workplan 0171 T1)', () => {
+  it('so no export is the one the form tags', () => {
+    // The premise of every case below. Apple's reader landed Experimental;
+    // the tag and the line went with it, derived from the list as designed.
+    expect([...ARCHIVE_PROVIDERS_WITH_READERS]).toEqual(['google-takeout', 'apple-privacy']);
+    expect(ARCHIVE_PROVIDERS.filter((p) => !hasReader(p))).toEqual([]);
   });
 
   it('the descriptor carries the tag and the line on exactly the exports without a reader', () => {
@@ -173,12 +173,11 @@ describe.each(EDITIONS)('on the $edition build', ({ selfhost }) => {
   });
 
   describe.each(DOOR_NAMES)('the %s door', (door) => {
-    it.each(LOCALES)('%s: the Apple option carries the tag, Google Takeout none', async (locale) => {
+    it.each(LOCALES)('%s: every option is its bare name, tagged only where no reader exists', async (locale) => {
       await DOORS[door](locale);
       const select = whichExport(locale);
 
-      expect(optionText(select, 'apple-privacy')).toContain(ARCHIVE_PROVIDER_NAMES['apple-privacy']);
-      expect(optionText(select, 'apple-privacy')).toContain(SAID[locale].tag);
+      expect(optionText(select, 'apple-privacy')).toBe(ARCHIVE_PROVIDER_NAMES['apple-privacy']);
       expect(optionText(select, 'google-takeout')).toBe(ARCHIVE_PROVIDER_NAMES['google-takeout']);
       // And by the list, so a third export is held to the same rule.
       for (const p of ARCHIVE_PROVIDERS) {
@@ -186,47 +185,23 @@ describe.each(EDITIONS)('on the $edition build', ({ selfhost }) => {
       }
     });
 
-    it.each(LOCALES)('%s: choosing Apple shows the line, choosing Takeout does not', async (locale) => {
+    it.each(LOCALES)('%s: choosing Apple shows no cannot-read line any more', async (locale) => {
       await DOORS[door](locale);
       const select = whichExport(locale);
-      expect(screen.queryByText(SAID[locale].line), 'before any choice').toBeNull();
-
       fireEvent.change(select, { target: { value: 'apple-privacy' } });
-      expect(screen.getByText(SAID[locale].line)).toBeTruthy();
-
-      fireEvent.change(select, { target: { value: 'google-takeout' } });
-      expect(screen.queryByText(SAID[locale].line), 'with Takeout chosen').toBeNull();
-    });
-
-    // The line appears on a choice, after the eye has left for the next box:
-    // a screen reader hears it only when it is a status, and meets it again
-    // on the select only when the select points at it (review, 2026-09-24).
-    it.each(LOCALES)('%s: the line is announced, and describes the select while Apple is chosen', async (locale) => {
-      await DOORS[door](locale);
-      const select = whichExport(locale);
-      expect(select).not.toHaveAccessibleDescription(SAID[locale].line);
-
-      fireEvent.change(select, { target: { value: 'apple-privacy' } });
-      expect(screen.getByText(SAID[locale].line).closest('[role="status"]'), 'a status').not.toBeNull();
-      expect(select).toHaveAccessibleDescription(SAID[locale].line);
-
-      fireEvent.change(select, { target: { value: 'google-takeout' } });
+      expect(screen.queryByText(SAID[locale].line)).toBeNull();
       expect(select).not.toHaveAccessibleDescription(SAID[locale].line);
     });
 
-    it.each(LOCALES)('%s: the card hint carries the tag after Apple, while Apple has no reader', async (locale) => {
+    it.each(LOCALES)('%s: the card hint names Apple without the tag, now that Apple has a reader', async (locale) => {
       await DOORS[door](locale);
       const hint = STRINGS[locale]['account.proto.archive.hint'];
       // The tag reads in lower case inside a sentence.
       const tag = SAID[locale].tag.toLowerCase();
       expect(archiveCard().textContent).toContain(hint);
-      // A static sentence, so the one place a landed reader must be answered by
-      // hand: this fails until the tag leaves the hint as well.
+      // A static sentence, so the one place a landed reader is answered by hand.
       expect(hint.toLowerCase().includes(tag)).toBe(!hasReader('apple-privacy'));
-      if (!hasReader('apple-privacy')) {
-        expect(hint.toLowerCase().indexOf(tag)).toBeGreaterThan(hint.indexOf('Apple'));
-        expect(hint.indexOf('Apple')).toBeGreaterThanOrEqual(0);
-      }
+      expect(hint.indexOf('Apple')).toBeGreaterThanOrEqual(0);
     });
   });
 });
