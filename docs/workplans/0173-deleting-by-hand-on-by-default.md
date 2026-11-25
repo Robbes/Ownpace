@@ -4,7 +4,7 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
-**2026-11-25, built: T0, T1, T2, T3, T4 and T6, in one pull request** (PR_PLACEHOLDER, branch
+**2026-11-25, built: T0, T1, T2, T3, T4 and T6, in one pull request** (#2155, branch
 `claude/ownpace-public-readiness-y7orc6-a21-delete-no-switch`, draft, for alpha.21; it merges after
 alpha.20's tag). Gate 1 is gone from core, the shared contract, managed and the appliance:
 `not_enabled` left `ApplyRefusal`, `APPLY_REFUSAL_CODES` and `RUN_STOPPING_REFUSALS`; no route or
@@ -41,13 +41,13 @@ their answers.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The single press ignores a double click | builder | ✅ Built | §10. PR_PLACEHOLDER, with the rest, for alpha.21. |
-| T1 Gate 1 out of core, the shared contract and the appliance | builder | ✅ Built | §10. PR_PLACEHOLDER. `not_enabled` left the closed set; the appliance's key is read only to warn. |
-| T2 Managed: the routes and jobs stop reading the column | builder | ✅ Built | §10. PR_PLACEHOLDER. No migration; the column is dropped in a later release. |
-| T3 The Deletions page and its words, EN and NL | builder | ✅ Built | §10. PR_PLACEHOLDER. The Dutch waits on the owner's read. |
-| T4 Docs and the ADR amendments | builder | ✅ Built | §10. PR_PLACEHOLDER. `site/legal/README.md` goes with T5. |
+| T0 The single press ignores a double click | builder | ✅ Built | §10. #2155, with the rest, for alpha.21. |
+| T1 Gate 1 out of core, the shared contract and the appliance | builder | ✅ Built | §10. #2155. `not_enabled` left the closed set; the appliance's key is read only to warn. |
+| T2 Managed: the routes and jobs stop reading the column | builder | ✅ Built | §10. #2155. No migration; the column is dropped in a later release. |
+| T3 The Deletions page and its words, EN and NL | builder | ✅ Built | §10. #2155. The Dutch waits on the owner's read. |
+| T4 Docs and the ADR amendments | builder | ✅ Built | §10. #2155. `site/legal/README.md` goes with T5. |
 | T5 The legal words: terms §2 and alpha §8 | builder + owner | ⏳ Waits on Q4 | §10. EN and NL; in place or a new version, by Q4. |
-| T6 E2E steps | builder | ✅ Built | §10. PR_PLACEHOLDER. Not run: T7. |
+| T6 E2E steps | builder | ✅ Built | §10. #2155. Not run: T7. |
 | T7 The E2E runs | owner | ⏳ Owner | Self-hosted E2E (Postgres and PGlite) and the managed E2E, after T1 to T6 merge. |
 | T8 The owner's decisions | owner | ⏳ Owner | §9: Q1, Q2, Q3, Q5 and Q6 settled on 2026-11-25; Q4 open. |
 
