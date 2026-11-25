@@ -6,6 +6,33 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **Grant links for every account a person can grant** (alpha.21; workplan 0174 T1 and T3 to T6,
+  with D3 (a) and §4.3). A person's grant link now asks for each account of theirs that a migration
+  reads from or writes to, in two groups on one page. Where the provider offers a sign-in, they
+  sign in (Google, Microsoft, Dropbox, and Cirrux Drive for a Cirrux destination's files);
+  everywhere else they type their own password: as a source IMAP, Apple (an app-specific
+  password), CalDAV, CardDAV and WebDAV; as a destination JMAP, IMAP, CalDAV, CardDAV, WebDAV,
+  Soverin, Nextcloud, Cirrux and Infomaniak. The password is tried with the server the page names
+  before it is stored, encrypted, and it is never logged, recorded or shown; five wrong ones lock
+  that account on that link. Apple, Cirrux and Infomaniak are tried only at their own published
+  servers; any other server is shown with its domain in bold, with a warning when it is not one
+  the address's mail uses, and a server named by a number or inside a private network is refused.
+  A migration starts only when its source and its destination both have a way in. The owner picks
+  *They do, with a link* for a password account, saves it for the person without its password
+  (*Save for {person}*), and sees *Waiting for {person}* on the Accounts page until it is
+  connected; an account the person connected takes only their migrations and offers no *Replace
+  credentials*. On their progress page the person can remove a destination's password again,
+  which holds every migration into it until they connect it once more. Managed migration 0064
+  adds `person_link_try` and `person_granted_connection`; the shared chain is unchanged. Not
+  proven against a real Apple, Cirrux, Infomaniak or Soverin login.
+  **Nederlands:** een toegangslink vraagt nu om elk account van de persoon waaruit een migratie
+  leest of waarnaar die schrijft, op één pagina in twee groepen: aanmelden waar de aanbieder dat
+  biedt (Google, Microsoft, Dropbox, en Cirrux Drive voor bestanden), en anders het eigen
+  wachtwoord. Dat wachtwoord wordt eerst gecontroleerd bij de server die de pagina noemt en pas
+  daarna versleuteld bewaard; na vijf onjuiste pogingen is dat account voor die link geblokkeerd.
+  Apple, Cirrux en Infomaniak worden alleen bij hun eigen server gecontroleerd. Een migratie start
+  pas als bron en bestemming allebei verbonden zijn. Op de voortgangspagina kan de persoon het
+  wachtwoord van een bestemming weer verwijderen.
 - **Grant links for a Dropbox account** (workplan 0174 §6, T2; superseding 0171 T4). A grant link
   can now connect Dropbox as it connects a Google or Microsoft account: the person opens the link,
   presses **Continue with Dropbox as** *their account* (*Doorgaan met Dropbox als …*), signs in on
