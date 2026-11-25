@@ -1,0 +1,201 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "library",
+      "name": "ownpace",
+      "version": "0.2.0-alpha.20"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "vitest",
+      "version": "5.1.1",
+      "purl": "pkg:npm/vitest@5.1.1",
+      "bom-ref": "pkg:npm/vitest@5.1.1",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "croner",
+      "version": "11.0.1",
+      "purl": "pkg:npm/croner@11.0.1",
+      "bom-ref": "pkg:npm/croner@11.0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "helmet",
+      "version": "8.3.0",
+      "purl": "pkg:npm/helmet@8.3.0",
+      "bom-ref": "pkg:npm/helmet@8.3.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "jose",
+      "version": "6.2.18",
+      "purl": "pkg:npm/jose@6.2.18",
+      "bom-ref": "pkg:npm/jose@6.2.18",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "axios",
+      "version": "1.21.1",
+      "purl": "pkg:npm/axios@1.21.1",
+      "bom-ref": "pkg:npm/axios@1.21.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pg-boss",
+      "version": "12.38.2",
+      "purl": "pkg:npm/pg-boss@12.38.2",
+      "bom-ref": "pkg:npm/pg-boss@12.38.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "magic-string",
+      "version": "1.4.5",
+      "purl": "pkg:npm/magic-string@1.4.5",
+      "bom-ref": "pkg:npm/magic-string@1.4.5",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "follow-redirects",
+      "version": "1.16.2",
+      "purl": "pkg:npm/follow-redirects@1.16.2",
+      "bom-ref": "pkg:npm/follow-redirects@1.16.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "form-data",
+      "version": "4.0.6",
+      "purl": "pkg:npm/form-data@4.0.6",
+      "bom-ref": "pkg:npm/form-data@4.0.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "proxy-from-env",
+      "version": "2.1.0",
+      "purl": "pkg:npm/proxy-from-env@2.1.0",
+      "bom-ref": "pkg:npm/proxy-from-env@2.1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "magic-string",
+      "version": "1.4.3",
+      "purl": "pkg:npm/magic-string@1.4.3",
+      "bom-ref": "pkg:npm/magic-string@1.4.3",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "ansi-styles",
+      "version": "5.2.0",
+      "purl": "pkg:npm/ansi-styles@5.2.0",
+      "bom-ref": "pkg:npm/ansi-styles@5.2.0",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "ansi-styles",
+      "version": "4.3.0",
+      "purl": "pkg:npm/ansi-styles@4.3.0",
+      "bom-ref": "pkg:npm/ansi-styles@4.3.0",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ]
+}

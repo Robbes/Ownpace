@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to N done; P built, in a draft pull request for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-24: A to O and R done; P built, in a draft pull request for alpha.20; Q fixed on its branch (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -20,6 +20,9 @@
 | M — A comparison that is not a secret: the line a read-only check (JS-07) named in `caldav-source.ts`, 2026-11-24 | ✅ Read 2026-11-24: a false positive, a CalDAV sync token compared with the client's own (§M); nothing changed | the owner was given a reason to paste |
 | N — The web image's base: the line a read-only check (IMG-4) named, `apps/web/Dockerfile:94`, `nginx:1.31.9-alpine-slim`, 2026-11-24 | ✅ Fixed in alpha.20's image pins (#2127, §N): `nginx:1.31.10-alpine-slim` in `apps/web/Dockerfile` and `deploy/compose/www.yml` | the owner, for alpha.20: *"yes on all"* |
 | P — Two support lists that served every row: the routes a read-only check (PERF-2) named in `apps/api/src/routes/support.ts`, 2026-11-24 | 🟡 Built 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-support-paging`, a draft pull request for alpha.20: both routes page by keyset, a hundred rows a page, and both screens have *Show more*; every page is its own `support_read` row. See §P | 2026-11-24: page both, with *Show more*, in alpha.20 |
+| R — An import cycle (CQ-06), a swallowed test error (ERR-1) and the assistant's start-up hook (AIR-2b): three findings of an outside, read-only check on `20038a66`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-outside-n`: the cycle broken by moving the re-measuring family to `qualify-and-remember.ts`, with a guard; the test's catch, which let go nothing, replaced by an assertion; the hook judged false and kept, with a guard that pins it. Nothing in the product changes. See §N | asked for, 2026-11-24 |
+| O — The same list read again in a loop (PERF-4, five spots) and "green in CI proves less than it seems" (QUAL-3): a read-only check on `20038a66`, 2026-11-24 | ✅ Read and done 2026-11-24 (§O): one PERF-4 spot true, the pin watch listing the open issues once per row, now once per run; four PERF-4 spots and QUAL-3 false, nothing changed | asked for, 2026-11-24 |
+| Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | 🔨 Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, not yet merged: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). The first proof in CI comes on `main` | asked for, 2026-11-24 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -381,6 +384,95 @@ check most likely matched the word *token*.
 **Decided.** A false positive, read on 2026-11-24; nothing changed. The owner was given a reason
 to paste.
 
+## Q — The release's SBOM lists what the product runs (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check (SBOM-1) compared the `bom.json` attached to
+`v0.2.0-alpha.18` with the packages it found in this repository, and reported two findings:
+"2 packages in both lists with another version" and "194 packages not in our list". Read again
+here against the published `bom.json` and `pnpm-lock.yaml` on `main` at `cdd6e89`.
+
+**The cause.** Security Scan's "Generate CycloneDX SBOM" ran `cyclonedx-npm`, which builds the
+SBOM from `npm ls` at the repository root. This is a pnpm workspace, and the root `package.json`
+names 3 dependencies and 25 devDependencies and no `workspaces`, so `npm ls` saw nothing of the
+14 workspace projects but what the root itself pulls in.
+
+| Finding | Kind | What it is |
+|---|---|---|
+| 2 packages in both lists with another version | Explained | `magic-string` (1.4.5 and 1.4.3) and `ansi-styles` (4.3.0 and 5.2.0) each have two versions in the tree, and the old BOM listed one of each (1.4.5, 4.3.0). Both second copies are dev tooling of `apps/web`. The new BOM lists all four, each `scope: excluded` |
+| 194 packages not in our list | **Real; fixed here** | alpha.18's BOM held 545 distinct name@version pairs and lacked **56 production packages** the apps import, among them `jose` (`apps/api/src/middleware/auth.ts`), `helmet` (`apps/api/src/index.ts`), `@mollie/api-client`, `pg-boss` (`packages/scheduler`), `axios`, `follow-redirects` and `react-router`. It marked nothing as dev, though 344 of its pairs are dev tooling, and named no `@openmig/*` package. On today's lockfile, 208 of its 753 entries are not in that BOM; the check counted 194 on the commit it read |
+
+**Fixed.**
+
+- The step runs `pnpm sbom --sbom-format cyclonedx --out bom.json` (pnpm 11.29.0, pinned in
+  `packageManager` and already installed in the job), keeping its name and its fatal-on-a-tag
+  handling. It reads every workspace project from the lockfile: 643 components, a license on each,
+  the 257 production packages `required` and the 386 dev ones `scope: excluded`.
+  `metadata.component` stays `ownpace@<version>`, so `release-verify.mjs`'s `checkBom` passes as
+  before. Not `--lockfile-only`, which lists no license at all.
+- A step right after it, *The SBOM lists every production package*, runs
+  `scripts/sbom-complete.mjs`: every package in pnpm's own production set (`pnpm ls -r --prod
+  --depth Infinity`, read separately from the SBOM) must be a component and not excluded, and the
+  set must hold `jose`, `helmet`, `pg-boss` and `axios`, so an empty answer cannot pass. Run on
+  alpha.18's `bom.json` it refuses with the 56; on the new one it passes, 257 of 257.
+  `scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts` holds it on a fixture cut
+  from both outputs, and refuses each production package by name when it is deleted or marked dev.
+- `scripts/a-pin-that-knows-it-is-behind.unit.test.ts` is anchored on the new command, and still
+  refuses an npx that may install, put back on the line.
+
+**What the new BOM still leaves out.** 110 of the lockfile's 753 entries: all optional, and all
+installed only on another platform (105 bound by `os`, `cpu` or `libc`, such as `@esbuild/*` and
+`@rollup/rollup-*`, and 5 WebAssembly fallbacks such as `@napi-rs/wasm-runtime`). The SBOM
+describes the tree installed on the runner that builds it.
+
+**Left for later.**
+
+- Dropping the `@cyclonedx/cyclonedx-npm` devDependency, and any override that exists only for
+  it, once the new step has run on a tag.
+- An SBOM per image, for the operating-system packages of the base images, which no npm or pnpm
+  BOM lists.
+
+## O — A list read again in a loop, and green CI (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check read `main` at `20038a66` (#2123) and named five spots
+under PERF-4, "the same data read or parsed again inside a loop", and one finding under QUAL-3,
+"green in CI proves less than it seems". Each was read on `main` at `20038a66`, where all six
+still stand as the check gives them.
+
+**PERF-4.**
+
+| Spot on `20038a66` | Verdict | Why |
+|---|---|---|
+| `scripts/idp-pin-watch.mjs:1876` | **True, fixed** | `main()` kept the issue of each of the report's seven rows with `keepIssue(row, gh, row.title)`, and each call ran `gh issue list --state open --limit 1000 --json number,title,body`: seven requests to GitHub for the same list, each parsed again. Now `keepIssues` lists the open issues once (`openIssues`) and hands that list to `keepIssue` for every row. `keepIssue` takes it as an optional fourth argument and, left without it, lists them itself as before, so its existing callers and tests are unchanged. One list can serve every row because every row has a title of its own: the seven `TITLES` are distinct, and the guard's *the routine pins* test already holds that `watch()` gives seven distinct titles. A row opens, edits or closes only issues under its own title, so nothing one row writes changes what the next row finds. `keepIssues` refuses two rows under one title, a row without one counting as the identity provider's, as `keepIssue`'s default does. A list that cannot be read is every row's error, as it was when each row read it. Shown by `a-pin-that-knows-it-is-behind.unit.test.ts`, *every row from one list of the open issues (PERF-4)*: five rows, one `issue list`; with the list not handed on, the test fails |
+| `scripts/lessons.mjs:184` | False | `collect()` maps over `guardFiles(dir)`, and each pass reads a different guard file, once |
+| `scripts/lessons.mjs:259` | False | Not in a loop: the one read of `docs/LESSONS.md`, in `--check` mode |
+| `scripts/release-verify.mjs:442` | False | `asJson` parses bom.json's bytes once per release check. Its one caller is `checkAssets` (`:429`), whose one caller, `main` (`:597`), runs it once |
+| `scripts/workplan-index.mjs:304` | False | `check()` reads the README once per run; its one caller is the CLI's `--check` (`:359`) |
+
+**QUAL-3.** The check took `main` at `20038a66`, whose push run of CI skipped the test jobs, for
+green that proves little. False:
+
+- `20038a66` (#2123) changes two files, both under `docs/workplans/`. Its push run,
+  45415351286, ran `detect-changes`, `docs-hygiene` and `fixture-uuid-check`, skipped `lint`,
+  `unit-tests`, `ui-tests`, `migration-lint` and `integration-tests`, and `ci-complete` passed.
+  That is by design: `detect-changes` found no code change, and `ci-complete` fails any gate
+  that was owed and skipped.
+- The code in that tree is the code of its parent, `8f46f61c` (#2118). That commit's push run,
+  45411654993, ran and passed `unit-tests (all)`, `lint`, `ui-tests` and
+  `integration-tests (ubuntu-24.04-arm)`.
+- Every pull request must be up to date with `main` before it merges, and `ci-complete` is
+  required on it (`docs/testing.md`), so each tree that lands was validated on its pull request
+  too.
+- No step in `.github/workflows/ci.yml` has `continue-on-error`, and each run read its own
+  commit (`head_sha` of both runs), not an earlier one.
+- `ci.yml` already explains the docs-only skip and the cancelled middle runs of a burst of
+  merges (the comments at lines 141 to 190), and
+  `a-run-that-was-cancelled-and-called-green.unit.test.ts` guards them.
+
+No workflow changed.
+
+**Decided.** PERF-4 at `idp-pin-watch.mjs` fixed; the other four PERF-4 spots and QUAL-3 read
+as false on 2026-11-24, and nothing changed for them.
+
 ## P — Two support lists that served every row (an outside, read-only check, 2026-11-24)
 
 **Evidence.** An outside, read-only check (PERF-2) named two operator-only routes in
@@ -452,6 +544,73 @@ Status, 2026-11-24, read from Docker Hub's registry).
 
 **Decided.** Fixed by alpha.20's image pins (#2127): `apps/web/Dockerfile` and
 `deploy/compose/www.yml` move to `1.31.10-alpine-slim`, on the owner's *"yes on all"* for alpha.20.
+
+## R — An import cycle, a swallowed test error and the start-up hook (an outside, read-only check, 2026-11-24)
+
+**Evidence.** The same outside, read-only check named three findings on `main` at `20038a66`,
+each read there and still present on that commit.
+
+**CQ-06, an import cycle: true, fixed.** `apps/api/src/routes/connections.ts:106` (the import
+statement that ends at `:113`) imports `./migrations/index.ts` for the shape builders, and
+`migrations/index.ts:133` mounts `./cirrux-oauth-routes.ts`. The Cirrux Drive consent there
+reached back into the connection routes with `await import('../connections.ts')`
+(`cirrux-oauth-routes.ts:251`) for `requalifyStoredConnection`, and its comment said it was lazy
+only because of the cycle. Done:
+
+- The family that measures a stored account again moved, word for word, to
+  `apps/api/src/routes/qualify-and-remember.ts`: `requalifyStoredConnection`,
+  `qualifyAndRemember`, `qualifyAndRememberNow`, `cirruxQualifyDeps`, the door budget and the
+  qualification floor. It imports neither `connections.ts` nor `migrations/index.ts`, directly or
+  through anything it imports. The database pool moved with it and `connections.ts` uses the same
+  one, so the process still opens one pool for both, as before.
+- `connections.ts` and `cirrux-oauth-routes.ts` import it statically. The dynamic import and its
+  comment are gone; the try/catch and the warn log around the call stay.
+- Nothing else changes: the same functions, logs, budgets and audit events.
+- `an-organisation-closed-at-every-door.unit.test.ts` counts the three uses of the stored access
+  that moved (the decrypt, `qualifyAccount` and the inner `qualifyAndRemember`) in the new file,
+  14 rather than 17 in `connections.ts`, and says why the new file asks no close of its own: it
+  opens no door, and each caller (the create, the Test and the rotation in `connections.ts`, and
+  the Cirrux Drive consent) asks before it.
+- `a-qualifier-wired-to-a-guard-that-never-lets-it-run.unit.test.ts`, which reads the qualifying
+  guard and dispatch as text, reads them in the new file, and
+  `scripts/a-client-the-worker-never-got.unit.test.ts` looks there for the API's
+  `cirruxDeploymentClient(` call.
+- Guard: `apps/api/src/routes/no-way-back-to-the-connection-routes.unit.test.ts` walks the
+  relative static and dynamic imports reachable from `connections.ts` within `apps/api/src` and
+  fails on any path back to it. With the old lazy import put back it fails, naming the path
+  through `migrations/index.ts` and `cirrux-oauth-routes.ts`. It claims that and no more; it is
+  not a survey of other cycles.
+
+**ERR-1, a swallowed test error: true, fixed.**
+`packages/orchestration/src/a-dav-source-through-the-managed-door.unit.test.ts:143` ended a
+CalDAV and a CardDAV `listFolders()` against the test's fake server with
+`.catch(() => undefined)`, and asserted only on the requests that arrived, so any failure at all
+was let go. Run, the fake server causes none: it answers every request with an empty
+multistatus, and both listings resolve to `[]`. So there was no expected failure to let go, and
+the catch is replaced by asserting that outcome, `toEqual([])`. A listing that throws now fails
+the test. Nothing else in the test changed. As with the test catches of §K, the catch was made to
+let go nothing it cannot name.
+
+**AIR-2b, the assistant's start-up hook: judged false, kept, and guarded.** `.claude/settings.json:3`
+registers a `SessionStart` hook that runs `.claude/hooks/session-start.sh`. It stays, because:
+
+- it is the repository's own script;
+- its first action is to exit unless `CLAUDE_CODE_REMOTE` is `true`, so on anyone's own computer
+  it does nothing;
+- in a Claude Code on the web container it runs `pnpm install --frozen-lockfile`, which installs
+  exactly the lockfile's versions; without it a fresh web session starts with an incomplete
+  workspace, as the script's header explains;
+- no setting redirects the model's address, and no MCP server is configured.
+
+Guard: `scripts/a-start-up-hook-read-as-a-risk.unit.test.ts` pins all of that, so a later change
+cannot quietly add one. `.claude/settings.json` holds only `hooks.SessionStart` with that one
+command; no `env` sets a `*_BASE_URL`, an `ANTHROPIC_*` variable or a proxy; there is no
+`apiKeyHelper`, `mcpServers`, `enableAllProjectMcpServers` or `enabledMcpjsonServers`; there is
+no `.mcp.json` at the root; the hook's first action is the `CLAUDE_CODE_REMOTE` exit, and every
+install it runs uses `--frozen-lockfile`. The hook and the settings file are unchanged.
+
+**Not done, on purpose.** No other import cycle was looked for, and nothing was added for the
+check's sake alone. No CHANGELOG entry: nothing a person running Ownpace sees changes.
 
 ---
 

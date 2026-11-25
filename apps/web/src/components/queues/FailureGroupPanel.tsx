@@ -176,12 +176,14 @@ export const FailureGroupPanel: React.FC<{
   failures: readonly ItemFailure[];
   /** The migration's source kind, from the queue, for the remedy (0150 D9). */
   sourceKind?: string;
+  /** And its destination's (0160, T2b): a Cirrux account's name refusals. */
+  targetKind?: string;
   /**
    * The rows carry no provider text (ADR-0035 decision 5), so there is nothing
    * to match a substring against, and the server refuses one: the box goes.
    */
   textWithheld?: boolean;
-}> = ({ mappingId, failures, sourceKind, textWithheld = false }) => {
+}> = ({ mappingId, failures, sourceKind, targetKind, textWithheld = false }) => {
   const t = useT();
   const queryClient = useQueryClient();
   const [domain, setDomain] = React.useState('');
@@ -293,7 +295,7 @@ export const FailureGroupPanel: React.FC<{
                   <span className="text-xs text-gray-700 flex-1 min-w-[10rem]">
                     {g.category ? (
                       <>
-                        {t(remedyKey(g.category, sourceKind))}{' '}
+                        {t(remedyKey(g.category, sourceKind, { targetKind }))}{' '}
                         <SendItToUs category={g.category} dataType={g.domain} migrationId={mappingId} />
                       </>
                     ) : (

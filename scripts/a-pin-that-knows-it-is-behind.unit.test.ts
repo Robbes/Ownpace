@@ -186,6 +186,7 @@ import {
   zizmorPin,
   issueBody,
   keepIssue,
+  keepIssues,
   newestLike,
   newestRelease,
   gitleaksPin,
@@ -2561,8 +2562,9 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
   it("refuses a file named `-latest` or under a `latest` path, and an npx that may install, in any workflow, by a mutation of the real one (#1777's review)", () => {
     const file = '.github/workflows/security-scan.yml';
     const scan = REAL.read(file)!;
-    const sbom = /\n( +)if ! npx --yes=false @cyclonedx\/cyclonedx-npm /;
-    expect(sbom.test(scan), `the SBOM step's npx is not in ${file}`).toBe(true);
+    // Anchored on the SBOM step's command: an npx there until 2026-11-24, `pnpm sbom` since (workplan 0006 §Q).
+    const sbom = /\n( +)if ! pnpm sbom --sbom-format cyclonedx /;
+    expect(sbom.test(scan), `the SBOM step's command is not in ${file}`).toBe(true);
     const mutate = (to: string): string => scan.replace(sbom, (all, indent: string) => `\n${indent}${to}${all}`);
     // The download #1773 replaced, word for word, in a workflow atlasPin never reads.
     const atlas = 'curl -sSf -o /tmp/atlas https://atlasbinaries.com/atlas/atlas-community-linux-amd64-latest && chmod +x /tmp/atlas';
@@ -2572,9 +2574,12 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
     }
     // A release whose name only contains the word is not a channel.
     expect(floatingFetches(mutate('curl -sSfLO https://example.org/v1.2.3/latestish-1.2.3.tar.gz'))).toEqual([]);
-    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx -y @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
-    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
-    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx --yes @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
+    // The npx this step ran until 2026-11-24, put back: allowed as it was, refused in each form that may install.
+    const npx = (flag: string): string => mutate(`npx ${flag}@cyclonedx/cyclonedx-npm --output-format JSON --output-file bom.json`);
+    expect(floatingFetches(npx('--yes=false '))).toEqual([]);
+    for (const flag of ['-y ', '', '--yes ']) {
+      expect(floatingFetches(npx(flag)).join('\n'), flag).toMatch(/runs npx, which installs from npm/);
+    }
   });
 
   it('reads both action images from images.yml, each by a release tag and its digest, and every other workflow without fault', () => {
@@ -2725,6 +2730,78 @@ describe('one issue per title', () => {
     const moved = fakeGh([{ number: 5, title: TITLES.pnpm, body: 'pnpm is behind **11.27.0**', state: 'open' }]);
     expect(keepIssue(row, moved.gh, TITLES.pnpm)).toBe('updated');
     expect(moved.calls.map((c) => c.slice(0, 2))).toEqual([['issue', 'edit'], ['issue', 'comment']]);
+  });
+});
+
+describe('every row from one list of the open issues (PERF-4)', () => {
+  /** The fake of `fakeGh`, which also counts how often the open issues are listed. */
+  function countingGh(issues: Issue[]) {
+    const inner = fakeGh(issues);
+    let lists = 0;
+    const gh = (args: string[]) => {
+      if (args[0] === 'issue' && args[1] === 'list') lists += 1;
+      return inner.gh(args);
+    };
+    return { gh, calls: inner.calls, lists: () => lists };
+  }
+
+  it('lists the open issues once for every row, and keeps each row under its own title', () => {
+    const rows: Row[] = [
+      { key: 'zitadel', name: 'identity provider', title: TITLES.zitadel, state: 'current', pin: 'v4.19.1', newest: 'v4.19.1' },
+      { key: 'trigger', name: 'Trigger.dev', title: TITLES.trigger, ...removedRow('Trigger.dev') },
+      { key: 'clickhouse', name: 'ClickHouse', title: TITLES.clickhouse, ...removedRow('ClickHouse') },
+      { key: 'pnpm', name: 'pnpm', title: TITLES.pnpm, state: 'behind', pin: '11.22.0', newest: '11.28.6', body: 'pnpm is behind' },
+      { key: 'typescript', name: 'TypeScript split', title: TITLES.typescript, state: 'error', error: 'unread' },
+    ];
+    const open = countingGh([
+      OTHER,
+      { number: 11, title: TITLES.trigger, body: 'behind', state: 'open' },
+      { number: 12, title: TITLES.clickhouse, body: 'behind', state: 'open' },
+    ]);
+    expect(keepIssues(rows, open.gh)).toEqual([
+      { name: 'identity provider', outcome: 'untouched' },
+      { name: 'Trigger.dev', outcome: 'closed' },
+      { name: 'ClickHouse', outcome: 'closed' },
+      { name: 'pnpm', outcome: 'opened' },
+      { name: 'TypeScript split', outcome: 'untouched' },
+    ]);
+    expect(open.lists()).toBe(1);
+    expect(open.calls.map((c) => c.slice(0, 4))).toEqual([
+      ['issue', 'close', '11', '--comment'],
+      ['issue', 'close', '12', '--comment'],
+      ['issue', 'create', '--title', TITLES.pnpm],
+    ]);
+  });
+
+  it('still lists them itself when called for one row, as before', () => {
+    const open = countingGh([OTHER]);
+    expect(keepIssue({ state: 'behind', pin: '1', newest: '2', body: 'b' }, open.gh, TITLES.pnpm)).toBe('opened');
+    expect(open.lists()).toBe(1);
+  });
+
+  it('gives each row the error when the list cannot be read, and writes nothing', () => {
+    const rows: Row[] = [
+      { name: 'a', title: 'A', state: 'behind', body: 'a' },
+      { name: 'b', title: 'B', state: 'current' },
+    ];
+    const calls: string[][] = [];
+    const gh = (args: string[]) => {
+      calls.push(args);
+      throw new Error('gh: HTTP 502');
+    };
+    expect(keepIssues(rows, gh)).toEqual([
+      { name: 'a', error: 'gh: HTTP 502' },
+      { name: 'b', error: 'gh: HTTP 502' },
+    ]);
+    expect(calls.map((c) => c.slice(0, 2))).toEqual([['issue', 'list']]);
+  });
+
+  it('refuses two rows under one title, a row without one counting as the identity provider\'s', () => {
+    const { gh, calls } = fakeGh([]);
+    expect(() => keepIssues([{ name: 'a', title: ISSUE_TITLE, state: 'current' }, { name: 'b', state: 'current' }], gh)).toThrow(
+      `two rows keep the issue titled "${ISSUE_TITLE}"`,
+    );
+    expect(calls).toEqual([]);
   });
 });
 

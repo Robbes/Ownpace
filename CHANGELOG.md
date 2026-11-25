@@ -110,6 +110,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   profile; a connection consented before this release says *Not read from Microsoft; reconnect to
   list them.* Two read-only routes on both editions, `GET …/finish/addresses` and `POST
   …/finish/mx-check` (one check per ten seconds per migration). No database change.
+- **Apple's data export is read, Experimental** (workplan 0171 T1; the owner's decisions D6 and
+  D9 of 2026-11-24). An archive connection whose export is **Apple Data & Privacy** now has a
+  reader: iCloud Drive and iCloud Photos from the `.zip` parts Apple delivers, from the folder they
+  were put in unopened, or from an extracted copy. The reader finds each service's data by its own
+  list of files (`Drive Details.csv` for Drive), never by folder names, and keeps the person's
+  folders as they are. It is built on the one export opened so far, so it refuses what it does
+  not know: a zip with neither service's list (*"This does not look like an Apple export we
+  know"*), fewer `.zip` parts than the person said Apple gave them (an archive connection takes a
+  new optional `parts`), and two parts that belong to two different exports. A file is dated by
+  the zip itself; Apple's list of dates carries no time zone, so its dates are kept as text beside
+  each file and never parsed. Photos are written against Apple's description, not a real export.
+  The form's *To be tested* tag and cannot-read line go with the reader; the screen and guide
+  sentences for the part count and Advanced Data Protection follow in T2. No database change.
 
 ### Changed
 
@@ -198,6 +211,30 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   person chose to leave behind is added to what was recorded (the owner: *"E yes"*), so neither
   fails the check. On an IMAP destination Archive is the folder the server marks as its archive,
   where it has one. A migration started earlier copies its archived mail on its next pass.
+- **Four screen findings from the owner's live Cirrux Drive test** (workplan 0160, T2b; the
+  owner, 2026-11-24: *"alpha.20 (advice): yes on all"*). A file refused because Cirrux Drive
+  already holds one whose name differs only in capitals or accents, or whose name Cirrux refuses,
+  is `format_refused` now, a name the destination will not store, and on a Cirrux migration the
+  Failures page says so in Cirrux's terms instead of *"The destination refused to accept
+  this. Common causes are no space left…"*. After *Disconnect Cirrux Drive*, *Live progress*
+  names the row's own button, **Connect Cirrux Drive**, where it said *Reconnect or Replace
+  credentials*. A delete pressed while deleting by hand is off says so in the reader's words and
+  points at the switch above, where it showed the appliance's *"Set `allowApplyDeletions: true`
+  in its config"*. And a changed file whose copy was deleted in Cirrux Drive for good is
+  reported as gone from the target (workplan 0168 B2), not thrown: the throw made the copied row
+  a failed one, so *Live progress* stopped counting the copy and counted a failure more. The
+  failure queue names the destination's kind (`targetKind`) beside its source's.
+
+### Security
+
+- **The release's `bom.json` lists every package the product runs** (workplan 0006 §Q; SBOM-1,
+  from an outside, read-only check). Security Scan built it with `cyclonedx-npm`, which reads only
+  the root `package.json`, so alpha.18's SBOM lacked 56 production packages the apps import
+  (`jose`, `helmet`, `pg-boss`, `axios`, `@mollie/api-client` and `react-router` among them) and
+  marked none of its dev tooling as dev. It is now built by `pnpm sbom` from the lockfile: every
+  workspace project, a license on every component, dev-only packages marked `scope: excluded`.
+  A new step after it, `scripts/sbom-complete.mjs`, fails when a package in pnpm's production set
+  is missing from `bom.json` or marked dev.
 
 ## [0.2.0-alpha.19] - 2026-11-24
 
