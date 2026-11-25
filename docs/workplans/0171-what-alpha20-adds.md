@@ -12,7 +12,26 @@ contacts or tasks alone, and an `unlimited` answer, draw no line; a question tha
 is said in one more line (`start.check.space.notRead`). Free space is read per migration, so two
 migrations into one account are not added together.
 
-**2026-11-24: planned, for alpha.20. Nothing built.** This plan fixes the shared interfaces so
+**2026-11-24, the owner's answer on T3.** ADR-0035 is amended: from alpha.20 a grant link also
+covers Microsoft accounts, personal and work, through this seam; Dropbox and Apple follow in T4 and
+T5. The owner: *"C yes agreed, amend and in PR"*. The person page's two-applications refusal now
+names the account's own provider (`twoClientsAt`), in English and Dutch.
+
+**2026-11-24, T3 built, in review (draft pull request, not merged before alpha.19 is tagged).**
+The grant-link provider seam and Microsoft's link, personal and work, bound to the named account;
+`User.Read` on every new Microsoft consent (D7 (a)). Two additions to §3.2's fixed interface:
+`consentUrl` also takes the client, the scope and the data types, and `finish` takes the client
+and answers a refusal as well as a success (the pending state holds the client; a code exchange
+can be refused). The plan's `grant.wrongAccount` sentences live in `@openmig/shared`
+(`anotherAccountAt`), because the ending that says them is drawn by the server. The Microsoft
+account's token field is no longer required, so an account saved for somebody else can wait for
+their grant; Start holds it until then. Proven by unit tests (each refusal per provider; the
+binding over UPN, mail, a proxy address, a personal account and a wrong account, nothing stored and
+the link live; a wrong issuer and a wrong audience; Google unchanged), the route cases on PGlite
+with both migration chains. Not run: the `local-pg.sh` integration case (no Postgres binaries in
+the build container), and nothing here proves a real Microsoft work tenant's grant link (§10).
+
+**2026-11-24: planned, for alpha.20.** This plan fixes the shared interfaces so
 that separate build sessions can take its tasks as parallel pull requests (§9). The owner waived
 every waiting period. alpha.19 is still being finished (workplan 0170, a Microsoft calendar
 rebuild, a Gmail fix), so **nothing in this plan merges before alpha.19 is tagged**; branches may
@@ -23,7 +42,7 @@ open earlier. No database change is expected (§8). Every claim about the code b
 |---|---|---|---|
 | T1 Apple's export: the reader | builder | 📋 Planned | §2.2–2.4. `apple-privacy` gets a reader; iCloud Drive and photos; refuses what it does not know. L. |
 | T2 Apple's export: the screens, guides and site | builder | 📋 Planned | §2.5–2.6. *To be tested* becomes *Experimental*; the part count; the Advanced Data Protection warning; the time-zone sentence corrected. M. After T1's interface. |
-| T3 Grant links: the provider seam, and Microsoft | builder | 📋 Planned | §3.2–3.4. `grant.ts`, `Grant.tsx`, the readiness check, made per provider; Microsoft personal and work, bound to the named account. L. Merges before T4 and T5. |
+| T3 Grant links: the provider seam, and Microsoft | builder | 🔄 In review | §3.2–3.4. Built: `grant-providers.ts` (Google and Microsoft entries; Dropbox and Apple in the id type, no entry); readiness, routes, endings and page per provider; Microsoft bound over UPN, mail and proxy addresses, personal accounts over the sign-in name; `User.Read` on every new Microsoft consent (D7). Proven by unit tests on PGlite (20 route cases) and the pure ones; not proven: a real work tenant's grant link. Two additions to §3.2's interface, said below. Merges before T4 and T5. |
 | T4 Grant links: Dropbox | builder | 📋 Planned | §3.5. S. On T3's seam. |
 | T5 Grant links: Apple's app-specific password | builder | 📋 Planned | §3.6. M. On T3's seam. |
 | T6 Shared calendars: whose calendar it is | builder | 📋 Planned | §4.2–4.4. Ownership read from CalDAV, Google and Graph; a calendar the account does not own is left out by default, listed on *Review and start*. L. |

@@ -52,7 +52,6 @@ import type { Pool } from 'pg';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS, PgLedger, expiryFromDays, type LedgerDriver } from '@openmig/ledger';
-import { SecretStore } from '@openmig/core/secret-store';
 import { LINK_SPENT, log, organisationClosedRefusal, reasonPair, type Bilingual, type TenantId } from '@openmig/shared';
 import { personLink, personMigration } from '@openmig/managed/schema-managed';
 import {
@@ -67,6 +66,8 @@ import {
   GRANT_ACTION,
   GRANT_ACTOR,
   GRANT_REFUSED_ACTION,
+  grantedAddress,
+  grantedSecret,
   mintProgressLink,
   type GrantedAccess,
   type GrantStoreResult,
@@ -76,7 +77,7 @@ import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts'
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 import { readPersonGrantSubject } from './person-grant-subject.ts';
 import {
-  sameGoogleAccount,
+  sameNamedAccount,
   signedInAccountRefusal,
   type SignedInAccountRefusal,
   type SignedInAccountRefusalCode,
@@ -149,7 +150,8 @@ export async function storePersonGrant(
   target: PersonGrantTarget,
   granted: GrantedAccess,
 ): Promise<PersonGrantStoreResult> {
-  const encrypted = JSON.stringify(SecretStore.encryptCredentials({ refreshToken: granted.refreshToken }).encrypted);
+  const encrypted = grantedSecret(granted);
+  const provider = granted.provider ?? 'google';
 
   try {
     return await withTenantDb(target.tenantId, source, async (db) => {
@@ -177,7 +179,7 @@ export async function storePersonGrant(
         .for('update');
       if (live.length === 0) return { ok: false as const, ...reasonPair(LINK_SPENT) };
 
-      const refusal = signedInAccountRefusal(target.account, granted.signedInAs);
+      const refusal = signedInAccountRefusal(target.account, granted.signedInAs, provider);
       if (refusal) throw new AnotherAccountSignedIn(refusal);
 
       const written: string[] = [];
@@ -195,7 +197,7 @@ export async function storePersonGrant(
         if (stillTheirs.length === 0) continue;
         const rows = await readGrantRows(db, target.tenantId, mappingId);
         const named = rows ? namedAccount(rows) : null;
-        if (!rows || !named || !sameGoogleAccount(named, target.account)) continue;
+        if (!rows || !named || !sameNamedAccount(provider, named, target.account)) continue;
 
         const updated = await db
           .update(schema.mailboxMapping)
@@ -212,7 +214,7 @@ export async function storePersonGrant(
           detail: {
             mappingId,
             personLinkId: target.linkId,
-            account: granted.signedInAs,
+            account: grantedAddress(granted.signedInAs),
             to: whereFromAndTo(rows)?.to ?? null,
           },
         });

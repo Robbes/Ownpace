@@ -58,6 +58,25 @@ export const MICROSOFT_DOMAIN_SCOPES: Readonly<Partial<Record<DiscoveryDomain, s
 };
 
 /**
+ * WHO SIGNED IN, asked beside the data on every new Microsoft consent
+ * (workplan 0171 §3.3, the owner's decision D7 (a), 2026-11-24).
+ *
+ * `openid`, `email` and `profile` make the token response carry an ID token,
+ * whose issuer and audience a grant link checks; `User.Read` lets the same
+ * token read the person's own directory entry (`/me`): the sign-in name, the
+ * primary address and the proxy addresses, which is what binds a grant link
+ * to the account it names and what Finish lists as the addresses that receive
+ * mail (§7.2). It is the least scope Microsoft has, the person's own profile,
+ * and reads nothing a migration copies. A connection consented before alpha.20
+ * lacks it until it is connected again.
+ *
+ * Not a face: no sync path asks for it, and the guard that pins the consent's
+ * Graph scopes to the sync's (`a-consent-that-asks-for-a-different-scope`)
+ * reads this list as identity, apart from the faces'.
+ */
+export const MICROSOFT_IDENTITY_SCOPES: ReadonlyArray<string> = ['openid', 'email', 'profile', 'User.Read'];
+
+/**
  * The faces this consent can ask for, in the order a person ticks them.
  *
  * DERIVED from the scope map rather than written again. `a-domain-union-typed-
@@ -71,8 +90,9 @@ export const MICROSOFT_CONSENT_DOMAINS: ReadonlyArray<DiscoveryDomain> = Object.
 ) as ReadonlyArray<DiscoveryDomain>;
 
 /**
- * The scope string for the faces asked for — always with `offline_access`, and
- * never with a scope for a face nobody ticked.
+ * The scope string for the faces asked for — always with `offline_access` and
+ * the identity scopes (`MICROSOFT_IDENTITY_SCOPES`, since alpha.20), and never
+ * with a scope for a face nobody ticked.
  *
  * An empty or unrecognised request asks for every face rather than none:
  * a consent that grants nothing is not a safer failure, it is a button that
@@ -84,7 +104,7 @@ export function microsoftScopesFor(domains: ReadonlyArray<string>): string[] {
   const scopes = chosen
     .map((d) => MICROSOFT_DOMAIN_SCOPES[d])
     .filter((s): s is string => typeof s === 'string');
-  return [MICROSOFT_OFFLINE_SCOPE, ...scopes];
+  return [MICROSOFT_OFFLINE_SCOPE, ...MICROSOFT_IDENTITY_SCOPES, ...scopes];
 }
 
 /** The Graph scope a face is consented under, or undefined for a face no
