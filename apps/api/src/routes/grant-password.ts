@@ -129,9 +129,26 @@ export function passwordLimit(limiter: KnockLimiter): RequestHandler {
   };
 }
 
-/** The limiter the route is mounted with. */
-export function passwordLimiter(): KnockLimiter {
-  return createKnockLimiter({ windowMs: 60 * 60 * 1000, max: PASSWORD_TESTS_PER_HOUR });
+/**
+ * The limiter the route is mounted with: `PASSWORD_TESTS_PER_HOUR`, or
+ * `GRANT_PASSWORD_TESTS_PER_HOUR` when a deployment sets it, which, like
+ * `ACCESS_REQUEST_MAX_PER_HOUR`, is refused rather than ignored when it is
+ * not a positive whole number (hard rule 9). Unless `TRUST_PROXY` is set the
+ * key is the ingress, so this is a service-wide cap (`knock-limit.ts`).
+ */
+export function passwordLimiter(env: NodeJS.ProcessEnv = process.env): KnockLimiter {
+  const raw = env.GRANT_PASSWORD_TESTS_PER_HOUR;
+  let max = PASSWORD_TESTS_PER_HOUR;
+  if (raw !== undefined && raw.trim() !== '') {
+    max = Number(raw);
+    if (!Number.isInteger(max) || max < 1) {
+      throw new Error(
+        `GRANT_PASSWORD_TESTS_PER_HOUR must be a positive integer; got ${JSON.stringify(raw)}. ` +
+          'It is how many passwords one caller may test on grant links per hour.',
+      );
+    }
+  }
+  return createKnockLimiter({ windowMs: 60 * 60 * 1000, max });
 }
 
 /** The body, checked (§5.3 step 2): the ref and the values, or the code of what is wrong. */
@@ -188,7 +205,7 @@ async function testInput(
   link: PersonLink,
   account: PersonGrantAccount & { readonly ask: { readonly ok: true; readonly way: 'password'; readonly kind: PasswordKind } },
   values: Record<string, string>,
-): Promise<PasswordTestInput | null> {
+): Promise<{ readonly input: PasswordTestInput; readonly filled: ReadonlyArray<string> } | null> {
   const first = account.migrations[0];
   if (!first) return null;
   return withTenantDb(link.tenantId, source, async (db) => {
@@ -210,13 +227,19 @@ async function testInput(
     // A row saved for the person by its address alone (0174 §8.2) keeps the
     // account in its config: the DAV and JMAP logins read `username`.
     const user = typeof config.user === 'string' ? config.user : typeof config.username === 'string' ? config.username : '';
+    // Stored with the password when the record had none, so the pass logs in
+    // as the test did.
+    const filled = user && !stored.username && !values.username ? ['username'] : [];
     const credentials = { ...(user ? { username: user } : {}), ...stored, ...values };
     return {
-      role: account.role,
-      kind: account.ask.kind,
-      config,
-      credentials,
-      faces: account.ask.domains as ReadonlyArray<DiscoveryDomain>,
+      input: {
+        role: account.role,
+        kind: account.ask.kind,
+        config,
+        credentials,
+        faces: account.ask.domains as ReadonlyArray<DiscoveryDomain>,
+      },
+      filled,
     };
   });
 }
@@ -276,13 +299,15 @@ export function passwordThroughLink(pool: PoolSource, deps: PasswordRouteDeps = 
         return void res.status(423).json({ error: 'locked', tries: { left: 0, locked: true } });
       }
 
-      const input = await testInput(pool(), link, { ...account, ask }, body.values);
-      if (!input) {
+      const prepared = await testInput(pool(), link, { ...account, ask }, body.values);
+      if (!prepared) {
         await giveTheTryBack(pool(), target);
         return void res.status(409).json({ error: 'not_this_account' });
       }
       const answers = probeAnswers('testing a password on a grant link', link.tenantId);
-      const run = await withinTheDoor(runPasswordTest(input, personKeys, answers, deps.test));
+      const run = await withinTheDoor(
+        runPasswordTest(prepared.input, [...personKeys, ...prepared.filled], answers, deps.test),
+      );
       const left = (refusedNow: number) => Math.max(0, PASSWORD_TRIES_PER_LINK - refusedNow);
 
       if (!run.test.ok) {
