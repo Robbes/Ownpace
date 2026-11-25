@@ -2,9 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to M done; P built, in a draft pull request for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
-
-## Status — 2026-11-24: A to N done (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-24: A to N done; P built, in a draft pull request for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
