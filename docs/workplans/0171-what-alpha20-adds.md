@@ -4,6 +4,19 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-24, the owner's answer on T1.** Where a photo in no album lands: under the export's
+own top wrapper folder (for example `iCloud Photos`), never the iCloud Drive root. The owner:
+*"B ok yes"*. §2.2 says so, and a unit case pins it with a zip whose file name differs from the
+wrapper.
+
+**2026-11-24, T1 built, in review (draft, not merged before alpha.19 is tagged).** Apple's reader
+reads Drive and photos zips built after 0116's layout; its unit cases pass. Three shared shapes
+grew, additively, beyond §9's file list, and the pull request says so: `parts` on the archive
+location and source (so the count reaches the reader; T2 adds the form field and the API's
+schema), `modifiedUtcSeconds` on a zip entry, and an optional `modifiedAt` on the archive tree.
+The form's *To be tested* tag left with the list, so two web guards and the archive card's hint
+moved with it.
+
 **2026-11-24, T9 built (in review, not merged):** free space at the destination is read and
 said before Start, as §6 and D3 (a), D4 (a) describe. §6.2's interface is as fixed. Three things
 the plan left open, decided in the build and said in its pull request: the route's answer carries
@@ -40,7 +53,7 @@ open earlier. No database change is expected (§8). Every claim about the code b
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T1 Apple's export: the reader | builder | 📋 Planned | §2.2–2.4. `apple-privacy` gets a reader; iCloud Drive and photos; refuses what it does not know. L. |
+| T1 Apple's export: the reader | builder | 🔨 **Built 2026-11-24**, in review | §2.2–2.4. `apple-privacy-archive-reader.ts`, in `READERS` and `ARCHIVE_PROVIDERS_WITH_READERS`; Drive and photos found by their manifests; refuses neither-manifest, fewer parts than `parts`, two exports. Dates from the zip (UTC field, else DOS stamp read as UTC). 18 unit cases; the integration case not run here (no container runtime where it was built). Adds `ArchiveLocation.parts`/`ArchiveSource.parts` and an optional `ArchiveTree.modifiedAt`. |
 | T2 Apple's export: the screens, guides and site | builder | 📋 Planned | §2.5–2.6. *To be tested* becomes *Experimental*; the part count; the Advanced Data Protection warning; the time-zone sentence corrected. M. After T1's interface. |
 | T3 Grant links: the provider seam, and Microsoft | builder | 🔄 In review | §3.2–3.4. Built: `grant-providers.ts` (Google and Microsoft entries; Dropbox and Apple in the id type, no entry); readiness, routes, endings and page per provider; Microsoft bound over UPN, mail and proxy addresses, personal accounts over the sign-in name; `User.Read` on every new Microsoft consent (D7). Proven by unit tests on PGlite (20 route cases) and the pure ones; not proven: a real work tenant's grant link. Two additions to §3.2's interface, said below. Merges before T4 and T5. |
 | T4 Grant links: Dropbox | builder | 📋 Planned | §3.5. S. On T3's seam. |
@@ -161,7 +174,10 @@ header names an image file column and a checksum column. The reader is written a
 own description of the export and the parser takes the header's column names from one table in
 the file, so the first real export corrects one table, not the reader. Media files are the files
 beside it with an image or video extension; albums, if the export carries album CSVs, become
-`folders` as Takeout's albums do. **When a zip holds neither manifest, `open()` throws
+`folders` as Takeout's albums do. **A photo in no album lands under the export's own top
+wrapper folder** (for example `iCloud Photos`), so photos never mix with the person's iCloud
+Drive root. The owner agreed on 2026-11-24, answering pull request #2134's question: *"B ok
+yes"*. **When a zip holds neither manifest, `open()` throws
 `ArchiveUnreadable`** with *"This does not look like an Apple export we know"*, never an empty
 import (the factory's rule, :58-62).
 

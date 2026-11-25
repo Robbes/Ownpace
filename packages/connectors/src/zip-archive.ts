@@ -154,6 +154,14 @@ export interface ZipEntry {
    * the writer was in (0116 found Apple's stamps consistent with US Pacific).
    */
   readonly dosStamp: number;
+  /**
+   * The modification time from the extended-timestamp extra field (`0x5455`,
+   * "UT"), in seconds since the epoch, UTC — present only when the writer
+   * emitted that field with its modification-time bit set. Unlike
+   * {@link dosStamp} it carries a zone, so a reader that wants a date prefers
+   * it (workplan 0171 §2.4).
+   */
+  readonly modifiedUtcSeconds?: number;
   /** The general-purpose flags word, for callers that need bit 11 (UTF-8 names) or bit 0 (encrypted). */
   readonly flags: number;
 }
@@ -190,6 +198,7 @@ const MAX_COMMENT = 0xffff;
 const SENTINEL_16 = 0xffff;
 const SENTINEL_32 = 0xffffffff;
 const ZIP64_EXTRA_ID = 0x0001;
+const EXTENDED_TIMESTAMP_EXTRA_ID = 0x5455;
 const FLAG_UTF8 = 0x0800;
 const FLAG_ENCRYPTED = 0x0001;
 
@@ -351,6 +360,31 @@ function readZip64Extra(
   return sizes;
 }
 
+/**
+ * The modification time of the extended-timestamp extra field, if any.
+ *
+ * In the CENTRAL directory the field carries a flags byte and at most the
+ * modification time (the access and creation times live only in the local
+ * header). Bit 0 of the flags says the modification time is there. A field
+ * too short for what its flags promise is ignored rather than refused: it is
+ * a date, and the DOS stamp still stands behind it.
+ */
+function readExtendedTimestamp(extra: DataView): number | undefined {
+  let at = 0;
+  while (at + 4 <= extra.byteLength) {
+    const id = u16(extra, at);
+    const length = u16(extra, at + 2);
+    const body = at + 4;
+    if (body + length > extra.byteLength) return undefined;
+    if (id === EXTENDED_TIMESTAMP_EXTRA_ID) {
+      if (length < 5 || (extra.getUint8(body) & 0x01) === 0) return undefined;
+      return extra.getInt32(body + 1, true);
+    }
+    at = body + length;
+  }
+  return undefined;
+}
+
 function parseCentralDirectory(bytes: Uint8Array, expected: number): ZipEntry[] {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const entries: ZipEntry[] = [];
@@ -381,7 +415,9 @@ function parseCentralDirectory(bytes: Uint8Array, expected: number): ZipEntry[] 
       disk: u16(view, at + 34),
       localHeaderOffset: u32(view, at + 42),
     };
-    const wide = readZip64Extra(new DataView(bytes.buffer, bytes.byteOffset + extraAt, extraLength), narrow);
+    const extra = new DataView(bytes.buffer, bytes.byteOffset + extraAt, extraLength);
+    const wide = readZip64Extra(extra, narrow);
+    const modifiedUtcSeconds = readExtendedTimestamp(extra);
     if (wide.disk !== 0) throw new ZipUnreadable(SPLIT_SENTENCE);
     const name = decodeName(bytes.subarray(nameAt, nameAt + nameLength), flags);
     entries.push({
@@ -393,6 +429,7 @@ function parseCentralDirectory(bytes: Uint8Array, expected: number): ZipEntry[] 
       crc32: crc,
       localHeaderOffset: wide.localHeaderOffset,
       dosStamp,
+      ...(modifiedUtcSeconds === undefined ? {} : { modifiedUtcSeconds }),
       flags,
     });
     at = next;
