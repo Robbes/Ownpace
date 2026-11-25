@@ -233,12 +233,15 @@ only the fields their provider says only they know (Infomaniak's sync user name,
 empty).
 
 **Before any box, the card says where the password goes.** The server it will be checked with,
-its domain in bold, and *Type it only if this is your own provider's server.* For Apple the
-server is Apple's own, whatever the account's row says. For an account that is an email address,
+its domain in bold, and *Type it only if this is your own provider's server.* For Apple, Cirrux
+and Infomaniak it is the server the provider publishes, whatever the account's row says, and the
+password is tried there only. Soverin's own pages could not be read when this was built, so its
+card shows the server you saved, as for any IMAP or DAV account. For an account that is an email address,
 the server's domain is compared with the address's own domain and with its mail servers' (MX);
 when it matches neither the card adds a warning, never a refusal: *This server is not one your
 address's mail uses, as far as we can tell.* A server you named by a number rather than a name is
-never tried. The card also says that nobody can see the password again, not you, not your
+never tried, and nor is a name that leads into a private network: the card asks the person to
+tell you. The card also says that nobody can see the password again, not you, not your
 organisation, not Ownpace's staff, and that Ownpace never emails a link or asks for a password
 by email or phone. With no phone number set for your organisation, it tells them to check with
 you some other way first.

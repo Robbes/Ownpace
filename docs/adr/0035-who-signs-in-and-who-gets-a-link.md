@@ -398,16 +398,17 @@ The full record, word for word as it read before this consolidation:
 [history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md).
 - **2026-11-25** — **Amended**, by the owner (*"I want all sources/targets that supports
   granting to be able to use the others-grant-page"*; *"1: b"*, *"2: a"*): from alpha.21 a
-  person's grant link also connects **destinations** the person owns, Dropbox and Cirrux Drive by
-  sign-in, and every account whose credential is a password, through a page where the person
+  person's grant link also connects **destinations** the person owns, Dropbox and Cirrux Drive
+  by sign-in, and every account whose credential is a password, through a page where the person
   types it themselves (workplan 0174). The password is tried with the create door's own test
   before it is stored, five refused tries lock that account on that link, and it is never shown,
-  logged or audited. Category B (decision 3) keeps its meaning: it is a reusable password we hold,
-  now typed by the person and never seen by the owner. *Consequences*' *"the sharpest edge here"*
-  is answered by the page's server line, Apple's pinned host, a warning when the server is not
-  the address's mail, and the refusal of a server named by a number (0174 §5.8, as built), not
-  removed. The appliance still has no links. Record: *Operative rules*, fourth bullet. The new
-  bullet took the section past ADR-0051's 300 words, so five other bullets were said in fewer
-  words, their meaning unchanged: two dashes became colons (first and second), *start when
-  granted* says *awaiting a grant* and *before then*, the withdrawal and the reporting bullets
-  are reworded, and the error-text bullet says *the organisation's accounts*.
+  logged or audited. Category B (decision 3) keeps its meaning: it is a reusable password we
+  hold, now typed by the person and never seen by the owner. *Consequences*' *"the sharpest edge
+  here"* is answered by the page's server line, the published servers pinned for Apple, Cirrux
+  and Infomaniak, a warning when the server is not the address's mail, and the refusal of a
+  server named by a number or inside a private network (0174 §5.8, as built), not removed. The
+  appliance still has no links. Record: *Operative rules*, fourth bullet. The new bullet took
+  the section past ADR-0051's 300 words, so five other bullets were said in fewer words, their
+  meaning unchanged: two dashes became colons (first and second), *start when granted* says
+  *awaiting a grant* and *before then*, the withdrawal and the reporting bullets are reworded,
+  and the error-text bullet says *the organisation's accounts*.
