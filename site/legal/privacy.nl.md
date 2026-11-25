@@ -6,6 +6,9 @@
   texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
+  Still 1.0, edited in place once more on 2026-11-25 (the owner, that evening, to each of two
+  additions advised for the gift: "Ok"): *Cadeaus* says that a declined request gives the gift
+  back, so the giver can tell, and §5 gains a row for a gift. privacy.md's briefing has why.
   Still 1.0, edited in place again on 2026-11-25 (the owner, workplan 0172: "ok, I take your
   advice"): §4.4 ends with *Cadeaus*, and §9 gains a row for a gift. privacy.md's briefing has
   what changed and why.
@@ -243,8 +246,9 @@ u de app een btw-nummer controleren, dan gebeurt dat bij de VIES-dienst van de E
 vingerafdruk van de code (nooit de code zelf), de taal van de kaart, wanneer het werd gemaakt, tot
 wanneer het geldig is, en wanneer het werd gebruikt en voor welke aanvraag, of wanneer het werd
 ingetrokken. We bewaren geen naam, adres of boodschap van degene voor wie het is. Gebruikt u een
-code, dan bewaren we uw aanvraag zoals elke aanvraag, gemarkeerd als cadeau van de gever. Een cadeau
-wordt verwijderd met de organisatie van de gever.
+code, dan bewaren we uw aanvraag zoals elke aanvraag, gemarkeerd als cadeau van de gever. Wijzen
+wij uw aanvraag af, dan krijgt de gever het cadeau terug, en kan die dus merken dat u niet bent
+toegelaten. Een cadeau wordt verwijderd met de organisatie van de gever.
 
 ### 4.5 Support en operationele logs
 
@@ -467,6 +471,7 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
 |---|---|---|
 | Toegangsgegevens, register, de telling bij het controleren van uw migratie | De migratie uitvoeren die u hebt gevraagd | Overeenkomst, inclusief stappen die u vooraf vraagt (art. 6 lid 1 sub b) — op uw instructie als verwerker voor een organisatie; als verwerkingsverantwoordelijke bij een migratie voor uw gezin (§3) |
 | Uw aanvraag voor toegang | Besluiten of we u toelaten, en u dat laten weten | Stappen die u vóór een overeenkomst vraagt (art. 6 lid 1 sub b) |
+| Een cadeau (§4.4) | Een lid een plaats laten geven, en een aanvraag als cadeau herkennen | Overeenkomst met de gever; voor uw aanvraag: stappen die u vóór een overeenkomst vraagt (art. 6 lid 1 sub b) |
 | Uw account en inlogaccount, facturen, gebruikscijfers | De dienst leveren, zorgen dat u zich veilig kunt aanmelden, en factureren | Overeenkomst (art. 6 lid 1 sub b); wettelijke plicht voor het bewaren van facturen (art. 6 lid 1 sub c). Tijdens de Alpha geen facturen |
 | De vastlegging van mislukte pogingen, en de blokkering van uw inlogaccount na 10 verkeerde wachtwoorden op rij (§4.4) | Uw inlogaccount beschermen tegen gebruik door een ander | Gerechtvaardigd belang (art. 6 lid 1 sub f) — dat van u evenzeer als dat van ons |
 | Uw Google-adres op de lijst van testgebruikers bij Google (Alpha) | Google de koppeling laten toestaan waar u om vraagt | Overeenkomst (art. 6 lid 1 sub b) |
