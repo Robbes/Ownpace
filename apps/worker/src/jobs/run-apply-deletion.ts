@@ -126,23 +126,18 @@ export const runApplyDeletionRun = leavesAReference(
     );
 
     try {
-      // The flag is read FRESH, from the mapping row, at execution time. The
-      // route read it too, but a queue hop is a window, and the mapping being
-      // switched off in that window must win.
-      const allowRows = await withTenant(pool, tenantId, (db) =>
+      // Under a prefix the copy lives at prefix/collection while the ledger
+      // records the SOURCE collection — the removal must open the mailbox the
+      // copy is actually in. Read FRESH, from the mapping row, at execution
+      // time: a queue hop is a window. (Deleting by hand has no per-mapping
+      // switch since alpha.21, ADR-0024 2026-11-25: there is no flag to read.)
+      const mappingRows = await withTenant(pool, tenantId, (db) =>
         db
-          .select({
-            allow: schemaPg.mailboxMapping.allowApplyDeletions,
-            prefix: schemaPg.mailboxMapping.targetFolderPrefix,
-          })
+          .select({ prefix: schemaPg.mailboxMapping.targetFolderPrefix })
           .from(schemaPg.mailboxMapping)
           .where(eq(schemaPg.mailboxMapping.id, mappingId)),
       );
-      const allowApplyDeletions = allowRows[0]?.allow === true;
-      // Under a prefix the copy lives at prefix/collection while the ledger
-      // records the SOURCE collection — the removal must open the mailbox the
-      // copy is actually in. Same fresh read as the flag, same reason.
-      const targetFolderPrefix = allowRows[0]?.prefix ?? undefined;
+      const targetFolderPrefix = mappingRows[0]?.prefix ?? undefined;
 
       // Only the domains the owner SELECTED are probed. Opening deps for a
       // domain the mapping does not migrate is not a harmless no-op: the
@@ -174,7 +169,6 @@ export const runApplyDeletionRun = leavesAReference(
               domain,
               ledger: deps.ledger,
               target: deps.target,
-              allowApplyDeletions,
               // The data type's phase, asked at the removal through the
               // question the deps builder made from `readPathPhases`, read
               // fresh: a cutover executed since the press wins, and after it

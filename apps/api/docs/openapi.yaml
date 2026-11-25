@@ -4991,7 +4991,12 @@ paths:
       - $ref: '#/components/parameters/MappingId'
     get:
       tags: [Operating]
-      summary: Whether this migration may apply deletions at all
+      summary: Whether this migration removes moved files' old copies unattended
+      description: |
+        Answers `{ autoApplyRelocations, source }` (ADR-0031). Until alpha.21
+        it also answered `allowApplyDeletions`, ADR-0024's gate 1; deleting by
+        hand has no switch since then (ADR-0024, amended 2026-11-25), and the
+        field is gone from the answer.
       responses:
         '200':
           description: The flag and where it is set.
@@ -5002,15 +5007,21 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [Operating]
-      summary: Turn applying deletions on or off
+      summary: Turn the automatic removal of moved files' old copies on or off
+      description: |
+        Owner only. Accepts `{ autoApplyRelocations: boolean }` and nothing
+        else. A body that still sends `allowApplyDeletions` is refused with
+        400 `invalid_body`: deleting by hand has no switch since alpha.21
+        (ADR-0024, amended 2026-11-25).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [autoApplyRelocations]
               properties:
-                allowApplyDeletions: { type: boolean }
+                autoApplyRelocations: { type: boolean }
       responses:
         '200':
           description: The stored flag.
@@ -5556,8 +5567,8 @@ paths:
         natural key, so the same bytes are already on the target under the new
         one. An ordinary move (mail, calendar) is refused as `not_relocated`,
         and a move the owner already answered with keep as `already_kept`.
-        Shares the migration's apply-deletions switch: it is the same
-        capability. Refused as `after_cutover` once the item's data type is
+        Needs no switch, like a deletion applied by hand (ADR-0024, amended
+        2026-11-25). Refused as `after_cutover` once the item's data type is
         past its cutover (2026-10-05).
 
         Enqueues; poll the moves `/receipt` for the outcome — the relocation's

@@ -80,7 +80,6 @@ beforeAll(async () => {
       // 31 February: a valid cron that never fires. Nothing may sync here.
       schedule: { cron: '0 5 31 2 *' },
       // On: the case in which anything is removed at all.
-      allowApplyDeletions: true,
       source: {
         type: 'imap-oauth2',
         host: '127.0.0.1',

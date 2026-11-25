@@ -110,7 +110,7 @@ export const en = {
   // ONE PRESS FOR THE ROWS WITH A DELETE BUTTON (workplan 0164 T3; ADR-0024,
   // amended 2026-11-21). Each row is still decided by itself, by the same
   // checks as its own button, the next only once the one before has
-  // answered. Offered only while deleting by hand is on, and never for a row
+  // answered. Needs no switch (alpha.21; ADR-0024, 2026-11-25), and never for a row
   // without a delete button of its own. Its confirmation is a control of its
   // own, which names how many, over the rows as they were when it opened.
   'deletions.all': 'Delete all of these here too',
@@ -142,7 +142,6 @@ export const en = {
     'Done: {deleted} deleted on the new system, {alreadyRemoved} already removed there, {notDeleted} not deleted, {unknown} not known.',
   'deletions.all.stoppedBy.breaker':
     'Stopped: the safeguard against mass deletion refused one, so nothing after it was asked.',
-  'deletions.all.stoppedBy.notEnabled': 'Stopped: deleting by hand was turned off, so nothing after it was asked.',
   'deletions.all.stoppedBy.failure': 'Stopped: one did not answer, so nothing after it was asked.',
   'deletions.all.stoppedBy.notRecorded':
     'Stopped: one was deleted, but Ownpace could not record it, because the list changed while it was being deleted. So nothing after it was asked.',
@@ -159,7 +158,6 @@ export const en = {
   // says it in the reader's language (docs/i18n-prose-boundary.md, class 2).
   'deletions.all.technical': 'Technical details',
   'deletions.all.notTried.breaker': 'Not tried: the safeguard against mass deletion refused an earlier one in this run.',
-  'deletions.all.notTried.notEnabled': 'Not tried: deleting by hand was turned off earlier in this run.',
   'deletions.all.notTried.failure': 'Not tried: an earlier one did not answer.',
   'deletions.all.notTried.notRecorded': 'Not tried: the list changed while an earlier one was being deleted.',
   'deletions.all.notTried.notStarted': 'Not tried: nothing could be started for an earlier one.',
@@ -173,13 +171,6 @@ export const en = {
   'deletions.all.unknownRow': 'Not known whether it was deleted:',
   // Why one was not deleted, keyed on the refusal's stable code: the
   // server's sentence stays beside it, under Technical details.
-  'deletions.refused.notEnabled': 'Deleting by hand is off for this migration, so it was not deleted.',
-  // What a person can do about it, after the sentence above on one press
-  // (workplan 0160, T2b): the switch on this page on managed, by its label
-  // (`applyFlag.turnOn`), the mapping's file on the appliance.
-  'deletions.refused.notEnabled.turnOn': 'To delete it, first press Turn on deleting by hand above.',
-  'deletions.refused.notEnabled.config':
-    'To delete it, set allowApplyDeletions in the migration’s config file and restart.',
   'deletions.refused.targetCannotRemove': 'The new system did not delete it for Ownpace, so nothing changed there.',
   // Also said when none of the kinds this migration copies holds the item.
   'deletions.refused.notFound':
@@ -336,8 +327,6 @@ export const nl: Record<keyof typeof en, string> = {
     'Klaar: {deleted} verwijderd op het nieuwe systeem, {alreadyRemoved} daar al verwijderd, {notDeleted} niet verwijderd, {unknown} onbekend.',
   'deletions.all.stoppedBy.breaker':
     'Gestopt: de beveiliging tegen massaal verwijderen weigerde er een, dus daarna is er niets meer gevraagd.',
-  'deletions.all.stoppedBy.notEnabled':
-    'Gestopt: handmatig verwijderen werd uitgeschakeld, dus daarna is er niets meer gevraagd.',
   'deletions.all.stoppedBy.failure': 'Gestopt: er gaf er een geen antwoord, dus daarna is er niets meer gevraagd.',
   'deletions.all.stoppedBy.notRecorded':
     'Gestopt: er is er een verwijderd, maar Ownpace kon dat niet vastleggen, omdat de lijst veranderde terwijl die werd verwijderd. Daarom is er daarna niets meer gevraagd.',
@@ -353,7 +342,6 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.all.technical': 'Technische details',
   'deletions.all.notTried.breaker':
     'Niet geprobeerd: eerder in deze reeks weigerde de beveiliging tegen massaal verwijderen er een.',
-  'deletions.all.notTried.notEnabled': 'Niet geprobeerd: handmatig verwijderen werd eerder in deze reeks uitgeschakeld.',
   'deletions.all.notTried.failure': 'Niet geprobeerd: een eerdere gaf geen antwoord.',
   'deletions.all.notTried.notRecorded': 'Niet geprobeerd: de lijst veranderde terwijl een eerdere werd verwijderd.',
   'deletions.all.notTried.notStarted': 'Niet geprobeerd: voor een eerdere kon niets in gang worden gezet.',
@@ -365,11 +353,6 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.all.late':
     'Er kwam binnen {minutes} minuten geen antwoord. Het kan alsnog worden verwijderd: kijk op het nieuwe systeem voordat u nog een keer drukt.',
   'deletions.all.unknownRow': 'Niet bekend of het is verwijderd:',
-  'deletions.refused.notEnabled': 'Handmatig verwijderen staat uit voor deze migratie, dus het is niet verwijderd.',
-  'deletions.refused.notEnabled.turnOn':
-    'Om het te verwijderen, drukt u eerst hierboven op Handmatig verwijderen inschakelen.',
-  'deletions.refused.notEnabled.config':
-    'Om het te verwijderen, zet u allowApplyDeletions aan in het configuratiebestand van de migratie en herstart u.',
   'deletions.refused.targetCannotRemove':
     'Het nieuwe systeem heeft het niet voor Ownpace verwijderd, dus daar is niets veranderd.',
   'deletions.refused.notFound':

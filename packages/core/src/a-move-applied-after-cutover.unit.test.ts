@@ -130,7 +130,6 @@ const applyWith = (
       ledger: world.ledger,
       target: world.remover,
       // Both switches on: the case in which anything is removed at all.
-      allowApplyDeletions: true,
       autoApplyRelocations: true,
       stillTheAuthority,
     },
@@ -196,7 +195,6 @@ describe('after cutover, unattended relocation apply removes nothing', () => {
         domain: 'file',
         ledger: world.ledger,
         target: world.remover,
-        allowApplyDeletions: true,
         autoApplyRelocations: false,
         stillTheAuthority: question,
       },

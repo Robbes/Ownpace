@@ -28,7 +28,7 @@
  *     stop exactly that. `blindSpots` outranks every zero count below.
  *
  * Bilingual from birth (ADR-0013 / workplan 0024's transferred requirement):
- * EN and NL live beside each other in this file, as `APPLY_FLAG_WARNING` and
+ * EN and NL live beside each other in this file, as `DELETE_BY_HAND_WARNING` and
  * its NL twin already do, so a language cannot silently fall behind. The
  * PROSE BOUNDARY applies (docs/i18n-prose-boundary.md): the frame is
  * translated, the server's own findings — a decision's summary, a run's

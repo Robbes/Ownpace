@@ -12,7 +12,7 @@
  *
  * Server prose is NOT here: refusals render verbatim (rule 2/ADR-0024), and
  * shared operator prose lives in @openmig/shared next to its English source
- * (e.g. APPLY_FLAG_WARNING / APPLY_FLAG_WARNING_NL) so editions and languages
+ * (e.g. DELETE_BY_HAND_WARNING / DELETE_BY_HAND_WARNING_NL) so editions and languages
  * cannot drift apart separately.
  */
 

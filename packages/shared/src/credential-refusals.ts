@@ -18,7 +18,7 @@
  * differ on the thing they are least allowed to differ on.
  *
  * So this is the class-4 pattern from `docs/i18n-prose-boundary.md`, the one
- * `APPLY_FLAG_WARNING_NL` set: **the Dutch lives BESIDE its English source, in
+ * `DELETE_BY_HAND_WARNING_NL` set: **the Dutch lives BESIDE its English source, in
  * the same file, updated together or neither.**
  *
  * ## What is translated and what is not

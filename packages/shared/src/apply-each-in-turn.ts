@@ -31,9 +31,9 @@
  *   this run, of any data type, even if the share has dropped by then: the
  *   person pressed before the breaker spoke, and a run that went on would
  *   nibble through a queue somebody is meant to look at (the reasoning
- *   `autoApplyRelocations` states for its cap). Deleting by hand turned off
- *   (`not_enabled`) stops it the same way: every press after it would be
- *   refused for the same reason. The cost is one more press, made afresh.
+ *   `autoApplyRelocations` states for its cap). The cost is one more press,
+ *   made afresh. (Until alpha.21, deleting by hand turned off, `not_enabled`,
+ *   stopped it the same way; that switch is gone, ADR-0024, 2026-11-25.)
  * - **A removal the ledger could not record stops the run.**
  *   `removed_not_recorded` is the one answer that proves the ledger changed
  *   under a removal: a pass saw the item back on the old system, or another
@@ -74,14 +74,13 @@ export const BREAKER_CODES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The refusals that stop a run: the breaker's, deleting by hand turned off, a
+ * The refusals that stop a run: the breaker's, a
  * removal the ledger could not record, and evidence withdrawn after the
  * confirmation (`not_confirmed`, `weak_evidence`). Each says something about
  * every item after it, not only about its own.
  */
 export const RUN_STOPPING_REFUSALS: ReadonlySet<string> = new Set([
   ...BREAKER_CODES,
-  'not_enabled',
   'removed_not_recorded',
   'not_confirmed',
   'weak_evidence',
@@ -107,7 +106,7 @@ export interface OneApplyAnswer {
 /** Why an item was not ordered at all. Nothing was asked about it, and nothing changed. */
 export type NotTried =
   /**
-   * An earlier item's answer stopped the run: the breaker's, `not_enabled`,
+   * An earlier item's answer stopped the run: the breaker's,
    * `removed_not_recorded`, evidence withdrawn, or one marked `stopsTheRun`.
    */
   | { readonly by: 'refusal'; readonly code: string; readonly reason: string }

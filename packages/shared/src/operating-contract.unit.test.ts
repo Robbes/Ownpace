@@ -106,7 +106,7 @@ describe('decisionSucceeded', () => {
   it('treats a refusal as a failure', () => {
     // A refusal carries no `status`, so anything checking truthiness of a field
     // that is absent must not read it as success.
-    expect(decisionSucceeded({ error: 'not_enabled', reason: 'apply is off' })).toBe(false);
+    expect(decisionSucceeded({ error: 'not_ours', reason: 'adopted, not ours' })).toBe(false);
   });
 });
 

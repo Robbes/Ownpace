@@ -82,7 +82,6 @@ function deps(
     domain: 'calendar',
     ledger,
     target,
-    allowApplyDeletions: true,
     stillTheAuthority,
   };
 }
