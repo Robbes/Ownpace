@@ -32,7 +32,7 @@ migration is needed: the one §7.3 proposed went with the switch.
 | T3 The card and its words: one password, a second only when Suite is found | builder | 📋 Planned | §5.5, §11. EN and NL. M. On T2's shape. |
 | T4 Files to Soverin, only where Nextcloud answered | builder | 📋 Planned | §6. `file` joins the `soverin` ceiling once T0 measured it; a personal mailbox's file face is a reasoned *no*. M. After T0. |
 | T5 A switch is noticed, and calendars, contacts and tasks are copied again | builder | ✖ Dropped | The owner, 2026-11-25: no transitions between personal and Suite. §7 is kept as the record of what is not built. |
-| T6 Grant links do the same detection | builder | 📋 Planned | §8. On 0174's password page, after #2164 merges. M. |
+| T6 Grant links do the same detection | builder | 📋 Planned | §8. On 0174's password page, merged as #2167 (2026-11-25), which replaced #2164. M. |
 | T7 The guides (EN and NL), the architecture line, the ADR amendment | builder | 📋 Planned | §9. *Activate Suite before you move calendars and contacts to Soverin.* M. |
 | T8 Proofs: unit and integration | builder | 📋 Planned | §12. S–M. Last. The switch on two fixtures went with T5. |
 | T9 The owner's decisions | owner | ✅ Answered 2026-11-25 | §13. D1, D5, D6, D7 and D8: (a), as advised; D2 to D4 dropped with the switch; the Dutch: *Omvat:*. |
@@ -86,7 +86,7 @@ Both addresses now redirect to the help desk (§3.1); the values are unchanged. 
 fields: `credential-fields.ts:691` (the DAV defaults), `:725` and `:737` (`soverin` is a DAV
 target type), `:787-797` (the mail server fields, labelled `account.soverinMailHost`).
 
-### 2.3 The pinned endpoints (0174, pull request #2164, open)
+### 2.3 The pinned endpoints (0174, pull request #2164, since replaced by #2167, merged 2026-11-25)
 
 `PROVIDER_ENDPOINTS` in `packages/shared/src/provider-endpoints.ts` pins Apple, Cirrux and
 Infomaniak. A grant link's password is tried only against a pinned server (`pinnedToPublished`,
@@ -435,7 +435,7 @@ declared, the shape ADR-0055 already holds.
   (or back). The verification counts items copied again apart.
 - The *what needs attention* digest email (arch §11.2, item 4) carries it once, as a milestone.
 
-## 8. Grant links (T6; after #2164 merges)
+## 8. Grant links (T6; 0174's pages merged as #2167)
 
 On 0174's password page, a Soverin destination runs §5.2 with the person's password. The server
 line names what answered: *Soverin's own server, caldav.soverin.net* for personal, *Soverin
