@@ -74,6 +74,12 @@ export const AUDIT_DETAIL_FIELDS = {
   memberId: 'keep',
   userId: 'keep',
   naturalKeyHash: 'keep',
+  // A password card's `ref` on a person's grant link (workplan 0174 §4.7): a
+  // hash of the role, the kind, the connection's id and the account, never the
+  // address. Kept as `naturalKeyHash` is: the connection's random id is in the
+  // hash, so guessing an address does not reproduce it, and the export can
+  // still tie a refusal to the try count of the same card.
+  ref: 'keep',
   // A row of the table of address changes, by reference (ADR-0055; 0168 §5):
   // its old key as this export's own pseudonym, made when the event was
   // recorded, so the row is never named by its address, in the database or

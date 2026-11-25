@@ -38,7 +38,7 @@
  * password, sources and destinations, is a password kind
  * (`PASSWORD_SOURCE_KINDS`, `PASSWORD_TARGET_KINDS`) with a `PasswordGrant`:
  * what the person fills, from the one field table (`credentialFieldsFor`),
- * and the test the create door runs (built by T3). The two lists are held to
+ * and the test the create door runs (`password-test.ts`, 0174 T3). The two lists are held to
  * that table by `every-password-kind-has-a-link.unit.test.ts`.
  *
  * ## Two additions to the interface the plan fixed (§3.2)
@@ -74,6 +74,8 @@ import {
 } from './migrations/microsoft-consent.ts';
 import { microsoftSignedInAccount } from './migrations/microsoft-signed-in-account.ts';
 import type { SignedInAccount } from './migrations/signed-in-account.ts';
+import { testPassword } from './password-test.ts';
+import { probeAnswers } from '../probe-answer.ts';
 
 export type { SignedInAccount } from './migrations/signed-in-account.ts';
 
@@ -378,11 +380,22 @@ export interface PersonField {
  * Where a password will be tried (0174 §5.8, D3): the hosts, and whether
  * they are the provider's published ones (Apple's today), which the page
  * names as the provider's own. The registrable-domain and MX comparison of
- * D3's addition is T3's, and joins this shape as optional fields.
+ * D3's addition joins as optional fields (T3, `grant-server-domain.ts`),
+ * answered on the page's read.
  */
 export interface GrantServer {
   readonly hosts: ReadonlyArray<string>;
   readonly published: boolean;
+  /** Each host's registrable domain, in `hosts`' order: what the page sets in bold. */
+  readonly domains?: ReadonlyArray<string>;
+  /**
+   * D3's addition: the hosts whose registrable domain is neither the
+   * address's own nor one of its MX hosts'. The page warns beside each; never
+   * a refusal. Empty when every host matches; absent when no comparison was
+   * made (a published server, an account that is no address, or an MX
+   * lookup that failed, which says nothing either way).
+   */
+  readonly notTheAddressMail?: ReadonlyArray<string>;
 }
 
 /** What the test is handed (0174 §5.4): the merged config and credentials, never a second reading. */
@@ -501,12 +514,11 @@ export function passwordServerOf(kind: PasswordKind, stored: Readonly<Record<str
 }
 
 /**
- * The test, until 0174 T3 builds it over the create door's probe and
- * `qualifyAccount`. Nothing calls it before T3's route exists; if anything
- * did, it fails loudly rather than answering a category it never measured.
+ * The test (0174 §5.4, T3): the create door's probe, then the qualification,
+ * on the merged config and credentials, in `password-test.ts`. Its refusals
+ * are said from their parts under one reference per call (0136 T3).
  */
-const TEST_NOT_BUILT = (): Promise<PasswordTest> =>
-  Promise.reject(new Error('The password test is not built yet (workplan 0174 T3).'));
+const TEST: PasswordGrant['test'] = (a) => testPassword(a, probeAnswers('testing a password on a grant link'));
 
 /** The password grant for this kind in this role, or null when it is not a password kind there. */
 export function passwordGrantOf(role: GrantRole, kind: string | null | undefined): PasswordGrant | null {
@@ -515,6 +527,6 @@ export function passwordGrantOf(role: GrantRole, kind: string | null | undefined
     role,
     kind,
     personFields: (stored) => personFieldsFor(role, kind, stored),
-    test: TEST_NOT_BUILT,
+    test: TEST,
   };
 }

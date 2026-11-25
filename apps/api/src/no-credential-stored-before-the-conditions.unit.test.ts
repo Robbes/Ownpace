@@ -302,6 +302,9 @@ const SEALS_BY_FILE: Readonly<Record<string, number>> = {
   // One seal for both grant endings since workplan 0171 T3: a person's link
   // seals through `grantedSecret` in grant-ending.ts, for every provider.
   'routes/migrations/grant-ending.ts': 1,
+  // A password typed on a person's link (workplan 0174 T3): a source's on
+  // each of its migrations, a destination's on the connection.
+  'routes/migrations/person-grant-ending.ts': 2,
   'scripts/seed-managed.ts': 2,
 };
 
@@ -314,6 +317,10 @@ const SEALED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
     'issued behind that check and is honoured until it expires. Since workplan 0171 T3 it also seals for a ' +
     'person’s grant link (`grantedSecret`, called from person-grant-ending.ts), whose door is issuing the ' +
     'link, `POST /api/people/{personId}/links` (`person-link-routes.ts`), which asks.',
+  'routes/migrations/person-grant-ending.ts':
+    'a password the person typed on their own grant link (workplan 0174 T3, `storePersonPassword`). The ' +
+    'person is not a party to the terms (terms §1) and has no account to accept them with; the member’s ' +
+    'door to it is issuing the link, `POST /api/people/{personId}/links` (`person-link-routes.ts`), which asks.',
   'scripts/seed-managed.ts':
     'the operator’s seed of the demo tenants, run by hand on a stack as the database owner. It is no ' +
     'door anybody signs in to, and a stack that asks for acceptance is not seeded.',
