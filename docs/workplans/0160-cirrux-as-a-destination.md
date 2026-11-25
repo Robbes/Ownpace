@@ -2,7 +2,32 @@
 
 > **In one line:** Cirrux, a Dutch workspace hosted in Frankfurt, as a place to migrate into: mail, calendars, contacts and tasks over the IMAP and DAV servers it publishes, and files into its Drive through its own OAuth API, a sign-in a person adds to the account.
 
-## Status — 2026-11-24 (update this block at the end of every session)
+## Status — 2026-11-25 (update this block at the end of every session)
+
+**2026-11-25: Cirrux's own API, read for whether one sign-in could carry mail, calendars,
+contacts and tasks too.** The owner asked whether the OAuth sign-in Cirrux Drive uses (PKCE, T4)
+could replace the app password for the other data types, through Cirrux's API. Read on
+2026-11-25 from Cirrux's API reference (`https://api.cirrux.co/public_api/v1`): 18 scopes
+(`user.profile`, `workspace.read`, `email.read`, `email.write`, `email.send`, `drive.read`,
+`drive.create`, `drive.update`, `drive.delete`, `calendar.read`, `calendar.write`, `tasks.read`,
+`tasks.write`, `contacts.read`, `contacts.write`, `docs.read`, `docs.comment`, `docs.write`), at
+600 requests a minute per token, with no ETag and no idempotency key. For a copy that keeps what
+it copies, it falls short in each data type:
+
+- **Mail:** a message is written as a draft only; nothing imports an original message with its
+  date, flags and folder (as IMAP `APPEND` or JMAP `Email/import` do); folders are labels; and no
+  IMAP sign-in with the OAuth token (SASL `XOAUTH2` or `OAUTHBEARER`) is documented.
+- **Calendars:** an event is a set of JSON fields, with `send_updates=none` available, but no UID
+  and no alarm can be given, the organiser is always the caller, and no calendar can be created.
+- **Contacts:** JSON fields; no vCard and no groups.
+- **Tasks:** no priority and no recurrence.
+
+So the API is not a way to migrate these without loss, and IMAP, CalDAV and CardDAV with the app
+password stay the way in (§6). One sign-in for everything would need Cirrux to accept its OAuth
+token on IMAP and on CalDAV/CardDAV (`Authorization: Bearer`), or to offer JMAP (RFC 8620/8621)
+with it: Ownpace's JMAP writer (`packages/connectors/src/jmap-target.ts`) already imports mail
+with `Email/import`, keeping its date, keywords and mailbox, and contacts too; JMAP calendars stay
+parked (workplan 0031 T1). None of those is documented today; nothing is planned until one is.
 
 **2026-11-24, later: T2b's four screen findings fixed, for alpha.20** (the owner: *"alpha.20
 (advice): yes on all"*). (1) The capitals clash, a folder name taken by a file and a name Cirrux

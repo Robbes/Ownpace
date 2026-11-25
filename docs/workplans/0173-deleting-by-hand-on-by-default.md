@@ -17,10 +17,14 @@ The new guard is `packages/shared/src/deleting-by-hand-needs-no-switch.unit.test
 failing on the code before the change. ADR-0024 (gate 1 removed; the gates keep their numbers 2
 to 7), ADR-0030 and ADR-0031 amended, `OPERATIVE.md` regenerated; arch §11.1, the operator and
 owner-test runbooks, the quickstart, the alpha guide (EN, NL) and CHANGELOG follow. **Not done
-here:** T5 waits on Q4 (`site/legal/*.md`, `legal-versions.ts` and `ACCEPTED_WORDS` untouched;
-the proposed words are in the pull request); `site/legal/README.md:679-683` goes with T5, being in
+here:** T5 (`site/legal/*.md`, `legal-versions.ts` and `ACCEPTED_WORDS` untouched; the proposed
+words are in the pull request), built while Q4 was still open and answered since (below); `site/legal/README.md:679-683` goes with T5, being in
 `site/legal/`. T7 (the E2E runs) is the owner's. The Dutch strings are in the pull request for the
 owner to read.
+
+**2026-11-25, later still: Q4 answered.** *"terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"*: terms §2 and alpha §8 change in place
+under 1.0 in T5, and nobody is asked again; T5 no longer waits. Workplan 0174's D8 has the same
+answer, for the privacy policy and the terms' §5.
 
 **2026-11-25, later: the owner chose (a).** *"Manual deleting in by default. I don't think I
 makes sense then to keep the feature for turning it off. Alpha 21 is ok."* Gate 1 goes from core
@@ -46,10 +50,10 @@ their answers.
 | T2 Managed: the routes and jobs stop reading the column | builder | ✅ Built | §10. #2155. No migration; the column is dropped in a later release. |
 | T3 The Deletions page and its words, EN and NL | builder | ✅ Built | §10. #2155. The Dutch waits on the owner's read. |
 | T4 Docs and the ADR amendments | builder | ✅ Built | §10. #2155. `site/legal/README.md` goes with T5. |
-| T5 The legal words: terms §2 and alpha §8 | builder + owner | ⏳ Waits on Q4 | §10. EN and NL; in place or a new version, by Q4. |
+| T5 The legal words: terms §2 and alpha §8 | builder + owner | 📋 Planned | §10. EN and NL, in place under 1.0 (Q4, answered 2026-11-25). |
 | T6 E2E steps | builder | ✅ Built | §10. #2155. Not run: T7. |
 | T7 The E2E runs | owner | ⏳ Owner | Self-hosted E2E (Postgres and PGlite) and the managed E2E, after T1 to T6 merge. |
-| T8 The owner's decisions | owner | ⏳ Owner | §9: Q1, Q2, Q3, Q5 and Q6 settled on 2026-11-25; Q4 open. |
+| T8 The owner's decisions | owner | ✅ Answered 2026-11-25 | §9: all six settled; Q4 in place under 1.0. |
 
 ## 1. The owner's words
 
@@ -540,8 +544,8 @@ alpha.20's cut-off is 2026-11-25 16:00 UTC. **The advised option belongs in alph
    under 1.0 with the words in T5, on your approval of EN and NL (advised, if true); (ii) **yes** →
    the terms become 1.1 and every tester accepts again before using the Alpha further. The last
    record (2026-11-22) says no tester had accepted.
-   **Open.** Asked again on 2026-11-25, together with workplan 0174's D8, which changes the
-   terms in the same release: one answer serves both.
+   **Answer, 2026-11-25: (i), in place under 1.0.** *"terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"*. The same answer serves
+   workplan 0174's D8.
 5. **Q5 — When?** **(i) alpha.21 for T1 to T6, and T0 in alpha.20 (advised)**; (ii) all in
    alpha.21; (iii) all in alpha.20, waiving the waits. Advice (i): §8.
    **Answer, 2026-11-25: alpha.21** (*"Alpha 21 is ok"*). T0 goes with the rest unless the owner
@@ -637,7 +641,9 @@ presses are the only consent left on the page, so T0 ships with T3 at the latest
   upgraded appliance can now delete by hand without turning anything on; a mapping file's
   `"allowApplyDeletions": false` no longer turns it off.
 
-**T5 — The legal words: terms §2 and alpha §8, EN and NL.** (S, the owner's.) Waits on Q4.
+**T5 — The legal words: terms §2 and alpha §8, EN and NL.** (S, the owner's.) Q4 answered: in
+place under 1.0, so `legal-versions.ts` keeps its numbers and the guard re-pins the new words
+under 1.0, with a dated note in its header in the owner's words, as on 2026-10-21.
 `site/legal/terms.md:618-622`, `terms.nl.md:68-73`, `alpha.md` §8, `alpha.nl.md` §8, their
 header comments, `site/legal/README.md:104`, and, if Q4 is *yes*, `legal-versions.ts` and the
 guard's `ACCEPTED_WORDS`. Proposed words for the owner:
