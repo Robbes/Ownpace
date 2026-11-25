@@ -73,6 +73,20 @@ const CONSENT_DOOR = 'apps/api/src/routes/migrations/microsoft-consent.ts';
 const DOMAIN_FACTORY = 'packages/orchestration/src/graph-domain-source-factory.ts';
 const MAIL_FACTORY = 'packages/orchestration/src/mail-source-factory.ts';
 
+/**
+ * The consent's IDENTITY scopes (workplan 0171 §3.3, the owner's D7 (a)):
+ * asked so a grant link can be bound to the account it names and Finish can
+ * list the addresses that receive mail. No sync path asks for them, by design,
+ * so they are set apart from the faces here, by name and only these: a sixth
+ * would have to be added to this set, in this file, where review sees it.
+ */
+const IDENTITY_SCOPES: ReadonlySet<string> = new Set(['User.Read']);
+
+/** The consent's Graph scopes that are faces: everything but the identity scopes. */
+function faceScopesIn(text: string): Set<string> {
+  return new Set([...graphScopesIn(text)].filter((s) => !IDENTITY_SCOPES.has(s)));
+}
+
 /** Every `Something.Read`-shaped Graph permission named in a file. */
 function graphScopesIn(text: string): Set<string> {
   return new Set([...text.matchAll(/\b([A-Z][A-Za-z]+\.Read(?:Write)?(?:\.All)?)\b/g)].map((m) => m[1]!));
@@ -104,8 +118,19 @@ describe('the consent and the sync ask for the same Graph scopes', () => {
     ).toEqual([]);
   });
 
+  it('the identity scopes are asked by the consent, in their own list', () => {
+    // The set apart above is not a way to hide a face: each identity scope
+    // must stand in the consent's own MICROSOFT_IDENTITY_SCOPES, and no sync
+    // path may request one.
+    const consent = read(CONSENT);
+    const list = /MICROSOFT_IDENTITY_SCOPES[^=]*=\s*\[([^\]]*)\]/.exec(consent)?.[1] ?? '';
+    for (const scope of IDENTITY_SCOPES) expect(list, `${scope} is not in MICROSOFT_IDENTITY_SCOPES`).toContain(`'${scope}'`);
+    const sync = new Set([...graphScopesIn(read(DOMAIN_FACTORY)), ...graphScopesIn(read(MAIL_FACTORY))]);
+    expect([...IDENTITY_SCOPES].filter((s) => sync.has(s))).toEqual([]);
+  });
+
   it('every scope the consent asks for is one the sync side requests', () => {
-    const consent = graphScopesIn(read(CONSENT));
+    const consent = faceScopesIn(read(CONSENT));
     const sync = new Set([...graphScopesIn(read(DOMAIN_FACTORY)), ...graphScopesIn(read(MAIL_FACTORY))]);
 
     const asked = [...consent].filter((s) => !sync.has(s)).sort();

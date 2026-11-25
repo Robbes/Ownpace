@@ -106,7 +106,11 @@ jobs:
       # 34.0.5 by upstream's rebuild of 2026-10-28. By hand: Dependabot reads
       # no workflow env; the pin watch's row "nextcloud, the second major"
       # reads this line and reports a newer 34.x in its summary issue.
-      NEXTCLOUD_IMAGE: nextcloud:34.0.6-apache@sha256:3031e7f87baaceb863a755921ebf463bc26ea71855c07ad7858e2ae25a5a0ad7
+      # Since 2026-11-24 (alpha.20): upstream's rebuild of 34.0.6-apache,
+      # `031b30f0…`, pushed that day at 13:51:12 UTC, on PHP 8.5.13; its first
+      # fourteen layers are again the same blobs as the demo's 35.0.3 pin,
+      # now `2567f3c3…`.
+      NEXTCLOUD_IMAGE: nextcloud:34.0.6-apache@sha256:031b30f0c040d46ea124cce785fdb2da7072869e71d0f11cc35b1c5a5a50c540
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

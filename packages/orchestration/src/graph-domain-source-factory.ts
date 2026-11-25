@@ -97,6 +97,23 @@ function graphTokenProviderFor(
   creds: GraphEntraCredsAsFound,
   naming: GraphFieldNaming,
 ) {
+  return graphTokenProviderWithScope(DELEGATED_SCOPES[product], productLabel, endpoint, creds, naming);
+}
+
+/**
+ * The same token provider, for a delegated scope that is not a face's: the
+ * person's own profile, which Finish reads (`graph-profile-token.ts`, workplan
+ * 0171 T10). Kept out of this file's scope table on purpose: this file is the
+ * sync side, and `a-consent-that-asks-for-a-different-scope` pins that no sync
+ * path asks an identity scope.
+ */
+export function graphTokenProviderWithScope(
+  delegatedScope: string,
+  productLabel: string,
+  endpoint: GraphDomainEndpoint,
+  creds: GraphEntraCredsAsFound,
+  naming: GraphFieldNaming,
+) {
   if (!creds.clientId) {
     throw entraClientIdMissing(productLabel, naming.clientId);
   }
@@ -127,7 +144,7 @@ function graphTokenProviderFor(
     clientSecret: creds.clientSecret,
     refreshToken: creds.refreshToken,
     tenantId: endpoint.tenantId,
-    scope: creds.refreshToken ? DELEGATED_SCOPES[product] : 'https://graph.microsoft.com/.default',
+    scope: creds.refreshToken ? delegatedScope : 'https://graph.microsoft.com/.default',
   });
 }
 

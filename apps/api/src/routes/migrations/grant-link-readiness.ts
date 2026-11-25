@@ -42,7 +42,13 @@
  * bound to that account, so with none named no sign-in could ever be accepted.
  */
 
-import { providerAccountDomains, type DiscoveryDomain } from '@openmig/shared';
+import {
+  MICROSOFT_CONSENT_DOMAINS,
+  microsoftScopesFor,
+  providerAccountDomains,
+  type DiscoveryDomain,
+} from '@openmig/shared';
+import { grantProviderOfKind, type GrantProviderId } from '../grant-providers.ts';
 import {
   GOOGLE_SOURCE_SCOPES,
   heldToReadingByGoogle,
@@ -78,13 +84,14 @@ export const GOOGLE_CONSENT_KIND_TO_SOURCE: Readonly<Record<string, GoogleConsen
 export const GOOGLE_ACCOUNT_KIND = 'google';
 
 /**
- * Whether a grant link can be issued for this `connection.kind` at all — the
- * four single-purpose kinds and the account. Own properties only: `toString`
- * is on every object and is not a Google source.
+ * Whether a grant link can be issued for this `connection.kind` at all: a kind
+ * one of the grant providers covers (`grant-providers.ts`, workplan 0171
+ * §3.2). Google's four single-purpose kinds and its account, and since
+ * alpha.20 the Microsoft account. Own entries only: `toString` is on every
+ * object and is not a source.
  */
 export function isGrantableSourceKind(kind: string | null | undefined): boolean {
-  if (!kind) return false;
-  return kind === GOOGLE_ACCOUNT_KIND || Object.hasOwn(GOOGLE_CONSENT_KIND_TO_SOURCE, kind);
+  return grantProviderOfKind(kind) !== null;
 }
 
 /**
@@ -124,6 +131,11 @@ export interface GrantLinkReadiness {
   /** Whether this deployment carries a whole Google client (ADR-0041). */
   readonly hasDeploymentClient: boolean;
   /**
+   * Whether it carries a whole Microsoft application (workplan 0171 §3.3).
+   * Read for a Microsoft source only; absent is no.
+   */
+  readonly hasDeploymentMicrosoftClient?: boolean;
+  /**
    * `GOOGLE_ACCOUNT_SCOPE_CLASS` as configured: a setting, not a secret. A
    * string rather than the environment, so nothing else in the environment
    * can reach a sentence through it.
@@ -136,7 +148,7 @@ export interface GrantLinkReadiness {
 /** The refusals `grantLinkAsk` can give — every one but the deployment's address. */
 export type GrantLinkAskRefusalCode =
   | 'no_source_connection'
-  | 'source_not_google'
+  | 'source_not_grantable'
   | 'no_named_account'
   | 'no_target'
   | 'nothing_to_ask'
@@ -160,8 +172,10 @@ export interface GrantLinkRefusal {
   readonly operatorDetail?: string;
 }
 
-/** What a link asks Google for, and whose application asks. */
+/** What a link asks its provider for, and whose application asks. */
 export interface GrantLinkAsk {
+  /** Whose sign-in the link asks for (workplan 0171 §3.2). */
+  readonly provider: GrantProviderId;
   /** Whose Google application the consent runs against — never its values. */
   readonly client: 'connection' | 'deployment';
   /**
@@ -247,18 +261,20 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
         'give access to. Add that account first.',
     );
   }
-  if (!isGrantableSourceKind(r.sourceKind)) {
+  const provider = grantProviderOfKind(r.sourceKind);
+  if (provider === null) {
     // The kind stays in the log: `imap` is our word for the row, not the
-    // owner's.
+    // owner's. Renamed from `source_not_google` when Microsoft joined (0171).
     return refuse(
-      'source_not_google',
-      'A link asks somebody to sign in with Google, and this migration does not copy from a ' +
-        'Google account. Only a Google account, Gmail, Google Calendar, Google Contacts and ' +
-        'Google Drive can be connected through a link; any other account is still connected ' +
-        'by hand, on the Accounts page.',
+      'source_not_grantable',
+      'A link asks somebody to sign in with Google or Microsoft, and this migration copies ' +
+        'from neither. Only a Google account, Gmail, Google Calendar, Google Contacts, Google ' +
+        'Drive and a Microsoft 365 account can be connected through a link; any other account ' +
+        'is still connected by hand, on the Accounts page.',
       `source kind '${r.sourceKind}'`,
     );
   }
+  const name = provider.id === 'microsoft' ? 'Microsoft' : 'Google';
   if (!r.hasNamedAccount) {
     // The owner's decision of 2026-09-23 (T8 (b)): *"bind to the account the
     // page already named (so filled in by the requester/facilitator)"*. With
@@ -266,7 +282,7 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
     // refused at the end of the consent rather than here.
     return refuse(
       'no_named_account',
-      'A grant is only accepted from the Google account this migration reads, and it ' +
+      `A grant is only accepted from the ${name} account this migration reads, and it ` +
         'names none, so nobody could use the link. Create the migration again with that ' +
         "account's address.",
     );
@@ -278,6 +294,7 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
         'where their data will go before they agree, so set the destination first.',
     );
   }
+  if (provider.id === 'microsoft') return microsoftLinkAsk(r, refuse);
 
   const scopeEnv = { GOOGLE_ACCOUNT_SCOPE_CLASS: r.scopeClass };
   let scope: string;
@@ -360,10 +377,65 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
   return {
     ok: true,
     ask: {
+      provider: 'google',
       client,
       scope: [scope, ...SIGNED_IN_ACCOUNT_SCOPES].join(' '),
       domains,
       readOnlyAtProvider,
+    },
+  };
+}
+
+/**
+ * A Microsoft account's link (workplan 0171 §3.3), past the checks every
+ * provider shares. It asks for the data types the migration copies that have
+ * a Graph scope, through the connection's own whole pair or else the
+ * deployment's application, with the identity scopes every Microsoft consent
+ * carries since alpha.20 (`microsoftScopesFor`, D7). Every Graph scope asked
+ * is a `.Read` one, so it is read-only at Microsoft by Microsoft's own words.
+ */
+function microsoftLinkAsk(
+  r: Omit<GrantLinkReadiness, 'hasWebUrl'>,
+  refuse: (code: GrantLinkAskRefusalCode, reason: string, operatorDetail?: string) => GrantLinkDecision,
+): GrantLinkDecision {
+  const domains = MICROSOFT_CONSENT_DOMAINS.filter((d) => r.includedDomains.includes(d));
+  if (domains.length === 0) {
+    return refuse(
+      'nothing_to_ask',
+      'This migration copies no data types at the moment, so a link would have ' +
+        'nothing to ask for. Include at least one, then make the link.',
+    );
+  }
+  if (r.hasClientId !== r.hasClientSecret) {
+    const missing = r.hasClientId ? 'has no Client secret saved' : 'has no Client ID saved';
+    return refuse(
+      'client_not_configured',
+      `This account uses your own Microsoft app, and it ${missing}. Add it to the account on ` +
+        'the Accounts page, then make the link. Otherwise the person you send it to lands ' +
+        'on a Microsoft error page about an app they have never heard of.',
+    );
+  }
+  const client = r.hasClientId ? 'connection' : r.hasDeploymentMicrosoftClient === true ? 'deployment' : null;
+  if (client === null) {
+    return refuse(
+      'client_not_configured',
+      "A link needs a Microsoft app to sign in through. Ownpace's own is not set up yet, " +
+        'which is on our side, and this account has no Client ID and Client secret of your ' +
+        'own saved. Add your own Microsoft app to the account on the Accounts page, or contact us.',
+      'The consent needs an Entra application, and there is none: this source has neither a ' +
+        'client id nor a client secret stored, and this deployment has no Microsoft client of ' +
+        'its own. Add the pair on the source connection, or set MICROSOFT_OAUTH_CLIENT_ID and ' +
+        'MICROSOFT_OAUTH_CLIENT_SECRET on the deployment.',
+    );
+  }
+  return {
+    ok: true,
+    ask: {
+      provider: 'microsoft',
+      client,
+      scope: microsoftScopesFor(domains).join(' '),
+      domains,
+      readOnlyAtProvider: true,
     },
   };
 }
@@ -451,8 +523,16 @@ export function awaitingGrantRefusal(r: {
   readonly hasRefreshToken: boolean;
   readonly hasServiceAccountKey: boolean;
 }): string | null {
-  if (!isGrantableSourceKind(r.sourceKind)) return null;
+  const provider = grantProviderOfKind(r.sourceKind);
+  if (provider === null) return null;
   if (r.hasRefreshToken || r.hasServiceAccountKey) return null;
+  if (provider.id === 'microsoft') {
+    return (
+      'This migration cannot start yet: nobody has connected its Microsoft account. Create a ' +
+      'grant link and send it to the person being migrated — they sign in themselves, and ' +
+      'their password never reaches you or us.'
+    );
+  }
   return (
     'This migration cannot start yet: nobody has connected its Google account. Create a ' +
     'grant link and send it to the person being migrated — they sign in themselves, and ' +

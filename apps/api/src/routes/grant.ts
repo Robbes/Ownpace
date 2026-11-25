@@ -55,7 +55,9 @@
  *
  * ## The owner's secret never leaves the server
  *
- * `POST /api/grant/:link/google/authorize` reads the client id and secret out
+ * `POST /api/grant/:link/:provider/authorize` (Google's own address until
+ * workplan 0171 made it one provider of several, `grant-providers.ts`) reads
+ * the client id and secret out
  * of the mapping's own source connection and decrypts them here — or, where
  * the connection stores none, takes the deployment's (0108 T6). 0089 T1's
  * owner beginning takes them from the request body, because the owner is the
@@ -79,9 +81,12 @@ import { Router } from 'express';
 import type { RequestHandler, Response } from 'express';
 import {
   NOT_READY_BECAUSE,
+  NOT_READY_BECAUSE_MICROSOFT,
   cannotSignInYet,
   googleDeploymentClient,
   localeOf,
+  microsoftDeploymentClient,
+  microsoftTenant,
   notReady as notReadyBecause,
   reasonPair,
   type Bilingual,
@@ -94,12 +99,12 @@ import { answerAddressChangeThroughLink } from './link-address-changes.ts';
 import type { MappingLinkRequest, PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import {
-  consentUrl,
   rawIpCallbackRefusal,
   unreachableCallbackRefusal,
 } from './migrations/google-consent.ts';
 import { consentFlows } from './migrations/consent-flows.ts';
 import { grantLinkAsk, type GrantLinkAskRefusalCode } from './migrations/grant-link-readiness.ts';
+import { grantProviderOfKind } from './grant-providers.ts';
 import {
   credential,
   grantReadiness,
@@ -115,7 +120,13 @@ import {
   readPersonLinkAskedBy,
   type PersonGrantSubject,
 } from './migrations/person-grant-subject.ts';
-import { sameGoogleAccount } from './migrations/signed-in-account.ts';
+import { sameNamedAccount } from './migrations/signed-in-account.ts';
+import {
+  GRANT_PROVIDERS,
+  isGrantProviderId,
+  type GrantClient,
+  type GrantProviderId,
+} from './grant-providers.ts';
 
 const router = Router();
 
@@ -198,8 +209,10 @@ interface GrantSubject extends WhereFromAndTo {
    * judges from what Google recorded.
    */
   readonly readOnlyAtProvider: boolean;
-  readonly clientId: string;
-  readonly clientSecret: string;
+  /** Whose sign-in the link asks for (workplan 0171 §3.2). */
+  readonly provider: GrantProviderId;
+  /** The application the consent runs against, and Microsoft's directory. */
+  readonly client: GrantClient;
 }
 
 /**
@@ -212,6 +225,56 @@ interface GrantSubject extends WhereFromAndTo {
  * is a compile error here until it has both halves.
  */
 const FOR_THE_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, Bilingual>> = NOT_READY_BECAUSE;
+
+/**
+ * The same, for a migration whose source is a Microsoft account (workplan
+ * 0171 §3.3): the reasons that name Google, said with Microsoft's name.
+ */
+const FOR_THE_MICROSOFT_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, Bilingual>> = {
+  ...NOT_READY_BECAUSE,
+  ...NOT_READY_BECAUSE_MICROSOFT,
+};
+
+/** Which of the two the link holder hears, by the source's provider when it is known. */
+function forTheLinkHolder(provider: GrantProviderId | null): Readonly<Record<GrantLinkAskRefusalCode, Bilingual>> {
+  return provider === 'microsoft' ? FOR_THE_MICROSOFT_LINK_HOLDER : FOR_THE_LINK_HOLDER;
+}
+
+/**
+ * The application a link's consent runs against, as the readiness check
+ * decided whose it is, with the values read only now; null when the decided
+ * one has no whole pair after all. Google's rule is unchanged (0108 T6);
+ * Microsoft's carries the directory: the connection's own `tenantId` when its
+ * own pair asks, the deployment's authority otherwise (`common` unless set).
+ */
+export function linkClient(
+  provider: GrantProviderId,
+  whose: 'connection' | 'deployment',
+  connectionSecretRef: string | null,
+): GrantClient | null {
+  if (whose === 'connection') {
+    const creds = storedCredentials(connectionSecretRef);
+    const clientId = credential(creds, 'clientId');
+    const clientSecret = credential(creds, 'clientSecret');
+    if (!clientId || !clientSecret) return null;
+    if (provider !== 'microsoft') return { clientId, clientSecret };
+    return { clientId, clientSecret, tenant: credential(creds, 'tenantId') || microsoftTenant() };
+  }
+  if (provider === 'microsoft') return microsoftDeploymentClient();
+  return googleDeploymentClient();
+}
+
+/** The address a provider must redirect to: the SAME one the owner registered for it. */
+function callbackFor(req: MappingLinkRequest, provider: GrantProviderId): string {
+  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  return `${base}/api/migrations/${provider}/callback`;
+}
+
+/** When the button named a provider this link does not ask for. */
+const NOT_THIS_PROVIDER: Bilingual = {
+  en: 'This link asks for another kind of account. Open the link again and use the button it shows.',
+  nl: 'Deze link vraagt om een ander soort account. Open de link opnieuw en gebruik de knop die erop staat.',
+};
 
 /**
  * Everything the grant flow needs about one mapping, read in one place.
@@ -234,26 +297,24 @@ async function loadSubject(
   if (!rows) return notReady(FOR_THE_LINK_HOLDER.no_source_connection);
 
   const decided = grantLinkAsk(grantReadiness(rows));
-  if (!decided.ok) return notReady(FOR_THE_LINK_HOLDER[decided.refusal.code]);
+  if (!decided.ok) {
+    const provider = grantProviderOfKind(rows.source.kind)?.id ?? null;
+    return notReady(forTheLinkHolder(provider)[decided.refusal.code]);
+  }
+  const words = forTheLinkHolder(decided.ask.provider);
   const where = whereFromAndTo(rows);
-  if (!where) return notReady(FOR_THE_LINK_HOLDER.no_target);
+  if (!where) return notReady(words.no_target);
   // The decision already refused a migration that names no account; this is
   // the same fact, read where the type can see it.
-  if (where.from === null) return notReady(FOR_THE_LINK_HOLDER.no_named_account);
+  if (where.from === null) return notReady(words.no_named_account);
   const from = where.from;
 
   // WHOSE client, as decided — the values read only now, and only the pair
   // the decision named. The deployment's is read from the environment here
   // rather than handed over by the decision, which takes booleans and nothing
   // else (see `grant-link-readiness.ts`).
-  let client: { clientId: string; clientSecret: string } | null;
-  if (decided.ask.client === 'connection') {
-    const creds = storedCredentials(rows.source.secretRef);
-    client = { clientId: credential(creds, 'clientId'), clientSecret: credential(creds, 'clientSecret') };
-  } else {
-    client = googleDeploymentClient();
-  }
-  if (!client) return notReady(FOR_THE_LINK_HOLDER.client_not_configured);
+  const client = linkClient(decided.ask.provider, decided.ask.client, rows.source.secretRef);
+  if (!client) return notReady(words.client_not_configured);
 
   return {
     ok: true,
@@ -265,17 +326,12 @@ async function loadSubject(
       readOnlyAtProvider: decided.ask.readOnlyAtProvider,
       from,
       to: where.to,
-      clientId: client.clientId,
-      clientSecret: client.clientSecret,
+      provider: decided.ask.provider,
+      client,
     },
   };
 }
 
-/** The address Google must redirect to — the SAME one the owner registered. */
-function callbackUri(req: MappingLinkRequest): string {
-  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
-  return `${base}/api/migrations/google/callback`;
-}
 
 type PersonLink = NonNullable<PersonLinkRequest['personLink']>;
 
@@ -310,6 +366,8 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
     organisationPhone: subject.organisationPhone,
     accounts: subject.accounts.map((a) => ({
       account: a.account,
+      // Whose sign-in this account's button opens (workplan 0171 §3.2).
+      provider: a.provider,
       granted: a.granted,
       // Connected, and asked for again all the same (`asksAgainFor`).
       again: asksAgainFor(link, a),
@@ -331,13 +389,22 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
  * The pending state records the account and those migrations, so the ending
  * grants exactly what the page showed and keeps only that account's sign-in.
  */
-async function authorizeForAPerson(req: PersonLinkRequest, res: Response, link: PersonLink): Promise<void> {
+async function authorizeForAPerson(
+  req: PersonLinkRequest,
+  res: Response,
+  link: PersonLink,
+  provider: GrantProviderId,
+): Promise<void> {
   if (await refusedAsClosed(res, link.tenantId, pool())) return;
   const asked = (req.body as { account?: unknown } | undefined)?.account;
   const subject = await readPersonSubject(link);
   if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT) });
+  // The account the button named, at the provider the button named: the same
+  // address at Google and at Microsoft is two accounts (workplan 0171).
   const account =
-    typeof asked === 'string' ? subject.accounts.find((a) => sameGoogleAccount(a.account, asked)) : undefined;
+    typeof asked === 'string'
+      ? subject.accounts.find((a) => a.provider === provider && sameNamedAccount(provider, a.account, asked))
+      : undefined;
   if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
   if (account.granted && !asksAgainFor(link, account)) {
     return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED) });
@@ -347,22 +414,15 @@ async function authorizeForAPerson(req: PersonLinkRequest, res: Response, link: 
   }
 
   // WHOSE client, as decided, the values read only now.
-  let client: { clientId: string; clientSecret: string } | null;
-  if (account.ask.client === 'connection') {
-    const creds = storedCredentials(account.ask.connectionSecretRef);
-    const clientId = credential(creds, 'clientId');
-    const clientSecret = credential(creds, 'clientSecret');
-    client = clientId && clientSecret ? { clientId, clientSecret } : null;
-  } else {
-    client = googleDeploymentClient();
-  }
+  const client = linkClient(provider, account.ask.client, account.ask.connectionSecretRef);
   if (!client) {
-    return void res
-      .status(409)
-      .json({ error: 'not_ready', ...reasonPair(notReadyBecause(FOR_THE_LINK_HOLDER.client_not_configured)) });
+    return void res.status(409).json({
+      error: 'not_ready',
+      ...reasonPair(notReadyBecause(forTheLinkHolder(provider).client_not_configured)),
+    });
   }
 
-  const redirectUri = callbackUri(req);
+  const redirectUri = callbackFor(req, provider);
   const ipRefusal = rawIpCallbackRefusal(redirectUri);
   if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYet(ipRefusal)) });
   const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
@@ -370,11 +430,15 @@ async function authorizeForAPerson(req: PersonLinkRequest, res: Response, link: 
     return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYet(unreachable)) });
   }
 
+  const locale = localeOf((req.body as { locale?: unknown } | undefined)?.locale);
   const state = consentFlows.begin({
     clientId: client.clientId,
     clientSecret: client.clientSecret,
     scope: account.ask.scope,
     redirectUri,
+    // Absent is Google, as every state begun before the seam (0171).
+    ...(provider === 'microsoft' || provider === 'dropbox' ? { provider } : {}),
+    ...(client.tenant === undefined ? {} : { tenant: client.tenant }),
     personLink: {
       linkId: link.linkId,
       tenantId: link.tenantId,
@@ -382,10 +446,20 @@ async function authorizeForAPerson(req: PersonLinkRequest, res: Response, link: 
       account: account.account,
       mappingIds: account.migrations.map((m) => m.mappingId),
     },
-    locale: localeOf((req.body as { locale?: unknown } | undefined)?.locale),
+    locale,
   });
+  const begin = GRANT_PROVIDERS[provider]?.consentUrl;
+  if (!begin) return void res.status(409).json({ error: 'not_this_provider', ...reasonPair(NOT_THIS_PROVIDER) });
   res.json({
-    url: consentUrl({ clientId: client.clientId, scope: account.ask.scope, redirectUri, state, loginHint: account.account }),
+    url: begin({
+      account: account.account,
+      state,
+      redirectUri,
+      locale,
+      client,
+      scope: account.ask.scope,
+      domains: account.ask.domains,
+    }),
   });
 }
 
@@ -439,6 +513,9 @@ router.get(
         // one click later. What Google finally records can be broader
         // (`include_granted_scopes`); the ending judges that.
         readOnlyAtProvider: loaded.subject.readOnlyAtProvider,
+        // Whose sign-in the button opens (workplan 0171 §3.2): the page words
+        // its button and checks the address it follows by it.
+        provider: loaded.subject.provider,
         // Where from and where to (0108 T8a): the account this migration
         // reads, and the server and account it writes. What the person
         // needs in order to tell their own migration from somebody else's.
@@ -453,27 +530,39 @@ router.get(
 );
 
 /**
- * POST /api/grant/:link/google/authorize — where the button goes.
+ * POST /api/grant/:link/:provider/authorize — where the button goes
+ * (workplan 0171 §3.2: `/:link/google/authorize` until alpha.20, and still
+ * answered at that address, now as one provider of several).
  *
  * Answers with a URL for the browser to follow rather than redirecting, so the
- * page can show what happened if this refuses — a 302 into a Google error is
- * exactly the dead end this whole task exists to remove.
+ * page can show what happened if this refuses — a 302 into a provider's error
+ * is exactly the dead end this whole task exists to remove. The provider in
+ * the address must be the one the link asks for: a page cannot send a
+ * Microsoft migration's link to Google's screen, or the other way round.
  */
 router.post(
-  '/:link/google/authorize',
+  '/:link/:provider/authorize',
   linkAuth,
   async (req: MappingLinkRequest, res: Response) => {
+    const provider = req.params.provider;
+    // An address this router has no door at: as if it did not exist.
+    if (!isGrantProviderId(provider) || GRANT_PROVIDERS[provider]?.consentUrl === undefined) {
+      return void res.status(404).json({ error: 'not_found' });
+    }
     try {
       const person = (req as PersonLinkRequest).personLink;
-      if (person) return void (await authorizeForAPerson(req, res, person));
+      if (person) return void (await authorizeForAPerson(req, res, person, provider));
       const { linkId, tenantId, mappingId } = req.mappingLink!;
       // No consent begins for a closed organisation (0085 T2): nothing would
       // be allowed to use what it granted.
       if (await refusedAsClosed(res, tenantId, pool())) return;
       const loaded = await loadSubject(tenantId, mappingId);
       if (!loaded.ok) return void res.status(409).json({ error: 'not_ready', ...reasonPair(loaded.reason) });
+      if (loaded.subject.provider !== provider) {
+        return void res.status(409).json({ error: 'not_this_provider', ...reasonPair(NOT_THIS_PROVIDER) });
+      }
 
-      const redirectUri = callbackUri(req);
+      const redirectUri = callbackFor(req, provider);
       const ipRefusal = rawIpCallbackRefusal(redirectUri);
       if (ipRefusal) {
         // 0089 T6's refusal, reached by a person who cannot act on it — so it
@@ -496,33 +585,41 @@ router.post(
         });
       }
 
+      const locale = localeOf((req.body as { locale?: unknown } | undefined)?.locale);
+      const client = loaded.subject.client;
       const state = consentFlows.begin({
-        clientId: loaded.subject.clientId,
-        clientSecret: loaded.subject.clientSecret,
+        clientId: client.clientId,
+        clientSecret: client.clientSecret,
         scope: loaded.subject.scope,
         redirectUri,
+        // Whose callback ends it; absent is Google, as before the seam (0171).
+        ...(provider === 'microsoft' || provider === 'dropbox' ? { provider } : {}),
+        // Microsoft's directory, so the code is exchanged where it was asked.
+        ...(client.tenant === undefined ? {} : { tenant: client.tenant }),
         // What makes this the LINK ending at the callback. Recorded server-side
         // on the pending state, never round-tripped through the browser.
         link: { linkId, mappingId, tenantId },
         // The language the page was in, so the ending is in it too (workplan
         // 0145 T6). Beside the link and for the same reason: a redirect is the
         // browser's to change. Anything but `nl`, or nothing, is English.
-        locale: localeOf((req.body as { locale?: unknown } | undefined)?.locale),
+        locale,
       });
 
       res.json({
-        url: consentUrl({
-          clientId: loaded.subject.clientId,
-          scope: loaded.subject.scope,
-          redirectUri,
+        // The provider offers the named account first. Only a convenience:
+        // the callback refuses any other account that signs in (T8 (b)).
+        url: GRANT_PROVIDERS[provider]!.consentUrl!({
+          account: loaded.subject.from,
           state,
-          // Google offers the named account first. Only a convenience: the
-          // callback refuses any other account that signs in (T8 (b)).
-          loginHint: loaded.subject.from,
+          redirectUri,
+          locale,
+          client,
+          scope: loaded.subject.scope,
+          domains: loaded.subject.domains,
         }),
       });
     } catch (error) {
-      serverFault(res, 'grant_authorize_failed', 'starting the Google sign-in', error);
+      serverFault(res, 'grant_authorize_failed', `starting the ${provider} sign-in`, error);
     }
   },
 );
