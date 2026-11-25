@@ -4062,6 +4062,130 @@ paths:
             The link could not be checked just now. The body is
             `{error, message, messageNl}`.
 
+  /api/grant/{link}/password:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        description: |
+          The whole credential, one path segment. Only a person's grant link,
+          `p.<id>.<secret>`, has a password page: a migration's own link is a
+          404 here (workplan 0174 §13).
+        schema: { type: string }
+    put:
+      tags: [Grant links]
+      summary: A password the person types for one account on their link
+      description: |
+        Workplan 0174 §5.3 to §5.7, T3. The person types their own password
+        for one password card (`way: password` on `GET /api/grant/{link}`),
+        named by its `ref`. It is tested as the create door tests an account
+        (the probe, then the qualification of the faces its migrations
+        need) and stored only when it works: a source's on each of the
+        card's migrations, a destination's on the connection with the person
+        recorded as its owner. Nothing that failed is stored.
+
+        Five refused logins lock that card on this link; the sixth is never
+        tried. Only the server refusing the login counts (`refused_login`);
+        a server that did not answer and a refused face count nothing. A
+        card already connected answers 409 without a test, so a replay makes
+        no login. The link is checked live again in the write's transaction:
+        revoked while the test ran, nothing is written.
+
+        The password is never echoed, logged, audited or put in a URL. JSON
+        only, at most 4 KiB; thirty tests an hour per caller
+        (`GRANT_PASSWORD_TESTS_PER_HOUR`). The answers are codes: the page
+        says them in the reader's language.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [ref, values]
+              properties:
+                ref: { type: string, description: "The card's ref, as the page read it." }
+                values:
+                  type: object
+                  additionalProperties: { type: string, minLength: 1, maxLength: 1024 }
+                  description: "Exactly the card's person fields (`who: person`), by key, each a non-empty string; none missing and none added."
+                locale: { type: string, description: 'The page language; ignored by the answer, which carries codes.' }
+      responses:
+        '200':
+          description: Tested and stored.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connected, faces, linkSpent, progressUrl]
+                properties:
+                  connected: { type: boolean, enum: [true] }
+                  faces:
+                    type: array
+                    items: { type: string, enum: [email, calendar, contact, file, task] }
+                    description: The data types the password was tested for.
+                  linkSpent: { type: boolean, description: 'Whether every account on the link is now connected, which spends it.' }
+                  progressUrl:
+                    type: string
+                    nullable: true
+                    description: "The person's progress page, minted after the grant as a sign-in's ending mints it; null when the deployment cannot say its address."
+        '400':
+          description: |
+            The body: `body_not_an_object`, `unknown_key`, `ref_missing`,
+            `values_missing`, or `values_not_the_fields` (a key missing or
+            added, or a value that is not a non-empty string). A body that
+            is not JSON is refused by the parser without an excerpt. Nothing
+            was tried.
+        '401':
+          description: |
+            The link was refused, as by `GET /api/grant/{link}`; or
+            `link_spent`: it was revoked, expired or spent while the test ran,
+            and nothing was written (`reason`, `reasonNl`).
+        '404':
+          description: A migration's own link, which has no password page.
+        '409':
+          description: |
+            `not_this_account` (no password card has this ref), or
+            `already_connected` (no test was made), or `server_not_a_name`
+            (the owner named the server by an IP address; the password is
+            never sent to one, `reason`, `reasonNl`), or `another_person`
+            (another person connected this destination themselves), or
+            `account_closed` (the organisation was closed).
+        '413':
+          description: '`body_too_large`: more than 4 KiB.'
+        '415':
+          description: '`json_only`: anything but `application/json`.'
+        '422':
+          description: |
+            The test failed, and nothing was stored. `category` is
+            `refused_login` (the server refused the password: a try is
+            counted), `unreachable` (no answer, a certificate, a timeout, an
+            address that is not a server of this kind: no try counted) or
+            `face_missing` (the login worked and a needed data type was
+            refused, named in `faces`: no try counted). `tries` says what is
+            left on this link. Never the server's own words.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, category, tries]
+                properties:
+                  error: { type: string, enum: [refused_login, unreachable, face_missing] }
+                  category: { type: string, enum: [refused_login, unreachable, face_missing] }
+                  faces: { type: array, items: { type: string, enum: [email, calendar, contact, file, task] } }
+                  tries:
+                    type: object
+                    properties:
+                      left: { type: integer, minimum: 0, maximum: 5 }
+                      locked: { type: boolean }
+        '423':
+          description: '`locked`: five refused logins on this link for this card. No test was made; a new link from the owner starts again.'
+        '429':
+          description: '`too_many_tests`: the caller''s hourly limit, with `Retry-After`.'
+        '500':
+          description: Ours; nothing the person did. Nothing was stored.
+
   /api/grant/{link}/report:
     parameters:
       - name: link
@@ -9830,6 +9954,14 @@ components:
                 properties:
                   hosts: { type: array, items: { type: string } }
                   published: { type: boolean }
+                  domains:
+                    type: array
+                    items: { type: string }
+                    description: "Each host's registrable domain, in the order of hosts: what the page sets in bold (workplan 0174 §5.8, D3)."
+                  notTheAddressMail:
+                    type: array
+                    items: { type: string }
+                    description: "D3's addition: the hosts whose registrable domain is neither the address's own nor one of its MX hosts', read through the public resolvers. The page warns beside each; never a refusal. Empty when every host matches; absent when no comparison was made (a published server, an account that is no address, or an MX lookup that failed)."
               fields:
                 description: "Password cards only. What the owner fixed (who is owner, with its value) and what the person fills (who is person); a secret never carries a value."
                 type: array

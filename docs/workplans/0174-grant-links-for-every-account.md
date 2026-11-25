@@ -4,6 +4,49 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T3 built (draft pull request, on T1's branch, merges after T1).**
+`PUT /api/grant/:link/password` as §5.3 says, in `grant-password.ts`, mounted by `grant.ts`:
+- **The test** (`password-test.ts`, `PasswordGrant.test`): the create door's probe and
+  `qualifyAccount` on the merged config and credentials. The probe now marks the one failure that
+  counts, `refusedLogin` (`loginWasRefused`: imapflow's `authenticationFailed` or
+  `AUTHENTICATIONFAILED`, an HTTP 401 from DAV or JMAP, Apple refusing an Apple Account password),
+  read from the error, never from words. Every other failure is `unreachable`; `face_missing` is a
+  needed face's measured `no` (not a `structural` one, nor Cirrux Drive's, which is its own card).
+- **Five tries** (`person-link-tries.ts`, on 0064's table): a try is CLAIMED before the login, in
+  one statement that adds one only under five and unlocked, and given back for anything but
+  `refused_login`; so two tabs racing at four make one login between them, and the sixth is never
+  tested. A process that dies mid-test keeps the try counted.
+- **The store** (`storePersonPassword`, `person-grant-ending.ts`): one transaction, the link
+  `FOR UPDATE` and live, the card read again by `ref`; a source's password merged onto each of its
+  migrations' `source_secret_ref` (`grant_withdrawn_at` cleared), a destination's onto the
+  connection's `secret_ref` with `person_granted_connection` naming the person (another person's
+  is refused); the measured qualification remembered; one `mapping.granted` per migration with
+  `via`, `role`, `ref`; the link spent once every card is connected. A destination saved by its
+  address alone also keeps the user name the test logged in with, so the pass logs in as the test did.
+- **Around it:** JSON only (415), 4 KiB (413), exactly the card's person fields (400); a replay
+  answers `already_connected` without a test; an IP-literal server is never tried
+  (`server_not_a_name`, D3 (a)); a revoke mid-test stores nothing (401); thirty tests an hour per
+  caller (`GRANT_PASSWORD_TESTS_PER_HOUR`); `mapping.grant_refused` per migration with the
+  category. The OpenAPI spec says all of it.
+- **D3's comparison** (`grant-server-domain.ts`), on the GET: `GrantServer` gains the optional
+  `domains` (each host's registrable domain, for the bold) and `notTheAddressMail` (the hosts on
+  neither the address's domain nor its MX hosts', read through `verifyMX`'s public resolvers,
+  held ten minutes, three seconds at most; absent when no comparison was made). A warning, never a
+  refusal.
+- **Changes to the fixed shapes:** none removed or renamed. Added: §5.3's answer carries
+  `linkSpent` and `progressUrl` (written into §5.3); `GrantServer`'s two optional fields, as T1
+  named; `ProbeResult`'s optional `refusedLogin`. Open question 4 is answered in §14.
+
+Proved here: `a-password-typed-on-a-link` (each step of §5.3, the lock, the race, D4, both stores,
+replay, revoke, another person, an IP literal), `a-password-the-link-never-says` (seven outcomes,
+every log line, response, header and row; shown to fail when the route logs its body),
+`password-test`, `grant-server-domain`, `grant-password-limit`, `a-login-the-server-refused`, all
+over PGlite with both chains. Written, not run here (no container runtime):
+`a-password-tested-against-stalwart.integration.test.ts`, an IMAP source and a JMAP destination
+with a right and a wrong password; CI and T8 run it. An IMAP destination is not in it: the
+target probe takes no `tlsVerify`, and the harness's IMAPS certificate is self-signed, so it
+would answer `unreachable` there; T8's managed smoke covers it on the demo Stalwart.
+
 **2026-11-25, T1 built (draft pull request, merges after alpha.20's tag).** The seam grows as
 §4.1, §4.2, §5.1 and §9 say, and the interfaces T3 to T6 build against are on the branch
 `claude/ownpace-public-readiness-y7orc6-a21-grant-t1`:
@@ -58,7 +101,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 |---|---|---|---|
 | T1 The seam grows: password kinds, destinations, one shape for the page | builder | 🔎 In review (draft PR) | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
 | T2 Dropbox on the seam | builder | 📋 Planned | §6. Supersedes 0171 T4. S. Needs only 0171 T3's seam, which is merged (#2136). |
-| T3 The own-password route: test, try count, store, spend | builder | 📋 Planned | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
+| T3 The own-password route: test, try count, store, spend | builder | 🔎 In review (draft PR) | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
 | T4 The own-password page, per kind, in English and Dutch | builder | 📋 Planned | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
 | T5 Destinations on the link: Cirrux Drive and password destinations | builder | 📋 Planned | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
 | T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 📋 Planned | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
@@ -443,7 +486,9 @@ same field two ways.
    sentence.
 8. After commit: `startWhenGranted` for the person, as today, and the progress link minted as
    today's ending does.
-9. Answer: `{ "connected": true, "faces": [...] }`. Never a value.
+9. Answer: `{ "connected": true, "faces": [...], "linkSpent": …, "progressUrl": … }`. Never a value.
+   *(T3, 2026-11-25: `linkSpent` and `progressUrl` added, so the page can say the link is done
+   and hand over the progress page step 8 mints, as a sign-in's ending does. Additions only.)*
 
 ### 5.4 Tested before stored, as the create door tests (T3)
 
@@ -932,3 +977,12 @@ its addition and D8 in place under 1.0 (*"terms or the privacy policy: no one bu
 4. Whether `probeAnswers` can be handed an error whose text carries the password (an IMAP
    library that echoes the `LOGIN` command): the guard (§5.6) answers it for the recorded probes;
    T3 also reads `imapflow`'s and the DAV client's error paths and says what it found.
+   **Answered by T3 (2026-11-25), read in `imapflow` 2.12.2 and this repository's clients:**
+   `imapflow` sends LOGIN's password as a `sensitive` argument, and the command it logs and puts
+   on an error as `executedCommand` reads `(* value hidden *)` in its place (`commands/login.js`,
+   `imap-flow.js`); `imapRefusalDetail` quotes that masked command. The DAV clients' refusals
+   carry the method, the status and the body (`davRefusalBody`), and the JMAP probe and session
+   loader the status and the body; neither puts a header in an error, and the Basic header is
+   built only at the request. So no error path read here carries the password, unless a server
+   echoes it in its own body; that text is logged under a reference by `probeAnswers` (0136 T3),
+   never answered, and the guard `a-password-the-link-never-says` holds the route to it.
