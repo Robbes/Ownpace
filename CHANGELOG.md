@@ -96,6 +96,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   are not asked. A new read-only route answers it on both editions:
   `GET /api/migrations/{id}/destination-space` on managed, `GET /mappings/{id}/destination-space`
   on the appliance. No database change.
+- **Finish reads step 4: the addresses that receive mail, and MX checked on a button**
+  (workplan 0171 T10; the owner's decisions D7 (a) and D8 (a) of 2026-11-24). For a mailbox on a
+  domain the person controls, step 4 lists the addresses at the old provider that deliver into it
+  (*Addresses that receive mail*), read live from Microsoft Graph (`mail` and every `smtp:` proxy
+  address) or Gmail's send-as list, each with a tick, *Made at the new provider*; addresses on
+  the provider's own domains (`onmicrosoft.com`, `gmail.com`) are left out, and an IMAP or Apple
+  source says to check them at the old provider. *Check MX now* asks three public DNS-over-HTTPS
+  resolvers and answers one line: MX points at the new provider, still at the old one, at hosts
+  for the person to judge, or the DNS servers do not agree yet. The tick stays. Step 4's text is
+  split by the kind of address: MX for an own domain, forwarding and the automatic reply for an
+  address the provider keeps. Every new Microsoft consent asks `User.Read`, the person's own
+  profile; a connection consented before this release says *Not read from Microsoft; reconnect to
+  list them.* Two read-only routes on both editions, `GET …/finish/addresses` and `POST
+  …/finish/mx-check` (one check per ten seconds per migration). No database change.
 
 ### Changed
 

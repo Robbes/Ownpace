@@ -49,10 +49,34 @@ open earlier. No database change is expected (§8). Every claim about the code b
 | T7 Shared calendars: their sharing carried over | builder | 📋 Planned | §4.5–4.6. Google's ACL and CalDAV's invite list become share rows; Nextcloud calendar shares applied over CalDAV; the files-share defect fixed. L. After T6's interface. |
 | T8 Flags and read state kept in step | builder | 📋 Planned | §5. A keyword pass on every later pass; CONDSTORE where the server has it; the IMAP target's `\Seen` default fixed; the architecture's line corrected to what is built. L. |
 | T9 Free space before Start | builder | 🔨 **Built 2026-11-24**, in review | §6. `capacity()` on WebDAV, IMAP, JMAP (mail and files) and Cirrux Drive; `GET …/destination-space` on managed and the appliance; one line per pool on *Start a migration*, *Review and start* and the appliance's confirm page; *Start anyway* when short (D4 (a)), Start allowed when unknown (D3 (a)). Unit-proved over recorded answers; the Stalwart and Nextcloud integration cases not run (no container runtime in the building session), left to T11. M. |
-| T10 Finish: aliases and the MX check | builder | 📋 Planned | §7. The addresses that receive mail listed on Finish; the MX record checked from the screen. M. |
+| T10 Finish: aliases and the MX check | builder | 🔄 In review | §7. Built on its own branch, a draft pull request; not merged before alpha.19 is tagged. Unit-proved; a real MX change is not (§10). |
 | T11 Proofs | builder | 📋 Planned | §10. The integration cases on Stalwart, Nextcloud and `local-pg.sh`, and the managed E2E smoke's cases. M. Last. |
 | T12 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T11 merges. |
 | T13 The owner's decisions | owner | ⏳ **Owner** | §11: D1 to D9. |
+
+**2026-11-24, T10 built (draft pull request, not merged).** Step 4 of Finish lists the addresses
+that receive mail and checks MX on a button, on both editions, as §7.2 and §7.3 say, with D7 (a)
+and D8 (a). Proved by unit tests only: own domain or not; aliases from recorded Graph and Gmail
+answers, `onmicrosoft.com` and `gmail.com` left out; `verifyMX`'s per-resolver answers mapped to
+the four lines. **Not proved: a real MX change**, nor a real tenant's or Workspace account's alias
+read. Where the build differs from the plan:
+- **The known MX hosts start with Cirrux only** (its help page, read 2026-11-24), plus the rule for
+  a destination the person runs (an MX host on its own mail host's domain). Soverin's, Infomaniak's
+  and mailbox.org's pages could not be read that day, so their hosts are shown for the person to
+  judge (D8's *otherwise*) until somebody reads and cites them in `packages/shared/src/finish-mx.ts`.
+  The old provider's list has Microsoft (`mail.protection.outlook.com`, from Microsoft Learn); Google's
+  page could not be read, so MX still at Google reads *is that your new provider?*, never *ok*.
+- **Two outcomes beside the four lines**, said as they are rather than folded into one: the
+  resolvers agree there is no MX record (`finish.mx.none`), and none could be asked
+  (`finish.mx.unreadable`). And words for a source that cannot be asked, the Gmail API off, a
+  failed read, none found, and the ten-second pace.
+- **Workspace aliases through the Directory API are not read**: `users.aliases.list` needs
+  `admin.directory.user.alias.readonly` in the delegation, which no deployment grants today.
+  `sendAs` lists the aliases a person can send as, which a Workspace alias normally is.
+- `User.Read` for Finish's `/me` read is requested in `graph-profile-token.ts`, apart from the sync
+  side's scope table, as T3's guard `a-consent-that-asks-for-a-different-scope` requires. The consent
+  asks it once, in T3's `MICROSOFT_IDENTITY_SCOPES` (#2136, merged first); this branch's own
+  `MICROSOFT_PROFILE_SCOPE` went in its merge of `main` (2026-11-25).
 
 **Also in alpha.20, not in this plan** (maintenance, built separately by builders): pg-boss
 12.39.0, which moves the job schema one way (workplan 0167's runner; the owner said yes); nginx
@@ -770,9 +794,19 @@ first.
 2. Which time zone Apple's CSV dates use (§2.4, D6).
 3. Whether the Gmail API is enabled on the deployment's Google project, which `sendAs.list` needs
    (§7.2). T10 checks; if not, the list says *not read* for Google until it is.
+   **T10, 2026-11-24:** not checkable from a build session, which holds no deployment's project.
+   The setup guide already asks for it (`docs/google-workspace-setup.md`, step 2, the *Mail* row:
+   **Gmail API**). The read answers it on first use: Google's `SERVICE_DISABLED` becomes *Not read
+   from Google: the Gmail API is off for this service.*, never an empty list.
 4. Whether a delegated `Calendars.Read` reads Graph's `calendarPermissions` for a personal
    account; if so, Microsoft calendar sharing joins §4.5 without application permissions.
 5. Whether Stalwart takes calendar shares over JMAP (`shareWith`); if so, a JMAP destination
    joins §4.6. Until then, calendar rows to it are manual.
 6. Whether the API's and the appliance's egress allows the three DNS-over-HTTPS resolvers
    (§7.3).
+   **T10, 2026-11-24, from the configuration:** nothing stops them. On managed the `api` service is
+   on `ownpace-network`, a plain bridge, not `internal`, with no proxy variable
+   (`deploy/compose/managed.yml`); the appliance is on its own plain bridge
+   (`deploy/selfhost/compose.yml`). Not measured live: the build session's own network refused
+   all three. A deployment behind a firewall answers *The DNS servers could not be asked:* with
+   their words.
