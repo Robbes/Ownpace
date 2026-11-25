@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { credentialFieldsFor } from '@openmig/shared';
+import { credentialFieldRequired, credentialFieldsFor } from '@openmig/shared';
 import { missingFieldsRefusal } from './connections.ts';
 
 describe('the missing-fields refusal', () => {
@@ -47,10 +47,15 @@ describe('the missing-fields refusal', () => {
     const dropbox = credentialFieldsFor('source', 'dropbox');
     const emitted = dropbox.filter((f) => f.required).map((f) => f.key);
 
-    // The token is always the account's own, so it is always required; the
-    // App key is paired with its secret and optional as a whole since the
-    // deployment may carry the app (Connect with Dropbox, 2026-09-02).
-    expect(emitted).toContain('refreshToken');
+    // The account's own address is required. The App key is paired with its
+    // secret and optional as a whole since the deployment may carry the app
+    // (Connect with Dropbox, 2026-09-02); the token is no longer required at
+    // the create door since a grant link brings it (workplan 0174 §6), and
+    // every form still demands it (`credentialFieldRequired`).
+    expect(emitted).toEqual(['username']);
+    const token = dropbox.find((f) => f.key === 'refreshToken')!;
+    expect(credentialFieldRequired(token, { deploymentClient: true })).toBe(true);
+    expect(credentialFieldRequired(token, { deploymentClient: false })).toBe(true);
     for (const key of missingFieldsRefusal(emitted).fields) {
       expect(
         dropbox.find((f) => f.key === key),

@@ -625,9 +625,12 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/migrations/finish-checks-routes.ts': 2,
   // A Microsoft grant link's ending (workplan 0171 T3): before the code is
   // exchanged, as Google's link ending asks. The callback hands the reading
-  // to the ending, which asks it.
+  // to the ending, which asks it. The ending is shared with Dropbox's since
+  // workplan 0174 §6 (`link-ending.ts`), and Dropbox's callback hands it the
+  // reading the same way.
   'routes/migrations/microsoft-oauth-routes.ts': 1,
-  'routes/migrations/microsoft-link-ending.ts': 1,
+  'routes/migrations/dropbox-oauth-routes.ts': 1,
+  'routes/migrations/link-ending.ts': 1,
 };
 
 /** How a door asks: answering the refusal itself, or reading it to answer in its own form. */
@@ -674,9 +677,12 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   'routes/migrations/finish-checks-routes.ts': 2,
   'routes/migrations/grant-subject.ts': 2,
   // A Microsoft grant link's ending (workplan 0171 T3): the two stores, after
-  // the ending's own close; each store reads the close again in its transaction.
-  'routes/migrations/microsoft-link-ending.ts': 2,
+  // the ending's own close; each store reads the close again in its
+  // transaction. Shared with Dropbox's since 0174 §6 (`link-ending.ts`), whose
+  // callback hands it the same two stores, as Microsoft's does.
+  'routes/migrations/link-ending.ts': 2,
   'routes/migrations/microsoft-oauth-routes.ts': 2,
+  'routes/migrations/dropbox-oauth-routes.ts': 2,
   // One more since the create door reads a reused Cirrux account's Drive
   // grant (0160 T5), after its own close.
   'routes/migrations/index.ts': 4,
