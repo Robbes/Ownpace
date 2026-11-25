@@ -161,7 +161,7 @@ describe('a person’s link: each account’s button goes to Google’s own page
     authorizeMock.mockResolvedValue({ url: GOOGLE });
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' }));
-    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'anna@work.example'));
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'google', 'anna@work.example'));
     expect(assignMock).toHaveBeenCalledWith(new URL(GOOGLE).href);
   });
 

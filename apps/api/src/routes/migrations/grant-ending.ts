@@ -66,8 +66,10 @@ import { readOrganisationClosure } from '@openmig/managed';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
+import type { GrantProviderId, StoredSourceSecret } from '../grant-providers.ts';
 import {
   signedInAccountRefusal,
+  type SignedInAccount,
   type SignedInAccountRefusal,
   type SignedInAccountRefusalCode,
 } from './signed-in-account.ts';
@@ -103,8 +105,33 @@ export interface GrantTarget {
 /** What the person's consent brought back, as far as the ending may use it. */
 export interface GrantedAccess {
   readonly refreshToken: string;
-  /** The account Google says signed in, or null when it did not say (0108 T8 (b)). */
-  readonly signedInAs: string | null;
+  /**
+   * The account the provider says signed in, or null when it did not say
+   * (0108 T8 (b)). A string is Google's verified address, as its ending has
+   * always passed it; another provider passes the seam's `SignedInAccount`
+   * (workplan 0171 §3.2).
+   */
+  readonly signedInAs: SignedInAccount | string | null;
+  /** Whose sign-in this was; absent is Google, every ending before alpha.20. */
+  readonly provider?: GrantProviderId;
+  /**
+   * What is stored beside the refresh token: Microsoft's directory
+   * (`tenantId`), so a pass refreshes the token where it was granted. Never a
+   * client id or secret; those stay on the connection.
+   */
+  readonly alsoStore?: StoredSourceSecret;
+}
+
+/** The address a grant is recorded under: the one the provider confirmed. */
+export function grantedAddress(signedInAs: GrantedAccess['signedInAs']): string | null {
+  return typeof signedInAs === 'string' ? signedInAs : (signedInAs?.address ?? null);
+}
+
+/** The encrypted secret a grant stores on the migration: the person's half only. */
+export function grantedSecret(granted: GrantedAccess): string {
+  return JSON.stringify(
+    SecretStore.encryptCredentials({ ...granted.alsoStore, refreshToken: granted.refreshToken }).encrypted,
+  );
 }
 
 export type GrantStoreResult =
@@ -174,9 +201,7 @@ export async function storeGrantedToken(
   target: GrantTarget,
   granted: GrantedAccess,
 ): Promise<GrantStoreResult> {
-  const encrypted = JSON.stringify(
-    SecretStore.encryptCredentials({ refreshToken: granted.refreshToken }).encrypted,
-  );
+  const encrypted = grantedSecret(granted);
 
   try {
     return await withTenantDb(target.tenantId, source, async (db) => {
@@ -196,7 +221,11 @@ export async function storeGrantedToken(
       if (!spent) return { ok: false as const, ...reasonPair(LINK_SPENT) };
 
       const rows = await readGrantRows(db, target.tenantId, target.mappingId);
-      const refusal = signedInAccountRefusal(rows ? namedAccount(rows) : null, granted.signedInAs);
+      const refusal = signedInAccountRefusal(
+        rows ? namedAccount(rows) : null,
+        granted.signedInAs,
+        granted.provider ?? 'google',
+      );
       if (refusal) throw new AnotherAccountSignedIn(refusal);
 
       const updated = await db
@@ -234,8 +263,8 @@ export async function storeGrantedToken(
         detail: {
           mappingId: target.mappingId,
           linkId: target.linkId,
-          // As Google gave it: the named account, which the check just proved.
-          account: granted.signedInAs,
+          // As the provider gave it: the named account, which the check just proved.
+          account: grantedAddress(granted.signedInAs),
           to: (rows && whereFromAndTo(rows)?.to) ?? null,
         },
       });

@@ -15,6 +15,13 @@ import type { Locale } from '../i18n/strings.ts';
 import { linkClient as client } from './link-client.ts';
 import { LinkAddressChangesField } from './link-address-service.ts';
 
+/**
+ * Whose sign-in a link's button opens (workplan 0171 §3.2). An API a release
+ * behind does not say, which means Google, the only provider it knew.
+ */
+const Provider = z.enum(['google', 'microsoft', 'dropbox', 'apple']).default('google');
+export type GrantProvider = z.infer<typeof Provider>;
+
 const SubjectSchema = z.object({
   organisation: z.string(),
   // The name the EU VAT register gave, when the organisation's VAT number was
@@ -36,6 +43,7 @@ const SubjectSchema = z.object({
   // Whether Google itself holds that scope to reading (workplan 0144 T3 (c)).
   // The page says "read-only" only when it is true.
   readOnlyAtProvider: z.boolean(),
+  provider: Provider,
   // Where from and where to (workplan 0108 T8a): the account the migration
   // reads, and the kind of server it writes, its host and the account on it.
   // Never null since T8 (b): the grant is bound to that account, so the server
@@ -71,6 +79,7 @@ const PersonSubjectSchema = z.object({
     .array(
       z.object({
         account: z.string(),
+        provider: Provider,
         granted: z.boolean(),
         // An API a release behind does not say it, which means no.
         again: z.boolean().default(false),
@@ -116,9 +125,15 @@ export const grantApi = {
    * it too (workplan 0145 T6); the server keeps it and never puts it in the
    * redirect.
    */
-  authorize: async (link: string, locale: Locale, account?: string): Promise<{ url: string }> => {
-    // For a person's link, the account whose button was pressed.
-    const res = await client.post(`/grant/${encodeURIComponent(link)}/google/authorize`, {
+  authorize: async (
+    link: string,
+    locale: Locale,
+    provider: GrantProvider = 'google',
+    account?: string,
+  ): Promise<{ url: string }> => {
+    // At the button's provider (workplan 0171 §3.2); for a person's link,
+    // the account whose button was pressed.
+    const res = await client.post(`/grant/${encodeURIComponent(link)}/${provider}/authorize`, {
       locale,
       ...(account === undefined ? {} : { account }),
     });
