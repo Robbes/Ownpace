@@ -150,7 +150,8 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // on 1.0"): alpha.21 removes the switch for deleting by hand (ADR-0024 gate 1, workplan 0173
   // §10). Terms §2's first bullet says nothing is deleted at the target unless the customer
   // approves it on the migration's Deletions page, each deletion or a list after one confirmation
-  // that names how many; alpha §8's list of what an admin cannot do loses deleting by hand. The
+  // that names how many (the Dutch: in uw bestemming, in uw nieuwe bestemming, the owner's read);
+  // alpha §8's list of what an admin cannot do loses deleting by hand. The
   // Last updated line moved to 2026-11-25 in those four files. No tester had accepted any
   // version, so the numbers stay 1.0, edited in place, as on 2026-10-14, 2026-10-21, 2026-11-22
   // and 2026-11-23. Only the alpha and terms pins move; privacy is unchanged. As before, an
@@ -161,7 +162,7 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   'privacy.md@1.0': 'a7efcd8b7aea50799dde27399f428d15e5f33b31600bdc293b5dd2be34b8a53f',
   'privacy.nl.md@1.0': '1707b5d8cfaed53dd6bb0aab23bcbd28823eb129337f570b83e15f99b963014e',
   'terms.md@1.0': 'cba7fa1956b52922bc4db10d29b5c1a9b0cca30d994194ddcbca7627541d0b7e',
-  'terms.nl.md@1.0': 'c8a70e4641aee20a3faa94d0330781c75e834eb285eb1b5f88166005011239a0',
+  'terms.nl.md@1.0': '5dc66225bcaafbfd3e0721ec84ba8cb464c2b8e39e9193308c587d34fc1a0298',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */
