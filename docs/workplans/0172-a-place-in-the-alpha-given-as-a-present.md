@@ -4,12 +4,18 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, renumbered to 0065.** #2167 merged first and took managed migration 0064
+(`person_link_try`, `person_granted_connection`), so the gift's migration is now
+`0065_a_place_given_as_a_present.sql`, its content unchanged, and every mention of it says 0065.
+`main` came in with #2167: the changelog, the knock-limit test's list of doors, `PURGED_TABLES`
+and the workplan index each keep both sides.
+
 **2026-11-25: the owner's answers (T8) applied.** The owner read the gift's privacy sentence, the
 six questions of §7 and the Dutch, and answered: *"ok, I take your advice"*, with these changes
 from the builder's text. What changed, on the same branch:
 
 - **§7 question 2 is turned round: a request the operator declines gives the giver's gift back.**
-  `gift.request_declined_at`, a new column in migration 0064 (not shipped, so no new file), is
+  `gift.request_declined_at`, a new column in migration 0065 (not shipped, so no new file), is
   stamped by `POST /api/access-requests/:id/decline` in its own transaction
   (`giveBackDeclinedGift`); `holdsAPlace` no longer counts a redeemed gift that carries it. The
   decline itself is as before. How declined is told from used, and why it is a column: §3.2.
@@ -17,7 +23,7 @@ from the builder's text. What changed, on the same branch:
   `gift_allowance` rows of the erased organisation's members (`PURGED_BY_MEMBER`), unless that
   person is a member of another organisation too; the receipt counts them
   (`purged_counts.gift_allowance`). The system role is granted `SELECT (user_id), DELETE` on
-  `gift_allowance` and `SELECT (user_id)` on `tenant_member`, both in 0064, and the guards that
+  `gift_allowance` and `SELECT (user_id)` on `tenant_member`, both in 0065, and the guards that
   list tables hold it (`a-table-the-purge-could-not-empty`, the system role's `EXPECTED`).
 - **Questions 1, 3, 4, 5 and 6 stay as built.**
 - **The words**, Dutch first: *Geef iemand die u dierbaar is een plaats in de Alpha, op een kaart*
@@ -41,7 +47,7 @@ passed, each file run on its own. Still open: T7 (E2E, the maintainer's).
 
 **2026-11-24: planned and built, for alpha.21, in one draft pull request.** The owner decided G1
 and G3 on 2026-11-24 and said *"build"*. Everything in §3 is built on the branch
-`claude/ownpace-public-readiness-y7orc6-a21-gift-invitations`: managed migration 0064, the gift
+`claude/ownpace-public-readiness-y7orc6-a21-gift-invitations`: managed migration 0065, the gift
 store, the routes, the giver's screen with its card, the field at the request-access door, the
 operator's screen, the site's page in both languages, and the proofs of §5. It merges after
 alpha.20 is tagged. Proved on 2026-11-24: the full unit suite (`pnpm test`, 1426 files) passed but
@@ -53,7 +59,7 @@ is not edited: the sentence it needs is proposed in §6, for the owner.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T1 The gift table and its store | builder | ✅ Built | Managed migration 0064, `packages/managed/src/gift-store.ts`. §3.1, §3.2. |
+| T1 The gift table and its store | builder | ✅ Built | Managed migration 0065, `packages/managed/src/gift-store.ts`. §3.1, §3.2. |
 | T2 The giver's routes | builder | ✅ Built | `GET /api/gifts/mine`, `POST /api/gifts`, `POST /api/gifts/:id/revoke`. §3.3. |
 | T3 Redeeming | builder | ✅ Built | `POST /api/gifts/redeem`, anonymous, rate-limited; the mark on the access queue. §3.4. |
 | T4 The operator | builder | ✅ Built | `GET /api/gifts/operator`, revoke, the limit for everyone and for one person, the alpha's count. English only. §3.5. |
@@ -112,7 +118,7 @@ is not edited: the sentence it needs is proposed in §6, for the owner.
 
 ## 3. The design, as built
 
-### 3.1 Tables (managed migration 0064)
+### 3.1 Tables (managed migration 0065)
 
 - `gift`: `id`, `tenant_id` (the giver's organisation when they gave), `giver_user_id` (their
   subject), `code_hash`, `locale` (the card's language, for the operator), `created_at`,

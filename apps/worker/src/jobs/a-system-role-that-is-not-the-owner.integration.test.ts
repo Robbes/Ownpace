@@ -266,16 +266,16 @@ const EXPECTED: Record<string, readonly string[]> = {
   credit_notice: PURGED_ONLY(),
   grant_link_allowance: PURGED_ONLY(),
   // A place in the Alpha given as a present, by the organisation that gave it
-  // (workplan 0172, managed 0064): only the purge.
+  // (workplan 0172, managed 0065): only the purge.
   gift: PURGED_ONLY(),
   // That the organisation is a test, and its marker (workplan 0162 T1, managed 0062): only the purge.
   test_organisation: PURGED_ONLY(),
   payment_method: PURGED_ONLY(),
   usage_metric: PURGED_ONLY(),
   // Which subject each member is, for the gift allowances the purge deletes
-  // with the organisation's people (workplan 0172, managed 0064): never an address.
+  // with the organisation's people (workplan 0172, managed 0065): never an address.
   tenant_member: PURGED_ONLY('tenant_id,user_id'),
-  // The operator's number of gifts for one person (workplan 0172, managed 0064): only the purge.
+  // The operator's number of gifts for one person (workplan 0172, managed 0065): only the purge.
   gift_allowance: PURGED_ONLY('user_id'),
   tenant_pricing: PURGED_ONLY(),
   audit_log: PURGED_ONLY(),

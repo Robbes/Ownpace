@@ -134,7 +134,7 @@ export const PURGED_TABLES = [
   // 0071): other people's addresses, which is exactly what an erasure erases
   // (0168 §5). The tenant key would cascade; named so the receipt counts it.
   'address_change',
-  // The gifts made from this organisation (workplan 0172, managed 0064): who
+  // The gifts made from this organisation (workplan 0172, managed 0065): who
   // gave a place, and a fingerprint of its code. The request a gift became is
   // the recipient's, not this organisation's, and stays. The tenant key would
   // cascade; named so the receipt counts them.
@@ -281,7 +281,7 @@ export const PURGED_TABLES = [
  * counts them on the receipt beside the tables above.
  *
  * `gift_allowance` is the operator's number of gifts for one person (workplan
- * 0172, managed 0064; the owner, 2026-11-25: deleted with the organisation,
+ * 0172, managed 0065; the owner, 2026-11-25: deleted with the organisation,
  * like the gifts). It has no `tenant_id`, so the loop over `PURGED_TABLES`
  * cannot reach it. **A person who is also a member of another organisation
  * keeps theirs**: the number is about them, they are still here, and the

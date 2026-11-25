@@ -17,7 +17,7 @@
  *  - **The operator's** (`authenticateSubject`, English only): every gift and
  *    whose, revoking one, the limit for everyone and for one person, and how
  *    many people the alpha has let in. As with the access queue, nothing here
- *    re-checks "operator": migration 0064's policies are the rule, and a
+ *    re-checks "operator": migration 0065's policies are the rule, and a
  *    non-operator reads an empty list and changes nothing.
  */
 

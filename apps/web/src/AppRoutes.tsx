@@ -525,7 +525,7 @@ const AppRoutes: React.FC = () => {
             that is what the rows are. Gating it here would be a second, weaker
             copy of a rule the database already enforces. */}
         {/* The operator's gifts (workplan 0172), on the access queue's terms:
-            not gated here, because migration 0064's policies are the rule. */}
+            not gated here, because migration 0065's policies are the rule. */}
         <Route
           path="gifts"
           element={

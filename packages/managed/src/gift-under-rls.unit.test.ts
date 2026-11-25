@@ -2,7 +2,7 @@
 
 /**
  * A PLACE GIVEN AS A PRESENT (workplan 0172): `gift-store.ts` and managed
- * migration 0064, under row security.
+ * migration 0065, under row security.
  *
  *  - a code is sixteen characters of the alphabet, printed in four groups, and
  *    read back however it is typed; only its fingerprint is kept;

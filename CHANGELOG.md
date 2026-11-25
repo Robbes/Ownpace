@@ -22,7 +22,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   operator's new **Gifts** screen (English) shows every gift and whose it is, how many requests
   have been granted and are waiting, and sets the number of gifts for everyone or for one person
   without a deploy; there is no cap on admissions, and the screen says so. The site has a gift
-  page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0064 adds `gift`,
+  page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0065 adds `gift`,
   `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation, and so is the
   operator's number for each of its people, unless that person is also in another organisation.
 - **Grant links for a Dropbox account** (workplan 0174 §6, T2; superseding 0171 T4). A grant link

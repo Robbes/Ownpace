@@ -16,7 +16,7 @@
  *    unused one.
  *
  * Like the access queue, nothing here authorises anything: managed migration
- * 0064's policies are the rule, so a typed URL by somebody else shows nothing
+ * 0065's policies are the rule, so a typed URL by somebody else shows nothing
  * and changes nothing.
  */
 import React, { useState } from 'react';

@@ -956,7 +956,7 @@ export const moneyGivenBack = pgTable('money_given_back', {
 // ========================= Gifts (workplan 0172) =========================
 
 /**
- * A place in the alpha given as a present (managed migration 0064). The code is
+ * A place in the alpha given as a present (managed migration 0065). The code is
  * shown once and kept as `codeHash`; nothing about the recipient is a column,
  * which `a-gift-that-keeps-no-recipient.unit.test.ts` holds. Read and written
  * by `gift-store.ts`.
@@ -992,7 +992,7 @@ export const gift = pgTable(
   ],
 );
 
-/** How many gifts each person may hold: one row (managed migration 0064). */
+/** How many gifts each person may hold: one row (managed migration 0065). */
 export const giftRule = pgTable('gift_rule', {
   id: boolean('id').primaryKey().default(true),
   giftsPerPerson: integer('gifts_per_person').notNull().default(1),
@@ -1000,7 +1000,7 @@ export const giftRule = pgTable('gift_rule', {
   setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** The operator's number of gifts for one person (managed migration 0064). */
+/** The operator's number of gifts for one person (managed migration 0065). */
 export const giftAllowance = pgTable('gift_allowance', {
   userId: text('user_id').primaryKey(),
   gifts: integer('gifts').notNull(),
