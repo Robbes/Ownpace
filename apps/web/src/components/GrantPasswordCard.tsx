@@ -116,7 +116,7 @@ const Hosts: React.FC<{ server: GrantServer }> = ({ server }) => {
       {parts.map((part, i) => {
         if (i % 2 === 0) return part === '' ? null : <React.Fragment key={i}>{part}</React.Fragment>;
         const h = Number(part);
-        return <BoldDomain key={i} host={server.hosts[h]!} domain={server.registrable?.[h]} />;
+        return <BoldDomain key={i} host={server.hosts[h]!} domain={server.domains?.[h]} />;
       })}
     </>
   );
@@ -313,8 +313,8 @@ export const GrantPasswordCard: React.FC<GrantPasswordCardProps> = ({
               : withServer(t('grant.password.server', { server: MARK }), server)}
           </span>
         </p>
-        {!server.published && server.addressMail === 'mismatch' && (
-          <p className="flex items-start gap-2 text-amber-900" data-address-mail="mismatch">
+        {!server.published && (server.notTheAddressMail?.length ?? 0) > 0 && (
+          <p className="flex items-start gap-2 text-amber-900" data-not-the-address-mail={server.notTheAddressMail!.join(' ')}>
             <AlertTriangle className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
             <span>{t('grant.password.notAddressMail')}</span>
           </p>

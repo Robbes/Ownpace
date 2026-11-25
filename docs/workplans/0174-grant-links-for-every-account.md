@@ -662,13 +662,18 @@ them so; the page (`passwordAnswerOf`, `apps/web/src/services/grant-service.ts`)
 - Any other answer: the server's sentence for the link (`message`/`messageNl` or
   `reason`/`reasonNl`, as `linkRefusal` reads them), else the page's own.
 
-**D3's fields on `GrantServer` (T4, 2026-11-25).** T1 left D3's comparison to T3 as optional
-fields; the page shows them under these names, both optional:
-- `registrable?: string[]`: the registrable domain of each host, in `hosts`' order, set in bold.
+**D3's fields on `GrantServer` (T3, T4; settled on one branch, 2026-11-25).** T1 left D3's
+comparison to T3 as optional fields. T3 and T4 named them differently; the shape is T3's, the
+facts as the server computes them, and the page reads exactly these, both optional:
+- `domains?: string[]`: the registrable domain of each host, in `hosts`' order, set in bold.
   Absent, the page bolds the whole host. It does not guess a registrable domain itself.
-- `addressMail?: 'match' | 'mismatch'`: whether that domain is the address's own or one of its
-  MX hosts'. `mismatch` shows D3's warning (`grant.password.notAddressMail`). Absent (no comparison,
-  a published server, or a lookup that failed) says nothing.
+- `notTheAddressMail?: string[]`: the hosts whose registrable domain is neither the address's own
+  nor one of its MX hosts'. Non-empty shows D3's warning (`grant.password.notAddressMail`); empty
+  says every host matches; absent (no comparison, a published server, or a lookup that failed)
+  says nothing. A warning, never a refusal.
+(T4 had read `registrable` and `addressMail: 'match' | 'mismatch'`; one list of hosts says more
+than one word for all of them, so a server with two hosts can be warned about the one that
+differs.)
 
 ### 5.4 Tested before stored, as the create door tests (T3)
 

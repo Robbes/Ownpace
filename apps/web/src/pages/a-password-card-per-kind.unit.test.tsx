@@ -103,7 +103,7 @@ function card(role: 'source' | 'target', kind: string, over: Record<string, unkn
     server:
       kind === 'apple'
         ? { hosts: ['imap.mail.me.com', 'caldav.icloud.com'], published: true }
-        : { hosts: ['imap.example.com'], published: false, registrable: ['example.com'] },
+        : { hosts: ['imap.example.com'], published: false, domains: ['example.com'] },
     fields: fieldsFor(role, kind),
     tries: { left: 5, locked: false },
     granted: false,
@@ -252,7 +252,7 @@ describe('where the password goes, before any box (0174 §5.8, D3)', () => {
     expect(line.querySelector('strong')?.textContent).toBe('example.com');
     expect(within(el).getByText(fill(words('en', 'grant.password.nobody'), { askedBy: 'owner@example.org', organisation: 'Acme Families' }))).toBeInTheDocument();
     expect(within(el).getByText(words('en', 'grant.password.never'))).toBeInTheDocument();
-    expect(el.querySelector('[data-address-mail]')).toBeNull();
+    expect(el.querySelector('[data-not-the-address-mail]')).toBeNull();
   });
 
   it('bolds the whole host when the route named no registrable domain', async () => {
@@ -264,33 +264,47 @@ describe('where the password goes, before any box (0174 §5.8, D3)', () => {
 
   it.each(['en', 'nl'] as const)('%s: warns, and does not refuse, when the server is not the address’s mail', async (locale) => {
     readMock.mockResolvedValue(
-      subject([card('source', 'imap', { server: { hosts: ['imap.example.net'], published: false, registrable: ['example.net'], addressMail: 'mismatch' } })]),
+      subject([card('source', 'imap', { server: { hosts: ['imap.example.net'], published: false, domains: ['example.net'], notTheAddressMail: ['imap.example.net'] } })]),
     );
     renderPage(locale);
     const el = await cardOf('anna-imap@example.com');
-    const warning = el.querySelector('[data-address-mail="mismatch"]');
+    const warning = el.querySelector('[data-not-the-address-mail="imap.example.net"]');
     expect(warning?.textContent).toBe(words(locale, 'grant.password.notAddressMail'));
     // A warning only: the person can still type and send.
     expect(within(el).getByRole('button', { name: words(locale, 'grant.password.submit') })).toBeEnabled();
   });
 
+  it('warns when one of two hosts is not the address’s mail, as the server answers it (T3’s shape)', async () => {
+    readMock.mockResolvedValue(
+      subject([
+        card('target', 'soverin', {
+          server: { hosts: ['imap.example.com', 'dav.example.net'], published: false, domains: ['example.com', 'example.net'], notTheAddressMail: ['dav.example.net'] },
+        }),
+      ]),
+    );
+    renderPage();
+    const el = await cardOf('anna-soverin@example.com');
+    expect(el.querySelector('[data-not-the-address-mail]')?.getAttribute('data-not-the-address-mail')).toBe('dav.example.net');
+    expect([...el.querySelectorAll('[data-server-line] strong')].map((b) => b.textContent)).toEqual(['example.com', 'example.net']);
+  });
+
   it('says nothing when the server matches the address’s mail', async () => {
     readMock.mockResolvedValue(
-      subject([card('source', 'imap', { server: { hosts: ['imap.example.com'], published: false, registrable: ['example.com'], addressMail: 'match' } })]),
+      subject([card('source', 'imap', { server: { hosts: ['imap.example.com'], published: false, domains: ['example.com'], notTheAddressMail: [] } })]),
     );
     renderPage();
     const el = await cardOf('anna-imap@example.com');
-    expect(el.querySelector('[data-address-mail]')).toBeNull();
+    expect(el.querySelector('[data-not-the-address-mail]')).toBeNull();
   });
 
   it('names Apple’s own server for Apple, with no warning', async () => {
-    readMock.mockResolvedValue(subject([card('source', 'apple', { server: { hosts: ['imap.mail.me.com'], published: true, addressMail: 'mismatch' } })]));
+    readMock.mockResolvedValue(subject([card('source', 'apple', { server: { hosts: ['imap.mail.me.com'], published: true, notTheAddressMail: ['imap.mail.me.com'] } })]));
     renderPage();
     const el = await cardOf('anna-apple@example.com');
     expect(el.querySelector('[data-server-line]')?.textContent).toBe(
       'Your password is checked with Apple’s own server, imap.mail.me.com.',
     );
-    expect(el.querySelector('[data-address-mail]')).toBeNull();
+    expect(el.querySelector('[data-not-the-address-mail]')).toBeNull();
   });
 
   it.each(['en', 'nl'] as const)('%s: says to ask some other way when the organisation gave no phone', async (locale) => {

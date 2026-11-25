@@ -111,7 +111,7 @@ describe('a person’s link with a password card and a destination parses (0174 
           way: 'password',
           provider: 'soverin',
           account: 'anna@soverin.example',
-          server: { hosts: ['mail.example.net'], published: false, registrable: ['example.net'], addressMail: 'mismatch' },
+          server: { hosts: ['mail.example.net'], published: false, domains: ['example.net'], notTheAddressMail: ['mail.example.net'] },
           fields: [{ key: 'password', who: 'person', labelKey: 'account.targetPassword', secret: true }],
           tries: null,
           granted: false,
@@ -136,7 +136,7 @@ describe('a person’s link with a password card and a destination parses (0174 
       ['source', 'password', 'apple'],
       ['target', 'password', 'soverin'],
     ]);
-    expect(accounts[1]!.server).toEqual({ hosts: ['mail.example.net'], published: false, registrable: ['example.net'], addressMail: 'mismatch' });
+    expect(accounts[1]!.server).toEqual({ hosts: ['mail.example.net'], published: false, domains: ['example.net'], notTheAddressMail: ['mail.example.net'] });
     expect((accounts[0]!.fields as unknown[]).length).toBe(2);
   });
 });

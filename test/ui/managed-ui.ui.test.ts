@@ -468,7 +468,7 @@ const FIXTURES: Record<string, unknown> = {
         way: 'password',
         provider: 'imap',
         account: 'anna@example.com',
-        server: { hosts: ['imap.example.com'], published: false, registrable: ['example.com'], addressMail: 'match' },
+        server: { hosts: ['imap.example.com'], published: false, domains: ['example.com'], notTheAddressMail: [] },
         fields: [
           { key: 'host', who: 'owner', labelKey: 'account.host', secret: false, value: 'imap.example.com' },
           { key: 'port', who: 'owner', labelKey: 'account.port', secret: false, value: '993' },

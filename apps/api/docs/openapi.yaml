@@ -10055,7 +10055,7 @@ components:
                   notTheAddressMail:
                     type: array
                     items: { type: string }
-                    description: "D3's addition: the hosts whose registrable domain is neither the address's own nor one of its MX hosts', read through the public resolvers. The page warns beside each; never a refusal. Empty when every host matches; absent when no comparison was made (a published server, an account that is no address, or an MX lookup that failed)."
+                    description: "D3's addition: the hosts whose registrable domain is neither the address's own nor one of its MX hosts', read through the public resolvers. The page warns when any is listed (it names them in `data-not-the-address-mail`); never a refusal. Empty when every host matches; absent when no comparison was made (a published server, an account that is no address, or an MX lookup that failed)."
               fields:
                 description: "Password cards only. What the owner fixed (who is owner, with its value) and what the person fills (who is person); a secret never carries a value."
                 type: array

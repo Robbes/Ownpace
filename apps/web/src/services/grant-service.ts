@@ -65,18 +65,19 @@ const PersonFieldSchema = z.object({
 export type PersonField = z.infer<typeof PersonFieldSchema>;
 
 /**
- * Where the password is tried (0174 §5.8, D3). `registrable` and
- * `addressMail` are D3's addition, answered by the route's read (T3): the
- * registrable domain of each host, in `hosts`' order, which the page sets in
- * bold; and whether that domain is the address's own or one of its MX hosts'.
- * Both optional: absent, the page bolds the whole host and warns of nothing,
- * as for a lookup that failed.
+ * Where the password is tried (0174 §5.8, D3). `domains` and
+ * `notTheAddressMail` are D3's addition, answered by the route's read (T3,
+ * `grant-server-domain.ts`; 0174 §5.3 names them): the registrable domain of
+ * each host, in `hosts`' order, which the page sets in bold; and the hosts
+ * whose domain is neither the address's own nor one of its MX hosts', which
+ * the page warns about. Both optional: absent, the page bolds the whole host
+ * and warns of nothing, as for a lookup that failed.
  */
 const GrantServerSchema = z.object({
   hosts: z.array(z.string()),
   published: z.boolean(),
-  registrable: z.array(z.string()).optional(),
-  addressMail: z.enum(['match', 'mismatch']).optional(),
+  domains: z.array(z.string()).optional(),
+  notTheAddressMail: z.array(z.string()).optional(),
 });
 export type GrantServer = z.infer<typeof GrantServerSchema>;
 
