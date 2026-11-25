@@ -196,7 +196,7 @@ Cover the common 95% automatically; inventory + guide the rare bits.
 - **Encrypted/signed mail (S/MIME, PGP):** migrated as opaque MIME (preserved, not decrypted).
 - **Flags/categories/importance:** preserved where standard IMAP supports them.
 - **Signatures, out-of-office, server-side rules/filters:** not messages -> surfaced as guided manual steps (§14.2).
-- **Online/archive mailbox:** treated as an additional mailbox to migrate.
+- **Online archive (Exchange):** **not read** — corrected 2026-11-24. This line said the archive is "treated as an additional mailbox to migrate"; nothing does that. The IMAP and Graph mail sources read the primary mailbox only, and the one trace of the idea is the `mailbox.kind` value `'archive'` in the ledger schema (`packages/ledger/src/schema-pg.ts`), which no code writes. Under Exchange's default retention policy mail older than two years can sit in the archive, so the scope manifest names it under *does not migrate* with the way round it (move the archive's folders into the mailbox first), and so does the Microsoft guide (`#not-yet`). The primary mailbox's own Archive folder is a folder like any other and migrates (§10.1).
 - **Recurring-event exceptions & time zones:** handled via iCal UID + RECURRENCE-ID.
 - **Target message-size limits:** oversize items detected and flagged rather than silently dropped.
 

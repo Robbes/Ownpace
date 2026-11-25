@@ -313,9 +313,38 @@ time the `latest` channel exists — check it appeared.
 |---|---|---|
 | `security-scan.yml` | the GitHub release, first under Release, with its generated body (pull lines, verify one-liner, changelog link) and `bom.json` (CycloneDX SBOM) | published, the pre-release flag right, exactly one generated block, the changelog link, `bom.json` attached, CycloneDX, naming the version |
 | `images.yml` | `ownpace-{api,web,selfhost,worker}:<X.Y.Z>` multi-arch on GHCR, cosign-signed by digest | linux/amd64 and linux/arm64, the revision label C, `sha-<C>` the same index, `latest` withheld from a pre-release, and `cosign verify` by digest with the exact identity `https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/tags/<tag>` and then the documented one: `cosign verify ghcr.io/robbes/ownpace-selfhost:<X.Y.Z> --certificate-identity-regexp '^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/' --certificate-oidc-issuer https://token.actions.githubusercontent.com` |
+| `images.yml` (its `image-sboms` job, from `0.2.0-alpha.20` on) | one SPDX file per published image and platform, `ownpace-<image>-<X.Y.Z>.linux-amd64.spdx.json` and `….linux-arm64.spdx.json`, eight in all: the SBOM attestation each index carries, read back from GHCR by digest | each attached and not empty, SPDX 2, listing operating-system packages, and named after the index `<X.Y.Z>` resolves to now (`ghcr.io/robbes/ownpace-<image>@sha256:… linux/<arch>`); a tag before alpha.20 gets a note |
 | `windows-payload.yml` | `ownpace-appliance-win-x64-v<X.Y.Z>.zip` attached to the release by its `release` job, only after its `smoke` job ran that payload on a hosted `windows-2025` runner (Phases 1 and 2 of the Windows runbook) (unsigned — SmartScreen prompt documented in the runbook) | attached, its `SHA256SUMS.txt` holds for every file, and its `node.exe` hashes to the sum the tagged commit pins (`NODE_RUNTIME_SHA256` in `scripts/package-appliance.mjs`, read at the commit; a tag from before 2026-11-01 gets a note) |
 
 And `GET /version` on the selfhost image, started on PGlite: the version and C.
+
+**What each SBOM covers, and what it cannot see** (SBOM-1, 2026-11-24). A release carries two
+kinds of list, and neither replaces the other:
+
+- **`bom.json`** (CycloneDX, Security Scan) is made from the lockfile. It lists the npm packages
+  the workspace resolves, including what ends up inside a bundle: the web build's assets and the
+  appliance's esbuild bundle. It sees nothing of the images: not the Debian packages of the
+  distroless runtime under api, worker and selfhost, nor the Alpine packages of nginx under web.
+- **`ownpace-<image>-<X.Y.Z>.<os>-<arch>.spdx.json`** (SPDX 2.3, `images.yml`) is the SBOM each
+  published index carries as an attestation beside its provenance. BuildKit makes it while
+  building, with the generator `images.yml` pins on both build steps
+  (`docker/buildkit-syft-scanner:1.12.1`, by digest; the pin watch's row says when its `stable-1`
+  channel moves), scanning the image's final filesystem: the OS packages of the base and the npm
+  packages installed under `node_modules` in the image. It cannot see inside a bundled
+  JavaScript file, because that is one file and not an installed package: for that, read
+  `bom.json`. Each build leg reads it back from GHCR by the digest it pushed and splits it per
+  platform (`scripts/image-sbom.mjs`), naming the document after the image by digest and
+  platform; nothing else in it is changed. On a push to `main` the files are kept with the run
+  (`image-sbom-<image>-<commit>`), so every merge proves them before a tag needs them; on a tag
+  the `image-sboms` job checks that all eight are there and attaches them, `--clobber`, since a
+  re-run of `images.yml` on the tag pushes a new index and the files must describe the one the
+  tag names. One image whose SBOM cannot be read fails its leg and attaches nothing.
+- The same SBOM can be read from the image itself, without the release:
+  `docker buildx imagetools inspect ghcr.io/robbes/ownpace-selfhost:<X.Y.Z> --format '{{ json .SBOM }}'`.
+- Not covered by either: the database, pooler and GoAccess images (`deploy/compose/postgres`,
+  `deploy/selfhost/postgres`, `deploy/compose/pgbouncer`, `deploy/compose/goaccess`). This
+  repository builds them on the machine that runs them and publishes none, so there is no
+  published image to carry an SBOM; the weekly image scan in Security Scan reads them.
 
 `ownpace-worker`, the managed edition's job worker (ADR-0054), is published from
 `0.2.0-alpha.16` on (`FIRST_RELEASE` in `scripts/release-verify.mjs`): `verify` on an older tag
@@ -348,8 +377,8 @@ ran the suite. A tag pushed by hand runs `ci.yml` beside the publishers; it
 holds nothing back.
 
 **Who creates the release.** Under Release, Security Scan on the tag, before
-anything else ships. Under a hand-pushed tag, whichever of Security Scan and
-`windows-payload.yml` attaches first.
+anything else ships. Under a hand-pushed tag, whichever of Security Scan,
+`windows-payload.yml` and `images.yml`'s `image-sboms` job attaches first.
 
 **The half-published state.** Security Scan attaches the body and `bom.json`
 before its last step, which fails the run when Trivy or the SARIF upload
@@ -523,9 +552,10 @@ That is the only one. Two notes beside it:
   `package.json` names (§5). If it is ever added: not
   *Restrict creations*, because the workflow's token cannot be a bypass
   actor, and it would refuse Release's own tag.
-- **Immutable releases stay off.** Security Scan and `windows-payload.yml`
-  attach to the release separately, after it is published; with immutability
-  on, the second attach would fail.
+- **Immutable releases stay off.** Security Scan, `windows-payload.yml` and
+  `images.yml` (the images' SBOMs, from alpha.20 on) attach to the release
+  separately, after it is published; with immutability on, the second attach
+  would fail.
 
 ## Known deferred (tracked in workplans)
 

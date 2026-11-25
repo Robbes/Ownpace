@@ -118,6 +118,9 @@ describe('folders, by name, under Cirrux’s own rule', () => {
     await expect(target.ensureDirectory({ path: 'tab\there' })).rejects.toThrow(/control character/);
     await expect(target.ensureDirectory({ path: 'x'.repeat(256) })).rejects.toThrow(/255/);
     expect(posts(cirrux, '/drive/folders').map((r) => (r.body as { name: string }).name)).toEqual(['ok']);
+    // A name Cirrux will not store (0160, T2b), said as one.
+    const failure = await target.ensureDirectory({ path: 'tab\there' }).catch((e: unknown) => e);
+    expect(statedFailureCategoryOf(failure)).toBe('format_refused');
   });
 
   it('keys names the way Cirrux compares them: trimmed, composed, without capitals', () => {
@@ -168,7 +171,9 @@ describe('a new file: the simple upload', () => {
     const failure = await target.upsertFile('', raw('Report.pdf', bytes('ours'))).catch((e: unknown) => e);
     expect(String(failure)).toMatch(/already holds “report\.pdf”/);
     expect(isDecisionError(failure)).toBe(true);
-    expect(statedFailureCategoryOf(failure)).toBe('target_refused');
+    // A name Cirrux will not store, not a refusal of the account (0160, T2b):
+    // `target_refused` headed it with no space, an upload limit and permissions.
+    expect(statedFailureCategoryOf(failure)).toBe('format_refused');
     expect(new TextDecoder().decode(cirrux.files.get(theirs.uuid)!.bytes)).toBe('theirs');
   });
 
@@ -412,6 +417,21 @@ describe('a changed file: replaced under base_ctag, encrypted in Cirrux’s form
     });
     expect(result.conflicted).toBe(true);
     expect(posts(cirrux, `/drive/files/${first.targetId}/replace`)).toHaveLength(0);
+  });
+
+  // THE COPY DELETED IN CIRRUX (workplan 0160, T2b): the owner deleted the
+  // copy and emptied the trash, and the writer threw. The pass made the copied
+  // row a failed one, so *Live progress* counted no copy and one failure more.
+  it('a copy deleted in Cirrux for good is gone from the target: nothing written, nothing thrown', async () => {
+    const { cirrux, target, first } = await copied();
+    cirrux.files.delete(first.targetId);
+    const result = await target.upsertFile('', raw('plan.txt', bytes('version two')), {
+      overwrite: true,
+      expectedTargetVersion: first.targetVersion!,
+    });
+    expect(result).toEqual({ targetId: first.targetId, created: false, goneFromTarget: true });
+    expect(posts(cirrux, `/drive/files/${first.targetId}/replace`)).toHaveLength(0);
+    expect(posts(cirrux, '/drive/files')).toHaveLength(1);
   });
 
   it('an ADOPTED copy, never written by us, is replaced under the version just read, never without one', async () => {

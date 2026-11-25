@@ -56,9 +56,11 @@ const Row: React.FC<{
   f: ItemFailure;
   /** The migration's source kind, from the queue, for the remedy (0150 D9). */
   sourceKind?: string;
+  /** And its destination's (0160, T2b): a Cirrux account's name refusals. */
+  targetKind?: string;
   outcome?: ItemOutcome;
   actions?: React.ReactNode;
-}> = ({ f, sourceKind, outcome, actions }) => {
+}> = ({ f, sourceKind, targetKind, outcome, actions }) => {
   const t = useT();
   return (
   <ItemRow>
@@ -95,7 +97,7 @@ const Row: React.FC<{
         // Ordinary text, not red: it says what to do, and red made it read
         // as one more error.
         <div className="text-xs text-gray-800">
-          {t(remedyKey(f.category, sourceKind))} <SendItToUs category={f.category} dataType={f.domain} />
+          {t(remedyKey(f.category, sourceKind, { targetKind }))} <SendItToUs category={f.category} dataType={f.domain} />
         </div>
       )}
       {/*
@@ -184,6 +186,7 @@ const Failures: React.FC = () => {
             mappingId={mappingId}
             failures={[...queue.needsDecision, ...queue.retrying]}
             {...(queue.sourceKind ? { sourceKind: queue.sourceKind } : {})}
+            {...(queue.targetKind ? { targetKind: queue.targetKind } : {})}
             {...(queue.textWithheld ? { textWithheld: true } : {})}
           />
         )}
@@ -232,6 +235,7 @@ const Failures: React.FC = () => {
                 key={f.naturalKeyHash}
                 f={f}
                 {...(queue.sourceKind ? { sourceKind: queue.sourceKind } : {})}
+                {...(queue.targetKind ? { targetKind: queue.targetKind } : {})}
                 outcome={outcomes[f.naturalKeyHash]}
                 actions={
                   <>
@@ -282,6 +286,7 @@ const Failures: React.FC = () => {
               key={f.naturalKeyHash}
               f={f}
               {...(queue.sourceKind ? { sourceKind: queue.sourceKind } : {})}
+              {...(queue.targetKind ? { targetKind: queue.targetKind } : {})}
             />
           ))}
         </QueueSection>

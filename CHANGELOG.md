@@ -110,6 +110,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   profile; a connection consented before this release says *Not read from Microsoft; reconnect to
   list them.* Two read-only routes on both editions, `GET …/finish/addresses` and `POST
   …/finish/mx-check` (one check per ten seconds per migration). No database change.
+- **Apple's data export is read, Experimental** (workplan 0171 T1; the owner's decisions D6 and
+  D9 of 2026-11-24). An archive connection whose export is **Apple Data & Privacy** now has a
+  reader: iCloud Drive and iCloud Photos from the `.zip` parts Apple delivers, from the folder they
+  were put in unopened, or from an extracted copy. The reader finds each service's data by its own
+  list of files (`Drive Details.csv` for Drive), never by folder names, and keeps the person's
+  folders as they are. It is built on the one export opened so far, so it refuses what it does
+  not know: a zip with neither service's list (*"This does not look like an Apple export we
+  know"*), fewer `.zip` parts than the person said Apple gave them (an archive connection takes a
+  new optional `parts`), and two parts that belong to two different exports. A file is dated by
+  the zip itself; Apple's list of dates carries no time zone, so its dates are kept as text beside
+  each file and never parsed. Photos are written against Apple's description, not a real export.
+  The form's *To be tested* tag and cannot-read line go with the reader; the screen and guide
+  sentences for the part count and Advanced Data Protection follow in T2. No database change.
 
 ### Changed
 
@@ -131,6 +144,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   show **Show more** only when there is more, so a list of one page looks as before. Every page is
   its own row in the support read log, the later ones too: each is rows the operator chose to look
   at. The API description has the new parameter and fields.
+- **What moves from Microsoft 365 now says OneDrive, and names the online archive** (workplan
+  0026; the owner, 2026-11-24: *"two promises: YES, change the wording."*). Wording only, no
+  new feature. The scope manifest's Microsoft **Files** row said *OneDrive and SharePoint
+  libraries*, while the drive source reads only the signed-in account's own OneDrive; it now says
+  OneDrive, and **SharePoint and Teams files** is a new *does not migrate* row with the way round
+  it: copy the files into your OneDrive first. **Online archive** is a second new row: neither
+  mail source reads Exchange's online archive, where Microsoft's default policy moves mail older
+  than two years, so move its folders into the mailbox first. The Microsoft guide (English and
+  Dutch) gained a *Not yet* section saying both, the site's leaving page lists both rows, and
+  the architecture document's §10.2 no longer says the archive is migrated. The manifest's
+  version moves to 2026-11-24.
 - **The managed edition's job runner is on pg-boss 12.39.0, from 12.38.2, and its job schema moves
   from version 46 to 47, one way** (workplan 0119; the owner, 2026-11-24: *"alpha.20 (advice): yes
   on all"*). pg-boss's migration adds one nullable column, `pgboss.schedule.sent_on`, in one
@@ -195,6 +219,43 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   person chose to leave behind is added to what was recorded (the owner: *"E yes"*), so neither
   fails the check. On an IMAP destination Archive is the folder the server marks as its archive,
   where it has one. A migration started earlier copies its archived mail on its next pass.
+- **Four screen findings from the owner's live Cirrux Drive test** (workplan 0160, T2b; the
+  owner, 2026-11-24: *"alpha.20 (advice): yes on all"*). A file refused because Cirrux Drive
+  already holds one whose name differs only in capitals or accents, or whose name Cirrux refuses,
+  is `format_refused` now, a name the destination will not store, and on a Cirrux migration the
+  Failures page says so in Cirrux's terms instead of *"The destination refused to accept
+  this. Common causes are no space left…"*. After *Disconnect Cirrux Drive*, *Live progress*
+  names the row's own button, **Connect Cirrux Drive**, where it said *Reconnect or Replace
+  credentials*. A delete pressed while deleting by hand is off says so in the reader's words and
+  points at the switch above, where it showed the appliance's *"Set `allowApplyDeletions: true`
+  in its config"*. And a changed file whose copy was deleted in Cirrux Drive for good is
+  reported as gone from the target (workplan 0168 B2), not thrown: the throw made the copied row
+  a failed one, so *Live progress* stopped counting the copy and counted a failure more. The
+  failure queue names the destination's kind (`targetKind`) beside its source's.
+
+### Security
+
+- **The release's `bom.json` lists every package the product runs** (workplan 0006 §Q; SBOM-1,
+  from an outside, read-only check). Security Scan built it with `cyclonedx-npm`, which reads only
+  the root `package.json`, so alpha.18's SBOM lacked 56 production packages the apps import
+  (`jose`, `helmet`, `pg-boss`, `axios`, `@mollie/api-client` and `react-router` among them) and
+  marked none of its dev tooling as dev. It is now built by `pnpm sbom` from the lockfile: every
+  workspace project, a license on every component, dev-only packages marked `scope: excluded`.
+  A new step after it, `scripts/sbom-complete.mjs`, fails when a package in pnpm's production set
+  is missing from `bom.json` or marked dev.
+- **Every published image carries its own SBOM, and the release carries a copy of each** (SBOM-1,
+  the owner's decision of 2026-11-24, after an outside, read-only check compared the release's SBOM
+  with its own). `bom.json` is made from the lockfile and lists no operating-system package of the
+  images. `ownpace-api`, `-web`, `-selfhost` and `-worker` are now built with a BuildKit SBOM
+  attestation beside their provenance, from a generator pinned by digest
+  (`docker/buildkit-syft-scanner:1.12.1`): SPDX, listing the Debian packages of the distroless
+  runtime (Alpine's under web) and the npm packages installed in the image. Each build reads it
+  back from GHCR by digest, every push to `main` keeps the files with the run, and a release tag
+  attaches eight next to `bom.json`, `ownpace-<image>-<version>.linux-amd64.spdx.json` and
+  `….linux-arm64.spdx.json`; one that cannot be read fails the run. Release's verify refuses a
+  release from alpha.20 on without each file, or with one that lists no OS package or names
+  another index than the version tag's. An image's SBOM cannot see inside a bundled JavaScript
+  file; `bom.json` can (docs/release.md §3).
 
 ## [0.2.0-alpha.19] - 2026-11-24
 

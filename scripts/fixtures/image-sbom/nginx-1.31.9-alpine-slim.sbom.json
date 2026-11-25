@@ -1,0 +1,720 @@
+{
+ "linux/amd64": {
+  "SPDX": {
+   "spdxVersion": "SPDX-2.3",
+   "dataLicense": "CC0-1.0",
+   "SPDXID": "SPDXRef-DOCUMENT",
+   "name": "sbom",
+   "documentNamespace": "https://docker.com/docker-scout/fs/sbom-b81c78be-bb02-4a91-8d6b-ec3635fed3d1",
+   "creationInfo": {
+    "created": "2026-11-18T16:34:35Z",
+    "creators": [
+     "Tool: docker-scout-1.18.1",
+     "Tool: buildkit-0.16.0-tianon"
+    ]
+   },
+   "packages": [
+    {
+     "SPDXID": "SPDXRef-DocumentRoot",
+     "name": "sbom",
+     "licenseDeclared": "NOASSERTION"
+    },
+    {
+     "SPDXID": "SPDXRef-Package-c02d7b6d1cc5aa861b5aadeed973d3f7",
+     "name": "alpine-base",
+     "versionInfo": "3.24.4-r0",
+     "licenseDeclared": "MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-base@3.24.4-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-f5759f82580cf6154f5efea542fbb4c8",
+     "name": "alpine-baselayout-data",
+     "versionInfo": "3.7.2-r1",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-baselayout-data@3.7.2-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-c921941b4e6f0a8e3f20be2b540e8cb9",
+     "name": "alpine-baselayout",
+     "versionInfo": "3.7.2-r1",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-baselayout@3.7.2-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-81ca44f2b4e9d5f06065d80a9a4f4d5a",
+     "name": "alpine-keys",
+     "versionInfo": "2.6-r0",
+     "licenseDeclared": "MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-keys@2.6-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-7559acc460c2d29348561d4f06c55a41",
+     "name": "alpine-release",
+     "versionInfo": "3.24.4-r0",
+     "licenseDeclared": "MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-release@3.24.4-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-c29aa0b7afa6694094410125b88a2fc8",
+     "name": "apk-tools",
+     "versionInfo": "3.0.9-r0",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/apk-tools@3.0.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-eca15a3e7da11f425f438d1fb17d9151",
+     "name": "busybox-binsh",
+     "versionInfo": "1.37.0-r31",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/busybox-binsh@1.37.0-r31?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-208abe8f0b2d8c71181e32cb6ea319ad",
+     "name": "busybox",
+     "versionInfo": "1.37.0-r31",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/busybox@1.37.0-r31?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-e36e38fc2bf90682288a2d2b93064350",
+     "name": "ca-certificates-bundle",
+     "versionInfo": "20261020-r0",
+     "licenseDeclared": "MIT OR MPL-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/ca-certificates-bundle@20261020-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-96e71484306b60baffed09006d6f2814",
+     "name": "ca-certificates",
+     "versionInfo": "20261020-r0",
+     "licenseDeclared": "MIT OR MPL-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/ca-certificates@20261020-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-9c61286aeec8d89e60422bb7b8898175",
+     "name": "gettext-envsubst",
+     "versionInfo": "1.0-r0",
+     "licenseDeclared": "GPL-3.0-or-later OR LGPL-2.1-or-later OR MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/gettext-envsubst@1.0-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-51320fcce1d213d4816be500dc4e912a",
+     "name": "gettext",
+     "versionInfo": "1.0-r0",
+     "licenseDeclared": "GPL-3.0-or-later OR LGPL-2.1-or-later OR MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/gettext@1.0-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-6c73fc6114fc74816666754c824b77c7",
+     "name": "libapk",
+     "versionInfo": "3.0.9-r0",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/libapk@3.0.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-40abf90642545ed99fc336727fb088d7",
+     "name": "libcrypto3",
+     "versionInfo": "3.5.9-r0",
+     "licenseDeclared": "Apache-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/libcrypto3@3.5.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-c2aadf082cfafe0f3cb471fab1daeac7",
+     "name": "libintl",
+     "versionInfo": "1.0-r0",
+     "licenseDeclared": "LGPL-2.1-or-later",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/libintl@1.0-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-1326725513d3c24e8850a4972000567a",
+     "name": "libssl3",
+     "versionInfo": "3.5.9-r0",
+     "licenseDeclared": "Apache-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/libssl3@3.5.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-b669aad08c63822a925d25255d9b3452",
+     "name": "musl-utils",
+     "versionInfo": "1.2.6-r3",
+     "licenseDeclared": "BSD-2-Clause OR GPL-2.0-or-later OR MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/musl-utils@1.2.6-r3?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-9986f897a450b95703910235774d5533",
+     "name": "musl",
+     "versionInfo": "1.2.6-r3",
+     "licenseDeclared": "MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/musl@1.2.6-r3?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-08d29ce2a1147f28e2ef5af219c56e4f",
+     "name": "nginx",
+     "versionInfo": "1.31.9-r1",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/nginx@1.31.9-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-f0ec2e021a42b20867d9a40efa8be6cd",
+     "name": "openssl",
+     "versionInfo": "3.5.9-r0",
+     "licenseDeclared": "Apache-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/openssl@3.5.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-5f7073f3df8723bf4cf724e8c1cbbdbe",
+     "name": "pax-utils",
+     "versionInfo": "1.3.9-r1",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/pax-utils@1.3.9-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-d4888fee950669185809cb28a5c29877",
+     "name": "pcre2",
+     "versionInfo": "10.49-r0",
+     "licenseDeclared": "BSD-3-Clause",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/pcre2@10.49-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-8d017341d706d85b4caf90e2d4cc4015",
+     "name": "scanelf",
+     "versionInfo": "1.3.9-r1",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/scanelf@1.3.9-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-49ba8b8b91c2eab5b22a60d49371fb9b",
+     "name": "ssl_client",
+     "versionInfo": "1.37.0-r31",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/ssl_client@1.37.0-r31?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-9c7fbbb52105c710393bd6ee4312ecaf",
+     "name": "tzdata",
+     "versionInfo": "2026f-r0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/tzdata@2026f-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-f63b81c7fdc3fae53efaab4145b8b8c8",
+     "name": "zlib",
+     "versionInfo": "1.3.2-r1",
+     "licenseDeclared": "Zlib",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/zlib@1.3.2-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "linux/arm64": {
+  "SPDX": {
+   "spdxVersion": "SPDX-2.3",
+   "dataLicense": "CC0-1.0",
+   "SPDXID": "SPDXRef-DOCUMENT",
+   "name": "sbom",
+   "documentNamespace": "https://docker.com/docker-scout/fs/sbom-e5262894-10b7-4086-9feb-933decf14790",
+   "creationInfo": {
+    "created": "2026-11-18T16:33:28Z",
+    "creators": [
+     "Tool: docker-scout-1.18.1",
+     "Tool: buildkit-0.16.0-tianon"
+    ]
+   },
+   "packages": [
+    {
+     "SPDXID": "SPDXRef-DocumentRoot",
+     "name": "sbom",
+     "licenseDeclared": "NOASSERTION"
+    },
+    {
+     "SPDXID": "SPDXRef-Package-c02d7b6d1cc5aa861b5aadeed973d3f7",
+     "name": "alpine-base",
+     "versionInfo": "3.24.4-r0",
+     "licenseDeclared": "MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-base@3.24.4-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-f5759f82580cf6154f5efea542fbb4c8",
+     "name": "alpine-baselayout-data",
+     "versionInfo": "3.7.2-r1",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-baselayout-data@3.7.2-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-c921941b4e6f0a8e3f20be2b540e8cb9",
+     "name": "alpine-baselayout",
+     "versionInfo": "3.7.2-r1",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-baselayout@3.7.2-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-81ca44f2b4e9d5f06065d80a9a4f4d5a",
+     "name": "alpine-keys",
+     "versionInfo": "2.6-r0",
+     "licenseDeclared": "MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-keys@2.6-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-7559acc460c2d29348561d4f06c55a41",
+     "name": "alpine-release",
+     "versionInfo": "3.24.4-r0",
+     "licenseDeclared": "MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/alpine-release@3.24.4-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-c29aa0b7afa6694094410125b88a2fc8",
+     "name": "apk-tools",
+     "versionInfo": "3.0.9-r0",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/apk-tools@3.0.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-eca15a3e7da11f425f438d1fb17d9151",
+     "name": "busybox-binsh",
+     "versionInfo": "1.37.0-r31",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/busybox-binsh@1.37.0-r31?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-208abe8f0b2d8c71181e32cb6ea319ad",
+     "name": "busybox",
+     "versionInfo": "1.37.0-r31",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/busybox@1.37.0-r31?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-e36e38fc2bf90682288a2d2b93064350",
+     "name": "ca-certificates-bundle",
+     "versionInfo": "20261020-r0",
+     "licenseDeclared": "MIT OR MPL-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/ca-certificates-bundle@20261020-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-96e71484306b60baffed09006d6f2814",
+     "name": "ca-certificates",
+     "versionInfo": "20261020-r0",
+     "licenseDeclared": "MIT OR MPL-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/ca-certificates@20261020-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-9c61286aeec8d89e60422bb7b8898175",
+     "name": "gettext-envsubst",
+     "versionInfo": "1.0-r0",
+     "licenseDeclared": "GPL-3.0-or-later OR LGPL-2.1-or-later OR MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/gettext-envsubst@1.0-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-51320fcce1d213d4816be500dc4e912a",
+     "name": "gettext",
+     "versionInfo": "1.0-r0",
+     "licenseDeclared": "GPL-3.0-or-later OR LGPL-2.1-or-later OR MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/gettext@1.0-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-6c73fc6114fc74816666754c824b77c7",
+     "name": "libapk",
+     "versionInfo": "3.0.9-r0",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/libapk@3.0.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-40abf90642545ed99fc336727fb088d7",
+     "name": "libcrypto3",
+     "versionInfo": "3.5.9-r0",
+     "licenseDeclared": "Apache-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/libcrypto3@3.5.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-c2aadf082cfafe0f3cb471fab1daeac7",
+     "name": "libintl",
+     "versionInfo": "1.0-r0",
+     "licenseDeclared": "LGPL-2.1-or-later",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/libintl@1.0-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-1326725513d3c24e8850a4972000567a",
+     "name": "libssl3",
+     "versionInfo": "3.5.9-r0",
+     "licenseDeclared": "Apache-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/libssl3@3.5.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-b669aad08c63822a925d25255d9b3452",
+     "name": "musl-utils",
+     "versionInfo": "1.2.6-r3",
+     "licenseDeclared": "BSD-2-Clause OR GPL-2.0-or-later OR MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/musl-utils@1.2.6-r3?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-9986f897a450b95703910235774d5533",
+     "name": "musl",
+     "versionInfo": "1.2.6-r3",
+     "licenseDeclared": "MIT",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/musl@1.2.6-r3?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-08d29ce2a1147f28e2ef5af219c56e4f",
+     "name": "nginx",
+     "versionInfo": "1.31.9-r1",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/nginx@1.31.9-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-f0ec2e021a42b20867d9a40efa8be6cd",
+     "name": "openssl",
+     "versionInfo": "3.5.9-r0",
+     "licenseDeclared": "Apache-2.0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/openssl@3.5.9-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-5f7073f3df8723bf4cf724e8c1cbbdbe",
+     "name": "pax-utils",
+     "versionInfo": "1.3.9-r1",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/pax-utils@1.3.9-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-d4888fee950669185809cb28a5c29877",
+     "name": "pcre2",
+     "versionInfo": "10.49-r0",
+     "licenseDeclared": "BSD-3-Clause",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/pcre2@10.49-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-8d017341d706d85b4caf90e2d4cc4015",
+     "name": "scanelf",
+     "versionInfo": "1.3.9-r1",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/scanelf@1.3.9-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-49ba8b8b91c2eab5b22a60d49371fb9b",
+     "name": "ssl_client",
+     "versionInfo": "1.37.0-r31",
+     "licenseDeclared": "GPL-2.0-only",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/ssl_client@1.37.0-r31?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-9c7fbbb52105c710393bd6ee4312ecaf",
+     "name": "tzdata",
+     "versionInfo": "2026f-r0",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/tzdata@2026f-r0?os_name=alpine&os_version=3.24"
+      }
+     ]
+    },
+    {
+     "SPDXID": "SPDXRef-Package-f63b81c7fdc3fae53efaab4145b8b8c8",
+     "name": "zlib",
+     "versionInfo": "1.3.2-r1",
+     "licenseDeclared": "Zlib",
+     "externalRefs": [
+      {
+       "referenceCategory": "PACKAGE-MANAGER",
+       "referenceType": "purl",
+       "referenceLocator": "pkg:apk/alpine/zlib@1.3.2-r1?os_name=alpine&os_version=3.24"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}
