@@ -445,6 +445,25 @@ same field two ways.
    today's ending does.
 9. Answer: `{ "connected": true, "faces": [...] }`. Never a value.
 
+**What the page reads from the answers (T4, 2026-11-25).** The route's shape above is unchanged;
+these are the bodies of the refusals, which steps 3, 4 and 6 name without spelling them. T3 answers
+them so; the page (`passwordAnswerOf`, `apps/web/src/services/grant-service.ts`) reads exactly these:
+- 422: `{ "error": "refused_login" | "unreachable" | "face_missing", "tries": { "left": n, "locked": b }, "faces"?: [...] }`.
+  `faces` on `face_missing` names the refused faces. The page also takes `category` for `error` and a
+  top-level `left` for `tries.left`.
+- 423: `{ "error": "locked" }`. A `refused_login` whose tries are locked, or at 0 left, reads the same.
+- 409: `{ "error": "already_connected" }` reads as connected; nothing was tried.
+- Any other answer: the server's sentence for the link (`message`/`messageNl` or
+  `reason`/`reasonNl`, as `linkRefusal` reads them), else the page's own.
+
+**D3's fields on `GrantServer` (T4, 2026-11-25).** T1 left D3's comparison to T3 as optional
+fields; the page shows them under these names, both optional:
+- `registrable?: string[]`: the registrable domain of each host, in `hosts`' order, set in bold.
+  Absent, the page bolds the whole host. It does not guess a registrable domain itself.
+- `addressMail?: 'match' | 'mismatch'`: whether that domain is the address's own or one of its
+  MX hosts'. `mismatch` shows D3's warning (`grant.password.notAddressMail`). Absent (no comparison,
+  a published server, or a lookup that failed) says nothing.
+
 ### 5.4 Tested before stored, as the create door tests (T3)
 
 The test is the create door's, called with the merged config and credentials (owner's config +

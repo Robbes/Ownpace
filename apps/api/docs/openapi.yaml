@@ -9830,6 +9830,8 @@ components:
                 properties:
                   hosts: { type: array, items: { type: string } }
                   published: { type: boolean }
+                  registrable: { type: array, items: { type: string }, description: "D3 (workplan 0174 §5.3): each host's registrable domain, in the hosts' order; the page sets it in bold." }
+                  addressMail: { type: string, enum: [match, mismatch], description: "D3: whether that domain is the address's own or one of its MX hosts'; absent when not compared or a lookup failed. The page warns on a mismatch, and never refuses." }
               fields:
                 description: "Password cards only. What the owner fixed (who is owner, with its value) and what the person fills (who is person); a secret never carries a value."
                 type: array

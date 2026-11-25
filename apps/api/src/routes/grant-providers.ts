@@ -340,11 +340,16 @@ export interface PersonField {
  * Where a password will be tried (0174 §5.8, D3): the hosts, and whether
  * they are the provider's published ones (Apple's today), which the page
  * names as the provider's own. The registrable-domain and MX comparison of
- * D3's addition is T3's, and joins this shape as optional fields.
+ * D3's addition is T3's, and joins this shape as the two optional fields
+ * below, under the names the page reads (0174 §5.3, written by T4).
  */
 export interface GrantServer {
   readonly hosts: ReadonlyArray<string>;
   readonly published: boolean;
+  /** D3: each host's registrable domain, in `hosts`' order, which the page sets in bold. */
+  readonly registrable?: ReadonlyArray<string>;
+  /** D3: whether that domain is the address's own or one of its MX hosts'; absent when not compared or a lookup failed. */
+  readonly addressMail?: 'match' | 'mismatch';
 }
 
 /** What the test is handed (0174 §5.4): the merged config and credentials, never a second reading. */

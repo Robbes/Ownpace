@@ -12,7 +12,7 @@
 import { z } from 'zod';
 import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 import type { Locale } from '../i18n/strings.ts';
-import { linkClient as client } from './link-client.ts';
+import { LINK_API_BASE, linkClient as client } from './link-client.ts';
 import { LinkAddressChangesField } from './link-address-service.ts';
 
 /**
@@ -21,6 +21,64 @@ import { LinkAddressChangesField } from './link-address-service.ts';
  */
 const Provider = z.enum(['google', 'microsoft', 'dropbox', 'apple']).default('google');
 export type GrantProvider = z.infer<typeof Provider>;
+
+/**
+ * Every password kind, by role (workplan 0174 §5.1), as the API's
+ * `PASSWORD_SOURCE_KINDS` and `PASSWORD_TARGET_KINDS` name them. A password
+ * card's `provider` is one of these; a kind the page has no card for fails the
+ * parse rather than drawing a card it cannot word.
+ */
+export const PASSWORD_KINDS = [
+  'imap',
+  'apple',
+  'caldav',
+  'carddav',
+  'webdav',
+  'jmap',
+  'soverin',
+  'nextcloud',
+  'cirrux',
+  'infomaniak',
+] as const;
+export type PasswordKind = (typeof PASSWORD_KINDS)[number];
+
+/** A person's card names a sign-in provider or a password kind (0174 §4.1). */
+const CardProvider = z.enum(['google', 'microsoft', 'dropbox', 'apple', 'cirrux', ...PASSWORD_KINDS]).default('google');
+export type CardProvider = z.infer<typeof CardProvider>;
+
+/**
+ * One box or one shown value on a password card (0174 §5.2, D2), as the API's
+ * `PersonField`: the owner's fields carry their value and are never a box; a
+ * secret never carries one.
+ */
+const PersonFieldSchema = z.object({
+  key: z.string(),
+  who: z.enum(['person', 'owner']),
+  labelKey: z.string(),
+  hintKey: z.string().optional(),
+  placeholder: z.string().optional(),
+  secret: z.boolean(),
+  autoComplete: z.enum(['username', 'new-password', 'off']).optional(),
+  revealable: z.boolean().optional(),
+  value: z.string().optional(),
+});
+export type PersonField = z.infer<typeof PersonFieldSchema>;
+
+/**
+ * Where the password is tried (0174 §5.8, D3). `registrable` and
+ * `addressMail` are D3's addition, answered by the route's read (T3): the
+ * registrable domain of each host, in `hosts`' order, which the page sets in
+ * bold; and whether that domain is the address's own or one of its MX hosts'.
+ * Both optional: absent, the page bolds the whole host and warns of nothing,
+ * as for a lookup that failed.
+ */
+const GrantServerSchema = z.object({
+  hosts: z.array(z.string()),
+  published: z.boolean(),
+  registrable: z.array(z.string()).optional(),
+  addressMail: z.enum(['match', 'mismatch']).optional(),
+});
+export type GrantServer = z.infer<typeof GrantServerSchema>;
 
 const SubjectSchema = z.object({
   organisation: z.string(),
@@ -78,8 +136,17 @@ const PersonSubjectSchema = z.object({
   accounts: z
     .array(
       z.object({
+        // The card's name in the password route, never the address (0174
+        // §4.1). An API a release behind sends none, and only sign-in cards.
+        ref: z.string().default(''),
+        role: z.enum(['source', 'target']).default('source'),
+        way: z.enum(['sign-in', 'password']).default('sign-in'),
         account: z.string(),
-        provider: Provider,
+        provider: CardProvider,
+        // Password cards only (0174 §5.2, §5.5, §5.8).
+        server: GrantServerSchema.nullable().optional(),
+        fields: z.array(PersonFieldSchema).optional(),
+        tries: z.object({ left: z.number().int(), locked: z.boolean() }).nullable().optional(),
         granted: z.boolean(),
         // An API a release behind does not say it, which means no.
         again: z.boolean().default(false),
@@ -93,6 +160,8 @@ const PersonSubjectSchema = z.object({
             z.object({
               domains: z.array(Domain).min(1),
               to: z.object({ provider: z.string(), host: z.string().nullable(), account: z.string().nullable() }),
+              // Where it comes from, which a destination's card names (0174 §4.1).
+              from: z.object({ provider: z.string(), account: z.string().nullable() }).optional(),
               granted: z.boolean(),
             }),
           )
@@ -105,6 +174,58 @@ const PersonSubjectSchema = z.object({
   addressChanges: LinkAddressChangesField,
 });
 export type PersonGrantSubject = z.infer<typeof PersonSubjectSchema>;
+export type PersonGrantCard = PersonGrantSubject['accounts'][number];
+
+/**
+ * How `PUT /api/grant/:link/password` answered (0174 §5.3, §5.7), as the page
+ * words it. The categories are the only words of a refusal it ever shows; the
+ * server's own text for a password the person typed never reaches it.
+ */
+export type PasswordAnswer =
+  | { readonly kind: 'connected'; readonly faces: ReadonlyArray<DiscoveryDomain> }
+  | { readonly kind: 'refused_login'; readonly left: number | null }
+  | { readonly kind: 'unreachable' }
+  | { readonly kind: 'face_missing'; readonly faces: ReadonlyArray<DiscoveryDomain> }
+  | { readonly kind: 'locked' }
+  /** Any other refusal, with the server's sentence for the link when it sent one (`message`/`reason`, both languages). */
+  | { readonly kind: 'refusal'; readonly sentence: { readonly en: string; readonly nl: string } | null }
+  /** No answer at all: the connection dropped, or it timed out. */
+  | { readonly kind: 'no_answer' };
+
+const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v !== '';
+
+/** The data types an answer names, the ones this page has words for. */
+function facesOf(v: unknown): DiscoveryDomain[] {
+  return Array.isArray(v) ? v.filter((d): d is DiscoveryDomain => (DISCOVERY_DOMAINS as readonly unknown[]).includes(d)) : [];
+}
+
+/**
+ * The answer's body, read as the route's shape (0174 §5.3): `connected` and
+ * `faces` on success; on a refusal, `error` (or `category`) naming it, and
+ * the tries left as `tries.left` (or `left`). Exported for the tests.
+ */
+export function passwordAnswerOf(status: number, body: unknown): PasswordAnswer {
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  if (status >= 200 && status < 300 && b.connected === true) return { kind: 'connected', faces: facesOf(b.faces) };
+  const code = nonEmpty(b.error) ? b.error : nonEmpty(b.category) ? b.category : '';
+  // Connected through this link already (a second tab, a replay): nothing was tried, and it is connected.
+  if (status === 409 && code === 'already_connected') return { kind: 'connected', faces: [] };
+  if (status === 423 || code === 'locked') return { kind: 'locked' };
+  if (code === 'refused_login') {
+    const tries = b.tries && typeof b.tries === 'object' ? (b.tries as Record<string, unknown>) : {};
+    if (tries.locked === true) return { kind: 'locked' };
+    const left = typeof tries.left === 'number' ? tries.left : typeof b.left === 'number' ? b.left : null;
+    return left === 0 ? { kind: 'locked' } : { kind: 'refused_login', left };
+  }
+  if (code === 'unreachable') return { kind: 'unreachable' };
+  if (code === 'face_missing') return { kind: 'face_missing', faces: facesOf(b.faces) };
+  const en = nonEmpty(b.message) ? b.message : nonEmpty(b.reason) ? b.reason : null;
+  const nl = nonEmpty(b.messageNl) ? b.messageNl : nonEmpty(b.reasonNl) ? b.reasonNl : null;
+  return { kind: 'refusal', sentence: en === null ? null : { en, nl: nl ?? en } };
+}
+
+/** How long a password test may take before the page says it got no answer: the route's own deadline and some. */
+const PASSWORD_TIMEOUT_MS = 60_000;
 
 /** Whether the page opened a person's link rather than a migration's. */
 export const isPersonSubject = (s: GrantSubject | PersonGrantSubject): s is PersonGrantSubject =>
@@ -138,5 +259,45 @@ export const grantApi = {
       ...(account === undefined ? {} : { account }),
     });
     return z.object({ url: z.string() }).parse(res.data);
+  },
+
+  /**
+   * The person's own password for one card (workplan 0174 §5.3): `PUT` with a
+   * JSON body, by `fetch`, never a form and never a query string, so the
+   * password is in no URL, history entry or referrer. The values go only into
+   * the body; nothing here keeps them, logs them or hands them back.
+   */
+  putPassword: async (
+    link: string,
+    ref: string,
+    values: Readonly<Record<string, string>>,
+    locale: Locale,
+  ): Promise<PasswordAnswer> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PASSWORD_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(`${LINK_API_BASE}/grant/${encodeURIComponent(link)}/password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ ref, values, locale }),
+        // The link in the path is the whole credential (`link-client.ts`).
+        credentials: 'omit',
+        cache: 'no-store',
+        referrerPolicy: 'no-referrer',
+        signal: controller.signal,
+      });
+    } catch {
+      return { kind: 'no_answer' };
+    } finally {
+      clearTimeout(timer);
+    }
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // A proxy's page, or no body: the status alone decides below.
+    }
+    return passwordAnswerOf(res.status, body);
   },
 };

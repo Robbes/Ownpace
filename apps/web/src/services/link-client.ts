@@ -28,11 +28,26 @@
  * interceptor "for consistency" without meeting this comment.
  */
 
+/*
+ * ## And one call that is `fetch` (workplan 0174 §5.3, §7.3)
+ *
+ * The own-password card sends the person's password with `fetch`
+ * (`grantApi.putPassword`), from the same base and attaching nothing either.
+ * The page's policy has `form-action 'none'`, so the browser never submits a
+ * form; and a `fetch` with a JSON body leaves the password out of every URL,
+ * history entry and referrer. It is not an axios instance on purpose: axios
+ * keeps the request config, body included, on the error it throws, and a
+ * refusal handed to anything that logs or keeps it would carry the password.
+ */
+
 import axios from 'axios';
 
+/** Where the link routes are: the same origin's `/api` unless the build names another. */
+export const LINK_API_BASE: string =
+  (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL || '/api';
+
 export const linkClient = axios.create({
-  baseURL:
-    (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL || '/api',
+  baseURL: LINK_API_BASE,
   timeout: 30_000,
   headers: { 'Content-Type': 'application/json' },
 });
