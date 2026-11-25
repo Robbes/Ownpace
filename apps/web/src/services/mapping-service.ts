@@ -474,6 +474,8 @@ export const CreateMappingResponseSchema = z.object({
 /** What a migration's create posts — mirrors the server's CreateMappingSchema. */
 export interface CreateMappingInput {
   name: string;
+  /** The person it is made for (managed; 0174 §8.2): the same field as the account door's. */
+  forPerson?: string;
   sourceType:
     | 'imap'
     | 'oauth2'

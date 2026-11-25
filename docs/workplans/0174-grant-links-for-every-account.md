@@ -930,6 +930,13 @@ The create door takes a `forPerson: <personId>` flag (managed only) that:
 
 The Accounts page shows such a row as *Waiting for {person}*, with no *Test* until it is granted.
 
+**One field on both create doors (settled on one branch, 2026-11-25).** T5 had given the
+migration door `personId`, read by its guard only; T6 gave the account door `forPerson`. They are
+one idea, the person a thing is made for, so both doors take `forPerson: <personId>`: the account
+door as above, and `POST /api/migrations`, where the guard (§4.3) reads it and the save gives the
+migration to that person in the create transaction (`person_not_found`, 404, refuses the whole
+create). The wizard sends it on both.
+
 ### 8.3 Both editions (T7; D7)
 
 **The appliance offers nothing in alpha.21, and says so** (D7 (a)). Reasons: the grant and

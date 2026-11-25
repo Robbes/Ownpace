@@ -373,10 +373,10 @@ describe('an account a person connected themselves', () => {
     expect(ok.status, JSON.stringify(ok.body)).toBe(200);
   });
 
-  it('is refused at the create door unless the body names her', async () => {
+  it('is refused at the create door unless the body names her, and is hers once made for her', async () => {
     await annaConnects();
-    const body = (personId?: string) => ({
-      name: `Anna’s mail ${personId ?? 'nobody'}`,
+    const body = (forPerson?: string) => ({
+      name: `Anna’s mail ${forPerson ?? 'nobody'}`,
       sourceType: 'imap',
       sourceConnectionId: ICLOUD,
       sourceConfig: { username: 'anna@old.example' },
@@ -384,7 +384,7 @@ describe('an account a person connected themselves', () => {
       targetConnectionId: ANNAS_CIRRUX,
       targetConfig: { username: 'anna@cirrux.example', password: '' },
       syncConfig: { domains: ['email'] },
-      ...(personId === undefined ? {} : { personId }),
+      ...(forPerson === undefined ? {} : { forPerson }),
     });
     const nobodys = await request(app).post('/api/migrations').send(body());
     expect(nobodys.status, JSON.stringify(nobodys.body)).toBe(409);
@@ -392,7 +392,33 @@ describe('an account a person connected themselves', () => {
     const bobs = await request(app).post('/api/migrations').send(body(BOB));
     expect(bobs.body.error).toBe('granted_by_another_person');
     const hers = await request(app).post('/api/migrations').send(body(ANNA));
-    expect(hers.body.error, JSON.stringify(hers.body)).not.toBe('granted_by_another_person');
+    expect(hers.status, JSON.stringify(hers.body)).toBe(201);
+    // One field, read by the guard and by the save (0174 §8.2): the door
+    // gives the migration to the person it was made for, in its transaction.
+    expect(await rows('SELECT person_id FROM person_migration WHERE mapping_id = $1', [hers.body.id])).toEqual([{ person_id: ANNA }]);
+    // The name T5 first gave it is not read: it names nobody, so the guard refuses.
+    const old = await request(app).post('/api/migrations').send({ ...body(), name: 'Anna’s mail, by the old name', personId: ANNA });
+    expect(old.body.error).toBe('granted_by_another_person');
+  });
+
+  it('refuses a migration made for nobody of this organisation, and stores nothing', async () => {
+    const before = await rows('SELECT id FROM mailbox_mapping WHERE tenant_id = $1', [TENANT]);
+    const res = await request(app)
+      .post('/api/migrations')
+      .send({
+        name: 'For a stranger',
+        sourceType: 'imap',
+        sourceConnectionId: ICLOUD,
+        sourceConfig: { username: 'anna@old.example' },
+        targetType: 'cirrux',
+        targetConnectionId: OWNERS_CIRRUX,
+        targetConfig: { username: 'pat@cirrux.example', password: '' },
+        syncConfig: { domains: ['email'] },
+        forPerson: '00000000-0000-4000-8000-00000000dead',
+      });
+    expect(res.status, JSON.stringify(res.body)).toBe(404);
+    expect(res.body.error).toBe('person_not_found');
+    expect(await rows('SELECT id FROM mailbox_mapping WHERE tenant_id = $1', [TENANT])).toEqual(before);
   });
 
   it('refuses the owner a new app password on it, and the owner’s own Drive sign-in (D6)', async () => {

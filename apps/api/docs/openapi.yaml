@@ -2562,6 +2562,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`: `forPerson` names no person of this organisation. Nothing was stored.'
         '409':
           description: |
             Nothing was stored. `duplicate_mapping`: this migration exists
@@ -2576,6 +2578,9 @@ paths:
             passes come closer than a day, the tier's pace, with
             `leastMinutesBetweenPasses` (workplan 0157 T4). No schedule
             (automatic) and a daily one are never refused.
+            `granted_by_another_person`: the destination was connected by a
+            person through their grant link, and `forPerson` does not name
+            them (workplan 0174 §4.3, D1 (a)).
           content:
             application/json:
               schema:
@@ -11169,6 +11174,15 @@ components:
         secret.
       properties:
         name: { type: string }
+        forPerson:
+          type: string
+          format: uuid
+          description: |
+            Managed only (workplan 0174 §4.3, §8.2): the person this migration
+            is made for, the same field as `POST /api/connections`'. A
+            destination a person connected through their grant link takes only
+            their migrations, and the migration is given to this person in the
+            same transaction, as `POST /api/people/{personId}/migrations` would.
         sourceConfig:
           type: object
           description: |

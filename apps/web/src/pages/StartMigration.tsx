@@ -980,7 +980,11 @@ const StartMigration: React.FC = () => {
         const key = pairKey(m);
         if (migrations[key]?.id !== undefined) continue;
         try {
-          const { id } = await mappingApi.create(inputFor(m));
+          // Made for the person (0174 §4.3, §8.2): the door gives it to them in
+          // its transaction, and a destination they connected themselves takes
+          // it. The add below is the same question again, answered `already
+          // theirs`; it stays for a door a release behind.
+          const { id } = await mappingApi.create({ ...inputFor(m), forPerson: personId });
           let notAdded: string | undefined;
           try {
             await addMigrationToPerson(personId, id);

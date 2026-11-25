@@ -920,6 +920,8 @@ describe('Check, then start (screen 6)', () => {
       sourceConfig: { username: 'anna@example.nl' },
       targetConfig: { username: 'anna@example.nl', password: '' },
       syncConfig: { domains: ['email'] },
+      // Made for the person (0174 §8.2): the door's guard and its save read it.
+      forPerson: 'p-new',
     });
     // Dropbox's Paper docs in the format chosen on *What moves?*.
     expect(createMock).toHaveBeenCalledWith(
@@ -1730,6 +1732,7 @@ describe('Google’s photos from a Takeout export (0153 open question 5, item 2)
       // The Dropbox files go to the same Nextcloud, so each gets a folder of
       // its own (0153 open question 5, item 4).
       targetFolderPrefix: 'Google Takeout',
+      forPerson: 'p-new',
     });
     expect(vi.mocked(addMigrationToPerson)).toHaveBeenCalledWith('p-new', 'm-photos');
     const waits = screen.getByRole('heading', { level: 3, name: 'Photos: Google Takeout → Nextcloud' }).parentElement!;

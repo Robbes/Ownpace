@@ -158,7 +158,8 @@ import { startsWhenGrantedFor } from './start-when-granted.ts';
 // load every migration route to answer one question.
 import { accountOnConnection } from './account-on-connection.ts';
 import { holdTheCap, maxMigrationsPerOrganisationFromEnv, PastTheCap } from './migration-cap.ts';
-import { migrationReceivingRefusal, receivingRefusal, testMarkerOfOrganisation } from '@openmig/managed';
+import { addMigrationToPerson, migrationReceivingRefusal, receivingRefusal, testMarkerOfOrganisation } from '@openmig/managed';
+import { PERSON_NOT_FOUND } from '../account-for-a-person.ts';
 export { accountOnConnection };
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
@@ -1134,6 +1135,14 @@ class GrantedByAnother extends Error {
   }
 }
 
+/** `forPerson` names nobody in this organisation: thrown in the create transaction, nothing is stored. */
+class ForPersonNotFound extends Error {
+  constructor() {
+    super('the person this migration is for is not this organisation\'s');
+    this.name = 'ForPersonNotFound';
+  }
+}
+
 /**
  * "You already have this migration" — a REFUSAL, not a fault (workplan 0071).
  *
@@ -1249,13 +1258,14 @@ export const CreateMappingBase = z.object({
   targetConnectionId: z.string().uuid().optional(),
   /**
    * The person this migration is made for (managed only; workplan 0174
-   * §4.3, T5). Read by one guard and nothing else: a destination a person
-   * connected themselves through their link takes only their migrations,
-   * and a migration is given to its person only after it is made, so the
-   * create door is told whose it will be. Giving it to them is still
-   * `POST /api/people/:id/migrations`, which asks the same question.
+   * §4.3, §8.2), the same field with the same meaning as the account door's
+   * (`POST /api/connections`). Read by the guard and by the save: a
+   * destination a person connected themselves takes only their migrations,
+   * and the migration is given to the person in the create transaction
+   * (`addMigrationToPerson`, as `POST /api/people/:id/migrations` does). A
+   * person who is not this organisation's refuses the whole create.
    */
-  personId: z.string().uuid().optional(),
+  forPerson: z.string().uuid().optional(),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -2840,7 +2850,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             // A destination a person connected themselves takes only their
             // migrations (workplan 0174 §4.3, D1 (a)): this one is for the
             // person the body names, or for nobody yet.
-            const notTheirs = await receivingRefusal(db, tenantId, body.targetConnectionId!, body.personId ?? null);
+            const notTheirs = await receivingRefusal(db, tenantId, body.targetConnectionId!, body.forPerson ?? null);
             if (notTheirs) throw new GrantedByAnother(notTheirs);
             // What the account itself MEASURED constrains what a mapping may
             // ask of it (0106 T3a) — the shared gate, so the wizard's marking
@@ -3025,6 +3035,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         await movePathsWithMapping(db, tenantId, mapping.id, { from: null, to: 'active' });
       }
 
+      // Made for a person (0174 §8.2): theirs in the same transaction, so a
+      // migration into an account they connected is never anybody's between
+      // the two calls the wizard used to make.
+      if (body.forPerson !== undefined) {
+        const given = await addMigrationToPerson(db, tenantId, body.forPerson, mapping.id, req.userId);
+        if (given.kind === 'no_such_person') throw new ForPersonNotFound();
+      }
+
       return mapping;
     });
 
@@ -3064,6 +3082,8 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       // T5). A refusal with its sentence, which until 2026-11-19 reached the
       // person as a 500 that called it a fault on our side. Nothing was stored.
       res.status(400).json({ error: 'Validation error', message: error.message });
+    } else if (error instanceof ForPersonNotFound) {
+      res.status(PERSON_NOT_FOUND.status).json(PERSON_NOT_FOUND.body);
     } else if (error instanceof GrantedByAnother) {
       // A destination a person connected themselves, asked to take somebody
       // else's migration, or nobody's (workplan 0174 §4.3). Nothing was stored.
