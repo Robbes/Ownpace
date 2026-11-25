@@ -84,7 +84,7 @@ import { RunSlots, workQueue, type ClaimedRun, type QueueSource, type Settlement
  * migrated. It moves with the pin and only with it, once that release's
  * migration has been read; the guard above fails until the two agree.
  */
-const PG_BOSS_SCHEMA_VERSION = 46;
+const PG_BOSS_SCHEMA_VERSION = 47;
 
 /** Thrown by a handler to fail its run now, with no further attempts. */
 export class RunNotRetried extends Error {

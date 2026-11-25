@@ -174,6 +174,12 @@ export const en = {
   // Why one was not deleted, keyed on the refusal's stable code: the
   // server's sentence stays beside it, under Technical details.
   'deletions.refused.notEnabled': 'Deleting by hand is off for this migration, so it was not deleted.',
+  // What a person can do about it, after the sentence above on one press
+  // (workplan 0160, T2b): the switch on this page on managed, by its label
+  // (`applyFlag.turnOn`), the mapping's file on the appliance.
+  'deletions.refused.notEnabled.turnOn': 'To delete it, first press Turn on deleting by hand above.',
+  'deletions.refused.notEnabled.config':
+    'To delete it, set allowApplyDeletions in the migration’s config file and restart.',
   'deletions.refused.targetCannotRemove': 'The new system did not delete it for Ownpace, so nothing changed there.',
   // Also said when none of the kinds this migration copies holds the item.
   'deletions.refused.notFound':
@@ -360,6 +366,10 @@ export const nl: Record<keyof typeof en, string> = {
     'Er kwam binnen {minutes} minuten geen antwoord. Het kan alsnog worden verwijderd: kijk op het nieuwe systeem voordat u nog een keer drukt.',
   'deletions.all.unknownRow': 'Niet bekend of het is verwijderd:',
   'deletions.refused.notEnabled': 'Handmatig verwijderen staat uit voor deze migratie, dus het is niet verwijderd.',
+  'deletions.refused.notEnabled.turnOn':
+    'Om het te verwijderen, drukt u eerst hierboven op Handmatig verwijderen inschakelen.',
+  'deletions.refused.notEnabled.config':
+    'Om het te verwijderen, zet u allowApplyDeletions aan in het configuratiebestand van de migratie en herstart u.',
   'deletions.refused.targetCannotRemove':
     'Het nieuwe systeem heeft het niet voor Ownpace verwijderd, dus daar is niets veranderd.',
   'deletions.refused.notFound':

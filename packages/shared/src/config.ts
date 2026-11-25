@@ -12,6 +12,7 @@ import type { ThrottleConfig } from './throttling.ts';
 import type { SpecialUse } from './mail.ts';
 import { DISCOVERY_DOMAINS, type DiscoveryDomain } from './discovery.ts';
 import { ARCHIVE_PROVIDERS, isArchiveProvider, type ArchiveProvider } from './archive-providers.ts';
+import { RECENT_WINDOW_DAYS, type RecentOnlySetting } from './recent-window.ts';
 import {
   GOOGLE_EDITOR_KINDS,
   type GoogleEditorKind,
@@ -479,6 +480,16 @@ export interface ArchiveSource {
    * are "a path here" and "a path somewhere else entirely".
    */
   readonly where?: ArchiveWhere;
+  /**
+   * HOW MANY PARTS the person says the export came in (workplan 0171 §2.3).
+   *
+   * Apple splits a large export into parts and nothing in the files says how
+   * many there were, so a part that never arrived is invisible to a reader
+   * left alone. With this number it counts the `.zip` files it finds and
+   * refuses when there are fewer, naming both numbers. Absent means not asked:
+   * nothing is counted, as before.
+   */
+  readonly parts?: number;
 }
 
 /** The stores an archive can be in — see {@link ArchiveSource.where}. */
@@ -809,6 +820,50 @@ export interface MappingConfig {
    * items land under the new prefix, so the target ends up with both layouts.
    */
   readonly targetFolderPrefix?: string;
+  /**
+   * Copy only the last 90 days of mail, files and calendars, and all contacts
+   * and tasks (workplan 0170 §5.1). For a person trying a destination with
+   * their fresh data; absent for a migration of everything, which needs no
+   * setting at all, since the last 90 days first is how every first copy runs.
+   *
+   * Broadened by removing it, never added to a migration that had none
+   * (`config-revision.ts`). Managed reads it from the mapping's
+   * `source_config_override`; the appliance from its mapping file, and writes
+   * the `anchor` itself when it first records the mapping.
+   */
+  readonly recentOnly?: RecentOnlySetting;
+}
+
+/**
+ * Validate a mapping's `recentOnly` (workplan 0170 §5.1, §5.4), or refuse with
+ * the reason. One parser for the appliance's mapping file and managed's
+ * stored override.
+ *
+ * `days` is 90, the only window this product offers: a file that names another
+ * number is told so, rather than given a window nobody chose. `anchor`, when
+ * present, is an ISO 8601 instant.
+ */
+export function parseRecentOnly(value: unknown): RecentOnlySetting | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new ConfigError(`recentOnly: must be an object such as { "days": ${RECENT_WINDOW_DAYS} }`);
+  }
+  const record = value as Record<string, unknown>;
+  const stranger = Object.keys(record).find((key) => key !== 'days' && key !== 'anchor');
+  if (stranger !== undefined) {
+    throw new ConfigError(`recentOnly.${stranger}: no such setting (expected days, anchor)`);
+  }
+  if (record.days !== RECENT_WINDOW_DAYS) {
+    throw new ConfigError(
+      `recentOnly.days: must be ${RECENT_WINDOW_DAYS}, the last ${RECENT_WINDOW_DAYS} days ` +
+        'are the one window a migration offers',
+    );
+  }
+  if (record.anchor === undefined) return { days: RECENT_WINDOW_DAYS };
+  if (typeof record.anchor !== 'string' || !Number.isFinite(Date.parse(record.anchor))) {
+    throw new ConfigError('recentOnly.anchor: must be an ISO 8601 date and time, such as 2026-11-24T10:00:00Z');
+  }
+  return { days: RECENT_WINDOW_DAYS, anchor: new Date(record.anchor).toISOString() };
 }
 
 /**
@@ -1272,7 +1327,20 @@ export function parseArchiveSource(obj: Record<string, unknown>): ArchiveSource 
     provider,
     path: reqString(obj, 'path', 'source.path'),
     ...(obj['where'] === undefined ? {} : { where: parseArchiveWhere(obj['where']) }),
+    ...(obj['parts'] === undefined ? {} : { parts: parseArchiveParts(obj['parts']) }),
   };
+}
+
+/**
+ * Validate the part count the person gave (workplan 0171 §2.3): a whole
+ * number from 1. Refused by name rather than dropped, because dropped it
+ * would mean "not counted" — and a missing part would then pass in silence.
+ */
+function parseArchiveParts(value: unknown): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1) return value;
+  throw new ConfigError(
+    `source.parts: expected a whole number from 1 — how many parts the export came in — got ${JSON.stringify(value)}`,
+  );
 }
 
 /**
@@ -1445,6 +1513,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     root.autoApplyRelocations === undefined
       ? undefined
       : reqBoolean(root, 'autoApplyRelocations', 'autoApplyRelocations');
+  const recentOnly = parseRecentOnly(root.recentOnly);
 
   return {
     tenantId,
@@ -1461,6 +1530,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     ...(allowApplyDeletions !== undefined ? { allowApplyDeletions } : {}),
     ...(autoApplyRelocations !== undefined ? { autoApplyRelocations } : {}),
     ...(targetFolderPrefix !== undefined ? { targetFolderPrefix } : {}),
+    ...(recentOnly !== undefined ? { recentOnly } : {}),
   };
 }
 

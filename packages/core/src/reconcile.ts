@@ -23,6 +23,7 @@ import { applyTargetFolderPrefix,
   passClock,
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncDeps as _DomainSyncDeps } from './domain-sync.ts';
+import { mailInWindow } from '@openmig/shared';
 
 /**
  * One-way, non-destructive shadow pass for a single mapping — workplan 0001, T4.
@@ -77,6 +78,11 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     // A test migration's marked listing (workplan 0162): the source says so
     // about itself, and the loop makes a mailbox at its first marked message.
     ...(source.markedOnly ? { markedOnly: true } : {}),
+    // Gmail (the owner, 2026-11-24): All Mail is listed last and yields only
+    // what no other folder carried, and a message under two labels is in two
+    // places rather than moved. Both are the source's word about itself.
+    catchAll: (folder) => folder.catchAll === true,
+    ...(source.severalPlacesAtOnce ? { severalPlacesAtOnce: true } : {}),
     // FOLDERS THE OWNER ASKED US TO LEAVE BEHIND never reach the loop.
     //
     // Filtered here rather than inside the loop because a skipped folder is not
@@ -101,7 +107,13 @@ export const runShadowPass: RunShadowPass = async (deps) => {
       bins = all.filter((f) => f.specialUse === 'trash' && excluded.includes(f.specialUse));
       return keep;
     },
-    listSince: (folder, cursor) => source.listSince(folder, cursor),
+    // A window's `since` reaches the source only when there is one, so every
+    // other pass asks exactly what it always asked (workplan 0170 §3.5).
+    listSince: (folder, cursor, options) =>
+      options ? source.listSince(folder, cursor, options) : source.listSince(folder, cursor),
+    ...(deps.window
+      ? { window: { ...deps.window, holds: (item: MailItem) => mailInWindow(item, deps.window!.since) } }
+      : {}),
     // Recorded at copy time so a later removal report can be matched back —
     // mail was the ONE domain that never recorded it, which is why 0023's
     // reported-removals follow-up (Graph delta `@removed`, now returned by
@@ -259,6 +271,8 @@ export const runShadowPass: RunShadowPass = async (deps) => {
 
   // Return compatible ReconcileResult (map failed to 0 for backward compatibility)
   return {
+    // Whether the window is in, for a pass that read one (workplan 0170 §3.3).
+    ...(result.windowComplete !== undefined ? { windowComplete: result.windowComplete } : {}),
     collectionsListed: result.collectionsListed,
     scanned: result.scanned,
     created: result.created,

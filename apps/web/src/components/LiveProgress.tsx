@@ -32,12 +32,15 @@ import type {
   PauseReason,
   Stage,
 } from '@openmig/shared';
+import { listedButEmpty } from '@openmig/shared';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
 // One map, shared with the operator's support screen (0110 T4) so the person
 // who phones and the person they phone read the same sentence.
-import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
+// Through `remedyKey` since 0160 T2b: a Cirrux account's files read its own
+// button, *Connect Cirrux Drive*, where the category alone names two others.
+import { FAILURE_SIDE_KEY, remedyKey } from '../i18n/failure-key.ts';
 // And one map for the domain words, shared with the confirm screen and the
 // probe text — this was the fifth copy of it (workplan 0113 T5).
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
@@ -102,6 +105,11 @@ export interface LiveProgressRow {
    * switching it off: the same `stopped`, a different way back.
    */
   readonly stoppedByOwner?: true;
+  /**
+   * The last completed pass's metrics, of which the strip reads two: how many
+   * collections it opened and how many items it read (`listedButEmpty`).
+   */
+  readonly lastPass?: { readonly items?: number; readonly collectionsOpened?: number };
 }
 
 const LiveProgress: React.FC<{
@@ -120,7 +128,14 @@ const LiveProgress: React.FC<{
    * h3 (the default), 3 on a migration's own page, under its name's h2.
    */
   headingLevel?: 3 | 4;
-}> = ({ domains, stages, headingLevel = 4 }) => {
+  /**
+   * The destination's kind (a connection's `kind`), where the page knows it
+   * (workplan 0160, T2b): a Cirrux account's files fail on its Drive sign-in,
+   * which its row renews with *Connect Cirrux Drive*. Absent, the category
+   * alone chooses the sentence.
+   */
+  targetKind?: string;
+}> = ({ domains, stages, headingLevel = 4, targetKind }) => {
   const t = useT();
   const { locale } = useLocale();
   const { relativeToNow } = useFormatters();
@@ -141,8 +156,15 @@ const LiveProgress: React.FC<{
           // never *"of 0"* (hard rule 9).
           const totals = progressTotals(d);
           const done = formatNumber(d.itemsSynced, locale);
+          // CALENDARS FOUND, NO EVENT READ (2026-11-24): never *none found
+          // to copy* in green, which is what a source with nothing in it says.
+          const emptyCalendars = listedButEmpty(d);
           const count =
-            totals.kind === 'ofAbout'
+            emptyCalendars !== undefined
+              ? emptyCalendars === 1
+                ? t('confirm.progress.listedButEmpty.one')
+                : t('confirm.progress.listedButEmpty.many', { count: formatNumber(emptyCalendars, locale) })
+              : totals.kind === 'ofAbout'
               ? t('confirm.progress.ofAbout', { done, total: formatNumber(totals.total, locale) })
               : totals.kind === 'noneFound'
                 ? t('confirm.progress.noneFound')
@@ -199,7 +221,7 @@ const LiveProgress: React.FC<{
               ) : (
                 <StateChip entity="domain" state={d.state} />
               )}
-              <span>
+              <span {...(emptyCalendars !== undefined ? { className: 'text-amber-800', 'data-tone': 'amber' } : {})}>
                 {count}
                 {bytes && (
                   <>
@@ -299,7 +321,7 @@ const LiveProgress: React.FC<{
                 // The way OUT, first: a sentence the person whose migration
                 // stopped can act on without contacting anybody (0110 T3).
                 <span className="basis-full text-xs text-red-900">
-                  {t(FAILURE_KEY[d.lastErrorCategory])}
+                  {t(remedyKey(d.lastErrorCategory, undefined, { targetKind, domain: d.domain, side: d.failedSide }))}
                   {/* And the side, when the pass could tell (0094 T5, second
                       slice): "reconnect it" then points at the right account. */}
                   {d.failedSide && <> {t(FAILURE_SIDE_KEY[d.failedSide])}</>}

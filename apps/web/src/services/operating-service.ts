@@ -10,7 +10,10 @@
 
 import axios, { type AxiosInstance } from 'axios';
 import type {
+  MigrationWindowView,
   RunsResponse,
+  FinishAddresses,
+  MxReading,
   ApplyDeletionsFlag,
   ApplyQueuedResponse,
   ApplyReceipt,
@@ -40,6 +43,8 @@ import type {
   CreatePersonRequest,
   PeopleResponse,
   Person,
+  DestinationCapacity,
+  DiscoveryDomain,
 } from '@openmig/shared';
 import { MAPPING_LIFECYCLES } from '@openmig/shared';
 import { z } from 'zod';
@@ -47,7 +52,7 @@ import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from
 import { onUnauthorized } from './api.ts';
 import { rememberFault } from './recent-errors.ts';
 import type { Locale } from '../i18n/strings.ts';
-import { EndingChoiceSchema, type EndingChoiceView } from './mapping-service.ts';
+import { EndingChoiceSchema, WindowSchema, type EndingChoiceView } from './mapping-service.ts';
 
 const client: AxiosInstance = axios.create({
   baseURL: operatingBaseUrl(),
@@ -834,11 +839,24 @@ export interface MappingDataTypes {
    * rather than guessing one.
    */
   readonly endings?: readonly EndingChoiceView[];
+  /**
+   * The migration's window (workplan 0170 §5.2), or undefined when the server
+   * sent none: an API from before 0170, or a window this page cannot read. A
+   * migration of only the last 90 days is not switched over before *Copy
+   * everything* (D8), so the Finish page reads it to offer no switch-over.
+   */
+  readonly window?: MigrationWindowView;
 }
 
 /** Endings as the page offers them, or undefined when there are none it can read. */
 function readEndings(raw: unknown): readonly EndingChoiceView[] | undefined {
   const parsed = EndingChoiceSchema.array().safeParse(raw);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** The window as the page reads it, or undefined when there is none it can read. */
+function readWindow(raw: unknown): MigrationWindowView | undefined {
+  const parsed = WindowSchema.safeParse(raw);
   return parsed.success ? parsed.data : undefined;
 }
 
@@ -855,13 +873,25 @@ export async function fetchMappingDataTypes(mappingId: string): Promise<MappingD
     const status = await fetchStatus();
     const mapping = status.mappings.find((m) => m.mappingId === mappingId);
     const endings = readEndings(mapping?.endings);
-    return { domains: mapping?.domains ?? [], ...(endings === undefined ? {} : { endings }) };
+    const window = readWindow(mapping?.window);
+    return {
+      domains: mapping?.domains ?? [],
+      ...(endings === undefined ? {} : { endings }),
+      ...(window === undefined ? {} : { window }),
+    };
   }
   const detail = (
-    await client.get<{ domainStatus?: DomainStatusReport[]; endingChoices?: unknown }>(mappingPath(mappingId))
+    await client.get<{ domainStatus?: DomainStatusReport[]; endingChoices?: unknown; window?: unknown }>(
+      mappingPath(mappingId),
+    )
   ).data;
   const endings = readEndings(detail.endingChoices);
-  return { domains: detail.domainStatus ?? [], ...(endings === undefined ? {} : { endings }) };
+  const window = readWindow(detail.window);
+  return {
+    domains: detail.domainStatus ?? [],
+    ...(endings === undefined ? {} : { endings }),
+    ...(window === undefined ? {} : { window }),
+  };
 }
 
 /** Why the ending door refused, as it said it (0128 T5, slice 7a). */
@@ -946,6 +976,27 @@ export async function fetchAllDiscovery(): Promise<Readonly<Record<string, Disco
 
 export async function fetchScopeManifest(): Promise<ScopeManifest> {
   return (await client.get<ScopeManifest>('/scope-manifest')).data;
+}
+
+/** One pool's line before Start (workplan 0171 T9): what lands there, what it needs, what it has. */
+export interface DestinationSpacePool {
+  readonly pool: string;
+  readonly destination: string;
+  readonly dataTypes: ReadonlyArray<DiscoveryDomain>;
+  readonly needBytes: number;
+  readonly capacity: DestinationCapacity;
+}
+
+/**
+ * Free space at each destination of a migration, read live (workplan 0171
+ * T9). Under the mapping's own path on either edition: managed answers
+ * `/api/migrations/:id/destination-space`, the appliance
+ * `/mappings/:id/destination-space`, in one shape.
+ */
+export async function fetchDestinationSpace(mappingId: string): Promise<DestinationSpacePool[]> {
+  const data = (await client.get<{ pools?: unknown }>(`${mappingPath(mappingId)}/destination-space`)).data;
+  if (!Array.isArray(data.pools)) throw new Error('The free-space answer carried no list of pools.');
+  return data.pools as DestinationSpacePool[];
 }
 
 /**
@@ -1078,3 +1129,22 @@ export async function requestFinalPass(mappingId: string): Promise<'finished' | 
   return 'queued';
 }
 
+
+/**
+ * Finish's step 4 (workplan 0171 T10, §7.2): the addresses at the old
+ * provider that deliver into this mailbox, read live. Both editions serve it
+ * at the mapping's own path.
+ */
+export async function fetchFinishAddresses(mappingId: string): Promise<FinishAddresses> {
+  return (await client.get<FinishAddresses>(`${mappingPath(mappingId)}/finish/addresses`)).data;
+}
+
+/** The answer of the MX check (§7.3): one line for the domain, or why none was asked. */
+export type MxCheckAnswer =
+  | { readonly domain: string; readonly reading: MxReading }
+  | { readonly domain: null; readonly reason: 'not_own_domain' };
+
+/** Check MX now (§7.3): read-only, paced by the server to one per ten seconds. */
+export async function checkMxNow(mappingId: string): Promise<MxCheckAnswer> {
+  return (await client.post<MxCheckAnswer>(`${mappingPath(mappingId)}/finish/mx-check`)).data;
+}

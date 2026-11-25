@@ -59,14 +59,16 @@ import {
   GATE_NAME,
   asReindexer,
   fanOutTargets,
-  type OpenTarget,
   type VerificationDomain,
 } from './target-fan-out.ts';
+import { mailSourceSideCount, withTheSourceSideCount, type OpenedWithCount, type SourceSideCount } from './source-side-count.ts';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery.ts';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 import { domainFailedEvent, recordAppEvent, statedFailureCategoryOf } from '@openmig/shared';
 import { DISCOVERY_DOMAINS, DOMAIN_CONFIG_KEY } from '@openmig/shared';
 import { sourceStillDecides, type PassPhases, type PathPhaseOf, type SourceAuthority } from '@openmig/shared';
+import type { CursorStore, PassWindow } from '@openmig/shared';
+import { discoveryWindowFor, planWindow, runWithWindow, type WindowedResult } from './recent-window-pass.ts';
 
 /**
  * Feed one completed pass into the Prometheus registry (§19 dashboards).
@@ -357,7 +359,7 @@ export function planDomainLanes(
  * always configured it under `domains.mail`, so widening it now would change
  * the behaviour of existing files rather than define a new one's.)
  */
-function isTopLevelMailSource(type: MappingConfig['source']['type']): boolean {
+export function isTopLevelMailSource(type: MappingConfig['source']['type']): boolean {
   return type === 'imap-oauth2' || type === 'gmail';
 }
 
@@ -611,6 +613,32 @@ export async function runAllDomains(
      * `in_progress`, and the status row names them instead.
      */
     let unread: ReadonlyArray<UnreadCollection>;
+    /**
+     * Phase A of this data type ran and did not reach the end, so phase B did
+     * not run and its first copy is not complete (workplan 0170 §3.2 5).
+     */
+    let firstCopyOwed = false;
+    /**
+     * This data type's pass, with the window it owes (workplan 0170 §3): the
+     * last 90 days first, then the rest, or a 90-day migration's window.
+     */
+    const withWindow = async <R extends WindowedResult>(
+      cursors: CursorStore | undefined,
+      run: (window: PassWindow | undefined) => Promise<R>,
+    ): Promise<R> => {
+      const plan = await planWindow({
+        tenantId,
+        mappingId,
+        domain,
+        cursors,
+        ...(config.recentOnly ? { recentOnly: config.recentOnly } : {}),
+        copiedOnce: async () =>
+          (await statusStore.getStatus(tenantId, mappingId)).some((s) => s.domain === domain && !!s.completedAt),
+      });
+      const ran = await runWithWindow({ tenantId, mappingId, domain, cursors, plan, run });
+      firstCopyOwed = ran.firstCopyOwed;
+      return ran.result;
+    };
 
     try {
       // ASKED FIRST, before anything is built for this data type (2026-09-29):
@@ -643,7 +671,9 @@ export async function runAllDomains(
       if (domain === 'email') {
         const deps = { ...(await buildDeps(config, builtWith)), ...startsAs, ...askedWhy(domain) };
         try {
-          const result = await runShadowPass(deps);
+          const result = await withWindow(deps.cursors, (window) =>
+            runShadowPass(window ? { ...deps, window } : deps),
+          );
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
@@ -672,7 +702,9 @@ export async function runAllDomains(
         const built = { ...buildDomainDeps(config, 'calendar', builtWith), ...startsAs, ...askedWhy(domain) };
         try {
           const deps = { ...built, ...(await addressChangesOf(built.ledger)) };
-          const result = await runCalendarSync(deps);
+          const result = await withWindow(deps.cursors, (window) =>
+            runCalendarSync(window ? { ...deps, window } : deps),
+          );
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
@@ -794,12 +826,15 @@ export async function runAllDomains(
         // pass records is never auto-applied by the same pass that made it.
         const passStartedAt = new Date().toISOString();
         try {
-          const result = await runFileSync({
-            ...deps,
-            ...(config.targetFolderPrefix !== undefined
-              ? { targetFolderPrefix: config.targetFolderPrefix }
-              : {}),
-          });
+          const result = await withWindow(deps.cursors, (window) =>
+            runFileSync({
+              ...deps,
+              ...(config.targetFolderPrefix !== undefined
+                ? { targetFolderPrefix: config.targetFolderPrefix }
+                : {}),
+              ...(window ? { window } : {}),
+            }),
+          );
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
@@ -919,6 +954,14 @@ export async function runAllDomains(
               : '') +
             '. Nothing failed and nothing is owed a retry; the cursors stayed where they are ' +
             'and the next scheduled pass continues from them.',
+        );
+      } else if (firstCopyOwed) {
+        // Phase A stopped short of the end without a pause or a stop (an
+        // unread collection does that): the next firing runs it again, and
+        // the data type's first copy is not complete until phase B is.
+        log.info(
+          `[Worker] ${domain}: the last 90 days are not all in yet, so the older items wait ` +
+            'for the next pass; nothing failed.',
         );
       } else if (unread.length === 0) {
         await statusStore.markCompleted(tenantId, mappingId, domain, outcome.metrics);
@@ -1182,6 +1225,8 @@ export async function discoverAllDomains(
           opened.source as Parameters<typeof discoverSource>[0],
           {
             itemBytes,
+            // A 90-day migration counts its window (workplan 0170 §3.2).
+            ...((window) => (window ? { window } : {}))(discoveryWindowFor(domain, config.recentOnly)),
             ...(sourceKeys
               ? {
                   onNaturalKey: (item: unknown) => {
@@ -1351,9 +1396,12 @@ export async function verifyMapping(
   if (config.domains?.files?.enabled) wanted.push('file');
   if (config.domains?.tasks?.enabled) wanted.push('task');
 
+  // Gmail's own count rides with the mail deps the opener builds anyway
+  // (the owner, 2026-11-24; `source-side-count.ts`).
+  const counted = withTheSourceSideCount(applianceOpener(config, ledger));
   const fanned = await fanOutTargets<TargetReindexer>({
     wanted,
-    open: applianceOpener(config, ledger),
+    open: counted.open,
     keep: (target) => asReindexer<TargetReindexer>(target),
     label: `[verify] ${config.mappingId}:`,
   });
@@ -1391,6 +1439,7 @@ export async function verifyMapping(
         },
         verificationReader,
         targetReindexers: reindexers,
+        sourceSideCounts: counted.counts(fanned.domains),
       }),
     );
   } finally {
@@ -1443,10 +1492,17 @@ function enabledSyncDomains(config: MappingConfig): DiscoveryDomain[] {
  * there is no pool to open (`ledger-injection.unit.test.ts` exists because it
  * once did not).
  */
-export function applianceOpener(config: MappingConfig, ledger: LedgerOptions): OpenTarget {
+export function applianceOpener(
+  config: MappingConfig,
+  ledger: LedgerOptions,
+): (domain: DiscoveryDomain) => Promise<OpenedWithCount> {
   return async (domain) => {
     const deps = await openSyncDomainDeps(config, domain, ledger);
-    return { target: deps.target, close: () => deps.close() };
+    return {
+      target: deps.target,
+      close: () => deps.close(),
+      ...(deps.sourceSideCount ? { sourceSideCount: deps.sourceSideCount } : {}),
+    };
   };
 }
 
@@ -1455,7 +1511,13 @@ async function openSyncDomainDeps(
   config: MappingConfig,
   domain: DiscoveryDomain,
   ledgerOptions: LedgerOptions,
-): Promise<{ target: unknown; ledger: Ledger; close: () => Promise<void> }> {
+): Promise<{
+  target: unknown;
+  ledger: Ledger;
+  close: () => Promise<void>;
+  /** Mail only: the source's own count, where it has one (Gmail's All Mail). */
+  sourceSideCount?: SourceSideCount;
+}> {
   // Whether this is a test migration (workplan 0162), from the reader every
   // gate asks: these callers open a target and never list the source, but
   // the source each builder makes here is the marked one all the same, so
@@ -1471,7 +1533,9 @@ async function openSyncDomainDeps(
   switch (domain) {
     case 'email': {
       const d = await buildDeps(config, builtWith);
-      return { target: d.target, ledger: d.ledger, close: d.close };
+      // A 90-day migration counts only its window (workplan 0170).
+      const count = mailSourceSideCount(d, config.recentOnly);
+      return { target: d.target, ledger: d.ledger, close: d.close, ...(count ? { sourceSideCount: count } : {}) };
     }
     case 'calendar': {
       const d = buildDomainDeps(config, 'calendar', builtWith);

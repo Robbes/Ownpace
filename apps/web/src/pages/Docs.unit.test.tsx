@@ -68,7 +68,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GRANT_PROVIDERS } from '@openmig/shared';
 import { LocaleProvider } from '../i18n/index.tsx';
-import { STRINGS, type Locale } from '../i18n/strings.ts';
+import { STRINGS, LOCALES, type Locale } from '../i18n/strings.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import Docs, { GUIDE_SLUGS, GuideArticle, guideTitle, pickGuide } from './Docs.tsx';
 
@@ -869,8 +869,15 @@ describe('every served guide keeps its shape (0148 T6 (a) and (b))', () => {
    * link from the checklist or a refusal can name a section without knowing
    * which guide it is in. Top-level sections only; a card's own subsection
    * (`{#gmail}`) sits under `connect`.
+   *
+   * A guide about every migration rather than one provider has no account to
+   * connect, and keeps an outline of its own: `start`, how a migration copies
+   * (workplan 0170 §7.4), whose sections the wizard and a migration's page
+   * link by their ids.
    */
-  it.each(SERVED)('%s: the outline, in order, with its ids', (key) => {
+  const ABOUT_EVERY_MIGRATION: ReadonlySet<string> = new Set(['start']);
+  const PROVIDER_GUIDES = SERVED.filter((key) => !ABOUT_EVERY_MIGRATION.has(key.split('/')[1]!));
+  it.each(PROVIDER_GUIDES)('%s: the outline, in order, with its ids', (key) => {
     const ids = linesOutsideFences(SOURCES[key]!)
       .map((line) => /^## .*\{#([\w-]+)\}\s*$/.exec(line)?.[1])
       .filter((id): id is string => id !== undefined);
@@ -879,6 +886,14 @@ describe('every served guide keeps its shape (0148 T6 (a) and (b))', () => {
     expect(ids.filter((id) => outline.includes(id)), key).toEqual(
       outline.filter((id) => id !== 'own-app' || ids.includes('own-app')),
     );
+  });
+
+  const ABOUT_EVERY_MIGRATION_KEYS = [...ABOUT_EVERY_MIGRATION].flatMap((slug) => LOCALES.map((l) => `${l}/${slug}`));
+  it.each(ABOUT_EVERY_MIGRATION_KEYS)('%s: the sections the screens link to, in order', (key) => {
+    const ids = linesOutsideFences(SOURCES[key]!)
+      .map((line) => /^## .*\{#([\w-]+)\}\s*$/.exec(line)?.[1])
+      .filter((id): id is string => id !== undefined);
+    expect(ids, key).toEqual(['last-90-days-first', 'last-90-days-only', 'copy-everything', 'self-hosted']);
   });
 
   /**

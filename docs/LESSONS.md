@@ -18,6 +18,14 @@ reading a file drops off its entry by itself.
 
 ## 1. By file — what constrains the thing you are about to edit
 
+### `.claude/hooks/session-start.sh`
+
+- [a-start-up-hook-read-as-a-risk](../scripts/a-start-up-hook-read-as-a-risk.unit.test.ts) — A START-UP HOOK READ AS A RISK, AND KEPT, BECAUSE IT DOES ONE THING.
+
+### `.claude/settings.json`
+
+- [a-start-up-hook-read-as-a-risk](../scripts/a-start-up-hook-read-as-a-risk.unit.test.ts) — A START-UP HOOK READ AS A RISK, AND KEPT, BECAUSE IT DOES ONE THING.
+
 ### `.github/ISSUE_TEMPLATE/bug_report.yml`
 
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
@@ -150,6 +158,7 @@ reading a file drops off its entry by itself.
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
 
 ### `.github/workflows/migration-locks.yml`
@@ -178,6 +187,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/security-scan.yml`
 
+- [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
 - [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
@@ -249,6 +259,7 @@ reading a file drops off its entry by itself.
 ### `SECURITY.md`
 
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `TRADEMARK.md`
@@ -309,6 +320,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/src/index.ts`
 
+- [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
@@ -337,6 +349,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/src/middleware/auth.ts`
 
+- [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-refusal-that-links-its-guide](../scripts/a-refusal-that-links-its-guide.unit.test.ts) — A REFUSAL THAT LINKS ITS GUIDE (workplan 0148 T7, the second half).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
@@ -383,7 +396,6 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/src/routes/connections.ts`
 
-- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts) — A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
@@ -457,6 +469,10 @@ reading a file drops off its entry by itself.
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
 
+### `apps/api/src/routes/migrations/microsoft-signed-in-account.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
 ### `apps/api/src/routes/migrations/operating-routes.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
@@ -493,6 +509,10 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `apps/api/src/routes/qualify-and-remember.ts`
+
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 ### `apps/api/src/routes/ready.ts`
 
@@ -2112,6 +2132,7 @@ reading a file drops off its entry by itself.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
 - [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
 
 ### `docs/rls-guide.md`
@@ -3158,6 +3179,14 @@ reading a file drops off its entry by itself.
 
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
 
+### `scripts/fixtures/image-sbom/nginx-1.31.9-alpine-slim.sbom.json`
+
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
+
+### `scripts/fixtures/image-sbom/node-26.13.1-trixie-slim.sbom.json`
+
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
+
 ### `scripts/fixtures/release/changelog-2026-10-23.md`
 
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
@@ -3217,6 +3246,18 @@ reading a file drops off its entry by itself.
 ### `scripts/fixtures/release/vitest-managed-from-alpha.1.json`
 
 - [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
+
+### `scripts/fixtures/sbom/bom.json`
+
+- [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
+- [a-release-attached-twice](../scripts/a-release-attached-twice.unit.test.ts) — A RELEASE ATTACHED TWICE: alpha.15's image scan after the tag ran on the tag, replaced the `bom.json` verify had read and appended its body a second time (workplan 0146, Status of 2026-11-22).
+- [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
+- [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
+
+### `scripts/fixtures/sbom/pnpm-ls-prod.json`
+
+- [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 
 ### `scripts/gate-coverage.unit.test.ts`
 
@@ -3364,6 +3405,7 @@ reading a file drops off its entry by itself.
 ### `scripts/release-verify.mjs`
 
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
+- [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts) — AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
 
 ### `scripts/rotate-db-passwords.unit.test.ts`
 
@@ -3372,6 +3414,10 @@ reading a file drops off its entry by itself.
 ### `scripts/runs-without-a-transpiler.unit.test.ts`
 
 - [a-fixture-with-ten-seconds](../scripts/a-fixture-with-ten-seconds.unit.test.ts) — A hook that builds a database gets more than ten seconds to do it.
+
+### `scripts/sbom-complete.mjs`
+
+- [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 
 ### `scripts/seed-managed.unit.test.ts`
 
@@ -3675,6 +3721,19 @@ Reads:
 - `scripts/an-appliance-with-nothing-to-exec.unit.test.ts`
 - `scripts/package-appliance.mjs`
 
+### [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts)
+
+A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
+
+Reads:
+
+- `.github/workflows/security-scan.yml`
+- `apps/api/src/index.ts`
+- `apps/api/src/middleware/auth.ts`
+- `scripts/fixtures/sbom/bom.json`
+- `scripts/fixtures/sbom/pnpm-ls-prod.json`
+- `scripts/sbom-complete.mjs`
+
 ### [a-blip-that-failed-a-gate](../scripts/a-blip-that-failed-a-gate.unit.test.ts)
 
 A read that never got an answer is asked again; a write never is.
@@ -3769,6 +3828,7 @@ Reads:
 - `apps/api/src/routes/migrations/google-consent.ts`
 - `apps/api/src/routes/migrations/index.ts`
 - `apps/api/src/routes/migrations/microsoft-consent.ts`
+- `apps/api/src/routes/migrations/microsoft-signed-in-account.ts`
 - `apps/api/src/routes/migrations/operating-routes.ts`
 - `apps/api/src/routes/permissions.ts`
 - `apps/api/src/routes/platform-status.ts`
@@ -3828,9 +3888,9 @@ A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 Reads:
 
-- `apps/api/src/routes/connections.ts`
 - `apps/api/src/routes/migrations/cirrux-oauth-routes.ts`
 - `apps/api/src/routes/migrations/index.ts`
+- `apps/api/src/routes/qualify-and-remember.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `packages/orchestration/src/account-qualification.ts`
@@ -5446,6 +5506,7 @@ Reads:
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
 - `docs/release.md`
+- `scripts/fixtures/sbom/bom.json`
 - `scripts/release-dispatch.mjs`
 
 ### [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts)
@@ -5460,6 +5521,7 @@ Reads:
 - `scripts/fixtures/release/ghcr-ownpace-selfhost-0.2.0-alpha.1-index.json`
 - `scripts/fixtures/release/release-v0.1.0-rc.1.json`
 - `scripts/fixtures/release/release-v0.2.0-alpha.1.json`
+- `scripts/fixtures/sbom/bom.json`
 - `scripts/package-appliance.mjs`
 - `scripts/release-verify.mjs`
 
@@ -5911,6 +5973,15 @@ Reads:
 - `deploy/compose/stand-up-live.sh`
 - `packages/shared/src/notifications.ts`
 
+### [a-start-up-hook-read-as-a-risk](../scripts/a-start-up-hook-read-as-a-risk.unit.test.ts)
+
+A START-UP HOOK READ AS A RISK, AND KEPT, BECAUSE IT DOES ONE THING.
+
+Reads:
+
+- `.claude/hooks/session-start.sh`
+- `.claude/settings.json`
+
 ### [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts)
 
 A progress link opens counts and states, and nothing that names anything.
@@ -5982,6 +6053,7 @@ Reads:
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
 - `docs/release.md`
+- `scripts/fixtures/sbom/bom.json`
 - `scripts/release-cut-tag.mjs`
 - `scripts/release-dispatch.mjs`
 
@@ -6502,6 +6574,20 @@ Reads:
 - `deploy/selfhost/setup-stalwart.sh`
 - `scripts/idp-pin-watch.mjs`
 - `scripts/image-scan.mjs`
+
+### [an-image-that-carries-no-list-of-itself](../scripts/an-image-that-carries-no-list-of-itself.unit.test.ts)
+
+AN IMAGE THAT CARRIES NO LIST OF ITSELF: the release's `bom.json` lists npm packages, and nothing listed the operating-system packages the published images are built on (SBOM-1, the image half; the owner's decision of 2026-11-24, for alp…
+
+Reads:
+
+- `.github/workflows/images.yml`
+- `SECURITY.md`
+- `docs/release.md`
+- `scripts/fixtures/image-sbom/nginx-1.31.9-alpine-slim.sbom.json`
+- `scripts/fixtures/image-sbom/node-26.13.1-trixie-slim.sbom.json`
+- `scripts/fixtures/sbom/bom.json`
+- `scripts/release-verify.mjs`
 
 ### [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts)
 

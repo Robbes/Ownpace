@@ -162,4 +162,6 @@ een vorm die deze pagina niet kent*): a page could not read one of the API's ans
 - [`status-page.md`](./status-page.md): what the page can and cannot tell.
 - [`operator-runbook.md`](./operator-runbook.md), *Health & troubleshooting*.
 - [`breach-procedure.md`](./breach-procedure.md): when personal data may have leaked.
+- [`security-fix-fast-path.md`](./security-fix-fast-path.md): when the fix is a security fix that
+  must reach live today, every wait the owner can waive and the order to go in.
 - Workplans 0142 (alerts), 0143 (the box's limits) and 0139 (the legal gate).

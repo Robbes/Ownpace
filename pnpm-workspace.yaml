@@ -290,6 +290,8 @@ overrides:
 #      REQUEST, with a one-line reason. That is what this list is for, and the case it exists
 #      for is a security fix — the advisory gate blocks a merge at high and critical
 #      (scripts/audit-advisories.mjs), so a fix version has to be installable the day it ships.
+#      Every other wait between that fix and live, and the order to go in, is on one page:
+#      docs/security-fix-fast-path.md.
 #
 # HOW ENTRIES ARE WRITTEN, and why the guard is strict about it. Always `name@version`.
 # A BARE PACKAGE NAME EXCLUDES THAT PACKAGE FOR EVER, every version, in perpetuity — pnpm

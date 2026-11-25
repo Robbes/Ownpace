@@ -76,6 +76,31 @@ export interface ServedFacts {
    * of its own needs the deployment's (`grantableByLink`).
    */
   readonly googleClient?: 'deployment' | 'connection';
+  /**
+   * The providers whose grant link this deployment serves with its own
+   * application (workplan 0171 §3.2): each whose `client` the provider
+   * accounts read answers `deployment` (`grantProvidersServed`). Absent means
+   * it has not said, and only Google's `googleClient` then speaks, as before.
+   */
+  readonly grantProviders?: ReadonlyArray<GrantLinkProvider>;
+}
+
+/** The providers a grant link is designed for (the API's `GRANT_PROVIDER_IDS`). */
+export type GrantLinkProvider = 'google' | 'microsoft' | 'dropbox' | 'apple';
+
+/**
+ * Which providers' links this deployment serves, from the provider accounts
+ * read: a provider whose account runs on the deployment's own application.
+ * Google and Microsoft today; Dropbox and Apple join with their tasks (0171
+ * T4, T5).
+ */
+export function grantProvidersServed(
+  accounts: Partial<Record<string, { readonly client?: 'deployment' | 'connection' } | undefined>> | undefined,
+): GrantLinkProvider[] {
+  const served: GrantLinkProvider[] = [];
+  if (accounts?.google?.client === 'deployment') served.push('google');
+  if (accounts?.microsoft?.client === 'deployment') served.push('microsoft');
+  return served;
 }
 
 /**
@@ -223,24 +248,30 @@ export function exportMigration(
  * Whether the person a migration is for can connect this card themselves, by
  * a grant link (0108), so the one who starts it never holds their password.
  *
- * Only Google's cards have links, and only through the deployment's own
- * client, since an account saved for somebody else holds none. Through it,
+ * Google's cards and, since alpha.20, the Microsoft account have links
+ * (workplan 0171), and only through the deployment's own application, since an
+ * account saved for somebody else holds none. Through it,
  * mail and files are asked for only where the deployment declared Google's
  * restricted scopes (`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`); the link's own
  * readiness check refuses them otherwise, so they are not offered.
  */
 export function grantableByLink(card: string, served: ServedFacts = {}): boolean {
-  if (served.googleClient !== 'deployment') return false;
+  const providers = served.grantProviders ?? (served.googleClient === 'deployment' ? ['google'] : []);
   const account = served.google ?? PROVIDER_ACCOUNT_DOMAINS.google;
   switch (card) {
     case 'google':
     case 'google-calendar':
     case 'google-contacts':
-      return true;
+      return providers.includes('google');
     case 'gmail':
-      return account.includes('email');
+      return providers.includes('google') && account.includes('email');
     case 'google-drive':
-      return account.includes('file');
+      return providers.includes('google') && account.includes('file');
+    // The Microsoft ACCOUNT (workplan 0171 §3.3): every face it reads goes
+    // through the one sign-in. A company's own app (`graph`, `oauth2`) reads
+    // with application permissions, which nobody grants by signing in.
+    case 'microsoft':
+      return providers.includes('microsoft');
     default:
       return false;
   }

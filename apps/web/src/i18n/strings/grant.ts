@@ -97,7 +97,7 @@ export const en = {
   // in that app's own browser, where Google is reported to refuse the consent.
   // Opening the link again elsewhere spends nothing (grant.ts), so it says so.
   'grant.inAppBrowser':
-    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Safari or Chrome. The link still works.',
+    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Firefox, Safari or Chrome. The link still works.',
   'grant.connect': 'Continue with Google',
   // A person's link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
   // card per Google account, each asked once.
@@ -111,6 +111,28 @@ export const en = {
     'This account was connected before. Whoever sent this link asks you to connect again, for instance because the connection stopped working.',
   'grant.person.connectAgain': 'Connect again with Google as {account}',
   'grant.connecting': 'Opening Google…',
+  // A Microsoft account's link (workplan 0171 §3.3–3.4): the same page, in
+  // Microsoft's words where Google's above name Google. The scope words say
+  // what each Graph permission allows, as Microsoft's screen does a click later.
+  'grant.continue.microsoft': 'Continue with Microsoft as {account}',
+  'grant.connectAgain.microsoft': 'Connect again with Microsoft as {account}',
+  'grant.connecting.microsoft': 'Opening Microsoft…',
+  'grant.reads.file.microsoft': 'your files in OneDrive',
+  'grant.readOnly.microsoft':
+    'Read-only. Nothing is ever deleted or changed in your account, and nobody — not the organisation, not Ownpace — ever sees your password. You sign in to Microsoft yourself, on Microsoft’s own page.',
+  'grant.scopeIntro.microsoft': 'The permission Microsoft will ask you for:',
+  'grant.scope.microsoft.mail': 'Outlook: read your email.',
+  'grant.scope.microsoft.calendar': 'Outlook calendar: read your calendars.',
+  'grant.scope.microsoft.contacts': 'Outlook contacts: read your contacts.',
+  'grant.scope.microsoft.files': 'OneDrive: read your files.',
+  'grant.scope.microsoft.tasks': 'Microsoft To Do: read your tasks.',
+  'grant.scope.microsoft.account': 'Your Microsoft account: sign you in, and read your profile and addresses.',
+  'grant.scope.microsoft.offline': 'Keep this access while you are away, until you withdraw it.',
+  'grant.scope.technical.line.microsoft': 'Microsoft records this permission as:',
+  'grant.signInAs.microsoft':
+    'Sign in as {account}. Microsoft confirms which account signed in; other accounts are refused.',
+  'grant.withdraw.microsoft':
+    'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Microsoft account, under the apps that have access.',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
   'grant.withdraw':
     'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Google account’s security settings, under the apps that have access.',
@@ -204,7 +226,7 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.until': 'Deze link werkt tot {date}.',
   'grant.signInAs': 'Log in als {account}. Google deelt uw adres ter controle; andere accounts worden geweigerd.',
   'grant.inAppBrowser':
-    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Safari of Chrome. De link blijft werken.',
+    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Firefox, Safari of Chrome. De link blijft werken.',
   'grant.connect': 'Doorgaan met Google',
   'grant.person.asking':
     '{organisation} migreert uw accounts naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',
@@ -216,6 +238,25 @@ export const nl: Record<keyof typeof en, string> = {
     'Dit account was al verbonden. Wie u deze link stuurde, vraagt u opnieuw te verbinden, bijvoorbeeld omdat de verbinding niet meer werkt.',
   'grant.person.connectAgain': 'Opnieuw verbinden met Google als {account}',
   'grant.connecting': 'Google wordt geopend…',
+  'grant.continue.microsoft': 'Doorgaan met Microsoft als {account}',
+  'grant.connectAgain.microsoft': 'Opnieuw verbinden met Microsoft als {account}',
+  'grant.connecting.microsoft': 'Microsoft wordt geopend…',
+  'grant.reads.file.microsoft': 'uw bestanden in OneDrive',
+  'grant.readOnly.microsoft':
+    'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw account, en niemand — niet de organisatie, niet Ownpace — ziet uw wachtwoord. U logt zelf in bij Microsoft, op de pagina van Microsoft zelf.',
+  'grant.scopeIntro.microsoft': 'De toestemming die Microsoft u vraagt:',
+  'grant.scope.microsoft.mail': 'Outlook: uw e-mail lezen.',
+  'grant.scope.microsoft.calendar': 'Outlook-agenda: uw agenda’s lezen.',
+  'grant.scope.microsoft.contacts': 'Outlook-contactpersonen: uw contactpersonen lezen.',
+  'grant.scope.microsoft.files': 'OneDrive: uw bestanden lezen.',
+  'grant.scope.microsoft.tasks': 'Microsoft To Do: uw taken lezen.',
+  'grant.scope.microsoft.account': 'Uw Microsoft-account: u aanmelden, en uw profiel en adressen lezen.',
+  'grant.scope.microsoft.offline': 'Deze toegang houden terwijl u weg bent, tot u die intrekt.',
+  'grant.scope.technical.line.microsoft': 'Microsoft legt deze toestemming vast als:',
+  'grant.signInAs.microsoft':
+    'Log in als {account}. Microsoft bevestigt met welk account u zich aanmeldt; andere accounts worden geweigerd.',
+  'grant.withdraw.microsoft':
+    'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of in uw Microsoft-account, bij de apps die toegang hebben.',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
   'grant.withdraw':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of via de beveiligingsinstellingen van uw Google-account, bij de apps die toegang hebben.',

@@ -47,7 +47,7 @@
 # because the Node 26 image ships none: apps/api/Dockerfile says why, and the
 # line is the same string in all three Dockerfiles.
 
-FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS base
+FROM node:26.13.1-trixie-slim@sha256:abe7e5a82b61a8ef67b315b85497c9e65173387ccf2f4a029248184b8e020be5 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN npm install -g --omit=dev corepack@0.36.0 && corepack enable
@@ -132,7 +132,7 @@ RUN node scripts/package-appliance.mjs --out /payload \
 #   files on an existing volume keep that group, which nothing reads, and the
 #   owner's bits are uid 10001's either way.
 #   scripts/an-appliance-with-nothing-to-exec.unit.test.ts holds all of this.
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:767ffb7e2ffa9f4280f1af7b99f7f0a1cafb79d0dcc0e0d3aba43843748008a5 AS runtime
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:ffa8a7545403036c94ec76674b5dbac2d425af2d679147cdf3e30180071487b7 AS runtime
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown

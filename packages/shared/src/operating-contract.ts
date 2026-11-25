@@ -37,6 +37,7 @@
  * queue that cannot say where something went is not one anybody can act on.
  */
 
+import type { MigrationWindowView } from './recent-window.ts';
 import type { DiscoveryDomain, FoundCount } from './discovery.ts';
 import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { PauseReason } from './pause-reason.ts';
@@ -165,6 +166,15 @@ export interface FailuresQueue extends QueueEnvelope {
    * the category alone, as before.
    */
   readonly sourceKind?: string;
+  /**
+   * The kind of the migration's destination (workplan 0160, T2b), read as
+   * `sourceKind` is: the target connection's `kind` on managed, the mapping's
+   * `target.type` on the appliance. `cirrux` is the value the page reads: a
+   * Cirrux account's `format_refused` is a name Cirrux will not store, and
+   * its files' `auth_expired` is renewed with *Connect Cirrux Drive*. Absent
+   * from a server that predates it, and the page reads the category alone.
+   */
+  readonly targetKind?: string;
   /**
    * The provider's text and the items' names are kept from this page
    * (ADR-0035 decision 5, the owner's option C of 2026-10-03): the account was
@@ -592,6 +602,12 @@ export interface StatusReport {
      * it, and the page then offers no ending rather than guessing one.
      */
     readonly endings?: readonly PathEndingChoice[];
+    /**
+     * THE LAST 90 DAYS (workplan 0170 §5.2, §5.4): the same `window` the
+     * managed read of a migration carries. Optional, as `stops` is: a payload
+     * built before it omits it, and the page then shows no window.
+     */
+    readonly window?: MigrationWindowView;
     /**
      * THE MIGRATION'S TEST MARKER (workplan 0162 T1; ADR-0053), when it is a
      * test: the text an item's own title must contain to be copied

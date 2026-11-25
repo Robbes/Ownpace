@@ -2,7 +2,124 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-24 (update this block at the end of every session)
+## Status — 2026-11-25 (update this block at the end of every session)
+
+**2026-11-25: the fold for `v0.2.0-alpha.20` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.20`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-25, under a summary; [Unreleased] stays, empty. alpha.20 carries what
+`main` merged after alpha.19's C, `909e6d74`, the commit its tag names: 32 pull requests, merged
+from 2026-11-24 at 20:30 UTC to 2026-11-25 at 07:49 UTC. None came from Dependabot. Four
+entries' words change, so that the section says what alpha.20 ships as one: 0170 T1's no longer
+says the sources' date filters and the screens *follow*; 0170 T4's and the Microsoft 365
+calendars' (#2126) no longer describe the window-marked delta cursor that #2126 replaced in the
+same release; and 0171 T3's no longer promises Dropbox and Apple as its T4 and T5, which did not
+make alpha.20 and are planned again for alpha.21.
+
+- workplan 0170, the last 90 days first: T1 (#2115), the mail sources (T2, #2114), the file
+  sources (T3, #2113), the calendar sources (T4, #2117), the screens (T5, #2116), and the owner's
+  Dutch word for it (#2144);
+- Microsoft 365 and Outlook.com calendars on documented Graph v1.0 calls (0059 T5, #2126), and
+  Gmail's All Mail read last into Archive, with Check counting from Gmail (0044, #2124);
+- workplan 0171: grant links' provider seam and Microsoft (T3, #2136), free space at the
+  destination before Start (T9, #2132), Finish's addresses that receive mail and the MX check (T10,
+  #2135), and Apple's data export read, Experimental (T1, #2134);
+- the grant pages' note above the buttons and their Copy link button (0140, #2142), the four
+  screen findings of the owner's live Cirrux Drive test (0160 T2b, #2125), Microsoft files saying
+  OneDrive and naming the online archive (0026, #2119), and the owner's Dutch for alpha.20 (#2145);
+- from an outside, read-only check: the support lists a page at a time (0006 §P, #2130), the
+  connection routes' import cycle broken (0006 §R, #2129), the pin watch listing its issues once
+  per run (0006 §O, #2128), the release's SBOM built from the lockfile (0006 §Q, #2133), an SBOM
+  in every published image (SBOM-1, #2137), and the free-space read saying a failure it used to
+  drop, with six more findings read (0006 §T, #2154);
+- the appliance on PGlite: the shared ledger handle waits its turn for each statement (#2140);
+- nginx 1.31.10 and five rebuilt bases (0119, #2127), and pg-boss 12.39.0, its job schema 46 to 47,
+  one way (0119, #2138);
+- the records: alpha.19's release (#2143), `deploy-live.sh`'s comments (0167, #2122), one page
+  for a security fix that must go out today (#2131), two more findings of an outside, read-only
+  check read as false positives (0006 §S, #2149), and Cirrux's own API read for whether one
+  sign-in could carry every data type (0160, #2153);
+- alpha.21's plans: deleting by hand without a switch, the owner's choice (0173, #2150), and
+  grant links for every account, with the owner's answers (0174, #2151). Their builds wait for
+  this tag.
+
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`: what
+  is still open goes into alpha.21.
+- **In the nights' place,** waived for alpha.20 (*"for 20 i also waive al waiting/days."*, #2121):
+  E2E (managed) and E2E (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at
+  a time, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** C's checks, its push runs and its Windows smoke, the image scans, and
+  the three E2E lanes at C, one at a time; then the Release run, which the owner starts from their
+  own account, with `commit` set to C and `waive_nights` set to the reason in their own words, and
+  the approval in the `release` environment.
+- **The deploy to live, planned for 2026-11-26 from alpha.18, is one-way** twice over: by pg-boss's
+  job schema, which alpha.20's worker moves from 46 to 47 when it first starts (#2138; this block's
+  entry of 2026-11-24 says what the deploy sheet must hold), and by the identity provider's pin,
+  Zitadel `v4.20.5` since alpha.19 (#2100). Between alpha.19's C and this one no file in either
+  migration chain is added, changed or removed.
+
+**2026-11-24: alpha.20 will carry pg-boss 12.39.0, and its deploy to live is one-way.** On the
+branch `claude/ownpace-public-readiness-y7orc6-pg-boss-12-39`; merged as #2138 on 2026-11-25 at
+04:49 UTC (`34fcd12e`), after alpha.19's tag (0119's Status of the same day says what moves). pg-boss's migration from schema 46 to 47 adds
+one nullable column, `pgboss.schedule.sent_on`. Before it merges: E2E (self-hosted) on Postgres,
+then on PGlite, then E2E (managed) dispatched just before the merge, since that run moves OTA's
+job schema and `main`'s nightly refuses it until the merge.
+
+- **What alpha.20's deploy sheet must hold, read from the tree:**
+  - that the deploy is **one-way** for pg-boss, whatever else it carries: the dry run says *moves
+    pg-boss in pnpm-lock.yaml: 12.38.2 -> 12.39.0* and *moves pg-boss's schema version
+    (PG_BOSS_SCHEMA_VERSION): 46 -> 47*, and *would be one-way*;
+  - that the worker of alpha.20 migrates `pgboss` to 47 when it first starts, as the role that owns
+    the schema, `ownpace_jobs`; until it has, each enqueue of the API's is refused (*is not at
+    pg-boss schema version 47*) and the next one tries again, so the hold stays on until the
+    worker is healthy;
+  - the take before the checkout, which holds the app's database and so `pgboss` at 46: it is the
+    only way back, since alpha.19's worker and API refuse schema 47 by name and do not start
+    their jobs;
+  - after the bring-up: `operator.sh jobs` answers, and `SELECT version FROM pgboss.version` reads
+    47.
+
+**2026-11-24, evening: `v0.2.0-alpha.19` is released, its nights waived, and not deployed to live
+(T2, T4).** Read from GitHub on 2026-11-24. Times are UTC.
+
+- **C is `909e6d74`**, the squash of #2139, the fold, merged on 2026-11-24 at 18:17:01. Its tree is
+  that of #2139's head, `dfbbac46`. On C, all green: CI run 45457833455 (18:17:04 to 18:54:33,
+  `ci-complete` included), Security Scan run 45457833390, Images run 45457833420, Semgrep run
+  45457833454, Dockerfile lint run 45457833615 and Nextcloud's second major, run 45457833489. C did
+  not move: nothing merged to `main` between the fold and the tag.
+- **In the counted nights' place**, waived for alpha.19 (*"I waive all waiting/days, try to get it
+  in the upcomming alpha we are still working on."*, #2118), dispatched on `main` at C, all green:
+  `windows-payload.yml` run 45469711040 (win-x64, its smoke on Windows included, 19:23:31 to
+  19:24:44); E2E (self-hosted) on Postgres, run 45470267858 (19:26:41 to 19:32:28), then on PGlite,
+  run 45471364044 (19:32:52 to 19:37:20), and E2E (managed), run 45472323999 (19:38:20 to
+  19:44:12), one at a time, each once the run before it had ended green; beside them Security Scan
+  with the image scans, run 45470274148 (22 jobs, 19 images listed and scanned).
+- **Release.** The owner ran it from their own account, first as a preflight alone: run 45468651540
+  (`mode` `preflight`, 19:17:35 to 19:18:36), which refused one thing: no `windows-payload.yml` run
+  on C. None had been dispatched yet; it was, as above, and nothing else changed. Then Release run
+  45479327164 (`mode` `release`), with `waive_nights` set to *"waived"*, in one attempt: its
+  preflight passed (20:18:16 to 20:18:59), and it waited at its approve job until the owner approved
+  in the `release` environment (the job ran 20:19:48 to 20:19:53); then the gate scan of C (run
+  45479723958, on `release-gate/v0.2.0-alpha.19`, 20:20:13 to 20:21:22) and the tag (20:22:08)
+  succeeded. The publish job's Security Scan on the tag, run 45480145955 (20:22:32 to 20:23:54),
+  made the release with its body and SBOM; the images, run 45480475282 (20:24:25 to 20:26:22), and
+  the Windows zip, run 45480461503 (20:24:20 to 20:26:09), both on the tag, were green; and verify
+  passed (20:26:33 to 20:27:10).
+- **The two attaches, through the runner's own `gh`** (#1977): `bom.json` (1,630,146 bytes, with
+  the release at 20:23:46) and `ownpace-appliance-win-x64-v0.2.0-alpha.19.zip` (50,120,796 bytes,
+  20:26:04), both uploaded by `github-actions[bot]`. Verify, which reads both, passed. The release's
+  body is said once (1,049 characters).
+- **The tag.** `v0.2.0-alpha.19` is tag object `9f198619…` on `909e6d74`, made by
+  `github-actions[bot]` at 20:22:08. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/45479327164*, *Proved by: CI run #6322, Security
+  Scan run #6478 on main, windows-payload run #65; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/45479723958* and *Nights waived by Robbes, in
+  their words: "waived"*.
+- **The image scan after the tag** (`docs/release.md` §4) ran on `main` at C, before any merge:
+  Security Scan run 45480985859, dispatched by hand, 20:27:24 to 20:29:50, 22 jobs, green, 19 images
+  listed and scanned.
+- **The freeze ended with the tag.** The first merge after it was #2140, as `4a8303de`.
+- **No deploy.** Live stays on alpha.18; alpha.20's deploy carries alpha.19's changes, as the
+  fold's entry below says.
 
 **2026-11-24, evening: the fold for `v0.2.0-alpha.19` (T2); alpha.19 is not deployed to live.**
 `package.json` and the API contract say `0.2.0-alpha.19`, `scripts/release-line.json` lists it, and

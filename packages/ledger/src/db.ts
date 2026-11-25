@@ -11,6 +11,7 @@ import { log } from '@openmig/shared';
 import {
   assertRoleName,
   isLedgerDriver,
+  runAsHolder,
   type LedgerConnection,
   type LedgerDriver,
 } from './driver.ts';
@@ -165,7 +166,7 @@ async function inTenantScope<T>(
     await conn.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
 
     // Run the function on the transaction's connection
-    const result = await held.during(() => fn(conn));
+    const result = await runAsHolder(conn, () => held.during(() => fn(conn)));
 
     // Commit transaction
     await conn.query('COMMIT');
@@ -354,7 +355,7 @@ export async function withSubjectAndTenant<T>(
     }
     await conn.query("SELECT set_config('app.current_user', $1, true)", [userId]);
     await conn.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
-    const result = await fn(conn.db);
+    const result = await runAsHolder(conn, () => fn(conn.db));
     await conn.query('COMMIT');
     return result;
   } catch (error) {
@@ -439,7 +440,7 @@ export async function withSubject<T>(
     if (options.verifiedEmail !== undefined) {
       await conn.query("SELECT set_config('app.current_email', $1, true)", [options.verifiedEmail]);
     }
-    const result = await fn(conn.db);
+    const result = await runAsHolder(conn, () => fn(conn.db));
     await conn.query('COMMIT');
     return result;
   } catch (error) {
@@ -492,7 +493,7 @@ export async function withMappingLink<T>(
       await conn.query(`SET LOCAL ROLE "${assertRoleName(driver.role)}"`);
     }
     await conn.query("SELECT set_config('app.current_link', $1, true)", [linkId]);
-    const result = await fn(conn.db);
+    const result = await runAsHolder(conn, () => fn(conn.db));
     await conn.query('COMMIT');
     return result;
   } catch (error) {

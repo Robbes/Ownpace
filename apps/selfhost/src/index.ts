@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, applyNewAddressesHere, readAddressChangesForReport, type PathEnding } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, applyNewAddressesHere, readAddressChangesForReport, runAsHolder, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler by its own subpath, so self-host never loads
 // managed code — hard rule 5. The managed runner, pg-boss's, has a subpath of
 // its own; the package index re-exported the Trigger.dev client until alpha.18.
@@ -38,12 +38,19 @@ import {
   applyMappingRelocation,
 } from '@openmig/orchestration';
 import { switchedOffLine } from './switched-off.ts';
+import {
+  applianceAddressSource,
+  checkMx,
+  finishAddresses,
+  mailHostOfTarget,
+  readReceivingAddresses,
+} from '@openmig/orchestration/finish-checks';
 import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
 import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, dataTypesPastCutover, HALT_IN_WORDS, firstCopyOf, type FirstCopyFacts } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, dataTypesPastCutover, HALT_IN_WORDS, firstCopyOf, readWindowView, type FirstCopyFacts } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -98,6 +105,7 @@ import type {
   PersonMigration,
 } from '@openmig/shared';
 import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
+import { anchorRecentOnly } from './recent-only-anchor.ts';
 import { addressTableAtStart, handleAddressChanges, readAddressDoor, seedAddressChanges } from './address-changes.ts';
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition, updateTransition } from './lifecycle.ts';
@@ -105,6 +113,11 @@ import { serveUi, UI_MOUNT } from './static-ui.ts';
 import { landingPath, type LandingFacts } from './landing.ts';
 import { createVerifyRunner } from './verify-run.ts';
 import { applianceOpener } from '@openmig/orchestration';
+import {
+  destinationOpenersFromConfig,
+  needFromDiscovery,
+  readDestinationSpace,
+} from '@openmig/orchestration/destination-space';
 import {
   readConfirmedList,
   runningConfirmation,
@@ -127,6 +140,7 @@ import {
 } from '@openmig/orchestration/drive-source-factory';
 import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditExportQuery, pseudonymizer } from '@openmig/shared';
 import { UNREADABLE_ANSWER_EVENT, loggableUrl, newReference, parseUnreadableAnswer, recordAppEvent, unreadableAnswerLogLine } from '@openmig/shared';
+import { MxCheckPace } from '@openmig/shared';
 import { isCrossSiteWrite } from './cross-site.ts';
 import { answersTo, describeAllowlist, hostAllowlistFrom, namedHost } from './host-allowlist.ts';
 import {
@@ -452,7 +466,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     const client = await persistenceBackend.driver.acquire();
     try {
       await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
-      return await fn(client as unknown as { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> });
+      // As the holder: a store on the shared handle awaited inside `fn` runs on
+      // this connection instead of waiting for it (PGlite's finding 5).
+      return await runAsHolder(client, () =>
+        fn(client as unknown as { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }),
+      );
     } finally {
       client.release();
     }
@@ -824,6 +842,43 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         m.mailboxMappingId,
         JSON.stringify(current),
       ]);
+    });
+  };
+
+  /**
+   * A 90-DAY MIGRATION'S ANCHOR (workplan 0170 §5.4): written into the row's
+   * `source_config_override` the first time the mapping is recorded, read
+   * back on every boot after, so a restart never moves the window. After
+   * `assertMappingRevision`, which has already refused a file that narrowed a
+   * migration of everything, and allowed one that broadened.
+   *
+   * The loaded config is given the anchored setting in place: every pass,
+   * discovery and page of this process reads `m.config`, and one that saw the
+   * file's unanchored setting could not run a window at all (`planWindow`).
+   */
+  const applyRecentOnlyAnchor = async (m: LoadedMapping): Promise<void> => {
+    await withTenantContext(m.config.tenantId as string, async (client) => {
+      const { rows } = await client.query(
+        `SELECT source_config_override FROM mailbox_mapping WHERE id = $1`,
+        [m.mailboxMappingId],
+      );
+      const stored = (rows[0] as { source_config_override?: Record<string, unknown> | null } | undefined)
+        ?.source_config_override;
+      const decided = anchorRecentOnly(m.config.recentOnly, stored, new Date());
+      if (decided.write !== undefined) {
+        await client.query(`UPDATE mailbox_mapping SET source_config_override = $2 WHERE id = $1`, [
+          m.mailboxMappingId,
+          decided.write === null ? null : JSON.stringify(decided.write),
+        ]);
+      }
+      if (decided.setting) {
+        log.info(
+          `[selfhost] ${m.config.mappingId}: copies only the last ${decided.setting.days} days, counted ` +
+            `from ${decided.setting.anchor}. Remove recentOnly from the mapping file to copy everything.`,
+        );
+      }
+      const { recentOnly: _fromFile, ...rest } = m.config;
+      (m as { config: MappingConfig }).config = decided.setting ? { ...rest, recentOnly: decided.setting } : rest;
     });
   };
 
@@ -1230,6 +1285,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     // exist first (this writes to it), and a mapping whose scope or provider
     // changed under a ledger full of items must not reach a pass at all.
     await assertMappingRevision(m);
+    await applyRecentOnlyAnchor(m);
     await recordPathsFor(m);
 
     const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
@@ -1810,6 +1866,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             adopted,
             found,
             ...(facts === undefined ? {} : { stops: pathStopChoices(facts), endings: pathEndingChoices(facts, graceEnds) }),
+            // The last 90 days, as managed reads them (workplan 0170 §5.4).
+            window: await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+              readWindowView(
+                new PgCursorStore(tdb),
+                m.config.tenantId as TenantId,
+                m.mailboxMappingId as MappingId,
+                m.config.recentOnly,
+              ),
+            ),
           });
         }
         // The channel's state travels with the status an owner already polls.
@@ -2050,6 +2115,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             // well as by category (workplan 0150 D9). Managed reads its
             // connection's kind; both say `dropbox` for Dropbox.
             sourceKind: m.config.source.type,
+            // And the destination's (workplan 0160, T2b), by the same rule.
+            targetKind: m.config.target.type,
           };
         }
         return sendJson(res, 200, out);
@@ -2472,6 +2539,46 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         });
       }
 
+      // ------------------------- Finish's addresses and MX check (0171 T10)
+      // The same two answers as managed (`finish-checks-routes.ts`), through
+      // the same `finish-checks.ts`: the source and its credentials from the
+      // mapping file and the environment, as a pass reads them. Read-only.
+      const finishCheckMatch = req.url
+        ? /^\/mappings\/([^/]+)\/finish\/(addresses|mx-check)$/.exec(req.url)
+        : null;
+      if (
+        finishCheckMatch &&
+        ((finishCheckMatch[2] === 'addresses' && req.method === 'GET') ||
+          (finishCheckMatch[2] === 'mx-check' && req.method === 'POST'))
+      ) {
+        const id = decodeURIComponent(finishCheckMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const { address, source } = applianceAddressSource(m.config.source as { type: string });
+        if (finishCheckMatch[2] === 'addresses') {
+          return sendJson(
+            res,
+            200,
+            await finishAddresses(address, () => readReceivingAddresses(source, address!, finishHttp)),
+          );
+        }
+        const wait = mxPace.take(id);
+        if (wait > 0) {
+          res.setHeader('Retry-After', String(Math.ceil(wait / 1000)));
+          return sendJson(res, 429, { error: 'mx_check_paced', retryAfterMs: wait });
+        }
+        const target = (m.config.domains?.mail?.target ?? m.config.target) as { type?: string };
+        return sendJson(
+          res,
+          200,
+          await checkMx({
+            address,
+            family: source.family,
+            destinationKind: target.type ?? '',
+            destinationMailHost: mailHostOfTarget(target),
+          }),
+        );
+      }
       // ------------------------------------------ the sharing queue (ADR-0032)
       const sharingGetMatch =
         req.method === 'GET' && req.url ? /^\/mappings\/([^/]+)\/sharing$/.exec(req.url) : null;
@@ -3716,7 +3823,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return sendJson(res, 400, { error: 'invalid_request', message: reason, reason });
         }
         const from = await mappingStatus(m);
-        const transition = updateTransition(from, to);
+        // Not into the lane while it copies only the last 90 days (workplan 0170 D8).
+        const transition = updateTransition(from, to, undefined, m.config.recentOnly !== undefined);
         if ('refuse' in transition) {
           return sendJson(res, 409, {
             error: 'lifecycle_refused',
@@ -3748,6 +3856,28 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         scheduleMapping(m);
         log.info(`[selfhost] ${m.config.mappingId}: keeps copying after its cutover (continuous lane)`);
         return sendJson(res, 200, { id, status: to, changed: true });
+      }
+
+      // GET /mappings/:id/destination-space — free space at each destination,
+      // read live before Start (workplan 0171 T9), the same shape managed's
+      // `GET /api/migrations/:id/destination-space` answers. Read-only:
+      // each writer is opened, asked, and closed; nothing is stored.
+      const spaceMatch =
+        req.method === 'GET' && req.url ? /^\/mappings\/([^/]+)\/destination-space$/.exec(req.url) : null;
+      if (spaceMatch) {
+        const id = decodeURIComponent(spaceMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const discovered = await discoveryStore.getDiscovery(
+          m.config.tenantId as TenantId,
+          m.mailboxMappingId as MappingId,
+        );
+        const pools = await readDestinationSpace(
+          destinationOpenersFromConfig(m.config, ledgerOptions),
+          needFromDiscovery(discovered),
+          { where: m.config.mappingId },
+        );
+        return sendJson(res, 200, { mappingId: id, pools });
       }
 
       const startMatch = req.method === 'POST' && req.url ? /^\/mappings\/([^/]+)\/start$/.exec(req.url) : null;
@@ -4017,6 +4147,20 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     stop: () => shutdown(server, handles, persistenceBackend),
   };
 }
+
+/**
+ * Graph's and Gmail's answers for Finish's addresses (0171 T10): two public
+ * hosts, asked with plain `fetch` as the appliance asks every host.
+ */
+const finishHttp: HttpClient = {
+  async request({ url, method, headers }) {
+    const r = await fetch(url, { method, headers });
+    return { status: r.status, body: await r.text(), headers: {} };
+  },
+};
+
+/** One MX check per ten seconds per mapping (0171 §7.3). */
+const mxPace = new MxCheckPace();
 
 function sendJson(res: ServerResponse, code: number, body: unknown): void {
   res.writeHead(code, { 'content-type': 'application/json' });

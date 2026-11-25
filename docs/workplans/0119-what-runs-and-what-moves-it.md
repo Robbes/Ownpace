@@ -2,7 +2,109 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-24 (update this block at the end of every session)
+## Status — 2026-11-25 (update this block at the end of every session)
+
+**2026-11-25: what alpha.20 moves, which live takes with its deploy, planned for 2026-11-26.** The
+fold for `v0.2.0-alpha.20` (0146's entry of the same day) carries what `main` merged after
+alpha.19's C, `909e6d74`: 32 pull requests (0146's entry lists them). What alpha.20 moves:
+
+- the managed job runner's pg-boss, `12.38.2` to `12.39.0`, the one npm package `pnpm-lock.yaml`
+  moves; its job schema goes from 46 to 47 when alpha.20's worker first starts, one way (#2138,
+  this block's entry of 2026-11-24);
+- the web image's and the public site's nginx, `1.31.9-alpine-slim` to `1.31.10-alpine-slim`, and
+  upstream's rebuilds, same versions, of `postgres:18.7-alpine`, `node:26.13.1-trixie-slim`,
+  `gcr.io/distroless/nodejs26-debian13:nonroot` and both Nextcloud majors (#2127, this block's
+  entry of 2026-11-24);
+- one new pin, in the image builds: the SBOM generator `docker/buildkit-syft-scanner:1.12.1`, by
+  digest, which BuildKit runs to attest each published image's packages (#2137).
+
+Live also takes alpha.19's moves with this deploy: the identity provider's Zitadel `v4.20.5`, one
+way for its database, `packageManager`'s pnpm 11.29.0, and the test mail server's Stalwart
+`v1.2.0-alpine`, which live never runs (this block's entry of 2026-11-24, evening). No migration in
+either chain moves. Postgres, Node, distroless and Nextcloud keep their versions on rebuilt
+digests, and both database builds become `localhost/postgres:18.7-alpine-8a9f2fb59c72`, so the
+database containers are made again from the rebuilt image. Not moved: the PgBouncer, Gatus,
+Mailpit, Stalwart and Zitadel pins.
+
+**2026-11-24: pg-boss 12.39.0, moved on purpose from 12.38.2, for alpha.20; the job schema moves
+from 46 to 47, one way.** The owner, 2026-11-24: *"alpha.20 (advice): yes on all"*, knowing it
+moves the job schema one way, and *"for 20 i also waive al waiting/days."* npm lists 12.39.0 at
+2026-11-21 16:41 UTC; Dependabot would have offered it on 2026-11-30. On branch
+`claude/ownpace-public-readiness-y7orc6-pg-boss-12-39`, from `main` at `8f46f61b`; merged as
+#2138 on 2026-11-25 at 04:49 UTC (`34fcd12e`), after alpha.19's tag. The lockfile was resolved once the three-day floor had passed of
+itself, so `minimumReleaseAgeExclude` gains no entry.
+
+- **What the migration from 46 to 47 does**, read in both releases' packages from the npm registry,
+  not from GitHub (`dist/migrationStore.js`, `dist/plans.js`, `dist/schema.json`): one statement,
+  `ALTER TABLE pgboss.schedule ADD COLUMN IF NOT EXISTS sent_on timestamp with time zone`,
+  nullable and with no default, so no row is rewritten. pg-boss runs it in one transaction: its
+  advisory lock on the schema, an assertion that the version row reads 46, the column, then the
+  version row set to 47. Its `uninstall` drops the column again, but nothing here runs pg-boss's
+  rollback, and a runner of 12.38.2 refuses version 47 at its start (`PG_BOSS_SCHEMA_VERSION`), so
+  for us it is one way.
+- **What `sent_on` is for.** The latest occurrence of a schedule that was sent. `schedule()` sets
+  it to `job_now()` on a new row or a changed expression, zone or precision, and keeps it
+  otherwise; only 12.39.0's new per-second path, opt-in by `precision: 'second'`, reads it. The
+  runner's schedules are cron expressions in UTC at the minute, sent by the minute pass as before,
+  so the column is written and not read here.
+- **What else 12.39.0 changes in what the runner asks of it**, read in the same diff: a fetch on a
+  queue with singleton keys ranks a key's jobs by priority, then creation (12.38.2 left the order
+  open); a batch insert goes in sorted by singleton key, against a deadlock between two batches; a
+  transactional `work()` with an expiry above a day needs `transactionTimeoutSeconds`, and the
+  runner calls no `work()`. The failure sentences `operator.sh jobs` reads, the seven days before a
+  settled job is deleted, and the absence of an archive table are 12.38.2's; the comments that
+  name them say 12.39.0. Its dependency floors rise: `cron-parser` ^5.10.6, `rrule-temporal`
+  ^2.3.0, `serialize-error` ^13.1.0.
+- **What moved.** `packages/scheduler/package.json` pins `12.39.0`, `pnpm-lock.yaml` with it, and
+  `PG_BOSS_SCHEMA_VERSION` in `packages/scheduler/src/pg-boss/job-runner.ts` is 47;
+  `a-job-schema-the-runner-was-not-proved-on` fails until the two agree. The pin watch has no
+  pg-boss row, so none moves.
+- **The migration, run.** On a throwaway cluster from `scripts/local-pg.sh`: a schema installed by
+  12.38.2 read version 46, with one queue, one schedule (`*/5 * * * *`, UTC) and one job; started
+  under 12.39.0 it read 47, `pgboss.schedule` had gained `sent_on` (`timestamp with time zone`,
+  nullable) and nothing else, and the schedule and the job were still there, `sent_on` NULL. The
+  lockfile moves five lines: the specifier, the resolution and the integrity
+  (`sha512-4KE+T1JV…`, the registry's own) of pg-boss alone; the three dependencies resolve to
+  `cron-parser` 5.10.6, `rrule-temporal` 2.3.0 and `serialize-error` 13.1.0, the versions in the
+  tree already.
+- **For live:** one-way. `deploy-live.sh` already reads a move of pg-boss's version in the lockfile
+  or of `PG_BOSS_SCHEMA_VERSION` as one-way (*moves pg-boss in pnpm-lock.yaml: 12.38.2 ->
+  12.39.0*, *moves pg-boss's schema version (PG_BOSS_SCHEMA_VERSION): 46 -> 47*); 0146's Status
+  says what alpha.20's sheet must hold. **For OTA:** an E2E (managed) run on the branch migrates
+  OTA's shared database to 47, and `main`'s next nightly then refuses until the branch merges, as
+  on 2026-11-23 (run 45183707271). So that run is dispatched just before the merge, and not before.
+
+**2026-11-24: alpha.20's image pins — nginx 1.31.10 and five rebuilt bases — inside their floors on
+the owner's waiver.** The owner, 2026-11-24: *"alpha.20 (advice): yes on all"* and *"for 20 i also
+waive al waiting/days."* On branch `claude/ownpace-public-readiness-y7orc6-a20-images`, from `main`
+at `8f46f61`, a draft that merges only after alpha.19 is tagged. Read without a login from Docker
+Hub's registry and tag API and from gcr.io; each manifest body hashes to its Docker-Content-Digest
+and every blob read was checked against its digest; nothing was run.
+- **nginx `1.31.9-alpine-slim` → `1.31.10-alpine-slim`**, index `c293b287…` (pushed 07:52:59
+  UTC), in `apps/web/Dockerfile` and `deploy/compose/www.yml`. On amd64, of 21 packages: nginx
+  1.31.9-r1 → 1.31.10-r1, libssl3 and libcrypto3 3.5.9-r0 → 3.5.9-r1. The first layer, Alpine
+  3.24's root filesystem, is the same blob on amd64 and arm64; `NGINX_VERSION` is the one env
+  change. nginx.org, Alpine's secdb and pkgs host were refused to this reading, so neither nginx's
+  notes for 1.31.10 nor what libssl3's -r1 fixes were read.
+- **postgres `18.7-alpine`**, `75dcac3d…` → `0115267a…` (pushed 2026-11-21 16:08), in both
+  database Dockerfiles, `ci.yml`'s Atlas dev URL and the integration tests' container. On amd64
+  the one package that moves is `.postgresql-rundeps`; the config moves `GOSU_VERSION` 1.19 → 1.20
+  (the builds remove gosu) and the index adds riscv64. The builds' name moves to
+  `localhost/postgres:18.7-alpine-8a9f2fb59c72` in `managed.yml`, `dev.yml` and the appliance's
+  `compose.yml`, by the `sed` `a-database-started-as-root` printed.
+- **node `26.13.1-trixie-slim`**, `e6bedef2…` → `abe7e5a8…` (pushed 11:41), in the api, worker,
+  appliance and web Dockerfiles: the same Node; Debian 13.7 → 13.8, base-files, libc6/libc-bin
+  deb13u5, libssl3t64 and openssl-provider-legacy 3.5.9-1~deb13u1, zlib1g deb13u1.
+- **distroless `nodejs26-debian13:nonroot`**, `767ffb7e…` → `ffa8a754…` (uploaded 2026-11-22
+  21:11), in the api, worker and appliance Dockerfiles: base-files, libc6 deb13u5 and libssl3t64
+  3.5.9-1~deb13u1, nothing else; it closes no alert (0166, 2026-11-24).
+- **Nextcloud, by hand**: `35.0.3-apache` `8a7a65b8…` → `2567f3c3…` (13:51:50) in `managed.yml`,
+  `dev.yml` and the test container; `34.0.6-apache` `3031e7f8…` → `031b30f0…` (13:51:12) in
+  `nextcloud-second-major.yml`. version.php stays 35.0.3.2, PHP 8.5.12 → 8.5.13, and among 22
+  Debian moves apache2 2.4.69 → 2.4.71-1~deb13u1, CVE-2026-119618's fix. The two still share
+  their first fourteen layers. php.net was refused, so PHP's notes were not read.
+- **Gates**: the guards in `scripts/`, 306 files, 7281 tests, pass. Needs before merge: E2E
+  (self-hosted) on Postgres and on PGlite, and E2E (managed), dispatched on the branch.
 
 **2026-11-24, evening: what alpha.19 moves, which live takes with alpha.20.** The fold for
 `v0.2.0-alpha.19` (0146's entry of the same day) carries what `main` merged after alpha.18's C,

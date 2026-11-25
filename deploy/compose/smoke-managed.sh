@@ -3327,7 +3327,7 @@ catalog_queues() { # catalog_queues [catalog.ts] — the names; 1 and nothing wh
 
 # EVERY JOB THIS RUN SAW, COMPLETED, AND AT LEAST ONE: pg-boss's "no runner at
 # all" is "no job ran" (workplan 0167 T7). Read from `pgboss.job` through the
-# connection that reads the ledger (`q`): pg-boss 12.38.2 has no archive table,
+# connection that reads the ledger (`q`): pg-boss 12.39.0 has no archive table,
 # and keeps a finished job in `pgboss.job` until its deletion time, a week by
 # default, so every job created since this smoke's start is there. By queue
 # and state:

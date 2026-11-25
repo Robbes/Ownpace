@@ -164,7 +164,7 @@ beforeEach(() => {
 
 describe('the list says which organisations nobody uses', () => {
   it('names why beside the name, and nothing for one in use', async () => {
-    vi.mocked(listSupportTenants).mockResolvedValue([IN_USE, NOBODY, NOTHING]);
+    vi.mocked(listSupportTenants).mockResolvedValue({ tenants: [IN_USE, NOBODY, NOTHING], next: null });
     mount(<SupportTenants />);
     const nobodyRow = (await screen.findByRole('link', { name: 'Nobody BV' })).closest('tr')!;
     expect(nobodyRow).toHaveTextContent(`${S['support.unused.nobody']} · ${S['support.unused.nothing']}`);
@@ -177,7 +177,7 @@ describe('the list says which organisations nobody uses', () => {
   });
 
   it('counts people, connections and the last pass, and says never for none', async () => {
-    vi.mocked(listSupportTenants).mockResolvedValue([IN_USE, NOBODY]);
+    vi.mocked(listSupportTenants).mockResolvedValue({ tenants: [IN_USE, NOBODY], next: null });
     mount(<SupportTenants />);
     const inUseRow = (await screen.findByRole('link', { name: 'In Use BV' })).closest('tr')!;
     const cells = within(inUseRow).getAllByRole('cell').map((c) => c.textContent);
@@ -189,7 +189,7 @@ describe('the list says which organisations nobody uses', () => {
   });
 
   it('says when a closed one is erased, and does not call it unused', async () => {
-    vi.mocked(listSupportTenants).mockResolvedValue([CLOSED]);
+    vi.mocked(listSupportTenants).mockResolvedValue({ tenants: [CLOSED], next: null });
     mount(<SupportTenants />);
     const row = (await screen.findByRole('link', { name: 'Closed BV' })).closest('tr')!;
     expect(row).toHaveTextContent(
@@ -199,7 +199,7 @@ describe('the list says which organisations nobody uses', () => {
   });
 
   it('filters to the ones not in use, and to the closed ones, from the one list read', async () => {
-    vi.mocked(listSupportTenants).mockResolvedValue([IN_USE, NOBODY, NOTHING, CLOSED]);
+    vi.mocked(listSupportTenants).mockResolvedValue({ tenants: [IN_USE, NOBODY, NOTHING, CLOSED], next: null });
     mount(<SupportTenants />);
     await screen.findByRole('link', { name: 'In Use BV' });
     const select = screen.getByLabelText(S['support.filter.label']);

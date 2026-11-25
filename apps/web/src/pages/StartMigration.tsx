@@ -52,6 +52,7 @@ import {
   wizardTypeForConnectionKind,
   addressKey,
   isAddress,
+  isWindowedDomain,
   mailLoginOf,
   type ArchiveProvider,
   type DiscoveryDomain,
@@ -86,7 +87,7 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
 import { serverGuides, serverMessage } from '../services/api.ts';
-import { GuideLinks } from '../components/GuideLink.tsx';
+import { GuideLink, GuideLinks } from '../components/GuideLink.tsx';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import {
   START_PROVIDERS,
@@ -96,6 +97,8 @@ import {
   connectionsFor,
   destinationsFor,
   grantableByLink,
+  grantProvidersServed,
+  type GrantLinkProvider,
   migrationsFor,
   offers,
   EXPORT_CARD,
@@ -117,6 +120,7 @@ import {
   type StartProvider,
 } from '../services/start-plan.ts';
 import { MigrationCountSection, useMigrationCount } from '../components/ConfirmMigration.tsx';
+import { DestinationSpaceLines } from '../components/DestinationSpace.tsx';
 import { CeilingAtStartNote, measuredBytes } from '../components/CeilingAtStartNote.tsx';
 import { PathsAtStartNote } from '../components/PathsAtStartNote.tsx';
 import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
@@ -398,10 +402,13 @@ const StartMigration: React.FC = () => {
       google?: DiscoveryDomain[];
       microsoft?: DiscoveryDomain[];
       googleClient?: 'deployment' | 'connection';
+      grantProviders?: GrantLinkProvider[];
     } = {};
     if (providerAccounts?.google) facts.google = providerAccounts.google.domains;
     if (providerAccounts?.google?.client) facts.googleClient = providerAccounts.google.client;
     if (providerAccounts?.microsoft) facts.microsoft = providerAccounts.microsoft.domains;
+    // Whose grant links this deployment serves (workplan 0171 §3.2).
+    if (providerAccounts) facts.grantProviders = grantProvidersServed(providerAccounts);
     return facts;
   }, [providerAccounts]);
 
@@ -439,6 +446,13 @@ const StartMigration: React.FC = () => {
   // for each card, as typed or picked once its account is connected.
   const [oneFolder, setOneFolder] = React.useState<ReadonlyArray<StartProvider>>([]);
   const [folders, setFolders] = React.useState<Readonly<Record<string, string>>>({});
+  /**
+   * HOW MUCH (workplan 0170 §7.1): everything, the default, whose last 90 days
+   * come first; or only the last 90 days, to try a destination with them. One
+   * choice for every migration this flow makes, sent with those that carry a
+   * data type a window applies to (mail, files, calendars).
+   */
+  const [recentOnly, setRecentOnly] = React.useState(false);
 
   const people: ReadonlyArray<Person> = (peopleQuery.data?.people ?? []).filter(
     (p) => !p.implicit && p.displayName !== null,
@@ -794,6 +808,13 @@ const StartMigration: React.FC = () => {
     const folder = prefixOf(m).trim();
     return folder === '' ? {} : { targetFolderPrefix: folder };
   };
+  /**
+   * Only the last 90 days, where that was chosen and the migration carries a
+   * data type it applies to: the server refuses it on contacts and tasks alone,
+   * which are copied whole either way.
+   */
+  const recentOnlyFor = (m: PlannedMigration): Pick<CreateMappingInput, 'recentOnly'> =>
+    recentOnly && m.types.some(isWindowedDomain) ? { recentOnly: true } : {};
   /** Where a migration's files start, where only one folder of them moves: after the account's own. */
   const folderOf = (m: PlannedMigration) => {
     const key = folderKeyOf(m.sourceCard);
@@ -827,6 +848,7 @@ const StartMigration: React.FC = () => {
         targetConfig: { username: m.targetUsername ?? '', password: '' },
         syncConfig: { domains: [...m.types] },
         ...prefixFor(m),
+        ...recentOnlyFor(m),
       };
     }
     const files = m.types.includes('file');
@@ -848,6 +870,7 @@ const StartMigration: React.FC = () => {
       targetConfig: { username: m.targetUsername ?? '', password: '' },
       syncConfig: { domains: [...m.types] },
       ...prefixFor(m),
+      ...recentOnlyFor(m),
     };
   };
 
@@ -1014,6 +1037,8 @@ const StartMigration: React.FC = () => {
               onExports={setExportsTicked}
               oneFolder={oneFolder}
               onOneFolder={setOneFolder}
+              recentOnly={recentOnly}
+              onRecentOnly={setRecentOnly}
             />
           )}
           {step === 'connect' && (
@@ -1054,6 +1079,7 @@ const StartMigration: React.FC = () => {
               planned={planned}
               made={made}
               titles={titles}
+              recentOnly={recentOnly && planned.some((m) => m.types.some(isWindowedDomain))}
               personName={personName}
               awaitsGrant={(m) => byLink(m.sourceCard) && accounts.signed(m.sourceConnectionId)?.ready !== true}
               onStarted={() => {
@@ -1377,6 +1403,9 @@ export const WhatStep: React.FC<{
   /** The providers whose files move from one folder only (0153 open question 5, item 4). */
   oneFolder?: ReadonlyArray<StartProvider>;
   onOneFolder?: (next: ReadonlyArray<StartProvider>) => void;
+  /** Only the last 90 days, rather than everything (workplan 0170 §7.1). */
+  recentOnly?: boolean;
+  onRecentOnly?: (recentOnly: boolean) => void;
 }> = ({
   providers,
   served,
@@ -1394,11 +1423,17 @@ export const WhatStep: React.FC<{
   onExports = () => undefined,
   oneFolder = [],
   onOneFolder = () => undefined,
+  recentOnly = false,
+  onRecentOnly = () => undefined,
 }) => {
   const { t, locale } = useLocale();
   const { list } = useFormatters();
   const label = useProviderLabel();
   const choices: PlanChoices = microsoftMail ? { microsoftMail } : {};
+  // The choice of how much is asked only where it changes something: a
+  // window applies to mail, files and calendars, and to an export's photos,
+  // and contacts and tasks are copied whole either way.
+  const windowed = exports.length > 0 || providers.some((p) => movesFrom(p).some(isWindowedDomain));
   const typeWords = (types: ReadonlyArray<DiscoveryDomain>) =>
     list(types.map((d) => t(DOMAIN_STRING_KEY[d]).toLocaleLowerCase(locale)));
   return (
@@ -1506,7 +1541,63 @@ export const WhatStep: React.FC<{
           </fieldset>
         );
       })}
+      {windowed && <HowMuch recentOnly={recentOnly} onRecentOnly={onRecentOnly} />}
     </div>
+  );
+};
+
+/**
+ * HOW MUCH (workplan 0170 §7.1; the owner, 2026-11-24: *"fit in UX!"*), under
+ * the data types: everything, selected, or only the last 90 days. Everything
+ * copies the last 90 days first and the rest after, which is how every
+ * migration copies and is not a choice (D4); only the last 90 days stops
+ * there, until *Copy everything* on the migration's page broadens it. The
+ * guide says both, under *Why?*'s line.
+ */
+const HowMuch: React.FC<{ recentOnly: boolean; onRecentOnly: (recentOnly: boolean) => void }> = ({
+  recentOnly,
+  onRecentOnly,
+}) => {
+  const { t } = useLocale();
+  const allId = React.useId();
+  const recentId = React.useId();
+  const name = 'start-how-much';
+  return (
+    <fieldset data-how-much>
+      <legend className="font-semibold text-gray-900">{t('start.what.amount.label')}</legend>
+      <div className="mt-2 space-y-1">
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+          <input
+            type="radio"
+            name={name}
+            checked={!recentOnly}
+            onChange={() => onRecentOnly(false)}
+            aria-describedby={allId}
+            className="h-4 w-4"
+          />
+          <span className="text-gray-900">{t('start.what.amount.all')}</span>
+        </label>
+        <Hint id={allId} className="ml-7" text={t('start.what.amount.all.hint')} />
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+          <input
+            type="radio"
+            name={name}
+            checked={recentOnly}
+            onChange={() => onRecentOnly(true)}
+            aria-describedby={recentId}
+            className="h-4 w-4"
+          />
+          <span className="text-gray-900">{t('start.what.amount.recent')}</span>
+        </label>
+        <Hint
+          id={recentId}
+          className="ml-7"
+          text={t('start.what.amount.recent.hint')}
+          why={t('start.what.amount.recent.why')}
+        />
+        <GuideLink handle="start#last-90-days-only" className="ml-7 block text-sm text-blue-700 hover:underline" />
+      </div>
+    </fieldset>
   );
 };
 
@@ -2779,10 +2870,13 @@ export const CheckStep: React.FC<{
   addressesUnsaved?: boolean;
   /** Told once any migration has started, so the way back to the address step closes. */
   onAnyStarted?: () => void;
+  /** Only the last 90 days were chosen, for a migration a window applies to (workplan 0170 §7.1). */
+  recentOnly?: boolean;
 }> = ({
   planned,
   made,
   titles,
+  recentOnly = false,
   onStarted,
   personName = '',
   awaitsGrant = () => false,
@@ -2804,6 +2898,13 @@ export const CheckStep: React.FC<{
   const [measured, setMeasured] = React.useState<Readonly<Record<string, number>>>({});
   const onMeasured = React.useCallback(
     (id: string, bytes: number) => setMeasured((prev) => (prev[id] === bytes ? prev : { ...prev, [id]: bytes })),
+    [],
+  );
+  // Whose destination is known to be too small (workplan 0171 T9, D4 (a)):
+  // Start then reads *Start anyway*.
+  const [spaceHeld, setSpaceHeld] = React.useState<Readonly<Record<string, boolean>>>({});
+  const onSpaceHolds = React.useCallback(
+    (id: string, holds: boolean) => setSpaceHeld((prev) => (prev[id] === holds ? prev : { ...prev, [id]: holds })),
     [],
   );
   const [starting, setStarting] = React.useState(false);
@@ -2905,6 +3006,12 @@ export const CheckStep: React.FC<{
   return (
     <div className="space-y-6">
       <p className="text-sm text-gray-700">{t('start.check.intro')}</p>
+      {/* HOW MUCH, said again where it starts (0170 §7.1), in the choice's own words. */}
+      {recentOnly && (
+        <p className="text-sm font-medium text-gray-900" data-recent-only>
+          {t('start.what.amount.recent')}
+        </p>
+      )}
       {addressLines.length > 0 && (
         <ul className="space-y-1 text-sm text-gray-700 break-words" data-address-lines>
           {addressLines.map((line) => (
@@ -2936,6 +3043,7 @@ export const CheckStep: React.FC<{
             title={titles[m.key] ?? ''}
             onReady={onReady}
             onMeasured={onMeasured}
+            onSpaceHolds={onSpaceHolds}
             {...(m.notAdded === undefined ? {} : { notAdded: m.notAdded })}
             {...(startFailed[m.id] === undefined ? {} : { failed: startFailed[m.id] })}
           />
@@ -3036,7 +3144,13 @@ export const CheckStep: React.FC<{
                   aria-describedby={allReady ? undefined : waitsId}
                   className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {starting ? t('confirm.starting') : t('start.check.start')}
+                  {starting
+                    ? t('confirm.starting')
+                    : t(
+                        counted.some((m) => !started.has(m.id) && spaceHeld[m.id] === true)
+                          ? 'start.check.space.startAnyway'
+                          : 'start.check.start',
+                      )}
                 </button>
               )}
               {!allReady && (
@@ -3154,7 +3268,9 @@ const MigrationCheck: React.FC<{
   failed?: string;
   onReady: (mappingId: string, ready: boolean) => void;
   onMeasured?: (mappingId: string, bytes: number) => void;
-}> = ({ mappingId, title, notAdded, failed, onReady, onMeasured }) => {
+  /** Whether its destination is known to be too small (workplan 0171 T9). */
+  onSpaceHolds?: (mappingId: string, holds: boolean) => void;
+}> = ({ mappingId, title, notAdded, failed, onReady, onMeasured, onSpaceHolds }) => {
   const { t } = useLocale();
   const count = useMigrationCount(mappingId);
   const [acked, setAcked] = React.useState(false);
@@ -3179,6 +3295,8 @@ const MigrationCheck: React.FC<{
         heading={title}
         ackId={`start-ack-${mappingId}`}
       />
+      {/* Free space at the destination, once the count (the need) is in. */}
+      <DestinationSpaceLines mappingId={mappingId} enabled={!count.stillCounting} onHolds={onSpaceHolds} />
       {count.countUnfinished && (
         <p className="mt-2 text-sm text-amber-700" role="note">
           {t('confirm.countUnfinished')}

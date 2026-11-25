@@ -77,6 +77,14 @@ export const en = {
   // drawn, and the tiles' letters are hidden, so without it the line was
   // heard as *Gmail Soverin*, with no way to tell which is the source.
   'people.line.to': 'to',
+  // THE LAST 90 DAYS FIRST (workplan 0170 §7.2, §7.3): one line for a
+  // migration's window, under its name. The milestone and what follows it,
+  // while the older items are copied; a migration of only the last 90 days
+  // kept in step for them, as its stage says.
+  'people.line.keptForRecent': 'Kept in step for the last 90 days.',
+  'people.line.recentFirst': 'Copying your last 90 days first.',
+  'people.line.recentIn': 'Your last 90 days are in.',
+  'people.line.olderComing': 'Older items are still coming.',
   'people.loadFailed': 'Could not load who each migration is for.',
   'people.unassigned.title': 'Not with a person yet',
   'people.unassigned.hint': 'Add each to the person it is for; it joins their card.',
@@ -151,6 +159,9 @@ export const en = {
   'person.step.finish.done': 'Finished',
   // Every migration switched, and one is kept in step after it (the continuous lane).
   'person.step.finish.continuous': 'Switched, and kept in step',
+  // A migration of only the last 90 days is not switched over before it is
+  // broadened (workplan 0170, the owner's D8): Finish waits for *Copy everything*.
+  'person.step.finish.recentOnly': 'After Copy everything',
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
@@ -206,6 +217,10 @@ export const nl: Record<keyof typeof en, string> = {
   'people.line.leftAsIs': '{count} ongemoeid gelaten',
   'people.line.checkPassed': 'De verificatie is {when} geslaagd',
   'people.line.to': 'naar',
+  'people.line.keptForRecent': 'Wordt bijgehouden voor de afgelopen 90 dagen.',
+  'people.line.recentFirst': 'Eerst de afgelopen 90 dagen.',
+  'people.line.recentIn': 'De afgelopen 90 dagen staan erin.',
+  'people.line.olderComing': 'Oudere items komen nog.',
   'people.loadFailed': 'Kon niet laden bij wie elke migratie hoort.',
   'people.unassigned.title': 'Nog niet bij een persoon',
   'people.unassigned.hint': 'Voeg elke migratie toe aan de persoon voor wie ze is.',
@@ -268,4 +283,5 @@ export const nl: Record<keyof typeof en, string> = {
   'person.step.finish.notYet.noMail': 'Stap over op het nieuwe systeem, en rond dan af',
   'person.step.finish.done': 'Afgerond',
   'person.step.finish.continuous': 'Overgestapt, en wordt bijgehouden',
+  'person.step.finish.recentOnly': 'Na Alles kopiëren',
 };

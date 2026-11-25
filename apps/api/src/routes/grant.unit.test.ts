@@ -408,6 +408,8 @@ describe('what the page may know before the button', () => {
       'from',
       'organisation',
       'organisationPhone',
+      // Whose sign-in the button opens (workplan 0171 §3.2): a provider id.
+      'provider',
       'readOnlyAtProvider',
       'scope',
       'to',

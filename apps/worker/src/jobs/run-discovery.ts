@@ -27,7 +27,8 @@ import type {
   MappingId,
 } from '@openmig/shared';
 import { withTenant, PgDiscoveryStore, organisationStillOpen } from '@openmig/ledger';
-import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
+import { buildDomainDepsFromMapping, readRecentOnly } from '@openmig/orchestration/build-deps-from-mapping';
+import { discoveryWindowFor } from '@openmig/orchestration/recent-window-pass';
 import { discoverDomains, type DomainDiscoveryTask } from '@openmig/orchestration/discovery';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
 import { DISCOVERY_DOMAINS, log } from '@openmig/shared';
@@ -187,8 +188,11 @@ export function buildTask(
     run: async () => {
       const deps = await counted.open(scopePool, tenantId, mappingId);
       try {
+        // A 90-day migration counts its window (workplan 0170 §3.2).
+        const window = discoveryWindowFor(domain, await readRecentOnly(scopePool, tenantId, mappingId));
         const out = await discoverSource(deps.source, {
           ...(counted.itemBytes ? { itemBytes: sizeOf } : {}),
+          ...(window ? { window } : {}),
           // Asked before each collection is listed (0139 T7): a close while
           // this counts stops it with the close's refusal, which the loop in
           // `discoverDomains` records as this data type's error, as it records

@@ -23,6 +23,295 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0064 adds `gift`,
   `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation.
 
+## [0.2.0-alpha.20] - 2026-11-25
+
+Every first copy of mail, files and calendars now brings the last 90 days first, then everything
+older in the same pass, and a migration can copy only the last 90 days, with every contact and
+task, to try a destination with current data, then take everything older with **Copy everything**
+without starting over. A grant link can now connect a Microsoft 365 account, personal or work, as
+it connects a Google account, through one provider seam that is ready for more. Each Start screen
+says how much there is to copy and how much room the destination has; Finish lists the addresses
+at the old provider that receive mail and checks MX on a button; and Apple's data export, iCloud
+Drive and Photos, is read, Experimental. Every new Microsoft consent asks for the person's own
+profile, which Finish's address list needs; a Microsoft connection made before alpha.20 is
+connected again to list them. Microsoft 365 and Outlook.com calendars are copied again, built on
+Graph's documented calls, and a calendar pass that found calendars and read no event says so in
+amber. Gmail mail archived without a label is copied into Archive, and Check counts against
+Gmail's own All Mail. What moves from Microsoft 365 says OneDrive and names the online archive. The
+grant page says where to open the link before its first button and has a **Copy link** button;
+the Cirrux Drive screens say four things in Cirrux's terms; the operator's two support lists come
+a page at a time; and the appliance on PGlite no longer fails a pass when two data types start at
+once. The release's `bom.json` now lists every package the product runs, and each published image
+carries its own SBOM, attached to the release. Underneath, nginx moves to 1.31.10 with five rebuilt
+base images, and the managed job runner to pg-boss 12.39.0, whose job schema moves from 46 to 47
+when the worker first starts on it: one way, so a deploy to alpha.20 is undone only from the copy
+taken before it. alpha.20 adds no migration to either chain. Live runs alpha.18; the owner plans
+to deploy alpha.20 there on 2026-11-26, and alpha.19's changes go with it, among them Zitadel
+v4.20.5, which is one-way for the identity provider's database.
+
+### Added
+
+- **The last 90 days first, and a migration of only them** (workplan 0170 T1; the owner, 2026-11-24:
+  *"yes, plan it as a workplan, 90 days"*). Every first copy of mail, files and calendars now
+  copies the last 90 days first, then everything older in the same pass: mail Inbox first, then
+  Sent, then the other folders. Contacts and tasks are copied whole, as before. A migration can
+  also copy only the last 90 days of mail, files and calendars, and all contacts and tasks, to try
+  a destination with fresh data: `recentOnly: true` when it is created, or `{ "recentOnly": {
+  "days": 90 } }` in the appliance's mapping file. It can be broadened to everything later
+  without starting over (`recentOnly: false`, or the key taken out of the file); a migration of
+  everything is never narrowed to 90 days. Nothing outside the window is ever read as deleted. A
+  migration of only the last 90 days is not switched over before it is broadened (the owner:
+  *"D8: no, not before"*). Both editions run one rule, and the read of a migration says which
+  data types have their last 90 days in (`window`). No database change: the window's record is
+  kept with the cursors, and the setting in the migration's own override. The sources' own date
+  filters and the screens are 0170's other tasks, below; a source without a filter of its own
+  lists as before, and the window is applied as items are listed.
+- **The mail sources read the last 90 days first** (workplan 0170 T2, for its §4.1). Given a
+  window, an IMAP source, Gmail's included, asks the server `UID SEARCH SINCE` the day before it
+  and fetches only the messages that search answers, so a window pass no longer downloads the
+  headers of a whole folder. The day of margin covers a server that dates mail in a zone as far
+  west as UTC-12; the few extra messages are set aside by the sync loop. The cursor such a listing
+  returns names its window, so a later full listing never takes it for proof that the older mail
+  was seen. Microsoft Graph mail lists in full: its date filter on messages delta stops at 5,000
+  messages, Microsoft's own page says, which a 90-day Inbox can pass. Nothing changes for a
+  listing without a window.
+- **The file sources take the last 90 days first** (workplan 0170 T3, for its §4.2). Given a
+  window, Google Drive asks only for files modified since its start; OneDrive, Dropbox, Box,
+  WebDAV and an imported archive list as before and keep the files inside the window, and an
+  archive item with no date counts as inside it. A windowed listing is never remembered as the
+  whole folder, and no cursor that would claim older files as seen is kept. Nothing changes for
+  a listing without a window.
+- **Calendar sources read the last 90 days first** (workplan 0170 T4, D1 (a)). Asked for a
+  window, a CalDAV source (any server, Google, Apple) lists a calendar with a `time-range` from a
+  day before its start, plus every recurring series, so a server that does not expand recurrence
+  still shows the sync loop a series that began years ago and still recurs; a server that refuses
+  any of those queries has its calendar listed whole. The listing gives no cursor, and tasks are
+  never windowed. Graph calendars are read whole, and an event plainly over before the window is
+  not built (*Microsoft 365 and Outlook.com calendars are copied again*, under Fixed).
+  `eventInWindow` now decides D1 (a) from the event itself: DTEND or DURATION,
+  time zones (IANA, a VTIMEZONE's own offsets for a Windows name, the widest offsets for a
+  floating time or a date), RRULE's UNTIL and COUNT, RDATE, and overrides; what it cannot bound
+  is held. The start a CalDAV event carries is read from its own VEVENT, in UTC, no longer a
+  VTIMEZONE's 1970 start or the moment it was listed.
+- **The last 90 days first, on the screens** (workplan 0170 T5; the owner, 2026-11-24: *"fit in
+  UX!"*). *Start a migration* asks **How much?** under the data types: **Everything**, selected,
+  whose last 90 days come first and everything older after, or **Only the last 90 days**, to try
+  destinations with your current data (mail, files and calendars of 90 days, every contact and task).
+  The check screen says the choice again. A migration of only the last 90 days shows a **Last 90
+  days** chip beside its stage, reads *Kept in step for the last 90 days.*, is never *Ready to
+  switch*, and its Finish step says *After Copy everything* (the owner's D8: *"no, not before"*);
+  its page offers **Copy everything**, one way only, behind the confirmation *Copy everything
+  older too? What is there stays.* A migration of everything says *Copying your last 90 days
+  first.* while they are copied, then *Your last 90 days are in. Older items are still coming.*
+  A new guide, *How a migration copies* / *Hoe een migratie kopieert*, in English and Dutch,
+  says the order, what a 90-day migration copies, *Copy everything*, and the appliance's
+  mapping-file setting. No word *trial* or *proef* anywhere.
+- **Grant links for a Microsoft account** (workplan 0171 T3; the owner's decisions D5 (a) and D7
+  (a) of 2026-11-24). A grant link can now connect a Microsoft 365 account, personal or work, as
+  it has connected a Google account: the person opens the link, presses **Continue with Microsoft
+  as** *their account* (*Doorgaan met Microsoft als …*), signs in on Microsoft's own page, and the
+  token is stored on their migration and shown to nobody. The grant is bound to the account the
+  migration names: Microsoft's answer must come from the sign-in of the organisation it names and
+  be meant for this deployment's app, and the named address must be the account's sign-in name,
+  its primary address or one of its proxy addresses; for a personal account, its sign-in name.
+  Any other account stores nothing and leaves the link working, with *"You signed in as …; this
+  link is for …"* (*"U meldde zich aan als …; deze link is voor …"*). A person's link lists each
+  account with its own provider and button. Underneath, one provider seam
+  (`apps/api/src/routes/grant-providers.ts`) now says which providers a link can connect, and the
+  readiness check, the routes and the page ask it, ready for the accounts planned for alpha.21. The
+  authorize route is `POST /api/grant/:link/:provider/authorize`, with Google's old address kept;
+  the readiness refusal `source_not_google` is renamed `source_not_grantable`. **Every new
+  Microsoft consent also asks `openid email profile User.Read`** (D7 (a)): who signed in, and
+  their own profile, which Finish needs for the addresses that receive mail. A connection made
+  before alpha.20 lacks it until it is connected again. A Microsoft account saved for somebody
+  else is saved without a token, and Start waits until their grant brings one. A person's link
+  that cannot ask an account because two applications read it names that account's own provider,
+  so a Microsoft account is no longer told about Google applications. ADR-0035 is amended
+  (the owner, 2026-11-24). No database change.
+- **Free space at the destination, checked before Start** (workplan 0171 T9; the owner's decisions
+  D3 and D4 of 2026-11-24, both *(a)*). Each Start screen (*Start a migration*'s last step,
+  *Review and start*, and the appliance's confirm page) now says, under a migration's count, how
+  much there is to copy and how much room the destination has: *"2.0 GB to copy; 5.0 GB free at
+  cloud.example.org."* Read live and never stored, from Nextcloud's or any WebDAV server's quota
+  (RFC 4331), IMAP's `GETQUOTAROOT` where the server announces `QUOTA` (RFC 9208), JMAP's
+  `Quota/get` where the session lists it (RFC 9425), and Cirrux Drive's workspace storage; data
+  types that land in the same account are added together against one number. Where the room is
+  known and too small, the line says so and Start reads **Start anyway**; where a destination does
+  not say, the line says that, with what to check, and Start is allowed. Calendars and contacts
+  are not asked. A new read-only route answers it on both editions:
+  `GET /api/migrations/{id}/destination-space` on managed, `GET /mappings/{id}/destination-space`
+  on the appliance. No database change.
+- **Finish reads step 4: the addresses that receive mail, and MX checked on a button**
+  (workplan 0171 T10; the owner's decisions D7 (a) and D8 (a) of 2026-11-24). For a mailbox on a
+  domain the person controls, step 4 lists the addresses at the old provider that deliver into it
+  (*Addresses that receive mail*), read live from Microsoft Graph (`mail` and every `smtp:` proxy
+  address) or Gmail's send-as list, each with a tick, *Made at the new provider*; addresses on
+  the provider's own domains (`onmicrosoft.com`, `gmail.com`) are left out, and an IMAP or Apple
+  source says to check them at the old provider. *Check MX now* asks three public DNS-over-HTTPS
+  resolvers and answers one line: MX points at the new provider, still at the old one, at hosts
+  for the person to judge, or the DNS servers do not agree yet. The tick stays. Step 4's text is
+  split by the kind of address: MX for an own domain, forwarding and the automatic reply for an
+  address the provider keeps. Every new Microsoft consent asks `User.Read`, the person's own
+  profile; a connection consented before this release says *Not read from Microsoft; reconnect to
+  list them.* Two read-only routes on both editions, `GET …/finish/addresses` and `POST
+  …/finish/mx-check` (one check per ten seconds per migration). No database change.
+- **Apple's data export is read, Experimental** (workplan 0171 T1; the owner's decisions D6 and
+  D9 of 2026-11-24). An archive connection whose export is **Apple Data & Privacy** now has a
+  reader: iCloud Drive and iCloud Photos from the `.zip` parts Apple delivers, from the folder they
+  were put in unopened, or from an extracted copy. The reader finds each service's data by its own
+  list of files (`Drive Details.csv` for Drive), never by folder names, and keeps the person's
+  folders as they are. It is built on the one export opened so far, so it refuses what it does
+  not know: a zip with neither service's list (*"This does not look like an Apple export we
+  know"*), fewer `.zip` parts than the person said Apple gave them (an archive connection takes a
+  new optional `parts`), and two parts that belong to two different exports. A file is dated by
+  the zip itself; Apple's list of dates carries no time zone, so its dates are kept as text beside
+  each file and never parsed. Photos are written against Apple's description, not a real export.
+  The form's *To be tested* tag and cannot-read line go with the reader; the screen and guide
+  sentences for the part count and Advanced Data Protection follow in T2. No database change.
+
+### Changed
+
+- **Image pins moved for alpha.20** (workplan 0119; the owner, 2026-11-24: *"yes on all"*, floors
+  waived): the web image's and the public site's nginx `1.31.9-alpine-slim` to
+  `1.31.10-alpine-slim@sha256:c293b287…` (nginx 1.31.10-r1, libssl3/libcrypto3 3.5.9-r1, same
+  Alpine 3.24 root filesystem); and upstream's rebuilds, same versions, of `postgres:18.7-alpine`
+  (`0115267a…`, gosu 1.20; both database builds are now `localhost/postgres:18.7-alpine-8a9f2fb59c72`),
+  `node:26.13.1-trixie-slim` (`abe7e5a8…`, Debian 13.8), `gcr.io/distroless/nodejs26-debian13:nonroot`
+  (`ffa8a754…`, `libssl3t64` 3.5.9-1~deb13u1, which still carries both OpenSSL CVEs, workplan 0166),
+  and Nextcloud `35.0.3-apache` (`2567f3c3…`) and `34.0.6-apache` (`031b30f0…`), on PHP 8.5.13 with
+  apache2 2.4.71-1~deb13u1.
+- **The two support lists that served every row now come a page at a time** (an outside,
+  read-only check, PERF-2; the owner, 2026-11-24: *"page both (Show more) in alpha.20; a plain
+  maximum would hide rows from the operator"*; workplan 0006 §P). `GET /support/tenants` and
+  `GET /support/retained-invoices` serve a hundred rows a page, by keyset on each list's own order
+  with a unique last key, and a `next` cursor to send back as `after`; a cursor that does not parse
+  is a `400`. The operator's organisations screen and the screen of invoices kept after an erasure
+  show **Show more** only when there is more, so a list of one page looks as before. Every page is
+  its own row in the support read log, the later ones too: each is rows the operator chose to look
+  at. The API description has the new parameter and fields.
+- **What moves from Microsoft 365 now says OneDrive, and names the online archive** (workplan
+  0026; the owner, 2026-11-24: *"two promises: YES, change the wording."*). Wording only, no
+  new feature. The scope manifest's Microsoft **Files** row said *OneDrive and SharePoint
+  libraries*, while the drive source reads only the signed-in account's own OneDrive; it now says
+  OneDrive, and **SharePoint and Teams files** is a new *does not migrate* row with the way round
+  it: copy the files into your OneDrive first. **Online archive** is a second new row: neither
+  mail source reads Exchange's online archive, where Microsoft's default policy moves mail older
+  than two years, so move its folders into the mailbox first. The Microsoft guide (English and
+  Dutch) gained a *Not yet* section saying both, the site's leaving page lists both rows, and
+  the architecture document's §10.2 no longer says the archive is migrated. The manifest's
+  version moves to 2026-11-24.
+- **The managed edition's job runner is on pg-boss 12.39.0, from 12.38.2, and its job schema moves
+  from version 46 to 47, one way** (workplan 0119; the owner, 2026-11-24: *"alpha.20 (advice): yes
+  on all"*). pg-boss's migration adds one nullable column, `pgboss.schedule.sent_on`, in one
+  transaction under its own lock; the worker runs it when it first starts on 12.39.0, and the
+  runner's `PG_BOSS_SCHEMA_VERSION` is 47, so a worker or API of an earlier release refuses the
+  migrated schema rather than run on it. The deploy to this release is therefore one-way, which
+  `deploy-live.sh` says; the way back is the copy taken before it. No job, queue or schedule of
+  ours changes.
+- **Grant pages: where to open the link, said before the first button, and a Copy link button**
+  (workplan 0140; the owner's hand test on OTA, 2026-11-24). A person's grant page now says
+  where to open the link above its account cards, before the first **Continue with Google**, as
+  the one-link-per-migration page always did; it had sat under the last card. That line and the
+  consent panel's both name Firefox first: *"…copy the link into your favorite browser, such as
+  Firefox, Safari or Chrome."* (*"…zoals Firefox, Safari of Chrome."*; the owner: *"Add Firefox
+  as first real browser option."*). The page after Google has a **Copy link** button beside
+  the progress link (*Link kopiëren*), which says *Copied.* (*Gekopieerd.*), or selects the link
+  and says so where the browser does not allow copying; without its script, the page offers no
+  button. The grant-link guide and both alpha guides say the same.
+
+### Fixed
+
+- **The appliance on PGlite no longer fails a pass when two data types start at once.** On
+  `persistence: pglite` there is one database session. The handle the appliance's status and
+  cursor stores were built on sent its statements to that session without waiting for the
+  driver's queue, so one could land in the middle of another data type opening its tenant
+  transaction: it ran with no organisation set, failed (`invalid input syntax for type uuid`),
+  and took that transaction down with it (`current transaction is aborted`). The handle now
+  waits its turn for each statement, and a statement sent from inside a transaction's own work
+  runs in that transaction rather than waiting for itself. Postgres was never affected.
+  Workplan 0016's note of 2026-11-24.
+- **Microsoft 365 and Outlook.com calendars are copied again** (workplan 0059 T5; 0141 T2 waits
+  on it). A migration from a personal Microsoft account listed its four calendars and found no
+  event in any of them, while one held a weekly repeating event and another the year's holidays;
+  its mail, contacts and tasks copied. The Graph calendar source stood on two calls Graph v1.0
+  does not document: a calendar's `events/delta` (v1.0 has only `calendarView/delta`, with a start
+  and an end date) and an event's `$value` with an iCalendar body (that header takes `text` or
+  `html`). Its tests mocked both, by call order. It now lists each calendar with
+  `GET …/calendars/{id}/events` and `$select`, and reads each series' cancelled and changed
+  occurrences from the series master (`cancelledOccurrences`, `exceptionOccurrences`). It builds
+  every VEVENT from Graph's JSON: UID from `iCalUId`, times in the organizer's zone as an IANA
+  TZID with its VTIMEZONE (Windows zone names mapped by CLDR), all-day events as dates, RRULE from
+  the recurrence (To Do's mapping, with UNTIL in UTC for a timed series), EXDATE for a cancelled
+  occurrence, a RECURRENCE-ID VEVENT for a changed one, and summary, body as text, location,
+  organizer, attendees, busy status, class, categories and the reminder. A series and its
+  exceptions travel as one object. A read-only holiday or subscribed calendar is copied like any
+  other; one Graph will not list fails that calendar by name instead of listing as empty. Every
+  pass lists a calendar whole, so an edit is found by `changeKey` (a series' also by its
+  exceptions and cancellations), and an event gone from the listing is reported as removed, for
+  the owner to decide as with any source-reported deletion. With 0170's window the listing is
+  still read whole and an event over before the window is not built. A guard fails if
+  `events/delta` or an event's `$value` comes back, and the tests answer by address, in Graph's
+  documented shapes.
+- **Calendars found and nothing read from them are said in amber.** The same migration's calendar
+  row read a green *Kept in step* and *none found to copy*. When a calendar pass opened calendars
+  and read no event, and nothing of them was ever copied, the card's line and the migration
+  page's strip now say *4 calendars found, but not one event read from them*, in amber, in
+  English and Dutch.
+- **Gmail mail archived without a label was never copied** (workplan 0044, the owner's decision
+  of 2026-11-24). Over IMAP such a message lives only in All Mail, which the Gmail source
+  dropped, so Gmail's own Archive button made mail no pass copied, and the Check passed
+  because it counted from the ledger. All Mail is now read last, after every real folder, and
+  what no other folder carried is copied into a folder called Archive (the target's archive
+  mailbox on JMAP). A sighting there of mail already copied is never a move, a message under
+  two labels is copied once and not reported as moved, and mail archived after its copy stays
+  where it is, neither a deletion nor a move. Review and start shows Gmail's own All Mail
+  count beside what will be copied, and Check the migration compares against it, so a message
+  Gmail holds and no pass copied fails the check. The check counts only what arrived before
+  the last completed pass started, and one message per Message-ID, so new mail and two
+  messages sharing an id never fail it; after the switch, when Gmail can no longer be asked,
+  it counts against Ownpace's own record and says so on the screen. A migration of only the
+  last 90 days counts only the mail inside its window, as that is all it copies, and mail the
+  person chose to leave behind is added to what was recorded (the owner: *"E yes"*), so neither
+  fails the check. On an IMAP destination Archive is the folder the server marks as its archive,
+  where it has one. A migration started earlier copies its archived mail on its next pass.
+- **Four screen findings from the owner's live Cirrux Drive test** (workplan 0160, T2b; the
+  owner, 2026-11-24: *"alpha.20 (advice): yes on all"*). A file refused because Cirrux Drive
+  already holds one whose name differs only in capitals or accents, or whose name Cirrux refuses,
+  is `format_refused` now, a name the destination will not store, and on a Cirrux migration the
+  Failures page says so in Cirrux's terms instead of *"The destination refused to accept
+  this. Common causes are no space left…"*. After *Disconnect Cirrux Drive*, *Live progress*
+  names the row's own button, **Connect Cirrux Drive**, where it said *Reconnect or Replace
+  credentials*. A delete pressed while deleting by hand is off says so in the reader's words and
+  points at the switch above, where it showed the appliance's *"Set `allowApplyDeletions: true`
+  in its config"*. And a changed file whose copy was deleted in Cirrux Drive for good is
+  reported as gone from the target (workplan 0168 B2), not thrown: the throw made the copied row
+  a failed one, so *Live progress* stopped counting the copy and counted a failure more. The
+  failure queue names the destination's kind (`targetKind`) beside its source's.
+
+### Security
+
+- **The release's `bom.json` lists every package the product runs** (workplan 0006 §Q; SBOM-1,
+  from an outside, read-only check). Security Scan built it with `cyclonedx-npm`, which reads only
+  the root `package.json`, so alpha.18's SBOM lacked 56 production packages the apps import
+  (`jose`, `helmet`, `pg-boss`, `axios`, `@mollie/api-client` and `react-router` among them) and
+  marked none of its dev tooling as dev. It is now built by `pnpm sbom` from the lockfile: every
+  workspace project, a license on every component, dev-only packages marked `scope: excluded`.
+  A new step after it, `scripts/sbom-complete.mjs`, fails when a package in pnpm's production set
+  is missing from `bom.json` or marked dev.
+- **Every published image carries its own SBOM, and the release carries a copy of each** (SBOM-1,
+  the owner's decision of 2026-11-24, after an outside, read-only check compared the release's SBOM
+  with its own). `bom.json` is made from the lockfile and lists no operating-system package of the
+  images. `ownpace-api`, `-web`, `-selfhost` and `-worker` are now built with a BuildKit SBOM
+  attestation beside their provenance, from a generator pinned by digest
+  (`docker/buildkit-syft-scanner:1.12.1`): SPDX, listing the Debian packages of the distroless
+  runtime (Alpine's under web) and the npm packages installed in the image. Each build reads it
+  back from GHCR by digest, every push to `main` keeps the files with the run, and a release tag
+  attaches eight next to `bom.json`, `ownpace-<image>-<version>.linux-amd64.spdx.json` and
+  `….linux-arm64.spdx.json`; one that cannot be read fails the run. Release's verify refuses a
+  release from alpha.20 on without each file, or with one that lists no OS package or names
+  another index than the version tag's. An image's SBOM cannot see inside a bundled JavaScript
+  file; `bom.json` can (docs/release.md §3).
+
 ## [0.2.0-alpha.19] - 2026-11-24
 
 The managed edition takes any CalDAV, CardDAV or WebDAV server as a source: *Start a migration*

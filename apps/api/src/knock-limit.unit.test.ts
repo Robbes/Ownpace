@@ -193,7 +193,9 @@ describe('the premise this number is sized against', () => {
       'routes/access-requests.ts POST /',
       'routes/billing/webhooks.ts POST /mollie',
       'routes/gifts.ts POST /redeem',
-      'routes/grant.ts POST /:link/google/authorize',
+      // The same door since workplan 0171 T3, at the provider the link asks
+      // for: Google's old address is one value of `:provider`, not a new door.
+      'routes/grant.ts POST /:link/:provider/authorize',
       'routes/grant.ts PUT /:link/address-changes/:ref',
       'routes/link-reports.ts POST /:link/report',
       'routes/view.ts POST /:link/withdraw',

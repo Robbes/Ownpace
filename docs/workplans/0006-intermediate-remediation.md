@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to M done (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-25: A to T done; P, Q and R merged for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -18,12 +18,27 @@
 | K — Errors caught and dropped, again: the 12 spots the same check (ERR-1) named on `75d7949d`, 2026-11-21 | ✅ Done 2026-11-21, merged in #2022 (`a01edafe`) from branch `claude/ownpace-public-readiness-y7orc6-err1-nov21`: no real bug; 7 spots narrowed or made to say their failure, all in tests and their set-up; 5 swallow nothing, of which 3 are left as they were, one gains a test (the Cirrux connector) and one a single parse; nothing in the product changes. See §K | asked for, 2026-11-21 |
 | L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | ✅ Done 2026-11-21, merged in #2023 (`5ba9688a`) from branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`; read again 2026-11-24, unchanged (§L): none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
 | M — A comparison that is not a secret: the line a read-only check (JS-07) named in `caldav-source.ts`, 2026-11-24 | ✅ Read 2026-11-24: a false positive, a CalDAV sync token compared with the client's own (§M); nothing changed | the owner was given a reason to paste |
+| N — The web image's base: the line a read-only check (IMG-4) named, `apps/web/Dockerfile:94`, `nginx:1.31.9-alpine-slim`, 2026-11-24 | ✅ Fixed in alpha.20's image pins (#2127, §N): `nginx:1.31.10-alpine-slim` in `apps/web/Dockerfile` and `deploy/compose/www.yml` | the owner, for alpha.20: *"yes on all"* |
+| P — Two support lists that served every row: the routes a read-only check (PERF-2) named in `apps/api/src/routes/support.ts`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-support-paging`, merged as #2130 on 2026-11-25 (`272bcf2e`), in alpha.20: both routes page by keyset, a hundred rows a page, and both screens have *Show more*; every page is its own `support_read` row. See §P | 2026-11-24: page both, with *Show more*, in alpha.20 |
+| R — An import cycle (CQ-06), a swallowed test error (ERR-1) and the assistant's start-up hook (AIR-2b): three findings of an outside, read-only check on `20038a66`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-outside-n`, merged as #2129 on 2026-11-25 (`b8e76eac`): the cycle broken by moving the re-measuring family to `qualify-and-remember.ts`, with a guard; the test's catch, which let go nothing, replaced by an assertion; the hook judged false and kept, with a guard that pins it. Nothing in the product changes. See §R | asked for, 2026-11-24 |
+| O — The same list read again in a loop (PERF-4, five spots) and "green in CI proves less than it seems" (QUAL-3): a read-only check on `20038a66`, 2026-11-24 | ✅ Read and done 2026-11-24 (§O): one PERF-4 spot true, the pin watch listing the open issues once per row, now once per run; four PERF-4 spots and QUAL-3 false, nothing changed | asked for, 2026-11-24 |
+| Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | ✅ Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, merged as #2133 on 2026-11-25 (`3a4ca1ae`), in alpha.20: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). Its first proof in CI, Security Scan's push run on `main` at the merge (run 45537860598), passed | asked for, 2026-11-24 |
+| S — A path from the command line (JS-06) and an address checked before it is followed (JS-10): two findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Read 2026-11-25: both false positives (§S); the worker CLI's own `--config`, already known to Semgrep's summary, and a consent address followed only on its provider's own host; nothing changed | the owner was given a reason to paste for each |
+| T — An error dropped where free space is read (ERR-1), two lists of packages (SBOM-1, twice), two doors open on purpose (GEN-33, twice) and a page built from constants (JS-02): six findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Done 2026-11-25 (§T): ERR-1 true and fixed in `destination-space.ts`, every dropped failure now a log line, with tests; SBOM-1 already fixed by §Q and #2137, to be read again against alpha.20's lists; GEN-33 both and JS-02 false positives, nothing changed | asked for, 2026-11-25 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
 > Per the owner's instruction it must be **validated by the owner item-by-item before an agent
 > executes it**. Every finding below quotes its evidence; re-verify paths before editing
 > (AGENTS.md: don't trust paths blindly).
+
+> **SBOM-1, the images (2026-11-24, branch `claude/ownpace-public-readiness-y7orc6-a20-image-sbom`,
+> merged as #2137 on 2026-11-25, `526ba8d4`, in alpha.20).** The owner decided, for alpha.20, that every published image carries its own
+> SBOM, its base's OS packages included, and that the release carries a copy per image and
+> platform. `images.yml` builds the four images with a BuildKit SBOM attestation, reads it back by
+> digest (`scripts/image-sbom.mjs`), keeps it with every `main` run and attaches it on a tag;
+> `release-verify.mjs` checks it. Held by `scripts/an-image-that-carries-no-list-of-itself.unit.test.ts`.
+> The first proof on GitHub's runners is the first push to `main` after the merge.
 
 ## Why this plan exists
 The feature workplans (0007+) assume the test suite tells the truth and the docs don't mislead
@@ -378,6 +393,334 @@ check most likely matched the word *token*.
 
 **Decided.** A false positive, read on 2026-11-24; nothing changed. The owner was given a reason
 to paste.
+
+## Q — The release's SBOM lists what the product runs (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check (SBOM-1) compared the `bom.json` attached to
+`v0.2.0-alpha.18` with the packages it found in this repository, and reported two findings:
+"2 packages in both lists with another version" and "194 packages not in our list". Read again
+here against the published `bom.json` and `pnpm-lock.yaml` on `main` at `cdd6e89`.
+
+**The cause.** Security Scan's "Generate CycloneDX SBOM" ran `cyclonedx-npm`, which builds the
+SBOM from `npm ls` at the repository root. This is a pnpm workspace, and the root `package.json`
+names 3 dependencies and 25 devDependencies and no `workspaces`, so `npm ls` saw nothing of the
+14 workspace projects but what the root itself pulls in.
+
+| Finding | Kind | What it is |
+|---|---|---|
+| 2 packages in both lists with another version | Explained | `magic-string` (1.4.5 and 1.4.3) and `ansi-styles` (4.3.0 and 5.2.0) each have two versions in the tree, and the old BOM listed one of each (1.4.5, 4.3.0). Both second copies are dev tooling of `apps/web`. The new BOM lists all four, each `scope: excluded` |
+| 194 packages not in our list | **Real; fixed here** | alpha.18's BOM held 545 distinct name@version pairs and lacked **56 production packages** the apps import, among them `jose` (`apps/api/src/middleware/auth.ts`), `helmet` (`apps/api/src/index.ts`), `@mollie/api-client`, `pg-boss` (`packages/scheduler`), `axios`, `follow-redirects` and `react-router`. It marked nothing as dev, though 344 of its pairs are dev tooling, and named no `@openmig/*` package. On today's lockfile, 208 of its 753 entries are not in that BOM; the check counted 194 on the commit it read |
+
+**Fixed.**
+
+- The step runs `pnpm sbom --sbom-format cyclonedx --out bom.json` (pnpm 11.29.0, pinned in
+  `packageManager` and already installed in the job), keeping its name and its fatal-on-a-tag
+  handling. It reads every workspace project from the lockfile: 643 components, a license on each,
+  the 257 production packages `required` and the 386 dev ones `scope: excluded`.
+  `metadata.component` stays `ownpace@<version>`, so `release-verify.mjs`'s `checkBom` passes as
+  before. Not `--lockfile-only`, which lists no license at all.
+- A step right after it, *The SBOM lists every production package*, runs
+  `scripts/sbom-complete.mjs`: every package in pnpm's own production set (`pnpm ls -r --prod
+  --depth Infinity`, read separately from the SBOM) must be a component and not excluded, and the
+  set must hold `jose`, `helmet`, `pg-boss` and `axios`, so an empty answer cannot pass. Run on
+  alpha.18's `bom.json` it refuses with the 56; on the new one it passes, 257 of 257.
+  `scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts` holds it on a fixture cut
+  from both outputs, and refuses each production package by name when it is deleted or marked dev.
+- `scripts/a-pin-that-knows-it-is-behind.unit.test.ts` is anchored on the new command, and still
+  refuses an npx that may install, put back on the line.
+
+**What the new BOM still leaves out.** 110 of the lockfile's 753 entries: all optional, and all
+installed only on another platform (105 bound by `os`, `cpu` or `libc`, such as `@esbuild/*` and
+`@rollup/rollup-*`, and 5 WebAssembly fallbacks such as `@napi-rs/wasm-runtime`). The SBOM
+describes the tree installed on the runner that builds it.
+
+**Left for later.**
+
+- Dropping the `@cyclonedx/cyclonedx-npm` devDependency, and any override that exists only for
+  it, once the new step has run on a tag.
+- An SBOM per image, for the operating-system packages of the base images, which no npm or pnpm
+  BOM lists.
+
+## O — A list read again in a loop, and green CI (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check read `main` at `20038a66` (#2123) and named five spots
+under PERF-4, "the same data read or parsed again inside a loop", and one finding under QUAL-3,
+"green in CI proves less than it seems". Each was read on `main` at `20038a66`, where all six
+still stand as the check gives them.
+
+**PERF-4.**
+
+| Spot on `20038a66` | Verdict | Why |
+|---|---|---|
+| `scripts/idp-pin-watch.mjs:1876` | **True, fixed** | `main()` kept the issue of each of the report's seven rows with `keepIssue(row, gh, row.title)`, and each call ran `gh issue list --state open --limit 1000 --json number,title,body`: seven requests to GitHub for the same list, each parsed again. Now `keepIssues` lists the open issues once (`openIssues`) and hands that list to `keepIssue` for every row. `keepIssue` takes it as an optional fourth argument and, left without it, lists them itself as before, so its existing callers and tests are unchanged. One list can serve every row because every row has a title of its own: the seven `TITLES` are distinct, and the guard's *the routine pins* test already holds that `watch()` gives seven distinct titles. A row opens, edits or closes only issues under its own title, so nothing one row writes changes what the next row finds. `keepIssues` refuses two rows under one title, a row without one counting as the identity provider's, as `keepIssue`'s default does. A list that cannot be read is every row's error, as it was when each row read it. Shown by `a-pin-that-knows-it-is-behind.unit.test.ts`, *every row from one list of the open issues (PERF-4)*: five rows, one `issue list`; with the list not handed on, the test fails |
+| `scripts/lessons.mjs:184` | False | `collect()` maps over `guardFiles(dir)`, and each pass reads a different guard file, once |
+| `scripts/lessons.mjs:259` | False | Not in a loop: the one read of `docs/LESSONS.md`, in `--check` mode |
+| `scripts/release-verify.mjs:442` | False | `asJson` parses bom.json's bytes once per release check. Its one caller is `checkAssets` (`:429`), whose one caller, `main` (`:597`), runs it once |
+| `scripts/workplan-index.mjs:304` | False | `check()` reads the README once per run; its one caller is the CLI's `--check` (`:359`) |
+
+**QUAL-3.** The check took `main` at `20038a66`, whose push run of CI skipped the test jobs, for
+green that proves little. False:
+
+- `20038a66` (#2123) changes two files, both under `docs/workplans/`. Its push run,
+  45415351286, ran `detect-changes`, `docs-hygiene` and `fixture-uuid-check`, skipped `lint`,
+  `unit-tests`, `ui-tests`, `migration-lint` and `integration-tests`, and `ci-complete` passed.
+  That is by design: `detect-changes` found no code change, and `ci-complete` fails any gate
+  that was owed and skipped.
+- The code in that tree is the code of its parent, `8f46f61c` (#2118). That commit's push run,
+  45411654993, ran and passed `unit-tests (all)`, `lint`, `ui-tests` and
+  `integration-tests (ubuntu-24.04-arm)`.
+- Every pull request must be up to date with `main` before it merges, and `ci-complete` is
+  required on it (`docs/testing.md`), so each tree that lands was validated on its pull request
+  too.
+- No step in `.github/workflows/ci.yml` has `continue-on-error`, and each run read its own
+  commit (`head_sha` of both runs), not an earlier one.
+- `ci.yml` already explains the docs-only skip and the cancelled middle runs of a burst of
+  merges (the comments at lines 141 to 190), and
+  `a-run-that-was-cancelled-and-called-green.unit.test.ts` guards them.
+
+No workflow changed.
+
+**Decided.** PERF-4 at `idp-pin-watch.mjs` fixed; the other four PERF-4 spots and QUAL-3 read
+as false on 2026-11-24, and nothing changed for them.
+
+## P — Two support lists that served every row (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check (PERF-2) named two operator-only routes in
+`apps/api/src/routes/support.ts` that answer with every row they can see. Read on `main` at
+`20038a6`:
+
+| Spot on `20038a6` | Route | What it read |
+|---|---|---|
+| `apps/api/src/routes/support.ts:223` | `GET /support/tenants` | every organisation, from `public.support_tenants`, `ORDER BY tenant_name`, no `LIMIT` |
+| `apps/api/src/routes/support.ts:944` | `GET /support/retained-invoices` | every invoice an erasure kept, from `public.support_retained_invoices`, `ORDER BY purged_at DESC NULLS LAST, period_start DESC`, and every erasure's invoice numbers, from `public.support_erased_invoice_numbers`, `ORDER BY purged_at DESC NULLS LAST`; no `LIMIT` on either |
+
+Both lists grow with the platform: one row per organisation, and one per erasure and per
+invoice kept, which are never deleted. Neither does harm at today's size; both would answer
+slower, and send the browser a larger table, every year.
+
+**Decided (the owner, 2026-11-24).** *"page both (Show more) in alpha.20; a plain maximum would
+hide rows from the operator."*
+
+**Done.**
+
+- **Keyset paging on both routes**, a hundred rows a page (`SUPPORT_PAGE`), in
+  `apps/api/src/support-page.ts`. Each list keeps its order and gains a last key that gives every
+  row one place: `tenant_id` after `tenant_name`, which is not unique; `invoice_id` after
+  `period_start`; `tenant_ref` after the erasure's `purged_at`. Only a purge writes
+  `retained_invoice_ids` and `invoice_numbers`, and a tenant is purged once, so one `tenant_ref` is
+  one row of the numbers list. The response carries `next`, an opaque cursor (base64url of a small
+  JSON object), and `null` on the last page; `?after=` continues. Times in a cursor are text to
+  the microsecond, as the log's are, so rows stamped in the same millisecond are not skipped. A
+  NULL `purged_at`, which sorts last, is paged with the rest. On `/retained-invoices` one cursor
+  says where each list goes on or that it has ended; a later page reads only a list that has more.
+- **A cursor that does not parse is a `400`** naming `after`, before any read and with nothing
+  recorded: not base64url, not JSON, an extra or missing field, an id that is not a uuid, a day
+  or a time that does not exist, a time cut to milliseconds, the other route's cursor, or the
+  parameter given twice.
+- **Every page is its own `support_read` row.** *Show more* is the operator choosing to look at
+  rows they had not seen, and the log records what was looked at, as each page of `/log` already
+  is; a row for the first page alone would let an operator read every organisation past the first
+  hundred with nothing to show for it. The row carries no query and no count: the database refuses
+  both for these views (managed migrations 0019, 0025, 0026), and this change does not widen that.
+  Said in the comments above both routes.
+- **The screens** (`apps/web/src/pages/Support.tsx`) read the routes with `useInfiniteQuery` and
+  show **Show more** under the list only while the last page said there is more, so a list of one
+  page looks as it did. Pressed, it fetches the next page and adds it below. On the retained
+  invoices screen one button continues both lists. The filter on the organisations list counts the
+  organisations shown so far.
+- `apps/api/docs/openapi.yaml`: `after`, `next`, the `400`, and the `numbers` list the spec had
+  never described.
+
+**Shown by.** `apps/api/src/routes/support-paging.unit.test.ts`, against PGlite with both
+migration chains: 202 organisations, five of them with the same name across the first page
+break, come back as 100, 100 and 2, each once, in the database's order; 104 kept invoices and 250
+erasures with numbers come back as pages of (100, 100), (4, 100) and (0, 50), the first invoice
+page ending inside the rows with no purge time and the numbers' breaks between two purge times
+one microsecond apart; three pages write three rows; an empty list is one page with `next` null;
+fourteen kinds of bad cursor are each a `400` with nothing recorded. Two mutations were each
+caught: dropping the id from the organisations' keyset, and cutting the numbers' cursor time to
+milliseconds. `apps/web/src/pages/a-list-shown-a-page-at-a-time.unit.test.tsx`: *Show more*
+appears only when there is more, fetches with the cursor given, adds below, and goes on the last
+page.
+
+## N — The web image's base (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check (IMG-4) named `apps/web/Dockerfile:94`, the web image's
+base: `nginx:1.31.9-alpine-slim`.
+
+**Read.** `nginx:1.31.10-alpine-slim`, pushed on 2026-11-24, moves nginx 1.31.9-r1 to 1.31.10-r1,
+and libssl3 and libcrypto3 3.5.9-r0 to 3.5.9-r1, on the same Alpine 3.24 root filesystem (0119's
+Status, 2026-11-24, read from Docker Hub's registry).
+
+**Decided.** Fixed by alpha.20's image pins (#2127): `apps/web/Dockerfile` and
+`deploy/compose/www.yml` move to `1.31.10-alpine-slim`, on the owner's *"yes on all"* for alpha.20.
+
+## R — An import cycle, a swallowed test error and the start-up hook (an outside, read-only check, 2026-11-24)
+
+**Evidence.** The same outside, read-only check named three findings on `main` at `20038a66`,
+each read there and still present on that commit.
+
+**CQ-06, an import cycle: true, fixed.** `apps/api/src/routes/connections.ts:106` (the import
+statement that ends at `:113`) imports `./migrations/index.ts` for the shape builders, and
+`migrations/index.ts:133` mounts `./cirrux-oauth-routes.ts`. The Cirrux Drive consent there
+reached back into the connection routes with `await import('../connections.ts')`
+(`cirrux-oauth-routes.ts:251`) for `requalifyStoredConnection`, and its comment said it was lazy
+only because of the cycle. Done:
+
+- The family that measures a stored account again moved, word for word, to
+  `apps/api/src/routes/qualify-and-remember.ts`: `requalifyStoredConnection`,
+  `qualifyAndRemember`, `qualifyAndRememberNow`, `cirruxQualifyDeps`, the door budget and the
+  qualification floor. It imports neither `connections.ts` nor `migrations/index.ts`, directly or
+  through anything it imports. The database pool moved with it and `connections.ts` uses the same
+  one, so the process still opens one pool for both, as before.
+- `connections.ts` and `cirrux-oauth-routes.ts` import it statically. The dynamic import and its
+  comment are gone; the try/catch and the warn log around the call stay.
+- Nothing else changes: the same functions, logs, budgets and audit events.
+- `an-organisation-closed-at-every-door.unit.test.ts` counts the three uses of the stored access
+  that moved (the decrypt, `qualifyAccount` and the inner `qualifyAndRemember`) in the new file,
+  14 rather than 17 in `connections.ts`, and says why the new file asks no close of its own: it
+  opens no door, and each caller (the create, the Test and the rotation in `connections.ts`, and
+  the Cirrux Drive consent) asks before it.
+- `a-qualifier-wired-to-a-guard-that-never-lets-it-run.unit.test.ts`, which reads the qualifying
+  guard and dispatch as text, reads them in the new file, and
+  `scripts/a-client-the-worker-never-got.unit.test.ts` looks there for the API's
+  `cirruxDeploymentClient(` call.
+- Guard: `apps/api/src/routes/no-way-back-to-the-connection-routes.unit.test.ts` walks the
+  relative static and dynamic imports reachable from `connections.ts` within `apps/api/src` and
+  fails on any path back to it. With the old lazy import put back it fails, naming the path
+  through `migrations/index.ts` and `cirrux-oauth-routes.ts`. It claims that and no more; it is
+  not a survey of other cycles.
+
+**ERR-1, a swallowed test error: true, fixed.**
+`packages/orchestration/src/a-dav-source-through-the-managed-door.unit.test.ts:143` ended a
+CalDAV and a CardDAV `listFolders()` against the test's fake server with
+`.catch(() => undefined)`, and asserted only on the requests that arrived, so any failure at all
+was let go. Run, the fake server causes none: it answers every request with an empty
+multistatus, and both listings resolve to `[]`. So there was no expected failure to let go, and
+the catch is replaced by asserting that outcome, `toEqual([])`. A listing that throws now fails
+the test. Nothing else in the test changed. As with the test catches of §K, the catch was made to
+let go nothing it cannot name.
+
+**AIR-2b, the assistant's start-up hook: judged false, kept, and guarded.** `.claude/settings.json:3`
+registers a `SessionStart` hook that runs `.claude/hooks/session-start.sh`. It stays, because:
+
+- it is the repository's own script;
+- its first action is to exit unless `CLAUDE_CODE_REMOTE` is `true`, so on anyone's own computer
+  it does nothing;
+- in a Claude Code on the web container it runs `pnpm install --frozen-lockfile`, which installs
+  exactly the lockfile's versions; without it a fresh web session starts with an incomplete
+  workspace, as the script's header explains;
+- no setting redirects the model's address, and no MCP server is configured.
+
+Guard: `scripts/a-start-up-hook-read-as-a-risk.unit.test.ts` pins all of that, so a later change
+cannot quietly add one. `.claude/settings.json` holds only `hooks.SessionStart` with that one
+command; no `env` sets a `*_BASE_URL`, an `ANTHROPIC_*` variable or a proxy; there is no
+`apiKeyHelper`, `mcpServers`, `enableAllProjectMcpServers` or `enabledMcpjsonServers`; there is
+no `.mcp.json` at the root; the hook's first action is the `CLAUDE_CODE_REMOTE` exit, and every
+install it runs uses `--frozen-lockfile`. The hook and the settings file are unchanged.
+
+**Not done, on purpose.** No other import cycle was looked for, and nothing was added for the
+check's sake alone. No CHANGELOG entry: nothing a person running Ownpace sees changes.
+
+## S — A path from the command line, and an address checked before it is followed (an outside, read-only check, 2026-11-25)
+
+**Evidence.** An outside, read-only check of `main` at `49672bab`, 2026-11-25, reported two
+findings. Both lines are unchanged on `main` at `0c4a17d8`.
+
+- **JS-06**, a file path built from input: `apps/worker/src/index.ts:92`,
+  `const absolutePath = resolve(process.cwd(), configPath);`, read by `readFileSync` on the next
+  line.
+- **JS-10**, a redirect to an address from input: `apps/web/src/pages/Grant.tsx:498`,
+  `globalThis.location.assign(consent);`.
+
+**Read.**
+
+- **JS-06.** `configPath` is the worker CLI's own `--config` argument (`parseArgs`, in the same
+  file), typed by whoever runs the command; no request, page or job hands it in. The command
+  reads the file with that person's own rights and parses it as a mapping config, so a path
+  outside any folder gives them nothing they could not read already. Resolving against
+  `process.cwd()` is item I's fix: the path used to be resolved against the script's own folder.
+  Workplan 0163 §4.3 read the same line when Semgrep's `path-join-resolve-traversal` reported it,
+  and `KNOWN_FINDINGS` in `scripts/semgrep-report.mjs` gives that reason, so Semgrep's summary
+  calls the spot known on every run, as on `0c4a17d8`.
+- **JS-10.** `consent` is not the address the API answered but what
+  `consentToFollow(provider, url)` returned (`apps/web/src/services/address-to-follow.ts`,
+  workplan 0163 T4): the address as parsed, `https:`, on exactly the one host `CONSENT_HOSTS`
+  names for that provider, or null; on null the page opens nothing and says the address is not
+  the provider's own page. That is the check's own advice, a fixed list of allowed destinations.
+  `apps/web/src/pages/a-grant-button-that-goes-only-to-google.unit.test.tsx` holds it on both of
+  the page's buttons, this one and the person's link's (`Grant.tsx:285`): `http:`, another host, a
+  lookalike, `javascript:`, no address and a path of our own are each refused, and taking the
+  check out of either button fails it. Semgrep's `js-open-redirect-from-function` does not report
+  this line.
+
+**Decided.** Both false positives, read on 2026-11-25; nothing changed. The owner was given a
+reason to paste for each.
+
+## T — An error dropped where free space is read, two lists of packages, two doors open on purpose, and a page built from constants (an outside, read-only check, 2026-11-25)
+
+**Evidence.** An outside, read-only check of `main` at `49672bab`, 2026-11-25, reported six
+findings. The four files it names are unchanged on `main` at `5c073989`.
+
+- **ERR-1**, `packages/orchestration/src/destination-space.ts:60`:
+  `void asked.finally(() => target.disconnect?.()).catch(() => undefined);`.
+- **SBOM-1**, medium: 100 packages in the check's reading of the code are not in our bill of
+  materials.
+- **SBOM-1**, low: 53 packages in our bill of materials are not in the check's reading of the code.
+- **GEN-33**, `apps/api/src/routes/access-requests.ts:162`: `POST /api/access-requests` changes
+  data with no sign-in in front of it.
+- **GEN-33**, `apps/api/src/routes/billing/webhooks.ts:60`: `POST /api/billing/webhooks/mollie`,
+  the same.
+- **JS-02**, `site/build.mjs:899`: data put into the page as HTML.
+
+**Read.**
+
+- **ERR-1: true.** The chain lets a writer's connection go after its free-space answer, and its
+  `catch` dropped two failures that nothing else sees: a connection that would not close, and a
+  read that failed after its ten-second limit, by which time the race had answered `not_answered`
+  and logged only the timeout. A read that fails within its limit is the race's, and `readOne`
+  logs it. The same file dropped a third the same way: the `close()` of what was opened to ask
+  (`:86`).
+- **SBOM-1, both: the list read is not this code's.** The bill of materials on the latest
+  release is alpha.19's `bom.json`, made from alpha.19's C, `909e6d74`, not from `49672bab`, and
+  by `cyclonedx-npm`, which §Q replaced. Against the lockfile's SBOM of `main` (`pnpm sbom`, 643
+  components: 257 production, 386 dev-only), alpha.19's lacks 98 packages, 56 of them production
+  ones (§Q's gap), and lists 344 dev-only packages without marking them dev. Neither list holds a
+  package of the images' operating systems: only each image's own SBOM does (SBOM-1, #2137). The
+  check's counts, 100 and 53, match none of these sets exactly, and it named no package, so none
+  was read one by one. alpha.20 is the first release that publishes both lists made the new way.
+- **GEN-33, the access request: open on purpose.** The asker has no account yet. The file's
+  header and the API description (`security: []`) say who may call it and what makes a public
+  write safe: an INSERT-only grant under row security, every field capped, a refusing rate limit,
+  the same answer whatever happens, and a trap field. It takes no id from the request. Held by
+  `access-request-under-rls.unit.test.ts`, `access-requests.integration.test.ts`,
+  `access-requests-rate-limit.integration.test.ts`, `access-request-duplicates.unit.test.ts` and
+  `a-knock-no-person-made.unit.test.ts`.
+- **GEN-33, Mollie's webhook: open on purpose.** Mollie calls it and cannot sign in. Of the body
+  it trusts nothing but a payment id: the payment is fetched from Mollie with this service's own
+  key, so only this account's payments are found, and the change is made from the payment's own
+  metadata under that organisation's row security; a repeat changes nothing. A forged call can
+  at most make the service read again the true state of one of its own payments. The API
+  description marks it `security: []`; `invoice-billing.integration.test.ts` holds the repeat and
+  the payment that names no invoice.
+- **JS-02: a static page built from constants.** `site/build.mjs` has no `innerHTML`,
+  `outerHTML`, `document.write` or `insertAdjacentHTML` anywhere. Line 899 opens `searchLinks`,
+  which writes a page's canonical and `hreflang` `<link>` tags into the static HTML when the site
+  is built, in Node, before anyone visits. Every value in it is a constant: `PUBLIC_SITE_URL` is
+  the literal `https://www.ownpace.eu` (`site/security-txt.mjs`), the locales come from
+  `LOCALES`, and the paths from `urlFor`'s fixed page keys. No visitor's input reaches it, and
+  nothing is written into a page in a browser.
+
+**Fixed: ERR-1.** Each failure is now one log line naming the migration, the data type and the
+destination: a connection that did not close after the answer, a read that failed after its
+limit, and what was opened to ask and did not close. The answers do not change. In
+`destination-space.unit.test.ts`, four new cases: three fail on the old code, and the fourth holds
+that a failure within the limit is logged once, not twice.
+
+**Decided.** SBOM-1: already fixed on `main` by §Q (#2133) and the images' own SBOMs (#2137); read
+again against alpha.20's published lists, and package by package if the check names them.
+GEN-33, both, and JS-02: false positives; nothing changed. The owner was given a reason to paste
+for each.
 
 ---
 

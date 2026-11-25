@@ -17,10 +17,12 @@
  * in to Ownpace there"*, because there is no grant link to reopen there.
  *
  * What is pinned, in English and in Dutch: the grant page carries its line
- * before the button; the consent panel carries its own beside the button (as
+ * before the button, and a person's grant page before its first button (the
+ * owner's hand test, 2026-11-24: it had sat under the last card); the consent panel carries its own beside the button (as
  * the wizard did, until it retired: 0153 D5), which points at it (`aria-describedby`), because there it comes
  * after the button and a screen reader would otherwise reach the button first
- * (the review of 2026-09-26); each names Safari and Chrome and the other
+ * (the review of 2026-09-26); each names Firefox, Safari and Chrome, in that
+ * order (the owner, 2026-11-24: Firefox first), and the other
  * app's own "Open in browser"; and Dropbox's and Microsoft's buttons carry
  * none, because how they behave in an embedded browser is not known (0140 §1).
  */
@@ -78,8 +80,8 @@ const words = (locale: Locale, key: string): string => {
 
 /** What every version of the line has to name, in each language. */
 const A_REAL_BROWSER: Readonly<Record<Locale, RegExp>> = {
-  en: /Safari or Chrome/,
-  nl: /Safari of Chrome/,
+  en: /Firefox, Safari or Chrome/,
+  nl: /Firefox, Safari of Chrome/,
 };
 const THE_OTHER_APPS_OPTION: Readonly<Record<Locale, RegExp>> = {
   en: /'Open in browser'/,
@@ -146,7 +148,7 @@ const describedBy = (button: HTMLElement): string =>
 const before = (a: Node, b: Node): boolean =>
   (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
-describe('the grant page says to open the link in Safari or Chrome, before the button (0140 T3 (a))', () => {
+describe('the grant page says to open the link in Firefox, Safari or Chrome, before the button (0140 T3 (a))', () => {
   for (const locale of LOCALES) {
     it(`${locale}: the line is there, above Continue with Google, and says the link still works`, async () => {
       readMock.mockResolvedValue(SUBJECT);
@@ -157,6 +159,45 @@ describe('the grant page says to open the link in Safari or Chrome, before the b
       expect(line.textContent).toMatch(A_REAL_BROWSER[locale]);
       expect(line.textContent).toMatch(THE_OTHER_APPS_OPTION[locale]);
       expect(line.textContent).toMatch(GRANT_ENDING[locale]);
+    });
+  }
+});
+
+/** A person's link with two accounts still to connect, so the page has two buttons. */
+const PERSON = {
+  kind: 'person',
+  organisation: 'Acme Legal',
+  checkedCompany: null,
+  askedBy: 'owner@example.org',
+  organisationPhone: null,
+  accounts: ['first@example.invalid', 'second@example.invalid'].map((account) => ({
+    account,
+    granted: false,
+    domains: ['calendar'],
+    scope: 'https://www.googleapis.com/auth/calendar.readonly openid',
+    readOnlyAtProvider: true,
+    notReady: null,
+    migrations: [
+      { domains: ['calendar'], to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'dest' }, granted: false },
+    ],
+  })),
+  expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+};
+
+describe("a person's grant page says it before the first button too (the owner's hand test, 2026-11-24)", () => {
+  for (const locale of LOCALES) {
+    it(`${locale}: the line comes before the first Continue with Google, not after the last card`, async () => {
+      readMock.mockResolvedValue(PERSON);
+      wrap(locale, <Grant />, '/grant/abc.def', '/grant/:link');
+      const name = (account: string) => words(locale, 'grant.person.connect').replace('{account}', account);
+      const first = await screen.findByRole('button', { name: name('first@example.invalid') });
+      expect(screen.getByRole('button', { name: name('second@example.invalid') })).toBeTruthy();
+      const lines = screen.getAllByText(words(locale, 'grant.inAppBrowser'));
+      expect(lines, 'said once, not once per card').toHaveLength(1);
+      expect(before(lines[0] as HTMLElement, first), 'the line must be read before the first button is pressed').toBe(
+        true,
+      );
+      expect(lines[0]?.textContent).toMatch(GRANT_ENDING[locale]);
     });
   }
 });

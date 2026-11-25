@@ -56,7 +56,8 @@ client), `apple-setup.md`, `dropbox-setup.md`, `box-setup.md` and `archive-setup
 archives such as Google Takeout); `non-eu-platform-gaps.md` lists the large platforms not yet
 covered. **Live runs:** `owner-test-runbook.md`, `first-live-run.md`, `soverin-supervised-run.md`,
 `apple-supervised-run.md`. **Operating:** `status-page.md`, `incident-runbook.md` (what to do when
-an alert arrives or a tester says something is wrong), `ending-the-alpha.md` (what emptying
+an alert arrives or a tester says something is wrong), `security-fix-fast-path.md` (a security fix that
+must reach live today: every wait the owner can waive, and the order), `ending-the-alpha.md` (what emptying
 `OWNPACE_STAGE` on live switches, what must be true first, and how to tell it reached every
 process), `billing-rehearsal-on-ota.md` (the whole billing chain walked once on the OTA stack,
 before live invoices anybody) and `selfhost-ending-the-service.md`.

@@ -132,7 +132,7 @@ services:
     # -alpine adds (njs, xslt, geoip, image-filter, acme, curl), which
     # www-nginx.conf never loads. 1.31.8-alpine read 0 critical and 1 high
     # (brotli-libs), 1.31.8-alpine-slim 0 and 0.
-    image: nginx:1.31.9-alpine-slim@sha256:5bfced78d24d644270bedb0a9968697042e38d5c03fb6354603df025279c1cbe
+    image: nginx:1.31.10-alpine-slim@sha256:c293b28729906d97fa5302fce3bd79bd27a3ea9a5d9604e21c6ff0ebf14549fc
     # THE PROJECT'S NAME, NOT A FIXED ONE (workplan 0139 T10). Under the
     # default project this renders the name the container always had.
     # `docker compose -p` does not namespace a fixed `container_name`, so a

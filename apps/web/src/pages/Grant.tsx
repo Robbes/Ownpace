@@ -98,7 +98,12 @@ import { useQuery } from '@tanstack/react-query';
 import { YourNewAddress } from '../components/YourNewAddress.tsx';
 import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import type { DiscoveryDomain } from '@openmig/shared';
-import { grantApi, type GrantSubject, type PersonGrantSubject } from '../services/grant-service.ts';
+import {
+  grantApi,
+  type GrantProvider,
+  type GrantSubject,
+  type PersonGrantSubject,
+} from '../services/grant-service.ts';
 
 /**
  * Whether the page opened a person's link. Here rather than imported, so a
@@ -107,12 +112,88 @@ import { grantApi, type GrantSubject, type PersonGrantSubject } from '../service
 const isPersonSubject = (s: GrantSubject | PersonGrantSubject): s is PersonGrantSubject =>
   'kind' in s && s.kind === 'person';
 
-/** A failure that is no request: the address the API answered is not Google's own page. */
-const NOT_GOOGLE = Symbol('not-google');
+/**
+ * A failure that is no request: the address the API answered is not the
+ * provider's own page (workplan 0163 T4; per provider since 0171).
+ */
+class NotTheProvider {
+  constructor(readonly name: string) {}
+}
 
 /** What a failure says: the refusal above, or the server's sentence in the page's language. */
 function failureSentence(error: unknown, locale: Locale, t: ReturnType<typeof useT>): string {
-  return error === NOT_GOOGLE ? t('account.consent.notTheProvider', { provider: 'Google' }) : linkRefusal(error, locale, t);
+  return error instanceof NotTheProvider
+    ? t('account.consent.notTheProvider', { provider: error.name })
+    : linkRefusal(error, locale, t);
+}
+
+/**
+ * THE PAGE IN EACH PROVIDER'S WORDS (workplan 0171 §3.4). Google's are the
+ * page as it was; a Microsoft account's link says Microsoft wherever they say
+ * Google. Dropbox (T4) and Apple (T5) add their own rows with their tasks; the
+ * API offers neither a link until then, and the page would say Google's words
+ * for them, so `wordsOf` refuses to guess and falls back only for Google.
+ */
+interface ProviderWords {
+  readonly name: string;
+  /** The box above the scope: read-only where the provider holds it so, else what Ownpace does. */
+  readonly readOnly: (readOnlyAtProvider: boolean) => StringKey;
+  readonly scopeIntro: StringKey;
+  readonly technicalLine: StringKey;
+  readonly signInAs: StringKey;
+  readonly connecting: StringKey;
+  readonly withdraw: StringKey;
+  /** A person's card: the button, with the account. */
+  readonly connectAs: StringKey;
+  readonly connectAgainAs: StringKey;
+  /** A migration's page: the button. */
+  readonly connect: StringKey;
+  /** Files, in the provider's own product's name. */
+  readonly readsFile: StringKey;
+}
+
+const PROVIDER_WORDS: Readonly<Record<'google' | 'microsoft', ProviderWords>> = {
+  google: {
+    name: 'Google',
+    readOnly: (held) => (held ? 'grant.readOnly' : 'grant.readsOnly'),
+    scopeIntro: 'grant.scopeIntro',
+    technicalLine: 'grant.scope.technical.line',
+    signInAs: 'grant.signInAs',
+    connecting: 'grant.connecting',
+    withdraw: 'grant.withdraw',
+    connectAs: 'grant.person.connect',
+    connectAgainAs: 'grant.person.connectAgain',
+    connect: 'grant.connect',
+    readsFile: 'grant.reads.file',
+  },
+  microsoft: {
+    name: 'Microsoft',
+    // Every Graph scope a link asks for is a `.Read` one (`microsoftLinkAsk`).
+    readOnly: () => 'grant.readOnly.microsoft',
+    scopeIntro: 'grant.scopeIntro.microsoft',
+    technicalLine: 'grant.scope.technical.line.microsoft',
+    signInAs: 'grant.signInAs.microsoft',
+    connecting: 'grant.connecting.microsoft',
+    withdraw: 'grant.withdraw.microsoft',
+    connectAs: 'grant.continue.microsoft',
+    connectAgainAs: 'grant.connectAgain.microsoft',
+    connect: 'grant.continue.microsoft',
+    readsFile: 'grant.reads.file.microsoft',
+  },
+};
+
+function wordsOf(provider: GrantProvider | undefined): ProviderWords {
+  // Absent is Google: an answer from before the seam (the service defaults it
+  // when it parses one; a page handed data directly may not have).
+  if (provider === undefined || provider === 'google' || provider === 'microsoft') {
+    return PROVIDER_WORDS[provider ?? 'google'];
+  }
+  throw new Error(`the grant page has no words for ${provider} yet`);
+}
+
+/** What each data type reads, in this provider's words. */
+function readsKey(d: DiscoveryDomain, words: ProviderWords): StringKey {
+  return d === 'file' ? words.readsFile : READS_KEY[d];
 }
 import { linkRefusal } from '../services/link-refusal.ts';
 import { consentToFollow } from '../services/address-to-follow.ts';
@@ -148,19 +229,24 @@ const READS_KEY: Readonly<Record<DiscoveryDomain, StringKey>> = {
  * wants to compare it with their account (ADR-0041 *Decision* 4: the scopes
  * as scopes, not only a paraphrase).
  */
-const GrantScope: React.FC<{ scope: string; className: string }> = ({ scope, className }) => {
+const GrantScope: React.FC<{ scope: string; className: string; provider?: GrantProvider }> = ({
+  scope,
+  className,
+  provider = 'google',
+}) => {
   const t = useT();
+  const words = wordsOf(provider);
   return (
     <div className={className}>
-      <p className="text-sm text-gray-600">{t('grant.scopeIntro')}</p>
+      <p className="text-sm text-gray-600">{t(words.scopeIntro)}</p>
       <ul className="mt-1 list-disc pl-5 space-y-0.5 text-sm text-gray-900">
-        {scopeWordKeys(scope).map((key) => (
+        {scopeWordKeys(scope, provider).map((key) => (
           <li key={key}>{t(key)}</li>
         ))}
       </ul>
       <details className="mt-2 text-sm">
         <summary className="cursor-pointer select-none text-gray-500">{t('grant.scope.technical')}</summary>
-        <p className="mt-1 text-gray-600">{t('grant.scope.technical.line')}</p>
+        <p className="mt-1 text-gray-600">{t(words.technicalLine)}</p>
         <p className="mt-1 font-mono break-all text-gray-900">{scope}</p>
       </details>
     </div>
@@ -190,14 +276,15 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
   const [starting, setStarting] = React.useState<string | null>(null);
   const [failure, setFailure] = React.useState<{ account: string; error: unknown } | null>(null);
 
-  const connect = async (account: string) => {
+  const connect = async (account: string, provider: GrantProvider) => {
     setStarting(account);
     setFailure(null);
     try {
-      const { url } = await grantApi.authorize(link, locale, account);
-      const consent = consentToFollow('google', url);
+      const { url } = await grantApi.authorize(link, locale, provider, account);
+      // Only to the provider's own page (0163 T4), the host by provider (0171).
+      const consent = consentToFollow(provider, url);
       if (consent === null) {
-        setFailure({ account, error: NOT_GOOGLE });
+        setFailure({ account, error: new NotTheProvider(wordsOf(provider).name) });
         setStarting(null);
         return;
       }
@@ -254,13 +341,17 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
           migration's page offers it: the report names the person and every
           migration of theirs. Offered only where a report can reach somebody. */}
       <ReportThisLink kind="grant" link={link} organisation={data.organisation} next="linkReport.next.grant" />
+      {/* Before the first button, as on the migration's page: a link opened in
+          a chat or mail app's own browser is refused by Google, so this has to
+          be read before pressing (the owner's hand test, 2026-11-24). */}
+      <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
 
       {data.accounts.map((a, i) => (
         <React.Fragment key={a.account}>
           {/* During the Alpha, above the first Google button (the owner,
               2026-10-18): above the first account that still has a button,
               after any card already connected, and nowhere when none has. */}
-          {i === firstPressable && <AlphaGoogleLine className="mt-6" />}
+          {i === firstPressable && (a.provider ?? 'google') === 'google' && <AlphaGoogleLine className="mt-6" />}
           <section aria-labelledby={`grant-account-${i}`} className="mt-6 p-4 border border-gray-200 rounded-lg">
             <h2 id={`grant-account-${i}`} className="text-base font-semibold text-gray-900 break-words">
               {a.account}
@@ -270,7 +361,7 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
                 <li key={j} className="break-words">
                   {t('grant.person.migration', {
                     where: where(m.to),
-                    reads: list(m.domains.map((d) => t(READS_KEY[d]))),
+                    reads: list(m.domains.map((d) => t(readsKey(d, wordsOf(a.provider))))),
                   })}
                 </li>
               ))}
@@ -291,22 +382,24 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
                 <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
                   <p className="flex items-start gap-2 text-sm text-green-900">
                     <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-                    <span>{t(a.readOnlyAtProvider ? 'grant.readOnly' : 'grant.readsOnly')}</span>
+                    <span>{t(wordsOf(a.provider).readOnly(a.readOnlyAtProvider))}</span>
                   </p>
                 </div>
-                {a.scope !== null && <GrantScope scope={a.scope} className="mt-3" />}
+                {a.scope !== null && <GrantScope scope={a.scope} provider={a.provider ?? 'google'} className="mt-3" />}
                 <p className="mt-3 text-sm font-medium text-gray-900 break-words">
-                  {t('grant.signInAs', { account: a.account })}
+                  {t(wordsOf(a.provider).signInAs, { account: a.account })}
                 </p>
                 <button
                   type="button"
-                  onClick={() => void connect(a.account)}
+                  onClick={() => void connect(a.account, a.provider ?? 'google')}
                   disabled={starting !== null}
                   className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-words"
                 >
                   {starting === a.account
-                    ? t('grant.connecting')
-                    : t(a.again ? 'grant.person.connectAgain' : 'grant.person.connect', { account: a.account })}
+                    ? t(wordsOf(a.provider).connecting)
+                    : t(a.again ? wordsOf(a.provider).connectAgainAs : wordsOf(a.provider).connectAs, {
+                        account: a.account,
+                      })}
                 </button>
                 {failure?.account === a.account && (
                   <p role="alert" className="mt-3 text-sm text-amber-800">
@@ -320,7 +413,6 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
       ))}
 
       <p className="mt-6 text-sm text-gray-600">{t('grant.until', { date: dateTime(data.expiresAt) })}</p>
-      <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
       <p className="mt-6 text-sm text-gray-500">
         {t('grant.disclosure')}{' '}
         <a className="underline" href={legal.privacy}>
@@ -331,7 +423,12 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
           {t('acceptance.doc.terms')}
         </a>
       </p>
-      <p className="mt-3 text-sm text-gray-500">{t('grant.withdraw')}</p>
+      {/* Where each provider's access is withdrawn, once per provider on the page. */}
+      {[...new Set(data.accounts.map((a) => a.provider ?? 'google'))].map((p) => (
+        <p key={p} className="mt-3 text-sm text-gray-500">
+          {t(wordsOf(p).withdraw)}
+        </p>
+      ))}
       {/* Its own line: the one above lists what a person accepts (0145 T9 (b)). */}
       <p className="mt-3 text-sm text-gray-500">
         <AccessibilityLink className="underline" />
@@ -375,16 +472,23 @@ const Grant: React.FC = () => {
     document.title = `${title} — Ownpace`;
   }, [title]);
 
+  // A migration's own link: its one provider, once the page has read it.
+  const single = {
+    provider: (subject.data && !isPersonSubject(subject.data) ? subject.data.provider : undefined) ?? 'google',
+  };
+
   const connect = async () => {
     if (!link) return;
     setStarting(true);
     setFailure(null);
     try {
       // The page's language, so the ending after Google is in it too.
-      const { url } = await grantApi.authorize(link, locale);
-      const consent = consentToFollow('google', url);
+      const provider = single.provider;
+      const { url } = await grantApi.authorize(link, locale, provider);
+      // Only to the provider's own page (0163 T4), the host by provider (0171).
+      const consent = consentToFollow(provider, url);
       if (consent === null) {
-        setFailure(NOT_GOOGLE);
+        setFailure(new NotTheProvider(wordsOf(provider).name));
         setStarting(false);
         return;
       }
@@ -491,17 +595,19 @@ const Grant: React.FC = () => {
             />
           )}
           <p className="mt-3 text-gray-900">
-            {t('grant.reads', { reads: list(subject.data.domains.map((d) => t(READS_KEY[d]))) })}
+            {t('grant.reads', {
+              reads: list(subject.data.domains.map((d) => t(readsKey(d, wordsOf(single.provider))))),
+            })}
           </p>
 
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
             <p className="flex items-start gap-2 text-sm text-green-900">
               <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-              <span>{t(subject.data.readOnlyAtProvider ? 'grant.readOnly' : 'grant.readsOnly')}</span>
+              <span>{t(wordsOf(subject.data.provider).readOnly(subject.data.readOnlyAtProvider))}</span>
             </p>
           </div>
 
-          <GrantScope scope={subject.data.scope} className="mt-4" />
+          <GrantScope scope={subject.data.scope} provider={single.provider} className="mt-4" />
 
           <p className="mt-4 text-sm text-gray-600">
             {t('grant.until', { date: dateTime(subject.data.expiresAt) })}
@@ -511,20 +617,20 @@ const Grant: React.FC = () => {
               account that signs in is refused and nothing is kept. Said before
               the button, with why Google will also ask for their address. */}
           <p className="mt-4 text-sm font-medium text-gray-900 break-words">
-            {t('grant.signInAs', { account: subject.data.from })}
+            {t(wordsOf(subject.data.provider).signInAs, { account: subject.data.from })}
           </p>
 
           {/* A link sent by chat or mail opens inside that app's own browser,
               where Google is reported to refuse its consent (workplan 0140
               T3 (a); outside knowledge, 0140 §1). Always shown, with no
               sniffing for user agents, and before the button: opening the
-              link again in a real browser spends nothing (`grant.ts`), and
+              link again in the phone's own browser spends nothing (`grant.ts`), and
               the line says so. */}
           <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
 
           {/* During the Alpha, the guide's section on connecting Google,
               right above the button (the owner, 2026-10-18). */}
-          <AlphaGoogleLine className="mt-3" />
+          {(subject.data.provider ?? 'google') === 'google' && <AlphaGoogleLine className="mt-3" />}
 
           <button
             type="button"
@@ -532,7 +638,9 @@ const Grant: React.FC = () => {
             disabled={starting}
             className="mt-6 px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {starting ? t('grant.connecting') : t('grant.connect')}
+            {starting
+              ? t(wordsOf(subject.data.provider).connecting)
+              : t(wordsOf(subject.data.provider).connect, { account: subject.data.from })}
           </button>
 
           {failure != null && (
@@ -551,7 +659,7 @@ const Grant: React.FC = () => {
               {t('acceptance.doc.terms')}
             </a>
           </p>
-          <p className="mt-3 text-sm text-gray-500">{t('grant.withdraw')}</p>
+          <p className="mt-3 text-sm text-gray-500">{t(wordsOf(subject.data.provider).withdraw)}</p>
           {/* Its own line: the one above lists what a person accepts (0145 T9 (b)). */}
           <p className="mt-3 text-sm text-gray-500">
             <AccessibilityLink className="underline" />

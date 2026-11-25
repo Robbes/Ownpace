@@ -4,6 +4,16 @@
 
 ## Status — 2026-08-03 (update this block at the end of every session)
 
+> **2026-11-24, two Microsoft promises corrected (the owner: *"two promises: YES, change the
+> wording."*).** Row 3's retraction left the manifest's Files row saying *"OneDrive and SharePoint
+> libraries"*, and `graph-drive-source` reads only `{scope}/drive/root/delta`, the signed-in
+> account's own OneDrive, with no site or drive id (`sharedWithMe` ⛔). The row now says OneDrive,
+> and *SharePoint and Teams files* is named under *does not migrate* with the way round it (copy
+> them into OneDrive first). The online archive, which neither mail source reads and SAD §10.2
+> called "an additional mailbox", is a second row there, and §10.2 now says what is built. The
+> manifest's version is 2026-11-24; guides, site and CHANGELOG follow. Wording only: no code reads
+> a site, a team's library or an archive.
+
 > **2026-09-24, index pass (0147 T3):** row 14 of T3's table (:116) calls Microsoft publisher
 > verification moot because *"per-customer app registration is the model"*. The premise changed
 > with 0114: the managed stack now carries *"The deployment's own MICROSOFT app registration

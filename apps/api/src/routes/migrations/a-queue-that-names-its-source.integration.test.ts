@@ -141,4 +141,12 @@ describe('the failure queue names the migration’s source', () => {
     expect(res.status).toBe(200);
     expect(res.body[GOOGLE_MAPPING].sourceKind).toBe('google');
   });
+
+  // And its destination (workplan 0160, T2b): a Cirrux account's name
+  // refusals and its Drive sign-in have remedies of their own.
+  it('names the migration’s destination too, read from its target connection', async () => {
+    const res = await failures(DROPBOX_TENANT, DROPBOX_MAPPING);
+    expect(res.status).toBe(200);
+    expect(res.body[DROPBOX_MAPPING].targetKind).toBe('nextcloud');
+  });
 });

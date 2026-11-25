@@ -87,6 +87,7 @@ import {
   type CirruxDriveFolder,
   type CirruxFolderListing,
 } from './cirrux-drive-api.ts';
+import { capacityFromCirruxStorage, type DestinationCapacity } from '@openmig/shared';
 import { dataKeyBytes, encryptedParts, expectedCiphertextBytes, cxdrv2ChunkCount } from './cirrux-drive-format.ts';
 
 /** Cirrux's own name for the Drive in a sentence. */
@@ -273,7 +274,7 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
         const again = (await this.children(parent)).folders.get(cirruxNameKey(name));
         if (again) return again.uuid;
         throw withFailureCategory(
-          'target_refused',
+          'format_refused',
           markNeedsDecision(
             new Error(
               `${DRIVE} refused to create the folder ${path}: it says the name is taken, and no folder ` +
@@ -439,8 +440,12 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
     raw: RawFileItem,
   ): Promise<UpsertResult> {
     if (!sameName(there.name, name)) {
+      // `format_refused`, a name the destination will not store (workplan
+      // 0160, T2b): `target_refused`'s sentence named no space, an upload
+      // limit and permissions, none of them the cause. The page says it in
+      // Cirrux's own terms (`failure.formatRefused.cirrux`).
       throw withFailureCategory(
-        'target_refused',
+        'format_refused',
         markNeedsDecision(
           new Error(
             `${DRIVE} already holds “${there.name}” where ${naturalKey} goes, and Cirrux treats the two ` +
@@ -493,11 +498,13 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
       current = await this.api.getFile(uuid);
     } catch (err) {
       if (err instanceof CirruxApiError && err.status === 404) {
-        throw new Error(
-          `${naturalKey} changed at the source, and its copy is no longer in ${DRIVE}, so it was not ` +
-            'replaced. Deletions in the new account are not undone by this service.',
-          { cause: err },
-        );
+        // DELETED IN CIRRUX, AND EMPTIED FROM ITS TRASH (workplan 0160, T2b):
+        // the person's decision, as a copy in the trash is, and not undone.
+        // Said as `goneFromTarget` (0168 B2), never thrown: a thrown one made
+        // the copied row a failed one, so *Live progress* stopped counting
+        // the copy and counted a failure, and its retry took the create path
+        // and made the copy again. The row is left as it was.
+        return { targetId: uuid, created: false, goneFromTarget: true };
       }
       throw err;
     }
@@ -672,6 +679,18 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
   // ---------------------------------------------------------------------
 
   /**
+   * The workspace's free space, for *Review and start* (workplan 0171 T9):
+   * the same `GET /workspace/storage` the pass reads, read once more here
+   * and not kept, so the pass still reads its own at its first upload. The
+   * pool is the workspace, from the profile: mail, Drive and documents share
+   * it. A read that fails throws, and the route says it was not answered.
+   */
+  async capacity(): Promise<DestinationCapacity> {
+    const [profile, storage] = await Promise.all([this.api.profile(), this.api.storage()]);
+    return capacityFromCirruxStorage(storage, `cirrux:${profile.workspace?.uuid ?? 'workspace'}`);
+  }
+
+  /**
    * A file that would not fit in the workspace's storage pool is refused
    * before a byte is read. The pool is read once a pass and what this pass has
    * added since is counted against it; Cirrux's own `422
@@ -725,7 +744,7 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
 
   private refusedName(what: 'file' | 'folder', path: string, name: string, problem: string): Error {
     return withFailureCategory(
-      'target_refused',
+      'format_refused',
       markNeedsDecision(
         new Error(
           `The ${what} name “${name}” in ${path} ${problem}, so ${DRIVE} would refuse it. Nothing was ` +

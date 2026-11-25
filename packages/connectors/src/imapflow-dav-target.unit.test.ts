@@ -709,6 +709,59 @@ describe('ensureMailbox', () => {
   });
 });
 
+/**
+ * THE DESTINATION'S OWN ARCHIVE FOLDER (2026-11-24). Gmail's All Mail lands in
+ * the collection `Archive`. On an IMAP destination that goes to the folder the
+ * server marks `\Archive` (RFC 6154), whatever it is called, and a folder
+ * called Archive is made only on a server that marks none. A removal opens the
+ * same folder: it knows only the ledger's collection path, so both sides
+ * resolve by that path.
+ */
+describe("the destination's own archive folder", () => {
+  it('writes Archive into the folder the server marks \\Archive, and creates nothing', async () => {
+    boxes.set('Archief', []);
+    mailboxFlags.set('Archief', new Set(['\\HasNoChildren', '\\Archive']));
+
+    const name = await target().ensureMailbox({ path: 'Archive', name: 'Archive', specialUse: 'archive' });
+
+    expect(name).toBe('Archief');
+    expect(calls.some((c) => c.startsWith('mailboxCreate'))).toBe(false);
+    expect(boxes.has('Archive')).toBe(false);
+  });
+
+  it('creates a folder called Archive when the server marks none', async () => {
+    boxes.set('Old mail', []);
+    mailboxFlags.set('Old mail', new Set(['\\HasNoChildren']));
+
+    const name = await target().ensureMailbox({ path: 'Archive', name: 'Archive', specialUse: 'archive' });
+
+    expect(name).toBe('Archive');
+    expect(calls).toContain('mailboxCreate(Archive)');
+  });
+
+  it("removes from the server's archive folder, the one the copy was written to", async () => {
+    boxes.set('Archief', [{ uid: 7, messageId: 'm@dev.local' }]);
+    mailboxFlags.set('Archief', new Set(['\\Archive']));
+
+    const result = await target().removeItem('7', { collection: 'Archive', expectedTargetVersion: '42' });
+
+    expect(result.kind).toBe('deleted');
+    expect(calls).toContain('lock(Archief)');
+    expect(calls).not.toContain('lock(Archive)');
+    expect(boxes.get('Archief')).toHaveLength(0);
+  });
+
+  it('leaves Archive under a folder prefix as it is, as the JMAP role does', async () => {
+    boxes.set('Archief', []);
+    mailboxFlags.set('Archief', new Set(['\\Archive']));
+
+    const name = await target().ensureMailbox({ path: 'Gmail/Archive', name: 'Archive', specialUse: 'archive' });
+
+    expect(name).toBe('Gmail/Archive');
+    expect(calls).toContain('mailboxCreate(Gmail/Archive)');
+  });
+});
+
 // =======================================================================
 // Certificate refusal names the knob (same treatment as the source)
 // =======================================================================
