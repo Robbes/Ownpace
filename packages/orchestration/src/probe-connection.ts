@@ -141,10 +141,46 @@ export type ProbeResult =
        * language. Absent where no guide has more.
        */
       readonly guide?: GuideHandle;
+      /**
+       * THE SERVER REFUSED THE LOGIN ITSELF (workplan 0174 §5.4, D4): an
+       * IMAP `NO` to LOGIN, an HTTP 401, Apple refusing an Apple Account
+       * password. Set only when the refusal says so; a server that did not
+       * answer, a certificate, a 404 or a timeout never carries it. A person's
+       * grant link counts a try only for this, so a down server cannot lock
+       * anybody out.
+       */
+      readonly refusedLogin?: true;
     };
 
+/**
+ * Whether a failure is the server refusing the credentials (0174 §5.4), read
+ * from the error and the causes under it: imapflow's `authenticationFailed`
+ * (set only for a tagged NO or BAD to LOGIN or AUTHENTICATE), its
+ * `AUTHENTICATIONFAILED` response code (RFC 5530), or an HTTP 401 from a DAV
+ * or JMAP server. Never from a message's words alone.
+ */
+export function loginWasRefused(err: unknown): boolean {
+  let at: unknown = err;
+  for (let depth = 0; depth < 6 && typeof at === 'object' && at !== null; depth++) {
+    const e = at as {
+      authenticationFailed?: unknown;
+      serverResponseCode?: unknown;
+      status?: unknown;
+      protocol?: unknown;
+      cause?: unknown;
+    };
+    if (e.authenticationFailed === true) return true;
+    if (typeof e.serverResponseCode === 'string' && e.serverResponseCode.toUpperCase() === 'AUTHENTICATIONFAILED') {
+      return true;
+    }
+    if (e.status === 401 && (e.protocol === 'dav' || e.protocol === 'jmap')) return true;
+    at = e.cause;
+  }
+  return false;
+}
+
 /** A refusal we wrote, with the guide its pair carries. */
-function refusedByUs(refusal: BilingualRefusal): ProbeResult {
+function refusedByUs(refusal: BilingualRefusal): Extract<ProbeResult, { ok: false }> {
   return {
     ok: false,
     reason: refusal.en,
@@ -234,12 +270,14 @@ function providerRefused(err: unknown, kind?: string, typedHost = false): ProbeR
   // every refusal we author, so the Dutch and the appliance come free.
   const text = err instanceof Error ? err.message : String(err);
   const known = kind ? appleAuthRefusal(kind, text) : undefined;
-  if (known) return refusedByUs(known);
+  // Apple refusing the password it was given is a refused login (0174 D4).
+  if (known) return { ...refusedByUs(known), refusedLogin: true };
   const guide = guideOf(err);
   return {
     ok: false,
     reason: text,
     outcome: { code: 'providerRefused' },
+    ...(loginWasRefused(err) ? { refusedLogin: true as const } : {}),
     ...(typedHost ? { said: whatHappened(err) } : {}),
     ...(guide === undefined ? {} : { guide }),
   };
@@ -690,6 +728,8 @@ async function probeTargetNow(
               ? 'The server is reachable and refused the credentials.'
               : 'Check the target host and port.'),
           outcome: { code: 'targetStatus', url: sessionUrl, status: res.status },
+          // The session document refused the Basic credentials (0174 D4).
+          ...(res.status === 401 ? { refusedLogin: true as const } : {}),
         };
       }
       return {

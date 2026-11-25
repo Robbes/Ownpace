@@ -53,7 +53,8 @@ import { and, eq, gt, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS, PgLedger, expiryFromDays, type LedgerDriver } from '@openmig/ledger';
 import { LINK_SPENT, log, organisationClosedRefusal, reasonPair, type Bilingual, type TenantId } from '@openmig/shared';
-import { personLink, personMigration } from '@openmig/managed/schema-managed';
+import { personGrantedConnection, personLink, personMigration } from '@openmig/managed/schema-managed';
+import { SecretStore } from '@openmig/core/secret-store';
 import {
   connectedThroughPersonLink,
   issuePersonLink,
@@ -73,7 +74,7 @@ import {
   type GrantStoreResult,
   type GrantTarget,
 } from './grant-ending.ts';
-import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
+import { namedAccount, readGrantRows, storedCredentials, whereFromAndTo } from './grant-subject.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 import { readPersonGrantSubject } from './person-grant-subject.ts';
 import {
@@ -314,4 +315,236 @@ export async function mintProgressLinkForMigration(
   return personId
     ? mintPersonProgressLink(source, { tenantId: target.tenantId, personId })
     : mintProgressLink(source, target);
+}
+
+// ======================= A password typed on the link (workplan 0174 T3) =======================
+
+/** The card a password was typed for, as the route found it on the link. */
+export interface PersonPasswordTarget {
+  readonly linkId: string;
+  readonly tenantId: string;
+  readonly personId: string;
+  /** The card's `ref` (`person-grant-subject.ts`): a hash, never the address. */
+  readonly ref: string;
+}
+
+/** What a stored password answers: the migrations it reached, and whether the link is now spent. */
+export type PersonPasswordStoreResult =
+  | { readonly ok: true; readonly granted: readonly string[]; readonly linkSpent: boolean }
+  | {
+      readonly ok: false;
+      /** `link_spent`: revoked, expired or spent between the test and the write (§7.5). */
+      readonly code: 'closed' | 'link_spent' | 'not_this_account' | 'already_connected' | 'another_person';
+      readonly reason: Bilingual;
+    };
+
+/** When the destination is already a person's own, and that person is somebody else (D1 (a)). */
+export const CONNECTED_BY_SOMEBODY_ELSE: Bilingual = {
+  en: 'This account was connected by somebody else. It cannot be connected again through this link.',
+  nl: 'Dit account is door iemand anders gekoppeld. Het kan niet opnieuw via deze link worden gekoppeld.',
+};
+
+/** The string values of a stored credential record: what `encryptCredentials` takes back. */
+function stringValues(record: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(Object.entries(record).filter((e): e is [string, string] => typeof e[1] === 'string'));
+}
+
+/** Rolls the write back with the answer it gives. */
+class PasswordNotStored extends Error {
+  readonly answer: Extract<PersonPasswordStoreResult, { ok: false }>;
+  constructor(answer: Extract<PersonPasswordStoreResult, { ok: false }>) {
+    super(`a tested password was not stored: ${answer.code}`);
+    this.answer = answer;
+  }
+}
+
+/**
+ * Store a password the person typed and the test accepted (0174 §5.3 step 7,
+ * §4.3, D1 (a)), or refuse having stored nothing. One transaction:
+ *
+ * 1. a closed organisation takes nothing (0085 T2);
+ * 2. the link is read `FOR UPDATE` and must still be live: a revoke that
+ *    landed while the test ran wins, and nothing is written (§7.5);
+ * 3. the card is read again by its `ref`: still the person's, still a
+ *    password card, and not connected since (a second tab, §7.2);
+ * 4. the secret is merged, key by key, over what is stored:
+ *    - a SOURCE's on each of the card's migrations (`source_secret_ref`,
+ *      ADR-0035 decision 4), `grant_withdrawn_at` cleared, because the source
+ *      connection may be the owner's;
+ *    - a DESTINATION's on the connection itself (`secret_ref`), because the
+ *      destination is the person's own account, with `person_granted_connection`
+ *      naming the person; a connection another person granted is refused;
+ * 5. the qualification the test measured is remembered on the connection;
+ * 6. one `mapping.granted` row per migration, with the via, the role, the
+ *    ref and the link: never a value, never the address that tried;
+ * 7. the link is spent once every account on it is connected, read after the
+ *    writes, as a sign-in's ending does.
+ *
+ * `values` is the person's keys only; nothing here logs it, returns it or
+ * writes it anywhere but the two encrypted columns.
+ */
+export async function storePersonPassword(
+  source: Pool | LedgerDriver,
+  target: PersonPasswordTarget,
+  values: Readonly<Record<string, string>>,
+  qualification?: unknown,
+): Promise<PersonPasswordStoreResult> {
+  try {
+    return await withTenantDb(target.tenantId, source, async (db) => {
+      const closure = await readOrganisationClosure(db, target.tenantId);
+      if (closure) throw new PasswordNotStored({ ok: false, code: 'closed', reason: organisationClosedRefusal(closure) });
+
+      const now = new Date();
+      const live = await db
+        .select({ id: personLink.id })
+        .from(personLink)
+        .where(
+          and(
+            eq(personLink.id, target.linkId),
+            eq(personLink.tenantId, target.tenantId),
+            eq(personLink.personId, target.personId),
+            eq(personLink.purpose, 'grant'),
+            isNull(personLink.usedAt),
+            isNull(personLink.revokedAt),
+            gt(personLink.expiresAt, now),
+          ),
+        )
+        .for('update');
+      if (live.length === 0) throw new PasswordNotStored({ ok: false, code: 'link_spent', reason: LINK_SPENT });
+
+      const subject = await readPersonGrantSubject(db, target.tenantId, target.personId);
+      const account = subject?.accounts.find((a) => a.ref === target.ref);
+      if (!account || account.way !== 'password' || !account.ask.ok || account.ask.way !== 'password') {
+        throw new PasswordNotStored({ ok: false, code: 'not_this_account', reason: NOTHING_LEFT_TO_GRANT });
+      }
+      if (account.granted) {
+        throw new PasswordNotStored({ ok: false, code: 'already_connected', reason: ALREADY_CONNECTED });
+      }
+      const connectionId = account.ask.connectionId;
+      const ledger = new PgLedger(db);
+      const written: string[] = [];
+
+      if (account.role === 'source') {
+        for (const m of account.migrations) {
+          const [row] = await db
+            .select({ ref: schema.mailboxMapping.sourceSecretRef })
+            .from(schema.mailboxMapping)
+            .where(and(eq(schema.mailboxMapping.id, m.mappingId), eq(schema.mailboxMapping.tenantId, target.tenantId)))
+            .for('update');
+          if (!row) continue;
+          const merged = { ...stringValues(storedCredentials(row.ref)), ...values };
+          await db
+            .update(schema.mailboxMapping)
+            .set({
+              sourceSecretRef: JSON.stringify(SecretStore.encryptCredentials(merged).encrypted),
+              grantWithdrawnAt: null,
+              updatedAt: now,
+            })
+            .where(and(eq(schema.mailboxMapping.id, m.mappingId), eq(schema.mailboxMapping.tenantId, target.tenantId)));
+          written.push(m.mappingId);
+        }
+      } else {
+        const [owner] = await db
+          .select({ personId: personGrantedConnection.personId })
+          .from(personGrantedConnection)
+          .where(
+            and(
+              eq(personGrantedConnection.connectionId, connectionId),
+              eq(personGrantedConnection.tenantId, target.tenantId),
+            ),
+          );
+        if (owner && owner.personId !== target.personId) {
+          throw new PasswordNotStored({ ok: false, code: 'another_person', reason: CONNECTED_BY_SOMEBODY_ELSE });
+        }
+        const [row] = await db
+          .select({ ref: schema.connection.secretRef })
+          .from(schema.connection)
+          .where(and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, target.tenantId)))
+          .for('update');
+        if (!row) throw new PasswordNotStored({ ok: false, code: 'not_this_account', reason: NOTHING_LEFT_TO_GRANT });
+        const merged = { ...stringValues(storedCredentials(row.ref)), ...values };
+        await db
+          .update(schema.connection)
+          .set({
+            secretRef: JSON.stringify(SecretStore.encryptCredentials(merged).encrypted),
+            status: 'connected',
+            updatedAt: now,
+          })
+          .where(and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, target.tenantId)));
+        await db
+          .insert(personGrantedConnection)
+          .values({ connectionId, tenantId: target.tenantId, personId: target.personId, linkId: target.linkId, grantedAt: now })
+          .onConflictDoUpdate({
+            target: personGrantedConnection.connectionId,
+            set: { linkId: target.linkId, grantedAt: now },
+          });
+        written.push(...account.migrations.map((m) => m.mappingId));
+      }
+
+      // What the test measured, remembered where the Accounts page reads it.
+      if (qualification !== undefined) {
+        await db
+          .update(schema.connection)
+          .set({ qualification: qualification as never, updatedAt: now })
+          .where(and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, target.tenantId)));
+      }
+
+      for (const m of account.migrations) {
+        if (!written.includes(m.mappingId)) continue;
+        await ledger.recordAuditEvent(target.tenantId as TenantId, {
+          actor: GRANT_ACTOR,
+          action: GRANT_ACTION,
+          entity: 'mapping',
+          detail: { mappingId: m.mappingId, personLinkId: target.linkId, via: 'password', role: account.role, ref: target.ref },
+        });
+      }
+      if (written.length === 0) {
+        throw new PasswordNotStored({ ok: false, code: 'not_this_account', reason: NOTHING_LEFT_TO_GRANT });
+      }
+
+      const after = await readPersonGrantSubject(db, target.tenantId, target.personId);
+      const everyAccount = after === null || after.accounts.every((a) => a.granted);
+      const linkSpent = everyAccount
+        ? await spendPersonLink(db, { tenantId: target.tenantId, linkId: target.linkId, now })
+        : false;
+      return { ok: true as const, granted: written, linkSpent };
+    });
+  } catch (error) {
+    if (error instanceof PasswordNotStored) return error.answer;
+    throw error;
+  }
+}
+
+/** When the card was connected while this test ran (a second tab), or before (§7.2). */
+export const ALREADY_CONNECTED: Bilingual = {
+  en: 'This account is already connected. Nothing more is needed for it.',
+  nl: 'Dit account is al verbonden. Er is niets meer voor nodig.',
+};
+
+/**
+ * A test that failed, recorded (0174 §4.7): one `mapping.grant_refused` row
+ * per migration of the card, with the category, the link and the ref. Never
+ * the password, the address that tried, or the server's words. Its own
+ * transaction: nothing else is written for a failed test.
+ */
+export async function recordPasswordRefused(
+  source: Pool | LedgerDriver,
+  target: PersonPasswordTarget,
+  mappingIds: readonly string[],
+  category: 'refused_login' | 'unreachable' | 'face_missing' | 'locked',
+): Promise<void> {
+  try {
+    await withTenantDb(target.tenantId, source, async (db) => {
+      for (const mappingId of mappingIds) {
+        await new PgLedger(db).recordAuditEvent(target.tenantId as TenantId, {
+          actor: GRANT_ACTOR,
+          action: GRANT_REFUSED_ACTION,
+          entity: 'mapping',
+          detail: { mappingId, personLinkId: target.linkId, via: 'password', ref: target.ref, refused: category },
+        });
+      }
+    });
+  } catch (error) {
+    log.error('[api] recording a refused password on a person’s link failed:', error);
+  }
 }

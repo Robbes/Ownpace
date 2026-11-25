@@ -96,6 +96,8 @@ import { readLinkAddressChanges } from '@openmig/managed';
 import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
 import { answerAddressChangeThroughLink } from './link-address-changes.ts';
+import { passwordLimit, passwordLimiter, passwordThroughLink } from './grant-password.ts';
+import { serverAgainstAddress } from './grant-server-domain.ts';
 import type { MappingLinkRequest, PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import {
@@ -360,13 +362,18 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
     // (0168 §4.4, D6): the rows linked to this person, and nobody else's.
     addressChanges: await readLinkAddressChanges(db, link.tenantId, link.personId),
   }));
+  // Where each password card's password goes, compared with the address's
+  // own mail (0174 §5.8, D3): a warning for the page, never a refusal.
+  const servers = await Promise.all(
+    subject.accounts.map((a) => (a.way === 'password' && a.server ? serverAgainstAddress(a.account, a.server) : null)),
+  );
   res.json({
     kind: 'person',
     organisation: subject.organisation,
     checkedCompany,
     askedBy,
     organisationPhone: subject.organisationPhone,
-    accounts: subject.accounts.map((a) => ({
+    accounts: subject.accounts.map((a, i) => ({
       // The card's name on the page and in the password route (workplan 0174
       // §4.1): a hash, never the address.
       ref: a.ref,
@@ -384,7 +391,7 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
       // owner fixed and what the person fills, and the tries left on this
       // link. Never a secret's value: a secret field carries none.
       ...(a.way === 'password'
-        ? { server: a.server ?? null, fields: a.fields ?? [], tries: a.tries ?? null }
+        ? { server: servers[i] ?? a.server ?? null, fields: a.fields ?? [], tries: a.tries ?? null }
         : {}),
       // What it will read and in which words, when it can be asked; otherwise
       // why not, in both languages, for the person to forward.
@@ -659,5 +666,13 @@ router.post(
  * for a row linked to them. `link-address-changes.ts`.
  */
 router.put('/:link/address-changes/:ref', linkAuth, answerAddressChangeThroughLink('grant', pool));
+
+/**
+ * PUT /api/grant/:link/password — a password the person types for one card
+ * of their link, tested as the create door tests it and stored only when it
+ * works (workplan 0174 §5.3, T3): `grant-password.ts`. The caller's limit
+ * comes before the link is read.
+ */
+router.put('/:link/password', passwordLimit(passwordLimiter()), linkAuth, passwordThroughLink(pool));
 
 export default router;
