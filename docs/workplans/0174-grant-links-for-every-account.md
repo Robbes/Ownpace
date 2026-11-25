@@ -4,6 +4,44 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T1 built (draft pull request, merges after alpha.20's tag).** The seam grows as
+§4.1, §4.2, §5.1 and §9 say, and the interfaces T3 to T6 build against are on the branch
+`claude/ownpace-public-readiness-y7orc6-a21-grant-t1`:
+- `grant-providers.ts`: `GrantRole`, `GrantWay`, `targetKinds` on every entry, the facts
+  `dropboxClient` and `cirruxClient`, `PASSWORD_SOURCE_KINDS`, `PASSWORD_TARGET_KINDS`,
+  `PasswordKind`, `PasswordGrant` (with `personFields` built from `credentialFieldsFor`; its
+  `test` rejects until T3 builds it), `PasswordTest`, `PasswordTestInput`, `PersonField`,
+  `GrantServer` (`hosts`, `published`; T3 adds D3's domain comparison as optional fields),
+  `passwordGrantOf`, `passwordServerOf`. `cirrux` joins `GRANT_PROVIDER_IDS`; `apple` stays in
+  it and never gets an entry. 0171's `tryPassword` is gone.
+- `grant-link-readiness.ts`: `targetGrantAsk` (answers `asks`, a list, because Cirrux can ask a
+  password and Drive at once; the person's fields are added by the subject, not the readiness
+  check, which takes key names and booleans only), `sourceGrantAsk` (a password source on a
+  person's link; a migration's own link stays sign-in only, §13), and `awaitingGrantRefusal`
+  per role, with optional `sourceCredentialKeys` and `target`.
+- `person-grant-subject.ts`: §4.1's `PersonGrantAccount` exactly; `PersonAccountAsk` gains
+  `way`, and a password ask carries the kind, the connection and the faces. A password source
+  is a card when it has no password or the person gave it one (on the migration); a
+  destination when it has none or `person_granted_connection` names the person. Tries are
+  read per link (`PASSWORD_TRIES_PER_LINK = 5`).
+- `grant.ts`'s GET answers `ref`, `role`, `way`, and for a password card `server`, `fields` and
+  `tries`; each migration names `from` too. The OpenAPI spec says so.
+- `start-when-granted.ts` and *Start*: a migration starts only when both sides have a way in
+  (`hasAWayInOnBothSides`).
+- Managed migration **0064** (`person_link_try`, `person_granted_connection`): RLS NULL-safe,
+  `link_sees_itself`'s twin on the tries, the granted connection held to the organisation's
+  own connections, grants for `app_user` and the purge's role, both in `PURGED_TABLES` and in
+  `no-managed-leakage`. The shared chain is untouched.
+
+Proved: the unit tests named in §10's T1 row (`readiness-per-role`,
+`every-password-kind-has-a-link`, `a-person-link-asks-for-both-sides`,
+`a-password-tried-on-a-link-under-rls`, `start-when-granted`), PGlite over both chains; and
+the worker's `a-system-role-that-is-not-the-owner` integration test, which lists both tables for
+the purge's role, against a real Postgres 16 from `./scripts/local-pg.sh` (41 passed; CI's run
+on the pinned server is still to come). squawk 2.74.0 over 0064 reports `require-lock-timeout`
+(met by the runner), `require-statement-timeout` and `prefer-bigint-over-int` (a count that
+stops at five), report only. Not proved here: anything T3 to T8 own.
+
 **2026-11-25, later: the owner's decisions.** *"All adviced."*: D1 to D9 as advised, (a) each,
 and D3 with the one addition put to the owner with it (§12, D3): a warning beside the server when
 it is not on the address's own domain or its mail's (MX). D8: the privacy policy and the terms
@@ -18,7 +56,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T1 The seam grows: password kinds, destinations, one shape for the page | builder | 📋 Planned | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
+| T1 The seam grows: password kinds, destinations, one shape for the page | builder | 🔎 In review (draft PR) | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
 | T2 Dropbox on the seam | builder | 📋 Planned | §6. Supersedes 0171 T4. S. Needs only 0171 T3's seam, which is merged (#2136). |
 | T3 The own-password route: test, try count, store, spend | builder | 📋 Planned | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
 | T4 The own-password page, per kind, in English and Dutch | builder | 📋 Planned | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
