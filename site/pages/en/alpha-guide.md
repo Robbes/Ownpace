@@ -49,7 +49,7 @@ personally. The Alpha lasts a few weeks.
   folder. You do this in step 5 below, on *Where does it go?*: under *Where the copies land*, open
   *Put it in a folder of its own*, and fill in *Folder* there. For files, a target folder only
   works with the destination *WebDAV* or *Nextcloud*. Unsure? Ask us first.
-- **Open links in a browser** such as Safari or Chrome, not in a chat or mail app. If a link opens
+- **Open links in a browser** such as Firefox, Safari or Chrome, not in a chat or mail app. If a link opens
   in such an app anyway, choose *Open in browser* there.
 - **Deletions are off.** Do you delete something in your old account? Then the copy at your new
   provider stays. Do you want that copy to go too? Then open the migration's *Deletions* page.

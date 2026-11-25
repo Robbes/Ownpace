@@ -97,7 +97,7 @@ export const en = {
   // in that app's own browser, where Google is reported to refuse the consent.
   // Opening the link again elsewhere spends nothing (grant.ts), so it says so.
   'grant.inAppBrowser':
-    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Safari or Chrome. The link still works.',
+    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Firefox, Safari or Chrome. The link still works.',
   'grant.connect': 'Continue with Google',
   // A person's link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
   // card per Google account, each asked once.
@@ -226,7 +226,7 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.until': 'Deze link werkt tot {date}.',
   'grant.signInAs': 'Log in als {account}. Google deelt uw adres ter controle; andere accounts worden geweigerd.',
   'grant.inAppBrowser':
-    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Safari of Chrome. De link blijft werken.',
+    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Firefox, Safari of Chrome. De link blijft werken.',
   'grant.connect': 'Doorgaan met Google',
   'grant.person.asking':
     '{organisation} migreert uw accounts naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',

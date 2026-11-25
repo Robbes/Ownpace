@@ -80,7 +80,7 @@ uitgenodigd. De Alpha duurt enkele weken.
   doet u in stap 5 hieronder, bij *Waar gaat het naartoe?*: open onder *Waar de kopieën komen*
   de keuze *In een eigen map zetten*, en vul daar *Map* in. Voor bestanden werkt een doelmap
   alleen bij de bestemming *WebDAV* of *Nextcloud*. Twijfelt u? Vraag het ons eerst.
-- **Open links in een browser** zoals Safari of Chrome, niet in een chat- of mailapp. Opent een
+- **Open links in een browser** zoals Firefox, Safari of Chrome, niet in een chat- of mailapp. Opent een
   link toch in zo'n app? Kies daar dan *Openen in browser*.
 - **Verwijderingen staan uit.** Verwijdert u iets in uw oude account? Dan blijft de kopie bij uw
   nieuwe aanbieder staan. Wilt u dat die kopie ook verdwijnt? Open dan bij de migratie de pagina

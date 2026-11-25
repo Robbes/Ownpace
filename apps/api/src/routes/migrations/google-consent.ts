@@ -934,9 +934,19 @@ export function grantResultPage(
   // `esc` on a URL this function itself was handed: it goes into an href and
   // into visible text, and a value that cannot be forged is still a value that
   // must not be able to close an attribute.
+  //
+  // The Copy link button (the owner's hand test, 2026-11-24): in a private
+  // window on a phone they could not copy the link out of the page by hand.
+  // It starts `hidden` and the script shows it, so a page whose script does
+  // not run offers no button that does nothing. Its words ride data
+  // attributes, so the script is one text in both languages.
   const keepThis = outcome.progressUrl
     ? `<p>${words.yourPage}</p>` +
-      `<p><a href="${esc(outcome.progressUrl)}">${esc(outcome.progressUrl)}</a></p>` +
+      `<p><a id="progress-link" href="${esc(outcome.progressUrl)}">${esc(outcome.progressUrl)}</a></p>` +
+      `<p><button type="button" id="copy-link" hidden data-copied="${esc(words.copied)}" ` +
+      `data-refused="${esc(words.copyRefused)}" style="${COPY_BUTTON_STYLE}">${words.copy}</button> ` +
+      `<span id="copy-status" role="status"></span></p>` +
+      `<script>${COPY_LINK_SCRIPT}</script>` +
       `<p>${words.keepIt} ${words.howLong}</p>`
     : '';
   // "Read-only" only where Google holds what it recorded to reading (0144 T3
@@ -950,6 +960,27 @@ export function grantResultPage(
     lang,
   );
 }
+
+const COPY_BUTTON_STYLE = 'min-height:44px;padding:8px 16px;font-size:1rem';
+
+/**
+ * Copies the progress link (the owner's hand test, 2026-11-24). The Clipboard
+ * API first; where it is missing or refused (an older browser, a page not
+ * counted as secure, a permission said no), it selects the link's text so the
+ * phone's own Copy is one press away, and says so. Either way the line beside
+ * the button says what happened, as a status a screen reader announces.
+ *
+ * One constant text, so its hash in `callbackPageHeaders` is the same for
+ * every response that carries it.
+ */
+export const COPY_LINK_SCRIPT =
+  "(function(){var b=document.getElementById('copy-link'),a=document.getElementById('progress-link')," +
+  "s=document.getElementById('copy-status');if(!b||!a||!s)return;b.hidden=false;" +
+  'function pick(){var r=document.createRange();r.selectNodeContents(a);var g=window.getSelection();' +
+  "if(g){g.removeAllRanges();g.addRange(r);}s.textContent=b.getAttribute('data-refused')||'';}" +
+  "b.addEventListener('click',function(){var c=navigator.clipboard;if(!c||!c.writeText){pick();return;}" +
+  "c.writeText(a.getAttribute('href')||'').then(function(){s.textContent=b.getAttribute('data-copied')||'';}," +
+  'pick);});})();';
 
 /**
  * The link holder's ending, in both languages (workplan 0145 T6), typed by
@@ -968,6 +999,9 @@ const GRANT_ENDING: Readonly<
       readonly connected: string;
       readonly yourPage: string;
       readonly keepIt: string;
+      readonly copy: string;
+      readonly copied: string;
+      readonly copyRefused: string;
       readonly howLong: string;
       readonly access: Readonly<Record<RecordedPermission, string>>;
       readonly withdraw: string;
@@ -991,6 +1025,9 @@ const GRANT_ENDING: Readonly<
     keepIt:
       'Keep this link: bookmark it or copy it somewhere safe. If this page opened inside another ' +
       'app, that app may not keep it for you.',
+    copy: 'Copy link',
+    copied: 'Copied.',
+    copyRefused: 'This browser did not allow copying. The link is selected: copy it from there.',
     howLong:
       'It works for the next 90 days, and the person running the migration can turn it off at ' +
       'any time.',
@@ -1025,6 +1062,9 @@ const GRANT_ENDING: Readonly<
     keepIt:
       'Bewaar deze link: zet hem bij uw favorieten of kopieer hem naar een veilige plek. Is deze ' +
       'pagina in een andere app geopend, dan bewaart die app hem misschien niet.',
+    copy: 'Link kopiëren',
+    copied: 'Gekopieerd.',
+    copyRefused: 'Deze browser stond kopiëren niet toe. De link is geselecteerd: kopieer hem vanaf daar.',
     howLong:
       'Hij werkt de komende 90 dagen, en wie de migratie uitvoert kan hem op elk moment uitzetten.',
     access: {
@@ -1071,7 +1111,9 @@ const GRANT_ENDING: Readonly<
  * inline can ever run on this page — and the opener policy is `unsafe-none`,
  * the only value under which a window that went to Google and back still
  * has an opener. A page with no script (an ending that refuses, the
- * copy-paste degradation, the link holder's page) permits no script at all.
+ * copy-paste degradation, the link holder's page without a progress link)
+ * permits no script at all; the link holder's page with one permits only its
+ * Copy link script (2026-11-24).
  *
  * Not loosened in `index.ts` on purpose: this is the one response the API
  * makes that needs an inline script, and the one that needs its opener.
