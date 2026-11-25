@@ -263,9 +263,10 @@ reads that account, as a sign-in's token is. A destination's password is stored 
 destination account itself, which then records the person who connected it: it takes only that
 person's migrations, and its password can be changed only by them, through a new link from you
 (*… connected this account themselves. Make them a new grant link to change it.*). The person
-withdraws a source's password on their progress page, as they withdraw a sign-in; a
-destination's password goes when you delete that account. Either way, changing the password at
-their provider makes the stored one useless.
+withdraws a password on their progress page, a source's or a destination's, as they withdraw a
+sign-in: **Remove my password**, behind a second press. Nothing more is then read from that
+account, or written to it, until they connect it again through a new link from you. Either way,
+changing the password at their provider makes the stored one useless.
 
 ### Only the account the page names
 

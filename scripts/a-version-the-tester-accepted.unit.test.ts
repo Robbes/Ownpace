@@ -157,11 +157,15 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // had accepted any version, so the numbers stay 1.0, edited in place, as on 2026-10-14,
   // 2026-10-21, 2026-11-22 and 2026-11-23. Only the privacy and terms pins move; alpha is
   // unchanged. As before, an acceptance of 1.0 recorded before these words reach a stack counts
-  // for them, and only the owner's own and test accounts can hold one.
+  // for them, and only the owner's own and test accounts can hold one. Pinned again the same day
+  // after the owner's read of the Dutch ("all ok, advice yes"): §4.6 tries the password "with the
+  // server the page names", not "once", as every press is one try of five; and a password the
+  // person typed is withdrawn on their progress page for a source and a destination alike, as the
+  // grant-link branch builds it (0174 §4.3).
   'alpha.md@1.0': 'acc56aaf5e570d53687793a4e6951ae5732c5ce7273328a5ac5ed4201785018c',
   'alpha.nl.md@1.0': 'bf9a41a1679f8ee912c8e611b52eb4daf93f0e4042f8c708c476dea99cfd4bfb',
-  'privacy.md@1.0': 'c13d5432319b90549a56bb6b41148c7ee1b0bf598bc4a5b64c2fb10ef938c873',
-  'privacy.nl.md@1.0': 'e98f9d1b5bd49e54f4c6ae46a5a1db75caa8f54bdd730279815aa9d6d37c76a4',
+  'privacy.md@1.0': '8afcbca9dee6e50ae64c421dfff6c655bdce5e786086e4fc86b0602977755e8d',
+  'privacy.nl.md@1.0': '1445ceec6741a4279010f0fafe1624701f3d1e590c55e63f29d891da5c1866d8',
   'terms.md@1.0': '9ea49748d35d66ded8823581d24da13c2935a2319a4306749090a26b96ae0074',
   'terms.nl.md@1.0': 'fb7247bc0b9312a7157cc999904b800b2007df2f8003c4beb4a9539a33e8c33e',
 };

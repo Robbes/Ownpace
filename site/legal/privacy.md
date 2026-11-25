@@ -15,8 +15,8 @@
   beside an app password, and who can type one; §4.6's family-member bullet says what we do with
   a password typed on the page (tried with the server the page names, kept only if it works,
   wrong tries counted on the link without the password and the link stopped for that account
-  after five, never in a log or a record, never shown; a password for an account we read is
-  withdrawn on the progress page, one for an account we write to goes with that account); §9
+  after five, never in a log or a record, never shown; withdrawn on the person's progress page,
+  for an account we read and one we write to alike, as the owner's read of the Dutch settled); §9
   gains a row for the count of wrong tries. The Dutch also says *bestemming* for the target
   where it said *doel*, as the Dutch terms do since the owner's read of 2026-11-25 (*nieuwe
   bestemming*, *bestemmingsaccount* beside *bronaccount*); *Doel* as a purpose (§5's column) stays.
@@ -1124,12 +1124,11 @@ A migration touches people who never signed up with us. This is what we hold abo
   their own provider and give Ownpace access themselves, from a page that says who asked, from
   which account and to where. Or, for an account that signs in with a password (Apple, a mail
   server, a Nextcloud and the like), they type that password themselves on the page. We try it
-  once with the server the page names, and keep it only if it works, encrypted (§4.1). We count
+  with the server the page names, and keep it only if it works, encrypted (§4.1). We count
   wrong tries on the link, without the password, and stop the link for that account after five.
   We never write the password in a log or a record, and we never show it to anybody, you
-  included. They can withdraw a password for an account we read from on their progress page,
-  which deletes it here; one for an account we write to is deleted with that account, or when
-  your data is erased. Changing the password at their provider makes ours useless. We keep that access (encrypted, §4.1), the address of their
+  included. They can withdraw it on their progress page, which deletes it here.
+  Changing the password at their provider makes ours useless. We keep that access (encrypted, §4.1), the address of their
   account, and when the link was made, used and ended. They can withdraw the access at any time.
   On their progress page, that deletes it here, and revokes it at their provider where the
   provider allows that. At their provider, it makes what we hold useless, and we delete it when

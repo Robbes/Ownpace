@@ -412,13 +412,11 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
   logt die zelf in bij de eigen aanbieder en geeft die Ownpace zelf toegang, vanaf een pagina
   die zegt wie het vroeg, van welk account en naar waar. Of, voor een account dat met een
   wachtwoord inlogt (Apple, een mailserver, een Nextcloud en dergelijke), typt die persoon dat
-  wachtwoord zelf op de pagina. We proberen het één keer bij de server die de pagina noemt, en
+  wachtwoord zelf op de pagina. We proberen het bij de server die de pagina noemt, en
   bewaren het alleen als het werkt, versleuteld (§4.1). We tellen verkeerde pogingen op de link,
   zonder het wachtwoord, en stoppen de link voor dat account na vijf. We schrijven het wachtwoord
-  nooit in een log of een vastlegging, en we laten het nooit aan iemand zien, ook niet aan u. Een
-  wachtwoord voor een account waaruit we lezen, kan die persoon intrekken op de eigen
-  voortgangspagina, wat het hier verwijdert; een wachtwoord voor een account waarnaar we
-  schrijven, wordt verwijderd met dat account, of wanneer uw gegevens worden gewist. Wijzigt die
+  nooit in een log of een vastlegging, en we laten het nooit aan iemand zien, ook niet aan u. Die
+  persoon kan het intrekken op de eigen voortgangspagina, wat het hier verwijdert. Wijzigt die
   persoon het wachtwoord bij de eigen aanbieder, dan is het onze onbruikbaar. Wij bewaren die toegang (versleuteld,
   §4.1), het adres van dat account, en wanneer de link werd gemaakt, gebruikt en beëindigd. Die
   persoon kan de toegang op elk moment intrekken. Op de eigen voortgangspagina verwijdert dat haar
