@@ -621,6 +621,8 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   // D6): on the grant page only, whose every route asks, so it asks too. It
   // starts nothing; the progress page's answer, like the page, does not ask.
   'routes/link-address-changes.ts': 1,
+  // Finish's addresses and MX check (0171 T10): both read with the source's access.
+  'routes/migrations/finish-checks-routes.ts': 2,
   // A Microsoft grant link's ending (workplan 0171 T3): before the code is
   // exchanged, as Google's link ending asks. The callback hands the reading
   // to the ending, which asks it.
@@ -667,6 +669,9 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // test presses it on a closed organisation.
   'routes/migrations/cirrux-oauth-routes.ts': 4,
   'routes/migrations/google-oauth-routes.ts': 3,
+  // Finish's addresses (0171 T10): the source's record opened and its
+  // credentials merged as a pass merges them, after the route's own close.
+  'routes/migrations/finish-checks-routes.ts': 2,
   'routes/migrations/grant-subject.ts': 2,
   // A Microsoft grant link's ending (workplan 0171 T3): the two stores, after
   // the ending's own close; each store reads the close again in its transaction.

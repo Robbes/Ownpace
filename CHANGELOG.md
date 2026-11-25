@@ -96,6 +96,33 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   are not asked. A new read-only route answers it on both editions:
   `GET /api/migrations/{id}/destination-space` on managed, `GET /mappings/{id}/destination-space`
   on the appliance. No database change.
+- **Finish reads step 4: the addresses that receive mail, and MX checked on a button**
+  (workplan 0171 T10; the owner's decisions D7 (a) and D8 (a) of 2026-11-24). For a mailbox on a
+  domain the person controls, step 4 lists the addresses at the old provider that deliver into it
+  (*Addresses that receive mail*), read live from Microsoft Graph (`mail` and every `smtp:` proxy
+  address) or Gmail's send-as list, each with a tick, *Made at the new provider*; addresses on
+  the provider's own domains (`onmicrosoft.com`, `gmail.com`) are left out, and an IMAP or Apple
+  source says to check them at the old provider. *Check MX now* asks three public DNS-over-HTTPS
+  resolvers and answers one line: MX points at the new provider, still at the old one, at hosts
+  for the person to judge, or the DNS servers do not agree yet. The tick stays. Step 4's text is
+  split by the kind of address: MX for an own domain, forwarding and the automatic reply for an
+  address the provider keeps. Every new Microsoft consent asks `User.Read`, the person's own
+  profile; a connection consented before this release says *Not read from Microsoft; reconnect to
+  list them.* Two read-only routes on both editions, `GET …/finish/addresses` and `POST
+  …/finish/mx-check` (one check per ten seconds per migration). No database change.
+- **Apple's data export is read, Experimental** (workplan 0171 T1; the owner's decisions D6 and
+  D9 of 2026-11-24). An archive connection whose export is **Apple Data & Privacy** now has a
+  reader: iCloud Drive and iCloud Photos from the `.zip` parts Apple delivers, from the folder they
+  were put in unopened, or from an extracted copy. The reader finds each service's data by its own
+  list of files (`Drive Details.csv` for Drive), never by folder names, and keeps the person's
+  folders as they are. It is built on the one export opened so far, so it refuses what it does
+  not know: a zip with neither service's list (*"This does not look like an Apple export we
+  know"*), fewer `.zip` parts than the person said Apple gave them (an archive connection takes a
+  new optional `parts`), and two parts that belong to two different exports. A file is dated by
+  the zip itself; Apple's list of dates carries no time zone, so its dates are kept as text beside
+  each file and never parsed. Photos are written against Apple's description, not a real export.
+  The form's *To be tested* tag and cannot-read line go with the reader; the screen and guide
+  sentences for the part count and Advanced Data Protection follow in T2. No database change.
 
 ### Changed
 
@@ -108,6 +135,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   (`ffa8a754…`, `libssl3t64` 3.5.9-1~deb13u1, which still carries both OpenSSL CVEs, workplan 0166),
   and Nextcloud `35.0.3-apache` (`2567f3c3…`) and `34.0.6-apache` (`031b30f0…`), on PHP 8.5.13 with
   apache2 2.4.71-1~deb13u1.
+- **The two support lists that served every row now come a page at a time** (an outside,
+  read-only check, PERF-2; the owner, 2026-11-24: *"page both (Show more) in alpha.20; a plain
+  maximum would hide rows from the operator"*; workplan 0006 §P). `GET /support/tenants` and
+  `GET /support/retained-invoices` serve a hundred rows a page, by keyset on each list's own order
+  with a unique last key, and a `next` cursor to send back as `after`; a cursor that does not parse
+  is a `400`. The operator's organisations screen and the screen of invoices kept after an erasure
+  show **Show more** only when there is more, so a list of one page looks as before. Every page is
+  its own row in the support read log, the later ones too: each is rows the operator chose to look
+  at. The API description has the new parameter and fields.
 
 ### Fixed
 

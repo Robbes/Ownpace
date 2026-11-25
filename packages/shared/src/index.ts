@@ -147,6 +147,9 @@ export * from './calendar-scheduling.ts';
 
 // The forms an address takes, and the domains nobody can take along (workplan 0168 T1).
 export * from './address-forms.ts';
+// Finish's step 4: the addresses that receive mail and the MX check (workplan 0171 T10).
+export * from './finish-addresses.ts';
+export * from './finish-mx.ts';
 // A new address as a declared change to cards and events, never to mail (workplan 0168 T3, ADR-0055).
 export * from './address-changes.ts';
 

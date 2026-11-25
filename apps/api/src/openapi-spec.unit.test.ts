@@ -87,6 +87,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
       'src/routes/migrations/microsoft-oauth-routes.ts',
       'src/routes/migrations/cirrux-oauth-routes.ts',
       'src/routes/migrations/link-routes.ts',
+      'src/routes/migrations/finish-checks-routes.ts',
       'src/routes/migrations/destination-space-route.ts',
     ],
   },

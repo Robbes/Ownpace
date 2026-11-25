@@ -480,6 +480,16 @@ export interface ArchiveSource {
    * are "a path here" and "a path somewhere else entirely".
    */
   readonly where?: ArchiveWhere;
+  /**
+   * HOW MANY PARTS the person says the export came in (workplan 0171 §2.3).
+   *
+   * Apple splits a large export into parts and nothing in the files says how
+   * many there were, so a part that never arrived is invisible to a reader
+   * left alone. With this number it counts the `.zip` files it finds and
+   * refuses when there are fewer, naming both numbers. Absent means not asked:
+   * nothing is counted, as before.
+   */
+  readonly parts?: number;
 }
 
 /** The stores an archive can be in — see {@link ArchiveSource.where}. */
@@ -1317,7 +1327,20 @@ export function parseArchiveSource(obj: Record<string, unknown>): ArchiveSource 
     provider,
     path: reqString(obj, 'path', 'source.path'),
     ...(obj['where'] === undefined ? {} : { where: parseArchiveWhere(obj['where']) }),
+    ...(obj['parts'] === undefined ? {} : { parts: parseArchiveParts(obj['parts']) }),
   };
+}
+
+/**
+ * Validate the part count the person gave (workplan 0171 §2.3): a whole
+ * number from 1. Refused by name rather than dropped, because dropped it
+ * would mean "not counted" — and a missing part would then pass in silence.
+ */
+function parseArchiveParts(value: unknown): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1) return value;
+  throw new ConfigError(
+    `source.parts: expected a whole number from 1 — how many parts the export came in — got ${JSON.stringify(value)}`,
+  );
 }
 
 /**
