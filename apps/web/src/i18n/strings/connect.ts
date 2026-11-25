@@ -1073,7 +1073,7 @@ export const nl: Record<keyof typeof en, string> = {
   'connections.sources': 'Bronnen',
   'connections.targets': 'Bestemmingen',
   'connections.test': 'Testen',
-  'connections.waitingFor': 'Wacht op {person}: die typt het wachtwoord zelf, met de persoonlijke link.',
+  'connections.waitingFor': 'Wacht op {person}: die typt het wachtwoord zelf, met de toegangslink.',
   'connections.connectedBy': '{person} heeft dit account zelf verbonden. Maak een nieuwe toegangslink voor {person} om het te wijzigen.',
   'connections.testing': 'Bezig met testen…',
   'connections.usedBy.one': 'Gebruikt door 1 migratie',

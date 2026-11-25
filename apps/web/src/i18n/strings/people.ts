@@ -261,7 +261,7 @@ export const nl: Record<keyof typeof en, string> = {
   'person.awaiting.ranBefore': 'Wacht tot {name} opnieuw verbindt.',
   'person.awaiting.destination': 'Wacht tot {name} de bestemming {account} verbindt.',
   'person.awaiting.tries': 'Onjuiste wachtwoorden voor {account} met deze link: {n}. Pogingen over: {left}.',
-  'person.awaiting.locked': '{account} is geblokkeerd op deze link na vijf pogingen. Maak een nieuwe link voor {name}.',
+  'person.awaiting.locked': '{account} is geblokkeerd voor deze link na vijf pogingen. Maak een nieuwe link voor {name}.',
   'person.awaiting.unread': 'Welke hiervan wachten tot {name} verbindt, kon niet worden gelezen.',
   'person.links.title': 'Voor {name}',
   'person.links.noGoogle':

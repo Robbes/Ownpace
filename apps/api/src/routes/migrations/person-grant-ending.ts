@@ -341,7 +341,7 @@ export type PersonPasswordStoreResult =
 /** When the destination is already a person's own, and that person is somebody else (D1 (a)). */
 export const CONNECTED_BY_SOMEBODY_ELSE: Bilingual = {
   en: 'This account was connected by somebody else. It cannot be connected again through this link.',
-  nl: 'Dit account is door iemand anders gekoppeld. Het kan niet opnieuw via deze link worden gekoppeld.',
+  nl: 'Dit account is door iemand anders verbonden. Het kan niet opnieuw via deze link worden verbonden.',
 };
 
 /** The string values of a stored credential record: what `encryptCredentials` takes back. */
