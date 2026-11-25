@@ -1468,6 +1468,12 @@ export interface ConnectionSummary {
    * error, and nothing to Test until they have.
    */
   waitingFor?: { personId: string; name: string };
+  /**
+   * Managed only (workplan 0174 §4.3, D6): a destination the person connected
+   * themselves through their link. The rotation door refuses a new password
+   * on it, so the page offers none and says why.
+   */
+  connectedBy?: { personId: string; name: string };
   createdAt: string;
   /** How many mailboxes depend on it — whether re-testing this matters. */
   /**

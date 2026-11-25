@@ -423,6 +423,13 @@ describe('an account a person connected themselves', () => {
 
   it('refuses the owner a new app password on it, and the owner’s own Drive sign-in (D6)', async () => {
     await annaConnects();
+    // The Accounts page reads who connected it, so it offers no new password
+    // the door below refuses (0174 D6); the owner's own account names nobody.
+    const listed = await request(app).get('/api/connections');
+    expect(listed.status, JSON.stringify(listed.body)).toBe(200);
+    const byId = new Map((listed.body.connections as Array<{ id: string; connectedBy?: unknown }>).map((c) => [c.id, c]));
+    expect(byId.get(ANNAS_CIRRUX)?.connectedBy).toEqual({ personId: ANNA, name: 'Anna' });
+    expect(byId.get(OWNERS_CIRRUX)?.connectedBy).toBeUndefined();
     const before = await storedCreds(ANNAS_CIRRUX);
     const rotated = await request(app)
       .put(`/api/connections/${ANNAS_CIRRUX}/credentials`)

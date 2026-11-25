@@ -82,7 +82,7 @@ import type {
 } from '@openmig/shared';
 import { authenticate, withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
-import { rotationRefusal } from '@openmig/managed';
+import { grantedByForConnections, rotationRefusal } from '@openmig/managed';
 import { refusedUntilAccepted } from '../conditions-not-accepted.ts';
 import type { Answerable, AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
@@ -383,10 +383,20 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
 
       // Whom a password account saved for a person waits for (0174 §8.2).
       const waiting = await waitingForPeople(db, tenantId, connections);
+      // Who connected an account themselves through their link (0174 §4.3,
+      // D6): the rotation door refuses it, so the page offers no new password.
+      const grantedBy = await grantedByForConnections(
+        db,
+        tenantId,
+        connections.filter((c) => c.role === 'target').map((c) => c.id),
+      );
 
       return connections.map(({ config, secretRef: _sealed, ...c }) => ({
         ...c,
         ...(waiting.has(c.id) ? { waitingFor: waiting.get(c.id)! } : {}),
+        ...(grantedBy.has(c.id)
+          ? { connectedBy: { personId: grantedBy.get(c.id)!.personId, name: grantedBy.get(c.id)!.displayName } }
+          : {}),
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
         usedByMigrations: usedByMigrations.get(c.id) ?? 0,

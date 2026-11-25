@@ -435,6 +435,9 @@ export const en = {
   'connections.test': 'Test',
   // A password account saved for a person (0174 §8.2), in place of its error.
   'connections.waitingFor': 'Waiting for {person}: they type its password themselves, with their grant link.',
+  // A destination the person connected themselves (0174 §4.3, D6): the
+  // rotation door's own sentence (`connectedByThemselves`), word for word.
+  'connections.connectedBy': '{person} connected this account themselves. Make them a new grant link to change it.',
   'connections.testing': 'Testing…',
   // A connection serves migrations, not mailboxes (owner remark 2026-09-02:
   // Dropbox is files, a Google account is four faces) — and none yet is a
@@ -1071,6 +1074,7 @@ export const nl: Record<keyof typeof en, string> = {
   'connections.targets': 'Bestemmingen',
   'connections.test': 'Testen',
   'connections.waitingFor': 'Wacht op {person}: die typt het wachtwoord zelf, met de persoonlijke link.',
+  'connections.connectedBy': '{person} heeft dit account zelf verbonden. Maak een nieuwe toegangslink voor {person} om het te wijzigen.',
   'connections.testing': 'Bezig met testen…',
   'connections.usedBy.one': 'Gebruikt door 1 migratie',
   'connections.usedBy.other': 'Gebruikt door {count} migraties',

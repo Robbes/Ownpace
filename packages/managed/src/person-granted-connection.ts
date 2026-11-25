@@ -28,7 +28,7 @@
  * Every function runs in the caller's tenant transaction.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { PgDatabase } from '@openmig/ledger/db';
 import { mailbox, mailboxMapping } from '@openmig/ledger/schema-pg';
 import type { Bilingual } from '@openmig/shared';
@@ -53,6 +53,27 @@ export async function readGrantedBy(
     .where(and(eq(personGrantedConnection.connectionId, connectionId), eq(personGrantedConnection.tenantId, tenantId)));
   const row = rows[0];
   return row ? { personId: row.personId, displayName: row.displayName } : null;
+}
+
+/**
+ * Who connected each of these destinations through their link, by connection
+ * (0174 §4.3, D6): what the Accounts page reads to hide *Replace credentials*
+ * on a row the rotation door refuses. Absent for every other row.
+ */
+export async function grantedByForConnections(
+  db: PgDatabase,
+  tenantId: string,
+  connectionIds: ReadonlyArray<string>,
+): Promise<Map<string, GrantedBy>> {
+  const out = new Map<string, GrantedBy>();
+  if (connectionIds.length === 0) return out;
+  const rows = await db
+    .select({ connectionId: personGrantedConnection.connectionId, personId: personGrantedConnection.personId, displayName: person.displayName })
+    .from(personGrantedConnection)
+    .innerJoin(person, and(eq(person.id, personGrantedConnection.personId), eq(person.tenantId, personGrantedConnection.tenantId)))
+    .where(and(eq(personGrantedConnection.tenantId, tenantId), inArray(personGrantedConnection.connectionId, [...connectionIds])));
+  for (const r of rows) out.set(r.connectionId, { personId: r.personId, displayName: r.displayName });
+  return out;
 }
 
 /** The sentence for a migration pointed at an account somebody else connected (0174 §4.3). */

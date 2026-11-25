@@ -1892,6 +1892,18 @@ paths:
                           properties:
                             personId: { type: string, format: uuid }
                             name: { type: string }
+                        connectedBy:
+                          type: object
+                          required: [personId, name]
+                          description: |
+                            Managed only (workplan 0174 §4.3, D6). A destination
+                            the person connected themselves through their grant
+                            link: the rotation door refuses a new password on
+                            it (`connected_by_the_person`), so the page offers
+                            none. Absent otherwise.
+                          properties:
+                            personId: { type: string, format: uuid }
+                            name: { type: string }
                         createdAt: { type: string, format: date-time }
                         usedByMailboxes:
                           type: integer

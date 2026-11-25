@@ -224,6 +224,23 @@ describe('the connections screen', () => {
     expect(within(mine).queryByText(/Waiting for/)).toBeNull();
   });
 
+  it('offers no new password on a row a person types it for, or typed it on themselves (0174 §4.3, §8.2, D6)', async () => {
+    list.mockResolvedValue([
+      conn({ id: 'c-waits', kind: 'soverin', role: 'target', displayName: 'Anna · Soverin', status: 'error', waitingFor: { personId: 'p-anna', name: 'Anna' } }),
+      conn({ id: 'c-hers', kind: 'cirrux', role: 'target', displayName: 'Anna · Cirrux', connectedBy: { personId: 'p-anna', name: 'Anna' } }),
+      conn({ id: 'c-mine', displayName: 'Mine' }),
+    ]);
+    renderPage();
+    const waits = (await screen.findByText('Anna · Soverin')).closest('li') as HTMLElement;
+    expect(within(waits).queryByRole('button', { name: 'Replace credentials' })).toBeNull();
+    const hers = screen.getByText('Anna · Cirrux').closest('li') as HTMLElement;
+    expect(within(hers).queryByRole('button', { name: 'Replace credentials' })).toBeNull();
+    // The rotation door's own sentence (`connectedByThemselves`), so the page and the door say one thing.
+    expect(within(hers).getByText('Anna connected this account themselves. Make them a new grant link to change it.')).toBeTruthy();
+    const mine = screen.getByText('Mine').closest('li') as HTMLElement;
+    expect(within(mine).getByRole('button', { name: 'Replace credentials' })).toBeTruthy();
+  });
+
   it('draws each group as a white card on the paper, and its title over it (2026-10-05)', async () => {
     // The owner, on the paper the app took that day: the rows sat on the page
     // with nothing to lift them, unlike Migrations, Needs you and Team.
