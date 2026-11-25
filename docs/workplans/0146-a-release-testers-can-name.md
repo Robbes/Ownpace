@@ -7,8 +7,8 @@
 **2026-11-25: the fold for `v0.2.0-alpha.20` (T2).** `package.json` and the API contract say
 `0.2.0-alpha.20`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
 its section, dated 2026-11-25, under a summary; [Unreleased] stays, empty. alpha.20 carries what
-`main` merged after alpha.19's C, `909e6d74`, the commit its tag names: 28 pull requests, merged
-from 2026-11-24 at 20:30 UTC to 2026-11-25 at 07:04 UTC. None came from Dependabot. Four
+`main` merged after alpha.19's C, `909e6d74`, the commit its tag names: 30 pull requests, merged
+from 2026-11-24 at 20:30 UTC to 2026-11-25 at 07:11 UTC. None came from Dependabot. Four
 entries' words change, so that the section says what alpha.20 ships as one: 0170 T1's no longer
 says the sources' date filters and the screens *follow*; 0170 T4's and the Microsoft 365
 calendars' (#2126) no longer describe the window-marked delta cursor that #2126 replaced in the
@@ -34,8 +34,11 @@ make alpha.20 and are planned again for alpha.21.
 - nginx 1.31.10 and five rebuilt bases (0119, #2127), and pg-boss 12.39.0, its job schema 46 to 47,
   one way (0119, #2138);
 - the records: alpha.19's release (#2143), `deploy-live.sh`'s comments (0167, #2122), one page
-  for a security fix that must go out today (#2131), and two more findings of an outside,
-  read-only check read as false positives (0006 §S, #2149).
+  for a security fix that must go out today (#2131), two more findings of an outside, read-only
+  check read as false positives (0006 §S, #2149), and Cirrux's own API read for whether one
+  sign-in could carry every data type (0160, #2153);
+- alpha.21's plan for deleting by hand without a switch, the owner's choice (0173, #2150), whose
+  build waits for this tag.
 
 - **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`: what
   is still open goes into alpha.21.
