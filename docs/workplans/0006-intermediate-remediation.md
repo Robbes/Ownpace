@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to N and R done; P built, in a draft pull request for alpha.20; Q fixed on its branch (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-24: A to O and R done; P built, in a draft pull request for alpha.20; Q fixed on its branch (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -21,6 +21,7 @@
 | N — The web image's base: the line a read-only check (IMG-4) named, `apps/web/Dockerfile:94`, `nginx:1.31.9-alpine-slim`, 2026-11-24 | ✅ Fixed in alpha.20's image pins (#2127, §N): `nginx:1.31.10-alpine-slim` in `apps/web/Dockerfile` and `deploy/compose/www.yml` | the owner, for alpha.20: *"yes on all"* |
 | P — Two support lists that served every row: the routes a read-only check (PERF-2) named in `apps/api/src/routes/support.ts`, 2026-11-24 | 🟡 Built 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-support-paging`, a draft pull request for alpha.20: both routes page by keyset, a hundred rows a page, and both screens have *Show more*; every page is its own `support_read` row. See §P | 2026-11-24: page both, with *Show more*, in alpha.20 |
 | R — An import cycle (CQ-06), a swallowed test error (ERR-1) and the assistant's start-up hook (AIR-2b): three findings of an outside, read-only check on `20038a66`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-outside-n`: the cycle broken by moving the re-measuring family to `qualify-and-remember.ts`, with a guard; the test's catch, which let go nothing, replaced by an assertion; the hook judged false and kept, with a guard that pins it. Nothing in the product changes. See §N | asked for, 2026-11-24 |
+| O — The same list read again in a loop (PERF-4, five spots) and "green in CI proves less than it seems" (QUAL-3): a read-only check on `20038a66`, 2026-11-24 | ✅ Read and done 2026-11-24 (§O): one PERF-4 spot true, the pin watch listing the open issues once per row, now once per run; four PERF-4 spots and QUAL-3 false, nothing changed | asked for, 2026-11-24 |
 | Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | 🔨 Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, not yet merged: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). The first proof in CI comes on `main` | asked for, 2026-11-24 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
@@ -429,6 +430,48 @@ describes the tree installed on the runner that builds it.
   it, once the new step has run on a tag.
 - An SBOM per image, for the operating-system packages of the base images, which no npm or pnpm
   BOM lists.
+
+## O — A list read again in a loop, and green CI (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check read `main` at `20038a66` (#2123) and named five spots
+under PERF-4, "the same data read or parsed again inside a loop", and one finding under QUAL-3,
+"green in CI proves less than it seems". Each was read on `main` at `20038a66`, where all six
+still stand as the check gives them.
+
+**PERF-4.**
+
+| Spot on `20038a66` | Verdict | Why |
+|---|---|---|
+| `scripts/idp-pin-watch.mjs:1876` | **True, fixed** | `main()` kept the issue of each of the report's seven rows with `keepIssue(row, gh, row.title)`, and each call ran `gh issue list --state open --limit 1000 --json number,title,body`: seven requests to GitHub for the same list, each parsed again. Now `keepIssues` lists the open issues once (`openIssues`) and hands that list to `keepIssue` for every row. `keepIssue` takes it as an optional fourth argument and, left without it, lists them itself as before, so its existing callers and tests are unchanged. One list can serve every row because every row has a title of its own: the seven `TITLES` are distinct, and the guard's *the routine pins* test already holds that `watch()` gives seven distinct titles. A row opens, edits or closes only issues under its own title, so nothing one row writes changes what the next row finds. `keepIssues` refuses two rows under one title, a row without one counting as the identity provider's, as `keepIssue`'s default does. A list that cannot be read is every row's error, as it was when each row read it. Shown by `a-pin-that-knows-it-is-behind.unit.test.ts`, *every row from one list of the open issues (PERF-4)*: five rows, one `issue list`; with the list not handed on, the test fails |
+| `scripts/lessons.mjs:184` | False | `collect()` maps over `guardFiles(dir)`, and each pass reads a different guard file, once |
+| `scripts/lessons.mjs:259` | False | Not in a loop: the one read of `docs/LESSONS.md`, in `--check` mode |
+| `scripts/release-verify.mjs:442` | False | `asJson` parses bom.json's bytes once per release check. Its one caller is `checkAssets` (`:429`), whose one caller, `main` (`:597`), runs it once |
+| `scripts/workplan-index.mjs:304` | False | `check()` reads the README once per run; its one caller is the CLI's `--check` (`:359`) |
+
+**QUAL-3.** The check took `main` at `20038a66`, whose push run of CI skipped the test jobs, for
+green that proves little. False:
+
+- `20038a66` (#2123) changes two files, both under `docs/workplans/`. Its push run,
+  45415351286, ran `detect-changes`, `docs-hygiene` and `fixture-uuid-check`, skipped `lint`,
+  `unit-tests`, `ui-tests`, `migration-lint` and `integration-tests`, and `ci-complete` passed.
+  That is by design: `detect-changes` found no code change, and `ci-complete` fails any gate
+  that was owed and skipped.
+- The code in that tree is the code of its parent, `8f46f61c` (#2118). That commit's push run,
+  45411654993, ran and passed `unit-tests (all)`, `lint`, `ui-tests` and
+  `integration-tests (ubuntu-24.04-arm)`.
+- Every pull request must be up to date with `main` before it merges, and `ci-complete` is
+  required on it (`docs/testing.md`), so each tree that lands was validated on its pull request
+  too.
+- No step in `.github/workflows/ci.yml` has `continue-on-error`, and each run read its own
+  commit (`head_sha` of both runs), not an earlier one.
+- `ci.yml` already explains the docs-only skip and the cancelled middle runs of a burst of
+  merges (the comments at lines 141 to 190), and
+  `a-run-that-was-cancelled-and-called-green.unit.test.ts` guards them.
+
+No workflow changed.
+
+**Decided.** PERF-4 at `idp-pin-watch.mjs` fixed; the other four PERF-4 spots and QUAL-3 read
+as false on 2026-11-24, and nothing changed for them.
 
 ## P — Two support lists that served every row (an outside, read-only check, 2026-11-24)
 
