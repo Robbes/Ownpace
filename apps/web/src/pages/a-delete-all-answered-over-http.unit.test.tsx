@@ -132,7 +132,7 @@ const queue: DeletionsQueue = {
   earlierExports: { waiting: [], kept: [] },
 };
 
-const FLAG = { allowApplyDeletions: true, autoApplyRelocations: false, source: 'mapping' };
+const FLAG = { autoApplyRelocations: false, source: 'mapping' };
 const QUEUED = { queued: true, receipt: { state: 'queued', requestedAt: '2026-11-22T00:00:00Z' } };
 const landed = (rest: Record<string, unknown>) => ({
   status: 200,

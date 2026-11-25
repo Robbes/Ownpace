@@ -10,9 +10,10 @@
  * strength of a listing that was merely throttled.
  *
  * The gate decides what is SHOWN. `applyDeletion` on the server decides what
- * happens, and enforces four more conditions this page cannot see (the
- * mapping's opt-in, an untouched target copy, the target being capable of
- * removal, and the mass-deletion breaker). A refusal is therefore a normal
+ * happens, and enforces three more conditions this page cannot see (an
+ * untouched target copy, the target being capable of removal, and the
+ * mass-deletion breaker). No switch has to be turned on for it since alpha.21
+ * (ADR-0024, 2026-11-25): the two presses on this page are the consent. A refusal is therefore a normal
  * outcome here, not an error, and is rendered as the server's own words.
  *
  * ONE screen, TWO temporal shapes (workplan 0019 T1/T2): the appliance answers
@@ -34,9 +35,8 @@ import { useParams } from 'react-router';
 import type { ApplyReceipt, DeletionsQueue, EarlierExport, ItemDeletion } from '@openmig/shared';
 import { mayOfferApply } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.tsx';
-import { ApplyDeletionsPanel } from '../components/queues/ApplyDeletionsPanel.tsx';
-import { DeleteAllPanel, deletionRefusalKey } from '../components/queues/DeleteAllPanel.tsx';
-import { isSelfHost } from '../services/edition.ts';
+import { ApplyDeletionsPanel, WhatADeleteDoes } from '../components/queues/ApplyDeletionsPanel.tsx';
+import { DeleteAllPanel } from '../components/queues/DeleteAllPanel.tsx';
 import {
   ActionButton,
   AfterCutoverNote,
@@ -131,27 +131,6 @@ const WhichItem: React.FC<{ domain: string; displayName: string | undefined; col
   );
 };
 
-/**
- * DELETING BY HAND IS OFF, in the reader's words and with what this reader
- * can do about it (workplan 0160, T2b): the switch above on managed, the
- * mapping's file on the appliance. The server's sentence is the appliance's,
- * and told a managed owner to set `allowApplyDeletions: true` in a config
- * file they do not have. Every other refusal keeps the gates' own words, with
- * its code, as a receipt always has (0019 T2): undefined here.
- */
-function refusedInOurWords(t: ReturnType<typeof useT>, code: string): string | undefined {
-  const key = deletionRefusalKey(code);
-  if (code !== 'not_enabled' || key === undefined) return undefined;
-  return `${t(key)} ${t(isSelfHost() ? 'deletions.refused.notEnabled.config' : 'deletions.refused.notEnabled.turnOn')}`;
-}
-
-/** A receipt the job refused, said as a press's refusal is. */
-const RefusedReceipt: React.FC<{ receipt: ApplyReceipt }> = ({ receipt }) => {
-  const t = useT();
-  const words = receipt.state === 'refused' ? refusedInOurWords(t, receipt.code) : undefined;
-  return words !== undefined ? <Refused text={words} /> : <ReceiptStatus receipt={receipt} />;
-};
-
 const Row: React.FC<{
   d: ItemDeletion;
   outcome?: ItemOutcome;
@@ -170,7 +149,7 @@ const Row: React.FC<{
       ) : outcome?.state === 'refused' ? (
         <Refused text={outcome.text} />
       ) : outcome?.state === 'receipt' ? (
-        <RefusedReceipt receipt={outcome.receipt} />
+        <ReceiptStatus receipt={outcome.receipt} />
       ) : outcome?.state === 'waiting' ? (
         <WaitingItsTurn />
       ) : outcome?.state === 'unknown' ? (
@@ -356,8 +335,7 @@ const Deletions: React.FC<{
             state: 'refused',
             text:
               err instanceof DecisionRefusedError
-                ? (refusedInOurWords(t, err.refusal.error) ??
-                  err.refusal.reason ??
+                ? (err.refusal.reason ??
                   err.refusal.hint ??
                   err.refusal.error)
                 : err instanceof Error
@@ -377,9 +355,14 @@ const Deletions: React.FC<{
     fetcher={() => fetchDeletions(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes, setOutcome, refresh) => (
       <>
-        {/* Gate 1, visible where it bites (0019 T3): the delete buttons below
-            are refused by the server while this is off. */}
+        {/* The one switch left: removing moved files' old copies unattended
+            (ADR-0031). Deleting by hand has none since alpha.21 (ADR-0024,
+            2026-11-25). */}
         <ApplyDeletionsPanel mappingId={mappingId} />
+        {/* What a delete does, said where the press is made (workplan 0173
+            T3): it stood in front of the switch that is gone. Only where a
+            row offers a delete. */}
+        {queue.confirmed.some((d) => mayOfferApply(d, queue.afterCutover)) && <WhatADeleteDoes />}
         {/* Only the rows whose button the cutover took away (2026-10-05). */}
         <AfterCutoverNote
           withheld={queue.confirmed.filter((d) => mayOfferApply(d, []) && !mayOfferApply(d, queue.afterCutover))}

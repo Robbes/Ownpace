@@ -770,26 +770,28 @@ export interface MappingConfig {
    */
   readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
   /**
-   * Allow this mapping to REMOVE an item's copy on the target, once an operator
-   * has confirmed the source deleted it.
+   * NO LONGER READ, since alpha.21 (ADR-0024's amendment of 2026-11-25,
+   * workplan 0173). It was gate 1 of deleting by hand: off unless a mapping
+   * set it `true`. The owner removed that switch, so deleting by hand needs
+   * nothing turned on, in both editions, and there is no way to turn it off.
    *
-   * Defaults to `false`. This is the one destructive capability in the product —
-   * see `applyDeletion` in `@openmig/core` for the seven gates in front of every
-   * individual removal — and a capability that destroys data must be opted into
-   * per mapping rather than on by default. Turning it on does not remove
-   * anything by itself: it only allows the `apply` action on an individual,
-   * already-confirmed deletion queue entry to go through instead of being
-   * refused outright.
+   * Still PARSED, strictly as a boolean, so a file that has it keeps loading
+   * (the root of a mapping file ignores unknown keys, so a removed key would
+   * be ignored without a word, `false` included). Nothing reads it but
+   * `ignoredDeleteSwitchWarning`, which the appliance logs once at start for
+   * a mapping whose file says `false`. It can be removed from the file.
    */
   readonly allowApplyDeletions?: boolean;
   /**
    * Apply open RELOCATIONS unattended, at the end of each file pass
    * (ADR-0031, accepted 2026-08-16).
    *
-   * Defaults to `false`, like every destructive capability. Requires
-   * `allowApplyDeletions` too — this is the same capability (removing our
-   * copy from the target), run without a human pressing the button, which is
-   * why four EXTRA gates stand in front of it: the pairing must be unique,
+   * Defaults to `false`: its own switch, and the one switch left on the
+   * destructive path (ADR-0031; until alpha.21 it also needed
+   * `allowApplyDeletions`, which is no longer read). It is the same
+   * capability as deleting by hand (removing our copy from the target), run
+   * without a human pressing the button, which is why four EXTRA gates stand
+   * in front of it: the pairing must be unique,
    * the relocation must have survived a pass, the mass breaker decides for
    * the whole pass, and at most `AUTO_APPLY_RELOCATIONS_CAP` items go per
    * pass. Deletions are never auto-applied.
@@ -1486,6 +1488,30 @@ function parseTarget(obj: Record<string, unknown>): TargetConfig {
 }
 
 /** Validate a parsed config object into a typed MappingConfig (throws ConfigError on the first issue). */
+/**
+ * The one line the appliance logs at start for a mapping whose file still says
+ * `"allowApplyDeletions": false` (workplan 0173 T1), or `undefined`.
+ *
+ * Since alpha.21 that key turns nothing off: deleting by hand needs no switch
+ * and has none (ADR-0024, 2026-11-25). An owner who wrote `false` to be safe
+ * would otherwise lose that safety without a word, so the appliance says so,
+ * once per mapping, at start. `true` and absent say nothing: they mean what
+ * the appliance does anyway.
+ *
+ * The only reader of the key left in the product;
+ * `deleting-by-hand-needs-no-switch.unit.test.ts` keeps it so.
+ */
+export function ignoredDeleteSwitchWarning(config: MappingConfig): string | undefined {
+  if (config.allowApplyDeletions !== false) return undefined;
+  const name = config.name ?? config.mappingId;
+  return (
+    `[selfhost] mapping ${name}: "allowApplyDeletions": false no longer turns deleting by hand off. ` +
+    'Since alpha.21 deleting by hand needs no switch and has none: every delete is still a press on ' +
+    'the Deletions page, confirmed, behind every other gate. The key is ignored and can be removed ' +
+    'from the file.'
+  );
+}
+
 export function parseMappingConfig(input: unknown): MappingConfig {
   const root = asRecord(input, '(root)');
   const tenantId = reqString(root, 'tenantId', 'tenantId');

@@ -640,7 +640,6 @@ describe('a file moved between source folders', () => {
           // target that cannot answer is refused.
           hasItem: async () => true,
         },
-        allowApplyDeletions: true,
         stillTheAuthority: BEFORE_CUTOVER,
       },
       'a/report.pdf',
@@ -955,7 +954,6 @@ describe('a removed copy takes no further part', () => {
           // target that cannot answer is refused.
           hasItem: async () => true,
         },
-        allowApplyDeletions: true,
         stillTheAuthority: BEFORE_CUTOVER,
       },
       'a/one.txt',
@@ -1176,7 +1174,6 @@ describe('the old path after an applied relocation', () => {
             removeItem: async () => ({ kind: 'deleted' as const }),
             hasItem: async () => true,
           },
-          allowApplyDeletions: true,
           stillTheAuthority: BEFORE_CUTOVER,
         },
         'a/report.pdf',

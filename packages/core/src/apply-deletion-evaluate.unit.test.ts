@@ -57,14 +57,13 @@ function baseRow(overrides: Partial<LedgerRecord> = {}): LedgerRecord {
 }
 
 /** Run both functions on the same ledger; return their outcomes plus the spy. */
-async function both(ledger: MemoryLedger, allow: boolean, hash = 'nk-1') {
+async function both(ledger: MemoryLedger, hash = 'nk-1') {
   const removeItem = vi.fn(async () => ({ kind: 'deleted' as const, conflicted: false }));
   const shared = {
     tenantId: TENANT,
     mappingId: MAPPING,
     domain: 'calendar' as const,
     ledger,
-    allowApplyDeletions: allow,
     stillTheAuthority: BEFORE_CUTOVER,
   };
   const evaluated = await evaluateApplyDeletion(shared, hash);
@@ -75,25 +74,16 @@ async function both(ledger: MemoryLedger, allow: boolean, hash = 'nk-1') {
 /** Every ledger-side refusal, as (name, ledger-setup, expected code). */
 const CASES: Array<{
   name: string;
-  allow: boolean;
   seed: (ledger: MemoryLedger) => Promise<unknown> | void;
   expectCode: string;
 }> = [
   {
-    name: 'gate 1: not enabled',
-    allow: false,
-    seed: (l) => l.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString() })),
-    expectCode: 'not_enabled',
-  },
-  {
     name: 'no such item',
-    allow: true,
     seed: () => {},
     expectCode: 'not_found',
   },
   {
     name: 'already applied',
-    allow: true,
     seed: (l) =>
       l.recordIfAbsent(
         baseRow({
@@ -106,26 +96,22 @@ const CASES: Array<{
   },
   {
     name: 'gate 3: nothing says it was deleted',
-    allow: true,
     seed: (l) => l.recordIfAbsent(baseRow()),
     expectCode: 'not_confirmed',
   },
   {
     name: 'gate 3: inferred-only absence',
-    allow: true,
     seed: (l) => l.recordIfAbsent(baseRow({ absentPasses: 3 })),
     expectCode: 'weak_evidence',
   },
   {
     name: 'gate 4: not on the target',
-    allow: true,
     seed: (l) =>
       l.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString(), status: 'failed' })),
     expectCode: 'not_ours',
   },
   {
     name: 'gate 4: adopted bytes are the customer’s',
-    allow: true,
     seed: (l) =>
       l.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString(), status: 'adopted' })),
     expectCode: 'not_ours',
@@ -135,7 +121,6 @@ const CASES: Array<{
     // the ledger's own statement accepts. The two must refuse it identically,
     // or the route promises what the job destroys and then cannot record.
     name: 'gate 4: a status the ledger would refuse to record',
-    allow: true,
     seed: (l) =>
       l.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString(), status: 'pending' })),
     expectCode: 'not_ours',
@@ -144,7 +129,6 @@ const CASES: Array<{
     // `keep` and `apply` answer one question (2026-11-22): the route must not
     // queue a removal of a row somebody kept, and the job must refuse it too.
     name: 'the owner already answered this deletion with `keep`',
-    allow: true,
     seed: async (l) => {
       await l.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString() }));
       expect(await l.resolveDeletion(TENANT, MAPPING, 'nk-1', 'keep')).toBe(true);
@@ -158,7 +142,7 @@ describe('evaluate and apply agree on every ledger-side refusal', () => {
     it(c.name, async () => {
       const ledger = new MemoryLedger();
       await c.seed(ledger);
-      const { evaluated, applied, removeItem } = await both(ledger, c.allow);
+      const { evaluated, applied, removeItem } = await both(ledger);
 
       expect(evaluated.ok).toBe(false);
       expect(applied.ok).toBe(false);
@@ -185,7 +169,7 @@ describe('evaluate and apply agree on every ledger-side refusal', () => {
         }),
       );
     }
-    const { evaluated, applied, removeItem } = await both(ledger, true, 'nk-3');
+    const { evaluated, applied, removeItem } = await both(ledger, 'nk-3');
     expect(evaluated.ok).toBe(false);
     expect(applied.ok).toBe(false);
     if (!evaluated.ok && !applied.ok) {
@@ -198,7 +182,7 @@ describe('evaluate and apply agree on every ledger-side refusal', () => {
   it('and when every ledger gate permits, the evaluator predicts what the path performs', async () => {
     const ledger = new MemoryLedger();
     await ledger.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString() }));
-    const { evaluated, applied, removeItem } = await both(ledger, true);
+    const { evaluated, applied, removeItem } = await both(ledger);
 
     expect(evaluated).toEqual({ ok: true, domain: 'calendar' });
     // The prediction held: the full path went on to remove.
@@ -235,7 +219,7 @@ function fileRow(overrides: Partial<LedgerRecord> = {}): LedgerRecord {
   };
 }
 
-async function bothRelocation(ledger: MemoryLedger, allow: boolean, hash = OLD) {
+async function bothRelocation(ledger: MemoryLedger, hash = OLD) {
   const removeItem = vi.fn(async () => ({ kind: 'deleted' as const, conflicted: false }));
   const hasItem = vi.fn(async () => true);
   const shared = {
@@ -243,7 +227,6 @@ async function bothRelocation(ledger: MemoryLedger, allow: boolean, hash = OLD) 
     mappingId: MAPPING,
     domain: 'file' as const,
     ledger,
-    allowApplyDeletions: allow,
     stillTheAuthority: BEFORE_CUTOVER,
   };
   const evaluated = await evaluateApplyRelocation(shared, hash);
@@ -253,31 +236,21 @@ async function bothRelocation(ledger: MemoryLedger, allow: boolean, hash = OLD) 
 
 const RELOCATION_CASES: Array<{
   name: string;
-  allow: boolean;
   seed: (l: MemoryLedger) => Promise<unknown>;
   expectCode: string;
 }> = [
   {
-    name: 'gate 1: the mapping has not opted in',
-    allow: false,
-    seed: (l) => l.recordIfAbsent(fileRow()),
-    expectCode: 'not_enabled',
-  },
-  {
     name: 'no row at all',
-    allow: true,
     seed: () => Promise.resolve(),
     expectCode: 'not_found',
   },
   {
     name: 'gate 3 (relocation form): nothing was relocated',
-    allow: true,
     seed: (l) => l.recordIfAbsent(fileRow()),
     expectCode: 'not_relocated',
   },
   {
     name: 'gate 3 (relocation form): the arrival is not in the ledger',
-    allow: true,
     seed: async (l) => {
       await l.recordIfAbsent(fileRow());
       await l.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
@@ -286,7 +259,6 @@ const RELOCATION_CASES: Array<{
   },
   {
     name: 'gate 3 (relocation form): the arrival was adopted, not written by us',
-    allow: true,
     seed: async (l) => {
       await l.recordIfAbsent(fileRow());
       await l.recordIfAbsent(
@@ -298,7 +270,6 @@ const RELOCATION_CASES: Array<{
   },
   {
     name: 'gate 4: the copy to be removed is not ours',
-    allow: true,
     seed: async (l) => {
       await l.recordIfAbsent(fileRow({ status: 'adopted' }));
       await l.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
@@ -309,7 +280,6 @@ const RELOCATION_CASES: Array<{
   {
     // The status set the SQL accepts, which is narrower than "on the target".
     name: 'gate 4: a status the ledger would refuse to record',
-    allow: true,
     seed: async (l) => {
       await l.recordIfAbsent(fileRow({ status: 'pending' }));
       await l.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
@@ -319,7 +289,6 @@ const RELOCATION_CASES: Array<{
   },
   {
     name: 'the owner already answered this one with `keep`',
-    allow: true,
     seed: async (l) => {
       await l.recordIfAbsent(fileRow());
       await l.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
@@ -333,7 +302,6 @@ const RELOCATION_CASES: Array<{
     // before enqueueing, so a breaker only `applyRelocation` knew about would
     // promise an operator something the job then refuses.
     name: 'gate 6: too much of the domain has relocated at once',
-    allow: true,
     seed: async (l) => {
       await l.recordIfAbsent(fileRow());
       await l.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
@@ -357,7 +325,7 @@ describe('evaluate and apply agree on every ledger-side relocation refusal', () 
     it(c.name, async () => {
       const ledger = new MemoryLedger();
       await c.seed(ledger);
-      const { evaluated, applied, removeItem } = await bothRelocation(ledger, c.allow);
+      const { evaluated, applied, removeItem } = await bothRelocation(ledger);
 
       expect(evaluated.ok).toBe(false);
       expect(applied.ok).toBe(false);
@@ -383,7 +351,7 @@ describe('evaluate and apply agree on every ledger-side relocation refusal', () 
     );
     await ledger.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
 
-    const { evaluated, applied, removeItem } = await bothRelocation(ledger, true);
+    const { evaluated, applied, removeItem } = await bothRelocation(ledger);
 
     expect(evaluated.ok).toBe(false);
     if (!evaluated.ok && !applied.ok) {
@@ -409,7 +377,7 @@ describe('evaluate and apply agree on every ledger-side relocation refusal', () 
     );
     await ledger.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
 
-    const { evaluated, removeItem } = await bothRelocation(ledger, true);
+    const { evaluated, removeItem } = await bothRelocation(ledger);
 
     expect(evaluated.ok).toBe(false);
     if (!evaluated.ok) {
@@ -425,7 +393,7 @@ describe('evaluate and apply agree on every ledger-side relocation refusal', () 
     await ledger.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
     await ledger.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
 
-    const { evaluated, applied, removeItem } = await bothRelocation(ledger, true);
+    const { evaluated, applied, removeItem } = await bothRelocation(ledger);
 
     expect(evaluated).toEqual({ ok: true, domain: 'file' });
     expect(applied.ok).toBe(true);

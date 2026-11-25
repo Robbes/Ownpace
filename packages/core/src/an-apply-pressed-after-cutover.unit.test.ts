@@ -114,7 +114,6 @@ const depsFor = (
   ledger: world.ledger,
   target: world.target,
   // On: the case in which anything is removed at all.
-  allowApplyDeletions: true,
   stillTheAuthority,
 });
 

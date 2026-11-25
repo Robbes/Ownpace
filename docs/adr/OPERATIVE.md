@@ -186,13 +186,11 @@ live in [README.md](./README.md), the register.
 - `apply` is the **only destructive code path**: each item decided by itself, owner-called,
   never automatic. Relocations go through `applyRelocation`, behind the same gates
   (ADR-0030/0031). `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
-- **Seven gates**, enforced by `applyDeletion`; evidence and ownership re-checked in the ledger's
-  conditional UPDATE:
-  (1) per-mapping opt-in; (2) `TargetRemover` capability; (3) **positive evidence only**,
-  `reported`/`trashed`, never `inferred`; (4) ownership, `copied`/`updated` only, never
-  `adopted`; (5) no edit since (DAV: the server's `If-Match`; JMAP contacts and files: a
-  successful read; IMAP: UIDVALIDITY); (6) mass-deletion breaker, 20% of ≥20; (7)
-  concurrent-apply re-check: `packages/core/src/apply-deletion.unit.test.ts`.
+- **Six gates** in `applyDeletion`; gate (1), a per-mapping switch, is gone since 2026-11-25, with
+  no off (`packages/shared/src/deleting-by-hand-needs-no-switch.unit.test.ts`). (2)
+  `TargetRemover`; (3) **positive evidence only**, never `inferred`; (4) `copied`/`updated` only,
+  never `adopted`; (5) no edit since (DAV `If-Match`; JMAP contacts, files: a read; IMAP
+  UIDVALIDITY); (6) mass breaker, 20% of ≥20; (7) the ledger's conditional UPDATE re-checks.
 - **With no recorded version, nothing is removed** (`version_unknown`); a weak ETag counts as
   none. JMAP mail is exempt: `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
 - **After cutover nothing is applied, by hand either** (2026-10-05): every removing function
@@ -200,11 +198,11 @@ live in [README.md](./README.md), the register.
   (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
 - **One owner action may apply many** (2026-11-21): offered only where a single delete is, one
   confirmation over a frozen set naming the count, the bin's apart, then each row's own apply
-  through the same call and all seven gates, the next only after an answer. Guard:
+  through the same call and all six gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
 - Gate 6 bounds one confirmation: every row of a data type under 20 `placedItems` (removed,
   adopted counted; failed, left-behind, superseded, collection-less not), else at most a fifth.
-  The breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or an unanswered or
+  The breaker, `removed_not_recorded`, withdrawn evidence, or an unanswered or
   unstarted press **stops the whole run**; *Stop* or a closed page orders nothing more.
 - **A kept deletion is never applied** (2026-11-22): `already_kept` before anything is sent
   (unless already removing); the keep ends with its cause (seen again, earlier export
@@ -250,7 +248,7 @@ live in [README.md](./README.md), the register.
 ## [ADR-0030: A correlated relocation is positive evidence, and may be applied](./0030-relocation-is-positive-evidence.md)
 
 - A **relocation** (a disappeared item paired, by **content hash**, with an arrival of the same pass under a new key) is **positive evidence**: `apply` may remove the **old** copy. Recorded by key (`movedToNaturalKeyHash`), so a move and a rename are one event, never a phantom deletion; the old copy is copied again if its key returns (`relocated-away`; `move-detection.unit.test.ts`).
-- **ADR-0024's gates stand**, behind the same `allowApplyDeletions` switch; gate 3 admits the relocation through `relocationCheck`: the arrival is **ours** (`copied`/`updated`, never `adopted`), holds the **same `contentHash`** under another key and in another target object, and **no third item shares the hash**; else `relocation_unconfirmed` (`apply-relocation.unit.test.ts`).
+- **ADR-0024's gates stand**, with no switch in front of them since 2026-11-25 (ADR-0024); gate 3 admits the relocation through `relocationCheck`: the arrival is **ours** (`copied`/`updated`, never `adopted`), holds the **same `contentHash`** under another key and in another target object, and **no third item shares the hash**; else `relocation_unconfirmed` (`apply-relocation.unit.test.ts`).
 - **The target is asked** (`hasItem`, for the arrival) immediately before removal. An error is not absence; a target that cannot be asked refuses (`target_cannot_confirm`). The port: `TargetPresenceCheck` (`ports.ts`).
 - **Gate 6 has two halves** on one threshold and floor: pending deletions, and open relocations (`mass_relocation_suspected`). **Gate 7's** `UPDATE` re-checks the arrival and `keep` in the same statement; `keep` and `apply` exclude each other (`already_kept`). Held by `apply-relocation.unit.test.ts` and `ledger.integration.test.ts`.
 - A renamed or moved **exported document** (Google Doc, Sheet, Slides deck or Drawing; Dropbox Paper doc) is paired by its **Drive or Dropbox id**: a bytes pair where both copies' bytes match, else `moved_by_identity`, whose `apply` asks for the **same id** (`source_ref`) in place of the bytes checks (owner, 2026-09-23; 0150 D8; `a-rename-the-bytes-could-not-pair`, `a-paper-doc-exported-once`).
@@ -258,7 +256,7 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0031: Auto-applying relocations — what unattended would require](./0031-auto-apply-relocations.md)
 
-- `autoApplyRelocations` per mapping, **default false**, and it **extends** `allowApplyDeletions` — never substitutes (auto ON with the base flag OFF refuses everything).
+- `autoApplyRelocations` per mapping, **default false**, owner only, and **its own switch** (2026-11-25): it extended `allowApplyDeletions` until ADR-0024 removed that switch; every manual gate still runs per item.
 - Four unattended gates atop every manual gate: pairing **unique corpus-wide** (empty files never eligible); the relocation **survived a completed pass** (`moved_recorded_at < passStartedAt`); the breaker decides **for the whole pass** (the cap must not nibble a mass event); cap **50 per mapping per pass**.
 - Attribution is `system:auto-apply` everywhere (audit log, managed apply receipts), counts narrated in the run summary. **Deletions never auto-apply**, either evidence class.
 - **After cutover nothing is auto-applied** (2026-10-05): before reading the moves queue, `autoApplyRelocations` asks the data type's phase afresh (`stillTheAuthority`) and refuses with `after_cutover`, in both editions, however old the move or late the switch. Guard: `a-move-applied-after-cutover.unit.test.ts`.

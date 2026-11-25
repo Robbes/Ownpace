@@ -3,7 +3,7 @@
 /**
  * The loop *Delete all of these here too* orders a run with (workplan 0164
  * T3): in turn, each answered before the next is ordered; a press that did
- * not answer, the breaker's refusal, `not_enabled`, `removed_not_recorded`,
+ * not answer, the breaker's refusal, `removed_not_recorded`,
  * evidence withdrawn (`not_confirmed`, `weak_evidence`) and an answer marked
  * `stopsTheRun` each stop the whole run; any other
  * refusal is that item's answer and the next is ordered; a stop is honoured
@@ -82,9 +82,11 @@ describe('a refusal that speaks for every item', () => {
     ]);
   });
 
-  it('is the breaker’s, deleting by hand turned off, a removal the ledger could not record, or evidence withdrawn, and no other', () => {
+  it('is the breaker’s, a removal the ledger could not record, or evidence withdrawn, and no other', () => {
+    // `not_enabled` (deleting by hand turned off) stopped a run until alpha.21;
+    // the switch is gone (ADR-0024, 2026-11-25).
     expect([...RUN_STOPPING_REFUSALS].sort()).toEqual(
-      [...BREAKER_CODES, 'not_enabled', 'removed_not_recorded', 'not_confirmed', 'weak_evidence'].sort(),
+      [...BREAKER_CODES, 'removed_not_recorded', 'not_confirmed', 'weak_evidence'].sort(),
     );
   });
 

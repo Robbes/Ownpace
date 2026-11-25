@@ -126,6 +126,29 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Deleting by hand needs no switch any more** (alpha.21; workplan 0173, ADR-0024 amended
+  2026-11-25; the owner: *"Manual deleting in by default. I don't think I makes sense then to keep
+  the feature for turning it off."*). Every migration, old and new, and every upgraded appliance
+  can now delete by hand on the *Deletions* page without turning anything on: press *Delete it
+  here too* and confirm, or *Delete all of these here too* and confirm the count. *Turn on
+  deleting by hand* is gone, and there is no way to turn it off. An admin can delete by hand too.
+  A mapping file's `"allowApplyDeletions": false` no longer turns it off: the file still loads,
+  and the appliance says so once in its log at start. Every other check stays: only what the old
+  system reported deleted or binned, only copies Ownpace wrote, never after cutover or after a
+  keep, the mass-deletion breaker, and no file, calendar entry or contact somebody changed on the
+  new system (mail is not checked for that). What a delete does is now said above the rows that
+  offer one, and a double click on *Delete it here too* is one press, not two. The automatic
+  removal of moved files' old copies stays off until an owner turns it on, now as its own switch.
+  At the API, which asks no confirmation, one call is one removal. Managed:
+  `PATCH .../apply-deletions` takes `autoApplyRelocations` only and refuses `allowApplyDeletions`;
+  `GET` no longer answers it; the column `allow_apply_deletions` stays unread until a later
+  release drops it. No database change.
+  **Nederlands:** elke migratie, oud en nieuw, en elke bijgewerkte appliance kan nu handmatig
+  verwijderen op de pagina *Verwijderingen* zonder eerst iets aan te zetten. *Handmatig
+  verwijderen inschakelen* is weg, en uitzetten kan niet meer. Een `"allowApplyDeletions": false`
+  in het bestand van een migratie zet het niet meer uit; de appliance meldt dat eenmaal bij het
+  starten.
+
 - **Image pins moved for alpha.20** (workplan 0119; the owner, 2026-11-24: *"yes on all"*, floors
   waived): the web image's and the public site's nginx `1.31.9-alpine-slim` to
   `1.31.10-alpine-slim@sha256:c293b287…` (nginx 1.31.10-r1, libssl3/libcrypto3 3.5.9-r1, same

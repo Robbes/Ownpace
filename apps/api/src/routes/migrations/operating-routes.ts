@@ -1665,14 +1665,11 @@ router.post(
         return void res.status(200).json(body);
       }
 
-      // Every ledger-side gate, answered on this request. The flag comes from
-      // the mapping row — the managed home of `allowApplyDeletions`, default
-      // FALSE by migration 0004.
+      // Every ledger-side gate, answered on this request. No per-mapping
+      // switch is read: deleting by hand needs none since alpha.21 (ADR-0024,
+      // 2026-11-25). The column `allow_apply_deletions` stays in the schema,
+      // unread, until a later release drops it.
       const verdict = await withTenantDb(s.tenantId, pool(), async (db) => {
-        const flagRows = await db
-          .select({ allow: schema.mailboxMapping.allowApplyDeletions })
-          .from(schema.mailboxMapping)
-          .where(eq(schema.mailboxMapping.id, s.mappingId));
         const ledger = new PgLedger(db);
         // Domain by domain, the appliance's order: the evaluator needs the
         // domain to read the row, and the first domain holding the item wins.
@@ -1683,7 +1680,6 @@ router.post(
               mappingId: s.mappingId as MappingId,
               domain,
               ledger,
-              allowApplyDeletions: flagRows[0]?.allow === true,
               // After cutover nothing is removed: refused on this request
               // (`after_cutover`, 2026-10-05).
               stillTheAuthority: stillTheAuthorityIn(db, s, domain),
@@ -1785,9 +1781,9 @@ router.get(
  * land on the receipt. `evaluate` is a PREDICTION: the job re-runs every gate
  * freshly and gate 7's conditional UPDATE stays the last word.
  *
- * Shares `allowApplyDeletions` with the deletion route because it is the same
- * capability — removing our copy from the target — and a second switch would
- * imply one can be on without the other.
+ * Like the deletion route, it reads no per-mapping switch: a move applied by
+ * hand needs none since alpha.21 (ADR-0024, 2026-11-25). Applying moves
+ * UNATTENDED is the one switch left (`autoApplyRelocations`, ADR-0031).
  */
 router.post(
   '/:mappingId/moves/:hash/apply',
@@ -1809,10 +1805,6 @@ router.post(
       }
 
       const verdict = await withTenantDb(s.tenantId, pool(), async (db) => {
-        const flagRows = await db
-          .select({ allow: schema.mailboxMapping.allowApplyDeletions })
-          .from(schema.mailboxMapping)
-          .where(eq(schema.mailboxMapping.id, s.mappingId));
         const ledger = new PgLedger(db);
         for (const domain of DISCOVERY_DOMAINS) {
           const outcome = await evaluateApplyRelocation(
@@ -1821,7 +1813,6 @@ router.post(
               mappingId: s.mappingId as MappingId,
               domain,
               ledger,
-              allowApplyDeletions: flagRows[0]?.allow === true,
               // As the deletion's: refused after cutover (2026-10-05).
               stillTheAuthority: stillTheAuthorityIn(db, s, domain),
             },
@@ -1909,11 +1900,13 @@ router.get(
 );
 
 /**
- * Gate 1 of the destructive path, as a readable fact (workplan 0019 T3).
+ * The one switch on the destructive path, as a readable fact (workplan 0019
+ * T3; ADR-0031): removing moved files' old copies unattended.
  *
  * Any member may READ it — the Deletions screen shows the current value to
- * whoever can see the queue, because "the delete button will be refused" is
- * something an operator should learn before clicking, not from a 403.
+ * whoever can see the queue. Until alpha.21 this also answered
+ * `allowApplyDeletions`, ADR-0024's gate 1; deleting by hand has no switch
+ * since then (2026-11-25), so the field is gone from the answer.
  */
 router.get(
   '/:mappingId/apply-deletions',
@@ -1924,15 +1917,11 @@ router.get(
       if (!s) return;
       const rows = await withTenantDb(s.tenantId, pool(), (db) =>
         db
-          .select({
-            allow: schema.mailboxMapping.allowApplyDeletions,
-            auto: schema.mailboxMapping.autoApplyRelocations,
-          })
+          .select({ auto: schema.mailboxMapping.autoApplyRelocations })
           .from(schema.mailboxMapping)
           .where(eq(schema.mailboxMapping.id, s.mappingId)),
       );
       const body: ApplyDeletionsFlag = {
-        allowApplyDeletions: rows[0]?.allow === true,
         autoApplyRelocations: rows[0]?.auto === true,
         source: 'mapping',
       };
@@ -1944,13 +1933,17 @@ router.get(
 );
 
 /**
- * Flip gate 1 — OWNER only (workplan 0019 T3).
+ * Turn the automatic removal of moved files' old copies on or off — OWNER only
+ * (workplan 0019 T3; ADR-0031).
  *
- * This was the recorded interim's `UPDATE mailbox_mapping SET
- * allow_apply_deletions = true` (0017 T4), now an authorized API instead of a
- * psql session. The role comes from the tenant_member row (0020 T1), so
- * "owner" here is a database fact, not a token claim. Changing the flag
- * changes what MAY be asked for — every per-item gate still stands.
+ * The role comes from the tenant_member row (0020 T1), so "owner" here is a
+ * database fact, not a token claim. Changing the flag changes what MAY happen
+ * unattended — every per-item gate still stands.
+ *
+ * Until alpha.21 this also turned deleting by hand on and off
+ * (`allowApplyDeletions`, ADR-0024's gate 1). That switch is gone
+ * (2026-11-25): a body that still sends it is refused, by name, rather than
+ * answered as if it had changed something.
  */
 router.patch(
   '/:mappingId/apply-deletions',
@@ -1963,43 +1956,38 @@ router.patch(
       const patch = req.body as
         | { allowApplyDeletions?: unknown; autoApplyRelocations?: unknown }
         | undefined;
-      const allow = patch?.allowApplyDeletions;
       const auto = patch?.autoApplyRelocations;
-      // Either flag alone, or both — but each must be an actual boolean, and
-      // sending neither is a request to change nothing, which is refused
-      // rather than answered with an unchanged echo that reads like success.
-      if (
-        (allow === undefined && auto === undefined) ||
-        (allow !== undefined && typeof allow !== 'boolean') ||
-        (auto !== undefined && typeof auto !== 'boolean')
-      ) {
+      // The old switch, sent by a client from before alpha.21: refused by
+      // name. Ignoring it would answer 200 for a change that did not happen.
+      if (patch?.allowApplyDeletions !== undefined) {
         return void res.status(400).json({
           error: 'invalid_body',
           reason:
-            'Send { "allowApplyDeletions": true | false } and/or ' +
-            '{ "autoApplyRelocations": true | false } — nothing else is accepted.',
+            'Deleting by hand has no switch since alpha.21: `allowApplyDeletions` is no longer ' +
+            'accepted. Send { "autoApplyRelocations": true | false }.',
+        });
+      }
+      // The flag must be an actual boolean, and sending none is a request to
+      // change nothing, which is refused rather than answered with an
+      // unchanged echo that reads like success.
+      if (typeof auto !== 'boolean') {
+        return void res.status(400).json({
+          error: 'invalid_body',
+          reason: 'Send { "autoApplyRelocations": true | false } — nothing else is accepted.',
         });
       }
       const updated = await withTenantDb(s.tenantId, pool(), (db) =>
         db
           .update(schema.mailboxMapping)
-          .set({
-            ...(typeof allow === 'boolean' ? { allowApplyDeletions: allow } : {}),
-            ...(typeof auto === 'boolean' ? { autoApplyRelocations: auto } : {}),
-            updatedAt: new Date(),
-          })
+          .set({ autoApplyRelocations: auto, updatedAt: new Date() })
           .where(eq(schema.mailboxMapping.id, s.mappingId))
-          .returning({
-            allow: schema.mailboxMapping.allowApplyDeletions,
-            auto: schema.mailboxMapping.autoApplyRelocations,
-          }),
+          .returning({ auto: schema.mailboxMapping.autoApplyRelocations }),
       );
       log.warn(
-        `[api] ${s.mappingId}: apply flags set (allowApplyDeletions=${updated[0]?.allow}, ` +
-          `autoApplyRelocations=${updated[0]?.auto}) by ${req.userId ?? 'unknown'}`,
+        `[api] ${s.mappingId}: apply flag set (autoApplyRelocations=${updated[0]?.auto}) ` +
+          `by ${req.userId ?? 'unknown'}`,
       );
       const body: ApplyDeletionsFlag = {
-        allowApplyDeletions: updated[0]?.allow === true,
         autoApplyRelocations: updated[0]?.auto === true,
         source: 'mapping',
       };

@@ -174,24 +174,21 @@ describe('what an admin can do, said once', () => {
 
   it('names what only an owner can do', () => {
     // Checked against the API's owner-only routes on 2026-09-28: close and
-    // reopen (routes/tenants/index.ts), the applying-deletions and
-    // auto-applying-relocations flags, owner-only to turn on AND off
+    // reopen (routes/tenants/index.ts), the auto-applying-relocations flag
+    // (the applying-deletions one is gone since alpha.21), owner-only to turn on AND off
     // (routes/migrations/operating-routes.ts), and granting owner (members.ts).
     // Changing or removing an owner joined them on 2026-10-04 (0137 T3 (c)).
     // The API half pins that set of routes, so a new owner-only act, or one
     // opened to admins, fails there and sends the reader back to this line.
     expect(STRINGS.en['tenants.invite.adminCan']).toBe(
-      "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, make somebody an owner, and change or remove an owner.",
+      "An admin can do everything an owner can, except close or reopen the organisation, turn the automatic removal of moved files' old copies on or off, make somebody an owner, and change or remove an owner.",
     );
     expect(STRINGS.nl['tenants.invite.adminCan']).toBe(
-      'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden aan- of uitzetten, iemand eigenaar maken en een eigenaar een andere rol geven of verwijderen.',
+      'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, het automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden aan- of uitzetten, iemand eigenaar maken en een eigenaar een andere rol geven of verwijderen.',
     );
-    // The product's own words for the two flags, so the line names what the
-    // Deletions panel names (`applyFlag.on`, `autoApply.on`; renamed in 0156
-    // T6, when "Applying deletions is ON" was read as deletions happening).
-    expect(STRINGS.en['applyFlag.on']).toContain('Deleting by hand');
+    // The product's own words for the flag, so the line names what the
+    // Deletions panel names (`autoApply.on`; renamed in 0156 T6).
     expect(STRINGS.en['autoApply.on']).toContain("Automatic removal of moved files' old copies");
-    expect(STRINGS.nl['applyFlag.on']).toContain('Handmatig verwijderen');
     expect(STRINGS.nl['autoApply.on']).toContain(
       'Automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden',
     );

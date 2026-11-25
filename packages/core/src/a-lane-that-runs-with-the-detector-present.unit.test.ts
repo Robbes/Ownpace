@@ -313,10 +313,11 @@ describe('after cutover, a pass reports no deletion because it looked for none',
     // about the DETECTOR rather than the deletion.
     //
     // `allowApplyDeletions` is the switch §7b's definition of done says to turn
-    // ON before the test means anything. It is not an input to `runDomainSync`
-    // at all — so there is no value of it that changes any assertion above.
-    // That is stronger than any behavioural test could be: a gate can be wrong
-    // once, and there is no gate here to be wrong.
+    // ON before the test means anything. It was never an input to
+    // `runDomainSync` — so there was no value of it that changed any assertion
+    // above — and since alpha.21 it is no input to anything (ADR-0024,
+    // 2026-11-25). That is stronger than any behavioural test could be: a gate
+    // can be wrong once, and there is no gate here to be wrong.
     expect(
       source('packages/core/src/domain-sync.ts'),
       'the sync loop now reads `allowApplyDeletions`. Detection must not consult ' +
@@ -324,13 +325,13 @@ describe('after cutover, a pass reports no deletion because it looked for none',
         '0117 §4D rejected.',
     ).not.toContain('allowApplyDeletions');
 
-    // …and the downstream gate is still there. Absence upstream is not a reason
-    // to drop the protection that stops a deletion being applied by accident.
+    // …and the downstream refusal after cutover is still there. Absence
+    // upstream is not a reason to drop the protection at the apply.
     expect(
       source('packages/core/src/apply-deletion.ts'),
-      'the apply-time gate on `allowApplyDeletions` is gone. Making detection ' +
-        'absent after cutover does not make the switch redundant before it.',
-    ).toContain('allowApplyDeletions');
+      'the apply-time refusal after cutover is gone. Making detection absent ' +
+        'after cutover does not make the refusal at the apply redundant.',
+    ).toContain("code: 'after_cutover'");
   });
 });
 

@@ -1001,7 +1001,6 @@ export type ApplyReceipt =
  * list equal to `ApplyRefusal`, so a code added in core is added here too.
  */
 export const APPLY_REFUSAL_CODES = [
-  'not_enabled',
   'target_cannot_remove',
   'not_found',
   'not_confirmed',
@@ -1036,37 +1035,49 @@ export interface ApplyQueuedResponse {
 }
 
 /**
- * Gate 1 of the destructive path, readable in both editions (workplan 0019 T3).
+ * The one switch left on the destructive path, readable in both editions
+ * (workplan 0019 T3; ADR-0031).
  *
  * `GET .../apply-deletions` answers this in both editions so the same screen
  * renders the same fact. What differs is who OWNS the value, and `source` says
  * so honestly:
  *
  *  - `'mapping'` — the managed mapping row; an owner changes it via
- *    `PATCH .../apply-deletions` with `{ allowApplyDeletions: boolean }`.
+ *    `PATCH .../apply-deletions` with `{ autoApplyRelocations: boolean }`.
  *  - `'config'` — the appliance's mapping config file. No API mutates it: the
  *    file IS the appliance's configuration surface, and a PATCH there answers
  *    405 naming the file instead of pretending.
  *
- * Off is the default in both editions, by migration and by config parsing: a
- * capability that destroys data is opted INTO, never out of.
+ * DELETING BY HAND HAS NO SWITCH (alpha.21; ADR-0024's amendment of
+ * 2026-11-25, workplan 0173). Until then this also carried
+ * `allowApplyDeletions`, ADR-0024's gate 1, off by default. The owner removed
+ * it: every delete is two presses on the page already, and the switch checked
+ * nothing about which item may go. The appliance still parses the key, so an
+ * old file loads; nothing reads it but a warning at start.
+ * `packages/shared/src/deleting-by-hand-needs-no-switch.unit.test.ts` keeps it
+ * gone.
  */
 export interface ApplyDeletionsFlag {
-  readonly allowApplyDeletions: boolean;
   /**
    * ADR-0031 (accepted 2026-08-16): apply open RELOCATIONS unattended at the
-   * end of each file pass. Default false; requires `allowApplyDeletions` too
-   * — the engine refuses every item without it. Deletions never auto-apply.
+   * end of each file pass. Default false, owner only, its own switch since
+   * 2026-11-25 (it used to extend `allowApplyDeletions`). Deletions never
+   * auto-apply.
    */
   readonly autoApplyRelocations: boolean;
   readonly source: 'mapping' | 'config';
 }
 
 /**
- * The warning a UI puts IN FRONT of the switch that enables `apply` (0019 T3).
+ * What a delete by hand does, shown ABOVE the rows that offer one (0019 T3;
+ * workplan 0173 T1).
+ *
+ * Until alpha.21 this stood in front of the switch that turned deleting by
+ * hand on (as `APPLY_FLAG_WARNING`). The switch is gone (ADR-0024, 2026-11-25),
+ * and these facts are now read where the press is made, not once, earlier.
  *
  * Shared prose, like the queue guidance: the sentence somebody reads before
- * arming the only destructive capability must not drift between editions.
+ * the only destructive capability must not drift between editions.
  *
  * WHAT IT SAYS ABOUT AN EDITED COPY IS PER DATA TYPE, because the code's
  * answer is (workplan 0144 T4, 0149 T6). Files, calendar entries and contacts
@@ -1079,10 +1090,11 @@ export interface ApplyDeletionsFlag {
  * every writer's `removeItem` and fails until both languages name the data
  * types the way the writers treat them.
  */
-export const APPLY_FLAG_WARNING =
-  'Turning this on lets you delete copies on the new system, per item: the ' +
+export const DELETE_BY_HAND_WARNING =
+  'Here you can delete copies on the new system, one by one or as a list: the ' +
   'copy of something deleted on the old system, or the old copy of a file ' +
-  'moved there. It is the only way Ownpace ever deletes anything. Every removal ' +
+  'moved there. It is the only way Ownpace ever deletes anything, and every ' +
+  'delete asks you to confirm it first. Every removal ' +
   'still has to pass every gate: Ownpace must know for certain that the item ' +
   'was deleted or moved on the old system (only missing is never enough), ' +
   'Ownpace must have written the copy itself, and nothing is removed while an ' +
@@ -1090,8 +1102,7 @@ export const APPLY_FLAG_WARNING =
   'file, calendar entry or contact is also not removed if someone has changed ' +
   'it in the new system since Ownpace wrote it, or when that cannot be checked. ' +
   'Mail is not checked for changes: an email Ownpace wrote can be removed even ' +
-  'if someone has changed it in the new system since. While this is off, ' +
-  'nothing can be removed.';
+  'if someone has changed it in the new system since.';
 
 /**
  * The same warning in Dutch (ADR-0013, workplan 0024). It lives HERE, beside
@@ -1100,11 +1111,12 @@ export const APPLY_FLAG_WARNING =
  * truth — a translation kept in a web-app dictionary would drift from the
  * sentence it translates without anything noticing. Update BOTH or neither.
  */
-export const APPLY_FLAG_WARNING_NL =
-  'Als u dit inschakelt, kunt u per item kopieën op het nieuwe systeem ' +
-  'verwijderen: de kopie van iets dat op het oude systeem is verwijderd, of de ' +
-  'oude kopie van een bestand dat daar is verplaatst. Alleen zo verwijdert ' +
-  'Ownpace ooit iets. Elke verwijdering moet nog steeds elke controle ' +
+export const DELETE_BY_HAND_WARNING_NL =
+  'Hier kunt u kopieën op het nieuwe systeem verwijderen, een voor een of als ' +
+  'lijst: de kopie van iets dat op het oude systeem is verwijderd, of de oude ' +
+  'kopie van een bestand dat daar is verplaatst. Alleen zo verwijdert Ownpace ' +
+  'ooit iets, en elke verwijdering vraagt u eerst om een bevestiging. Elke ' +
+  'verwijdering moet nog steeds elke controle ' +
   'doorstaan: Ownpace moet zeker weten dat het item op het oude systeem is ' +
   'verwijderd of verplaatst (alleen ontbreken is nooit genoeg), Ownpace moet ' +
   'de kopie zelf hebben geschreven, en er wordt niets verwijderd zolang een ' +
@@ -1113,8 +1125,7 @@ export const APPLY_FLAG_WARNING_NL =
   'iemand het sindsdien in het nieuwe systeem heeft gewijzigd, of als dat niet ' +
   'kan worden gecontroleerd. E-mail wordt daar niet op gecontroleerd: een ' +
   'e-mail die Ownpace schreef, kan worden verwijderd, ook als iemand die ' +
-  'sindsdien in het nieuwe systeem heeft gewijzigd. Zolang dit uit staat, kan ' +
-  'er niets worden verwijderd.';
+  'sindsdien in het nieuwe systeem heeft gewijzigd.';
 
 /**
  * A migration that has been ended.
@@ -1217,10 +1228,8 @@ export const MOVE_GUIDANCE: MoveGuidance = {
     `target under the key the source moved the item to, written by this migration, ` +
     `and that is re-checked at the moment of removal. For a renamed Google document ` +
     `whose new export differs byte for byte, it is the same document instead, ` +
-    `recognised by its Drive id. Off unless the mapping sets ` +
-    `allowApplyDeletions — the same switch, because it is the same capability — ` +
-    `and refused for a copy somebody has edited on the target, for one this ` +
-    `migration did not write, while the mass-deletion breaker is up (ADR-0030), and ` +
+    `recognised by its Drive id. Refused for a copy somebody has edited on the ` +
+    `target, for one this migration did not write, while the mass-deletion breaker is up (ADR-0030), and ` +
     `for a data type past its cutover, whose old system no longer decides what ` +
     `exists (until a rollback). ` +
     `The result says how it ended: removed, refused with the reason, or failed ` +
@@ -1251,9 +1260,8 @@ export const DELETION_GUIDANCE: DeletionGuidance = {
   apply:
     `POST /mappings/{mappingId}/deletions/{naturalKeyHash}/apply — remove the ` +
     `target's copy too, following the source. THE ONLY DESTRUCTIVE ACTION IN THIS ` +
-    `PRODUCT: refused unless this mapping has \`allowApplyDeletions: true\` in its ` +
-    `config, refused for "inferred" evidence (an absence is never enough, however ` +
-    `many passes it repeats), refused for a file, calendar entry or contact ` +
+    `PRODUCT, and nothing has to be turned on for it: refused for "inferred" ` +
+    `evidence (an absence is never enough, however many passes it repeats), refused for a file, calendar entry or contact ` +
     `somebody has since edited on the target, or whose version cannot be checked ` +
     `(mail is not checked for edits), refused altogether while an unusual share of the domain looks ` +
     `pending deletion at once (the mass-deletion breaker), and refused for a data ` +

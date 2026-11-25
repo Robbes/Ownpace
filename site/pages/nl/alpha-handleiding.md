@@ -82,13 +82,13 @@ uitgenodigd. De Alpha duurt enkele weken.
   alleen bij de bestemming *WebDAV* of *Nextcloud*. Twijfelt u? Vraag het ons eerst.
 - **Open links in een browser** zoals Firefox, Safari of Chrome, niet in een chat- of mailapp. Opent een
   link toch in zo'n app? Kies daar dan *Openen in browser*.
-- **Verwijderingen staan uit.** Verwijdert u iets in uw oude account? Dan blijft de kopie bij uw
-  nieuwe aanbieder staan. Wilt u dat die kopie ook verdwijnt? Open dan bij de migratie de pagina
-  *Verwijderingen*. Kies *Handmatig verwijderen inschakelen*, en bevestig. Daarna kiest u per
-  verwijdering: *Verwijder het hier ook* of *Behoud de kopie*. Ownpace verwijdert alleen een
-  kopie die het zelf schreef. Is een bestand, agenda-item of contact bij uw nieuwe aanbieder
-  gewijzigd? Dan verwijdert het dat niet. Bij e-mail controleert het dat niet. Staat handmatig
-  verwijderen aan, dan ziet u een tweede knop, ook standaard uit: *Automatisch verwijderen
+- **U kiest zelf wat er wordt verwijderd.** Verwijdert u iets in uw oude account? Dan blijft de
+  kopie bij uw nieuwe aanbieder staan. Wilt u dat die kopie ook verdwijnt? Open dan bij de
+  migratie de pagina *Verwijderingen*, en kies per verwijdering: *Verwijder het hier ook*, en
+  bevestig, of *Behoud de kopie*. U hoeft daarvoor eerst niets aan te zetten. Ownpace verwijdert
+  alleen een kopie die het zelf schreef. Is een bestand, agenda-item of contact bij uw nieuwe
+  aanbieder gewijzigd? Dan verwijdert het dat niet. Bij e-mail controleert het dat niet. Op
+  dezelfde pagina staat een knop die standaard uit staat: *Automatisch verwijderen
   inschakelen*. Die ruimt de oude kopie op van een bestand dat u in uw oude account verplaatste.
   U kiest dan niet per bestand. Na de overstap verwijdert Ownpace op geen van beide manieren nog
   iets: uw oude account bepaalt dan niet meer wat er bestaat.
