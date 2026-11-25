@@ -26,8 +26,10 @@
   automatic removal of moved files' old copies* stays a switch, off by default. The promise is
   the same: nothing at the source, nothing at the target without the customer's own approval.
   The Last updated line moved to 2026-11-25, in both languages; ACCEPTED_WORDS re-pins both
-  files under 1.0. In that bullet the Dutch says *in uw bestemming* and *in uw nieuwe
-  bestemming* where it said *bij uw doel* (the owner's read of the Dutch, 2026-11-25).
+  files under 1.0. The Dutch now says *bestemming* for the target throughout, where it said
+  *doel*: *in uw bestemming* and *in uw nieuwe bestemming* in that bullet, *nieuwe bestemming*
+  and *bestemmingsaccount* (paired with *bronaccount*) in the rest of §2, in §7 and in §10. That
+  is the owner's read of the Dutch, 2026-11-25 ("All 8: yes"). The English is unchanged there.
 -->
 <!--
   FINAL — v1.3, 2026-10-05 (the date on the Last updated line moves to the
