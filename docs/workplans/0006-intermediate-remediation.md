@@ -24,7 +24,7 @@
 | O — The same list read again in a loop (PERF-4, five spots) and "green in CI proves less than it seems" (QUAL-3): a read-only check on `20038a66`, 2026-11-24 | ✅ Read and done 2026-11-24 (§O): one PERF-4 spot true, the pin watch listing the open issues once per row, now once per run; four PERF-4 spots and QUAL-3 false, nothing changed | asked for, 2026-11-24 |
 | Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | ✅ Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, merged as #2133 on 2026-11-25 (`3a4ca1ae`), in alpha.20: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). Its first proof in CI, Security Scan's push run on `main` at the merge (run 45537860598), passed | asked for, 2026-11-24 |
 | S — A path from the command line (JS-06) and an address checked before it is followed (JS-10): two findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Read 2026-11-25: both false positives (§S); the worker CLI's own `--config`, already known to Semgrep's summary, and a consent address followed only on its provider's own host; nothing changed | the owner was given a reason to paste for each |
-| T — An error dropped where free space is read (ERR-1), two lists of packages (SBOM-1, twice), two doors open on purpose (GEN-33, twice) and a page built from constants (JS-02): six findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Done 2026-11-25 (§T): ERR-1 true and fixed in `destination-space.ts`, every dropped failure now a log line, with tests; SBOM-1 already fixed by §Q and #2137, to be read again against alpha.20's lists; GEN-33 both and JS-02 false positives, nothing changed | asked for, 2026-11-25 |
+| T — An error dropped where free space is read (ERR-1), two lists of packages (SBOM-1, twice), two doors open on purpose (GEN-33, twice) and a page built from constants (JS-02): six findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Done 2026-11-25 (§T): ERR-1 true and fixed in `destination-space.ts`, every dropped failure now a log line, with tests; SBOM-1 already fixed by §Q and #2137, and read again against alpha.20's published lists on 2026-11-25: the same as the lockfile's at C; GEN-33 both and JS-02 false positives, nothing changed | asked for, 2026-11-25 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -721,6 +721,34 @@ that a failure within the limit is logged once, not twice.
 again against alpha.20's published lists, and package by package if the check names them.
 GEN-33, both, and JS-02: false positives; nothing changed. The owner was given a reason to paste
 for each.
+
+**Read again, 2026-11-25, against alpha.20's published lists**, as decided. Read from the release
+`v0.2.0-alpha.20`, each file's sha256 the one GitHub lists for it:
+
+- **`bom.json`** is CycloneDX 1.7, made by pnpm 11.29.0, for `ownpace` 0.2.0-alpha.20: 643
+  components, each listed once, 257 production and 386 dev-only (marked `scope: excluded` and
+  `cdx:npm:package:development`), all npm. Made again from the lockfile at C (`70582df2`) on a fresh
+  install, with the release's own command (`pnpm sbom --sbom-format cyclonedx`): the same 643
+  components and the same dependency graph; only the timestamp, the serial number and the order of
+  12 components differ. It names no commit; the release that carries it does. It lists what installs
+  on linux-x64 with glibc: the lockfile's 110 other entries are optional builds for other platforms
+  and WebAssembly fallbacks, none of them production.
+- **The eight image SBOMs** are SPDX 2.3, by syft 1.51.0 through BuildKit 0.35.1, one per image and
+  platform, each naming its image by the digest GHCR's `0.2.0-alpha.20` tag points to; amd64 and
+  arm64 list the same packages. api: 236 packages, 15 of them Debian 13.8's and 219 npm; worker: 149
+  (15 and 132); selfhost: 18 (15 and 1); web: 22, 21 of them Alpine 3.24.4's, nginx 1.31.10 among
+  them. The api, worker and selfhost images also list Node 26.13.1.
+- **Between the two:** 203 of the images' 219 npm packages are in `bom.json`, all as production; the
+  other 16 are the 13 workspace packages, the root, and two test fixtures' `package.json` files. 54
+  production packages in `bom.json` are in no image SBOM: all come only from `apps/web`, whose code
+  the web image carries bundled, where a scanner cannot see it, which is what `bom.json` is for
+  (`docs/release.md`).
+- **So SBOM-1 stays fixed:** alpha.20's list is this code's, made the new way, and each image lists
+  its own operating system. The check named no package, so none was read one by one. The Windows zip
+  carries no SBOM of its own.
+- One sentence was wrong and is put right here: `scripts/image-sbom.mjs` and `docs/release.md` said
+  nothing in an image's document is changed but its name; the script also adds a one-line `comment`
+  naming the image by digest and the platform.
 
 ---
 
