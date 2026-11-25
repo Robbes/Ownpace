@@ -663,8 +663,10 @@ const USES_STORED_ACCESS =
  */
 const USES_BY_FILE: Readonly<Record<string, number>> = {
   // Whom a password account saved for a person waits for (workplan 0174 T6):
-  // which keys its record carries, for the Accounts page. No provider.
-  'routes/account-for-a-person.ts': 1,
+  // which keys its record carries, for the Accounts page. No provider. One
+  // more since a sign-in account saved for a person (0174 §8.2, 2026-11-25):
+  // which keys the row and their migrations carry, the same way.
+  'routes/account-for-a-person.ts': 2,
   // One more since a rotation keeps a Microsoft account's tenant (0153 open
   // question 5), read after the rotation's close, and one since the folder
   // browse reads a saved account's sign-in, after its own. Three more since a
@@ -673,7 +675,10 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // since a rotation keeps an Infomaniak account's mail login (0161 T1), read
   // after the rotation's close, as the tenant is. Three fewer since measuring
   // a stored account again moved to its own module (0006 §R, CQ-06), below.
-  'routes/connections.ts': 14,
+  // One more since a Test of a sign-in account saved for a person measures
+  // with the sign-in their migration holds (0174 §8.2, 2026-11-25), read
+  // after the Test's own close.
+  'routes/connections.ts': 15,
   // One fewer since a link's client is read in one place for every provider
   // (`linkClient`, workplan 0171 T3), after the route's own close.
   'routes/grant.ts': 1,

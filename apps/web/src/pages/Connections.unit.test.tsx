@@ -224,6 +224,130 @@ describe('the connections screen', () => {
     expect(within(mine).queryByText(/Waiting for/)).toBeNull();
   });
 
+  it('a sign-in account saved for a person: waiting, or connected by them, never an error (0174 §8.2, 2026-11-25)', async () => {
+    list.mockResolvedValue([
+      conn({
+        id: 'c-waits',
+        kind: 'google',
+        displayName: 'Family · Google',
+        status: 'error',
+        usedByMigrations: 2,
+        waitingFor: { personId: 'p-family', name: 'A family member' },
+        signInOnMigrations: true,
+        qualification: null,
+      }),
+      conn({
+        id: 'c-theirs',
+        kind: 'dropbox',
+        displayName: 'Family · Dropbox',
+        status: 'error',
+        connectedBy: { personId: 'p-family', name: 'A family member' },
+        signInOnMigrations: true,
+        qualification: null,
+      }),
+    ]);
+    renderPage();
+    const waits = (await screen.findByText('Family · Google')).closest('li') as HTMLElement;
+    expect(within(waits).getByText('Waiting for A family member: they sign in themselves, with their grant link.')).toBeTruthy();
+    expect(within(waits).queryByRole('button', { name: 'Test' })).toBeNull();
+    expect(waits.querySelector('.text-red-600')).toBeNull();
+    expect(within(waits).queryByText(/Unmeasured|clientId|refreshToken/)).toBeNull();
+    const theirs = screen.getByText('Family · Dropbox').closest('li') as HTMLElement;
+    expect(within(theirs).getByText('A family member connected this account themselves. Make them a new grant link to change it.')).toBeTruthy();
+    expect(theirs.querySelector('.text-red-600')).toBeNull();
+    // Test is there: it measures through their sign-in, on the server.
+    expect(within(theirs).getByRole('button', { name: 'Test' })).toBeTruthy();
+  });
+
+  it('says a provider’s temporary error in Dutch, from its parts, on the card and in the Test (2026-11-25)', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const temporary = {
+      answer: 'unknown' as const,
+      reason: 'temporary',
+      detail: 'Google had a temporary error (502). Test again in a minute.',
+      plain: { kind: 'answered' as const, provider: 'Google', status: 502 },
+    };
+    const yes = { answer: 'yes' as const, detail: 'Read.' };
+    try {
+      list.mockResolvedValue([
+        conn({
+          kind: 'google',
+          displayName: 'Mine · Google',
+          qualification: { domains: { mail: yes, calendar: yes, contact: temporary, file: yes, task: yes } },
+        }),
+      ]);
+      testConnection.mockResolvedValue({
+        ok: false,
+        reason: 'Google had a temporary error (502). Test again in a minute.',
+        outcome: { code: 'providerTemporary', status: 502 },
+        plain: { kind: 'answered', provider: 'Google', status: 502 },
+      });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={client}>
+          <LocaleProvider>
+            <MemoryRouter>
+              <Connections />
+            </MemoryRouter>
+          </LocaleProvider>
+        </QueryClientProvider>,
+      );
+      const card = (await screen.findByText('Mine · Google')).closest('li') as HTMLElement;
+      expect(within(card).getByText('Contacten: Google had een tijdelijke fout (502). Test over een minuut opnieuw.')).toBeTruthy();
+      fireEvent.click(within(card).getByRole('button', { name: STRINGS.nl['connections.test'] }));
+      expect(await within(card).findByText(/^Google had een tijdelijke fout \(502\)\. Test over een minuut opnieuw\.$/)).toBeTruthy();
+      expect(card.textContent).not.toMatch(/<|temporary error/);
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('says in Dutch that a provider could not be reached, on the card and in the Test (2026-11-25)', async () => {
+    // The owner's second Test that evening: *"Files: … fetch failed"*.
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const unreachable = {
+      answer: 'unknown' as const,
+      reason: 'temporary',
+      detail: 'Google could not be reached just now (the connection was cut off). Test again in a minute.',
+      plain: { kind: 'unreachable' as const, provider: 'Google', cause: 'cut' as const },
+    };
+    const yes = { answer: 'yes' as const, detail: 'Read.' };
+    try {
+      list.mockResolvedValue([
+        conn({
+          kind: 'google',
+          displayName: 'Mine · Google',
+          qualification: { domains: { mail: yes, calendar: yes, contact: yes, file: unreachable, task: yes } },
+        }),
+      ]);
+      testConnection.mockResolvedValue({
+        ok: false,
+        reason: 'Google could not be reached just now. Test again in a minute.',
+        outcome: { code: 'providerTemporary' },
+        plain: { kind: 'unreachable', provider: 'Google' },
+      });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={client}>
+          <LocaleProvider>
+            <MemoryRouter>
+              <Connections />
+            </MemoryRouter>
+          </LocaleProvider>
+        </QueryClientProvider>,
+      );
+      const card = (await screen.findByText('Mine · Google')).closest('li') as HTMLElement;
+      expect(
+        within(card).getByText('Bestanden: Google was zojuist niet bereikbaar (de verbinding werd verbroken). Test over een minuut opnieuw.'),
+      ).toBeTruthy();
+      fireEvent.click(within(card).getByRole('button', { name: STRINGS.nl['connections.test'] }));
+      expect(await within(card).findByText(/^Google was zojuist niet bereikbaar\. Test over een minuut opnieuw\.$/)).toBeTruthy();
+      expect(card.textContent).not.toMatch(/fetch failed|could not be reached/);
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
   it('offers no new password on a row a person types it for, or typed it on themselves (0174 §4.3, §8.2, D6)', async () => {
     list.mockResolvedValue([
       conn({ id: 'c-waits', kind: 'soverin', role: 'target', displayName: 'Anna · Soverin', status: 'error', waitingFor: { personId: 'p-anna', name: 'Anna' } }),

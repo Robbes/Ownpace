@@ -40,6 +40,41 @@ Proved on the builder's checkout: the new unit guards; the Stalwart file's two D
 PostgreSQL from `./scripts/local-pg.sh` (its three Stalwart cases and the Nextcloud file said NOT RUN
 there: no container runtime); `bash -n` on the smoke. CI's integration job runs the server cases; the smoke runs at T9.
 
+**2026-11-25, found on the managed test environment (alpha.20) and fixed on
+`claude/ownpace-public-readiness-y7orc6-a21-signin-for-a-person`.** Two things the owner saw on
+the Accounts page. (1) A Google account saved for a family member, *Used by 2 migrations*, showed
+a red error icon, *"Unmeasured — the stored credentials carry no clientId/refreshToken pair"*
+under every data type, and its Test gave the Google Calendar factory's advice about the owner's
+own app. §8.2 covered password kinds only (`waitingForPeople`), and `connectedBy` targets only;
+a sign-in account saved by its address keeps no token on its row, because the person's sign-in
+lands on each of their migrations (`mailbox_mapping.source_secret_ref`, 0108). Now
+`GET /api/connections` says `waitingFor` the person for each source kind a link connects by
+signing in (the seam's `sourceKinds`: Google's five, the Microsoft account, Dropbox) while no
+migration of theirs that reads it holds a sign-in, and `connectedBy` them once one does
+(`signInPeople`), with `signInOnMigrations` and no record that was read with no token; the page
+shows those lines in place of the error icon. A Test while it waits probes nothing
+(`waitingForPerson`); once a migration holds the sign-in, the Test measures with that sign-in,
+merged over the row's as a pass merges it, read inside the tenant's transaction and never
+answered, and marks the record `throughPersonsSignIn`. (2) A Google Test printed Google's whole
+502 HTML page after *"the face did not answer"*, classified as a refusal. A failure at a
+provider's own service is now said from its parts (`@openmig/shared`'s `provider-answer.ts`):
+the status and a short plain reason, or the provider's recognised error words, capped at 300
+characters; 5xx and 429 are a new reason, `temporary`, *"… had a temporary error (502). Test again
+in a minute."*, in English and Dutch from one text. Applied to Google's token exchange and every
+data type, Microsoft's exchange and data types, Dropbox, the Test's headline for every provider's
+published service, and the finish checks' receiving addresses and Graph's access check. Proved by
+`a-sign-in-saved-for-a-person` (5), `a-provider-error-page-read-aloud` (10), two page tests and
+six reworded assertions, all 23 shown failing on `main`'s code. (3) A second Test that evening
+said *"Files: … the face did not answer: fetch failed"*: undici's word for a request that got no
+answer, read as a refusal. Nothing answering is now `temporary` too, *"… could not be reached just
+now (the connection was cut off). Test again in a minute."*, the reason read from the network's
+code under `fetch failed` and said in words, never the code; a certificate or a refusal of ours
+under it keeps its own sentence. Applied to every data type, both token exchanges and the Test's
+headline (`providerTemporary`, with no status). Proved by 18 more cases in `provider-answer` and
+`a-provider-error-page-read-aloud`, shown failing on the branch's code before, and a page test in
+Dutch. Not proved here: a real person's sign-in measured on the test environment, a real Google
+5xx, and a real network failure.
+
 **2026-11-25, T1 to T6 merged as #2167** (`574d35fb`), which replaced #2164: #2164's tree at
 `e0acb093` rebuilt on `main` as one commit, because gitleaks read a placeholder that one of its
 commits added to a UI test as a key, and a later commit cannot take a line out of a pull request's

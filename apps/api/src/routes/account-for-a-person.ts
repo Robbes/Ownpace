@@ -46,6 +46,7 @@ import type { PgDatabase } from '@openmig/ledger';
 import { person, personMigration } from '@openmig/managed/schema-managed';
 import { credentialFieldRequired, isPasswordKind, personFillableKeys, type CredentialField } from '@openmig/shared';
 import { credential, storedCredentials } from './migrations/grant-subject.ts';
+import { grantProviderOfKind } from './grant-providers.ts';
 
 /** A refusal of the create door, as its other refusals are shaped. */
 export interface ForPersonRefusal {
@@ -233,4 +234,169 @@ export async function waitingForPeople(
     out.set(r.connectionId, { personId: r.personId, name: r.name });
   }
   return out;
+}
+
+// ==================== A sign-in account saved for a person ====================
+
+/**
+ * The keys that give a sign-in source a way in, any one of them: a granted
+ * refresh token, a service-account key (domain-wide delegation), and Gmail's
+ * app password. `awaitingGrantRefusal` reads the same three as a way in.
+ */
+const SIGN_IN_KEYS = ['refreshToken', 'serviceAccountKey', 'appPassword'] as const;
+
+const hasASignIn = (secretRef: string | null): boolean => {
+  const creds = storedCredentials(secretRef);
+  return SIGN_IN_KEYS.some((k) => credential(creds, k) !== '');
+};
+
+/**
+ * Whether this row is a source a grant link connects by signing in (the
+ * seam's `sourceKinds`: Google's five kinds, the Microsoft account, Dropbox)
+ * and holds no way in of its own. Such a row is saved by its address alone,
+ * and the person's sign-in lands on each migration of theirs that reads it
+ * (`mailbox_mapping.source_secret_ref`, 0108), never on the row. Pure: the
+ * encrypted record is read for which keys it carries, never for a value.
+ */
+export function signInOnItsMigrations(connection: {
+  readonly role: string;
+  readonly kind: string;
+  readonly secretRef: string | null;
+}): boolean {
+  return (
+    connection.role === 'source' &&
+    grantProviderOfKind(connection.kind, 'source') !== null &&
+    !hasASignIn(connection.secretRef)
+  );
+}
+
+/** Whether a stored record was measured through a person's sign-in (`throughPersonsSignIn`). */
+export function measuredThroughAMigration(qualification: unknown): boolean {
+  return (
+    typeof qualification === 'object' &&
+    qualification !== null &&
+    (qualification as { throughPersonsSignIn?: unknown }).throughPersonsSignIn === true
+  );
+}
+
+/** A person's migration that reads a sign-in account, as the rows hold it. */
+interface PersonsMigrationOnAnAccount {
+  readonly connectionId: string;
+  readonly mappingId: string;
+  readonly personId: string;
+  readonly name: string;
+  readonly sourceSecretRef: string | null;
+  readonly sourceConfigOverride: unknown;
+}
+
+/** The person's migrations that read these accounts, the person first added first, inside the tenant. */
+async function personsMigrationsReading(
+  db: PgDatabase,
+  tenantId: string,
+  connectionIds: ReadonlyArray<string>,
+): Promise<PersonsMigrationOnAnAccount[]> {
+  if (connectionIds.length === 0) return [];
+  return db
+    .select({
+      connectionId: schema.mailbox.connectionId,
+      mappingId: schema.mailboxMapping.id,
+      personId: person.id,
+      name: person.displayName,
+      sourceSecretRef: schema.mailboxMapping.sourceSecretRef,
+      sourceConfigOverride: schema.mailboxMapping.sourceConfigOverride,
+    })
+    .from(schema.mailbox)
+    .innerJoin(schema.mailboxMapping, eq(schema.mailboxMapping.sourceMailboxId, schema.mailbox.id))
+    .innerJoin(personMigration, eq(personMigration.mappingId, schema.mailboxMapping.id))
+    .innerJoin(person, eq(person.id, personMigration.personId))
+    .where(
+      and(
+        eq(schema.mailbox.tenantId, tenantId),
+        eq(schema.mailboxMapping.tenantId, tenantId),
+        eq(personMigration.tenantId, tenantId),
+        eq(person.tenantId, tenantId),
+        inArray(schema.mailbox.connectionId, [...connectionIds]),
+      ),
+    )
+    .orderBy(asc(personMigration.addedAt), asc(schema.mailboxMapping.id));
+}
+
+/** Whom a sign-in account saved for a person waits for, or who connected it. */
+export interface SignInPeople {
+  readonly waitingFor: Map<string, WaitingFor>;
+  readonly connectedBy: Map<string, WaitingFor>;
+}
+
+/**
+ * WAITING FOR {PERSON}, OR CONNECTED BY THEM, FOR A SIGN-IN ACCOUNT (0174
+ * §8.2, found on the test environment on 2026-11-25). A Google, Microsoft or
+ * Dropbox account saved by its address for a person's link holds no token:
+ * the person's sign-in is stored on each of their migrations that read it.
+ * So the row's own state says nothing about the account, and the page called
+ * it broken. An observation of the rows, as `waitingForPeople` is, never a
+ * status: connected by the first person (first added) whose migration holds
+ * a sign-in, else waiting for the first person whose migration reads it. A
+ * row with a way in of its own, or that no person's migration reads, is in
+ * neither map.
+ */
+export async function signInPeople(
+  db: PgDatabase,
+  tenantId: string,
+  connections: ReadonlyArray<{
+    readonly id: string;
+    readonly role: string;
+    readonly kind: string;
+    readonly secretRef: string | null;
+  }>,
+): Promise<SignInPeople> {
+  const waitingFor = new Map<string, WaitingFor>();
+  const connectedBy = new Map<string, WaitingFor>();
+  const candidates = connections.filter(signInOnItsMigrations).map((c) => c.id);
+  const rows = await personsMigrationsReading(db, tenantId, candidates);
+  for (const r of rows) {
+    if (!connectedBy.has(r.connectionId) && hasASignIn(r.sourceSecretRef)) {
+      connectedBy.set(r.connectionId, { personId: r.personId, name: r.name });
+    }
+  }
+  for (const r of rows) {
+    if (connectedBy.has(r.connectionId) || waitingFor.has(r.connectionId)) continue;
+    waitingFor.set(r.connectionId, { personId: r.personId, name: r.name });
+  }
+  return { waitingFor, connectedBy };
+}
+
+/**
+ * What a Test of a sign-in account saved for a person measures with (0174
+ * §8.2): the sign-in the person gave on one of their migrations, inside the
+ * caller's tenant transaction. `granted` carries that migration's stored
+ * record and its own account override, for the server to merge over the row's
+ * as a pass does; nothing of it is answered to anyone. `waiting` when their
+ * migrations hold no sign-in yet; null when no person's migration reads it.
+ */
+export type PersonsSignIn =
+  | { readonly state: 'granted'; readonly person: WaitingFor; readonly mappingId: string; readonly secretRef: string; readonly configOverride: Record<string, unknown> }
+  | { readonly state: 'waiting'; readonly person: WaitingFor };
+
+export async function personsSignInFor(
+  db: PgDatabase,
+  tenantId: string,
+  connectionId: string,
+): Promise<PersonsSignIn | null> {
+  const rows = await personsMigrationsReading(db, tenantId, [connectionId]);
+  const granted = rows.find((r) => r.sourceSecretRef !== null && hasASignIn(r.sourceSecretRef));
+  if (granted) {
+    const override = granted.sourceConfigOverride;
+    return {
+      state: 'granted',
+      person: { personId: granted.personId, name: granted.name },
+      mappingId: granted.mappingId,
+      secretRef: granted.sourceSecretRef!,
+      configOverride:
+        typeof override === 'object' && override !== null && !Array.isArray(override)
+          ? (override as Record<string, unknown>)
+          : {},
+    };
+  }
+  const first = rows[0];
+  return first ? { state: 'waiting', person: { personId: first.personId, name: first.name } } : null;
 }

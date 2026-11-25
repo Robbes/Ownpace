@@ -316,13 +316,16 @@ describe('the qualification: every face, against the grant', () => {
       source: faces({
         calendar: {
           listFolders: async () => {
-            throw new Error('403 ErrorAccessDenied');
+            // As `graph-refusal.ts` words a refusal: what, status, Graph's words.
+            throw new Error('listing calendars: 403 - ErrorAccessDenied — Access is denied.');
           },
         },
       }),
     });
     expect(q!.domains.calendar.answer).toBe('unknown');
-    expect(q!.domains.calendar.detail).toMatch(/carries Calendars\.Read, but the face did not answer: 403 ErrorAccessDenied/);
+    // Microsoft's status and words, in plain words: no scope, no "face" (2026-11-25).
+    expect(q!.domains.calendar.detail).toBe('Microsoft answered 403: ErrorAccessDenied — Access is denied.');
+    expect(q!.domains.calendar.reason).toBe('refused');
     expect(q!.domains.task).toMatchObject({ answer: 'yes', count: 1, unit: 'taskList' });
   });
 
@@ -376,7 +379,7 @@ describe('the qualification: every face, against the grant', () => {
     const q = await qualifyMicrosoftAccount('microsoft', ROW, PAIR, { tokenEndpoint: TOKEN_ENDPOINT, source: faces() });
     for (const face of ['mail', 'calendar', 'contact', 'file', 'task'] as const) {
       expect(q!.domains[face].answer).toBe('unknown');
-      expect(q!.domains[face].detail).toMatch(/Unmeasured — the token exchange answered 400/);
+      expect(q!.domains[face].detail).toMatch(/^Microsoft answered 400: /);
     }
   });
 
