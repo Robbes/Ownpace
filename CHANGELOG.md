@@ -61,6 +61,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   A new guide, *How a migration copies* / *Hoe een migratie kopieert*, in English and Dutch,
   says the order, what a 90-day migration copies, *Copy everything*, and the appliance's
   mapping-file setting. No word *trial* or *proef* anywhere.
+- **Grant links for a Dropbox account** (workplan 0174 §6, T2; superseding 0171 T4). A grant link
+  can now connect Dropbox as it connects a Google or Microsoft account: the person opens the link,
+  presses **Continue with Dropbox as** *their account* (*Doorgaan met Dropbox als …*), signs in on
+  Dropbox's own page, and the token is stored on their migration and shown to nobody. It asks what
+  the owner's own Connect with Dropbox asks: lasting, read-only access to files and the account
+  read. Dropbox takes no login hint, so the grant is bound afterwards: Dropbox is asked who signed
+  in (`users/get_current_account`), and its address must be the one the migration names, compared
+  without case, and one Dropbox has verified. Any other account, or an address Dropbox has not
+  verified, stores nothing and leaves the link working. Served where the deployment carries its own
+  Dropbox app (`DROPBOX_OAUTH_CLIENT_ID` and `_SECRET`) or the connection carries its own whole
+  pair. *Start a migration* offers *They do, with a link* for Dropbox on such a deployment, and a
+  Dropbox account saved for somebody else is taken with its address alone; a Dropbox migration
+  without a token does not start until somebody has connected it. Not proven against a real
+  Dropbox account: no test account exists, and the endpoints are stood in for in the tests.
 - **Grant links for a Microsoft account** (workplan 0171 T3; the owner's decisions D5 (a) and D7
   (a) of 2026-11-24). A grant link can now connect a Microsoft 365 account, personal or work, as
   it has connected a Google account: the person opens the link, presses **Continue with Microsoft

@@ -294,6 +294,18 @@ describe('what somebody else can connect themselves, by a grant link (0108)', ()
     expect(grantProvidersServed(undefined)).toEqual([]);
   });
 
+  it('is Dropbox, where the deployment carries its own Dropbox app (0174 §6)', () => {
+    // Dropbox has no account kind, so its fact is the provider clients read's.
+    expect(grantProvidersServed({}, { dropbox: 'deployment' })).toEqual(['dropbox']);
+    expect(grantProvidersServed({}, { dropbox: 'connection' })).toEqual([]);
+    expect(grantProvidersServed({}, undefined)).toEqual([]);
+    expect(grantableByLink('dropbox', { ...NARROW, grantProviders: ['dropbox'] })).toBe(true);
+    // Served for Dropbox only: no other card; served for the others: not Dropbox.
+    expect(grantableByLink('box', { ...NARROW, grantProviders: ['dropbox'] })).toBe(false);
+    expect(grantableByLink('google', { ...NARROW, grantProviders: ['dropbox'] })).toBe(false);
+    expect(grantableByLink('dropbox', { ...NARROW, grantProviders: ['google', 'microsoft'] })).toBe(false);
+  });
+
   it('is nothing for a provider with no link at all', () => {
     for (const card of ['microsoft', 'apple', 'dropbox', 'box', 'imap']) {
       expect(grantableByLink(card, OWN_CLIENT)).toBe(false);

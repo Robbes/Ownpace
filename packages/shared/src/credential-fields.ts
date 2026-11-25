@@ -562,7 +562,13 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
     // client, and a screen folds the pair away where it does.
     { key: 'clientId', labelKey: 'account.dropboxAppKey', pairedWith: 'clientSecret' },
     { ...SECRET, required: false, pairedWith: 'clientId' },
-    { ...REFRESH, required: true, consent: 'dropbox' },
+    // Not `required` on the descriptor since alpha.21 (workplan 0174 §6), as
+    // Google's and Microsoft's are not: an account saved for somebody else is
+    // granted by link, so the create door must take it with the address alone.
+    // Every form still demands it (`credentialFieldRequired`: a consent token
+    // is never optional on a screen), and a migration without one does not
+    // start (`awaitingGrantRefusal`).
+    { ...REFRESH, consent: 'dropbox' },
     {
       key: 'rootPath',
       labelKey: 'account.dropboxRootPath',

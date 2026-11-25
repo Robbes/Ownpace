@@ -323,9 +323,11 @@ describe('the page and the button of a Microsoft account’s link', () => {
     expect((await begin(g.token, 'microsoft')).body.error).toBe('not_this_provider');
   });
 
-  it('answers no door for a provider with no entry yet (Dropbox and Apple join later)', async () => {
+  it('answers no door for a provider with no entry yet (Apple joins later), and refuses Dropbox’s for this link', async () => {
     const { token } = await mintLink(MAPPING);
-    expect((await begin(token, 'dropbox')).status).toBe(404);
+    // Dropbox has an entry since alpha.21 (workplan 0174 §6): its door exists,
+    // and a Microsoft account's link is not one it opens.
+    expect((await begin(token, 'dropbox')).body.error).toBe('not_this_provider');
     expect((await begin(token, 'apple')).status).toBe(404);
     expect((await begin(token, 'nonsense')).status).toBe(404);
   });

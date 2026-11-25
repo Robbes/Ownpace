@@ -133,6 +133,23 @@ export const en = {
     'Sign in as {account}. Microsoft confirms which account signed in; other accounts are refused.',
   'grant.withdraw.microsoft':
     'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Microsoft account, under the apps that have access.',
+  // A Dropbox link (workplan 0174 §6): the same page, in Dropbox's words.
+  // Dropbox takes no login hint, so the sign-in line says what to do when it
+  // offers another account.
+  'grant.continue.dropbox': 'Continue with Dropbox as {account}',
+  'grant.connectAgain.dropbox': 'Connect again with Dropbox as {account}',
+  'grant.connecting.dropbox': 'Opening Dropbox…',
+  'grant.reads.file.dropbox': 'your files in Dropbox',
+  'grant.readOnly.dropbox':
+    'Read-only. Nothing is ever deleted or changed in your Dropbox, and nobody — not the organisation, not Ownpace — ever sees your password. You sign in to Dropbox yourself, on Dropbox’s own page.',
+  'grant.scopeIntro.dropbox': 'The permission Dropbox will ask you for:',
+  'grant.scope.dropbox.files': 'Dropbox: read your files.',
+  'grant.scope.dropbox.account': 'Your Dropbox account: read your name, your address and how much space you use.',
+  'grant.scope.technical.line.dropbox': 'Dropbox records this permission as:',
+  'grant.signInAs.dropbox':
+    'Sign in as {account}. Dropbox confirms which account signed in; other accounts are refused. If Dropbox offers another account, sign out of it first.',
+  'grant.withdraw.dropbox':
+    'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Dropbox settings, under Connected apps.',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
   'grant.withdraw':
     'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Google account’s security settings, under the apps that have access.',
@@ -257,6 +274,20 @@ export const nl: Record<keyof typeof en, string> = {
     'Log in als {account}. Microsoft bevestigt met welk account u zich aanmeldt; andere accounts worden geweigerd.',
   'grant.withdraw.microsoft':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of in uw Microsoft-account, bij de apps die toegang hebben.',
+  'grant.continue.dropbox': 'Doorgaan met Dropbox als {account}',
+  'grant.connectAgain.dropbox': 'Opnieuw verbinden met Dropbox als {account}',
+  'grant.connecting.dropbox': 'Dropbox wordt geopend…',
+  'grant.reads.file.dropbox': 'uw bestanden in Dropbox',
+  'grant.readOnly.dropbox':
+    'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw Dropbox, en niemand — niet de organisatie, niet Ownpace — ziet uw wachtwoord. U logt zelf in bij Dropbox, op de pagina van Dropbox zelf.',
+  'grant.scopeIntro.dropbox': 'De toestemming die Dropbox u vraagt:',
+  'grant.scope.dropbox.files': 'Dropbox: uw bestanden lezen.',
+  'grant.scope.dropbox.account': 'Uw Dropbox-account: uw naam, uw adres en uw gebruikte ruimte lezen.',
+  'grant.scope.technical.line.dropbox': 'Dropbox legt deze toestemming vast als:',
+  'grant.signInAs.dropbox':
+    'Log in als {account}. Dropbox bevestigt met welk account u zich aanmeldt; andere accounts worden geweigerd. Biedt Dropbox een ander account aan, meld u daar dan eerst af.',
+  'grant.withdraw.dropbox':
+    'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of in uw Dropbox-instellingen, bij Verbonden apps.',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
   'grant.withdraw':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of via de beveiligingsinstellingen van uw Google-account, bij de apps die toegang hebben.',

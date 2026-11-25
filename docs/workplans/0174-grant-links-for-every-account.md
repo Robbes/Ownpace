@@ -4,6 +4,19 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T2 built (Dropbox on the seam), in review.** A grant link connects Dropbox: the
+`dropbox` entry in `grant-providers.ts` (fact `dropboxClient`), `dropboxLinkAsk` in the readiness
+check, the link branch in Dropbox's callback through one ending lifted out of Microsoft's
+(`link-ending.ts`, Microsoft's behaviour and tests unchanged), and `get_current_account` in
+`dropbox-consent.ts` binding the grant to the named account: its `email` equal without case and
+`email_verified` strictly true, else nothing stored and the link live. The page in Dropbox's words,
+EN and NL; `grantableByLink('dropbox')` from `/api/provider-clients`. Two things the plan did not
+name, both needed for the wizard's *They do, with a link*: Dropbox's refresh token is no longer
+`required` on its descriptor (as Google's and Microsoft's are not; every form still demands it),
+and `awaitingGrantRefusal` holds a Dropbox migration without a token. Proven by mock only: no real
+Dropbox account exists for a test. T1 adds the same fact `dropboxClient`; the two meet in
+`grant-providers.ts` (§10).
+
 **2026-11-25, later: the owner's decisions.** *"All adviced."*: D1 to D9 as advised, (a) each,
 and D3 with the one addition put to the owner with it (§12, D3): a warning beside the server when
 it is not on the address's own domain or its mail's (MX). D8: the privacy policy and the terms
@@ -19,7 +32,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T1 The seam grows: password kinds, destinations, one shape for the page | builder | 📋 Planned | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
-| T2 Dropbox on the seam | builder | 📋 Planned | §6. Supersedes 0171 T4. S. Needs only 0171 T3's seam, which is merged (#2136). |
+| T2 Dropbox on the seam | builder | 🔍 In review | §6. Supersedes 0171 T4. S. Built 2026-11-25 on 0171 T3's seam (#2136): the binding, an unverified email and another account refused with nothing stored and the link live, a refused exchange, `grantableByLink('dropbox')`; every new test shown failing on `main` first. By mock only: no real Dropbox account. |
 | T3 The own-password route: test, try count, store, spend | builder | 📋 Planned | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
 | T4 The own-password page, per kind, in English and Dutch | builder | 📋 Planned | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
 | T5 Destinations on the link: Cirrux Drive and password destinations | builder | 📋 Planned | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |

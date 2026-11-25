@@ -80,6 +80,7 @@ import {
   connectionsApi,
   mappingApi,
   providerAccountsApi,
+  providerClientsApi,
   scopeManifestApi,
   type ConnectionSummary,
   type CreateMappingInput,
@@ -397,6 +398,14 @@ const StartMigration: React.FC = () => {
     retry: false,
     staleTime: Infinity,
   });
+  // Whose apps this deployment carries; Dropbox's grant link is served only
+  // where it carries Dropbox's (workplan 0174 §6). A failed read offers none.
+  const { data: providerClients } = useQuery({
+    queryKey: ['provider-clients'],
+    queryFn: providerClientsApi.get,
+    retry: false,
+    staleTime: Infinity,
+  });
   const served: ServedFacts = React.useMemo(() => {
     const facts: {
       google?: DiscoveryDomain[];
@@ -408,9 +417,9 @@ const StartMigration: React.FC = () => {
     if (providerAccounts?.google?.client) facts.googleClient = providerAccounts.google.client;
     if (providerAccounts?.microsoft) facts.microsoft = providerAccounts.microsoft.domains;
     // Whose grant links this deployment serves (workplan 0171 §3.2).
-    if (providerAccounts) facts.grantProviders = grantProvidersServed(providerAccounts);
+    if (providerAccounts) facts.grantProviders = grantProvidersServed(providerAccounts, providerClients);
     return facts;
-  }, [providerAccounts]);
+  }, [providerAccounts, providerClients]);
 
   const [step, setStep] = React.useState<Step>('who');
   const personParam = searchParams.get('person');

@@ -1533,6 +1533,8 @@ paths:
         grant missing a read scope is refused with the missing one named, and
         one carrying a scope outside the three the URL asks for and
         `sharing.read` is refused with that scope named and nothing stored.
+        A state begun by a grant link (workplan 0174 §6) ends as that link's
+        page instead, and hands nothing to any window.
       security: []
       parameters:
         - { name: state, in: query, schema: { type: string } }
@@ -3848,11 +3850,11 @@ paths:
         required: true
         description: |
           Whose sign-in to start (workplan 0171 §3.2): `google` (this route's
-          address until alpha.20, unchanged) or `microsoft`. It must be the
-          provider the link asks for (`provider` on `GET /api/grant/{link}`),
-          or the answer is 409 `not_this_provider`. A provider with no grant
-          entry yet (`dropbox`, `apple`, until workplan 0171 T4 and T5) or any
-          other value is 404.
+          address until alpha.20, unchanged), `microsoft`, or since alpha.21
+          `dropbox` (workplan 0174 §6). It must be the provider the link asks
+          for (`provider` on `GET /api/grant/{link}`), or the answer is 409
+          `not_this_provider`. A provider with no grant entry yet (`apple`,
+          until workplan 0174's password tasks) or any other value is 404.
         schema: { type: string, enum: [google, microsoft, dropbox, apple] }
     post:
       tags: [Grant links]
@@ -3865,6 +3867,16 @@ paths:
         at `/api/migrations/microsoft/callback`, checks the ID token's issuer
         and audience and reads `/me`, and stores the token only when the named
         account is the sign-in name, the primary address or a proxy address.
+
+        For Dropbox (workplan 0174 §6) the same, at Dropbox: the deployment's
+        Dropbox app or the connection's own whole pair, and the owner's own
+        Connect with Dropbox consent (`token_access_type=offline`, the read
+        scopes and `account_info.read`). Dropbox takes no login hint. The
+        ending, at `/api/migrations/dropbox/callback`, exchanges the code and
+        asks `users/get_current_account` who signed in, and stores the token
+        only when its `email` is the named account, compared without case, and
+        `email_verified` is true; otherwise nothing is stored and the link
+        stays live.
 
         For Google, as follows.
 
