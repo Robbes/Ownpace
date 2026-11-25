@@ -175,15 +175,17 @@ function sources(dir: string): string[] {
 
 describe('an item’s remedy is always chosen through remedyKey', () => {
   /**
-   * The three that index the map themselves, each with its reason. They show
+   * The two that index the map themselves, each with its reason. They show
    * `migration_status.last_error_category`, a data type's category, which
    * only `markFailed` writes, from a message with no stated category, and no
-   * rule over a message yields `policy_refused` (0150 T5).
+   * rule over a message yields `policy_refused` (0150 T5). The progress strip
+   * was the third until 0160 T2b, when a Cirrux account's files needed their
+   * own button named; it asks `remedyKey` now. The Accounts page names that
+   * button itself (`connections.standing.authExpired`).
    */
   const DOMAIN_LEVEL: Record<string, string> = {
     'pages/Connections.tsx': 'a failed pass standing against a connection, by data type',
     'pages/Support.tsx': 'the operator’s view of a data type’s last error',
-    'components/LiveProgress.tsx': 'the progress strip, one line per data type',
   };
 
   it('found the files, rather than passing over an empty tree', () => {
@@ -192,7 +194,7 @@ describe('an item’s remedy is always chosen through remedyKey', () => {
     expect(all).toContain('components/queues/FailureGroupPanel.tsx');
   });
 
-  it('is indexed directly only in failure-key.ts and the three data-type screens', () => {
+  it('is indexed directly only in failure-key.ts and the two data-type screens', () => {
     const indexing = sources(WEB_SRC)
       .map((p) => relative(WEB_SRC, p))
       // `FAILURE_KEY` itself: `VIEW_FAILURE_KEY` is the progress link's own map.

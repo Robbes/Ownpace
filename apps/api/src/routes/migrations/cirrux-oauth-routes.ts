@@ -78,6 +78,7 @@ import {
 import { closedOrganisation, refusedAsClosed } from '../../closed-organisation.ts';
 import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
 import { serverFault } from '../../server-fault.ts';
+import { requalifyStoredConnection } from '../qualify-and-remember.ts';
 
 const router = Router();
 
@@ -245,10 +246,8 @@ router.get('/cirrux/callback', async (req: Request, res: Response) => {
   // Measured again, so every screen that reads the record sees the Drive, with
   // the access token this consent was just given, so measuring spends no
   // refresh. Never fails the consent: the grant is stored, and a Test
-  // measures it. Imported here, not at the top: the connection routes import
-  // the migration routes, which mount this file.
+  // measures it.
   try {
-    const { requalifyStoredConnection } = await import('../connections.ts');
     await requalifyStoredConnection(tenantId, connectionId, pending.cirrux.actor, {
       accessToken: outcome.accessToken,
       expiresAt: outcome.accessExpiresAt,

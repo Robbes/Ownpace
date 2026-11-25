@@ -138,9 +138,9 @@ describe('a listing reaches the address the row names, with the stored login', (
     ['caldav', buildCalendarSourceFromConnection],
     ['carddav', buildContactSourceFromConnection],
   ] as const)('%s by its typed base URL: its discovery starts under that URL, signed in', async (kind, build) => {
-    await build({ kind, config: byUrl(), creds: CREDS }, undefined)
-      .listFolders()
-      .catch(() => undefined);
+    // The fake server answers every request with an empty multistatus, and the
+    // listing finds nothing in it: an empty list, never a failure let go (0006 §R, ERR-1).
+    expect(await build({ kind, config: byUrl(), creds: CREDS }, undefined).listFolders()).toEqual([]);
 
     expect(arrivals.length).toBeGreaterThan(0);
     expect(arrivals.some((a) => a.path.startsWith('/dav/root/'))).toBe(true);

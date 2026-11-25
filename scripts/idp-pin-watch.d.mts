@@ -201,11 +201,27 @@ export declare function summaryOf(rows: Row[], status: string[]): Row;
 /** A row for a pin that went with Trigger.dev in alpha.18 (workplan 0167 T9): current, with the sentence its open issue is closed with. */
 export declare function removedRow(what: string): { pin: string; newest: string; state: 'current'; closing: string };
 
+/** An open issue as `gh issue list --json number,title,body` hands it back. */
+export interface OpenIssue {
+  number: number;
+  title: string;
+  body: string;
+}
+export declare function openIssues(gh: (args: string[]) => string): OpenIssue[];
 export declare function keepIssue(
   result: PinResult | Row,
   gh: (args: string[]) => string,
   title?: string,
+  listed?: OpenIssue[],
 ): 'opened' | 'updated' | 'unchanged' | 'closed' | 'untouched';
+/** Every row's issue kept from one read of the open issues; refuses two rows under one title. */
+export declare function keepIssues(
+  rows: Row[],
+  gh: (args: string[]) => string,
+): Array<
+  | { name: string | undefined; outcome: 'opened' | 'updated' | 'unchanged' | 'closed' | 'untouched' }
+  | { name: string | undefined; error: string }
+>;
 export declare function watch(repo: Repo, net: Net): Promise<Report>;
 export declare function table(report: Report): string;
 export declare function realNet(): Net;
