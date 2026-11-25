@@ -314,8 +314,8 @@ live in [README.md](./README.md), the register.
   **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days, progress links
   longer, showing no content but a person's own new address (`migration-view.ts`, ADR-0055).
 - **One link per person** (owner, 2026-09-29 and 2026-10-03; ADR-0050): a grant link and a
-  progress link for all their migrations, granting per Google account only what the page showed.
-  It replaces the per-migration link; one already sent is honoured until it expires.
+  progress link for all their migrations, granting per account (Google, Microsoft) only what the
+  page showed. It replaces the per-migration link; one already sent is honoured until it expires.
 - **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's
   move, each migration of theirs waiting for a grant starts when it lands (`via: 'grant'`).
   Before that first *Start* a grant starts nothing; a migration the owner paused stays paused.

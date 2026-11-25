@@ -359,7 +359,7 @@ export function planDomainLanes(
  * always configured it under `domains.mail`, so widening it now would change
  * the behaviour of existing files rather than define a new one's.)
  */
-function isTopLevelMailSource(type: MappingConfig['source']['type']): boolean {
+export function isTopLevelMailSource(type: MappingConfig['source']['type']): boolean {
   return type === 'imap-oauth2' || type === 'gmail';
 }
 

@@ -87,6 +87,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
       'src/routes/migrations/microsoft-oauth-routes.ts',
       'src/routes/migrations/cirrux-oauth-routes.ts',
       'src/routes/migrations/link-routes.ts',
+      'src/routes/migrations/destination-space-route.ts',
     ],
   },
   // The person a migration is for (ADR-0050, amended 2026-09-28).
@@ -512,7 +513,7 @@ describe('the link pages’ wire (0145 T6)', () => {
   // Each route that reads the page's language off the body, found by the
   // line that reads it, so a fifth cannot arrive undocumented.
   const LANGUAGE_DOORS = [
-    { path: '/api/grant/{link}/google/authorize', handler: 'src/routes/grant.ts' },
+    { path: '/api/grant/{link}/{provider}/authorize', handler: 'src/routes/grant.ts' },
     { path: '/api/migrations/google/authorize', handler: 'src/routes/migrations/google-oauth-routes.ts' },
     { path: '/api/migrations/dropbox/authorize', handler: 'src/routes/migrations/dropbox-oauth-routes.ts' },
     { path: '/api/migrations/microsoft/authorize', handler: 'src/routes/migrations/microsoft-oauth-routes.ts' },
@@ -544,9 +545,9 @@ describe('the link pages’ wire (0145 T6)', () => {
     { path: '/api/grant/{link}', method: 'get', status: '401', half: 'messageNl' },
     { path: '/api/grant/{link}', method: 'get', status: '409', half: 'reasonNl' },
     { path: '/api/grant/{link}', method: 'get', status: '503', half: 'messageNl' },
-    { path: '/api/grant/{link}/google/authorize', method: 'post', status: '401', half: 'messageNl' },
-    { path: '/api/grant/{link}/google/authorize', method: 'post', status: '409', half: 'reasonNl' },
-    { path: '/api/grant/{link}/google/authorize', method: 'post', status: '503', half: 'messageNl' },
+    { path: '/api/grant/{link}/{provider}/authorize', method: 'post', status: '401', half: 'messageNl' },
+    { path: '/api/grant/{link}/{provider}/authorize', method: 'post', status: '409', half: 'reasonNl' },
+    { path: '/api/grant/{link}/{provider}/authorize', method: 'post', status: '503', half: 'messageNl' },
     { path: '/api/view/{link}', method: 'get', status: '401', half: 'messageNl' },
     { path: '/api/view/{link}', method: 'get', status: '409', half: 'reasonNl' },
     { path: '/api/view/{link}', method: 'get', status: '503', half: 'messageNl' },

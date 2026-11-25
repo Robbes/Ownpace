@@ -13,7 +13,7 @@
 # The same node tag and digest the selfhost image pins (apps/selfhost/Dockerfile).
 # Node 26 since 2026-10-31; corepack comes from npm because the Node 26 image
 # ships none (apps/api/Dockerfile says why), the same line in all three.
-FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS build
+FROM node:26.13.1-trixie-slim@sha256:abe7e5a82b61a8ef67b315b85497c9e65173387ccf2f4a029248184b8e020be5 AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN npm install -g --omit=dev corepack@0.36.0 && corepack enable
@@ -91,7 +91,7 @@ RUN pnpm --filter @openmig/web build
 # geoip, image-filter, acme) or curl, none of which nginx.conf.template loads.
 # envsubst and the entrypoint's template step are in slim; the health check
 # below is busybox's wget, which slim keeps.
-FROM nginx:1.31.9-alpine-slim@sha256:5bfced78d24d644270bedb0a9968697042e38d5c03fb6354603df025279c1cbe AS runtime
+FROM nginx:1.31.10-alpine-slim@sha256:c293b28729906d97fa5302fce3bd79bd27a3ea9a5d9604e21c6ff0ebf14549fc AS runtime
 ENV API_UPSTREAM=api:3001
 # THE SIGN-IN HOST, FOR THE APP'S POLICY (workplan 0158). nginx.conf.template
 # names it in the policy's connect-src, so the page may fetch the issuer's
