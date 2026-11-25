@@ -41,8 +41,10 @@ import {
   ARCHIVE_PROVIDER_NAMES,
   ARCHIVE_PROVIDER_ORIGINS,
   TARGET_TYPE_DOMAINS,
+  credentialFieldsFor,
   formDefaultsFor,
   grantableTargetFaces,
+  isPasswordKind,
   scopeFamilyOfSourceCard,
   scopeManifestFor,
   providerDisplayName,
@@ -95,6 +97,7 @@ import {
   cannotGive,
   carrierOf,
   connectionsFor,
+  destinationByLink,
   destinationsFor,
   grantableByLink,
   grantProvidersServed,
@@ -237,6 +240,12 @@ export interface Signed {
    * per migration).
    */
   readonly perMapping: Readonly<Record<string, string>>;
+  /**
+   * A password account saved for the person, who types its password on their
+   * grant link's page (workplan 0174 §8.2): it waits for them, as a source
+   * saved by its address for a link does.
+   */
+  readonly forPerson?: boolean;
 }
 
 /** The values each migration states again when it reuses an account (the create door's per-mapping keys). */
@@ -258,6 +267,7 @@ const signedFrom = (c: ConnectionSummary): Signed => ({
   username: c.knownValues?.username ?? '',
   mailLogin: mailLoginOf(c.kind, c.knownValues ?? {}).username,
   perMapping: pickPerMapping(c.knownValues),
+  ...(c.waitingFor ? { forPerson: true } : {}),
 });
 
 /**
@@ -290,8 +300,12 @@ export interface Accounts {
     saved: ReadonlyArray<ConnectionSummary>,
     noDefault?: boolean,
   ) => string | undefined;
-  /** An account saved by its address alone, for its owner to connect by a link: kept as chosen. */
-  readonly keep: (key: string, connectionId: string, username: string) => void;
+  /**
+   * An account saved by its address alone, for its owner to connect by a
+   * link: kept as chosen. `forPerson`: a password account saved for them
+   * (0174 §8.2).
+   */
+  readonly keep: (key: string, connectionId: string, username: string, forPerson?: boolean) => void;
   readonly choose: (key: string, choice: string) => void;
   readonly values: (key: string, initial: Readonly<Record<string, string>>) => Record<string, string>;
   readonly onValues: (
@@ -517,6 +531,14 @@ const StartMigration: React.FC = () => {
       : undefined;
   /** Whether the person connects this card themselves, by a grant link (0108). */
   const byLink = (card: string): boolean => who.someoneElse && grantableByLink(card, served);
+  /**
+   * Whether a migration waits for its person's link: its source is theirs to
+   * connect and is not yet, or its destination is a password account saved
+   * for them (0174 §8.1).
+   */
+  const awaitsGrant = (m: PlannedMigration): boolean =>
+    (byLink(m.sourceCard) && accounts.signed(m.sourceConnectionId)?.ready !== true) ||
+    (who.someoneElse && accounts.signed(m.targetConnectionId)?.forPerson === true);
   /** Every data type that travels, once, in the order a person reads them. */
   const types: ReadonlyArray<DiscoveryDomain> = TYPE_ORDER.filter((d) => needs.some((n) => n.types.includes(d)));
   const destinationOf = (type: DiscoveryDomain): string =>
@@ -571,6 +593,27 @@ const StartMigration: React.FC = () => {
             ...(exportTarget.username ? { username: exportTarget.username } : {}),
           }),
         )),
+  ];
+
+  /**
+   * WHAT THE PERSON'S LINK ASKS FOR, BOTH ROLES (0174 §8.1): each account a
+   * migration here waits for, once, sources first, by its provider and the
+   * account as saved. The last screen counts them.
+   */
+  const linkAsks: ReadonlyArray<string> = [
+    ...new Set([
+      ...planned.flatMap((m) =>
+        awaitsGrant(m) && byLink(m.sourceCard) && accounts.signed(m.sourceConnectionId)?.ready !== true
+          ? [`${providerName(m.sourceCard, 'source', locale)} (${m.sourceUsername})`]
+          : [],
+      ),
+      ...planned.flatMap((m) => {
+        const to = accounts.signed(m.targetConnectionId);
+        return who.someoneElse && to?.forPerson === true
+          ? [`${providerName(m.targetCard, 'target', locale)} (${to.username})`]
+          : [];
+      }),
+    ]),
   ];
 
   // A NEW ADDRESS FOR ONE YOU CANNOT TAKE ALONG (workplan 0168 §6.1, §6.2).
@@ -877,6 +920,29 @@ const StartMigration: React.FC = () => {
   const [made, setMade] = React.useState<Made>({ personId: undefined, migrations: {} });
   const [settingUp, setSettingUp] = React.useState(false);
   const [personFailed, setPersonFailed] = React.useState<string | null>(null);
+  /**
+   * THE PERSON, MADE WHEN AN ACCOUNT IS FIRST SAVED FOR THEM (workplan 0174
+   * §8.2): a password account saved for somebody names them at the create
+   * door (`forPerson`), which may be before *Set up* makes a new person. Made
+   * once, whoever asks first; *Set up* then finds them made.
+   */
+  const personMade = React.useRef<Promise<string> | null>(null);
+  const personFor = (): Promise<string> => {
+    const known = made.personId ?? who.personId ?? undefined;
+    if (known !== undefined) return Promise.resolve(known);
+    personMade.current ??= createPerson({ displayName: who.name.trim(), email: null }).then(
+      ({ id }) => {
+        setMade((prev) => ({ ...prev, personId: id }));
+        void queryClient.invalidateQueries({ queryKey: ['people'] });
+        return id;
+      },
+      (error: unknown) => {
+        personMade.current = null;
+        throw error;
+      },
+    );
+    return personMade.current;
+  };
   /** Once anything is made, going back would make it twice: the way back closes. */
   const madeAny = Object.values(made.migrations).some((m) => m.id !== undefined);
 
@@ -1047,6 +1113,7 @@ const StartMigration: React.FC = () => {
               accounts={accounts}
               someoneElse={who.someoneElse}
               byLink={byLink}
+              personFor={personFor}
               exporting={exporting}
               folderFor={folderFor}
               onFolder={(card, folder) => setFolders((prev) => ({ ...prev, [card]: folder }))}
@@ -1081,7 +1148,8 @@ const StartMigration: React.FC = () => {
               titles={titles}
               recentOnly={recentOnly && planned.some((m) => m.types.some(isWindowedDomain))}
               personName={personName}
-              awaitsGrant={(m) => byLink(m.sourceCard) && accounts.signed(m.sourceConnectionId)?.ready !== true}
+              awaitsGrant={awaitsGrant}
+              linkAsks={linkAsks}
               onStarted={() => {
                 void queryClient.invalidateQueries({ queryKey: ['people'] });
                 void navigate(made.personId === undefined ? '/mappings' : `/people/${made.personId}`);
@@ -1092,6 +1160,8 @@ const StartMigration: React.FC = () => {
             <ToStep
               types={types}
               accounts={accounts}
+              someoneElse={who.someoneElse}
+              personFor={personFor}
               destinationOf={destinationOf}
               onDestination={(type, choice) => setDestination((prev) => ({ ...prev, [type]: choice }))}
               onAddedFor={(card, connectionId) => {
@@ -1950,7 +2020,7 @@ function useAccounts(personName: string): Accounts {
     choice: (key, list, noDefault = false) =>
       chosen[key] ??
       (connections.isPending ? undefined : noDefault ? (list.length === 0 ? 'new' : undefined) : defaultChoice(list)),
-    keep: (key, connectionId, username) => {
+    keep: (key, connectionId, username, forPerson = false) => {
       setAddedHere((prev) => ({
         ...prev,
         [connectionId]: {
@@ -1959,6 +2029,7 @@ function useAccounts(personName: string): Accounts {
           ready: false,
           username,
           perMapping: {},
+          ...(forPerson ? { forPerson: true } : {}),
         },
       }));
       setChosen((prev) => ({ ...prev, [key]: connectionId }));
@@ -2063,6 +2134,8 @@ export const ConnectStep: React.FC<{
   someoneElse?: boolean;
   /** Which cards the person connects themselves, by a grant link. */
   byLink?: (card: string) => boolean;
+  /** The person the accounts are saved for, made if new (0174 §8.2). */
+  personFor?: () => Promise<string>;
   /** The providers whose export moves: it needs no sign-in, and the screen says so. */
   exporting?: ReadonlyArray<StartProvider>;
   /** The folder a need's files start from, where only one folder of them moves (0153 open question 5, item 4). */
@@ -2078,6 +2151,7 @@ export const ConnectStep: React.FC<{
   accounts,
   someoneElse = false,
   byLink = () => false,
+  personFor,
   exporting = [],
   folderFor = () => undefined,
   onFolder = () => undefined,
@@ -2107,6 +2181,7 @@ export const ConnectStep: React.FC<{
               key={need.card}
               need={need}
               accounts={accounts}
+              {...(personFor ? { personFor } : {})}
               folder={folderFor(need)}
               onFolder={(folder) => onFolder(need.card, folder)}
             />
@@ -2252,18 +2327,108 @@ const NeedRow: React.FC<
 };
 
 /**
+ * A PASSWORD ACCOUNT SAVED FOR THE PERSON (workplan 0174 §8.1, §8.2): its
+ * server and its account, as the create door's descriptor names them, and no
+ * box for a secret. Saved with `forPerson`, never probed; the person types
+ * the password on the page their link opens, where it is tested before it is
+ * stored, and it never reaches the one saving it. The server and the account
+ * are the owner's to set (D2), so Save waits for every one the kind requires.
+ */
+const SaveForPerson: React.FC<{
+  role: 'source' | 'target';
+  card: string;
+  accounts: Accounts;
+  personFor: () => Promise<string>;
+  onSaved: (connectionId: string, username: string) => void;
+}> = ({ role, card, accounts, personFor, onSaved }) => {
+  const { t, locale } = useLocale();
+  const reasonId = React.useId();
+  const idPrefix = React.useId();
+  const fields = credentialFieldsFor(role, card).filter((f) => f.secret !== true);
+  const [values, setValues] = React.useState<Record<string, string>>(() => {
+    const initial = formDefaultsFor(role, card);
+    return Object.fromEntries(fields.map((f) => [f.key, initial[f.key] ?? '']));
+  });
+  const [saving, setSaving] = React.useState(false);
+  const [refused, setRefused] = React.useState<string | null>(null);
+  const name = providerDisplayName(card, locale);
+  const missing = fields.some((f) => f.required === true && (values[f.key] ?? '').trim() === '');
+  const save = async () => {
+    setSaving(true);
+    setRefused(null);
+    try {
+      const forPerson = await personFor();
+      const added = await connectionsApi.addForPerson({
+        role,
+        type: card,
+        displayName: `${accounts.personName} · ${name}`,
+        values: Object.fromEntries(
+          Object.entries(values)
+            .map(([k, v]) => [k, v.trim()] as const)
+            .filter(([, v]) => v !== ''),
+        ),
+        forPerson,
+      });
+      onSaved(added.id, (values.username ?? '').trim());
+    } catch (error) {
+      setRefused(serverMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="mt-3 space-y-3" data-for-person={card}>
+      <p className="text-sm text-gray-700">{t('start.forPerson.line', { person: accounts.personName })}</p>
+      {fields.map((f) => (
+        <div key={f.key}>
+          <label htmlFor={`${idPrefix}-${f.key}`} className="block text-sm font-medium text-gray-700">
+            {t(f.labelKey as StringKey)}
+          </label>
+          <input
+            id={`${idPrefix}-${f.key}`}
+            type="text"
+            autoComplete="off"
+            value={values[f.key] ?? ''}
+            onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+            className="input mt-1 min-h-[44px] w-full max-w-sm"
+          />
+        </div>
+      ))}
+      <div className="flex flex-col items-start">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || missing}
+          aria-describedby={missing ? reasonId : undefined}
+          className="min-h-[44px] px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {t('start.forPerson.save', { person: accounts.personName })}
+        </button>
+        {missing && (
+          <p id={reasonId} className="mt-1 text-sm text-gray-600">
+            {t('start.forPerson.needed')}
+          </p>
+        )}
+      </div>
+      {refused !== null && (
+        <p role="alert" className="text-sm text-red-800">
+          {refused}
+        </p>
+      )}
+    </div>
+  );
+};
+
+/**
  * Screen 4 for an account somebody else connects themselves (T4, 0108): only
  * its address, saved with no credential, so the migration can name whose it
  * is. They grant it from a link on the last screen, and the one starting
  * never holds that password. A saved account is offered, never chosen: one
  * may be the starter's own.
  */
-const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts } & FolderAsked> = ({
-  need,
-  accounts,
-  folder,
-  onFolder = () => undefined,
-}) => {
+const LinkedNeedRow: React.FC<
+  { need: ConnectionNeed; accounts: Accounts; personFor?: () => Promise<string> } & FolderAsked
+> = ({ need, accounts, personFor, folder, onFolder = () => undefined }) => {
   const { t, locale } = useLocale();
   const { list } = useFormatters();
   const accountLabel = useAccountLabel();
@@ -2272,6 +2437,8 @@ const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts } & Fol
   const key = `source:${need.card}`;
   const saved = savedSources(accounts.saved, need.card, need.types);
   const choice = accounts.choice(key, saved, true);
+  /** A password source (0174 §8.1): saved with its server for the person, who types the password. */
+  const byPassword = isPasswordKind('source', need.card) && personFor !== undefined;
   const signed = accounts.signed(choice);
   const name = providerDisplayName(need.card, locale);
   const [address, setAddress] = React.useState('');
@@ -2345,7 +2512,18 @@ const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts } & Fol
           </div>
         </fieldset>
       )}
-      {choice === 'new' && (
+      {choice === 'new' && byPassword && (
+        // A PASSWORD ACCOUNT (0174 §8.1): its server and account, saved for
+        // the person, who types the password on the link's page.
+        <SaveForPerson
+          role="source"
+          card={need.card}
+          accounts={accounts}
+          personFor={personFor!}
+          onSaved={(id, username) => accounts.keep(key, id, username, true)}
+        />
+      )}
+      {choice === 'new' && !byPassword && (
         <div className="mt-3">
           <label htmlFor={addressId} className="block text-sm font-medium text-gray-700">
             {t('start.connect.theirAddress', { provider: providerName(need.card, 'source', locale) })}
@@ -2545,7 +2723,23 @@ export const ToStep: React.FC<{
    * one-line hint under it says when to tick it, and *Why?* folds the rest.
    */
   alsoChanging?: { readonly on: boolean; readonly onChange: (on: boolean) => void };
-}> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow, lands, onLeaveOut, alsoChanging }) => {
+  /** *They do, with a link* was chosen: a password destination may be the person's own (0174 §8.1). */
+  someoneElse?: boolean;
+  /** The person an account is saved for, made if new (0174 §8.2). */
+  personFor?: () => Promise<string>;
+}> = ({
+  types,
+  accounts,
+  destinationOf,
+  onDestination,
+  onAddedFor,
+  exportRow,
+  lands,
+  onLeaveOut,
+  alsoChanging,
+  someoneElse = false,
+  personFor,
+}) => {
   const { t, locale } = useLocale();
   const accountLabel = useAccountLabel();
   const alsoChangingHintId = React.useId();
@@ -2706,8 +2900,20 @@ export const ToStep: React.FC<{
           </li>
         )}
       </ul>
+      {someoneElse && types.some((type) => accounts.signed(destinationOf(type))?.forPerson === true) && (
+        // Their own destination, saved for them (0174 §8.1): said once.
+        <p data-theirs="" className="text-sm text-gray-700">
+          {t('start.connect.byLink', { person: accounts.personName })}
+        </p>
+      )}
       {pending.map((card) => (
-        <NewDestination key={card} card={card} accounts={accounts} onAdded={(id) => onAddedFor(card, id)} />
+        <NewDestination
+          key={card}
+          card={card}
+          accounts={accounts}
+          onAdded={(id) => onAddedFor(card, id)}
+          {...(someoneElse && personFor && destinationByLink(card) ? { personFor } : {})}
+        />
       ))}
       {lands && lands.planned.length > 0 && <WhereTheCopiesLand {...lands} />}
       {alsoChanging && (
@@ -2796,31 +3002,77 @@ const NewDestination: React.FC<{
   card: WizardTargetType;
   accounts: Accounts;
   onAdded: (connectionId: string) => void;
-}> = ({ card, accounts, onAdded }) => {
+  /**
+   * Given where the destination may be the person's own (*They do, with a
+   * link*, a password destination, 0174 §8.1): the step asks whose it is.
+   */
+  personFor?: () => Promise<string>;
+}> = ({ card, accounts, onAdded, personFor }) => {
   const { t, locale } = useLocale();
   const key = `target:${card}`;
   const initial = formDefaultsFor('target', card);
   const name = providerDisplayName(card, locale);
+  const [whose, setWhose] = React.useState<'mine' | 'theirs'>('mine');
+  const theirs = personFor !== undefined && whose === 'theirs';
   return (
     <section className="rounded-lg border border-gray-200 p-4">
       <h3 className="font-medium text-gray-900">
         <ProviderTile type={card} role="target" size={28} name={t('start.to.add', { provider: name })} />
       </h3>
-      <AccountForm
-        key={`${key}:${accounts.formKey(key)}`}
-        role="target"
-        type={card}
-        variant="flow"
-        values={accounts.values(key, initial)}
-        onValues={accounts.onValues(key, initial)}
-        displayName={`${accounts.personName} · ${name}`}
-        onDisplayName={() => undefined}
-        onAdded={(added) => {
-          accounts.onAdded(key, added, accounts.values(key, initial));
-          if (added.ok) onAdded(added.id);
-        }}
-      />
-      {accounts.failedCheck(key) !== undefined && (
+      {personFor !== undefined && (
+        // WHOSE ACCOUNT IS THE DESTINATION? (0174 §8.1). The person's own is
+        // saved with its server and account and no password; they type it
+        // on the link's page. The owner's, or the organisation's, is
+        // connected here as always.
+        <fieldset className="mt-3">
+          <legend className="text-sm font-medium text-gray-900">{t('start.to.whose', { provider: name })}</legend>
+          <div className="mt-1 space-y-1">
+            {(['mine', 'theirs'] as const).map((w) => (
+              <label key={w} className="flex min-h-[44px] cursor-pointer items-center gap-3">
+                <input
+                  type="radio"
+                  name={`whose-${key}`}
+                  checked={whose === w}
+                  onChange={() => setWhose(w)}
+                  className="h-4 w-4"
+                />
+                <span className="text-gray-900">
+                  {w === 'mine' ? t('start.to.whose.mine') : t('start.to.whose.theirs', { person: accounts.personName })}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {theirs && (
+        <SaveForPerson
+          role="target"
+          card={card}
+          accounts={accounts}
+          personFor={personFor}
+          onSaved={(id, username) => {
+            accounts.keep(key, id, username, true);
+            onAdded(id);
+          }}
+        />
+      )}
+      {!theirs && (
+        <AccountForm
+          key={`${key}:${accounts.formKey(key)}`}
+          role="target"
+          type={card}
+          variant="flow"
+          values={accounts.values(key, initial)}
+          onValues={accounts.onValues(key, initial)}
+          displayName={`${accounts.personName} · ${name}`}
+          onDisplayName={() => undefined}
+          onAdded={(added) => {
+            accounts.onAdded(key, added, accounts.values(key, initial));
+            if (added.ok) onAdded(added.id);
+          }}
+        />
+      )}
+      {!theirs && accounts.failedCheck(key) !== undefined && (
         <button
           type="button"
           onClick={() => accounts.tryAgain(key)}
@@ -2857,6 +3109,8 @@ export const CheckStep: React.FC<{
   personName?: string;
   /** A migration whose account its person connects by a link, and has not yet. */
   awaitsGrant?: (m: PlannedMigration) => boolean;
+  /** Each account the person's link asks for, both roles, as the last screen names them (0174 §8.1). */
+  linkAsks?: ReadonlyArray<string>;
   /** One line per changed address (0168 §6.2): the rule, never a count discovery could not have. */
   addressLines?: ReadonlyArray<AddressCheckLine>;
   /**
@@ -2880,6 +3134,7 @@ export const CheckStep: React.FC<{
   onStarted,
   personName = '',
   awaitsGrant = () => false,
+  linkAsks = [],
   addressLines = [],
   beforeStart,
   addressFailures = [],
@@ -3022,7 +3277,12 @@ export const CheckStep: React.FC<{
         </ul>
       )}
       {anyByLink && made.personId !== undefined && (
-        <PersonAwaitingGrant personId={made.personId} personName={personName} onGranted={setGranted} />
+        <PersonAwaitingGrant
+          personId={made.personId}
+          personName={personName}
+          asks={linkAsks}
+          onGranted={setGranted}
+        />
       )}
       {made_.map((m) => {
         if (m.archive !== undefined) {
@@ -3235,9 +3495,12 @@ const ExportWaits: React.FC<{
 const PersonAwaitingGrant: React.FC<{
   personId: string;
   personName: string;
+  /** Each account the link asks for, both roles (0174 §8.1); none named where the flow does not know. */
+  asks?: ReadonlyArray<string>;
   onGranted: (granted: boolean) => void;
-}> = ({ personId, personName, onGranted }) => {
+}> = ({ personId, personName, asks = [], onGranted }) => {
   const { t } = useLocale();
+  const { list } = useFormatters();
   const links = useQuery({
     queryKey: ['person-links', personId],
     queryFn: () => personLinkApi.list(personId),
@@ -3255,6 +3518,13 @@ const PersonAwaitingGrant: React.FC<{
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <p className="text-sm text-gray-900">{t('start.check.waitsFor', { person: personName })}</p>
+      {asks.length > 0 && (
+        <p data-link-asks={asks.length} className="mt-1 text-sm text-gray-900">
+          {asks.length === 1
+            ? t('start.check.linkAsks.one', { person: personName, accounts: list(asks) })
+            : t('start.check.linkAsks.many', { person: personName, n: asks.length, accounts: list(asks) })}
+        </p>
+      )}
       <PersonGrantLinkSection personId={personId} links={links.data} loadFailed={links.isError} />
     </div>
   );

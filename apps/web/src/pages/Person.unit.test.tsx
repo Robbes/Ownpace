@@ -934,7 +934,7 @@ describe('on a phone, a migration draws its two tiles once, under its name (2026
       ],
       unassigned: [],
     });
-    vi.mocked(personLinkApi.awaiting).mockResolvedValue([{ mappingId: 'm-mail', then: 'ran_before' }]);
+    vi.mocked(personLinkApi.awaiting).mockResolvedValue([{ mappingId: 'm-mail', then: 'ran_before', waitsFor: [] }]);
 
     renderAt();
     await answered();
