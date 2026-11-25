@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to N done; P built, in a draft pull request for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-24: A to N done; P built, in a draft pull request for alpha.20; R done on its branch (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -20,6 +20,7 @@
 | M — A comparison that is not a secret: the line a read-only check (JS-07) named in `caldav-source.ts`, 2026-11-24 | ✅ Read 2026-11-24: a false positive, a CalDAV sync token compared with the client's own (§M); nothing changed | the owner was given a reason to paste |
 | N — The web image's base: the line a read-only check (IMG-4) named, `apps/web/Dockerfile:94`, `nginx:1.31.9-alpine-slim`, 2026-11-24 | ✅ Fixed in alpha.20's image pins (#2127, §N): `nginx:1.31.10-alpine-slim` in `apps/web/Dockerfile` and `deploy/compose/www.yml` | the owner, for alpha.20: *"yes on all"* |
 | P — Two support lists that served every row: the routes a read-only check (PERF-2) named in `apps/api/src/routes/support.ts`, 2026-11-24 | 🟡 Built 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-support-paging`, a draft pull request for alpha.20: both routes page by keyset, a hundred rows a page, and both screens have *Show more*; every page is its own `support_read` row. See §P | 2026-11-24: page both, with *Show more*, in alpha.20 |
+| R — An import cycle (CQ-06), a swallowed test error (ERR-1) and the assistant's start-up hook (AIR-2b): three findings of an outside, read-only check on `20038a66`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-outside-n`: the cycle broken by moving the re-measuring family to `qualify-and-remember.ts`, with a guard; the test's catch, which let go nothing, replaced by an assertion; the hook judged false and kept, with a guard that pins it. Nothing in the product changes. See §N | asked for, 2026-11-24 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -452,6 +453,73 @@ Status, 2026-11-24, read from Docker Hub's registry).
 
 **Decided.** Fixed by alpha.20's image pins (#2127): `apps/web/Dockerfile` and
 `deploy/compose/www.yml` move to `1.31.10-alpine-slim`, on the owner's *"yes on all"* for alpha.20.
+
+## R — An import cycle, a swallowed test error and the start-up hook (an outside, read-only check, 2026-11-24)
+
+**Evidence.** The same outside, read-only check named three findings on `main` at `20038a66`,
+each read there and still present on that commit.
+
+**CQ-06, an import cycle: true, fixed.** `apps/api/src/routes/connections.ts:106` (the import
+statement that ends at `:113`) imports `./migrations/index.ts` for the shape builders, and
+`migrations/index.ts:133` mounts `./cirrux-oauth-routes.ts`. The Cirrux Drive consent there
+reached back into the connection routes with `await import('../connections.ts')`
+(`cirrux-oauth-routes.ts:251`) for `requalifyStoredConnection`, and its comment said it was lazy
+only because of the cycle. Done:
+
+- The family that measures a stored account again moved, word for word, to
+  `apps/api/src/routes/qualify-and-remember.ts`: `requalifyStoredConnection`,
+  `qualifyAndRemember`, `qualifyAndRememberNow`, `cirruxQualifyDeps`, the door budget and the
+  qualification floor. It imports neither `connections.ts` nor `migrations/index.ts`, directly or
+  through anything it imports. The database pool moved with it and `connections.ts` uses the same
+  one, so the process still opens one pool for both, as before.
+- `connections.ts` and `cirrux-oauth-routes.ts` import it statically. The dynamic import and its
+  comment are gone; the try/catch and the warn log around the call stay.
+- Nothing else changes: the same functions, logs, budgets and audit events.
+- `an-organisation-closed-at-every-door.unit.test.ts` counts the three uses of the stored access
+  that moved (the decrypt, `qualifyAccount` and the inner `qualifyAndRemember`) in the new file,
+  14 rather than 17 in `connections.ts`, and says why the new file asks no close of its own: it
+  opens no door, and each caller (the create, the Test and the rotation in `connections.ts`, and
+  the Cirrux Drive consent) asks before it.
+- `a-qualifier-wired-to-a-guard-that-never-lets-it-run.unit.test.ts`, which reads the qualifying
+  guard and dispatch as text, reads them in the new file, and
+  `scripts/a-client-the-worker-never-got.unit.test.ts` looks there for the API's
+  `cirruxDeploymentClient(` call.
+- Guard: `apps/api/src/routes/no-way-back-to-the-connection-routes.unit.test.ts` walks the
+  relative static and dynamic imports reachable from `connections.ts` within `apps/api/src` and
+  fails on any path back to it. With the old lazy import put back it fails, naming the path
+  through `migrations/index.ts` and `cirrux-oauth-routes.ts`. It claims that and no more; it is
+  not a survey of other cycles.
+
+**ERR-1, a swallowed test error: true, fixed.**
+`packages/orchestration/src/a-dav-source-through-the-managed-door.unit.test.ts:143` ended a
+CalDAV and a CardDAV `listFolders()` against the test's fake server with
+`.catch(() => undefined)`, and asserted only on the requests that arrived, so any failure at all
+was let go. Run, the fake server causes none: it answers every request with an empty
+multistatus, and both listings resolve to `[]`. So there was no expected failure to let go, and
+the catch is replaced by asserting that outcome, `toEqual([])`. A listing that throws now fails
+the test. Nothing else in the test changed. As with the test catches of §K, the catch was made to
+let go nothing it cannot name.
+
+**AIR-2b, the assistant's start-up hook: judged false, kept, and guarded.** `.claude/settings.json:3`
+registers a `SessionStart` hook that runs `.claude/hooks/session-start.sh`. It stays, because:
+
+- it is the repository's own script;
+- its first action is to exit unless `CLAUDE_CODE_REMOTE` is `true`, so on anyone's own computer
+  it does nothing;
+- in a Claude Code on the web container it runs `pnpm install --frozen-lockfile`, which installs
+  exactly the lockfile's versions; without it a fresh web session starts with an incomplete
+  workspace, as the script's header explains;
+- no setting redirects the model's address, and no MCP server is configured.
+
+Guard: `scripts/a-start-up-hook-read-as-a-risk.unit.test.ts` pins all of that, so a later change
+cannot quietly add one. `.claude/settings.json` holds only `hooks.SessionStart` with that one
+command; no `env` sets a `*_BASE_URL`, an `ANTHROPIC_*` variable or a proxy; there is no
+`apiKeyHelper`, `mcpServers`, `enableAllProjectMcpServers` or `enabledMcpjsonServers`; there is
+no `.mcp.json` at the root; the hook's first action is the `CLAUDE_CODE_REMOTE` exit, and every
+install it runs uses `--frozen-lockfile`. The hook and the settings file are unchanged.
+
+**Not done, on purpose.** No other import cycle was looked for, and nothing was added for the
+check's sake alone. No CHANGELOG entry: nothing a person running Ownpace sees changes.
 
 ---
 

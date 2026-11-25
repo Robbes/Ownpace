@@ -196,7 +196,7 @@ describe('Cirrux’s client reaches both halves of the stack', () => {
   it('the pass and the API read the one variable, through the one helper', () => {
     expect(read('packages/shared/src/cirrux-drive.ts')).toContain(NAME);
     expect(read('packages/orchestration/src/build-deps-from-mapping.ts')).toContain('cirruxDeploymentClient(');
-    expect(read('apps/api/src/routes/connections.ts')).toContain('cirruxDeploymentClient(');
+    expect(read('apps/api/src/routes/qualify-and-remember.ts')).toContain('cirruxDeploymentClient(');
     expect(read('apps/api/src/routes/migrations/cirrux-oauth-routes.ts')).toContain('cirruxDeploymentClient(');
   });
 });
