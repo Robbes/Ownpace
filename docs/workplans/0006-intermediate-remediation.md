@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-25: A to S done; P, Q and R merged for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-25: A to T done; P, Q and R merged for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -24,6 +24,7 @@
 | O — The same list read again in a loop (PERF-4, five spots) and "green in CI proves less than it seems" (QUAL-3): a read-only check on `20038a66`, 2026-11-24 | ✅ Read and done 2026-11-24 (§O): one PERF-4 spot true, the pin watch listing the open issues once per row, now once per run; four PERF-4 spots and QUAL-3 false, nothing changed | asked for, 2026-11-24 |
 | Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | ✅ Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, merged as #2133 on 2026-11-25 (`3a4ca1ae`), in alpha.20: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). Its first proof in CI, Security Scan's push run on `main` at the merge (run 45537860598), passed | asked for, 2026-11-24 |
 | S — A path from the command line (JS-06) and an address checked before it is followed (JS-10): two findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Read 2026-11-25: both false positives (§S); the worker CLI's own `--config`, already known to Semgrep's summary, and a consent address followed only on its provider's own host; nothing changed | the owner was given a reason to paste for each |
+| T — An error dropped where free space is read (ERR-1), two lists of packages (SBOM-1, twice), two doors open on purpose (GEN-33, twice) and a page built from constants (JS-02): six findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Done 2026-11-25 (§T): ERR-1 true and fixed in `destination-space.ts`, every dropped failure now a log line, with tests; SBOM-1 already fixed by §Q and #2137, to be read again against alpha.20's lists; GEN-33 both and JS-02 false positives, nothing changed | asked for, 2026-11-25 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -655,6 +656,71 @@ findings. Both lines are unchanged on `main` at `0c4a17d8`.
 
 **Decided.** Both false positives, read on 2026-11-25; nothing changed. The owner was given a
 reason to paste for each.
+
+## T — An error dropped where free space is read, two lists of packages, two doors open on purpose, and a page built from constants (an outside, read-only check, 2026-11-25)
+
+**Evidence.** An outside, read-only check of `main` at `49672bab`, 2026-11-25, reported six
+findings. The four files it names are unchanged on `main` at `5c073989`.
+
+- **ERR-1**, `packages/orchestration/src/destination-space.ts:60`:
+  `void asked.finally(() => target.disconnect?.()).catch(() => undefined);`.
+- **SBOM-1**, medium: 100 packages in the check's reading of the code are not in our bill of
+  materials.
+- **SBOM-1**, low: 53 packages in our bill of materials are not in the check's reading of the code.
+- **GEN-33**, `apps/api/src/routes/access-requests.ts:162`: `POST /api/access-requests` changes
+  data with no sign-in in front of it.
+- **GEN-33**, `apps/api/src/routes/billing/webhooks.ts:60`: `POST /api/billing/webhooks/mollie`,
+  the same.
+- **JS-02**, `site/build.mjs:899`: data put into the page as HTML.
+
+**Read.**
+
+- **ERR-1: true.** The chain lets a writer's connection go after its free-space answer, and its
+  `catch` dropped two failures that nothing else sees: a connection that would not close, and a
+  read that failed after its ten-second limit, by which time the race had answered `not_answered`
+  and logged only the timeout. A read that fails within its limit is the race's, and `readOne`
+  logs it. The same file dropped a third the same way: the `close()` of what was opened to ask
+  (`:86`).
+- **SBOM-1, both: the list read is not this code's.** The bill of materials on the latest
+  release is alpha.19's `bom.json`, made from alpha.19's C, `909e6d74`, not from `49672bab`, and
+  by `cyclonedx-npm`, which §Q replaced. Against the lockfile's SBOM of `main` (`pnpm sbom`, 643
+  components: 257 production, 386 dev-only), alpha.19's lacks 98 packages, 56 of them production
+  ones (§Q's gap), and lists 344 dev-only packages without marking them dev. Neither list holds a
+  package of the images' operating systems: only each image's own SBOM does (SBOM-1, #2137). The
+  check's counts, 100 and 53, match none of these sets exactly, and it named no package, so none
+  was read one by one. alpha.20 is the first release that publishes both lists made the new way.
+- **GEN-33, the access request: open on purpose.** The asker has no account yet. The file's
+  header and the API description (`security: []`) say who may call it and what makes a public
+  write safe: an INSERT-only grant under row security, every field capped, a refusing rate limit,
+  the same answer whatever happens, and a trap field. It takes no id from the request. Held by
+  `access-request-under-rls.unit.test.ts`, `access-requests.integration.test.ts`,
+  `access-requests-rate-limit.integration.test.ts`, `access-request-duplicates.unit.test.ts` and
+  `a-knock-no-person-made.unit.test.ts`.
+- **GEN-33, Mollie's webhook: open on purpose.** Mollie calls it and cannot sign in. Of the body
+  it trusts nothing but a payment id: the payment is fetched from Mollie with this service's own
+  key, so only this account's payments are found, and the change is made from the payment's own
+  metadata under that organisation's row security; a repeat changes nothing. A forged call can
+  at most make the service read again the true state of one of its own payments. The API
+  description marks it `security: []`; `invoice-billing.integration.test.ts` holds the repeat and
+  the payment that names no invoice.
+- **JS-02: a static page built from constants.** `site/build.mjs` has no `innerHTML`,
+  `outerHTML`, `document.write` or `insertAdjacentHTML` anywhere. Line 899 opens `searchLinks`,
+  which writes a page's canonical and `hreflang` `<link>` tags into the static HTML when the site
+  is built, in Node, before anyone visits. Every value in it is a constant: `PUBLIC_SITE_URL` is
+  the literal `https://www.ownpace.eu` (`site/security-txt.mjs`), the locales come from
+  `LOCALES`, and the paths from `urlFor`'s fixed page keys. No visitor's input reaches it, and
+  nothing is written into a page in a browser.
+
+**Fixed: ERR-1.** Each failure is now one log line naming the migration, the data type and the
+destination: a connection that did not close after the answer, a read that failed after its
+limit, and what was opened to ask and did not close. The answers do not change. In
+`destination-space.unit.test.ts`, four new cases: three fail on the old code, and the fourth holds
+that a failure within the limit is logged once, not twice.
+
+**Decided.** SBOM-1: already fixed on `main` by §Q (#2133) and the images' own SBOMs (#2137); read
+again against alpha.20's published lists, and package by package if the check names them.
+GEN-33, both, and JS-02: false positives; nothing changed. The owner was given a reason to paste
+for each.
 
 ---
 
