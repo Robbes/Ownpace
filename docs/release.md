@@ -224,6 +224,10 @@ that exists. Cut a new tag instead of re-running an old one.
 
 ### When the owner waives the nights
 
+A security fix that must go out today waits on these nights and on three
+other waits; [security-fix-fast-path.md](./security-fix-fast-path.md) puts
+every switch and the order on one page.
+
 The owner waives them only for a release no tester runs yet. A waiver replaces
 the tag pushed by hand for that case, so the order above holds.
 
