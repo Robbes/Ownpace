@@ -11,6 +11,7 @@ import { scopeFamilyOfConnectionKind, scopeManifestFor, timeBeforeStart, type Di
 import { TimeBeforeStartLine } from './TimeBeforeStartLine.tsx';
 import { CeilingAtStartNote, measuredBytes } from './CeilingAtStartNote.tsx';
 import { PathsAtStartNote } from './PathsAtStartNote.tsx';
+import { DestinationSpaceLines } from './DestinationSpace.tsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi, type DiscoveryResponse } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
@@ -412,6 +413,9 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   });
 
   const startWaitsId = React.useId();
+  // Free space known to be too small: Start reads *Start anyway* (0171 T9, D4 (a)).
+  const [spaceHeld, setSpaceHeld] = React.useState(false);
+  const onSpaceHolds = React.useCallback((_: string, holds: boolean) => setSpaceHeld(holds), []);
 
   return (
     <div className="space-y-6">
@@ -434,6 +438,8 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
 
       {/* Discovery counts — shared with the appliance's confirm screen. */}
       <MigrationCountSection count={count} acked={refusedAcked} onAcked={setRefusedAcked} />
+      {/* Free space at the destination, once the count (the need) is in (0171 T9). */}
+      <DestinationSpaceLines mappingId={mappingId} enabled={!stillCounting} onHolds={onSpaceHolds} />
 
       {/* Scope manifest (§11.2) */}
       {scoped && <ScopeManifestPanel manifest={scoped} />}
@@ -500,7 +506,9 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
             aria-describedby={stillCounting ? startWaitsId : undefined}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {startMutation.isPending ? t('confirm.starting') : t('confirm.start')}
+            {startMutation.isPending
+              ? t('confirm.starting')
+              : t(spaceHeld ? 'start.check.space.startAnyway' : 'confirm.start')}
           </button>
         )}
       </div>

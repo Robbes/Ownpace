@@ -3537,6 +3537,72 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/migrations/{mappingId}/destination-space:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Discovery]
+      summary: Free space at the destination, before Start
+      description: |
+        Read live for *Review and start* (workplan 0171 T9), on managed and the
+        appliance: each destination writer of the migration is opened, asked its
+        free space with a ten-second limit, and closed. Nothing is written at the
+        destination and nothing is stored.
+
+        One entry per pool. A pool is what one number covers (a JMAP account, an
+        IMAP quota root, a WebDAV collection, a Cirrux workspace), so two data
+        types landing in the same account are added together once. `needBytes`
+        is the sum of the discovery bytes of those data types.
+
+        Read from WebDAV's `quota-available-bytes` (RFC 4331), IMAP's
+        `GETQUOTAROOT` (RFC 9208) when `QUOTA` is announced, JMAP's `Quota/get`
+        (RFC 9425) when the session lists it, and Cirrux Drive's workspace
+        storage. Calendars, contacts and tasks are not asked and answer
+        `not_offered`. A destination that fails or outlasts the limit answers
+        `not_answered`: never room it did not state.
+      responses:
+        '200':
+          description: The free space per pool.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [mappingId, pools]
+                properties:
+                  mappingId: { type: string }
+                  pools:
+                    type: array
+                    items:
+                      type: object
+                      required: [pool, destination, dataTypes, needBytes, capacity]
+                      properties:
+                        pool:
+                          type: string
+                          description: What the number covers; for an unknown answer, the destination and the reason.
+                        destination:
+                          type: string
+                          description: The destination's name on the screen, its host (or the provider's name where the deployment holds its address).
+                        dataTypes:
+                          type: array
+                          items: { type: string, enum: [email, calendar, contact, file, task] }
+                        needBytes: { type: integer, minimum: 0 }
+                        capacity:
+                          oneOf:
+                            - type: object
+                              required: [known, freeBytes, pool]
+                              properties:
+                                known: { type: boolean, enum: [true] }
+                                freeBytes: { type: integer, minimum: 0 }
+                                totalBytes: { type: integer, minimum: 0 }
+                                pool: { type: string }
+                            - type: object
+                              required: [known, why]
+                              properties:
+                                known: { type: boolean, enum: [false] }
+                                why: { type: string, enum: [not_offered, unlimited, not_answered] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /api/migrations/{mappingId}/links:
     parameters:
       - $ref: '#/components/parameters/MappingId'
