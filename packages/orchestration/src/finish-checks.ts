@@ -31,10 +31,10 @@ import { dwdTokenProviderIfConfigured } from './google-dwd.ts';
 import { GMAIL_SCOPE } from './gmail-source-factory.ts';
 import {
   ENV_GRAPH_FIELD_NAMING,
-  graphProfileTokenFrom,
   type GraphEntraCredsAsFound,
   type GraphFieldNaming,
 } from './graph-domain-source-factory.ts';
+import { graphProfileTokenFrom } from './graph-profile-token.ts';
 
 /** Which old provider a source is, as far as reading its addresses goes. */
 export type AddressFamily = 'microsoft' | 'google' | 'other';

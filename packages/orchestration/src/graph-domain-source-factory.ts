@@ -88,13 +88,27 @@ const DELEGATED_SCOPES = {
   drive: 'https://graph.microsoft.com/Files.Read offline_access',
   // Microsoft To Do (workplan 0114 T9): the fifth face, read-only like the rest.
   todo: 'https://graph.microsoft.com/Tasks.Read offline_access',
-  // The person's own profile (workplan 0171 D7): Finish reads the addresses
-  // that receive mail from `/me`. Asked on every consent since alpha.20.
-  profile: 'https://graph.microsoft.com/User.Read offline_access',
 } as const;
 
 function graphTokenProviderFor(
   product: keyof typeof DELEGATED_SCOPES,
+  productLabel: string,
+  endpoint: GraphDomainEndpoint,
+  creds: GraphEntraCredsAsFound,
+  naming: GraphFieldNaming,
+) {
+  return graphTokenProviderWithScope(DELEGATED_SCOPES[product], productLabel, endpoint, creds, naming);
+}
+
+/**
+ * The same token provider, for a delegated scope that is not a face's: the
+ * person's own profile, which Finish reads (`graph-profile-token.ts`, workplan
+ * 0171 T10). Kept out of this file's scope table on purpose: this file is the
+ * sync side, and `a-consent-that-asks-for-a-different-scope` pins that no sync
+ * path asks an identity scope.
+ */
+export function graphTokenProviderWithScope(
+  delegatedScope: string,
   productLabel: string,
   endpoint: GraphDomainEndpoint,
   creds: GraphEntraCredsAsFound,
@@ -130,7 +144,7 @@ function graphTokenProviderFor(
     clientSecret: creds.clientSecret,
     refreshToken: creds.refreshToken,
     tenantId: endpoint.tenantId,
-    scope: creds.refreshToken ? DELEGATED_SCOPES[product] : 'https://graph.microsoft.com/.default',
+    scope: creds.refreshToken ? delegatedScope : 'https://graph.microsoft.com/.default',
   });
 }
 
@@ -199,21 +213,6 @@ export function buildGraphDriveSourceFrom(
     },
     throttleLimiter,
   );
-}
-
-/**
- * A Graph token for reading the mailbox's own user (workplan 0171 T10, §7.2):
- * `User.Read` under the delegated flow, for `/me`; `.default` under
- * application permissions, for `/users/{mailbox}`, which `User.Read.All`
- * answers. The same registration and refusals as the faces above.
- */
-export function graphProfileTokenFrom(
-  endpoint: GraphDomainEndpoint,
-  creds: GraphEntraCredsAsFound,
-  naming: GraphFieldNaming = ENV_GRAPH_FIELD_NAMING,
-): () => Promise<string> {
-  const provider = graphTokenProviderFor('profile', 'Microsoft profile read', endpoint, creds, naming);
-  return async () => (await provider.getToken()).accessToken;
 }
 
 /** The env-specific half, shared by the three appliance build sites. */
