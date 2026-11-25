@@ -425,7 +425,16 @@ export const SCOPE_MANIFEST: ScopeManifest = {
   // connection allows it*. The owner chose the old words on 2026-10-14 under
   // that version, and asked for a new one with the new words (UX sweep,
   // answers of 2026-10-18).
-  version: '2026-10-18',
+  //
+  // Bumped on 2026-11-24 at the owner's word (*"two promises: YES, change the
+  // wording"*), because the set changed for Microsoft. Files said *OneDrive and
+  // SharePoint libraries*, and `graph-drive-source` reads `{scope}/drive/root/delta`,
+  // the signed-in person's own OneDrive, and takes no site or drive id (0026
+  // row 3: no code for sites). So Files says OneDrive, and *SharePoint and Teams
+  // files* is named under *does not migrate*, with the way round it. And the
+  // online archive, which neither mail source reads and which Microsoft's
+  // default policy fills with mail older than two years, is named beside it.
+  version: '2026-11-24',
   migrates: [
     // MAIL, CALENDARS AND CONTACTS, for the families that carry them (2026-10-16).
     // Read from the code, not from memory: Google (its account, and `gmail`),
@@ -477,13 +486,15 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     },
     {
       item: 'Files',
-      detail: 'OneDrive and SharePoint libraries: files and folders.',
+      // OneDrive alone (2026-11-24): a SharePoint site's or a Teams channel's
+      // library is never read, and is named under *does not migrate*.
+      detail: 'OneDrive: your own files and folders.',
       more: FILES_MORE.en,
       appliesTo: ['microsoft'],
       domains: ['file'],
       nl: {
         item: 'Bestanden',
-        detail: 'OneDrive- en SharePoint-bibliotheken: bestanden en mappen.',
+        detail: 'OneDrive: uw eigen bestanden en mappen.',
         more: FILES_MORE.nl,
       },
     },
@@ -776,16 +787,80 @@ export const SCOPE_MANIFEST: ScopeManifest = {
   // Dutch `item` freely; renaming an English one is a change on the site too.
   doesNotMigrate: [
     {
+      // NOT YET, and said so (2026-11-24, the owner). The drive source reads
+      // the signed-in person's own OneDrive and nothing else: no site, no
+      // other drive, and not *Shared with me* (0026 row 3). An organisation
+      // told its team files would migrate found them missing after the
+      // switch-over. The fold says what to do meanwhile.
+      item: 'SharePoint and Teams files',
+      appliesTo: ['microsoft'],
+      domains: ['file'],
+      detail: 'Not migrated yet; copy them into your OneDrive first.',
+      more:
+        'Only the OneDrive of the account that signs in is read. The libraries of a ' +
+        'SharePoint site, and the files of a Teams channel, which are kept in such a library, ' +
+        'are not read yet, and neither are files others shared with you. Until they are, ' +
+        'copy the files you need into your own OneDrive before you start, for example with ' +
+        'Copy to in SharePoint, and they come across with the rest.',
+      guide: 'microsoft#not-yet',
+      nl: {
+        item: 'Bestanden in SharePoint en Teams',
+        detail: 'Worden nog niet gemigreerd; kopieer ze eerst naar uw OneDrive.',
+        more:
+          'Alleen de OneDrive van het account dat zich aanmeldt, wordt gelezen. De ' +
+          'bibliotheken van een SharePoint-site, en de bestanden van een Teams-kanaal, die in ' +
+          'zo’n bibliotheek staan, worden nog niet gelezen, en bestanden die anderen met u ' +
+          'deelden ook niet. Tot dat wel gebeurt: kopieer de bestanden die u nodig hebt naar uw ' +
+          'eigen OneDrive voordat u start, bijvoorbeeld met Kopiëren naar in SharePoint, dan ' +
+          'komen ze mee met de rest.',
+      },
+    },
+    {
       item: 'SharePoint extras',
       appliesTo: ['microsoft'],
-      // About the files: its fold points at Files, under Migrates.
+      // About the files: its fold points at Files, and at the row above.
       domains: ['file'],
       detail: 'Version history, permissions, metadata, lists and pages stay behind.',
-      more: 'The files and folders themselves are migrated: see Files, under Migrates.',
+      more:
+        "Your OneDrive's files and folders themselves are migrated: see Files, under Migrates. " +
+        "A SharePoint site's files are not yet: see SharePoint and Teams files.",
       nl: {
         item: 'Extra’s van SharePoint',
         detail: 'Versiegeschiedenis, rechten, metagegevens, lijsten en pagina’s blijven achter.',
-        more: 'De bestanden en mappen zelf worden wel gemigreerd: zie Bestanden, onder Migreert.',
+        more:
+          'De bestanden en mappen in uw OneDrive zelf worden wel gemigreerd: zie Bestanden, ' +
+          'onder Migreert. Die van een SharePoint-site nog niet: zie Bestanden in SharePoint en Teams.',
+      },
+    },
+    {
+      // NOT YET, and said so (2026-11-24, the owner). The IMAP and Graph mail
+      // sources read the primary mailbox only; SAD §10.2 promised the archive
+      // as an additional mailbox and nothing reads it. The mailbox's own
+      // Archive folder is a folder of the primary mailbox and does migrate.
+      item: 'Online archive',
+      appliesTo: ['microsoft'],
+      domains: ['email'],
+      detail: 'Not migrated yet; move its folders into the mailbox first.',
+      more:
+        'Exchange can keep older mail in a separate online archive, and under Microsoft’s ' +
+        'default policy mail older than two years moves there by itself. Only the mailbox ' +
+        'itself is read, so mail in the online archive is not migrated and not counted. The ' +
+        'Archive folder in your mailbox is something else, and does come across. Before you ' +
+        'start, move the online archive’s folders into the mailbox in Outlook, if it has room, ' +
+        'and ask an administrator to pause the policy that moves mail to the archive, or it ' +
+        'moves back.',
+      guide: 'microsoft#not-yet',
+      nl: {
+        item: 'Onlinearchief',
+        detail: 'Wordt nog niet gemigreerd; zet de mappen eerst terug in het postvak.',
+        more:
+          'Exchange kan oudere mail in een apart onlinearchief bewaren, en volgens het ' +
+          'standaardbeleid van Microsoft gaat mail van meer dan twee jaar oud daar vanzelf ' +
+          'naartoe. Alleen het postvak zelf wordt gelezen, dus mail in het onlinearchief wordt ' +
+          'niet gemigreerd en niet geteld. De map Archief in uw postvak is iets anders, en gaat ' +
+          'wel mee. Zet voordat u start de mappen van het onlinearchief in Outlook terug in het ' +
+          'postvak, als daar ruimte is, en vraag een beheerder het beleid dat mail naar het ' +
+          'archief zet even stop te zetten, anders gaat de mail terug.',
       },
     },
     {
