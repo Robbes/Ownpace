@@ -25,6 +25,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0065 adds `gift`,
   `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation, and so is the
   operator's number for each of its people, unless that person is also in another organisation.
+  The privacy policy says what is kept of a gift (§4.4, *Gifts*) and for how long (§9), in place
+  under 1.0, as the owner read it.
 - **Grant links for every account a person can grant** (alpha.21; workplan 0174 T1 and T3 to T6,
   with D3 (a) and §4.3). A person's grant link now asks for each account of theirs that a migration
   reads from or writes to, in two groups on one page. Where the provider offers a sign-in, they

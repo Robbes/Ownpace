@@ -4,6 +4,11 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, the privacy policy says it.** §4.4 ends with *Gifts* (*Cadeaus*) and §9 gains a row, a
+gift kept until the giver's organisation is deleted, in both languages and in place under 1.0, in
+the words the owner read (*"ok, I take your advice"*). `ACCEPTED_WORDS` re-pins both privacy files
+with a dated note, and `site/legal/README.md`'s privacy row says so.
+
 **2026-11-25, renumbered to 0065.** #2167 merged first and took managed migration 0064
 (`person_link_try`, `person_granted_connection`), so the gift's migration is now
 `0065_a_place_given_as_a_present.sql`, its content unchanged, and every mention of it says 0065.
