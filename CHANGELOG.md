@@ -25,8 +25,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0065 adds `gift`,
   `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation, and so is the
   operator's number for each of its people, unless that person is also in another organisation.
-  The privacy policy says what is kept of a gift (§4.4, *Gifts*) and for how long (§9), in place
-  under 1.0, as the owner read it.
+  The privacy policy says what is kept of a gift (§4.4, *Gifts*), why and on what basis (§5), and
+  for how long (§9), and that a declined request gives the gift back, so the giver can tell; in
+  place under 1.0, as the owner read it.
 - **Grant links for every account a person can grant** (alpha.21; workplan 0174 T1 and T3 to T6,
   with D3 (a) and §4.3). A person's grant link now asks for each account of theirs that a migration
   reads from or writes to, in two groups on one page. Where the provider offers a sign-in, they
@@ -43,7 +44,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   (*Save for {person}*), and sees *Waiting for {person}* on the Accounts page until it is
   connected; an account the person connected takes only their migrations and offers no *Replace
   credentials*. On their progress page the person can remove a destination's password again,
-  which holds every migration into it until they connect it once more. Managed migration 0064
+  which holds every migration into it until they connect it once more. The migration page then
+  says *The person being migrated withdrew their permission on {date}, so this migration copies
+  nothing.*, which is true of a source and a destination alike, where it said nothing *reads*
+  their account. Managed migration 0064
   adds `person_link_try` and `person_granted_connection`; the shared chain is unchanged. Not
   proven against a real Apple, Cirrux, Infomaniak or Soverin login.
   **Nederlands:** een toegangslink vraagt nu om elk account van de persoon waaruit een migratie
@@ -53,7 +57,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   daarna versleuteld bewaard; na vijf onjuiste pogingen is dat account voor die link geblokkeerd.
   Apple, Cirrux en Infomaniak worden alleen bij hun eigen server gecontroleerd. Een migratie start
   pas als bron en bestemming allebei verbonden zijn. Op de voortgangspagina kan de persoon het
-  wachtwoord van een bestemming weer verwijderen.
+  wachtwoord van een bestemming weer verwijderen; de migratiepagina zegt dan *Degene die
+  gemigreerd wordt, heeft op {date} de toegang ingetrokken, dus deze migratie kopieert niets
+  meer.*
 - **Grant links for a Dropbox account** (workplan 0174 §6, T2; superseding 0171 T4). A grant link
   can now connect Dropbox as it connects a Google or Microsoft account: the person opens the link,
   presses **Continue with Dropbox as** *their account* (*Doorgaan met Dropbox als …*), signs in on
