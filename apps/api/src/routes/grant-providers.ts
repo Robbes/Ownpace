@@ -48,8 +48,6 @@
  */
 
 import {
-  PASSWORD_SOURCE_KINDS,
-  PASSWORD_TARGET_KINDS,
   isPasswordKind,
   type PasswordKind,
   cirruxDeploymentClient,

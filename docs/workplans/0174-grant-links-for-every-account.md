@@ -4,6 +4,46 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T6 built (draft pull request on T1's branch, merges after T1).** The owner's side
+of *They do, with a link*, for every password kind and for destinations (§8.1, §8.2, §4.6):
+- `start-plan.ts`: `grantableByLink` answers yes for every password source kind, served or not;
+  `destinationByLink` for every password destination. `GrantLinkProvider` gains `cirrux`.
+  Dropbox's case is T2's and fits beside the password kinds unchanged.
+- **One change of place, not of shape, to §5.1:** `PASSWORD_SOURCE_KINDS`,
+  `PASSWORD_TARGET_KINDS`, `PasswordKind` and `isPasswordKind` now live in `@openmig/shared`
+  (`password-grant-kinds.ts`), so the screens and the create door read the same lists;
+  `grant-providers.ts` re-exports them unchanged, and every import of them still works.
+- The create door's `forPerson` (`account-for-a-person.ts`): a password kind only
+  (`not_by_link`), no secret taken (`secret_for_person`), every server and account still
+  required (D2; Infomaniak's sync user name excepted, as `personFieldsFor` lets the person fill
+  it), never probed, the person this organisation's (`person_not_found`).
+  `credentialFieldRequired` gains `forPerson`. **Open question 3, answered:** the path that saves
+  a Google or Microsoft account by its address alone writes `status: 'error'` (its probe has no
+  token and fails), so a row saved for a person is stored `error` too, without a probe; *waiting*
+  is observed from the rows, and no shared migration was needed.
+- *Start a migration*: a password source by link is saved with its server and account
+  (*Save for {person}*); a password destination asks *Whose account is {provider}?*, and the
+  person's own is saved the same way; the person is made when the first account is saved for
+  them; the last screen counts every account the link asks for, both roles.
+- The person's page (§4.6): `GET /api/people/:id/awaiting-grant` answers `waitsFor` per
+  migration (role, way, account, and a password's tries on the live link); the page says the
+  destination by name, the wrong tries with tries left, and *locked on this link after five*.
+- The Accounts page: `GET /api/connections` answers `waitingFor` for a password account saved
+  for a person (it holds no password, and a migration of theirs uses it with none); the row says
+  *Waiting for {person}* and offers no *Test*.
+
+Proved: unit, `grantableByLink` per kind and `destinationByLink` (failing before, 2 of 40);
+`an-account-saved-for-a-person` through the real door over PGlite, both chains (7 of 8 failing
+before: saved without a secret and unprobed, refused without its server, refused with a password,
+another organisation's person, the Accounts page's *Waiting for*); `credentialFieldRequired`
+with `forPerson`; `what-the-owner-sees-while-a-link-waits` (the four lines' data, tries on the
+live link, a new link at zero); the person page's four lines (failing before); the Accounts
+page's row; *Start a migration* with an iCloud source and a Soverin destination (failing
+before). UI smoke in real Chromium over the built bundle: *They do, with a link* with an iCloud
+source and a Soverin destination, both posted `forPerson` and neither with a password. Not proved
+here: the password route, the grant page and Cirrux Drive (T3 to T5), and anything with a real
+provider.
+
 **2026-11-25, T1 built (draft pull request, merges after alpha.20's tag).** The seam grows as
 §4.1, §4.2, §5.1 and §9 say, and the interfaces T3 to T6 build against are on the branch
 `claude/ownpace-public-readiness-y7orc6-a21-grant-t1`:
@@ -61,7 +101,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 | T3 The own-password route: test, try count, store, spend | builder | 📋 Planned | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
 | T4 The own-password page, per kind, in English and Dutch | builder | 📋 Planned | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
 | T5 Destinations on the link: Cirrux Drive and password destinations | builder | 📋 Planned | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
-| T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 📋 Planned | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
+| T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 🔎 In review (draft PR) | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
 | T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
 | T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
 | T9 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T8 merges. |

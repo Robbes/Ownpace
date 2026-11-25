@@ -527,6 +527,20 @@ const failures = new Map<string, number | { status: number; body: unknown }>();
 /** Every `/api` path the browser asked for, and the ones no fixture knew. */
 const apiHits: string[] = [];
 const apiMisses: string[] = [];
+/** Every body a fixture ANSWERED FROM (`FromBody`), as sent: what a screen posted. */
+const apiBodies: Array<{ readonly key: string; readonly body: unknown }> = [];
+
+/**
+ * A fixture that answers from the request's JSON body, where one path is
+ * asked twice for two things (0174 T6: an iCloud account and a Soverin one,
+ * both saved for a person at `POST /api/connections`).
+ */
+class FromBody {
+  readonly answer: (body: unknown) => unknown;
+  constructor(answer: (body: unknown) => unknown) {
+    this.answer = answer;
+  }
+}
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -562,6 +576,17 @@ function startServer(dist: string = DIST): Promise<{ server: Server; base: strin
         return;
       }
       const body = FIXTURES[key];
+      if (body instanceof FromBody) {
+        const chunks: Buffer[] = [];
+        req.on('data', (c: Buffer) => chunks.push(c));
+        req.on('end', () => {
+          const sent: unknown = chunks.length === 0 ? null : JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          apiBodies.push({ key, body: sent });
+          res.writeHead(201, { 'content-type': 'application/json' });
+          res.end(JSON.stringify(body.answer(sent)));
+        });
+        return;
+      }
       if (body === undefined) {
         apiMisses.push(key);
         res.writeHead(404, { 'content-type': 'application/json' });
@@ -1152,6 +1177,96 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
       await l.page.close();
     } finally {
       for (const key of Object.keys(added)) delete FIXTURES[key];
+    }
+  });
+
+  it('lets Anna connect her own iCloud and her own Soverin account, with a link: nothing asks the owner for her passwords (0174 T6)', async () => {
+    const { NEW, added } = startFlowFixtures();
+    const ICLOUD = 'c0000000-0000-4000-8000-0000000000a1';
+    const THEIR_SOVERIN = 'c0000000-0000-4000-8000-0000000000a2';
+    Object.assign(FIXTURES, added, {
+      // Nothing saved yet: both accounts are made here, for Anna.
+      'GET /api/connections': { connections: [] },
+      'POST /api/connections': new FromBody((sent) =>
+        (sent as { role: string }).role === 'source' ? { id: ICLOUD, forPerson: true } : { id: THEIR_SOVERIN, forPerson: true },
+      ),
+    });
+    const missesBefore = apiMisses.length;
+    const bodiesBefore = apiBodies.length;
+    const hitsBefore = apiHits.length;
+    // Closed whatever happens: the last screen polls the person's links, and
+    // a page left open would ask for them during the tests after this one.
+    let l: Loaded | undefined;
+    try {
+      l = await open(`/start?person=${PERSON}`);
+      const page = l.page;
+      const next = () => page.getByRole('button', { name: 'Next' }).click();
+      await page.getByRole('radio', { name: 'They do, with a link' }).check();
+      await next();
+      await page.getByRole('checkbox', { name: /^Apple/ }).check();
+      await next();
+      await page.getByRole('heading', { level: 2, name: 'What moves?' }).waitFor({ timeout: 10_000 });
+      // Mail only, so one destination row.
+      const apple = page.getByRole('group', { name: 'From Apple iCloud' });
+      for (const type of ['Calendars', 'Contacts', 'Tasks']) {
+        const box = apple.getByRole('checkbox', { name: new RegExp(`^${type}`) });
+        if ((await box.count()) > 0 && (await box.isChecked())) await box.uncheck();
+      }
+      await next();
+      await page.getByRole('heading', { level: 2, name: 'Connect your accounts' }).waitFor({ timeout: 10_000 });
+
+      // Her iCloud: the account, and no box for a password.
+      const icloud = page.locator('[data-for-person="apple"]');
+      await icloud.getByText('Anna types the password themselves, on the page your link opens. It never reaches you.').waitFor();
+      expect(await icloud.locator('input[type="password"]').count()).toBe(0);
+      await icloud.getByRole('textbox').first().fill('anna@icloud.invalid');
+      await icloud.getByRole('button', { name: 'Save for Anna' }).click();
+      await page.getByText('By link: anna@icloud.invalid').waitFor({ timeout: 10_000 });
+      await next();
+
+      // Her own Soverin account: whose is it? Hers, saved with its servers and no password.
+      await page.getByRole('heading', { level: 2, name: 'Where does it go?' }).waitFor({ timeout: 10_000 });
+      await page.getByRole('combobox', { name: 'Where email goes' }).selectOption('new:soverin');
+      const soverin = page.locator('section', { has: page.getByRole('heading', { level: 3, name: 'Add Soverin' }) });
+      await soverin.getByRole('radio', { name: 'Anna’s own: they connect it with the link' }).check();
+      expect(await soverin.locator('input[type="password"]').count()).toBe(0);
+      const theirs = soverin.locator('[data-for-person="soverin"]');
+      for (const box of await theirs.getByRole('textbox').all()) {
+        if ((await box.inputValue()) === '') await box.fill('anna@soverin.invalid');
+      }
+      await theirs.getByRole('button', { name: 'Save for Anna' }).click();
+      await page.getByText('Anna connects it themselves, with a link you make on the last screen.').waitFor({ timeout: 10_000 });
+
+      await page.getByRole('button', { name: 'Set up' }).click();
+      // Her new account's address is on another domain than her old one, so
+      // the address step asks first (0168 §6.2): kept as it is.
+      await page.getByRole('heading', { level: 2, name: 'Your new address' }).waitFor({ timeout: 15_000 });
+      await page.getByRole('radio', { name: 'No, keep it as it is' }).check();
+      await next();
+      await page.getByRole('heading', { level: 2, name: 'Check, then start' }).waitFor({ timeout: 15_000 });
+      await page.getByText(/^The link asks Anna for 2 accounts: /).waitFor({ timeout: 10_000 });
+      // Nothing of hers is counted until she has connected, so Start waits.
+      expect(await page.getByRole('button', { name: 'Start', exact: true }).isEnabled()).toBe(false);
+
+      // What the screens posted: both saved for Anna, neither with a password.
+      const saved = apiBodies.slice(bodiesBefore).filter((b) => b.key === 'POST /api/connections');
+      expect(saved.map((b) => (b.body as { role: string; type: string; forPerson: string }))).toEqual([
+        expect.objectContaining({ role: 'source', type: 'apple', forPerson: PERSON }),
+        expect.objectContaining({ role: 'target', type: 'soverin', forPerson: PERSON }),
+      ]);
+      for (const b of saved) {
+        expect(Object.keys((b.body as { values: Record<string, string> }).values)).not.toContain('password');
+      }
+      // The migration is set up and added to her; nothing of hers is counted yet.
+      const hits = apiHits.slice(hitsBefore);
+      expect(hits).toContain('/api/migrations');
+      expect(hits).toContain(`/api/people/${PERSON}/migrations`);
+      expect(hits).not.toContain(`/api/migrations/${NEW}/start`);
+      expect(apiMisses.slice(missesBefore), 'the flow called endpoints with no fixture').toEqual([]);
+      expectClean(l, 'They do, with a link, with an iCloud source and a Soverin destination');
+    } finally {
+      await l?.page.close();
+      for (const key of [...Object.keys(added), 'POST /api/connections']) delete FIXTURES[key];
     }
   });
 
