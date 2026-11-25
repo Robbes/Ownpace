@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to O and R done; P built, in a draft pull request for alpha.20; Q fixed on its branch (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-25: A to S done; P, Q and R merged for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -19,10 +19,11 @@
 | L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | ✅ Done 2026-11-21, merged in #2023 (`5ba9688a`) from branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`; read again 2026-11-24, unchanged (§L): none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
 | M — A comparison that is not a secret: the line a read-only check (JS-07) named in `caldav-source.ts`, 2026-11-24 | ✅ Read 2026-11-24: a false positive, a CalDAV sync token compared with the client's own (§M); nothing changed | the owner was given a reason to paste |
 | N — The web image's base: the line a read-only check (IMG-4) named, `apps/web/Dockerfile:94`, `nginx:1.31.9-alpine-slim`, 2026-11-24 | ✅ Fixed in alpha.20's image pins (#2127, §N): `nginx:1.31.10-alpine-slim` in `apps/web/Dockerfile` and `deploy/compose/www.yml` | the owner, for alpha.20: *"yes on all"* |
-| P — Two support lists that served every row: the routes a read-only check (PERF-2) named in `apps/api/src/routes/support.ts`, 2026-11-24 | 🟡 Built 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-support-paging`, a draft pull request for alpha.20: both routes page by keyset, a hundred rows a page, and both screens have *Show more*; every page is its own `support_read` row. See §P | 2026-11-24: page both, with *Show more*, in alpha.20 |
-| R — An import cycle (CQ-06), a swallowed test error (ERR-1) and the assistant's start-up hook (AIR-2b): three findings of an outside, read-only check on `20038a66`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-outside-n`: the cycle broken by moving the re-measuring family to `qualify-and-remember.ts`, with a guard; the test's catch, which let go nothing, replaced by an assertion; the hook judged false and kept, with a guard that pins it. Nothing in the product changes. See §N | asked for, 2026-11-24 |
+| P — Two support lists that served every row: the routes a read-only check (PERF-2) named in `apps/api/src/routes/support.ts`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-support-paging`, merged as #2130 on 2026-11-25 (`272bcf2e`), in alpha.20: both routes page by keyset, a hundred rows a page, and both screens have *Show more*; every page is its own `support_read` row. See §P | 2026-11-24: page both, with *Show more*, in alpha.20 |
+| R — An import cycle (CQ-06), a swallowed test error (ERR-1) and the assistant's start-up hook (AIR-2b): three findings of an outside, read-only check on `20038a66`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-outside-n`, merged as #2129 on 2026-11-25 (`b8e76eac`): the cycle broken by moving the re-measuring family to `qualify-and-remember.ts`, with a guard; the test's catch, which let go nothing, replaced by an assertion; the hook judged false and kept, with a guard that pins it. Nothing in the product changes. See §R | asked for, 2026-11-24 |
 | O — The same list read again in a loop (PERF-4, five spots) and "green in CI proves less than it seems" (QUAL-3): a read-only check on `20038a66`, 2026-11-24 | ✅ Read and done 2026-11-24 (§O): one PERF-4 spot true, the pin watch listing the open issues once per row, now once per run; four PERF-4 spots and QUAL-3 false, nothing changed | asked for, 2026-11-24 |
-| Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | 🔨 Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, not yet merged: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). The first proof in CI comes on `main` | asked for, 2026-11-24 |
+| Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | ✅ Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, merged as #2133 on 2026-11-25 (`3a4ca1ae`), in alpha.20: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). Its first proof in CI, Security Scan's push run on `main` at the merge (run 45537860598), passed | asked for, 2026-11-24 |
+| S — A path from the command line (JS-06) and an address checked before it is followed (JS-10): two findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Read 2026-11-25: both false positives (§S); the worker CLI's own `--config`, already known to Semgrep's summary, and a consent address followed only on its provider's own host; nothing changed | the owner was given a reason to paste for each |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -31,7 +32,7 @@
 > (AGENTS.md: don't trust paths blindly).
 
 > **SBOM-1, the images (2026-11-24, branch `claude/ownpace-public-readiness-y7orc6-a20-image-sbom`,
-> not yet merged).** The owner decided, for alpha.20, that every published image carries its own
+> merged as #2137 on 2026-11-25, `526ba8d4`, in alpha.20).** The owner decided, for alpha.20, that every published image carries its own
 > SBOM, its base's OS packages included, and that the release carries a copy per image and
 > platform. `images.yml` builds the four images with a BuildKit SBOM attestation, reads it back by
 > digest (`scripts/image-sbom.mjs`), keeps it with every `main` run and attaches it on a tag;
@@ -619,6 +620,41 @@ install it runs uses `--frozen-lockfile`. The hook and the settings file are unc
 
 **Not done, on purpose.** No other import cycle was looked for, and nothing was added for the
 check's sake alone. No CHANGELOG entry: nothing a person running Ownpace sees changes.
+
+## S — A path from the command line, and an address checked before it is followed (an outside, read-only check, 2026-11-25)
+
+**Evidence.** An outside, read-only check of `main` at `49672bab`, 2026-11-25, reported two
+findings. Both lines are unchanged on `main` at `0c4a17d8`.
+
+- **JS-06**, a file path built from input: `apps/worker/src/index.ts:92`,
+  `const absolutePath = resolve(process.cwd(), configPath);`, read by `readFileSync` on the next
+  line.
+- **JS-10**, a redirect to an address from input: `apps/web/src/pages/Grant.tsx:498`,
+  `globalThis.location.assign(consent);`.
+
+**Read.**
+
+- **JS-06.** `configPath` is the worker CLI's own `--config` argument (`parseArgs`, in the same
+  file), typed by whoever runs the command; no request, page or job hands it in. The command
+  reads the file with that person's own rights and parses it as a mapping config, so a path
+  outside any folder gives them nothing they could not read already. Resolving against
+  `process.cwd()` is item I's fix: the path used to be resolved against the script's own folder.
+  Workplan 0163 §4.3 read the same line when Semgrep's `path-join-resolve-traversal` reported it,
+  and `KNOWN_FINDINGS` in `scripts/semgrep-report.mjs` gives that reason, so Semgrep's summary
+  calls the spot known on every run, as on `0c4a17d8`.
+- **JS-10.** `consent` is not the address the API answered but what
+  `consentToFollow(provider, url)` returned (`apps/web/src/services/address-to-follow.ts`,
+  workplan 0163 T4): the address as parsed, `https:`, on exactly the one host `CONSENT_HOSTS`
+  names for that provider, or null; on null the page opens nothing and says the address is not
+  the provider's own page. That is the check's own advice, a fixed list of allowed destinations.
+  `apps/web/src/pages/a-grant-button-that-goes-only-to-google.unit.test.tsx` holds it on both of
+  the page's buttons, this one and the person's link's (`Grant.tsx:285`): `http:`, another host, a
+  lookalike, `javascript:`, no address and a path of our own are each refused, and taking the
+  check out of either button fails it. Semgrep's `js-open-redirect-from-function` does not report
+  this line.
+
+**Decided.** Both false positives, read on 2026-11-25; nothing changed. The owner was given a
+reason to paste for each.
 
 ---
 
