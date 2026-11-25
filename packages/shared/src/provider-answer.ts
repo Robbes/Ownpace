@@ -126,7 +126,7 @@ export function providerAnswerFromError(err: unknown, provider: string): PlainFa
     // The words follow the first `: ` after the status (or begin at once, for
     // Graph's `what: 403 - words`), and never a URL or a path before it.
     const colon = after.indexOf(': ');
-    const rest = pattern.source.endsWith(' - /') ? after : colon === -1 ? '' : after.slice(colon + 2);
+    const rest = pattern.source.endsWith(' - ') ? after : colon === -1 ? '' : after.slice(colon + 2);
     const words = rest === '' ? undefined : wordsFrom(rest);
     return { kind: 'answered', provider, status: Number(m[1]), ...(words === undefined ? {} : { words }) };
   }
