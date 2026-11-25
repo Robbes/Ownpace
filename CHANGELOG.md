@@ -214,6 +214,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   a failed one, so *Live progress* stopped counting the copy and counted a failure more. The
   failure queue names the destination's kind (`targetKind`) beside its source's.
 
+### Security
+
+- **The release's `bom.json` lists every package the product runs** (workplan 0006 §Q; SBOM-1,
+  from an outside, read-only check). Security Scan built it with `cyclonedx-npm`, which reads only
+  the root `package.json`, so alpha.18's SBOM lacked 56 production packages the apps import
+  (`jose`, `helmet`, `pg-boss`, `axios`, `@mollie/api-client` and `react-router` among them) and
+  marked none of its dev tooling as dev. It is now built by `pnpm sbom` from the lockfile: every
+  workspace project, a license on every component, dev-only packages marked `scope: excluded`.
+  A new step after it, `scripts/sbom-complete.mjs`, fails when a package in pnpm's production set
+  is missing from `bom.json` or marked dev.
+
 ## [0.2.0-alpha.19] - 2026-11-24
 
 The managed edition takes any CalDAV, CardDAV or WebDAV server as a source: *Start a migration*
