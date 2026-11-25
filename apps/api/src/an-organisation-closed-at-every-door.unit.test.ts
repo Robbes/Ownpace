@@ -662,6 +662,9 @@ const USES_STORED_ACCESS =
  * the close, or its file is below with the reason.
  */
 const USES_BY_FILE: Readonly<Record<string, number>> = {
+  // Whom a password account saved for a person waits for (workplan 0174 T6):
+  // which keys its record carries, for the Accounts page. No provider.
+  'routes/account-for-a-person.ts': 1,
   // One more since a rotation keeps a Microsoft account's tenant (0153 open
   // question 5), read after the rotation's close, and one since the folder
   // browse reads a saved account's sign-in, after its own. Three more since a
@@ -730,6 +733,9 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
 
 /** The files that use the stored access and never ask the close, and why that is right. */
 const USED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
+  'routes/account-for-a-person.ts':
+    'reads which keys a password account saved for a person carries, never a value, so the Accounts page can say ' +
+    'whom it waits for (workplan 0174 T6). It reaches no provider, and reading stays open.',
   'routes/migrations/account-on-connection.ts':
     'reads the account name a migration shows. It reaches no provider, and reading stays open.',
   'routes/migrations/grant-subject.ts':

@@ -123,12 +123,19 @@ export const en = {
     'Waits for {name} to connect, then starts by itself: another migration of theirs has been started.',
   'person.awaiting.reviewAndStart': 'Waits for {name} to connect. Once they have, open Details to review and start it.',
   'person.awaiting.ranBefore': 'Waits for {name} to connect again.',
+  // What each migration waits for, by account (workplan 0174 §4.6): the
+  // destination a person connects with their own password, the wrong
+  // passwords on their live link, and a card locked after five. Counts only:
+  // never the server's own words for a refusal.
+  'person.awaiting.destination': 'Waits for {name} to connect the destination {account}.',
+  'person.awaiting.tries': 'Wrong passwords for {account} on this link: {n}. Tries left: {left}.',
+  'person.awaiting.locked': '{account} is locked on this link after five tries. Make {name} a new link.',
   'person.awaiting.unread': 'Which of these wait for {name} to connect could not be read.',
   'person.links.title': 'For {name}',
   // In place of the grant link, for a person none of whose migrations reads
   // Google: the server would only refuse one (`nothing_to_grant`).
   'person.links.noGoogle':
-    "A grant link is only for Google accounts, and none of {name}'s migrations reads one. Their other accounts are connected on the Accounts page.",
+    "None of {name}'s migrations reads an account a grant link can connect. Their accounts are connected on the Accounts page.",
   'person.steps.title': 'Before you switch',
   'person.steps.hint': 'Each step, summed across this person’s migrations.',
   'person.state.done': 'Done',
@@ -252,10 +259,13 @@ export const nl: Record<keyof typeof en, string> = {
     'Wacht tot {name} verbindt en start dan vanzelf: een andere migratie van {name} is al gestart.',
   'person.awaiting.reviewAndStart': 'Wacht tot {name} verbindt. Open daarna Details om deze te controleren en te starten.',
   'person.awaiting.ranBefore': 'Wacht tot {name} opnieuw verbindt.',
+  'person.awaiting.destination': 'Wacht tot {name} de bestemming {account} verbindt.',
+  'person.awaiting.tries': 'Onjuiste wachtwoorden voor {account} met deze link: {n}. Pogingen over: {left}.',
+  'person.awaiting.locked': '{account} is geblokkeerd op deze link na vijf pogingen. Maak een nieuwe link voor {name}.',
   'person.awaiting.unread': 'Welke hiervan wachten tot {name} verbindt, kon niet worden gelezen.',
   'person.links.title': 'Voor {name}',
   'person.links.noGoogle':
-    'Een toegangslink is alleen voor Google-accounts, en geen van de migraties van {name} leest er een. Andere accounts verbindt u op de pagina Accounts.',
+    'Geen van de migraties van {name} leest een account dat een toegangslink kan verbinden. Hun accounts verbindt u op de pagina Accounts.',
   'person.steps.title': 'Voordat u overstapt',
   'person.steps.hint': 'Elke stap, opgeteld over de migraties van deze persoon.',
   'person.state.done': 'Klaar',

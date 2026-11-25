@@ -1460,6 +1460,12 @@ export interface ConnectionSummary {
   kind: string;
   displayName: string;
   status: 'connected' | 'error' | 'revoked';
+  /**
+   * Managed only (workplan 0174 §8.2): a password account saved for a person,
+   * waiting for them to type its password on their grant link's page. Not an
+   * error, and nothing to Test until they have.
+   */
+  waitingFor?: { personId: string; name: string };
   createdAt: string;
   /** How many mailboxes depend on it — whether re-testing this matters. */
   /**
@@ -1560,6 +1566,21 @@ export const connectionsApi = {
   }): Promise<TestConnectionResult & { id: string }> => {
     const response = await apiClient.post('/connections', payload);
     return response.data as TestConnectionResult & { id: string };
+  },
+  /**
+   * Save a password account FOR A PERSON, by its server and account alone
+   * (workplan 0174 §8.2): they type its password on their grant link's page.
+   * Nothing is probed, so the answer is only the row's id.
+   */
+  addForPerson: async (payload: {
+    role: 'source' | 'target';
+    type: string;
+    displayName: string;
+    values: Record<string, string>;
+    forPerson: string;
+  }): Promise<{ id: string }> => {
+    const response = await apiClient.post('/connections', payload);
+    return { id: (response.data as { id: string }).id };
   },
   /**
    * Replace a connection's credentials in place. Probed first; `rotated:false`

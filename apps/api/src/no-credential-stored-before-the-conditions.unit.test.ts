@@ -296,7 +296,9 @@ const SEALS = /\b(?:SecretStore\.encryptCredentials|storeCirruxDriveGrant)\s*\(/
 
 /** Every place that seals one today, counted per file. A new one changes a count here. */
 const SEALS_BY_FILE: Readonly<Record<string, number>> = {
-  'routes/connections.ts': 2,
+  // One more since an account saved for a person (workplan 0174 T6): sealed
+  // without a secret, after the create door's own check of the conditions.
+  'routes/connections.ts': 3,
   'routes/migrations/cirrux-oauth-routes.ts': 1,
   'routes/migrations/index.ts': 2,
   // One seal for both grant endings since workplan 0171 T3: a person's link

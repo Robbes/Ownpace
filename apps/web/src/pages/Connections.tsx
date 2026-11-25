@@ -17,7 +17,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, XCircle, HelpCircle, Loader2, Plus } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, HelpCircle, Loader2, Plus } from 'lucide-react';
 import {
   credentialFieldsFor,
   isFailureCategory,
@@ -355,7 +355,11 @@ const Row: React.FC<{
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusIcon status={connection.status} />
+            {connection.waitingFor ? (
+              <Clock className="w-4 h-4 text-gray-500" aria-hidden="true" />
+            ) : (
+              <StatusIcon status={connection.status} />
+            )}
             <span className="font-medium text-gray-900">{connection.displayName}</span>
             {connectionKindName(connection.kind, locale) && (
               <span className="text-xs text-gray-600 bg-gray-100 rounded px-1.5 py-0.5">
@@ -363,6 +367,14 @@ const Row: React.FC<{
               </span>
             )}
           </div>
+          {connection.waitingFor && (
+            // Saved for a person, who types its password on their grant
+            // link's page (0174 §8.2): not an error, and nothing to Test
+            // until they have.
+            <p data-waiting-for={connection.waitingFor.personId} className="mt-1 text-sm text-gray-700">
+              {t('connections.waitingFor', { person: connection.waitingFor.name })}
+            </p>
+          )}
           <p className="mt-1 text-sm text-gray-600">
             <span>
               {connection.usedByMigrations === 0
@@ -516,15 +528,17 @@ const Row: React.FC<{
             the last one sat off-screen. Beside the details from `sm` up,
             under them on a phone. */}
         <div className="flex flex-wrap items-center gap-2 sm:max-w-[55%] sm:shrink-0 sm:justify-end">
-          <button
-            type="button"
-            onClick={test}
-            disabled={testing}
-            className="text-sm px-3 py-1.5 border border-gray-300 rounded-md bg-white hover:bg-gray-50 disabled:opacity-50 inline-flex items-center gap-1"
-          >
-            {testing && <Loader2 className="w-3 h-3 animate-spin" />}
-            {testing ? t('connections.testing') : t('connections.test')}
-          </button>
+          {!connection.waitingFor && (
+            <button
+              type="button"
+              onClick={test}
+              disabled={testing}
+              className="text-sm px-3 py-1.5 border border-gray-300 rounded-md bg-white hover:bg-gray-50 disabled:opacity-50 inline-flex items-center gap-1"
+            >
+              {testing && <Loader2 className="w-3 h-3 animate-spin" />}
+              {testing ? t('connections.testing') : t('connections.test')}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {

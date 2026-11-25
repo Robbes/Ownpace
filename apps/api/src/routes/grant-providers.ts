@@ -52,6 +52,8 @@
 import {
   CIRRUX_DRIVE_GRANT_KEY,
   CIRRUX_DRIVE_WORKSPACE_KEY,
+  isPasswordKind,
+  type PasswordKind,
   cirruxDeploymentClient,
   credentialFieldsFor,
   dropboxDeploymentClient,
@@ -408,34 +410,10 @@ export function grantProvidersWithEntries(): GrantProviderId[] {
 
 // ========================= The password kinds (workplan 0174 §5.1) =========================
 
-/**
- * Every source `connection.kind` whose credential is a password the account
- * holder can type: IMAP, Apple's app-specific password, and the three DAV
- * protocols (0169).
- */
-export const PASSWORD_SOURCE_KINDS = ['imap', 'apple', 'caldav', 'carddav', 'webdav'] as const;
-
-/** Every destination kind whose credential is a password: every target the product connects. */
-export const PASSWORD_TARGET_KINDS = [
-  'jmap',
-  'imap',
-  'caldav',
-  'carddav',
-  'webdav',
-  'soverin',
-  'nextcloud',
-  'cirrux',
-  'infomaniak',
-] as const;
-
-export type PasswordKind = (typeof PASSWORD_SOURCE_KINDS)[number] | (typeof PASSWORD_TARGET_KINDS)[number];
-
-/** Whether a kind is a password kind in this role. Own lists only. */
-export function isPasswordKind(role: GrantRole, kind: string | null | undefined): kind is PasswordKind {
-  if (!kind) return false;
-  const kinds: ReadonlyArray<string> = role === 'source' ? PASSWORD_SOURCE_KINDS : PASSWORD_TARGET_KINDS;
-  return kinds.includes(kind);
-}
+// The two lists, and `isPasswordKind`, live in `@openmig/shared` so the screens
+// read the same ones (*Start a migration*'s `grantableByLink`, the create
+// door's `forPerson`, 0174 T6); the seam re-exports them unchanged.
+export { PASSWORD_SOURCE_KINDS, PASSWORD_TARGET_KINDS, isPasswordKind, type PasswordKind } from '@openmig/shared';
 
 /**
  * One box or one shown value on the person's password card (0174 §5.2, D2).

@@ -65,7 +65,7 @@ vi.mock('../services/mapping-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/mapping-service.ts')>()),
   providerAccountsApi: { get: vi.fn() },
   providerClientsApi: { get: vi.fn() },
-  connectionsApi: { list: vi.fn(), add: vi.fn(), remove: vi.fn(), folders: vi.fn() },
+  connectionsApi: { list: vi.fn(), add: vi.fn(), addForPerson: vi.fn(), remove: vi.fn(), folders: vi.fn() },
   mappingApi: { create: vi.fn(), start: vi.fn(), discover: vi.fn(), getDiscovery: vi.fn(), get: vi.fn() },
   scopeManifestApi: { get: vi.fn() },
 }));
@@ -1035,10 +1035,10 @@ describe('someone else connects their own accounts, by a link where one reaches 
     await screen.findByRole('heading', { level: 2, name: 'What moves?' });
   }
 
-  it('asks who signs in, and says a link reaches Google alone', async () => {
+  it('asks who signs in, and says a link reaches their own accounts', async () => {
     renderAt();
     expect(await screen.findByRole('radio', { name: 'I do' })).toBeChecked();
-    expect(screen.getByText(/They connect a Google account themselves/)).toBeInTheDocument();
+    expect(screen.getByText(/They connect their own accounts themselves/)).toBeInTheDocument();
     // A question of its own, said on screen (the UX sweep, 2026-10-17): with
     // its legend for screen readers only, *I do* read as one more person to pick.
     const question = screen.getByRole('group', { name: 'Who signs in to the accounts?' });
@@ -1071,6 +1071,72 @@ describe('someone else connects their own accounts, by a link where one reaches 
       values: { username: 'anna@gmail.com' },
     });
     expect(await screen.findByText('By link: anna@gmail.com')).toBeInTheDocument();
+  });
+
+  it('saves their iCloud and their own Soverin account without a password, for them to type with the link (0174 §8.1)', async () => {
+    const forPersonMock = vi.mocked(connectionsApi.addForPerson);
+    forPersonMock.mockResolvedValueOnce({ id: 'c-icloud' }).mockResolvedValueOnce({ id: 'c-soverin' });
+    createMock.mockResolvedValue({ id: 'm-mail' } as never);
+    const user = userEvent.setup();
+    renderAt();
+    await someoneElse(user, ['Apple']);
+    const apple = screen.getByRole('group', { name: 'From Apple iCloud' });
+    for (const face of ['Calendars', 'Contacts', 'Tasks Experimental']) {
+      const box = within(apple).queryByRole('checkbox', { name: face });
+      if (box) await user.click(box);
+    }
+    await onTo(user, 'Connect your accounts');
+
+    // A password source: its account, and no password box. The person is made
+    // when the first account is saved for them.
+    const icloud = (await screen.findByText(/types the password themselves/)).closest('[data-for-person]') as HTMLElement;
+    expect(within(icloud).getByText('Anna Jansen types the password themselves, on the page your link opens. It never reaches you.')).toBeInTheDocument();
+    expect(within(icloud).queryByLabelText(/password/i)).not.toBeInTheDocument();
+    const saveIcloud = within(icloud).getByRole('button', { name: 'Save for Anna Jansen' });
+    expect(saveIcloud).toHaveAccessibleDescription('Fill in the server and the account first.');
+    for (const box of within(icloud).getAllByRole('textbox')) await user.type(box, 'anna@icloud.invalid');
+    await user.click(saveIcloud);
+    expect(vi.mocked(createPerson)).toHaveBeenCalledTimes(1);
+    expect(forPersonMock).toHaveBeenCalledWith({
+      role: 'source',
+      type: 'apple',
+      displayName: 'Anna Jansen · Apple account (iCloud)',
+      values: { username: 'anna@icloud.invalid' },
+      forPerson: 'p-new',
+    });
+    expect(await screen.findByText('By link: anna@icloud.invalid')).toBeInTheDocument();
+
+    // The destination: whose is it? Theirs is saved with its server and account.
+    await onTo(user, 'Where does it go?');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Where email goes' }), 'new:soverin');
+    const soverin = screen.getByRole('heading', { level: 3, name: 'Add Soverin' }).closest('section')!;
+    const whose = within(soverin).getByRole('group', { name: 'Whose account is Soverin?' });
+    expect(within(whose).getByRole('radio', { name: 'Mine, or the organisation’s: I connect it' })).toBeChecked();
+    await user.click(within(whose).getByRole('radio', { name: 'Anna Jansen’s own: they connect it with the link' }));
+    expect(within(soverin).queryByLabelText(/^Password/)).not.toBeInTheDocument();
+    const theirs = soverin.querySelector('[data-for-person]') as HTMLElement;
+    for (const box of within(theirs).getAllByRole('textbox')) {
+      if ((box as HTMLInputElement).value === '') await user.type(box, 'anna@soverin.invalid');
+    }
+    await user.click(within(theirs).getByRole('button', { name: 'Save for Anna Jansen' }));
+    expect(forPersonMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ role: 'target', type: 'soverin', forPerson: 'p-new' }),
+    );
+    expect(Object.keys(forPersonMock.mock.calls[1]![0].values)).not.toContain('password');
+    // Made once, whoever asked first.
+    expect(vi.mocked(createPerson)).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Anna Jansen connects it themselves, with a link you make on the last screen.')).toBeInTheDocument();
+
+    // Set up: the migration names both, and the link asks for both accounts.
+    await user.click(setUp());
+    await pastTheAddressStep(user);
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceConnectionId: 'c-icloud', targetConnectionId: 'c-soverin' }),
+    );
+    expect(
+      await screen.findByText(/^The link asks Anna Jansen for 2 accounts: Apple iCloud \(anna@icloud\.invalid\) and Soverin \(anna@soverin\.invalid\)\.$/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
   });
 
   it('chooses none of the saved accounts for somebody else, since one may be the starter’s own', async () => {

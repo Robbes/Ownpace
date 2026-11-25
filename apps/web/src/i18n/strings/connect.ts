@@ -433,6 +433,8 @@ export const en = {
   'connections.sources': 'Sources',
   'connections.targets': 'Destinations',
   'connections.test': 'Test',
+  // A password account saved for a person (0174 §8.2), in place of its error.
+  'connections.waitingFor': 'Waiting for {person}: they type its password themselves, with their grant link.',
   'connections.testing': 'Testing…',
   // A connection serves migrations, not mailboxes (owner remark 2026-09-02:
   // Dropbox is files, a Google account is four faces) — and none yet is a
@@ -1068,6 +1070,7 @@ export const nl: Record<keyof typeof en, string> = {
   'connections.sources': 'Bronnen',
   'connections.targets': 'Bestemmingen',
   'connections.test': 'Testen',
+  'connections.waitingFor': 'Wacht op {person}: die typt het wachtwoord zelf, met de persoonlijke link.',
   'connections.testing': 'Bezig met testen…',
   'connections.usedBy.one': 'Gebruikt door 1 migratie',
   'connections.usedBy.other': 'Gebruikt door {count} migraties',

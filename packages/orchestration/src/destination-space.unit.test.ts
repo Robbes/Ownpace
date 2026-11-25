@@ -4,8 +4,8 @@
  * at once, each within its limit, closed after; answers grouped per pool;
  * a failure or a late answer is `not_answered`, never room.
  */
-import { describe, it, expect } from 'vitest';
-import type { DestinationCapacity, DiscoveryDomain } from '@openmig/shared';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { log, type DestinationCapacity, type DiscoveryDomain } from '@openmig/shared';
 import {
   destinationLabelOf,
   needFromDiscovery,
@@ -89,6 +89,65 @@ describe('readDestinationSpace', () => {
     answer(account);
     await new Promise((r) => setTimeout(r, 0));
     expect(log).toContain('disconnect email');
+  });
+});
+
+/**
+ * Nothing caught here disappears (an outside, read-only check, ERR-1, 2026-11-25;
+ * workplan 0006 §T): the answer is still `not_answered` or the room, as before,
+ * and each failure nobody else sees is one log line.
+ */
+describe('readDestinationSpace: a failure is said, never dropped', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const said = () => vi.spyOn(log, 'warn').mockImplementation(() => {});
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  it('logs a connection that does not close after the answer, and keeps the answer', async () => {
+    const warn = said();
+    const target = { capacity: async () => account, disconnect: () => Promise.reject(new Error('LOGOUT refused')) };
+    const pools = await readDestinationSpace(
+      [{ dataType: 'email', destination: 'mail.example.org', open: async () => ({ target, close: async () => {} }) }],
+      need,
+    );
+    await settle();
+    expect(pools[0]!.capacity).toEqual(account);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toContain('email at mail.example.org: its connection did not close');
+    expect(String(warn.mock.calls[0]![0])).toContain('LOGOUT refused');
+  });
+
+  it('logs a read that fails after its limit, which the answer could no longer carry', async () => {
+    const warn = said();
+    let fail!: (e: Error) => void;
+    const slow = () => new Promise<DestinationCapacity>((_, reject) => (fail = reject));
+    const pools = await readDestinationSpace([opener('email', slow, [])], need, { timeoutMs: 20 });
+    expect(pools[0]!.capacity).toEqual({ known: false, why: 'not_answered' });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toContain('no answer within');
+    fail(new Error('connection reset'));
+    await settle();
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(String(warn.mock.calls[1]![0])).toContain('email at mail.example.org failed after its limit: connection reset');
+  });
+
+  it('logs a read that fails within its limit once, where it is answered', async () => {
+    const warn = said();
+    const pools = await readDestinationSpace([opener('email', () => Promise.reject(new Error('HTTP 503')), [])], need);
+    await settle();
+    expect(pools[0]!.capacity).toEqual({ known: false, why: 'not_answered' });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toContain('did not say its free space: HTTP 503');
+  });
+
+  it('logs what was opened to ask and would not close, and keeps the answer', async () => {
+    const warn = said();
+    const pools = await readDestinationSpace(
+      [{ dataType: 'file', destination: 'cloud.example.org', open: async () => ({ target: { capacity: async () => account }, close: () => Promise.reject(new Error('pool gone')) }) }],
+      need,
+    );
+    expect(pools[0]!.capacity).toEqual(account);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toContain('file at cloud.example.org: what was opened to ask did not close: pool gone');
   });
 });
 
