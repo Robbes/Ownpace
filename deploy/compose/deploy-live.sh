@@ -175,8 +175,9 @@
 #       or ">=N.N.N"; a tag without it is not checked, and one in any other
 #       form is refused as unread), no node on the PATH at all, or one whose
 #       `node -v` fails or says no version (release_tag_node, release-tag.sh;
-#       stand-up-live.sh refuses it in the same words). pnpm install, the task
-#       deploy and the site build run on that node, and pnpm only warns below
+#       stand-up-live.sh refuses it in the same words). pnpm install and the
+#       site build run on that node (the task deploy went with Trigger.dev in
+#       alpha.18, workplan 0167 T9), and pnpm only warns below
 #       `engines` and installs: nothing else would stop it. It names the
 #       node's path and version and what the tag asks for. Like every step,
 #       this is the script that started: a deploy run by a copy from before
@@ -743,7 +744,8 @@ main() {
   esac
   local commit version
   commit="$(git -C "$REPO_ROOT" rev-parse "refs/tags/${tag}^{commit}")"
-  # The node this shell runs the tag's install, task deploy and site build on
+  # The node this shell runs the tag's install and site build on, since the
+  # task deploy went with Trigger.dev in alpha.18 (workplan 0167 T9)
   # (release_tag_node, release-tag.sh, which stand-up-live.sh asks in the same
   # words): at least what the TAG's package.json asks for, read after the
   # fetch from the tag and not the checkout. pnpm only warns below `engines`,
