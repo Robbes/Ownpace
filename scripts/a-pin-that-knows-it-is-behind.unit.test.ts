@@ -186,6 +186,7 @@ import {
   zizmorPin,
   issueBody,
   keepIssue,
+  keepIssues,
   newestLike,
   newestRelease,
   gitleaksPin,
@@ -2561,8 +2562,9 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
   it("refuses a file named `-latest` or under a `latest` path, and an npx that may install, in any workflow, by a mutation of the real one (#1777's review)", () => {
     const file = '.github/workflows/security-scan.yml';
     const scan = REAL.read(file)!;
-    const sbom = /\n( +)if ! npx --yes=false @cyclonedx\/cyclonedx-npm /;
-    expect(sbom.test(scan), `the SBOM step's npx is not in ${file}`).toBe(true);
+    // Anchored on the SBOM step's command: an npx there until 2026-11-24, `pnpm sbom` since (workplan 0006 §Q).
+    const sbom = /\n( +)if ! pnpm sbom --sbom-format cyclonedx /;
+    expect(sbom.test(scan), `the SBOM step's command is not in ${file}`).toBe(true);
     const mutate = (to: string): string => scan.replace(sbom, (all, indent: string) => `\n${indent}${to}${all}`);
     // The download #1773 replaced, word for word, in a workflow atlasPin never reads.
     const atlas = 'curl -sSf -o /tmp/atlas https://atlasbinaries.com/atlas/atlas-community-linux-amd64-latest && chmod +x /tmp/atlas';
@@ -2572,15 +2574,22 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
     }
     // A release whose name only contains the word is not a channel.
     expect(floatingFetches(mutate('curl -sSfLO https://example.org/v1.2.3/latestish-1.2.3.tar.gz'))).toEqual([]);
-    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx -y @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
-    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
-    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx --yes @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
+    // The npx this step ran until 2026-11-24, put back: allowed as it was, refused in each form that may install.
+    const npx = (flag: string): string => mutate(`npx ${flag}@cyclonedx/cyclonedx-npm --output-format JSON --output-file bom.json`);
+    expect(floatingFetches(npx('--yes=false '))).toEqual([]);
+    for (const flag of ['-y ', '', '--yes ']) {
+      expect(floatingFetches(npx(flag)).join('\n'), flag).toMatch(/runs npx, which installs from npm/);
+    }
   });
 
-  it('reads both action images from images.yml, each by a release tag and its digest, and every other workflow without fault', () => {
+  it('reads each action image from images.yml, each by a release tag and its digest, and every other workflow without fault', () => {
     for (const file of WORKFLOWS) expect(() => actionImages(REAL.read(file)!), file).not.toThrow();
     const named = actionImages(REAL.read(ACTION_IMAGES_WORKFLOW)!);
-    expect(named.map((i) => [i.action, registryOf(i.repo).name])).toEqual(ACTION_IMAGES.map((s) => [s.action, s.repo]));
+    // The SBOM generator is named on both build-push-action steps, the first attempt and the retry: one pin.
+    const distinct = [...new Map(named.map((i) => [`${i.action} ${registryOf(i.repo).name}`, [i.action, registryOf(i.repo).name]])).values()];
+    expect(distinct).toEqual(ACTION_IMAGES.map((s) => [s.action, s.repo]));
+    expect(named.filter((i) => i.action === 'docker/build-push-action')).toHaveLength(2);
+    expect(new Set(named.filter((i) => i.action === 'docker/build-push-action').map((i) => i.ref)).size).toBe(1);
     for (const image of named) {
       expect(image.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
       expect(image.tag).toMatch(/\d+\.\d+\.\d+/);
@@ -2603,7 +2612,32 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
     expect(() => actionImages(mutate(qemu!.ref, `docker.io/tonistiigi/binfmt@${qemu!.digest}`))).toThrow(/not a release tag and its digest/);
     expect(() => actionImages(mutate(buildkit!.ref, `moby/buildkit:v0.34.0-rc1@${buildkit!.digest}`))).toThrow(/not a release tag and its digest/);
     // The docker driver starts no BuildKit container, so it needs no image.
-    expect(actionImages(mutate(/driver-opts: image=moby\/buildkit:\S+/, 'driver: docker')).map((i) => i.action)).toEqual(['docker/setup-qemu-action']);
+    expect(
+      actionImages(mutate(/driver-opts: image=moby\/buildkit:\S+/, 'driver: docker'))
+        .map((i) => i.action)
+        .filter((a) => a !== 'docker/build-push-action'),
+    ).toEqual(['docker/setup-qemu-action']);
+  });
+
+  it('refuses an SBOM left to BuildKit\'s default generator, or one named by a channel tag, by a mutation of images.yml (SBOM-1, 2026-11-24)', () => {
+    const images = REAL.read(ACTION_IMAGES_WORKFLOW)!;
+    const syft = actionImages(images).find((i) => i.action === 'docker/build-push-action')!;
+    expect(syft.repo).toBe('docker/buildkit-syft-scanner');
+    const every = (from: string, to: string): string => {
+      const next = images.split(from).join(to);
+      expect(next, from).not.toBe(images);
+      return next;
+    };
+    expect(() => actionImages(every(`'generator=${syft.ref}'`, "'true'"))).toThrow(/names no image in `sbom`, so it runs its default, `docker\/buildkit-syft-scanner:stable-1`/);
+    expect(() => actionImages(every(syft.ref, `docker/buildkit-syft-scanner:stable-1@${syft.digest}`))).toThrow(/not a release tag and its digest/);
+    expect(() => actionImages(every(syft.ref, `docker/buildkit-syft-scanner:${syft.tag}`))).toThrow(/not a release tag and its digest/);
+    // An SBOM asked for through `attests` with no generator is the same default.
+    expect(() => actionImages(every('          sbom: ', '          attests: type=sbom\n          sbom: '))).toThrow(/no generator/);
+    // A step that asks for no SBOM runs no generator; an expression with no generator in it may still ask for one.
+    const without = images.replace(/^ +sbom: .*\n/gm, '');
+    expect(without).not.toBe(images);
+    expect(actionImages(without).map((i) => i.action)).not.toContain('docker/build-push-action');
+    expect(() => actionImages(every(`'generator=${syft.ref}'`, "''"))).toThrow(/names no image in `sbom`/);
   });
 
   it("is a routine pin each, current while the channel the action ran names the pinned build, behind when it names another", async () => {
@@ -2725,6 +2759,78 @@ describe('one issue per title', () => {
     const moved = fakeGh([{ number: 5, title: TITLES.pnpm, body: 'pnpm is behind **11.27.0**', state: 'open' }]);
     expect(keepIssue(row, moved.gh, TITLES.pnpm)).toBe('updated');
     expect(moved.calls.map((c) => c.slice(0, 2))).toEqual([['issue', 'edit'], ['issue', 'comment']]);
+  });
+});
+
+describe('every row from one list of the open issues (PERF-4)', () => {
+  /** The fake of `fakeGh`, which also counts how often the open issues are listed. */
+  function countingGh(issues: Issue[]) {
+    const inner = fakeGh(issues);
+    let lists = 0;
+    const gh = (args: string[]) => {
+      if (args[0] === 'issue' && args[1] === 'list') lists += 1;
+      return inner.gh(args);
+    };
+    return { gh, calls: inner.calls, lists: () => lists };
+  }
+
+  it('lists the open issues once for every row, and keeps each row under its own title', () => {
+    const rows: Row[] = [
+      { key: 'zitadel', name: 'identity provider', title: TITLES.zitadel, state: 'current', pin: 'v4.19.1', newest: 'v4.19.1' },
+      { key: 'trigger', name: 'Trigger.dev', title: TITLES.trigger, ...removedRow('Trigger.dev') },
+      { key: 'clickhouse', name: 'ClickHouse', title: TITLES.clickhouse, ...removedRow('ClickHouse') },
+      { key: 'pnpm', name: 'pnpm', title: TITLES.pnpm, state: 'behind', pin: '11.22.0', newest: '11.28.6', body: 'pnpm is behind' },
+      { key: 'typescript', name: 'TypeScript split', title: TITLES.typescript, state: 'error', error: 'unread' },
+    ];
+    const open = countingGh([
+      OTHER,
+      { number: 11, title: TITLES.trigger, body: 'behind', state: 'open' },
+      { number: 12, title: TITLES.clickhouse, body: 'behind', state: 'open' },
+    ]);
+    expect(keepIssues(rows, open.gh)).toEqual([
+      { name: 'identity provider', outcome: 'untouched' },
+      { name: 'Trigger.dev', outcome: 'closed' },
+      { name: 'ClickHouse', outcome: 'closed' },
+      { name: 'pnpm', outcome: 'opened' },
+      { name: 'TypeScript split', outcome: 'untouched' },
+    ]);
+    expect(open.lists()).toBe(1);
+    expect(open.calls.map((c) => c.slice(0, 4))).toEqual([
+      ['issue', 'close', '11', '--comment'],
+      ['issue', 'close', '12', '--comment'],
+      ['issue', 'create', '--title', TITLES.pnpm],
+    ]);
+  });
+
+  it('still lists them itself when called for one row, as before', () => {
+    const open = countingGh([OTHER]);
+    expect(keepIssue({ state: 'behind', pin: '1', newest: '2', body: 'b' }, open.gh, TITLES.pnpm)).toBe('opened');
+    expect(open.lists()).toBe(1);
+  });
+
+  it('gives each row the error when the list cannot be read, and writes nothing', () => {
+    const rows: Row[] = [
+      { name: 'a', title: 'A', state: 'behind', body: 'a' },
+      { name: 'b', title: 'B', state: 'current' },
+    ];
+    const calls: string[][] = [];
+    const gh = (args: string[]) => {
+      calls.push(args);
+      throw new Error('gh: HTTP 502');
+    };
+    expect(keepIssues(rows, gh)).toEqual([
+      { name: 'a', error: 'gh: HTTP 502' },
+      { name: 'b', error: 'gh: HTTP 502' },
+    ]);
+    expect(calls.map((c) => c.slice(0, 2))).toEqual([['issue', 'list']]);
+  });
+
+  it('refuses two rows under one title, a row without one counting as the identity provider\'s', () => {
+    const { gh, calls } = fakeGh([]);
+    expect(() => keepIssues([{ name: 'a', title: ISSUE_TITLE, state: 'current' }, { name: 'b', state: 'current' }], gh)).toThrow(
+      `two rows keep the issue titled "${ISSUE_TITLE}"`,
+    );
+    expect(calls).toEqual([]);
   });
 });
 

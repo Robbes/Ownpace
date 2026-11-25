@@ -149,6 +149,22 @@ describe('the provider is checked by name, because the wrong one finds nothing',
     });
   });
 
+  it('carries the part count the person gave, and refuses one that is not a whole number from 1 (0171 §2.3)', () => {
+    // Dropped, a bad count would mean "not counted", and a missing part
+    // would then pass in silence.
+    expect(parseArchiveSource({ provider: 'apple-privacy', path: '/srv/x', parts: 3 })).toEqual({
+      type: 'archive',
+      provider: 'apple-privacy',
+      path: '/srv/x',
+      parts: 3,
+    });
+    for (const parts of [0, -1, 1.5, '2', null]) {
+      expect(() => parseArchiveSource({ provider: 'apple-privacy', path: '/srv/x', parts }), String(parts)).toThrow(
+        /source\.parts/,
+      );
+    }
+  });
+
   it('names each export the way its own page does', () => {
     expect(archiveProviderName('google-takeout')).toBe('Google Takeout');
     expect(archiveProviderName('apple-privacy')).toBe('Apple Data & Privacy');

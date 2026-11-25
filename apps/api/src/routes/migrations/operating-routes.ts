@@ -487,7 +487,7 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
   try {
     const s = await scope(req, res);
     if (!s) return;
-    const { all, sourceKind, said } = await withTenantDb(s.tenantId, pool(), async (db) => {
+    const { all, sourceKind, targetKind, said } = await withTenantDb(s.tenantId, pool(), async (db) => {
       const failures = await new PgLedger(db).listFailures(
         s.tenantId as TenantId,
         s.mappingId as MappingId,
@@ -502,9 +502,18 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
         .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
         .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
         .where(eq(schema.mailboxMapping.id, s.mappingId));
+      // And the DESTINATION'S, the same way (workplan 0160, T2b): a Cirrux
+      // account's name refusals and its Drive sign-in have remedies of their own.
+      const [target] = await db
+        .select({ kind: schema.connection.kind })
+        .from(schema.mailboxMapping)
+        .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.targetMailboxId))
+        .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+        .where(eq(schema.mailboxMapping.id, s.mappingId));
       return {
         all: failures,
         sourceKind: source?.kind,
+        targetKind: target?.kind,
         said: await readFailureAnswers(db, s.tenantId, s.mappingId),
       };
     });
@@ -531,6 +540,7 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
         ...(s.personGranted ? { textWithheld: true as const } : {}),
         howToResolve: FAILURE_GUIDANCE,
         ...(sourceKind ? { sourceKind } : {}),
+        ...(targetKind ? { targetKind } : {}),
       },
     };
     res.json(body);
