@@ -46,10 +46,29 @@ const SCOPE_WORDS: ReadonlyMap<string, StringKey> = new Map<string, StringKey>(O
  * the scopes come, each once. A scope with no words adds
  * `grant.scope.other`, once.
  */
-export function scopeWordKeys(scope: string): StringKey[] {
+/**
+ * Microsoft's scopes, as its own consent screen describes them a click later
+ * (workplan 0171 §3.3). Every Graph scope a link asks for is a `.Read` one;
+ * the four that say who signed in read as one line, as Google's do.
+ */
+const MICROSOFT_SCOPE_WORDS: ReadonlyMap<string, StringKey> = new Map<string, StringKey>(Object.entries({
+  'Mail.Read': 'grant.scope.microsoft.mail',
+  'Calendars.Read': 'grant.scope.microsoft.calendar',
+  'Contacts.Read': 'grant.scope.microsoft.contacts',
+  'Files.Read': 'grant.scope.microsoft.files',
+  'Tasks.Read': 'grant.scope.microsoft.tasks',
+  openid: 'grant.scope.microsoft.account',
+  email: 'grant.scope.microsoft.account',
+  profile: 'grant.scope.microsoft.account',
+  'User.Read': 'grant.scope.microsoft.account',
+  offline_access: 'grant.scope.microsoft.offline',
+} satisfies Record<string, StringKey>));
+
+export function scopeWordKeys(scope: string, provider: string = 'google'): StringKey[] {
+  const words = provider === 'microsoft' ? MICROSOFT_SCOPE_WORDS : SCOPE_WORDS;
   const keys: StringKey[] = [];
   for (const one of scope.split(/\s+/).filter((s) => s !== '')) {
-    const key = SCOPE_WORDS.get(one) ?? 'grant.scope.other';
+    const key = words.get(one) ?? 'grant.scope.other';
     if (!keys.includes(key)) keys.push(key);
   }
   return keys;

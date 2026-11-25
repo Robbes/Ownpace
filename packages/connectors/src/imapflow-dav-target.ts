@@ -71,7 +71,8 @@ import type {
   RemovalResult,
   UpsertResult,
 } from '@openmig/shared';
-import { arrivalTimeOf, contentHash, log } from '@openmig/shared';
+import { arrivalTimeOf, capacityFromImapQuota, contentHash, imapAnnouncesQuota, log } from '@openmig/shared';
+import type { DestinationCapacity } from '@openmig/shared';
 import { reachableHost } from '@openmig/shared/reachable-host';
 import {
   mapImapSpecialUse,
@@ -198,6 +199,27 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
         // Already gone; the server closed it for us.
       }
     }
+  }
+
+  /**
+   * The account's free space (workplan 0171 T9): `GETQUOTAROOT INBOX`
+   * (RFC 9208), asked only when the server announces `QUOTA`. Nothing is
+   * written. The pool is the account and its quota root, so two accounts on
+   * one server, each with a root named `""`, are two pools.
+   *
+   * The library folds a failed command into `false`; the capability is asked
+   * first, so `false` from a server that announces quotas reads as not
+   * answered, never as no quota.
+   */
+  async capacity(): Promise<DestinationCapacity> {
+    const client = await this.live();
+    const announced = imapAnnouncesQuota(client.capabilities.keys());
+    const answer = announced ? await client.getQuota('INBOX') : undefined;
+    return capacityFromImapQuota(
+      announced,
+      answer,
+      `imap://${this.config.username}@${this.config.host}:${this.config.port}`,
+    );
   }
 
   /** The live client, or a refusal. Never returns null to a caller. */

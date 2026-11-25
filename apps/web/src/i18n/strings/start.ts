@@ -140,6 +140,18 @@ export const en = {
   'start.check.intro': 'Set up and paused: nothing is copied before Start.',
   'start.check.route': '{types}: {from} → {to}',
   'start.check.start': 'Start',
+  // Free space at the destination, one line per pool (workplan 0171 T9, §6.3).
+  // Unknown: said, Start allowed (D3 (a)). Known and short: Start held behind
+  // *Start anyway* (D4 (a)).
+  'start.check.space.fits': '{need} to copy; {free} free at {destination}.',
+  'start.check.space.short': '{need} to copy, but only {free} free at {destination}.',
+  'start.check.space.short.why':
+    'What does not fit is refused by the destination, item by item, and listed for you. Make room or raise the quota first, then start.',
+  'start.check.space.unknown': '{destination} does not tell us its free space.',
+  'start.check.space.unknown.why': 'Check it at {destination} before you start: there is {need} to copy.',
+  'start.check.space.startAnyway': 'Start anyway',
+  // The question itself could not be asked: the reason follows, verbatim.
+  'start.check.space.notRead': 'The free space at the destination could not be read:',
   'start.check.waits': 'You can start once every count is in and each tick it asks for is ticked.',
   'start.check.waitsFor':
     'Waiting for {person} to connect. Make a link below and send it yourself: it is shown once. The status and counts appear here once they have connected.',
@@ -310,6 +322,14 @@ export const nl: Record<keyof typeof en, string> = {
   'start.check.intro': 'Klaargezet en gepauzeerd: er wordt niets gemigreerd vóór Starten.',
   'start.check.route': '{types}: {from} → {to}',
   'start.check.start': 'Starten',
+  'start.check.space.fits': '{need} te kopiëren; {free} vrij bij {destination}.',
+  'start.check.space.short': '{need} te kopiëren, maar slechts {free} vrij bij {destination}.',
+  'start.check.space.short.why':
+    'Wat niet past, weigert de bestemming item voor item, en u ziet welke. Maak eerst ruimte of verhoog het quotum, en start dan.',
+  'start.check.space.unknown': '{destination} vertelt ons niet hoeveel ruimte vrij is.',
+  'start.check.space.unknown.why': 'Kijk het na bij {destination} voordat u start: er is {need} te kopiëren.',
+  'start.check.space.startAnyway': 'Toch starten',
+  'start.check.space.notRead': 'De vrije ruimte bij de bestemming kon niet worden gelezen:',
   'start.check.waits': 'U kunt starten zodra elke telling binnen is en elk gevraagd vinkje staat.',
   'start.check.waitsFor':
     'Wacht tot {person} verbindt. Maak hieronder een link en stuur die zelf; deze wordt één keer getoond. De status en tellingen verschijnen hier zodra de verbinding er is.',
