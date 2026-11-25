@@ -48,6 +48,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { withSubject, withSubjectAndTenant, tenant as tenantTable } from '@openmig/ledger';
 import { accessRequest, tenantMember } from '@openmig/managed/schema-managed';
+import { giveBackDeclinedGift } from '@openmig/managed';
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -733,6 +734,11 @@ router.post('/:id/decline', authenticateSubject, async (req: AuthenticatedReques
           ...(parsed.data.note ? { decisionNote: parsed.data.note } : {}),
         })
         .where(eq(accessRequest.id, id));
+
+      // A request that came with a gift gives the gift back to its giver
+      // (workplan 0172 §7, question 2; the owner, 2026-11-25), in this
+      // transaction: declined and given back are one fact.
+      await giveBackDeclinedGift(db, id);
 
       // `locale` for the same reason the grant carries it: the refusal is
       // written in the language they asked in (ADR-0013), and this transaction

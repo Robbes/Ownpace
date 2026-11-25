@@ -272,7 +272,11 @@ const EXPECTED: Record<string, readonly string[]> = {
   test_organisation: PURGED_ONLY(),
   payment_method: PURGED_ONLY(),
   usage_metric: PURGED_ONLY(),
-  tenant_member: PURGED_ONLY(),
+  // Which subject each member is, for the gift allowances the purge deletes
+  // with the organisation's people (workplan 0172, managed 0064): never an address.
+  tenant_member: PURGED_ONLY('tenant_id,user_id'),
+  // The operator's number of gifts for one person (workplan 0172, managed 0064): only the purge.
+  gift_allowance: PURGED_ONLY('user_id'),
   tenant_pricing: PURGED_ONLY(),
   audit_log: PURGED_ONLY(),
   rate_budget: PURGED_ONLY(),

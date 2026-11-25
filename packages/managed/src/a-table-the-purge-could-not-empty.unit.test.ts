@@ -30,7 +30,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PURGED_TABLES } from './offboarding.ts';
+import { PURGED_BY_MEMBER, PURGED_TABLES } from './offboarding.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const CHAINS = ['packages/ledger/migrations', 'packages/managed/migrations'];
@@ -94,7 +94,7 @@ describe('every table the purge empties, the system role may delete from', () =>
     expect(granted.has('tenant')).toBe(true);
   });
 
-  it.each([...PURGED_TABLES])('%s is granted DELETE to ownpace_system by a migration', (table) => {
+  it.each([...PURGED_TABLES, ...PURGED_BY_MEMBER])('%s is granted DELETE to ownpace_system by a migration', (table) => {
     expect(
       granted.has(table),
       `${table} is in PURGED_TABLES (packages/managed/src/offboarding.ts), and no migration in ` +

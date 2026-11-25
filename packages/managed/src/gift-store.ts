@@ -129,10 +129,54 @@ export function giftState(
 
 /**
  * Whether a gift takes up one of its giver's places. An unused one does, and
- * so does a redeemed one, whatever became of its request: the place was
- * given. A revoked or expired one does not (workplan 0172 §7, questions 1, 2).
+ * so does a redeemed one, unless the operator declined the request it became.
+ * A revoked or expired one does not (workplan 0172 §7, questions 1 and 2; the
+ * owner, 2026-11-25).
+ *
+ * **Declined and used are told apart by `request_declined_at`**, stamped on
+ * the gift by the decline itself (`giveBackDeclinedGift`), not read from the
+ * request: the giver may not read `access_request`, and a declined request is
+ * pruned 30 days after the decision, which would set the gift's link to it to
+ * NULL and turn the gift back into a used one. The state the giver sees stays
+ * `redeemed`: the card was used, and what became of it is the recipient's.
  */
-export const holdsAPlace = (state: GiftState): boolean => state === 'unused' || state === 'redeemed';
+export const holdsAPlace = (
+  row: { redeemedAt: Date | null; revokedAt: Date | null; expiresAt: Date; requestDeclinedAt: Date | null },
+  now: Date,
+): boolean => {
+  const state = giftState(row, now);
+  return state === 'unused' || (state === 'redeemed' && row.requestDeclinedAt === null);
+};
+
+/** How many of their places a giver's gifts take up, under `giver_sees_own`. */
+export async function giftsHeldBy(db: PgDatabase, userId: string, now: Date = new Date()): Promise<number> {
+  const rows = await db
+    .select({
+      redeemedAt: gift.redeemedAt,
+      revokedAt: gift.revokedAt,
+      expiresAt: gift.expiresAt,
+      requestDeclinedAt: gift.requestDeclinedAt,
+    })
+    .from(gift)
+    .where(eq(gift.giverUserId, userId));
+  return rows.filter((r) => holdsAPlace(r, now)).length;
+}
+
+/**
+ * The operator declined the access request `requestId`: if a gift became it,
+ * give the gift back to its giver (§7, question 2). Called by the decline
+ * route, in its transaction, under the operator's policy on `gift`; a request
+ * that came without a gift touches nothing. Returns how many gifts it gave
+ * back, 0 or 1.
+ */
+export async function giveBackDeclinedGift(db: PgDatabase, requestId: string, now: Date = new Date()): Promise<number> {
+  const given = await db
+    .update(gift)
+    .set({ requestDeclinedAt: now })
+    .where(and(eq(gift.redeemedRequestId, requestId), isNull(gift.requestDeclinedAt)))
+    .returning({ id: gift.id });
+  return given.length;
+}
 
 /**
  * The ONE sentence for a code that is unknown, malformed, used, revoked or
@@ -235,7 +279,7 @@ export async function makeGift(
   const now = input.now ?? new Date();
   await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`gift:${input.giverUserId}`}, 0))`);
   const { limit } = await giftLimitFor(db, input.giverUserId);
-  const held = (await listOwnGifts(db, input.giverUserId, now)).filter((g) => holdsAPlace(g.state)).length;
+  const held = await giftsHeldBy(db, input.giverUserId, now);
   if (held >= limit) return { kind: 'atLimit', limit };
 
   const code = mintGiftCode();

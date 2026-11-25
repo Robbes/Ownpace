@@ -31,6 +31,8 @@ import {
   giftFingerprint,
   giftLimitFor,
   giftState,
+  giftsHeldBy,
+  giveBackDeclinedGift,
   holdsAPlace,
   listOwnGifts,
   makeGift,
@@ -120,10 +122,13 @@ describe('the code', () => {
 
 describe('the states and the dates', () => {
   const at = new Date('2026-12-24T18:00:00Z');
-  const row = (over: Partial<{ redeemedAt: Date | null; revokedAt: Date | null; expiresAt: Date }>) => ({
+  const row = (
+    over: Partial<{ redeemedAt: Date | null; revokedAt: Date | null; expiresAt: Date; requestDeclinedAt: Date | null }>,
+  ) => ({
     redeemedAt: null,
     revokedAt: null,
     expiresAt: giftExpiry(at),
+    requestDeclinedAt: null,
     ...over,
   });
 
@@ -137,10 +142,16 @@ describe('the states and the dates', () => {
     expect(giftState(row({ redeemedAt: at }), giftExpiry(giftExpiry(at)))).toBe('redeemed');
     expect(giftState(row({ revokedAt: at }), at)).toBe('revoked');
     expect(giftState(row({}), giftExpiry(at))).toBe('expired');
-    expect(['unused', 'redeemed', 'revoked', 'expired'].filter((s) => holdsAPlace(s as never))).toEqual([
-      'unused',
-      'redeemed',
-    ]);
+  });
+
+  it('holds a place while unused or redeemed, but not once its request was declined', () => {
+    expect(holdsAPlace(row({}), at)).toBe(true);
+    expect(holdsAPlace(row({ redeemedAt: at }), at)).toBe(true);
+    expect(holdsAPlace(row({ redeemedAt: at, requestDeclinedAt: at }), at)).toBe(false);
+    expect(holdsAPlace(row({ revokedAt: at }), at)).toBe(false);
+    expect(holdsAPlace(row({}), giftExpiry(at))).toBe(false);
+    // Declined, the gift still reads as used: the card was used.
+    expect(giftState(row({ redeemedAt: at, requestDeclinedAt: at }), at)).toBe('redeemed');
   });
 });
 
@@ -212,6 +223,53 @@ describe('the limit', () => {
     const second = await made(ANNA, OURS);
     await redeemGift(driver, second.code, { email: 'cato@example.com', locale: 'nl' });
     expect((await give(ANNA, OURS)).kind).toBe('atLimit');
+  });
+});
+
+describe('a declined request gives the gift back (the owner, 2026-11-25)', () => {
+  it('the operator declining the request frees the giver to make another; a granted one does not', async () => {
+    const first = await made(ANNA, OURS);
+    const used = await redeemGift(driver, first.code, { email: 'cato@example.com', locale: 'nl' });
+    if (used.kind !== 'redeemed') throw new Error(used.kind);
+    expect((await give(ANNA, OURS)).kind).toBe('atLimit');
+
+    // A request without a gift touches nothing.
+    const [plain] = await owner(`INSERT INTO access_request (email, locale) VALUES ('dirk@example.com', 'en') RETURNING id`);
+    expect(await withSubject(driver, OPERATOR, (db) => giveBackDeclinedGift(db, String(plain!.id)))).toBe(0);
+
+    expect(await withSubject(driver, OPERATOR, (db) => giveBackDeclinedGift(db, used.requestId))).toBe(1);
+    // Once: a second call gives nothing more back.
+    expect(await withSubject(driver, OPERATOR, (db) => giveBackDeclinedGift(db, used.requestId))).toBe(0);
+    expect(await withSubject(driver, ANNA, (db) => giftsHeldBy(db, ANNA))).toBe(0);
+    const [mine] = await withSubject(driver, ANNA, (db) => listOwnGifts(db, ANNA));
+    expect(mine!.state).toBe('redeemed');
+    expect((await give(ANNA, OURS)).kind).toBe('made');
+    expect((await give(ANNA, OURS)).kind).toBe('atLimit');
+  });
+
+  it('survives the declined request being pruned', async () => {
+    const first = await made(ANNA, OURS);
+    const used = await redeemGift(driver, first.code, { email: 'cato@example.com', locale: 'nl' });
+    if (used.kind !== 'redeemed') throw new Error(used.kind);
+    await withSubject(driver, OPERATOR, (db) => giveBackDeclinedGift(db, used.requestId));
+    await owner('DELETE FROM access_request WHERE id = $1', [used.requestId]);
+    expect((await owner('SELECT redeemed_request_id FROM gift WHERE id = $1', [first.id]))[0]!.redeemed_request_id).toBeNull();
+    expect(await withSubject(driver, ANNA, (db) => giftsHeldBy(db, ANNA))).toBe(0);
+  });
+
+  it('a giver cannot mark their own gift declined', async () => {
+    const first = await made(ANNA, OURS);
+    const used = await redeemGift(driver, first.code, { email: 'cato@example.com', locale: 'nl' });
+    if (used.kind !== 'redeemed') throw new Error(used.kind);
+    await expect(withSubject(driver, ANNA, (db) => giveBackDeclinedGift(db, used.requestId))).rejects.toThrow();
+    expect(await withSubject(driver, ANNA, (db) => giftsHeldBy(db, ANNA))).toBe(1);
+  });
+
+  it('only a redeemed gift can carry a declined request', async () => {
+    const { id } = await made(ANNA, OURS);
+    await expect(owner('UPDATE gift SET request_declined_at = now() WHERE id = $1', [id])).rejects.toThrow(
+      /gift_request_declined_check/,
+    );
   });
 });
 

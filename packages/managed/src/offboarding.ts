@@ -269,6 +269,24 @@ export const PURGED_TABLES = [
 ] as const;
 
 /**
+ * Tables keyed on a PERSON rather than an organisation, erased with the
+ * organisation's people: the purge deletes the rows of every subject who is a
+ * member of the organisation it erases, before `tenant_member` goes, and
+ * counts them on the receipt beside the tables above.
+ *
+ * `gift_allowance` is the operator's number of gifts for one person (workplan
+ * 0172, managed 0064; the owner, 2026-11-25: deleted with the organisation,
+ * like the gifts). It has no `tenant_id`, so the loop over `PURGED_TABLES`
+ * cannot reach it. **A person who is also a member of another organisation
+ * keeps theirs**: the number is about them, they are still here, and the
+ * other organisation's gifts are still counted against it.
+ *
+ * Exported so the guards that hold `PURGED_TABLES` hold these too: the system
+ * role's DELETE grant (`a-table-the-purge-could-not-empty`) and the receipt.
+ */
+export const PURGED_BY_MEMBER = ['gift_allowance'] as const;
+
+/**
  * Tables that deliberately SURVIVE an erasure, with the reason.
  *
  * Exported so the test can assert on it and so the reason travels with the
@@ -542,6 +560,17 @@ export async function purgeTenant(
     RETURNING id
   `);
   const retainedInvoiceIds = resultRows<{ id: string }>(invoices).map((r) => r.id);
+
+  // The organisation's people's rows in the tables keyed on a person
+  // (`PURGED_BY_MEMBER`): before the loop, which deletes `tenant_member`,
+  // whose rows say who they are. Not a person's who is a member elsewhere too.
+  const allowances = await db.execute(sql`
+    DELETE FROM gift_allowance a
+     WHERE a.user_id IN (SELECT m.user_id FROM tenant_member m WHERE m.tenant_id = ${tenantId}::uuid)
+       AND NOT EXISTS (SELECT 1 FROM tenant_member o
+                        WHERE o.user_id = a.user_id AND o.tenant_id <> ${tenantId}::uuid)
+  `);
+  counts['gift_allowance'] = rowCount(allowances);
 
   for (const table of PURGED_TABLES) {
     const res = await db.execute(

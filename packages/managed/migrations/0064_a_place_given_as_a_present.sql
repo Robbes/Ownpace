@@ -34,11 +34,21 @@
 -- operator's to change without a deploy, and readable by the giver for their
 -- own number.
 --
+-- An unused gift and a redeemed one count against the giver; a revoked or
+-- expired one does not, and nor does a redeemed one whose request the
+-- operator DECLINED (the owner, 2026-11-25). The giver cannot read
+-- `access_request`, and a declined request is pruned after 30 days, so the
+-- decline is stamped on the gift itself: `request_declined_at`, written by
+-- the decline route in the same transaction, under the operator's policy.
+--
 -- ## The erasure
 --
 -- `gift` joins `PURGED_TABLES`, keyed by the giver's organisation, so closing
 -- it erases the gifts made from it. The request a gift became is not the
--- giver's and stays; its mark goes with the gift.
+-- giver's and stays; its mark goes with the gift. `gift_allowance` is keyed on
+-- a person, not an organisation, so the purge deletes the rows of the people
+-- who were members of the organisation it erases (the owner, 2026-11-25);
+-- `ownpace_system` may read and delete them for that.
 
 CREATE TABLE public.gift (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -52,6 +62,7 @@ CREATE TABLE public.gift (
     redeemed_request_id uuid,
     revoked_at timestamp with time zone,
     revoked_by text,
+    request_declined_at timestamp with time zone,
     CONSTRAINT gift_pkey PRIMARY KEY (id),
     CONSTRAINT gift_tenant_fkey FOREIGN KEY (tenant_id)
       REFERENCES public.tenant(id) ON DELETE CASCADE,
@@ -68,7 +79,12 @@ CREATE TABLE public.gift (
     CONSTRAINT gift_one_ending_check
       CHECK (((redeemed_at IS NULL) OR (revoked_at IS NULL))),
     CONSTRAINT gift_revoked_by_check
-      CHECK (((revoked_at IS NULL) = (revoked_by IS NULL)))
+      CHECK (((revoked_at IS NULL) = (revoked_by IS NULL))),
+    -- Only a redeemed gift's request can have been declined. Stamped by the
+    -- decline itself, in its transaction, and kept after the request is
+    -- pruned: it is what gives the giver their gift back (§7, question 2).
+    CONSTRAINT gift_request_declined_check
+      CHECK (((request_declined_at IS NULL) OR (redeemed_at IS NOT NULL)))
 );
 
 CREATE INDEX gift_giver_idx ON public.gift USING btree (giver_user_id, created_at DESC);
@@ -85,9 +101,13 @@ CREATE POLICY giver_gives ON public.gift
     giver_user_id = current_setting('app.current_user'::text, true)
     AND tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid
   );
+-- A giver never marks their own gift's request declined: that would give
+-- them a gift back the operator did not. Only the decline does, under the
+-- operator's policy.
 CREATE POLICY giver_revokes_own ON public.gift
   FOR UPDATE USING (giver_user_id = current_setting('app.current_user'::text, true))
-  WITH CHECK (giver_user_id = current_setting('app.current_user'::text, true));
+  WITH CHECK (giver_user_id = current_setting('app.current_user'::text, true)
+              AND request_declined_at IS NULL);
 
 CREATE POLICY operator_sees_gifts ON public.gift
   FOR SELECT USING (
@@ -116,6 +136,8 @@ GRANT SELECT (tenant_id), DELETE ON TABLE public.gift TO ownpace_system;
 
 COMMENT ON TABLE public.gift IS
   'A place in the alpha given as a present (workplan 0172). Shown once and kept as a fingerprint; valid two years; becomes an access request marked as a gift, which the owner approves. Keeps nothing about the recipient. Purged with the giver''s organisation.';
+COMMENT ON COLUMN public.gift.request_declined_at IS
+  'When the operator declined the request this gift became: such a gift no longer counts against its giver (workplan 0172 §7, question 2). Kept after the request is pruned.';
 COMMENT ON COLUMN public.gift.code_hash IS
   'sha256 of the code as read (gift1:), never the code: a leaked table must not hand out places.';
 
@@ -183,5 +205,11 @@ CREATE POLICY operator_sets_allowances ON public.gift_allowance
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.gift_allowance TO app_user;
 
+-- The purge deletes the allowances of the erased organisation's people
+-- (`PURGED_BY_MEMBER` in offboarding.ts), so the system role reads who they
+-- are: a subject, never an address, and nothing else of a member.
+GRANT SELECT (user_id), DELETE ON TABLE public.gift_allowance TO ownpace_system;
+GRANT SELECT (user_id) ON TABLE public.tenant_member TO ownpace_system;
+
 COMMENT ON TABLE public.gift_allowance IS
-  'The operator''s number of gifts for one person, by their subject (workplan 0172). Overrides gift_rule for them.';
+  'The operator''s number of gifts for one person, by their subject (workplan 0172). Overrides gift_rule for them. Purged with the organisation of a person who is a member of no other.';

@@ -28,6 +28,8 @@ import { runManagedMigrations } from '@openmig/managed';
 const ANNAS = '01720000-e29b-41d4-a716-446655441901';
 const ANNA = 'subject-anna-0172-road';
 const OPERATOR = 'subject-operator-0172-road';
+const BRAMS = '01720000-e29b-41d4-a716-446655441902';
+const BRAM = 'subject-bram-0172-road';
 
 let driver: LedgerDriver;
 let caller: { userId: string; tenantId?: string } | undefined;
@@ -134,5 +136,51 @@ describe('a gift, from the card to an organisation of their own', () => {
     const gifts = await request(app).get('/api/gifts/operator');
     expect(gifts.body.gifts[0]).toMatchObject({ state: 'redeemed', request: { state: 'granted' } });
     expect(gifts.body.alpha).toMatchObject({ granted: 1, openFromGifts: 0 });
+
+    // Granted, the gift keeps its place: Anna has given hers.
+    caller = { userId: ANNA, tenantId: ANNAS };
+    expect((await request(app).get('/api/gifts/mine')).body).toMatchObject({ limit: 1, held: 1 });
+    expect((await request(app).post('/api/gifts').send({ locale: 'nl' })).status).toBe(409);
+  });
+
+  it('declined, the request gives the giver their gift back (the owner, 2026-11-25)', async () => {
+    await rows(`INSERT INTO tenant (id, name) VALUES ($1, 'Jansen')`, [BRAMS]);
+    await rows(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status)
+       VALUES ($1, $2, 'bram@example.com', 'owner', 'active')`,
+      [BRAMS, BRAM],
+    );
+    caller = { userId: BRAM, tenantId: BRAMS };
+    const made = await request(app).post('/api/gifts').send({ locale: 'en' });
+    expect(made.status).toBe(201);
+
+    caller = undefined;
+    const redeemed = await request(app)
+      .post('/api/gifts/redeem')
+      .send({ code: made.body.code, email: 'eva@example.com', locale: 'en' });
+    expect(redeemed.status).toBe(201);
+
+    caller = { userId: BRAM, tenantId: BRAMS };
+    expect((await request(app).get('/api/gifts/mine')).body).toMatchObject({ limit: 1, held: 1 });
+    expect((await request(app).post('/api/gifts').send({ locale: 'en' })).status).toBe(409);
+
+    caller = { userId: OPERATOR };
+    const queue = await request(app).get('/api/access-requests?state=open');
+    const eva = queue.body.requests.find((r: { email: string }) => r.email === 'eva@example.com');
+    expect(eva.gift).toEqual({ from: 'bram@example.com' });
+    const declined = await request(app).post(`/api/access-requests/${eva.id as string}/decline`).send({ notify: false });
+    expect(declined.status, JSON.stringify(declined.body)).toBe(200);
+
+    // The decline itself is as before: the request is declined and kept.
+    expect(await rows('SELECT state FROM access_request WHERE id = $1', [eva.id])).toEqual([{ state: 'declined' }]);
+
+    // The gift reads as used, and no longer counts: Bram may make another.
+    caller = { userId: BRAM, tenantId: BRAMS };
+    const mine = await request(app).get('/api/gifts/mine');
+    expect(mine.body).toMatchObject({ limit: 1, held: 0 });
+    expect(mine.body.gifts).toHaveLength(1);
+    expect(mine.body.gifts[0].state).toBe('redeemed');
+    expect((await request(app).post('/api/gifts').send({ locale: 'en' })).status).toBe(201);
+    expect((await request(app).post('/api/gifts').send({ locale: 'en' })).status).toBe(409);
   });
 });

@@ -33,7 +33,7 @@ import {
   giftLimitFor,
   giftState,
   giftsPerPerson,
-  holdsAPlace,
+  giftsHeldBy,
   listOwnGifts,
   makeGift,
   redeemGift,
@@ -103,14 +103,15 @@ router.get('/mine', authenticate, async (req: AuthenticatedRequest, res: Respons
   try {
     const userId = subjectOf(req, res);
     if (!userId) return;
-    const { gifts, limit } = await withSubject(pool(), userId, async (db) => ({
+    const { gifts, limit, held } = await withSubject(pool(), userId, async (db) => ({
       gifts: await listOwnGifts(db, userId),
       limit: await giftLimitFor(db, userId),
+      held: await giftsHeldBy(db, userId),
     }));
     res.json({
       gifts,
       limit: limit.limit,
-      held: gifts.filter((g) => holdsAPlace(g.state)).length,
+      held,
       redeemAt: redeemAt(),
     });
   } catch (error) {

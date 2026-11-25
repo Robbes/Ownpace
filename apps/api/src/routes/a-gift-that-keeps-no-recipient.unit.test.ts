@@ -70,6 +70,7 @@ const GIFT_COLUMNS = [
   'locale',
   'redeemed_at',
   'redeemed_request_id',
+  'request_declined_at',
   'revoked_at',
   'revoked_by',
   'tenant_id',

@@ -938,6 +938,8 @@ export const gift = pgTable(
     }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     revokedBy: text('revoked_by'),
+    /** When the operator declined the request it became: it no longer counts (§7, question 2). */
+    requestDeclinedAt: timestamp('request_declined_at', { withTimezone: true }),
   },
   (t) => [
     index('gift_giver_idx').on(t.giverUserId, t.createdAt),
