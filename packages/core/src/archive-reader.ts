@@ -60,6 +60,13 @@ export interface ArchiveLocation {
    * before it gets here, because the reader's job is the archive's INSIDE.
    */
   readonly path: string;
+  /**
+   * How many parts the PERSON says the export came in (workplan 0171 §2.3).
+   * A missing part cannot be seen from the files Apple delivers, so a reader
+   * that is told a number refuses when it finds fewer. Absent: not asked, and
+   * nothing is counted.
+   */
+  readonly parts?: number;
 }
 
 /**

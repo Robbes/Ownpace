@@ -110,6 +110,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   profile; a connection consented before this release says *Not read from Microsoft; reconnect to
   list them.* Two read-only routes on both editions, `GET …/finish/addresses` and `POST
   …/finish/mx-check` (one check per ten seconds per migration). No database change.
+- **Apple's data export is read, Experimental** (workplan 0171 T1; the owner's decisions D6 and
+  D9 of 2026-11-24). An archive connection whose export is **Apple Data & Privacy** now has a
+  reader: iCloud Drive and iCloud Photos from the `.zip` parts Apple delivers, from the folder they
+  were put in unopened, or from an extracted copy. The reader finds each service's data by its own
+  list of files (`Drive Details.csv` for Drive), never by folder names, and keeps the person's
+  folders as they are. It is built on the one export opened so far, so it refuses what it does
+  not know: a zip with neither service's list (*"This does not look like an Apple export we
+  know"*), fewer `.zip` parts than the person said Apple gave them (an archive connection takes a
+  new optional `parts`), and two parts that belong to two different exports. A file is dated by
+  the zip itself; Apple's list of dates carries no time zone, so its dates are kept as text beside
+  each file and never parsed. Photos are written against Apple's description, not a real export.
+  The form's *To be tested* tag and cannot-read line go with the reader; the screen and guide
+  sentences for the part count and Advanced Data Protection follow in T2. No database change.
 
 ### Changed
 

@@ -77,8 +77,41 @@ export interface ArchiveTree {
    * half-written upload needs (`FileBody.open`).
    */
   stream(path: string): Promise<ReadableStream<Uint8Array>>;
+  /**
+   * When the file was last modified, as the CONTAINER says, ISO 8601
+   * (workplan 0171 §2.4). Optional, and additive: a reader whose export
+   * carries its own dates (Takeout's sidecars) never asks.
+   *
+   * A zip answers from the member's extended-timestamp field, which is UTC,
+   * and otherwise from its DOS stamp, which has no zone and is read as if it
+   * were UTC: a date that may be hours off, never days. A folder on disk
+   * answers with the file's own modification time. `undefined` when the
+   * container says nothing usable.
+   */
+  modifiedAt?(path: string): Promise<string | undefined>;
   /** Releases whatever the tree holds open — a zip tree holds a descriptor per part. */
   close(): Promise<void>;
+}
+
+/**
+ * A zip member's date, as {@link ArchiveTree.modifiedAt} describes it.
+ * Exported for the reader's tests, which build zips with and without the UTC
+ * field.
+ */
+export function zipEntryModifiedAt(entry: ZipEntry): string | undefined {
+  if (entry.modifiedUtcSeconds !== undefined) {
+    return new Date(entry.modifiedUtcSeconds * 1000).toISOString();
+  }
+  const date = Math.floor(entry.dosStamp / 0x10000);
+  const time = entry.dosStamp % 0x10000;
+  const year = 1980 + (date >> 9);
+  const month = (date >> 5) & 0x0f;
+  const day = date & 0x1f;
+  // A zero date is how some writers say "no date"; a month or day of zero is
+  // not one either way.
+  if (date === 0 || month < 1 || month > 12 || day < 1) return undefined;
+  const at = Date.UTC(year, month - 1, day, time >> 11, (time >> 5) & 0x3f, (time & 0x1f) * 2);
+  return Number.isFinite(at) ? new Date(at).toISOString() : undefined;
 }
 
 /** A folder on disk as a tree: the appliance's route, and what the reader read before this slice. */
@@ -123,6 +156,10 @@ export function openFolderTree(root: string): ArchiveTree {
       // stat makes a missing path reject HERE, where the caller can say so.
       const found = await file(path);
       return Readable.toWeb(createReadStream(found.at)) as ReadableStream<Uint8Array>;
+    },
+
+    async modifiedAt(path) {
+      return (await stat(at(path))).mtime.toISOString();
     },
 
     async close() {},
@@ -223,6 +260,10 @@ export function zipTreeOf(archives: ReadonlyArray<ZipArchive>): ArchiveTree {
     async stream(path) {
       const { archive, entry } = member(path);
       return archive.open(entry);
+    },
+
+    async modifiedAt(path) {
+      return zipEntryModifiedAt(member(path).entry);
     },
 
     async close() {

@@ -171,13 +171,14 @@ export const en = {
   // account — and because it is, a later export only ever ADDS: nothing is
   // removed from the target because an export no longer mentions it (§5).
   //
-  // APPLE IS TAGGED WHILE NO READER OPENS IT (0148 T3, owner decision D7), in
-  // the hint as in the form's option. The hint is a sentence, so it is the one
-  // place a landed reader is answered by hand; `an-export-we-cannot-read-yet`
-  // fails until it is. "download" rather than "export you downloaded" keeps
+  // APPLE WAS TAGGED WHILE NO READER OPENED IT (0148 T3, owner decision D7),
+  // in the hint as in the form's option; the reader landed in alpha.20
+  // (workplan 0171 T1) and the tag left. The hint is a sentence, so it is the
+  // one place a landed reader is answered by hand; `an-export-we-cannot-read-yet`
+  // holds it. "download" rather than "export you downloaded" keeps
   // it inside the twelve words a hint may spend.
   'account.proto.archive.hint':
-    'A Google Takeout or Apple (to be tested) download: photos and files.',
+    'A Google Takeout or Apple download: photos and files.',
   'account.archiveProvider': 'Which export',
   'account.archiveProvider.hint': 'Which company made the archive; the wrong choice finds nothing.',
   'account.archiveProvider.why':
@@ -881,7 +882,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.appleAppPassword.why':
     'Apple weigert het accountwachtwoord hier met opzet. Maak een App-specifieke aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
   'account.proto.archive.hint':
-    'Een gedownloade Google Takeout- of Apple-export (nog te testen): foto’s en bestanden.',
+    'Een gedownloade Google Takeout- of Apple-export: foto’s en bestanden.',
   'account.archiveProvider': 'Welke export',
   'account.archiveProvider.hint':
     'Welk bedrijf het archief maakte; bij de verkeerde keuze vinden we niets.',
