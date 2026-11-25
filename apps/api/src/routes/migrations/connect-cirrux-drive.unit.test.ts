@@ -34,7 +34,7 @@ import request from 'supertest';
 import { pgliteDriver, runMigrations, type LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
-import { CIRRUX_DRIVE_GRANT_KEY, CIRRUX_DRIVE_SCOPES } from '@openmig/shared';
+import { CIRRUX_DRIVE_GRANT_KEY, CIRRUX_DRIVE_SCOPES, CIRRUX_DRIVE_WORKSPACE_KEY } from '@openmig/shared';
 import { FakeCirrux } from '../../../../../packages/connectors/src/__testing__/cirrux-fake.ts';
 
 // UUID family 0160cd00-…, unused elsewhere in the repo.
@@ -251,7 +251,12 @@ describe('the callback', () => {
     expect(res.status).toBe(200);
 
     const creds = await storedCreds();
-    expect(creds).toEqual({ ...APP_PASSWORD, [CIRRUX_DRIVE_GRANT_KEY]: cirrux.liveRefresh });
+    // With the workspace it reached, which every later grant must reach too (workplan 0174 §4.4).
+    expect(creds).toEqual({
+      ...APP_PASSWORD,
+      [CIRRUX_DRIVE_GRANT_KEY]: cirrux.liveRefresh,
+      [CIRRUX_DRIVE_WORKSPACE_KEY]: cirrux.workspaceUuid,
+    });
     expect(await rawSecretRef()).not.toContain(cirrux.liveRefresh!);
     // The page tells the opener the Drive is connected, and carries no token.
     expect(res.text).toContain('ownpace-cirrux-drive');

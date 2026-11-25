@@ -93,6 +93,7 @@ import {
   parseRecentOnly,
   readWindowView,
   recentOnlyIsSwitchedOver,
+  type Bilingual,
 } from '@openmig/shared';
 import { PgCursorStore } from '@openmig/ledger';
 import { HttpTokenRevoker } from '@openmig/connectors';
@@ -149,13 +150,16 @@ import linkRoutes from './link-routes.ts';
 import finishChecksRoutes from './finish-checks-routes.ts';
 import destinationSpaceRoutes from './destination-space-route.ts';
 import { awaitingGrantRefusal } from './grant-link-readiness.ts';
+import { readGrantRows, storedCredentials } from './grant-subject.ts';
+import { credentialKeys } from './person-grant-subject.ts';
 import { startsWhenGrantedFor } from './start-when-granted.ts';
 // Its own module since 2026-09-23 (0108 T8a): the grant page names the same
 // accounts the detail route does, and importing this router to reach it would
 // load every migration route to answer one question.
 import { accountOnConnection } from './account-on-connection.ts';
 import { holdTheCap, maxMigrationsPerOrganisationFromEnv, PastTheCap } from './migration-cap.ts';
-import { testMarkerOfOrganisation } from '@openmig/managed';
+import { addMigrationToPerson, migrationReceivingRefusal, receivingRefusal, testMarkerOfOrganisation } from '@openmig/managed';
+import { PERSON_NOT_FOUND } from '../account-for-a-person.ts';
 export { accountOnConnection };
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
@@ -1118,6 +1122,28 @@ export function sourceCredentialRecord(
 const router = Router();
 
 /**
+ * A destination a person connected themselves through their grant link,
+ * pointed at by a migration that is not theirs (workplan 0174 §4.3, D1 (a)).
+ * Thrown inside the create transaction, so nothing is stored.
+ */
+class GrantedByAnother extends Error {
+  readonly said: Bilingual;
+  constructor(said: Bilingual) {
+    super(said.en);
+    this.name = 'GrantedByAnother';
+    this.said = said;
+  }
+}
+
+/** `forPerson` names nobody in this organisation: thrown in the create transaction, nothing is stored. */
+class ForPersonNotFound extends Error {
+  constructor() {
+    super('the person this migration is for is not this organisation\'s');
+    this.name = 'ForPersonNotFound';
+  }
+}
+
+/**
  * "You already have this migration" — a REFUSAL, not a fault (workplan 0071).
  *
  * Thrown from inside the create transaction so the whole chain rolls back, and
@@ -1230,6 +1256,16 @@ export const CreateMappingBase = z.object({
    */
   sourceConnectionId: z.string().uuid().optional(),
   targetConnectionId: z.string().uuid().optional(),
+  /**
+   * The person this migration is made for (managed only; workplan 0174
+   * §4.3, §8.2), the same field with the same meaning as the account door's
+   * (`POST /api/connections`). Read by the guard and by the save: a
+   * destination a person connected themselves takes only their migrations,
+   * and the migration is given to the person in the create transaction
+   * (`addMigrationToPerson`, as `POST /api/people/:id/migrations` does). A
+   * person who is not this organisation's refuses the whole create.
+   */
+  forPerson: z.string().uuid().optional(),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -2811,6 +2847,11 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       const targetConn = body.targetConnectionId
         ? await (async () => {
             const reused = await reuseConnection(body.targetConnectionId!, 'target', body.targetType);
+            // A destination a person connected themselves takes only their
+            // migrations (workplan 0174 §4.3, D1 (a)): this one is for the
+            // person the body names, or for nobody yet.
+            const notTheirs = await receivingRefusal(db, tenantId, body.targetConnectionId!, body.forPerson ?? null);
+            if (notTheirs) throw new GrantedByAnother(notTheirs);
             // What the account itself MEASURED constrains what a mapping may
             // ask of it (0106 T3a) — the shared gate, so the wizard's marking
             // and this refusal are one sentence. Only a well-formed measured
@@ -2994,6 +3035,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         await movePathsWithMapping(db, tenantId, mapping.id, { from: null, to: 'active' });
       }
 
+      // Made for a person (0174 §8.2): theirs in the same transaction, so a
+      // migration into an account they connected is never anybody's between
+      // the two calls the wizard used to make.
+      if (body.forPerson !== undefined) {
+        const given = await addMigrationToPerson(db, tenantId, body.forPerson, mapping.id, req.userId);
+        if (given.kind === 'no_such_person') throw new ForPersonNotFound();
+      }
+
       return mapping;
     });
 
@@ -3033,6 +3082,12 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       // T5). A refusal with its sentence, which until 2026-11-19 reached the
       // person as a 500 that called it a fault on our side. Nothing was stored.
       res.status(400).json({ error: 'Validation error', message: error.message });
+    } else if (error instanceof ForPersonNotFound) {
+      res.status(PERSON_NOT_FOUND.status).json(PERSON_NOT_FOUND.body);
+    } else if (error instanceof GrantedByAnother) {
+      // A destination a person connected themselves, asked to take somebody
+      // else's migration, or nobody's (workplan 0174 §4.3). Nothing was stored.
+      res.status(409).json({ error: 'granted_by_another_person', message: error.said.en, messageNl: error.said.nl });
     } else if (error instanceof DuplicateMappingError) {
       // A refusal the person can act on, so it must not look like a fault:
       // this used to reach them as a 500 about a unique index (0071 T6).
@@ -3405,6 +3460,15 @@ router.put(
         (PASS_RUNNING_STATES as readonly string[]).includes(body.status) &&
         (await refusedAsClosed(res, tenantId, pool))
       ) {
+        return;
+      }
+
+      // A migration into a destination somebody else connected themselves
+      // through their grant link is not this door's to change (workplan 0174
+      // §4.3, D1 (a)): only that person's migrations go there.
+      const notTheirs = await withTenantDb(tenantId, pool, (db) => migrationReceivingRefusal(db, tenantId, mappingId));
+      if (notTheirs) {
+        res.status(409).json({ error: 'granted_by_another_person', message: notTheirs.en, messageNl: notTheirs.nl });
         return;
       }
 
@@ -4433,7 +4497,7 @@ async function loadMapping(
 }
 
 /**
- * Is this mapping still waiting for somebody to connect its Google account?
+ * Is this mapping still waiting for somebody to give it a way in, on either side?
  *
  * Composes the credentials the way a sync pass will (migration 0032: the
  * mapping's own over the connection's, key by key) and asks the decision in
@@ -4451,31 +4515,23 @@ async function awaitingGrant(
   mappingId: string,
   mappingSecretRef: string | null,
 ): Promise<string | null> {
-  const rows = await withTenantDb(tenantId, getSharedPool(), (db) =>
-    db
-      .select({ kind: schema.connection.kind, secretRef: schema.connection.secretRef })
-      .from(schema.mailboxMapping)
-      .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
-      .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
-      .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId))),
-  );
-  const source = rows[0];
-  if (!source) return null;
-
-  const read = (ref: string | null): Record<string, unknown> => {
-    if (!ref) return {};
-    try {
-      return SecretStore.decryptCredentials(ref);
-    } catch {
-      return {};
-    }
-  };
-  const creds = { ...read(source.secretRef), ...read(mappingSecretRef) };
-  const has = (key: string) => typeof creds[key] === 'string' && creds[key].trim().length > 0;
+  // Both sides since workplan 0174 §4.2: the source's grant or password, and
+  // the destination's password and granted faces, read from the same rows a
+  // person's grant page reads (`readGrantRows`).
+  const rows = await withTenantDb(tenantId, getSharedPool(), (db) => readGrantRows(db, tenantId, mappingId));
+  if (!rows) return null;
+  const creds = { ...storedCredentials(rows.source.secretRef), ...storedCredentials(mappingSecretRef) };
+  const keys = credentialKeys(creds);
   return awaitingGrantRefusal({
-    sourceKind: source.kind,
-    hasRefreshToken: has('refreshToken'),
-    hasServiceAccountKey: has('serviceAccountKey'),
+    sourceKind: rows.source.kind,
+    hasRefreshToken: keys.includes('refreshToken'),
+    hasServiceAccountKey: keys.includes('serviceAccountKey'),
+    sourceCredentialKeys: keys,
+    target: {
+      targetKind: rows.target?.kind ?? null,
+      includedDomains: rows.includedDomains,
+      targetCredentialKeys: rows.target ? credentialKeys(storedCredentials(rows.target.secretRef)) : [],
+    },
   });
 }
 

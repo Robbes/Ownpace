@@ -464,6 +464,28 @@ describe('credentialFieldRequired', () => {
     }
   });
 
+  it('demands no secret of an account saved for a person, and every server and account still (0174 §8.2)', () => {
+    const cases = [
+      ['source', 'imap', ['host', 'port', 'username']],
+      ['source', 'apple', ['username']],
+      ['target', 'soverin', ['host', 'port', 'username']],
+      ['target', 'nextcloud', ['url', 'username']],
+    ] as const;
+    for (const [role, kind, owners] of cases) {
+      for (const f of credentialFieldsFor(role, kind)) {
+        const forPerson = credentialFieldRequired(f, { deploymentClient: true, forPerson: true });
+        if (f.secret === true) expect(forPerson, `${kind}/${f.key}`).toBe(false);
+        else expect(forPerson, `${kind}/${f.key}`).toBe(f.required === true);
+        // Never otherwise: the owner's own account still needs its password.
+        if (f.key === 'password') expect(credentialFieldRequired(f, { deploymentClient: true }), kind).toBe(true);
+      }
+      for (const key of owners) {
+        const f = credentialFieldsFor(role, kind).find((x) => x.key === key)!;
+        expect(credentialFieldRequired(f, { deploymentClient: true, forPerson: true }), `${kind}/${key}`).toBe(true);
+      }
+    }
+  });
+
   it('drops the whole trio for a pasted service-account key (ADR-0033)', () => {
     const where = { deploymentClient: false, sideStepped: true };
     for (const key of ['clientId', 'clientSecret', 'refreshToken']) {

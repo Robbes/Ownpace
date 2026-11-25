@@ -66,6 +66,7 @@ import { readOrganisationClosure } from '@openmig/managed';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
+import { liftTheHold } from './withdrawal-hold.ts';
 import type { GrantProviderId, StoredSourceSecret } from '../grant-providers.ts';
 import {
   signedInAccountRefusal,
@@ -232,9 +233,10 @@ export async function storeGrantedToken(
         .update(schema.mailboxMapping)
         // A new grant ends a withdrawal (0108 T8 (c), ledger migration 0063):
         // the person has given their permission again, so the account may be
-        // read again. Cleared here, in the write that stores the token, because
-        // this is the one writer of the mapping's credential.
-        .set({ sourceSecretRef: encrypted, grantWithdrawnAt: null, updatedAt: new Date() })
+        // read again, in this transaction, once the destination has a way in
+        // too (`liftTheHold` below; a destination the person withdrew holds
+        // the migration until they connect it again, 0174 §4.3).
+        .set({ sourceSecretRef: encrypted, updatedAt: new Date() })
         .where(
           and(
             eq(schema.mailboxMapping.id, target.mappingId),
@@ -253,6 +255,8 @@ export async function storeGrantedToken(
             'granted credential has nowhere to go',
         );
       }
+
+      await liftTheHold(db, target.tenantId, [target.mappingId]);
 
       await new PgLedger(db).recordAuditEvent(target.tenantId as TenantId, {
         actor: GRANT_ACTOR,

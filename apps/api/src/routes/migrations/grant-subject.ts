@@ -22,9 +22,11 @@ import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
+  dropboxDeploymentClient,
   googleDeploymentClient,
   microsoftDeploymentClient,
   readTenantContactPhone,
+  type DropboxClientEnv,
   type GoogleClientEnv,
   type MicrosoftClientEnv,
 } from '@openmig/shared';
@@ -35,6 +37,8 @@ import { namesAGoogleAccount } from './signed-in-account.ts';
 import { checkedCompanyName, readVatStanding } from '../../services/vat-standing.ts';
 
 interface StoredConnection {
+  /** The connection's id: a person's grant card names its account by it (workplan 0174 §4.1). */
+  readonly id: string;
   readonly kind: string;
   readonly config: unknown;
   readonly secretRef: string | null;
@@ -67,6 +71,7 @@ export async function readGrantRows(
     .select({
       organisation: schema.tenant.name,
       organisationSettings: schema.tenant.settings,
+      connectionId: schema.connection.id,
       kind: schema.connection.kind,
       config: schema.connection.config,
       secretRef: schema.connection.secretRef,
@@ -86,6 +91,7 @@ export async function readGrantRows(
   if (row.targetMailboxId) {
     const targets = await db
       .select({
+        id: schema.connection.id,
         kind: schema.connection.kind,
         config: schema.connection.config,
         secretRef: schema.connection.secretRef,
@@ -110,7 +116,7 @@ export async function readGrantRows(
   return {
     organisation: row.organisation,
     organisationPhone: readTenantContactPhone(row.organisationSettings),
-    source: { kind: row.kind, config: row.config, secretRef: row.secretRef },
+    source: { id: row.connectionId, kind: row.kind, config: row.config, secretRef: row.secretRef },
     sourceOverride: row.sourceOverride,
     target,
     targetOverride: row.targetOverride,
@@ -186,10 +192,12 @@ export function credential(creds: Record<string, unknown>, key: string): string 
 
 /**
  * The variables this reads, and nothing else from the environment: Google's
- * client and scope class, and since workplan 0171 Microsoft's application.
+ * client and scope class, since workplan 0171 Microsoft's application, and
+ * since 0174 Dropbox's app.
  */
 export type GrantEnv = GoogleClientEnv &
-  MicrosoftClientEnv & { readonly GOOGLE_ACCOUNT_SCOPE_CLASS?: string | undefined };
+  MicrosoftClientEnv &
+  DropboxClientEnv & { readonly GOOGLE_ACCOUNT_SCOPE_CLASS?: string | undefined };
 
 /**
  * The rows, reduced to what `grantLinkAsk` takes. The credentials are decrypted
@@ -202,6 +210,7 @@ export function grantReadiness(
   const deployment = {
     hasDeploymentClient: googleDeploymentClient(env) !== null,
     hasDeploymentMicrosoftClient: microsoftDeploymentClient(env) !== null,
+    hasDeploymentDropboxClient: dropboxDeploymentClient(env) !== null,
     scopeClass: env.GOOGLE_ACCOUNT_SCOPE_CLASS,
   };
   if (!rows) {

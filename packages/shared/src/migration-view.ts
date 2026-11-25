@@ -389,6 +389,29 @@ export interface PersonView {
   readonly migrations: readonly PersonViewMigration[];
   /** The Google accounts their migrations read, in the order first met. */
   readonly accounts: readonly PersonViewAccount[];
+  /**
+   * The destinations the person connected with their own password (workplan
+   * 0174 §4.3), each with its own *Remove my password*, while it holds what
+   * they gave. Absent from a server before alpha.21, and read as none.
+   */
+  readonly destinations?: readonly PersonViewDestination[];
+}
+
+/**
+ * One destination a person connected through their link (0174 §4.3, D1 (a)):
+ * named by its provider and an opaque `ref`, never by its address, as the
+ * page names every account.
+ */
+export interface PersonViewDestination {
+  /**
+   * Opaque: a hash of the account and when the person connected it, so a
+   * press on a page opened before a new grant takes nothing (`changed`).
+   */
+  readonly ref: string;
+  /** The destination's kind (`soverin`, `cirrux`, …), for the page to name the provider. */
+  readonly provider: string;
+  /** A Cirrux Drive sign-in the person gave goes with the password. */
+  readonly drive: boolean;
 }
 
 /** One migration of a person's, as a stranger may read it. */

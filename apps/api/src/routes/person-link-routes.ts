@@ -286,7 +286,10 @@ router.get('/:personId/links', authenticate, async (req: AuthenticatedRequest, r
 /**
  * What waits for their grant (start when granted, per person; the owner,
  * 2026-10-03). Any member reads it, as any member reads their links: it names
- * migrations and what happens to them, never an account or a secret.
+ * migrations and what happens to them, and since 0174 §4.6 the accounts each
+ * waits for, as the owner named them on the Accounts page every member reads,
+ * with the refused tries of a password on the live link. Never a secret, and
+ * never the server's words for a refusal.
  */
 router.get('/:personId/awaiting-grant', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
