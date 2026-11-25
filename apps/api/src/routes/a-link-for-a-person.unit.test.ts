@@ -206,11 +206,13 @@ beforeAll(async () => {
   );
   await q(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1, 'pat', 'owner@example.org')`, [TENANT]);
   await q(
-    `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status) VALUES
-       ($1,$4,'source','google','anna','{"user":"anna@gmail.com"}'::jsonb,'connected'),
-       ($2,$4,'source','imap','old','{"user":"anna@old.example","host":"imap.old.example"}'::jsonb,'connected'),
-       ($3,$4,'target','nextcloud','nc','{"host":"cloud.example.org","port":443}'::jsonb,'connected')`,
-    [ACCOUNT_CONN, IMAP_CONN, TARGET_CONN, TENANT],
+    // The IMAP mailbox and the Nextcloud are the owner's own, with the owner's
+    // password: since workplan 0174 one without would be asked of Anna too.
+    `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref) VALUES
+       ($1,$4,'source','google','anna','{"user":"anna@gmail.com"}'::jsonb,'connected',NULL),
+       ($2,$4,'source','imap','old','{"user":"anna@old.example","host":"imap.old.example"}'::jsonb,'connected',$5),
+       ($3,$4,'target','nextcloud','nc','{"host":"cloud.example.org","port":443}'::jsonb,'connected',$5)`,
+    [ACCOUNT_CONN, IMAP_CONN, TARGET_CONN, TENANT, JSON.stringify(SecretStore.encryptCredentials({ password: 'the-owners' }).encrypted)],
   );
   await q(
     `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
@@ -354,8 +356,20 @@ describe('the page a person’s link opens', () => {
     expect(accounts.map((a) => a.account)).toEqual(['anna@gmail.com', 'anna@work.example']);
     expect(accounts[0]).toMatchObject({ granted: false, domains: ['calendar', 'contact'], notReady: null });
     expect(accounts[0]!.migrations).toEqual([
-      { domains: ['calendar'], to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna@cloud.example.org' }, granted: false },
-      { domains: ['contact'], to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna@cloud.example.org' }, granted: false },
+      {
+        domains: ['calendar'],
+        to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna@cloud.example.org' },
+        // Where it comes from, which a destination's card names (workplan 0174 §4.1).
+        from: { provider: 'google', account: 'anna@gmail.com' },
+        granted: false,
+      },
+      {
+        domains: ['contact'],
+        to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna@cloud.example.org' },
+        // Where it comes from, which a destination's card names (workplan 0174 §4.1).
+        from: { provider: 'google', account: 'anna@gmail.com' },
+        granted: false,
+      },
     ]);
     expect(accounts[1]).toMatchObject({ granted: false, domains: ['email'] });
 

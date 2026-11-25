@@ -503,9 +503,9 @@ beforeAll(async () => {
   ]);
   await sql(
     `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref) VALUES
-       ($1, $5, 'source', 'imap', 'i', '{}'::jsonb, 'connected', NULL),
+       ($1, $5, 'source', 'imap', 'i', '{}'::jsonb, 'connected', $11),
        ($2, $5, 'source', 'gmail', 'g', '{}'::jsonb, 'connected', $6),
-       ($3, $5, 'target', 'jmap', 'j', '{"host":"dst.example.invalid","port":443}'::jsonb, 'connected', NULL),
+       ($3, $5, 'target', 'jmap', 'j', '{"host":"dst.example.invalid","port":443}'::jsonb, 'connected', $11),
        ($4, $5, 'target', 'nextcloud', 'n', $7::jsonb, 'error', $8),
        ($9, $5, 'source', 'dropbox', 'd', '{}'::jsonb, 'connected', $10)`,
     [
@@ -519,6 +519,9 @@ beforeAll(async () => {
       nextcloudSecret,
       DROPBOX,
       sealed({ refreshToken: 'a-dropbox-token', clientId: 'an-app-key', clientSecret: 'an-app-secret' }),
+      // A password on the IMAP source and the JMAP destination, as the create
+      // door stores one: since workplan 0174 either side without one waits.
+      sealed({ password: 'p' }),
     ],
   );
   await sql(
@@ -678,10 +681,18 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   'routes/migrations/microsoft-link-ending.ts': 2,
   'routes/migrations/microsoft-oauth-routes.ts': 2,
   // One more since the create door reads a reused Cirrux account's Drive
-  // grant (0160 T5), after its own close.
-  'routes/migrations/index.ts': 4,
+  // grant (0160 T5), after its own close. Two more since Start reads whether
+  // both sides of a migration have a way in (workplan 0174 T1): the source's
+  // two records and the destination's, in place of the one decryption before.
+  'routes/migrations/index.ts': 6,
   'routes/migrations/operating-routes.ts': 3,
-  'routes/migrations/person-grant-subject.ts': 2,
+  // Five more since a person's link asks for both sides (workplan 0174 T1):
+  // a password source's records, a destination's, and the values a password
+  // card shows. Read as before, to say what the link asks; no provider.
+  'routes/migrations/person-grant-subject.ts': 7,
+  // Whether both sides have a way in before a grant starts a migration
+  // (workplan 0174 T1), read after `enqueueIfFree` has asked the close.
+  'routes/migrations/start-when-granted.ts': 3,
   'routes/permissions.ts': 9,
   // Measuring a stored account again (0006 §R, CQ-06): the row decrypted, the
   // account qualified, and the qualifying the doors share. Moved here from
@@ -701,6 +712,9 @@ const USED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
     'reads whether each of a person’s migrations has a way in, to say which accounts their link still asks for ' +
     '(0153 T5 (b)). It reaches no provider. The grant page and the consent that use it ask (grant.ts, ' +
     'google-oauth-routes.ts), and the person’s ending reads the close in its own transaction.',
+  'routes/migrations/start-when-granted.ts':
+    'reads whether both sides of a migration have a way in before a grant starts it (workplan 0174 T1). It ' +
+    'reaches no provider, and asks the close and the hold first, through `enqueueIfFree`, before it reads.',
   'routes/qualify-and-remember.ts':
     'measures an account for the doors that call it, and opens no door of its own. Its callers ask the close ' +
     'before it: the Test, the create and the rotation in connections.ts, and the Cirrux Drive consent in ' +
