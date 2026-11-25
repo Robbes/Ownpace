@@ -618,8 +618,12 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/grant.ts': 4,
   'routes/migrations/google-oauth-routes.ts': 1,
   // Connect Cirrux Drive (0160 T5): its authorize, and its callback before the
-  // code is exchanged, as a grant link's consent asks.
-  'routes/migrations/cirrux-oauth-routes.ts': 2,
+  // code is exchanged, as a grant link's consent asks. One more since the same
+  // callback ends a person's link (workplan 0174 T5), whose ending asks it.
+  'routes/migrations/cirrux-oauth-routes.ts': 3,
+  // Cirrux Drive through a person's link (workplan 0174 T5): before the code
+  // is exchanged; its store reads the close again in its transaction.
+  'routes/migrations/cirrux-link-ending.ts': 1,
   // A person's answer about their new address through their link (0168 §4.4,
   // D6): on the grant page only, whose every route asks, so it asks too. It
   // starts nothing; the progress page's answer, like the page, does not ask.
@@ -670,7 +674,15 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // purpose: it ends access and starts nothing, and ending stays open after a
   // close, as withdrawing a grant does (withdraw-grant.ts, below). Its own
   // test presses it on a closed organisation.
-  'routes/migrations/cirrux-oauth-routes.ts': 4,
+  // One more since a person's link connects a Drive (workplan 0174 T5): the
+  // account measured again after that ending's own close.
+  'routes/migrations/cirrux-oauth-routes.ts': 5,
+  // Cirrux Drive through a person's link (workplan 0174 T5): whether the
+  // account's app password is stored before its Drive is, after the close.
+  'routes/migrations/cirrux-link-ending.ts': 1,
+  // Cirrux's ending on the seam (workplan 0174 T5): the code exchanged. The
+  // ending that calls it asks the close first (cirrux-link-ending.ts).
+  'routes/grant-providers.ts': 1,
   'routes/migrations/google-oauth-routes.ts': 3,
   // Finish's addresses (0171 T10): the source's record opened and its
   // credentials merged as a pass merges them, after the route's own close.
@@ -721,6 +733,9 @@ const USED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
     'cirrux-oauth-routes.ts (moved out of connections.ts, 0006 §R, CQ-06).',
   'routes/withdraw-grant.ts':
     'withdrawing a grant revokes it at the provider. That ends access, and ending stays open after a close.',
+  'routes/grant-providers.ts':
+    'holds each provider’s ending, and opens no door of its own. The endings that call it ask the close ' +
+    'before the code is exchanged (cirrux-link-ending.ts, microsoft-link-ending.ts; workplan 0174 T5).',
 };
 
 describe('the sweep: every door that starts work asks whether the organisation is closed', () => {

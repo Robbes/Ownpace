@@ -223,6 +223,8 @@ export class FakeCirrux {
   retryAfterSeconds = '2';
   /** One-shot faults on the token endpoint. */
   tokenFault: 'none' | 'reset' | 'refused-connection' | 'no-successor' | 'server-error' = 'none';
+  /** The workspace `/user/profile` names (workplan 0174 T5): a test signs in to another by changing it. */
+  workspaceUuid = '0c9b4a8e-2222-4a2b-8c3d-000000000002';
   /** How long the token endpoint takes, so two refreshes can overlap. */
   tokenDelayMs = 5;
   /** The simple upload's cap: 100 MB, as the page says, unless a test says otherwise. */
@@ -443,7 +445,7 @@ export class FakeCirrux {
     if (method === 'GET' && path === '/user/profile') {
       return json(200, {
         user: { object: 'user', uuid: '0c9b4a8e-1111-4a2b-8c3d-000000000001', username: 'ada', first_name: 'Ada', last_name: null },
-        workspace: { object: 'workspace', uuid: '0c9b4a8e-2222-4a2b-8c3d-000000000002', name: 'Test Workspace', type: 'personal' },
+        workspace: { object: 'workspace', uuid: this.workspaceUuid, name: 'Test Workspace', type: 'personal' },
       });
     }
     if (method === 'GET' && path === '/workspace/storage') {

@@ -93,6 +93,7 @@ import {
   parseRecentOnly,
   readWindowView,
   recentOnlyIsSwitchedOver,
+  type Bilingual,
 } from '@openmig/shared';
 import { PgCursorStore } from '@openmig/ledger';
 import { HttpTokenRevoker } from '@openmig/connectors';
@@ -157,7 +158,7 @@ import { startsWhenGrantedFor } from './start-when-granted.ts';
 // load every migration route to answer one question.
 import { accountOnConnection } from './account-on-connection.ts';
 import { holdTheCap, maxMigrationsPerOrganisationFromEnv, PastTheCap } from './migration-cap.ts';
-import { testMarkerOfOrganisation } from '@openmig/managed';
+import { migrationReceivingRefusal, receivingRefusal, testMarkerOfOrganisation } from '@openmig/managed';
 export { accountOnConnection };
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
@@ -1120,6 +1121,20 @@ export function sourceCredentialRecord(
 const router = Router();
 
 /**
+ * A destination a person connected themselves through their grant link,
+ * pointed at by a migration that is not theirs (workplan 0174 §4.3, D1 (a)).
+ * Thrown inside the create transaction, so nothing is stored.
+ */
+class GrantedByAnother extends Error {
+  readonly said: Bilingual;
+  constructor(said: Bilingual) {
+    super(said.en);
+    this.name = 'GrantedByAnother';
+    this.said = said;
+  }
+}
+
+/**
  * "You already have this migration" — a REFUSAL, not a fault (workplan 0071).
  *
  * Thrown from inside the create transaction so the whole chain rolls back, and
@@ -1232,6 +1247,15 @@ export const CreateMappingBase = z.object({
    */
   sourceConnectionId: z.string().uuid().optional(),
   targetConnectionId: z.string().uuid().optional(),
+  /**
+   * The person this migration is made for (managed only; workplan 0174
+   * §4.3, T5). Read by one guard and nothing else: a destination a person
+   * connected themselves through their link takes only their migrations,
+   * and a migration is given to its person only after it is made, so the
+   * create door is told whose it will be. Giving it to them is still
+   * `POST /api/people/:id/migrations`, which asks the same question.
+   */
+  personId: z.string().uuid().optional(),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -2813,6 +2837,11 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       const targetConn = body.targetConnectionId
         ? await (async () => {
             const reused = await reuseConnection(body.targetConnectionId!, 'target', body.targetType);
+            // A destination a person connected themselves takes only their
+            // migrations (workplan 0174 §4.3, D1 (a)): this one is for the
+            // person the body names, or for nobody yet.
+            const notTheirs = await receivingRefusal(db, tenantId, body.targetConnectionId!, body.personId ?? null);
+            if (notTheirs) throw new GrantedByAnother(notTheirs);
             // What the account itself MEASURED constrains what a mapping may
             // ask of it (0106 T3a) — the shared gate, so the wizard's marking
             // and this refusal are one sentence. Only a well-formed measured
@@ -3035,6 +3064,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       // T5). A refusal with its sentence, which until 2026-11-19 reached the
       // person as a 500 that called it a fault on our side. Nothing was stored.
       res.status(400).json({ error: 'Validation error', message: error.message });
+    } else if (error instanceof GrantedByAnother) {
+      // A destination a person connected themselves, asked to take somebody
+      // else's migration, or nobody's (workplan 0174 §4.3). Nothing was stored.
+      res.status(409).json({ error: 'granted_by_another_person', message: error.said.en, messageNl: error.said.nl });
     } else if (error instanceof DuplicateMappingError) {
       // A refusal the person can act on, so it must not look like a fault:
       // this used to reach them as a 500 about a unique index (0071 T6).
@@ -3407,6 +3440,15 @@ router.put(
         (PASS_RUNNING_STATES as readonly string[]).includes(body.status) &&
         (await refusedAsClosed(res, tenantId, pool))
       ) {
+        return;
+      }
+
+      // A migration into a destination somebody else connected themselves
+      // through their grant link is not this door's to change (workplan 0174
+      // §4.3, D1 (a)): only that person's migrations go there.
+      const notTheirs = await withTenantDb(tenantId, pool, (db) => migrationReceivingRefusal(db, tenantId, mappingId));
+      if (notTheirs) {
+        res.status(409).json({ error: 'granted_by_another_person', message: notTheirs.en, messageNl: notTheirs.nl });
         return;
       }
 

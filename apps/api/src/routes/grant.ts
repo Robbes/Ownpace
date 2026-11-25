@@ -80,6 +80,8 @@
 import { Router } from 'express';
 import type { RequestHandler, Response } from 'express';
 import {
+  CIRRUX_DRIVE_SCOPES,
+  cirruxDeploymentClient,
   NOT_READY_BECAUSE,
   NOT_READY_BECAUSE_MICROSOFT,
   cannotSignInYet,
@@ -103,6 +105,8 @@ import {
   unreachableCallbackRefusal,
 } from './migrations/google-consent.ts';
 import { consentFlows } from './migrations/consent-flows.ts';
+import { pkcePair } from './migrations/cirrux-consent.ts';
+import { GRANT_ACTOR } from './migrations/grant-ending.ts';
 import { grantLinkAsk, type GrantLinkAskRefusalCode } from './migrations/grant-link-readiness.ts';
 import { grantProviderOfKind } from './grant-providers.ts';
 import {
@@ -417,6 +421,11 @@ async function authorizeForAPerson(
   const asked = (req.body as { account?: unknown } | undefined)?.account;
   const subject = await readPersonSubject(link);
   if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT) });
+  // A destination's sign-in (Cirrux Drive, workplan 0174 §4.4, T5): its own
+  // beginning, the card named by its ref.
+  if ((GRANT_PROVIDERS[provider]?.targetKinds.size ?? 0) > 0) {
+    return void (await authorizeTargetForAPerson(req, res, link, provider, subject));
+  }
   // The account the button named, at the provider the button named: the same
   // address at Google and at Microsoft is two accounts (workplan 0171).
   const account =
@@ -487,6 +496,81 @@ async function authorizeForAPerson(
       client,
       scope: account.ask.scope,
       domains: account.ask.domains,
+    }),
+  });
+}
+
+/**
+ * A destination's sign-in on a person's link (workplan 0174 §4.4, T5): Cirrux
+ * Drive, today the one. The card is named by its `ref` (an address names no
+ * Cirrux sign-in: Cirrux vouches for none), and it is on the page only once
+ * the account's app password is stored (`readPersonGrantSubject`). The
+ * consent is the owner's Cirrux consent, PKCE and all, through the
+ * deployment's public client; its pending state holds the person's link and
+ * the account, so the one callback Cirrux registered ends it as the link's.
+ */
+async function authorizeTargetForAPerson(
+  req: PersonLinkRequest,
+  res: Response,
+  link: PersonLink,
+  provider: GrantProviderId,
+  subject: PersonGrantSubject,
+): Promise<void> {
+  const ref = (req.body as { ref?: unknown } | undefined)?.ref;
+  const account =
+    typeof ref === 'string'
+      ? subject.accounts.find((a) => a.ref === ref && a.role === 'target' && a.way === 'sign-in' && a.provider === provider)
+      : undefined;
+  if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
+  if (account.granted && !asksAgainFor(link, account)) {
+    return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED) });
+  }
+  if (!account.ask.ok) return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason) });
+  const client = provider === 'cirrux' ? cirruxDeploymentClient() : null;
+  const begin = GRANT_PROVIDERS[provider]?.consentUrl;
+  const connectionId = account.ask.way === 'sign-in' ? account.ask.connectionId : undefined;
+  if (!client || !begin || !connectionId) {
+    return void res.status(409).json({
+      error: 'not_ready',
+      ...reasonPair(notReadyBecause(FOR_THE_LINK_HOLDER.client_not_configured)),
+    });
+  }
+  const redirectUri = callbackFor(req, provider);
+  const ipRefusal = rawIpCallbackRefusal(redirectUri);
+  if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYet(ipRefusal)) });
+  const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
+  if (unreachable) {
+    return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYet(unreachable)) });
+  }
+  const locale = localeOf((req.body as { locale?: unknown } | undefined)?.locale);
+  const { verifier, challenge } = pkcePair();
+  const state = consentFlows.begin({
+    clientId: client.clientId,
+    // A public client: there is no secret, and nothing stands in for one.
+    clientSecret: '',
+    scope: CIRRUX_DRIVE_SCOPES.join(' '),
+    redirectUri,
+    provider: 'cirrux',
+    locale,
+    cirrux: { verifier, tenantId: link.tenantId, connectionId, actor: GRANT_ACTOR, ref: account.ref },
+    personLink: {
+      linkId: link.linkId,
+      tenantId: link.tenantId,
+      personId: link.personId,
+      account: account.account,
+      mappingIds: account.migrations.map((m) => m.mappingId),
+    },
+  });
+  res.json({
+    url: begin({
+      account: account.account,
+      state,
+      redirectUri,
+      locale,
+      client: { clientId: client.clientId, clientSecret: '' },
+      scope: CIRRUX_DRIVE_SCOPES.join(' '),
+      domains: account.ask.domains,
+      challenge,
     }),
   });
 }

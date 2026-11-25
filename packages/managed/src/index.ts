@@ -82,6 +82,8 @@ export * from './grant-link-allowance.ts';
 export * from './people.ts';
 export * from './address-change-person.ts';
 export * from './person-link-store.ts';
+// A destination a person connected themselves, and the doors it holds (workplan 0174 §4.3, T5).
+export * from './person-granted-connection.ts';
 export * from './legal-versions.ts';
 export * from './legal-acceptance.ts';
 // An organisation marked as a test, and its marker (workplan 0162 T1, managed migration 0062).

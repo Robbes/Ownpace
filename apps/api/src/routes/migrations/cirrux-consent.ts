@@ -124,6 +124,22 @@ export const CIRRUX_CONSENT_FOR_THE_OWNER = {
   },
 } as const satisfies Readonly<Record<string, Bilingual>>;
 
+/**
+ * When the Drive sign-in reached another Cirrux workspace than the one this
+ * account's Drive was connected in before (workplan 0174 §4.4, T5): said to
+ * whoever pressed the button, the owner or the person on a link.
+ */
+export const ANOTHER_CIRRUX_WORKSPACE = {
+  en:
+    'You signed in to another Cirrux workspace than the one this account’s Drive was connected in ' +
+    'before, so nothing was stored. Sign in to Cirrux with the account this mail address belongs to, ' +
+    'and press Connect Cirrux Drive again.',
+  nl:
+    'U meldde zich aan bij een andere Cirrux-werkruimte dan die waarin de Drive van dit account eerder ' +
+    'was verbonden, dus er is niets opgeslagen. Meld u bij Cirrux aan met het account waar dit ' +
+    'mailadres bij hoort, en druk opnieuw op Cirrux Drive verbinden.',
+} as const satisfies Bilingual;
+
 /** The audit action a Drive grant stored on a Cirrux account is recorded under (ADR-0052, decision 7). */
 export const CIRRUX_DRIVE_CONNECTED_ACTION = 'connection.cirrux_drive_connected';
 
@@ -223,6 +239,17 @@ export async function exchangeCirruxCode(
   };
 }
 
+/** Who signed in to Cirrux: the login handle and the workspace's name, for the page; its `uuid`, for the binding. */
+export interface CirruxSignedIn {
+  readonly username?: string;
+  readonly workspace?: string;
+  /**
+   * The workspace's `uuid` (`https://cirrux.co/help/api/user`, read
+   * 2026-11-25), which a Drive grant is bound to (workplan 0174 §4.4, T5).
+   */
+  readonly workspaceId?: string;
+}
+
 /**
  * Who signed in, and in which workspace, for the page and the log: `GET
  * /user/profile` with the first access token. Informational: Cirrux's profile
@@ -232,17 +259,23 @@ export async function exchangeCirruxCode(
 export async function cirruxSignedInAs(
   accessToken: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<{ readonly username?: string; readonly workspace?: string } | undefined> {
+): Promise<CirruxSignedIn | undefined> {
   try {
     const response = await fetchImpl(`${CIRRUX_API_BASE}/user/profile`, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
       signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) return undefined;
-    const body = (await response.json()) as { user?: { username?: unknown }; workspace?: { name?: unknown } };
+    const body = (await response.json()) as {
+      user?: { username?: unknown };
+      workspace?: { name?: unknown; uuid?: unknown };
+    };
     return {
       ...(typeof body.user?.username === 'string' ? { username: body.user.username } : {}),
       ...(typeof body.workspace?.name === 'string' ? { workspace: body.workspace.name } : {}),
+      ...(typeof body.workspace?.uuid === 'string' && body.workspace.uuid !== ''
+        ? { workspaceId: body.workspace.uuid }
+        : {}),
     };
   } catch {
     return undefined;
