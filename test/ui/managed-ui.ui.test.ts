@@ -122,6 +122,10 @@ const GRANT_LINK = 'a0000000-0000-4000-8000-0000000000f1.ui-smoke-not-a-secret';
 const PERSON_GRANT_LINK = 'a0000000-0000-4000-8000-0000000000f2.ui-smoke-not-a-secret';
 const VIEW_LINK = 'a0000000-0000-4000-8000-0000000000f3.ui-smoke-not-a-secret';
 const PERSON_VIEW_LINK = 'a0000000-0000-4000-8000-0000000000f4.ui-smoke-not-a-secret';
+/** A person's link that asks for their own password (workplan 0174 T4). */
+const PASSWORD_GRANT_LINK = 'a0000000-0000-4000-8000-0000000000f5.ui-smoke-not-a-secret';
+/** What the smoke types into the password box: a placeholder, plainly not anybody's password. */
+const PASSWORD_SENTINEL = 'ui-smoke-placeholder-0174';
 /**
  * What a link asks Google for, as `grant-link-readiness.ts` words it: the data
  * types' scopes, then the two that say who signed in.
@@ -445,6 +449,54 @@ const FIXTURES: Record<string, unknown> = {
     expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
   },
   [`GET /api/grant/${PERSON_GRANT_LINK}/report`]: { available: true },
+  /**
+   * A PERSON'S LINK WITH A PASSWORD CARD (workplan 0174 T4): their IMAP mail,
+   * a source, whose server the owner fixed, as `apps/api/src/routes/grant.ts`
+   * answers it since 0174 T1; and what `PUT /api/grant/:link/password` answers
+   * when the password works (§5.3).
+   */
+  [`GET /api/grant/${PASSWORD_GRANT_LINK}`]: {
+    kind: 'person',
+    organisation: 'Acme Families',
+    checkedCompany: null,
+    askedBy: 'owner-a@demo.openmigrate.test',
+    organisationPhone: null,
+    accounts: [
+      {
+        ref: 'a0000000000000000000000000000174',
+        role: 'source',
+        way: 'password',
+        provider: 'imap',
+        account: 'anna@example.com',
+        server: { hosts: ['imap.example.com'], published: false, registrable: ['example.com'], addressMail: 'match' },
+        fields: [
+          { key: 'host', who: 'owner', labelKey: 'account.host', secret: false, value: 'imap.example.com' },
+          { key: 'port', who: 'owner', labelKey: 'account.port', secret: false, value: '993' },
+          { key: 'username', who: 'owner', labelKey: 'account.sourceUsername', secret: false, value: 'anna@example.com' },
+          { key: 'password', who: 'person', labelKey: 'account.sourcePassword', secret: true, autoComplete: 'new-password', revealable: true },
+        ],
+        tries: { left: 5, locked: false },
+        granted: false,
+        again: false,
+        domains: ['email'],
+        scope: null,
+        readOnlyAtProvider: false,
+        notReady: null,
+        migrations: [
+          {
+            domains: ['email'],
+            to: { provider: 'soverin', host: null, account: 'anna@soverin.example' },
+            from: { provider: 'imap', account: 'anna@example.com' },
+            granted: false,
+          },
+        ],
+      },
+    ],
+    expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    addressChanges: [],
+  },
+  [`GET /api/grant/${PASSWORD_GRANT_LINK}/report`]: { available: true },
+  [`PUT /api/grant/${PASSWORD_GRANT_LINK}/password`]: { connected: true, faces: ['email'] },
   [`GET /api/view/${VIEW_LINK}`]: {
     organisation: 'Acme Families',
     state: 'active',
@@ -1838,6 +1890,83 @@ describe('the grant and progress links, opened by the person they were sent to (
       await l.page.close();
     });
   }
+});
+
+/**
+ * THE OWN-PASSWORD CARD, UNDER THE POLICY (workplan 0174 §5.3, §7.3, T4).
+ *
+ * The page's policy has `form-action 'none'`. The card's form must never be
+ * submitted by the browser, which would be refused and, worse, would put the
+ * boxes into a URL: the password goes by `fetch`, as a JSON body of a `PUT`.
+ * This presses the button in a real Chromium under that policy and asks the
+ * browser what it did: one request, of type `fetch`, `PUT`, JSON, with the
+ * password in its body and in no URL; the page's address the same after as
+ * before; no policy violation; and the card connected.
+ */
+describe('a person types their own password on their grant link (0174 T4)', () => {
+  for (const how of ['the button', 'Enter'] as const) {
+    it(`sends it by fetch, in a body, with nothing in the URL after a submit, by ${how}`, async () => {
+      const path = `/grant/${PASSWORD_GRANT_LINK}`;
+      const l = await open(path, { signedIn: false, locale: 'en' });
+      await l.page.getByText('Your password is checked with').waitFor({ timeout: 15_000 });
+      const before = l.page.url();
+      const sent: Array<{ url: string; method: string; type: string; contentType: string; body: string }> = [];
+      l.page.on('request', (r) => {
+        if (new URL(r.url()).pathname.startsWith('/api/') && r.method() !== 'GET') {
+          sent.push({
+            url: r.url(),
+            method: r.method(),
+            type: r.resourceType(),
+            contentType: r.headers()['content-type'] ?? '',
+            body: r.postData() ?? '',
+          });
+        }
+      });
+      const navigations: string[] = [];
+      l.page.on('framenavigated', (f) => {
+        if (f === l.page.mainFrame()) navigations.push(f.url());
+      });
+
+      const box = l.page.getByLabel('Password', { exact: true });
+      await box.fill(PASSWORD_SENTINEL);
+      if (how === 'the button') await l.page.getByRole('button', { name: 'Check and connect' }).click();
+      else await box.press('Enter');
+      await l.page.getByText('Connected. Your password works and is stored encrypted.').waitFor({ timeout: 15_000 });
+
+      expect(sent, 'what the card sent').toHaveLength(1);
+      const [put] = sent;
+      expect(put!.type, 'sent by fetch').toBe('fetch');
+      expect(put!.method).toBe('PUT');
+      expect(new URL(put!.url).pathname).toBe(`/api/grant/${PASSWORD_GRANT_LINK}/password`);
+      expect(new URL(put!.url).search).toBe('');
+      expect(put!.url).not.toContain(PASSWORD_SENTINEL);
+      expect(put!.contentType).toContain('application/json');
+      expect(JSON.parse(put!.body)).toEqual({
+        ref: 'a0000000000000000000000000000174',
+        values: { password: PASSWORD_SENTINEL },
+        locale: 'en',
+      });
+      // Nothing in the URL after the submit: the same address, no navigation.
+      expect(l.page.url()).toBe(before);
+      expect(new URL(l.page.url()).search).toBe('');
+      expect(l.page.url()).not.toContain(PASSWORD_SENTINEL);
+      expect(navigations, 'the page navigated on submit').toEqual([]);
+      // And nothing left in the box.
+      expect(await l.page.locator('input').count()).toBe(0);
+      expectClean(l, `the own-password card, sent by ${how}`);
+      await l.page.close();
+    });
+  }
+
+  it('fits a phone, in Dutch, with the server line before the box', async () => {
+    const l = await open(`/grant/${PASSWORD_GRANT_LINK}`, { signedIn: false, locale: 'nl', phone: true });
+    await l.page.getByText('Uw wachtwoord wordt gecontroleerd bij').waitFor({ timeout: 15_000 });
+    expect(await l.page.locator('[data-server-line] strong').innerText()).toBe('example.com');
+    expect(await l.page.locator('[data-no-phone]').count()).toBe(1);
+    await expectItFitsAPhone(l.page, 'the own-password card');
+    expectClean(l, 'the own-password card on a phone');
+    await l.page.close();
+  });
 });
 
 describe("the app's own pages on a phone, in Dutch (0145 T8 (a))", () => {

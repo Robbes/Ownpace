@@ -4,6 +4,51 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T4 built (draft pull request, on T1's branch; merges after T1).** A person's
+grant page draws a password card per kind, in two groups, in English and Dutch:
+- `Grant.tsx`: the cards grouped under *The accounts your data is copied from* and *…copied to*
+  (§4.5), sources first, a group only when it has a card; each card says **Connected**,
+  **Waiting** or **Locked on this link**; a destination's lines name where each migration comes
+  from. When a password is asked and the organisation gave no phone, the page says to ask some
+  other way (§5.8). The sign-in cards are as they were.
+- `components/GrantPasswordCard.tsx`: the card (§5.2, §5.7, §5.8). It shows the server line
+  before any box, with the registrable domain in bold, or *Apple's own server*. It adds D3's
+  warning on `addressMail: 'mismatch'` (a warning, never a refusal), says nobody will see the
+  password, and says what Ownpace never does. It shows the owner's values as text and gives
+  boxes only for the person's fields, with the descriptor's labels, hints and autofill, *Show*
+  where the descriptor offers it, no `name` attribute, and `required`. Apple's and Nextcloud's
+  steps fold under a question; Cirrux and Infomaniak keep their descriptor hint; other kinds get
+  *Use an app password if your provider offers one.* After each answer the box is emptied and
+  the card says the category only: refused with the tries left, unreachable, a face refused,
+  locked, connected.
+- `grant-service.ts`: the person subject parses T1's card shape (`ref`, `role`, `way`, `server`,
+  `fields`, `tries`, `from`, the password kinds as `provider`); `putPassword` sends
+  `{ ref, values, locale }` by `fetch` as a `PUT` with a JSON body, no cookie, no referrer;
+  `passwordAnswerOf` reads the route's answers as §5.3 now spells them.
+- `i18n/strings/grant.ts`: the words, in English and Dutch.
+- **Two additions to the fixed interfaces, written into §5.3 above:** the bodies of the route's
+  refusals as the page reads them, and D3's two optional `GrantServer` fields, `registrable`
+  and `addressMail` (added to `grant-providers.ts` and the OpenAPI spec as optional; T3 fills
+  them). The route's shape is unchanged.
+- **Where the words differ from §5.9:** the Dutch says *verbinden* and *Verbonden*, as the grant
+  page's approved Google and Microsoft cards do, not *koppelen*; *aanbieder*, never *provider*
+  (the glossary, and `the-owners-words-at-the-door`); *app-specifiek*, as `account.appleAppPassword`
+  says. `grant.password.apple.server` became `grant.password.published`, which names the
+  provider and the host. `grant.apple.password` and its hint are not added: the card uses the
+  descriptor's own `account.appleAppPassword` and its hint, as §5.2 asks. `grant.password.withdrawn`
+  (the progress page), `grant.continue.dropbox` (T2) and `grant.continue.cirrux` (T5) are left
+  to the tasks that draw them.
+
+Proved: `a-password-card-per-kind` (34: every password kind in each role it has, the server
+line, D3's warning and its absence, no phone, the two groups and the three states, each answer;
+34 of 34 fail on T1's page), `a-password-sent-by-fetch` (14: the `PUT` by `fetch`, each answer,
+T1's card shape parses; 14 of 14 fail on T1's service), the grant page's existing suites, and
+the UI smoke under the CSP nginx serves (`a person types their own password on their grant
+link`, 3: by the button and by Enter, a request of type `fetch`, `PUT`, JSON, the password in
+its body and in no URL, the page's address unchanged with no navigation, no policy violation;
+on a phone in Dutch; all 3 fail on T1's page). Not proved: the page against T3's real route
+(it is built in parallel; the page is tested against §5.3's shape).
+
 **2026-11-25, T1 built (draft pull request, merges after alpha.20's tag).** The seam grows as
 §4.1, §4.2, §5.1 and §9 say, and the interfaces T3 to T6 build against are on the branch
 `claude/ownpace-public-readiness-y7orc6-a21-grant-t1`:
@@ -59,7 +104,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 | T1 The seam grows: password kinds, destinations, one shape for the page | builder | 🔎 In review (draft PR) | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
 | T2 Dropbox on the seam | builder | 📋 Planned | §6. Supersedes 0171 T4. S. Needs only 0171 T3's seam, which is merged (#2136). |
 | T3 The own-password route: test, try count, store, spend | builder | 📋 Planned | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
-| T4 The own-password page, per kind, in English and Dutch | builder | 📋 Planned | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
+| T4 The own-password page, per kind, in English and Dutch | builder | 🔎 In review (draft PR) | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
 | T5 Destinations on the link: Cirrux Drive and password destinations | builder | 📋 Planned | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
 | T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 📋 Planned | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
 | T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |

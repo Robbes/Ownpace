@@ -108,8 +108,9 @@ const BoldDomain: React.FC<{ host: string; domain: string | undefined }> = ({ ho
 const Hosts: React.FC<{ server: GrantServer }> = ({ server }) => {
   const { list } = useFormatters();
   // The formatter joins markers, and each marker becomes its host's node.
-  const joined = list(server.hosts.map((_, i) => `\u0001${i}\u0001`));
-  const parts = joined.split(/\u0001(\d+)\u0001/);
+  // A private-use character, which no host and no translation contains.
+  const joined = list(server.hosts.map((_, i) => `\uE000${i}\uE000`));
+  const parts = joined.split(/\uE000(\d+)\uE000/);
   return (
     <>
       {parts.map((part, i) => {
