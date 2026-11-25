@@ -61,9 +61,76 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   A new guide, *How a migration copies* / *Hoe een migratie kopieert*, in English and Dutch,
   says the order, what a 90-day migration copies, *Copy everything*, and the appliance's
   mapping-file setting. No word *trial* or *proef* anywhere.
+- **Grant links for a Microsoft account** (workplan 0171 T3; the owner's decisions D5 (a) and D7
+  (a) of 2026-11-24). A grant link can now connect a Microsoft 365 account, personal or work, as
+  it has connected a Google account: the person opens the link, presses **Continue with Microsoft
+  as** *their account* (*Doorgaan met Microsoft als …*), signs in on Microsoft's own page, and the
+  token is stored on their migration and shown to nobody. The grant is bound to the account the
+  migration names: Microsoft's answer must come from the sign-in of the organisation it names and
+  be meant for this deployment's app, and the named address must be the account's sign-in name,
+  its primary address or one of its proxy addresses; for a personal account, its sign-in name.
+  Any other account stores nothing and leaves the link working, with *"You signed in as …; this
+  link is for …"* (*"U meldde zich aan als …; deze link is voor …"*). A person's link lists each
+  account with its own provider and button. Underneath, one provider seam
+  (`apps/api/src/routes/grant-providers.ts`) now says which providers a link can connect, and the
+  readiness check, the routes and the page ask it, ready for Dropbox and Apple (T4, T5). The
+  authorize route is `POST /api/grant/:link/:provider/authorize`, with Google's old address kept;
+  the readiness refusal `source_not_google` is renamed `source_not_grantable`. **Every new
+  Microsoft consent also asks `openid email profile User.Read`** (D7 (a)): who signed in, and
+  their own profile, which Finish needs for the addresses that receive mail. A connection made
+  before alpha.20 lacks it until it is connected again. A Microsoft account saved for somebody
+  else is saved without a token, and Start waits until their grant brings one. A person's link
+  that cannot ask an account because two applications read it names that account's own provider,
+  so a Microsoft account is no longer told about Google applications. ADR-0035 is amended
+  (the owner, 2026-11-24). No database change.
+- **Free space at the destination, checked before Start** (workplan 0171 T9; the owner's decisions
+  D3 and D4 of 2026-11-24, both *(a)*). Each Start screen (*Start a migration*'s last step,
+  *Review and start*, and the appliance's confirm page) now says, under a migration's count, how
+  much there is to copy and how much room the destination has: *"2.0 GB to copy; 5.0 GB free at
+  cloud.example.org."* Read live and never stored, from Nextcloud's or any WebDAV server's quota
+  (RFC 4331), IMAP's `GETQUOTAROOT` where the server announces `QUOTA` (RFC 9208), JMAP's
+  `Quota/get` where the session lists it (RFC 9425), and Cirrux Drive's workspace storage; data
+  types that land in the same account are added together against one number. Where the room is
+  known and too small, the line says so and Start reads **Start anyway**; where a destination does
+  not say, the line says that, with what to check, and Start is allowed. Calendars and contacts
+  are not asked. A new read-only route answers it on both editions:
+  `GET /api/migrations/{id}/destination-space` on managed, `GET /mappings/{id}/destination-space`
+  on the appliance. No database change.
+- **Finish reads step 4: the addresses that receive mail, and MX checked on a button**
+  (workplan 0171 T10; the owner's decisions D7 (a) and D8 (a) of 2026-11-24). For a mailbox on a
+  domain the person controls, step 4 lists the addresses at the old provider that deliver into it
+  (*Addresses that receive mail*), read live from Microsoft Graph (`mail` and every `smtp:` proxy
+  address) or Gmail's send-as list, each with a tick, *Made at the new provider*; addresses on
+  the provider's own domains (`onmicrosoft.com`, `gmail.com`) are left out, and an IMAP or Apple
+  source says to check them at the old provider. *Check MX now* asks three public DNS-over-HTTPS
+  resolvers and answers one line: MX points at the new provider, still at the old one, at hosts
+  for the person to judge, or the DNS servers do not agree yet. The tick stays. Step 4's text is
+  split by the kind of address: MX for an own domain, forwarding and the automatic reply for an
+  address the provider keeps. Every new Microsoft consent asks `User.Read`, the person's own
+  profile; a connection consented before this release says *Not read from Microsoft; reconnect to
+  list them.* Two read-only routes on both editions, `GET …/finish/addresses` and `POST
+  …/finish/mx-check` (one check per ten seconds per migration). No database change.
 
 ### Changed
 
+- **Image pins moved for alpha.20** (workplan 0119; the owner, 2026-11-24: *"yes on all"*, floors
+  waived): the web image's and the public site's nginx `1.31.9-alpine-slim` to
+  `1.31.10-alpine-slim@sha256:c293b287…` (nginx 1.31.10-r1, libssl3/libcrypto3 3.5.9-r1, same
+  Alpine 3.24 root filesystem); and upstream's rebuilds, same versions, of `postgres:18.7-alpine`
+  (`0115267a…`, gosu 1.20; both database builds are now `localhost/postgres:18.7-alpine-8a9f2fb59c72`),
+  `node:26.13.1-trixie-slim` (`abe7e5a8…`, Debian 13.8), `gcr.io/distroless/nodejs26-debian13:nonroot`
+  (`ffa8a754…`, `libssl3t64` 3.5.9-1~deb13u1, which still carries both OpenSSL CVEs, workplan 0166),
+  and Nextcloud `35.0.3-apache` (`2567f3c3…`) and `34.0.6-apache` (`031b30f0…`), on PHP 8.5.13 with
+  apache2 2.4.71-1~deb13u1.
+- **The two support lists that served every row now come a page at a time** (an outside,
+  read-only check, PERF-2; the owner, 2026-11-24: *"page both (Show more) in alpha.20; a plain
+  maximum would hide rows from the operator"*; workplan 0006 §P). `GET /support/tenants` and
+  `GET /support/retained-invoices` serve a hundred rows a page, by keyset on each list's own order
+  with a unique last key, and a `next` cursor to send back as `after`; a cursor that does not parse
+  is a `400`. The operator's organisations screen and the screen of invoices kept after an erasure
+  show **Show more** only when there is more, so a list of one page looks as before. Every page is
+  its own row in the support read log, the later ones too: each is rows the operator chose to look
+  at. The API description has the new parameter and fields.
 - **The managed edition's job runner is on pg-boss 12.39.0, from 12.38.2, and its job schema moves
   from version 46 to 47, one way** (workplan 0119; the owner, 2026-11-24: *"alpha.20 (advice): yes
   on all"*). pg-boss's migration adds one nullable column, `pgboss.schedule.sent_on`, in one

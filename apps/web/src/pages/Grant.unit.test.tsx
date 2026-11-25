@@ -264,7 +264,7 @@ describe('pressing the button', () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: /Continue with Google/ }));
     // With the page's language, so the ending after Google is in it (0145 T6).
-    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en'));
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'google'));
     expect(assignMock).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?x=1');
   });
 
@@ -451,14 +451,14 @@ describe("a person's link", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText('Connected. Nothing more is needed for this account.')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Connect again with Google as anna@gmail.com' }));
-    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'anna@gmail.com'));
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'google', 'anna@gmail.com'));
   });
 
   it('asks for the account whose button was pressed, and follows the URL the server built', async () => {
     authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?y=2' });
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' }));
-    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'anna@work.example'));
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'google', 'anna@work.example'));
     expect(assignMock).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?y=2');
   });
 
@@ -468,5 +468,62 @@ describe("a person's link", () => {
     expect(await screen.findByRole('button', { name: 'Doorgaan met Google als anna@work.example' })).toBeInTheDocument();
     expect(screen.getByText('Twee applicaties, één aanmelding.')).toBeInTheDocument();
     expect(screen.getByText('Verbonden. Dit account is klaar om te gebruiken in een migratie.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * A MICROSOFT ACCOUNT'S LINK (workplan 0171 §3.4): the same page, its button,
+ * sentences and scope in Microsoft's words, and the browser sent to
+ * Microsoft's own sign-in and nowhere else.
+ */
+describe('a Microsoft account’s link (0171 §3.4)', () => {
+  const MICROSOFT = {
+    ...SUBJECT,
+    provider: 'microsoft',
+    domains: ['email', 'file'],
+    scope: 'offline_access openid email profile User.Read Mail.Read Files.Read',
+    readOnlyAtProvider: true,
+  };
+
+  it('says Microsoft where the page says Google, and names the account on the button', async () => {
+    readMock.mockResolvedValue(MICROSOFT);
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Continue with Microsoft as someone@example.invalid' })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Sign in as someone@example.invalid. Microsoft confirms which account signed in; other accounts are refused.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('The permission Microsoft will ask you for:')).toBeInTheDocument();
+    expect(screen.getByText('Outlook: read your email.')).toBeInTheDocument();
+    expect(screen.getByText('OneDrive: read your files.')).toBeInTheDocument();
+    expect(screen.getByText(/your files in OneDrive/)).toBeInTheDocument();
+    expect(screen.queryByText(/Google/)).not.toBeInTheDocument();
+  });
+
+  it('follows Microsoft’s own sign-in, asked at the Microsoft door', async () => {
+    readMock.mockResolvedValue(MICROSOFT);
+    authorizeMock.mockResolvedValue({ url: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?z=3' });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /Continue with Microsoft/ }));
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'microsoft'));
+    expect(assignMock).toHaveBeenCalledWith('https://login.microsoftonline.com/common/oauth2/v2.0/authorize?z=3');
+  });
+
+  it('refuses to follow an address that is not Microsoft’s, and says so', async () => {
+    readMock.mockResolvedValue(MICROSOFT);
+    authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?x=1' });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /Continue with Microsoft/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Microsoft/);
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('says it in Dutch too', async () => {
+    readMock.mockResolvedValue(MICROSOFT);
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Doorgaan met Microsoft als someone@example.invalid' })).toBeInTheDocument();
+    expect(screen.getByText('De toestemming die Microsoft u vraagt:')).toBeInTheDocument();
   });
 });

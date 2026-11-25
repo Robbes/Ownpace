@@ -38,6 +38,13 @@ import {
   applyMappingRelocation,
 } from '@openmig/orchestration';
 import { switchedOffLine } from './switched-off.ts';
+import {
+  applianceAddressSource,
+  checkMx,
+  finishAddresses,
+  mailHostOfTarget,
+  readReceivingAddresses,
+} from '@openmig/orchestration/finish-checks';
 import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
 import {
   qualificationReportLines,
@@ -107,6 +114,11 @@ import { landingPath, type LandingFacts } from './landing.ts';
 import { createVerifyRunner } from './verify-run.ts';
 import { applianceOpener } from '@openmig/orchestration';
 import {
+  destinationOpenersFromConfig,
+  needFromDiscovery,
+  readDestinationSpace,
+} from '@openmig/orchestration/destination-space';
+import {
   readConfirmedList,
   runningConfirmation,
   streamConfirmedListCsv,
@@ -128,6 +140,7 @@ import {
 } from '@openmig/orchestration/drive-source-factory';
 import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditExportQuery, pseudonymizer } from '@openmig/shared';
 import { UNREADABLE_ANSWER_EVENT, loggableUrl, newReference, parseUnreadableAnswer, recordAppEvent, unreadableAnswerLogLine } from '@openmig/shared';
+import { MxCheckPace } from '@openmig/shared';
 import { isCrossSiteWrite } from './cross-site.ts';
 import { answersTo, describeAllowlist, hostAllowlistFrom, namedHost } from './host-allowlist.ts';
 import {
@@ -2524,6 +2537,46 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         });
       }
 
+      // ------------------------- Finish's addresses and MX check (0171 T10)
+      // The same two answers as managed (`finish-checks-routes.ts`), through
+      // the same `finish-checks.ts`: the source and its credentials from the
+      // mapping file and the environment, as a pass reads them. Read-only.
+      const finishCheckMatch = req.url
+        ? /^\/mappings\/([^/]+)\/finish\/(addresses|mx-check)$/.exec(req.url)
+        : null;
+      if (
+        finishCheckMatch &&
+        ((finishCheckMatch[2] === 'addresses' && req.method === 'GET') ||
+          (finishCheckMatch[2] === 'mx-check' && req.method === 'POST'))
+      ) {
+        const id = decodeURIComponent(finishCheckMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const { address, source } = applianceAddressSource(m.config.source as { type: string });
+        if (finishCheckMatch[2] === 'addresses') {
+          return sendJson(
+            res,
+            200,
+            await finishAddresses(address, () => readReceivingAddresses(source, address!, finishHttp)),
+          );
+        }
+        const wait = mxPace.take(id);
+        if (wait > 0) {
+          res.setHeader('Retry-After', String(Math.ceil(wait / 1000)));
+          return sendJson(res, 429, { error: 'mx_check_paced', retryAfterMs: wait });
+        }
+        const target = (m.config.domains?.mail?.target ?? m.config.target) as { type?: string };
+        return sendJson(
+          res,
+          200,
+          await checkMx({
+            address,
+            family: source.family,
+            destinationKind: target.type ?? '',
+            destinationMailHost: mailHostOfTarget(target),
+          }),
+        );
+      }
       // ------------------------------------------ the sharing queue (ADR-0032)
       const sharingGetMatch =
         req.method === 'GET' && req.url ? /^\/mappings\/([^/]+)\/sharing$/.exec(req.url) : null;
@@ -3803,6 +3856,28 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         return sendJson(res, 200, { id, status: to, changed: true });
       }
 
+      // GET /mappings/:id/destination-space — free space at each destination,
+      // read live before Start (workplan 0171 T9), the same shape managed's
+      // `GET /api/migrations/:id/destination-space` answers. Read-only:
+      // each writer is opened, asked, and closed; nothing is stored.
+      const spaceMatch =
+        req.method === 'GET' && req.url ? /^\/mappings\/([^/]+)\/destination-space$/.exec(req.url) : null;
+      if (spaceMatch) {
+        const id = decodeURIComponent(spaceMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const discovered = await discoveryStore.getDiscovery(
+          m.config.tenantId as TenantId,
+          m.mailboxMappingId as MappingId,
+        );
+        const pools = await readDestinationSpace(
+          destinationOpenersFromConfig(m.config, ledgerOptions),
+          needFromDiscovery(discovered),
+          { where: m.config.mappingId },
+        );
+        return sendJson(res, 200, { mappingId: id, pools });
+      }
+
       const startMatch = req.method === 'POST' && req.url ? /^\/mappings\/([^/]+)\/start$/.exec(req.url) : null;
       if (startMatch) {
         await drain(req);
@@ -4070,6 +4145,20 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     stop: () => shutdown(server, handles, persistenceBackend),
   };
 }
+
+/**
+ * Graph's and Gmail's answers for Finish's addresses (0171 T10): two public
+ * hosts, asked with plain `fetch` as the appliance asks every host.
+ */
+const finishHttp: HttpClient = {
+  async request({ url, method, headers }) {
+    const r = await fetch(url, { method, headers });
+    return { status: r.status, body: await r.text(), headers: {} };
+  },
+};
+
+/** One MX check per ten seconds per mapping (0171 §7.3). */
+const mxPace = new MxCheckPace();
 
 function sendJson(res: ServerResponse, code: number, body: unknown): void {
   res.writeHead(code, { 'content-type': 'application/json' });

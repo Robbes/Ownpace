@@ -52,6 +52,38 @@ itself, so `minimumReleaseAgeExclude` gains no entry.
   OTA's shared database to 47, and `main`'s next nightly then refuses until the branch merges, as
   on 2026-11-23 (run 45183707271). So that run is dispatched just before the merge, and not before.
 
+**2026-11-24: alpha.20's image pins — nginx 1.31.10 and five rebuilt bases — inside their floors on
+the owner's waiver.** The owner, 2026-11-24: *"alpha.20 (advice): yes on all"* and *"for 20 i also
+waive al waiting/days."* On branch `claude/ownpace-public-readiness-y7orc6-a20-images`, from `main`
+at `8f46f61`, a draft that merges only after alpha.19 is tagged. Read without a login from Docker
+Hub's registry and tag API and from gcr.io; each manifest body hashes to its Docker-Content-Digest
+and every blob read was checked against its digest; nothing was run.
+- **nginx `1.31.9-alpine-slim` → `1.31.10-alpine-slim`**, index `c293b287…` (pushed 07:52:59
+  UTC), in `apps/web/Dockerfile` and `deploy/compose/www.yml`. On amd64, of 21 packages: nginx
+  1.31.9-r1 → 1.31.10-r1, libssl3 and libcrypto3 3.5.9-r0 → 3.5.9-r1. The first layer, Alpine
+  3.24's root filesystem, is the same blob on amd64 and arm64; `NGINX_VERSION` is the one env
+  change. nginx.org, Alpine's secdb and pkgs host were refused to this reading, so neither nginx's
+  notes for 1.31.10 nor what libssl3's -r1 fixes were read.
+- **postgres `18.7-alpine`**, `75dcac3d…` → `0115267a…` (pushed 2026-11-21 16:08), in both
+  database Dockerfiles, `ci.yml`'s Atlas dev URL and the integration tests' container. On amd64
+  the one package that moves is `.postgresql-rundeps`; the config moves `GOSU_VERSION` 1.19 → 1.20
+  (the builds remove gosu) and the index adds riscv64. The builds' name moves to
+  `localhost/postgres:18.7-alpine-8a9f2fb59c72` in `managed.yml`, `dev.yml` and the appliance's
+  `compose.yml`, by the `sed` `a-database-started-as-root` printed.
+- **node `26.13.1-trixie-slim`**, `e6bedef2…` → `abe7e5a8…` (pushed 11:41), in the api, worker,
+  appliance and web Dockerfiles: the same Node; Debian 13.7 → 13.8, base-files, libc6/libc-bin
+  deb13u5, libssl3t64 and openssl-provider-legacy 3.5.9-1~deb13u1, zlib1g deb13u1.
+- **distroless `nodejs26-debian13:nonroot`**, `767ffb7e…` → `ffa8a754…` (uploaded 2026-11-22
+  21:11), in the api, worker and appliance Dockerfiles: base-files, libc6 deb13u5 and libssl3t64
+  3.5.9-1~deb13u1, nothing else; it closes no alert (0166, 2026-11-24).
+- **Nextcloud, by hand**: `35.0.3-apache` `8a7a65b8…` → `2567f3c3…` (13:51:50) in `managed.yml`,
+  `dev.yml` and the test container; `34.0.6-apache` `3031e7f8…` → `031b30f0…` (13:51:12) in
+  `nextcloud-second-major.yml`. version.php stays 35.0.3.2, PHP 8.5.12 → 8.5.13, and among 22
+  Debian moves apache2 2.4.69 → 2.4.71-1~deb13u1, CVE-2026-119618's fix. The two still share
+  their first fourteen layers. php.net was refused, so PHP's notes were not read.
+- **Gates**: the guards in `scripts/`, 306 files, 7281 tests, pass. Needs before merge: E2E
+  (self-hosted) on Postgres and on PGlite, and E2E (managed), dispatched on the branch.
+
 **2026-11-24, evening: what alpha.19 moves, which live takes with alpha.20.** The fold for
 `v0.2.0-alpha.19` (0146's entry of the same day) carries what `main` merged after alpha.18's C,
 `2c32fa7d`: 27 pull requests (0146's entry lists them). The owner decided on 2026-11-24 to tag
