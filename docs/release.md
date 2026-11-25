@@ -338,7 +338,8 @@ kinds of list, and neither replaces the other:
   JavaScript file, because that is one file and not an installed package: for that, read
   `bom.json`. Each build leg reads it back from GHCR by the digest it pushed and splits it per
   platform (`scripts/image-sbom.mjs`), naming the document after the image by digest and
-  platform; nothing else in it is changed. On a push to `main` the files are kept with the run
+  platform and adding a one-line `comment` that says the same; nothing else in it is changed.
+  On a push to `main` the files are kept with the run
   (`image-sbom-<image>-<commit>`), so every merge proves them before a tag needs them; on a tag
   the `image-sboms` job checks that all eight are there and attaches them, `--clobber`, since a
   re-run of `images.yml` on the tag pushes a new index and the files must describe the one the
