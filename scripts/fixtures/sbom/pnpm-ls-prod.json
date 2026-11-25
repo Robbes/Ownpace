@@ -1,0 +1,74 @@
+[
+  {
+    "name": "@openmig/api",
+    "version": "0.0.0",
+    "private": true,
+    "dependencies": {
+      "@openmig/core": {
+        "from": "@openmig/core",
+        "version": "link:../../packages/core"
+      },
+      "@openmig/shared": {
+        "from": "@openmig/shared",
+        "version": "link:../../packages/shared"
+      },
+      "helmet": {
+        "from": "helmet",
+        "version": "8.3.0"
+      },
+      "jose": {
+        "from": "jose",
+        "version": "6.2.18"
+      }
+    }
+  },
+  {
+    "name": "@openmig/web",
+    "version": "0.0.0",
+    "private": true,
+    "dependencies": {
+      "@openmig/shared": {
+        "from": "@openmig/shared",
+        "version": "link:../../packages/shared"
+      },
+      "axios": {
+        "from": "axios",
+        "version": "1.21.1",
+        "dependencies": {
+          "form-data": {
+            "from": "form-data",
+            "version": "4.0.6"
+          },
+          "proxy-from-env": {
+            "from": "proxy-from-env",
+            "version": "2.1.0"
+          },
+          "follow-redirects": {
+            "from": "follow-redirects",
+            "version": "1.16.2",
+            "dependencies": {}
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "@openmig/scheduler",
+    "version": "0.0.0",
+    "private": true,
+    "dependencies": {
+      "@openmig/shared": {
+        "from": "@openmig/shared",
+        "version": "link:../shared"
+      },
+      "croner": {
+        "from": "croner",
+        "version": "11.0.1"
+      },
+      "pg-boss": {
+        "from": "pg-boss",
+        "version": "12.38.2"
+      }
+    }
+  }
+]

@@ -89,3 +89,15 @@ export declare function checkTaskBaseIndex(index: unknown, pin: TaskBasePin): Li
 export declare function taskBaseRevision(config: unknown, pin: TaskBasePin): string | null;
 export declare function checkTaskBaseAncestry(compare: unknown, options: { revision: string; commit: string }): Line;
 export declare function taskBaseCosignCall(digest: string): string[];
+
+/** Whether the release at `tag` (bare `X.Y.Z`) carries its images' SBOMs. */
+export declare function imageSbomsAt(tag: string): boolean;
+/** The SBOM files a release at `version` carries, one per image published at it and platform (from alpha.20 on: `imageSbomsAt`). */
+export declare function imageSbomFiles(version: string): Array<{ image: string; platform: string; file: string }>;
+/** Each image's SBOM on the release, against the index digest each version tag names. */
+export declare function checkImageSboms(
+  release: Release | null,
+  version: string,
+  digests: Readonly<Record<string, string>>,
+  seams?: DownloadSeams,
+): Promise<Line[]>;

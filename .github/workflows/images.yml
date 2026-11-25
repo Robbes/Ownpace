@@ -80,13 +80,15 @@ jobs:
         # that turns the job runner's switch on has an image to start.
         image: [api, web, selfhost, worker]
     steps:
-      # The Node the check below runs on, the major the images run. On a tag
-      # only, the one run that calls Node here; first, because the check comes
-      # straight after the checkout (a-release-that-names-itself). Without it
-      # the check ran the hosted image's default, a version nobody chose
+      # The Node the check below runs on, the major the images run. On every
+      # publish, a push to main or a tag, the runs that call Node here: the
+      # release check on a tag, and the read-back of each image's SBOM on both
+      # (since 2026-11-24); first, because the check comes straight after the
+      # checkout (a-release-that-names-itself). Without it the check ran the
+      # hosted image's default, a version nobody chose
       # (a-gate-on-a-version-nothing-ships, 2026-11-01).
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name != 'pull_request'
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
@@ -215,6 +217,20 @@ jobs:
           # the same reason compose.yml hardcodes ghcr.io/robbes/….
           cache-from: type=registry,ref=ghcr.io/robbes/ownpace-${{ matrix.image }}:buildcache
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/robbes/ownpace-{0}:buildcache,mode=max', matrix.image) || '' }}
+          # THE IMAGE'S OWN SBOM (SBOM-1, the owner's decision of 2026-11-24):
+          # an SPDX attestation in the index beside the provenance one the
+          # action already adds (max mode, this repository being public), from
+          # the generator BuildKit runs over the image's final filesystem, so
+          # it lists the OS packages of the base as well as the npm packages
+          # installed in the image. The generator is `stable-1`, buildx's own
+          # default, by the release tag and digest that channel named when it
+          # was read (1.12.1, pushed 2026-10-26, read 2026-11-24), past the
+          # three-day floor (CONTRIBUTING.md); the pin watch's row says when the
+          # channel moves. On the publish path only: a pull request pushes
+          # nothing to read it back from, and the worker's loads into the
+          # runner's Docker. The step after the signature reads it back by
+          # digest (scripts/image-sbom.mjs).
+          sbom: ${{ github.event_name != 'pull_request' && 'generator=docker/buildkit-syft-scanner:1.12.1@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315' || '' }}
 
       # Only on the publish path. A pull request builds without pushing, so it
       # cannot hit a registry rate limit — retrying a genuinely broken
@@ -254,6 +270,20 @@ jobs:
           # the same reason compose.yml hardcodes ghcr.io/robbes/….
           cache-from: type=registry,ref=ghcr.io/robbes/ownpace-${{ matrix.image }}:buildcache
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/robbes/ownpace-{0}:buildcache,mode=max', matrix.image) || '' }}
+          # THE IMAGE'S OWN SBOM (SBOM-1, the owner's decision of 2026-11-24):
+          # an SPDX attestation in the index beside the provenance one the
+          # action already adds (max mode, this repository being public), from
+          # the generator BuildKit runs over the image's final filesystem, so
+          # it lists the OS packages of the base as well as the npm packages
+          # installed in the image. The generator is `stable-1`, buildx's own
+          # default, by the release tag and digest that channel named when it
+          # was read (1.12.1, pushed 2026-10-26, read 2026-11-24), past the
+          # three-day floor (CONTRIBUTING.md); the pin watch's row says when the
+          # channel moves. On the publish path only: a pull request pushes
+          # nothing to read it back from, and the worker's loads into the
+          # runner's Docker. The step after the signature reads it back by
+          # digest (scripts/image-sbom.mjs).
+          sbom: ${{ github.event_name != 'pull_request' && 'generator=docker/buildkit-syft-scanner:1.12.1@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315' || '' }}
 
       # Neither attempt is allowed to fail silently. `continue-on-error` above
       # makes the FIRST step green whatever happens, so without this the job
@@ -399,6 +429,122 @@ jobs:
           done
           echo "::error::cosign sign failed three times — ${ref} is PUBLISHED AND UNSIGNED. Re-run this job once Sigstore is healthy (https://status.sigstore.dev); the digest is stable, so a later run signs the same image."
           exit 1
+
+      # THE SBOM THE IMAGE CARRIES, READ BACK AS PUBLISHED (SBOM-1, 2026-11-24):
+      # from the registry by the index digest just pushed, never from the
+      # build, one SPDX file per platform, named after the image, the version
+      # (or `sha-<commit>` on main) and the platform. scripts/image-sbom.mjs
+      # refuses an index with no SBOM for a platform, or one that lists no
+      # operating-system package, so on main this is the proof, every merge,
+      # before a tag depends on it; and on a tag a missing list fails here,
+      # loudly, as a missing bom.json fails Security Scan. Read three times,
+      # 30 and 60 seconds apart, for the registry's sake; a fourth failure is
+      # the job's. The digest reaches the shell through `env:`.
+      - name: Read the image's own SBOM back from the registry, by digest
+        if: github.event_name != 'pull_request'
+        env:
+          BUILT_DIGEST: ${{ steps.build_retry.outputs.digest || steps.build_attempt.outputs.digest }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          digest="$BUILT_DIGEST"
+          if [ -z "$digest" ]; then
+            echo "::error::No image digest from either build attempt: there is no published index to read an SBOM from."
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then label="${GITHUB_REF_NAME#v}"; else label="sha-${GITHUB_SHA:0:7}"; fi
+          ref="ghcr.io/robbes/ownpace-${IMAGE}@${digest}"
+          inspected="$RUNNER_TEMP/image-sbom-inspected.json"
+          for attempt in 1 2 3; do
+            if docker buildx imagetools inspect "$ref" --format '{{ json .SBOM }}' > "$inspected"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::${ref}: imagetools could not read the index three times, so its SBOM was not read. Re-run this job."
+              exit 1
+            fi
+            echo "::warning::imagetools inspect ${ref} failed (attempt ${attempt}/3), retrying in $(( attempt * 30 ))s"
+            sleep $(( attempt * 30 ))
+          done
+          node scripts/image-sbom.mjs extract --image "$IMAGE" --digest "$digest" --label "$label" \
+            --from "$inspected" --out "$RUNNER_TEMP/image-sbom"
+
+      # Kept with the run on main, as bom.json is (Security Scan's artifact),
+      # and handed to the attach job below on a tag.
+      - name: Keep the image's SBOM with the run
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-sbom-${{ matrix.image }}-${{ github.sha }}
+          path: ${{ runner.temp }}/image-sbom/
+          if-no-files-found: error
+          retention-days: 90
+
+  # THE IMAGES' SBOMS, ATTACHED TO THE RELEASE (SBOM-1, 2026-11-24), next to
+  # bom.json: one SPDX file per published image and platform, the files every
+  # build leg read back from the registry. `needs: build` with GitHub's
+  # implicit success(): one image that did not publish, or whose SBOM could not
+  # be read, attaches nothing, and the run is red. Its own job, so the write it
+  # needs is not the build's: `contents: write`, for the release, and nothing
+  # else. The names check runs straight after the checkout, because this job
+  # publishes (a-release-that-names-itself).
+  #
+  # As windows-payload.yml's attach does: make the release if a hand-pushed
+  # tag has none yet, or add the files to the one Security Scan made under
+  # Release. `--clobber`, unlike bom.json: a re-run of this workflow on the
+  # tag pushes a new index for the version tag, and the files must be the
+  # SBOMs of the index the tag names now, which is what verify holds them to
+  # (scripts/release-verify.mjs, checkImageSboms).
+  image-sboms:
+    name: attach the images' SBOMs to the release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+          package-manager-cache: false # a tag runs this workflow: no cache restored (zizmor cache-poisoning)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No token left in .git/config for the steps after this one (workplan
+          # 0119): the tags' fetch below needs none, this repository being public.
+          persist-credentials: false
+      - name: The tag, package.json and the changelog name one release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
+          node scripts/release-names-agree.mjs
+
+      - name: Download every image's SBOM the build legs read back
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: image-sbom-*-${{ github.sha }}
+          path: image-sbom
+          merge-multiple: true
+
+      # Every file the release must carry, and nothing else, before any is
+      # attached: a set short of one is refused here with its name.
+      - name: Attach the images' SBOMs to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          node scripts/image-sbom.mjs expect --version "$tag" --dir image-sbom
+          pre=false
+          if [[ "$tag" == *-* ]]; then pre=true; fi
+          if gh release create "$tag" --verify-tag --title "$tag" --prerelease="$pre" --notes "" image-sbom/*.spdx.json; then
+            exit 0
+          fi
+          gh release view "$tag" --json tagName > /dev/null
+          gh release upload "$tag" image-sbom/*.spdx.json --clobber
+          gh release edit "$tag" --prerelease="$pre"
 
   # THE DATABASES' IMAGES, BUILT AND STARTED ON A PULL REQUEST (workplan 0146
   # T15; the review of #1717, 2026-10-26; the appliance's since T15b, the same
