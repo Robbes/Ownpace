@@ -226,11 +226,11 @@ export const nl: Record<keyof typeof en, string> = {
   'finish.step4.body.kept':
     'Zorg dat nieuwe e-mail op het nieuwe systeem aankomt: zet bij de oude aanbieder doorsturen aan naar uw nieuwe adres. Stel daarna de mail-app op uw telefoon en computer in voor het nieuwe account.',
   'finish.step4.more':
-    'Een wijziging kan tot een dag duren voor iedereen haar ziet. Controleer opnieuw voordat u aanvinkt.',
+    'Een wijziging kan tot een dag duren voordat iedereen deze ziet. Controleer opnieuw voordat u aanvinkt.',
   'finish.aliases.title': 'Adressen die mail ontvangen',
   'finish.aliases.hint': 'Maak elk ervan aan bij de nieuwe aanbieder voordat u MX omzet.',
   'finish.aliases.why':
-    'Zodra MX naar de nieuwe aanbieder wijst, komt mail aan een adres dat daar niet bestaat terug. Adressen van groepen en lijsten staan hier niet; kijk die na bij de oude aanbieder.',
+    'Zodra het MX-record naar de nieuwe aanbieder wijst, komt mail aan een (nog) niet bestaand adres terug (bounce). Adressen van groepen en lijsten staan hier niet; kijk die na bij de oude aanbieder.',
   'finish.aliases.made': 'Aangemaakt bij de nieuwe aanbieder',
   'finish.aliases.notRead': 'Niet gelezen bij {provider}; koppel opnieuw om ze te zien.',
   'finish.aliases.apiOff': 'Niet gelezen bij Google: de Gmail API staat uit voor deze dienst.',
