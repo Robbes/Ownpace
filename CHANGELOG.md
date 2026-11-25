@@ -159,6 +159,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   scherm: u leest de status en een korte reden, en bij een 5xx of 429 *Google had een tijdelijke
   fout (502). Test over een minuut opnieuw.* Kwam er helemaal geen antwoord, dan leest u *Google
   was zojuist niet bereikbaar (de verbinding werd verbroken). Test over een minuut opnieuw.*
+- **Testing an IMAP destination that opts out of verifying its certificate** (workplan 0174 T8).
+  An `imap` destination saved with `tlsVerify: false` (a server with a self-signed certificate,
+  opted out in writing) was copied to without verifying the certificate, but its test verified it
+  anyway and answered that the server could not be reached. The test now reads the same setting
+  the copy does. A person typing the password of such a destination on their grant link is tested
+  the same way.
 
 ## [0.2.0-alpha.20] - 2026-11-25
 

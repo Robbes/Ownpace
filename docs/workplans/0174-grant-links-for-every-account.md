@@ -4,6 +4,42 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T8 built: the proofs, in review as a draft pull request**
+(`claude/ownpace-public-readiness-y7orc6-a21-grant-t8`). Nothing here runs a real E2E; T9 is the
+owner's.
+- **Integration** (`a-grant-link-against-stalwart` and `a-grant-link-against-nextcloud`, two files
+  over one fixture, because the Nextcloud second-major leg starts no Stalwart and runs the Nextcloud
+  file against the other major too): the route and its GET as the API mounts them, on the tier's
+  real Postgres read as `app_user`, against the Stalwart fixture (an IMAP source, a JMAP and an IMAP
+  destination) and the Nextcloud fixture (a CalDAV source, a `nextcloud` destination), the rows as
+  the doors save them for a person. Per card a wrong password refused by the real server (422
+  `refused_login`, nothing stored, one try counted) and the right one stored; then the link spent
+  and every migration with a way in on both sides (`hasAWayInOnBothSides`). Five wrong passwords lock the IMAP source's card and the sixth, the
+  right one, answers 423 with no login made (counted at the probe); a new link starts at zero. D3's
+  warning on the GET for a match and a mismatch, with `verifyMX` answering from a table (a test
+  that hung on public DNS would fail for a reason that is not ours). Every password typed, right
+  or wrong, in no response, log line, `audit_log`, try, link or other row, and each stored one
+  decrypted exactly once.
+- **One defect in the code before T1, fixed because the IMAP destination case needs it**: the
+  probe of an `imap` destination ignored the row's `tlsVerify`, which the pass's writer honours, so
+  a self-signed server (the fixture's, the demo's) answered `unreachable` to the right password.
+  `an-imap-destination-on-a-self-signed-server.unit.test.ts` failed before the fix and passes
+  after. T3's note that an IMAP destination would answer `unreachable` on the fixture is answered
+  by it.
+- **The managed smoke** (`smoke-managed.sh`, *a person's own passwords on their grant link*), as
+  §11 says, with one change of shape: an `imap` source carries mail and a `nextcloud` destination
+  does not, so no one migration joins them. The person has two: their Stalwart mailbox into a JMAP
+  account on the demo Stalwart, and the demo Nextcloud's source calendar into their Nextcloud
+  account; both are drafts, so nothing starts. Stalwart's own log is counted for `auth.failed`;
+  where it names none, the run says so as *not proven* rather than failing. The passwords are
+  looked for in the API's and the worker's logs since the section began, the audit rows and the try
+  rows, by count only. Everything is taken back by name. `a-password-link-the-gate-types` runs the
+  section as written against a fake API, database and Docker (12 cases).
+
+Proved on the builder's checkout: the new unit guards; the Stalwart file's two D3 cases against
+PostgreSQL from `./scripts/local-pg.sh` (its three Stalwart cases and the Nextcloud file said NOT RUN
+there: no container runtime); `bash -n` on the smoke. CI's integration job runs the server cases; the smoke runs at T9.
+
 **2026-11-25, found on the managed test environment (alpha.20) and fixed on
 `claude/ownpace-public-readiness-y7orc6-a21-signin-for-a-person`.** Two things the owner saw on
 the Accounts page. (1) A Google account saved for a family member, *Used by 2 migrations*, showed
@@ -370,7 +406,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 | T5 Destinations on the link: Cirrux Drive and password destinations | builder | ✅ Merged 2026-11-25: #2167 | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. With §4.3's withdrawal on the branch: *Remove my password* on the person's progress page, the Drive grant with it, the hold lifted only when both sides have a way in. |
 | T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | ✅ Merged 2026-11-25: #2167 | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
 | T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 🔎 In review: #2163 | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
-| T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
+| T8 Proofs: integration and the managed smoke | builder | 🔎 In review, draft pull request | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log, D3 both ways; the managed smoke's section with two migrations (an IMAP source and a `nextcloud` destination share no data type). The IMAP destination probe now reads `tlsVerify`. M. |
 | T9 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T8 merges. |
 | T10 The owner's decisions | owner | ✅ Answered 2026-11-25 | §12: D1 to D9 as advised; D3 with the MX warning; D8 in place under 1.0. |
 
