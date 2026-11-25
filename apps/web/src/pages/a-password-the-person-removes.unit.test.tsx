@@ -6,8 +6,8 @@
  * A destination the person connected on their grant link is a section of
  * their progress page, named by its provider and never by its address, with
  * *Remove my password* behind a second press. Removed, the page says §5.9's
- * sentence, *Change this password at {provider} too, if you want to be
- * sure*, in the page's language; on Cirrux it says the Drive connection went
+ * sentence as the owner read it, *Delete or change this password at
+ * {provider} too, if you want to be sure*, in the page's language; on Cirrux it says the Drive connection went
  * with it and where Cirrux lists it. A press on a stale page shows the
  * server's sentence. A payload with no list draws no section.
  */
@@ -92,7 +92,7 @@ describe('a destination the person connected, on their progress page (0174 §4.3
     expect(withdrawDestinationMock).not.toHaveBeenCalled();
     fireEvent.click(within(section).getByRole('button', { name: 'Yes, remove it' }));
 
-    expect(await within(section).findByText('Removed here. Change this password at Soverin too, if you want to be sure.')).toBeInTheDocument();
+    expect(await within(section).findByText('Removed here. Delete or change this password at Soverin too, if you want to be sure.')).toBeInTheDocument();
     expect(within(section).getByText(/Nothing more is copied into this account/)).toBeInTheDocument();
     expect(withdrawDestinationMock).toHaveBeenCalledWith('p.abc.def', SOVERIN);
     expect(within(section).queryByText(/Cirrux Drive/)).not.toBeInTheDocument();
@@ -106,7 +106,7 @@ describe('a destination the person connected, on their progress page (0174 §4.3
     fireEvent.click(within(section).getByRole('button', { name: 'Mijn wachtwoord verwijderen' }));
     fireEvent.click(within(section).getByRole('button', { name: 'Ja, verwijderen' }));
     expect(
-      await within(section).findByText('Hier verwijderd. Wijzig dit wachtwoord ook bij Soverin als u het zeker wilt weten.'),
+      await within(section).findByText('Hier verwijderd. Verwijder of wijzig dit wachtwoord ook bij Soverin als u het zeker wilt weten.'),
     ).toBeInTheDocument();
   });
 

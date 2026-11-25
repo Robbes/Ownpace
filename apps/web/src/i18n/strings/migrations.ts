@@ -700,7 +700,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.destination.removing': 'Bezig met verwijderen…',
   'view.destination.since': 'Er wordt niets meer naar dit account gekopieerd. Later verder? Vraag om een nieuwe link.',
   'view.destination.driveRemoved':
-    'Uw verbinding met Cirrux Drive is hier ook verwijderd. Cirrux Mail toont de apps die u toestond bij de beveiligingsinstellingen; daar kunt u die ook beëindigen.',
+    'Uw verbinding met Cirrux Drive is hier ook verwijderd. Cirrux Mail toont de apps die u toestond onder Settings → Security; daar kunt u die ook beëindigen.',
   'state.lifecycle.active': 'Actief',
   'state.lifecycle.paused': 'Gepauzeerd',
   'state.lifecycle.cutover': 'Overgestapt',

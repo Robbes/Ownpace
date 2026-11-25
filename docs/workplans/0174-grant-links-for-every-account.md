@@ -18,7 +18,12 @@ Dutch of the grant pages, the owner's side and the server's sentences: *"all ok,
 - **Cirrux Drive's first grant is bound to the workspace it reaches** (§4.4, *Changed by T5*):
   accepted for alpha.21. A stronger binding, by the mailbox's address, waits for Cirrux to grant
   the deployment's client `email.read`; the owner asks Cirrux later.
-- The thirteen strings that items 11 and 12 of #2164 added are read separately.
+- The thirteen strings that items 11 and 12 of #2164 added were read the same day, with the
+  two Cirrux and Infomaniak guide lines #2163 added (*"All ok, advice yes"*). The advice taken:
+  - a removed password's sentence says *Verwijder of wijzig dit wachtwoord ook bij {provider}*
+    (English *Delete or change*): an app password cannot be changed, only deleted;
+  - the Drive line after a removal names Cirrux's own menu, *onder Settings → Security*, as the
+    product's other Cirrux sentences do, not *bij de beveiligingsinstellingen*.
 
 **2026-11-25, later: the two parts the plan required and the branch had not built, on #2164.**
 - **D3 (a), the published servers (§5.8, §14 question 2).** Cirrux and Infomaniak join Apple in
