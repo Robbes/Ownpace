@@ -6822,6 +6822,346 @@ if [ -n "$LINK_PERSON" ]; then
   fi
 fi
 
+# ---------- a person's own passwords, typed on their grant link (workplan 0174 T8) ----------
+#
+# The owner, 2026-11-25: *"I want all sources/targets that supports granting to
+# be able to use the others-grant-page."* A person types their own password on
+# the page their grant link opens; it is tested against their own server before
+# it is stored, and it never passes through the one who set the migration up.
+# This asks the running stack for it, end to end, on the demo Stalwart and the
+# demo Nextcloud (workplan 0174 §11, E2E (managed)):
+#
+#  1. the owner adds a person, an `imap` SOURCE on the demo Stalwart and a
+#     `nextcloud` DESTINATION on the demo Nextcloud, both saved FOR the person
+#     (`forPerson`) and so without a password;
+#  2. their grant link's page shows two password cards, the source's before
+#     the destination's, each naming its own server;
+#  3. five wrong passwords for the source are refused by Stalwart, one try
+#     each; the sixth, the right password, is answered `locked` and never
+#     tried: the try row says five, and Stalwart's own log five failed logins;
+#  4. a new link starts at zero, the right passwords connect both, the link is
+#     spent and nothing of theirs waits any more;
+#  5. none of the passwords typed, right or wrong, is in the API's or the
+#     worker's log since this section began, in an `audit_log` row it wrote, or
+#     in the try table. Only counts are printed, never a password.
+#
+# TWO MIGRATIONS, NOT ONE. An `imap` source carries mail and a `nextcloud`
+# destination does not (TARGET_TYPE_DOMAINS), so no one migration can join
+# them. The person's mailbox goes to a JMAP account on the demo Stalwart, and
+# the demo Nextcloud's source calendar goes to their Nextcloud account; the
+# owner's half of each is made with the demo's own placeholders, as the
+# Nextcloud door above makes its rows. Both migrations stay drafts: nothing of
+# this person's was ever started, so a grant starts nothing (start-when-granted)
+# and no pass writes into a demo account.
+#
+# THE DEMO STALWART'S CERTIFICATE IS SELF-SIGNED. The create door takes no
+# `tlsVerify`, so the person's IMAP row is opted out in writing afterwards,
+# exactly as the demo seed opts its own Stalwart rows out (seed-managed.ts);
+# without it the test would answer `unreachable`, which is not the password.
+#
+# EVERYTHING IT ADDS IT TAKES BACK, by the names below: the migrations, the four
+# connections and the person (whose links and tries go with them). An earlier
+# run's leftovers by the same names are taken back first.
+note "a person's own passwords on their grant link (0174 T8)"
+
+PW_NAME="Smoke run: own passwords"
+PW_STALWART_CONTAINER="${SMOKE_STALWART_CONTAINER:-ownpace-stalwart}"
+PW_SOURCE_USER="source@dev.local"
+PW_SOURCE_PASSWORD="${STALWART_SOURCE_PASSWORD:-source_password}"
+PW_JMAP_USER="target@dev.local"
+PW_JMAP_PASSWORD="${SMOKE_STALWART_TARGET_PASSWORD:-target_password}"
+PW_NC_URL="http://nextcloud/remote.php/dav"
+# The wrong password: a sentinel this run made, found nowhere unless it leaked.
+PW_WRONG="smoke-not-the-password-$(date -u +%Y%m%d%H%M%S)-$$"
+PW_SINCE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+PW_PERSON=""
+PW_SOURCE=""
+PW_TARGET=""
+PW_MAIL_MAPPING=""
+PW_CAL_MAPPING=""
+
+# pw_put <token> <ref> <password> — "<code> <body>". The password reaches jq
+# through its environment and curl through stdin, so it is never on a command
+# line another process could read.
+pw_put() {
+  local out
+  out="$(PW_TYPED="$3" jq -nc --arg r "$2" '{ref:$r, values:{password:$ENV.PW_TYPED}, locale:"en"}' |
+    curl -sS -X PUT -H 'Content-Type: application/json' --data-binary @- -w '\n%{http_code}' \
+      "$API/api/grant/$1/password")"
+  printf '%s %s\n' "${out##*$'\n'}" "${out%$'\n'*}"
+}
+
+# pw_open <token> — "<code> <body>" of the grant page's GET, with no session.
+pw_open() {
+  local out
+  out="$(curl -sS -w '\n%{http_code}' "$API/api/grant/$1")"
+  printf '%s %s\n' "${out##*$'\n'}" "${out%$'\n'*}"
+}
+
+# pw_take_back — the run's rows by their names, whatever happened above.
+pw_take_back() {
+  local id code
+  for id in $(q "SELECT id FROM mailbox_mapping WHERE tenant_id = '${APPLY_TENANT}' AND name LIKE 'gate: own password%'"); do
+    read -r code _ <<<"$(http DELETE "$API/api/migrations/$id" "$APPLY_TOKEN")"
+    case "$code" in 200|204) ;; *) echo "taking back migration $id answered $code"; return 1 ;; esac
+  done
+  for id in $(q "SELECT id FROM connection WHERE tenant_id = '${APPLY_TENANT}' AND display_name LIKE 'gate: own password%'"); do
+    read -r code _ <<<"$(http DELETE "$API/api/connections/$id" "$APPLY_TOKEN")"
+    case "$code" in 200|204) ;; *) echo "taking back connection $id answered $code"; return 1 ;; esac
+  done
+  for id in $(q "SELECT id FROM person WHERE tenant_id = '${APPLY_TENANT}' AND display_name = '${PW_NAME}'"); do
+    read -r code _ <<<"$(http DELETE "$API/api/people/$id" "$APPLY_TOKEN")"
+    case "$code" in 200|204) ;; *) echo "taking back person $id answered $code"; return 1 ;; esac
+  done
+  return 0
+}
+
+if ! pw_take_back; then
+  fail_at "an earlier run's own-password rows could not be taken back"
+fi
+
+# 1. THE PERSON, AND THEIR TWO ACCOUNTS, SAVED FOR THEM WITHOUT A PASSWORD.
+read -r code body <<<"$(http POST "$API/api/people" "$APPLY_TOKEN" "{\"displayName\":\"$PW_NAME\"}")"
+if [ "$code" = "201" ]; then
+  PW_PERSON="$(jq -r '.id // empty' <<<"$body")"
+else
+  echo "adding the person answered $code: ${body:0:250}"
+  fail_at "the owner could not add a person for the password link"
+fi
+
+pw_save_for() { # pw_save_for <role> <type> <name> <values json> — the id, or empty
+  local code body
+  read -r code body <<<"$(http POST "$API/api/connections" "$APPLY_TOKEN" \
+    "$(jq -nc --arg role "$1" --arg type "$2" --arg name "$3" --argjson values "$4" --arg p "$PW_PERSON" \
+      '{role:$role, type:$type, displayName:$name, values:$values, forPerson:$p}')")"
+  if [ "$code" = "201" ] && [ "$(jq -r '.forPerson // false' <<<"$body")" = "true" ]; then
+    jq -r '.id // empty' <<<"$body"
+  else
+    echo "saving the $1 $2 account for the person answered $code: ${body:0:250}" >&2
+  fi
+}
+
+if [ -n "$PW_PERSON" ]; then
+  PW_SOURCE="$(pw_save_for source imap "gate: own password (imap source)" \
+    "$(jq -nc --arg u "$PW_SOURCE_USER" '{host:"stalwart", port:"993", username:$u}')")"
+  PW_TARGET="$(pw_save_for target nextcloud "gate: own password (nextcloud destination)" \
+    "$(jq -nc --arg u "$TARGET_DAV_USER" --arg url "$PW_NC_URL" '{url:$url, username:$u}')")"
+  [ -n "$PW_SOURCE" ] || fail_at "the imap source could not be saved for the person"
+  [ -n "$PW_TARGET" ] || fail_at "the nextcloud destination could not be saved for the person"
+fi
+if [ -n "$PW_SOURCE" ]; then
+  # The demo Stalwart's self-signed certificate, opted out in writing (above).
+  q "UPDATE connection SET config = config || '{\"tlsVerify\":false}'::jsonb WHERE id = '${PW_SOURCE}' AND tenant_id = '${APPLY_TENANT}'" >/dev/null
+  [ "$(q "SELECT config->>'tlsVerify' FROM connection WHERE id = '${PW_SOURCE}'")" = "false" ] ||
+    fail_at "the person's imap row could not be opted out of verifying the demo's certificate"
+  # Saved without a password: nothing of theirs is held yet.
+  [ "$(q "SELECT status FROM connection WHERE id = '${PW_SOURCE}'")" = "error" ] ||
+    fail_at "an account saved for a person was not stored as waiting"
+fi
+
+pw_migration() { # pw_migration <body json> — the id of a paused draft, or empty
+  local code body
+  read -r code body <<<"$(http POST "$API/api/migrations" "$APPLY_TOKEN" "$1")"
+  if [ "$code" = "201" ] && [ "$(jq -r '.status // empty' <<<"$body")" = "paused" ]; then
+    jq -r '.id // empty' <<<"$body"
+  else
+    echo "making a migration for the person answered $code: ${body:0:300}" >&2
+  fi
+}
+
+if [ -n "$PW_SOURCE" ] && [ -n "$PW_TARGET" ]; then
+  PW_MAIL_MAPPING="$(pw_migration "$(jq -nc --arg s "$PW_SOURCE" --arg u "$PW_SOURCE_USER" --arg p "$PW_PERSON" \
+    --arg tu "$PW_JMAP_USER" --arg tp "$PW_JMAP_PASSWORD" \
+    '{name:"gate: own password (mail)", sourceType:"imap", sourceConnectionId:$s,
+      sourceConfig:{host:"stalwart", port:993, username:$u},
+      targetType:"jmap", targetConfig:{host:"stalwart", port:8080, useSsl:false, username:$tu, password:$tp},
+      syncConfig:{domains:["email"]}, forPerson:$p}')")"
+  PW_CAL_MAPPING="$(pw_migration "$(jq -nc --arg t "$PW_TARGET" --arg url "$PW_NC_URL" --arg p "$PW_PERSON" \
+    --arg tu "$TARGET_DAV_USER" \
+    '{name:"gate: own password (calendar)", sourceType:"caldav",
+      sourceConfig:{url:$url, username:"tenant-b-source", password:"tenant_b_source_pw"},
+      targetType:"nextcloud", targetConnectionId:$t, targetConfig:{url:$url, username:$tu},
+      syncConfig:{domains:["calendar"]}, forPerson:$p}')")"
+  [ -n "$PW_MAIL_MAPPING" ] || fail_at "the person's mail migration could not be made"
+  [ -n "$PW_CAL_MAPPING" ] || fail_at "the person's calendar migration could not be made"
+fi
+
+# What waits for the person, from the owner's side, before any password.
+pw_waiting() { # pw_waiting — how many of their migrations wait, or "?" when it could not be read
+  local code body
+  read -r code body <<<"$(http GET "$API/api/people/$PW_PERSON/awaiting-grant" "$APPLY_TOKEN")"
+  if [ "$code" = "200" ]; then jq -r '.migrations | length' <<<"$body"; else echo "?"; fi
+}
+
+PW_LINK_ID=""
+PW_TOKEN=""
+if [ -n "$PW_MAIL_MAPPING" ] && [ -n "$PW_CAL_MAPPING" ]; then
+  waiting="$(pw_waiting)"
+  if [ "$waiting" = "2" ]; then
+    echo "both of the person's migrations wait for them before any password"
+  else
+    echo "the owner's page says ${waiting} of the person's migrations wait (expected 2)"
+    fail_at "the owner's page did not show the person's migrations waiting"
+  fi
+  read -r code body <<<"$(http POST "$API/api/people/$PW_PERSON/links" "$APPLY_TOKEN" '{"purpose":"grant"}')"
+  if [ "$code" = "201" ]; then
+    PW_LINK_ID="$(jq -r '.id // empty' <<<"$body")"
+    PW_URL="$(jq -r '.url // empty' <<<"$body")"
+    PW_TOKEN="${PW_URL##*/}"
+  else
+    echo "issuing the person's grant link answered $code: ${body:0:250}"
+    fail_at "a grant link could not be issued for a person with password accounts"
+  fi
+fi
+
+# 2. THE PAGE: two password cards, sources first, each naming its own server.
+PW_SOURCE_REF=""
+PW_TARGET_REF=""
+if [ -n "$PW_TOKEN" ]; then
+  read -r code page <<<"$(pw_open "$PW_TOKEN")"
+  if [ "$code" != "200" ]; then
+    echo "opening the grant link answered $code: ${page:0:250}"
+    fail_at "a live grant link did not open"
+  else
+    PW_SOURCE_REF="$(jq -r '[.accounts[] | select(.way == "password" and .role == "source" and .provider == "imap")][0].ref // empty' <<<"$page")"
+    PW_TARGET_REF="$(jq -r '[.accounts[] | select(.way == "password" and .role == "target" and .provider == "nextcloud")][0].ref // empty' <<<"$page")"
+    if jq -e '([.accounts[] | select(.way == "password")] | length == 2)
+        and ([.accounts[] | .role] | index("source") < index("target"))
+        and ([.accounts[] | select(.role == "source")][0].server.hosts | index("stalwart") != null)
+        and ([.accounts[] | select(.role == "target")][0].server.hosts | index("nextcloud") != null)
+        and ([.accounts[] | select(.way == "password")] | all(.tries.left == 5 and .granted == false))' \
+        >/dev/null <<<"$page" && [ -n "$PW_SOURCE_REF" ] && [ -n "$PW_TARGET_REF" ]; then
+      echo "the page shows two password cards, the source's on stalwart before the destination's on nextcloud, five tries each"
+    else
+      echo "the grant page's cards: $(jq -c '[.accounts[]? | {role, way, provider, server, tries, granted}]' <<<"$page" 2>/dev/null)"
+      fail_at "the grant page did not show the two password cards, each with its server"
+    fi
+  fi
+fi
+
+# 3. FIVE WRONG, AND A SIXTH THAT IS NEVER TRIED.
+PW_STALWART_FROM=""
+if [ -n "$PW_SOURCE_REF" ]; then
+  PW_STALWART_FROM="$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
+  for left in 4 3 2 1 0; do
+    read -r code body <<<"$(pw_put "$PW_TOKEN" "$PW_SOURCE_REF" "$PW_WRONG")"
+    if [ "$code" = "422" ] && jq -e --argjson l "$left" \
+        '.error == "refused_login" and .tries.left == $l and .tries.locked == ($l == 0)' >/dev/null <<<"$body"; then
+      echo "a wrong password refused by stalwart: ${left} tries left"
+    else
+      echo "a wrong password answered $code: ${body:0:250} (expected 422 refused_login, ${left} left)"
+      fail_at "a wrong password was not refused as a refused login"
+    fi
+  done
+  read -r code body <<<"$(pw_put "$PW_TOKEN" "$PW_SOURCE_REF" "$PW_SOURCE_PASSWORD")"
+  if [ "$code" = "423" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "locked" ]; then
+    echo "the sixth, the right password, answered locked"
+  else
+    echo "the sixth try answered $code: ${body:0:250} (expected 423 locked)"
+    fail_at "the sixth try on a locked card was not refused as locked"
+  fi
+  tries="$(q "SELECT refused || ' ' || (locked_at IS NOT NULL) FROM person_link_try WHERE link_id = '${PW_LINK_ID}' AND account_ref = '${PW_SOURCE_REF}'")"
+  if [ "$tries" = "5 true" ]; then
+    echo "the try row: five refused, locked"
+  else
+    echo "the try row says '${tries:-<none>}' (expected '5 true')"
+    fail_at "the tries were not counted as five and locked"
+  fi
+  # Stalwart's own count: one failed login per wrong password, none for the sixth.
+  if stalwart_log="$(docker logs --since "$PW_STALWART_FROM" "$PW_STALWART_CONTAINER" 2>&1)"; then
+    failed="$(grep -c 'auth\.failed' <<<"$stalwart_log" || true)"
+    if [ "${failed:-0}" = "5" ]; then
+      echo "stalwart's own log: five failed logins, not six"
+    elif [ "${failed:-0}" = "0" ]; then
+      not_proven "stalwart's log (${PW_STALWART_CONTAINER}) named no failed login (auth.failed) since the first wrong password; the try row's five, and the 423 that tried nothing, stand alone"
+    else
+      echo "stalwart's own log counts ${failed} failed logins since the first wrong password (expected 5)"
+      fail_at "stalwart saw a different number of logins than the five tries"
+    fi
+  else
+    not_proven "stalwart's log could not be read from ${PW_STALWART_CONTAINER} (SMOKE_STALWART_CONTAINER names it)"
+  fi
+fi
+
+# 4. A NEW LINK, THE RIGHT PASSWORDS, BOTH CONNECTED, THE LINK SPENT.
+if [ -n "$PW_SOURCE_REF" ] && [ -n "$PW_TARGET_REF" ]; then
+  read -r code body <<<"$(http POST "$API/api/people/$PW_PERSON/links" "$APPLY_TOKEN" '{"purpose":"grant"}')"
+  PW_LINK2_ID="$(jq -r '.id // empty' <<<"$body")"
+  PW_URL2="$(jq -r '.url // empty' <<<"$body")"
+  PW_TOKEN2="${PW_URL2##*/}"
+  if [ "$code" != "201" ] || [ -z "$PW_TOKEN2" ]; then
+    echo "issuing a new grant link answered $code: ${body:0:250}"
+    fail_at "a new link could not be issued after the lock"
+  else
+    read -r code page <<<"$(pw_open "$PW_TOKEN2")"
+    jq -e '[.accounts[] | select(.way == "password")] | all(.tries.left == 5)' >/dev/null <<<"$page" ||
+      fail_at "a new link did not start at five tries"
+    read -r scode sbody <<<"$(pw_put "$PW_TOKEN2" "$PW_SOURCE_REF" "$PW_SOURCE_PASSWORD")"
+    read -r tcode tbody <<<"$(pw_put "$PW_TOKEN2" "$PW_TARGET_REF" "$TARGET_DAV_PASSWORD")"
+    if [ "$scode" = "200" ] && [ "$(jq -r '.connected' <<<"$sbody")" = "true" ] &&
+       [ "$tcode" = "200" ] && [ "$(jq -r '.connected' <<<"$tbody")" = "true" ] &&
+       [ "$(jq -r '.linkSpent' <<<"$tbody")" = "true" ]; then
+      echo "the right passwords connected both, and the link is spent"
+    else
+      echo "the right passwords answered ${scode}: ${sbody:0:200} and ${tcode}: ${tbody:0:200}"
+      fail_at "the right passwords did not connect both accounts and spend the link"
+    fi
+    read -r code _ <<<"$(pw_open "$PW_TOKEN2")"
+    [ "$code" = "401" ] || { echo "the spent link opened: HTTP $code"; fail_at "a spent grant link still opened"; }
+    [ "$(q "SELECT count(*) FROM person_granted_connection WHERE connection_id = '${PW_TARGET}' AND person_id = '${PW_PERSON}'")" = "1" ] ||
+      fail_at "the destination is not recorded as the person's"
+    waiting="$(pw_waiting)"
+    if [ "$waiting" = "0" ]; then
+      echo "and nothing of theirs waits any more"
+    else
+      echo "the owner's page still says ${waiting} migration(s) wait"
+      fail_at "the migrations still wait after both passwords were stored"
+    fi
+  fi
+fi
+
+# 5. THE PASSWORDS, IN NO LOG, AUDIT ROW OR TRY ROW. Counts only: a password is
+# never printed, and never put in a query, where the database's own log could
+# keep it. Each is looked for as typed and in base64.
+pw_count() { # pw_count <haystack> — how many of the typed passwords it holds, in any form
+  local n=0 p form
+  for p in "$PW_WRONG" "$PW_SOURCE_PASSWORD" "$TARGET_DAV_PASSWORD"; do
+    for form in "$p" "$(printf '%s' "$p" | base64 -w0)"; do
+      [[ "$1" == *"$form"* ]] && n=$((n + 1))
+    done
+  done
+  echo "$n"
+}
+if [ -n "$PW_PERSON" ]; then
+  for where in api worker audit tries; do
+    case "$where" in
+      api) hay="$(docker logs --since "$PW_SINCE" "$API_CONTAINER" 2>&1)" || hay="" ;;
+      worker) hay="$(docker logs --since "$PW_SINCE" "$WORKER_CONTAINER" 2>&1)" || hay="" ;;
+      audit) hay="$(q "SELECT to_jsonb(a)::text FROM audit_log a WHERE tenant_id = '${APPLY_TENANT}' AND at >= '${PW_SINCE}'")" ;;
+      tries) hay="$(q "SELECT to_jsonb(t)::text FROM person_link_try t WHERE tenant_id = '${APPLY_TENANT}' AND link_id IN (SELECT id FROM person_link WHERE person_id = '${PW_PERSON}')")" ;;
+    esac
+    if [ -z "$hay" ] && [ "$where" != "tries" ]; then
+      echo "the ${where} read for the passwords came back empty"
+      fail_at "the ${where} could not be read for the passwords"
+      continue
+    fi
+    found="$(pw_count "$hay")"
+    if [ "$found" = "0" ]; then
+      echo "no password typed on the link is in the ${where} ($(grep -c '' <<<"$hay") line(s) read)"
+    else
+      echo "a password typed on the link is in the ${where}: ${found} form(s) found (not printed)"
+      fail_at "a password typed on a grant link leaked into the ${where}"
+    fi
+  done
+fi
+
+# THE TAKE-BACK, whatever happened above.
+if pw_take_back; then
+  echo "the person, their two migrations and the four accounts are taken back"
+else
+  fail_at "the own-password section could not take back what it added"
+fi
+
 # ---------- the status page answers ----------
 #
 # gatus has NO container healthcheck, and cannot have one: its image is
