@@ -1721,12 +1721,18 @@ paths:
             `invalid_body`, `no_cirrux_client` (this deployment has no Cirrux
             client yet), `raw_ip_callback` or `unreachable_callback`; and
             `not_a_cirrux_account`, answered 404, when no Cirrux destination
-            of this organisation has that id.
+            of this organisation has that id; and `connected_by_the_person`,
+            answered 409 (below).
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: '`not_a_cirrux_account`: no Cirrux destination of this organisation has that id.'
         '409':
-          description: '`account_closed` or `conditions_not_accepted`; nothing was begun.'
+          description: |
+            `account_closed` or `conditions_not_accepted`; or
+            `connected_by_the_person`, when a person connected this account
+            themselves through their grant link, whose Drive is theirs to
+            change with a new link (workplan 0174 §4.3, D6), with `reason`
+            and `reasonNl`. Nothing was begun.
 
   /api/migrations/cirrux/callback:
     get:
@@ -1737,6 +1743,11 @@ paths:
         expiring `state`, and only a state begun at the Cirrux door. An `iss`
         naming another origin than Cirrux's is refused before the code is
         exchanged, and so is an organisation closed since the consent began.
+        A state begun on a person's grant link (workplan 0174 §4.4) ends as
+        that link's: the grant is stored on their destination only once its
+        app password is, and refused when the sign-in reached another Cirrux
+        workspace than the one recorded on the account; the page is the grant
+        ending's. Otherwise:
         The code is exchanged with the PKCE verifier, and the refresh token is
         STORED ON THE ACCOUNT, encrypted beside its app password, under the
         row's lock, with the audit line `connection.cirrux_drive_connected`.
@@ -3853,9 +3864,11 @@ paths:
           address until alpha.20, unchanged), `microsoft`, or since alpha.21
           `dropbox` (workplan 0174 §6). It must be the provider the link asks
           for (`provider` on `GET /api/grant/{link}`), or the answer is 409
-          `not_this_provider`. A provider with no grant entry yet (`apple`,
-          until workplan 0174's password tasks) or any other value is 404.
-        schema: { type: string, enum: [google, microsoft, dropbox, apple] }
+          `not_this_provider`. `apple` is a password kind, never a sign-in
+          (workplan 0174 §5), and it or any other value is 404. `cirrux`
+          (workplan 0174 §4.4) is a DESTINATION's sign-in, Cirrux Drive, on a
+          person's link only: the body names the card by its `ref`.
+        schema: { type: string, enum: [google, microsoft, dropbox, apple, cirrux] }
     post:
       tags: [Grant links]
       summary: Start the provider's sign-in for this link
@@ -3911,6 +3924,16 @@ paths:
             schema:
               type: object
               properties:
+                ref:
+                  type: string
+                  description: |
+                    For a person's link and a destination's sign-in (`cirrux`,
+                    workplan 0174 §4.4): the card's `ref` from `GET
+                    /api/grant/{link}`. The Drive card is offered only once the
+                    account's app password is stored; any other ref is 409
+                    `not_this_account`. The consent is Cirrux's, with PKCE,
+                    through the deployment's public client, and ends at
+                    `/api/migrations/cirrux/callback` as the link's.
                 account:
                   type: string
                   description: |

@@ -46,6 +46,10 @@
  *    D1 (a)). A destination the owner connected with their own password is
  *    not the person's to grant, and no card. Two migrations into one
  *    destination account are one card.
+ *  - A destination's sign-in (Cirrux Drive, T5) is a card of its own, beside
+ *    the password card, and only once the account's password is stored: the
+ *    grant is bound through that account (§4.4). Once the person connected
+ *    it, it stays on their page, connected.
  *
  * ## Granted is what Start reads
  *
@@ -66,7 +70,15 @@ import {
   personMigration,
   tenantMember,
 } from '@openmig/managed/schema-managed';
-import { DISCOVERY_DOMAINS, secretFieldKeys, twoClientsAt, type Bilingual, type DiscoveryDomain } from '@openmig/shared';
+import {
+  DISCOVERY_DOMAINS,
+  GRANTED_TARGET_FACES,
+  secretFieldKeys,
+  twoClientsAt,
+  type Bilingual,
+  type DiscoveryDomain,
+  type WizardTargetType,
+} from '@openmig/shared';
 import {
   credential,
   grantReadiness,
@@ -87,6 +99,7 @@ import {
 import { accountOfMapping } from './account-on-connection.ts';
 import { namedAccountKey } from './signed-in-account.ts';
 import {
+  grantProviderOfKind,
   passwordGrantOf,
   passwordServerOf,
   type GrantProviderId,
@@ -135,6 +148,8 @@ export type PersonAccountAsk =
       readonly domains: GrantLinkAsk['domains'];
       /** Whether every data scope asked for is one Google holds to reading. */
       readonly readOnlyAtProvider: boolean;
+      /** A destination's sign-in (Cirrux Drive, 0174 T5): the connection its grant is stored on. */
+      readonly connectionId?: string;
     }
   | {
       readonly ok: true;
@@ -416,21 +431,36 @@ export async function readPersonGrantSubject(
         );
       }
     }
-    for (const asked of dst.asks) {
-      if (asked.way !== 'sign-in') continue;
-      // A destination's grant (Cirrux Drive, 0174 T5): asked of the account,
-      // through the deployment's own client; T5 adds its entry and its binding.
+    // A destination's grant (Cirrux Drive, 0174 §4.4, T5), read per role from
+    // `GRANTED_TARGET_FACES`: asked of the account through the deployment's
+    // own client, and offered ONLY once the account's password is stored, by
+    // the owner or on this page, since Cirrux names no address and the grant
+    // is bound through the account the password signs in to. Once connected
+    // by the person, the card stays, connected.
+    const passwordStored = targetPasswordKeysNeeded(target.kind, readiness.includedDomains).every((k) => tKeys.includes(k));
+    const grantFace = Object.hasOwn(GRANTED_TARGET_FACES, target.kind)
+      ? GRANTED_TARGET_FACES[target.kind as WizardTargetType]
+      : undefined;
+    const grantWritten = grantFace !== undefined && grantFace.faces.some((f) => readiness.includedDomains.includes(f));
+    const grantStored = grantFace !== undefined && tKeys.includes(grantFace.credentialKey);
+    const signIns = dst.asks.flatMap((a) => (a.way === 'sign-in' ? [a.provider] : []));
+    const signInProvider = grantProviderOfKind(target.kind, 'target')?.id;
+    if (signIns.length === 0 && byThem && grantWritten && grantStored && signInProvider !== undefined) {
+      signIns.push(signInProvider);
+    }
+    for (const provider of signIns) {
+      if (!passwordStored) continue;
       add(
         {
-          key: `target:sign-in:${asked.provider}:${target.id}`,
+          key: `target:sign-in:${provider}:${target.id}`,
           role: 'target',
           way: 'sign-in',
-          provider: asked.provider,
+          provider,
           account,
           connectionId: target.id,
           accountKey,
         },
-        { migration: { mappingId, domains, to: where.to, from, granted: false } },
+        { migration: { mappingId, domains, to: where.to, from, granted: grantStored } },
         rows,
       );
     }
@@ -484,7 +514,8 @@ export async function readPersonGrantSubject(
 
     const signIns = g.entries.flatMap((e) => (e.signIn ? [e.signIn] : []));
     if (signIns.length === 0) {
-      // A destination's sign-in (T5): no consent of its own to union yet.
+      // A destination's sign-in (T5): the deployment's client, the grant
+      // stored on the connection the card names.
       return {
         ...common,
         ask: {
@@ -493,6 +524,7 @@ export async function readPersonGrantSubject(
           provider: g.provider as GrantProviderId,
           client: 'deployment',
           connectionSecretRef: null,
+          connectionId: g.connectionId,
           scope: '',
           domains: domainUnion(migrations.map((m) => m.domains)),
           readOnlyAtProvider: false,

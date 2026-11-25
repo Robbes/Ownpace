@@ -4,6 +4,37 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T5 built (draft pull request on T1's branch, merges after T1).** Destinations on
+the link, as §4.3 and §4.4 say, with §4.4's binding changed before the code (its T5 paragraph:
+Cirrux names a workspace and no address, so the first Drive grant on an account records the
+workspace and every later one must reach it):
+- `grant-providers.ts`: the `cirrux` entry, `targetKinds: ['cirrux']`, served by `cirruxClient`;
+  three optional members on the seam (`consentUrl`'s `challenge`, `finish`'s `verifier`,
+  `GrantFinish`'s `access` and `shownAs`). `CIRRUX_DRIVE_WORKSPACE_KEY` in `cirrux-drive.ts`.
+- `person-grant-subject.ts`: the Drive card read per role from `GRANTED_TARGET_FACES`, offered
+  only once the account's password is stored, and kept, connected, once the person connected it.
+- `grant.ts`: `POST /:link/cirrux/authorize` takes the card's `ref` and begins the owner's Cirrux
+  consent (PKCE, the deployment's public client) with the person's link in its pending state.
+- `cirrux-link-ending.ts` (new), from `cirrux-oauth-routes.ts`'s one callback: the link live, the
+  migrations still hers, the app password stored, the grant under the row's lock and refused for
+  another workspace (`storeCirruxDriveGrantIn`, `another_workspace`), `person_granted_connection`
+  written, `mapping.granted` per migration with `role` and `via`, the link spent when every card is
+  connected. The owner's own callback records and holds to the workspace too.
+- `packages/managed/src/person-granted-connection.ts` (new): the row's write, and the refusals.
+  Guarded doors: the create door (`personId` in its body, for T6's wizard), the door that gives a
+  migration to a person, the edit door, the rotation door (D6), and the owner's *Connect Cirrux
+  Drive* on an account a person connected.
+- `consentToFollow('cirrux', …)` already follows `api.cirrux.co` only (0160); the test ties the
+  authorize URL to `CONSENT_HOSTS.cirrux`. The page's Drive card and its words are T4's.
+
+Proved: `a-drive-a-person-connects-on-their-link.unit.test.ts` (PGlite, both chains, Cirrux faked):
+the Drive card only after the app password; the ending stored with its workspace, the person's
+row, the audit rows; refused when the workspace differs (nothing stored, the link live), the
+owner's consent too; another person's migration refused at three doors; the rotation and the
+owner's Drive sign-in refused. All eight fail on T1's sources. The unit tests of the api,
+orchestration, managed, connectors, shared, the appliance's guards and `scripts/` pass. Not proved:
+a real Cirrux sign-in (no test account, §11); no integration test was added (T8).
+
 **2026-11-25, T4 built (draft pull request, on T1's branch; merges after T1).** A person's
 grant page draws a password card per kind, in two groups, in English and Dutch:
 - `Grant.tsx`: the cards grouped under *The accounts your data is copied from* and *…copied to*
@@ -160,7 +191,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 | T2 Dropbox on the seam | builder | 🔍 In review | §6. Supersedes 0171 T4. S. Built 2026-11-25 on 0171 T3's seam (#2136): the binding, an unverified email and another account refused with nothing stored and the link live, a refused exchange, `grantableByLink('dropbox')`; every new test shown failing on `main` first. By mock only: no real Dropbox account. |
 | T3 The own-password route: test, try count, store, spend | builder | 🔎 In review (draft PR) | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
 | T4 The own-password page, per kind, in English and Dutch | builder | 🔎 In review (draft PR) | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
-| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 📋 Planned | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
+| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 🔎 In review (draft PR) | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
 | T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 📋 Planned | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
 | T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
 | T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
@@ -428,6 +459,39 @@ const CIRRUX: GrantProvider = {
   with the spend and a `mapping.granted` row per migration, as §4.3 says.
 - `consentToFollow` learns `api.cirrux.co`. The consent's PKCE verifier stays in the server-side
   pending state, as today.
+
+**Changed by T5, 2026-11-25, before its code (open question 1 answered).** Cirrux's API, read
+2026-11-25 (`https://cirrux.co/help/api/user`): `GET /v1/user/profile` answers `user` (`uuid`,
+`username`, *"the user's login handle"*, names, pictures) and `workspace` (`uuid`, `name`, `type`),
+and no email address, mailbox or domain; `GET /v1/workspace` the same workspace and nothing more.
+A mailbox's address is read only with `email.read` (`https://cirrux.co/help/api/mail`), a scope
+this deployment's Cirrux client is not registered for, and no page says which workspace an app
+password signs in to. So the ending cannot read *"the workspace the stored app password signs in
+to"*: nothing answers it. What T5 builds instead:
+- **The workspace is recorded on the account** (`CIRRUX_DRIVE_WORKSPACE_KEY`, the workspace's
+  `uuid`, in the account's encrypted record beside the grant), by the first Drive grant that lands
+  on it, the owner's or a link's. Every later grant on that account, on any link or the owner's
+  button, must reach the same workspace, or nothing is stored and the link stays live
+  (`mapping.grant_refused`, `refused: 'another_workspace'`). A new app password for another
+  mailbox drops the record with the grant (`keepingTheDriveGrant`); *Disconnect Cirrux Drive*
+  keeps it.
+- **The first grant on an account is bound by the app password, not by Cirrux.** The Drive card
+  is on the page only once the account's app password is stored, and the person who holds the
+  link is the one who signs in; Cirrux's answer cannot tell us more. The page names the login and
+  the workspace that signed in, as the owner's window does (0160 open question 14).
+- **The interface grows by three optional members**, said in T5's pull request: `consentUrl`'s
+  argument takes `challenge` (PKCE), `finish` takes a fourth argument `verifier`, and `GrantFinish`'s
+  success may carry `access` (the first access token, so the ending measures the Drive without
+  spending a refresh). The `secret` Cirrux's entry answers is `{ [CIRRUX_DRIVE_GRANT_KEY],
+  [CIRRUX_DRIVE_WORKSPACE_KEY] }`; `signedInAs` is null, because Cirrux vouches for no address, and
+  the Cirrux ending (not the address check other providers use) decides by the workspace.
+- **Where the doors' guard sits (§4.3).** A migration is made with no person and given to one
+  afterwards (`POST /api/people/:id/migrations`), so the guard is at three doors: the create
+  door refuses a granted destination unless its body names the person who granted it
+  (`personId`, managed only, for T6's wizard to send); the door that gives a migration to a person
+  refuses one into an account another person granted; and the edit door refuses any change to a
+  migration into a granted account that is not that person's. The owner's own *Connect Cirrux
+  Drive* on an account a person granted is refused with the rotation's sentence (D6).
 
 ### 4.5 What the person sees when both are asked (T4)
 
@@ -1044,6 +1108,8 @@ its addition and D8 in place under 1.0 (*"terms or the privacy policy: no one bu
 1. Whether Cirrux's API names the signed-in user or workspace on a token, so the Drive grant
    binds to it directly rather than through the stored app password (§4.4). Read
    `https://cirrux.co/help/api` when T5 starts, and cite it.
+   **Answered by T5, 2026-11-25:** it names the user (`uuid`, login handle) and the workspace
+   (`uuid`, `name`, `type`), never an address; the binding is as §4.4's T5 paragraph says.
 2. The published servers of Soverin, Cirrux and Infomaniak, for `PROVIDER_ENDPOINTS` (D3 (a)):
    read and cited per provider; a provider whose page cannot be read stays generic, its host
    shown for the person to judge, as 0171 T10 did for MX hosts.

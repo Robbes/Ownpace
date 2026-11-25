@@ -61,15 +61,18 @@ describe('targetGrantAsk: what a link asks of a destination', () => {
     expect(targetGrantAsk(target('infomaniak', ['mailPassword'], ['email']))).toEqual({ ok: true, asks: [] });
   });
 
-  it('refuses Cirrux files without Drive until Cirrux has an entry on the seam (0174 T5), and asks nothing when Drive is there', () => {
-    const refused = targetGrantAsk(target('cirrux', ['password'], ['file']));
-    expect(refused.ok).toBe(false);
-    if (!refused.ok) {
-      expect(refused.refusal.code).toBe('target_not_grantable');
-      expect(refused.refusal.reason).toBe(
-        'This destination is not one a link can connect. Connect it yourself on the Accounts page.',
-      );
-    }
+  it('asks Cirrux files without Drive for its sign-in, beside the password when that is missing too (0174 T5), and nothing when Drive is there', () => {
+    expect(targetGrantAsk(target('cirrux', ['password'], ['file']))).toEqual({
+      ok: true,
+      asks: [{ way: 'sign-in', provider: 'cirrux' }],
+    });
+    expect(targetGrantAsk(target('cirrux', [], ['file', 'email']))).toEqual({
+      ok: true,
+      asks: [
+        { way: 'password', kind: 'cirrux' },
+        { way: 'sign-in', provider: 'cirrux' },
+      ],
+    });
     expect(targetGrantAsk(target('cirrux', ['password', 'driveRefreshToken'], ['file']))).toEqual({ ok: true, asks: [] });
     // Mail into Cirrux needs no Drive.
     expect(targetGrantAsk(target('cirrux', ['password'], ['email']))).toEqual({ ok: true, asks: [] });

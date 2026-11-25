@@ -82,6 +82,7 @@ import type {
 } from '@openmig/shared';
 import { authenticate, withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
+import { rotationRefusal } from '@openmig/managed';
 import { refusedUntilAccepted } from '../conditions-not-accepted.ts';
 import type { Answerable, AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
@@ -1186,15 +1187,26 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       return void res.status(400).json({ error: 'invalid_body', reason: 'Send { values }.' });
     }
 
-    const found = await withTenantDb(tenantId, pool(), (db) =>
-      db
+    // Read with whether a person connected it themselves, in one transaction.
+    const found = await withTenantDb(tenantId, pool(), async (db) => {
+      const rows = await db
         .select()
         .from(schema.connection)
-        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId))),
-    );
+        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
+      return rows[0] ? [{ ...rows[0], connectedBy: await rotationRefusal(db, tenantId, id) }] : [];
+    });
     const row = found[0];
     if (!row) {
       return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
+    }
+    // A PASSWORD A PERSON TYPED IS NOT REPLACED HERE (workplan 0174 §4.3,
+    // D6). They connected this account themselves through their grant link;
+    // a new secret from this door would be one the owner knows, and the
+    // promise that their password never passes through the owner would hold
+    // only until the first rotation. The remedy is a new grant link.
+    const theirs = row.connectedBy;
+    if (theirs) {
+      return void res.status(409).json({ error: 'connected_by_the_person', reason: theirs.en, reasonNl: theirs.nl });
     }
     // Rotating probes the STORED config before anything is replaced, so a
     // stored archive on this machine's disk is refused here as at the test

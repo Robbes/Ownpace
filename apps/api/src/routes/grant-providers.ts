@@ -24,11 +24,10 @@
  *   0171 T4): its consent as the owner's own Connect with Dropbox asks it
  *   (Dropbox takes no login hint), and its ending, which exchanges the code
  *   and asks Dropbox who signed in (`dropboxSignedInAccount`).
- * - **Cirrux** (0174 T5, a destination's Drive) is in the id type, so the
- *   web's list and the routes can name it, and has no entry until its task
- *   adds one: a provider without an entry is never grantable. **Apple** stays
- *   in the id type for the web's list, and never has an entry: since 0174 it
- *   is the `apple` password kind (below), not a sign-in.
+ * - **Cirrux** (0174 T5) is a DESTINATION's sign-in, its Drive: the one
+ *   entry with `targetKinds`, bound by the workspace (its entry says why).
+ * - **Apple** stays in the id type for the web's list, and never has an
+ *   entry: since 0174 it is the `apple` password kind (below), not a sign-in.
  *
  * ## Two ways in, two roles (workplan 0174 §3, §4.1, §5.1, T1)
  *
@@ -51,6 +50,8 @@
  */
 
 import {
+  CIRRUX_DRIVE_GRANT_KEY,
+  CIRRUX_DRIVE_WORKSPACE_KEY,
   cirruxDeploymentClient,
   credentialFieldsFor,
   dropboxDeploymentClient,
@@ -73,6 +74,7 @@ import {
   microsoftDomainHint,
 } from './migrations/microsoft-consent.ts';
 import { microsoftSignedInAccount } from './migrations/microsoft-signed-in-account.ts';
+import { cirruxConsentUrl, cirruxSignedInAs, exchangeCirruxCode } from './migrations/cirrux-consent.ts';
 import type { SignedInAccount } from './migrations/signed-in-account.ts';
 import { testPassword } from './password-test.ts';
 import { probeAnswers } from '../probe-answer.ts';
@@ -139,6 +141,14 @@ export type GrantFinish =
       /** Null when the provider did not vouch for an account: nothing may be stored. */
       readonly signedInAs: SignedInAccount | null;
       readonly grantedScopes: ReadonlyArray<string>;
+      /**
+       * The first access token, when the ending may use it to measure what
+       * was granted without spending a refresh (Cirrux's rotate, 0160 T5;
+       * added by 0174 T5). Never stored: `secret` is what is stored.
+       */
+      readonly access?: { readonly accessToken: string; readonly expiresAt: number };
+      /** Who signed in, for the page, when the provider names no address (Cirrux's login and workspace). */
+      readonly shownAs?: { readonly username?: string; readonly workspace?: string };
     }
   | {
       readonly ok: false;
@@ -176,9 +186,15 @@ export interface GrantProvider {
     readonly scope: string;
     /** The data types the link asks for. */
     readonly domains: ReadonlyArray<string>;
+    /** PKCE's `S256` challenge, for a provider that requires it (Cirrux; 0174 T5). */
+    readonly challenge?: string;
   }) => string;
-  /** OAuth providers: the code exchanged, and the account that actually signed in. */
-  readonly finish?: (code: string, redirectUri: string, client: GrantClient) => Promise<GrantFinish>;
+  /**
+   * OAuth providers: the code exchanged, and the account that actually signed
+   * in. `verifier` is PKCE's, held in the server's pending state, for a
+   * provider that requires it (Cirrux; 0174 T5).
+   */
+  readonly finish?: (code: string, redirectUri: string, client: GrantClient, verifier?: string) => Promise<GrantFinish>;
 }
 
 /** The Google kinds: the account and the four single-purpose ones (0108 T7). */
@@ -288,11 +304,78 @@ const DROPBOX: GrantProvider = {
   },
 };
 
-/** The entries, by id. Cirrux joins with 0174 T5; Apple is a password kind. */
+/**
+ * Cirrux Drive, a DESTINATION's sign-in (workplan 0174 §4.4, T5; ADR-0052).
+ *
+ * The account's app password reaches Cirrux's mail and DAV servers; its Drive
+ * is reached only through Cirrux's API, with the account holder's own
+ * sign-in. A public client with PKCE: no secret, the verifier kept in the
+ * server's pending state and handed to `finish`.
+ *
+ * Cirrux names no address on a sign-in, only the login and the workspace
+ * (`https://cirrux.co/help/api/user`, read 2026-11-25), so `signedInAs` is
+ * null and the ending binds the grant by the WORKSPACE instead: the secret
+ * carries the workspace's `uuid` beside the refresh token, and the store
+ * refuses a grant that reached another workspace than the one recorded on the
+ * account (`storeCirruxDriveGrantIn`). A sign-in whose workspace Cirrux did
+ * not name is refused here: nothing could be bound.
+ */
+const CIRRUX: GrantProvider = {
+  id: 'cirrux',
+  sourceKinds: new Set(),
+  targetKinds: new Set(['cirrux']),
+  served: (facts) => facts.cirruxClient,
+  consentUrl: (a) =>
+    cirruxConsentUrl({
+      clientId: a.client.clientId,
+      redirectUri: a.redirectUri,
+      state: a.state,
+      challenge: a.challenge ?? '',
+    }),
+  finish: async (code, redirectUri, client, verifier) => {
+    if (!verifier) {
+      return {
+        ok: false,
+        reason: 'a Cirrux consent ended with no PKCE verifier in its pending state',
+        said: CIRRUX_NOT_NAMED,
+      };
+    }
+    const exchanged = await exchangeCirruxCode({ code, verifier, clientId: client.clientId, redirectUri });
+    if (!exchanged.ok) return { ok: false, reason: exchanged.reason, said: exchanged.said };
+    const who = await cirruxSignedInAs(exchanged.accessToken);
+    if (!who?.workspaceId) {
+      return {
+        ok: false,
+        reason: 'Cirrux answered /user/profile with no workspace uuid, so the Drive grant could not be bound',
+        said: CIRRUX_NOT_NAMED,
+      };
+    }
+    return {
+      ok: true,
+      secret: { [CIRRUX_DRIVE_GRANT_KEY]: exchanged.refreshToken, [CIRRUX_DRIVE_WORKSPACE_KEY]: who.workspaceId },
+      signedInAs: null,
+      grantedScopes: [],
+      access: { accessToken: exchanged.accessToken, expiresAt: exchanged.accessExpiresAt },
+      shownAs: {
+        ...(who.username === undefined ? {} : { username: who.username }),
+        ...(who.workspace === undefined ? {} : { workspace: who.workspace }),
+      },
+    };
+  },
+};
+
+/** When Cirrux did not say which workspace signed in, so nothing could be bound. */
+const CIRRUX_NOT_NAMED: Bilingual = {
+  en: 'Cirrux did not say which workspace you signed in to, so nothing was stored. Press Connect Cirrux Drive again.',
+  nl: 'Cirrux zei niet bij welke werkruimte u zich aanmeldde, dus er is niets opgeslagen. Druk opnieuw op Cirrux Drive verbinden.',
+};
+
+/** The entries, by id. Apple is a password kind, never an entry. */
 export const GRANT_PROVIDERS: Readonly<Partial<Record<GrantProviderId, GrantProvider>>> = {
   google: GOOGLE,
   microsoft: MICROSOFT,
   dropbox: DROPBOX,
+  cirrux: CIRRUX,
 };
 
 /**
