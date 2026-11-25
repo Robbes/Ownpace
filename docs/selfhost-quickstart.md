@@ -510,7 +510,7 @@ How quickly it shows up depends on how we found out, which each entry states as
   evidence: a throttled listing or a connector having a bad ten minutes looks
   exactly the same. If it reappears the count starts again from zero.
 
-Migrating from OneDrive or SharePoint gets `reported` for files too: the Graph delta
+Migrating from OneDrive gets `reported` for files too: the Graph delta
 query names what was deleted, the same way CalDAV does.
 
 Two things about the mail one. It works *because* Deleted Items is left behind

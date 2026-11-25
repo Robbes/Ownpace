@@ -144,6 +144,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   show **Show more** only when there is more, so a list of one page looks as before. Every page is
   its own row in the support read log, the later ones too: each is rows the operator chose to look
   at. The API description has the new parameter and fields.
+- **What moves from Microsoft 365 now says OneDrive, and names the online archive** (workplan
+  0026; the owner, 2026-11-24: *"two promises: YES, change the wording."*). Wording only, no
+  new feature. The scope manifest's Microsoft **Files** row said *OneDrive and SharePoint
+  libraries*, while the drive source reads only the signed-in account's own OneDrive; it now says
+  OneDrive, and **SharePoint and Teams files** is a new *does not migrate* row with the way round
+  it: copy the files into your OneDrive first. **Online archive** is a second new row: neither
+  mail source reads Exchange's online archive, where Microsoft's default policy moves mail older
+  than two years, so move its folders into the mailbox first. The Microsoft guide (English and
+  Dutch) gained a *Not yet* section saying both, the site's leaving page lists both rows, and
+  the architecture document's §10.2 no longer says the archive is migrated. The manifest's
+  version moves to 2026-11-24.
 
 ### Fixed
 

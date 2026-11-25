@@ -104,7 +104,9 @@ export const LEAVING = [
     staysBehind: {
       family: 'microsoft',
       items: [
+        'SharePoint and Teams files',
         'SharePoint extras',
+        'Online archive',
         'Teams chat & calls',
         'Planner',
         'Power Automate',
