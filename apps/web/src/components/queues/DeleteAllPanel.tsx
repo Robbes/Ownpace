@@ -203,6 +203,17 @@ const REFUSED: Readonly<Record<string, StringKey>> = {
   [NOT_QUEUED]: 'deletions.refused.notQueued',
 };
 
+/**
+ * A deletion's refusal in the reader's words, by its stable code, or
+ * undefined for a code this page does not know (workplan 0160, T2b). One map
+ * for a run and for one press: a single press showed the server's sentence,
+ * written for the appliance, which told a managed owner to set
+ * `allowApplyDeletions: true` in a config file they do not have.
+ */
+export function deletionRefusalKey(code: string): StringKey | undefined {
+  return Object.prototype.hasOwnProperty.call(REFUSED, code) ? REFUSED[code] : undefined;
+}
+
 const isTerminal = (r: ApplyReceipt): boolean =>
   r.state === 'applied' || r.state === 'refused' || r.state === 'failed';
 
