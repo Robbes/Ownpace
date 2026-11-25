@@ -983,7 +983,7 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * the authority on what exists, so we will not delete in target based on
    * changes in the source."* 0117 §4D settled how: **the detector does not
    * run.** Not run-and-filter, not gated per item, not suppressed downstream.
-   * `allowApplyDeletions` at the apply site is a gate, and a gate strong
+   * A refusal at the apply site (`after_cutover`) is a gate, and a gate strong
    * enough to tell OUR deletion from the person's own needs T4's tombstones
    * anyway. A gate can be wrong once; absence cannot.
    *

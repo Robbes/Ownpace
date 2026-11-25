@@ -79,7 +79,7 @@ of* it.
    (`apps/web/src/i18n/datetime.ts` via `useFormatters()`), keyed on the
    active app locale, never the browser's.
 4. **Shared operator prose needed in both languages** — the pattern T1 set
-   with `APPLY_FLAG_WARNING_NL`: the Dutch lives BESIDE its English source in
+   with `DELETE_BY_HAND_WARNING_NL`: the Dutch lives BESIDE its English source in
    `@openmig/shared` (same file, updated together or neither), so both
    editions and both languages share one source of truth. This — not a
    client-side translation — is how any future server-authored prose goes

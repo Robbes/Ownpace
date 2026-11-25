@@ -1,9 +1,9 @@
 # ADR-0030: A correlated relocation is positive evidence, and may be applied
 
-- **Status:** Accepted 2026-08-15 (owner) and built the same day; amended six times and corrected once (latest 2026-09-28); consolidated 2026-10-03 (ADR-0051)
+- **Status:** Accepted 2026-08-15 (owner) and built the same day; amended six times and corrected once (latest 2026-09-28); consolidated 2026-10-03 (ADR-0051); one line amended 2026-11-25 (ADR-0024's gate 1 removed)
 - **Date:** 2026-08-15; consolidated 2026-10-03
 - **Deciders:** owner
-- **Relates to:** [ADR-0024](./0024-explicit-owner-deletion-apply.md) (`apply` and its seven gates), [ADR-0031](./0031-auto-apply-relocations.md) (unattended apply), [ADR-0005](./0005-idempotency-ledger-nondestructive.md), [ADR-0020](./0020-ledger-rebuildable-cache-recovery.md); arch doc §11.1; workplans [0042](../workplans/0042-google-drive-source.md) T2 and T10, [0150](../workplans/0150-dropbox-native-formats-and-the-downloads-that-will-not-hand-themselves-over.md) D8
+- **Relates to:** [ADR-0024](./0024-explicit-owner-deletion-apply.md) (`apply` and its gates, six since 2026-11-25), [ADR-0031](./0031-auto-apply-relocations.md) (unattended apply), [ADR-0005](./0005-idempotency-ledger-nondestructive.md), [ADR-0020](./0020-ledger-rebuildable-cache-recovery.md); arch doc §11.1; workplans [0042](../workplans/0042-google-drive-source.md) T2 and T10, [0150](../workplans/0150-dropbox-native-formats-and-the-downloads-that-will-not-hand-themselves-over.md) D8
 - **History:** the record as it read before consolidation, word for word — [history/0030-relocation-is-positive-evidence.md](./history/0030-relocation-is-positive-evidence.md)
 
 ## Operative rules
@@ -13,7 +13,7 @@
      node scripts/adr-operative.mjs --write -->
 
 - A **relocation** (a disappeared item paired, by **content hash**, with an arrival of the same pass under a new key) is **positive evidence**: `apply` may remove the **old** copy. Recorded by key (`movedToNaturalKeyHash`), so a move and a rename are one event, never a phantom deletion; the old copy is copied again if its key returns (`relocated-away`; `move-detection.unit.test.ts`).
-- **ADR-0024's gates stand**, behind the same `allowApplyDeletions` switch; gate 3 admits the relocation through `relocationCheck`: the arrival is **ours** (`copied`/`updated`, never `adopted`), holds the **same `contentHash`** under another key and in another target object, and **no third item shares the hash**; else `relocation_unconfirmed` (`apply-relocation.unit.test.ts`).
+- **ADR-0024's gates stand**, with no switch in front of them since 2026-11-25 (ADR-0024); gate 3 admits the relocation through `relocationCheck`: the arrival is **ours** (`copied`/`updated`, never `adopted`), holds the **same `contentHash`** under another key and in another target object, and **no third item shares the hash**; else `relocation_unconfirmed` (`apply-relocation.unit.test.ts`).
 - **The target is asked** (`hasItem`, for the arrival) immediately before removal. An error is not absence; a target that cannot be asked refuses (`target_cannot_confirm`). The port: `TargetPresenceCheck` (`ports.ts`).
 - **Gate 6 has two halves** on one threshold and floor: pending deletions, and open relocations (`mass_relocation_suspected`). **Gate 7's** `UPDATE` re-checks the arrival and `keep` in the same statement; `keep` and `apply` exclude each other (`already_kept`). Held by `apply-relocation.unit.test.ts` and `ledger.integration.test.ts`.
 - A renamed or moved **exported document** (Google Doc, Sheet, Slides deck or Drawing; Dropbox Paper doc) is paired by its **Drive or Dropbox id**: a bytes pair where both copies' bytes match, else `moved_by_identity`, whose `apply` asks for the **same id** (`source_ref`) in place of the bytes checks (owner, 2026-09-23; 0150 D8; `a-rename-the-bytes-could-not-pair`, `a-paper-doc-exported-once`).
@@ -237,6 +237,10 @@ export, carries its **Dropbox id**. A rename changes neither.
   tombstone. Since 2026-08-15, an item listed again at a
   relocation's old key is copied again (`relocated-away`), so the breaker rests on the pairing
   being in doubt.
+
+- **2026-11-25** — ADR-0024 removed gate 1 (workplan 0173): a relocation applied by hand, like a
+  deletion, needs no switch. *Gate 1, opt-in* in the gates above is history from that day. Record:
+  ADR-0024's *Amendment, 2026-11-25: deleting by hand needs no switch*.
 
 The full record, word for word as it read before this consolidation:
 [history/0030-relocation-is-positive-evidence.md](./history/0030-relocation-is-positive-evidence.md).

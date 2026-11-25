@@ -3,9 +3,10 @@
 /**
  * A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
  *
- * `APPLY_FLAG_WARNING` is the sentence a tester reads in front of the switch
- * that turns on *apply deletions*, the one thing in Ownpace that removes
- * anything, and testers may turn it on during the Alpha (0149 D1). Among the
+ * `DELETE_BY_HAND_WARNING` (until alpha.21 `APPLY_FLAG_WARNING`) is the
+ * sentence a tester reads above the rows that offer a delete by hand, the one
+ * thing in Ownpace that removes anything; until alpha.21 it stood in front of
+ * the switch that turned that on (workplan 0173). Among the
  * gates it said every removal passes was *"never a copy somebody has since
  * edited"*, and the Dutch said the same. For mail that was never so. The JMAP
  * mail writer takes the recorded version and ignores it: JMAP gives a message
@@ -52,7 +53,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
-import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
+import { DELETE_BY_HAND_WARNING, DELETE_BY_HAND_WARNING_NL } from '@openmig/shared';
 
 const ROOT = join(import.meta.dirname, '..');
 const WRITER_DIRS = ['packages/connectors/src', 'packages/engines/src'];
@@ -161,7 +162,7 @@ function removers(): Remover[] {
 /** How each language names each data type, and the two sentences that carry the claim. */
 const LANGUAGES = {
   en: {
-    warning: APPLY_FLAG_WARNING,
+    warning: DELETE_BY_HAND_WARNING,
     nouns: {
       files: /\bfiles?\b/i,
       calendar: /\bcalendar entr(?:y|ies)\b/i,
@@ -177,11 +178,11 @@ const LANGUAGES = {
       'only missing is never enough',
       'Ownpace must have written the copy itself',
       'an unusually large part of one data type',
-      'While this is off, nothing can be removed',
+      'every delete asks you to confirm it first',
     ],
   },
   nl: {
-    warning: APPLY_FLAG_WARNING_NL,
+    warning: DELETE_BY_HAND_WARNING_NL,
     nouns: {
       files: /\bbestand(?:en)?\b/i,
       calendar: /\bagenda-items?\b/i,
@@ -197,7 +198,7 @@ const LANGUAGES = {
       'alleen ontbreken is nooit genoeg',
       'Ownpace moet de kopie zelf hebben geschreven',
       'een ongewoon groot deel van één soort gegevens',
-      'Zolang dit uit staat, kan er niets worden verwijderd',
+      'elke verwijdering vraagt u eerst om een bevestiging',
     ],
   },
 } as const;
@@ -211,7 +212,7 @@ function named(sentence: string, language: Language): Domain[] {
 }
 
 const REWRITE =
-  'Rewrite APPLY_FLAG_WARNING and APPLY_FLAG_WARNING_NL (packages/shared/src/operating-contract.ts) ' +
+  'Rewrite DELETE_BY_HAND_WARNING and DELETE_BY_HAND_WARNING_NL (packages/shared/src/operating-contract.ts) ' +
   'to say what the writers do now, and then this guard\'s sentence markers if the words changed.';
 
 describe('a warning the check keeps', () => {

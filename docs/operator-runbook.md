@@ -2099,8 +2099,8 @@ here too* (workplan 0164 T3) is one press for every row that has its own delete
 button, after one confirmation over the rows as they were when it opened: it
 calls the same endpoint for each row, and the next only once the one before has
 answered (on managed, its receipt read to the end, within five minutes), so
-every row passes everything below by itself. A `mass_deletion_suspected` or
-`not_enabled` refusal stops the whole run, and so does a `removed_not_recorded`
+every row passes everything below by itself. A `mass_deletion_suspected`
+refusal stops the whole run, and so does a `removed_not_recorded`
 (the ledger row changed while that removal ran: a pass saw the item again, or
 another removal recorded it first). So does a `not_confirmed` or
 `weak_evidence`: every row had positive evidence when the list was read again,
@@ -2129,24 +2129,25 @@ listed item of a smaller one, which the breaker does not weigh. It caps no
 total: once a run's removals have left the queue, a second confirmation can
 remove another fifth.
 
-It has to be turned on per mapping first:
+**Nothing has to be turned on for it, and nothing turns it off** (alpha.21;
+ADR-0024, amended 2026-11-25; workplan 0173). Until then a per-mapping switch,
+`allowApplyDeletions`, had to be `true` first, and a call was refused
+`not_enabled` without it. The owner removed it: every delete on the page is two
+presses already, and the switch checked nothing about which item may go.
 
-```json
-{
-  "tenantId": "...",
-  "mappingId": "...",
-  "source": { "...": "..." },
-  "target": { "...": "..." },
-  "allowApplyDeletions": true
-}
-```
+- **The API asks no confirmation.** The two presses are the web page's. On the
+  appliance's own port and with a managed token, **one call is one removal**
+  (behind every gate below). Do not wire this into anything automated.
+- **An appliance file that still says `"allowApplyDeletions": false`** loads,
+  and the appliance logs once at start that the key no longer turns deleting by
+  hand off. It is ignored and can be removed from the file.
+- **Managed:** `mailbox_mapping.allow_apply_deletions` stays in the schema,
+  unread, until a later release drops it. `PATCH .../apply-deletions` takes
+  `{ "autoApplyRelocations": true | false }` only, and refuses a body that
+  still sends `allowApplyDeletions` (400 `invalid_body`).
 
-Defaults to `false`. A capability that destroys data must be opted into, never
-opted out of — a mapping nobody configured for this cannot delete anything,
-however the endpoint is called.
-
-Even switched on, every single call still has to pass **all** of the following
-before anything is removed:
+Every single call has to pass **all** of the following before anything is
+removed:
 
 1. **Positive evidence only.** `reported` or `trashed` — never `inferred`,
    however many passes an absence has repeated. Absence has innocent causes
@@ -2199,7 +2200,7 @@ before anything is removed:
    (workplan 0164).
 
 A call that is refused always says why, in a `reason` you can read as-is —
-`not_enabled`, `target_cannot_remove`, `not_found`, `not_confirmed`,
+`target_cannot_remove`, `not_found`, `not_confirmed`,
 `weak_evidence`, `not_ours`, `edited_on_target`, `version_unknown`,
 `kept_for_guests`, `mass_deletion_suspected`, `after_cutover`,
 `already_kept`, `already_applied` and `removed_not_recorded` are the distinct
@@ -2362,8 +2363,8 @@ Two answers for every move, and a third that exists only for one kind:
   **relocation only**: a file whose move or rename changed its path-shaped
   natural key, so the same bytes are already on the target under the new one
   (ADR-0030). Applying removes the target's OLD copy — the second and last
-  destructive operation this product has, behind the same per-mapping
-  `allowApplyDeletions` switch and the same gates as a deletion apply, plus one
+  destructive operation this product has, with no switch in front of it (as a
+  deletion apply, since alpha.21) and behind the same gates, plus one
   of its own: **the target itself is asked whether the new copy is really
   there**, at the moment of acting, and a target that cannot answer is refused.
   A mail or calendar move never shows this button — their keys survive a move,

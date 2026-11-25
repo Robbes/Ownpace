@@ -3174,8 +3174,9 @@ if [ -z "$HASH" ]; then
   fi
 else
   echo "eligible item hash: $HASH"
-  echo "flag on + fabricate deletion evidence (both retracted below):"
-  q "UPDATE mailbox_mapping SET allow_apply_deletions=true WHERE tenant_id='$APPLY_TENANT' AND id='$APPLY_MAPPING'"
+  # No switch to turn on: deleting by hand needs none since alpha.21 (ADR-0024,
+  # amended 2026-11-25; workplan 0173). The apply runs on the smoke's fresh mapping.
+  echo "fabricate deletion evidence (retracted below unless applied):"
   q "UPDATE item SET deletion_reported_at=now() WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND natural_key_hash='$HASH' AND deletion_reported_at IS NULL"
 
   TOK_A="$APPLY_TOKEN"
@@ -3205,8 +3206,7 @@ else
     APPLY_RESULT="start-http-$acode"
   fi
 
-  note "apply cleanup — flag off; retract evidence ONLY if never applied"
-  q "UPDATE mailbox_mapping SET allow_apply_deletions=false WHERE tenant_id='$APPLY_TENANT' AND id='$APPLY_MAPPING'"
+  note "apply cleanup — retract evidence ONLY if never applied"
   # If the deletion WAS applied, the evidence must stand — retracting it would
   # leave an applied receipt pointing at an item that claims no deletion was
   # ever reported (a falsified record).

@@ -229,9 +229,10 @@ describe('nobody is moved below admin', () => {
  *
  * The Team page says, in `tenants.invite.adminCan`, that an admin can do
  * everything an owner can except close or reopen the organisation, turn
- * deleting by hand or the automatic removal of moved files' old copies on or
- * off (`allowApplyDeletions`, `autoApplyRelocations`), make somebody an
- * owner, and change or remove an owner. That sentence is true only while the
+ * the automatic removal of moved files' old copies on or off
+ * (`autoApplyRelocations`), make somebody an owner, and change or remove an
+ * owner. (Deleting by hand had a switch of its own here until alpha.21; it
+ * has none since, ADR-0024 2026-11-25, so an admin deletes by hand too.) That sentence is true only while the
  * owner-only doors are exactly those, and the web test that holds it compares
  * the string with a copy of itself. T2 adding a `requireRole('owner')` route
  * would make it false with every test green. So the doors are read here from
@@ -320,14 +321,14 @@ describe('what only an owner can do, as the admin line says', () => {
     expect(unreadable, 'a requireRole whose roles this guard cannot read: teach it, or name them').toEqual([]);
   });
 
-  it('finds closing, reopening, deleting, the two deletion flags, granting owner and changing or removing an owner, and nothing else', () => {
+  it('finds closing, reopening, deleting, the automatic-removal flag, granting owner and changing or removing an owner, and nothing else', () => {
     expect(found.sort(), REVISIT).toEqual(
       [
         // Deleting answers the owner 410: closing is how an organisation ends.
         'owner only: tenants/index.ts DELETE /:tenantId',
         'owner only: tenants/index.ts POST /:tenantId/close',
         'owner only: tenants/index.ts POST /:tenantId/reopen',
-        // allowApplyDeletions and autoApplyRelocations, on and off alike.
+        // autoApplyRelocations, on and off alike (deleting by hand has no switch since alpha.21).
         'owner only: migrations/operating-routes.ts PATCH /:mappingId/apply-deletions',
         // Granting owner, by invitation or by a role change.
         "reads the caller's role: tenants/members.ts POST / (grantsOwnerWithoutPermission)",

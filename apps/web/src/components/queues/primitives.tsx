@@ -21,6 +21,7 @@ import {
 } from '@openmig/shared';
 import { useLocale, useT } from '../../i18n/index.tsx';
 import type { StringKey } from '../../i18n/index.tsx';
+import { confirmGuard } from './confirm-guard.ts';
 
 // Client-authored strings here go through the dictionary (workplan 0024 T2);
 // SERVER prose (refusal reasons, effects) renders verbatim as ever —
@@ -129,7 +130,7 @@ export const ClosedBanner: React.FC<{ text: string }> = ({ text }) => (
  * `toNaturalKeyHash`, in English under a Dutch heading (the UX sweep,
  * 2026-10-17). The owner chose words for the person reading it (2026-10-18):
  * they live in `@openmig/shared` (`queue-guidance.ts`), English and Dutch
- * beside each other, the way `APPLY_FLAG_WARNING_NL` does, and this only
+ * beside each other, the way `DELETE_BY_HAND_WARNING_NL` does, and this only
  * PICKS the language, never rephrases. The API keeps serving the operator's.
  *
  * Each option is said as one line, the button's name and then what it does,
@@ -240,6 +241,8 @@ export const ActionButton: React.FC<{
   </button>
 );
 
+export { CONFIRM_GUARD_MS } from './confirm-guard.ts';
+
 /**
  * The apply button, which is not like the others.
  *
@@ -258,6 +261,13 @@ export const ActionButton: React.FC<{
  * `tone` picks the dressing, `icon` the glyph. `DestructiveButton` below is
  * the destructive preset, so every caller that really does destroy something
  * reads exactly as it did.
+ *
+ * A DOUBLE CLICK IS ONE DECISION, NOT TWO (workplan 0173 T0). The second
+ * click of a double click (`event.detail > 1`) and any click within
+ * `CONFIRM_GUARD_MS` of arming are ignored, as *Delete N* in `DeleteAllPanel`
+ * does since 2026-11-21. Since alpha.21 these two presses are the only
+ * consent a delete by hand asks for (ADR-0024, amended 2026-11-25: no switch
+ * to turn on first), and a double click used to be both.
  */
 export const ConfirmButton: React.FC<{
   onClick: () => void;
@@ -268,6 +278,7 @@ export const ConfirmButton: React.FC<{
   icon?: React.ReactNode;
 }> = ({ onClick, pending, label, armedLabel, tone = 'destructive', icon }) => {
   const [armed, setArmed] = React.useState(false);
+  const armedAt = React.useRef(0);
 
   React.useEffect(() => {
     if (!armed) return;
@@ -286,7 +297,15 @@ export const ConfirmButton: React.FC<{
 
   return (
     <button
-      onClick={() => (armed ? onClick() : setArmed(true))}
+      onClick={(event) => {
+        if (!armed) {
+          armedAt.current = Date.now();
+          setArmed(true);
+          return;
+        }
+        if (event.detail > 1 || Date.now() - armedAt.current < confirmGuard.ms) return;
+        onClick();
+      }}
       onBlur={() => setArmed(false)}
       disabled={pending}
       className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border disabled:opacity-50 ${dressing}`}

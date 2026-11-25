@@ -61,7 +61,7 @@ async function seedStable(ledger: MemoryLedger, n: number) {
 function deps(
   ledger: MemoryLedger,
   target: unknown,
-  flags: { allow?: boolean; auto?: boolean } = {},
+  flags: { auto?: boolean } = {},
   onApplied?: (a: { naturalKeyHash: string; kind: string }) => Promise<void>,
 ) {
   return {
@@ -70,7 +70,6 @@ function deps(
     domain: 'file' as const,
     ledger,
     target,
-    allowApplyDeletions: flags.allow ?? true,
     autoApplyRelocations: flags.auto ?? true,
     // Before cutover: the old system still decides what exists. After it,
     // nothing is applied at all (`a-move-applied-after-cutover.unit.test.ts`).
@@ -92,19 +91,19 @@ describe('the opt-in (ADR-0031: default OFF, and off means untouched)', () => {
     expect(target.removeItem).not.toHaveBeenCalled();
   });
 
-  it('does NOT bypass gate 1: auto on with allowApplyDeletions off refuses every item', async () => {
-    // The auto flag EXTENDS the destructive opt-in, it never substitutes for
-    // it — an owner who armed neither switch must get the same refusal a
-    // button press would.
+  it('is its own switch: nothing else has to be turned on for it (ADR-0031, 2026-11-25)', async () => {
+    // Until alpha.21 the auto flag EXTENDED a per-mapping switch for deleting
+    // by hand. That switch is gone (ADR-0024's amendment of 2026-11-25), so
+    // the auto flag alone decides, and every manual gate still runs per item.
     const ledger = new MemoryLedger();
     await seedPair(ledger, 'a.txt', 'b.txt', 'h-1');
     const target = fakeRemover();
 
-    const report = await autoApplyRelocations(deps(ledger, target, { allow: false }), NEXT_PASS);
+    const report = await autoApplyRelocations(deps(ledger, target), NEXT_PASS);
 
-    expect(report.applied).toEqual([]);
-    expect(report.leftForReview.map((l) => l.code)).toEqual(['not_enabled']);
-    expect(target.removeItem).not.toHaveBeenCalled();
+    expect(report.enabled).toBe(true);
+    expect(report.applied).toHaveLength(1);
+    expect(report.leftForReview).toEqual([]);
   });
 });
 
