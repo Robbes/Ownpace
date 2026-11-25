@@ -4,6 +4,32 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.20] - 2026-11-25
+
+Every first copy of mail, files and calendars now brings the last 90 days first, then everything
+older in the same pass, and a migration can copy only the last 90 days, with every contact and
+task, to try a destination with current data, then take everything older with **Copy everything**
+without starting over. A grant link can now connect a Microsoft 365 account, personal or work, as
+it connects a Google account, through one provider seam that is ready for more. Each Start screen
+says how much there is to copy and how much room the destination has; Finish lists the addresses
+at the old provider that receive mail and checks MX on a button; and Apple's data export, iCloud
+Drive and Photos, is read, Experimental. Every new Microsoft consent asks for the person's own
+profile, which Finish's address list needs; a Microsoft connection made before alpha.20 is
+connected again to list them. Microsoft 365 and Outlook.com calendars are copied again, built on
+Graph's documented calls, and a calendar pass that found calendars and read no event says so in
+amber. Gmail mail archived without a label is copied into Archive, and Check counts against
+Gmail's own All Mail. What moves from Microsoft 365 says OneDrive and names the online archive. The
+grant page says where to open the link before its first button and has a **Copy link** button;
+the Cirrux Drive screens say four things in Cirrux's terms; the operator's two support lists come
+a page at a time; and the appliance on PGlite no longer fails a pass when two data types start at
+once. The release's `bom.json` now lists every package the product runs, and each published image
+carries its own SBOM, attached to the release. Underneath, nginx moves to 1.31.10 with five rebuilt
+base images, and the managed job runner to pg-boss 12.39.0, whose job schema moves from 46 to 47
+when the worker first starts on it: one way, so a deploy to alpha.20 is undone only from the copy
+taken before it. alpha.20 adds no migration to either chain. Live runs alpha.18; the owner plans
+to deploy alpha.20 there on 2026-11-26, and alpha.19's changes go with it, among them Zitadel
+v4.20.5, which is one-way for the identity provider's database.
+
 ### Added
 
 - **The last 90 days first, and a migration of only them** (workplan 0170 T1; the owner, 2026-11-24:
@@ -18,9 +44,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   migration of only the last 90 days is not switched over before it is broadened (the owner:
   *"D8: no, not before"*). Both editions run one rule, and the read of a migration says which
   data types have their last 90 days in (`window`). No database change: the window's record is
-  kept with the cursors, and the setting in the migration's own override. The screens and the
-  sources' server-side date filters follow in 0170's other tasks; until then every source lists
-  as before and the window is applied as items are listed.
+  kept with the cursors, and the setting in the migration's own override. The sources' own date
+  filters and the screens are 0170's other tasks, below; a source without a filter of its own
+  lists as before, and the window is applied as items are listed.
 - **The mail sources read the last 90 days first** (workplan 0170 T2, for its §4.1). Given a
   window, an IMAP source, Gmail's included, asks the server `UID SEARCH SINCE` the day before it
   and fetches only the messages that search answers, so a window pass no longer downloads the
@@ -41,9 +67,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   day before its start, plus every recurring series, so a server that does not expand recurrence
   still shows the sync loop a series that began years ago and still recurs; a server that refuses
   any of those queries has its calendar listed whole. The listing gives no cursor, and tasks are
-  never windowed. Graph calendars set aside an event plainly over before the window before its
-  iCalendar is fetched, and mark their cursor with the window, so a listing of everything never
-  reads on from it. `eventInWindow` now decides D1 (a) from the event itself: DTEND or DURATION,
+  never windowed. Graph calendars are read whole, and an event plainly over before the window is
+  not built (*Microsoft 365 and Outlook.com calendars are copied again*, under Fixed).
+  `eventInWindow` now decides D1 (a) from the event itself: DTEND or DURATION,
   time zones (IANA, a VTIMEZONE's own offsets for a Windows name, the widest offsets for a
   floating time or a date), RRULE's UNTIL and COUNT, RDATE, and overrides; what it cannot bound
   is held. The start a CalDAV event carries is read from its own VEVENT, in UTC, no longer a
@@ -73,7 +99,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   link is for …"* (*"U meldde zich aan als …; deze link is voor …"*). A person's link lists each
   account with its own provider and button. Underneath, one provider seam
   (`apps/api/src/routes/grant-providers.ts`) now says which providers a link can connect, and the
-  readiness check, the routes and the page ask it, ready for Dropbox and Apple (T4, T5). The
+  readiness check, the routes and the page ask it, ready for the accounts planned for alpha.21. The
   authorize route is `POST /api/grant/:link/:provider/authorize`, with Google's old address kept;
   the readiness refusal `source_not_google` is renamed `source_not_grantable`. **Every new
   Microsoft consent also asks `openid email profile User.Read`** (D7 (a)): who signed in, and
@@ -233,9 +259,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   pass lists a calendar whole, so an edit is found by `changeKey` (a series' also by its
   exceptions and cancellations), and an event gone from the listing is reported as removed, for
   the owner to decide as with any source-reported deletion. With 0170's window the listing is
-  still read whole and an event over before the window is not built, which replaces the
-  window-marked delta cursor T4 describes above. A guard fails if `events/delta` or an event's
-  `$value` comes back, and the tests answer by address, in Graph's documented shapes.
+  still read whole and an event over before the window is not built. A guard fails if
+  `events/delta` or an event's `$value` comes back, and the tests answer by address, in Graph's
+  documented shapes.
 - **Calendars found and nothing read from them are said in amber.** The same migration's calendar
   row read a green *Kept in step* and *none found to copy*. When a calendar pass opened calendars
   and read no event, and nothing of them was ever copied, the card's line and the migration
