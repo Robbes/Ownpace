@@ -141,6 +141,12 @@ export const en = {
   // A destination's Cirrux Drive on a person's link (workplan 0174 §4.4, T5),
   // shown once the account's app password is stored. The button's words are
   // the owner's own (`account.cirrux.connect`).
+  // The person's progress page after a password (0174 §5.3 step 8), in the
+  // words the sign-in ending's own page says it (`google-consent.ts`).
+  'grant.person.yourPage':
+    'Here is your own page for this migration. Keep this one: it shows how far along your move is, and nothing from inside your account.',
+  'grant.person.keepIt':
+    'Keep this link: bookmark it or copy it somewhere safe. It works for the next 90 days, and the person running the migration can turn it off at any time.',
   'grant.continue.cirrux': 'Connect Cirrux Drive',
   'grant.connectAgain.cirrux': 'Connect Cirrux Drive again',
   'grant.connecting.cirrux': 'Opening Cirrux…',
@@ -328,6 +334,10 @@ export const nl: Record<keyof typeof en, string> = {
     'Log in als {account}. Microsoft bevestigt met welk account u zich aanmeldt; andere accounts worden geweigerd.',
   'grant.withdraw.microsoft':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of in uw Microsoft-account, bij de apps die toegang hebben.',
+  'grant.person.yourPage':
+    'Hier is uw eigen pagina voor deze migratie. Bewaar deze: die laat zien hoe ver de migratie is, en niets uit uw account.',
+  'grant.person.keepIt':
+    'Bewaar deze link: zet hem bij uw favorieten of kopieer hem naar een veilige plek. Hij werkt de komende 90 dagen, en wie de migratie uitvoert kan hem op elk moment uitzetten.',
   'grant.continue.cirrux': 'Cirrux Drive verbinden',
   'grant.connectAgain.cirrux': 'Cirrux Drive opnieuw verbinden',
   'grant.connecting.cirrux': 'Cirrux wordt geopend…',

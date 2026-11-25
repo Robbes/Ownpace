@@ -344,6 +344,9 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
   // Password cards connected on this visit, and the tries their last answer left (by `ref`).
   const [connectedHere, setConnectedHere] = React.useState<ReadonlySet<string>>(new Set());
   const [triesHere, setTriesHere] = React.useState<Readonly<Record<string, { left: number; locked: boolean }>>>({});
+  // The person's progress page, minted by the password route after a write
+  // (0174 §5.3 step 8), as a sign-in's ending hands it over on its own page.
+  const [progressUrl, setProgressUrl] = React.useState<string | null>(null);
 
   const connect = async (account: string, provider: GrantProvider) => {
     setStarting(account);
@@ -385,7 +388,10 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
   };
 
   const onPasswordAnswer = (ref: string, answer: PasswordAnswer) => {
-    if (answer.kind === 'connected') setConnectedHere((prev) => new Set(prev).add(ref));
+    if (answer.kind === 'connected') {
+      setConnectedHere((prev) => new Set(prev).add(ref));
+      if (answer.progressUrl !== undefined) setProgressUrl(answer.progressUrl);
+    }
     else if (answer.kind === 'locked') setTriesHere((prev) => ({ ...prev, [ref]: { left: 0, locked: true } }));
     else if (answer.kind === 'refused_login' && answer.left !== null) {
       setTriesHere((prev) => ({ ...prev, [ref]: { left: answer.left!, locked: false } }));
@@ -608,6 +614,17 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
           {t('grant.person.allConnected')}
         </p>
+      )}
+      {progressUrl !== null && (
+        <div className="mt-4 p-3 border border-gray-200 rounded-lg text-sm text-gray-900" data-progress-link>
+          <p>{t('grant.person.yourPage')}</p>
+          <p className="mt-2 break-all">
+            <a className="underline" href={progressUrl}>
+              {progressUrl}
+            </a>
+          </p>
+          <p className="mt-2 text-gray-700">{t('grant.person.keepIt')}</p>
+        </div>
       )}
 
       <p className="mt-6 text-sm text-gray-600">{t('grant.until', { date: dateTime(data.expiresAt) })}</p>

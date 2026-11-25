@@ -57,6 +57,18 @@ describe('the call (0174 §5.3)', () => {
 describe('what the page reads from each answer (0174 §5.3, §5.7)', () => {
   it.each([
     ['connected', 200, { connected: true, faces: ['email', 'calendar'] }, { kind: 'connected', faces: ['email', 'calendar'] }],
+    [
+      'connected, with the progress page the route minted (§5.3 step 8)',
+      200,
+      { connected: true, faces: ['email'], linkSpent: true, progressUrl: 'https://app.example.test/progress/p.abc.def' },
+      { kind: 'connected', faces: ['email'], progressUrl: 'https://app.example.test/progress/p.abc.def' },
+    ],
+    [
+      'connected, and no progress page the page would follow anywhere but http(s)',
+      200,
+      { connected: true, faces: ['email'], linkSpent: false, progressUrl: 'javascript:alert(1)' },
+      { kind: 'connected', faces: ['email'] },
+    ],
     ['already connected, nothing tried', 409, { error: 'already_connected' }, { kind: 'connected', faces: [] }],
     ['refused, three left', 422, { error: 'refused_login', tries: { left: 3, locked: false } }, { kind: 'refused_login', left: 3 }],
     ['refused, the fifth', 422, { error: 'refused_login', tries: { left: 0, locked: true } }, { kind: 'locked' }],

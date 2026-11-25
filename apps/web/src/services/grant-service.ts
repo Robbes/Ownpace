@@ -183,7 +183,8 @@ export type PersonGrantCard = PersonGrantSubject['accounts'][number];
  * server's own text for a password the person typed never reaches it.
  */
 export type PasswordAnswer =
-  | { readonly kind: 'connected'; readonly faces: ReadonlyArray<DiscoveryDomain> }
+  /** `progressUrl`: the person's progress page the route minted after the write (§5.3 step 8), when it could. */
+  | { readonly kind: 'connected'; readonly faces: ReadonlyArray<DiscoveryDomain>; readonly progressUrl?: string }
   | { readonly kind: 'refused_login'; readonly left: number | null }
   | { readonly kind: 'unreachable' }
   | { readonly kind: 'face_missing'; readonly faces: ReadonlyArray<DiscoveryDomain> }
@@ -194,6 +195,17 @@ export type PasswordAnswer =
   | { readonly kind: 'no_answer' };
 
 const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v !== '';
+
+/** A progress page's address as the route answers it: an http(s) URL, or nothing. */
+function progressUrlOf(v: unknown): string | null {
+  if (!nonEmpty(v)) return null;
+  try {
+    const url = new URL(v);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
 
 /** The data types an answer names, the ones this page has words for. */
 function facesOf(v: unknown): DiscoveryDomain[] {
@@ -214,7 +226,10 @@ function facesOf(v: unknown): DiscoveryDomain[] {
  */
 export function passwordAnswerOf(status: number, body: unknown): PasswordAnswer {
   const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  if (status >= 200 && status < 300 && b.connected === true) return { kind: 'connected', faces: facesOf(b.faces) };
+  if (status >= 200 && status < 300 && b.connected === true) {
+    const progress = progressUrlOf(b.progressUrl);
+    return { kind: 'connected', faces: facesOf(b.faces), ...(progress === null ? {} : { progressUrl: progress }) };
+  }
   const code = nonEmpty(b.error) ? b.error : '';
   // Connected through this link already (a second tab, a replay): nothing was tried, and it is connected.
   if (status === 409 && code === 'already_connected') return { kind: 'connected', faces: [] };

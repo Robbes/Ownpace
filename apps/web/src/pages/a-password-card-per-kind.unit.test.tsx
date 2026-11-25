@@ -470,6 +470,16 @@ describe('what the card says after the route answers (0174 §5.7)', () => {
     expect(el.querySelector('form')).not.toBeNull();
   });
 
+  it('connected, with a progress page: hands it over to keep, as a sign-in’s ending does (§5.3 step 8)', async () => {
+    await answer({ kind: 'connected', faces: ['email'], progressUrl: 'https://app.example.test/progress/p.abc.def' }, 'imap', 'nl');
+    const block = (await screen.findByText(words('nl', 'grant.person.yourPage'))).closest('[data-progress-link]') as HTMLElement;
+    expect(within(block).getByRole('link', { name: 'https://app.example.test/progress/p.abc.def' })).toHaveAttribute(
+      'href',
+      'https://app.example.test/progress/p.abc.def',
+    );
+    expect(within(block).getByText(words('nl', 'grant.person.keepIt'))).toBeInTheDocument();
+  });
+
   it('no answer: the page’s own sentence', async () => {
     const el = await answer({ kind: 'no_answer' });
     expect(await within(el).findByRole('alert')).toHaveTextContent(words('en', 'link.unreachable'));
