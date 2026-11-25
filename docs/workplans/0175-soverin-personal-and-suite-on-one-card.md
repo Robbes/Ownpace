@@ -1,8 +1,19 @@
 # Workplan 0175 — Soverin, personal and Suite, on one card
 
-> **In one line:** One Soverin card for personal and Suite mailboxes: the Test finds which kind it is and what it carries (files only where Suite's Nextcloud answered), and a switch between the two is noticed and calendars and contacts copied again.
+> **In one line:** One Soverin card for personal and Suite mailboxes: the Test finds which kind it is and what it carries (files only where Suite's Nextcloud answered). A switch between the two is not followed (the owner, 2026-11-25).
 
 ## Status — 2026-11-25 (update this block at the end of every session)
+
+**2026-11-25, the owner's answers (T9).** On D1 to D8 and the Dutch, all with the advice, the owner
+answered: *"Ok, but we do not need to support transitions between the two (personeel>suite). We just need to be able to detect which we need to target and support what it carries."* So the advice stands for D1 (a), D5 (a), D6 (a), D7 (a) and
+D8 (a), and for the Dutch *Omvat:* (in place of *Draagt:*). **A switch between personal and Suite
+is not followed**: T5, §7's design, the shared-chain migration it proposed and decisions D2 to D4
+are dropped, and so are the Dutch sentences that told a switch, with the two changes the owner
+had approved for them (*kan deze dienst niet terughalen*, *omgezet*). The kind is what the Test
+measured, or, for a row tested before T2, its next pass (D6); a migration writes to the server
+that kind names. §7 stays below as the record of what is not built, and §9's warning in the guides
+now says the service does not follow a move. T0 still waits for the second mailbox; T1, T7 and
+the personal half of T2 can start without it (D7 (a)).
 
 **2026-11-25: planned, for alpha.22 (the working assumption, D7).** Written for the owner's
 review; nothing is built. Every claim about the code below was read on `main` at `87ab6a3`, with
@@ -10,21 +21,21 @@ file and line; claims about grant links were read on pull request #2164's branch
 which is still open. Every fact about Soverin was read on Soverin's own pages on 2026-11-25 and is
 quoted with its address (§3). **Soverin's pages do not say four things this plan needs** (§3.4).
 They are measured by the owner's live test (T0) before T2's detection rule is fixed. The plan
-gives the rule for each answer T0 can return, so building starts without waiting for T0. One
-shared-chain migration is proposed (§7.3); it is additive and nullable.
+gives the rule for each answer T0 can return, so building starts without waiting for T0. No
+migration is needed: the one §7.3 proposed went with the switch.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The owner's live test: a personal mailbox and a Suite mailbox, side by side | owner | ⏳ **Owner** | §10. Measures the four facts Soverin's pages leave open (§3.4). The second mailbox is being asked of Soverin. T2's rule waits on its answers; T1, T5 and T7 do not. |
+| T0 The owner's live test: a personal mailbox and a Suite mailbox, side by side | owner | ⏳ **Owner** | §10. Measures the four facts Soverin's pages leave open (§3.4). The second mailbox is being asked of Soverin. T2's rule waits on its answers; T1 and T7 do not. |
 | T1 Soverin's published servers, cited again: the directory and the pinned endpoints | builder | 📋 Planned | §5.1. The personal servers from articles 26 and 38. Suite's host after T0. S. |
 | T2 The Test finds the kind: personal, Suite, or not yet known | builder | 📋 Planned | §5.2–5.4. The measurement, the record in `qualification`, the second login. L. The rule is fixed after T0; the shape is fixed here. |
 | T3 The card and its words: one password, a second only when Suite is found | builder | 📋 Planned | §5.5, §11. EN and NL. M. On T2's shape. |
 | T4 Files to Soverin, only where Nextcloud answered | builder | 📋 Planned | §6. `file` joins the `soverin` ceiling once T0 measured it; a personal mailbox's file face is a reasoned *no*. M. After T0. |
-| T5 A switch is noticed, and calendars, contacts and tasks are copied again | builder | 📋 Planned | §7. The destination digest on `item`, the pass's check, the notice. L. Shared migration. |
+| T5 A switch is noticed, and calendars, contacts and tasks are copied again | builder | ✖ Dropped | The owner, 2026-11-25: no transitions between personal and Suite. §7 is kept as the record of what is not built. |
 | T6 Grant links do the same detection | builder | 📋 Planned | §8. On 0174's password page, after #2164 merges. M. |
 | T7 The guides (EN and NL), the architecture line, the ADR amendment | builder | 📋 Planned | §9. *Activate Suite before you move calendars and contacts to Soverin.* M. |
-| T8 Proofs: unit, integration, and the switch on two fixtures | builder | 📋 Planned | §12. S–M. Last. |
-| T9 The owner's decisions | owner | ⏳ **Owner** | §13: D1 to D8, each with advice. |
+| T8 Proofs: unit and integration | builder | 📋 Planned | §12. S–M. Last. The switch on two fixtures went with T5. |
+| T9 The owner's decisions | owner | ✅ Answered 2026-11-25 | §13. D1, D5, D6, D7 and D8: (a), as advised; D2 to D4 dropped with the switch; the Dutch: *Omvat:*. |
 
 ## 1. The owner's words
 
@@ -38,12 +49,15 @@ The owner then agreed to this direction:
   contacts and tasks, plus files where Suite's Nextcloud is found. Nobody is asked a question
   they could answer wrongly.
 - **Files go to Soverin only where the Test found Nextcloud.**
-- **A switch is noticed.** If an account moves from personal to Suite, or back, the next Test or
+- **A switch is noticed** (dropped by the owner the same day, below). If an account moves from personal to Suite, or back, the next Test or
   pass sees it, says so, and copies calendars and contacts into the new server again.
 - **The guides (EN and NL) warn:** activate Suite *before* moving calendars and contacts to
   Soverin.
 - **A person's grant link** (workplan 0174) does the same detection, and names the right server.
 - **A destination first.** Soverin as a *source* stays experimental and hidden for now (§14).
+
+Answering the decisions the same evening, the owner took the advice and dropped the switch:
+*"Ok, but we do not need to support transitions between the two (personeel>suite). We just need to be able to detect which we need to target and support what it carries."*
 
 ## 2. What exists
 
@@ -249,10 +263,11 @@ Test asks, read-only and at once: IMAP at `imap.soverin.net`; the personal DAV s
   answered.
 - **Unknown:** said plainly, never guessed. Mail is measured on its own.
 
-Each pass of a migration into Soverin checks the kind again, cheaply (§7.2). When it differs
-from what the last pass wrote under, the pass says so, records it, and copies calendars,
-contacts and tasks into the new server, because each item remembers which server its copy was
-written to (§7.3). Mail is untouched by a switch: IMAP stays the same (§3.3).
+A switch between the two kinds is not followed (the owner, 2026-11-25). The kind is what the Test
+measured, or, for a row tested before T2, what its next pass measured once (D6), before the DAV
+faces are written; a migration writes to the server that kind names. A mailbox that Soverin
+moves later is tested again by the person and moved by a new migration, as the guides say (§9).
+§7 records the design that was not built.
 
 ## 5. The Test finds the kind
 
@@ -355,11 +370,14 @@ The *Carries:* line gains the kind, in the provider's words:
   (`/remote.php/dav/files/{user code}/`), with the Suite login. `fileEndpointFromCreds`'s
   `nextcloud` branch is not used for `soverin`.
 - **Where does it go?**'s files row offers the Soverin account only when the record says `file:
-  yes`. A migration with files into a mailbox that later switches back to personal stops its
-  files with *Soverin no longer serves files for this mailbox* (a pass-domain refusal); what
-  was copied stays where it was. Its calendars and contacts go on (§7).
+  yes`. A mailbox that later switches back to personal is not followed (§4): its migration's
+  file writes fail as a refused write does today.
 
-## 7. A switch is noticed, and copied again (T5)
+## 7. A switch is noticed, and copied again (T5) — not built
+
+**Dropped by the owner on 2026-11-25:** *"Ok, but we do not need to support transitions between the two (personeel>suite). We just need to be able to detect which we need to target and support what it carries."* Kept as the record of what a switch
+does at Soverin (§7.1), which the guides' warning rests on, and of the design that is not built
+(§7.2 to §7.4).
 
 ### 7.1 What a switch does at Soverin
 
@@ -437,12 +455,11 @@ the host in bold either way.
   Test says; the Suite app password, with article 116's steps; files only with Suite; and, before
   *Connecting*, the warning: **Activate Suite before you move calendars and contacts to Soverin.**
   *If you activate it afterwards, Soverin moves them to a new server, and switching back loses
-  data at Soverin. This service notices the switch and copies them again, but anything you
-  changed only at Soverin in between is Soverin's to keep.*
+  data at Soverin. This service does not follow such a move: test the account again, and make a
+  new migration for calendars and contacts.* (Reworded after the owner dropped the switch; the
+  owner reads it at T7.)
 - Arch doc §9.2: Soverin carries files when the mailbox has a Suite licence.
-- An amendment to ADR-0055's operative rules, or a new short ADR (the builder proposes which):
-  *A destination whose server moves underneath a migration is copied again, per item, declared
-  by `item.target_server_digest`; only a measured switch counts.*
+- No ADR amendment: the per-item destination digest went with the switch (§7).
 - `docs/feature-matrix.md`'s Soverin row.
 
 ## 10. The owner's live test (T0)
@@ -472,27 +489,25 @@ mailbox has not come from Soverin when T2 starts, steps 3 to 8 wait, and T2 merg
 
 ## 11. The Dutch this plan introduces (for the owner to read)
 
-- *Soverin (persoonlijk). Draagt: mail, agenda's, contacten, takenlijsten.*
-- *Soverin Suite. Draagt: mail, agenda's, contacten, takenlijsten, bestanden.*
+- *Soverin (persoonlijk). Omvat: mail, agenda's, contacten, takenlijsten.*
+- *Soverin Suite. Omvat: mail, agenda's, contacten, takenlijsten, bestanden.*
 - *Een persoonlijke Soverin-mailbox heeft geen bestandsopslag; een Soverin Suite-licentie voegt die toe.*
 - *Soverin Suite gevonden. Voor agenda's, contacten en bestanden is een Suite-app-wachtwoord nodig.*
 - *Wij konden niet vaststellen wat voor Soverin-mailbox dit is.*
-- *Soverin heeft de agenda's en contacten van deze mailbox naar Soverin Suite verplaatst. Voeg een Suite-app-wachtwoord toe om verder te gaan.*
-- *Soverin heeft deze mailbox op {datum} van persoonlijk naar Suite gezet. Agenda's, contacten en takenlijsten worden naar Suite gekopieerd.*
-- *Soverin levert voor deze mailbox geen bestanden meer.*
-- *Zet Suite aan vóórdat u agenda's en contacten naar Soverin verhuist.* *Zet u het daarna aan, dan verplaatst Soverin ze naar een nieuwe server, en terugschakelen kost bij Soverin gegevens. Deze dienst merkt de overstap op en kopieert ze opnieuw, maar wat u tussendoor alleen bij Soverin wijzigde, blijft van Soverin.*
+- *Zet Suite aan vóórdat u agenda's en contacten naar Soverin verhuist.* *Zet u het daarna aan, dan verplaatst Soverin ze naar een nieuwe server, en terugschakelen kost bij Soverin gegevens. Deze dienst volgt die verhuizing niet: test het account opnieuw en maak een nieuwe migratie voor agenda's en contacten.* (New since the owner dropped the switch; read at T7.)
+- Dropped with the switch (the owner, 2026-11-25): the three sentences that told one (*… naar Soverin Suite verplaatst …*, *… van persoonlijk naar Suite omgezet …*, *… geen bestanden meer.*), and the warning's *… kan deze dienst niet terughalen*.
 - On the grant page: *De eigen server van Soverin* and *Soverin Suite, {host}*.
 
 ## 12. Proofs (T8, and in each task)
 
 - **Unit:** §5.2's table, one case per row, on recorded answers; `davLoginOf` per kind and
-  record; `classifyKnownItem`'s new rule (a differing digest copies, an equal one skips, a
-  tombstone stays, mail never); the file face's reasoned *no* for personal.
+  record; the file face's reasoned *no* for personal; a row with no kind measured once, by its
+  next pass, before the DAV faces (D6).
 - **Integration**, Testcontainers in CI, `./scripts/local-pg.sh` where none runs: the Nextcloud
   of `deploy/compose/dev.yml` standing for Suite and a second DAV server standing for the
-  personal one. Pass 1 into server A; the record switched to B; pass 2 copies every calendar,
-  contact and task into B, mail untouched; pass 3 writes nothing. Migration 0076 on both chains
-  (Postgres and PGlite).
+  personal one. The Test records each kind with the servers that answered, and a pass writes
+  calendars, contacts and tasks to the server its kind names, mail over IMAP. No migration: the
+  switch and its migration were dropped (§7).
 - **What no test here proves**, said in each pull request: a real Soverin mailbox of either
   kind. T0 is that proof, and the owner runs it.
 
@@ -501,36 +516,39 @@ mailbox has not come from Soverin when T2 starts, steps 3 to 8 wait, and T2 merg
 - **D1. How a Suite mailbox signs in.** (a) One password first; the Suite app password asked
   only once the Test found Suite (§5.3); (b) two boxes always; (c) a question *Does this mailbox
   have a Suite licence?* **Advice: (a).** It is what the owner asked: nobody answers a question
-  they could get wrong. (c) only if T0 shows no other way (§5.2).
-- **D2. How a switch is told.** (a) The audit row, a line on the account and on each migration,
+  they could get wrong. (c) only if T0 shows no other way (§5.2). **The owner, 2026-11-25: (a).**
+- **D2. How a switch is told.** *Dropped with the switch (the owner, 2026-11-25).* (a) The audit row, a line on the account and on each migration,
   and once in the *needs attention* email; (b) the lines only; (c) an email at once. **Advice:
   (a).** The person who needs telling is the one not looking at the app (arch §11.2, item 4), and the
   digest already exists for that.
-- **D3. Whether a running migration pauses when its destination switches.** (a) No: calendars,
+- **D3. Whether a running migration pauses when its destination switches.** *Dropped with the switch.* (a) No: calendars,
   contacts and tasks are copied into the new server at once, mail goes on; it waits only when a
   login is missing (personal to Suite); (b) calendars, contacts and tasks pause until the owner
   presses *Copy into the new server*; (c) the whole migration pauses. **Advice: (a)**, and only
   on a *measured* switch. Copying again into the server Soverin now serves is what the owner
   asked; it is idempotent and adopts what Soverin carried over; a pause stalls the shadow run on
   a step nobody can answer better than the measurement.
-- **D4. A switch after cutover.** (a) Copied again as before cutover, from the source while it
+- **D4. A switch after cutover.** *Dropped with the switch.* (a) Copied again as before cutover, from the source while it
   still exists; (b) only told. **Advice: (a) while the source is connected, (b) after it is
   gone**, said in the line.
 - **D5. Pinning Suite's server on grant links.** (a) Pin the one host if T0 shows one; if hosts
   are per organisation, accept only Soverin's registrable domains over HTTPS with the principal
   matching the address; (b) Suite stays generic, its host shown for the person to judge. **Advice:
-  (a).** A password page that will try any host is the phishing edge 0174 §5.8 names.
-- **D6. Old Soverin rows tested before T2.** (a) Re-measured by their next pass (§7.2), nothing
+  (a).** A password page that will try any host is the phishing edge 0174 §5.8 names. **The owner,
+  2026-11-25: (a).**
+- **D6. Old Soverin rows tested before T2.** **The owner, 2026-11-25: (a)**, the kind measured once,
+  before the DAV faces, as §4 says (§7.2's watch on every pass went with the switch). (a) Re-measured by their next pass (§7.2), nothing
   asked; (b) the owner asked to press Test again. **Advice: (a).** The pass check is the same
   measurement.
-- **D7. The release.** (a) alpha.22: T1, T5, T7 and the personal half of T2 whatever T0's state;
+- **D7. The release.** **The owner, 2026-11-25: (a), without T5**, which went with the switch.
+  (a) alpha.22: T1, T5, T7 and the personal half of T2 whatever T0's state;
   T4 and Suite's half of T2 and T6 when T0 has answered; (b) all in alpha.22, waiting for T0;
   (c) later. **Advice: (a).** The warning in the guides and the switch handling help today's
   personal users before any Suite mailbox is tested.
 - **D8. Mail Pro.** Soverin's page lists *"50 GB shared file storage"* for Mail Pro. Whether
   that is Nextcloud is not stated. (a) Measured in T0 step 12 and handled by the same detection,
   since it measures Nextcloud and never reads a licence's name; (b) ignored until asked. **Advice:
-  (a).** The detection needs nothing more; only the test does.
+  (a).** The detection needs nothing more; only the test does. **The owner, 2026-11-25: (a).**
 
 ## 14. Soverin as a source, later (not planned in)
 
@@ -552,11 +570,9 @@ lift the `EXPERIMENTAL` verdicts in `front-door.ts:242`. None of it is in this p
 - **SSO and two-factor.** A Suite whose central login forbids app passwords would leave no DAV
   login at all. Article 116 says app passwords work *"even if you normally sign in … through a
   central login page"*; T0 step 5 measures it.
-- **A switch mid-pass.** The pass check runs once, before the DAV faces. A switch during a pass
-  shows at the next; items written in between carry the old digest and are copied again then.
-- **Soverin carried the data over on activation.** Collisions then adopt (§7.3): nothing is
-  doubled, and the adopted copies are counted apart.
-- **Data lost on switching back is Soverin's.** This service cannot restore it at Soverin; it
-  copies again from the source, which only holds while the source is connected (D4).
+- **Soverin moves a mailbox under a running migration.** Not followed (the owner, 2026-11-25):
+  writes to the old server fail or land where nobody reads, until the person tests the
+  account again and makes a new migration, as the guides tell them (§9). The guides' warning to
+  activate Suite first is the whole of this plan's answer to it.
 - **Soverin's pages change.** Every value cites its page and date; a moved host makes the Test
   refuse in Soverin's words, not pass in ours.
