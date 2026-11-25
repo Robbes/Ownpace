@@ -28,6 +28,7 @@ import { Hint } from '../components/Hint.tsx';
 import { formatDateTime } from '../i18n/datetime.ts';
 import type { StringKey } from '../i18n/index.tsx';
 import DiscoveryCounts from '../components/confirm/DiscoveryCounts.tsx';
+import { DestinationSpaceLines } from '../components/DestinationSpace.tsx';
 import {
   RefusedNativeAcknowledgement,
   needsAcknowledgement,
@@ -89,6 +90,20 @@ const Confirm: React.FC = () => {
   // Drive's refusals says nothing about another's.
   const [acked, setAcked] = React.useState<ReadonlySet<string>>(new Set());
 
+  // Whose destination is known to be too small: its Start reads *Start
+  // anyway* (workplan 0171 T9, D4 (a)). Per mapping, as the tick is.
+  const [spaceHeld, setSpaceHeld] = React.useState<ReadonlySet<string>>(new Set());
+  const onSpaceHolds = React.useCallback(
+    (id: string, holds: boolean) =>
+      setSpaceHeld((prev) => {
+        if (prev.has(id) === holds) return prev;
+        const next = new Set(prev);
+        if (holds) next.add(id);
+        else next.delete(id);
+        return next;
+      }),
+    [],
+  );
   const start = useMutation({
     mutationFn: (mappingId: string) => startMigration(mappingId),
     onSuccess: () => {
@@ -227,6 +242,8 @@ const Confirm: React.FC = () => {
               // this page had anyway.
               <>
                 <DiscoveryCounts domains={domains} />
+                {/* Free space at the destination, once a count is in (0171 T9). */}
+                <DestinationSpaceLines mappingId={m.mappingId} enabled={domains.length > 0} onHolds={onSpaceHolds} />
                 {/* HOW LONG (0154 T3 (a)), once a count is in: the data types
                     are the ones the count answered for, since the appliance's
                     status names none before a first pass. */}
@@ -293,7 +310,7 @@ const Confirm: React.FC = () => {
                   ) : (
                     <Play className="w-4 h-4" />
                   )}
-                  {t('confirm.start')}
+                  {t(spaceHeld.has(m.mappingId) ? 'start.check.space.startAnyway' : 'confirm.start')}
                 </button>
               ) : (
                 <p className="text-sm text-gray-700">

@@ -12,6 +12,8 @@ import axios, { type AxiosInstance } from 'axios';
 import type {
   MigrationWindowView,
   RunsResponse,
+  FinishAddresses,
+  MxReading,
   ApplyDeletionsFlag,
   ApplyQueuedResponse,
   ApplyReceipt,
@@ -41,6 +43,8 @@ import type {
   CreatePersonRequest,
   PeopleResponse,
   Person,
+  DestinationCapacity,
+  DiscoveryDomain,
 } from '@openmig/shared';
 import { MAPPING_LIFECYCLES } from '@openmig/shared';
 import { z } from 'zod';
@@ -974,6 +978,27 @@ export async function fetchScopeManifest(): Promise<ScopeManifest> {
   return (await client.get<ScopeManifest>('/scope-manifest')).data;
 }
 
+/** One pool's line before Start (workplan 0171 T9): what lands there, what it needs, what it has. */
+export interface DestinationSpacePool {
+  readonly pool: string;
+  readonly destination: string;
+  readonly dataTypes: ReadonlyArray<DiscoveryDomain>;
+  readonly needBytes: number;
+  readonly capacity: DestinationCapacity;
+}
+
+/**
+ * Free space at each destination of a migration, read live (workplan 0171
+ * T9). Under the mapping's own path on either edition: managed answers
+ * `/api/migrations/:id/destination-space`, the appliance
+ * `/mappings/:id/destination-space`, in one shape.
+ */
+export async function fetchDestinationSpace(mappingId: string): Promise<DestinationSpacePool[]> {
+  const data = (await client.get<{ pools?: unknown }>(`${mappingPath(mappingId)}/destination-space`)).data;
+  if (!Array.isArray(data.pools)) throw new Error('The free-space answer carried no list of pools.');
+  return data.pools as DestinationSpacePool[];
+}
+
 /**
  * The green light: activate a paused (draft) mapping so it starts syncing.
  *
@@ -1104,3 +1129,22 @@ export async function requestFinalPass(mappingId: string): Promise<'finished' | 
   return 'queued';
 }
 
+
+/**
+ * Finish's step 4 (workplan 0171 T10, §7.2): the addresses at the old
+ * provider that deliver into this mailbox, read live. Both editions serve it
+ * at the mapping's own path.
+ */
+export async function fetchFinishAddresses(mappingId: string): Promise<FinishAddresses> {
+  return (await client.get<FinishAddresses>(`${mappingPath(mappingId)}/finish/addresses`)).data;
+}
+
+/** The answer of the MX check (§7.3): one line for the domain, or why none was asked. */
+export type MxCheckAnswer =
+  | { readonly domain: string; readonly reading: MxReading }
+  | { readonly domain: null; readonly reason: 'not_own_domain' };
+
+/** Check MX now (§7.3): read-only, paced by the server to one per ten seconds. */
+export async function checkMxNow(mappingId: string): Promise<MxCheckAnswer> {
+  return (await client.post<MxCheckAnswer>(`${mappingPath(mappingId)}/finish/mx-check`)).data;
+}

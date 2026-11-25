@@ -195,10 +195,23 @@ export interface SupportMigrationDetail {
   readonly domains: SupportMigrationDomain[];
 }
 
-/** Level 1. Empty for anybody who is not a platform operator. */
-export async function listSupportTenants(): Promise<SupportTenant[]> {
-  const response = await apiClient.get<{ tenants: SupportTenant[] }>('/support/tenants');
-  return response.data.tenants;
+/**
+ * A page of a support list and where the next one starts: `next` is an opaque
+ * cursor to hand back as `after`, and `null` on the last page (workplan 0006
+ * §P). Each page fetched is a read the operator chose, and the log records it.
+ */
+export interface SupportTenantsPage {
+  readonly tenants: SupportTenant[];
+  readonly next: string | null;
+}
+
+/** Level 1, a page at a time. Empty for anybody who is not a platform operator. */
+export async function listSupportTenants(after?: string): Promise<SupportTenantsPage> {
+  const response = await apiClient.get<{ tenants: SupportTenant[]; next?: string | null }>(
+    '/support/tenants',
+    after ? { params: { after } } : undefined,
+  );
+  return { tenants: response.data.tenants, next: response.data.next ?? null };
 }
 
 /** Level 2. A 404 for an id that does not exist AND for one you may not see. */
@@ -242,10 +255,15 @@ export interface SupportErasedInvoiceNumbers {
   readonly invoice_numbers: readonly string[];
 }
 
-/** What an erasure left: the numbers the books hold, and an invoice they do not, kept here. */
+/**
+ * What an erasure left, one page of it: the numbers the books hold, and an
+ * invoice they do not, kept here. `next` continues whichever of the two has
+ * more, and is `null` once neither has.
+ */
 export interface SupportKeptAfterErasure {
   readonly invoices: SupportRetainedInvoice[];
   readonly numbers: SupportErasedInvoiceNumbers[];
+  readonly next: string | null;
 }
 
 /**
@@ -254,11 +272,17 @@ export interface SupportKeptAfterErasure {
  * Every other call here hangs off a tenant. This one cannot: the tenants it
  * concerns are deleted, so it is keyed on the erasure instead.
  */
-export async function listRetainedInvoices(): Promise<SupportKeptAfterErasure> {
-  const response = await apiClient.get<{ invoices: SupportRetainedInvoice[]; numbers?: SupportErasedInvoiceNumbers[] }>(
-    '/support/retained-invoices',
-  );
-  return { invoices: response.data.invoices, numbers: response.data.numbers ?? [] };
+export async function listRetainedInvoices(after?: string): Promise<SupportKeptAfterErasure> {
+  const response = await apiClient.get<{
+    invoices: SupportRetainedInvoice[];
+    numbers?: SupportErasedInvoiceNumbers[];
+    next?: string | null;
+  }>('/support/retained-invoices', after ? { params: { after } } : undefined);
+  return {
+    invoices: response.data.invoices,
+    numbers: response.data.numbers ?? [],
+    next: response.data.next ?? null,
+  };
 }
 
 /** Why a credit note is on the list of money to give back. */
