@@ -6,6 +6,8 @@
   texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
+  Still 1.0, edited in place on 2026-11-25 (§2's first bullet: no switch for deleting by hand,
+  alpha.21); terms.md's first comment has the owner's words.
 -->
 <!-- Dutch translation of terms.md. Keep the SECTION NUMBERING identical, so the
      two can be diffed against each other when either changes. The alpha
@@ -25,7 +27,7 @@
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
 **Versie:** 1.0
-**Laatst bijgewerkt:** 2026-10-19
+**Laatst bijgewerkt:** 2026-11-25
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie, niet onder deze voorwaarden. Deze
@@ -65,12 +67,12 @@ over te stappen. Ook biedt het inzicht in en overzicht van wat er is gemigreerd.
 
 **Wat het niet doet:**
 
-- **Het verwijdert nooit iets bij uw bron.** Bij uw doel wordt ook niets verwijderd, tenzij u *handmatig
-  verwijderen* aanzet en elke verwijdering goedkeurt. Zet u ook *het automatisch verwijderen van
-  oude kopieën van inmiddels verplaatste bestanden* aan, dan wordt de oude kopie van een bestand
-  dat bij uw bron is verplaatst, na strenge controles bij uw doel weggehaald, zonder dat we het u
-  elke keer vragen.
-  Beide staan standaard uit, tot u deze functies expliciet aanzet.
+- **Het verwijdert nooit iets bij uw bron.** Bij uw doel wordt ook niets verwijderd, tenzij u dat zelf
+  goedkeurt op de pagina *Verwijderingen* van de migratie: elke verwijdering, of een lijst ervan na
+  één bevestiging die zegt hoeveel. Zet u *het automatisch verwijderen van oude kopieën van
+  inmiddels verplaatste bestanden* aan, dan wordt de oude kopie van een bestand dat bij uw bron is
+  verplaatst, na strenge controles bij uw doel weggehaald, zonder dat we het u elke keer vragen.
+  Dat staat standaard uit, tot u het expliciet aanzet.
 - **Het synchroniseert niet terug.** Gegevens gaan van bron naar doel, nooit anders. Uw bron blijft
   uw vangnet zolang u die aanhoudt.
 - **Het kan geen perfecte kopie van alles beloven.** Bestandsformaten verschillen per aanbieder en

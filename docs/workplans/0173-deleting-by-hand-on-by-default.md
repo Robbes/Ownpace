@@ -4,6 +4,17 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T5 built, in the same pull request:** terms §2 and alpha §8, EN and NL, edited in
+place under 1.0 (Q4). Terms §2's first bullet: nothing is deleted at the target unless the
+customer approves it on the migration's *Deletions* page, each deletion or a list after one
+confirmation that names how many; *the automatic removal of moved files' old copies* stays a
+switch, off by default. Alpha §8's list of what an admin cannot do loses *deleting by hand*. The
+Last updated lines moved to 2026-11-25; `legal-versions.ts` keeps 1.0; the guard's
+`ACCEPTED_WORDS` re-pins the four files under 1.0 with a dated note in the owner's words;
+`site/legal/README.md`'s rows and its deletion bullet follow. The branch was rebuilt from `main`
+on 2026-11-25, so every commit subject follows the convention; the first pull request, #2155,
+was closed for it. The Dutch, the legal words included, waits on the owner's read.
+
 **2026-11-25, built: T0, T1, T2, T3, T4 and T6, in one pull request** (#2155, branch
 `claude/ownpace-public-readiness-y7orc6-a21-delete-by-hand`, draft, for alpha.21; it merges after
 alpha.20's tag). Gate 1 is gone from core, the shared contract, managed and the appliance:
@@ -17,7 +28,7 @@ The new guard is `packages/shared/src/deleting-by-hand-needs-no-switch.unit.test
 failing on the code before the change. ADR-0024 (gate 1 removed; the gates keep their numbers 2
 to 7), ADR-0030 and ADR-0031 amended, `OPERATIVE.md` regenerated; arch §11.1, the operator and
 owner-test runbooks, the quickstart, the alpha guide (EN, NL) and CHANGELOG follow. **Not done
-here:** T5 (`site/legal/*.md`, `legal-versions.ts` and `ACCEPTED_WORDS` untouched; the proposed
+in that commit:** T5 (`site/legal/*.md`, `legal-versions.ts` and `ACCEPTED_WORDS` untouched; the proposed
 words are in the pull request), built while Q4 was still open and answered since (below); `site/legal/README.md:679-683` goes with T5, being in
 `site/legal/`. T7 (the E2E runs) is the owner's. The Dutch strings are in the pull request for the
 owner to read.
@@ -50,7 +61,7 @@ their answers.
 | T2 Managed: the routes and jobs stop reading the column | builder | ✅ Built | §10. #2155. No migration; the column is dropped in a later release. |
 | T3 The Deletions page and its words, EN and NL | builder | ✅ Built | §10. #2155. The Dutch waits on the owner's read. |
 | T4 Docs and the ADR amendments | builder | ✅ Built | §10. #2155. `site/legal/README.md` goes with T5. |
-| T5 The legal words: terms §2 and alpha §8 | builder + owner | 📋 Planned | §10. EN and NL, in place under 1.0 (Q4, answered 2026-11-25). |
+| T5 The legal words: terms §2 and alpha §8 | builder + owner | ✅ Built | §10. EN and NL, in place under 1.0 (Q4, answered 2026-11-25), in the same pull request. The owner reads the Dutch. |
 | T6 E2E steps | builder | ✅ Built | §10. #2155. Not run: T7. |
 | T7 The E2E runs | owner | ⏳ Owner | Self-hosted E2E (Postgres and PGlite) and the managed E2E, after T1 to T6 merge. |
 | T8 The owner's decisions | owner | ✅ Answered 2026-11-25 | §9: all six settled; Q4 in place under 1.0. |

@@ -142,12 +142,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   At the API, which asks no confirmation, one call is one removal. Managed:
   `PATCH .../apply-deletions` takes `autoApplyRelocations` only and refuses `allowApplyDeletions`;
   `GET` no longer answers it; the column `allow_apply_deletions` stays unread until a later
-  release drops it. No database change.
+  release drops it. No database change. Terms §2 and Alpha conditions §8 say the same, in place
+  under 1.0 (the owner: *"change them and stay on 1.0"*).
   **Nederlands:** elke migratie, oud en nieuw, en elke bijgewerkte appliance kan nu handmatig
   verwijderen op de pagina *Verwijderingen* zonder eerst iets aan te zetten. *Handmatig
   verwijderen inschakelen* is weg, en uitzetten kan niet meer. Een `"allowApplyDeletions": false`
   in het bestand van een migratie zet het niet meer uit; de appliance meldt dat eenmaal bij het
-  starten.
+  starten. De servicevoorwaarden (§2) en de voorwaarden voor de Alpha (§8) zeggen hetzelfde, nog
+  steeds versie 1.0.
 
 - **Image pins moved for alpha.20** (workplan 0119; the owner, 2026-11-24: *"yes on all"*, floors
   waived): the web image's and the public site's nginx `1.31.9-alpine-slim` to
