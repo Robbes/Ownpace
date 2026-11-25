@@ -38,6 +38,12 @@ Here too the test writes nothing: it signs in and counts the target mailbox's fo
 
 You can also add an IMAP account in advance, under **Accounts** → **Add an account**. Choose **Sources** or **Destinations** under **Source or destination?**, then the **IMAP** card, and press **Add and test**.
 
+## If the account is somebody else's {#somebody-else}
+
+If the account belongs to a colleague, a family member or a client, you do not need their password. In **Start a migration**, under **Who signs in to the accounts?**, choose **They do, with a link**. Fill in the server and the account, leave the password out, and press **Save for** *them*. When it is the destination, the step asks **Whose account is …?**: choose *their own*, and they connect it with the link. They type the password themselves, on the page your grant link opens: it names the server the password is checked with, tests it before anything is stored, and nobody sees it again, you included. Five wrong passwords lock that account on that link; a new link starts again. Ask them to use an app password if their provider offers one.
+
+On a self-hosted appliance there are no grant links: to let somebody type their own password, use the managed service's grant link; the appliance has none.
+
 ## What moves {#what-moves}
 
 - **As a source** this card reads mail: the mailbox's folders and the messages in them. On **What moves?**, a mail provider offers **Email** alone, and says why: over IMAP only mail is read. This service does not measure calendars or contacts on an IMAP account either.

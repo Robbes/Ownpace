@@ -304,29 +304,30 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0035: Who signs in, and who just gets a link](./0035-who-signs-in-and-who-gets-a-link.md)
 
-- **Owners sign in; migrated people get links, not accounts** (decisions 1, 7) — persons or
+- **Owners sign in; migrated people get links, not accounts** (decisions 1, 7): persons or
   migrators, never `member`s. Admins see their whole family's or organisation's progress
   (decision 5); nobody is a seat to bill (decision 6).
 - **Only the migrated person holds their own source credential, never the organisation**
   (decision 4). Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be
-  narrowed** — stated, not hidden (decision 3).
+  narrowed**: stated, not hidden (decision 3).
 - The owner decides who gets a link to manage and **grant** their own migration, and
   **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days, progress links
   longer, showing no content but a person's own new address (`migration-view.ts`, ADR-0055).
-- **One link per person** (owner, 2026-09-29 and 2026-10-03; ADR-0050): a grant link and a
-  progress link for all their migrations, granting per account (Google, Microsoft) only what the
-  page showed. It replaces the per-migration link; one already sent is honoured until it expires.
+- **One link per person** (owner, 2026-09-29, 2026-10-03, 2026-11-25; ADR-0050): a grant link
+  and a progress link for all their migrations, granting per account, source or destination,
+  what the page showed: a sign-in, or the person's own password, tested before it is stored.
+  Replaces the per-migration link; one already sent is honoured until it expires.
 - **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's
-  move, each migration of theirs waiting for a grant starts when it lands (`via: 'grant'`).
-  Before that first *Start* a grant starts nothing; a migration the owner paused stays paused.
+  move, each of their migrations awaiting a grant starts when it lands (`via: 'grant'`).
+  Before then a grant starts nothing; a paused migration stays paused.
 - The person can **take their grant back**, per account: revoked at Google where it will, always
-  deleted here, and told which; until they grant again nothing reads that account
+  deleted here, and told which; nothing reads it until they grant again
   (`withdraw-grant.ts`).
-- A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
-  never to the organisation that asked; a reply address is optional (`link-reports.ts`).
+- Either page can **report** a link to the Ownpace team's helpdesk or support mailbox, never to
+  the organisation that asked; a reply address is optional (`link-reports.ts`).
 - **The provider's error text and failing items' names follow whose data it is** (owner, 2026-10-03;
-  decision 5): the progress page shows categories only; the owner sees them for accounts the
-  organisation connected, and for one a person granted only the category and a reference
+  decision 5): the progress page shows categories only; the owner sees them for the
+  organisation's accounts, and only the category and a reference for one a person granted
   (`whose-data.ts`).
 
 ## [ADR-0036: The managed edition is its own package and its own migration chain](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)

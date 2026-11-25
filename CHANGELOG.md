@@ -173,6 +173,36 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the progress link (*Link kopiëren*), which says *Copied.* (*Gekopieerd.*), or selects the link
   and says so where the browser does not allow copying; without its script, the page offers no
   button. The grant-link guide and both alpha guides say the same.
+- **The words around grant links for every account** (alpha.21; workplan 0174 T7, §8.3 to §8.6;
+  ADR-0035 amended 2026-11-25). The privacy policy and the terms change in place, still 1.0, and
+  nobody is asked again (the owner, D8: *"terms or the privacy policy: no one but me accepted
+  then, so change them and stay on 1.0"*). Privacy §4.1 names a password beside an app password,
+  and that the person whose account it is can type it on a page their grant link opens; §4.6
+  says what is done with it (tried with the server the page names, kept only if it works,
+  encrypted; wrong tries counted on the link without the password, and the link stopped for that
+  account after five; never in a log or a record, never shown; withdrawn on the progress page
+  for an account we read, deleted with the account for one we write to); §9 keeps the count of
+  wrong tries until the link goes with its person, or the data is erased. Terms §5: a grant link
+  that asks for a password must name the person's own provider's server, and one naming a server
+  the customer runs, to receive the password, closes the account. The Dutch privacy policy says
+  *bestemming* for the target where it said *doel*, as the Dutch terms do; *Doel* as a purpose
+  stays. Both *Last updated* lines read 2026-11-25. ADR-0035's fourth operative bullet: one link
+  per person grants per account, source or destination, by a sign-in or the person's own
+  password, tested before it is stored. `docs/grant-links.md` gains *A password, typed by the
+  person*, the two groups on the page, Dropbox and Cirrux Drive, the destination question, and
+  *Locked on this link*. Every guide for an account a link connects gains *If the account is
+  somebody else's*, *How a migration copies* says *They do, with a link* covers every account and
+  the destination, and the appliance's guide and quickstart say it has no grant links (D7). The
+  site's *Where to* and *Leaving…* pages (all but Box's) say a link can connect somebody else's
+  account without their password passing through you.
+  **Nederlands:** de privacyverklaring en de servicevoorwaarden zijn aangepast en blijven versie
+  1.0; niemand wordt opnieuw gevraagd. De privacyverklaring zegt dat iemand het wachtwoord van
+  het eigen account zelf kan typen op de pagina die de toegangslink opent, wat we ermee doen, en
+  hoe lang we het aantal verkeerde pogingen bewaren; ze zegt nu *bestemming* waar ze *doel* zei
+  voor de plek waar de gegevens naartoe gaan. De servicevoorwaarden (§5) zeggen dat een
+  toegangslink die om een wachtwoord vraagt de server van de eigen aanbieder van die persoon
+  moet noemen. De handleidingen hebben per account een stuk *Als het account van iemand anders
+  is*, en de website zegt het op de pagina's *Waar naartoe* en *Weg bij…*.
 
 ### Fixed
 

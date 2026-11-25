@@ -24,6 +24,12 @@ The test asks for the session document every JMAP server offers, at `/.well-know
 
 You can also add a JMAP account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the **JMAP** card, and press **Add and test**. The **Setup checklist** has the preparation for a JMAP target as a list that remembers what you have done.
 
+## If the account is somebody else's {#somebody-else}
+
+If the account belongs to a colleague, a family member or a client, you do not need their password. In **Start a migration**, under **Who signs in to the accounts?**, choose **They do, with a link**. Fill in the server and the account, leave the password out, and press **Save for** *them*. The destination step asks **Whose account is …?**: choose *their own*, and they connect it with the link. They type the password themselves, on the page your grant link opens: it names the server the password is checked with, tests it before anything is stored, and nobody sees it again, you included. Five wrong passwords lock that account on that link; a new link starts again. Ask them to use an app password if their provider offers one.
+
+On a self-hosted appliance there are no grant links: to let somebody type their own password, use the managed service's grant link; the appliance has none.
+
 ## What moves {#what-moves}
 
 - **Email**: the folders and the messages in them. Folders the target does not have yet are created.

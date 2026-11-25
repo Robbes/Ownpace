@@ -4,6 +4,25 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, T7 (the words) in review.** §8.3 to §8.6 written against what T1 to T6 built
+(#2157, #2156, #2159, #2160, #2161, #2162), on its own branch from `main`. ADR-0035's fourth
+operative bullet and amendment log as §8.4 drafts, with two changes for what was built: the log
+names Dropbox and Cirrux Drive, and *"the sharpest edge"* is answered by the server line, Apple's
+pinned host, D3's MX warning and the refusal of a server named by a number (T3 pins Apple's host
+only, not Soverin's, Cirrux's or Infomaniak's). The bullet took the section to 311 words, so five
+other bullets were reworded without changing their meaning, and the log says so. Privacy §4.1,
+§4.6 and §9 and terms §5 as §8.5 drafts, in place under 1.0 (D8), EN and NL, with one change:
+§4.6 says a password for a destination is deleted with that account, because withdrawing one on
+the progress page is not built (`withdraw-grant.ts` deletes `source_secret_ref` only). The Dutch
+privacy policy says *bestemming* where *doel* meant the target, as the Dutch terms do (#2158);
+*Doel* as a purpose stays. `ACCEPTED_WORDS` re-pins privacy and terms under 1.0; #2158 re-pins
+terms too, so the terms pins are computed again at whichever merge comes second.
+`docs/grant-links.md`, the guides EN/NL (`start.md` and an *If the account is somebody else's*
+section in `apple`, `imap`, `dav`, `jmap`, `nextcloud`, `soverin`, `cirrux`, `infomaniak` and
+`dropbox`), the appliance's sentence (§8.3, in each of those and `docs/selfhost-quickstart.md`),
+and the site's *Where to* and *Leaving…* pages, both languages. No code under `apps/` or
+`packages/`.
+
 **2026-11-25, later: the owner's decisions.** *"All adviced."*: D1 to D9 as advised, (a) each,
 and D3 with the one addition put to the owner with it (§12, D3): a warning beside the server when
 it is not on the address's own domain or its mail's (MX). D8: the privacy policy and the terms
@@ -24,7 +43,7 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 | T4 The own-password page, per kind, in English and Dutch | builder | 📋 Planned | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
 | T5 Destinations on the link: Cirrux Drive and password destinations | builder | 📋 Planned | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
 | T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 📋 Planned | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
-| T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
+| T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 🔎 In review | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
 | T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
 | T9 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T8 merges. |
 | T10 The owner's decisions | owner | ✅ Answered 2026-11-25 | §12: D1 to D9 as advised; D3 with the MX warning; D8 in place under 1.0. |

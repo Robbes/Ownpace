@@ -145,12 +145,25 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // in place, as on 2026-10-14, 2026-10-21, 2026-11-22 and earlier on 2026-11-23. Only the two
   // privacy pins move. As before, an acceptance of 1.0 recorded before these words reach a stack
   // counts for them, and only the owner's own and test accounts can hold one.
+  // PRIVACY AND TERMS RE-PINNED UNDER 1.0 on 2026-11-25 (the owner, of workplan 0174's D8,
+  // verbatim: "terms or the privacy policy: no one but me accepted then, so change them and stay
+  // on 1.0"): from alpha.21 a grant link can ask a person to type their own password (workplan
+  // 0174, ADR-0035's amendment of 2026-11-25). Privacy §4.1's first sentence names a password and
+  // who can type it, §4.6's family-member bullet says what is done with a password typed on the
+  // grant page, and §9 gains a row for the count of wrong tries; the Dutch privacy policy says
+  // bestemming for the target where it said doel, as the Dutch terms do, and keeps Doel as a
+  // purpose. Terms §5 gains one sentence: a grant link that asks for a password names the person's
+  // own provider's server. The Last updated line moved to 2026-11-25 in those four files. No tester
+  // had accepted any version, so the numbers stay 1.0, edited in place, as on 2026-10-14,
+  // 2026-10-21, 2026-11-22 and 2026-11-23. Only the privacy and terms pins move; alpha is
+  // unchanged. As before, an acceptance of 1.0 recorded before these words reach a stack counts
+  // for them, and only the owner's own and test accounts can hold one.
   'alpha.md@1.0': 'acc56aaf5e570d53687793a4e6951ae5732c5ce7273328a5ac5ed4201785018c',
   'alpha.nl.md@1.0': 'bf9a41a1679f8ee912c8e611b52eb4daf93f0e4042f8c708c476dea99cfd4bfb',
-  'privacy.md@1.0': 'a7efcd8b7aea50799dde27399f428d15e5f33b31600bdc293b5dd2be34b8a53f',
-  'privacy.nl.md@1.0': '1707b5d8cfaed53dd6bb0aab23bcbd28823eb129337f570b83e15f99b963014e',
-  'terms.md@1.0': 'b743e1286302fcbc0ab0570f0e3b5afd7bc86a82de3d2d55233e9517ccc90633',
-  'terms.nl.md@1.0': '7024556d073d4f12216250c1c0183223304721d2631f244707e46d523f1cc47a',
+  'privacy.md@1.0': 'c13d5432319b90549a56bb6b41148c7ee1b0bf598bc4a5b64c2fb10ef938c873',
+  'privacy.nl.md@1.0': 'e98f9d1b5bd49e54f4c6ae46a5a1db75caa8f54bdd730279815aa9d6d37c76a4',
+  'terms.md@1.0': '9ea49748d35d66ded8823581d24da13c2935a2319a4306749090a26b96ae0074',
+  'terms.nl.md@1.0': 'fb7247bc0b9312a7157cc999904b800b2007df2f8003c4beb4a9539a33e8c33e',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

@@ -36,6 +36,12 @@ The test writes nothing. It signs in to the calendars with the sync login, and a
 
 You can also add the account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the **Infomaniak** card, and press **Add and test**. The boxes are pre-filled there in the same way, in plain view.
 
+## If the account is somebody else's {#somebody-else}
+
+If the account belongs to a colleague, a family member or a client, you do not need their password. In **Start a migration**, under **Who signs in to the accounts?**, choose **They do, with a link**. Fill in the server and the account, leave the password out, and press **Save for** *them*. The destination step asks **Whose account is …?**: choose *their own*, and they connect it with the link. They type the password themselves, on the page your grant link opens: it names the server the password is checked with, tests it before anything is stored, and nobody sees it again, you included. Five wrong passwords lock that account on that link; a new link starts again. The page asks them for the sync password and the mailbox's own password; an app password is refused for mail.
+
+On a self-hosted appliance there are no grant links: to let somebody type their own password, use the managed service's grant link; the appliance has none.
+
 ## What moves {#what-moves}
 
 - **Email**, when the account is saved with its **Mail server**, **Mailbox address** and **Mailbox password**: the folders and the messages in them, written into the mailbox.

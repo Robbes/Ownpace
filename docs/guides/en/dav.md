@@ -47,6 +47,12 @@ For contacts. Fill in **Host**, **Port**, **Username** and **Password** as [The 
 
 For files. Fill in **Host**, **Port**, **Username** and **Password** as [The fields](#fields) says. They are read from the folder the address leads to, and from every folder below it. With only a host and a port, that is the server's root. For the files of one account, type the full WebDAV address of its folder in **DAV base URL**: on a Nextcloud, that is the address at the bottom of the Files settings page, ending in `/remote.php/dav/files/` and the user name.
 
+## If the account is somebody else's {#somebody-else}
+
+If the account belongs to a colleague, a family member or a client, you do not need their password. In **Start a migration**, under **Who signs in to the accounts?**, choose **They do, with a link**. Fill in the server and the account, leave the password out, and press **Save for** *them*. When it is the destination, the step asks **Whose account is …?**: choose *their own*, and they connect it with the link. They type the password themselves, on the page your grant link opens: it names the server the password is checked with, tests it before anything is stored, and nobody sees it again, you included. Five wrong passwords lock that account on that link; a new link starts again. Ask them to use an app password if their provider offers one.
+
+On a self-hosted appliance there are no grant links: to let somebody type their own password, use the managed service's grant link; the appliance has none.
+
 ## What moves {#what-moves}
 
 - **CalDAV**: calendars with their events, and task lists when you tick **Tasks** on **What moves?**. The test counts the task lists the account already has, after **Found:**.

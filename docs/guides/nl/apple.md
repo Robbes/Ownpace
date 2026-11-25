@@ -45,6 +45,12 @@ Verbindingen met Google, Microsoft en Dropbox bieden een toestemmingsknop met é
 
 **De knop Log in met Apple is iets anders, en die bestaat hier wel.** Biedt deze dienst het aan, dan kunt u zich hier met uw Apple-account aanmelden. Dat geeft een naam en een e-mailadres: een identiteit, geen postvak. Het bereikt geen van uw gegevens, en het vervangt de verbinding hierboven niet. Beide kunnen tegelijk waar zijn en brengen mensen vaak in de war: de knop op het aanmeldscherm gaat over **wie u bent**; het wachtwoord op deze pagina gaat over **wat er gelezen mag worden**.
 
+## Als het account van iemand anders is {#somebody-else}
+
+Is het account van een collega, een familielid of een klant, dan hebt u diens wachtwoord niet nodig. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Anderen, met een link**. Vul de server en het account in, laat het wachtwoord leeg, en druk op **Bewaren voor** *die persoon*. Die persoon typt het wachtwoord zelf, op de pagina die uw toegangslink opent: die noemt de server waarbij het wachtwoord wordt gecontroleerd, test het voordat er iets wordt bewaard, en niemand ziet het daarna nog, u ook niet. Na vijf verkeerde wachtwoorden is dat account op die link geblokkeerd; een nieuwe link begint opnieuw. Die persoon heeft een app-specifiek wachtwoord nodig, gemaakt op account.apple.com zoals [stap 1](#app-password) zegt, niet het wachtwoord van de Apple-account; de pagina toont dezelfde stappen. Het wordt gecontroleerd bij de eigen server van Apple.
+
+Op een zelf gehoste appliance zijn er geen toegangslinks: wilt u iemand het eigen wachtwoord laten typen, gebruik dan de toegangslink van de beheerde dienst; de appliance heeft er geen.
+
 ## Wat er meegaat {#what-moves}
 
 E-mail, agenda's, contacten en herinneringen, wat u aanvinkt. Niet iCloud Drive.
