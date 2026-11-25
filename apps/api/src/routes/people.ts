@@ -45,6 +45,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import {
   addMigrationToPerson,
+  migrationReceivingRefusal,
   createMyself,
   createPerson,
   deletePerson,
@@ -195,9 +196,17 @@ router.post('/:personId/migrations', authenticate, async (req: AuthenticatedRequ
     const parsed = AddMigrationSchema.safeParse(req.body ?? {});
     if (!parsed.success) return invalid(res, parsed.error);
 
-    const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
-      addMigrationToPerson(db, tenantId, personId, parsed.data.mappingId, req.userId),
-    );
+    const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      // A destination a person connected themselves through their grant link
+      // takes only their migrations (workplan 0174 §4.3, D1 (a)).
+      const notTheirs = await migrationReceivingRefusal(db, tenantId, parsed.data.mappingId, personId);
+      if (notTheirs) return { kind: 'granted_by_another_person' as const, said: notTheirs };
+      return addMigrationToPerson(db, tenantId, personId, parsed.data.mappingId, req.userId);
+    });
+    if (outcome.kind === 'granted_by_another_person') {
+      res.status(409).json({ error: 'granted_by_another_person', message: outcome.said.en, messageNl: outcome.said.nl });
+      return;
+    }
     switch (outcome.kind) {
       case 'added':
         res.status(201).json(outcome.person);

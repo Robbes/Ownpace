@@ -26,7 +26,7 @@ export const en = {
   'start.who.myself': 'I do',
   'start.who.someoneElse': 'They do, with a link',
   'start.who.someoneElse.line':
-    'They connect a Google account themselves, so you never hold those credentials. With other providers, which no link can reach, you sign in together.',
+    'They connect their own accounts themselves, so you never hold those credentials. Where no link can reach, you sign in together.',
   'start.who.needName': 'Type a name first.',
   'start.who.peopleFailed': 'The people you migrate for could not be read. A new name still works.',
   'start.from.heading': 'Which account are you leaving or moving?',
@@ -94,6 +94,11 @@ export const en = {
   'start.connect.theirAddress': 'Their email address at {provider}',
   'start.connect.saveAddress': 'Save the email address',
   'start.connect.addressNeeded': 'Type their email address first.',
+  // A password account saved for the person (workplan 0174 §8.1, §8.2): its
+  // server and account, and no password, which they type on the link's page.
+  'start.forPerson.line': '{person} types the password themselves, on the page your link opens. It never reaches you.',
+  'start.forPerson.save': 'Save for {person}',
+  'start.forPerson.needed': 'Fill in the server and the account first.',
   'start.connect.exportNoSignIn': 'Photos need no sign-in: they come from the Takeout export.',
   'start.connect.folder.id': 'Which folder: its link or ID',
   'start.connect.folder.path': 'Which folder: its path',
@@ -124,6 +129,10 @@ export const en = {
   'start.to.leaveOut': 'Leave {type} out',
   'start.to.cannotTakeChosen': 'Choose a destination that takes {type}.',
   'start.to.needAll': 'Add each new account first.',
+  // Whose a password destination is, with *They do, with a link* (0174 §8.1).
+  'start.to.whose': 'Whose account is {provider}?',
+  'start.to.whose.mine': 'Mine, or the organisation’s: I connect it',
+  'start.to.whose.theirs': '{person}’s own: they connect it with the link',
   'start.to.settingUp': 'Setting up…',
   // Leaving *Where does it go?* makes the person and the migrations (the UX sweep, 2026-10-17).
   'start.to.setUp': 'Set up',
@@ -159,6 +168,9 @@ export const en = {
     'Its status and counts appear here once {person} has connected through the link above.',
   'start.check.startsWhenGranted': 'Once you have started, it starts by itself when {person} connects.',
   'start.check.waitsForACount': 'You can start once {person} has connected and a count is in.',
+  // What the person's link asks for, both roles (0174 §8.1).
+  'start.check.linkAsks.one': 'The link asks {person} for one account: {accounts}.',
+  'start.check.linkAsks.many': 'The link asks {person} for {n} accounts: {accounts}.',
   // AN EXPORT'S MIGRATION, SET UP AND WAITING (0153 open question 5, item 2).
   'start.check.export.waits': 'Set up, and waiting for the Takeout export:',
   'start.check.export.ask': 'Ask Google for it, with only Google Photos ticked:',
@@ -224,7 +236,7 @@ export const nl: Record<keyof typeof en, string> = {
   'start.who.myself': 'Ik',
   'start.who.someoneElse': 'Anderen, met een link',
   'start.who.someoneElse.line':
-    'Een Google-account verbindt iemand anders zelf, zodat u dat wachtwoord nooit in handen krijgt. Bij andere aanbieders meldt u zich samen aan.',
+    'Hun eigen accounts verbindt iemand anders zelf, zodat u die wachtwoorden nooit in handen krijgt. Waar dat niet met een link kan, meldt u zich samen aan.',
   'start.who.needName': 'Typ eerst een naam.',
   'start.who.peopleFailed': 'De lijst van mensen die u wenst te migreren kon niet worden gelezen. Een nieuwe naam werkt wel.',
   'start.from.heading': 'Welk account verlaat of migreert u?',
@@ -275,11 +287,14 @@ export const nl: Record<keyof typeof en, string> = {
   'start.connect.tryAgain': 'Opnieuw proberen',
   'start.connect.needAll': 'Verbind eerst elk account.',
   'start.connect.together': 'Geen link bereikt {provider}: meld u samen met {person} aan.',
-  'start.connect.byLink': '{person} verbindt zelf, met een persoonlijke link die u op het laatste scherm maakt.',
+  'start.connect.byLink': '{person} verbindt zelf, met een toegangslink die u op het laatste scherm maakt.',
   'start.connect.byLinkFor': 'Met een link: {account}',
   'start.connect.theirAddress': 'Hun adres bij {provider}',
   'start.connect.saveAddress': 'Adres bewaren',
   'start.connect.addressNeeded': 'Typ eerst hun adres.',
+  'start.forPerson.line': '{person} typt het wachtwoord zelf, op de pagina die uw link opent. Het komt nooit bij u terecht.',
+  'start.forPerson.save': 'Bewaren voor {person}',
+  'start.forPerson.needed': 'Vul eerst de server en het account in.',
   'start.connect.exportNoSignIn': "Foto's hebben geen aanmelding nodig: deze komen via de Takeout-export.",
   'start.connect.folder.id': 'Welke map: de link of het ID',
   'start.connect.folder.path': 'Welke map: het pad',
@@ -308,6 +323,9 @@ export const nl: Record<keyof typeof en, string> = {
   'start.to.leaveOut': 'Laat {type} weg',
   'start.to.cannotTakeChosen': 'Kies een bestemming die {type} aanneemt.',
   'start.to.needAll': 'Voeg eerst elk nieuw account toe.',
+  'start.to.whose': 'Van wie is het account bij {provider}?',
+  'start.to.whose.mine': 'Van mij of van de organisatie: ik verbind het',
+  'start.to.whose.theirs': 'Van {person} zelf: die verbindt het met de link',
   'start.to.settingUp': 'Bezig met klaarzetten…',
   'start.to.setUp': 'Klaarzetten',
   'start.to.setUp.line': 'Dit zet de migraties klaar, gepauzeerd. Er wordt niets gemigreerd tot u op Starten drukt.',
@@ -337,6 +355,8 @@ export const nl: Record<keyof typeof en, string> = {
   'start.check.startsWhenGranted':
     'Zodra u hebt gestart, start deze vanzelf wanneer {person} verbindt.',
   'start.check.waitsForACount': 'U kunt starten zodra {person} verbonden is en er een telling binnen is.',
+  'start.check.linkAsks.one': 'De link vraagt {person} om één account: {accounts}.',
+  'start.check.linkAsks.many': 'De link vraagt {person} om {n} accounts: {accounts}.',
   'start.check.export.waits': 'Klaargezet, en wacht op de Takeout-export:',
   'start.check.export.ask': "Vraag aan bij Google, met alleen Google Foto's aangevinkt:",
   'start.check.export.put':

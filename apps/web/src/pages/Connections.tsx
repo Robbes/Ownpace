@@ -17,7 +17,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, XCircle, HelpCircle, Loader2, Plus } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, HelpCircle, Loader2, Plus } from 'lucide-react';
 import {
   credentialFieldsFor,
   isFailureCategory,
@@ -355,7 +355,11 @@ const Row: React.FC<{
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusIcon status={connection.status} />
+            {connection.waitingFor ? (
+              <Clock className="w-4 h-4 text-gray-500" aria-hidden="true" />
+            ) : (
+              <StatusIcon status={connection.status} />
+            )}
             <span className="font-medium text-gray-900">{connection.displayName}</span>
             {connectionKindName(connection.kind, locale) && (
               <span className="text-xs text-gray-600 bg-gray-100 rounded px-1.5 py-0.5">
@@ -363,6 +367,21 @@ const Row: React.FC<{
               </span>
             )}
           </div>
+          {connection.waitingFor && (
+            // Saved for a person, who types its password on their grant
+            // link's page (0174 §8.2): not an error, and nothing to Test
+            // until they have.
+            <p data-waiting-for={connection.waitingFor.personId} className="mt-1 text-sm text-gray-700">
+              {t('connections.waitingFor', { person: connection.waitingFor.name })}
+            </p>
+          )}
+          {connection.connectedBy && (
+            // Connected by the person themselves (0174 §4.3, D6): the rotation
+            // door refuses a new password, in these words, so none is offered.
+            <p data-connected-by={connection.connectedBy.personId} className="mt-1 text-sm text-gray-700">
+              {t('connections.connectedBy', { person: connection.connectedBy.name })}
+            </p>
+          )}
           <p className="mt-1 text-sm text-gray-600">
             <span>
               {connection.usedByMigrations === 0
@@ -516,51 +535,58 @@ const Row: React.FC<{
             the last one sat off-screen. Beside the details from `sm` up,
             under them on a phone. */}
         <div className="flex flex-wrap items-center gap-2 sm:max-w-[55%] sm:shrink-0 sm:justify-end">
-          <button
-            type="button"
-            onClick={test}
-            disabled={testing}
-            className="text-sm px-3 py-1.5 border border-gray-300 rounded-md bg-white hover:bg-gray-50 disabled:opacity-50 inline-flex items-center gap-1"
-          >
-            {testing && <Loader2 className="w-3 h-3 animate-spin" />}
-            {testing ? t('connections.testing') : t('connections.test')}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              // Closed or opened, the fold starts without the last consent's
-              // answer (0145 T4). The note outlives the fold, and a panel
-              // drawn again with a refusal already in it is a new alert: a
-              // screen reader would say a failure nobody just caused. And
-              // with the face ticks back where they start, on what the
-              // account carries (`carriedFaces`), not on none.
-              rotateConsent.reset();
-              setRotating((open) => {
-                // Opening: start from what the connection ALREADY knows
-                // (workplan 0078). Rotating an expired secret used to mean
-                // retyping the server address and the account name that had
-                // not changed. Only non-secret config values arrive here —
-                // the encrypted record is never opened — so the secrets are
-                // still, correctly, blank.
-                if (!open) setNewValues({ ...(connection.knownValues ?? {}) });
-                return !open;
-              });
-            }}
-            className="text-sm px-3 py-1.5 border border-gray-300 rounded-md bg-white hover:bg-gray-50"
-          >
-            {/* NAMED FOR WHAT IT DOES HERE (workplan 0140 T2 (b)). On a row
-                whose kind has a consent button, what this panel mints is a new
-                token from the provider's consent: Reconnect, the word the
-                failure line always used and no button said. Every other row
-                keeps Replace credentials. The same panel either way, and the
-                same fact the panel reads to draw its consent button (the
-                descriptor's `consent`), not a list of kinds kept here. So it
-                follows the KIND, not what the row stores: a Gmail row holding
-                an app password says Reconnect too, which is why
-                failure.authExpired names both words and leaves the choice to
-                the row. */}
-            {rotateConsent.isGrantKind ? t('connections.reconnect') : t('connections.rotate')}
-          </button>
+          {!connection.waitingFor && (
+            <button
+              type="button"
+              onClick={test}
+              disabled={testing}
+              className="text-sm px-3 py-1.5 border border-gray-300 rounded-md bg-white hover:bg-gray-50 disabled:opacity-50 inline-flex items-center gap-1"
+            >
+              {testing && <Loader2 className="w-3 h-3 animate-spin" />}
+              {testing ? t('connections.testing') : t('connections.test')}
+            </button>
+          )}
+          {/* No new password on a row the person types it for, or typed it on
+              (0174 §4.3, §8.2, D6): the rotation door refuses the second in
+              the sentence above, and the first is theirs to fill. */}
+          {!connection.waitingFor && !connection.connectedBy && (
+            <button
+              type="button"
+              onClick={() => {
+                // Closed or opened, the fold starts without the last consent's
+                // answer (0145 T4). The note outlives the fold, and a panel
+                // drawn again with a refusal already in it is a new alert: a
+                // screen reader would say a failure nobody just caused. And
+                // with the face ticks back where they start, on what the
+                // account carries (`carriedFaces`), not on none.
+                rotateConsent.reset();
+                setRotating((open) => {
+                  // Opening: start from what the connection ALREADY knows
+                  // (workplan 0078). Rotating an expired secret used to mean
+                  // retyping the server address and the account name that had
+                  // not changed. Only non-secret config values arrive here —
+                  // the encrypted record is never opened — so the secrets are
+                  // still, correctly, blank.
+                  if (!open) setNewValues({ ...(connection.knownValues ?? {}) });
+                  return !open;
+                });
+              }}
+              className="text-sm px-3 py-1.5 border border-gray-300 rounded-md bg-white hover:bg-gray-50"
+            >
+              {/* NAMED FOR WHAT IT DOES HERE (workplan 0140 T2 (b)). On a row
+                  whose kind has a consent button, what this panel mints is a new
+                  token from the provider's consent: Reconnect, the word the
+                  failure line always used and no button said. Every other row
+                  keeps Replace credentials. The same panel either way, and the
+                  same fact the panel reads to draw its consent button (the
+                  descriptor's `consent`), not a list of kinds kept here. So it
+                  follows the KIND, not what the row stores: a Gmail row holding
+                  an app password says Reconnect too, which is why
+                  failure.authExpired names both words and leaves the choice to
+                  the row. */}
+              {rotateConsent.isGrantKind ? t('connections.reconnect') : t('connections.rotate')}
+            </button>
+          )}
           <button
             type="button"
             onClick={remove}

@@ -323,9 +323,11 @@ describe('the page and the button of a Microsoft account’s link', () => {
     expect((await begin(g.token, 'microsoft')).body.error).toBe('not_this_provider');
   });
 
-  it('answers no door for a provider with no entry yet (Dropbox and Apple join later)', async () => {
+  it('answers no door for a provider with no entry yet (Apple joins later), and refuses Dropbox’s for this link', async () => {
     const { token } = await mintLink(MAPPING);
-    expect((await begin(token, 'dropbox')).status).toBe(404);
+    // Dropbox has an entry since alpha.21 (workplan 0174 §6): its door exists,
+    // and a Microsoft account's link is not one it opens.
+    expect((await begin(token, 'dropbox')).body.error).toBe('not_this_provider');
     expect((await begin(token, 'apple')).status).toBe(404);
     expect((await begin(token, 'nonsense')).status).toBe(404);
   });
@@ -481,10 +483,14 @@ describe('a person’s link with a Microsoft account on it (0171 §3.2)', () => 
     const { token } = await mintPersonLink();
     const res = await request(app).get(`/api/grant/${token}`);
     expect(res.status).toBe(200);
-    const byAccount = Object.fromEntries(
-      (res.body.accounts as Array<{ account: string; provider: string }>).map((a) => [a.account, a.provider]),
-    );
+    const accounts = res.body.accounts as Array<{ account: string; provider: string; role: string; way: string }>;
+    const byAccount = Object.fromEntries(accounts.filter((a) => a.role === 'source').map((a) => [a.account, a.provider]));
     expect(byAccount).toEqual({ [PERSONAL_NAMED]: 'microsoft', 'someone@gmail.com': 'google' });
+    // The destination this fixture saves with no password is asked of the
+    // person too, since workplan 0174: one card, after the sources.
+    expect(accounts.filter((a) => a.role === 'target').map((a) => [a.account, a.provider, a.way])).toEqual([
+      ['dest@example.org', 'nextcloud', 'password'],
+    ]);
   });
 
   it('opens Microsoft for the Microsoft account, and refuses that account at Google’s door', async () => {

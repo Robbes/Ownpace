@@ -339,6 +339,14 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     expect(MANAGED_ONLY_TABLES, "the derivation lost 'address_change_person'").toContain('address_change_person');
     expect(MANAGED_ONLY_TABLES, "the shared chain's 'address_change' is not managed-only").not.toContain('address_change');
 
+    // A password tried on a person's link, and which person connected a
+    // destination themselves (workplan 0174 T1, managed migration 0064). The
+    // appliance has no grant links (0174 D7): its account forms stay as they
+    // are, and nothing it loads names either table.
+    for (const managedOnly of ['person_link_try', 'person_granted_connection']) {
+      expect(MANAGED_ONLY_TABLES, `the derivation lost '${managedOnly}'`).toContain(managedOnly);
+    }
+
     // What a tester accepted (workplan 0139 T3, managed migration 0032). The
     // appliance has no terms and asks nobody; the record, its versions and the
     // check all live in `@openmig/managed` and the managed API.

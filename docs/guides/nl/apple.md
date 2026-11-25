@@ -24,7 +24,7 @@ U typt geen van die servers. Het zijn de gepubliceerde waarden van Apple, in dez
 **Gebruik niet het wachtwoord van uw Apple-account.** Elk Apple-account heeft twee-factor-authenticatie, en het eigen wachtwoord van zo'n account wordt **met opzet geweigerd door IMAP, CalDAV en CardDAV**. Het is niet het verkeerde wachtwoord: het is het goede wachtwoord van een soort die hier niet kan, en het zorgvuldiger typen zal nooit werken.
 
 1. Meld u aan op [`account.apple.com`](https://account.apple.com).
-2. **Aanmelden en beveiliging** → **App-specifieke wachtwoorden**.
+2. **Inloggen en beveiliging** → **App-specifieke wachtwoorden**.
 3. Maak er een en geef het een naam die u later herkent, bijvoorbeeld `Ownpace`.
 4. Apple toont het **één keer**, in de vorm `abcd-efgh-ijkl-mnop`. Kopieer het nu; u kunt het niet nog eens zien, en wie het kwijt is, trekt het in en maakt een nieuw.
 
@@ -131,7 +131,7 @@ Typt u per ongeluk het wachtwoord van uw account, dan zegt de verbindingstest da
 
 ## Stoppen {#leaving}
 
-Een app-specifiek wachtwoord wordt **ingetrokken op `account.apple.com` → Aanmelden en beveiliging → App-specifieke wachtwoorden**, en nergens anders. Apple publiceert geen adres om het in te trekken, dus deze dienst kan het niet voor u intrekken en beweert dat ook niet: de verbinding hier verwijderen haalt ons bewaarde exemplaar weg, en laat het wachtwoord bij Apple geldig tot u het daar intrekt.
+Een app-specifiek wachtwoord wordt **ingetrokken op `account.apple.com` → Inloggen en beveiliging → App-specifieke wachtwoorden**, en nergens anders. Apple publiceert geen adres om het in te trekken, dus deze dienst kan het niet voor u intrekken en beweert dat ook niet: de verbinding hier verwijderen haalt ons bewaarde exemplaar weg, en laat het wachtwoord bij Apple geldig tot u het daar intrekt.
 
 Het goede nieuws is dat intrekken **precies** is. Het raakt alleen dat wachtwoord: het wachtwoord van uw Apple-account blijft zoals het is, elke andere app blijft werken, en niets hoeft opnieuw te worden aangemeld. Dat is het tegenovergestelde van het gebruikelijke advies om het wachtwoord van uw account te wijzigen, wat het meest verstorende is wat u kunt doen, en de ene handeling die dit wachtwoord niet intrekt.
 

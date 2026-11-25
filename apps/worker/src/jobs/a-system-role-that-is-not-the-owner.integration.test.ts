@@ -285,6 +285,9 @@ const EXPECTED: Record<string, readonly string[]> = {
   // granted in managed 0035, not 0033, which runs before the table exists on a fresh database.
   // Never the secret's hash, the person or the expiry: the purge picks the rows by tenant.
   person_link: PURGED_ONLY(),
+  // A password tried on a link, and whose destination (workplan 0174 T1, managed 0064): only the purge.
+  person_link_try: PURGED_ONLY(),
+  person_granted_connection: PURGED_ONLY(),
   // When each migration was last visited (workplan 0157 T7, managed 0042): the
   // tick reads it for the automatic cadence, and the purge deletes it.
   migration_visit: PURGED_ONLY('mapping_id,tenant_id,visited_at'),

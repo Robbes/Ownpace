@@ -17,6 +17,7 @@ import {
   folderKeyOf,
   folderValue,
   foldersListable,
+  destinationByLink,
   grantableByLink,
   grantProvidersServed,
   migrationsFor,
@@ -294,9 +295,52 @@ describe('what somebody else can connect themselves, by a grant link (0108)', ()
     expect(grantProvidersServed(undefined)).toEqual([]);
   });
 
+  it('is Dropbox, where the deployment carries its own Dropbox app (0174 §6)', () => {
+    // Dropbox has no account kind, so its fact is the provider clients read's.
+    expect(grantProvidersServed({}, { dropbox: 'deployment' })).toEqual(['dropbox']);
+    expect(grantProvidersServed({}, { dropbox: 'connection' })).toEqual([]);
+    expect(grantProvidersServed({}, undefined)).toEqual([]);
+    expect(grantableByLink('dropbox', { ...NARROW, grantProviders: ['dropbox'] })).toBe(true);
+    // Served for Dropbox only: no other card; served for the others: not Dropbox.
+    expect(grantableByLink('box', { ...NARROW, grantProviders: ['dropbox'] })).toBe(false);
+    expect(grantableByLink('google', { ...NARROW, grantProviders: ['dropbox'] })).toBe(false);
+    expect(grantableByLink('dropbox', { ...NARROW, grantProviders: ['google', 'microsoft'] })).toBe(false);
+  });
+
   it('is nothing for a provider with no link at all', () => {
-    for (const card of ['microsoft', 'apple', 'dropbox', 'box', 'imap']) {
+    // Microsoft's link needs the deployment's own application (served above);
+    // Box, a company's own Microsoft app and an export are organisation-held
+    // or hold no credential (0174 §13).
+    for (const card of ['microsoft', 'box', 'graph', 'oauth2', 'archive']) {
       expect(grantableByLink(card, OWN_CLIENT)).toBe(false);
+    }
+  });
+
+  it('is Dropbox beside the password kinds once T2 and T6 meet: each by its own rule (0174 §6, §8.1)', () => {
+    // A deployment that serves Dropbox: Dropbox and every password source.
+    const dropbox = { ...NARROW, grantProviders: ['dropbox'] } as const;
+    for (const card of ['dropbox', 'imap', 'apple', 'caldav', 'carddav', 'webdav']) {
+      expect(grantableByLink(card, dropbox), card).toBe(true);
+    }
+    // One that does not: the password sources still, Dropbox not.
+    expect(grantableByLink('dropbox', { ...NARROW, grantProviders: [] })).toBe(false);
+    expect(grantableByLink('imap', { ...NARROW, grantProviders: [] })).toBe(true);
+  });
+
+  it('is every password source, served or not: the person types it themselves (0174 §8.1)', () => {
+    for (const card of ['imap', 'apple', 'caldav', 'carddav', 'webdav']) {
+      expect(grantableByLink(card, OWN_CLIENT), card).toBe(true);
+      expect(grantableByLink(card), card).toBe(true);
+      expect(grantableByLink(card, { ...NARROW, grantProviders: [] }), card).toBe(true);
+    }
+  });
+
+  it('asks whose a destination is for every password destination, Cirrux and Soverin among them (0174 §8.1)', () => {
+    for (const card of ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak']) {
+      expect(destinationByLink(card), card).toBe(true);
+    }
+    for (const card of ['google', 'microsoft', 'dropbox', 'apple', 'archive']) {
+      expect(destinationByLink(card), card).toBe(false);
     }
   });
 });

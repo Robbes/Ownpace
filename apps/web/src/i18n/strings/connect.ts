@@ -433,6 +433,11 @@ export const en = {
   'connections.sources': 'Sources',
   'connections.targets': 'Destinations',
   'connections.test': 'Test',
+  // A password account saved for a person (0174 §8.2), in place of its error.
+  'connections.waitingFor': 'Waiting for {person}: they type its password themselves, with their grant link.',
+  // A destination the person connected themselves (0174 §4.3, D6): the
+  // rotation door's own sentence (`connectedByThemselves`), word for word.
+  'connections.connectedBy': '{person} connected this account themselves. Make them a new grant link to change it.',
   'connections.testing': 'Testing…',
   // A connection serves migrations, not mailboxes (owner remark 2026-09-02:
   // Dropbox is files, a Google account is four faces) — and none yet is a
@@ -880,7 +885,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.appleAppPassword.hint':
     'Niet uw Apple-accountwachtwoord: een app-specifiek wachtwoord van account.apple.com.',
   'account.appleAppPassword.why':
-    'Apple weigert het accountwachtwoord hier met opzet. Maak een App-specifieke aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
+    'Apple weigert het accountwachtwoord hier met opzet. Maak een App-specifieke aan op account.apple.com → Inloggen en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
   'account.proto.archive.hint':
     'Een gedownloade Google Takeout- of Apple-export: foto’s en bestanden.',
   'account.archiveProvider': 'Welke export',
@@ -1068,6 +1073,8 @@ export const nl: Record<keyof typeof en, string> = {
   'connections.sources': 'Bronnen',
   'connections.targets': 'Bestemmingen',
   'connections.test': 'Testen',
+  'connections.waitingFor': 'Wacht op {person}: die typt het wachtwoord zelf, met de toegangslink.',
+  'connections.connectedBy': '{person} heeft dit account zelf verbonden. Maak een nieuwe toegangslink voor {person} om het te wijzigen.',
   'connections.testing': 'Bezig met testen…',
   'connections.usedBy.one': 'Gebruikt door 1 migratie',
   'connections.usedBy.other': 'Gebruikt door {count} migraties',
@@ -1294,7 +1301,7 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.davbasic.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
   'setup.apple.app_password.title': 'Maak een app-specifiek wachtwoord',
   'setup.apple.app_password.detail':
-    'Meld u aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en maak er een. Apple toont het één keer, dus kopieer het meteen. Gebruik niet het wachtwoord van uw Apple-account.',
+    'Meld u aan op account.apple.com → Inloggen en beveiliging → App-specifieke wachtwoorden en maak er een. Apple toont het één keer, dus kopieer het meteen. Gebruik niet het wachtwoord van uw Apple-account.',
   'setup.apple.app_password.yields': 'een app-specifiek wachtwoord, zoals abcd-efgh-ijkl-mnop.',
   'setup.nextcloud.account_exists.title': 'Zorg dat het Nextcloud-account bestaat',
   'setup.nextcloud.account_exists.detail':

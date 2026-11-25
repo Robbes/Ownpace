@@ -101,6 +101,8 @@ export * from './unread-collections.ts';
 export * from './target-folder-missing.ts';
 export * from './config-revision.ts';
 export * from './kind-addition.ts';
+export * from './password-grant-kinds.ts';
+export * from './person-fields.ts';
 export * from './provider-accounts.ts';
 export * from './archive-providers.ts';
 export * from './provider-directory.ts';

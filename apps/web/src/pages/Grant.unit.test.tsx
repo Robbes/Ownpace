@@ -424,8 +424,11 @@ describe("a person's link", () => {
 
   it('draws a card per account, saying where each of its migrations goes and what it copies', async () => {
     renderPage();
-    expect(await screen.findByRole('heading', { level: 2, name: 'anna@gmail.com' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'anna@work.example' })).toBeInTheDocument();
+    // One group, the accounts the data is copied from (0174 §4.5), each account a card under it.
+    expect(await screen.findByRole('heading', { level: 2, name: 'The accounts your data is copied from' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'The accounts your data is copied to' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'anna@gmail.com' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'anna@work.example' })).toBeInTheDocument();
     expect(screen.getByText('To anna, Nextcloud at cloud.example.org: your calendars and their events.')).toBeInTheDocument();
     expect(screen.getByText('To anna@soverin.net, Soverin: your contacts.')).toBeInTheDocument();
     expect(screen.getByText(/is moving your accounts and\/or content to a new provider/)).toBeInTheDocument();
@@ -433,7 +436,7 @@ describe("a person's link", () => {
 
   it('offers no button for a connected account, and says why an account cannot be asked', async () => {
     renderPage();
-    await screen.findByRole('heading', { level: 2, name: 'anna@gmail.com' });
+    await screen.findByRole('heading', { level: 3, name: 'anna@gmail.com' });
     expect(screen.getByText('Connected. Nothing more is needed for this account.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /as anna@gmail\.com/ })).not.toBeInTheDocument();
     expect(screen.getByText('Two applications, one sign-in.')).toBeInTheDocument();
@@ -525,5 +528,67 @@ describe('a Microsoft account’s link (0171 §3.4)', () => {
     renderPage();
     expect(await screen.findByRole('button', { name: 'Doorgaan met Microsoft als someone@example.invalid' })).toBeInTheDocument();
     expect(screen.getByText('De toestemming die Microsoft u vraagt:')).toBeInTheDocument();
+  });
+});
+
+/**
+ * A DROPBOX LINK (workplan 0174 §6): the same page, its button, sentences and
+ * scope in Dropbox's words, and the browser sent to Dropbox's own sign-in and
+ * nowhere else.
+ */
+describe('a Dropbox link (0174 §6)', () => {
+  const DROPBOX = {
+    ...SUBJECT,
+    provider: 'dropbox',
+    domains: ['file'],
+    scope: 'account_info.read files.metadata.read files.content.read',
+    readOnlyAtProvider: true,
+  };
+
+  it('says Dropbox where the page says Google, and names the account on the button', async () => {
+    readMock.mockResolvedValue(DROPBOX);
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Continue with Dropbox as someone@example.invalid' })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Sign in as someone@example.invalid. Dropbox confirms which account signed in; other accounts are refused. If Dropbox offers another account, sign out of it first.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('The permission Dropbox will ask you for:')).toBeInTheDocument();
+    // The two read scopes are one line, as Dropbox's own screen puts them.
+    expect(screen.getAllByText('Dropbox: read your files.')).toHaveLength(1);
+    expect(
+      screen.getByText('Your Dropbox account: read your name, your email address and how much space you use.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/your files in Dropbox/)).toBeInTheDocument();
+    expect(screen.queryByText(/another permission/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Google|Microsoft/)).not.toBeInTheDocument();
+  });
+
+  it('follows Dropbox’s own sign-in, asked at the Dropbox door', async () => {
+    readMock.mockResolvedValue(DROPBOX);
+    authorizeMock.mockResolvedValue({ url: 'https://www.dropbox.com/oauth2/authorize?z=3' });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /Continue with Dropbox/ }));
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'dropbox'));
+    expect(assignMock).toHaveBeenCalledWith('https://www.dropbox.com/oauth2/authorize?z=3');
+  });
+
+  it('refuses to follow an address that is not Dropbox’s, and says so', async () => {
+    readMock.mockResolvedValue(DROPBOX);
+    authorizeMock.mockResolvedValue({ url: 'https://dropbox.com.example.invalid/oauth2/authorize?x=1' });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /Continue with Dropbox/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Dropbox/);
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('says it in Dutch too', async () => {
+    readMock.mockResolvedValue(DROPBOX);
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Doorgaan met Dropbox als someone@example.invalid' })).toBeInTheDocument();
+    expect(screen.getByText('De toestemming die Dropbox u vraagt:')).toBeInTheDocument();
+    expect(screen.getByText('Dropbox: uw bestanden lezen.')).toBeInTheDocument();
   });
 });

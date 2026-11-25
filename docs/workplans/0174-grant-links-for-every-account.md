@@ -4,26 +4,315 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
-**2026-11-25, T7 (the words) in review.** §8.3 to §8.6 written against what T1 to T6 built
-(#2157, #2156, #2159, #2160, #2161, #2162), on its own branch from `main`. ADR-0035's fourth
-operative bullet and amendment log as §8.4 drafts, with two changes for what was built: the log
-names Dropbox and Cirrux Drive, and *"the sharpest edge"* is answered by the server line, Apple's
-pinned host, D3's MX warning and the refusal of a server named by a number (T3 pins Apple's host
-only, not Soverin's, Cirrux's or Infomaniak's). The bullet took the section to 311 words, so five
-other bullets were reworded without changing their meaning, and the log says so. Privacy §4.1,
-§4.6 and §9 and terms §5 as §8.5 drafts, in place under 1.0 (D8), EN and NL, with one change:
-§4.6 says a password for a destination is deleted with that account, because withdrawing one on
-the progress page is not built (`withdraw-grant.ts` deletes `source_secret_ref` only). The Dutch
-privacy policy says *bestemming* where *doel* meant the target, as the Dutch terms do (#2158);
-*Doel* as a purpose stays. `ACCEPTED_WORDS` re-pins privacy and terms under 1.0; #2158 re-pins
-terms too, so the terms pins are computed again at whichever merge comes second.
-`docs/grant-links.md`, the guides EN/NL (an *If the account is somebody else's* section in
-`apple`, `imap`, `dav`, `jmap`, `nextcloud`, `soverin`, `cirrux`, `infomaniak` and `dropbox`), the
-appliance's sentence (§8.3) in `docs/selfhost-quickstart.md`, and the site's *Where to* and
-*Leaving…* pages, both languages. Not in the served guides: `end-user-docs.unit.test.tsx` refuses
-a guide that addresses one edition (*the appliance*), and `start.md` is *How a migration copies*,
-whose four sections `Docs.unit.test.tsx` pins; *They do, with a link* is said in each provider's
-section and in `docs/grant-links.md` instead. No code under `apps/` or `packages/`.
+**2026-11-25, T1 to T6 merged as #2167** (`574d35fb`), which replaced #2164: #2164's tree at
+`e0acb093` rebuilt on `main` as one commit, because gitleaks read a placeholder that one of its
+commits added to a UI test as a key, and a later commit cannot take a line out of a pull request's
+history; and three integration fixtures that now store an IMAP password, as Start asks since T1. On
+`90b79837`: CI run 45646380900 green. E2E carried over from `e0acb093`, whose code under `apps/` and
+`packages/` is the merged one's: E2E (self-hosted) on PGlite 45639419033 and on Postgres
+45641882571, and E2E (managed) 45640399829, all green. T7 (#2163), T8 and T9 follow.
+
+**2026-11-25, T7 (the words) in review: #2163.** §8.3 to §8.6 written against what T1 to T6 built
+(#2157, #2156, #2159, #2160, #2161, #2162; merged as one, #2167), on its own branch from `main`.
+ADR-0035's fourth operative bullet and amendment log as §8.4 drafts, with two changes for what was
+built: the log names Dropbox and Cirrux Drive, and *"the sharpest edge"* is answered by the server
+line, the published servers pinned for Apple, Cirrux and Infomaniak (not yet Soverin's), D3's MX
+warning, and the refusal of a server named by a number or inside a private network. The bullet took
+the section to 311 words, so five other bullets were reworded without changing their meaning, and
+the log says so. Privacy §4.1, §4.6 and §9 and terms §5 as §8.5 drafts, in place under 1.0 (D8), EN
+and NL, and §4.6 says a password the person typed is withdrawn on their progress page for an account
+we read from and one we write to alike (§4.3, built in #2167). The Dutch privacy policy says
+*bestemming* where *doel* meant the target, as the Dutch terms do (#2158); *Doel* as a purpose
+stays. `ACCEPTED_WORDS` re-pins privacy and terms under 1.0; #2158 merged first and re-pinned the
+terms for its §2, so the terms' pins are of both changes together. `docs/grant-links.md`, the guides
+EN/NL (an *If the account is somebody else's* section in `apple`, `imap`, `dav`, `jmap`,
+`nextcloud`, `soverin`, `cirrux`, `infomaniak` and `dropbox`), the appliance's sentence (§8.3) in
+`docs/selfhost-quickstart.md`, and the site's *Where to* and *Leaving…* pages, both languages. Not
+in the served guides: `end-user-docs.unit.test.tsx` refuses a guide that addresses one edition (*the
+appliance*), and `start.md` is *How a migration copies*, whose four sections `Docs.unit.test.tsx`
+pins; *They do, with a link* is said in each provider's section and in `docs/grant-links.md`
+instead. No code under `apps/` or `packages/`.
+
+**2026-11-25, the owner's read of the Dutch and one decision.** The owner read the combined
+Dutch of the grant pages, the owner's side and the server's sentences: *"all ok, advice yes"*.
+- The advice taken:
+  - a card waiting for its password says *Nog niet verbonden*, not *Wacht*;
+  - a refused face reads *… geeft geen toegang tot: {faces}* (English *gives no access to:*);
+  - the start screen's line ends *Waar dat niet met een link kan, meldt u zich samen aan.*;
+  - `start.connect.byLink` says *toegangslink*, the product's one name for the link;
+  - Apple's menu is *Inloggen en beveiliging*, Apple's own Dutch, in the grant page's steps and
+    in the app's and the Apple guide's, which said the product's own *Aanmelden en beveiliging*
+    until Apple's Dutch screen was read (0148);
+  - *werkruimte* for a Cirrux workspace, and *voor die link* in the guides (#2163).
+- **Cirrux Drive's first grant is bound to the workspace it reaches** (§4.4, *Changed by T5*):
+  accepted for alpha.21. A stronger binding, by the mailbox's address, waits for Cirrux to grant
+  the deployment's client `email.read`; the owner asks Cirrux later.
+- The thirteen strings that items 11 and 12 of #2164 added were read the same day, with the
+  two Cirrux and Infomaniak guide lines #2163 added (*"All ok, advice yes"*). The advice taken:
+  - a removed password's sentence says *Verwijder of wijzig dit wachtwoord ook bij {provider}*
+    (English *Delete or change*): an app password cannot be changed, only deleted;
+  - the Drive line after a removal names Cirrux's own menu, *onder Settings → Security*, as the
+    product's other Cirrux sentences do, not *bij de beveiligingsinstellingen*.
+
+**2026-11-25, later: the two parts the plan required and the branch had not built, on #2164.**
+- **D3 (a), the published servers (§5.8, §14 question 2).** Cirrux and Infomaniak join Apple in
+  `PROVIDER_ENDPOINTS`, read from their own help pages and cited; Soverin stays generic, because
+  its pages could not be read from the builder's checkout. A password for a pinned kind is tested
+  only against the published server whatever the row says, the GET names it as *{provider}'s own
+  server*, and the store writes the same servers to the row and the migrations' overrides, so the
+  pass goes where the test went: silently pinned, not refused at the create door (§5.8 says why).
+  A generic kind's host that resolves inside a private network is refused before a try is
+  claimed: 409 `server_not_public`, a sentence in English and Dutch, the page showing it.
+- **§4.3, withdrawing a destination.** The person's progress page lists each destination they
+  connected, with *Remove my password*: their keys leave the connection, the owner's stay,
+  `person_granted_connection` is deleted, every migration into it is held until they grant again,
+  one audit row each with no value, and §5.9's sentence in both languages. On Cirrux the Drive
+  grant goes with it. A withdrawal's hold now lifts only where both sides have a way in, in every
+  ending that stores a grant.
+
+Proved on the builder's checkout: `a-password-sent-only-to-its-providers-server` (7),
+`a-destination-the-person-takes-back` (5), the new case in `a-password-the-link-never-says`,
+`a-password-the-person-removes` (5, the page), the view service's two, and the page's published
+line and `server_not_public`; 17 of them shown failing with the sources reversed, the rest
+asserting what was already true (Soverin generic, an outward host tried, the page's published
+line). The full gates are in the pull request. Not proved here: a real Cirrux, Infomaniak or
+Soverin login, and a running pass stopped by a destination's withdrawal (the hold is the one a
+source's withdrawal has used since 0108, and its pass-side tests are unchanged).
+
+**2026-11-25, T1 to T6 on one branch, in review as one draft pull request: #2164**
+(`claude/ownpace-public-readiness-y7orc6-a21-grant-links`). It replaces #2157, #2156, #2159, #2160,
+#2161 and #2162, because the feature works only whole: one CI run and one E2E set. T1's head with
+T2 to T6 merged in that order (merge commits, no rebase), then one commit per disagreement, each
+pinned by a test:
+- D3's fields are T3's, `domains` and `notTheAddressMail` (§5.3); the page reads them.
+- The route answers exactly §5.3's bodies (422 `{ error, tries, faces? }`, 423 `{ error }`); the
+  page reads only those, and shows `server_not_a_name`, a 401 and 400/413/415 rightly.
+- A password's store spends the link only after reading the cards it leaves, so a Cirrux
+  destination's Drive card shows (pinned; the store already did so).
+- The page draws the Cirrux Drive card (§4.4), which neither T4 nor T5 had built.
+- One `forPerson` on both create doors (§8.2): the migration door's guard and its save read it.
+- `grantableByLink` holds Dropbox and the password kinds side by side.
+- `personFieldsFor` moves to `@openmig/shared`, so *Save for {person}* leaves Infomaniak's sync
+  user name to the person.
+- No *Replace credentials* on a row waiting for a person or connected by them (D6); the page says
+  the rotation door's sentence.
+- One Dutch: *verbonden*, *toegangslink*, *voor deze link* (`one-dutch-for-a-grant-link`).
+- The page hands over the progress link a password mints (§5.3 step 8).
+
+Proved on the builder's checkout: `pnpm typecheck`, `pnpm lint`, `pnpm test` (1481 files, 23873
+passed), `pnpm test:ui` (78 passed), the docs checks, the commit convention; the worker's
+`a-system-role-that-is-not-the-owner` integration test against PostgreSQL 16 from
+`./scripts/local-pg.sh` (41 passed). Not run here: the Stalwart integration file (no container
+runtime); CI and T8 run it. T7, T8 and T9 are still to come.
+
+**2026-11-25, T6 built (draft pull request on T1's branch, merges after T1).** The owner's side
+of *They do, with a link*, for every password kind and for destinations (§8.1, §8.2, §4.6):
+- `start-plan.ts`: `grantableByLink` answers yes for every password source kind, served or not;
+  `destinationByLink` for every password destination. `GrantLinkProvider` gains `cirrux`.
+  Dropbox's case is T2's and fits beside the password kinds unchanged.
+- **One change of place, not of shape, to §5.1:** `PASSWORD_SOURCE_KINDS`,
+  `PASSWORD_TARGET_KINDS`, `PasswordKind` and `isPasswordKind` now live in `@openmig/shared`
+  (`password-grant-kinds.ts`), so the screens and the create door read the same lists;
+  `grant-providers.ts` re-exports them unchanged, and every import of them still works.
+- The create door's `forPerson` (`account-for-a-person.ts`): a password kind only
+  (`not_by_link`), no secret taken (`secret_for_person`), every server and account still
+  required (D2; Infomaniak's sync user name excepted, as `personFieldsFor` lets the person fill
+  it), never probed, the person this organisation's (`person_not_found`).
+  `credentialFieldRequired` gains `forPerson`. **Open question 3, answered:** the path that saves
+  a Google or Microsoft account by its address alone writes `status: 'error'` (its probe has no
+  token and fails), so a row saved for a person is stored `error` too, without a probe; *waiting*
+  is observed from the rows, and no shared migration was needed.
+- *Start a migration*: a password source by link is saved with its server and account
+  (*Save for {person}*); a password destination asks *Whose account is {provider}?*, and the
+  person's own is saved the same way; the person is made when the first account is saved for
+  them; the last screen counts every account the link asks for, both roles.
+- The person's page (§4.6): `GET /api/people/:id/awaiting-grant` answers `waitsFor` per
+  migration (role, way, account, and a password's tries on the live link); the page says the
+  destination by name, the wrong tries with tries left, and *locked on this link after five*.
+- The Accounts page: `GET /api/connections` answers `waitingFor` for a password account saved
+  for a person (it holds no password, and a migration of theirs uses it with none); the row says
+  *Waiting for {person}* and offers no *Test*.
+
+Proved: unit, `grantableByLink` per kind and `destinationByLink` (failing before, 2 of 40);
+`an-account-saved-for-a-person` through the real door over PGlite, both chains (7 of 8 failing
+before: saved without a secret and unprobed, refused without its server, refused with a password,
+another organisation's person, the Accounts page's *Waiting for*); `credentialFieldRequired`
+with `forPerson`; `what-the-owner-sees-while-a-link-waits` (the four lines' data, tries on the
+live link, a new link at zero); the person page's four lines (failing before); the Accounts
+page's row; *Start a migration* with an iCloud source and a Soverin destination (failing
+before). UI smoke in real Chromium over the built bundle: *They do, with a link* with an iCloud
+source and a Soverin destination, both posted `forPerson` and neither with a password. Not proved
+here: the password route, the grant page and Cirrux Drive (T3 to T5), and anything with a real
+provider.
+
+**2026-11-25, T5 built (draft pull request on T1's branch, merges after T1).** Destinations on
+the link, as §4.3 and §4.4 say, with §4.4's binding changed before the code (its T5 paragraph:
+Cirrux names a workspace and no address, so the first Drive grant on an account records the
+workspace and every later one must reach it):
+- `grant-providers.ts`: the `cirrux` entry, `targetKinds: ['cirrux']`, served by `cirruxClient`;
+  three optional members on the seam (`consentUrl`'s `challenge`, `finish`'s `verifier`,
+  `GrantFinish`'s `access` and `shownAs`). `CIRRUX_DRIVE_WORKSPACE_KEY` in `cirrux-drive.ts`.
+- `person-grant-subject.ts`: the Drive card read per role from `GRANTED_TARGET_FACES`, offered
+  only once the account's password is stored, and kept, connected, once the person connected it.
+- `grant.ts`: `POST /:link/cirrux/authorize` takes the card's `ref` and begins the owner's Cirrux
+  consent (PKCE, the deployment's public client) with the person's link in its pending state.
+- `cirrux-link-ending.ts` (new), from `cirrux-oauth-routes.ts`'s one callback: the link live, the
+  migrations still hers, the app password stored, the grant under the row's lock and refused for
+  another workspace (`storeCirruxDriveGrantIn`, `another_workspace`), `person_granted_connection`
+  written, `mapping.granted` per migration with `role` and `via`, the link spent when every card is
+  connected. The owner's own callback records and holds to the workspace too.
+- `packages/managed/src/person-granted-connection.ts` (new): the row's write, and the refusals.
+  Guarded doors: the create door (`personId` in its body, for T6's wizard), the door that gives a
+  migration to a person, the edit door, the rotation door (D6), and the owner's *Connect Cirrux
+  Drive* on an account a person connected.
+- `consentToFollow('cirrux', …)` already follows `api.cirrux.co` only (0160); the test ties the
+  authorize URL to `CONSENT_HOSTS.cirrux`. The page's Drive card and its words are T4's.
+
+Proved: `a-drive-a-person-connects-on-their-link.unit.test.ts` (PGlite, both chains, Cirrux faked):
+the Drive card only after the app password; the ending stored with its workspace, the person's
+row, the audit rows; refused when the workspace differs (nothing stored, the link live), the
+owner's consent too; another person's migration refused at three doors; the rotation and the
+owner's Drive sign-in refused. All eight fail on T1's sources. The unit tests of the api,
+orchestration, managed, connectors, shared, the appliance's guards and `scripts/` pass. Not proved:
+a real Cirrux sign-in (no test account, §11); no integration test was added (T8).
+
+**2026-11-25, T4 built (draft pull request, on T1's branch; merges after T1).** A person's
+grant page draws a password card per kind, in two groups, in English and Dutch:
+- `Grant.tsx`: the cards grouped under *The accounts your data is copied from* and *…copied to*
+  (§4.5), sources first, a group only when it has a card; each card says **Connected**,
+  **Waiting** or **Locked on this link**; a destination's lines name where each migration comes
+  from. When a password is asked and the organisation gave no phone, the page says to ask some
+  other way (§5.8). The sign-in cards are as they were.
+- `components/GrantPasswordCard.tsx`: the card (§5.2, §5.7, §5.8). It shows the server line
+  before any box, with the registrable domain in bold, or *Apple's own server*. It adds D3's
+  warning on `addressMail: 'mismatch'` (a warning, never a refusal), says nobody will see the
+  password, and says what Ownpace never does. It shows the owner's values as text and gives
+  boxes only for the person's fields, with the descriptor's labels, hints and autofill, *Show*
+  where the descriptor offers it, no `name` attribute, and `required`. Apple's and Nextcloud's
+  steps fold under a question; Cirrux and Infomaniak keep their descriptor hint; other kinds get
+  *Use an app password if your provider offers one.* After each answer the box is emptied and
+  the card says the category only: refused with the tries left, unreachable, a face refused,
+  locked, connected.
+- `grant-service.ts`: the person subject parses T1's card shape (`ref`, `role`, `way`, `server`,
+  `fields`, `tries`, `from`, the password kinds as `provider`); `putPassword` sends
+  `{ ref, values, locale }` by `fetch` as a `PUT` with a JSON body, no cookie, no referrer;
+  `passwordAnswerOf` reads the route's answers as §5.3 now spells them.
+- `i18n/strings/grant.ts`: the words, in English and Dutch.
+- **Two additions to the fixed interfaces, written into §5.3 above:** the bodies of the route's
+  refusals as the page reads them, and D3's two optional `GrantServer` fields, `registrable`
+  and `addressMail` (added to `grant-providers.ts` and the OpenAPI spec as optional; T3 fills
+  them). The route's shape is unchanged.
+- **Where the words differ from §5.9:** the Dutch says *verbinden* and *Verbonden*, as the grant
+  page's approved Google and Microsoft cards do, not *koppelen*; *aanbieder*, never *provider*
+  (the glossary, and `the-owners-words-at-the-door`); *app-specifiek*, as `account.appleAppPassword`
+  says. `grant.password.apple.server` became `grant.password.published`, which names the
+  provider and the host. `grant.apple.password` and its hint are not added: the card uses the
+  descriptor's own `account.appleAppPassword` and its hint, as §5.2 asks. `grant.password.withdrawn`
+  (the progress page), `grant.continue.dropbox` (T2) and `grant.continue.cirrux` (T5) are left
+  to the tasks that draw them.
+
+Proved: `a-password-card-per-kind` (34: every password kind in each role it has, the server
+line, D3's warning and its absence, no phone, the two groups and the three states, each answer;
+34 of 34 fail on T1's page), `a-password-sent-by-fetch` (14: the `PUT` by `fetch`, each answer,
+T1's card shape parses; 14 of 14 fail on T1's service), the grant page's existing suites, and
+the UI smoke under the CSP nginx serves (`a person types their own password on their grant
+link`, 3: by the button and by Enter, a request of type `fetch`, `PUT`, JSON, the password in
+its body and in no URL, the page's address unchanged with no navigation, no policy violation;
+on a phone in Dutch; all 3 fail on T1's page). Not proved: the page against T3's real route
+(it is built in parallel; the page is tested against §5.3's shape).
+
+**2026-11-25, T3 built (draft pull request, on T1's branch, merges after T1).**
+`PUT /api/grant/:link/password` as §5.3 says, in `grant-password.ts`, mounted by `grant.ts`:
+- **The test** (`password-test.ts`, `PasswordGrant.test`): the create door's probe and
+  `qualifyAccount` on the merged config and credentials. The probe now marks the one failure that
+  counts, `refusedLogin` (`loginWasRefused`: imapflow's `authenticationFailed` or
+  `AUTHENTICATIONFAILED`, an HTTP 401 from DAV or JMAP, Apple refusing an Apple Account password),
+  read from the error, never from words. Every other failure is `unreachable`; `face_missing` is a
+  needed face's measured `no` (not a `structural` one, nor Cirrux Drive's, which is its own card).
+- **Five tries** (`person-link-tries.ts`, on 0064's table): a try is CLAIMED before the login, in
+  one statement that adds one only under five and unlocked, and given back for anything but
+  `refused_login`; so two tabs racing at four make one login between them, and the sixth is never
+  tested. A process that dies mid-test keeps the try counted.
+- **The store** (`storePersonPassword`, `person-grant-ending.ts`): one transaction, the link
+  `FOR UPDATE` and live, the card read again by `ref`; a source's password merged onto each of its
+  migrations' `source_secret_ref` (`grant_withdrawn_at` cleared), a destination's onto the
+  connection's `secret_ref` with `person_granted_connection` naming the person (another person's
+  is refused); the measured qualification remembered; one `mapping.granted` per migration with
+  `via`, `role`, `ref`; the link spent once every card is connected. A destination saved by its
+  address alone also keeps the user name the test logged in with, so the pass logs in as the test did.
+- **Around it:** JSON only (415), 4 KiB (413), exactly the card's person fields (400); a replay
+  answers `already_connected` without a test; an IP-literal server is never tried
+  (`server_not_a_name`, D3 (a)); a revoke mid-test stores nothing (401); thirty tests an hour per
+  caller (`GRANT_PASSWORD_TESTS_PER_HOUR`); `mapping.grant_refused` per migration with the
+  category. The OpenAPI spec says all of it.
+- **D3's comparison** (`grant-server-domain.ts`), on the GET: `GrantServer` gains the optional
+  `domains` (each host's registrable domain, for the bold) and `notTheAddressMail` (the hosts on
+  neither the address's domain nor its MX hosts', read through `verifyMX`'s public resolvers,
+  held ten minutes, three seconds at most; absent when no comparison was made). A warning, never a
+  refusal.
+- **Changes to the fixed shapes:** none removed or renamed. Added: §5.3's answer carries
+  `linkSpent` and `progressUrl` (written into §5.3); `GrantServer`'s two optional fields, as T1
+  named; `ProbeResult`'s optional `refusedLogin`. Open question 4 is answered in §14.
+
+Proved here: `a-password-typed-on-a-link` (each step of §5.3, the lock, the race, D4, both stores,
+replay, revoke, another person, an IP literal), `a-password-the-link-never-says` (seven outcomes,
+every log line, response, header and row; shown to fail when the route logs its body),
+`password-test`, `grant-server-domain`, `grant-password-limit`, `a-login-the-server-refused`, all
+over PGlite with both chains. Written, not run here (no container runtime):
+`a-password-tested-against-stalwart.integration.test.ts`, an IMAP source and a JMAP destination
+with a right and a wrong password; CI and T8 run it. An IMAP destination is not in it: the
+target probe takes no `tlsVerify`, and the harness's IMAPS certificate is self-signed, so it
+would answer `unreachable` there; T8's managed smoke covers it on the demo Stalwart.
+
+**2026-11-25, T2 built (Dropbox on the seam), in review.** A grant link connects Dropbox: the
+`dropbox` entry in `grant-providers.ts` (fact `dropboxClient`), `dropboxLinkAsk` in the readiness
+check, the link branch in Dropbox's callback through one ending lifted out of Microsoft's
+(`link-ending.ts`, Microsoft's behaviour and tests unchanged), and `get_current_account` in
+`dropbox-consent.ts` binding the grant to the named account: its `email` equal without case and
+`email_verified` strictly true, else nothing stored and the link live. The page in Dropbox's words,
+EN and NL; `grantableByLink('dropbox')` from `/api/provider-clients`. Two things the plan did not
+name, both needed for the wizard's *They do, with a link*: Dropbox's refresh token is no longer
+`required` on its descriptor (as Google's and Microsoft's are not; every form still demands it),
+and `awaitingGrantRefusal` holds a Dropbox migration without a token. Proven by mock only: no real
+Dropbox account exists for a test. T1 adds the same fact `dropboxClient`; the two meet in
+`grant-providers.ts` (§10).
+**2026-11-25, T1 built (draft pull request, merges after alpha.20's tag).** The seam grows as
+§4.1, §4.2, §5.1 and §9 say, and the interfaces T3 to T6 build against are on the branch
+`claude/ownpace-public-readiness-y7orc6-a21-grant-t1`:
+- `grant-providers.ts`: `GrantRole`, `GrantWay`, `targetKinds` on every entry, the facts
+  `dropboxClient` and `cirruxClient`, `PASSWORD_SOURCE_KINDS`, `PASSWORD_TARGET_KINDS`,
+  `PasswordKind`, `PasswordGrant` (with `personFields` built from `credentialFieldsFor`; its
+  `test` rejects until T3 builds it), `PasswordTest`, `PasswordTestInput`, `PersonField`,
+  `GrantServer` (`hosts`, `published`; T3 adds D3's domain comparison as optional fields),
+  `passwordGrantOf`, `passwordServerOf`. `cirrux` joins `GRANT_PROVIDER_IDS`; `apple` stays in
+  it and never gets an entry. 0171's `tryPassword` is gone.
+- `grant-link-readiness.ts`: `targetGrantAsk` (answers `asks`, a list, because Cirrux can ask a
+  password and Drive at once; the person's fields are added by the subject, not the readiness
+  check, which takes key names and booleans only), `sourceGrantAsk` (a password source on a
+  person's link; a migration's own link stays sign-in only, §13), and `awaitingGrantRefusal`
+  per role, with optional `sourceCredentialKeys` and `target`.
+- `person-grant-subject.ts`: §4.1's `PersonGrantAccount` exactly; `PersonAccountAsk` gains
+  `way`, and a password ask carries the kind, the connection and the faces. A password source
+  is a card when it has no password or the person gave it one (on the migration); a
+  destination when it has none or `person_granted_connection` names the person. Tries are
+  read per link (`PASSWORD_TRIES_PER_LINK = 5`).
+- `grant.ts`'s GET answers `ref`, `role`, `way`, and for a password card `server`, `fields` and
+  `tries`; each migration names `from` too. The OpenAPI spec says so.
+- `start-when-granted.ts` and *Start*: a migration starts only when both sides have a way in
+  (`hasAWayInOnBothSides`).
+- Managed migration **0064** (`person_link_try`, `person_granted_connection`): RLS NULL-safe,
+  `link_sees_itself`'s twin on the tries, the granted connection held to the organisation's
+  own connections, grants for `app_user` and the purge's role, both in `PURGED_TABLES` and in
+  `no-managed-leakage`. The shared chain is untouched.
+
+Proved: the unit tests named in §10's T1 row (`readiness-per-role`,
+`every-password-kind-has-a-link`, `a-person-link-asks-for-both-sides`,
+`a-password-tried-on-a-link-under-rls`, `start-when-granted`), PGlite over both chains; and
+the worker's `a-system-role-that-is-not-the-owner` integration test, which lists both tables for
+the purge's role, against a real Postgres 16 from `./scripts/local-pg.sh` (41 passed; CI's run
+on the pinned server is still to come). squawk 2.74.0 over 0064 reports `require-lock-timeout`
+(met by the runner), `require-statement-timeout` and `prefer-bigint-over-int` (a count that
+stops at five), report only. Not proved here: anything T3 to T8 own.
 
 **2026-11-25, later: the owner's decisions.** *"All adviced."*: D1 to D9 as advised, (a) each,
 and D3 with the one addition put to the owner with it (§12, D3): a warning beside the server when
@@ -39,13 +328,13 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T1 The seam grows: password kinds, destinations, one shape for the page | builder | 📋 Planned | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
-| T2 Dropbox on the seam | builder | 📋 Planned | §6. Supersedes 0171 T4. S. Needs only 0171 T3's seam, which is merged (#2136). |
-| T3 The own-password route: test, try count, store, spend | builder | 📋 Planned | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
-| T4 The own-password page, per kind, in English and Dutch | builder | 📋 Planned | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
-| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 📋 Planned | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
-| T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 📋 Planned | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
-| T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 🔎 In review | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
+| T1 The seam grows: password kinds, destinations, one shape for the page | builder | ✅ Merged 2026-11-25: #2167 | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
+| T2 Dropbox on the seam | builder | ✅ Merged 2026-11-25: #2167 | §6. Supersedes 0171 T4. S. Built 2026-11-25 on 0171 T3's seam (#2136): the binding, an unverified email and another account refused with nothing stored and the link live, a refused exchange, `grantableByLink('dropbox')`; every new test shown failing on `main` first. By mock only: no real Dropbox account. |
+| T3 The own-password route: test, try count, store, spend | builder | ✅ Merged 2026-11-25: #2167 | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. With §5.8's D3 (a) on the branch: Cirrux and Infomaniak pinned to their published servers (Soverin generic, §14 question 2), `server_not_public`. |
+| T4 The own-password page, per kind, in English and Dutch | builder | ✅ Merged 2026-11-25: #2167 | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
+| T5 Destinations on the link: Cirrux Drive and password destinations | builder | ✅ Merged 2026-11-25: #2167 | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. With §4.3's withdrawal on the branch: *Remove my password* on the person's progress page, the Drive grant with it, the hold lifted only when both sides have a way in. |
+| T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | ✅ Merged 2026-11-25: #2167 | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
+| T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 🔎 In review: #2163 | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
 | T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
 | T9 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T8 merges. |
 | T10 The owner's decisions | owner | ✅ Answered 2026-11-25 | §12: D1 to D9 as advised; D3 with the MX warning; D8 in place under 1.0. |
@@ -286,6 +575,45 @@ keys the person typed are removed from the connection, the managed row is delete
 writes to that account until they grant again. There is no provider to revoke a password at; the
 page says *"Change this password at {provider} too, if you want to be sure"* (§5.9).
 
+**As built (T3, T5; on #2164, 2026-11-25).** The person's progress page answers `destinations`
+beside `accounts`: each destination `person_granted_connection` names them for, by its provider
+and an opaque `ref` (a hash of the connection and when it was connected, so a new grant changes
+it), never by its address. *Remove my password*, behind a second press, posts
+`{ destination: ref }` to `POST /api/view/:link/withdraw`, which already took `{ account }`
+(`withdrawPersonDestination`, `person-progress.ts`). One transaction:
+- the destination is read again by its `ref` and its row locked; a stale `ref` (a new grant, a
+  second tab, another person's) answers 409 `changed` and removes nothing;
+- the connection's `secret_ref` keeps only the owner's values (`withoutThePersonsKeys`,
+  `@openmig/shared`): every secret of the kind, a field the person filled because the owner left
+  it empty (Infomaniak's sync user name), and on Cirrux the Drive sign-in go; the user name taken
+  from the owner's config stays; a record left empty is `NULL`. The row says `error`, as a row
+  saved for a person does before anybody gives it a password;
+- `person_granted_connection` is deleted, by the `granted_at` that was read;
+- every migration into the account is **held** by `grant_withdrawn_at` (ledger migration 0063):
+  the tick starts no pass, a running pass stops before its next data type. Readiness
+  (`awaitingGrantRefusal`) answers *its destination has no password* and the person's next link
+  asks for it again, as before they first gave it;
+- one `mapping.grant_withdrawn` row per migration, with `role: 'target'`, the provider and
+  whether a Drive sign-in went; never a value. The guard `a-password-the-link-never-says` runs
+  the withdrawal with a sentinel and finds it in no response, log line or row.
+
+**The hold lifts only when both sides have a way in.** Before this, a source's new grant cleared
+`grant_withdrawn_at` in the write that stored it. With a destination that can be withdrawn too,
+that would let a source granted again start a pass into a destination with no password, which
+fails at its first write. So every ending that stores a grant (the migration's own link, a
+person's sign-in, a person's password for either role, and Cirrux Drive's) calls `liftTheHold`
+after its write, in its transaction, and the hold goes only from the migrations that have a way in
+on both sides, judged as Start judges them (`hasAWayInOnBothSides`, moved to
+`withdrawal-hold.ts`). T3's test that a source's password clears a withdrawal now says the hold
+stays while the destination has no password, and lifts once it has.
+
+**Cirrux.** The Drive grant the person gave on the same link goes with the password: its
+`driveRefreshToken` leaves the record in the same write. Nothing is asked of Cirrux, which
+documents no revocation an app can call (`token-revocation.ts`, `CIRRUX_DRIVE_AT_CIRRUX`); the
+page says Cirrux Mail lists the apps the person allowed under its security settings. The
+workspace the first Drive grant recorded (`driveWorkspace`) stays: it is not a secret, and it
+binds a later grant to the same Cirrux workspace (§4.4), which is the safe direction.
+
 ### 4.4 Cirrux Drive on the link (T5)
 
 A sign-in entry with `role: 'target'`:
@@ -311,6 +639,39 @@ const CIRRUX: GrantProvider = {
   with the spend and a `mapping.granted` row per migration, as §4.3 says.
 - `consentToFollow` learns `api.cirrux.co`. The consent's PKCE verifier stays in the server-side
   pending state, as today.
+
+**Changed by T5, 2026-11-25, before its code (open question 1 answered).** Cirrux's API, read
+2026-11-25 (`https://cirrux.co/help/api/user`): `GET /v1/user/profile` answers `user` (`uuid`,
+`username`, *"the user's login handle"*, names, pictures) and `workspace` (`uuid`, `name`, `type`),
+and no email address, mailbox or domain; `GET /v1/workspace` the same workspace and nothing more.
+A mailbox's address is read only with `email.read` (`https://cirrux.co/help/api/mail`), a scope
+this deployment's Cirrux client is not registered for, and no page says which workspace an app
+password signs in to. So the ending cannot read *"the workspace the stored app password signs in
+to"*: nothing answers it. What T5 builds instead:
+- **The workspace is recorded on the account** (`CIRRUX_DRIVE_WORKSPACE_KEY`, the workspace's
+  `uuid`, in the account's encrypted record beside the grant), by the first Drive grant that lands
+  on it, the owner's or a link's. Every later grant on that account, on any link or the owner's
+  button, must reach the same workspace, or nothing is stored and the link stays live
+  (`mapping.grant_refused`, `refused: 'another_workspace'`). A new app password for another
+  mailbox drops the record with the grant (`keepingTheDriveGrant`); *Disconnect Cirrux Drive*
+  keeps it.
+- **The first grant on an account is bound by the app password, not by Cirrux.** The Drive card
+  is on the page only once the account's app password is stored, and the person who holds the
+  link is the one who signs in; Cirrux's answer cannot tell us more. The page names the login and
+  the workspace that signed in, as the owner's window does (0160 open question 14).
+- **The interface grows by three optional members**, said in T5's pull request: `consentUrl`'s
+  argument takes `challenge` (PKCE), `finish` takes a fourth argument `verifier`, and `GrantFinish`'s
+  success may carry `access` (the first access token, so the ending measures the Drive without
+  spending a refresh). The `secret` Cirrux's entry answers is `{ [CIRRUX_DRIVE_GRANT_KEY],
+  [CIRRUX_DRIVE_WORKSPACE_KEY] }`; `signedInAs` is null, because Cirrux vouches for no address, and
+  the Cirrux ending (not the address check other providers use) decides by the workspace.
+- **Where the doors' guard sits (§4.3).** A migration is made with no person and given to one
+  afterwards (`POST /api/people/:id/migrations`), so the guard is at three doors: the create
+  door refuses a granted destination unless its body names the person who granted it
+  (`personId`, managed only, for T6's wizard to send); the door that gives a migration to a person
+  refuses one into an account another person granted; and the edit door refuses any change to a
+  migration into a granted account that is not that person's. The owner's own *Connect Cirrux
+  Drive* on an account a person granted is refused with the rotation's sentence (D6).
 
 ### 4.5 What the person sees when both are asked (T4)
 
@@ -426,7 +787,37 @@ same field two ways.
    sentence.
 8. After commit: `startWhenGranted` for the person, as today, and the progress link minted as
    today's ending does.
-9. Answer: `{ "connected": true, "faces": [...] }`. Never a value.
+9. Answer: `{ "connected": true, "faces": [...], "linkSpent": …, "progressUrl": … }`. Never a value.
+   *(T3, 2026-11-25: `linkSpent` and `progressUrl` added, so the page can say the link is done
+   and hand over the progress page step 8 mints, as a sign-in's ending does. Additions only.)*
+
+**What the route answers and the page reads (T4 wrote them, T3 answers them; settled on one
+branch, 2026-11-25).** The route's shape above is unchanged; these are the bodies of the
+refusals, which steps 3, 4 and 6 name without spelling them. The route answers exactly these and
+the page (`passwordAnswerOf`, `apps/web/src/services/grant-service.ts`) reads exactly these; the
+`category` and top-level `left` T4 once also accepted are gone:
+- 422: `{ "error": "refused_login" | "unreachable" | "face_missing", "tries": { "left": n, "locked": b }, "faces"?: [...] }`.
+  `faces` on `face_missing` names the refused faces.
+- 423: `{ "error": "locked" }`. A `refused_login` whose tries are locked, or at 0 left, reads the same.
+- 409: `{ "error": "already_connected" }` reads as connected; nothing was tried.
+- Every other answer is a refusal with the server's sentence when it sends one, else the page's
+  own (`link.unreadable`): 401 at the door (`message`/`messageNl`, `LINK_REFUSAL`); 401
+  `link_spent`, revoked while the test ran (`reason`/`reasonNl`, `LINK_SPENT`); 409
+  `server_not_a_name` (`reason`/`reasonNl`, T3's `SERVER_NOT_A_NAME`); 400, 413 and 415 carry no
+  sentence.
+
+**D3's fields on `GrantServer` (T3, T4; settled on one branch, 2026-11-25).** T1 left D3's
+comparison to T3 as optional fields. T3 and T4 named them differently; the shape is T3's, the
+facts as the server computes them, and the page reads exactly these, both optional:
+- `domains?: string[]`: the registrable domain of each host, in `hosts`' order, set in bold.
+  Absent, the page bolds the whole host. It does not guess a registrable domain itself.
+- `notTheAddressMail?: string[]`: the hosts whose registrable domain is neither the address's own
+  nor one of its MX hosts'. Non-empty shows D3's warning (`grant.password.notAddressMail`); empty
+  says every host matches; absent (no comparison, a published server, or a lookup that failed)
+  says nothing. A warning, never a refusal.
+(T4 had read `registrable` and `addressMail: 'match' | 'mismatch'`; one list of hosts says more
+than one word for all of them, so a server with two hosts can be warned about the one that
+differs.)
 
 ### 5.4 Tested before stored, as the create door tests (T3)
 
@@ -540,6 +931,39 @@ host, which must be a DNS name (never an IP literal, as `rawIpCallbackRefusal` r
 callbacks) and is refused when it resolves to a private or loopback address. The page asks the
 question and the person decides.
 
+**As built (T3, T4; on #2164, 2026-11-25).**
+- **Published servers.** `PROVIDER_ENDPOINTS` (`provider-endpoints.ts`) gains Cirrux
+  (`api.cirrux.co` for calendars, contacts and reminders; IMAP `imap.cirrux.co`, 993) and
+  Infomaniak (`sync.infomaniak.com` for calendars and contacts, *"utilisez uniquement"*; IMAP
+  `mail.infomaniak.com`, 993), each cited with its page and the day it was read (§14 question 2).
+  Soverin stays generic. `pinsItsServer(kind)` says which kinds are held to their table.
+- **Tried only there.** For those kinds the route tests on `pinnedToPublished(kind, config)`:
+  the DAV host and port, the mail host and port are the published ones; a DAV address survives
+  only when it names a published host (Infomaniak's assistant shows a path on
+  `sync.infomaniak.com`); `useSsl` and `tlsVerify` are dropped. Apple's two DAV hosts are left to
+  the per-face fallback, as an Apple row always was. The GET names exactly those hosts with
+  `published: true`, and the page says *{provider}'s own server*.
+- **Silently pinned, not refused at the create door.** The store writes the same pinned config to
+  the connection, and narrows each migration's override (`withoutUnpublishedHosts`), in the
+  transaction that stores the password, so the pass connects where the test did. The create door
+  is not where this is held, for three reasons: rows saved before alpha.21, rows given to a person
+  by the door that does so, and a migration's override never pass the create door, and the pin
+  sits where the password is used, so it covers all of them; a refusal there would make an owner
+  retype hosts the directory already pre-fills, for no protection the pin does not give; and the
+  page shows only the published server, so what the person reads is where the password goes.
+  Pinned by `a-password-sent-only-to-its-providers-server`.
+- **No fallback for an owner's row.** The table answered `publishedEndpoint` as a fallback for
+  any row with no host. For Cirrux and Infomaniak, whose doors ask for hosts, it does not
+  (`doorAsks`): a row the owner saved without its mail server still says which field is missing
+  (`account-qualification`), and an owner who connected their own account keeps what they typed.
+- **A private address.** The probe's rule could say it cleanly: `reachableHost` (0136 T1)
+  throws `HostInsideOurNetwork` for a name that resolves inside a network, before any socket is
+  opened. So the route asks it for each of a generic kind's hosts before a try is claimed, and
+  answers 409 `server_not_public` with `SERVER_NOT_PUBLIC` in English and Dutch; nothing is
+  tried and nothing counted, and the page shows the sentence as it shows `server_not_a_name`'s. A
+  name that does not resolve is left to the test, which answers `unreachable` as before. On the
+  appliance the rule is off and the check answers no, as the probe's does.
+
 ### 5.9 The words (T4)
 
 Keys in `apps/web/src/i18n/strings/grant.ts`, both languages in the same pull request; the
@@ -573,6 +997,12 @@ Keys in `apps/web/src/i18n/strings/grant.ts`, both languages in the same pull re
 
 The provider-specific help lines reuse the existing `account.*.hint` keys (`credential-fields.ts`)
 so the page and the owner's form say the same.
+
+**As shipped (T4, and the six tasks on one branch, 2026-11-25).** The Dutch above says
+*koppelen*; the page says *verbinden* / *verbonden*, as the approved Google and Microsoft cards and
+the glossary do, and `one-dutch-for-a-grant-link.unit.test.ts` holds it, with the link a
+*toegangslink* and a card locked *voor deze link*. `grant.continue.cirrux` is *Cirrux Drive
+verbinden*, the owner's own button's words. The table in the pull request is the one to read.
 
 ## 6. Dropbox on the seam (T2; supersedes 0171 T4)
 
@@ -678,6 +1108,13 @@ The create door takes a `forPerson: <personId>` flag (managed only) that:
 - writes the `person_granted_connection` row only when the person grants, not now.
 
 The Accounts page shows such a row as *Waiting for {person}*, with no *Test* until it is granted.
+
+**One field on both create doors (settled on one branch, 2026-11-25).** T5 had given the
+migration door `personId`, read by its guard only; T6 gave the account door `forPerson`. They are
+one idea, the person a thing is made for, so both doors take `forPerson: <personId>`: the account
+door as above, and `POST /api/migrations`, where the guard (§4.3) reads it and the save gives the
+migration to that person in the create transaction (`person_not_found`, 404, refuses the whole
+create). The wizard sends it on both.
 
 ### 8.3 Both editions (T7; D7)
 
@@ -906,12 +1343,43 @@ its addition and D8 in place under 1.0 (*"terms or the privacy policy: no one bu
 1. Whether Cirrux's API names the signed-in user or workspace on a token, so the Drive grant
    binds to it directly rather than through the stored app password (§4.4). Read
    `https://cirrux.co/help/api` when T5 starts, and cite it.
+   **Answered by T5, 2026-11-25:** it names the user (`uuid`, login handle) and the workspace
+   (`uuid`, `name`, `type`), never an address; the binding is as §4.4's T5 paragraph says.
 2. The published servers of Soverin, Cirrux and Infomaniak, for `PROVIDER_ENDPOINTS` (D3 (a)):
    read and cited per provider; a provider whose page cannot be read stays generic, its host
    shown for the person to judge, as 0171 T10 did for MX hosts.
+   **Answered on #2164, 2026-11-25:**
+   - **Cirrux, pinned.** `https://cirrux.co/help/setup` (seen 2026-11-25), Manual Configuration:
+     Calendar, Contacts and Reminders each at *"api.cirrux.co"*, no port (HTTPS, 443); IMAP
+     *"imap.cirrux.co"*, *"993 (SSL) or 143 (STARTTLS)"*; SMTP `smtp.cirrux.co` (no face here).
+     `https://cirrux.co/help/calendar` (seen 2026-11-25): *"point your client at api.cirrux.co"*.
+     No WebDAV host is published; Cirrux Drive is a sign-in to the API (`CONSENT_HOSTS.cirrux`).
+   - **Infomaniak, pinned.** `https://www.infomaniak.com/fr/support/faq/1544` (seen 2026-11-25):
+     *"Pour l'adresse du serveur, utilisez uniquement sync.infomaniak.com"*, for contacts and
+     calendars, no port; `https://www.infomaniak.com/fr/support/faq/2046` (seen 2026-11-25): the
+     account address `https://sync.infomaniak.com`; `https://www.infomaniak.com/fr/support/faq/2427`
+     (seen 2026-11-25): *"Serveur IMAP entrant = mail.infomaniak.com"*, *"Port IMAP = 993 + SSL"*.
+     kDrive's WebDAV address is per drive (`https://<kDrive ID>.connect.kdrive.infomaniak.com`,
+     faq/2409) and is no face of the kind.
+   - **Soverin, generic.** `soverin.com/help/setup`, `soverin.com/help/calendar-setup` and the help
+     desk the search engines list for Soverin could not be fetched from the builder's checkout on
+     2026-11-25 (the name did not resolve through its network), and a search engine's summary is
+     not Soverin's page. So Soverin is not pinned: the page shows the owner's host with its
+     registrable domain in bold and D3's MX warning, as for any IMAP or DAV account, and the
+     person judges it. The directory's Soverin values (read 2026-09-03) are a lead for whoever
+     reads the page next, not a source here.
 3. Which status the path that saves a Google or Microsoft account by its address alone writes
    today (§8.2). The CHECK has no *waiting* value and this plan adds none; if the build finds the
    observation cannot be made from the rows, it says so here before writing a shared migration.
 4. Whether `probeAnswers` can be handed an error whose text carries the password (an IMAP
    library that echoes the `LOGIN` command): the guard (§5.6) answers it for the recorded probes;
    T3 also reads `imapflow`'s and the DAV client's error paths and says what it found.
+   **Answered by T3 (2026-11-25), read in `imapflow` 2.12.2 and this repository's clients:**
+   `imapflow` sends LOGIN's password as a `sensitive` argument, and the command it logs and puts
+   on an error as `executedCommand` reads `(* value hidden *)` in its place (`commands/login.js`,
+   `imap-flow.js`); `imapRefusalDetail` quotes that masked command. The DAV clients' refusals
+   carry the method, the status and the body (`davRefusalBody`), and the JMAP probe and session
+   loader the status and the body; neither puts a header in an error, and the Basic header is
+   built only at the request. So no error path read here carries the password, unless a server
+   echoes it in its own body; that text is logged under a reference by `probeAnswers` (0136 T3),
+   never answered, and the guard `a-password-the-link-never-says` holds the route to it.

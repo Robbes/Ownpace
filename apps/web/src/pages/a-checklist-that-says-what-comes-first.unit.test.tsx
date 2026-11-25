@@ -163,7 +163,7 @@ const NAMED: ReadonlyArray<{
     sections: ['before', 'app-password', 'leaving'],
     words: {
       en: ['account.apple.com → Sign-In and Security → App-Specific Passwords', 'abcd-efgh-ijkl-mnop', 'once'],
-      nl: ['account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden', 'abcd-efgh-ijkl-mnop', 'één keer'],
+      nl: ['account.apple.com → Inloggen en beveiliging → App-specifieke wachtwoorden', 'abcd-efgh-ijkl-mnop', 'één keer'],
     },
   },
   {
@@ -403,7 +403,7 @@ describe("each new profile names what its card's guide names (0148 T5 (a))", () 
   it("the Apple step uses the path the wizard's own line names", () => {
     const path: Readonly<Record<Locale, string>> = {
       en: 'account.apple.com → Sign-In and Security → App-Specific Passwords',
-      nl: 'account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden',
+      nl: 'account.apple.com → Inloggen en beveiliging → App-specifieke wachtwoorden',
     };
     for (const locale of LOCALES) {
       expect(words(locale, 'account.appleAppPassword.why'), locale).toContain(path[locale]);

@@ -89,9 +89,20 @@ export type IssuedGrantLink = z.infer<typeof IssuedSchema>;
  * in back. The server's `OnceGranted`.
  */
 export const ONCE_GRANTED = ['starts_by_itself', 'review_and_start', 'ran_before'] as const;
+/** One account a migration waits for (workplan 0174 §4.6), with a password's tries on the live link. */
+const WaitingAccountSchema = z.object({
+  role: z.enum(['source', 'target']),
+  way: z.enum(['sign-in', 'password']),
+  account: z.string(),
+  tries: z.object({ refused: z.number(), left: z.number(), locked: z.boolean() }).optional(),
+});
+export type WaitingAccount = z.infer<typeof WaitingAccountSchema>;
+
 const AwaitingGrantSchema = z.object({
   mappingId: z.string(),
   then: z.enum(ONCE_GRANTED),
+  /** Absent from a server older than 0174: nothing more is said. */
+  waitsFor: z.array(WaitingAccountSchema).default([]),
 });
 export type AwaitingGrant = z.infer<typeof AwaitingGrantSchema>;
 

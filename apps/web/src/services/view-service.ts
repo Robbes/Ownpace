@@ -135,6 +135,12 @@ const PersonViewSchema = z.object({
     }),
   ),
   accounts: z.array(z.object({ ref: z.string(), grant: GrantSchema })),
+  // The destinations the person connected with their own password (0174
+  // §4.3). Absent from a server before alpha.21, read as none.
+  destinations: z
+    .array(z.object({ ref: z.string(), provider: z.string(), drive: z.boolean() }))
+    .optional()
+    .default([]),
   // The person's own rows of the address changes (0168 §4.4), where sent.
   addressChanges: LinkAddressChangesField,
 });
@@ -147,6 +153,14 @@ const WithdrawalSchema = z.object({
   atGoogle: z.enum(['revoked', 'not_confirmed']),
 });
 export type WithdrawalPayload = z.infer<typeof WithdrawalSchema>;
+
+/** A destination's password removed (0174 §4.3): no provider was asked, so there is no `atGoogle`. */
+const DestinationWithdrawalSchema = z.object({
+  withdrawnAt: z.string(),
+  provider: z.string(),
+  drive: z.boolean(),
+});
+export type DestinationWithdrawalPayload = z.infer<typeof DestinationWithdrawalSchema>;
 
 export const viewApi = {
   /**
@@ -168,5 +182,10 @@ export const viewApi = {
   withdrawAccount: async (link: string, account: string): Promise<WithdrawalPayload> => {
     const res = await client.post(`/view/${encodeURIComponent(link)}/withdraw`, { account });
     return WithdrawalSchema.parse(res.data);
+  },
+  /** Remove the password a person gave a destination they connected, named by the page's `ref` (0174 §4.3). */
+  withdrawDestination: async (link: string, destination: string): Promise<DestinationWithdrawalPayload> => {
+    const res = await client.post(`/view/${encodeURIComponent(link)}/withdraw`, { destination });
+    return DestinationWithdrawalSchema.parse(res.data);
   },
 };

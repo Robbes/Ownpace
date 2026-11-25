@@ -503,9 +503,9 @@ beforeAll(async () => {
   ]);
   await sql(
     `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref) VALUES
-       ($1, $5, 'source', 'imap', 'i', '{}'::jsonb, 'connected', NULL),
+       ($1, $5, 'source', 'imap', 'i', '{}'::jsonb, 'connected', $11),
        ($2, $5, 'source', 'gmail', 'g', '{}'::jsonb, 'connected', $6),
-       ($3, $5, 'target', 'jmap', 'j', '{"host":"dst.example.invalid","port":443}'::jsonb, 'connected', NULL),
+       ($3, $5, 'target', 'jmap', 'j', '{"host":"dst.example.invalid","port":443}'::jsonb, 'connected', $11),
        ($4, $5, 'target', 'nextcloud', 'n', $7::jsonb, 'error', $8),
        ($9, $5, 'source', 'dropbox', 'd', '{}'::jsonb, 'connected', $10)`,
     [
@@ -519,6 +519,9 @@ beforeAll(async () => {
       nextcloudSecret,
       DROPBOX,
       sealed({ refreshToken: 'a-dropbox-token', clientId: 'an-app-key', clientSecret: 'an-app-secret' }),
+      // A password on the IMAP source and the JMAP destination, as the create
+      // door stores one: since workplan 0174 either side without one waits.
+      sealed({ password: 'p' }),
     ],
   );
   await sql(
@@ -615,8 +618,12 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/grant.ts': 4,
   'routes/migrations/google-oauth-routes.ts': 1,
   // Connect Cirrux Drive (0160 T5): its authorize, and its callback before the
-  // code is exchanged, as a grant link's consent asks.
-  'routes/migrations/cirrux-oauth-routes.ts': 2,
+  // code is exchanged, as a grant link's consent asks. One more since the same
+  // callback ends a person's link (workplan 0174 T5), whose ending asks it.
+  'routes/migrations/cirrux-oauth-routes.ts': 3,
+  // Cirrux Drive through a person's link (workplan 0174 T5): before the code
+  // is exchanged; its store reads the close again in its transaction.
+  'routes/migrations/cirrux-link-ending.ts': 1,
   // A person's answer about their new address through their link (0168 §4.4,
   // D6): on the grant page only, whose every route asks, so it asks too. It
   // starts nothing; the progress page's answer, like the page, does not ask.
@@ -625,9 +632,15 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/migrations/finish-checks-routes.ts': 2,
   // A Microsoft grant link's ending (workplan 0171 T3): before the code is
   // exchanged, as Google's link ending asks. The callback hands the reading
-  // to the ending, which asks it.
+  // to the ending, which asks it. The ending is shared with Dropbox's since
+  // workplan 0174 §6 (`link-ending.ts`), and Dropbox's callback hands it the
+  // reading the same way.
   'routes/migrations/microsoft-oauth-routes.ts': 1,
-  'routes/migrations/microsoft-link-ending.ts': 1,
+  'routes/migrations/dropbox-oauth-routes.ts': 1,
+  'routes/migrations/link-ending.ts': 1,
+  // A password typed on a person's link (workplan 0174 T3): before the card is
+  // read, the try claimed or the server asked.
+  'routes/grant-password.ts': 1,
 };
 
 /** How a door asks: answering the refusal itself, or reading it to answer in its own form. */
@@ -649,6 +662,9 @@ const USES_STORED_ACCESS =
  * the close, or its file is below with the reason.
  */
 const USES_BY_FILE: Readonly<Record<string, number>> = {
+  // Whom a password account saved for a person waits for (workplan 0174 T6):
+  // which keys its record carries, for the Accounts page. No provider.
+  'routes/account-for-a-person.ts': 1,
   // One more since a rotation keeps a Microsoft account's tenant (0153 open
   // question 5), read after the rotation's close, and one since the folder
   // browse reads a saved account's sign-in, after its own. Three more since a
@@ -667,31 +683,64 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // purpose: it ends access and starts nothing, and ending stays open after a
   // close, as withdrawing a grant does (withdraw-grant.ts, below). Its own
   // test presses it on a closed organisation.
-  'routes/migrations/cirrux-oauth-routes.ts': 4,
+  // One more since a person's link connects a Drive (workplan 0174 T5): the
+  // account measured again after that ending's own close.
+  'routes/migrations/cirrux-oauth-routes.ts': 5,
+  // Cirrux Drive through a person's link (workplan 0174 T5): whether the
+  // account's app password is stored before its Drive is, after the close.
+  'routes/migrations/cirrux-link-ending.ts': 1,
+  // Cirrux's ending on the seam (workplan 0174 T5): the code exchanged. The
+  // ending that calls it asks the close first (cirrux-link-ending.ts).
+  'routes/grant-providers.ts': 1,
   'routes/migrations/google-oauth-routes.ts': 3,
   // Finish's addresses (0171 T10): the source's record opened and its
   // credentials merged as a pass merges them, after the route's own close.
   'routes/migrations/finish-checks-routes.ts': 2,
   'routes/migrations/grant-subject.ts': 2,
   // A Microsoft grant link's ending (workplan 0171 T3): the two stores, after
-  // the ending's own close; each store reads the close again in its transaction.
-  'routes/migrations/microsoft-link-ending.ts': 2,
+  // the ending's own close; each store reads the close again in its
+  // transaction. Shared with Dropbox's since 0174 §6 (`link-ending.ts`), whose
+  // callback hands it the same two stores, as Microsoft's does.
+  'routes/migrations/link-ending.ts': 2,
   'routes/migrations/microsoft-oauth-routes.ts': 2,
+  'routes/migrations/dropbox-oauth-routes.ts': 2,
   // One more since the create door reads a reused Cirrux account's Drive
-  // grant (0160 T5), after its own close.
-  'routes/migrations/index.ts': 4,
+  // grant (0160 T5), after its own close. Two more since Start reads whether
+  // both sides of a migration have a way in (workplan 0174 T1): the source's
+  // two records and the destination's, in place of the one decryption before.
+  'routes/migrations/index.ts': 6,
   'routes/migrations/operating-routes.ts': 3,
-  'routes/migrations/person-grant-subject.ts': 2,
+  // Five more since a person's link asks for both sides (workplan 0174 T1):
+  // a password source's records, a destination's, and the values a password
+  // card shows. Read as before, to say what the link asks; no provider.
+  'routes/migrations/person-grant-subject.ts': 7,
+  // Whether both sides have a way in (workplan 0174 T1): before a grant starts
+  // a migration, and since 0174 §4.3 before a grant lifts a withdrawal's hold.
+  // Moved from start-when-granted.ts word for word, so the endings can call it.
+  'routes/migrations/withdrawal-hold.ts': 3,
   'routes/permissions.ts': 9,
   // Measuring a stored account again (0006 §R, CQ-06): the row decrypted, the
   // account qualified, and the qualifying the doors share. Moved here from
   // connections.ts word for word; every caller asks the close (excused below).
   'routes/qualify-and-remember.ts': 3,
   'routes/withdraw-grant.ts': 1,
+  // A person removing the password they gave a destination (workplan 0174
+  // §4.3): the page reads whether a Cirrux Drive grant is held, and the
+  // withdrawal keeps the owner's values of the record it empties.
+  'routes/person-progress.ts': 2,
+  // A password typed on a person's link (workplan 0174 T3): the stored records
+  // read to build what the test is handed, after the route's own close.
+  'routes/grant-password.ts': 2,
+  // Its store merges the person's password over the stored records, in the
+  // transaction that reads the close first (`readOrganisationClosure`).
+  'routes/migrations/person-grant-ending.ts': 2,
 };
 
 /** The files that use the stored access and never ask the close, and why that is right. */
 const USED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
+  'routes/account-for-a-person.ts':
+    'reads which keys a password account saved for a person carries, never a value, so the Accounts page can say ' +
+    'whom it waits for (workplan 0174 T6). It reaches no provider, and reading stays open.',
   'routes/migrations/account-on-connection.ts':
     'reads the account name a migration shows. It reaches no provider, and reading stays open.',
   'routes/migrations/grant-subject.ts':
@@ -701,12 +750,23 @@ const USED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
     'reads whether each of a person’s migrations has a way in, to say which accounts their link still asks for ' +
     '(0153 T5 (b)). It reaches no provider. The grant page and the consent that use it ask (grant.ts, ' +
     'google-oauth-routes.ts), and the person’s ending reads the close in its own transaction.',
+  'routes/migrations/withdrawal-hold.ts':
+    'reads whether both sides of a migration have a way in (workplan 0174 T1, §4.3): for start-when-granted.ts, ' +
+    'which asks the close and the hold first, through `enqueueIfFree`, and for the grant endings that lift a ' +
+    'withdrawal’s hold, each of which reads the close in its own transaction first. It reaches no provider.',
+  'routes/person-progress.ts':
+    'a person taking back what they gave (workplan 0174 §4.3): the page reads whether a destination holds a ' +
+    'Cirrux Drive grant, and the withdrawal removes the person’s keys from a record. It reaches no provider, ' +
+    'and ends access; ending stays open after a close, as withdrawing a grant does (withdraw-grant.ts).',
   'routes/qualify-and-remember.ts':
     'measures an account for the doors that call it, and opens no door of its own. Its callers ask the close ' +
     'before it: the Test, the create and the rotation in connections.ts, and the Cirrux Drive consent in ' +
     'cirrux-oauth-routes.ts (moved out of connections.ts, 0006 §R, CQ-06).',
   'routes/withdraw-grant.ts':
     'withdrawing a grant revokes it at the provider. That ends access, and ending stays open after a close.',
+  'routes/grant-providers.ts':
+    'holds each provider’s ending, and opens no door of its own. The endings that call it ask the close ' +
+    'before the code is exchanged (cirrux-link-ending.ts, microsoft-link-ending.ts; workplan 0174 T5).',
 };
 
 describe('the sweep: every door that starts work asks whether the organisation is closed', () => {
