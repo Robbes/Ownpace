@@ -1,8 +1,18 @@
 # Workplan 0173 — Deleting by hand, on by default
 
-> **In one line:** The owner asks for *Turn on deleting by hand* to go and for deleting by hand to be on from the start, because every delete already asks for a second press; this plan maps where ADR-0024's gate 1 lives, weighs what it still protects, and advises on by default with an off switch kept, for alpha.21.
+> **In one line:** The owner asked for *Turn on deleting by hand* to go, because every delete already asks for a second press; this plan maps where ADR-0024's gate 1 lives and what it still protects, and removes it in alpha.21, with no switch to turn it off (§10).
 
 ## Status — 2026-11-25 (update this block at the end of every session)
+
+**2026-11-25, later: the owner chose (a).** *"Manual deleting in by default. I don't think I
+makes sense then to keep the feature for turning it off. Alpha 21 is ok."* Gate 1 goes from core
+and from both editions, with no switch to turn deleting by hand off, in alpha.21. **§10 is the
+plan under (a) and replaces §7's tasks**; §6's draft, written for (b), is not used. The choice
+settles Q1, Q2, Q3, Q5 and Q6 (§9). **Open: Q4**, whether anybody but the owner's own test
+account has accepted the terms or the privacy policy; it decides whether terms §2 and alpha §8
+change in place or under a new version. T0 ships with the rest in alpha.21 unless the owner asks
+for it in alpha.20: in alpha.20 deleting by hand still needs the switch, so the guard matters
+once the switch is gone. Nothing is built yet.
 
 **2026-11-25: assessed and planned. Nothing built.** No product code, test or ADR is changed by
 this plan. §2 maps every place the per-mapping opt-in lives, §3 assesses the impact, §4 weighs
@@ -13,15 +23,15 @@ their answers.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The single press ignores a double click | builder | 📋 Planned | §7. Independent of every answer; small enough for alpha.20 if the owner wants it there (Q5). |
-| T1 One rule for the default, both editions | builder | ⏳ Waits on Q1, Q6 | §7. `deletingByHandOn` in shared; the appliance's absent key reads as on; the new guard. |
-| T2 Managed: the column's default, existing rows | builder | ⏳ Waits on Q1, Q2 | §7. Ledger migration `0076`, one way. |
-| T3 The Deletions page and its words, EN and NL | builder | ⏳ Waits on Q1, Q3 | §7. Panel, warning, refusals, guidance; the owner reads the Dutch. |
-| T4 Docs and the ADR amendment | builder | ⏳ Waits on Q1 | §6, §7. ADR-0024, ADR-0030, ADR-0031, arch §11.1, runbooks, quickstart, guides. |
-| T5 The terms' words | builder + owner | ⏳ Waits on Q4 | §7. Terms §2, EN and NL; the version number is the owner's. |
-| T6 E2E steps | builder | ⏳ Waits on T1, T2 | §7. `e2e.yml`'s fixture, `smoke-managed.sh`'s apply step. |
+| T0 The single press ignores a double click | builder | 📋 Planned | §10. With the rest in alpha.21, unless the owner asks for it in alpha.20. |
+| T1 Gate 1 out of core, the shared contract and the appliance | builder | 📋 Planned | §10. `not_enabled` leaves the closed set; the appliance's key is read only to warn. |
+| T2 Managed: the routes and jobs stop reading the column | builder | 📋 Planned | §10. No migration in alpha.21; the column is dropped in a later release. |
+| T3 The Deletions page and its words, EN and NL | builder | 📋 Planned | §10. The switch goes; the warning's facts move beside the delete buttons; the owner reads the Dutch. |
+| T4 Docs and the ADR amendments | builder | 📋 Planned | §10. ADR-0024 (gate 1 removed), ADR-0030, ADR-0031, arch §11.1, runbooks, quickstart, guides, CHANGELOG. |
+| T5 The legal words: terms §2 and alpha §8 | builder + owner | ⏳ Waits on Q4 | §10. EN and NL; in place or a new version, by Q4. |
+| T6 E2E steps | builder | 📋 Planned | §10. `e2e.yml`'s fixture and `smoke-managed.sh` stop turning the switch on. |
 | T7 The E2E runs | owner | ⏳ Owner | Self-hosted E2E (Postgres and PGlite) and the managed E2E, after T1 to T6 merge. |
-| T8 The owner's decisions | owner | ⏳ Owner | §9: Q1 to Q6. |
+| T8 The owner's decisions | owner | ⏳ Owner | §9: Q1, Q2, Q3, Q5 and Q6 settled on 2026-11-25; Q4 open. |
 
 ## 1. The owner's words
 
@@ -494,21 +504,151 @@ alpha.20's cut-off is 2026-11-25 16:00 UTC. **The advised option belongs in alph
    (advised)**; (c) the first confirmed delete turns it on; (d) on for owners, the switch as the
    owner's consent for admins. Advice (b): it removes the activation step for everyone, keeps an
    owner's *off*, and keeps both editions on one rule.
+   **Answer, 2026-11-25: (a).** *"Manual deleting in by default. I don't think I makes sense then
+   to keep the feature for turning it off. Alpha 21 is ok."* §10.
 2. **Q2 — Existing managed migrations that have it off?** **(i) turn all on, with an audit row each
    so the list is kept (advised)**; (ii) leave existing ones as they are, new ones start on; (iii)
    turn all on with no record. Advice (i): it does what was asked for every tester, and the record
    makes the one-way step undoable by hand. (ii) leaves testers meeting the old switch.
+   **Settled by (a):** no data change. From alpha.21 nothing reads the column, so every
+   migration, old and new, can delete by hand; the column is dropped in a later release (T2).
 3. **Q3 — May an admin delete by hand without the owner's say?** **(i) yes, by default; the owner
    can still turn it off for a migration (advised)**; (ii) no, admins only once the owner allowed
    it (option (d), size L). Advice (i): during the Alpha an organisation should have no other
    member, the double press applies to admins too, and the off switch stays owner-only.
+   **Settled by (a): (i).** An admin can delete by hand; there is no switch left for the owner to
+   hold. `tenants.invite.adminCan` and alpha §8 say so (T3, T5).
 4. **Q4 — Has any tester accepted the terms 1.0 yet?** (i) **no** → terms §2 is edited in place
    under 1.0 with the words in T5, on your approval of EN and NL (advised, if true); (ii) **yes** →
    the terms become 1.1 and every tester accepts again before using the Alpha further. The last
    record (2026-11-22) says no tester had accepted.
+   **Open.** Asked again on 2026-11-25, together with workplan 0174's D8, which changes the
+   terms in the same release: one answer serves both.
 5. **Q5 — When?** **(i) alpha.21 for T1 to T6, and T0 in alpha.20 (advised)**; (ii) all in
    alpha.21; (iii) all in alpha.20, waiving the waits. Advice (i): §8.
+   **Answer, 2026-11-25: alpha.21** (*"Alpha 21 is ok"*). T0 goes with the rest unless the owner
+   asks for it in alpha.20.
 6. **Q6 — The appliance: on by default too?** **(i) yes, an absent key reads as on, `false` turns
    it off (advised)**; (ii) no, the appliance stays off until its file says `true`. Advice (i):
    one rule for both editions (hard rule 5), and the appliance's page has the same two presses.
    Its release notes say plainly that upgraded appliances gain it.
+   **Settled by (a):** the appliance has no switch either. The key is still parsed, so a file
+   that has it still loads; it turns nothing off, and a mapping whose file says `false` gets one
+   warning in the log at start (T1). The release notes say so in both languages.
+
+## 10. The plan under (a), the owner's choice
+
+The owner chose (a) on 2026-11-25 (§9, Q1). These tasks replace §7's; §2's map still says where
+each change lands. What (a) costs, as §3 and §4 found, is accepted with it: an admin can delete
+without the owner's say, nobody can turn deleting by hand off for a migration, an appliance file's
+`false` stops counting, and at the API one call is one removal. Gates 2 to 7, the refusals after
+cutover and after a keep, and the two presses on the page all stay.
+
+Each task runs the gates of AGENTS.md; each touched file is first looked up in `docs/LESSONS.md`.
+
+**T0 — The single press ignores a double click.** (S.) As §7: `ConfirmButton` in
+`apps/web/src/components/queues/primitives.tsx` ignores the second click of a double click
+(`event.detail > 1`) and any click within 800 ms of arming, as `DeleteAllPanel`'s confirmation
+does; `primitives.unit.test.tsx` gains both cases, failing before the change. Under (a) the two
+presses are the only consent left on the page, so T0 ships with T3 at the latest.
+
+**T1 — Gate 1 out of core, the shared contract and the appliance.** (M.)
+- Core, `packages/core/src/apply-deletion.ts`: gate 1 goes from `evaluateApplyDeletion`,
+  `applyDeletion`, `evaluateApplyRelocation`, `applyRelocation` and the auto-apply pass;
+  `ApplyDeletionDeps.allowApplyDeletions` and `notEnabled()` go; the file's account of the gates
+  counts six. `domain-sync.ts:984-988`'s comment follows.
+- Shared: `not_enabled` leaves the closed set of refusals and `RUN_STOPPING_REFUSALS`
+  (`apply-each-in-turn.ts`); `ApplyDeletionsFlag` keeps `autoApplyRelocations` only;
+  `APPLY_FLAG_WARNING(_NL)` is reworded from *turning this on* to what a delete does (positive
+  evidence only, our own copies only, mail not checked for edits on the target), for T3 to show
+  beside the delete buttons; the `apply` descriptions (`operating-contract.ts:1218-1221`,
+  `:1251-1261`) and `queue-guidance.ts:66,94` drop the switch.
+- The appliance: `MappingConfig.allowApplyDeletions` stays parsed as a boolean when present, so a
+  file that has it still loads, and nothing reads it but one warning at start for a mapping whose
+  file says `false`: the key no longer turns deleting by hand off, since alpha.21, and can be
+  removed. `autoApplyRelocations` no longer requires it (`config.ts:789-797`).
+  `orchestration.ts:889,1618,1684` stop passing it; `apps/selfhost/src/index.ts:3258-3278`
+  answer the flag's new shape.
+- Tests: core's gate-1 cases go or become *no switch is asked*; `config.unit.test.ts`,
+  `apps/selfhost/src/apply-flag.unit.test.ts`, the two after-cutover appliance tests.
+- **The new guard,** `packages/shared/src/deleting-by-hand-needs-no-switch.unit.test.ts`: (1)
+  `not_enabled` is not a refusal code; (2) a scan of `apps/` and `packages/` (not tests) finds
+  no read of `allowApplyDeletions` or `allow_apply_deletions` outside the appliance's warning
+  and the ledger's schema; (3) a mapping file saying `false` loads, warns once, and its
+  deletions are not refused.
+
+**T2 — Managed: the routes and the jobs stop reading the column.** (S–M.)
+- `operating-routes.ts`: the two apply routes and the GET stop reading
+  `allow_apply_deletions`; the PATCH keeps `autoApplyRelocations` only, owner only as today.
+  `openapi.yaml:4759` loses the field, by the repository's rules for a removed field.
+- Jobs: `run-apply-deletion.ts:133-141,177`, `run-apply-relocation.ts:125-133,164`,
+  `run-delta-sync.ts:89-106` stop reading it.
+- **No migration in alpha.21.** The column stays in the schema, unread, with a comment in
+  `schema-pg.ts:233` saying so; a later release drops it, read against the migration-lock report
+  (workplan 0165).
+- Tests: `apply-routes.integration.test.ts:122-147` (a fresh mapping is not refused) and
+  `:419-430` (no off any more); `apply-receipt-schema.unit.test.ts` says the column is unread;
+  `a-role-that-promises-less-than-it-allows` (API and web twin) loses the deleting-by-hand door
+  and keeps the automatic-removal one.
+
+**T3 — The Deletions page and its words, EN and NL.** (M.)
+- `ApplyDeletionsPanel.tsx`: the switch, its state line and its *Turn on* go. What stays is the
+  automatic-removal switch (owner only, off by default), now always shown, and the warning's
+  facts, moved above the rows that offer a delete.
+- `Deletions.tsx:134-146`: the `not_enabled` sentence goes. `DeleteAllPanel.tsx`: offered
+  whenever a row can be deleted; its `not_enabled` sentences go.
+- Strings: `confirm.ts` `applyFlag.*`; `queues.ts`'s `notEnabled` keys;
+  `organisation.ts`'s `tenants.invite.adminCan` (an admin can delete by hand too; the
+  automatic-removal switch stays the owner's).
+- Tests: §2.6's web rows. The Dutch goes to the owner in the pull request.
+
+**T4 — Docs and the ADR amendments.** (S–M.)
+- ADR-0024: an amendment, *gate 1 removed*, with the owner's words. The safety of a removal is
+  carried by gates 2 to 7, the refusals after cutover and after a keep, and a person's own
+  press; the Decision's *"A destructive capability must be turned on, never turned off"* no
+  longer applies to deleting by hand. The operative rules lose gate (1); the Status line and the
+  amendment log get their entries. ADR-0031: automatic removal of moved files' old copies is its
+  own switch, off by default, owner only; it no longer extends anything. ADR-0030: *behind the
+  same switch* reworded. Then `node scripts/adr-operative.mjs --write`.
+- `docs/architecture/solution-architecture.md:233`; `docs/operator-runbook.md:2103`,
+  `:2128-2146`, `:2202`, `:2366` (no switch; the API asks no confirmation, so one call is one
+  removal); `docs/owner-test-runbook.md:133`, `:755`; `docs/selfhost-quickstart.md:532-540`;
+  `site/pages/en/alpha-guide.md:54-62`, `site/pages/nl/alpha-handleiding.md:84-93`;
+  `site/legal/README.md:679-683`.
+- `CHANGELOG.md` under alpha.21, in plain words: every migration, old and new, and every
+  upgraded appliance can now delete by hand without turning anything on; a mapping file's
+  `"allowApplyDeletions": false` no longer turns it off.
+
+**T5 — The legal words: terms §2 and alpha §8, EN and NL.** (S, the owner's.) Waits on Q4.
+`site/legal/terms.md:618-622`, `terms.nl.md:68-73`, `alpha.md` §8, `alpha.nl.md` §8, their
+header comments, `site/legal/README.md:104`, and, if Q4 is *yes*, `legal-versions.ts` and the
+guard's `ACCEPTED_WORDS`. Proposed words for the owner:
+
+- **Terms §2, EN.** *At your target, nothing is deleted either, unless you approve it yourself
+  on the migration's Deletions page: each deletion, or a list of them after one confirmation
+  that names how many. If you switch on the automatic removal of moved files' old copies, the
+  old copy of a file that moved at your source is removed at your target after strict checks,
+  without asking you each time. That one is off by default, until you explicitly turn it on.*
+- **Terms §2, NL.** *Bij uw doel wordt ook niets verwijderd, tenzij u dat zelf goedkeurt op de
+  pagina Verwijderingen van de migratie: elke verwijdering, of een lijst ervan na één
+  bevestiging die zegt hoeveel. Zet u het automatisch verwijderen van oude kopieën van inmiddels
+  verplaatste bestanden aan, dan wordt de oude kopie van een bestand dat bij uw bron is
+  verplaatst, na strenge controles bij uw doel weggehaald, zonder dat we het u elke keer vragen.
+  Dat staat standaard uit, tot u het uitdrukkelijk aanzet.*
+- **Alpha §8:** the admin sentence loses *deleting by hand*: an admin can do everything you can
+  except close or reopen the organisation, turn *the automatic removal of moved files' old
+  copies* on or off, make somebody an owner, and change or remove an owner or an invitation as
+  owner. The Dutch follows the same cut.
+
+**T6 — E2E steps.** (S.) `.github/workflows/e2e.yml:472-476`: the fixture's
+`cfg.allowApplyDeletions = true` goes, so the self-hosted E2E proves that deleting by hand needs
+no switch, and a comment says so; `test/e2e/selfhost-apply-deletion-*.e2e.test.ts:34-35`
+comments follow. `deploy/compose/smoke-managed.sh:3178`, `:3209`: the SQL that turns the column
+on before the apply and off after it goes; the apply runs on the smoke's fresh mapping.
+
+**T7 — The E2E runs.** Self-hosted (Postgres and PGlite) and managed, on the branch that carries
+the last of T1 to T6, one at a time.
+
+**Order.** T1 first: the shared contract. T2, T3 and T4 on it, in parallel. T5 after Q4, with
+T3's words. T6 after T1 and T2. T0 any time, and no later than T3. Every task merges after
+alpha.20's tag.
