@@ -53,7 +53,7 @@ const PERSON = '71740000-e29b-41d4-a716-446655440041';
 /** The account the migration reads, as its owner typed it. */
 const NAMED = 'Someone@Example.Invalid';
 /** The account a person's migration reads. */
-const PERSON_NAMED = 'anna@example.invalid';
+const PERSON_NAMED = 'person@example.invalid';
 
 /** The deployment's own Dropbox app, as every test here runs on it. */
 const APP_KEY = 'the-deployments-dropbox-app-key';
@@ -210,7 +210,7 @@ beforeAll(async () => {
         [m, TENANT, box, TARGET_BOX],
       );
     }
-    await q(`INSERT INTO person (id, tenant_id, display_name) VALUES ($1,$2,'Anna')`, [PERSON, TENANT]);
+    await q(`INSERT INTO person (id, tenant_id, display_name) VALUES ($1,$2,'The person')`, [PERSON, TENANT]);
     await q('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3)', [
       PERSON_MAPPING,
       PERSON,
