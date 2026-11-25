@@ -498,12 +498,17 @@ function hostOfUrl(value: unknown): string | null {
  * Infomaniak; §5.8, D3 (a)), whatever the row says: the route tests on
  * `pinnedToPublished`'s config, so the page names exactly where the password
  * goes. Each host once, in the order the faces are read: for the owner's, the
- * DAV address or host, then the mail server.
+ * DAV address or host, then the mail server. A JMAP row connects to its
+ * `baseUrl`, which the create door builds from the host and port; it is read
+ * too, so a row whose `baseUrl` names another host than its `host` names
+ * both, and the checks before a try (a name, not a number; not inside a
+ * private network) run on every host the password can reach.
  */
 export function passwordServerOf(kind: PasswordKind, stored: Readonly<Record<string, unknown>>): GrantServer {
   if (pinsItsServer(kind)) return { hosts: publishedServerHosts(kind), published: true };
   const hosts = [
     hostOfUrl(stored.url),
+    hostOfUrl(stored.baseUrl),
     shown(stored, 'host') || null,
     shown(stored, 'mailHost') || null,
   ].filter((h): h is string => h !== null);
