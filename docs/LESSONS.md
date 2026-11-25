@@ -18,6 +18,14 @@ reading a file drops off its entry by itself.
 
 ## 1. By file — what constrains the thing you are about to edit
 
+### `.claude/hooks/session-start.sh`
+
+- [a-start-up-hook-read-as-a-risk](../scripts/a-start-up-hook-read-as-a-risk.unit.test.ts) — A START-UP HOOK READ AS A RISK, AND KEPT, BECAUSE IT DOES ONE THING.
+
+### `.claude/settings.json`
+
+- [a-start-up-hook-read-as-a-risk](../scripts/a-start-up-hook-read-as-a-risk.unit.test.ts) — A START-UP HOOK READ AS A RISK, AND KEPT, BECAUSE IT DOES ONE THING.
+
 ### `.github/ISSUE_TEMPLATE/bug_report.yml`
 
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
@@ -383,7 +391,6 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/src/routes/connections.ts`
 
-- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts) — A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
@@ -497,6 +504,10 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `apps/api/src/routes/qualify-and-remember.ts`
+
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 ### `apps/api/src/routes/ready.ts`
 
@@ -3833,9 +3844,9 @@ A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 Reads:
 
-- `apps/api/src/routes/connections.ts`
 - `apps/api/src/routes/migrations/cirrux-oauth-routes.ts`
 - `apps/api/src/routes/migrations/index.ts`
+- `apps/api/src/routes/qualify-and-remember.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `packages/orchestration/src/account-qualification.ts`
@@ -5915,6 +5926,15 @@ Reads:
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
 - `packages/shared/src/notifications.ts`
+
+### [a-start-up-hook-read-as-a-risk](../scripts/a-start-up-hook-read-as-a-risk.unit.test.ts)
+
+A START-UP HOOK READ AS A RISK, AND KEPT, BECAUSE IT DOES ONE THING.
+
+Reads:
+
+- `.claude/hooks/session-start.sh`
+- `.claude/settings.json`
 
 ### [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts)
 
