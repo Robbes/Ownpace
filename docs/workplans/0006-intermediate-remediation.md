@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-24: A to N done (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-24: A to N done, and R (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -18,7 +18,8 @@
 | K — Errors caught and dropped, again: the 12 spots the same check (ERR-1) named on `75d7949d`, 2026-11-21 | ✅ Done 2026-11-21, merged in #2022 (`a01edafe`) from branch `claude/ownpace-public-readiness-y7orc6-err1-nov21`: no real bug; 7 spots narrowed or made to say their failure, all in tests and their set-up; 5 swallow nothing, of which 3 are left as they were, one gains a test (the Cirrux connector) and one a single parse; nothing in the product changes. See §K | asked for, 2026-11-21 |
 | L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | ✅ Done 2026-11-21, merged in #2023 (`5ba9688a`) from branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`; read again 2026-11-24, unchanged (§L): none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
 | M — A comparison that is not a secret: the line a read-only check (JS-07) named in `caldav-source.ts`, 2026-11-24 | ✅ Read 2026-11-24: a false positive, a CalDAV sync token compared with the client's own (§M); nothing changed | the owner was given a reason to paste |
-| N — An import cycle (CQ-06), a swallowed test error (ERR-1) and the assistant's start-up hook (AIR-2b): three findings of an outside, read-only check on `20038a66`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-outside-n`: the cycle broken by moving the re-measuring family to `qualify-and-remember.ts`, with a guard; the test's catch, which let go nothing, replaced by an assertion; the hook judged false and kept, with a guard that pins it. Nothing in the product changes. See §N | asked for, 2026-11-24 |
+| N — The web image's base: the line a read-only check (IMG-4) named, `apps/web/Dockerfile:94`, `nginx:1.31.9-alpine-slim`, 2026-11-24 | ✅ Fixed in alpha.20's image pins (#2127, §N): `nginx:1.31.10-alpine-slim` in `apps/web/Dockerfile` and `deploy/compose/www.yml` | the owner, for alpha.20: *"yes on all"* |
+| R — An import cycle (CQ-06), a swallowed test error (ERR-1) and the assistant's start-up hook (AIR-2b): three findings of an outside, read-only check on `20038a66`, 2026-11-24 | ✅ Done 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-outside-n`: the cycle broken by moving the re-measuring family to `qualify-and-remember.ts`, with a guard; the test's catch, which let go nothing, replaced by an assertion; the hook judged false and kept, with a guard that pins it. Nothing in the product changes. See §N | asked for, 2026-11-24 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -380,7 +381,19 @@ check most likely matched the word *token*.
 **Decided.** A false positive, read on 2026-11-24; nothing changed. The owner was given a reason
 to paste.
 
-## N — An import cycle, a swallowed test error and the start-up hook (an outside, read-only check, 2026-11-24)
+## N — The web image's base (an outside, read-only check, 2026-11-24)
+
+**Evidence.** An outside, read-only check (IMG-4) named `apps/web/Dockerfile:94`, the web image's
+base: `nginx:1.31.9-alpine-slim`.
+
+**Read.** `nginx:1.31.10-alpine-slim`, pushed on 2026-11-24, moves nginx 1.31.9-r1 to 1.31.10-r1,
+and libssl3 and libcrypto3 3.5.9-r0 to 3.5.9-r1, on the same Alpine 3.24 root filesystem (0119's
+Status, 2026-11-24, read from Docker Hub's registry).
+
+**Decided.** Fixed by alpha.20's image pins (#2127): `apps/web/Dockerfile` and
+`deploy/compose/www.yml` move to `1.31.10-alpine-slim`, on the owner's *"yes on all"* for alpha.20.
+
+## R — An import cycle, a swallowed test error and the start-up hook (an outside, read-only check, 2026-11-24)
 
 **Evidence.** The same outside, read-only check named three findings on `main` at `20038a66`,
 each read there and still present on that commit.

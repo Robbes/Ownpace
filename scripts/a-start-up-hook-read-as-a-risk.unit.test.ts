@@ -8,7 +8,7 @@
  * settings file an assistant loads on opening a checkout is a place where a
  * repository could run a command, send the assistant's traffic to another
  * address or hand it a tool server, without anybody being asked. Read
- * (workplan 0006 §N), this one does none of that, and it stays:
+ * (workplan 0006 §R), this one does none of that, and it stays:
  *
  * - the hook is the repository's own script, `.claude/hooks/session-start.sh`;
  * - its first action is to exit unless `CLAUDE_CODE_REMOTE` is `true`, so on

@@ -53,6 +53,9 @@ describe('the authority is in the path, and the path is never empty', () => {
   });
 });
 
+/** Who signed in, asked on every new consent since alpha.20 (D7 (a)). */
+const ID = ['openid', 'email', 'profile', 'User.Read'];
+
 describe('what the consent asks for', () => {
   it('always carries offline_access — without it the migration dies overnight', () => {
     const url = new URL(microsoftConsentUrl({ ...BASE, domains: ['calendar'] }));
@@ -60,11 +63,14 @@ describe('what the consent asks for', () => {
   });
 
   it('asks only for the faces that were ticked', () => {
-    expect(microsoftScopesFor(['calendar'])).toEqual(['offline_access', 'Calendars.Read']);
+    // Beside the faces, who signed in (`MICROSOFT_IDENTITY_SCOPES`, workplan
+    // 0171 §3.3, the owner's D7 (a)): on every new consent.
+    expect(microsoftScopesFor(['calendar'])).toEqual(['offline_access', ...ID, 'Calendars.Read']);
     // The fifth row (0114 T9): asked for only when the tasks face is ticked.
-    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', 'Tasks.Read']);
+    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', ...ID, 'Tasks.Read']);
     expect(microsoftScopesFor(['email', 'file'])).toEqual([
       'offline_access',
+      ...ID,
       'Mail.Read',
       'Files.Read',
     ]);
@@ -75,7 +81,7 @@ describe('what the consent asks for', () => {
   it('asks for every face when nothing recognisable was ticked', () => {
     // A consent granting nothing is not a safer failure — it is a button that
     // silently does not work.
-    expect(microsoftScopesFor([])).toHaveLength(MICROSOFT_CONSENT_DOMAINS.length + 1);
+    expect(microsoftScopesFor([])).toHaveLength(MICROSOFT_CONSENT_DOMAINS.length + 1 + ID.length);
     expect(microsoftScopesFor(['nonsense'])).toContain('Mail.Read');
   });
 
@@ -83,6 +89,9 @@ describe('what the consent asks for', () => {
     const all = microsoftScopesFor([]);
     for (const scope of all) {
       if (scope === MICROSOFT_OFFLINE_SCOPE) continue;
+      // `openid`, `email` and `profile` are OpenID Connect's, not Graph's; they
+      // read nothing a migration copies. `User.Read` is matched below.
+      if (['openid', 'email', 'profile'].includes(scope)) continue;
       expect(scope, `${scope} is not a .Read scope`).toMatch(/\.Read$/);
     }
   });
@@ -93,7 +102,7 @@ describe('what the consent asks for', () => {
     // no connector served would have been consent spent on nothing. Now the
     // face is served, and the rule is the one every row has: asked for when
     // ticked, never otherwise.
-    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', 'Tasks.Read']);
+    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', ...ID, 'Tasks.Read']);
     expect(microsoftScopesFor(['email', 'calendar'])).toEqual(
       expect.not.arrayContaining(['Tasks.Read']),
     );

@@ -41,10 +41,37 @@ import {
   NO_NAMED_ACCOUNT,
   addressKey,
   anotherAccount,
+  anotherAccountAt,
   isAddress,
+  noNamedAccountAt,
   reasonPair,
   unconfirmedAccount,
+  unconfirmedAccountAt,
 } from '@openmig/shared';
+import type { GrantProviderId } from '../grant-providers.ts';
+
+/**
+ * WHO SIGNED IN, as any provider confirmed it (workplan 0171 §3.2).
+ *
+ * Google's ending knew one address, read from its ID token. Microsoft's knows
+ * the sign-in name and the addresses that deliver to the same mailbox, and a
+ * named account may be any of them, so the one shape carries both. `confirmed`
+ * is the provider's word, never the person's: an address somebody typed is
+ * not evidence of who controls it.
+ */
+export interface SignedInAccount {
+  /** As the provider confirmed it: Google's verified email, Microsoft's sign-in name. */
+  readonly address: string;
+  /** Verified by the provider, not typed by the person. */
+  readonly confirmed: boolean;
+  /** Microsoft: the account's `mail` and its `smtp:` proxy addresses, beside the sign-in name. */
+  readonly alsoKnownAs?: readonly string[];
+}
+
+/** Google's ending says who signed in as one address, or null; the seam's shape for it. */
+export function signedInFromAddress(address: string | null): SignedInAccount | null {
+  return address === null ? null : { address, confirmed: true };
+}
 
 /**
  * What the link's consent asks beside the data: who signed in. Asked in the
@@ -137,16 +164,62 @@ export interface SignedInAccountRefusal {
  */
 export function signedInAccountRefusal(
   named: string | null | undefined,
-  signedInAs: string | null,
+  signedIn: SignedInAccount | string | null,
+  provider: GrantProviderId = 'google',
 ): SignedInAccountRefusal | null {
-  if (!named || !namesAGoogleAccount(named)) {
-    return { code: 'no_named_account', ...reasonPair(NO_NAMED_ACCOUNT) };
+  // A string is Google's ending as it was before the seam: an address Google
+  // verified (`accountInIdToken` answers null for any other).
+  const who = typeof signedIn === 'string' ? signedInFromAddress(signedIn) : signedIn;
+  if (provider === 'google') {
+    // Google's rule, word for word as before the seam: its own fold, its own
+    // sentences. Only the address counts; Google names no aliases.
+    if (!named || !namesAGoogleAccount(named)) {
+      return { code: 'no_named_account', ...reasonPair(NO_NAMED_ACCOUNT) };
+    }
+    if (who === null || !who.confirmed) {
+      return { code: 'unconfirmed', ...reasonPair(unconfirmedAccount(named)) };
+    }
+    if (!sameGoogleAccount(named, who.address)) {
+      return { code: 'another_account', ...reasonPair(anotherAccount(who.address, named)) };
+    }
+    return null;
   }
-  if (signedInAs === null) {
-    return { code: 'unconfirmed', ...reasonPair(unconfirmedAccount(named)) };
+  if (!named || !isAddress(named)) {
+    return { code: 'no_named_account', ...reasonPair(noNamedAccountAt(provider)) };
   }
-  if (!sameGoogleAccount(named, signedInAs)) {
-    return { code: 'another_account', ...reasonPair(anotherAccount(signedInAs, named)) };
+  if (who === null || !who.confirmed) {
+    return { code: 'unconfirmed', ...reasonPair(unconfirmedAccountAt(provider, named)) };
+  }
+  if (!sameAccountAt(named, who)) {
+    return { code: 'another_account', ...reasonPair(anotherAccountAt(provider, who.address, named)) };
   }
   return null;
+}
+
+/**
+ * Whether the named account is the one that signed in, at a provider other
+ * than Google: equal, without case, to the sign-in name or to one of the
+ * addresses the provider says are the same account. Nothing is folded beyond
+ * case. Dots and `+suffix` are Gmail's rule, and on any other domain two
+ * addresses that differ by them can be two people.
+ */
+export function sameAccountAt(named: string, who: SignedInAccount): boolean {
+  const key = named.trim().toLowerCase();
+  if (key === '') return false;
+  return [who.address, ...(who.alsoKnownAs ?? [])].some((a) => a.trim().toLowerCase() === key);
+}
+
+/**
+ * Whether two named accounts are the same account at this provider: Google's
+ * fold for Google, case alone for every other (`sameAccountAt`'s reason).
+ */
+export function sameNamedAccount(provider: GrantProviderId, a: string, b: string): boolean {
+  if (provider === 'google') return sameGoogleAccount(a, b);
+  return sameAccountAt(a, { address: b, confirmed: true });
+}
+
+/** The key two named accounts share at this provider, or null for something that is not an address. */
+export function namedAccountKey(provider: GrantProviderId, address: string): string | null {
+  if (provider === 'google') return googleAccountKey(address);
+  return isAddress(address) ? address.trim().toLowerCase() : null;
 }

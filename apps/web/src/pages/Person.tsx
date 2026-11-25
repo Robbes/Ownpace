@@ -96,10 +96,18 @@ const ONCE_GRANTED_WORDS: Readonly<Record<AwaitingGrant['then'], StringKey>> = {
 
 /**
  * The sources a grant link can connect (the API's `isGrantableSourceKind`: a
- * Google account, Gmail, Google Calendar, Google Contacts, Google Drive), as
+ * Google account, Gmail, Google Calendar, Google Contacts, Google Drive, and
+ * since alpha.20 a Microsoft account, workplan 0171), as
  * `wizardTypeForConnectionKind` names the list's connection kinds.
  */
-const GRANTABLE: ReadonlySet<string> = new Set(['google', 'gmail', 'google-calendar', 'google-contacts', 'google-drive']);
+const GRANTABLE: ReadonlySet<string> = new Set([
+  'google',
+  'gmail',
+  'google-calendar',
+  'google-contacts',
+  'google-drive',
+  'microsoft',
+]);
 
 /**
  * What the page reads of each migration: the list's row on managed. The

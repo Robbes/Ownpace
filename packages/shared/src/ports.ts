@@ -745,6 +745,22 @@ export interface UpsertOptions {
   readonly addressDigest?: string | null;
 }
 
+/**
+ * What a destination says about its room (workplan 0171 §6.2).
+ *
+ * `pool` names what the number covers, so two data types that land in the
+ * same account are added together against one number rather than counted
+ * twice: the JMAP account id, the IMAP quota root, the WebDAV collection URL,
+ * Cirrux's workspace. Read live on *Review and start*, never stored.
+ *
+ * Unknown says why: the destination does not offer the number
+ * (`not_offered`), it says there is no limit (`unlimited`), or it did not
+ * answer the question it does offer (`not_answered`).
+ */
+export type DestinationCapacity =
+  | { readonly known: true; readonly freeBytes: number; readonly totalBytes?: number; readonly pool: string }
+  | { readonly known: false; readonly why: 'not_offered' | 'unlimited' | 'not_answered' };
+
 /** A target mailbox store the engine writes to. NEVER deletes or overwrites (non-destructive). */
 export interface TargetWriter {
   /** Ensure a mailbox exists for the given folder/role; return its target id. */
@@ -768,6 +784,8 @@ export interface TargetWriter {
    * ledger never causes duplicates.
    */
   findByNaturalKey(mailboxId: string, naturalKey: string): Promise<string | undefined>;
+  /** On a destination writer: its free space, read once, without writing (workplan 0171 §6.2). */
+  capacity?(): Promise<DestinationCapacity>;
 }
 
 /**
@@ -848,6 +866,8 @@ export interface FileTargetWriter {
    * item's failure without fetching it. Undefined lets the file through.
    */
   refuseBeforeRead?(item: FileItem): Error | undefined;
+  /** On a destination writer: its free space, read once, without writing (workplan 0171 §6.2). */
+  capacity?(): Promise<DestinationCapacity>;
 }
 
 

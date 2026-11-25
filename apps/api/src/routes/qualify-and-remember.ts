@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * MEASURING A STORED ACCOUNT AGAIN, IN A MODULE OF ITS OWN (workplan 0006 §N,
+ * MEASURING A STORED ACCOUNT AGAIN, IN A MODULE OF ITS OWN (workplan 0006 §R,
  * CQ-06). Qualifying an account and remembering the answer on its row used to
  * live in `connections.ts`, beside the doors that call it. The consent that
  * connects a Cirrux Drive needs it too, and that consent is mounted by the

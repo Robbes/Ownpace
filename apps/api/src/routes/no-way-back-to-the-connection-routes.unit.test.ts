@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * NO IMPORT FROM THE CONNECTION ROUTES LEADS BACK TO THEM (workplan 0006 §N,
+ * NO IMPORT FROM THE CONNECTION ROUTES LEADS BACK TO THEM (workplan 0006 §R,
  * CQ-06). `connections.ts` imports `migrations/index.ts` for its shape
  * builders; that mounts `migrations/cirrux-oauth-routes.ts`, and the Cirrux
  * Drive consent there reached back into `connections.ts` with a lazy
