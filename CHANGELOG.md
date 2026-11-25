@@ -16,12 +16,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   approves it like any other, and approval gives the recipient an organisation of their own. A
   gift lets nobody in by itself. The code is shown once and kept only as a fingerprint; every bad
   code (unknown, used, revoked, expired) gets the same refusal, behind a rate limit; the giver can
-  revoke an unused gift. Nothing about the recipient is asked for or stored with the gift. The
+  revoke an unused gift, which gives it back to them, and a request the operator declines gives
+  the gift back too, so the giver can make a new one (the owner's answers of 2026-11-25). Nothing
+  about the recipient is asked for or stored with the gift. The
   operator's new **Gifts** screen (English) shows every gift and whose it is, how many requests
   have been granted and are waiting, and sets the number of gifts for everyone or for one person
   without a deploy; there is no cap on admissions, and the screen says so. The site has a gift
   page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0064 adds `gift`,
-  `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation.
+  `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation, and so is the
+  operator's number for each of its people, unless that person is also in another organisation.
 
 ## [0.2.0-alpha.20] - 2026-11-25
 

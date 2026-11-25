@@ -2,7 +2,42 @@
 
 > **In one line:** Gift invitations for alpha.21: a person in the alpha makes one gift code for a loved one, prints it on a card, and the code turns into an access request marked as a gift, which the owner approves like any other.
 
-## Status — 2026-11-24 (update this block at the end of every session)
+## Status — 2026-11-25 (update this block at the end of every session)
+
+**2026-11-25: the owner's answers (T8) applied.** The owner read the gift's privacy sentence, the
+six questions of §7 and the Dutch, and answered: *"ok, I take your advice"*, with these changes
+from the builder's text. What changed, on the same branch:
+
+- **§7 question 2 is turned round: a request the operator declines gives the giver's gift back.**
+  `gift.request_declined_at`, a new column in migration 0064 (not shipped, so no new file), is
+  stamped by `POST /api/access-requests/:id/decline` in its own transaction
+  (`giveBackDeclinedGift`); `holdsAPlace` no longer counts a redeemed gift that carries it. The
+  decline itself is as before. How declined is told from used, and why it is a column: §3.2.
+- **The operator's per-person number goes with the organisation.** `purgeTenant` deletes the
+  `gift_allowance` rows of the erased organisation's members (`PURGED_BY_MEMBER`), unless that
+  person is a member of another organisation too; the receipt counts them
+  (`purged_counts.gift_allowance`). The system role is granted `SELECT (user_id), DELETE` on
+  `gift_allowance` and `SELECT (user_id)` on `tenant_member`, both in 0064, and the guards that
+  list tables hold it (`a-table-the-purge-could-not-empty`, the system role's `EXPECTED`).
+- **Questions 1, 3, 4, 5 and 6 stay as built.**
+- **The words**, Dutch first: *Geef iemand die u dierbaar is een plaats in de Alpha, op een kaart*
+  (*Give someone dear to you …*); *een persoonlijke aanbeveling, geen sleutel* on *Give Ownpace*
+  and the site's gift page (*a personal recommendation*); *de code en de datums*; *Voornaam van de
+  ontvanger* (*The recipient's first name*); *Ownpace zit in een gratis Alpha*; and the refusal's
+  *… of vraag het aan degene die u de kaart gaf*. Pinned in `a-gift-on-every-screen`,
+  `site.unit.test.ts` and `gift-under-rls`.
+- **The privacy sentence (§6) is not applied here**: it goes into `site/legal/` at the merge,
+  after another pull request changes the same files.
+
+Proved on 2026-11-25: each new test fails on the code before the change. Reverting each of the
+four mechanisms one at a time turned its own tests red: the decline route's call, `holdsAPlace`'s
+check, the purge's delete, and the giver policy's guard. Restoring the old words turned the four
+word pins red. `gift-under-rls` (23), `a-gift-turned-into-a-request` (2), `offboarding` and
+`a-table-the-purge-could-not-empty` (80), `a-gift-on-every-screen`, `site.unit.test.ts`. On a
+real Postgres (`./scripts/local-pg.sh`): `a-system-role-that-is-not-the-owner.integration.test.ts`
+41 passed, with the new grants and the purge run as `ownpace_system`;
+`access-requests-operator.integration.test.ts` 13 and `access-requests.integration.test.ts` 9
+passed, each file run on its own. Still open: T7 (E2E, the maintainer's).
 
 **2026-11-24: planned and built, for alpha.21, in one draft pull request.** The owner decided G1
 and G3 on 2026-11-24 and said *"build"*. Everything in §3 is built on the branch
@@ -25,7 +60,7 @@ is not edited: the sentence it needs is proposed in §6, for the owner.
 | T5 The screens | builder | ✅ Built | *Give Ownpace* with its card (print or save as PDF), the code field at the door, the operator's *Gifts*. §3.6. |
 | T6 The site | builder | ✅ Built | `gift.html` and `nl/cadeau.html`, alpha builds only. §3.7. |
 | T7 E2E | maintainer | ⏳ **Maintainer** | Which runs: §5, last paragraph. Not dispatched by the builder. |
-| T8 The owner's answers | owner | ⏳ **Owner** | §7, and the privacy sentence of §6. |
+| T8 The owner's answers | owner | ✅ Answered 2026-11-25 | *"ok, I take your advice"*, with a declined request giving the gift back and the new words; applied (Status block, §7). The privacy sentence of §6 is applied at the merge. |
 
 ## 1. The owner's words (2026-11-24)
 
@@ -82,23 +117,39 @@ is not edited: the sentence it needs is proposed in §6, for the owner.
 - `gift`: `id`, `tenant_id` (the giver's organisation when they gave), `giver_user_id` (their
   subject), `code_hash`, `locale` (the card's language, for the operator), `created_at`,
   `expires_at` (two years on), `redeemed_at`, `redeemed_request_id` (→ `access_request`, `ON
-  DELETE SET NULL`), `revoked_at`, `revoked_by`. CHECKs: redeemed iff it names a request, and
-  not both redeemed and revoked. No column for an address, a name or a message.
+  DELETE SET NULL`), `revoked_at`, `revoked_by`, `request_declined_at` (§3.2). CHECKs: redeemed
+  iff it names a request, not both redeemed and revoked, and only a redeemed gift's request
+  declined. No column for an address, a name or a message.
 - `gift_rule`: one row, the number of gifts each person may hold (`gifts_per_person`, seeded 1).
 - `gift_allowance`: the operator's number for one person (`user_id`), with who set it and why.
 - Row security, FORCE'd, with no `::uuid` cast of a setting that can decay to `''` but the
   NULLIF'd tenant one: the giver sees and revokes their own (`app.current_user`); an operator sees
   and changes all (`platform_operator`); the door sees and spends exactly the row whose fingerprint
-  is `app.current_gift`. `gift` joins `PURGED_TABLES`, so closing the giver's organisation erases
-  their gifts, and `ownpace_system` is granted what the purge needs.
+  is `app.current_gift`. The giver's own UPDATE refuses a row with `request_declined_at` set, so
+  only the operator's decline gives a gift back. `gift` joins `PURGED_TABLES`, so closing the
+  giver's organisation erases their gifts; `gift_allowance` is in `PURGED_BY_MEMBER`, so it erases
+  the operator's number for each of its people who is in no other organisation; and
+  `ownpace_system` is granted what the purge needs.
 
 ### 3.2 States and the limit
 
 A gift is `unused`, `redeemed`, `revoked` or `expired` (`giftState`, one definition; a redeemed
 gift stays redeemed after its date). A person may hold as many gifts as their allowance, or the
-rule for everyone, or 1. **What counts:** unused and redeemed gifts. A revoked or expired-unused
-gift does not, so a giver who revoked a card can make another (§7 asks whether that is right). The
-count and the insert run in one transaction behind a lock on the giver, so two presses make one.
+rule for everyone, or 1. **What counts:** unused gifts, and redeemed gifts whose request was not
+declined. A revoked or expired-unused gift does not, so a giver who revoked a card can make
+another, and nor does a redeemed one whose request the operator declined (§7, questions 1 and 2,
+as the owner answered them). The count and the insert run in one transaction behind a lock on the
+giver, so two presses make one.
+
+**How a declined gift is told apart from a used one.** By `gift.request_declined_at`, stamped by
+the decline route (`POST /api/access-requests/:id/decline`) in the same transaction that declines
+the request, through `giveBackDeclinedGift`, under the operator's policy on `gift`. Not by reading
+the request's state: the giver's transaction cannot read `access_request` (it has no policy for
+them), and the nightly retention job deletes a declined request 30 days after the decision, which
+sets the gift's `redeemed_request_id` to NULL and would turn the gift back into a used one. A
+request that came without a gift touches no gift. To the giver the gift still reads as *Used*:
+the card was used, and what became of the request is the recipient's; their number of gifts goes
+down by one, which is all they learn.
 
 ### 3.3 The giver (T2)
 
@@ -163,7 +214,7 @@ new gifts.
 
 Stored: who gave it (subject and organisation), the code's fingerprint, the card's language,
 when it was made, until when it is valid, when it was redeemed and which access request it became,
-when it was revoked and by whom. Not stored: the code, the recipient's name, any message, any
+when that request was declined, when it was revoked and by whom. Not stored: the code, the recipient's name, any message, any
 address of the recipient's on the gift. The recipient's own address and words are stored in the
 access request they make, as for any request (privacy §4.4).
 `a-gift-that-keeps-no-recipient.unit.test.ts` holds this over the migration's columns and over
@@ -175,13 +226,17 @@ what each route writes.
   the four states, the limit's arithmetic.
 - `packages/managed/src/gift-under-rls.unit.test.ts`: on PGlite under `app_user`, the giver sees
   only their own, another member sees none, the door sees only the row it names, the operator sees
-  all.
+  all; a declined request gives the gift back, once, and still does after the request is pruned;
+  a giver cannot mark their own gift declined; the refusal's words.
+- `packages/managed/src/offboarding.unit.test.ts`: the purge deletes the erased organisation's
+  people's `gift_allowance` rows, counts them on the receipt, and keeps those of a person who is a
+  member elsewhere.
 - `apps/api/src/routes/gifts.unit.test.ts`: making one, shown once; the limit, for everyone and
   for one person; revoking; each refusal at the door (unknown, malformed, used, revoked, expired)
   answering the same body; the rate limit; the trap; an address with an open request.
 - `apps/api/src/routes/a-gift-turned-into-a-request.unit.test.ts`: a redeemed gift is an access
   request with its mark in the queue, and granting it makes a new organisation, not a seat in the
-  giver's.
+  giver's, and the gift keeps its place; declining it gives the giver their gift back, over HTTP.
 - `apps/api/src/routes/a-gift-that-keeps-no-recipient.unit.test.ts`: the guard of §4.
 - `apps/web/src/pages/a-gift-on-every-screen.unit.test.tsx`: the door's field and where it sends,
   a refused code in Dutch, *Give Ownpace* sending only the card's language and drawing the card,
@@ -198,8 +253,10 @@ access-request path and the new migration; no lane is added.
 
 ## 6. The privacy policy, for the owner
 
-Privacy §4.4 covers a request and §4.6 an invitation; neither names a gift. Proposed, not
-applied, as a new paragraph at the end of §4.4:
+Privacy §4.4 covers a request and §4.6 an invitation; neither names a gift. Proposed as a new
+paragraph at the end of §4.4, and read by the owner on 2026-11-25 (*"ok, I take your advice"*). It
+is applied to `site/legal/` at the merge, after another pull request changes the same files, not
+on this branch:
 
 - **EN.** *Gifts.* If someone in the Alpha gives you a place as a gift, we keep who gave it, a
   fingerprint of the code (never the code itself), the language of the card, when it was made,
@@ -214,23 +271,35 @@ applied, as a new paragraph at the end of §4.4:
   een code, dan bewaren we uw aanvraag zoals elke aanvraag, gemarkeerd als cadeau van de gever. Een
   cadeau wordt verwijderd met de organisatie van de gever.
 
-## 7. Open questions for the owner
+## 7. The owner's questions, and the answers of 2026-11-25
+
+The owner's answer to all six, the privacy sentence and the Dutch: *"ok, I take your advice"*,
+with a declined request giving the gift back (question 2) and the words in the Status block.
 
 1. **Does a revoked gift give the place back?** Built: yes, a revoked or expired-unused gift no
    longer counts, so the giver may make another. Advice: keep it; the owner approves every request
-   anyway, and a lost card is otherwise a lost gift.
-2. **Does a declined gift request give the place back?** Built: no, a redeemed gift counts
-   whatever became of its request. Advice: keep it, and raise one person's allowance by hand when a
-   decline was about timing rather than the person.
+   anyway, and a lost card is otherwise a lost gift. **Answered 2026-11-25: kept as built.**
+2. **Does a declined gift request give the place back?** Built at first: no, a redeemed gift
+   counted whatever became of its request. Advice was to keep that. **Answered 2026-11-25: a
+   request the operator declines gives the giver's gift back.** Built on 2026-11-25: §3.2, *How a
+   declined gift is told apart from a used one*. A granted request still keeps its gift.
 3. **An address that already has an open request.** Built: the door says so and leaves the gift
    unspent, which tells a holder of a valid code that the address has asked. Advice: keep it; the
-   other choice spends the gift silently or hides that it did nothing.
+   other choice spends the gift silently or hides that it did nothing. **Answered 2026-11-25: kept
+   as built.**
 4. **The 50.** Built: a count on the operator's screen, no cap. Advice: keep counting by hand for
-   now; a cap that refuses a grant is one route and one number when wanted.
+   now; a cap that refuses a grant is one route and one number when wanted. **Answered 2026-11-25:
+   kept as built, no cap.**
 5. **The address the card prints.** Built: the app's `/redeem` (`app.ownpace.eu/redeem` on
    live), short enough to type, and it opens the door with the field ready. The site's gift page
    links there, and nothing links the gift page yet: not the site's nav (as for the guide), and
    not the card. Advice: keep the card as it is, and link the gift page from *Give Ownpace* in a
-   follow-up, beside the tester guide's link.
+   follow-up, beside the tester guide's link. **Answered 2026-11-25: kept as built.**
 6. **The card's Dutch says *u*.** Every Dutch screen does. A card from a loved one might rather
-   say *je*. Advice: the owner's call; it is one area of strings (`strings/gifts.ts`, `card.*`).
+   say *je*. **Answered 2026-11-25: kept as built, *u*.**
+
+Also answered on 2026-11-25, not one of the six: **the operator's per-person number
+(`gift_allowance`) is deleted with the organisation, like the gifts.** Built: `PURGED_BY_MEMBER`
+(§3.1). A person who is a member of another organisation too keeps theirs: the number is about
+them, they are still in the Alpha, and their gifts from that other organisation still count
+against it.
