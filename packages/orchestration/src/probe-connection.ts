@@ -749,6 +749,11 @@ async function probeTargetNow(
           host: String(config.host ?? ''),
           port: Number(config.port ?? 993),
           tls: config.useSsl !== false,
+          // The row's own opt-out for a self-signed certificate, as the pass's
+          // writer reads it (`buildImapDavTargetFrom`): the test of a row must
+          // verify what the pass verifies, no more (0174 T8). Absent, the
+          // connector's own `?? true` stands.
+          ...(typeof config.tlsVerify === 'boolean' ? { tlsVerify: config.tlsVerify } : {}),
           user: String(config.user ?? login.username),
         },
         { authType: 'LOGIN', password: login.password },

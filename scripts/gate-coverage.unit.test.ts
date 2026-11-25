@@ -100,7 +100,12 @@ const NOT_ASKED: Record<string, string> = {
     'database with only Google\'s token endpoint replaced. The gate asks it ' +
     'once, for a refusal only: a person\'s progress token at the grant ' +
     'address is refused on its purpose, which starts no consent (the ' +
-    'progress-link section; a-link-the-gate-asked-of-a-migration.unit.test.ts).',
+    'progress-link section; a-link-the-gate-asked-of-a-migration.unit.test.ts). ' +
+    'Since alpha.21 (workplan 0174 T8) it also asks the password page end to ' +
+    'end, which needs no consent screen: a person\'s own passwords typed on ' +
+    'their link against the demo Stalwart and Nextcloud, the lock, and the ' +
+    'passwords in no log (a-password-link-the-gate-types.unit.test.ts). The ' +
+    'sign-in half stays as above.',
   '/api/problem-reports':
     'sending one opens a real ticket on the owner\'s helpdesk, or, without one, ' +
     'mails the support mailbox. A stack this gate talks to has no helpdesk, and ' +

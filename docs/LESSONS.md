@@ -1695,6 +1695,7 @@ reading a file drops off its entry by itself.
 - [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
 - [a-ledger-that-outlived-its-mail-server](../scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts) — A LEDGER THAT OUTLIVED ITS MAIL SERVER (workplan 0119; the owner's choice of 2026-11-20, quoted in ADR-0022's update of that date).
 - [a-link-the-gate-asked-of-a-migration](../scripts/a-link-the-gate-asked-of-a-migration.unit.test.ts) — A LINK THE GATE STILL ASKED OF A MIGRATION (E2E (managed) #232, 2026-10-03).
+- [a-password-link-the-gate-types](../scripts/a-password-link-the-gate-types.unit.test.ts) — A PASSWORD LINK THE GATE TYPES INTO (workplan 0174 T8, §11 E2E (managed)).
 - [a-person-opened-in-the-wrong-organisation](../scripts/a-person-opened-in-the-wrong-organisation.unit.test.ts) — A SEARCH THAT FINDS ONE PERSON IN TWO ORGANISATIONS, AND A GATE THAT OPENED WHICHEVER ROW POSTGRES HAPPENED TO RETURN FIRST.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
@@ -5084,6 +5085,14 @@ Reads:
 - `.github/workflows/e2e-managed.yml`
 - `.github/workflows/e2e.yml`
 - `.github/workflows/images.yml`
+
+### [a-password-link-the-gate-types](../scripts/a-password-link-the-gate-types.unit.test.ts)
+
+A PASSWORD LINK THE GATE TYPES INTO (workplan 0174 T8, §11 E2E (managed)).
+
+Reads:
+
+- `deploy/compose/smoke-managed.sh`
 
 ### [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts)
 
