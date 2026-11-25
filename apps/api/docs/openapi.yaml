@@ -3537,6 +3537,72 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/migrations/{mappingId}/destination-space:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Discovery]
+      summary: Free space at the destination, before Start
+      description: |
+        Read live for *Review and start* (workplan 0171 T9), on managed and the
+        appliance: each destination writer of the migration is opened, asked its
+        free space with a ten-second limit, and closed. Nothing is written at the
+        destination and nothing is stored.
+
+        One entry per pool. A pool is what one number covers (a JMAP account, an
+        IMAP quota root, a WebDAV collection, a Cirrux workspace), so two data
+        types landing in the same account are added together once. `needBytes`
+        is the sum of the discovery bytes of those data types.
+
+        Read from WebDAV's `quota-available-bytes` (RFC 4331), IMAP's
+        `GETQUOTAROOT` (RFC 9208) when `QUOTA` is announced, JMAP's `Quota/get`
+        (RFC 9425) when the session lists it, and Cirrux Drive's workspace
+        storage. Calendars, contacts and tasks are not asked and answer
+        `not_offered`. A destination that fails or outlasts the limit answers
+        `not_answered`: never room it did not state.
+      responses:
+        '200':
+          description: The free space per pool.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [mappingId, pools]
+                properties:
+                  mappingId: { type: string }
+                  pools:
+                    type: array
+                    items:
+                      type: object
+                      required: [pool, destination, dataTypes, needBytes, capacity]
+                      properties:
+                        pool:
+                          type: string
+                          description: What the number covers; for an unknown answer, the destination and the reason.
+                        destination:
+                          type: string
+                          description: The destination's name on the screen, its host (or the provider's name where the deployment holds its address).
+                        dataTypes:
+                          type: array
+                          items: { type: string, enum: [email, calendar, contact, file, task] }
+                        needBytes: { type: integer, minimum: 0 }
+                        capacity:
+                          oneOf:
+                            - type: object
+                              required: [known, freeBytes, pool]
+                              properties:
+                                known: { type: boolean, enum: [true] }
+                                freeBytes: { type: integer, minimum: 0 }
+                                totalBytes: { type: integer, minimum: 0 }
+                                pool: { type: string }
+                            - type: object
+                              required: [known, why]
+                              properties:
+                                known: { type: boolean, enum: [false] }
+                                why: { type: string, enum: [not_offered, unlimited, not_answered] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /api/migrations/{mappingId}/links:
     parameters:
       - $ref: '#/components/parameters/MappingId'
@@ -3709,6 +3775,12 @@ paths:
                           that language joins a list (workplan 0145 T6); until then
                           the server sent an English sentence as `reads`.
                       scope: { type: string }
+                      provider:
+                        type: string
+                        enum: [google, microsoft, dropbox, apple]
+                        description: |
+                          Whose sign-in the button opens (workplan 0171 §3.2): the
+                          path segment of `POST /api/grant/{link}/{provider}/authorize`.
                       readOnlyAtProvider:
                         type: boolean
                         description: |
@@ -3765,16 +3837,37 @@ paths:
             The link could not be checked just now. Ours, not the caller's.
             The body is `{error, message, messageNl}`, as for 401.
 
-  /api/grant/{link}/google/authorize:
+  /api/grant/{link}/{provider}/authorize:
     parameters:
       - name: link
         in: path
         required: true
         schema: { type: string }
+      - name: provider
+        in: path
+        required: true
+        description: |
+          Whose sign-in to start (workplan 0171 §3.2): `google` (this route's
+          address until alpha.20, unchanged) or `microsoft`. It must be the
+          provider the link asks for (`provider` on `GET /api/grant/{link}`),
+          or the answer is 409 `not_this_provider`. A provider with no grant
+          entry yet (`dropbox`, `apple`, until workplan 0171 T4 and T5) or any
+          other value is 404.
+        schema: { type: string, enum: [google, microsoft, dropbox, apple] }
     post:
       tags: [Grant links]
-      summary: Start the Google sign-in for this link
+      summary: Start the provider's sign-in for this link
       description: |
+        For a Microsoft account (workplan 0171 §3.3) the same, at Microsoft:
+        the deployment's Entra application or the connection's own whole pair,
+        the named account as `login_hint`, `domain_hint` by its domain, and
+        beside the data scopes `openid email profile User.Read`. The ending,
+        at `/api/migrations/microsoft/callback`, checks the ID token's issuer
+        and audience and reads `/me`, and stores the token only when the named
+        account is the sign-in name, the primary address or a proxy address.
+
+        For Google, as follows.
+
         The client id and secret are read from the mapping's own source
         connection and decrypted server-side, or are the deployment's where
         the connection stores none. Unlike the owner's
@@ -7884,19 +7977,42 @@ paths:
         list, with no organisation named, because looking at the list is one
         decision rather than one per customer. A non-operator's request records
         nothing, by the same predicate.
+
+        A page at a time (workplan 0006 §P): a hundred organisations, by name
+        and then id, and `next` to continue after the last one. Each page is
+        its own row in the read log, the later ones too: a later page is
+        organisations the operator had not seen, looked at by choice.
+      parameters:
+        - $ref: '#/components/parameters/SupportPageAfter'
       responses:
         '200':
           description: |
-            The organisations this caller may see. Empty for anybody who is not
-            a platform operator.
+            One page of the organisations this caller may see. Empty, with
+            `next` null, for anybody who is not a platform operator.
           content:
             application/json:
               schema:
                 type: object
+                required: [tenants, next]
                 properties:
                   tenants:
                     type: array
+                    maxItems: 100
                     items: { $ref: '#/components/schemas/SupportTenant' }
+                  next:
+                    type: string
+                    nullable: true
+                    description: |
+                      The cursor for the next page, to send back as `after`;
+                      null on the last page.
+        '400':
+          description: |
+            `after` is not a cursor this list gave: not base64url, not JSON, or
+            not the shape this route writes. Nothing is read and nothing is
+            recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportPageRefused' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/support/people:
@@ -8101,19 +8217,62 @@ paths:
         non-operator gets `200` with an empty list. Every serving is recorded
         in the support read log with no organisation named, because there is
         none to name.
+
+        A page at a time (workplan 0006 §P): up to a hundred of each list, in
+        the order each always had, with the invoice's id and the erasure's
+        `tenant_ref` as the last key. One `next` carries where each list goes
+        on; a later page reads only a list that has more and serves the other
+        empty. Each page is its own row in the read log.
+      parameters:
+        - $ref: '#/components/parameters/SupportPageAfter'
       responses:
         '200':
           description: |
-            Invoices retained across an erasure. Empty for anybody who is not a
+            One page of what erasures kept. Empty for anybody who is not a
             platform operator, and empty on a platform that has erased nobody.
           content:
             application/json:
               schema:
                 type: object
+                required: [invoices, numbers, next]
                 properties:
                   invoices:
                     type: array
+                    maxItems: 100
+                    description: |
+                      Issued invoices the books do not hold, kept detached here.
+                      Newest purge first, then the latest period.
                     items: { $ref: '#/components/schemas/SupportRetainedInvoice' }
+                  numbers:
+                    type: array
+                    maxItems: 100
+                    description: |
+                      Per erasure, the Moneybird numbers of the invoice copies
+                      it deleted (workplan 0111 T10), to look up in the books.
+                      Newest purge first.
+                    items:
+                      type: object
+                      required: [tenant_ref, erasure_requested_at, purged_at, invoice_numbers]
+                      properties:
+                        tenant_ref: { type: string, description: sha256 of the erased tenant's id }
+                        erasure_requested_at: { type: string, format: date-time }
+                        purged_at: { type: string, format: date-time, nullable: true }
+                        invoice_numbers:
+                          type: array
+                          items: { type: string }
+                  next:
+                    type: string
+                    nullable: true
+                    description: |
+                      The cursor for the next page, to send back as `after`;
+                      null once neither list has more.
+        '400':
+          description: |
+            `after` is not a cursor this list gave. Nothing is read and nothing
+            is recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportPageRefused' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/support/money-to-give-back:
@@ -8772,6 +8931,14 @@ components:
       required: true
       description: The access request's id, from the operator queue.
       schema: { type: string, format: uuid }
+    SupportPageAfter:
+      name: after
+      in: query
+      required: false
+      description: |
+        Where the page starts: the `next` the previous page gave, as it came.
+        Opaque; leave it out for the first page. Given once.
+      schema: { type: string, maxLength: 2048 }
 
   responses:
     BadRequest:
@@ -8948,6 +9115,14 @@ components:
           nullable: true
           description: The books' number, which the customer quotes; none until the invoice is numbered.
         kind: { type: string, enum: [invoice, credit_note] }
+    SupportPageRefused:
+      type: object
+      description: A support list refused a cursor it did not give.
+      required: [error, field, message]
+      properties:
+        error: { type: string, example: Bad request }
+        field: { type: string, enum: [after] }
+        message: { type: string }
     SupportRetainedInvoice:
       type: object
       description: |
@@ -9571,6 +9746,10 @@ components:
                 type: array
                 items: { type: string, enum: [email, calendar, contact, file, task] }
               scope: { type: string, nullable: true, description: 'The one consent it asks, in Google''s words; null when it cannot be asked.' }
+              provider:
+                type: string
+                enum: [google, microsoft, dropbox, apple]
+                description: Whose sign-in this account's button opens (workplan 0171 §3.2).
               readOnlyAtProvider: { type: boolean }
               notReady:
                 nullable: true

@@ -64,6 +64,8 @@ const FIXED_HOSTS: ReadonlyArray<{ readonly file: string; readonly uses: number;
   { file: 'apps/api/src/routes/migrations/dropbox-consent.ts', uses: 1, host: "Dropbox's token endpoint" },
   { file: 'apps/api/src/routes/migrations/google-consent.ts', uses: 1, host: "Google's token endpoint" },
   { file: 'apps/api/src/routes/migrations/microsoft-consent.ts', uses: 1, host: "Microsoft's token endpoint" },
+  // Who signed in, for a grant link (workplan 0171 §3.3): Graph's `/me`, one fixed host.
+  { file: 'apps/api/src/routes/migrations/microsoft-signed-in-account.ts', uses: 1, host: 'Microsoft Graph, /me' },
   { file: 'apps/worker/src/cli/index.ts', uses: 1, host: 'Microsoft Graph' },
   // Workplan 0164 T1: Google's CalDAV, held to its own origin by the file's guard
   // (`readOnlyGoogleCalDav`), and Google's token endpoint for the sign-in.
