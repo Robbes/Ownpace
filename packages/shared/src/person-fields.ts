@@ -95,3 +95,31 @@ export function personFillableKeys(role: 'source' | 'target', kind: PasswordKind
       .map((f) => f.key),
   );
 }
+
+/**
+ * What a person's withdrawal takes off a destination they connected (workplan
+ * 0174 §4.3): the stored credential record without the keys the person gave,
+ * and with every value of the owner's kept.
+ *
+ * The person's keys are every secret of the kind (the password, a mailbox's
+ * own password), each non-secret field the person filled because the owner's
+ * config left it empty (`PERSON_MAY_FILL`, read against `ownerConfig` as the
+ * card reads it, with `user` standing for `username`), and, on Cirrux, the
+ * Drive sign-in the person gave on the same link (`driveGrantKey`). What is
+ * left is the owner's: the user name the test logged in with, taken from the
+ * owner's config, stays, and so does the workspace a Drive grant recorded,
+ * which binds any later grant to the same Cirrux workspace.
+ */
+export function withoutThePersonsKeys(
+  kind: PasswordKind,
+  ownerConfig: Readonly<Record<string, unknown>>,
+  record: Readonly<Record<string, string>>,
+  driveGrantKey?: string,
+): Record<string, string> {
+  const owner: Record<string, unknown> = { ...ownerConfig };
+  if (shown(owner, 'username') === '' && typeof owner.user === 'string') owner.username = owner.user;
+  const theirs = new Set(credentialFieldsFor('target', kind).filter((f) => f.secret === true).map((f) => f.key));
+  for (const key of PERSON_MAY_FILL[kind] ?? []) if (shown(owner, key) === '') theirs.add(key);
+  if (driveGrantKey !== undefined) theirs.add(driveGrantKey);
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !theirs.has(key)));
+}

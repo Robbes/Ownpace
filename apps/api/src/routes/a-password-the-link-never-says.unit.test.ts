@@ -10,7 +10,8 @@
  *
  * The route runs over PGlite with both chains and recorded servers, once per
  * outcome, each with its own sentinel password: connected (a source and a
- * destination), refused, unreachable, a face refused, locked, revoked while the
+ * destination), a destination connected and then removed on the person's
+ * progress page (0174 §4.3), refused, unreachable, a face refused, locked, revoked while the
  * test ran, and a body that is not JSON. For each it captures every line
  * written to stdout and stderr, every response body and header, and every
  * column of every row the database holds afterwards except the two encrypted
@@ -65,6 +66,7 @@ vi.mock('@openmig/core', async (importOriginal) => {
 });
 
 const { default: grantRoutes } = await import('./grant.ts');
+const { default: viewRoutes } = await import('./view.ts');
 const { accountRef } = await import('./migrations/person-grant-subject.ts');
 const { readingTheBody, unreadableBody } = await import('../unreadable-body.ts');
 
@@ -73,6 +75,7 @@ const { readingTheBody, unreadableBody } = await import('../unreadable-body.ts')
 const app = express();
 app.use(readingTheBody(express.json()));
 app.use('/api/grant', grantRoutes);
+app.use('/api/view', viewRoutes);
 app.use(unreadableBody);
 
 const q = (sql: string, params: unknown[] = []) => query(driver, sql, params);
@@ -207,6 +210,19 @@ describe('a password the link never says', () => {
     const res = await put(token, SOVERIN_REF, pw);
     expect(res.status).toBe(200);
     expect(await sayNothingOf(pw, [res])).toBe(1);
+  });
+
+  it('connected, then removed on the progress page (0174 §4.3): gone from its connection, said nowhere', async () => {
+    const pw = 'SENTINEL-0174-withdrawn-target';
+    const { token } = await mintFor(driver, R);
+    const res = await put(token, SOVERIN_REF, pw);
+    expect(res.status).toBe(200);
+    const progress = String(res.body.progressUrl).split('/view/')[1]!;
+    const view = await request(app).get(`/api/view/${progress}`);
+    const destination = (view.body.destinations as Array<{ ref: string }>)[0]!.ref;
+    const removed = await request(app).post(`/api/view/${progress}/withdraw`).send({ destination });
+    expect(removed.status).toBe(200);
+    expect(await sayNothingOf(pw, [res, view, removed])).toBe(0);
   });
 
   it('refused, five times, then locked: stored nowhere, said nowhere', async () => {

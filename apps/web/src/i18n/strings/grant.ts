@@ -184,6 +184,8 @@ export const en = {
   'grant.password.title': 'Connect {account} with your password',
   'grant.password.server': 'Your password is checked with {server}. Type it only if this is your own provider’s server.',
   'grant.password.published': 'Your password is checked with {provider}’s own server, {server}.',
+  // The progress page, once a destination's password is removed (0174 §4.3, §5.9).
+  'grant.password.withdrawn': 'Removed here. Change this password at {provider} too, if you want to be sure.',
   // D3's addition (the owner, 2026-11-25): a warning, never a refusal.
   'grant.password.notAddressMail':
     'This server is not one your address’s mail uses, as far as we can tell. Type your password only if you know it is your provider’s.',
@@ -372,6 +374,7 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.password.server':
     'Uw wachtwoord wordt gecontroleerd bij {server}. Typ het alleen als dit de server van uw eigen aanbieder is.',
   'grant.password.published': 'Uw wachtwoord wordt gecontroleerd bij de eigen server van {provider}, {server}.',
+  'grant.password.withdrawn': 'Hier verwijderd. Wijzig dit wachtwoord ook bij {provider} als u het zeker wilt weten.',
   'grant.password.notAddressMail':
     'Deze server hoort niet bij de mail van uw adres, voor zover wij kunnen zien. Typ uw wachtwoord alleen als u zeker weet dat het de server van uw aanbieder is.',
   'grant.password.nobody':

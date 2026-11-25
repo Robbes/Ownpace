@@ -255,7 +255,9 @@ describe('stored only when it works (§5.3 step 7, §4.3)', () => {
 
     const [m] = await q('SELECT source_secret_ref, grant_withdrawn_at FROM mailbox_mapping WHERE id = $1', [R.icloudToSoverin]);
     expect(SecretStore.decryptCredentials(m!.source_secret_ref as string)).toEqual({ note: 'kept', username: 'anna@icloud.com', password: ANNAS_ICLOUD });
-    expect(m!.grant_withdrawn_at).toBeNull();
+    // The withdrawal's hold stays while the destination has no way in (0174
+    // §4.3, `withdrawal-hold.ts`): a pass now would fail at its first write.
+    expect(m!.grant_withdrawn_at).not.toBeNull();
     // The owner's connection holds nothing of Anna's.
     const [c] = await q('SELECT secret_ref FROM connection WHERE id = $1', [R.icloud]);
     expect(c!.secret_ref).toBeNull();
@@ -269,6 +271,12 @@ describe('stored only when it works (§5.3 step 7, §4.3)', () => {
     // A login that worked spends no try.
     const [t] = await q('SELECT refused FROM person_link_try WHERE link_id = $1', [id]);
     expect(t!.refused).toBe(0);
+
+    // Her Soverin password next: both sides have a way in, and the hold is lifted.
+    const soverin = await put(token, { ref: SOVERIN_REF, values: { password: ANNAS_SOVERIN } });
+    expect(soverin.status).toBe(200);
+    const [lifted] = await q('SELECT grant_withdrawn_at FROM mailbox_mapping WHERE id = $1', [R.icloudToSoverin]);
+    expect(lifted!.grant_withdrawn_at, 'both sides have a way in: the hold is lifted').toBeNull();
   });
 
   it('puts a destination’s password on the connection, names Anna, and spends the link once both are connected', async () => {

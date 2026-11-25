@@ -80,44 +80,15 @@ import { resolveSyncJob } from './job-resolution.ts';
 import { PathsNeedAYes, movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import {
   PASSWORD_TRIES_PER_LINK,
-  credentialKeys,
   readPersonGrantSubject,
   type GrantRole,
   type GrantWay,
 } from './person-grant-subject.ts';
-import { readGrantRows, storedCredentials } from './grant-subject.ts';
-import { awaitingGrantRefusal } from './grant-link-readiness.ts';
+import { hasAWayInOnBothSides } from './withdrawal-hold.ts';
 
-/**
- * Whether a migration has a way in on both sides (workplan 0174 §4.2): the
- * source's merged credentials (the connection's, then the migration's own)
- * and the destination's, judged by `awaitingGrantRefusal` as Start judges
- * them. Read inside the caller's tenant transaction. A migration with no
- * source has no way in.
- */
-export async function hasAWayInOnBothSides(db: PgDatabase, tenantId: string, mappingId: string): Promise<boolean> {
-  const rows = await readGrantRows(db, tenantId, mappingId);
-  if (!rows) return false;
-  const [own] = await db
-    .select({ sourceSecretRef: schema.mailboxMapping.sourceSecretRef })
-    .from(schema.mailboxMapping)
-    .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
-  const source = { ...storedCredentials(rows.source.secretRef), ...storedCredentials(own?.sourceSecretRef ?? null) };
-  const keys = credentialKeys(source);
-  return (
-    awaitingGrantRefusal({
-      sourceKind: rows.source.kind,
-      hasRefreshToken: keys.includes('refreshToken'),
-      hasServiceAccountKey: keys.includes('serviceAccountKey'),
-      sourceCredentialKeys: keys,
-      target: {
-        targetKind: rows.target?.kind ?? null,
-        includedDomains: rows.includedDomains,
-        targetCredentialKeys: rows.target ? credentialKeys(storedCredentials(rows.target.secretRef)) : [],
-      },
-    }) === null
-  );
-}
+// `hasAWayInOnBothSides` lives in `withdrawal-hold.ts`, which the endings
+// that lift a withdrawal's hold import without importing this file.
+export { hasAWayInOnBothSides } from './withdrawal-hold.ts';
 
 /**
  * Whose move this migration is part of, when that move was ever started (the

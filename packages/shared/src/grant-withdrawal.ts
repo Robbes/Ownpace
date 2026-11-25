@@ -36,6 +36,20 @@ export interface GrantWithdrawal {
   readonly atGoogle: WithdrawalAtGoogle;
 }
 
+/**
+ * The progress page's answer to removing a destination's password (workplan
+ * 0174 §4.3). There is no provider to revoke a password at, so there is no
+ * `atGoogle`: the page says to change it at the provider (§5.9).
+ */
+export interface DestinationWithdrawal {
+  /** When it was removed here, which is also when nothing writes to the account any more. */
+  readonly withdrawnAt: string;
+  /** The destination's kind, for the sentence that names the provider. */
+  readonly provider: string;
+  /** A Cirrux Drive sign-in was removed with it. */
+  readonly drive: boolean;
+}
+
 /** The day a withdrawal is named by: its UTC date, which reads the same in both languages. */
 function day(at: Date): string {
   return at.toISOString().slice(0, 10);

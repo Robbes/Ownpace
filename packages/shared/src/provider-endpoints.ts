@@ -202,7 +202,7 @@ function hostOfUrl(value: unknown): string | null {
  * (workplan 0174 §5.8, D3 (a))? Apple, Cirrux and Infomaniak.
  */
 export function pinsItsServer(kind: string | null | undefined): boolean {
-  return !!kind && Object.hasOwn(PROVIDER_ENDPOINTS, kind);
+  return !!kind && Object.prototype.hasOwnProperty.call(PROVIDER_ENDPOINTS, kind);
 }
 
 /**

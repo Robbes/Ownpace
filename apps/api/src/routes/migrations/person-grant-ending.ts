@@ -87,6 +87,7 @@ import {
 import { namedAccount, readGrantRows, storedCredentials, whereFromAndTo } from './grant-subject.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 import { readPersonGrantSubject } from './person-grant-subject.ts';
+import { liftTheHold } from './withdrawal-hold.ts';
 import {
   sameNamedAccount,
   signedInAccountRefusal,
@@ -212,8 +213,9 @@ export async function storePersonGrant(
 
         const updated = await db
           .update(schema.mailboxMapping)
-          // A new grant ends a withdrawal, as `grant-ending.ts` records.
-          .set({ sourceSecretRef: encrypted, grantWithdrawnAt: null, updatedAt: now })
+          // A new grant ends a withdrawal once both sides have a way in
+          // (`liftTheHold`, below), as `grant-ending.ts` records.
+          .set({ sourceSecretRef: encrypted, updatedAt: now })
           .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, target.tenantId)))
           .returning({ id: schema.mailboxMapping.id });
         if (updated.length === 0) continue;
@@ -234,6 +236,7 @@ export async function storePersonGrant(
       if (written.length === 0) {
         return { ok: false as const, ...reasonPair(NOTHING_LEFT_TO_GRANT), linkStillWorks: true };
       }
+      await liftTheHold(db, target.tenantId, written);
 
       // Spent once every account on it is granted, read after the writes
       // above, and, for a link that asks again, once each migration it asks
@@ -379,11 +382,12 @@ class PasswordNotStored extends Error {
  *    password card, and not connected since (a second tab, §7.2);
  * 4. the secret is merged, key by key, over what is stored:
  *    - a SOURCE's on each of the card's migrations (`source_secret_ref`,
- *      ADR-0035 decision 4), `grant_withdrawn_at` cleared, because the source
- *      connection may be the owner's;
+ *      ADR-0035 decision 4), because the source connection may be the owner's;
  *    - a DESTINATION's on the connection itself (`secret_ref`), because the
  *      destination is the person's own account, with `person_granted_connection`
  *      naming the person; a connection another person granted is refused;
+ *    and a withdrawal's hold lifted where both sides now have a way in
+ *    (`liftTheHold`);
  * 5. the qualification the test measured is remembered on the connection;
  * 6. one `mapping.granted` row per migration, with the via, the role, the
  *    ref and the link: never a value, never the address that tried;
@@ -450,7 +454,6 @@ export async function storePersonPassword(
             .update(schema.mailboxMapping)
             .set({
               sourceSecretRef: JSON.stringify(SecretStore.encryptCredentials(merged).encrypted),
-              grantWithdrawnAt: null,
               updatedAt: now,
             })
             .where(and(eq(schema.mailboxMapping.id, m.mappingId), eq(schema.mailboxMapping.tenantId, target.tenantId)));
@@ -493,6 +496,11 @@ export async function storePersonPassword(
           });
         written.push(...account.migrations.map((m) => m.mappingId));
       }
+
+      // A withdrawal's hold ends where both sides have a way in again: a
+      // destination granted again after the person withdrew it, or a source
+      // whose destination still has its password (`withdrawal-hold.ts`).
+      await liftTheHold(db, target.tenantId, written);
 
       // WHERE THE TEST WENT, KEPT (§5.8, D3 (a)). For a kind whose provider
       // publishes its server, the test ran against that server whatever the

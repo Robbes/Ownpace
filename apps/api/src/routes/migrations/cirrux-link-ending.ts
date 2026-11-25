@@ -68,6 +68,7 @@ import { GRANT_ACTION, GRANT_ACTOR, GRANT_REFUSED_ACTION } from './grant-ending.
 import { readGrantRows, storedCredentials } from './grant-subject.ts';
 import { credentialKeys, readPersonGrantSubject } from './person-grant-subject.ts';
 import { targetPasswordKeysNeeded } from './grant-link-readiness.ts';
+import { liftTheHold } from './withdrawal-hold.ts';
 import { NOTHING_LEFT_TO_GRANT, type PersonGrantTarget } from './person-grant-ending.ts';
 import { ANOTHER_CIRRUX_WORKSPACE } from './cirrux-consent.ts';
 
@@ -235,6 +236,9 @@ export async function storePersonDriveGrant(
         });
         granted.push(m.mappingId);
       }
+      // A withdrawal's hold ends once both sides have a way in again: the
+      // app password and, where files are copied, this Drive grant (0174 §4.3).
+      await liftTheHold(db, target.tenantId, granted);
 
       // Spent once every account on it is connected, read after the writes,
       // as a source's ending decides it (`storePersonGrant`).

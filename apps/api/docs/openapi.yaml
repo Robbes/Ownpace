@@ -4237,7 +4237,10 @@ paths:
             `not_this_account` (no password card has this ref), or
             `already_connected` (no test was made), or `server_not_a_name`
             (the owner named the server by an IP address; the password is
-            never sent to one, `reason`, `reasonNl`), or `another_person`
+            never sent to one, `reason`, `reasonNl`), or `server_not_public`
+            (a server the owner named resolves inside a private network, by
+            the probe's own rule; nothing was tried and no try counted,
+            `reason`, `reasonNl`), or `another_person`
             (another person connected this destination themselves), or
             `account_closed` (the organisation was closed).
         '413':
@@ -4562,37 +4565,68 @@ paths:
         `mapping.grant_withdrawn` row each. A `ref` that no longer matches what
         is held (a grant given again, or taken back elsewhere) deletes nothing
         and answers `changed`.
+
+        For a person's link it also removes the password they gave a
+        DESTINATION they connected themselves (workplan 0174 §4.3): the body
+        names it by the `destination` ref the page read. In one transaction the
+        keys the person gave leave the connection's stored credentials (every
+        secret, a field they filled because the owner left it empty, and on
+        Cirrux the Drive sign-in they gave), the owner's values stay,
+        `person_granted_connection` is deleted, and every migration into the
+        account is held as a withdrawn grant is (`grant_withdrawn_at`): nothing
+        writes to it until the person connects it again on a new link, and the
+        hold lifts only once both sides of a migration have a way in. One
+        `mapping.grant_withdrawn` row per migration, with the role, the
+        provider and whether a Drive sign-in went; never a value. Nothing is
+        asked of the provider: a password is changed at the provider, which
+        the page tells the person.
       security: []
       requestBody:
         required: false
         content:
           application/json:
             schema:
+              description: For a person's link, exactly one of `account` and `destination`.
               type: object
+              additionalProperties: false
               properties:
                 account:
                   type: string
                   pattern: '^[0-9a-f]{32}$'
-                  description: For a person's link only, the account's `ref` as the page read it.
+                  description: For a person's link only, the Google account's `ref` as the page read it.
+                destination:
+                  type: string
+                  pattern: '^[0-9a-f]{32}$'
+                  description: For a person's link only, the `ref` of a destination they connected, as the page read it (0174 §4.3).
       responses:
         '200':
-          description: Withdrawn here; `atGoogle` says whether Google confirmed it too.
+          description: |
+            Withdrawn here. For a grant, `atGoogle` says whether Google
+            confirmed it too; for a destination, `provider` and `drive` say
+            what was removed, and nothing was asked of the provider.
           content:
             application/json:
               schema:
-                type: object
-                required: [withdrawnAt, atGoogle]
-                properties:
-                  withdrawnAt: { type: string, format: date-time }
-                  atGoogle:
-                    type: string
-                    enum: [revoked, not_confirmed]
-                    description: |
-                      `revoked` includes a token Google reports was already
-                      invalid. `not_confirmed`: Google refused or could not be
-                      reached; the person is told to remove the app themselves.
+                oneOf:
+                  - type: object
+                    required: [withdrawnAt, atGoogle]
+                    properties:
+                      withdrawnAt: { type: string, format: date-time }
+                      atGoogle:
+                        type: string
+                        enum: [revoked, not_confirmed]
+                        description: |
+                          `revoked` includes a token Google reports was already
+                          invalid. `not_confirmed`: Google refused or could not be
+                          reached; the person is told to remove the app themselves.
+                  - type: object
+                    required: [withdrawnAt, provider, drive]
+                    properties:
+                      withdrawnAt: { type: string, format: date-time }
+                      provider: { type: string, description: "The destination's kind, for the sentence that names the provider." }
+                      drive: { type: boolean, description: 'A Cirrux Drive sign-in was removed with the password.' }
         '400':
-          description: A person's link with no `account`, or not one a page could have read. Nothing was changed.
+          description: A person's link with neither `account` nor `destination`, both, or a ref no page could have read. Nothing was changed.
         '401':
           description: The link is not a live progress link. Nothing was changed.
         '409':
@@ -10068,7 +10102,7 @@ components:
               account: { type: string, description: 'The address, and the only one whose sign-in is kept for it.' }
               server:
                 nullable: true
-                description: "Password cards only. Where the password is tried; published when these are the provider's own published servers (Apple)."
+                description: "Password cards only. Where the password is tried; published when these are the provider's own published servers (Apple, Cirrux, Infomaniak), which are then the only ones tried, whatever the account's row says (workplan 0174 §5.8, D3 (a))."
                 type: object
                 properties:
                   hosts: { type: array, items: { type: string } }
@@ -10258,6 +10292,23 @@ components:
                     required: [state]
                     properties:
                       state: { type: string, enum: [none] }
+        destinations:
+          type: array
+          description: |
+            The destinations the person connected with their own password
+            through their grant link (workplan 0174 §4.3), while they hold
+            it; each has its own *Remove my password*. Never named by its
+            address. Absent from a server before alpha.21.
+          items:
+            type: object
+            required: [ref, provider, drive]
+            properties:
+              ref:
+                type: string
+                pattern: '^[0-9a-f]{32}$'
+                description: A hash of the account and when it was connected; a new grant changes it.
+              provider: { type: string, description: "The destination's kind (`soverin`, `cirrux`, …), for the page to name the provider." }
+              drive: { type: boolean, description: 'A Cirrux Drive sign-in the person gave goes with the password.' }
         addressChanges:
           type: array
           description: |
