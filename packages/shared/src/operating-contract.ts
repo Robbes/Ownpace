@@ -167,6 +167,15 @@ export interface FailuresQueue extends QueueEnvelope {
    */
   readonly sourceKind?: string;
   /**
+   * The kind of the migration's destination (workplan 0160, T2b), read as
+   * `sourceKind` is: the target connection's `kind` on managed, the mapping's
+   * `target.type` on the appliance. `cirrux` is the value the page reads: a
+   * Cirrux account's `format_refused` is a name Cirrux will not store, and
+   * its files' `auth_expired` is renewed with *Connect Cirrux Drive*. Absent
+   * from a server that predates it, and the page reads the category alone.
+   */
+  readonly targetKind?: string;
+  /**
    * The provider's text and the items' names are kept from this page
    * (ADR-0035 decision 5, the owner's option C of 2026-10-03): the account was
    * connected by the person being migrated, through their own grant, so the

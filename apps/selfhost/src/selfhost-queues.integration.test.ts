@@ -118,6 +118,7 @@ interface QueueBody {
     readonly needsDecision?: { lastError: string }[];
     readonly retrying?: unknown[];
     readonly sourceKind?: string;
+    readonly targetKind?: string;
   };
 }
 
@@ -332,6 +333,8 @@ describe('the queue endpoints see the real rows', () => {
     // Drive's sentence, which names a setting Dropbox does not have.
     const queue = (await getQueue('/failures'))[MAPPING_ID];
     expect(queue?.sourceKind).toBe('imap-oauth2');
+    // And its destination's (workplan 0160, T2b), by the same rule.
+    expect(queue?.targetKind).toBe('jmap');
   });
 });
 
