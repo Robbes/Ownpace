@@ -6,6 +6,9 @@
   texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
+  Still 1.0, edited in place again on 2026-11-25 (the owner, workplan 0172: "ok, I take your
+  advice"): §4.4 ends with *Cadeaus*, and §9 gains a row for a gift. privacy.md's briefing has
+  what changed and why.
   Still 1.0, edited in place on 2026-11-25 (the owner, workplan 0174 D8: "terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"): §4.1 names a password and who can type it,
   §4.6's gezinslid bullet says what we do with a password typed on the grant page, §9 gains a
   row for the count of wrong tries, and *bestemming* replaces *doel* where it means the target
@@ -235,6 +238,13 @@ betaaldienstverlener (§7); **wij vragen of bewaren uw kaartnummer niet**. Vult 
 *Facturering* toch factuurgegevens in — een naam, een adres, een btw-nummer, het e-mailadres
 waarheen uw facturen worden gestuurd — dan bewaren we die tot uw gegevens worden gewist, en laat
 u de app een btw-nummer controleren, dan gebeurt dat bij de VIES-dienst van de Europese Commissie.
+
+**Cadeaus.** Als iemand in de Alpha u een plaats cadeau geeft, bewaren we wie het gaf, een
+vingerafdruk van de code (nooit de code zelf), de taal van de kaart, wanneer het werd gemaakt, tot
+wanneer het geldig is, en wanneer het werd gebruikt en voor welke aanvraag, of wanneer het werd
+ingetrokken. We bewaren geen naam, adres of boodschap van degene voor wie het is. Gebruikt u een
+code, dan bewaren we uw aanvraag zoals elke aanvraag, gemarkeerd als cadeau van de gever. Een cadeau
+wordt verwijderd met de organisatie van de gever.
 
 ### 4.5 Support en operationele logs
 
@@ -776,6 +786,7 @@ die bestemming koos. We laten u de bestemming zien voordat er iets wordt weggesc
 | De blokkering van uw inlogaccount na 10 verkeerde wachtwoorden op rij (§4.4) | Tot wij uw inlogaccount op uw verzoek weer vrijgeven, of tot het wordt verwijderd. |
 | De geschiedenis die onze inlogdienst van uw inlogaccount bijhoudt: elke wijziging eraan, zoals uw naam en e-mailadres zoals ze waren en een tweede stap of passkey die u toevoegde, ook nadat u die verwijderde; uw inlogmomenten; en elke mislukte poging, zoals een verkeerd wachtwoord (§4.4) | Zolang we deze inlogdienst draaien, omdat die ze niet kan verwijderen. Het verwijderen van uw inlogaccount voegt een regel aan die geschiedenis toe; het verwijdert de eerdere niet. |
 | Uw aanvraag voor toegang (§4.4) | Zolang die openstaat. Afgewezen: verwijderd 30 dagen na ons besluit. Toegekend: bewaard bij uw account, en daarmee gewist. |
+| Een cadeau (§4.4) | Tot de organisatie van de gever wordt verwijderd. |
 | Een inlogaccount dat iemand op onze inlogpagina aanmaakte maar dat we nooit hebben toegelaten, en dat dus niets opent (§4.4) | 30 dagen nadat het is aangemaakt, tenzij een aanvraag voor toegang met dat adres nog openstaat. |
 | Het inlogaccount van iemand die uit een organisatie is verwijderd en van geen enkele organisatie meer lid is (§4.4) | 7 dagen nadat die persoon is verwijderd, tenzij een aanvraag voor toegang of een uitnodiging met dat adres nog openstaat. |
 | Supportmail en probleemmeldingen, en de kopieën van de eigen mail van de dienst in dezelfde mailbox (§4.5) | Tot de vraag of het probleem is afgehandeld, en daarna nog 6 maanden. Hetzelfde geldt voor de kopieën van de eigen mail van de dienst. Dan verwijderd uit de mailbox. |

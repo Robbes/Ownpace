@@ -70,6 +70,10 @@ const NOT_ASKED: Record<string, string> = {
   '/api/access-requests':
     'granting one sends a real email to a real address. Covered by ' +
     'access-requests.integration.test.ts, which does not.',
+  '/api/gifts':
+    'a gift becomes an access request, which the gate does not grant for the ' +
+    'reason above. Covered by routes/gifts.unit.test.ts and ' +
+    'a-gift-turned-into-a-request.unit.test.ts, against a real database.',
   '/api/scope-manifest':
     'a static description of the scopes each provider needs. Nothing about it ' +
     'can be true on a laptop and false on the machine.',

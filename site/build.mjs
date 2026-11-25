@@ -791,7 +791,7 @@ const OUTSIDE_NAV = ['alpha'];
  * and leaves the site with it. Its address for the app is
  * `apps/web/src/services/tester-guide-link.ts`.
  */
-const ALPHA_ONLY = ['guide'];
+const ALPHA_ONLY = ['guide', 'gift'];
 
 /**
  * The pages `llms.txt` does not list (`llmsTxt`): `OUTSIDE_NAV`'s and
@@ -1774,8 +1774,8 @@ function calculatorPage(locale) {
  * documents (workplan 0139 T10).
  */
 export const SOURCE = {
-  en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md', alpha: 'legal/alpha.md', guide: 'pages/en/alpha-guide.md', accessibility: 'pages/en/accessibility.md' },
-  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md', alpha: 'legal/alpha.nl.md', guide: 'pages/nl/alpha-handleiding.md', accessibility: 'pages/nl/toegankelijkheid.md' },
+  en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md', alpha: 'legal/alpha.md', guide: 'pages/en/alpha-guide.md', gift: 'pages/en/gift.md', accessibility: 'pages/en/accessibility.md' },
+  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md', alpha: 'legal/alpha.nl.md', guide: 'pages/nl/alpha-handleiding.md', gift: 'pages/nl/cadeau.md', accessibility: 'pages/nl/toegankelijkheid.md' },
 };
 
 const META = {
@@ -1788,6 +1788,7 @@ const META = {
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
     alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
     guide: ['Guide to the Alpha — Ownpace', 'For the people invited to the Alpha: what it is, what to do before you start, how to start, where to get help and how to stop.'],
+    gift: ['A place in the Alpha, as a gift — Ownpace', 'Someone gave you a place in the Alpha of Ownpace: what that means, how to use your code, and what we keep.'],
     accessibility: ['Accessibility statement — Ownpace', 'The standard Ownpace aims for, the gaps we know of, and how to tell us about a barrier.'],
   },
   nl: {
@@ -1799,6 +1800,7 @@ const META = {
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
     alpha: ['Voorwaarden voor de Alpha — Ownpace', 'De voorwaarden voor deelname aan de Alpha van de beheerde Ownpace-dienst.'],
     guide: ['Handleiding voor de Alpha — Ownpace', 'Voor wie is uitgenodigd voor de Alpha: wat het is, wat u vooraf doet, hoe u begint, waar u hulp krijgt en hoe u stopt.'],
+    gift: ['Een plaats in de Alpha, als cadeau — Ownpace', 'Iemand gaf u een plaats in de Alpha van Ownpace: wat dat betekent, hoe u uw code gebruikt, en wat we bewaren.'],
     accessibility: ['Toegankelijkheidsverklaring — Ownpace', 'De norm waar Ownpace naar streeft, de tekortkomingen die we kennen, en hoe u ons een drempel meldt.'],
   },
 };
@@ -1836,6 +1838,10 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = 
         // hands its visitors to the test app): the guide names it as
         // [[REQUEST_ACCESS]] and never writes an app's address itself.
         if (key === 'guide') md = md.replace(/\[\[REQUEST_ACCESS\]\]/g, orderHref(locale, null));
+        // The gift page (workplan 0172) sends the recipient to the app's
+        // `/redeem`, the request-access door with the code field open: the
+        // site has no form of its own.
+        if (key === 'gift') md = md.replace(/\[\[REDEEM\]\]/g, `${APP_URL}/redeem?locale=${encodeURIComponent(locale)}`);
         body = markdown(md);
         if (key === 'pricing') {
           const beyond = c

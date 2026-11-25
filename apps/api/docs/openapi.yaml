@@ -682,6 +682,211 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /api/gifts/mine:
+    get:
+      tags: [Access]
+      summary: The signed-in person's gifts, and how many they may give
+      description: |
+        A place in the Alpha given as a present (workplan 0172). Newest first,
+        each with its state (`unused`, `redeemed`, `revoked`, `expired`). Never
+        the code: only a fingerprint of it is kept.
+      responses:
+        '200':
+          description: Their gifts, their limit, how many hold a place, and where a code is redeemed.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/gifts:
+    post:
+      tags: [Access]
+      summary: Make a gift, and see its code once
+      description: |
+        Takes the card's language and nothing else: no recipient's address,
+        name or message is accepted or stored. Counted against the giver's
+        limit (one each, unless the operator says otherwise).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                locale: { type: string, enum: [en, nl] }
+      responses:
+        '201':
+          description: The gift, with its code. Shown once.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: The giver holds as many gifts as they may.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/gifts/{id}/revoke:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Access]
+      summary: Revoke one's own unused gift
+      responses:
+        '200':
+          description: Revoked.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such gift, or not the caller's.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Only an unused gift can be revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/gifts/redeem:
+    post:
+      tags: [Access]
+      summary: Turn a gift code into an access request marked as a gift
+      description: |
+        Unauthenticated, like `POST /api/access-requests`, with its own
+        refusing rate limit and the same trap field. Every bad code (unknown,
+        malformed, used, revoked, expired) gets the same 410 body, in English
+        and Dutch. The request is approved by the operator like any other.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, email]
+              properties:
+                code: { type: string, maxLength: 64 }
+                email: { type: string, format: email, maxLength: 320 }
+                name: { type: string, maxLength: 200 }
+                organisation: { type: string, maxLength: 200 }
+                note: { type: string, maxLength: 2000 }
+                tier: { type: string, maxLength: 40 }
+                locale: { type: string, enum: [en, nl] }
+      responses:
+        '201':
+          description: Received, and the gift is spent.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409':
+          description: The address already has an open request; nothing written, the gift unspent.
+          content:
+            application/json:
+              schema: { type: object }
+        '410':
+          description: The one refusal for every bad code.
+          content:
+            application/json:
+              schema: { type: object }
+        '429':
+          description: Past the rate limit; see Retry-After.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/gifts/operator:
+    get:
+      tags: [Access]
+      summary: Every gift, the limits, and how many people the Alpha has let in
+      description: |
+        For a platform operator; anybody else gets empty lists, because to the
+        database that is what the rows are.
+      responses:
+        '200':
+          description: Gifts with their givers, the rule, per-person allowances and the counts.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/gifts/operator/{id}/revoke:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Access]
+      summary: Revoke any unused gift
+      responses:
+        '200':
+          description: Revoked.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such gift, or one this caller cannot see.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Only an unused gift can be revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/gifts/operator/rule:
+    put:
+      tags: [Access]
+      summary: How many gifts each person may give
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [giftsPerPerson]
+              properties:
+                giftsPerPerson: { type: integer, minimum: 0, maximum: 20 }
+      responses:
+        '200':
+          description: Set.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: Not an operator.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/gifts/operator/allowance:
+    put:
+      tags: [Access]
+      summary: One person's number of gifts, by the address they sign in with
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, gifts]
+              properties:
+                email: { type: string, format: email }
+                gifts: { type: integer, minimum: 0, maximum: 20, nullable: true }
+                note: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: Set, or cleared with `gifts` null.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No signed-in member has that address, or not an operator.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /api/tenants:
     get:
       tags: [Tenants]
@@ -10806,6 +11011,12 @@ components:
             them: the decline email's event type carries no fields at all, so
             there is nothing for this to travel in.
         createdAt: { type: string, format: date-time }
+        gift:
+          type: object
+          nullable: true
+          description: Set when the request came with a gift code (workplan 0172), with the giver's address, or null when the giver has since left.
+          properties:
+            from: { type: string, nullable: true }
       required: [id, email, locale, state, createdAt]
 
     GrantDecision:

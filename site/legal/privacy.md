@@ -7,6 +7,13 @@
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
 
+  Still 1.0, edited in place again on 2026-11-25, in both languages, for alpha.21's gift
+  invitations (workplan 0172), on the owner's read of the gift's privacy sentence that day,
+  verbatim: "ok, I take your advice". What changed: §4.4 ends with *Gifts*, what is kept of a gift
+  and that nothing is kept of the person it is for; §9 gains a row, a gift kept until the
+  giver's organisation is deleted. The Last updated line stays 2026-11-25; ACCEPTED_WORDS re-pins
+  both files under 1.0.
+
   Still 1.0, edited in place on 2026-11-25, in both languages, on the owner's word (workplan 0174
   D8, verbatim: "terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"). Why: from alpha.21 a person's grant link also asks
   for an account that signs in with a password, and the person whose account it is types that
@@ -953,6 +960,12 @@ a name, an address, a VAT number, the email address your invoices are sent to �
 until your data is erased, and if you ask the app to check a VAT number, it is checked with the
 European Commission's VIES service.
 
+**Gifts.** If someone in the Alpha gives you a place as a gift, we keep who gave it, a fingerprint
+of the code (never the code itself), the card's language, when it was made, until when it is valid,
+and when it was used and for which request, or when it was revoked. We keep no name, address or
+message of the person it is for. If you use a code, we keep your request like any request, marked as
+a gift from the giver. A gift is deleted with the giver's organisation.
+
 ### 4.5 Support and operational logs
 
 **Support mail.** Anything you send to support@ownpace.eu. It arrives in a mailbox that our mail
@@ -1480,6 +1493,7 @@ target. We show you the target before anything is written.
 | The lock on your sign-in account after 10 wrong passwords in a row (§4.4) | Until we unlock your sign-in account at your request, or it is removed. |
 | The history our sign-in service keeps of your sign-in account: every change to it, such as your name and email address as they were and a second step or passkey you added, also after you removed it; your sign-ins; and every failed attempt, such as a wrong password (§4.4) | As long as we run this sign-in service, because it cannot remove them. Removing your sign-in account adds an entry to that history; it does not remove the earlier ones. |
 | Your request for access (§4.4) | While it is open. Declined: deleted 30 days after our decision. Granted: kept with your account, and erased with it. |
+| A gift (§4.4) | Until the giver's organisation is deleted. |
 | A sign-in account that someone created at our sign-in page but that we never let in, and that therefore opens nothing (§4.4) | 30 days after it was created, unless a request for access with that address is still open. |
 | The sign-in account of someone who was removed from an organisation and is no longer a member of any (§4.4) | 7 days after they were removed, unless a request for access or an invitation with that address is still open. |
 | Support mail and problem reports, and the copies of the service's own mail in the same mailbox (§4.5) | Until the question or problem is resolved, and then 6 months more. The same holds for the copies of the service's own mail. Then deleted from the mailbox. |

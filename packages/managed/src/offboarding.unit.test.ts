@@ -27,6 +27,7 @@ import {
   purgeTenant,
   tenantRef,
   PURGED_TABLES,
+  PURGED_BY_MEMBER,
   RETAINED_TABLES,
   CLOSE_WINDOWS_DAYS,
   isCloseWindow,
@@ -242,6 +243,7 @@ beforeEach(async () => {
   await conn.query('DELETE FROM erasure_record');
   await conn.query('DELETE FROM invoice');
   for (const t of PURGED_TABLES) await conn.query(`DELETE FROM ${t}`);
+  for (const t of PURGED_BY_MEMBER) await conn.query(`DELETE FROM ${t}`);
   await conn.query('DELETE FROM tenant');
   await seed(LEAVING, 'leaving');
   await seed(STAYING, 'staying');
@@ -404,6 +406,26 @@ describe('purging a tenant', () => {
     expect(await count('address_change_person', `WHERE tenant_id = '${LEAVING}'`)).toBe(0);
     expect(await count('address_change', `WHERE tenant_id = '${STAYING}'`)).toBe(2);
     expect(await count('address_change_person', `WHERE tenant_id = '${STAYING}'`)).toBe(1);
+  });
+
+  // The owner, 2026-11-25 (workplan 0172 §7): the operator's number of gifts
+  // for one person goes with the organisation, like the gifts.
+  it("erases its people's gift allowances, counts them on the receipt, and keeps a person's who is a member elsewhere", async () => {
+    await conn.query(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status)
+       VALUES ($1, 'sub-both', 'both@example.test', 'member', 'active'),
+              ($2, 'sub-both', 'both@example.test', 'member', 'active')`,
+      [LEAVING, STAYING],
+    );
+    await conn.query(
+      `INSERT INTO gift_allowance (user_id, gifts, set_by)
+       VALUES ('sub-leaving', 3, 'op'), ('sub-staying', 2, 'op'), ('sub-both', 4, 'op'), ('sub-nobody', 5, 'op')`,
+    );
+    await closeTenant(db, LEAVING, 0, 'owner@example.com', NOW);
+    const receipt = await purgeTenant(db, LEAVING, NOW);
+    expect(receipt.counts).toMatchObject({ gift_allowance: 1 });
+    const left = await conn.query<{ user_id: string }>('SELECT user_id FROM gift_allowance ORDER BY user_id');
+    expect(left.rows.map((r) => r.user_id)).toEqual(['sub-both', 'sub-nobody', 'sub-staying']);
   });
 
   it('leaves the OTHER tenant completely untouched', async () => {

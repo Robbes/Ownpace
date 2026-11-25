@@ -176,6 +176,11 @@ describe('the premise this number is sized against', () => {
     //                        page's own link middleware, change the state of
     //                        a row linked to that person and nothing else; it
     //                        starts nothing and sends nothing
+    //   the gift code      — 0172: a door only somebody holding a code made
+    //                        by a person already let in can use, with its own
+    //                        refusing limit (`GIFT_REDEEM_LIMIT`); what it
+    //                        writes is a request the operator still decides,
+    //                        so it is not a self-service signup either
     //   a person's own     — 0174 T3: a person's grant link only, by that
     //   password             page's own link middleware; it tests a password
     //                        the account holder types, with limits of its own
@@ -192,6 +197,7 @@ describe('the premise this number is sized against', () => {
     expect(openWrites()).toEqual([
       'routes/access-requests.ts POST /',
       'routes/billing/webhooks.ts POST /mollie',
+      'routes/gifts.ts POST /redeem',
       // The same door since workplan 0171 T3, at the provider the link asks
       // for: Google's old address is one value of `:provider`, not a new door.
       'routes/grant.ts POST /:link/:provider/authorize',

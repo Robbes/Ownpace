@@ -435,6 +435,46 @@ export const OPERATOR_STRINGS = {
   'support.test.badge': 'Test',
   'support.test.migration':
     'A test migration: it copies only the items whose own title contains its marker, and is never finished. Its marker:',
+  // ---- Gifts (workplan 0172): the mark on the access queue, and the
+  // operator's own screen. The giver's screen and the card are in
+  // `strings/gifts.ts`, in both languages.
+  'nav.gifts': 'Gifts',
+  'accessQueue.giftFrom': 'Gift from {giver}',
+  'accessQueue.giftFromNobody': 'Gift from a member who has since left',
+  'gifts.title': 'Gifts',
+  'gifts.subtitle':
+    'Places in the Alpha given by people already in it. A redeemed gift is an access request, and you still decide each one in the access queue.',
+  'gifts.count.title': 'Who the Alpha has let in',
+  'gifts.count.granted': 'Requests granted',
+  'gifts.count.open': 'Requests waiting',
+  'gifts.count.openFromGifts': 'Of those, with a gift',
+  'gifts.count.unused': 'Gifts not yet used',
+  'gifts.count.noCap':
+    'Nothing refuses a grant past a number: the limit on how many people the Alpha lets in is yours to keep.',
+  'gifts.rule.title': 'Gifts per person',
+  'gifts.rule.help': 'How many gifts each person may give. 0 stops new gifts; unused ones keep working.',
+  'gifts.rule.save': 'Save',
+  'gifts.allowance.title': 'For one person',
+  'gifts.allowance.help':
+    'A number for one person, by the address they sign in with, over the number for everyone. Leave the number empty to take theirs away.',
+  'gifts.allowance.email': 'Address',
+  'gifts.allowance.gifts': 'Gifts',
+  'gifts.allowance.note': 'Why (for you)',
+  'gifts.allowance.save': 'Set',
+  'gifts.allowance.none': 'Nobody has a number of their own.',
+  'gifts.list.title': 'Every gift',
+  'gifts.list.empty': 'No gift has been made yet.',
+  'gifts.list.from': 'From {giver}',
+  'gifts.list.fromNobody': 'From a member who has since left',
+  'gifts.list.made': 'Made {date}, valid until {until}',
+  'gifts.list.request': 'Became the request from {email}: {state}',
+  'gifts.list.requestGone': 'Its request is no longer kept',
+  'gifts.list.revoke': 'Revoke',
+  'gifts.state.unused': 'Unused',
+  'gifts.state.redeemed': 'Redeemed',
+  'gifts.state.revoked': 'Revoked',
+  'gifts.state.expired': 'Expired',
+  'gifts.saved': 'Saved.',
 } as const;
 
 export type OperatorKey = keyof typeof OPERATOR_STRINGS;
