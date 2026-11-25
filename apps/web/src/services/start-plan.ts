@@ -44,6 +44,7 @@ import {
   SOURCE_TYPE_DOMAINS,
   TARGET_TYPE_DOMAINS,
   hasArchiveReader,
+  isPasswordKind,
   type ArchiveProvider,
   type DiscoveryDomain,
   type WizardTargetType,
@@ -86,7 +87,7 @@ export interface ServedFacts {
 }
 
 /** The providers a grant link is designed for (the API's `GRANT_PROVIDER_IDS`). */
-export type GrantLinkProvider = 'google' | 'microsoft' | 'dropbox' | 'apple';
+export type GrantLinkProvider = 'google' | 'microsoft' | 'dropbox' | 'apple' | 'cirrux';
 
 /**
  * Which providers' links this deployment serves, from the provider accounts
@@ -254,8 +255,15 @@ export function exportMigration(
  * mail and files are asked for only where the deployment declared Google's
  * restricted scopes (`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`); the link's own
  * readiness check refuses them otherwise, so they are not offered.
+ *
+ * EVERY PASSWORD SOURCE (workplan 0174 §8.1): IMAP, Apple's app-specific
+ * password and the three DAV protocols. The person types their own password
+ * on the link's page, so no deployment fact is needed: there is no
+ * application to serve. The list is the seam's (`PASSWORD_SOURCE_KINDS`),
+ * read from `@openmig/shared`, and for these kinds the card is the kind.
  */
 export function grantableByLink(card: string, served: ServedFacts = {}): boolean {
+  if (isPasswordKind('source', card)) return true;
   const providers = served.grantProviders ?? (served.googleClient === 'deployment' ? ['google'] : []);
   const account = served.google ?? PROVIDER_ACCOUNT_DOMAINS.google;
   switch (card) {
@@ -275,6 +283,18 @@ export function grantableByLink(card: string, served: ServedFacts = {}): boolean
     default:
       return false;
   }
+}
+
+/**
+ * Whether a DESTINATION card can be the person's own, connected by them on the
+ * link's page (workplan 0174 §8.1): every destination whose credential is a
+ * password (`PASSWORD_TARGET_KINDS`), Cirrux among them, whose Drive the same
+ * page asks for once its app password is in (§4.4). Asked only when the one
+ * starting chose *They do, with a link*: the destination step then asks whose
+ * account it is.
+ */
+export function destinationByLink(card: string): boolean {
+  return isPasswordKind('target', card);
 }
 
 /** One account to connect: the card it is added with, and the types it is asked for. */
