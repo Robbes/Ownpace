@@ -37,7 +37,7 @@
 
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
   PgLedger,
@@ -47,26 +47,33 @@ import {
   type LedgerDriver,
   type PgDatabase,
 } from '@openmig/ledger';
-import { personMigration } from '@openmig/managed/schema-managed';
+import { personGrantedConnection, personMigration } from '@openmig/managed/schema-managed';
+import { SecretStore } from '@openmig/core/secret-store';
 import {
+  CIRRUX_DRIVE_GRANT_KEY,
   MAPPING_LIFECYCLES,
   RATE_PASSES,
   buildDomainStatusReports,
   checkFactsOf,
   discoveryForSelection,
   foundByDomain,
+  hasCirruxDriveGrant,
+  isPasswordKind,
   reasonPair,
   viewGrantFor,
   viewRowFor,
   viewStageOf,
   viewTimeOf,
+  withoutThePersonsKeys,
   type ViewProgressExtras,
   type Bilingual,
+  type DestinationWithdrawal,
   type GrantWithdrawal,
   type MappingId,
   type MappingLifecycle,
   type PersonView,
   type PersonViewAccount,
+  type PersonViewDestination,
   type PersonViewMigration,
   type TenantId,
   type TokenRevoker,
@@ -74,7 +81,7 @@ import {
   type ViewGrant,
 } from '@openmig/shared';
 import { withTenantDb } from '../middleware/auth.ts';
-import { namedAccount, readGrantRows } from './migrations/grant-subject.ts';
+import { namedAccount, readGrantRows, storedCredentials } from './migrations/grant-subject.ts';
 import { isGrantableSourceKind } from './migrations/grant-link-readiness.ts';
 import { googleAccountKey } from './migrations/signed-in-account.ts';
 import { GRANT_WITHDRAWN_ACTION, WITHDRAWAL_ACTOR, grantedToken } from './withdraw-grant.ts';
@@ -194,7 +201,7 @@ export async function migrationProgress(
 }
 
 /** A hash that names a group and says nothing of what it was made from. */
-function refOf(kind: 'grant' | 'account', parts: readonly string[]): string {
+function refOf(kind: 'grant' | 'account' | 'destination', parts: readonly string[]): string {
   return createHash('sha256')
     .update(`${kind}\n${[...parts].sort().join('\n')}`)
     .digest('hex')
@@ -325,7 +332,175 @@ export async function readPersonView(
     });
   }
   const accounts: PersonViewAccount[] = groups.map((g) => ({ ref: g.ref, grant: g.grant }));
-  return { kind: 'person', organisation, expiresAt: input.expiresAt.toISOString(), migrations, accounts };
+  const destinations: PersonViewDestination[] = (await readDestinations(db, input.tenantId, input.personId)).map(
+    (d) => ({ ref: d.ref, provider: d.kind, drive: d.drive }),
+  );
+  return { kind: 'person', organisation, expiresAt: input.expiresAt.toISOString(), migrations, accounts, destinations };
+}
+
+// ========================= A destination the person connected (workplan 0174 §4.3) =========================
+
+/** One destination the person connected through their link, as the page and a withdrawal read it. Server-side only. */
+interface HeldDestination {
+  readonly ref: string;
+  readonly connectionId: string;
+  readonly kind: string;
+  readonly grantedAt: Date;
+  readonly drive: boolean;
+}
+
+/**
+ * The destinations `person_granted_connection` names this person for, in the
+ * order they were connected. The ref is a hash of the account and when it
+ * was connected: a new grant changes it, so a press on a stale page takes
+ * nothing.
+ */
+async function readDestinations(db: PgDatabase, tenantId: string, personId: string): Promise<HeldDestination[]> {
+  const rows = await db
+    .select({
+      connectionId: personGrantedConnection.connectionId,
+      grantedAt: personGrantedConnection.grantedAt,
+      kind: schema.connection.kind,
+      secretRef: schema.connection.secretRef,
+    })
+    .from(personGrantedConnection)
+    .innerJoin(
+      schema.connection,
+      and(eq(schema.connection.id, personGrantedConnection.connectionId), eq(schema.connection.tenantId, personGrantedConnection.tenantId)),
+    )
+    .where(
+      and(
+        eq(personGrantedConnection.personId, personId),
+        eq(personGrantedConnection.tenantId, tenantId),
+        eq(schema.connection.role, 'target'),
+      ),
+    )
+    .orderBy(personGrantedConnection.grantedAt, personGrantedConnection.connectionId);
+  return rows.map((r) => ({
+    ref: refOf('destination', [r.connectionId, r.grantedAt.toISOString()]),
+    connectionId: r.connectionId,
+    kind: r.kind,
+    grantedAt: r.grantedAt,
+    drive: r.kind === 'cirrux' && hasCirruxDriveGrant(stringValues(storedCredentials(r.secretRef))),
+  }));
+}
+
+export type DestinationWithdrawalResult =
+  | { readonly ok: true; readonly withdrawal: DestinationWithdrawal }
+  | { readonly ok: false; readonly code: 'changed'; readonly refusal: Bilingual };
+
+/** Thrown inside the transaction when the row moved since it was read: everything rolls back. */
+class DestinationChanged extends Error {}
+
+/**
+ * REMOVE THE PASSWORD A PERSON GAVE A DESTINATION (workplan 0174 §4.3, §5.9).
+ *
+ * The person's progress page, per account: *"the secret keys the person
+ * typed are removed from the connection, the managed row is deleted, and
+ * nothing writes to that account until they grant again."* One transaction:
+ *
+ * 1. the destination is read again by its `ref` (a new grant or another tab
+ *    changed it: `changed`, nothing removed), and its row locked;
+ * 2. the connection's `secret_ref` keeps only what is the owner's
+ *    (`withoutThePersonsKeys`): every secret, the fields the person filled,
+ *    and on Cirrux the Drive sign-in they gave go; a record left empty is
+ *    NULL. The row says `error`, as a row saved for a person is stored before
+ *    anybody gives it a password;
+ * 3. `person_granted_connection` is deleted, by what was read;
+ * 4. every migration into the account is held (`grant_withdrawn_at`, ledger
+ *    migration 0063): the tick starts no pass, a running pass stops before
+ *    its next data type. Readiness answers *waiting for a grant*, as before
+ *    the person first connected it (`awaitingGrantRefusal`), and the hold
+ *    lifts only once both sides have a way in again (`withdrawal-hold.ts`);
+ * 5. one `mapping.grant_withdrawn` row per migration, with the role, the
+ *    provider and whether a Drive sign-in went: never a value.
+ *
+ * Nothing is asked of the provider: a password cannot be revoked by an app,
+ * and Cirrux documents no revocation for a Drive sign-in
+ * (`token-revocation.ts`). The page says to change the password at the
+ * provider (§5.9).
+ */
+export async function withdrawPersonDestination(
+  source: Pool | LedgerDriver,
+  link: PersonWithdrawalLink,
+  ref: string,
+): Promise<DestinationWithdrawalResult> {
+  try {
+    return await withTenantDb(link.tenantId, source, async (db) => {
+      const found = (await readDestinations(db, link.tenantId, link.personId)).find((d) => d.ref === ref);
+      if (!found) throw new DestinationChanged();
+      const [row] = await db
+        .select({ kind: schema.connection.kind, config: schema.connection.config, secretRef: schema.connection.secretRef })
+        .from(schema.connection)
+        .where(and(eq(schema.connection.id, found.connectionId), eq(schema.connection.tenantId, link.tenantId)))
+        .for('update');
+      if (!row || !isPasswordKind('target', row.kind)) throw new DestinationChanged();
+
+      const now = new Date();
+      const config = row.config && typeof row.config === 'object' ? (row.config as Record<string, unknown>) : {};
+      const kept = withoutThePersonsKeys(row.kind, config, stringValues(storedCredentials(row.secretRef)), CIRRUX_DRIVE_GRANT_KEY);
+      await db
+        .update(schema.connection)
+        .set({
+          secretRef: Object.keys(kept).length === 0 ? null : JSON.stringify(SecretStore.encryptCredentials(kept).encrypted),
+          status: 'error',
+          updatedAt: now,
+        })
+        .where(and(eq(schema.connection.id, found.connectionId), eq(schema.connection.tenantId, link.tenantId)));
+
+      const deleted = await db
+        .delete(personGrantedConnection)
+        .where(
+          and(
+            eq(personGrantedConnection.connectionId, found.connectionId),
+            eq(personGrantedConnection.tenantId, link.tenantId),
+            eq(personGrantedConnection.personId, link.personId),
+            eq(personGrantedConnection.grantedAt, found.grantedAt),
+          ),
+        )
+        .returning({ connectionId: personGrantedConnection.connectionId });
+      if (deleted.length === 0) throw new DestinationChanged();
+
+      const into = await db
+        .select({ id: schema.mailboxMapping.id })
+        .from(schema.mailboxMapping)
+        .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.targetMailboxId))
+        .where(and(eq(schema.mailbox.connectionId, found.connectionId), eq(schema.mailboxMapping.tenantId, link.tenantId)));
+      const mappingIds = into.map((m) => m.id);
+      if (mappingIds.length > 0) {
+        await db
+          .update(schema.mailboxMapping)
+          .set({ grantWithdrawnAt: now, updatedAt: now })
+          .where(
+            and(
+              eq(schema.mailboxMapping.tenantId, link.tenantId),
+              inArray(schema.mailboxMapping.id, mappingIds),
+              isNull(schema.mailboxMapping.grantWithdrawnAt),
+            ),
+          );
+      }
+      for (const mappingId of mappingIds) {
+        await new PgLedger(db).recordAuditEvent(link.tenantId as TenantId, {
+          actor: WITHDRAWAL_ACTOR,
+          action: GRANT_WITHDRAWN_ACTION,
+          entity: 'mapping',
+          detail: { mappingId, personLinkId: link.linkId, role: 'target', provider: row.kind, drive: found.drive },
+        });
+      }
+      return {
+        ok: true as const,
+        withdrawal: { withdrawnAt: now.toISOString(), provider: row.kind, drive: found.drive },
+      };
+    });
+  } catch (error) {
+    if (error instanceof DestinationChanged) return { ok: false, code: 'changed', refusal: CHANGED_SINCE_OPENED };
+    throw error;
+  }
+}
+
+/** The string values of a record. */
+function stringValues(record: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(Object.entries(record).filter((e): e is [string, string] => typeof e[1] === 'string'));
 }
 
 /** The person's progress link the withdrawal came through, as its middleware resolved it. */
@@ -418,6 +593,8 @@ export async function withdrawPersonGrant(
 }
 
 /** The refusal as the page reads it: the code, and both halves of the sentence. */
-export function withdrawalRefusalBody(result: Extract<PersonWithdrawalResult, { ok: false }>) {
+export function withdrawalRefusalBody(
+  result: Extract<PersonWithdrawalResult, { ok: false }> | Extract<DestinationWithdrawalResult, { ok: false }>,
+) {
   return { error: result.code, ...reasonPair(result.refusal) };
 }

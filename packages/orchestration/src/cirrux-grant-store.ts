@@ -50,7 +50,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { connection as connectionTable, withTenant, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
-import { CIRRUX_DRIVE_GRANT_KEY, hasCirruxDriveGrant } from '@openmig/shared';
+import { CIRRUX_DRIVE_GRANT_KEY, CIRRUX_DRIVE_WORKSPACE_KEY, hasCirruxDriveGrant } from '@openmig/shared';
 import {
   cirruxDriveNotConnected,
   type RotatingGrantStore,
@@ -167,7 +167,17 @@ export interface GrantStoreHooks<R> {
   readonly refusal?: (db: PgDatabase) => Promise<R | null>;
   /** Written in the same transaction as the grant (the audit line), so both commit or neither. */
   readonly recorded?: (db: PgDatabase) => Promise<void>;
+  /**
+   * The workspace the sign-in reached (Cirrux's `uuid`), when Cirrux named
+   * one (workplan 0174 §4.4, T5). Recorded beside the grant the first time;
+   * after that, a grant that reached another workspace is refused under the
+   * lock, `another_workspace`, and nothing is written.
+   */
+  readonly workspace?: string;
 }
+
+/** What storing a Drive grant found under the lock. */
+export type CirruxGrantStored<R> = 'stored' | 'no_account' | 'another_workspace' | { readonly refused: R };
 
 /**
  * Store a person's Drive grant on a Cirrux account, the consent door's last
@@ -180,34 +190,54 @@ export async function storeCirruxDriveGrant<R = never>(
   row: CirruxGrantRow,
   refreshToken: string,
   hooks: GrantStoreHooks<R> = {},
-): Promise<'stored' | 'no_account' | { readonly refused: R }> {
+): Promise<CirruxGrantStored<R>> {
   const { pool, tenantId, connectionId } = row;
-  return withTenant(pool, tenantId, async (db) => {
-    const rows = await db
-      .select({ secretRef: connectionTable.secretRef, kind: connectionTable.kind, role: connectionTable.role })
-      .from(connectionTable)
-      .where(and(eq(connectionTable.id, connectionId), eq(connectionTable.tenantId, tenantId)))
-      .for('update');
-    const found = rows[0];
-    if (!found || found.kind !== 'cirrux' || found.role !== 'target' || !found.secretRef) return 'no_account';
-    const refused = hooks.refusal ? await hooks.refusal(db) : null;
-    if (refused !== null) return { refused };
-    const creds = SecretStore.decryptCredentials(found.secretRef);
-    const written = await db
-      .update(connectionTable)
-      .set({ secretRef: sealed({ ...creds, [CIRRUX_DRIVE_GRANT_KEY]: refreshToken }), updatedAt: new Date() })
-      .where(
-        and(
-          eq(connectionTable.id, connectionId),
-          eq(connectionTable.tenantId, tenantId),
-          eq(connectionTable.secretRef, found.secretRef),
-        ),
-      )
-      .returning({ id: connectionTable.id });
-    if (written.length !== 1) return 'no_account';
-    await hooks.recorded?.(db);
-    return 'stored';
-  });
+  return withTenant(pool, tenantId, (db) => storeCirruxDriveGrantIn(db, { tenantId, connectionId }, refreshToken, hooks));
+}
+
+/**
+ * The same store, inside a transaction the caller holds: a grant link's ending
+ * writes the grant, the person's row and the audit lines in one (workplan
+ * 0174 §4.4, T5). The lock, the refusal, the workspace and the compare-and-swap
+ * are this function's, so the two endings cannot store a grant two ways.
+ */
+export async function storeCirruxDriveGrantIn<R = never>(
+  db: PgDatabase,
+  row: { readonly tenantId: string; readonly connectionId: string },
+  refreshToken: string,
+  hooks: GrantStoreHooks<R> = {},
+): Promise<CirruxGrantStored<R>> {
+  const { tenantId, connectionId } = row;
+  const rows = await db
+    .select({ secretRef: connectionTable.secretRef, kind: connectionTable.kind, role: connectionTable.role })
+    .from(connectionTable)
+    .where(and(eq(connectionTable.id, connectionId), eq(connectionTable.tenantId, tenantId)))
+    .for('update');
+  const found = rows[0];
+  if (!found || found.kind !== 'cirrux' || found.role !== 'target' || !found.secretRef) return 'no_account';
+  const refused = hooks.refusal ? await hooks.refusal(db) : null;
+  if (refused !== null) return { refused };
+  const creds = SecretStore.decryptCredentials(found.secretRef);
+  const recorded = creds[CIRRUX_DRIVE_WORKSPACE_KEY];
+  if (hooks.workspace !== undefined && typeof recorded === 'string' && recorded !== '' && recorded !== hooks.workspace) {
+    return 'another_workspace';
+  }
+  const next: Record<string, string> = { ...creds, [CIRRUX_DRIVE_GRANT_KEY]: refreshToken };
+  if (hooks.workspace !== undefined && hooks.workspace !== '') next[CIRRUX_DRIVE_WORKSPACE_KEY] = hooks.workspace;
+  const written = await db
+    .update(connectionTable)
+    .set({ secretRef: sealed(next), updatedAt: new Date() })
+    .where(
+      and(
+        eq(connectionTable.id, connectionId),
+        eq(connectionTable.tenantId, tenantId),
+        eq(connectionTable.secretRef, found.secretRef),
+      ),
+    )
+    .returning({ id: connectionTable.id });
+  if (written.length !== 1) return 'no_account';
+  await hooks.recorded?.(db);
+  return 'stored';
 }
 
 /** What *Disconnect Cirrux Drive* found under the lock, and did. */
@@ -345,7 +375,15 @@ export function keepingTheDriveGrant(
   replacement: Readonly<Record<string, string>>,
 ): Record<string, string> {
   const grant = stored[CIRRUX_DRIVE_GRANT_KEY];
+  const workspace = stored[CIRRUX_DRIVE_WORKSPACE_KEY];
   const sameMailbox =
     (stored.username ?? '').trim().toLowerCase() === (replacement.username ?? '').trim().toLowerCase();
-  return grant && sameMailbox ? { ...replacement, [CIRRUX_DRIVE_GRANT_KEY]: grant } : { ...replacement };
+  if (!sameMailbox) return { ...replacement };
+  // The workspace a grant reached stays with the mailbox, grant or not
+  // (workplan 0174 §4.4): a later grant must reach the same one.
+  return {
+    ...replacement,
+    ...(grant ? { [CIRRUX_DRIVE_GRANT_KEY]: grant } : {}),
+    ...(workspace ? { [CIRRUX_DRIVE_WORKSPACE_KEY]: workspace } : {}),
+  };
 }

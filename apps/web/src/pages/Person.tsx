@@ -55,6 +55,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Clock, Plus } from 'lucide-react';
 import {
   leastAdvancedStage,
+  isPasswordKind,
   wizardTypeForConnectionKind,
   type Person as PersonShape,
   type StatusReport,
@@ -81,7 +82,7 @@ import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { linesProgressOf } from '../services/stage-line.ts';
 import { providerName } from '../components/ProviderTile.tsx';
 import { PersonGrantLinkSection, PersonViewLinkSection } from '../components/MappingLinksPanel.tsx';
-import { personLinkApi, type AwaitingGrant } from '../services/grant-link-service.ts';
+import { personLinkApi, type AwaitingGrant, type WaitingAccount } from '../services/grant-link-service.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { AddressChanges } from '../components/AddressChanges.tsx';
 import { useT, useFormatters, useLocale, type StringKey } from '../i18n/index.tsx';
@@ -94,10 +95,51 @@ const ONCE_GRANTED_WORDS: Readonly<Record<AwaitingGrant['then'], StringKey>> = {
   ran_before: 'person.awaiting.ranBefore',
 };
 
+/** One line under a migration, about one account it waits for (workplan 0174 §4.6). */
+interface WaitingLine {
+  readonly key: string;
+  readonly kind: 'destination' | 'tries' | 'locked';
+  readonly words: StringKey;
+  readonly account: string;
+  readonly n?: number;
+  readonly left?: number;
+}
+
+/**
+ * WHAT THE OWNER IS TOLD ABOUT ONE ACCOUNT A MIGRATION WAITS FOR (0174 §4.6),
+ * under the line that says what the grant does to it: the destination by
+ * name, since the tiles name only its provider; a password's wrong tries on
+ * the person's live link; and a card locked after five, with the remedy, a
+ * new link. The count only, never the server's own words: the account is the
+ * person's (ADR-0035 decision 5). A source by sign-in, or one not yet tried,
+ * says nothing more than the line above it.
+ */
+export function waitingLines(w: WaitingAccount): WaitingLine[] {
+  const lines: WaitingLine[] = [];
+  const at = `${w.role}:${w.account}`;
+  if (w.role === 'target') {
+    lines.push({ key: `${at}:destination`, kind: 'destination', words: 'person.awaiting.destination', account: w.account });
+  }
+  if (w.tries?.locked === true) {
+    lines.push({ key: `${at}:locked`, kind: 'locked', words: 'person.awaiting.locked', account: w.account });
+  } else if (w.tries !== undefined && w.tries.refused > 0) {
+    lines.push({
+      key: `${at}:tries`,
+      kind: 'tries',
+      words: 'person.awaiting.tries',
+      account: w.account,
+      n: w.tries.refused,
+      left: w.tries.left,
+    });
+  }
+  return lines;
+}
+
 /**
  * The sources a grant link can connect (the API's `isGrantableSourceKind`: a
  * Google account, Gmail, Google Calendar, Google Contacts, Google Drive, and
- * since alpha.20 a Microsoft account, workplan 0171), as
+ * since alpha.20 a Microsoft account, workplan 0171, and since alpha.21
+ * Dropbox, 0174 §6), as
  * `wizardTypeForConnectionKind` names the list's connection kinds.
  */
 const GRANTABLE: ReadonlySet<string> = new Set([
@@ -107,7 +149,19 @@ const GRANTABLE: ReadonlySet<string> = new Set([
   'google-contacts',
   'google-drive',
   'microsoft',
+  'dropbox',
 ]);
+
+/**
+ * Whether a link could ask for this source: a sign-in source above, or, since
+ * 0174, any password source (`isPasswordKind`), which the person types
+ * themselves. A destination the person connects is known from what waits
+ * (`awaitingTheirGrant`), which the section reads too.
+ */
+const linkCanAsk = (sourceType: string): boolean => {
+  const card = wizardTypeForConnectionKind(sourceType);
+  return GRANTABLE.has(card) || isPasswordKind('source', card);
+};
 
 /**
  * What the page reads of each migration: the list's row on managed. The
@@ -330,6 +384,7 @@ const Person: React.FC = () => {
     linesProgressOf(progressQuery.data, m.id, attention?.get(m.id), attentionQuery.isSuccess);
   const stage = leastAdvancedStage(migrations.flatMap((m) => lineStages(m, linesOf(m))));
   const awaiting = new Map((awaitingQuery.data ?? []).map((a) => [a.mappingId, a.then]));
+  const waitsFor = new Map((awaitingQuery.data ?? []).map((a) => [a.mappingId, a.waitsFor]));
   const theirName = person.displayName ?? '';
   const from = names(migrations, 'sourceType', locale);
   const to = names(migrations, 'targetType', locale);
@@ -398,6 +453,11 @@ const Person: React.FC = () => {
                   <span>{t(ONCE_GRANTED_WORDS[awaiting.get(m.id)!], { name: theirName })}</span>
                 </p>
               )}
+              {(waitsFor.get(m.id) ?? []).flatMap(waitingLines).map((line) => (
+                <p key={line.key} data-waits-for={line.kind} className="mt-1 pl-5 text-sm text-gray-700">
+                  {t(line.words, { name: theirName, account: line.account, n: line.n ?? 0, left: line.left ?? 0 })}
+                </p>
+              ))}
               <MigrationLines migration={m} progress={linesOf(m)} />
             </div>
           ))
@@ -474,7 +534,8 @@ const Person: React.FC = () => {
           <h2 id="for-them" className="text-lg font-semibold text-gray-900">
             {t('person.links.title', { name: person.displayName ?? '' })}
           </h2>
-          {migrations.some((m) => GRANTABLE.has(wizardTypeForConnectionKind(m.sourceType))) ||
+          {migrations.some((m) => linkCanAsk(m.sourceType)) ||
+          (awaitingQuery.data?.length ?? 0) > 0 ||
           linksQuery.data?.some((l) => l.purpose === 'grant' && l.state === 'live') ? (
             <PersonGrantLinkSection personId={person.id} links={linksQuery.data} loadFailed={linksQuery.error != null} />
           ) : (

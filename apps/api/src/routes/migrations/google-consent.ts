@@ -168,6 +168,11 @@ interface PendingConsent {
     readonly tenantId: string;
     readonly connectionId: string;
     readonly actor: string;
+    /**
+     * The card's ref, when a person's link began it (`personLink` beside
+     * it; workplan 0174 §4.4, T5): what a refusal's audit row names.
+     */
+    readonly ref?: string;
   };
 }
 

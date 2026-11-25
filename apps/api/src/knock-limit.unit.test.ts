@@ -156,10 +156,10 @@ describe('the premise this number is sized against', () => {
   };
 
   it('is still a door only an operator can open', () => {
-    // Seven, and each is deliberate:
+    // Eight, and each is deliberate:
     //
     //   the knock          — this limit's whole subject, and the only one of
-    //                        the seven a stranger is *invited* to use
+    //                        the eight a stranger is *invited* to use
     //   the grant link     — 0108: the link itself is the credential, and the
     //                        route grants nothing without it
     //   the progress link  — 0108 T8 (c): the same kind of credential, and the
@@ -176,8 +176,13 @@ describe('the premise this number is sized against', () => {
     //                        page's own link middleware, change the state of
     //                        a row linked to that person and nothing else; it
     //                        starts nothing and sends nothing
+    //   a person's own     — 0174 T3: a person's grant link only, by that
+    //   password             page's own link middleware; it tests a password
+    //                        the account holder types, with limits of its own
+    //                        (thirty tests an hour per caller, five refused
+    //                        logins per card per link), and is no signup
     //
-    // AN EIGHTH is the question. If it is a self-service signup, this number is
+    // A NINTH is the question. If it is a self-service signup, this number is
     // no longer sized for the door in front of it, and raising it is only half
     // the change: the key is still `req.ip`, which behind an ingress is the
     // ingress. Set `TRUST_PROXY` so the bucket is per CALLER first, then raise
@@ -191,6 +196,7 @@ describe('the premise this number is sized against', () => {
       // for: Google's old address is one value of `:provider`, not a new door.
       'routes/grant.ts POST /:link/:provider/authorize',
       'routes/grant.ts PUT /:link/address-changes/:ref',
+      'routes/grant.ts PUT /:link/password',
       'routes/link-reports.ts POST /:link/report',
       'routes/view.ts POST /:link/withdraw',
       'routes/view.ts PUT /:link/address-changes/:ref',

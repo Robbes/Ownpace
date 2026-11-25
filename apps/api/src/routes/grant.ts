@@ -80,9 +80,13 @@
 import { Router } from 'express';
 import type { RequestHandler, Response } from 'express';
 import {
+  CIRRUX_DRIVE_SCOPES,
+  cirruxDeploymentClient,
   NOT_READY_BECAUSE,
+  NOT_READY_BECAUSE_DROPBOX,
   NOT_READY_BECAUSE_MICROSOFT,
   cannotSignInYet,
+  dropboxDeploymentClient,
   googleDeploymentClient,
   localeOf,
   microsoftDeploymentClient,
@@ -96,6 +100,8 @@ import { readLinkAddressChanges } from '@openmig/managed';
 import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
 import { answerAddressChangeThroughLink } from './link-address-changes.ts';
+import { passwordLimit, passwordLimiter, passwordThroughLink } from './grant-password.ts';
+import { serverAgainstAddress } from './grant-server-domain.ts';
 import type { MappingLinkRequest, PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import {
@@ -103,6 +109,8 @@ import {
   unreachableCallbackRefusal,
 } from './migrations/google-consent.ts';
 import { consentFlows } from './migrations/consent-flows.ts';
+import { pkcePair } from './migrations/cirrux-consent.ts';
+import { GRANT_ACTOR } from './migrations/grant-ending.ts';
 import { grantLinkAsk, type GrantLinkAskRefusalCode } from './migrations/grant-link-readiness.ts';
 import { grantProviderOfKind } from './grant-providers.ts';
 import {
@@ -235,9 +243,17 @@ const FOR_THE_MICROSOFT_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, Bi
   ...NOT_READY_BECAUSE_MICROSOFT,
 };
 
-/** Which of the two the link holder hears, by the source's provider when it is known. */
+/** The same, for a Dropbox migration (workplan 0174 §6). */
+const FOR_THE_DROPBOX_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, Bilingual>> = {
+  ...NOT_READY_BECAUSE,
+  ...NOT_READY_BECAUSE_DROPBOX,
+};
+
+/** Which of them the link holder hears, by the source's provider when it is known. */
 function forTheLinkHolder(provider: GrantProviderId | null): Readonly<Record<GrantLinkAskRefusalCode, Bilingual>> {
-  return provider === 'microsoft' ? FOR_THE_MICROSOFT_LINK_HOLDER : FOR_THE_LINK_HOLDER;
+  if (provider === 'microsoft') return FOR_THE_MICROSOFT_LINK_HOLDER;
+  if (provider === 'dropbox') return FOR_THE_DROPBOX_LINK_HOLDER;
+  return FOR_THE_LINK_HOLDER;
 }
 
 /**
@@ -246,6 +262,7 @@ function forTheLinkHolder(provider: GrantProviderId | null): Readonly<Record<Gra
  * one has no whole pair after all. Google's rule is unchanged (0108 T6);
  * Microsoft's carries the directory: the connection's own `tenantId` when its
  * own pair asks, the deployment's authority otherwise (`common` unless set).
+ * Dropbox's is the connection's whole pair or the deployment's app (0174 §6).
  */
 export function linkClient(
   provider: GrantProviderId,
@@ -261,6 +278,7 @@ export function linkClient(
     return { clientId, clientSecret, tenant: credential(creds, 'tenantId') || microsoftTenant() };
   }
   if (provider === 'microsoft') return microsoftDeploymentClient();
+  if (provider === 'dropbox') return dropboxDeploymentClient();
   return googleDeploymentClient();
 }
 
@@ -337,7 +355,9 @@ type PersonLink = NonNullable<PersonLinkRequest['personLink']>;
 
 /** A person's migrations, grouped by account, read in their organisation's transaction. */
 function readPersonSubject(link: PersonLink): Promise<PersonGrantSubject | null> {
-  return withTenantDb(link.tenantId, pool(), (db) => readPersonGrantSubject(db, link.tenantId, link.personId));
+  return withTenantDb(link.tenantId, pool(), (db) =>
+    readPersonGrantSubject(db, link.tenantId, link.personId, process.env, { linkId: link.linkId }),
+  );
 }
 
 /**
@@ -358,25 +378,46 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
     // (0168 §4.4, D6): the rows linked to this person, and nobody else's.
     addressChanges: await readLinkAddressChanges(db, link.tenantId, link.personId),
   }));
+  // Where each password card's password goes, compared with the address's
+  // own mail (0174 §5.8, D3): a warning for the page, never a refusal.
+  const servers = await Promise.all(
+    subject.accounts.map((a) => (a.way === 'password' && a.server ? serverAgainstAddress(a.account, a.server) : null)),
+  );
   res.json({
     kind: 'person',
     organisation: subject.organisation,
     checkedCompany,
     askedBy,
     organisationPhone: subject.organisationPhone,
-    accounts: subject.accounts.map((a) => ({
+    accounts: subject.accounts.map((a, i) => ({
+      // The card's name on the page and in the password route (workplan 0174
+      // §4.1): a hash, never the address.
+      ref: a.ref,
+      // Which side it is, and how the person gives a way in (0174 §3).
+      role: a.role,
+      way: a.way,
       account: a.account,
-      // Whose sign-in this account's button opens (workplan 0171 §3.2).
+      // Sign-in: whose sign-in this account's button opens (workplan 0171
+      // §3.2). Password: the connection kind, for the page's words.
       provider: a.provider,
       granted: a.granted,
-      // Connected, and asked for again all the same (`asksAgainFor`).
+      // Connected, and asked for again all the same (`asksAgain`).
       again: asksAgainFor(link, a),
-      // What it will read and in which words, when one sign-in can serve it;
-      // otherwise why not, in both languages, for the person to forward.
+      // Password cards (0174 §5.2, §5.5, §5.8): where it is tried, what the
+      // owner fixed and what the person fills, and the tries left on this
+      // link. Never a secret's value: a secret field carries none.
+      ...(a.way === 'password'
+        ? { server: servers[i] ?? a.server ?? null, fields: a.fields ?? [], tries: a.tries ?? null }
+        : {}),
+      // What it will read and in which words, when it can be asked; otherwise
+      // why not, in both languages, for the person to forward.
       ...(a.ask.ok
-        ? { domains: a.ask.domains, scope: a.ask.scope, readOnlyAtProvider: a.ask.readOnlyAtProvider, notReady: null }
+        ? a.ask.way === 'sign-in'
+          ? { domains: a.ask.domains, scope: a.ask.scope, readOnlyAtProvider: a.ask.readOnlyAtProvider, notReady: null }
+          : { domains: a.ask.domains, scope: null, readOnlyAtProvider: false, notReady: null }
         : { domains: [], scope: null, readOnlyAtProvider: false, notReady: reasonPair(a.ask.reason) }),
-      migrations: a.migrations.map((m) => ({ domains: m.domains, to: m.to, granted: m.granted })),
+      // For a source, where each goes; for a destination, where each comes from.
+      migrations: a.migrations.map((m) => ({ domains: m.domains, to: m.to, from: m.from, granted: m.granted })),
     })),
     expiresAt: link.expiresAt.toISOString(),
     addressChanges,
@@ -399,11 +440,22 @@ async function authorizeForAPerson(
   const asked = (req.body as { account?: unknown } | undefined)?.account;
   const subject = await readPersonSubject(link);
   if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT) });
+  // A destination's sign-in (Cirrux Drive, workplan 0174 §4.4, T5): its own
+  // beginning, the card named by its ref.
+  if ((GRANT_PROVIDERS[provider]?.targetKinds.size ?? 0) > 0) {
+    return void (await authorizeTargetForAPerson(req, res, link, provider, subject));
+  }
   // The account the button named, at the provider the button named: the same
   // address at Google and at Microsoft is two accounts (workplan 0171).
   const account =
     typeof asked === 'string'
-      ? subject.accounts.find((a) => a.provider === provider && sameNamedAccount(provider, a.account, asked))
+      ? subject.accounts.find(
+          (a) =>
+            a.role === 'source' &&
+            a.way === 'sign-in' &&
+            a.provider === provider &&
+            sameNamedAccount(provider, a.account, asked),
+        )
       : undefined;
   if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
   if (account.granted && !asksAgainFor(link, account)) {
@@ -411,6 +463,10 @@ async function authorizeForAPerson(
   }
   if (!account.ask.ok) {
     return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason) });
+  }
+  // A sign-in source, found above; the type learns it here.
+  if (account.ask.way !== 'sign-in') {
+    return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
   }
 
   // WHOSE client, as decided, the values read only now.
@@ -459,6 +515,81 @@ async function authorizeForAPerson(
       client,
       scope: account.ask.scope,
       domains: account.ask.domains,
+    }),
+  });
+}
+
+/**
+ * A destination's sign-in on a person's link (workplan 0174 §4.4, T5): Cirrux
+ * Drive, today the one. The card is named by its `ref` (an address names no
+ * Cirrux sign-in: Cirrux vouches for none), and it is on the page only once
+ * the account's app password is stored (`readPersonGrantSubject`). The
+ * consent is the owner's Cirrux consent, PKCE and all, through the
+ * deployment's public client; its pending state holds the person's link and
+ * the account, so the one callback Cirrux registered ends it as the link's.
+ */
+async function authorizeTargetForAPerson(
+  req: PersonLinkRequest,
+  res: Response,
+  link: PersonLink,
+  provider: GrantProviderId,
+  subject: PersonGrantSubject,
+): Promise<void> {
+  const ref = (req.body as { ref?: unknown } | undefined)?.ref;
+  const account =
+    typeof ref === 'string'
+      ? subject.accounts.find((a) => a.ref === ref && a.role === 'target' && a.way === 'sign-in' && a.provider === provider)
+      : undefined;
+  if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
+  if (account.granted && !asksAgainFor(link, account)) {
+    return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED) });
+  }
+  if (!account.ask.ok) return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason) });
+  const client = provider === 'cirrux' ? cirruxDeploymentClient() : null;
+  const begin = GRANT_PROVIDERS[provider]?.consentUrl;
+  const connectionId = account.ask.way === 'sign-in' ? account.ask.connectionId : undefined;
+  if (!client || !begin || !connectionId) {
+    return void res.status(409).json({
+      error: 'not_ready',
+      ...reasonPair(notReadyBecause(FOR_THE_LINK_HOLDER.client_not_configured)),
+    });
+  }
+  const redirectUri = callbackFor(req, provider);
+  const ipRefusal = rawIpCallbackRefusal(redirectUri);
+  if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYet(ipRefusal)) });
+  const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
+  if (unreachable) {
+    return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYet(unreachable)) });
+  }
+  const locale = localeOf((req.body as { locale?: unknown } | undefined)?.locale);
+  const { verifier, challenge } = pkcePair();
+  const state = consentFlows.begin({
+    clientId: client.clientId,
+    // A public client: there is no secret, and nothing stands in for one.
+    clientSecret: '',
+    scope: CIRRUX_DRIVE_SCOPES.join(' '),
+    redirectUri,
+    provider: 'cirrux',
+    locale,
+    cirrux: { verifier, tenantId: link.tenantId, connectionId, actor: GRANT_ACTOR, ref: account.ref },
+    personLink: {
+      linkId: link.linkId,
+      tenantId: link.tenantId,
+      personId: link.personId,
+      account: account.account,
+      mappingIds: account.migrations.map((m) => m.mappingId),
+    },
+  });
+  res.json({
+    url: begin({
+      account: account.account,
+      state,
+      redirectUri,
+      locale,
+      client: { clientId: client.clientId, clientSecret: '' },
+      scope: CIRRUX_DRIVE_SCOPES.join(' '),
+      domains: account.ask.domains,
+      challenge,
     }),
   });
 }
@@ -631,5 +762,13 @@ router.post(
  * for a row linked to them. `link-address-changes.ts`.
  */
 router.put('/:link/address-changes/:ref', linkAuth, answerAddressChangeThroughLink('grant', pool));
+
+/**
+ * PUT /api/grant/:link/password — a password the person types for one card
+ * of their link, tested as the create door tests it and stored only when it
+ * works (workplan 0174 §5.3, T3): `grant-password.ts`. The caller's limit
+ * comes before the link is read.
+ */
+router.put('/:link/password', passwordLimit(passwordLimiter()), linkAuth, passwordThroughLink(pool));
 
 export default router;

@@ -350,6 +350,93 @@ const TheAccessTheyGave: React.FC<{
   );
 };
 
+type PersonViewDestination = PersonViewPayload['destinations'][number];
+
+/**
+ * AN ACCOUNT THEY CONNECTED WITH THEIR OWN PASSWORD, AND TAKING IT BACK
+ * (workplan 0174 §4.3, §5.9).
+ *
+ * A destination the person connected on their grant link holds their
+ * password. Removing it deletes the password here and stops everything that
+ * would write to the account, until they connect it again on a new link.
+ * There is no provider to revoke a password at, so once removed the page says
+ * to change it at the provider too; a Cirrux Drive sign-in goes with it, and
+ * the page says where Cirrux lists it.
+ *
+ * Two presses, as for the access they gave: the second one is what cannot be
+ * undone from this page.
+ */
+const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewDestination }> = ({ link, destination }) => {
+  const t = useT();
+  const { locale } = useLocale();
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = React.useState(false);
+  const provider = providerName(destination.provider, 'target', locale);
+  const headingId = `destination-${destination.ref}`;
+
+  const remove = useMutation({
+    mutationFn: () => viewApi.withdrawDestination(link, destination.ref),
+    // Read the page again for its other sections; this one says what was done from the press.
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['view', link] }),
+  });
+
+  return (
+    <section aria-labelledby={headingId} className="mt-8 border-t border-gray-200 pt-6" data-destination={destination.provider}>
+      <h2 id={headingId} className="text-base font-semibold text-gray-900">
+        {t('view.destination.title', { provider })}
+      </h2>
+      {remove.data ? (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4" role="status">
+          <p className="text-sm text-gray-900">{t('grant.password.withdrawn', { provider })}</p>
+          {remove.data.drive && <p className="mt-2 text-sm text-gray-900">{t('view.destination.driveRemoved')}</p>}
+          <p className="mt-2 text-sm text-gray-600">{t('view.destination.since')}</p>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+          <p className="text-sm text-gray-900">{t('view.destination.body')}</p>
+          <p className="mt-2 text-sm text-gray-600">{t('view.destination.whatHappens')}</p>
+          {destination.drive && <p className="mt-2 text-sm text-gray-600">{t('view.destination.drive')}</p>}
+          {!confirming ? (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="mt-4 px-3 py-1.5 text-sm font-medium rounded border border-red-300 text-red-800 hover:bg-red-50"
+            >
+              {t('view.destination.remove')}
+            </button>
+          ) : (
+            <div className="mt-4">
+              <p className="text-sm text-gray-900">{t('view.destination.confirm')}</p>
+              <div className="mt-2 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => remove.mutate()}
+                  disabled={remove.isPending}
+                  className="px-3 py-1.5 text-sm font-medium rounded bg-red-700 text-white hover:bg-red-800 disabled:opacity-50"
+                >
+                  {remove.isPending ? t('view.destination.removing') : t('view.destination.confirmYes')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirming(false)}
+                  disabled={remove.isPending}
+                  className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {t('view.destination.keep')}
+                </button>
+              </div>
+            </div>
+          )}
+          {remove.error != null && (
+            // The server's own sentence, in the page's language: it changed since the page was opened.
+            <p className="mt-2 text-sm text-amber-800">{linkRefusal(remove.error, locale, t)}</p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+};
+
 /**
  * How long (0154 T3, T8), as the owner's migration page says it: before the
  * first pass from the count, during the copy from the passes. The server
@@ -448,6 +535,8 @@ const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ l
   const t = useT();
   const { locale } = useLocale();
   const others = view.migrations.filter((m) => m.account === null);
+  // Read as none from a payload that carries no list (a server before alpha.21).
+  const destinations: readonly PersonViewDestination[] = view.destinations ?? [];
   return (
     <>
       <p className="mt-4 text-gray-900">{t('view.person.who', { organisation: view.organisation })}</p>
@@ -481,6 +570,9 @@ const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ l
           />
         </section>
       ))}
+      {destinations.map((d) => (
+        <TheAccountTheyConnected key={d.ref} link={link} destination={d} />
+      ))}
       {others.length > 0 && (
         <section aria-labelledby="other-migrations" className="mt-8 border-t border-gray-200 pt-6">
           <h2 id="other-migrations" className="text-base font-semibold text-gray-900">
@@ -493,12 +585,12 @@ const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ l
       )}
       {/* Report this link (0108 T8 (d)), as on a migration's page. Withdrawing
           is what stops the copying, so the answer points at it while any
-          account's access can be withdrawn. */}
+          account's access can be withdrawn, or a destination's password removed. */}
       <ReportThisLink
         kind="view"
         link={link}
         organisation={view.organisation}
-        {...(view.accounts.some((a) => a.grant.state === 'granted')
+        {...(view.accounts.some((a) => a.grant.state === 'granted') || destinations.length > 0
           ? { next: 'linkReport.next.withdraw' as const }
           : {})}
       />

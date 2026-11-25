@@ -1533,6 +1533,8 @@ paths:
         grant missing a read scope is refused with the missing one named, and
         one carrying a scope outside the three the URL asks for and
         `sharing.read` is refused with that scope named and nothing stored.
+        A state begun by a grant link (workplan 0174 §6) ends as that link's
+        page instead, and hands nothing to any window.
       security: []
       parameters:
         - { name: state, in: query, schema: { type: string } }
@@ -1719,12 +1721,18 @@ paths:
             `invalid_body`, `no_cirrux_client` (this deployment has no Cirrux
             client yet), `raw_ip_callback` or `unreachable_callback`; and
             `not_a_cirrux_account`, answered 404, when no Cirrux destination
-            of this organisation has that id.
+            of this organisation has that id; and `connected_by_the_person`,
+            answered 409 (below).
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: '`not_a_cirrux_account`: no Cirrux destination of this organisation has that id.'
         '409':
-          description: '`account_closed` or `conditions_not_accepted`; nothing was begun.'
+          description: |
+            `account_closed` or `conditions_not_accepted`; or
+            `connected_by_the_person`, when a person connected this account
+            themselves through their grant link, whose Drive is theirs to
+            change with a new link (workplan 0174 §4.3, D6), with `reason`
+            and `reasonNl`. Nothing was begun.
 
   /api/migrations/cirrux/callback:
     get:
@@ -1735,6 +1743,11 @@ paths:
         expiring `state`, and only a state begun at the Cirrux door. An `iss`
         naming another origin than Cirrux's is refused before the code is
         exchanged, and so is an organisation closed since the consent began.
+        A state begun on a person's grant link (workplan 0174 §4.4) ends as
+        that link's: the grant is stored on their destination only once its
+        app password is, and refused when the sign-in reached another Cirrux
+        workspace than the one recorded on the account; the page is the grant
+        ending's. Otherwise:
         The code is exchanged with the PKCE verifier, and the refresh token is
         STORED ON THE ACCOUNT, encrypted beside its app password, under the
         row's lock, with the audit line `connection.cirrux_drive_connected`.
@@ -1866,6 +1879,31 @@ paths:
                         kind: { type: string }
                         displayName: { type: string }
                         status: { type: string, enum: [connected, error, revoked] }
+                        waitingFor:
+                          type: object
+                          required: [personId, name]
+                          description: |
+                            Managed only (workplan 0174 §8.2). A password
+                            account saved for a person, which waits for them
+                            to type its password on their grant link's page:
+                            it holds none, and a migration of theirs uses it
+                            with none. Observed from the rows, never a status;
+                            absent otherwise.
+                          properties:
+                            personId: { type: string, format: uuid }
+                            name: { type: string }
+                        connectedBy:
+                          type: object
+                          required: [personId, name]
+                          description: |
+                            Managed only (workplan 0174 §4.3, D6). A destination
+                            the person connected themselves through their grant
+                            link: the rotation door refuses a new password on
+                            it (`connected_by_the_person`), so the page offers
+                            none. Absent otherwise.
+                          properties:
+                            personId: { type: string, format: uuid }
+                            name: { type: string }
                         createdAt: { type: string, format: date-time }
                         usedByMailboxes:
                           type: integer
@@ -1963,15 +2001,29 @@ paths:
                   type: object
                   additionalProperties: { type: string }
                   description: Field key to what the person typed. Secrets included; never echoed back.
+                forPerson:
+                  type: string
+                  format: uuid
+                  description: |
+                    Managed only (workplan 0174 §8.2). Saved FOR THIS PERSON,
+                    who types its password themselves on their grant link's
+                    page: a password kind only (`not_by_link` otherwise), with
+                    no secret in `values` (`secret_for_person` otherwise) and
+                    every other required field, its server and account (D2).
+                    Not probed; stored with `status: error`, as an account
+                    saved by its address alone for a link always was.
       responses:
         '201':
-          description: Created, with what the probe found.
+          description: |
+            Created, with what the probe found; or, saved `forPerson`, only
+            `{ id, forPerson: true }`: nothing was probed.
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   id: { type: string, format: uuid }
+                  forPerson: { type: boolean, description: 'Saved for a person: not probed (0174 §8.2).' }
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
@@ -1990,7 +2042,16 @@ paths:
             which a managed migration cannot read. Refused before anything is
             probed or stored; the sentence says the export goes in a folder of
             the Nextcloud or WebDAV files the migration writes to.
+            With `forPerson` (0174 §8.2): `not_by_link`, a kind a person does
+            not connect with their own password; `secret_for_person`, a
+            secret sent for an account its holder types the password of
+            themselves; `missing_fields`, its server or account left out.
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`: `forPerson` names no person of this organisation. Nothing was stored.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409':
           description: |
             Nothing was probed or stored. `account_closed` (`AccountClosed`):
@@ -2513,6 +2574,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`: `forPerson` names no person of this organisation. Nothing was stored.'
         '409':
           description: |
             Nothing was stored. `duplicate_mapping`: this migration exists
@@ -2527,6 +2590,9 @@ paths:
             passes come closer than a day, the tier's pace, with
             `leastMinutesBetweenPasses` (workplan 0157 T4). No schedule
             (automatic) and a daily one are never refused.
+            `granted_by_another_person`: the destination was connected by a
+            person through their grant link, and `forPerson` does not name
+            them (workplan 0174 §4.3, D1 (a)).
           content:
             application/json:
               schema:
@@ -3848,12 +3914,14 @@ paths:
         required: true
         description: |
           Whose sign-in to start (workplan 0171 §3.2): `google` (this route's
-          address until alpha.20, unchanged) or `microsoft`. It must be the
-          provider the link asks for (`provider` on `GET /api/grant/{link}`),
-          or the answer is 409 `not_this_provider`. A provider with no grant
-          entry yet (`dropbox`, `apple`, until workplan 0171 T4 and T5) or any
-          other value is 404.
-        schema: { type: string, enum: [google, microsoft, dropbox, apple] }
+          address until alpha.20, unchanged), `microsoft`, or since alpha.21
+          `dropbox` (workplan 0174 §6). It must be the provider the link asks
+          for (`provider` on `GET /api/grant/{link}`), or the answer is 409
+          `not_this_provider`. `apple` is a password kind, never a sign-in
+          (workplan 0174 §5), and it or any other value is 404. `cirrux`
+          (workplan 0174 §4.4) is a DESTINATION's sign-in, Cirrux Drive, on a
+          person's link only: the body names the card by its `ref`.
+        schema: { type: string, enum: [google, microsoft, dropbox, apple, cirrux] }
     post:
       tags: [Grant links]
       summary: Start the provider's sign-in for this link
@@ -3865,6 +3933,16 @@ paths:
         at `/api/migrations/microsoft/callback`, checks the ID token's issuer
         and audience and reads `/me`, and stores the token only when the named
         account is the sign-in name, the primary address or a proxy address.
+
+        For Dropbox (workplan 0174 §6) the same, at Dropbox: the deployment's
+        Dropbox app or the connection's own whole pair, and the owner's own
+        Connect with Dropbox consent (`token_access_type=offline`, the read
+        scopes and `account_info.read`). Dropbox takes no login hint. The
+        ending, at `/api/migrations/dropbox/callback`, exchanges the code and
+        asks `users/get_current_account` who signed in, and stores the token
+        only when its `email` is the named account, compared without case, and
+        `email_verified` is true; otherwise nothing is stored and the link
+        stays live.
 
         For Google, as follows.
 
@@ -3899,6 +3977,16 @@ paths:
             schema:
               type: object
               properties:
+                ref:
+                  type: string
+                  description: |
+                    For a person's link and a destination's sign-in (`cirrux`,
+                    workplan 0174 §4.4): the card's `ref` from `GET
+                    /api/grant/{link}`. The Drive card is offered only once the
+                    account's app password is stored; any other ref is 409
+                    `not_this_account`. The consent is Cirrux's, with PKCE,
+                    through the deployment's public client, and ends at
+                    `/api/migrations/cirrux/callback` as the link's.
                 account:
                   type: string
                   description: |
@@ -4061,6 +4149,141 @@ paths:
           description: |
             The link could not be checked just now. The body is
             `{error, message, messageNl}`.
+
+  /api/grant/{link}/password:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        description: |
+          The whole credential, one path segment. Only a person's grant link,
+          `p.<id>.<secret>`, has a password page: a migration's own link is a
+          404 here (workplan 0174 §13).
+        schema: { type: string }
+    put:
+      tags: [Grant links]
+      summary: A password the person types for one account on their link
+      description: |
+        Workplan 0174 §5.3 to §5.7, T3. The person types their own password
+        for one password card (`way: password` on `GET /api/grant/{link}`),
+        named by its `ref`. It is tested as the create door tests an account
+        (the probe, then the qualification of the faces its migrations
+        need) and stored only when it works: a source's on each of the
+        card's migrations, a destination's on the connection with the person
+        recorded as its owner. Nothing that failed is stored.
+
+        Five refused logins lock that card on this link; the sixth is never
+        tried. Only the server refusing the login counts (`refused_login`);
+        a server that did not answer and a refused face count nothing. A
+        card already connected answers 409 without a test, so a replay makes
+        no login. The link is checked live again in the write's transaction:
+        revoked while the test ran, nothing is written.
+
+        The password is never echoed, logged, audited or put in a URL. JSON
+        only, at most 4 KiB; thirty tests an hour per caller
+        (`GRANT_PASSWORD_TESTS_PER_HOUR`). The answers are codes: the page
+        says them in the reader's language.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [ref, values]
+              properties:
+                ref: { type: string, description: "The card's ref, as the page read it." }
+                values:
+                  type: object
+                  additionalProperties: { type: string, minLength: 1, maxLength: 1024 }
+                  description: "Exactly the card's person fields (`who: person`), by key, each a non-empty string; none missing and none added."
+                locale: { type: string, description: 'The page language; ignored by the answer, which carries codes.' }
+      responses:
+        '200':
+          description: Tested and stored.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connected, faces, linkSpent, progressUrl]
+                properties:
+                  connected: { type: boolean, enum: [true] }
+                  faces:
+                    type: array
+                    items: { type: string, enum: [email, calendar, contact, file, task] }
+                    description: The data types the password was tested for.
+                  linkSpent: { type: boolean, description: 'Whether every account on the link is now connected, which spends it.' }
+                  progressUrl:
+                    type: string
+                    nullable: true
+                    description: "The person's progress page, minted after the grant as a sign-in's ending mints it; null when the deployment cannot say its address."
+        '400':
+          description: |
+            The body: `body_not_an_object`, `unknown_key`, `ref_missing`,
+            `values_missing`, or `values_not_the_fields` (a key missing or
+            added, or a value that is not a non-empty string). A body that
+            is not JSON is refused by the parser without an excerpt. Nothing
+            was tried.
+        '401':
+          description: |
+            The link was refused, as by `GET /api/grant/{link}`; or
+            `link_spent`: it was revoked, expired or spent while the test ran,
+            and nothing was written (`reason`, `reasonNl`).
+        '404':
+          description: A migration's own link, which has no password page.
+        '409':
+          description: |
+            `not_this_account` (no password card has this ref), or
+            `already_connected` (no test was made), or `server_not_a_name`
+            (the owner named the server by an IP address; the password is
+            never sent to one, `reason`, `reasonNl`), or `server_not_public`
+            (a server the owner named resolves inside a private network, by
+            the probe's own rule; nothing was tried and no try counted,
+            `reason`, `reasonNl`), or `another_person`
+            (another person connected this destination themselves), or
+            `account_closed` (the organisation was closed).
+        '413':
+          description: '`body_too_large`: more than 4 KiB.'
+        '415':
+          description: '`json_only`: anything but `application/json`.'
+        '422':
+          description: |
+            The test failed, and nothing was stored. `error` is
+            `refused_login` (the server refused the password: a try is
+            counted), `unreachable` (no answer, a certificate, a timeout, an
+            address that is not a server of this kind: no try counted) or
+            `face_missing` (the login worked and a needed data type was
+            refused, named in `faces`: no try counted). `tries` says what is
+            left on this link. Never the server's own words.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, tries]
+                additionalProperties: false
+                properties:
+                  error: { type: string, enum: [refused_login, unreachable, face_missing] }
+                  faces: { type: array, items: { type: string, enum: [email, calendar, contact, file, task] } }
+                  tries:
+                    type: object
+                    properties:
+                      left: { type: integer, minimum: 0, maximum: 5 }
+                      locked: { type: boolean }
+        '423':
+          description: '`locked`: five refused logins on this link for this card. No test was made; a new link from the owner starts again.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                additionalProperties: false
+                properties:
+                  error: { type: string, enum: [locked] }
+        '429':
+          description: '`too_many_tests`: the caller''s hourly limit, with `Retry-After`.'
+        '500':
+          description: Ours; nothing the person did. Nothing was stored.
 
   /api/grant/{link}/report:
     parameters:
@@ -4342,37 +4565,68 @@ paths:
         `mapping.grant_withdrawn` row each. A `ref` that no longer matches what
         is held (a grant given again, or taken back elsewhere) deletes nothing
         and answers `changed`.
+
+        For a person's link it also removes the password they gave a
+        DESTINATION they connected themselves (workplan 0174 §4.3): the body
+        names it by the `destination` ref the page read. In one transaction the
+        keys the person gave leave the connection's stored credentials (every
+        secret, a field they filled because the owner left it empty, and on
+        Cirrux the Drive sign-in they gave), the owner's values stay,
+        `person_granted_connection` is deleted, and every migration into the
+        account is held as a withdrawn grant is (`grant_withdrawn_at`): nothing
+        writes to it until the person connects it again on a new link, and the
+        hold lifts only once both sides of a migration have a way in. One
+        `mapping.grant_withdrawn` row per migration, with the role, the
+        provider and whether a Drive sign-in went; never a value. Nothing is
+        asked of the provider: a password is changed at the provider, which
+        the page tells the person.
       security: []
       requestBody:
         required: false
         content:
           application/json:
             schema:
+              description: For a person's link, exactly one of `account` and `destination`.
               type: object
+              additionalProperties: false
               properties:
                 account:
                   type: string
                   pattern: '^[0-9a-f]{32}$'
-                  description: For a person's link only, the account's `ref` as the page read it.
+                  description: For a person's link only, the Google account's `ref` as the page read it.
+                destination:
+                  type: string
+                  pattern: '^[0-9a-f]{32}$'
+                  description: For a person's link only, the `ref` of a destination they connected, as the page read it (0174 §4.3).
       responses:
         '200':
-          description: Withdrawn here; `atGoogle` says whether Google confirmed it too.
+          description: |
+            Withdrawn here. For a grant, `atGoogle` says whether Google
+            confirmed it too; for a destination, `provider` and `drive` say
+            what was removed, and nothing was asked of the provider.
           content:
             application/json:
               schema:
-                type: object
-                required: [withdrawnAt, atGoogle]
-                properties:
-                  withdrawnAt: { type: string, format: date-time }
-                  atGoogle:
-                    type: string
-                    enum: [revoked, not_confirmed]
-                    description: |
-                      `revoked` includes a token Google reports was already
-                      invalid. `not_confirmed`: Google refused or could not be
-                      reached; the person is told to remove the app themselves.
+                oneOf:
+                  - type: object
+                    required: [withdrawnAt, atGoogle]
+                    properties:
+                      withdrawnAt: { type: string, format: date-time }
+                      atGoogle:
+                        type: string
+                        enum: [revoked, not_confirmed]
+                        description: |
+                          `revoked` includes a token Google reports was already
+                          invalid. `not_confirmed`: Google refused or could not be
+                          reached; the person is told to remove the app themselves.
+                  - type: object
+                    required: [withdrawnAt, provider, drive]
+                    properties:
+                      withdrawnAt: { type: string, format: date-time }
+                      provider: { type: string, description: "The destination's kind, for the sentence that names the provider." }
+                      drive: { type: boolean, description: 'A Cirrux Drive sign-in was removed with the password.' }
         '400':
-          description: A person's link with no `account`, or not one a page could have read. Nothing was changed.
+          description: A person's link with neither `account` nor `destination`, both, or a ref no page could have read. Nothing was changed.
         '401':
           description: The link is not a live progress link. Nothing was changed.
         '409':
@@ -6322,9 +6576,32 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [mappingId, then]
+                      required: [mappingId, then, waitsFor]
                       properties:
                         mappingId: { type: string, format: uuid }
+                        waitsFor:
+                          type: array
+                          description: |
+                            The accounts it waits for, sources first (workplan
+                            0174 §4.6): the account as the owner named it, its
+                            role, and for a password the person types, the
+                            refused tries on their grant link that still works
+                            (absent where none does). Never the server's own
+                            words for a refusal.
+                          items:
+                            type: object
+                            required: [role, way, account]
+                            properties:
+                              role: { type: string, enum: [source, target] }
+                              way: { type: string, enum: [sign-in, password] }
+                              account: { type: string }
+                              tries:
+                                type: object
+                                required: [refused, left, locked]
+                                properties:
+                                  refused: { type: integer, minimum: 0 }
+                                  left: { type: integer, minimum: 0 }
+                                  locked: { type: boolean }
                         then:
                           type: string
                           enum: [starts_by_itself, review_and_start, ran_before]
@@ -9812,10 +10089,11 @@ components:
       type: object
       description: |
         What a PERSON'S grant link opens (ADR-0035, amended 2026-09-29;
-        workplan 0153 T5 (b)): who is asking, once, then each Google account
-        the person's migrations read, and the person's own address changes
-        (workplan 0168 §4.4). No migration id, no tenant id, no client id: the
-        authorize call names the account.
+        workplan 0153 T5 (b)): who is asking, once, then each account the
+        person's migrations read or write, sources first (workplan 0174
+        §4.1), and the person's own address changes (workplan 0168 §4.4). No
+        migration id, no tenant id, no client id: the authorize call names
+        the account, and a password card its `ref`.
       required: [kind, organisation, accounts, expiresAt, addressChanges]
       properties:
         kind: { type: string, enum: [person] }
@@ -9827,9 +10105,50 @@ components:
           type: array
           items:
             type: object
-            required: [account, granted, domains, migrations]
+            required: [ref, role, way, account, granted, domains, migrations]
             properties:
+              ref: { type: string, description: 'The card''s name on the page and in the password route: a hash of the role, the provider or kind, the connection and the account, never the address (workplan 0174 §4.1).' }
+              role: { type: string, enum: [source, target], description: 'Which side of its migrations the account is.' }
+              way: { type: string, enum: [sign-in, password], description: 'How the person gives a way in: a provider''s sign-in, or their own password.' }
               account: { type: string, description: 'The address, and the only one whose sign-in is kept for it.' }
+              server:
+                nullable: true
+                description: "Password cards only. Where the password is tried; published when these are the provider's own published servers (Apple, Cirrux, Infomaniak), which are then the only ones tried, whatever the account's row says (workplan 0174 §5.8, D3 (a))."
+                type: object
+                properties:
+                  hosts: { type: array, items: { type: string } }
+                  published: { type: boolean }
+                  domains:
+                    type: array
+                    items: { type: string }
+                    description: "Each host's registrable domain, in the order of hosts: what the page sets in bold (workplan 0174 §5.8, D3)."
+                  notTheAddressMail:
+                    type: array
+                    items: { type: string }
+                    description: "D3's addition: the hosts whose registrable domain is neither the address's own nor one of its MX hosts', read through the public resolvers. The page warns when any is listed (it names them in `data-not-the-address-mail`); never a refusal. Empty when every host matches; absent when no comparison was made (a published server, an account that is no address, or an MX lookup that failed)."
+              fields:
+                description: "Password cards only. What the owner fixed (who is owner, with its value) and what the person fills (who is person); a secret never carries a value."
+                type: array
+                items:
+                  type: object
+                  required: [key, who, labelKey, secret]
+                  properties:
+                    key: { type: string }
+                    who: { type: string, enum: [person, owner] }
+                    labelKey: { type: string }
+                    hintKey: { type: string }
+                    placeholder: { type: string }
+                    secret: { type: boolean }
+                    autoComplete: { type: string, enum: [username, new-password, 'off'] }
+                    revealable: { type: boolean }
+                    value: { type: string }
+              tries:
+                nullable: true
+                description: "Password cards only. Refused tries left on this link, and whether the card is locked after five (workplan 0174 §5.5)."
+                type: object
+                properties:
+                  left: { type: integer }
+                  locked: { type: boolean }
               granted: { type: boolean, description: 'Every one of its migrations has a way in already.' }
               again:
                 type: boolean
@@ -9843,8 +10162,8 @@ components:
               scope: { type: string, nullable: true, description: 'The one consent it asks, in Google''s words; null when it cannot be asked.' }
               provider:
                 type: string
-                enum: [google, microsoft, dropbox, apple]
-                description: Whose sign-in this account's button opens (workplan 0171 §3.2).
+                enum: [google, microsoft, dropbox, apple, cirrux, imap, caldav, carddav, webdav, jmap, soverin, nextcloud, infomaniak]
+                description: "A sign-in card's provider, whose sign-in its button opens (workplan 0171 §3.2); a password card's connection kind (workplan 0174 §5.1)."
               readOnlyAtProvider: { type: boolean }
               notReady:
                 nullable: true
@@ -9867,7 +10186,13 @@ components:
                         provider: { type: string }
                         host: { type: string, nullable: true }
                         account: { type: string, nullable: true }
-                    granted: { type: boolean }
+                    from:
+                      type: object
+                      description: "Where it comes from, which a destination's card names (workplan 0174 §4.1)."
+                      properties:
+                        provider: { type: string }
+                        account: { type: string, nullable: true }
+                    granted: { type: boolean, description: 'This card''s side of the migration has a way in.' }
         expiresAt: { type: string, format: date-time }
         addressChanges:
           type: array
@@ -9978,6 +10303,23 @@ components:
                     required: [state]
                     properties:
                       state: { type: string, enum: [none] }
+        destinations:
+          type: array
+          description: |
+            The destinations the person connected with their own password
+            through their grant link (workplan 0174 §4.3), while they hold
+            it; each has its own *Remove my password*. Never named by its
+            address. Absent from a server before alpha.21.
+          items:
+            type: object
+            required: [ref, provider, drive]
+            properties:
+              ref:
+                type: string
+                pattern: '^[0-9a-f]{32}$'
+                description: A hash of the account and when it was connected; a new grant changes it.
+              provider: { type: string, description: "The destination's kind (`soverin`, `cirrux`, …), for the page to name the provider." }
+              drive: { type: boolean, description: 'A Cirrux Drive sign-in the person gave goes with the password.' }
         addressChanges:
           type: array
           description: |
@@ -10906,6 +11248,15 @@ components:
         secret.
       properties:
         name: { type: string }
+        forPerson:
+          type: string
+          format: uuid
+          description: |
+            Managed only (workplan 0174 §4.3, §8.2): the person this migration
+            is made for, the same field as `POST /api/connections`'. A
+            destination a person connected through their grant link takes only
+            their migrations, and the migration is given to this person in the
+            same transaction, as `POST /api/people/{personId}/migrations` would.
         sourceConfig:
           type: object
           description: |

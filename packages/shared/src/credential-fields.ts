@@ -562,7 +562,13 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
     // client, and a screen folds the pair away where it does.
     { key: 'clientId', labelKey: 'account.dropboxAppKey', pairedWith: 'clientSecret' },
     { ...SECRET, required: false, pairedWith: 'clientId' },
-    { ...REFRESH, required: true, consent: 'dropbox' },
+    // Not `required` on the descriptor since alpha.21 (workplan 0174 §6), as
+    // Google's and Microsoft's are not: an account saved for somebody else is
+    // granted by link, so the create door must take it with the address alone.
+    // Every form still demands it (`credentialFieldRequired`: a consent token
+    // is never optional on a screen), and a migration without one does not
+    // start (`awaitingGrantRefusal`).
+    { ...REFRESH, consent: 'dropbox' },
     {
       key: 'rootPath',
       labelKey: 'account.dropboxRootPath',
@@ -1117,8 +1123,18 @@ export function credentialFieldRequired(
     readonly halfPairTyped?: boolean;
     /** A Google service-account key was pasted; the OAuth trio is moot. */
     readonly sideStepped?: boolean;
+    /**
+     * Saved FOR A PERSON, who types the secret themselves on their grant
+     * link's page (workplan 0174 §8.2, D2). A secret field is then never
+     * required: the one saving it never holds it. Every other field keeps
+     * its own answer, because the person cannot type the server or the
+     * account. Never set otherwise: the create door sets it only with its
+     * `forPerson`, for a password kind (`isPasswordKind`).
+     */
+    readonly forPerson?: boolean;
   },
 ): boolean {
+  if (where.forPerson === true && field.secret === true) return false;
   // A PAIR SAYS SO ITSELF, from both halves (2026-09-07). This read
   // `field.key === 'clientSecret'` because only the id declared the pair —
   // and that name-based catch was wrong for the two doors whose client pair
