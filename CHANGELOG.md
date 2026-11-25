@@ -25,6 +25,48 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0064 adds `gift`,
   `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation, and so is the
   operator's number for each of its people, unless that person is also in another organisation.
+- **Grant links for a Dropbox account** (workplan 0174 §6, T2; superseding 0171 T4). A grant link
+  can now connect Dropbox as it connects a Google or Microsoft account: the person opens the link,
+  presses **Continue with Dropbox as** *their account* (*Doorgaan met Dropbox als …*), signs in on
+  Dropbox's own page, and the token is stored on their migration and shown to nobody. It asks what
+  the owner's own Connect with Dropbox asks: lasting, read-only access to files and the account
+  read. Dropbox takes no login hint, so the grant is bound afterwards: Dropbox is asked who signed
+  in (`users/get_current_account`), and its address must be the one the migration names, compared
+  without case, and one Dropbox has verified. Any other account, or an address Dropbox has not
+  verified, stores nothing and leaves the link working. Served where the deployment carries its own
+  Dropbox app (`DROPBOX_OAUTH_CLIENT_ID` and `_SECRET`) or the connection carries its own whole
+  pair. *Start a migration* offers *They do, with a link* for Dropbox on such a deployment, and a
+  Dropbox account saved for somebody else is taken with its address alone; a Dropbox migration
+  without a token does not start until somebody has connected it. Not proven against a real
+  Dropbox account: no test account exists, and the endpoints are stood in for in the tests.
+
+### Changed
+
+- **Deleting by hand needs no switch any more** (alpha.21; workplan 0173, ADR-0024 amended
+  2026-11-25; the owner: *"Manual deleting in by default. I don't think I makes sense then to keep
+  the feature for turning it off."*). Every migration, old and new, and every upgraded appliance
+  can now delete by hand on the *Deletions* page without turning anything on: press *Delete it
+  here too* and confirm, or *Delete all of these here too* and confirm the count. *Turn on
+  deleting by hand* is gone, and there is no way to turn it off. An admin can delete by hand too.
+  A mapping file's `"allowApplyDeletions": false` no longer turns it off: the file still loads,
+  and the appliance says so once in its log at start. Every other check stays: only what the old
+  system reported deleted or binned, only copies Ownpace wrote, never after cutover or after a
+  keep, the mass-deletion breaker, and no file, calendar entry or contact somebody changed on the
+  new system (mail is not checked for that). What a delete does is now said above the rows that
+  offer one, and a double click on *Delete it here too* is one press, not two. The automatic
+  removal of moved files' old copies stays off until an owner turns it on, now as its own switch.
+  At the API, which asks no confirmation, one call is one removal. Managed:
+  `PATCH .../apply-deletions` takes `autoApplyRelocations` only and refuses `allowApplyDeletions`;
+  `GET` no longer answers it; the column `allow_apply_deletions` stays unread until a later
+  release drops it. No database change. Terms §2 and Alpha conditions §8 say the same, in place
+  under 1.0 (the owner: *"change them and stay on 1.0"*), and the Dutch terms say *bestemming*
+  for the target throughout, where they said *doel*.
+  **Nederlands:** elke migratie, oud en nieuw, en elke bijgewerkte appliance kan nu handmatig
+  verwijderen op de pagina *Verwijderingen* zonder eerst iets aan te zetten. *Handmatig
+  verwijderen inschakelen* is weg, en uitzetten kan niet meer. Een `"allowApplyDeletions": false`
+  in het bestand van een migratie zet het niet meer uit; de appliance meldt dat eenmaal bij het
+  starten. De servicevoorwaarden (§2) en de voorwaarden voor de Alpha (§8) zeggen hetzelfde, nog
+  steeds versie 1.0. De servicevoorwaarden zeggen nu overal *bestemming* waar ze *doel* zeiden.
 
 ## [0.2.0-alpha.20] - 2026-11-25
 

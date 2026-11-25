@@ -258,6 +258,20 @@ export const en = {
   'view.person.grant.body': '{organisation} reads this Google account for the migrations above because you allowed it.',
   'view.person.withdrawn.notConfirmed':
     'Deleted here, so these migrations cannot use it. Google did not confirm withdrawing it.',
+  // A destination the person connected with their own password (workplan 0174 §4.3).
+  'view.destination.title': 'Your account at {provider}',
+  'view.destination.body': 'You connected this account with your own password, so your data can be copied into it.',
+  'view.destination.whatHappens':
+    'Removing it deletes your password here, and nothing more is copied into this account until you connect it again. What was already copied stays there.',
+  'view.destination.drive': 'The Cirrux Drive connection you gave is removed with it.',
+  'view.destination.remove': 'Remove my password',
+  'view.destination.confirm': 'Remove it now? Connecting it again needs a new link from whoever sent this one.',
+  'view.destination.confirmYes': 'Yes, remove it',
+  'view.destination.keep': 'Keep it',
+  'view.destination.removing': 'Removing…',
+  'view.destination.since': 'Nothing more is copied into this account. To continue later, ask for a new link.',
+  'view.destination.driveRemoved':
+    'Your Cirrux Drive connection is deleted here too. Cirrux Mail lists the apps you allowed under Settings → Security, where you can end it as well.',
   'state.lifecycle.active': 'Active',
   'state.lifecycle.paused': 'Paused',
   'state.lifecycle.cutover': 'In cutover',
@@ -674,6 +688,19 @@ export const nl: Record<keyof typeof en, string> = {
   'view.person.grant.body': '{organisation} leest dit Google-account voor de migraties hierboven, omdat u dat toestond.',
   'view.person.withdrawn.notConfirmed':
     'Hier verwijderd, dus deze migraties kunnen die niet gebruiken. Google bevestigde het intrekken niet.',
+  'view.destination.title': 'Uw account bij {provider}',
+  'view.destination.body': 'U hebt dit account met uw eigen wachtwoord verbonden, zodat uw gegevens erin gekopieerd kunnen worden.',
+  'view.destination.whatHappens':
+    'Verwijderen wist uw wachtwoord hier, en er wordt niets meer naar dit account gekopieerd tot u het opnieuw verbindt. Wat al gekopieerd is, blijft daar staan.',
+  'view.destination.drive': 'De verbinding met Cirrux Drive die u gaf, wordt mee verwijderd.',
+  'view.destination.remove': 'Mijn wachtwoord verwijderen',
+  'view.destination.confirm': 'Nu verwijderen? Opnieuw verbinden kan alleen met een nieuwe link van de afzender.',
+  'view.destination.confirmYes': 'Ja, verwijderen',
+  'view.destination.keep': 'Niet verwijderen',
+  'view.destination.removing': 'Bezig met verwijderen…',
+  'view.destination.since': 'Er wordt niets meer naar dit account gekopieerd. Later verder? Vraag om een nieuwe link.',
+  'view.destination.driveRemoved':
+    'Uw verbinding met Cirrux Drive is hier ook verwijderd. Cirrux Mail toont de apps die u toestond onder Settings → Security; daar kunt u die ook beëindigen.',
   'state.lifecycle.active': 'Actief',
   'state.lifecycle.paused': 'Gepauzeerd',
   'state.lifecycle.cutover': 'Overgestapt',

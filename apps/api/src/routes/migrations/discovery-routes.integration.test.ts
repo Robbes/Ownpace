@@ -16,6 +16,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
 import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
+import { SecretStore } from '@openmig/core/secret-store';
 
 const PG = process.env.TEST_DATABASE_URL;
 if (!PG) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
@@ -62,7 +63,10 @@ describe('discovery/confirm routes (0013 T4/T5)', () => {
     );
     // Membership gate (0020 T1): the minted tokens must belong to their tenants.
     await seedMembership(pool, TENANT, `user-${TENANT}`);
-    await pool.query(`INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status) VALUES ($1,$2,'source','imap','src','{}','connected') ON CONFLICT DO NOTHING`, [CONN, TENANT]);
+    // An IMAP source starts only with a stored password since workplan 0174 T1
+    // (`awaitingGrant`), so the fixture stores one, as the create route does.
+    const password = JSON.stringify(SecretStore.encryptCredentials({ username: 'src@example.invalid', password: 'fixture-not-a-password' }).encrypted);
+    await pool.query(`INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref) VALUES ($1,$2,'source','imap','src','{}','connected',$3) ON CONFLICT DO NOTHING`, [CONN, TENANT, password]);
     await pool.query(`INSERT INTO mailbox (id, tenant_id, connection_id, kind, status) VALUES ($1,$3,$2,'user','active'),($4,$3,$2,'user','active') ON CONFLICT DO NOTHING`, [SRC_MB, CONN, TENANT, TGT_MB]);
     await pool.query(
       `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status) VALUES ($1,$2,$3,$4,'mirror','paused') ON CONFLICT DO NOTHING`,

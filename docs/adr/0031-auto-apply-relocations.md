@@ -1,6 +1,6 @@
 # ADR-0031: Auto-applying relocations — what unattended would require
 
-- **Status:** Accepted (owner decision, 2026-08-16 — "i accept item 2 (adr 0031)") — built the same day
+- **Status:** Accepted (owner decision, 2026-08-16 — "i accept item 2 (adr 0031)") — built the same day; amended 2026-10-05 and 2026-11-25
 - **Date:** 2026-08-16
 - **Deciders:** owner
 - **Relates to:** ADR-0030 (relocation is positive evidence, and its amendments — every gate
@@ -13,7 +13,7 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- `autoApplyRelocations` per mapping, **default false**, and it **extends** `allowApplyDeletions` — never substitutes (auto ON with the base flag OFF refuses everything).
+- `autoApplyRelocations` per mapping, **default false**, owner only, and **its own switch** (2026-11-25): it extended `allowApplyDeletions` until ADR-0024 removed that switch; every manual gate still runs per item.
 - Four unattended gates atop every manual gate: pairing **unique corpus-wide** (empty files never eligible); the relocation **survived a completed pass** (`moved_recorded_at < passStartedAt`); the breaker decides **for the whole pass** (the cap must not nibble a mass event); cap **50 per mapping per pass**.
 - Attribution is `system:auto-apply` everywhere (audit log, managed apply receipts), counts narrated in the run summary. **Deletions never auto-apply**, either evidence class.
 - **After cutover nothing is auto-applied** (2026-10-05): before reading the moves queue, `autoApplyRelocations` asks the data type's phase afresh (`stillTheAuthority`) and refuses with `after_cutover`, in both editions, however old the move or late the switch. Guard: `a-move-applied-after-cutover.unit.test.ts`.
@@ -139,3 +139,15 @@ Apply on it is refused after cutover too, by the owner's later answer the same d
 amendment of 2026-10-05), and `applyRelocation`, which auto-apply calls per item, now asks the
 same question itself.
 
+
+## Amendment, 2026-11-25: its own switch
+
+ADR-0024's amendment of 2026-11-25 (workplan 0173) removed gate 1, the per-mapping switch for
+deleting by hand. This switch **extended** that one: auto ON with the base flag OFF refused every
+item with `not_enabled`. With the base gone, `autoApplyRelocations` is its own switch, the one
+left on the destructive path, and nothing else changes: off by default, owner only on managed
+(`PATCH …/apply-deletions`, which now takes this flag alone), config-file-owned on the appliance,
+two presses to turn on and one to turn off, and every manual gate plus the four above run per
+item. The Deletions panel shows it at once instead of only after deleting by hand was turned on.
+Where the narrative above says it *extends* `allowApplyDeletions`, read it as history.
+`auto-apply-relocations.unit.test.ts` now holds that it needs nothing else turned on.

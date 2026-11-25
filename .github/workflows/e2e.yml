@@ -469,11 +469,10 @@ jobs:
             // config.url as-is with zero resolution for the self-host file-config path).
             cfg.domains.files.source.url = nextcloudDav + "/files/" + process.env.NEXTCLOUD_SOURCE_USER + "/";
             cfg.domains.files.target.url = nextcloudDav + "/files/" + process.env.NEXTCLOUD_TARGET_USER + "/";
-            // Off by default (a destructive capability must be opted into, never
-            // opted out of — see ADR-0024). This is the one fixture that turns it
-            // on, so the Apply-Deletion Gate below can prove `apply` end to end
-            // against real servers; every other e2e run leaves it unset.
-            cfg.allowApplyDeletions = true;
+            // No `allowApplyDeletions` here, on purpose: deleting by hand needs
+            // no switch since alpha.21 (ADR-0024, amended 2026-11-25; workplan
+            // 0173). The Apply-Deletion Gate below proves `apply` end to end
+            // against real servers on a mapping that turned nothing on.
             fs.writeFileSync("deploy/selfhost/config/mapping.json", JSON.stringify(cfg, null, 2));
             // A SECOND mapping, for the archive-import gate (workplan 0116 T10):
             // a fixture Takeout mounted read-only into the appliance, imported

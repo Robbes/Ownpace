@@ -593,3 +593,15 @@ describe('the link pages’ wire (0145 T6)', () => {
     },
   );
 });
+
+describe('the password card’s server, as the route and the page both read it (0174 §5.3, D3)', () => {
+  type Obj = { properties?: Record<string, Obj>; items?: Obj; type?: string };
+  const schemas = (spec as { components?: { schemas?: Record<string, Obj> } }).components?.schemas;
+  const person = schemas?.PersonGrantPage;
+
+  it('names D3’s two facts as T3 computes them, and not the names the page once read', () => {
+    const server = person?.properties?.accounts?.items?.properties?.server;
+    expect(Object.keys(server?.properties ?? {}).sort()).toEqual(['domains', 'hosts', 'notTheAddressMail', 'published']);
+    expect(server?.properties?.notTheAddressMail?.type).toBe('array');
+  });
+});

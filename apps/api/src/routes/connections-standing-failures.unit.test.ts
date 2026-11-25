@@ -37,6 +37,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 import type { LedgerDriver } from '@openmig/ledger';
 import { DISCOVERY_DOMAINS, FAILURE_CATEGORIES, FAILURE_SIDES } from '@openmig/shared';
 
@@ -107,6 +108,9 @@ async function list(): Promise<{ status: number; text: string; byId: Map<string,
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // The managed chain too, as the API runs on it: the list says whom a
+  // password account saved for a person waits for (workplan 0174 T6).
+  await runManagedMigrations({ driver, logger: () => {} });
 
   const conn = await driver.acquire();
   try {

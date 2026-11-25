@@ -51,12 +51,12 @@ personally. The Alpha lasts a few weeks.
   works with the destination *WebDAV* or *Nextcloud*. Unsure? Ask us first.
 - **Open links in a browser** such as Firefox, Safari or Chrome, not in a chat or mail app. If a link opens
   in such an app anyway, choose *Open in browser* there.
-- **Deletions are off.** Do you delete something in your old account? Then the copy at your new
-  provider stays. Do you want that copy to go too? Then open the migration's *Deletions* page.
-  Choose *Turn on deleting by hand*, and confirm. After that you choose per deletion: *Delete it
-  here too* or *Keep our copy*. Ownpace only deletes a copy it wrote itself. Was a file, calendar
+- **You choose what is deleted.** Do you delete something in your old account? Then the copy at
+  your new provider stays. Do you want that copy to go too? Then open the migration's *Deletions*
+  page, and choose per deletion: *Delete it here too*, and confirm, or *Keep our copy*. Nothing
+  has to be turned on first. Ownpace only deletes a copy it wrote itself. Was a file, calendar
   entry or contact changed at your new provider? Then it does not delete it. With mail it does
-  not check that. Once deleting by hand is on, you see a second button, also off by default:
+  not check that. On the same page is a button that is off by default:
   *Turn on automatic removal*. It clears up the old copy of a file you moved in your old account.
   You then do not choose per file. After you switch over, Ownpace no longer deletes anything
   either way: your old account then no longer decides what exists.

@@ -78,7 +78,13 @@ import type { PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import { answerAddressChangeThroughLink } from './link-address-changes.ts';
 import { withdrawGrant } from './withdraw-grant.ts';
-import { migrationProgress, readPersonView, withdrawPersonGrant, withdrawalRefusalBody } from './person-progress.ts';
+import {
+  migrationProgress,
+  readPersonView,
+  withdrawPersonDestination,
+  withdrawPersonGrant,
+  withdrawalRefusalBody,
+} from './person-progress.ts';
 
 const router = Router();
 
@@ -202,8 +208,15 @@ router.get(
 let revoker: TokenRevoker | undefined;
 const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
 
-/** A person's withdrawal names the account, by the page's opaque `ref`. */
-const PersonWithdrawalSchema = z.object({ account: z.string().regex(/^[0-9a-f]{32}$/) });
+/**
+ * A person's withdrawal names the account by the page's opaque `ref`: a
+ * Google account they granted (`account`), or a destination they connected
+ * with their own password (`destination`, 0174 §4.3). Exactly one.
+ */
+const PersonWithdrawalSchema = z.union([
+  z.object({ account: z.string().regex(/^[0-9a-f]{32}$/) }).strict(),
+  z.object({ destination: z.string().regex(/^[0-9a-f]{32}$/) }).strict(),
+]);
 
 /**
  * POST /api/view/:link/withdraw — take back the grant this migration reads the
@@ -212,9 +225,12 @@ const PersonWithdrawalSchema = z.object({ account: z.string().regex(/^[0-9a-f]{3
  *
  * A POST, deliberately: it changes something, so it is never a GET a chat
  * preview could follow. A migration's takes no body; a person's names the
- * account by the `ref` the page read. Answered 200 with what happened at
- * Google, or 409 with the reason there was nothing to take back, in a sentence
- * written for the person holding the link.
+ * account by the `ref` the page read: `{ account }` for a Google account they
+ * granted, `{ destination }` for a destination they connected with their own
+ * password (0174 §4.3, `withdrawPersonDestination`). Answered 200 with what
+ * happened at Google, or for a destination when it was removed and its
+ * provider, or 409 with the reason there was nothing to take back, in a
+ * sentence written for the person holding the link.
  */
 router.post(
   '/:link/withdraw',
@@ -226,11 +242,17 @@ router.post(
         if (!parsed.success) {
           return void res.status(400).json({
             error: 'invalid_body',
-            reason: 'Send { account } as this page read it.',
-            reasonNl: 'Stuur { account } zoals deze pagina het las.',
+            reason: 'Send { account } or { destination } as this page read it.',
+            reasonNl: 'Stuur { account } of { destination } zoals deze pagina het las.',
           });
         }
         const { tenantId, personId, linkId } = req.personLink;
+        if ('destination' in parsed.data) {
+          // A destination's password (0174 §4.3): removed here, nothing to revoke at the provider.
+          const removed = await withdrawPersonDestination(pool(), { tenantId, personId, linkId }, parsed.data.destination);
+          if (!removed.ok) return void res.status(409).json(withdrawalRefusalBody(removed));
+          return void res.json(removed.withdrawal);
+        }
         const result = await withdrawPersonGrant(
           pool(),
           { tenantId, personId, linkId },

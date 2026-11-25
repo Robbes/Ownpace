@@ -95,7 +95,7 @@ function remover(
 function pressWith(
   ledger: MemoryLedger,
   targets: Partial<Record<DiscoveryDomain, unknown>>,
-  opts: { optIn?: { on: boolean }; pastCutover?: ReadonlySet<DiscoveryDomain> } = {},
+  opts: { pastCutover?: ReadonlySet<DiscoveryDomain> } = {},
 ) {
   return (item: ApplyEachItem) =>
     applyDeletion(
@@ -105,7 +105,6 @@ function pressWith(
         domain: item.domain,
         ledger,
         target: targets[item.domain],
-        allowApplyDeletions: opts.optIn ? opts.optIn.on : true,
         stillTheAuthority: async () => !(opts.pastCutover ?? new Set()).has(item.domain),
       },
       item.naturalKeyHash,
@@ -310,24 +309,6 @@ describe('evidence withdrawn during a run stops it', () => {
     const c = await ledger.find(TENANT, MAPPING, 'calendar', 'c');
     expect(c?.status, 'c was not asked').toBe('copied');
     expect(c?.deletionReportedAt, 'c is still reported: the pass had not reached it').toBeDefined();
-  });
-});
-
-describe('deleting by hand turned off during a run', () => {
-  it('refuses the next row (gate 1, read afresh) and stops the run', async () => {
-    const ledger = new MemoryLedger();
-    for (const hash of ['a', 'b', 'c']) await ledger.recordIfAbsent(row('calendar', hash, reported));
-    const optIn = { on: true };
-    const calendar = remover({}, { 't-a': async () => void (optIn.on = false) });
-
-    const results = await applyEachInTurn(
-      ['a', 'b', 'c'].map((h) => ({ domain: 'calendar' as const, naturalKeyHash: h })),
-      pressWith(ledger, { calendar }, { optIn }),
-    );
-
-    expect(said(results)).toEqual(['removed', 'not_enabled', 'not tried: refusal (not_enabled)']);
-    expect(calendar.asked).toEqual(['t-a']);
-    expect(await statusOf(ledger, 'calendar', 'c')).toBe('copied');
   });
 });
 

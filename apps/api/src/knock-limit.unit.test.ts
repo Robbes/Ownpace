@@ -156,7 +156,7 @@ describe('the premise this number is sized against', () => {
   };
 
   it('is still a door only an operator can open', () => {
-    // Seven, and each is deliberate:
+    // Eight, and each is deliberate:
     //
     //   the knock          — this limit's whole subject, and the only one of
     //                        the eight a stranger is *invited* to use
@@ -181,6 +181,11 @@ describe('the premise this number is sized against', () => {
     //                        refusing limit (`GIFT_REDEEM_LIMIT`); what it
     //                        writes is a request the operator still decides,
     //                        so it is not a self-service signup either
+    //   a person's own     — 0174 T3: a person's grant link only, by that
+    //   password             page's own link middleware; it tests a password
+    //                        the account holder types, with limits of its own
+    //                        (thirty tests an hour per caller, five refused
+    //                        logins per card per link), and is no signup
     //
     // A NINTH is the question. If it is a self-service signup, this number is
     // no longer sized for the door in front of it, and raising it is only half
@@ -197,6 +202,7 @@ describe('the premise this number is sized against', () => {
       // for: Google's old address is one value of `:provider`, not a new door.
       'routes/grant.ts POST /:link/:provider/authorize',
       'routes/grant.ts PUT /:link/address-changes/:ref',
+      'routes/grant.ts PUT /:link/password',
       'routes/link-reports.ts POST /:link/report',
       'routes/view.ts POST /:link/withdraw',
       'routes/view.ts PUT /:link/address-changes/:ref',

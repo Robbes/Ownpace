@@ -82,14 +82,13 @@ async function ledgerWithRelocation(
   return ledger;
 }
 
-function deps(ledger: MemoryLedger, target: unknown, allow = true) {
+function deps(ledger: MemoryLedger, target: unknown) {
   return {
     tenantId: TENANT,
     mappingId: MAPPING,
     domain: 'file' as const,
     ledger,
     target,
-    allowApplyDeletions: allow,
     // Before cutover: the old system still decides what exists. The refusal
     // after it has its own file (`an-apply-pressed-after-cutover`).
     stillTheAuthority: async () => true,
@@ -210,16 +209,6 @@ describe('the gate that carries the whole argument', () => {
 });
 
 describe('the gates it shares with a deletion are still in front of it', () => {
-  it('refuses unless the mapping opted in, without reading the ledger', async () => {
-    const ledger = await ledgerWithRelocation();
-    const find = vi.spyOn(ledger, 'find');
-
-    const outcome = await applyRelocation(deps(ledger, fakeRemover(), false), OLD_KEY);
-
-    expect(outcome).toMatchObject({ ok: false, code: 'not_enabled' });
-    expect(find, 'gate 1 comes before every read').not.toHaveBeenCalled();
-  });
-
   it('refuses a target that cannot remove, rather than silently doing nothing', async () => {
     const ledger = await ledgerWithRelocation();
 

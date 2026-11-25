@@ -886,7 +886,6 @@ export async function runAllDomains(
                   domain: 'file',
                   ledger: deps.ledger,
                   target: deps.target,
-                  allowApplyDeletions: config.allowApplyDeletions,
                   autoApplyRelocations: true,
                   // The file data type's phase, asked fresh at the apply from
                   // the reader this firing was handed: after cutover the apply
@@ -1615,7 +1614,6 @@ export async function applyMappingDeletion(
           domain,
           ledger: deps.ledger,
           target: deps.target,
-          allowApplyDeletions: config.allowApplyDeletions,
           stillTheAuthority: async () => sourceStillDecides(await phasesNow(), domain),
           ...(config.targetFolderPrefix !== undefined
             ? { targetFolderPrefix: config.targetFolderPrefix }
@@ -1681,7 +1679,6 @@ export async function applyMappingRelocation(
           domain,
           ledger: deps.ledger,
           target: deps.target,
-          allowApplyDeletions: config.allowApplyDeletions,
           stillTheAuthority: async () => sourceStillDecides(await phasesNow(), domain),
           ...(config.targetFolderPrefix !== undefined
             ? { targetFolderPrefix: config.targetFolderPrefix }

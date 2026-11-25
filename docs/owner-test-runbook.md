@@ -130,9 +130,10 @@ so — that is my work, not yours.
    `"tlsVerify": false` as the runbook says); Stalwart JMAP files also works.
 4. Scope it: set `"rootFolderId"` to your **test folder**, not all of My Drive.
    Leave `nativeFilePolicy` unset (= `refuse`) unless Stage 1 said stable.
-5. For the destructive drills only: `"allowApplyDeletions": true` on this
-   mapping. This is the switch in front of both apply queues — do not set it on
-   any mapping that points at data you care about.
+5. No switch to set for the destructive drills: since alpha.21 deleting by hand
+   needs none and has none (ADR-0024, amended 2026-11-25), on every mapping.
+   So run the apply drills only against a mapping that points at disposable
+   data, and do not press *Delete it here too* on one you care about.
 6. A short `schedule.cron` (every 1–2 min) makes the drills interactive; put it
    back to 15 min afterwards.
 
@@ -752,9 +753,9 @@ and step H's run by hand prints `PASS`.
   because the token can damage Drive (it is `drive.readonly`; it cannot), but
   because a small corpus makes every queue legible and every drill reversible.
 - **Destructive drills point at disposable targets only**: the machine's
-  `dev.local` accounts exist precisely to be wiped. `allowApplyDeletions` stays
-  off everywhere else — it defaults off, and nothing here needs it on a mapping
-  you care about.
+  `dev.local` accounts exist precisely to be wiped. There is no switch that
+  keeps a mapping from deleting by hand any more (alpha.21): what keeps your
+  data is not pressing a delete on a mapping you care about.
 - **Tenant A stays read-only, forever** ([`test-tenant.md`](./test-tenant.md)).
   Nothing in this runbook goes near it.
 - **The order matters once**: Stage 1's verdict gates `nativeFilePolicy`; until

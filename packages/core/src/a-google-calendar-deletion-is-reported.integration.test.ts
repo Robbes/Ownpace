@@ -209,14 +209,6 @@ describe('a Google calendar deletion reaches the deletions queue as reported (Pg
     expect((await ledger.find(TENANT, MAPPING, 'calendar', key))?.status).toBe('copied');
     expect(await w.cursorRow(w.family)).toBe('sync-token:tok:family:41');
 
-    // Gate 1 is unchanged: off unless the migration turns it on.
-    const off = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target: w.target, stillTheAuthority: async () => true },
-      key,
-    );
-    expect(off).toMatchObject({ ok: false, code: 'not_enabled' });
-    expect(w.target.events.has('target:Family:e3')).toBe(true);
-
     // By hand, behind every gate: the reported removal is what gate 3 takes.
     const applied = await applyDeletion(
       {
@@ -225,7 +217,6 @@ describe('a Google calendar deletion reaches the deletions queue as reported (Pg
         domain: 'calendar',
         ledger,
         target: w.target,
-        allowApplyDeletions: true,
         stillTheAuthority: async () => true,
       },
       key,

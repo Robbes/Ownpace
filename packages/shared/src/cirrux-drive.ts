@@ -69,6 +69,17 @@ export const CIRRUX_DRIVE_SCOPES = [
  */
 export const CIRRUX_DRIVE_GRANT_KEY = 'driveRefreshToken';
 
+/**
+ * The key the WORKSPACE a Drive grant reached is recorded under, beside the
+ * grant, in the same encrypted record: Cirrux's workspace `uuid`, as `GET
+ * /user/profile` named it (workplan 0174 §4.4, T5). Cirrux names no address
+ * on a sign-in (`https://cirrux.co/help/api/user`, read 2026-11-25), so the
+ * first grant on an account records the workspace and every later one must
+ * reach the same. Not a secret; kept in the record so it travels and goes
+ * with the grant's own rules (`keepingTheDriveGrant`).
+ */
+export const CIRRUX_DRIVE_WORKSPACE_KEY = 'driveWorkspace';
+
 /** Does this decrypted credential record carry a Drive grant? */
 export function hasCirruxDriveGrant(creds: Readonly<Record<string, string | undefined>>): boolean {
   const token = creds[CIRRUX_DRIVE_GRANT_KEY];

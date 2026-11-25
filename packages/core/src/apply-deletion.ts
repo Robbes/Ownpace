@@ -22,12 +22,14 @@
  * them. So the distinction this file has to keep true is: nothing here is ever
  * automatic, batched, or inferred. One item, one decision, one call.
  *
- * SEVEN GATES, and each one exists because of a specific way this could destroy
- * something it should not have:
+ * SIX GATES, and each one exists because of a specific way this could destroy
+ * something it should not have. They keep the numbers 2 to 7: until alpha.21 a
+ * gate 1 stood in front of them, a per-mapping switch (`allowApplyDeletions`)
+ * that had to be turned on before anything could be removed. The owner removed
+ * it on 2026-11-25 (workplan 0173, ADR-0024's amendment of that date): every
+ * delete is already two presses on the page, and the switch checked nothing
+ * about WHICH item may go. That is what the gates below are for.
  *
- * 1. **Turned on for this mapping.** Off unless `allowApplyDeletions` is set, so
- *    an appliance nobody configured for it cannot delete at all, however the
- *    endpoint is called.
  * 2. **The target can remove.** A writer that has not implemented
  *    `TargetRemover` makes this refuse and SAY so. Silently doing nothing would
  *    report success for a removal that never happened.
@@ -160,7 +162,6 @@ export type ApplyDeletionOutcome =
 
 /** The distinct ways this refuses. Stable strings, for an API to switch on. */
 export type ApplyRefusal =
-  | 'not_enabled'
   | 'target_cannot_remove'
   | 'not_found'
   | 'not_confirmed'
@@ -235,13 +236,6 @@ export interface ApplyDeletionDeps {
   /** The domain's target writer. Removal happens only if it implements `TargetRemover`. */
   readonly target: unknown;
   /**
-   * Whether this mapping is allowed to remove anything at all.
-   *
-   * Defaults to FALSE. A destructive capability that is on unless disabled is one
-   * somebody gets by accident.
-   */
-  readonly allowApplyDeletions?: boolean;
-  /**
    * The mapping's `targetFolderPrefix`, when it has one.
    *
    * The ledger's `collection` records the SOURCE folder — move detection
@@ -294,7 +288,7 @@ async function afterCutoverCheck(
  * The managed edition's route calls this synchronously before it enqueues
  * anything: a refusal is an answer to the operator's question and must come
  * back on the request they made, not as "check back later" from a job result.
- * Five of the seven gates need only the ledger and the mapping's flag; the two
+ * Four of the six gates need only the ledger; the two
  * that need the TARGET — whether it can remove at all (gate 2) and whether the
  * owner has edited our copy (gate 5, checked at the moment of removal, where
  * the ETag is) — cannot be answered from a request thread and land on the
@@ -317,18 +311,6 @@ export async function evaluateApplyDeletion(
   naturalKeyHash: string,
 ): Promise<{ ok: true; domain: ApplyDeletionDeps['domain'] } | Extract<ApplyDeletionOutcome, { ok: false }>> {
   const { tenantId, mappingId, domain, ledger } = deps;
-
-  // GATE 1: switched on at all.
-  if (deps.allowApplyDeletions !== true) {
-    return {
-      ok: false,
-      code: 'not_enabled',
-      reason:
-        'Removing items from the target is switched off for this mapping. Set ' +
-        '`allowApplyDeletions: true` in its config to enable it, and read the runbook first — ' +
-        'this is the only operation here that destroys anything.',
-    };
-  }
 
   const row = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
   if (!row) {
@@ -396,18 +378,6 @@ export async function applyDeletion(
   naturalKeyHash: string,
 ): Promise<ApplyDeletionOutcome> {
   const { tenantId, mappingId, domain, ledger, target } = deps;
-
-  // GATE 1: switched on at all.
-  if (deps.allowApplyDeletions !== true) {
-    return {
-      ok: false,
-      code: 'not_enabled',
-      reason:
-        'Removing items from the target is switched off for this mapping. Set ' +
-        '`allowApplyDeletions: true` in its config to enable it, and read the runbook first — ' +
-        'this is the only operation here that destroys anything.',
-    };
-  }
 
   // GATE 2: the target is capable of it. Checked before anything is read, so a
   // target that cannot remove never produces a half-finished decision.
@@ -565,8 +535,6 @@ export async function evaluateApplyRelocation(
 > {
   const { tenantId, mappingId, domain, ledger } = deps;
 
-  if (deps.allowApplyDeletions !== true) return notEnabled();
-
   const row = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
   if (!row) {
     return { ok: false, code: 'not_found', reason: 'No migrated item under that natural key.' };
@@ -615,26 +583,21 @@ export async function evaluateApplyRelocation(
  * already permits, which is why it is admitted on evidence a deletion could not
  * use.
  *
- * Everything else is identical and deliberately so: the per-mapping opt-in, the
- * target capability check, the ownership rule, the ETag re-check inside the
+ * Everything else is identical and deliberately so: the target capability check, the ownership rule, the ETag re-check inside the
  * removal, the remove-then-record ordering, and the ledger's own conditional
  * UPDATE having the final word. The mass breaker is the one gate that is WIDER
  * here: it measures relocations as well as deletions, because the per-item
  * argument above is exactly what a bulk correlation failure satisfies.
  *
- * IT SHARES `allowApplyDeletions` rather than adding a flag. This is the same
- * capability — removing our copy from the target — and a second switch would
- * mean an owner who opted into the more dangerous operation is refused the safer
- * one, which nobody would predict from the names.
+ * A press by hand needs no switch, here as for a deletion (ADR-0024's
+ * amendment of 2026-11-25). Removing them UNATTENDED is another matter, and has
+ * its own switch: see `autoApplyRelocations` (ADR-0031).
  */
 export async function applyRelocation(
   deps: ApplyDeletionDeps,
   naturalKeyHash: string,
 ): Promise<ApplyDeletionOutcome> {
   const { tenantId, mappingId, domain, ledger, target } = deps;
-
-  // GATE 1: switched on at all.
-  if (deps.allowApplyDeletions !== true) return notEnabled();
 
   // GATE 2: the target is capable of it, checked before anything is read.
   if (!canRemove(target)) {
@@ -785,18 +748,6 @@ export async function applyRelocation(
       'under the key the source moved it to, by an explicit owner decision.',
   );
   return { ok: true, kind: removal.kind };
-}
-
-/** Gate 1's refusal, written once so both paths say the same thing. */
-function notEnabled(): Extract<ApplyDeletionOutcome, { ok: false }> {
-  return {
-    ok: false,
-    code: 'not_enabled',
-    reason:
-      'Removing items from the target is switched off for this mapping. Set ' +
-      '`allowApplyDeletions: true` in its config to enable it, and read the runbook first — ' +
-      'this is the only operation here that destroys anything.',
-  };
 }
 
 /**
@@ -1282,7 +1233,7 @@ export const AUTO_APPLY_AFTER_CUTOVER =
  * Apply open relocations unattended — ADR-0031's four gates in front of the
  * existing `applyRelocation`, never a second destructive path.
  *
- * The manual path's gates all run again per item (opt-in, capability,
+ * The manual path's gates all run again per item (capability,
  * ownership, ambiguity, the ask-the-target presence check, the ETag, the
  * ledger's conditional UPDATE). What this adds is what replaces the human who
  * is no longer looking:
@@ -1324,7 +1275,7 @@ export const AUTO_APPLY_AFTER_CUTOVER =
  */
 export async function autoApplyRelocations(
   deps: ApplyDeletionDeps & {
-    /** ADR-0031's per-mapping opt-in. Defaults to FALSE, like every destructive capability. */
+    /** ADR-0031's per-mapping opt-in. Defaults to FALSE: nothing is removed unattended unless the owner turned it on. */
     readonly autoApplyRelocations?: boolean;
     /** Durable attribution, where the edition has somewhere to put it. */
     readonly onApplied?: (applied: {

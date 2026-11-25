@@ -54,6 +54,8 @@ export const en = {
   'grant.reads.contact': 'your contacts',
   'grant.reads.file': 'your files in Google Drive',
   'grant.reads.task': 'your tasks',
+  // Files on any card that is no Google or Microsoft sign-in (0174 §4.5).
+  'grant.reads.file.other': 'your files',
   // Where from and where to (workplan 0108 T8a): what lets a person tell their
   // own migration from a stranger's, whose every other screen is genuine.
   'grant.company': 'Company',
@@ -133,9 +135,85 @@ export const en = {
     'Sign in as {account}. Microsoft confirms which account signed in; other accounts are refused.',
   'grant.withdraw.microsoft':
     'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Microsoft account, under the apps that have access.',
+  // A Dropbox link (workplan 0174 §6): the same page, in Dropbox's words.
+  // Dropbox takes no login hint, so the sign-in line says what to do when it
+  // offers another account.
+  // A destination's Cirrux Drive on a person's link (workplan 0174 §4.4, T5),
+  // shown once the account's app password is stored. The button's words are
+  // the owner's own (`account.cirrux.connect`).
+  // The person's progress page after a password (0174 §5.3 step 8), in the
+  // words the sign-in ending's own page says it (`google-consent.ts`).
+  'grant.person.yourPage':
+    'Here is your own page for this migration. Keep this one: it shows how far along your move is, and nothing from inside your account.',
+  'grant.person.keepIt':
+    'Keep this link: bookmark it or copy it somewhere safe. It works for the next 90 days, and the person running the migration can turn it off at any time.',
+  'grant.continue.cirrux': 'Connect Cirrux Drive',
+  'grant.connectAgain.cirrux': 'Connect Cirrux Drive again',
+  'grant.connecting.cirrux': 'Opening Cirrux…',
+  'grant.cirrux.drive':
+    'Your files go to Cirrux Drive, which takes your own Cirrux sign-in rather than the app password. You sign in to Cirrux yourself, on Cirrux’s own page.',
+  'grant.cirrux.signInAs': 'Sign in to Cirrux with the account {account} belongs to.',
+  'grant.continue.dropbox': 'Continue with Dropbox as {account}',
+  'grant.connectAgain.dropbox': 'Connect again with Dropbox as {account}',
+  'grant.connecting.dropbox': 'Opening Dropbox…',
+  'grant.reads.file.dropbox': 'your files in Dropbox',
+  'grant.readOnly.dropbox':
+    'Read-only. Nothing is ever deleted or changed in your Dropbox, and nobody — not the organisation, not Ownpace — ever sees your password. You sign in to Dropbox yourself, on Dropbox’s own page.',
+  'grant.scopeIntro.dropbox': 'The permission Dropbox will ask you for:',
+  'grant.scope.dropbox.files': 'Dropbox: read your files.',
+  'grant.scope.dropbox.account': 'Your Dropbox account: read your name, your email address and how much space you use.',
+  'grant.scope.technical.line.dropbox': 'Dropbox records this permission as:',
+  'grant.signInAs.dropbox':
+    'Sign in as {account}. Dropbox confirms which account signed in; other accounts are refused. If Dropbox offers another account, sign out of it first.',
+  'grant.withdraw.dropbox':
+    'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Dropbox settings, under Connected apps.',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
   'grant.withdraw':
     'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Google account’s security settings, under the apps that have access.',
+  // A person's link asks for ACCOUNTS (workplan 0174 §4.5): the ones their
+  // data is copied from, then the ones it is copied to, each with its state.
+  'grant.group.from': 'The accounts your data is copied from',
+  'grant.group.to': 'The accounts your data is copied to',
+  'grant.person.migrationFrom': 'From {where}: {reads}.',
+  'grant.state.connected': 'Connected',
+  'grant.state.waiting': 'Waiting',
+  'grant.state.locked': 'Locked on this link',
+  'grant.person.allConnected': 'Every account is connected. You can close this page.',
+  // The own-password card (0174 §5.2, §5.7, §5.8). Short sentences, in the
+  // words the Google and Microsoft cards above already use.
+  'grant.password.title': 'Connect {account} with your password',
+  'grant.password.server': 'Your password is checked with {server}. Type it only if this is your own provider’s server.',
+  'grant.password.published': 'Your password is checked with {provider}’s own server, {server}.',
+  // The progress page, once a destination's password is removed (0174 §4.3, §5.9).
+  'grant.password.withdrawn': 'Removed here. Delete or change this password at {provider} too, if you want to be sure.',
+  // D3's addition (the owner, 2026-11-25): a warning, never a refusal.
+  'grant.password.notAddressMail':
+    'This server is not one your address’s mail uses, as far as we can tell. Type your password only if you know it is your provider’s.',
+  'grant.password.nobody':
+    'It is stored encrypted. Nobody can see it again: not {askedBy}, not {organisation}, not Ownpace’s staff.',
+  'grant.password.never': 'Ownpace never emails you a link and never asks for your password by email or phone.',
+  'grant.password.noPhone':
+    '{organisation} has not given a phone number. If you are not sure this link came from {askedBy}, ask them some other way before you type anything.',
+  'grant.password.appPassword': 'Use an app password if your provider offers one.',
+  'grant.password.show': 'Show',
+  'grant.password.hide': 'Hide',
+  'grant.password.submit': 'Check and connect',
+  'grant.password.checking': 'Checking with {server}…',
+  'grant.password.connected': 'Connected. Your password works and is stored encrypted.',
+  'grant.password.triesLeft': 'Tries left on this link: {left}.',
+  'grant.password.refused': '{server} did not accept this password. Check it and try again. Tries left: {left}.',
+  'grant.password.refused.app': 'Make sure it is an app password, not the password you sign in with.',
+  'grant.password.unreachable':
+    '{server} could not be reached. This is not your password. Try again in a few minutes; if it keeps happening, tell {askedBy}.',
+  'grant.password.faceMissing': 'Your password works, but {server} gives no access to: {faces}.',
+  'grant.password.locked': 'Too many tries on this link. Ask {askedBy} for a new link.',
+  // How to make the password the card asks for, folded (the guides' own steps).
+  'grant.apple.how': 'How do I make an app-specific password?',
+  'grant.apple.how.more':
+    'Sign in at account.apple.com. Choose Sign-In and Security, then App-Specific Passwords. Make one, name it Ownpace, and type it here. Apple shows it only once.',
+  'grant.nextcloud.how': 'How do I make an app password?',
+  'grant.nextcloud.how.more':
+    'Open your Nextcloud in the browser. Go to Settings, Security, Devices & sessions. Type a name such as Ownpace, press Create new app password, and type the password it shows here.',
   // Report this link (workplan 0108 T8 (d)): on the grant and progress pages,
   // to the owner's helpdesk, never to the organisation that asked.
   'linkReport.open': 'Report this link',
@@ -198,6 +276,7 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.reads.contact': 'uw contactpersonen',
   'grant.reads.file': 'uw bestanden in Google Drive',
   'grant.reads.task': 'uw taken',
+  'grant.reads.file.other': 'uw bestanden',
   'grant.company': 'Bedrijf',
   'grant.companyChecked': 'Gecontroleerd in EU-btw-register (VIES).',
   'grant.askedBy': 'Gevraagd door',
@@ -257,9 +336,72 @@ export const nl: Record<keyof typeof en, string> = {
     'Log in als {account}. Microsoft bevestigt met welk account u zich aanmeldt; andere accounts worden geweigerd.',
   'grant.withdraw.microsoft':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of in uw Microsoft-account, bij de apps die toegang hebben.',
+  'grant.person.yourPage':
+    'Hier is uw eigen pagina voor deze migratie. Bewaar deze: die laat zien hoe ver de migratie is, en niets uit uw account.',
+  'grant.person.keepIt':
+    'Bewaar deze link: zet hem bij uw favorieten of kopieer hem naar een veilige plek. Hij werkt de komende 90 dagen, en wie de migratie uitvoert kan hem op elk moment uitzetten.',
+  'grant.continue.cirrux': 'Cirrux Drive verbinden',
+  'grant.connectAgain.cirrux': 'Cirrux Drive opnieuw verbinden',
+  'grant.connecting.cirrux': 'Cirrux wordt geopend…',
+  'grant.cirrux.drive':
+    'Uw bestanden gaan naar Cirrux Drive, en daarvoor is uw eigen aanmelding bij Cirrux nodig, niet het app-wachtwoord. U meldt zich zelf aan bij Cirrux, op de pagina van Cirrux zelf.',
+  'grant.cirrux.signInAs': 'Meld u bij Cirrux aan met het account waar {account} bij hoort.',
+  'grant.continue.dropbox': 'Doorgaan met Dropbox als {account}',
+  'grant.connectAgain.dropbox': 'Opnieuw verbinden met Dropbox als {account}',
+  'grant.connecting.dropbox': 'Dropbox wordt geopend…',
+  'grant.reads.file.dropbox': 'uw bestanden in Dropbox',
+  'grant.readOnly.dropbox':
+    'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw Dropbox, en niemand — niet de organisatie, niet Ownpace — ziet uw wachtwoord. U logt zelf in bij Dropbox, op de pagina van Dropbox zelf.',
+  'grant.scopeIntro.dropbox': 'De toestemming die Dropbox u vraagt:',
+  'grant.scope.dropbox.files': 'Dropbox: uw bestanden lezen.',
+  'grant.scope.dropbox.account': 'Uw Dropbox-account: uw naam, uw e-mailadres en uw gebruikte ruimte lezen.',
+  'grant.scope.technical.line.dropbox': 'Dropbox legt deze toestemming vast als:',
+  'grant.signInAs.dropbox':
+    'Log in als {account}. Dropbox bevestigt met welk account u zich aanmeldt; andere accounts worden geweigerd. Biedt Dropbox een ander account aan, meld u daar dan eerst af.',
+  'grant.withdraw.dropbox':
+    'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of in uw Dropbox-instellingen, bij Verbonden apps.',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
   'grant.withdraw':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of via de beveiligingsinstellingen van uw Google-account, bij de apps die toegang hebben.',
+  'grant.group.from': 'De accounts waaruit uw gegevens worden gekopieerd',
+  'grant.group.to': 'De accounts waarnaar uw gegevens worden gekopieerd',
+  'grant.person.migrationFrom': 'Van {where}: {reads}.',
+  'grant.state.connected': 'Verbonden',
+  'grant.state.waiting': 'Nog niet verbonden',
+  'grant.state.locked': 'Geblokkeerd voor deze link',
+  'grant.person.allConnected': 'Alle accounts zijn verbonden. U kunt deze pagina sluiten.',
+  'grant.password.title': 'Verbind {account} met uw wachtwoord',
+  'grant.password.server':
+    'Uw wachtwoord wordt gecontroleerd bij {server}. Typ het alleen als dit de server van uw eigen aanbieder is.',
+  'grant.password.published': 'Uw wachtwoord wordt gecontroleerd bij de eigen server van {provider}, {server}.',
+  'grant.password.withdrawn': 'Hier verwijderd. Verwijder of wijzig dit wachtwoord ook bij {provider} als u het zeker wilt weten.',
+  'grant.password.notAddressMail':
+    'Deze server hoort niet bij de mail van uw adres, voor zover wij kunnen zien. Typ uw wachtwoord alleen als u zeker weet dat het de server van uw aanbieder is.',
+  'grant.password.nobody':
+    'Het wordt versleuteld bewaard. Niemand kan het nog zien: niet {askedBy}, niet {organisation}, niet de medewerkers van Ownpace.',
+  'grant.password.never': 'Ownpace mailt u nooit een link en vraagt nooit per e-mail of telefoon om uw wachtwoord.',
+  'grant.password.noPhone':
+    '{organisation} heeft geen telefoonnummer opgegeven. Weet u niet zeker of deze link van {askedBy} komt? Vraag het dan op een andere manier voordat u iets typt.',
+  'grant.password.appPassword': 'Gebruik een app-wachtwoord als uw aanbieder dat biedt.',
+  'grant.password.show': 'Tonen',
+  'grant.password.hide': 'Verbergen',
+  'grant.password.submit': 'Controleren en verbinden',
+  'grant.password.checking': 'Bezig met controleren bij {server}…',
+  'grant.password.connected': 'Verbonden. Uw wachtwoord werkt en is versleuteld bewaard.',
+  'grant.password.triesLeft': 'Pogingen over met deze link: {left}.',
+  'grant.password.refused':
+    '{server} accepteerde dit wachtwoord niet. Controleer het en probeer het opnieuw. Pogingen over: {left}.',
+  'grant.password.refused.app': 'Controleer of het een app-wachtwoord is, niet het wachtwoord waarmee u inlogt.',
+  'grant.password.unreachable':
+    '{server} was niet bereikbaar. Dat ligt niet aan uw wachtwoord. Probeer het over een paar minuten opnieuw. Blijft het gebeuren, laat het dan {askedBy} weten.',
+  'grant.password.faceMissing': 'Uw wachtwoord werkt, maar {server} geeft geen toegang tot: {faces}.',
+  'grant.password.locked': 'Te vaak geprobeerd met deze link. Vraag {askedBy} om een nieuwe link.',
+  'grant.apple.how': 'Hoe maak ik een app-specifiek wachtwoord?',
+  'grant.apple.how.more':
+    'Meld u aan op account.apple.com. Kies Inloggen en beveiliging, dan App-specifieke wachtwoorden. Maak er een, noem het Ownpace en typ het hier. Apple toont het maar één keer.',
+  'grant.nextcloud.how': 'Hoe maak ik een app-wachtwoord?',
+  'grant.nextcloud.how.more':
+    'Open uw Nextcloud in de browser. Ga naar Instellingen, Beveiliging, Apparaten & sessies. Typ een naam zoals Ownpace, druk op Creëer een nieuw app wachtwoord en typ hier het wachtwoord dat Nextcloud toont.',
   'linkReport.open': 'Deze link melden',
   'linkReport.intro': 'Uw melding gaat naar het Ownpace-supportteam, niet naar {organisation}.',
   'linkReport.description': 'Waarom twijfelt u aan deze link?',

@@ -50,7 +50,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, dataTypesPastCutover, HALT_IN_WORDS, firstCopyOf, readWindowView, type FirstCopyFacts } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, dataTypesPastCutover, HALT_IN_WORDS, firstCopyOf, readWindowView, ignoredDeleteSwitchWarning, type FirstCopyFacts } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -487,6 +487,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // the shared target, reporting success. Refused at boot, with the fix.
   for (const m of mappings) assertMappingPattern(m.config);
   log.info(`[selfhost] loaded ${mappings.length} mapping(s) from ${configDir}`);
+  // Deleting by hand needs no switch since alpha.21 (ADR-0024, 2026-11-25).
+  // A file that still says `"allowApplyDeletions": false` loads, and is told
+  // once that the key turns nothing off any more (workplan 0173 T1).
+  for (const m of mappings) {
+    const ignored = ignoredDeleteSwitchWarning(m.config);
+    if (ignored !== undefined) log.warn(ignored);
+  }
   // The table of address changes' door (workplan 0168 §7): its file, read and
   // checked now, so a malformed one stops the start before anything runs; or,
   // without the file, the appliance's own page.
@@ -2173,9 +2180,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // NOTHING HERE HAS BEEN REMOVED BY DEFAULT. §11.1 says deletions are
       // never auto-propagated and hard rule 2 forbids the tool deleting on its
       // own; neither says the owner may not decide, and `apply` below is that
-      // decision made explicit, one item at a time, gated on this mapping
-      // having `allowApplyDeletions: true` and on the evidence being positive
-      // (never on an absence, however many passes it has repeated).
+      // decision made explicit, one item at a time, gated on the evidence
+      // being positive (never on an absence, however many passes it has
+      // repeated). No switch has to be turned on for it (alpha.21).
       //
       // `evidence` is the field to read first, because the two kinds are
       // different in kind and not in degree:
@@ -3246,10 +3253,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           markdown: renderCompletionReportMarkdown(report),
         });
       }
-      // Gate 1 of the destructive path, as a readable fact (workplan 0019 T3).
-      // The value lives in the mapping's CONFIG FILE on this edition, and
+      // The one switch on the destructive path, as a readable fact (workplan
+      // 0019 T3; ADR-0031): removing moved files' old copies unattended. The
+      // value lives in the mapping's CONFIG FILE on this edition, and
       // `source: 'config'` says so — the same screen that offers a switch on
-      // managed renders a read-only note here.
+      // managed renders a read-only note here. Deleting by hand has no switch
+      // since alpha.21 (ADR-0024, 2026-11-25), so this no longer reports one.
       const applyFlagMatch = req.url
         ? /^\/mappings\/([^/]+)\/apply-deletions$/.exec(req.url)
         : null;
@@ -3258,7 +3267,6 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const m = mappings.find((x) => x.config.mappingId === id);
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
         const flag: ApplyDeletionsFlag = {
-          allowApplyDeletions: m.config.allowApplyDeletions === true,
           autoApplyRelocations: m.config.autoApplyRelocations === true,
           source: 'config',
         };
@@ -3272,9 +3280,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         return sendJson(res, 405, {
           error: 'config_owned',
           reason:
-            "The appliance's flags live in the mapping's config file " +
-            '(`allowApplyDeletions`, `autoApplyRelocations`); edit the file and ' +
-            'restart the appliance. No API changes them.',
+            "The appliance's flag lives in the mapping's config file " +
+            '(`autoApplyRelocations`); edit the file and restart the appliance. ' +
+            'No API changes it.',
         });
       }
       const deletionMatch =
@@ -3321,8 +3329,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // THE ONE DESTRUCTIVE ROUTE IN THIS API. Everything above it in this file
       // — /failures, /moves, /deletions and their `keep` actions — changes
       // nothing on either side. This removes the target's copy, on an explicit
-      // per-item decision, gated by `applyDeletion` in @openmig/core: off unless
-      // the mapping opts in (`allowApplyDeletions`), refused for anything but
+      // per-item decision, gated by `applyDeletion` in @openmig/core (no switch
+      // since alpha.21: one call is one removal), refused for anything but
       // POSITIVE deletion evidence, refused for an item the target owner has
       // since edited, refused altogether behind the mass-deletion circuit
       // breaker, and refused once the item's data type is past its cutover
@@ -3384,9 +3392,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // where a deletion on the same evidence would not be, because the same
       // bytes are already on the target under the new key. `applyRelocation`
       // re-checks exactly that before touching anything, along with every gate
-      // the deletion path has: the per-mapping opt-in (the SAME
-      // `allowApplyDeletions` — this is the same capability), the target's
-      // ability to remove, ownership, the ETag, and the mass-deletion breaker.
+      // the deletion path has: the target's ability to remove, ownership, the ETag, and the mass-deletion breaker.
       const applyMoveMatch =
         req.method === 'POST' && req.url
           ? /^\/mappings\/([^/]+)\/moves\/([^/]+)\/(apply)$/.exec(req.url)

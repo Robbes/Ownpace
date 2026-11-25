@@ -7,7 +7,7 @@
  * call, each decided by itself.
  *
  * What the page owes, and what this holds:
- *  - the button only where a single delete is offered: deleting by hand on,
+ *  - the button only where a single delete is offered (no switch since alpha.21),
  *    and only rows `mayOfferApply` offers, so never an assumed row and never
  *    one past its data type's cutover;
  *  - one confirmation, a control of its own that names the count over the
@@ -20,7 +20,7 @@
  *    count orders nothing;
  *  - in turn: each press answered to its end (a managed receipt included)
  *    before the next; a refusal of one row is that row's answer, while the
- *    breaker's refusal, deleting by hand turned off, a removal the ledger
+ *    breaker's refusal, a removal the ledger
  *    could not record, evidence withdrawn during the run, a press the server
  *    started nothing for, and a press that did not answer each stop the run;
  *  - from the confirming press on, no row of the run has a button of its
@@ -195,7 +195,7 @@ const group = (title: string) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: true, autoApplyRelocations: false, source: 'mapping' });
+  fetchApplyDeletionsFlag.mockResolvedValue({ autoApplyRelocations: false, source: 'mapping' });
 });
 
 afterEach(() => {
@@ -203,29 +203,22 @@ afterEach(() => {
 });
 
 describe('where it is offered', () => {
-  it('is offered for two or more rows with their own delete button, while deleting by hand is on', async () => {
+  it('is offered for two or more rows with their own delete button, with no switch to turn on (ADR-0024, 2026-11-25)', async () => {
     fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
     renderScreen();
     expect(await screen.findByRole('button', { name: en['deletions.all'] })).toBeInTheDocument();
     expect(screen.getByText(fill(en['deletions.all.lead'], { count: 2 }))).toBeInTheDocument();
   });
 
-  it('is not offered while deleting by hand is off', async () => {
-    fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'mapping' });
-    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
-    renderScreen();
-    // The rows and the switch are there; the press for all of them is not.
-    expect(await screen.findByText(en['applyFlag.off'])).toBeInTheDocument();
-    expect(screen.getAllByText(en['deletions.apply'])).toHaveLength(2);
-    expect(screen.queryByText(en['deletions.all'])).not.toBeInTheDocument();
-  });
-
-  it('is not offered while it cannot be read whether deleting by hand is on', async () => {
+  it('does not wait on the flag: offered even while the automatic-removal switch cannot be read', async () => {
+    // Until alpha.21 this was not offered: it read deleting by hand's switch
+    // first. Nothing is read now, so a flag that fails to load says so and
+    // takes nothing away.
     fetchApplyDeletionsFlag.mockRejectedValue(new Error('network down'));
     fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b')] }));
     renderScreen();
     expect(await screen.findByText(/network down/)).toBeInTheDocument();
-    expect(screen.queryByText(en['deletions.all'])).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: en['deletions.all'] })).toBeInTheDocument();
   });
 
   it('is not offered after cutover, and the rows past it are not counted', async () => {
@@ -234,9 +227,9 @@ describe('where it is offered', () => {
     );
     renderScreen();
     expect(await screen.findByText(/Past the cutover of Calendar/)).toBeInTheDocument();
-    // Asked once deleting by hand is known to be on, or this would pass on a
-    // flag still being read.
-    expect(await screen.findByText(en['applyFlag.on'])).toBeInTheDocument();
+    // Asked once the panel has drawn, so this does not pass on a page still
+    // being read.
+    expect(await screen.findByText(en['autoApply.off'])).toBeInTheDocument();
     expect(screen.getAllByText(en['deletions.apply'])).toHaveLength(1);
     expect(screen.queryByText(en['deletions.all'])).not.toBeInTheDocument();
   });
@@ -937,7 +930,7 @@ describe('evidence withdrawn during a run', () => {
   });
 });
 
-describe('the breaker, and deleting by hand turned off, stop the run', () => {
+describe('the breaker stops the run; the old switch no longer does', () => {
   it('the breaker on the request stops every row after it, of every data type', async () => {
     fetchDeletions.mockResolvedValue(
       queue({ confirmed: [deletion('c1'), deletion('c2'), deletion('c3'), deletion('k1', { domain: 'contact' })] }),
@@ -1002,7 +995,13 @@ describe('the breaker, and deleting by hand turned off, stop the run', () => {
     expect(screen.getAllByText(en['receipt.applied.binned']).length).toBeGreaterThan(0);
   });
 
-  it('deleting by hand turned off during the run refuses the next row and stops the rest', async () => {
+  it('the old switch\'s code, from a server before alpha.21, is no known refusal: not known, and the run stops', async () => {
+    // `not_enabled` stopped a run until alpha.21 (deleting by hand turned off
+    // mid-run) and had words of its own. The switch is gone (ADR-0024,
+    // 2026-11-25) and so is the code: a server that still says it is
+    // answering with a code this page does not know, which is never read as
+    // "refused, nothing removed" — so the run stops there, as for any answer
+    // whose outcome is not known.
     fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion('a'), deletion('b'), deletion('c')] }));
     applyDeletion.mockImplementation(async (_m: string, hash: string) => {
       if (hash === 'b') throw refusal('not_enabled', 'Removing items from the target is switched off for this mapping.');
@@ -1010,9 +1009,8 @@ describe('the breaker, and deleting by hand turned off, stop the run', () => {
     });
     renderScreen();
     await pressAll(3);
-    expect(await screen.findByText(new RegExp(en['deletions.all.stoppedBy.notEnabled']))).toBeInTheDocument();
+    expect(await screen.findByText(new RegExp(en['deletions.all.stoppedBy.failure']))).toBeInTheDocument();
     expect(orderedHashes()).toEqual(['a', 'b']);
-    expect(screen.getByText(en['deletions.all.notTried.notEnabled'])).toBeInTheDocument();
   });
 });
 

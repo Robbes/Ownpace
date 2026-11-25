@@ -71,6 +71,12 @@ function urlOf(database: string, user?: string, password?: string): string {
 const JOBS_URL = urlOf(DB, ROLE, PASSWORD);
 const EMPTY_JOBS_URL = urlOf(EMPTY_DB, ROLE, PASSWORD);
 
+// The source is an IMAP account, and since workplan 0174 T1 a password account
+// with no stored password does not start (`awaitingGrant`, 409 `awaiting_grant`).
+// The fixture stores one, encrypted as the create route stores it, under a key
+// of this test's own when the harness gives none.
+process.env.SECRET_ENCRYPTION_KEY ??= '0167a6d0'.repeat(8);
+
 let driver: LedgerDriver;
 
 vi.mock('./middleware/auth.ts', async (importOriginal) => {
@@ -92,6 +98,7 @@ const { enqueueIfFree, QUEUE_UNREACHABLE } = await import('./enqueue-unless-held
 const { discoveryTriggerOptions } = await import('./routes/migrations/job-resolution.ts');
 const { closeAccount } = await import('./close-account.ts');
 const { schedulerReadiness, __setPoolForTests } = await import('./routes/ready.ts');
+const { SecretStore } = await import('@openmig/core/secret-store');
 
 const app = express();
 app.use(express.json());
@@ -166,9 +173,15 @@ beforeAll(async () => {
   await runManagedMigrations({ driver, logger: () => {} });
   await sql('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'on pg-boss']);
   await sql(
-    `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-     VALUES ($1,$2,'source','imap','i','{}'::jsonb,'connected')`,
-    [CONN, TENANT],
+    `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+     VALUES ($1,$2,'source','imap','i','{}'::jsonb,'connected',$3)`,
+    [
+      CONN,
+      TENANT,
+      JSON.stringify(
+        SecretStore.encryptCredentials({ username: 'pgboss@example.invalid', password: 'fixture-not-a-password' }).encrypted,
+      ),
+    ],
   );
   await sql(
     `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)

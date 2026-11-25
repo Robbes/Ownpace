@@ -16,6 +16,14 @@
   version, so the text stays 1.0 until the first tester accepts it (alpha-version-number (a),
   below), in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS, which pins these words under 1.0.
 
+  STILL 1.0, EDITED IN PLACE ON 2026-11-25, on the owner's word (workplan 0173 Q4, verbatim:
+  "terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"):
+  §8's list of what an admin cannot do loses *deleting by hand* / *handmatig verwijderen*,
+  because alpha.21 removes that switch (ADR-0024 gate 1, workplan 0173 §10), and an admin may
+  delete by hand like an owner (tenants.invite.adminCan says the same). The rest of the list is
+  unchanged. The Last updated line moved to 2026-11-25, in both languages; ACCEPTED_WORDS
+  re-pins both files under 1.0.
+
   VERSION 1.0, 2026-09-28: the owner's text for the Alpha. It stays 1.0 while
   it is edited, until the first tester accepts it; every change after that
   gets a new number (alpha-version-number (a), 2026-09-28). Edited in place
@@ -221,7 +229,7 @@
 
 **Apply to:** the Alpha of the Ownpace **managed service** at `ownpace.eu`.
 **Version:** 1.0
-**Last updated:** 2026-10-19
+**Last updated:** 2026-11-25
 
 ---
 
@@ -322,9 +330,9 @@ Your account is for you alone. Share your sign-in details with nobody.
 During the Alpha, do not invite anyone else into your organisation. If somebody wants to follow
 a migration, send them that migration's progress link: it shows counts and states, never
 content. If you do invite someone, invite them as an admin, and know that an admin can do
-everything you can except close or reopen the organisation, turn *deleting by hand* or *the
-automatic removal of moved files' old copies* on or off, make somebody an owner, and change or
-remove an owner or an invitation as owner. During the Alpha, a person can only be an owner or an admin. You are
+everything you can except close or reopen the organisation, turn *the automatic removal of moved
+files' old copies* on or off, make somebody an owner, and change or remove an owner or an
+invitation as owner. During the Alpha, a person can only be an owner or an admin. You are
 responsible for whom you invite.
 
 ## 9. Google asks again

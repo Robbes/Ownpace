@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseTargetFolderPrefix, applyTargetFolderPrefix, parseMappingConfig, parseMappingConfigJson, ConfigError } from './config.ts';
+import { parseTargetFolderPrefix, applyTargetFolderPrefix, parseMappingConfig, parseMappingConfigJson, ConfigError, ignoredDeleteSwitchWarning } from './config.ts';
 
 const example = {
   tenantId: 'tenant-1',
@@ -67,23 +67,31 @@ describe('parseMappingConfig', () => {
     expect(() => parseMappingConfig(null)).toThrow(ConfigError);
   });
 
-  describe('allowApplyDeletions', () => {
-    it('defaults to undefined — off unless a mapping opts in', () => {
-      // The one destructive capability in the product must never turn on by
-      // omission. Absent here is what makes `applyDeletion`'s gate 1 refuse by
-      // default rather than by a config author remembering to say `false`.
+  describe('allowApplyDeletions (no longer read since alpha.21, still parsed)', () => {
+    // Deleting by hand needs no switch (ADR-0024, 2026-11-25; workplan 0173).
+    // The key is kept in the parser so a file that has it still loads, and so
+    // a `false` an owner wrote can be warned about rather than ignored silently.
+    it('stays absent when absent', () => {
       expect(parseMappingConfig(example).allowApplyDeletions).toBeUndefined();
     });
 
-    it('accepts an explicit true or false', () => {
+    it('accepts an explicit true or false, so an old file still loads', () => {
       expect(parseMappingConfig({ ...example, allowApplyDeletions: true }).allowApplyDeletions).toBe(true);
       expect(parseMappingConfig({ ...example, allowApplyDeletions: false }).allowApplyDeletions).toBe(false);
     });
 
+    it('warns for false only, naming the mapping, and says the key is ignored', () => {
+      expect(ignoredDeleteSwitchWarning(parseMappingConfig(example))).toBeUndefined();
+      expect(ignoredDeleteSwitchWarning(parseMappingConfig({ ...example, allowApplyDeletions: true }))).toBeUndefined();
+      const said = ignoredDeleteSwitchWarning(parseMappingConfig({ ...example, allowApplyDeletions: false }));
+      expect(said).toMatch(/no longer turns deleting by hand off/);
+      expect(said).toMatch(/ignored/);
+    });
+
     it('rejects anything that is not literally a boolean', () => {
-      // A typo here ("true" as a string, 1 as a number) must be loud: silently
-      // treating it as falsy would be a config author's REASONABLE belief that
-      // they turned this on, quietly not turning it on at all.
+      // A typo here ("true" as a string, 1 as a number) stays loud: the file is
+      // the appliance's configuration, and a value of the wrong kind is a
+      // mistake somebody should hear about, whatever the key does.
       expect(() => parseMappingConfig({ ...example, allowApplyDeletions: 'true' })).toThrow(
         /allowApplyDeletions/,
       );

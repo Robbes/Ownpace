@@ -38,7 +38,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgLedger } from '@openmig/ledger';
-import { readOrganisationClosure } from '@openmig/managed';
+import { readOrganisationClosure, rotationRefusal } from '@openmig/managed';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import {
@@ -55,7 +55,11 @@ import {
 } from '@openmig/shared';
 import { forgetCirruxAccess } from '@openmig/connectors';
 import { qualifyCirruxDrive } from '@openmig/orchestration/account-qualification';
-import { removeCirruxDriveGrant, storeCirruxDriveGrant } from '@openmig/orchestration/cirrux-grant-store';
+import {
+  removeCirruxDriveGrant,
+  storeCirruxDriveGrant,
+  type CirruxGrantStored,
+} from '@openmig/orchestration/cirrux-grant-store';
 import {
   CONSENT_NOT_AWAITED,
   browserLocale,
@@ -64,7 +68,13 @@ import {
   unreachableCallbackRefusal,
 } from './google-consent.ts';
 import { consentFlows as flows } from './consent-flows.ts';
+import { grantResultPage } from './google-consent.ts';
+import { decideCirruxLinkEnding, storePersonDriveGrant } from './cirrux-link-ending.ts';
+import { GRANT_ACTOR } from './grant-ending.ts';
+import { startWhenGranted } from './start-when-granted.ts';
+import { GRANT_PROVIDERS } from '../grant-providers.ts';
 import {
+  ANOTHER_CIRRUX_WORKSPACE,
   CIRRUX_CONSENT_FOR_THE_OWNER,
   CIRRUX_DRIVE_CONNECTED_ACTION,
   CIRRUX_DRIVE_DISCONNECTED_ACTION,
@@ -146,6 +156,12 @@ router.post('/cirrux/authorize', authenticate, async (req: AuthenticatedRequest,
       reason: 'No Cirrux destination with that id is on your Accounts page, so no Drive can be connected on it.',
     });
   }
+  // A Drive a person connected themselves, on an account they connected
+  // through their grant link, is theirs to change (workplan 0174 §4.3, D6).
+  const theirs = await withTenantDb(tenantId, pool(), (db) => rotationRefusal(db, tenantId, connectionId));
+  if (theirs) {
+    return void res.status(409).json({ error: 'connected_by_the_person', reason: theirs.en, reasonNl: theirs.nl });
+  }
   // New access, so the doors every consent passes: a closed organisation takes
   // none (0085 T2), nor anybody who has not accepted the current texts (0139 T3).
   if (await refusedAsClosed(res, tenantId, pool())) return;
@@ -184,6 +200,61 @@ router.get('/cirrux/callback', async (req: Request, res: Response) => {
   locale = localeOf(pending.locale);
   const { verifier, tenantId, connectionId } = pending.cirrux;
 
+  // A person's grant link began it (workplan 0174 §4.4, T5): their own
+  // destination's Drive, bound by the workspace, in the link's own ending.
+  if (pending.personLink) {
+    const iss = typeof req.query.iss === 'string' ? req.query.iss : undefined;
+    if (!issuerIsCirrux(iss)) {
+      log.warn(`[api] a grant link's Cirrux callback named another issuer (${String(iss).slice(0, 120)}); nothing was exchanged`);
+      return page(400, grantResultPage({ ok: false, reason: inLocale(CIRRUX_CONSENT_FOR_THE_OWNER.wrongIssuer, locale), link: 'unused' }, locale));
+    }
+    const finish = GRANT_PROVIDERS.cirrux?.finish;
+    const decided = await decideCirruxLinkEnding(
+      {
+        clientId: pending.clientId,
+        redirectUri: pending.redirectUri,
+        verifier,
+        personLink: { ...pending.personLink, connectionId, ref: pending.cirrux.ref ?? '' },
+      },
+      { error: req.query.error, code: req.query.code },
+      {
+        closedOrganisation: (t) => closedOrganisation(t, pool()),
+        finish: (code, redirectUri, client, v) => {
+          if (!finish) throw new Error('the Cirrux grant provider has no ending');
+          return finish(code, redirectUri, client, v);
+        },
+        store: (target, secret) => storePersonDriveGrant(pool(), target, secret),
+        after: async (target, granted, access) => {
+          await startWhenGranted(pool(), { tenantId: target.tenantId, mappingIds: granted });
+          try {
+            await requalifyStoredConnection(target.tenantId, target.connectionId, GRANT_ACTOR, access);
+          } catch (err) {
+            log.warn(
+              `[api] Cirrux Drive is connected on ${target.connectionId} through a link, and measuring it failed ` +
+                `(${err instanceof Error ? err.message : String(err)}); the next Test measures it`,
+            );
+          }
+        },
+      },
+    );
+    if (!decided.ok) {
+      const reason = typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale);
+      return page(decided.status, grantResultPage({ ok: false, reason, ...(decided.link ? { link: decided.link } : {}) }, locale));
+    }
+    return page(
+      200,
+      cirruxResultPage({
+        outcome: {
+          ok: true,
+          connectionId: decided.connectionId,
+          ...(decided.username === undefined ? {} : { username: decided.username }),
+          ...(decided.workspace === undefined ? {} : { workspace: decided.workspace }),
+        },
+        locale,
+      }),
+    );
+  }
+
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
     const description = typeof req.query.error_description === 'string' ? ` ${req.query.error_description}` : '';
     return refuse(200, {
@@ -219,12 +290,18 @@ router.get('/cirrux/callback', async (req: Request, res: Response) => {
     return refuse(400, outcome.said);
   }
   const signedIn = await cirruxSignedInAs(outcome.accessToken);
-  let stored: 'stored' | 'no_account' | { readonly refused: Bilingual };
+  let stored: CirruxGrantStored<Bilingual>;
   try {
     stored = await storeCirruxDriveGrant({ pool: pool(), tenantId, connectionId }, outcome.refreshToken, {
+      // The workspace this sign-in reached, recorded on the account the first
+      // time and held to after (workplan 0174 §4.4, T5).
+      ...(signedIn?.workspaceId === undefined ? {} : { workspace: signedIn.workspaceId }),
       refusal: async (db): Promise<Bilingual | null> => {
         const closure = await readOrganisationClosure(db, tenantId);
-        return closure ? organisationClosedRefusal(closure) : null;
+        if (closure) return organisationClosedRefusal(closure);
+        // A person connected this account themselves (D6): their Drive is
+        // theirs to change, through a new grant link.
+        return rotationRefusal(db, tenantId, connectionId);
       },
       // The audit line, in the grant's own transaction: new access, by whom, on which account.
       recorded: (db) =>
@@ -240,6 +317,7 @@ router.get('/cirrux/callback', async (req: Request, res: Response) => {
     return refuse(500, CIRRUX_CONSENT_FOR_THE_OWNER.notStored);
   }
   if (stored === 'no_account') return refuse(400, CIRRUX_CONSENT_FOR_THE_OWNER.noAccount);
+  if (stored === 'another_workspace') return refuse(409, ANOTHER_CIRRUX_WORKSPACE);
   if (stored !== 'stored') return refuse(409, stored.refused);
   log.info(`[api] Cirrux Drive connected on account ${connectionId}`);
 

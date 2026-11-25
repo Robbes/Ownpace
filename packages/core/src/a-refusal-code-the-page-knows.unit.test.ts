@@ -30,7 +30,6 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
  * missing key and for one that is not an `ApplyRefusal`.
  */
 const EVERY_REFUSAL: Record<ApplyRefusal, true> = {
-  not_enabled: true,
   target_cannot_remove: true,
   not_found: true,
   not_confirmed: true,

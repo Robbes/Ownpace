@@ -48,6 +48,10 @@
  *     joined a count begun earlier.
  */
 
+// The IMAP source's password is sealed with a key of the test's own (workplan 0174).
+process.env.SECRET_ENCRYPTION_KEY ??= '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+import { SecretStore } from '@openmig/core/secret-store';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { join, relative } from 'node:path';
 import ts from 'typescript';
@@ -398,9 +402,11 @@ beforeAll(async () => {
   await runManagedMigrations({ driver, logger: () => {} });
   await sql('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'held']);
   await sql(
-    `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-     VALUES ($1,$2,'source','imap','i','{}'::jsonb,'connected')`,
-    [CONN, TENANT],
+    // With its password, as the create door stores one: since workplan 0174 a
+    // password source with none waits for a grant, and Start says so first.
+    `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+     VALUES ($1,$2,'source','imap','i','{}'::jsonb,'connected',$3)`,
+    [CONN, TENANT, JSON.stringify(SecretStore.encryptCredentials({ password: 'p' }).encrypted)],
   );
   await sql(
     `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)

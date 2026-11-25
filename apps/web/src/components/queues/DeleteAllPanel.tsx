@@ -25,10 +25,9 @@
  * breaker counts by itself. A page closed mid-run orders nothing more; what
  * was ordered finishes where it runs.
  *
- * OFFERED ONLY WHERE A SINGLE DELETE IS, AND ONLY WHILE IT CAN GO THROUGH:
- * deleting by hand on (read as the panel above reads it; a row's own button
- * shows while it is off, and the server refuses it), and a row counts only
- * while `mayOfferApply` offers its own button, so never an assumed one, and
+ * OFFERED ONLY WHERE A SINGLE DELETE IS: a row counts only while
+ * `mayOfferApply` offers its own button (no switch has to be on for it since
+ * alpha.21; ADR-0024, 2026-11-25), so never an assumed one, and
  * never one of a data type past its cutover. Two at least: one row says it
  * better with its own button.
  *
@@ -81,7 +80,6 @@
  */
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, AlertTriangle, Check, Loader2, Square, Trash2 } from 'lucide-react';
 import {
   APPLY_REFUSAL_CODES,
@@ -98,19 +96,19 @@ import { useLocale, useT, type StringKey } from '../../i18n/index.tsx';
 import {
   applyDeletion,
   DecisionRefusedError,
-  fetchApplyDeletionsFlag,
   fetchApplyReceipt,
   type ApplyOutcome,
 } from '../../services/operating-service.ts';
 import { serverMessage } from '../../services/api.ts';
 import type { ItemOutcome } from './QueueScreen.tsx';
 import { ServedEffect, servedOf } from './primitives.tsx';
+import { CONFIRM_GUARD_MS } from './confirm-guard.ts';
 
 /** How long a managed receipt may stay queued before its row is not known, and the run stops. */
 export const RECEIPT_DEADLINE_MS = 5 * 60_000;
 
 /** A confirming click this soon after the confirmation opened is the end of a double click, not a decision. */
-export const CONFIRM_GUARD_MS = 800;
+export { CONFIRM_GUARD_MS };
 
 /** The managed route's 502 when the removal's job could not be queued: its `error` field, as served. */
 const NOT_QUEUED = 'Could not queue the removal';
@@ -184,7 +182,6 @@ const ALREADY_REMOVED: ReadonlySet<string> = new Set(['already_applied']);
 
 /** Each refusal code a deletion's press can answer, and each press that started nothing, in the reader's words. */
 const REFUSED: Readonly<Record<string, StringKey>> = {
-  not_enabled: 'deletions.refused.notEnabled',
   target_cannot_remove: 'deletions.refused.targetCannotRemove',
   not_found: 'deletions.refused.notFound',
   not_confirmed: 'deletions.refused.notConfirmed',
@@ -207,8 +204,10 @@ const REFUSED: Readonly<Record<string, StringKey>> = {
  * A deletion's refusal in the reader's words, by its stable code, or
  * undefined for a code this page does not know (workplan 0160, T2b). One map
  * for a run and for one press: a single press showed the server's sentence,
- * written for the appliance, which told a managed owner to set
- * `allowApplyDeletions: true` in a config file they do not have.
+ * written for the appliance, which told a managed owner to edit a config file
+ * they do not have. A code from before alpha.21 (`not_enabled`, deleting by
+ * hand turned off; ADR-0024, 2026-11-25) is no longer here: an old receipt
+ * that carries it is said in the server's own words.
  */
 export function deletionRefusalKey(code: string): StringKey | undefined {
   return Object.prototype.hasOwnProperty.call(REFUSED, code) ? REFUSED[code] : undefined;
@@ -281,7 +280,6 @@ function stoppedKey(by: NotTried): StringKey {
   if (by.by === 'stop') return 'deletions.all.stoppedBy.stop';
   if (by.by === 'failure') return 'deletions.all.stoppedBy.failure';
   if (BREAKER_CODES.has(by.code)) return 'deletions.all.stoppedBy.breaker';
-  if (by.code === 'not_enabled') return 'deletions.all.stoppedBy.notEnabled';
   if (by.code === 'removed_not_recorded') return 'deletions.all.stoppedBy.notRecorded';
   if (EVIDENCE_WITHDRAWN.has(by.code)) return 'deletions.all.stoppedBy.evidenceWithdrawn';
   return 'deletions.all.stoppedBy.notStarted';
@@ -292,7 +290,6 @@ function notTriedKey(by: NotTried): StringKey {
   if (by.by === 'stop') return 'deletions.all.notTried.stop';
   if (by.by === 'failure') return 'deletions.all.notTried.failure';
   if (BREAKER_CODES.has(by.code)) return 'deletions.all.notTried.breaker';
-  if (by.code === 'not_enabled') return 'deletions.all.notTried.notEnabled';
   if (by.code === 'removed_not_recorded') return 'deletions.all.notTried.notRecorded';
   if (EVIDENCE_WITHDRAWN.has(by.code)) return 'deletions.all.notTried.evidenceWithdrawn';
   return 'deletions.all.notTried.notStarted';
@@ -355,19 +352,11 @@ export const DeleteAllPanel: React.FC<{
     };
   }, []);
 
-  // Gate 1, read as the panel above reads it (same key, one request): no
-  // press for all of them where the single press would be refused.
-  const flag = useQuery({
-    queryKey: ['apply-deletions-flag', mappingId],
-    queryFn: () => fetchApplyDeletionsFlag(mappingId),
-    refetchOnWindowFocus: true,
-    staleTime: 30_000,
-  });
-  const deletingByHand = flag.data?.allowApplyDeletions === true;
-
+  // No switch to read: deleting by hand needs none since alpha.21 (ADR-0024,
+  // 2026-11-25). Offered wherever two or more rows have a delete button.
   const running = run?.phase === 'reading' || run?.phase === 'running';
-  const showConfirm = armed !== undefined && deletingByHand && !running;
-  const offered = deletingByHand && rows.length >= 2 && !running && !showConfirm;
+  const showConfirm = armed !== undefined && !running;
+  const offered = rows.length >= 2 && !running && !showConfirm;
 
   // Focus follows the run: Cancel when the confirmation opens, the button
   // again when it closes without a run, Stop while the list is read and the

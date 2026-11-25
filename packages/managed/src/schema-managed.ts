@@ -816,6 +816,50 @@ export const addressChangePerson = pgTable(
 );
 
 /**
+ * Refused password logins per account on a person's grant link (workplan
+ * 0174 §5.5, D4, D5; managed migration 0064): five lock that account's card
+ * on that link. Keyed by the card's `ref`, a hash, never the address, and
+ * never the password. Purged on erasure (`PURGED_TABLES`).
+ */
+export const personLinkTry = pgTable(
+  'person_link_try',
+  {
+    linkId: uuid('link_id').notNull(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    accountRef: text('account_ref').notNull(),
+    refused: integer('refused').notNull().default(0),
+    lastAt: timestamp('last_at', { withTimezone: true }).notNull().defaultNow(),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.linkId, t.accountRef] }), index('person_link_try_tenant_idx').on(t.tenantId)],
+);
+
+/**
+ * Which person connected a destination with their own password through a
+ * grant link (workplan 0174 §4.3, D1 (a); managed migration 0064). One
+ * person per connection, the key. Its keys to `connection`, `person (id,
+ * tenant_id)` and `person_link` are the SQL's. Purged on erasure
+ * (`PURGED_TABLES`).
+ */
+export const personGrantedConnection = pgTable(
+  'person_granted_connection',
+  {
+    connectionId: uuid('connection_id').primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    personId: uuid('person_id').notNull(),
+    linkId: uuid('link_id'),
+    grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('person_granted_connection_person_idx').on(t.personId),
+    index('person_granted_connection_tenant_idx').on(t.tenantId),
+    index('person_granted_connection_link_idx').on(t.linkId),
+  ],
+);
+
+/**
  * When a migration was last visited: its page opened, or *Sync now* pressed
  * (workplan 0157 T7, managed migration 0042). A migration with no schedule of
  * its own looks every hour for 14 days from the later of this and its first

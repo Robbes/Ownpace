@@ -104,6 +104,24 @@ describe('a person’s page (0153 T5 (b), slice 3)', () => {
     await expect(viewApi.read('p.abc.def')).rejects.toThrow();
   });
 
+  it('reads the destinations a person connected, and none from a server that sends no list (0174 §4.3)', async () => {
+    getMock.mockResolvedValue(person([{ ref: 'a'.repeat(32), grant: { state: 'granted' } }]));
+    const without = await viewApi.read('p.abc.def');
+    expect('kind' in without && without.destinations).toEqual([]);
+    const withOne = { ...(person([]) as { data: Record<string, unknown> }) };
+    withOne.data = { ...withOne.data, destinations: [{ ref: 'c'.repeat(32), provider: 'soverin', drive: false }] };
+    getMock.mockResolvedValue(withOne);
+    const read = await viewApi.read('p.abc.def');
+    expect('kind' in read && read.destinations).toEqual([{ ref: 'c'.repeat(32), provider: 'soverin', drive: false }]);
+  });
+
+  it('removes a destination’s password by naming its ref in the body (0174 §4.3)', async () => {
+    postMock.mockResolvedValue({ data: { withdrawnAt: '2026-11-25T06:00:00.000Z', provider: 'cirrux', drive: true } });
+    const answer = await viewApi.withdrawDestination('p.abc.def', 'c'.repeat(32));
+    expect(postMock).toHaveBeenCalledWith('/view/p.abc.def/withdraw', { destination: 'c'.repeat(32) });
+    expect(answer).toEqual({ withdrawnAt: '2026-11-25T06:00:00.000Z', provider: 'cirrux', drive: true });
+  });
+
   it('takes one account’s grant back by naming its ref in the body', async () => {
     postMock.mockResolvedValue({ data: { withdrawnAt: '2026-09-24T06:00:00.000Z', atGoogle: 'revoked' } });
     const answer = await viewApi.withdrawAccount('p.abc.def', 'a'.repeat(32));

@@ -18,6 +18,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { DeletionsResponse, EarlierExport, ItemDeletion } from '@openmig/shared';
 import {
+  DELETE_BY_HAND_WARNING,
   DELETIONS_MEANING,
   DELETION_CONFIRMATIONS,
   DELETION_GUIDANCE,
@@ -68,7 +69,7 @@ vi.mock('../services/operating-service', () => ({
 
 // The flag panel reads this on every render of the screen; a stable default
 // keeps the queue tests focused on the queue (the panel has its own suite).
-fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: true, source: 'mapping' });
+fetchApplyDeletionsFlag.mockResolvedValue({ autoApplyRelocations: false, source: 'mapping' });
 
 import Deletions from './Deletions.tsx';
 
@@ -295,7 +296,7 @@ describe('what this means and what you can do', () => {
     );
     expect(text).toContain('Behoud de kopie: de kopie blijft op het nieuwe systeem staan. Meestal is dit het juiste antwoord.');
     expect(text).toContain(
-      'Verwijder het hier ook: de kopie op het nieuwe systeem wordt ook verwijderd. Dit kan alleen zolang Handmatig verwijderen aan staat, en nooit voor een item met het label Vermoeden.',
+      'Verwijder het hier ook: de kopie op het nieuwe systeem wordt ook verwijderd, nadat u dat hebt bevestigd. Dit kan nooit voor een item met het label Vermoeden.',
     );
     expect(text).toContain('Niets doen: de regel blijft hier staan en er gebeurt niets.');
     expect(text).not.toMatch(API_WORDS);
@@ -312,7 +313,7 @@ describe('what this means and what you can do', () => {
     );
     expect(text).toContain('Keep our copy: the copy stays on the new system. This is usually the right answer.');
     expect(text).toContain(
-      'Delete it here too: the copy on the new system is deleted as well. This works only while deleting by hand is on, and never for an item marked Assumed.',
+      'Delete it here too: the copy on the new system is deleted as well, after you confirm it. This never works for an item marked Assumed.',
     );
     expect(text).toContain('Do nothing: the row stays here and nothing happens.');
     expect(text).not.toMatch(API_WORDS);
@@ -431,17 +432,18 @@ describe('the apply button itself', () => {
   });
 
   /**
-   * DELETING BY HAND IS OFF, SAID TO A MANAGED OWNER (workplan 0160, T2b).
-   * This showed the server's sentence, written for the appliance: *"Set
-   * `allowApplyDeletions: true` in its config to enable it"*, on a managed
-   * screen whose owner has no config file and a switch right above. The
-   * refusal is said by its code now, with what this reader can do.
+   * DELETING BY HAND HAS NO SWITCH (alpha.21; ADR-0024, 2026-11-25). Until
+   * then a `not_enabled` refusal was said by its code, with *press Turn on
+   * deleting by hand above* (workplan 0160, T2b). The switch is gone, and so
+   * are those words: a server from before alpha.21, or an old receipt, that
+   * still says `not_enabled` is shown in its own words, like any code this
+   * page has none for, and never sends anyone looking for a switch.
    */
   const SERVER_SENTENCE =
     'Removing items from the target is switched off for this mapping. Set ' +
     '`allowApplyDeletions: true` in its config to enable it, and read the runbook first.';
 
-  it('says deleting by hand is off, and that the switch above turns it on, never the config file', async () => {
+  it('says an old not_enabled refusal in the server\'s words, and names no switch on this page', async () => {
     fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h2' })] }));
     applyDeletion.mockRejectedValue(new DecisionRefusedError({ error: 'not_enabled', reason: SERVER_SENTENCE }, 403));
     renderScreen();
@@ -449,49 +451,23 @@ describe('the apply button itself', () => {
     fireEvent.click(await screen.findByText('Delete it here too'));
     fireEvent.click(screen.getByText('Confirm delete'));
 
-    expect(
-      await screen.findByText(
-        'Deleting by hand is off for this migration, so it was not deleted. To delete it, first press Turn on deleting by hand above.',
-      ),
-    ).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/allowApplyDeletions|in its config/);
+    expect(await screen.findByText(SERVER_SENTENCE)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Turn on deleting by hand/);
   });
 
-  it('says the same in Dutch', async () => {
-    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h2' })] }));
-    applyDeletion.mockRejectedValue(new DecisionRefusedError({ error: 'not_enabled', reason: SERVER_SENTENCE }, 403));
-    renderDutch();
-
-    fireEvent.click(await screen.findByText('Verwijder het hier ook'));
-    fireEvent.click(screen.getByText(STRINGS.nl['deletions.applyArmed']));
-
-    expect(
-      await screen.findByText(
-        'Handmatig verwijderen staat uit voor deze migratie, dus het is niet verwijderd. Om het te verwijderen, drukt u eerst hierboven op Handmatig verwijderen inschakelen.',
-      ),
-    ).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/allowApplyDeletions/);
-  });
-
-  it('says a receipt the job refused for the same reason in the same words', async () => {
-    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h3' })] }));
-    applyDeletion.mockResolvedValue({
-      mode: 'queued',
-      receipt: {
-        state: 'refused',
-        requestedAt: '2026-11-24T10:00:00Z',
-        finishedAt: '2026-11-24T10:00:01Z',
-        code: 'not_enabled',
-        reason: SERVER_SENTENCE,
-      },
-    });
+  it('says what a delete does above the rows that offer one, in the shared words', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h5' })] }));
     renderScreen();
+    expect(await screen.findByText(DELETE_BY_HAND_WARNING)).toBeInTheDocument();
+  });
 
-    fireEvent.click(await screen.findByText('Delete it here too'));
-    fireEvent.click(screen.getByText('Confirm delete'));
-
-    expect(await screen.findByText(/To delete it, first press Turn on deleting by hand above\./)).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/allowApplyDeletions/);
+  it('says nothing about it where no row offers a delete', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion({ naturalKeyHash: 'h6', evidence: 'inferred', absentPasses: 3 })] }),
+    );
+    renderScreen();
+    expect((await screen.findAllByText(/Assumed/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(DELETE_BY_HAND_WARNING)).not.toBeInTheDocument();
   });
 
   it("keeps the server's own words for a refusal this page has no words for", async () => {

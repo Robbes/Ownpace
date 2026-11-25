@@ -10,12 +10,13 @@
  * renamed in one place would leave the fold sending people to a button that
  * is not on the screen. Held here in both languages.
  */
-import { fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { confirmGuard } from './confirm-guard.ts';
 import { QUEUE_EFFECTS, QUEUE_GUIDANCE, decisionEffectFields, type GuidedQueue } from '@openmig/shared';
 import { LocaleProvider, useLocale } from '../../i18n/index.tsx';
 import { LOCALES, STRINGS } from '../../i18n/strings.ts';
-import { EvidenceBadge, GuidancePanel, ServedEffect } from './primitives.tsx';
+import { CONFIRM_GUARD_MS, ConfirmButton, EvidenceBadge, GuidancePanel, ServedEffect } from './primitives.tsx';
 
 type Key = keyof (typeof STRINGS)['en'];
 
@@ -55,10 +56,10 @@ describe('the guidance names the buttons the screen draws', () => {
       // Deletions: "…never for an item marked Assumed." The chip's word, up to its colon.
       const assumed = words['evidence.inferred'].split(':')[0]!;
       expect(QUEUE_GUIDANCE.deletions[locale].options[1]!.text).toContain(assumed);
-      // "…while deleting by hand is on": the switch on the same screen.
-      const switchName = locale === 'nl' ? 'Handmatig verwijderen' : 'deleting by hand';
-      expect(QUEUE_GUIDANCE.deletions[locale].options[1]!.text).toContain(switchName);
-      expect(words['applyFlag.on'].toLowerCase()).toContain(switchName.toLowerCase());
+      // No switch is named: deleting by hand has none since alpha.21
+      // (ADR-0024, 2026-11-25), so the fold must not send anyone looking for one.
+      const switchName = locale === 'nl' ? 'handmatig verwijderen' : 'deleting by hand';
+      expect(QUEUE_GUIDANCE.deletions[locale].options[1]!.text.toLowerCase()).not.toContain(switchName);
     });
   }
 });
@@ -177,3 +178,63 @@ describe('what a press did', () => {
 function escape(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+/**
+ * THE SINGLE PRESS IGNORES A DOUBLE CLICK (workplan 0173 T0). Since alpha.21
+ * the two presses are the only consent a delete by hand asks for (ADR-0024,
+ * 2026-11-25), and a double click on *Delete it here too* was both: the first
+ * click armed it, the second confirmed it. Now the second click of a double
+ * click, and any click within `CONFIRM_GUARD_MS` of arming, is ignored, as
+ * *Delete N* in `DeleteAllPanel` does since 2026-11-21.
+ */
+describe('the two presses are two decisions', () => {
+  // The web test setup turns the guard off for every other test; on here.
+  beforeEach(() => {
+    confirmGuard.ms = CONFIRM_GUARD_MS;
+  });
+  afterEach(() => {
+    confirmGuard.ms = 0;
+    vi.useRealTimers();
+  });
+
+  function renderButton() {
+    const onClick = vi.fn();
+    render(<ConfirmButton onClick={onClick} label="Delete it here too" armedLabel="Confirm delete" />);
+    return { onClick, button: () => screen.getByRole('button') };
+  }
+
+  it('a double click arms and does not confirm', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const { onClick, button } = renderButton();
+    fireEvent.click(button(), { detail: 1 });
+    fireEvent.click(button(), { detail: 2 });
+    expect(onClick).not.toHaveBeenCalled();
+    expect(button()).toHaveTextContent('Confirm delete');
+  });
+
+  it('a second click within the guard after arming is ignored; one after it confirms', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const { onClick, button } = renderButton();
+    fireEvent.click(button(), { detail: 1 });
+    vi.advanceTimersByTime(CONFIRM_GUARD_MS - 100);
+    fireEvent.click(button(), { detail: 1 });
+    expect(onClick).not.toHaveBeenCalled();
+    expect(button()).toHaveTextContent('Confirm delete');
+
+    vi.advanceTimersByTime(200);
+    fireEvent.click(button(), { detail: 1 });
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('still disarms by itself after five seconds', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const { onClick, button } = renderButton();
+    fireEvent.click(button(), { detail: 1 });
+    act(() => {
+      vi.advanceTimersByTime(5_001);
+    });
+    expect(button()).toHaveTextContent('Delete it here too');
+    fireEvent.click(button(), { detail: 1 });
+    expect(onClick).not.toHaveBeenCalled();
+  });
+});

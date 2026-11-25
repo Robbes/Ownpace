@@ -1,6 +1,6 @@
 # ADR-0024: `apply` — an explicit, gated exception to non-destructiveness
 
-- **Status:** Accepted 2026-07-30; amended four times (2026-09-27, 2026-10-05, 2026-11-21, 2026-11-22)
+- **Status:** Accepted 2026-07-30; amended five times (2026-09-27, 2026-10-05, 2026-11-21, 2026-11-22, 2026-11-25)
 - **Date:** 2026-07-30
 - **Relates to:** ADR-0005 (idempotency via ledger, non-destructive by default), ADR-0020 (ledger as rebuildable cache). Arch doc §11.1, §11.2, §20.
 
@@ -13,13 +13,11 @@
 - `apply` is the **only destructive code path**: each item decided by itself, owner-called,
   never automatic. Relocations go through `applyRelocation`, behind the same gates
   (ADR-0030/0031). `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
-- **Seven gates**, enforced by `applyDeletion`; evidence and ownership re-checked in the ledger's
-  conditional UPDATE:
-  (1) per-mapping opt-in; (2) `TargetRemover` capability; (3) **positive evidence only**,
-  `reported`/`trashed`, never `inferred`; (4) ownership, `copied`/`updated` only, never
-  `adopted`; (5) no edit since (DAV: the server's `If-Match`; JMAP contacts and files: a
-  successful read; IMAP: UIDVALIDITY); (6) mass-deletion breaker, 20% of ≥20; (7)
-  concurrent-apply re-check: `packages/core/src/apply-deletion.unit.test.ts`.
+- **Six gates** in `applyDeletion`; gate (1), a per-mapping switch, is gone since 2026-11-25, with
+  no off (`packages/shared/src/deleting-by-hand-needs-no-switch.unit.test.ts`). (2)
+  `TargetRemover`; (3) **positive evidence only**, never `inferred`; (4) `copied`/`updated` only,
+  never `adopted`; (5) no edit since (DAV `If-Match`; JMAP contacts, files: a read; IMAP
+  UIDVALIDITY); (6) mass breaker, 20% of ≥20; (7) the ledger's conditional UPDATE re-checks.
 - **With no recorded version, nothing is removed** (`version_unknown`); a weak ETag counts as
   none. JMAP mail is exempt: `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
 - **After cutover nothing is applied, by hand either** (2026-10-05): every removing function
@@ -27,11 +25,11 @@
   (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
 - **One owner action may apply many** (2026-11-21): offered only where a single delete is, one
   confirmation over a frozen set naming the count, the bin's apart, then each row's own apply
-  through the same call and all seven gates, the next only after an answer. Guard:
+  through the same call and all six gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
 - Gate 6 bounds one confirmation: every row of a data type under 20 `placedItems` (removed,
   adopted counted; failed, left-behind, superseded, collection-less not), else at most a fifth.
-  The breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or an unanswered or
+  The breaker, `removed_not_recorded`, withdrawn evidence, or an unanswered or
   unstarted press **stops the whole run**; *Stop* or a closed page orders nothing more.
 - **A kept deletion is never applied** (2026-11-22): `already_kept` before anything is sent
   (unless already removing); the keep ends with its cause (seen again, earlier export
@@ -307,7 +305,56 @@ and in the workplan's Status block.
   `packages/core/src/a-name-the-document-outgrew.unit.test.ts` (unedited and edited, through
   `runFileSync`), `packages/ledger/src/a-deletion-the-owner-kept` (PGlite and Postgres).
 
+## Amendment, 2026-11-25: deleting by hand needs no switch
+
+Workplan 0173. The owner, 2026-11-25: *"i want the manual delete Activation removed and manual
+delete default active through the Delete-page. I want this because one always already has to press
+each item or bulk twice, so one is away of what one is doing."* Offered the choice between
+removing the switch and keeping it as a way to turn deleting by hand off, the owner chose to
+remove it: *"Manual deleting in by default. I don't think I makes sense then to keep the feature
+for turning it off. Alpha 21 is ok."*
+
+**Gate 1 is removed**, from core and from both editions, in alpha.21. The Decision's *"A
+destructive capability must be turned on, never turned off"* no longer holds for deleting by
+hand. The switch never checked which item may go: what makes a removal safe is gates 2 to 7, the
+refusals after cutover and after a keep, and a person's own press, each confirmed. The gates keep
+their numbers 2 to 7, so every reference to "gate 6" and the rest stays true.
+
+- **Core.** `ApplyDeletionDeps.allowApplyDeletions` and the refusal `not_enabled` are gone from
+  `evaluateApplyDeletion`, `applyDeletion`, `evaluateApplyRelocation`, `applyRelocation` and the
+  unattended pass. `not_enabled` leaves `ApplyRefusal`, `APPLY_REFUSAL_CODES` and
+  `RUN_STOPPING_REFUSALS`: a server from before alpha.21 that still answers it is shown in its own
+  words, and stops nothing.
+- **Managed.** No route or job reads `mailbox_mapping.allow_apply_deletions`. The column stays in
+  the schema, unread, with its old default, and a later release drops it (read against the
+  migration-lock report, workplan 0165); no data is changed in alpha.21. `GET .../apply-deletions`
+  answers `autoApplyRelocations` and `source` only, and the owner-only `PATCH` takes
+  `autoApplyRelocations` only and refuses a body that still sends `allowApplyDeletions`, by name.
+- **The appliance.** The mapping file's `allowApplyDeletions` is still parsed as a boolean, so a
+  file that has it loads; nothing reads it but one warning at start for a mapping whose file says
+  `false` (`ignoredDeleteSwitchWarning`). The key can be removed from the file.
+- **The page.** The *Deletions* page no longer opens with *Turn on deleting by hand*. What the
+  warning in front of that switch said (positive evidence only, our own copies only, mail not
+  checked for edits) is shown above the rows that offer a delete. The single *Delete it here too*
+  ignores the second click of a double click and any click within 800 ms of arming, as *Delete N*
+  does since 2026-11-21, because the two presses now carry the consent alone.
+- **What is accepted with it** (workplan 0173 §3, §10): an admin can delete by hand without the
+  owner's say; nobody can turn deleting by hand off for a migration; an appliance file's `false`
+  stops counting; and at the API, which asks no confirmation, one call is one removal.
+- **Unchanged:** `autoApplyRelocations` stays off by default and owner only. It no longer extends
+  this switch; it is its own (ADR-0031, amended the same day).
+
+The Consequences' *"`apply` changes nothing about that for any mapping that has not explicitly
+opted in"* reads, from this amendment, *"`apply` changes nothing about that until a person presses
+a delete and confirms it"*.
+
 ## Amendment log
+
+- **2026-11-25** — Deleting by hand needs no switch: gate 1 (`allowApplyDeletions`, refused as
+  `not_enabled`) is removed from core and both editions, with no way to turn it off; the managed
+  column stays unread until a later release drops it; an appliance file's `false` is parsed and
+  warned about once; the single press ignores a double click (workplan 0173, alpha.21). Record:
+  *Amendment, 2026-11-25: deleting by hand needs no switch*.
 
 - **2026-11-22, later** — A removal closes the relocation it carried out, so it leaves Moves'
   open rows and `mass_relocation_suspected`'s count; a keep given to an earlier export ends when

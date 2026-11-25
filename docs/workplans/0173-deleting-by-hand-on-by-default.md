@@ -4,6 +4,43 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, merged and run (T7): every task is done.** #2158 merged as `87ab6a3d` on 2026-11-25 at
+14:52 UTC, the first merge after alpha.20's tag, so deleting by hand without a switch ships in
+alpha.21. Before the merge, on its head `af48adc4`: CI run 45634370115 green, and the three E2E
+runs of T7, one at a time, all green: E2E (self-hosted) on Postgres 45634399606 (14:28 to 14:33
+UTC) and on PGlite 45635482879 (14:34 to 14:39), then E2E (managed) 45636475068 (14:39 to 14:45),
+which takes `smoke-managed.sh`'s apply with no column turned on.
+
+**2026-11-25, T5 built, in the same pull request:** terms §2 and alpha §8, EN and NL, edited in
+place under 1.0 (Q4). Terms §2's first bullet: nothing is deleted at the target unless the
+customer approves it on the migration's *Deletions* page, each deletion or a list after one
+confirmation that names how many; *the automatic removal of moved files' old copies* stays a
+switch, off by default. Alpha §8's list of what an admin cannot do loses *deleting by hand*. The
+Last updated lines moved to 2026-11-25; `legal-versions.ts` keeps 1.0; the guard's
+`ACCEPTED_WORDS` re-pins the four files under 1.0 with a dated note in the owner's words;
+`site/legal/README.md`'s rows and its deletion bullet follow. The branch was rebuilt from `main`
+on 2026-11-25, so every commit subject follows the convention; the first pull request, #2155,
+was closed for it. The owner read the Dutch the same day. Their changes are applied: the Dutch terms say
+*bestemming* for the target throughout, where they said *doel* ("All 8: yes").
+
+**2026-11-25, built: T0, T1, T2, T3, T4 and T6, in one pull request** (#2158, branch
+`claude/ownpace-public-readiness-y7orc6-a21-delete-by-hand`, draft, for alpha.21; it merges after
+alpha.20's tag). Gate 1 is gone from core, the shared contract, managed and the appliance:
+`not_enabled` left `ApplyRefusal`, `APPLY_REFUSAL_CODES` and `RUN_STOPPING_REFUSALS`; no route or
+job reads `allow_apply_deletions` (the column stays, unread; no migration); the appliance parses
+the key and warns once at start for `false` (`ignoredDeleteSwitchWarning`); the managed `PATCH`
+takes `autoApplyRelocations` only and refuses `allowApplyDeletions` by name. The page lost *Turn on
+deleting by hand*; the warning, renamed `DELETE_BY_HAND_WARNING(_NL)`, stands above the rows that
+offer a delete; `ConfirmButton` ignores a double click and any click within 800 ms of arming (T0).
+The new guard is `packages/shared/src/deleting-by-hand-needs-no-switch.unit.test.ts`, shown
+failing on the code before the change. ADR-0024 (gate 1 removed; the gates keep their numbers 2
+to 7), ADR-0030 and ADR-0031 amended, `OPERATIVE.md` regenerated; arch §11.1, the operator and
+owner-test runbooks, the quickstart, the alpha guide (EN, NL) and CHANGELOG follow. **Not done
+in that commit:** T5 (`site/legal/*.md`, `legal-versions.ts` and `ACCEPTED_WORDS` untouched; the proposed
+words are in the pull request), built while Q4 was still open and answered since (below); `site/legal/README.md:679-683` goes with T5, being in
+`site/legal/`. T7 (the E2E runs) is the owner's. The Dutch strings are in the pull request for the
+owner to read.
+
 **2026-11-25, later still: Q4 answered.** *"terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"*: terms §2 and alpha §8 change in place
 under 1.0 in T5, and nobody is asked again; T5 no longer waits. Workplan 0174's D8 has the same
 answer, for the privacy policy and the terms' §5.
@@ -27,14 +64,14 @@ their answers.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The single press ignores a double click | builder | 📋 Planned | §10. With the rest in alpha.21, unless the owner asks for it in alpha.20. |
-| T1 Gate 1 out of core, the shared contract and the appliance | builder | 📋 Planned | §10. `not_enabled` leaves the closed set; the appliance's key is read only to warn. |
-| T2 Managed: the routes and jobs stop reading the column | builder | 📋 Planned | §10. No migration in alpha.21; the column is dropped in a later release. |
-| T3 The Deletions page and its words, EN and NL | builder | 📋 Planned | §10. The switch goes; the warning's facts move beside the delete buttons; the owner reads the Dutch. |
-| T4 Docs and the ADR amendments | builder | 📋 Planned | §10. ADR-0024 (gate 1 removed), ADR-0030, ADR-0031, arch §11.1, runbooks, quickstart, guides, CHANGELOG. |
-| T5 The legal words: terms §2 and alpha §8 | builder + owner | 📋 Planned | §10. EN and NL, in place under 1.0 (Q4, answered 2026-11-25). |
-| T6 E2E steps | builder | 📋 Planned | §10. `e2e.yml`'s fixture and `smoke-managed.sh` stop turning the switch on. |
-| T7 The E2E runs | owner | ⏳ Owner | Self-hosted E2E (Postgres and PGlite) and the managed E2E, after T1 to T6 merge. |
+| T0 The single press ignores a double click | builder | ✅ Built | §10. #2158, with the rest, for alpha.21. |
+| T1 Gate 1 out of core, the shared contract and the appliance | builder | ✅ Built | §10. #2158. `not_enabled` left the closed set; the appliance's key is read only to warn. |
+| T2 Managed: the routes and jobs stop reading the column | builder | ✅ Built | §10. #2158. No migration; the column is dropped in a later release. |
+| T3 The Deletions page and its words, EN and NL | builder | ✅ Built | §10. #2158. The owner read the Dutch on 2026-11-25. |
+| T4 Docs and the ADR amendments | builder | ✅ Built | §10. #2158. `site/legal/README.md` goes with T5. |
+| T5 The legal words: terms §2 and alpha §8 | builder + owner | ✅ Built | §10. EN and NL, in place under 1.0 (Q4, answered 2026-11-25), in the same pull request. The owner read the Dutch on 2026-11-25: *bestemming* for *doel*. |
+| T6 E2E steps | builder | ✅ Built | §10. #2158; run in T7. |
+| T7 The E2E runs | owner | ✅ Run 2026-11-25 | On #2158's head `af48adc4`, one at a time, before its merge: E2E (self-hosted) on Postgres 45634399606 and PGlite 45635482879, then E2E (managed) 45636475068, all green. Merged as `87ab6a3d`. |
 | T8 The owner's decisions | owner | ✅ Answered 2026-11-25 | §9: all six settled; Q4 in place under 1.0. |
 
 ## 1. The owner's words
