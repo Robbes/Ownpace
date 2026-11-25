@@ -205,7 +205,7 @@ export const en = {
   'grant.password.refused.app': 'Make sure it is an app password, not the password you sign in with.',
   'grant.password.unreachable':
     '{server} could not be reached. This is not your password. Try again in a few minutes; if it keeps happening, tell {askedBy}.',
-  'grant.password.faceMissing': 'Your password works, but {server} refused {faces}.',
+  'grant.password.faceMissing': 'Your password works, but {server} gives no access to: {faces}.',
   'grant.password.locked': 'Too many tries on this link. Ask {askedBy} for a new link.',
   // How to make the password the card asks for, folded (the guides' own steps).
   'grant.apple.how': 'How do I make an app-specific password?',
@@ -367,7 +367,7 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.group.to': 'De accounts waarnaar uw gegevens worden gekopieerd',
   'grant.person.migrationFrom': 'Van {where}: {reads}.',
   'grant.state.connected': 'Verbonden',
-  'grant.state.waiting': 'Wacht',
+  'grant.state.waiting': 'Nog niet verbonden',
   'grant.state.locked': 'Geblokkeerd voor deze link',
   'grant.person.allConnected': 'Alle accounts zijn verbonden. U kunt deze pagina sluiten.',
   'grant.password.title': 'Verbind {account} met uw wachtwoord',
@@ -394,11 +394,11 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.password.refused.app': 'Controleer of het een app-wachtwoord is, niet het wachtwoord waarmee u inlogt.',
   'grant.password.unreachable':
     '{server} was niet bereikbaar. Dat ligt niet aan uw wachtwoord. Probeer het over een paar minuten opnieuw. Blijft het gebeuren, laat het dan {askedBy} weten.',
-  'grant.password.faceMissing': 'Uw wachtwoord werkt, maar {server} weigerde {faces}.',
+  'grant.password.faceMissing': 'Uw wachtwoord werkt, maar {server} geeft geen toegang tot: {faces}.',
   'grant.password.locked': 'Te vaak geprobeerd met deze link. Vraag {askedBy} om een nieuwe link.',
   'grant.apple.how': 'Hoe maak ik een app-specifiek wachtwoord?',
   'grant.apple.how.more':
-    'Meld u aan op account.apple.com. Kies Aanmelden en beveiliging, dan App-specifieke wachtwoorden. Maak er een, noem het Ownpace en typ het hier. Apple toont het maar één keer.',
+    'Meld u aan op account.apple.com. Kies Inloggen en beveiliging, dan App-specifieke wachtwoorden. Maak er een, noem het Ownpace en typ het hier. Apple toont het maar één keer.',
   'grant.nextcloud.how': 'Hoe maak ik een app-wachtwoord?',
   'grant.nextcloud.how.more':
     'Open uw Nextcloud in de browser. Ga naar Instellingen, Beveiliging, Apparaten & sessies. Typ een naam zoals Ownpace, druk op Creëer een nieuw app wachtwoord en typ hier het wachtwoord dat Nextcloud toont.',

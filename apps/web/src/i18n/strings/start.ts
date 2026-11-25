@@ -236,7 +236,7 @@ export const nl: Record<keyof typeof en, string> = {
   'start.who.myself': 'Ik',
   'start.who.someoneElse': 'Anderen, met een link',
   'start.who.someoneElse.line':
-    'Hun eigen accounts verbindt iemand anders zelf, zodat u die wachtwoorden nooit in handen krijgt. Waar geen link komt, meldt u zich samen aan.',
+    'Hun eigen accounts verbindt iemand anders zelf, zodat u die wachtwoorden nooit in handen krijgt. Waar dat niet met een link kan, meldt u zich samen aan.',
   'start.who.needName': 'Typ eerst een naam.',
   'start.who.peopleFailed': 'De lijst van mensen die u wenst te migreren kon niet worden gelezen. Een nieuwe naam werkt wel.',
   'start.from.heading': 'Welk account verlaat of migreert u?',
@@ -287,7 +287,7 @@ export const nl: Record<keyof typeof en, string> = {
   'start.connect.tryAgain': 'Opnieuw proberen',
   'start.connect.needAll': 'Verbind eerst elk account.',
   'start.connect.together': 'Geen link bereikt {provider}: meld u samen met {person} aan.',
-  'start.connect.byLink': '{person} verbindt zelf, met een persoonlijke link die u op het laatste scherm maakt.',
+  'start.connect.byLink': '{person} verbindt zelf, met een toegangslink die u op het laatste scherm maakt.',
   'start.connect.byLinkFor': 'Met een link: {account}',
   'start.connect.theirAddress': 'Hun adres bij {provider}',
   'start.connect.saveAddress': 'Adres bewaren',

@@ -435,7 +435,7 @@ describe('what the card says after the route answers (0174 §5.7)', () => {
 
   it('face missing: the password works, and which face was refused', async () => {
     const el = await answer({ kind: 'face_missing', faces: ['calendar'] }, 'imap', 'nl');
-    expect(await within(el).findByRole('alert')).toHaveTextContent('Uw wachtwoord werkt, maar imap.example.com weigerde agenda.');
+    expect(await within(el).findByRole('alert')).toHaveTextContent('Uw wachtwoord werkt, maar imap.example.com geeft geen toegang tot: agenda.');
   });
 
   it('locked: no form, and ask for a new link', async () => {

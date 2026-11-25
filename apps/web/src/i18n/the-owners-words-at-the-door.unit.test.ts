@@ -62,13 +62,14 @@ describe('the owner’s words of 2026-10-18', () => {
   // 2026-11-25 (workplan 0174 T6): a link connects every account a person
   // can grant, not Google's alone (the owner: "I want all sources/targets that
   // supports granting to be able to use the others-grant-page"), so the line
-  // that said only Google is re-pinned in the same sentence shape.
+  // that said only Google is re-pinned in the same sentence shape. The Dutch's
+  // last sentence is the owner's read of 2026-11-25 ("all ok, advice yes").
   it('says who signs in to a linked account in whole English sentences, the Dutch in the same shape', () => {
     expect(en['start.who.someoneElse.line']).toBe(
       'They connect their own accounts themselves, so you never hold those credentials. Where no link can reach, you sign in together.',
     );
     expect(nl['start.who.someoneElse.line']).toBe(
-      'Hun eigen accounts verbindt iemand anders zelf, zodat u die wachtwoorden nooit in handen krijgt. Waar geen link komt, meldt u zich samen aan.',
+      'Hun eigen accounts verbindt iemand anders zelf, zodat u die wachtwoorden nooit in handen krijgt. Waar dat niet met een link kan, meldt u zich samen aan.',
     );
   });
 

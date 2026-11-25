@@ -885,7 +885,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.appleAppPassword.hint':
     'Niet uw Apple-accountwachtwoord: een app-specifiek wachtwoord van account.apple.com.',
   'account.appleAppPassword.why':
-    'Apple weigert het accountwachtwoord hier met opzet. Maak een App-specifieke aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
+    'Apple weigert het accountwachtwoord hier met opzet. Maak een App-specifieke aan op account.apple.com → Inloggen en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
   'account.proto.archive.hint':
     'Een gedownloade Google Takeout- of Apple-export: foto’s en bestanden.',
   'account.archiveProvider': 'Welke export',
@@ -1301,7 +1301,7 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.davbasic.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
   'setup.apple.app_password.title': 'Maak een app-specifiek wachtwoord',
   'setup.apple.app_password.detail':
-    'Meld u aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en maak er een. Apple toont het één keer, dus kopieer het meteen. Gebruik niet het wachtwoord van uw Apple-account.',
+    'Meld u aan op account.apple.com → Inloggen en beveiliging → App-specifieke wachtwoorden en maak er een. Apple toont het één keer, dus kopieer het meteen. Gebruik niet het wachtwoord van uw Apple-account.',
   'setup.apple.app_password.yields': 'een app-specifiek wachtwoord, zoals abcd-efgh-ijkl-mnop.',
   'setup.nextcloud.account_exists.title': 'Zorg dat het Nextcloud-account bestaat',
   'setup.nextcloud.account_exists.detail':

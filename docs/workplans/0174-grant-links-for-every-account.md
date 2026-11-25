@@ -4,6 +4,22 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, the owner's read of the Dutch and one decision.** The owner read the combined
+Dutch of the grant pages, the owner's side and the server's sentences: *"all ok, advice yes"*.
+- The advice taken:
+  - a card waiting for its password says *Nog niet verbonden*, not *Wacht*;
+  - a refused face reads *… geeft geen toegang tot: {faces}* (English *gives no access to:*);
+  - the start screen's line ends *Waar dat niet met een link kan, meldt u zich samen aan.*;
+  - `start.connect.byLink` says *toegangslink*, the product's one name for the link;
+  - Apple's menu is *Inloggen en beveiliging*, Apple's own Dutch, in the grant page's steps and
+    in the app's and the Apple guide's, which said the product's own *Aanmelden en beveiliging*
+    until Apple's Dutch screen was read (0148);
+  - *werkruimte* for a Cirrux workspace, and *voor die link* in the guides (#2163).
+- **Cirrux Drive's first grant is bound to the workspace it reaches** (§4.4, *Changed by T5*):
+  accepted for alpha.21. A stronger binding, by the mailbox's address, waits for Cirrux to grant
+  the deployment's client `email.read`; the owner asks Cirrux later.
+- The thirteen strings that items 11 and 12 of #2164 added are read separately.
+
 **2026-11-25, later: the two parts the plan required and the branch had not built, on #2164.**
 - **D3 (a), the published servers (§5.8, §14 question 2).** Cirrux and Infomaniak join Apple in
   `PROVIDER_ENDPOINTS`, read from their own help pages and cited; Soverin stays generic, because
