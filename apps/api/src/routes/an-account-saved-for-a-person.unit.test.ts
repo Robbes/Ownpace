@@ -256,3 +256,69 @@ describe('an account saved for a person (0174 §8.2)', () => {
     expect(res.body).toMatchObject({ error: 'missing_fields', fields: ['password'] });
   });
 });
+
+describe('the Accounts page says whom it waits for (0174 §8.2)', () => {
+  const MAPPING = U('31');
+  const list = async () => {
+    const res = await request(app).get('/api/connections');
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body)).not.toContain('secret');
+    return res.body.connections as Array<{ id: string; waitingFor?: { personId: string; name: string } }>;
+  };
+  const sealed = (creds: Record<string, string>) => JSON.stringify(SecretStore.encryptCredentials(creds).encrypted);
+
+  it('names Anna on her iCloud and her Soverin account once a migration of hers uses them, and nobody once each has its password', async () => {
+    const icloud = (
+      await add({
+        role: 'source',
+        type: 'apple',
+        displayName: 'Anna · iCloud',
+        values: { username: 'anna@icloud.invalid' },
+        forPerson: ANNA,
+      })
+    ).body.id as string;
+    const soverin = (
+      await add({
+        role: 'target',
+        type: 'soverin',
+        displayName: 'Anna · Soverin',
+        values: { host: 'dav.soverin.invalid', port: '443', username: 'anna@soverin.invalid' },
+        forPerson: ANNA,
+      })
+    ).body.id as string;
+    // Saved, and no migration of hers uses them yet: nobody to name.
+    expect((await list()).every((c) => c.waitingFor === undefined)).toBe(true);
+
+    await sql(
+      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
+       VALUES ($1,$2,$3,'user','m@example.invalid'), ($4,$2,$5,'user','m@example.invalid')`,
+      [U('21'), TENANT, icloud, U('22'), soverin],
+    );
+    await sql(
+      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status) VALUES ($1,$2,$3,$4,'paused')`,
+      [MAPPING, TENANT, U('21'), U('22')],
+    );
+    await sql('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3)', [MAPPING, ANNA, TENANT]);
+    try {
+      const anna = { personId: ANNA, name: 'Anna' };
+      const now = await list();
+      expect(now.find((c) => c.id === icloud)?.waitingFor).toEqual(anna);
+      expect(now.find((c) => c.id === soverin)?.waitingFor).toEqual(anna);
+
+      // Her iCloud password lands on the migration; her Soverin one on the account.
+      await sql('UPDATE mailbox_mapping SET source_secret_ref = $2 WHERE id = $1', [
+        MAPPING,
+        sealed({ password: 'placeholder-app-password' }),
+      ]);
+      await sql('UPDATE connection SET secret_ref = $2 WHERE id = $1', [
+        soverin,
+        sealed({ username: 'anna@soverin.invalid', password: 'placeholder' }),
+      ]);
+      expect((await list()).every((c) => c.waitingFor === undefined)).toBe(true);
+    } finally {
+      await sql('DELETE FROM person_migration WHERE mapping_id = $1', [MAPPING]);
+      await sql('DELETE FROM mailbox_mapping WHERE id = $1', [MAPPING]);
+      await sql('DELETE FROM mailbox WHERE tenant_id = $1', [TENANT]);
+    }
+  });
+});

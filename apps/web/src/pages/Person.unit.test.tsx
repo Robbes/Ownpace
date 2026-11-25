@@ -493,13 +493,57 @@ describe('what waits for their grant, on their page (start when granted, per per
     ['review_and_start', 'Waits for Anna Jansen to connect. Once they have, open Details to review and start it.'],
     ['ran_before', 'Waits for Anna Jansen to connect again.'],
   ] as const)('says beside the migration what their grant does to it: %s', async (then, words) => {
-    vi.mocked(personLinkApi.awaiting).mockResolvedValue([{ mappingId: 'm-mail', then }]);
+    vi.mocked(personLinkApi.awaiting).mockResolvedValue([{ mappingId: 'm-mail', then, waitsFor: [] }]);
     renderAt();
     await answered();
     expect(await within(await waitForRow('m-mail')).findByText(words)).toBeInTheDocument();
     expect(personLinkApi.awaiting).toHaveBeenCalledWith('p-anna');
     // Only beside the one that waits.
     expect(row('m-files').querySelector('[data-awaiting-grant]')).toBeNull();
+  });
+
+  it('says the four lines of a link that asks for passwords (0174 §4.6): what it does, the destination, the tries, the lock', async () => {
+    vi.mocked(personLinkApi.awaiting).mockResolvedValue([
+      {
+        mappingId: 'm-mail',
+        then: 'starts_by_itself',
+        waitsFor: [
+          { role: 'source', way: 'password', account: 'anna@icloud.invalid', tries: { refused: 2, left: 3, locked: false } },
+          { role: 'target', way: 'password', account: 'anna@soverin.invalid', tries: { refused: 5, left: 0, locked: true } },
+        ],
+      },
+    ]);
+    renderAt();
+    await answered();
+    const mail = within(await waitForRow('m-mail'));
+    expect(
+      await mail.findByText('Waits for Anna Jansen to connect, then starts by itself: another migration of theirs has been started.'),
+    ).toBeInTheDocument();
+    expect(mail.getByText('Waits for Anna Jansen to connect the destination anna@soverin.invalid.')).toBeInTheDocument();
+    expect(mail.getByText('Wrong passwords for anna@icloud.invalid on this link: 2. Tries left: 3.')).toBeInTheDocument();
+    expect(
+      mail.getByText('anna@soverin.invalid is locked on this link after five tries. Make Anna Jansen a new link.'),
+    ).toBeInTheDocument();
+    // A locked card says the lock, not its count as well; nothing beside the one that does not wait.
+    expect(mail.queryByText(/Wrong passwords for anna@soverin/)).not.toBeInTheDocument();
+    expect(row('m-files').querySelector('[data-waits-for]')).toBeNull();
+  });
+
+  it('says nothing more of a source not yet tried, or one signed in to', async () => {
+    vi.mocked(personLinkApi.awaiting).mockResolvedValue([
+      {
+        mappingId: 'm-mail',
+        then: 'review_and_start',
+        waitsFor: [
+          { role: 'source', way: 'sign-in', account: 'anna@gmail.invalid' },
+          { role: 'source', way: 'password', account: 'anna@icloud.invalid', tries: { refused: 0, left: 5, locked: false } },
+        ],
+      },
+    ]);
+    renderAt();
+    await answered();
+    expect(await within(await waitForRow('m-mail')).findByText(/Once they have, open Details/)).toBeInTheDocument();
+    expect(row('m-mail').querySelector('[data-waits-for]')).toBeNull();
   });
 
   it('says nothing when nothing of theirs waits', async () => {

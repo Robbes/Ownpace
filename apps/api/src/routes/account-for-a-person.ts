@@ -40,11 +40,13 @@
  * no links (D7). This is `apps/api`'s, which the appliance never loads.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, or } from 'drizzle-orm';
+import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
-import { person } from '@openmig/managed/schema-managed';
+import { person, personMigration } from '@openmig/managed/schema-managed';
 import { credentialFieldRequired, isPasswordKind, type CredentialField } from '@openmig/shared';
 import { personFieldsFor } from './grant-providers.ts';
+import { credential, storedCredentials } from './migrations/grant-subject.ts';
 
 /** A refusal of the create door, as its other refusals are shaped. */
 export interface ForPersonRefusal {
@@ -153,3 +155,88 @@ export const PERSON_NOT_FOUND: ForPersonRefusal = {
   status: 404,
   body: { error: 'person_not_found', reason: 'This organisation has no such person.' },
 };
+
+/** Whom an account on the Accounts page waits for (0174 §8.2): the person who types its password. */
+export interface WaitingFor {
+  readonly personId: string;
+  readonly name: string;
+}
+
+/** The keys that give a password account a way in, any one of them (`awaitingGrantRefusal`'s). */
+const PASSWORD_KEYS = ['password', 'appPassword', 'mailPassword'] as const;
+
+const hasAPassword = (secretRef: string | null): boolean => {
+  const creds = storedCredentials(secretRef);
+  return PASSWORD_KEYS.some((k) => credential(creds, k) !== '');
+};
+
+/**
+ * WAITING FOR {PERSON}, ON THE ACCOUNTS PAGE (0174 §8.2). An observation of
+ * the rows, as `awaitingGrantRefusal` is, never a status: a password account
+ * that holds no password, used by a migration of a person's whose side of it
+ * has none either (a source's password lands on the migration, ADR-0035
+ * decision 4; a destination's on the account, D1). Answered by connection,
+ * with the person first added; an account no person's migration uses yet, or
+ * one whose password is in, waits for nobody. The encrypted records are read
+ * for which keys they carry, never for a value, and only for the password
+ * kinds among the rows given.
+ */
+export async function waitingForPeople(
+  db: PgDatabase,
+  tenantId: string,
+  connections: ReadonlyArray<{
+    readonly id: string;
+    readonly role: string;
+    readonly kind: string;
+    readonly secretRef: string | null;
+  }>,
+): Promise<Map<string, WaitingFor>> {
+  const out = new Map<string, WaitingFor>();
+  const candidates = connections.filter(
+    (c) => (c.role === 'source' || c.role === 'target') && isPasswordKind(c.role, c.kind) && !hasAPassword(c.secretRef),
+  );
+  if (candidates.length === 0) return out;
+  const rows = await db
+    .select({
+      connectionId: schema.mailbox.connectionId,
+      mailboxId: schema.mailbox.id,
+      sourceMailboxId: schema.mailboxMapping.sourceMailboxId,
+      sourceSecretRef: schema.mailboxMapping.sourceSecretRef,
+      personId: person.id,
+      name: person.displayName,
+    })
+    .from(schema.mailbox)
+    .innerJoin(
+      schema.mailboxMapping,
+      or(
+        eq(schema.mailboxMapping.sourceMailboxId, schema.mailbox.id),
+        eq(schema.mailboxMapping.targetMailboxId, schema.mailbox.id),
+      ),
+    )
+    .innerJoin(personMigration, eq(personMigration.mappingId, schema.mailboxMapping.id))
+    .innerJoin(person, eq(person.id, personMigration.personId))
+    .where(
+      and(
+        eq(schema.mailbox.tenantId, tenantId),
+        eq(personMigration.tenantId, tenantId),
+        inArray(
+          schema.mailbox.connectionId,
+          candidates.map((c) => c.id),
+        ),
+      ),
+    )
+    .orderBy(asc(personMigration.addedAt));
+  const roleOf = new Map(candidates.map((c) => [c.id, c.role]));
+  for (const r of rows) {
+    if (out.has(r.connectionId)) continue;
+    const asSource = r.sourceMailboxId === r.mailboxId;
+    if (roleOf.get(r.connectionId) === 'source') {
+      // The person's password for a source lands on the migration.
+      if (!asSource || hasAPassword(r.sourceSecretRef)) continue;
+    } else if (asSource) {
+      continue;
+    }
+    out.set(r.connectionId, { personId: r.personId, name: r.name });
+  }
+  return out;
+}

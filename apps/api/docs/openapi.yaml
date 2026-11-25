@@ -1866,6 +1866,19 @@ paths:
                         kind: { type: string }
                         displayName: { type: string }
                         status: { type: string, enum: [connected, error, revoked] }
+                        waitingFor:
+                          type: object
+                          required: [personId, name]
+                          description: |
+                            Managed only (workplan 0174 §8.2). A password
+                            account saved for a person, which waits for them
+                            to type its password on their grant link's page:
+                            it holds none, and a migration of theirs uses it
+                            with none. Observed from the rows, never a status;
+                            absent otherwise.
+                          properties:
+                            personId: { type: string, format: uuid }
+                            name: { type: string }
                         createdAt: { type: string, format: date-time }
                         usedByMailboxes:
                           type: integer
@@ -6334,9 +6347,32 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [mappingId, then]
+                      required: [mappingId, then, waitsFor]
                       properties:
                         mappingId: { type: string, format: uuid }
+                        waitsFor:
+                          type: array
+                          description: |
+                            The accounts it waits for, sources first (workplan
+                            0174 §4.6): the account as the owner named it, its
+                            role, and for a password the person types, the
+                            refused tries on their grant link that still works
+                            (absent where none does). Never the server's own
+                            words for a refusal.
+                          items:
+                            type: object
+                            required: [role, way, account]
+                            properties:
+                              role: { type: string, enum: [source, target] }
+                              way: { type: string, enum: [sign-in, password] }
+                              account: { type: string }
+                              tries:
+                                type: object
+                                required: [refused, left, locked]
+                                properties:
+                                  refused: { type: integer, minimum: 0 }
+                                  left: { type: integer, minimum: 0 }
+                                  locked: { type: boolean }
                         then:
                           type: string
                           enum: [starts_by_itself, review_and_start, ran_before]

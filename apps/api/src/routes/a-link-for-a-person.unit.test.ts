@@ -562,6 +562,11 @@ describe('what a grant lets start (start when granted, per person; the owner, 20
 
 describe('what Anna’s page is told waits for their grant', () => {
   const awaiting = (personId: string) => request(app).get(`/api/people/${personId}/awaiting-grant`);
+  /** What each migration's grant does, without the accounts it waits for (pinned once, below). */
+  const thens = async (personId: string) =>
+    ((await awaiting(personId)).body.migrations as Array<{ mappingId: string; then: string }>).map(
+      ({ mappingId, then }) => ({ mappingId, then }),
+    );
   const withAToken = JSON.stringify(SecretStore.encryptCredentials({ refreshToken: REFRESH }).encrypted);
 
   it('names each migration their link asks for, by account: the owner starts them while nothing of Anna’s was ever started', async () => {
@@ -571,18 +576,24 @@ describe('what Anna’s page is told waits for their grant', () => {
       true,
     );
     // Their Google account's two, then their work Gmail; the IMAP mailbox waits for nobody.
+    // Each names the account it waits for (0174 §4.6); a sign-in has no tries.
+    const google = [{ role: 'source', way: 'sign-in', account: 'anna@gmail.com' }];
     expect(res.body).toEqual({
       migrations: [
-        { mappingId: CAL, then: 'review_and_start' },
-        { mappingId: CONTACTS, then: 'review_and_start' },
-        { mappingId: WORK_MAIL, then: 'review_and_start' },
+        { mappingId: CAL, then: 'review_and_start', waitsFor: google },
+        { mappingId: CONTACTS, then: 'review_and_start', waitsFor: google },
+        {
+          mappingId: WORK_MAIL,
+          then: 'review_and_start',
+          waitsFor: [{ role: 'source', way: 'sign-in', account: 'anna@work.example' }],
+        },
       ],
     });
   });
 
   it('says they start by themselves once Anna’s move was started, which is what a grant then does', async () => {
     await q(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [OLD_MAIL]);
-    expect((await awaiting(ANNA)).body.migrations).toEqual([
+    expect(await thens(ANNA)).toEqual([
       { mappingId: CAL, then: 'starts_by_itself' },
       { mappingId: CONTACTS, then: 'starts_by_itself' },
       { mappingId: WORK_MAIL, then: 'starts_by_itself' },
@@ -592,7 +603,7 @@ describe('what Anna’s page is told waits for their grant', () => {
     const token = tokenIn((await issue(ANNA)).body.url);
     expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
     expect([...enqueued].sort()).toEqual([CAL, CONTACTS].sort());
-    expect((await awaiting(ANNA)).body.migrations).toEqual([{ mappingId: WORK_MAIL, then: 'starts_by_itself' }]);
+    expect(await thens(ANNA)).toEqual([{ mappingId: WORK_MAIL, then: 'starts_by_itself' }]);
   });
 
   it('says they still start by themselves when Anna’s move is paused since it was started (the owner: "was ever started")', async () => {
@@ -602,7 +613,7 @@ describe('what Anna’s page is told waits for their grant', () => {
        VALUES ($1,$2,'email','paused',now(),now())`,
       [TENANT, OLD_MAIL],
     );
-    expect((await awaiting(ANNA)).body.migrations).toEqual([
+    expect(await thens(ANNA)).toEqual([
       { mappingId: CAL, then: 'starts_by_itself' },
       { mappingId: CONTACTS, then: 'starts_by_itself' },
       { mappingId: WORK_MAIL, then: 'starts_by_itself' },
@@ -618,7 +629,7 @@ describe('what Anna’s page is told waits for their grant', () => {
     );
     await q('UPDATE mailbox_mapping SET source_secret_ref = $2 WHERE id = $1', [CONTACTS, withAToken]);
     await q(`UPDATE mailbox_mapping SET status = 'done' WHERE id = $1`, [WORK_MAIL]);
-    expect((await awaiting(ANNA)).body.migrations).toEqual([{ mappingId: CAL, then: 'ran_before' }]);
+    expect(await thens(ANNA)).toEqual([{ mappingId: CAL, then: 'ran_before' }]);
   });
 
   it('leaves out an account two Google applications read, which their link cannot ask', async () => {
@@ -647,7 +658,7 @@ describe('what Anna’s page is told waits for their grant', () => {
     );
     await q('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3)', [mapping, ANNA, TENANT]);
     try {
-      expect((await awaiting(ANNA)).body.migrations).toEqual([{ mappingId: WORK_MAIL, then: 'review_and_start' }]);
+      expect(await thens(ANNA)).toEqual([{ mappingId: WORK_MAIL, then: 'review_and_start' }]);
     } finally {
       await q('DELETE FROM person_migration WHERE mapping_id = $1', [mapping]);
       await q('DELETE FROM mailbox_mapping WHERE id = $1', [mapping]);

@@ -107,6 +107,7 @@ import {
   missingForPerson,
   personOfThisOrganisation,
   shapedForPerson,
+  waitingForPeople,
 } from './account-for-a-person.ts';
 import { DOOR_BUDGET_MS, connectionsPool, qualifyAndRemember } from './qualify-and-remember.ts';
 
@@ -329,6 +330,9 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
           // the list shows badges without anybody pressing Test again.
           qualification: schema.connection.qualification,
           updatedAt: schema.connection.updatedAt,
+          // Read for WHICH KEYS a password account carries, never a value,
+          // and destructured away before anything leaves (0174 §8.2).
+          secretRef: schema.connection.secretRef,
         })
         .from(schema.connection)
         .where(eq(schema.connection.tenantId, tenantId));
@@ -376,8 +380,12 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
         new Set(connections.map((c) => c.id)),
       );
 
-      return connections.map(({ config, ...c }) => ({
+      // Whom a password account saved for a person waits for (0174 §8.2).
+      const waiting = await waitingForPeople(db, tenantId, connections);
+
+      return connections.map(({ config, secretRef: _sealed, ...c }) => ({
         ...c,
+        ...(waiting.has(c.id) ? { waitingFor: waiting.get(c.id)! } : {}),
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
         usedByMigrations: usedByMigrations.get(c.id) ?? 0,

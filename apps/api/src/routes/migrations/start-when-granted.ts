@@ -67,18 +67,24 @@
  * (`startsWhenGrantedFor`).
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import * as schema from '@openmig/ledger';
 import { recordMappingStatusChange, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
-import { person, personMigration } from '@openmig/managed/schema-managed';
+import { person, personLink, personMigration } from '@openmig/managed/schema-managed';
 import { log } from '@openmig/shared';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { enqueueIfFree } from '../../enqueue-unless-held.ts';
 import { GRANT_ACTOR } from './grant-ending.ts';
 import { resolveSyncJob } from './job-resolution.ts';
 import { PathsNeedAYes, movePathsWithMapping } from './path-lifecycle-wiring.ts';
-import { credentialKeys, readPersonGrantSubject } from './person-grant-subject.ts';
+import {
+  PASSWORD_TRIES_PER_LINK,
+  credentialKeys,
+  readPersonGrantSubject,
+  type GrantRole,
+  type GrantWay,
+} from './person-grant-subject.ts';
 import { readGrantRows, storedCredentials } from './grant-subject.ts';
 import { awaitingGrantRefusal } from './grant-link-readiness.ts';
 
@@ -198,10 +204,50 @@ export async function startsWhenGrantedFor(
  */
 export type OnceGranted = 'starts_by_itself' | 'review_and_start' | 'ran_before';
 
+/**
+ * One account a migration waits for (workplan 0174 §4.6): its role, the
+ * account as the owner named it, and, for a password the person types, the
+ * refused tries on their live grant link. Never the server's words for a
+ * refusal: the account is theirs (ADR-0035 decision 5), the count only.
+ */
+export interface WaitingAccount {
+  readonly role: GrantRole;
+  readonly way: GrantWay;
+  readonly account: string;
+  /** A password card, read on the person's live grant link: refused tries, tries left, locked. */
+  readonly tries?: { readonly refused: number; readonly left: number; readonly locked: boolean };
+}
+
 /** A migration of a person's that waits for their grant, and what the grant does to it. */
 export interface AwaitingTheirGrant {
   readonly mappingId: string;
   readonly then: OnceGranted;
+  /** The accounts it waits for, sources first (0174 §4.6). */
+  readonly waitsFor: readonly WaitingAccount[];
+}
+
+/**
+ * The person's grant link that still works, newest first: the one whose tries
+ * the owner's page counts. Null when none does (spent, revoked, expired, or
+ * never made): a new link starts at zero (0174 §5.5).
+ */
+async function liveGrantLinkOf(db: PgDatabase, tenantId: string, personId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: personLink.id })
+    .from(personLink)
+    .where(
+      and(
+        eq(personLink.tenantId, tenantId),
+        eq(personLink.personId, personId),
+        eq(personLink.purpose, 'grant'),
+        isNull(personLink.revokedAt),
+        isNull(personLink.usedAt),
+        gt(personLink.expiresAt, new Date()),
+      ),
+    )
+    .orderBy(desc(personLink.createdAt))
+    .limit(1);
+  return row?.id ?? null;
 }
 
 /**
@@ -218,8 +264,28 @@ export async function awaitingTheirGrant(
   tenantId: string,
   personId: string,
 ): Promise<readonly AwaitingTheirGrant[]> {
-  const subject = await readPersonGrantSubject(db, tenantId, personId);
+  const linkId = await liveGrantLinkOf(db, tenantId, personId);
+  const subject = await readPersonGrantSubject(db, tenantId, personId, process.env, linkId === null ? {} : { linkId });
   if (!subject) return [];
+  // Which accounts each migration waits for, sources first, as the subject orders them.
+  const waiting = new Map<string, WaitingAccount[]>();
+  for (const account of subject.accounts) {
+    if (!account.ask.ok) continue;
+    const tries =
+      account.way === 'password' && account.tries !== undefined
+        ? {
+            refused: PASSWORD_TRIES_PER_LINK - account.tries.left,
+            left: account.tries.left,
+            locked: account.tries.locked,
+          }
+        : undefined;
+    for (const { mappingId, granted } of account.migrations) {
+      if (granted) continue;
+      const list = waiting.get(mappingId) ?? [];
+      list.push({ role: account.role, way: account.way, account: account.account, ...(tries ? { tries } : {}) });
+      waiting.set(mappingId, list);
+    }
+  }
   const out: AwaitingTheirGrant[] = [];
   // Each migration once, though both of its sides may wait (workplan 0174).
   const seen = new Set<string>();
@@ -238,7 +304,7 @@ export async function awaitingTheirGrant(
         : (await personWhoseMoveStarted(db, tenantId, mappingId))
           ? 'starts_by_itself'
           : 'review_and_start';
-      out.push({ mappingId, then });
+      out.push({ mappingId, then, waitsFor: waiting.get(mappingId) ?? [] });
     }
   }
   return out;
