@@ -825,6 +825,12 @@ Keys in `apps/web/src/i18n/strings/grant.ts`, both languages in the same pull re
 The provider-specific help lines reuse the existing `account.*.hint` keys (`credential-fields.ts`)
 so the page and the owner's form say the same.
 
+**As shipped (T4, and the six tasks on one branch, 2026-11-25).** The Dutch above says
+*koppelen*; the page says *verbinden* / *verbonden*, as the approved Google and Microsoft cards and
+the glossary do, and `one-dutch-for-a-grant-link.unit.test.ts` holds it, with the link a
+*toegangslink* and a card locked *voor deze link*. `grant.continue.cirrux` is *Cirrux Drive
+verbinden*, the owner's own button's words. The table in the pull request is the one to read.
+
 ## 6. Dropbox on the seam (T2; supersedes 0171 T4)
 
 As 0171 §3.5 designed it, on the seam that merged:
