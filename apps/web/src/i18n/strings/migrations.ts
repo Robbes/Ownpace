@@ -120,9 +120,11 @@ export const en = {
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details.",
   'hub.detailError.retry': 'Try again',
-  'hub.grantWithdrawn':
-    'On {date} the person being migrated withdrew their access. Nothing reads or migrates their account now.',
-  'hub.grantWithdrawn.next': 'If they agree to continue, send them a new grant link. Links are made per person: see Links below.',
+  // One sentence for a source and a destination alike (the owner, 2026-11-25:
+  // "Ok"): a destination is written to, never read, so "nothing reads" was
+  // the wrong verb for one.
+  'hub.grantWithdrawn': 'The person being migrated withdrew their permission on {date}, so this migration copies nothing.',
+  'hub.grantWithdrawn.next': 'Send them a new grant link if they agree to continue. Links are made per person: see Links below.',
   'hub.deletions.name': 'Deletions',
   'hub.deletions.blurb': 'Deleted on the old system, still on the new; your call, per item.',
   'hub.moves.name': 'Moves',
@@ -577,9 +579,9 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen.',
   'hub.detailError.retry': 'Opnieuw proberen',
-  'hub.grantWithdrawn': 'Op {date} trok degene die gemigreerd wordt de toegang in. Er wordt niets meer gelezen of gemigreerd.',
+  'hub.grantWithdrawn': 'Degene die gemigreerd wordt, heeft op {date} de toegang ingetrokken, dus deze migratie kopieert niets meer.',
   'hub.grantWithdrawn.next':
-    'Is die persoon akkoord om verder te gaan, stuur dan een nieuwe toegangslink. Links worden per persoon gemaakt: zie Links hieronder.',
+    'Stuur een nieuwe toegangslink als die persoon akkoord is om verder te gaan. Links worden per persoon gemaakt: zie Links hieronder.',
   'hub.deletions.name': 'Verwijderingen',
   'hub.deletions.blurb':
     'Verwijderd op het oude systeem, nog op het nieuwe; beslis per item.',

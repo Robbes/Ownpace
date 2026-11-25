@@ -140,6 +140,7 @@ export * from './dav-refusal.ts';
 export * from './xml-elements.ts';
 // A remote's refusal in parts, so the managed Test button answers without its bytes (0136 T3).
 export * from './remote-refusal.ts';
+export * from './provider-answer.ts';
 // A share the new system refused, in parts and in our words (0136 T3, a share's refusal on apply).
 export * from './share-refusals.ts';
 export * from './calendar-scheduling.ts';

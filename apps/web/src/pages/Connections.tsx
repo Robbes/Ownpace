@@ -17,7 +17,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, Clock, XCircle, HelpCircle, Loader2, Plus } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, HelpCircle, Loader2, Plus, UserCheck } from 'lucide-react';
 import {
   credentialFieldsFor,
   isFailureCategory,
@@ -357,6 +357,11 @@ const Row: React.FC<{
           <div className="flex flex-wrap items-center gap-2">
             {connection.waitingFor ? (
               <Clock className="w-4 h-4 text-gray-500" aria-hidden="true" />
+            ) : connection.signInOnMigrations && connection.connectedBy && !connection.qualification ? (
+              // A person's sign-in account, connected by them on their
+              // migrations and not yet tested through it (0174 §8.2): the
+              // row's own status was written with no token and says nothing.
+              <UserCheck className="w-4 h-4 text-gray-500" aria-hidden="true" />
             ) : (
               <StatusIcon status={connection.status} />
             )}
@@ -372,7 +377,9 @@ const Row: React.FC<{
             // link's page (0174 §8.2): not an error, and nothing to Test
             // until they have.
             <p data-waiting-for={connection.waitingFor.personId} className="mt-1 text-sm text-gray-700">
-              {t('connections.waitingFor', { person: connection.waitingFor.name })}
+              {t(connection.signInOnMigrations ? 'connections.waitingForSignIn' : 'connections.waitingFor', {
+                person: connection.waitingFor.name,
+              })}
             </p>
           )}
           {connection.connectedBy && (
@@ -464,7 +471,7 @@ const Row: React.FC<{
               drops the failed-MEASURE footnote with the line it footnotes — a
               note explaining a missing number, under a card that shows no
               numbers, explains nothing. It still speaks in the Test panel. */}
-          {qualificationEvidence(t, connection.qualification ?? undefined, { measures: false }).map(
+          {qualificationEvidence(t, connection.qualification ?? undefined, { measures: false, locale }).map(
             (line) => (
               <span key={line} className="mt-1 block text-xs text-amber-800 break-words">
                 {line}
@@ -648,6 +655,7 @@ const Row: React.FC<{
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
             locale,
             result.said,
+            result.plain,
           )}
           {!result.ok && <GuideLink handle={result.guide} />}
           {result.qualification && (
@@ -661,7 +669,7 @@ const Row: React.FC<{
             /* The door answered before the measuring finished (2026-09-02). */
             <span className="block mt-1">{t('probe.measuring')}</span>
           )}
-          {qualificationEvidence(t, result.qualification).map((line) => (
+          {qualificationEvidence(t, result.qualification, { locale }).map((line) => (
             /* Why a face is `?` — on screen, since a phone has no hover. */
             <span key={line} className="block mt-1 text-xs break-words">
               {line}

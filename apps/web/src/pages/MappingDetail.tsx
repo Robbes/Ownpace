@@ -511,7 +511,7 @@ const MappingDetail: React.FC = () => {
       )}
       {/* A GRANT THE PERSON TOOK BACK (workplan 0108 T8 (c)), said before
           anything that reads as progress: the status can still say Active,
-          and nothing reads their account until they grant it again. The
+          and this migration copies nothing until they grant it again. The
           new link is the person's (ADR-0035, amended 2026-09-29): the links
           panel below points to their page, or asks who this is for. */}
       {detail.data?.grantWithdrawnAt && (

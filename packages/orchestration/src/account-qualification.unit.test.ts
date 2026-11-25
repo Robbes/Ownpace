@@ -584,8 +584,9 @@ describe('the Dropbox account: one face, two answers (2026-09-02)', () => {
     try {
       const q = await qualifyDropbox('dropbox', {}, DROPBOX_CREDS);
       expect(q!.domains.file.answer).toBe('unknown');
-      expect(q!.domains.file.detail).toContain('Unmeasured');
-      expect(q!.domains.file.detail).toContain('401');
+      // Dropbox's status and a plain reason, never its body (2026-11-25).
+      expect(q!.domains.file.detail).toBe('Dropbox answered 401: the sign-in was not accepted.');
+      expect(q!.domains.file.reason).toBe('refused');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -716,7 +717,10 @@ describe('the grant-qualified half: what a stored Google grant carries (0106 T1a
   it('missing refresh token is unknown naming the gap; a non-Google kind is not this half\'s to answer', async () => {
     const q = await qualifyGoogleGrant('gmail', { clientId: 'cid' }, { tokenEndpoint: 'https://stub/token' });
     expect(q?.domains.mail.answer).toBe('unknown');
-    expect(q?.domains.mail.detail).toContain('refreshToken');
+    // In plain words, never the storage keys (2026-11-25).
+    expect(q?.domains.mail.detail).toContain('holds no sign-in from Google yet');
+    expect(q?.domains.mail.detail).not.toMatch(/clientId|refreshToken/);
+    expect(q?.domains.mail.plain).toEqual({ kind: 'noSignIn', provider: 'Google' });
     expect(await qualifyGoogleGrant('imap', GOOGLE_CREDS, { tokenEndpoint: 'https://stub/token' })).toBeUndefined();
   });
 });
@@ -793,7 +797,10 @@ describe('the grant, REACHED: each carried face is asked as a pass would ask it 
       expect(q?.domains.calendar.answer).toBe('unknown');
       expect(q?.domains.calendar.detail).toContain('accessNotConfigured');
       expect(q?.domains.calendar.detail).toContain('caldav.googleapis.com');
-      expect(q?.domains.calendar.detail).toContain(CAL);
+      // The status and Google's own words; not the scope, not "face".
+      expect(q?.domains.calendar.detail).toMatch(/^Google answered 403: accessNotConfigured/);
+      expect(q?.domains.calendar.detail).not.toContain('face');
+      expect(q?.domains.calendar.reason).toBe('refused');
       expect(q?.domains.calendar.count).toBeUndefined();
       // The neighbour that answered is unaffected.
       expect(q?.domains.contact).toMatchObject({ answer: 'yes', count: 1 });

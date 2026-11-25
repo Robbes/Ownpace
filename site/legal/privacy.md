@@ -7,6 +7,12 @@
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
 
+  Still 1.0, edited in place once more on 2026-11-25, in both languages, on the owner's answers
+  that evening to two additions advised for the gift, each verbatim "Ok": §4.4's *Gifts* says
+  that a declined request gives the gift back, so the giver can tell; §5 gains a row for a gift,
+  its purpose and its lawful basis. The Last updated line stays 2026-11-25; ACCEPTED_WORDS
+  re-pins both files under 1.0.
+
   Still 1.0, edited in place again on 2026-11-25, in both languages, for alpha.21's gift
   invitations (workplan 0172), on the owner's read of the gift's privacy sentence that day,
   verbatim: "ok, I take your advice". What changed: §4.4 ends with *Gifts*, what is kept of a gift
@@ -964,7 +970,8 @@ European Commission's VIES service.
 of the code (never the code itself), the card's language, when it was made, until when it is valid,
 and when it was used and for which request, or when it was revoked. We keep no name, address or
 message of the person it is for. If you use a code, we keep your request like any request, marked as
-a gift from the giver. A gift is deleted with the giver's organisation.
+a gift from the giver. If we decline your request, the giver gets the gift back, and so can tell
+that you were not let in. A gift is deleted with the giver's organisation.
 
 ### 4.5 Support and operational logs
 
@@ -1177,6 +1184,7 @@ A migration touches people who never signed up with us. This is what we hold abo
 |---|---|---|
 | Credentials, ledger, the count when you review your migration | Performing the migration you asked for | Contract, including steps you request before one (Art. 6(1)(b)) — on your instructions as processor for an organisation; as controller for a household migration (§3) |
 | Your request for access | Deciding whether to let you in, and telling you | Steps you ask for before a contract (Art. 6(1)(b)) |
+| A gift (§4.4) | Letting a member give a place, and recognising a request as their gift | Contract with the giver; for your request, steps you ask for before a contract (Art. 6(1)(b)) |
 | Your account and sign-in account, invoices, usage figures | Providing the service, letting you sign in safely, and billing for it | Contract (Art. 6(1)(b)); legal obligation for invoice retention (Art. 6(1)(c)). No invoices during the Alpha |
 | The record of failed attempts, and the lock on your sign-in account after 10 wrong passwords in a row (§4.4) | Protecting your sign-in account from use by someone else | Legitimate interests (Art. 6(1)(f)) — yours as much as ours |
 | Your Google address on Google's list of test users (Alpha) | Letting Google allow the connection you ask for | Contract (Art. 6(1)(b)) |

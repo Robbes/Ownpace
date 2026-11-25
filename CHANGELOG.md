@@ -25,8 +25,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0065 adds `gift`,
   `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation, and so is the
   operator's number for each of its people, unless that person is also in another organisation.
-  The privacy policy says what is kept of a gift (§4.4, *Gifts*) and for how long (§9), in place
-  under 1.0, as the owner read it.
+  The privacy policy says what is kept of a gift (§4.4, *Gifts*), why and on what basis (§5), and
+  for how long (§9), and that a declined request gives the gift back, so the giver can tell; in
+  place under 1.0, as the owner read it.
 - **Grant links for every account a person can grant** (alpha.21; workplan 0174 T1 and T3 to T6,
   with D3 (a) and §4.3). A person's grant link now asks for each account of theirs that a migration
   reads from or writes to, in two groups on one page. Where the provider offers a sign-in, they
@@ -43,7 +44,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   (*Save for {person}*), and sees *Waiting for {person}* on the Accounts page until it is
   connected; an account the person connected takes only their migrations and offers no *Replace
   credentials*. On their progress page the person can remove a destination's password again,
-  which holds every migration into it until they connect it once more. Managed migration 0064
+  which holds every migration into it until they connect it once more. The migration page then
+  says *The person being migrated withdrew their permission on {date}, so this migration copies
+  nothing.*, which is true of a source and a destination alike, where it said nothing *reads*
+  their account. Managed migration 0064
   adds `person_link_try` and `person_granted_connection`; the shared chain is unchanged. Not
   proven against a real Apple, Cirrux, Infomaniak or Soverin login.
   **Nederlands:** een toegangslink vraagt nu om elk account van de persoon waaruit een migratie
@@ -53,7 +57,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   daarna versleuteld bewaard; na vijf onjuiste pogingen is dat account voor die link geblokkeerd.
   Apple, Cirrux en Infomaniak worden alleen bij hun eigen server gecontroleerd. Een migratie start
   pas als bron en bestemming allebei verbonden zijn. Op de voortgangspagina kan de persoon het
-  wachtwoord van een bestemming weer verwijderen.
+  wachtwoord van een bestemming weer verwijderen; de migratiepagina zegt dan *Degene die
+  gemigreerd wordt, heeft op {date} de toegang ingetrokken, dus deze migratie kopieert niets
+  meer.*
 - **Grant links for a Dropbox account** (workplan 0174 §6, T2; superseding 0171 T4). A grant link
   can now connect Dropbox as it connects a Google or Microsoft account: the person opens the link,
   presses **Continue with Dropbox as** *their account* (*Doorgaan met Dropbox als …*), signs in on
@@ -128,6 +134,37 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A Google, Microsoft or Dropbox account saved for a person is no longer called broken**
+  (workplan 0174 §8.2; found on the managed test environment on alpha.20). Such an account is
+  saved by its address alone: the person's sign-in through their grant link is stored on each of
+  their migrations, never on the account. The Accounts page showed it with a red error icon,
+  *"Unmeasured — the stored credentials carry no clientId/refreshToken pair"* under every data
+  type, and its Test gave the advice for your own Google app. It now says *Waiting for {person}:
+  they sign in themselves, with their grant link* until one of their migrations holds the
+  sign-in, and *{person} connected this account themselves* once one does, with no error icon. A
+  Test while it waits tries nothing and says whom it waits for; once they have signed in, the
+  Test measures the account with the sign-in their migration holds, on the server, and nothing of
+  it is answered.
+- **A provider's error page is no longer printed on the screen.** A Test of a Google account
+  printed Google's whole HTML error page after *"the face did not answer: PROPFIND failed with
+  status 502"*, as if Google had refused. Where Google, Microsoft, Dropbox, Box or Apple answer
+  with an error, the Test, the Accounts page and the finish checks now say the status and a short
+  plain reason, or the provider's own error words when they come as an error document we know;
+  never the body, and capped. A 5xx or 429 reads *Google had a temporary error (502). Test again
+  in a minute.*, and is recorded as temporary, not as a refusal. A request that got no answer at
+  all, which a second Test the same evening showed only as *fetch failed*, reads *Google could not
+  be reached just now (the connection was cut off). Test again in a minute.*, the reason in plain
+  words and never the network's code, and is temporary too. The data type is named by its name,
+  and *clientId/refreshToken* no longer appears in a sentence anyone reads.
+  **Nederlands:** een Google-, Microsoft- of Dropbox-account dat voor iemand anders is opgeslagen,
+  heet niet meer kapot. Zo'n account wordt alleen met het adres opgeslagen: de aanmelding via de
+  toegangslink komt op de migraties van die persoon te staan, niet op het account. De pagina
+  Accounts zegt nu *Wacht op {persoon}: die meldt zich zelf aan, met de toegangslink*, en zodra
+  dat gebeurd is *{persoon} heeft dit account zelf verbonden*, zonder foutteken; Test meet het
+  account dan met die aanmelding. En een foutpagina van een aanbieder staat niet meer op het
+  scherm: u leest de status en een korte reden, en bij een 5xx of 429 *Google had een tijdelijke
+  fout (502). Test over een minuut opnieuw.* Kwam er helemaal geen antwoord, dan leest u *Google
+  was zojuist niet bereikbaar (de verbinding werd verbroken). Test over een minuut opnieuw.*
 - **Testing an IMAP destination that opts out of verifying its certificate** (workplan 0174 T8).
   An `imap` destination saved with `tlsVerify: false` (a server with a self-signed certificate,
   opted out in writing) was copied to without verifying the certificate, but its test verified it

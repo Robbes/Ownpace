@@ -435,6 +435,9 @@ export const en = {
   'connections.test': 'Test',
   // A password account saved for a person (0174 §8.2), in place of its error.
   'connections.waitingFor': 'Waiting for {person}: they type its password themselves, with their grant link.',
+  // A Google, Microsoft or Dropbox account saved for a person (0174 §8.2,
+  // 2026-11-25): their sign-in lands on their migrations, never on the row.
+  'connections.waitingForSignIn': 'Waiting for {person}: they sign in themselves, with their grant link.',
   // A destination the person connected themselves (0174 §4.3, D6): the
   // rotation door's own sentence (`connectedByThemselves`), word for word.
   'connections.connectedBy': '{person} connected this account themselves. Make them a new grant link to change it.',
@@ -482,6 +485,10 @@ export const en = {
   // The deadline (2026-09-02): unknown, not refused, and the connection is
   // kept so it can be tested again.
   'probe.timedOut': 'No answer within {seconds} seconds; kept anyway, so test later.',
+  // A person's sign-in account that none of their migrations holds a
+  // sign-in for yet (0174 §8.2): the API's `reason` in the same words.
+  'probe.waitingForPerson':
+    'Waiting for {person}: they have not signed in yet with the grant link, so there is nothing to test. Nothing is wrong with this account.',
   // The export is in the migration's own file target (0116 T4, the relay), and
   // a connection is tested before any migration names one. Unknown, never a
   // measured no — the owner's answer of 2026-09-20.
@@ -1074,6 +1081,7 @@ export const nl: Record<keyof typeof en, string> = {
   'connections.targets': 'Bestemmingen',
   'connections.test': 'Testen',
   'connections.waitingFor': 'Wacht op {person}: die typt het wachtwoord zelf, met de toegangslink.',
+  'connections.waitingForSignIn': 'Wacht op {person}: die meldt zich zelf aan, met de toegangslink.',
   'connections.connectedBy': '{person} heeft dit account zelf verbonden. Maak een nieuwe toegangslink voor {person} om het te wijzigen.',
   'connections.testing': 'Bezig met testen…',
   'connections.usedBy.one': 'Gebruikt door 1 migratie',
@@ -1096,6 +1104,8 @@ export const nl: Record<keyof typeof en, string> = {
   'probe.noProbe': 'Een {kind}-verbinding kan nog niet worden getest.',
   'probe.timedOut':
     'Geen antwoord binnen {seconds} seconden; toch bewaard, dus test later opnieuw.',
+  'probe.waitingForPerson':
+    'Wacht op {person}: die heeft zich nog niet aangemeld met de toegangslink, dus er valt niets te testen. Er is niets mis met dit account.',
   'probe.countedAtPreflight':
     'Deze export staat in uw nieuwe bestanden, dus hier valt nog niets te testen. Hij wordt geteld wanneer u de migratie controleert.',
   'probe.said.server': 'De server',

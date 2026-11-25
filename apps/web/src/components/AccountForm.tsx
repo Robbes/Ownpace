@@ -706,6 +706,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
             locale,
             result.said,
+            result.plain,
           )}
           {!result.ok && <GuideLink handle={result.guide} />}
           {result.qualification && (
@@ -718,7 +719,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             /* The door answered before the measuring finished (2026-09-02). */
             <span className="block mt-1">{t('probe.measuring')}</span>
           )}
-          {qualificationEvidence(t, result.qualification).map((line) => (
+          {qualificationEvidence(t, result.qualification, { locale }).map((line) => (
             <span key={line} className="block mt-1 text-xs break-words">
               {line}
             </span>

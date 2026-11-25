@@ -109,6 +109,10 @@ import {
   personOfThisOrganisation,
   shapedForPerson,
   waitingForPeople,
+  signInPeople,
+  signInOnItsMigrations,
+  personsSignInFor,
+  measuredThroughAMigration,
 } from './account-for-a-person.ts';
 import { DOOR_BUDGET_MS, connectionsPool, qualifyAndRemember } from './qualify-and-remember.ts';
 
@@ -390,13 +394,29 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
         tenantId,
         connections.filter((c) => c.role === 'target').map((c) => c.id),
       );
+      // And a sign-in account saved for a person (Google, Microsoft, Dropbox):
+      // their sign-in is on their migrations, so the row is waiting for them
+      // or connected by them, never broken for holding no token (0174 §8.2,
+      // found on the test environment 2026-11-25).
+      const signIn = await signInPeople(db, tenantId, connections);
+      const onMigrations = new Set(connections.filter(signInOnItsMigrations).map((c) => c.id));
 
-      return connections.map(({ config, secretRef: _sealed, ...c }) => ({
+      return connections.map(({ config, secretRef: _sealed, ...c }) => {
+        const waitingFor = waiting.get(c.id) ?? signIn.waitingFor.get(c.id);
+        const by = grantedBy.get(c.id);
+        const connectedBy = by ? { personId: by.personId, name: by.displayName } : signIn.connectedBy.get(c.id);
+        // A person's sign-in row: what was stored before a Test measured
+        // through their sign-in was read with no token, and says nothing
+        // about the account. Kept only once it was measured through it.
+        const personsSignIn = onMigrations.has(c.id) && (waitingFor !== undefined || connectedBy !== undefined);
+        const qualification =
+          personsSignIn && !measuredThroughAMigration(c.qualification) ? null : c.qualification;
+        return {
         ...c,
-        ...(waiting.has(c.id) ? { waitingFor: waiting.get(c.id)! } : {}),
-        ...(grantedBy.has(c.id)
-          ? { connectedBy: { personId: grantedBy.get(c.id)!.personId, name: grantedBy.get(c.id)!.displayName } }
-          : {}),
+        qualification,
+        ...(waitingFor ? { waitingFor } : {}),
+        ...(connectedBy ? { connectedBy } : {}),
+        ...(personsSignIn ? { signInOnMigrations: true } : {}),
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
         usedByMigrations: usedByMigrations.get(c.id) ?? 0,
@@ -416,7 +436,8 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
           wizardTypeForConnectionKind(c.kind),
           config,
         ),
-      }));
+      };
+      });
     });
     res.json({ connections: rows });
   } catch (error) {
@@ -776,9 +797,32 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
       return void res.status(409).json(onServer);
     }
 
+    // A SIGN-IN ACCOUNT SAVED FOR A PERSON (0174 §8.2; found on the test
+    // environment 2026-11-25). Google, Microsoft and Dropbox: the row holds
+    // the address and no token, by design, and the person's sign-in is on
+    // each of their migrations that read it. Tested with the row's own
+    // nothing, it answered that the account was broken and gave advice about
+    // the owner's own app that does not apply. So: measured with the sign-in
+    // one of their migrations holds, merged over the row's as a pass merges
+    // it, read here inside this tenant's transaction and never answered; or,
+    // while none holds one, waiting for them, with nothing probed.
+    const throughPerson = signInOnItsMigrations(row)
+      ? await withTenantDb(tenantId, pool(), (db) => personsSignInFor(db, tenantId, id))
+      : null;
+    if (throughPerson?.state === 'waiting') {
+      const name = throughPerson.person.name;
+      return void res.json({
+        ok: false,
+        reason:
+          `Waiting for ${name}: they have not signed in yet with the grant link, so there is ` +
+          'nothing to test. Nothing is wrong with this account.',
+        outcome: { code: 'waitingForPerson', person: name },
+      });
+    }
+
     // A connection with no stored secret cannot be probed — say which it is
     // rather than reporting a credential failure it did not have.
-    if (!row.secretRef) {
+    if (!row.secretRef && throughPerson === null) {
       return void res.json({
         ok: false,
         reason:
@@ -787,10 +831,24 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
       });
     }
 
-    const creds = SecretStore.decryptCredentials(row.secretRef);
-    const config = (row.config ?? {}) as Record<string, unknown>;
+    const rowCreds = row.secretRef ? SecretStore.decryptCredentials(row.secretRef) : {};
+    const rowConfig = (row.config ?? {}) as Record<string, unknown>;
+    const creds =
+      throughPerson?.state === 'granted'
+        ? { ...rowCreds, ...SecretStore.decryptCredentials(throughPerson.secretRef) }
+        : rowCreds;
+    const config = throughPerson?.state === 'granted' ? { ...rowConfig, ...throughPerson.configOverride } : rowConfig;
     if (refusedOverTestLimit(req, res)) return;
-    const answers = probeAnswers('testing a connection', tenantId);
+    const asked = probeAnswers('testing a connection', tenantId);
+    // What was measured through a person's sign-in says so on the record, so
+    // the Accounts page keeps it (and drops one read with no token).
+    const answers: typeof asked =
+      throughPerson?.state === 'granted'
+        ? {
+            result: (r) => asked.result(r),
+            qualification: (q) => ({ ...asked.qualification(q), throughPersonsSignIn: true }),
+          }
+        : asked;
     const result = answers.result(
       row.role === 'target'
         ? await probeTargetConnection(

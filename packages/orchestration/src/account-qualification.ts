@@ -55,8 +55,15 @@ import {
   type QualificationKey,
   type QualificationReason,
 } from '@openmig/shared';
-import { whatHappened } from '@openmig/shared';
-import type { DiscoveryDomain, ProbeUnit, WhatHappened, WhatHappenedAnswer } from '@openmig/shared';
+import {
+  isTemporaryFailure,
+  plainFailureText,
+  providerAnswerFromError,
+  providerAnswerFromResponse,
+  whatHappened,
+  withoutABody,
+} from '@openmig/shared';
+import type { DiscoveryDomain, PlainFailure, ProbeUnit, WhatHappened, WhatHappenedAnswer } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds, davUrlIsTyped, fileEndpointFromCreds } from './dav-endpoint.ts';
 import { measureTargetScheduling } from './target-scheduling.ts';
@@ -141,6 +148,33 @@ export interface QualifiedDomain {
    * other face.
    */
   readonly said?: WhatHappenedAnswer;
+  /**
+   * WHAT A PROVIDER'S OWN SERVICE ANSWERED, IN PARTS (2026-11-25): Google's,
+   * Microsoft's, Dropbox's or Cirrux's status and its recognised words, never
+   * its body, or that the account holds no sign-in yet. `detail` is its
+   * English (`plainFailureText`); a screen says it in its reader's language.
+   */
+  readonly plain?: PlainFailure;
+}
+
+/**
+ * A face that was asked and did not answer, said plainly (2026-11-25): from
+ * what the provider answered when it answered with a status, or that nothing
+ * answered at all (5xx, 429 and the network are `temporary`), else from the
+ * failure's own message with no body in it.
+ */
+export function unansweredFace(err: unknown, provider: string): QualifiedDomain {
+  const plain = providerAnswerFromError(err, provider);
+  if (plain) {
+    return {
+      answer: 'unknown',
+      reason: isTemporaryFailure(plain) ? 'temporary' : 'refused',
+      detail: plainFailureText(plain).en,
+      plain,
+    };
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return { answer: 'unknown', reason: 'refused', detail: `Could not be read: ${withoutABody(message)}` };
 }
 
 /** A face's volume, as data — a screen words and formats it. */
@@ -224,6 +258,14 @@ export interface AccountQualification {
   };
   /** Folded in when the calendar face answered yes (0105 T0's verdict). */
   readonly scheduling?: SchedulingVerdict;
+  /**
+   * Measured with the sign-in a person gave on one of their migrations, not
+   * with the row's own (workplan 0174 §8.2, 2026-11-25): a Google, Microsoft
+   * or Dropbox account saved for a person holds no token on its row. The
+   * Accounts page keeps such a row's record only when this is set, since one
+   * stored before was read with no token and says nothing about the account.
+   */
+  readonly throughPersonsSignIn?: true;
 }
 
 /** The kinds this measuring half covers — the Basic-auth account families.
@@ -1130,8 +1172,13 @@ const DWD_UNMEASURED =
   "Unmeasured — a service-account key's scopes live in the Workspace admin " +
   'console domain-wide delegation grant, which no token response enumerates.';
 
-function allUnknown(why: string): AccountQualification {
-  const domain: QualifiedDomain = { answer: 'unknown', reason: 'refused', detail: why };
+function allUnknown(why: string, plain?: PlainFailure): AccountQualification {
+  const domain: QualifiedDomain = {
+    answer: 'unknown',
+    reason: isTemporaryFailure(plain) ? 'temporary' : 'refused',
+    detail: why,
+    ...(plain ? { plain } : {}),
+  };
   return {
     domains: { mail: domain, calendar: domain, contact: domain, file: domain, task: domain },
   };
@@ -1361,12 +1408,9 @@ export async function qualifyDropbox(
       };
     }
   } catch (err) {
-    // A refusal is NOT a no (the same rule as every other face).
-    file = {
-      answer: 'unknown',
-      reason: 'refused',
-      detail: `Unmeasured — the probe was refused: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    // A refusal is NOT a no (the same rule as every other face), said from
+    // Dropbox's status and words, never its body (2026-11-25).
+    file = unansweredFace(err, 'Dropbox');
   }
   return {
     domains: {
@@ -1536,7 +1580,7 @@ function archiveDetail(summary: {
 /** What a stored Google grant carries, or why it could not be read. */
 export type GoogleGrantRead =
   | { readonly ok: true; readonly granted: ReadonlySet<string> }
-  | { readonly ok: false; readonly reason: string };
+  | { readonly ok: false; readonly reason: string; readonly plain?: PlainFailure };
 
 /**
  * READ THE GRANT, and nothing else: one refresh-token exchange, whose `scope`
@@ -1557,11 +1601,10 @@ export async function readGoogleGrant(
   const clientId = creds.clientId;
   const refreshToken = creds.refreshToken;
   if (!clientId || !refreshToken) {
-    return {
-      ok: false,
-      reason:
-        'Unmeasured — the stored credentials carry no clientId/refreshToken pair to read the grant from.',
-    };
+    // Plain words (2026-11-25): this read *"the stored credentials carry no
+    // clientId/refreshToken pair"*, storage keys, on a card a person reads.
+    const plain: PlainFailure = { kind: 'noSignIn', provider: 'Google' };
+    return { ok: false, reason: plainFailureText(plain).en, plain };
   }
   try {
     const body = new URLSearchParams({
@@ -1576,15 +1619,26 @@ export async function readGoogleGrant(
       body: body.toString(),
     });
     if (!response.ok) {
-      const head = (await response.text()).slice(0, 200);
-      return { ok: false, reason: `Unmeasured — the token exchange answered ${response.status}: ${head}` };
+      // The status and Google's own error words, never the body (2026-11-25):
+      // a 5xx here is Google's temporary error page, printed whole before.
+      const plain = providerAnswerFromResponse('Google', response.status, await response.text());
+      return { ok: false, reason: plainFailureText(plain).en, plain };
     }
-    const token = (await response.json()) as { scope?: string };
+    let token: { scope?: string };
+    try {
+      token = (await response.json()) as { scope?: string };
+    } catch {
+      // Not the parser's message: it quotes the start of the body.
+      return { ok: false, reason: 'Unmeasured — Google answered something that is not a token.' };
+    }
     return { ok: true, granted: new Set((token.scope ?? '').split(' ').filter(Boolean)) };
   } catch (err) {
+    // Nothing answered (the network) is temporary, said plainly (2026-11-25).
+    const plain = providerAnswerFromError(err, 'Google');
+    if (plain) return { ok: false, reason: plainFailureText(plain).en, plain };
     return {
       ok: false,
-      reason: `Unmeasured — the token exchange failed: ${err instanceof Error ? err.message : String(err)}`,
+      reason: `Unmeasured — the token exchange failed: ${withoutABody(err instanceof Error ? err.message : String(err))}`,
     };
   }
 }
@@ -1626,7 +1680,7 @@ export async function qualifyGoogleGrant(
   // a missing exchange. Already kind-gated by the guard above.
   const creds = withDeploymentGoogleClient(true, rawCreds);
   const read = await readGoogleGrant(creds, options.tokenEndpoint ?? GOOGLE_TOKEN_ENDPOINT);
-  if (!read.ok) return allUnknown(read.reason);
+  if (!read.ok) return allUnknown(read.reason, read.plain);
   const granted = read.granted;
 
   const reach = options.reach;
@@ -1677,16 +1731,11 @@ export async function qualifyGoogleGrant(
     } catch (err) {
       // The three-state rule: a refusal is NOT a no. The scope is carried, so
       // "cannot carry" would be false; and it is not a yes either, since
-      // nothing answered. Unknown, with the refusal's own words — Google's,
-      // when the switch behind the face is off, naming the API and the page.
-      return {
-        answer: 'unknown',
-        reason: 'refused',
-        detail:
-          `The grant carries ${carried}, but the face did not answer: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-      };
+      // nothing answered. Unknown, with Google's status and its own words —
+      // when the switch behind the data type is off, naming the API — and
+      // never its body: a 502 printed Google's whole error page here, and
+      // was called a refusal (2026-11-25). A 5xx or 429 is `temporary`.
+      return unansweredFace(err, 'Google');
     }
   };
   const [mail, calendar, contact, file, task] = await Promise.all([

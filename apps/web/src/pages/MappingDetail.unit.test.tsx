@@ -319,9 +319,11 @@ describe('a grant the person took back (0108 T8 (c))', () => {
     mappingApiGet.mockResolvedValue(aMapping({ grantWithdrawnAt: '2026-09-24T06:00:00.000Z' }));
     renderHub();
 
-    expect(await screen.findByText(/the person being migrated withdrew their access/)).toBeInTheDocument();
-    expect(screen.getByText(/Nothing reads or migrates their account now/)).toBeInTheDocument();
-    expect(screen.getByText(/send them a new grant link\. Links are made per person: see Links below/)).toBeInTheDocument();
+    expect(await screen.findByText(/The person being migrated withdrew their permission on /)).toBeInTheDocument();
+    // One verb for a source and a destination alike (the owner, 2026-11-25).
+    expect(screen.getByText(/so this migration copies nothing\.$/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing reads/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Send them a new grant link if they agree to continue\. Links are made per person: see Links below/)).toBeInTheDocument();
   });
 
   it('says nothing about a migration whose grant stands', async () => {
@@ -329,7 +331,7 @@ describe('a grant the person took back (0108 T8 (c))', () => {
     renderHub();
 
     expect(await screen.findByRole('heading', { name: 'Acme mail' })).toBeInTheDocument();
-    expect(screen.queryByText(/withdrew their access/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/withdrew their permission/)).not.toBeInTheDocument();
   });
 });
 

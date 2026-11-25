@@ -183,9 +183,12 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // 0172; the owner's read of the gift's privacy sentence, verbatim: "ok, I take your advice"):
   // §4.4 ends with Gifts (Cadeaus): what is kept of a gift, and nothing of the person it is for;
   // §9 gains a row, a gift kept until the giver's organisation is deleted. Only the privacy pins
-  // move; the terms and the Alpha conditions are unchanged.
-  'privacy.md@1.0': '52d988258106638245e6d799486a8d1de2183f5b4406a234d0c3104f8f816831',
-  'privacy.nl.md@1.0': 'b269369901ce789dfcd397ddd501c14b8525af8093aa21b774fa1d33c32d38e8',
+  // move; the terms and the Alpha conditions are unchanged. Pinned again the same evening, on the
+  // owner's answers to two additions advised for the gift (each verbatim "Ok"): Gifts (Cadeaus)
+  // says that a declined request gives the gift back, so the giver can tell, and §5 gains a row
+  // for a gift, its purpose and its lawful basis.
+  'privacy.md@1.0': 'e13b690656a9a3eb60144801b0fa22f7d043f3bd2cb7c20ec94c394311b92bb2',
+  'privacy.nl.md@1.0': '7a478632f66b57355df2d3d08973c5999391a59f80be0e12f90a68a3735cef2c',
   'terms.md@1.0': '0c905a3111a06bf080ec4f929c31e178eb52ef935262451448172ca7cd910d2f',
   'terms.nl.md@1.0': '6da308638c45a9822855a8c74281ae33efd902cf586e30b850549509947bbcdb',
 };
