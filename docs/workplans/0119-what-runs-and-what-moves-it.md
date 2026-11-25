@@ -2,14 +2,36 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-24 (update this block at the end of every session)
+## Status — 2026-11-25 (update this block at the end of every session)
+
+**2026-11-25: what alpha.20 moves, which live takes with its deploy, planned for 2026-11-26.** The
+fold for `v0.2.0-alpha.20` (0146's entry of the same day) carries what `main` merged after
+alpha.19's C, `909e6d74`: 28 pull requests (0146's entry lists them). What alpha.20 moves:
+
+- the managed job runner's pg-boss, `12.38.2` to `12.39.0`, the one npm package `pnpm-lock.yaml`
+  moves; its job schema goes from 46 to 47 when alpha.20's worker first starts, one way (#2138,
+  this block's entry of 2026-11-24);
+- the web image's and the public site's nginx, `1.31.9-alpine-slim` to `1.31.10-alpine-slim`, and
+  upstream's rebuilds, same versions, of `postgres:18.7-alpine`, `node:26.13.1-trixie-slim`,
+  `gcr.io/distroless/nodejs26-debian13:nonroot` and both Nextcloud majors (#2127, this block's
+  entry of 2026-11-24);
+- one new pin, in the image builds: the SBOM generator `docker/buildkit-syft-scanner:1.12.1`, by
+  digest, which BuildKit runs to attest each published image's packages (#2137).
+
+Live also takes alpha.19's moves with this deploy: the identity provider's Zitadel `v4.20.5`, one
+way for its database, `packageManager`'s pnpm 11.29.0, and the test mail server's Stalwart
+`v1.2.0-alpine`, which live never runs (this block's entry of 2026-11-24, evening). No migration in
+either chain moves. Postgres, Node, distroless and Nextcloud keep their versions on rebuilt
+digests, and both database builds become `localhost/postgres:18.7-alpine-8a9f2fb59c72`, so the
+database containers are made again from the rebuilt image. Not moved: the PgBouncer, Gatus,
+Mailpit, Stalwart and Zitadel pins.
 
 **2026-11-24: pg-boss 12.39.0, moved on purpose from 12.38.2, for alpha.20; the job schema moves
 from 46 to 47, one way.** The owner, 2026-11-24: *"alpha.20 (advice): yes on all"*, knowing it
 moves the job schema one way, and *"for 20 i also waive al waiting/days."* npm lists 12.39.0 at
 2026-11-21 16:41 UTC; Dependabot would have offered it on 2026-11-30. On branch
-`claude/ownpace-public-readiness-y7orc6-pg-boss-12-39`, from `main` at `8f46f61b`, a draft that
-waits for alpha.19's tag. The lockfile was resolved once the three-day floor had passed of
+`claude/ownpace-public-readiness-y7orc6-pg-boss-12-39`, from `main` at `8f46f61b`; merged as
+#2138 on 2026-11-25 at 04:49 UTC (`34fcd12e`), after alpha.19's tag. The lockfile was resolved once the three-day floor had passed of
 itself, so `minimumReleaseAgeExclude` gains no entry.
 
 - **What the migration from 46 to 47 does**, read in both releases' packages from the npm registry,

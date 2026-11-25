@@ -2,11 +2,59 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-24 (update this block at the end of every session)
+## Status — 2026-11-25 (update this block at the end of every session)
+
+**2026-11-25: the fold for `v0.2.0-alpha.20` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.20`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-25, under a summary; [Unreleased] stays, empty. alpha.20 carries what
+`main` merged after alpha.19's C, `909e6d74`, the commit its tag names: 28 pull requests, merged
+from 2026-11-24 at 20:30 UTC to 2026-11-25 at 07:04 UTC. None came from Dependabot. Four
+entries' words change, so that the section says what alpha.20 ships as one: 0170 T1's no longer
+says the sources' date filters and the screens *follow*; 0170 T4's and the Microsoft 365
+calendars' (#2126) no longer describe the window-marked delta cursor that #2126 replaced in the
+same release; and 0171 T3's no longer promises Dropbox and Apple as its T4 and T5, which did not
+make alpha.20 and are planned again for alpha.21.
+
+- workplan 0170, the last 90 days first: T1 (#2115), the mail sources (T2, #2114), the file
+  sources (T3, #2113), the calendar sources (T4, #2117), the screens (T5, #2116), and the owner's
+  Dutch word for it (#2144);
+- Microsoft 365 and Outlook.com calendars on documented Graph v1.0 calls (0059 T5, #2126), and
+  Gmail's All Mail read last into Archive, with Check counting from Gmail (0044, #2124);
+- workplan 0171: grant links' provider seam and Microsoft (T3, #2136), free space at the
+  destination before Start (T9, #2132), Finish's addresses that receive mail and the MX check (T10,
+  #2135), and Apple's data export read, Experimental (T1, #2134);
+- the grant pages' note above the buttons and their Copy link button (0140, #2142), the four
+  screen findings of the owner's live Cirrux Drive test (0160 T2b, #2125), Microsoft files saying
+  OneDrive and naming the online archive (0026, #2119), and the owner's Dutch for alpha.20 (#2145);
+- from an outside, read-only check: the support lists a page at a time (0006 §P, #2130), the
+  connection routes' import cycle broken (0006 §R, #2129), the pin watch listing its issues once
+  per run (0006 §O, #2128), the release's SBOM built from the lockfile (0006 §Q, #2133), and an SBOM
+  in every published image (SBOM-1, #2137);
+- the appliance on PGlite: the shared ledger handle waits its turn for each statement (#2140);
+- nginx 1.31.10 and five rebuilt bases (0119, #2127), and pg-boss 12.39.0, its job schema 46 to 47,
+  one way (0119, #2138);
+- the records: alpha.19's release (#2143), `deploy-live.sh`'s comments (0167, #2122), one page
+  for a security fix that must go out today (#2131), and two more findings of an outside,
+  read-only check read as false positives (0006 §S, #2149).
+
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`: what
+  is still open goes into alpha.21.
+- **In the nights' place,** waived for alpha.20 (*"for 20 i also waive al waiting/days."*, #2121):
+  E2E (managed) and E2E (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at
+  a time, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** C's checks, its push runs and its Windows smoke, the image scans, and
+  the three E2E lanes at C, one at a time; then the Release run, which the owner starts from their
+  own account, with `commit` set to C and `waive_nights` set to the reason in their own words, and
+  the approval in the `release` environment.
+- **The deploy to live, planned for 2026-11-26 from alpha.18, is one-way** twice over: by pg-boss's
+  job schema, which alpha.20's worker moves from 46 to 47 when it first starts (#2138; this block's
+  entry of 2026-11-24 says what the deploy sheet must hold), and by the identity provider's pin,
+  Zitadel `v4.20.5` since alpha.19 (#2100). Between alpha.19's C and this one no file in either
+  migration chain is added, changed or removed.
 
 **2026-11-24: alpha.20 will carry pg-boss 12.39.0, and its deploy to live is one-way.** On the
-branch `claude/ownpace-public-readiness-y7orc6-pg-boss-12-39`, a draft that waits for alpha.19's
-tag (0119's Status of the same day says what moves). pg-boss's migration from schema 46 to 47 adds
+branch `claude/ownpace-public-readiness-y7orc6-pg-boss-12-39`; merged as #2138 on 2026-11-25 at
+04:49 UTC (`34fcd12e`), after alpha.19's tag (0119's Status of the same day says what moves). pg-boss's migration from schema 46 to 47 adds
 one nullable column, `pgboss.schedule.sent_on`. Before it merges: E2E (self-hosted) on Postgres,
 then on PGlite, then E2E (managed) dispatched just before the merge, since that run moves OTA's
 job schema and `main`'s nightly refuses it until the merge.
