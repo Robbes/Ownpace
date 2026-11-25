@@ -69,7 +69,7 @@ export const A_RECENT_ONLY_MIGRATION_IS_NOT_SWITCHED_OVER: Bilingual = {
     'This migration copies only the last 90 days, so it is not switched over yet: press Copy ' +
     'everything first, and switch over once the older items are in.',
   nl:
-    'Deze migratie kopieert alleen de laatste 90 dagen, dus ze stapt nog niet over: kies eerst ' +
+    'Deze migratie kopieert alleen de afgelopen 90 dagen, dus ze stapt nog niet over: kies eerst ' +
     'Alles kopiëren, en stap over als de oudere items erin staan.',
 };
 
