@@ -41,7 +41,7 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import { personLink, personMigration, tenantMember } from '@openmig/managed/schema-managed';
-import type { Bilingual } from '@openmig/shared';
+import { twoClientsAt, type Bilingual } from '@openmig/shared';
 import {
   credential,
   grantReadiness,
@@ -52,7 +52,7 @@ import {
   type WhereFromAndTo,
 } from './grant-subject.ts';
 import { awaitingGrantRefusal, grantLinkAsk, type GrantLinkAsk } from './grant-link-readiness.ts';
-import { googleAccountKey } from './signed-in-account.ts';
+import { namedAccountKey } from './signed-in-account.ts';
 
 /** One migration of a person's, as their grant page shows it. */
 export interface PersonGrantMigration {
@@ -69,7 +69,9 @@ export interface PersonGrantMigration {
 export type PersonAccountAsk =
   | {
       readonly ok: true;
-      /** Whose Google application asks. */
+      /** Whose sign-in it asks for (workplan 0171 §3.2). */
+      readonly provider: GrantLinkAsk['provider'];
+      /** Whose application asks. */
       readonly client: GrantLinkAsk['client'];
       /**
        * The connection whose own pair asks, when `client` is `connection`: its
@@ -89,6 +91,8 @@ export type PersonAccountAsk =
 export interface PersonGrantAccount {
   /** The address as the first of its migrations names it. */
   readonly account: string;
+  /** Whose account it is: Google's or, since alpha.20, Microsoft's (workplan 0171). */
+  readonly provider: GrantLinkAsk['provider'];
   readonly migrations: readonly PersonGrantMigration[];
   /** Whether every one of its migrations is granted. */
   readonly granted: boolean;
@@ -101,20 +105,6 @@ export interface PersonGrantSubject {
   /** In the order their first migration was added to the person. */
   readonly accounts: readonly PersonGrantAccount[];
 }
-
-/**
- * The refusal for an account whose migrations run through different Google
- * clients. Written for the person holding the link, to forward, as the other
- * not-ready sentences are.
- */
-export const TWO_CLIENTS: Bilingual = {
-  en:
-    'Your migrations from this account are set up with two different Google applications, so ' +
-    'one sign-in cannot serve them both. Ask the person who sent you this link to set them up alike.',
-  nl:
-    'Uw migraties vanuit dit account zijn ingesteld met twee verschillende Google-applicaties, dus ' +
-    'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om ze gelijk in te stellen.',
-};
 
 /** Whether a source's stored credentials, the connection's and the migration's, give it a way in. */
 function hasAWayIn(sourceKind: string, connectionSecretRef: string | null, mappingSecretRef: string | null): boolean {
@@ -169,6 +159,7 @@ export async function readPersonGrantSubject(
   let organisationPhone: string | null = null;
   const groups: Array<{
     key: string;
+    provider: GrantLinkAsk['provider'];
     account: string;
     entries: Array<{ migration: PersonGrantMigration; ask: GrantLinkAsk; connectionSecretRef: string | null }>;
   }> = [];
@@ -180,8 +171,11 @@ export async function readPersonGrantSubject(
     if (!decided.ok) continue;
     const where = whereFromAndTo(rows);
     if (!where || where.from === null) continue;
-    const key = googleAccountKey(where.from);
-    if (key === null) continue;
+    // One account per provider and address (workplan 0171): the same address
+    // at Google and at Microsoft is two sign-ins, never one.
+    const accountKey = namedAccountKey(decided.ask.provider, where.from);
+    if (accountKey === null) continue;
+    const key = `${decided.ask.provider}:${accountKey}`;
 
     organisation ??= rows.organisation;
     organisationPhone ??= rows.organisationPhone;
@@ -194,7 +188,7 @@ export async function readPersonGrantSubject(
     const entry = { migration, ask: decided.ask, connectionSecretRef: rows.source.secretRef };
     const group = groups.find((g) => g.key === key);
     if (group) group.entries.push(entry);
-    else groups.push({ key, account: where.from, entries: [entry] });
+    else groups.push({ key, provider: decided.ask.provider, account: where.from, entries: [entry] });
   }
 
   if (groups.length === 0 || organisation === null) return null;
@@ -205,14 +199,19 @@ export async function readPersonGrantSubject(
     const clients = new Set(
       g.entries.map((e) => (e.ask.client === 'deployment' ? 'deployment' : `connection:${e.connectionSecretRef ?? ''}`)),
     );
-    if (clients.size > 1) return { account: g.account, migrations, granted, ask: { ok: false, reason: TWO_CLIENTS } };
+    // Two clients of one provider: one sign-in cannot serve both, said in that provider's name.
+    if (clients.size > 1) {
+      return { account: g.account, provider: g.provider, migrations, granted, ask: { ok: false, reason: twoClientsAt(g.provider) } };
+    }
     const first = g.entries[0]!;
     return {
       account: g.account,
+      provider: g.provider,
       migrations,
       granted,
       ask: {
         ok: true,
+        provider: g.provider,
         client: first.ask.client,
         connectionSecretRef: first.ask.client === 'connection' ? first.connectionSecretRef : null,
         scope: scopeUnion(g.entries.map((e) => e.ask.scope)),

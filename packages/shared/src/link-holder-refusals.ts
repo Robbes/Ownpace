@@ -117,9 +117,10 @@ export const MIGRATION_GONE: Bilingual = {
  */
 export const NOT_READY_BECAUSE = {
   no_source_connection: { en: 'it no longer exists', nl: 'die bestaat niet meer' },
-  source_not_google: {
-    en: 'it does not connect to a Google account',
-    nl: 'die is niet gekoppeld aan een Google-account',
+  // Renamed from `source_not_google` when Microsoft joined (workplan 0171 §3.2).
+  source_not_grantable: {
+    en: 'it does not connect to an account a link can connect',
+    nl: 'die is niet gekoppeld aan een account dat via een link kan worden verbonden',
   },
   no_named_account: {
     en: 'it does not name the Google account it reads',
@@ -134,6 +135,22 @@ export const NOT_READY_BECAUSE = {
   restricted_scope: {
     en: 'its Google application may not ask for mail or files',
     nl: 'de Google-app ervan mag niet om e-mail of bestanden vragen',
+  },
+} as const satisfies Readonly<Record<string, Bilingual>>;
+
+/**
+ * The reasons above that name Google, said for a Microsoft migration
+ * (workplan 0171 §3.3). The rest name no provider and are said as they are;
+ * `restricted_scope` is Google's alone.
+ */
+export const NOT_READY_BECAUSE_MICROSOFT = {
+  no_named_account: {
+    en: 'it does not name the Microsoft account it reads',
+    nl: 'die noemt niet welk Microsoft-account wordt gelezen',
+  },
+  client_not_configured: {
+    en: 'its Microsoft application is not set up yet',
+    nl: 'de Microsoft-app ervan is nog niet ingesteld',
   },
 } as const satisfies Readonly<Record<string, Bilingual>>;
 
@@ -288,5 +305,121 @@ export function anotherAccount(signedInAs: string, named: string): Bilingual {
     nl:
       `U bent bij Google ingelogd als ${signedInAs}, maar deze migratie leest ${named}. Open uw ` +
       `link opnieuw en kies ${named} bij Google.`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The same three refusals at a provider other than Google (workplan 0171 §3.4)
+// ---------------------------------------------------------------------------
+
+/** A provider as a person knows it, the same in both languages: one row each. */
+const PROVIDER_NAMES: Readonly<Record<string, string>> = {
+  google: 'Google',
+  microsoft: 'Microsoft',
+  dropbox: 'Dropbox',
+  apple: 'Apple',
+};
+
+function providerName(provider: string): string {
+  return Object.prototype.hasOwnProperty.call(PROVIDER_NAMES, provider) ? PROVIDER_NAMES[provider]! : 'Google';
+}
+
+/** `NO_NAMED_ACCOUNT`, at another provider. */
+export function noNamedAccountAt(provider: string): Bilingual {
+  const name = providerName(provider);
+  return {
+    en:
+      `This migration no longer names the ${name} account it reads, so your permission could not ` +
+      'be checked against it. Please tell the person who sent you the link.',
+    nl:
+      `Deze migratie noemt niet langer welk ${name}-account ze leest, dus uw toestemming kon niet ` +
+      'met dat account worden vergeleken. Laat het de persoon weten die u de link stuurde.',
+  };
+}
+
+/** `unconfirmedAccount`, at another provider. */
+export function unconfirmedAccountAt(provider: string, named: string): Bilingual {
+  const name = providerName(provider);
+  return {
+    en:
+      `${name} did not confirm which account you signed in with, so it could not be checked ` +
+      `against ${named}. Nothing was stored. Open your link again and sign in as ${named}.`,
+    nl:
+      `${name} heeft niet bevestigd met welk account u bent ingelogd, dus dat kon niet worden ` +
+      `vergeleken met ${named}. Er is niets opgeslagen. Open uw link opnieuw en log in als ${named}.`,
+  };
+}
+
+/**
+ * Somebody signed in with another account, at another provider: the plan's
+ * `grant.wrongAccount` and its `why`, as one sentence pair. Both addresses are
+ * shown as they are. Signing out is the remedy because Microsoft keeps the
+ * last account signed in and offers it first.
+ */
+export function anotherAccountAt(provider: string, signedInAs: string, named: string): Bilingual {
+  const name = providerName(provider);
+  return {
+    en:
+      `You signed in as ${signedInAs}; this link is for ${named}. Nothing was stored. Sign out ` +
+      `of ${name} in this browser, then use the link again.`,
+    nl:
+      `U meldde zich aan als ${signedInAs}; deze link is voor ${named}. Er is niets opgeslagen. ` +
+      `Meld u in deze browser af bij ${name} en gebruik de link opnieuw.`,
+  };
+}
+
+/** `stoppedAtGoogle`, at another provider (workplan 0171 §3.3). */
+export function stoppedAtProvider(provider: string, said: string): Bilingual {
+  const name = providerName(provider);
+  if (said === 'access_denied') {
+    return { en: `Permission was not given at ${name}.`, nl: `Bij ${name} is geen toestemming gegeven.` };
+  }
+  return {
+    en: `${name} stopped before permission was given, and said "${said}". Please tell the person who sent you the link.`,
+    nl: `${name} stopte voordat er toestemming was gegeven, en meldde "${said}". Laat het de persoon weten die u de link stuurde.`,
+  };
+}
+
+/** `NOTHING_CAME_BACK`, from another provider. */
+export function nothingCameBackFrom(provider: string): Bilingual {
+  const name = providerName(provider);
+  return {
+    en: `${name} sent nothing back, so your permission did not arrive.`,
+    nl: `${name} stuurde niets terug, dus uw toestemming is niet aangekomen.`,
+  };
+}
+
+/**
+ * Another provider did not accept the sign-in when it came back (its code
+ * exchange was refused), for somebody who holds no client. Nothing reached the
+ * link, so it can be opened again.
+ */
+export function exchangeRefusedAt(provider: string): Bilingual {
+  const name = providerName(provider);
+  return {
+    en:
+      `${name} did not accept the sign-in when it came back, so your permission did not arrive. ` +
+      `Open your link again; if it happens again, ${TELL.en}`,
+    nl:
+      `${name} accepteerde de aanmelding niet toen die terugkwam, dus uw toestemming is niet ` +
+      `aangekomen. Open uw link opnieuw; gebeurt het weer, ${TELL.nl}`,
+  };
+}
+
+/**
+ * The person page's refusal for an account whose migrations run through two
+ * different applications of its provider, so one sign-in cannot serve them
+ * both. It names the account's own provider: a Microsoft account is never told
+ * about Google applications. Google's sentence is the one it has always been.
+ */
+export function twoClientsAt(provider: string): Bilingual {
+  const name = providerName(provider);
+  return {
+    en:
+      `Your migrations from this account are set up with two different ${name} applications, so ` +
+      'one sign-in cannot serve them both. Ask the person who sent you this link to set them up alike.',
+    nl:
+      `Uw migraties vanuit dit account zijn ingesteld met twee verschillende ${name}-applicaties, dus ` +
+      'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om ze gelijk in te stellen.',
   };
 }

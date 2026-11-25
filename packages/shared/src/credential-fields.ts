@@ -309,9 +309,11 @@ function googleFields(): ReadonlyArray<CredentialField> {
  *
  * Three differences from Google's, each with a reason:
  *
- *  - **The refresh token is `required`.** Google's four types can also be fed a
- *    service-account key, so its token is optional; there is no service-account
- *    equivalent here. Without the token there is no credential at all.
+ *  - **The refresh token was `required` until alpha.20.** There is no
+ *    service-account equivalent here, so without the token there is no
+ *    credential at all; since a grant link can bring it (workplan 0171 §3.3),
+ *    an account saved for somebody else is saved without one, and Start waits
+ *    for it (`awaitingGrantRefusal`).
  *  - **No `serviceAccountKey`.** Graph's application flow is a client secret
  *    with `.default`, which `graph`/`oauth2` already offer. Putting a field
  *    here that this row's builders never read would be offering something that
@@ -335,7 +337,11 @@ function microsoftAccountFields(): ReadonlyArray<CredentialField> {
       pairedWith: 'clientSecret',
     },
     { ...SECRET, required: false, pairedWith: 'clientId' },
-    { ...REFRESH, required: true, consent: 'microsoft', placeholder: '0.AXoA…' },
+    // Not `required` since alpha.20 (workplan 0171 §3.3): an account saved for
+    // somebody else is connected by their own grant link, which stores the
+    // token on the migration. Start is held until a token is there
+    // (`awaitingGrantRefusal`), as it is for Google's.
+    { ...REFRESH, consent: 'microsoft', placeholder: '0.AXoA…' },
     {
       key: 'tenantId',
       labelKey: 'account.tenantId',

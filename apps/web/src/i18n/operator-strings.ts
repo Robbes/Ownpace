@@ -120,6 +120,8 @@ export const OPERATOR_STRINGS = {
   'support.metadataOnly.why':
     'None can be: the database serves this surface a fixed list of columns.',
   'support.noOrganisations': 'No organisations to show.',
+  // Under a list served a page at a time (workplan 0006 §P).
+  'support.more': 'Show more',
   'support.notFound': 'Nothing here to show.',
   'support.back': 'All organisations',
   'support.backToOrganisation': 'Back to the organisation',

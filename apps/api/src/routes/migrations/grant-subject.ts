@@ -23,8 +23,10 @@ import type { PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
   googleDeploymentClient,
+  microsoftDeploymentClient,
   readTenantContactPhone,
   type GoogleClientEnv,
+  type MicrosoftClientEnv,
 } from '@openmig/shared';
 import { tenantMember } from '@openmig/managed/schema-managed';
 import type { GrantLinkReadiness } from './grant-link-readiness.ts';
@@ -182,8 +184,12 @@ export function credential(creds: Record<string, unknown>, key: string): string 
   return typeof value === 'string' && value.trim().length > 0 ? value : '';
 }
 
-/** The three variables this reads, and nothing else from the environment. */
-export type GrantEnv = GoogleClientEnv & { readonly GOOGLE_ACCOUNT_SCOPE_CLASS?: string | undefined };
+/**
+ * The variables this reads, and nothing else from the environment: Google's
+ * client and scope class, and since workplan 0171 Microsoft's application.
+ */
+export type GrantEnv = GoogleClientEnv &
+  MicrosoftClientEnv & { readonly GOOGLE_ACCOUNT_SCOPE_CLASS?: string | undefined };
 
 /**
  * The rows, reduced to what `grantLinkAsk` takes. The credentials are decrypted
@@ -195,6 +201,7 @@ export function grantReadiness(
 ): Omit<GrantLinkReadiness, 'hasWebUrl'> {
   const deployment = {
     hasDeploymentClient: googleDeploymentClient(env) !== null,
+    hasDeploymentMicrosoftClient: microsoftDeploymentClient(env) !== null,
     scopeClass: env.GOOGLE_ACCOUNT_SCOPE_CLASS,
   };
   if (!rows) {
