@@ -23,8 +23,8 @@
  *   writes one file per platform, named after the image, the version (or
  *   `sha-<commit>` on main) and the platform. The SPDX document's own `name`
  *   is BuildKit's placeholder, `sbom`; it is set to the image by digest and
- *   platform, so the file says what it covers wherever it is copied to.
- *   Nothing else in the document is changed.
+ *   platform, so the file says what it covers wherever it is copied to, and
+ *   a one-line `comment` says the same. Nothing else in the document is changed.
  * - **`expect`**, in `images.yml`'s attach job on a tag: the files every
  *   build leg read back are exactly the set the release carries
  *   (`imageSbomFiles` in `release-verify.mjs`), each an SBOM, before any is

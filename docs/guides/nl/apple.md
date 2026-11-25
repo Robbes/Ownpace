@@ -24,7 +24,7 @@ U typt geen van die servers. Het zijn de gepubliceerde waarden van Apple, in dez
 **Gebruik niet het wachtwoord van uw Apple-account.** Elk Apple-account heeft twee-factor-authenticatie, en het eigen wachtwoord van zo'n account wordt **met opzet geweigerd door IMAP, CalDAV en CardDAV**. Het is niet het verkeerde wachtwoord: het is het goede wachtwoord van een soort die hier niet kan, en het zorgvuldiger typen zal nooit werken.
 
 1. Meld u aan op [`account.apple.com`](https://account.apple.com).
-2. **Aanmelden en beveiliging** → **App-specifieke wachtwoorden**.
+2. **Inloggen en beveiliging** → **App-specifieke wachtwoorden**.
 3. Maak er een en geef het een naam die u later herkent, bijvoorbeeld `Ownpace`.
 4. Apple toont het **één keer**, in de vorm `abcd-efgh-ijkl-mnop`. Kopieer het nu; u kunt het niet nog eens zien, en wie het kwijt is, trekt het in en maakt een nieuw.
 
@@ -44,6 +44,10 @@ Verbindingen met Google, Microsoft en Dropbox bieden een toestemmingsknop met é
 **Apple publiceert voor Mail, Agenda, Contacten, Herinneringen en iCloud Drive geen OAuth-scope voor wie dan ook buiten Apple.** Er is geen toestemmingsscherm om u naartoe te sturen, geen token om te ontvangen, en niets wat een knop zou kunnen doen. Het is geen recht dat wij nog moeten aanvragen of een verificatie die we nog moeten kopen: de scope bestaat voor derden gewoon niet.
 
 **De knop Log in met Apple is iets anders, en die bestaat hier wel.** Biedt deze dienst het aan, dan kunt u zich hier met uw Apple-account aanmelden. Dat geeft een naam en een e-mailadres: een identiteit, geen postvak. Het bereikt geen van uw gegevens, en het vervangt de verbinding hierboven niet. Beide kunnen tegelijk waar zijn en brengen mensen vaak in de war: de knop op het aanmeldscherm gaat over **wie u bent**; het wachtwoord op deze pagina gaat over **wat er gelezen mag worden**.
+
+## Als het account van iemand anders is {#somebody-else}
+
+Is het account van een collega, een familielid of een klant, dan hebt u diens wachtwoord niet nodig. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Anderen, met een link**. Vul de server en het account in, laat het wachtwoord leeg, en druk op **Bewaren voor** *die persoon*. Die persoon typt het wachtwoord zelf, op de pagina die uw toegangslink opent: die noemt de server waarbij het wachtwoord wordt gecontroleerd, test het voordat er iets wordt bewaard, en niemand ziet het daarna nog, u ook niet. Na vijf verkeerde wachtwoorden is dat account voor die link geblokkeerd; een nieuwe link begint opnieuw. Die persoon heeft een app-specifiek wachtwoord nodig, gemaakt op account.apple.com zoals [stap 1](#app-password) zegt, niet het wachtwoord van de Apple-account; de pagina toont dezelfde stappen. Het wordt gecontroleerd bij de eigen server van Apple.
 
 ## Wat er meegaat {#what-moves}
 
@@ -127,7 +131,7 @@ Typt u per ongeluk het wachtwoord van uw account, dan zegt de verbindingstest da
 
 ## Stoppen {#leaving}
 
-Een app-specifiek wachtwoord wordt **ingetrokken op `account.apple.com` → Aanmelden en beveiliging → App-specifieke wachtwoorden**, en nergens anders. Apple publiceert geen adres om het in te trekken, dus deze dienst kan het niet voor u intrekken en beweert dat ook niet: de verbinding hier verwijderen haalt ons bewaarde exemplaar weg, en laat het wachtwoord bij Apple geldig tot u het daar intrekt.
+Een app-specifiek wachtwoord wordt **ingetrokken op `account.apple.com` → Inloggen en beveiliging → App-specifieke wachtwoorden**, en nergens anders. Apple publiceert geen adres om het in te trekken, dus deze dienst kan het niet voor u intrekken en beweert dat ook niet: de verbinding hier verwijderen haalt ons bewaarde exemplaar weg, en laat het wachtwoord bij Apple geldig tot u het daar intrekt.
 
 Het goede nieuws is dat intrekken **precies** is. Het raakt alleen dat wachtwoord: het wachtwoord van uw Apple-account blijft zoals het is, elke andere app blijft werken, en niets hoeft opnieuw te worden aangemeld. Dat is het tegenovergestelde van het gebruikelijke advies om het wachtwoord van uw account te wijzigen, wat het meest verstorende is wat u kunt doen, en de ene handeling die dit wachtwoord niet intrekt.
 

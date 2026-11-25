@@ -64,8 +64,21 @@ const MICROSOFT_SCOPE_WORDS: ReadonlyMap<string, StringKey> = new Map<string, St
   offline_access: 'grant.scope.microsoft.offline',
 } satisfies Record<string, StringKey>));
 
+/**
+ * Dropbox's scopes (workplan 0174 §6), as the link asks for them: the two that
+ * read files are one line, as Dropbox's own screen puts them, and the account
+ * read that says who signed in is the other. `sharing.read` is accepted back
+ * but never asked, so it has no line and would read as another permission.
+ */
+const DROPBOX_SCOPE_WORDS: ReadonlyMap<string, StringKey> = new Map<string, StringKey>(Object.entries({
+  'files.metadata.read': 'grant.scope.dropbox.files',
+  'files.content.read': 'grant.scope.dropbox.files',
+  'account_info.read': 'grant.scope.dropbox.account',
+} satisfies Record<string, StringKey>));
+
 export function scopeWordKeys(scope: string, provider: string = 'google'): StringKey[] {
-  const words = provider === 'microsoft' ? MICROSOFT_SCOPE_WORDS : SCOPE_WORDS;
+  const words =
+    provider === 'microsoft' ? MICROSOFT_SCOPE_WORDS : provider === 'dropbox' ? DROPBOX_SCOPE_WORDS : SCOPE_WORDS;
   const keys: StringKey[] = [];
   for (const one of scope.split(/\s+/).filter((s) => s !== '')) {
     const key = words.get(one) ?? 'grant.scope.other';

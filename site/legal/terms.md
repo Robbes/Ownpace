@@ -582,6 +582,14 @@
       §7's proportionate amount need a word for a service that costs nothing?
       NOW: v1.3's §10 has no cap for consumers (question 13); §7's amount is
       moot while nothing is charged.
+
+  Still 1.0, edited in place on 2026-11-25, on the owner's word (workplan 0174 D8, verbatim:
+  "terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"): §5 gains one sentence, in both languages. From alpha.21 a grant link can ask
+  somebody for a password, typed on their own page and tried against the server the link names
+  (workplan 0174 §5.8); a customer who names a server they run, to receive that password, attacks
+  the person, and §5 says we close the account. §1's sentence (a person who grants through a link
+  is not a party) stands. The Last updated line moved to 2026-11-25, in both languages;
+  ACCEPTED_WORDS re-pins both files under 1.0.
 -->
 
 # Terms of service
@@ -678,7 +686,9 @@ requires, and aggregated figures that cannot be traced to a person. We do not se
 Do not use the service to infringe anyone's rights, to break the law, to migrate data you have
 no right to, or to attack the service or the providers it connects to. Do not resell the
 service as your own without a written agreement — an MSP tier exists for that and we would
-rather talk.
+rather talk. A grant link that asks somebody for a password must name their own provider's
+server: sending one that names a server you run, to receive somebody's password, is an attack on
+them and we will close the account.
 
 We may suspend an account that is doing one of those things. Except where the law or the
 situation makes it impossible, **we will tell you why first and give you a chance to

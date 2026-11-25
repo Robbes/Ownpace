@@ -43,12 +43,20 @@
  */
 
 import {
+  GRANTED_TARGET_FACES,
   MICROSOFT_CONSENT_DOMAINS,
   microsoftScopesFor,
   providerAccountDomains,
+  signsInToMailApart,
   type DiscoveryDomain,
+  type WizardTargetType,
 } from '@openmig/shared';
-import { grantProviderOfKind, type GrantProviderId } from '../grant-providers.ts';
+import {
+  grantProviderOfKind,
+  isPasswordKind,
+  type GrantProviderId,
+  type PasswordKind,
+} from '../grant-providers.ts';
 import {
   GOOGLE_SOURCE_SCOPES,
   heldToReadingByGoogle,
@@ -56,6 +64,7 @@ import {
 } from './google-consent.ts';
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES } from './signed-in-account.ts';
+import { DROPBOX_CONSENT_SCOPES } from './dropbox-consent.ts';
 
 /**
  * `connection.kind` → the consent vocabulary, for the four Google sources.
@@ -135,6 +144,11 @@ export interface GrantLinkReadiness {
    * Read for a Microsoft source only; absent is no.
    */
   readonly hasDeploymentMicrosoftClient?: boolean;
+  /**
+   * Whether it carries a whole Dropbox app (workplan 0174 §6). Read for a
+   * Dropbox source only; absent is no.
+   */
+  readonly hasDeploymentDropboxClient?: boolean;
   /**
    * `GOOGLE_ACCOUNT_SCOPE_CLASS` as configured: a setting, not a secret. A
    * string rather than the environment, so nothing else in the environment
@@ -267,14 +281,14 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
     // owner's. Renamed from `source_not_google` when Microsoft joined (0171).
     return refuse(
       'source_not_grantable',
-      'A link asks somebody to sign in with Google or Microsoft, and this migration copies ' +
-        'from neither. Only a Google account, Gmail, Google Calendar, Google Contacts, Google ' +
-        'Drive and a Microsoft 365 account can be connected through a link; any other account ' +
-        'is still connected by hand, on the Accounts page.',
+      'A link asks somebody to sign in with Google, Microsoft or Dropbox, and this migration ' +
+        'copies from none of them. Only a Google account, Gmail, Google Calendar, Google ' +
+        'Contacts, Google Drive, a Microsoft 365 account and Dropbox can be connected through a ' +
+        'link; any other account is still connected by hand, on the Accounts page.',
       `source kind '${r.sourceKind}'`,
     );
   }
-  const name = provider.id === 'microsoft' ? 'Microsoft' : 'Google';
+  const name = provider.id === 'microsoft' ? 'Microsoft' : provider.id === 'dropbox' ? 'Dropbox' : 'Google';
   if (!r.hasNamedAccount) {
     // The owner's decision of 2026-09-23 (T8 (b)): *"bind to the account the
     // page already named (so filled in by the requester/facilitator)"*. With
@@ -295,6 +309,7 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
     );
   }
   if (provider.id === 'microsoft') return microsoftLinkAsk(r, refuse);
+  if (provider.id === 'dropbox') return dropboxLinkAsk(r, refuse);
 
   const scopeEnv = { GOOGLE_ACCOUNT_SCOPE_CLASS: r.scopeClass };
   let scope: string;
@@ -441,6 +456,61 @@ function microsoftLinkAsk(
 }
 
 /**
+ * A Dropbox link (workplan 0174 §6), past the checks every provider shares.
+ * Dropbox carries files and nothing else, so it asks for files when the
+ * migration copies them, through the connection's own whole pair or else the
+ * deployment's app (half a pair refused, as Google's and Microsoft's). What it
+ * asks is the owner's own Connect with Dropbox scopes: the two that read and
+ * `account_info.read`, which the ending's `get_current_account` needs. Every
+ * one of them reads, and the exchange refuses a grant that carries more, so
+ * it is read-only at Dropbox in Dropbox's own words.
+ */
+function dropboxLinkAsk(
+  r: Omit<GrantLinkReadiness, 'hasWebUrl'>,
+  refuse: (code: GrantLinkAskRefusalCode, reason: string, operatorDetail?: string) => GrantLinkDecision,
+): GrantLinkDecision {
+  if (!r.includedDomains.includes('file')) {
+    return refuse(
+      'nothing_to_ask',
+      'This migration copies no data types at the moment, so a link would have ' +
+        'nothing to ask for. Include at least one, then make the link.',
+    );
+  }
+  if (r.hasClientId !== r.hasClientSecret) {
+    const missing = r.hasClientId ? 'has no App secret saved' : 'has no App key saved';
+    return refuse(
+      'client_not_configured',
+      `This account uses your own Dropbox app, and it ${missing}. Add it to the account on ` +
+        'the Accounts page, then make the link. Otherwise the person you send it to lands ' +
+        'on a Dropbox error page about an app they have never heard of.',
+    );
+  }
+  const client = r.hasClientId ? 'connection' : r.hasDeploymentDropboxClient === true ? 'deployment' : null;
+  if (client === null) {
+    return refuse(
+      'client_not_configured',
+      "A link needs a Dropbox app to sign in through. Ownpace's own is not set up yet, " +
+        'which is on our side, and this account has no App key and App secret of your own ' +
+        'saved. Add your own Dropbox app to the account on the Accounts page, or contact us.',
+      'The consent needs a Dropbox app, and there is none: this source has neither an App ' +
+        'key nor an App secret stored, and this deployment has no Dropbox app of its own. ' +
+        'Add the pair on the source connection, or set DROPBOX_OAUTH_CLIENT_ID and ' +
+        'DROPBOX_OAUTH_CLIENT_SECRET on the deployment.',
+    );
+  }
+  return {
+    ok: true,
+    ask: {
+      provider: 'dropbox',
+      client,
+      scope: DROPBOX_CONSENT_SCOPES.join(' '),
+      domains: ['file'],
+      readOnlyAtProvider: true,
+    },
+  };
+}
+
+/**
  * Every way a grant link is dead on arrival, in the order the owner can act
  * on them. Returns null when the link would work.
  *
@@ -522,10 +592,39 @@ export function awaitingGrantRefusal(r: {
   readonly sourceKind: string | null;
   readonly hasRefreshToken: boolean;
   readonly hasServiceAccountKey: boolean;
+  /**
+   * The keys the source's merged credentials carry a value under (names,
+   * never values; workplan 0174 §4.2). Absent: not read, and a password
+   * source is not judged, as before 0174.
+   */
+  readonly sourceCredentialKeys?: ReadonlyArray<string>;
+  /** The destination, judged per role since 0174 §4.2. Absent: not judged. */
+  readonly target?: TargetGrantReadiness;
 }): string | null {
+  return sourceAwaitingRefusal(r) ?? (r.target ? targetAwaitingRefusal(r.target) : null);
+}
+
+/** The source's half of `awaitingGrantRefusal`. */
+function sourceAwaitingRefusal(r: Parameters<typeof awaitingGrantRefusal>[0]): string | null {
   const provider = grantProviderOfKind(r.sourceKind);
-  if (provider === null) return null;
+  if (provider === null) {
+    if (r.sourceCredentialKeys === undefined || !isPasswordKind('source', r.sourceKind)) return null;
+    if (SOURCE_PASSWORD_KEYS.some((k) => r.sourceCredentialKeys!.includes(k))) return null;
+    return (
+      'This migration cannot start yet: nobody has given the password of the account it copies ' +
+      'from. Create a grant link and send it to the person being migrated — they type it ' +
+      'themselves, and it never reaches you. (If the account is yours, add the password to it on ' +
+      'the Accounts page.)'
+    );
+  }
   if (r.hasRefreshToken || r.hasServiceAccountKey) return null;
+  if (provider.id === 'dropbox') {
+    return (
+      'This migration cannot start yet: nobody has connected its Dropbox. Create a grant ' +
+      'link and send it to the person being migrated — they sign in themselves, and their ' +
+      'password never reaches you or us.'
+    );
+  }
   if (provider.id === 'microsoft') {
     return (
       'This migration cannot start yet: nobody has connected its Microsoft account. Create a ' +
@@ -539,4 +638,181 @@ export function awaitingGrantRefusal(r: {
     'their password never reaches you or us. (You can also paste a refresh token on the ' +
     'source connection if the account is one you administer.)'
   );
+}
+
+/** The destination's half of `awaitingGrantRefusal`. */
+function targetAwaitingRefusal(t: TargetGrantReadiness): string | null {
+  const missing = targetMissing(t);
+  if (missing === null) return null;
+  if (missing.password) {
+    return (
+      'This migration cannot start yet: its destination has no password. Create a grant link ' +
+      'and send it to the person whose account it is — they type it themselves, and it never ' +
+      'reaches you. (If the account is yours, add the password to it on the Accounts page.)'
+    );
+  }
+  if (missing.grants.length > 0) {
+    const names = missing.grants.map((g) => g.grant).join(' and ');
+    return (
+      `This migration cannot start yet: ${names} is not connected on its destination. Connect ` +
+      'it on the Accounts page, or send a grant link to the person whose account it is.'
+    );
+  }
+  return null;
+}
+
+// ========================= Readiness per role (workplan 0174 §4.2, T1) =========================
+
+/**
+ * The keys that give a password SOURCE a way in: its password, or an app
+ * password where the kind calls it that. One is enough.
+ */
+const SOURCE_PASSWORD_KEYS: ReadonlyArray<string> = ['password', 'appPassword'];
+
+/** What the readiness check knows about a migration's destination. Names of keys, never values. */
+export interface TargetGrantReadiness {
+  /** `connection.kind` of the destination, or null when it has none. */
+  readonly targetKind: string | null;
+  /** The data types the migration copies, as `GrantLinkReadiness.includedDomains`. */
+  readonly includedDomains: ReadonlyArray<string>;
+  /** The keys the destination's stored credentials carry a non-empty value under. */
+  readonly targetCredentialKeys: ReadonlyArray<string>;
+}
+
+/**
+ * The secret keys a destination needs for the faces a migration writes: its
+ * password, and for a kind whose mail signs in apart (Infomaniak) the
+ * mailbox's own password when mail is copied, the sync password only when
+ * something else is.
+ */
+export function targetPasswordKeysNeeded(kind: string, domains: ReadonlyArray<string>): ReadonlyArray<string> {
+  if (!signsInToMailApart(kind)) return ['password'];
+  const keys: string[] = [];
+  const others = domains.filter((d) => d !== 'email');
+  if (others.length > 0 || domains.length === 0) keys.push('password');
+  if (domains.includes('email')) keys.push('mailPassword');
+  return keys;
+}
+
+/** What a destination lacks for this migration, or null when it has a way in for every face it writes. */
+function targetMissing(t: TargetGrantReadiness): {
+  readonly password: boolean;
+  readonly grants: ReadonlyArray<{ readonly grant: string; readonly credentialKey: string }>;
+} | null {
+  if (!t.targetKind) return null;
+  const has = (k: string) => t.targetCredentialKeys.includes(k);
+  const password = !targetPasswordKeysNeeded(t.targetKind, t.includedDomains).every(has);
+  const granted = Object.hasOwn(GRANTED_TARGET_FACES, t.targetKind)
+    ? GRANTED_TARGET_FACES[t.targetKind as WizardTargetType]
+    : undefined;
+  const grants =
+    granted && granted.faces.some((f) => t.includedDomains.includes(f)) && !has(granted.credentialKey)
+      ? [{ grant: granted.grant, credentialKey: granted.credentialKey }]
+      : [];
+  return password || grants.length > 0 ? { password, grants } : null;
+}
+
+/** One thing a link asks of a destination (0174 §4.2). */
+export type TargetAsk =
+  | { readonly way: 'password'; readonly kind: PasswordKind }
+  | { readonly way: 'sign-in'; readonly provider: GrantProviderId };
+
+export type TargetGrantRefusalCode = 'no_target' | 'target_not_grantable';
+
+export type TargetGrantDecision =
+  /** `asks` is empty when the destination already has a way in: nothing to ask of it. */
+  | { readonly ok: true; readonly asks: ReadonlyArray<TargetAsk> }
+  | { readonly ok: false; readonly refusal: { readonly code: TargetGrantRefusalCode; readonly reason: string } };
+
+/**
+ * What a link would ask of this migration's destination (0174 §4.2), or why
+ * it cannot:
+ *  - no destination: `no_target`, as today;
+ *  - a way in for every face it writes: nothing to ask;
+ *  - a password kind with no password: the person's password;
+ *  - a face only a grant opens (Cirrux Drive, when files are copied), with
+ *    no grant: that provider's sign-in, beside the password when that is
+ *    missing too, once the provider has a target entry (T5);
+ *  - anything missing a link cannot ask for: `target_not_grantable`, with the
+ *    owner's sentence.
+ */
+export function targetGrantAsk(t: TargetGrantReadiness): TargetGrantDecision {
+  if (!t.targetKind) {
+    return {
+      ok: false,
+      refusal: {
+        code: 'no_target',
+        reason:
+          'This migration has no destination yet. The person you send the link to is shown ' +
+          'where their data will go before they agree, so set the destination first.',
+      },
+    };
+  }
+  const missing = targetMissing(t);
+  if (missing === null) return { ok: true, asks: [] };
+  const notGrantable: TargetGrantDecision = {
+    ok: false,
+    refusal: {
+      code: 'target_not_grantable',
+      reason: 'This destination is not one a link can connect. Connect it yourself on the Accounts page.',
+    },
+  };
+  const asks: TargetAsk[] = [];
+  if (missing.password) {
+    if (!isPasswordKind('target', t.targetKind)) return notGrantable;
+    asks.push({ way: 'password', kind: t.targetKind });
+  }
+  if (missing.grants.length > 0) {
+    const provider = grantProviderOfKind(t.targetKind, 'target');
+    if (provider === null) return notGrantable;
+    asks.push({ way: 'sign-in', provider: provider.id });
+  }
+  return { ok: true, asks };
+}
+
+/** What a link asks of a migration's source: a sign-in (as `grantLinkAsk` decides), or a password. */
+export type SourceGrantDecision =
+  | { readonly ok: true; readonly way: 'sign-in'; readonly ask: GrantLinkAsk }
+  | { readonly ok: true; readonly way: 'password'; readonly kind: PasswordKind }
+  | {
+      readonly ok: false;
+      readonly refusal: GrantLinkRefusal & { readonly code: GrantLinkAskRefusalCode };
+    };
+
+/**
+ * The source's decision for a PERSON's link (0174 §4.2): a sign-in kind goes
+ * through `grantLinkAsk`, unchanged; a password source kind is asked for its
+ * password when the migration has a destination and names the account it
+ * reads. A migration's own link stays sign-in only (§13), so `grantLinkAsk`
+ * itself does not learn the password kinds.
+ */
+export function sourceGrantAsk(
+  r: Omit<GrantLinkReadiness, 'hasWebUrl'> & {
+    /** Password kinds: whether the source names its account (a username), which the card shows. */
+    readonly namesItsAccount: boolean;
+  },
+): SourceGrantDecision {
+  if (r.sourceKind && grantProviderOfKind(r.sourceKind) === null && isPasswordKind('source', r.sourceKind)) {
+    const refuse = (code: GrantLinkAskRefusalCode, reason: string): SourceGrantDecision => ({
+      ok: false,
+      refusal: { code, reason },
+    });
+    if (!r.namesItsAccount) {
+      return refuse(
+        'no_named_account',
+        'This migration names no user name for the account it copies from, so the person could ' +
+          'not tell which password to type. Add it to the account on the Accounts page.',
+      );
+    }
+    if (!r.hasTarget) {
+      return refuse(
+        'no_target',
+        'This migration has no destination yet. The person you send the link to is shown ' +
+          'where their data will go before they agree, so set the destination first.',
+      );
+    }
+    return { ok: true, way: 'password', kind: r.sourceKind };
+  }
+  const decided = grantLinkAsk(r);
+  return decided.ok ? { ok: true, way: 'sign-in', ask: decided.ask } : decided;
 }

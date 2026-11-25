@@ -6,6 +6,14 @@
   texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
+  Still 1.0, edited in place again on 2026-11-25 (the owner, workplan 0172: "ok, I take your
+  advice"): §4.4 ends with *Cadeaus*, and §9 gains a row for a gift. privacy.md's briefing has
+  what changed and why.
+  Still 1.0, edited in place on 2026-11-25 (the owner, workplan 0174 D8: "terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"): §4.1 names a password and who can type it,
+  §4.6's gezinslid bullet says what we do with a password typed on the grant page, §9 gains a
+  row for the count of wrong tries, and *bestemming* replaces *doel* where it means the target
+  (*nieuwe bestemming*, *bestemmingsaccount*), as in the Dutch terms; *Doel* as a purpose (§5's
+  column) stays. privacy.md's briefing has what changed and why.
   Still 1.0, edited in place once more on 2026-11-23 (the owner, 2026-11-23: "Yes, draft it"):
   §4.5's last lines say a request for access is logged by its reference, not by its address, and
   that the inlogdienst logs the address a person registers with from the mail that grants them
@@ -37,7 +45,7 @@
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
 **Versie:** 1.0
-**Laatst bijgewerkt:** 2026-11-23
+**Laatst bijgewerkt:** 2026-11-25
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
 > te verklaren: de software draait op uw eigen infrastructuur, uw gegevens bereiken ons nooit,
@@ -70,11 +78,11 @@ AVG stelt voor verzoeken over uw rechten.
 
 Ownpace migreert uw e-mail, contacten, agenda's en bestanden van de ene aanbieder naar de
 andere, en houdt de kopie bij tot u besluit over te stappen. Het leest uw bronaccount, schrijft
-naar uw doelaccount, en houdt bij wat het heeft gemigreerd zodat een tweede ronde niets
+naar uw bestemmingsaccount, en houdt bij wat het heeft gemigreerd zodat een tweede ronde niets
 dupliceert.
 
-**Wij zijn geen opslagdienst.** Uw berichten en bestanden gaan via Ownpace naar het doel dat u
-hebt gekozen. We slaan ze niet op: elk bericht of bestand gaat alleen door de dienst heen
+**Wij zijn geen opslagdienst.** Uw berichten en bestanden gaan via Ownpace naar de nieuwe bestemming
+die u hebt gekozen. We slaan ze niet op: elk bericht of bestand gaat alleen door de dienst heen
 terwijl het wordt gekopieerd, en we houden er geen kopie van. Wat we per item wel bewaren,
 staat in §4.2.
 
@@ -117,8 +125,11 @@ bruikbaar zou zijn en niet eerlijker.
 
 ### 4.1 Toegangsgegevens voor uw accounts
 
-Wat nodig is om de bron te lezen en naar het doel te schrijven: een OAuth-vernieuwingstoken, of
-een gebruikersnaam met een app-wachtwoord, of een serviceaccountsleutel. **Versleuteld
+Wat nodig is om de bron te lezen en naar de nieuwe bestemming te schrijven: een
+OAuth-vernieuwingstoken, of een gebruikersnaam met een wachtwoord of een app-wachtwoord, of een
+serviceaccountsleutel. Een wachtwoord kan door u worden getypt, of door de persoon van wie het
+account is, op een pagina die wij die persoon via een toegangslink tonen; dan ziet niemand anders
+het ooit, ook u niet. **Versleuteld
 opgeslagen met AES-256-GCM**, onder een sleutel die apart van de database wordt bewaard: in de
 eigen configuratie van de dienst, en in de instellingen van de achtergrondtaken die de
 migraties uitvoeren, allebei op dezelfde machine.
@@ -136,7 +147,7 @@ stopt de migratie.
 Voor elk item dat we migreren bewaren we een regel met: een kenmerk dat de bron er zelf aan gaf
 (voor e-mail de `Message-ID`-header; voor een bestand het pad; voor een afspraak of een contact
 de UID), een hash van dat kenmerk, een hash van de inhoud, de omvang in bytes, de map, agenda of
-het adresboek waarin het staat, de kenmerken die de bron en het doel ervoor gebruiken,
+het adresboek waarin het staat, de kenmerken die de bron en de bestemming ervoor gebruiken,
 tijdstempels, en of de kopie lukte. Zodat de app u kan laten zien om welk item het gaat, bewaart
 de regel ook **de naam waaronder u het kent**: de onderwerpregel van een bericht (zodra het
 bericht is opgehaald), de titel van een afspraak of taak, de naam van een contact, de naam van
@@ -227,6 +238,13 @@ betaaldienstverlener (§7); **wij vragen of bewaren uw kaartnummer niet**. Vult 
 *Facturering* toch factuurgegevens in — een naam, een adres, een btw-nummer, het e-mailadres
 waarheen uw facturen worden gestuurd — dan bewaren we die tot uw gegevens worden gewist, en laat
 u de app een btw-nummer controleren, dan gebeurt dat bij de VIES-dienst van de Europese Commissie.
+
+**Cadeaus.** Als iemand in de Alpha u een plaats cadeau geeft, bewaren we wie het gaf, een
+vingerafdruk van de code (nooit de code zelf), de taal van de kaart, wanneer het werd gemaakt, tot
+wanneer het geldig is, en wanneer het werd gebruikt en voor welke aanvraag, of wanneer het werd
+ingetrokken. We bewaren geen naam, adres of boodschap van degene voor wie het is. Gebruikt u een
+code, dan bewaren we uw aanvraag zoals elke aanvraag, gemarkeerd als cadeau van de gever. Een cadeau
+wordt verwijderd met de organisatie van de gever.
 
 ### 4.5 Support en operationele logs
 
@@ -402,9 +420,17 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
   verwijdert of uw gegevens worden gewist.
 - **Een gezinslid van wie u het account migreert.** Stuurt u die persoon een toegangslink, dan
   logt die zelf in bij de eigen aanbieder en geeft die Ownpace zelf toegang, vanaf een pagina
-  die zegt wie het vroeg, van welk account en naar waar. Wij bewaren die toegang (versleuteld,
-  §4.1), het adres van dat account, en wanneer de link werd gemaakt, gebruikt en beëindigd. Die
-  persoon kan de toegang op elk moment intrekken. Op de eigen voortgangspagina verwijdert dat haar
+  die zegt wie het vroeg, van welk account en naar waar. Of, voor een account dat met een
+  wachtwoord inlogt (Apple, een mailserver, een Nextcloud en dergelijke), typt die persoon dat
+  wachtwoord zelf op de pagina. We proberen het bij de server die de pagina noemt, en bewaren
+  het alleen als het werkt, versleuteld (§4.1). We tellen verkeerde pogingen op de link, zonder
+  het wachtwoord, en stoppen de link voor dat account na vijf. We schrijven het wachtwoord nooit
+  in een log of een vastlegging, en we laten het nooit aan iemand zien, ook niet aan u. Die
+  persoon kan het intrekken op de eigen voortgangspagina, wat het hier verwijdert. Wijzigt die
+  persoon het wachtwoord bij de eigen aanbieder, dan is het onze onbruikbaar. Wij bewaren die
+  toegang (versleuteld, §4.1), het adres van dat account, en wanneer de link werd gemaakt,
+  gebruikt en beëindigd. Die persoon kan de toegang op elk moment intrekken. Op de eigen
+  voortgangspagina verwijdert dat haar
   hier, en trekt het haar ook in bij de aanbieder, waar die dat toestaat. Bij de aanbieder maakt
   het wat wij bewaren onbruikbaar, en verwijderen we haar wanneer u de migratie verwijdert of uw
   gegevens worden gewist. Om een Google-account te koppelen, moet het adres ook op de lijst van
@@ -471,10 +497,10 @@ Het gebruik door Ownpace van informatie die via Google-API's is ontvangen, voldo
 inclusief de **Limited Use**-eisen. Concreet, in onze eigen woorden:
 
 - We gebruiken Google-gebruikersgegevens **uitsluitend** om de migratie uit te voeren die u
-  hebt ingesteld — uw bronaccount lezen en wegschrijven naar het doel dat u koos — en om u de
+  hebt ingesteld — uw bronaccount lezen en wegschrijven naar de nieuwe bestemming die u koos — en om u de
   voortgang te tonen.
-- We **dragen** Google-gebruikersgegevens **niet over** aan wie dan ook, behalve aan het
-  migratiedoel dat u zelf hebt gekozen; aan mensen aan wie u ons zelf vraagt te laten weten waar
+- We **dragen** Google-gebruikersgegevens **niet over** aan wie dan ook, behalve aan de
+  nieuwe bestemming die u zelf hebt gekozen; aan mensen aan wie u ons zelf vraagt te laten weten waar
   een gedeeld item is gebleven (§4.6); aan NetBird GmbH, die uw verbindingen naar ons
   doorgeeft, en aan de aanbieder die de mail van de dienst vervoert (§7), elk alleen daarvoor; en
   waar de wet dat verplicht.
@@ -486,7 +512,7 @@ inclusief de **Limited Use**-eisen. Concreet, in onze eigen woorden:
 - We gebruiken Google-gebruikersgegevens niet om enig machine-learning- of AI-model te
   trainen, algemeen of anderszins.
 
-**Ownpace biedt Google alleen als bron aan**: er is geen Google-doel om te kiezen.
+**Ownpace biedt Google alleen als bron aan**: er is geen Google-bestemming om te kiezen.
 
 **Tijdens de Alpha: de lijst van testgebruikers bij Google.** Zolang de app van Ownpace bij
 Google in de testfase van Google staat, laat Google een account alleen koppelen als het adres op
@@ -598,7 +624,7 @@ wie hem heeft de aantallen en statussen van één migratie, nooit de inhoud. De 
 persoon toont ook het nieuwe adres dat voor die persoon is ingesteld en of het is bevestigd, nooit
 het oude, zodat die kan zeggen of het klopt.
 
-**De bron en het doel van uw migratie zijn geen subverwerkers van ons** — dat zijn uw eigen
+**De bron en de nieuwe bestemming van uw migratie zijn geen subverwerkers van ons** — dat zijn uw eigen
 accounts, en uw relatie met die aanbieders is de uwe.
 
 Buiten wat deze verklaring noemt, geven we uw gegevens alleen aan anderen door waar de wet ons
@@ -617,7 +643,7 @@ Zwitserland persoonsgegevens passend beschermt (art. 45 AVG; Beschikking 2000/51
 Commissie), dus de AVG vraagt voor die doorgifte geen extra waarborg. Tijdens de Alpha is er nog
 één stap, waar u zelf om vraagt: om u een Google-account te laten koppelen, zetten wij het adres
 daarvan op de lijst van testgebruikers die Google voor onze app bijhoudt (§6). **Verder, en
-afgezien van een doel buiten de EU dat u kiest (hieronder), vindt er door ons geen doorgifte van
+afgezien van een bestemming buiten de EU die u kiest (hieronder), vindt er door ons geen doorgifte van
 uw gegevens plaats naar de Verenigde Staten of enig ander derde land.**
 
 Twee dingen die u zelf kiest, kunnen in de Verenigde Staten terechtkomen. Meldt u een
@@ -628,8 +654,8 @@ dan wordt onze mail daar afgeleverd.
 Dat is geen formaliteit maar de kern van het product: wie weggaat bij een Amerikaanse aanbieder,
 heeft weinig aan een migratietool die zelf in de VS draait. Daarom draait de onze daar niet.
 
-Ligt het **doel** van uw migratie buiten de EU, dan gaan uw gegevens daarheen omdat u dat doel
-koos. We laten u het doel zien voordat er iets wordt weggeschreven.
+Ligt de **nieuwe bestemming** van uw migratie buiten de EU, dan gaan uw gegevens daarheen omdat u
+die bestemming koos. We laten u de bestemming zien voordat er iets wordt weggeschreven.
 
 ## 9. Hoe lang we het bewaren
 
@@ -751,6 +777,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | De adressen die veranderen, voor uzelf en wie met u mee overstapt: van wie elk adres is, en wie elke wijziging toevoegde, bevestigde en toepaste (§4.6) | Tot u die wijziging verwijdert, of tot uw gegevens worden gewist. Het verwijderen van een persoon verwijdert haar niet. |
 | Welke versies van de Voorwaarden voor de Alpha, de servicevoorwaarden en deze verklaring elk lid heeft aanvaard, in welke taal, en wanneer (§4.4) | Tot uw gegevens worden gewist, ook nadat dat lid uw organisatie heeft verlaten, zodat vastgelegd blijft wie waarmee heeft ingestemd. |
 | De mensen voor wie u migreert: ieders naam, en een e-mailadres als u dat gaf (§4.6) | Tot u die persoon verwijdert, of tot uw gegevens worden gewist. Het verwijderen van een migratie verwijdert de persoon niet. |
+| Het aantal verkeerde pogingen op een toegangslink, per account, zonder het wachtwoord (§4.6) | Tot de link met de persoon wordt verwijderd, of tot uw gegevens worden gewist. |
 | Het overzicht van elke ronde: wanneer die liep, en wat die telde | Tijdens de Alpha: tot uw gegevens worden gewist. |
 | De logregels van een ronde | 60 dagen. |
 | De eigen fouten en waarschuwingen van de app (een categorie en een referentie, geen tekst) | 30 dagen. |
@@ -759,6 +786,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | De blokkering van uw inlogaccount na 10 verkeerde wachtwoorden op rij (§4.4) | Tot wij uw inlogaccount op uw verzoek weer vrijgeven, of tot het wordt verwijderd. |
 | De geschiedenis die onze inlogdienst van uw inlogaccount bijhoudt: elke wijziging eraan, zoals uw naam en e-mailadres zoals ze waren en een tweede stap of passkey die u toevoegde, ook nadat u die verwijderde; uw inlogmomenten; en elke mislukte poging, zoals een verkeerd wachtwoord (§4.4) | Zolang we deze inlogdienst draaien, omdat die ze niet kan verwijderen. Het verwijderen van uw inlogaccount voegt een regel aan die geschiedenis toe; het verwijdert de eerdere niet. |
 | Uw aanvraag voor toegang (§4.4) | Zolang die openstaat. Afgewezen: verwijderd 30 dagen na ons besluit. Toegekend: bewaard bij uw account, en daarmee gewist. |
+| Een cadeau (§4.4) | Tot de organisatie van de gever wordt verwijderd. |
 | Een inlogaccount dat iemand op onze inlogpagina aanmaakte maar dat we nooit hebben toegelaten, en dat dus niets opent (§4.4) | 30 dagen nadat het is aangemaakt, tenzij een aanvraag voor toegang met dat adres nog openstaat. |
 | Het inlogaccount van iemand die uit een organisatie is verwijderd en van geen enkele organisatie meer lid is (§4.4) | 7 dagen nadat die persoon is verwijderd, tenzij een aanvraag voor toegang of een uitnodiging met dat adres nog openstaat. |
 | Supportmail en probleemmeldingen, en de kopieën van de eigen mail van de dienst in dezelfde mailbox (§4.5) | Tot de vraag of het probleem is afgehandeld, en daarna nog 6 maanden. Hetzelfde geldt voor de kopieën van de eigen mail van de dienst. Dan verwijderd uit de mailbox. |
@@ -797,7 +825,7 @@ of de gegevens nodig hebben voor een rechtsvordering.
 
 **Overdraagbaarheid verdient een opmerking.** Dit product bestaat juist omdat uw eigen gegevens
 tussen aanbieders verplaatsen moeilijker is dan het zou moeten zijn. Wilt u uw gegevens uit
-Ownpace, dan hebt u ze al — ze staan in het doelaccount waar we ze naartoe hebben geschreven. Wat
+Ownpace, dan hebt u ze al — ze staan in het bestemmingsaccount waar we ze naartoe hebben geschreven. Wat
 wij zelf over u bewaren (§4), sturen we u op verzoek in een gangbaar bestandsformaat.
 
 U kunt een klacht indienen bij een toezichthouder, in het bijzonder in het land waar u woont of

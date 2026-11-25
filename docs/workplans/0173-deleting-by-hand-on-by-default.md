@@ -4,6 +4,13 @@
 
 ## Status — 2026-11-25 (update this block at the end of every session)
 
+**2026-11-25, merged and run (T7): every task is done.** #2158 merged as `87ab6a3d` on 2026-11-25 at
+14:52 UTC, the first merge after alpha.20's tag, so deleting by hand without a switch ships in
+alpha.21. Before the merge, on its head `af48adc4`: CI run 45634370115 green, and the three E2E
+runs of T7, one at a time, all green: E2E (self-hosted) on Postgres 45634399606 (14:28 to 14:33
+UTC) and on PGlite 45635482879 (14:34 to 14:39), then E2E (managed) 45636475068 (14:39 to 14:45),
+which takes `smoke-managed.sh`'s apply with no column turned on.
+
 **2026-11-25, T5 built, in the same pull request:** terms §2 and alpha §8, EN and NL, edited in
 place under 1.0 (Q4). Terms §2's first bullet: nothing is deleted at the target unless the
 customer approves it on the migration's *Deletions* page, each deletion or a list after one
@@ -63,8 +70,8 @@ their answers.
 | T3 The Deletions page and its words, EN and NL | builder | ✅ Built | §10. #2158. The owner read the Dutch on 2026-11-25. |
 | T4 Docs and the ADR amendments | builder | ✅ Built | §10. #2158. `site/legal/README.md` goes with T5. |
 | T5 The legal words: terms §2 and alpha §8 | builder + owner | ✅ Built | §10. EN and NL, in place under 1.0 (Q4, answered 2026-11-25), in the same pull request. The owner read the Dutch on 2026-11-25: *bestemming* for *doel*. |
-| T6 E2E steps | builder | ✅ Built | §10. #2158. Not run: T7. |
-| T7 The E2E runs | owner | ⏳ Owner | Self-hosted E2E (Postgres and PGlite) and the managed E2E, after T1 to T6 merge. |
+| T6 E2E steps | builder | ✅ Built | §10. #2158; run in T7. |
+| T7 The E2E runs | owner | ✅ Run 2026-11-25 | On #2158's head `af48adc4`, one at a time, before its merge: E2E (self-hosted) on Postgres 45634399606 and PGlite 45635482879, then E2E (managed) 45636475068, all green. Merged as `87ab6a3d`. |
 | T8 The owner's decisions | owner | ✅ Answered 2026-11-25 | §9: all six settled; Q4 in place under 1.0. |
 
 ## 1. The owner's words

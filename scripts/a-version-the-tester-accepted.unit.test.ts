@@ -158,12 +158,36 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // and 2026-11-23. Only the alpha and terms pins move; privacy is unchanged. As before, an
   // acceptance of 1.0 recorded before these words reach a stack counts for them, and only the
   // owner's own and test accounts can hold one.
+  // PRIVACY AND TERMS RE-PINNED UNDER 1.0 on 2026-11-25 (the owner, of workplan 0174's D8,
+  // verbatim: "terms or the privacy policy: no one but me accepted then, so change them and stay
+  // on 1.0"): from alpha.21 a grant link can ask a person to type their own password (workplan
+  // 0174, ADR-0035's amendment of 2026-11-25). Privacy §4.1's first sentence names a password and
+  // who can type it, §4.6's family-member bullet says what is done with a password typed on the
+  // grant page, and §9 gains a row for the count of wrong tries; the Dutch privacy policy says
+  // bestemming for the target where it said doel, as the Dutch terms do, and keeps Doel as a
+  // purpose. Terms §5 gains one sentence: a grant link that asks for a password names the person's
+  // own provider's server. The Last updated line moved to 2026-11-25 in those four files. No tester
+  // had accepted any version, so the numbers stay 1.0, edited in place, as on 2026-10-14,
+  // 2026-10-21, 2026-11-22 and 2026-11-23. Only the privacy and terms pins move; alpha is
+  // unchanged. As before, an acceptance of 1.0 recorded before these words reach a stack counts
+  // for them, and only the owner's own and test accounts can hold one. Pinned again the same day
+  // after the owner's read of the Dutch ("all ok, advice yes"): §4.6 tries the password "with the
+  // server the page names", not "once", as every press is one try of five; and a password the
+  // person typed is withdrawn on their progress page for a source and a destination alike, as the
+  // grant-link branch builds it (0174 §4.3).
+  // The terms' pins are of both changes together: workplan 0173's §2 (#2158, merged first) and this
+  // §5, recomputed on the merged files.
   'alpha.md@1.0': '4e1c6cece0e428a5d4b44f12d542eb82a5723ff7a85ab3fe8923c32247cb72ee',
   'alpha.nl.md@1.0': '8ac0875daae58e0b2bb9c151f6abb3b0f55dab652790d396c17de2297c90bcbe',
-  'privacy.md@1.0': 'a7efcd8b7aea50799dde27399f428d15e5f33b31600bdc293b5dd2be34b8a53f',
-  'privacy.nl.md@1.0': '1707b5d8cfaed53dd6bb0aab23bcbd28823eb129337f570b83e15f99b963014e',
-  'terms.md@1.0': 'cba7fa1956b52922bc4db10d29b5c1a9b0cca30d994194ddcbca7627541d0b7e',
-  'terms.nl.md@1.0': '15d7a64363ed1b441508d8ee9569c9996da7a1fc5122bd9ac9fc15e5f16a88a4',
+  // PRIVACY RE-PINNED UNDER 1.0 AGAIN on 2026-11-25, for alpha.21's gift invitations (workplan
+  // 0172; the owner's read of the gift's privacy sentence, verbatim: "ok, I take your advice"):
+  // §4.4 ends with Gifts (Cadeaus): what is kept of a gift, and nothing of the person it is for;
+  // §9 gains a row, a gift kept until the giver's organisation is deleted. Only the privacy pins
+  // move; the terms and the Alpha conditions are unchanged.
+  'privacy.md@1.0': '52d988258106638245e6d799486a8d1de2183f5b4406a234d0c3104f8f816831',
+  'privacy.nl.md@1.0': 'b269369901ce789dfcd397ddd501c14b8525af8093aa21b774fa1d33c32d38e8',
+  'terms.md@1.0': '0c905a3111a06bf080ec4f929c31e178eb52ef935262451448172ca7cd910d2f',
+  'terms.nl.md@1.0': '6da308638c45a9822855a8c74281ae33efd902cf586e30b850549509947bbcdb',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

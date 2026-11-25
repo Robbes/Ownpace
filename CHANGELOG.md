@@ -4,6 +4,71 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **Gift invitations: a place in the Alpha given as a present** (workplan 0172; the owner's
+  decisions of 2026-11-24, G1 and G3). A person in the Alpha opens **Give Ownpace**, makes their
+  one gift, and gets a card with a code to print or save as a PDF, in English or Dutch: their
+  name, an optional first name and message (both kept in the browser only), the code, where it is
+  used, a few words on Ownpace, and the date it is valid until, two years on. The recipient types
+  the code at the request-access door (**I have a gift code**, or the card's address `/redeem`),
+  which makes an access request marked *Gift from* the giver in the access queue; the operator
+  approves it like any other, and approval gives the recipient an organisation of their own. A
+  gift lets nobody in by itself. The code is shown once and kept only as a fingerprint; every bad
+  code (unknown, used, revoked, expired) gets the same refusal, behind a rate limit; the giver can
+  revoke an unused gift, which gives it back to them, and a request the operator declines gives
+  the gift back too, so the giver can make a new one (the owner's answers of 2026-11-25). Nothing
+  about the recipient is asked for or stored with the gift. The
+  operator's new **Gifts** screen (English) shows every gift and whose it is, how many requests
+  have been granted and are waiting, and sets the number of gifts for everyone or for one person
+  without a deploy; there is no cap on admissions, and the screen says so. The site has a gift
+  page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0065 adds `gift`,
+  `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation, and so is the
+  operator's number for each of its people, unless that person is also in another organisation.
+  The privacy policy says what is kept of a gift (§4.4, *Gifts*) and for how long (§9), in place
+  under 1.0, as the owner read it.
+- **Grant links for every account a person can grant** (alpha.21; workplan 0174 T1 and T3 to T6,
+  with D3 (a) and §4.3). A person's grant link now asks for each account of theirs that a migration
+  reads from or writes to, in two groups on one page. Where the provider offers a sign-in, they
+  sign in (Google, Microsoft, Dropbox, and Cirrux Drive for a Cirrux destination's files);
+  everywhere else they type their own password: as a source IMAP, Apple (an app-specific
+  password), CalDAV, CardDAV and WebDAV; as a destination JMAP, IMAP, CalDAV, CardDAV, WebDAV,
+  Soverin, Nextcloud, Cirrux and Infomaniak. The password is tried with the server the page names
+  before it is stored, encrypted, and it is never logged, recorded or shown; five wrong ones lock
+  that account on that link. Apple, Cirrux and Infomaniak are tried only at their own published
+  servers; any other server is shown with its domain in bold, with a warning when it is not one
+  the address's mail uses, and a server named by a number or inside a private network is refused.
+  A migration starts only when its source and its destination both have a way in. The owner picks
+  *They do, with a link* for a password account, saves it for the person without its password
+  (*Save for {person}*), and sees *Waiting for {person}* on the Accounts page until it is
+  connected; an account the person connected takes only their migrations and offers no *Replace
+  credentials*. On their progress page the person can remove a destination's password again,
+  which holds every migration into it until they connect it once more. Managed migration 0064
+  adds `person_link_try` and `person_granted_connection`; the shared chain is unchanged. Not
+  proven against a real Apple, Cirrux, Infomaniak or Soverin login.
+  **Nederlands:** een toegangslink vraagt nu om elk account van de persoon waaruit een migratie
+  leest of waarnaar die schrijft, op één pagina in twee groepen: aanmelden waar de aanbieder dat
+  biedt (Google, Microsoft, Dropbox, en Cirrux Drive voor bestanden), en anders het eigen
+  wachtwoord. Dat wachtwoord wordt eerst gecontroleerd bij de server die de pagina noemt en pas
+  daarna versleuteld bewaard; na vijf onjuiste pogingen is dat account voor die link geblokkeerd.
+  Apple, Cirrux en Infomaniak worden alleen bij hun eigen server gecontroleerd. Een migratie start
+  pas als bron en bestemming allebei verbonden zijn. Op de voortgangspagina kan de persoon het
+  wachtwoord van een bestemming weer verwijderen.
+- **Grant links for a Dropbox account** (workplan 0174 §6, T2; superseding 0171 T4). A grant link
+  can now connect Dropbox as it connects a Google or Microsoft account: the person opens the link,
+  presses **Continue with Dropbox as** *their account* (*Doorgaan met Dropbox als …*), signs in on
+  Dropbox's own page, and the token is stored on their migration and shown to nobody. It asks what
+  the owner's own Connect with Dropbox asks: lasting, read-only access to files and the account
+  read. Dropbox takes no login hint, so the grant is bound afterwards: Dropbox is asked who signed
+  in (`users/get_current_account`), and its address must be the one the migration names, compared
+  without case, and one Dropbox has verified. Any other account, or an address Dropbox has not
+  verified, stores nothing and leaves the link working. Served where the deployment carries its own
+  Dropbox app (`DROPBOX_OAUTH_CLIENT_ID` and `_SECRET`) or the connection carries its own whole
+  pair. *Start a migration* offers *They do, with a link* for Dropbox on such a deployment, and a
+  Dropbox account saved for somebody else is taken with its address alone; a Dropbox migration
+  without a token does not start until somebody has connected it. Not proven against a real
+  Dropbox account: no test account exists, and the endpoints are stood in for in the tests.
+
 ### Changed
 
 - **Deleting by hand needs no switch any more** (alpha.21; workplan 0173, ADR-0024 amended
@@ -31,6 +96,35 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   in het bestand van een migratie zet het niet meer uit; de appliance meldt dat eenmaal bij het
   starten. De servicevoorwaarden (§2) en de voorwaarden voor de Alpha (§8) zeggen hetzelfde, nog
   steeds versie 1.0. De servicevoorwaarden zeggen nu overal *bestemming* waar ze *doel* zeiden.
+- **The words around grant links for every account** (alpha.21; workplan 0174 T7, §8.3 to §8.6;
+  ADR-0035 amended 2026-11-25). The privacy policy and the terms change in place, still 1.0, and
+  nobody is asked again (the owner, D8: *"terms or the privacy policy: no one but me accepted
+  then, so change them and stay on 1.0"*). Privacy §4.1 names a password beside an app password,
+  and that the person whose account it is can type it on a page their grant link opens; §4.6
+  says what is done with it (tried with the server the page names, kept only if it works,
+  encrypted; wrong tries counted on the link without the password, and the link stopped for that
+  account after five; never in a log or a record, never shown; withdrawn on the progress page
+  for an account we read, deleted with the account for one we write to); §9 keeps the count of
+  wrong tries until the link goes with its person, or the data is erased. Terms §5: a grant link
+  that asks for a password must name the person's own provider's server, and one naming a server
+  the customer runs, to receive the password, closes the account. The Dutch privacy policy says
+  *bestemming* for the target where it said *doel*, as the Dutch terms do; *Doel* as a purpose
+  stays. Both *Last updated* lines read 2026-11-25. ADR-0035's fourth operative bullet: one link
+  per person grants per account, source or destination, by a sign-in or the person's own
+  password, tested before it is stored. `docs/grant-links.md` gains *A password, typed by the
+  person*, the two groups on the page, Dropbox and Cirrux Drive, the destination question, and
+  *Locked on this link*. Every guide for an account a link connects gains *If the account is
+  somebody else's*, and the self-host quickstart says the appliance has no grant links (D7). The
+  site's *Where to* and *Leaving…* pages (all but Box's) say a link can connect somebody else's
+  account without their password passing through you.
+  **Nederlands:** de privacyverklaring en de servicevoorwaarden zijn aangepast en blijven versie
+  1.0; niemand wordt opnieuw gevraagd. De privacyverklaring zegt dat iemand het wachtwoord van
+  het eigen account zelf kan typen op de pagina die de toegangslink opent, wat we ermee doen, en
+  hoe lang we het aantal verkeerde pogingen bewaren; ze zegt nu *bestemming* waar ze *doel* zei
+  voor de plek waar de gegevens naartoe gaan. De servicevoorwaarden (§5) zeggen dat een
+  toegangslink die om een wachtwoord vraagt de server van de eigen aanbieder van die persoon
+  moet noemen. De handleidingen hebben per account een stuk *Als het account van iemand anders
+  is*, en de website zegt het op de pagina's *Waar naartoe* en *Weg bij…*.
 
 ## [0.2.0-alpha.20] - 2026-11-25
 

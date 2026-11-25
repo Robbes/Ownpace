@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText, Mail, Accessibility } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText, Mail, Accessibility, Gift } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { IMPLICIT_PERSON_ID } from '@openmig/shared';
@@ -340,6 +340,10 @@ const Layout: React.FC = () => {
     ...(selfHost || !operator
       ? []
       : [{ name: ot('nav.accessRequests'), href: '/access-requests', icon: DoorOpen, lang: 'en' as const }]),
+    // The operator's gifts (workplan 0172), on the access queue's terms.
+    ...(selfHost || !operator
+      ? []
+      : [{ name: ot('nav.gifts'), href: '/gifts', icon: Gift, lang: 'en' as const }]),
     // The support surface (workplan 0110 T4), on the same terms as the access
     // queue above: operator-only in the NAV, and cosmetically so — the screens
     // behind it answer an empty list and a "nothing here" to anybody else,
@@ -356,6 +360,9 @@ const Layout: React.FC = () => {
     ...(selfHost || !operator
       ? []
       : [{ name: ot('nav.redirectUris'), href: '/redirect-uris', icon: Link2, lang: 'en' as const }]),
+    // Give Ownpace (workplan 0172): any member of an organisation may give
+    // their gift; an operator with no organisation has nothing to give from.
+    ...(selfHost || !member ? [] : [{ name: t('nav.give'), href: '/give', icon: Gift }]),
     // Billing reads are owner/admin (owner decision 2026-08-10), so for a
     // lesser role the entry would only lead to a "not for your role"
     // sentence — hidden like the appliance hides what it cannot serve. The

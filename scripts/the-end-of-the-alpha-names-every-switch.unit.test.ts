@@ -114,13 +114,21 @@ describe("the runbook's checks look for what the code prints", () => {
 
   it("the tester guide's pages, the ones the site leaves out after the alpha", () => {
     const site = read('site/build.mjs');
-    expect(site, 'the guide is no longer the alpha-only page').toMatch(/const ALPHA_ONLY = \['guide'\]/);
+    // The guide and, since workplan 0172, the gift page.
+    expect(site, 'the alpha-only pages are no longer the guide and the gift page').toMatch(/const ALPHA_ONLY = \['guide', 'gift'\]/);
     const copy = read('site/copy.mjs');
     for (const [file, url] of [
       ['alpha-guide.html', 'https://www.ownpace.eu/alpha-guide.html'],
       ['alpha-handleiding.html', 'https://www.ownpace.eu/nl/alpha-handleiding.html'],
     ] as const) {
       expect(copy, `the guide is no longer ${file}`).toContain(`guide: '${file}'`);
+      expect(RUNBOOK).toContain(url);
+    }
+    for (const [file, url] of [
+      ['gift.html', 'https://www.ownpace.eu/gift.html'],
+      ['cadeau.html', 'https://www.ownpace.eu/nl/cadeau.html'],
+    ] as const) {
+      expect(copy, `the gift page is no longer ${file}`).toContain(`gift: '${file}'`);
       expect(RUNBOOK).toContain(url);
     }
   });

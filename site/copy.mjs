@@ -45,7 +45,7 @@ export const COPY = {
     // phone (workplan 0152 T2).
     navName: 'Main',
     menu: 'Menu',
-    files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html', guide: 'alpha-guide.html', accessibility: 'accessibility.html', 'leaving-google': 'leaving-google.html', 'leaving-microsoft': 'leaving-microsoft-365.html', 'leaving-apple': 'leaving-icloud.html', 'leaving-dropbox': 'leaving-dropbox.html', 'leaving-box': 'leaving-box.html', 'leaving-mail': 'leaving-another-mail-provider.html' },
+    files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html', guide: 'alpha-guide.html', gift: 'gift.html', accessibility: 'accessibility.html', 'leaving-google': 'leaving-google.html', 'leaving-microsoft': 'leaving-microsoft-365.html', 'leaving-apple': 'leaving-icloud.html', 'leaving-dropbox': 'leaving-dropbox.html', 'leaving-box': 'leaving-box.html', 'leaving-mail': 'leaving-another-mail-provider.html' },
     skip: 'Skip to content',
     // The Alpha, said to a visitor who was not invited (workplan 0152 T1 (a);
     // the owner, 2026-10-05: "Do suggestions for non alpha viewers"): one line
@@ -147,6 +147,9 @@ export const COPY = {
     whereTitle: 'Where to',
     whereLede:
       'Your new home is an account you open with a European provider, paid to them. Ownpace moves your data into it and keeps it in step.',
+    // A destination that is somebody else's own account (workplan 0174, alpha.21).
+    whereByLink:
+      'Is the new home somebody else’s own account, such as a family member’s Soverin or Nextcloud? They connect it themselves with a grant link: they type its password on their own page, and it never passes through you.',
     destinations: {
       soverin: { name: 'Soverin', sub: '' },
       nextcloud: { name: 'Nextcloud', sub: '' },
@@ -254,6 +257,9 @@ export const COPY = {
         box: 'Someone creates an app in Box’s developer console, a Box administrator authorises it once, and you enter its client id and secret with the numeric id of the account you leave.',
         imap: 'Enter your mail server’s address and your password, or an app password if your provider uses those.',
       },
+      // Below the steps, on every page a grant link can serve (workplan 0174, alpha.21).
+      byLink:
+        'Moving somebody else’s account? Send them a grant link instead of asking for their password: they sign in, or type their own password, on a page only they see, and it never passes through you.',
       costTitle: 'A typical cost',
       costPaid: (what, tier, price) => `One person moving their ${what} at once: ${tier}, ${price} a month.`,
       costFree: (what, tier) => `One person moving their ${what}: ${tier}, nothing a month and no invoice.`,
@@ -471,7 +477,7 @@ export const COPY = {
     },
     navName: 'Hoofdmenu',
     menu: 'Menu',
-    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html', accessibility: 'toegankelijkheid.html', 'leaving-google': 'weg-bij-google.html', 'leaving-microsoft': 'weg-bij-microsoft-365.html', 'leaving-apple': 'weg-bij-icloud.html', 'leaving-dropbox': 'weg-bij-dropbox.html', 'leaving-box': 'weg-bij-box.html', 'leaving-mail': 'weg-bij-een-andere-mailaanbieder.html' },
+    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html', gift: 'cadeau.html', accessibility: 'toegankelijkheid.html', 'leaving-google': 'weg-bij-google.html', 'leaving-microsoft': 'weg-bij-microsoft-365.html', 'leaving-apple': 'weg-bij-icloud.html', 'leaving-dropbox': 'weg-bij-dropbox.html', 'leaving-box': 'weg-bij-box.html', 'leaving-mail': 'weg-bij-een-andere-mailaanbieder.html' },
     skip: 'Naar de inhoud',
     alphaVisitor: {
       line: 'Ownpace is gedurende de Alpha-fase enkel op uitnodiging.',
@@ -536,6 +542,9 @@ export const COPY = {
     whereTitle: 'Waar naartoe',
     whereLede:
       'Uw nieuwe thuis is een account dat u opent bij een Europese aanbieder, en dat u aan hen betaalt. Ownpace migreert uw gegevens daarheen en houdt ze bij.',
+    // Een bestemming die het eigen account van iemand anders is (workplan 0174, alpha.21).
+    whereByLink:
+      'Is het nieuwe thuis het eigen account van iemand anders, zoals de Soverin of Nextcloud van een familielid? Dan verbindt die persoon het zelf met een toegangslink: die typt het wachtwoord op de eigen pagina, en het komt nooit bij u terecht.',
     destinations: {
       soverin: { name: 'Soverin', sub: '' },
       nextcloud: { name: 'Nextcloud', sub: '' },
@@ -634,6 +643,9 @@ export const COPY = {
         box: 'Iemand maakt een eigen oauth-app aan in de ontwikkelaarsconsole van Box, een Box-beheerder geeft die één keer toestemming, en u vult de client-id en het geheim ervan in, met het numerieke id van het account dat u verlaat.',
         imap: 'Vul het adres van uw mailserver en uw wachtwoord in, of een app-wachtwoord als uw aanbieder die gebruikt.',
       },
+      // Onder de stappen, op elke pagina die een toegangslink kan dienen (workplan 0174, alpha.21).
+      byLink:
+        'Migreert u het account van iemand anders? Stuur die persoon een toegangslink in plaats van om het wachtwoord te vragen: die meldt zich aan, of typt het eigen wachtwoord, op een pagina die alleen die persoon ziet, en het komt nooit bij u terecht.',
       costTitle: 'Wat het meestal kost',
       costPaid: (what, tier, price) => `Eén persoon die ${what} tegelijk migreert: ${tier}, ${price} per maand.`,
       costFree: (what, tier) => `Eén persoon die ${what} migreert: ${tier}, niets per maand en geen factuur.`,

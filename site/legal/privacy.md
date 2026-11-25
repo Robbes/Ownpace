@@ -7,6 +7,29 @@
   and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
   accepted the terms so far, so keep them on version 1.0").
 
+  Still 1.0, edited in place again on 2026-11-25, in both languages, for alpha.21's gift
+  invitations (workplan 0172), on the owner's read of the gift's privacy sentence that day,
+  verbatim: "ok, I take your advice". What changed: §4.4 ends with *Gifts*, what is kept of a gift
+  and that nothing is kept of the person it is for; §9 gains a row, a gift kept until the
+  giver's organisation is deleted. The Last updated line stays 2026-11-25; ACCEPTED_WORDS re-pins
+  both files under 1.0.
+
+  Still 1.0, edited in place on 2026-11-25, in both languages, on the owner's word (workplan 0174
+  D8, verbatim: "terms or the privacy policy: no one but me accepted then, so change them and stay on 1.0"). Why: from alpha.21 a person's grant link also asks
+  for an account that signs in with a password, and the person whose account it is types that
+  password on their own grant page, so it never passes through the customer (workplan 0174,
+  ADR-0035's amendment of 2026-11-25). What changed: §4.1's first sentence names a password
+  beside an app password, and who can type one; §4.6's family-member bullet says what we do with
+  a password typed on the page (tried with the server the page names, kept only if it works,
+  wrong tries counted on the link without the password and the link stopped for that account
+  after five, never in a log or a record, never shown; withdrawn on the person's progress page,
+  for an account we read and one we write to alike, as the owner's read of the Dutch settled); §9
+  gains a row for the count of wrong tries. The Dutch also says *bestemming* for the target
+  where it said *doel*, as the Dutch terms do since the owner's read of 2026-11-25 (*nieuwe
+  bestemming*, *bestemmingsaccount* beside *bronaccount*); *Doel* as a purpose (§5's column) stays.
+  The Last updated line moved to 2026-11-25, in both languages; ACCEPTED_WORDS re-pins both
+  files under 1.0.
+
   Still 1.0, and no word changed by the Trigger.dev removal, read again on 2026-11-23 for alpha.18
   (workplan 0167 T9: the owner, 2026-11-23, "i will remove trigger.dev, but the machine runs OTA
   and managed, so both have to be move out of triggerdev."). The published text never named
@@ -753,7 +776,7 @@
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`, and this website.
 **Version:** 1.0
-**Last updated:** 2026-11-23
+**Last updated:** 2026-11-25
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for
 > us to state: the software runs on your infrastructure, your data never reaches us, and we
@@ -831,7 +854,9 @@ useful and no more honest.
 ### 4.1 Credentials for your accounts
 
 Whatever is needed to read the source and write the target: an OAuth refresh token, or a
-username with an app password, or a service-account key. **Encrypted at rest with AES-256-GCM**
+username with a password or an app password, or a service-account key. A password can be typed
+by you, or by the person whose account it is on a page we show them through a grant link; then
+nobody else ever sees it, you included. **Encrypted at rest with AES-256-GCM**
 under a key kept apart from the database: in the service's own configuration, and in the
 settings of the background tasks that run migrations, both on the same machine.
 
@@ -934,6 +959,12 @@ ask for or keep your card number**. If you fill in invoice details on the *Billi
 a name, an address, a VAT number, the email address your invoices are sent to — we keep them
 until your data is erased, and if you ask the app to check a VAT number, it is checked with the
 European Commission's VIES service.
+
+**Gifts.** If someone in the Alpha gives you a place as a gift, we keep who gave it, a fingerprint
+of the code (never the code itself), the card's language, when it was made, until when it is valid,
+and when it was used and for which request, or when it was revoked. We keep no name, address or
+message of the person it is for. If you use a code, we keep your request like any request, marked as
+a gift from the giver. A gift is deleted with the giver's organisation.
 
 ### 4.5 Support and operational logs
 
@@ -1104,7 +1135,13 @@ A migration touches people who never signed up with us. This is what we hold abo
   data is erased.
 - **A family member whose account you migrate.** If you send them a grant link, they sign in at
   their own provider and give Ownpace access themselves, from a page that says who asked, from
-  which account and to where. We keep that access (encrypted, §4.1), the address of their
+  which account and to where. Or, for an account that signs in with a password (Apple, a mail
+  server, a Nextcloud and the like), they type that password themselves on the page. We try it
+  with the server the page names, and keep it only if it works, encrypted (§4.1). We count wrong
+  tries on the link, without the password, and stop the link for that account after five. We
+  never write the password in a log or a record, and we never show it to anybody, you included.
+  They can withdraw it on their progress page, which deletes it here. Changing the password at
+  their provider makes ours useless. We keep that access (encrypted, §4.1), the address of their
   account, and when the link was made, used and ended. They can withdraw the access at any time.
   On their progress page, that deletes it here, and revokes it at their provider where the
   provider allows that. At their provider, it makes what we hold useless, and we delete it when
@@ -1447,6 +1484,7 @@ target. We show you the target before anything is written.
 | The addresses that change, for you and the people moving with you: whose each is, and who added, confirmed and applied each change (§4.6) | Until you delete that change, or your data is erased. Deleting a person does not delete it. |
 | Which versions of the Alpha conditions, the terms and this policy each member accepted, in which language, and when (§4.4) | Until your data is erased, also after that member has left your organisation, so that it stays on record who agreed to what. |
 | The people you migrate for: each one's name, and an email address if you gave one (§4.6) | Until you delete that person, or your data is erased. Deleting a migration does not delete the person. |
+| The count of wrong tries on a grant link, per account, without the password (§4.6) | Until the link is deleted with its person, or your data is erased. |
 | The record of each pass: when it ran, and what it counted | During the Alpha: until your data is erased. |
 | A pass's log lines | 60 days. |
 | The app's own errors and warnings (a category and a reference, no text) | 30 days. |
@@ -1455,6 +1493,7 @@ target. We show you the target before anything is written.
 | The lock on your sign-in account after 10 wrong passwords in a row (§4.4) | Until we unlock your sign-in account at your request, or it is removed. |
 | The history our sign-in service keeps of your sign-in account: every change to it, such as your name and email address as they were and a second step or passkey you added, also after you removed it; your sign-ins; and every failed attempt, such as a wrong password (§4.4) | As long as we run this sign-in service, because it cannot remove them. Removing your sign-in account adds an entry to that history; it does not remove the earlier ones. |
 | Your request for access (§4.4) | While it is open. Declined: deleted 30 days after our decision. Granted: kept with your account, and erased with it. |
+| A gift (§4.4) | Until the giver's organisation is deleted. |
 | A sign-in account that someone created at our sign-in page but that we never let in, and that therefore opens nothing (§4.4) | 30 days after it was created, unless a request for access with that address is still open. |
 | The sign-in account of someone who was removed from an organisation and is no longer a member of any (§4.4) | 7 days after they were removed, unless a request for access or an invitation with that address is still open. |
 | Support mail and problem reports, and the copies of the service's own mail in the same mailbox (§4.5) | Until the question or problem is resolved, and then 6 months more. The same holds for the copies of the service's own mail. Then deleted from the mailbox. |

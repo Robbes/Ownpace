@@ -61,7 +61,7 @@ const FIXED_HOSTS: ReadonlyArray<{ readonly file: string; readonly uses: number;
   { file: 'apps/api/src/services/zammad.ts', uses: 2, host: "the operator's Zammad" },
   // A provider's own.
   { file: 'apps/api/src/routes/migrations/cirrux-consent.ts', uses: 2, host: "Cirrux's token endpoint and its profile" },
-  { file: 'apps/api/src/routes/migrations/dropbox-consent.ts', uses: 1, host: "Dropbox's token endpoint" },
+  { file: 'apps/api/src/routes/migrations/dropbox-consent.ts', uses: 2, host: "Dropbox's token endpoint, and users/get_current_account" },
   { file: 'apps/api/src/routes/migrations/google-consent.ts', uses: 1, host: "Google's token endpoint" },
   { file: 'apps/api/src/routes/migrations/microsoft-consent.ts', uses: 1, host: "Microsoft's token endpoint" },
   // Who signed in, for a grant link (workplan 0171 §3.3): Graph's `/me`, one fixed host.

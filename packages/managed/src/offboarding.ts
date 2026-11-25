@@ -134,6 +134,17 @@ export const PURGED_TABLES = [
   // 0071): other people's addresses, which is exactly what an erasure erases
   // (0168 §5). The tenant key would cascade; named so the receipt counts it.
   'address_change',
+  // The gifts made from this organisation (workplan 0172, managed 0065): who
+  // gave a place, and a fingerprint of its code. The request a gift became is
+  // the recipient's, not this organisation's, and stays. The tenant key would
+  // cascade; named so the receipt counts them.
+  'gift',
+  // A password tried on a person's link, and which person connected a
+  // destination themselves (workplan 0174, managed 0064): before
+  // `person_link`, `person` and `connection`, which they reference. Every key
+  // would cascade; named so the receipt counts them.
+  'person_link_try',
+  'person_granted_connection',
   // A person's links (0153 T5 (b), managed migration 0034) go before the
   // person they open: the person's key would cascade, and naming them counts
   // them on the receipt.
@@ -262,6 +273,24 @@ export const PURGED_TABLES = [
   // for no reason anybody could give them.
   'access_request',
 ] as const;
+
+/**
+ * Tables keyed on a PERSON rather than an organisation, erased with the
+ * organisation's people: the purge deletes the rows of every subject who is a
+ * member of the organisation it erases, before `tenant_member` goes, and
+ * counts them on the receipt beside the tables above.
+ *
+ * `gift_allowance` is the operator's number of gifts for one person (workplan
+ * 0172, managed 0065; the owner, 2026-11-25: deleted with the organisation,
+ * like the gifts). It has no `tenant_id`, so the loop over `PURGED_TABLES`
+ * cannot reach it. **A person who is also a member of another organisation
+ * keeps theirs**: the number is about them, they are still here, and the
+ * other organisation's gifts are still counted against it.
+ *
+ * Exported so the guards that hold `PURGED_TABLES` hold these too: the system
+ * role's DELETE grant (`a-table-the-purge-could-not-empty`) and the receipt.
+ */
+export const PURGED_BY_MEMBER = ['gift_allowance'] as const;
 
 /**
  * Tables that deliberately SURVIVE an erasure, with the reason.
@@ -537,6 +566,17 @@ export async function purgeTenant(
     RETURNING id
   `);
   const retainedInvoiceIds = resultRows<{ id: string }>(invoices).map((r) => r.id);
+
+  // The organisation's people's rows in the tables keyed on a person
+  // (`PURGED_BY_MEMBER`): before the loop, which deletes `tenant_member`,
+  // whose rows say who they are. Not a person's who is a member elsewhere too.
+  const allowances = await db.execute(sql`
+    DELETE FROM gift_allowance a
+     WHERE a.user_id IN (SELECT m.user_id FROM tenant_member m WHERE m.tenant_id = ${tenantId}::uuid)
+       AND NOT EXISTS (SELECT 1 FROM tenant_member o
+                        WHERE o.user_id = a.user_id AND o.tenant_id <> ${tenantId}::uuid)
+  `);
+  counts['gift_allowance'] = rowCount(allowances);
 
   for (const table of PURGED_TABLES) {
     const res = await db.execute(
