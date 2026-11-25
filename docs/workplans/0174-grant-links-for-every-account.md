@@ -1,0 +1,873 @@
+# Workplan 0174 — Grant links for every account: sign-in and own-password pages
+
+> **In one line:** alpha.21's grant links for every account a person can grant, sources and destinations: Dropbox and Cirrux Drive on the sign-in seam, and a page where the person types their own password for Apple and every password kind, tested before it is stored.
+
+## Status — 2026-11-25 (update this block at the end of every session)
+
+**2026-11-25: planned, for alpha.21.** Written for the owner's review; builders take its tasks
+as parallel pull requests (§10). Nothing is built. Every claim about the code below was read on
+`main` at `32b620a`, with file and line. **This plan supersedes workplan 0171's T4 (Dropbox)
+and T5 (Apple's app-specific password)**, which did not make alpha.20; 0171's Status block says
+so. One managed database change is proposed (§9, D5), and none in the shared chain.
+
+| Task | Owner | Status | Notes |
+|---|---|---|---|
+| T1 The seam grows: password kinds, destinations, one shape for the page | builder | 📋 Planned | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
+| T2 Dropbox on the seam | builder | 📋 Planned | §6. Supersedes 0171 T4. S. Needs only 0171 T3's seam, which is merged (#2136). |
+| T3 The own-password route: test, try count, store, spend | builder | 📋 Planned | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. |
+| T4 The own-password page, per kind, in English and Dutch | builder | 📋 Planned | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
+| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 📋 Planned | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. |
+| T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 📋 Planned | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
+| T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
+| T8 Proofs: integration and the managed smoke | builder | 📋 Planned | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log. M. Last. |
+| T9 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T8 merges. |
+| T10 The owner's decisions | owner | ⏳ **Owner** | §12: D1 to D9. |
+
+## 1. The owner's words
+
+Setting up a migration for a family member, the owner found that Microsoft asked them to connect
+instead of offering the grant link (fixed in alpha.20, #2136). The owner then asked, verbatim:
+*"I want all sources/targets that supports granting to be able to use the others-grant-page."*
+
+Asked how far and when, the owner answered:
+- *"1: b"*: grant links for every account a person can grant. The sign-in accounts: Google and
+  Microsoft (done), Dropbox, and Cirrux Drive as a destination. A page where the person types
+  their own password, for Apple and for every password-based source and destination: IMAP mail,
+  Nextcloud, Soverin, Infomaniak, CalDAV/CardDAV, WebDAV, JMAP, and any other password kind the
+  product connects. The point: **no person's password ever has to pass through the one who sets
+  up the migration.**
+- *"2: a"*: all of it in alpha.21, as one workplan.
+
+## 2. What is there today
+
+### 2.1 The provider seam
+
+`apps/api/src/routes/grant-providers.ts` is the one place that says which providers a link can
+connect (0171 T3, #2136).
+- `GRANT_PROVIDER_IDS = ['google', 'microsoft', 'dropbox', 'apple']` (:55); entries exist for
+  Google and Microsoft only (:211-214). *"A provider without an entry is never grantable"* (:23-25).
+- `GrantProvider` (:105-136) carries `sourceKinds`, `served(facts)`, `consentUrl`, `finish`, and a
+  `tryPassword(account, password)` reserved for Apple (:131-135) that nothing implements.
+- `DeploymentFacts` (:64-67) is two booleans, `googleClient` and `microsoftClient`.
+- Every entry is a **source** provider: `sourceKinds` is the only membership, and
+  `grantProviderOfKind` (:217-223) is asked of the source's `connection.kind` only.
+
+### 2.2 Readiness
+
+`apps/api/src/routes/migrations/grant-link-readiness.ts`:
+- `isGrantableSourceKind` (:93-95) is `grantProviderOfKind(kind) !== null`.
+- `grantLinkAsk` (:250-387) decides per migration, in the owner's order: no source
+  (`no_source_connection`), not grantable (`source_not_grantable`, :264-276, which tells the owner
+  *"any other account is still connected by hand, on the Accounts page"*), no named account, no
+  destination, nothing to ask, the client, the restricted scopes. Microsoft has its own tail
+  (`microsoftLinkAsk`, :397).
+- `awaitingGrantRefusal` (:521-542) is what holds Start: a grantable source with no refresh token
+  and no service-account key is waiting. It is an observation of the rows, not a stored state, and
+  the comment above it (:500-519) says why: a new mapping status would touch six places and could
+  go stale.
+
+**Nothing in it reads the destination**, beyond `hasTarget` (:126): a link never connects one.
+
+### 2.3 One link per person (ADR-0035)
+
+- The row is managed: `person_link` (`packages/managed/migrations/0034_*.sql`), shaped like
+  `mapping_link`, with a sha256 of the secret, `purpose` `grant | view`, `expires_at`, `used_at`,
+  `revoked_at`, and `asks_again uuid[]` (managed 0036). Its own RLS policy `link_sees_itself`
+  lets the unauthenticated verification read find exactly the row presented.
+- The secret is 32 random bytes, base64url (`packages/ledger/src/mapping-link-store.ts:164`); a
+  person's token is shaped `p.<id>.<secret>` and told apart in `authenticateGrantLink`
+  (`apps/api/src/middleware/auth.ts:1393-1400`).
+- The subject is read per account: `readPersonGrantSubject`
+  (`apps/api/src/routes/migrations/person-grant-subject.ts:142-224`) groups the person's
+  migrations by the **source** account each reads (`PersonGrantAccount`, :91-100), each with its
+  `provider` and `ask`.
+- The grant lands in `storePersonGrant`
+  (`apps/api/src/routes/migrations/person-grant-ending.ts:148`): one transaction, the token
+  encrypted onto each listed migration's `mailbox_mapping.source_secret_ref` (:205, ledger 0032),
+  `grant_withdrawn_at` cleared, one `mapping.granted` audit row each
+  (`grant-ending.ts:85`); a refused sign-in is `mapping.grant_refused` (:93), without the address
+  that tried. `grantedSecret` (:131) encrypts with `SecretStore.encryptCredentials`
+  (`packages/core/src/secret-store.ts`, AES-256-GCM under `SECRET_ENCRYPTION_KEY`).
+- The person can take it back per account (`apps/api/src/routes/withdraw-grant.ts:145`).
+
+### 2.4 The grant routes and page
+
+- `apps/api/src/routes/grant.ts`: `GET /api/grant/:link` (:474) answers who asked, the
+  organisation, its phone, the VIES-checked company name, and per account what will be read and
+  where it goes; `POST /:link/:provider/authorize` (:543) begins a consent, its state held on the
+  server (`consentFlows.begin`), never round-tripped through the browser. Mounted at `/api/grant`
+  with no session (`apps/api/src/index.ts:274`).
+- `apps/web/src/pages/Grant.tsx`: a card per account (`PersonGrant`, :270), words per provider in
+  `PROVIDER_WORDS` typed `'google' | 'microsoft'` (:155), and the address the button follows
+  checked by `consentToFollow(provider, url)` (:285, :486). Routed managed-only
+  (`apps/web/src/AppRoutes.tsx:220-226`, `ManagedOnly`).
+- The page's CSP has `form-action 'none'` and `connect-src 'self'` plus the sign-in host
+  (`apps/web/nginx.conf.template:153`): no form is ever submitted, every call is `fetch`.
+
+### 2.5 The start flow
+
+- `grantableByLink(card, served)` (`apps/web/src/services/start-plan.ts:258-278`) answers yes for
+  Google's cards and the Microsoft account, and `false` for every other card (`default`).
+- `StartMigration.tsx:519`: `byLink = who.someoneElse && grantableByLink(card, served)`; a card by
+  link is a `LinkedNeedRow` (:2101-2111), any other a `NeedRow`, where the owner types the
+  credential. The choice is *"They do, with a link"* (`start.who.someoneElse`,
+  `apps/web/src/i18n/strings/start.ts:27`; Dutch *"Anderen, met een link"*, :225).
+- **Destinations are never by link.** The owner chooses or adds the destination account and types
+  its password.
+
+### 2.6 Waiting and starting
+
+`start-when-granted.ts`: once the owner pressed Start for one of the person's migrations, each
+migration of theirs that waited for a grant starts by itself when it lands (`startWhenGranted`,
+:206), after the grant's own transaction; `awaitingTheirGrant` (:173) feeds the person page's
+*Waits for {person} to connect*. Both read the source only.
+
+### 2.7 The password kinds, and the doors that test them
+
+The field descriptors are one table: `credentialFieldsFor(role, type)`
+(`packages/shared/src/credential-fields.ts:910-931`).
+- **Sources:** `imap` (:637-650: host, port, username, password); `apple` (:377-389: username, an
+  app-specific password, its hint naming the page); `caldav`, `carddav`, `webdav`
+  (`davSourceFields`: host, port, DAV URL, username, password, 0169).
+- **Destinations:** `TARGET_FIELDS` (:704-723: host, port, username, password) for `jmap`, `imap`;
+  with the DAV URL for `caldav`, `carddav`, `webdav`, `soverin`, `cirrux`, `infomaniak`;
+  `nextcloud` asks for its DAV URL instead of host and port; `soverin`, `cirrux` and `infomaniak`
+  add the mail server (`MAIL_SERVER_ACCOUNT_KINDS`, `packages/shared/src/provider-accounts.ts:81`),
+  and `infomaniak` the mailbox's own login (`MAIL_LOGIN_FIELDS`, :867; `MAIL_LOGIN_APART_KINDS`,
+  `provider-accounts.ts:114`). Provider lines under the password box: `PASSWORD_HINT` (:811) for
+  Cirrux and Infomaniak; Apple's on its own field.
+- **Cirrux Drive** is a grant on a destination: `GRANTED_TARGET_FACES`
+  (`packages/shared/src/target-domains.ts:143-159`) stores it on the account's encrypted
+  credentials under `CIRRUX_DRIVE_GRANT_KEY`, through the owner's PKCE consent
+  (`apps/api/src/routes/migrations/cirrux-consent.ts`), which records no account identity.
+- **The test the create door runs** (`apps/api/src/routes/connections.ts:613-665`): the probe
+  (`probeSourceConnection` / `probeTargetConnection`), then `qualifyAndRemember`
+  (`apps/api/src/routes/qualify-and-remember.ts:74`), which measures each face the account
+  carries and remembers the answer. The door stores the row **even when the probe fails**
+  (`status: 'error'`), which a link must not do (§5.4).
+- **Limits on tests:** `refusedOverTestLimit` (`apps/api/src/probe-limit.ts:28`), sixty an hour
+  per member; `createKnockLimiter` (`apps/api/src/knock-limit.ts`) keyed by `req.ip`. Neither
+  reaches a link holder, who is no member.
+- **A host only Apple publishes** is fixed: `PROVIDER_ENDPOINTS.apple`
+  (`packages/shared/src/provider-endpoints.ts:64-85`). Every other kind's host is typed.
+
+### 2.8 The appliance
+
+The grant and progress pages are managed-only (`AppRoutes.tsx:220-236`); `person` and
+`person_link` are managed rows (ADR-0036). ADR-0035's *Still open* names *"links outside
+managed"*. The appliance has one implicit person and no grant links.
+
+## 3. The design in one page
+
+1. **A link asks for accounts, not sources.** Each card on a person's page is one account with a
+   **role** (`source` or `target`) and a **way** (`sign-in` or `password`). A migration is ready
+   when its source and its destination both have a way in.
+2. **The seam gains two shapes.** A sign-in entry may serve destinations (Cirrux Drive), and a
+   password entry covers every kind whose credential is a password, sources and destinations,
+   through the field table that already exists.
+3. **The owner fixes where; the person types the secret.** The server and the account name are
+   the owner's, shown on the page and not editable (D2); the person types the password, and only
+   what the provider says only they can know.
+4. **Tested before stored.** The same probe and qualification the create door runs; nothing is
+   written unless the login works and every face the migrations need answers. Five refused logins
+   lock that account on that link (D4, D5).
+5. **The password goes one way.** Browser to API in a JSON body, into the test, then encrypted at
+   rest. Never in a URL, a log line, an audit row, a response, a job payload or an error text.
+6. **The page earns trust first.** Who asked, the organisation, its phone, the checked company
+   name, the server the password will be tried against, and a sentence that nobody, the one who
+   asked included, will ever see the password.
+
+## 4. Destinations on the link
+
+### 4.1 One account, two roles (T1)
+
+`PersonGrantAccount` (`person-grant-subject.ts:91-100`) becomes:
+
+```ts
+export type GrantRole = 'source' | 'target';
+export type GrantWay = 'sign-in' | 'password';
+
+export interface PersonGrantAccount {
+  /** Stable on the page and in the PUT: a hash of (role, provider or kind, connection id, account). */
+  readonly ref: string;
+  readonly role: GrantRole;
+  readonly way: GrantWay;
+  /** Sign-in: the provider id. Password: the connection kind (`imap`, `nextcloud`, …). */
+  readonly provider: GrantProviderId | PasswordKind;
+  /** The account, as the owner named it. */
+  readonly account: string;
+  /** Password only: where it will be tried, as the owner set it (D2, D3). */
+  readonly server?: GrantServer;
+  /** Password only: the fields the person fills, from `credentialFieldsFor` (§5.2). */
+  readonly fields?: ReadonlyArray<PersonField>;
+  /** The migrations it serves: for a source, where each goes; for a target, where each comes from. */
+  readonly migrations: readonly PersonGrantMigration[];
+  readonly granted: boolean;
+  /** Password only: tries left on this link, or locked (§5.5). */
+  readonly tries?: { readonly left: number; readonly locked: boolean };
+  readonly ask: PersonAccountAsk;
+}
+```
+
+The grouping key gains the role: one Google account that is both somebody's source and, oddly,
+their destination is two cards. A destination account shared by two of the person's migrations
+(mail and calendars into one Soverin account) is one card.
+
+**What a destination account the person must grant is.** A target connection that has no
+secret for the faces the migration writes, and that the owner saved **for this person** (§8.2).
+A target the owner connected with their own password is not on the page: the owner's own
+account, or the organisation's, is not the person's to grant.
+
+### 4.2 Readiness per role (T1)
+
+`grantLinkAsk` keeps its source decision and gains `targetGrantAsk(r)`:
+- no target: `no_target`, as today;
+- the target already has a way in: nothing to ask of it;
+- a password kind saved for the person (§8.2): `{ way: 'password', kind, fields }`;
+- `cirrux` with files ticked and no Drive grant: `{ way: 'sign-in', provider: 'cirrux' }`
+  (§4.4), beside the password card when the app password is missing too;
+- otherwise: `target_not_grantable`, with the owner's sentence: *"This destination is not one
+  a link can connect. Connect it yourself on the Accounts page."*
+
+A **person's** link is issuable when at least one account on it, of either role, can be asked;
+it stays refused with each migration's reason once (`docs/grant-links.md`'s table) when none can.
+
+`awaitingGrantRefusal` (:521) gains the two observations, still from the rows:
+- a password source with no `password` (or `appPassword`) in the merged credentials;
+- a destination with no password for the faces the migration writes, or, for files on Cirrux,
+  no `CIRRUX_DRIVE_GRANT_KEY`.
+
+### 4.3 Where a destination's secret is stored (T3, T5; D1)
+
+A source's person-held secret goes on the migration (`source_secret_ref`, ADR-0035 decision 4),
+because the source connection may hold the organisation's application. A destination the person
+owns holds nothing of the organisation's: its row **is** the person's account. So:
+
+- **(advised, D1 (a))** the password is merged into the **destination connection's**
+  `secret_ref`, as Cirrux Drive's grant already is (`GRANTED_TARGET_FACES`), and a managed row
+  `person_granted_connection (tenant_id, person_id, connection_id, link_id, granted_at)` records
+  whose it is. The create door and the edit door (managed only) refuse to point **another
+  person's** migration, or one with no person, at a connection a person granted:
+  *"This account was connected by {person}. It can only receive their migrations."* The rotation
+  door refuses a new password on it (D6): *"{person} connected this account themselves. Make them
+  a new grant link to change it."*
+- The appliance never sees the row: the guard lives in `packages/managed` and the managed doors,
+  and `no-managed-leakage.unit.test.ts` gains its specifier (hard rule 5).
+
+Withdrawing (the person's progress page) works per account for destinations too: the secret
+keys the person typed are removed from the connection, the managed row is deleted, and nothing
+writes to that account until they grant again. There is no provider to revoke a password at; the
+page says *"Change this password at {provider} too, if you want to be sure"* (§5.9).
+
+### 4.4 Cirrux Drive on the link (T5)
+
+A sign-in entry with `role: 'target'`:
+
+```ts
+const CIRRUX: GrantProvider = {
+  id: 'cirrux',
+  sourceKinds: new Set(),
+  targetKinds: new Set(['cirrux']),           // new field, T1
+  served: (facts) => facts.cirruxClient,      // `cirruxDeploymentClient()`, new fact, T1
+  consentUrl: (a) => cirruxConsentUrl({ ... a.state, challenge }),
+  finish: async (code, redirectUri, client) => ({ ok: true, secret: { [CIRRUX_DRIVE_GRANT_KEY]: … }, signedInAs, grantedScopes }),
+};
+```
+
+- **The binding.** Cirrux's consent records no account (`cirrux-consent.ts`). The Drive card is
+  therefore offered **only after the same account's app password is stored** (by the owner or on
+  this page), and the ending accepts the grant only when `qualifyCirruxDrive`
+  (`packages/orchestration/src/account-qualification.ts:751`), run with the new token, reads the
+  same workspace the stored app password signs in to. Whether Cirrux's API names the signed-in
+  user directly is open question 1; if it does, that is compared instead, as Dropbox's is.
+- **Where it lands:** the destination connection's `CIRRUX_DRIVE_GRANT_KEY`, in one transaction
+  with the spend and a `mapping.granted` row per migration, as §4.3 says.
+- `consentToFollow` learns `api.cirrux.co`. The consent's PKCE verifier stays in the server-side
+  pending state, as today.
+
+### 4.5 What the person sees when both are asked (T4)
+
+The page keeps its one header (who asks, the organisation, its phone, the checked company) and
+then two groups:
+
+1. **From** — *The accounts your data is copied from.* One card per source account.
+2. **To** — *The accounts your data is copied to.* One card per destination account, each naming
+   what arrives there and from where.
+
+Each card says **Connected**, **Waiting**, or **Locked on this link**, and has its own button or
+form. Order: sources first, because the question *"is the destination yours?"* is easiest to
+answer with the source already named. Neither group appears when it is empty. The link is spent
+when every card on it is connected, either group.
+
+### 4.6 What the owner sees (T6)
+
+On the person's page, beside each migration that waits, by role:
+- *Waits for {person} to connect {account}, then starts by itself* (as today, for any role);
+- *Waits for {person} to connect the destination {account}*;
+- *{person} tried {n} times; {left} tries left on this link*;
+- *Locked on this link after five tries. Make {person} a new link.*
+
+Never the server's refusal text for a password the person typed (ADR-0035 decision 5: the account
+is theirs): the category only.
+
+### 4.7 What whoever runs Ownpace sees
+
+The audit log (`audit_log`, never pruned) per account: `mapping.granted` with `via: 'password'`
+or `'sign-in'` and the role; `mapping.grant_refused` with the category
+(`refused_login | unreachable | face_missing | locked`), the link id and the account's `ref`,
+**never** the password, the address that tried, or the server's text. The server log carries the
+same, plus the probe's category from `probeAnswers`. A *Report this link* ticket carries the
+facts it carries today, and whether a password card was on the page.
+
+## 5. The own-password page
+
+### 5.1 The password entry on the seam (T1)
+
+```ts
+/** Every connection kind whose credential is a password, by role. */
+export const PASSWORD_SOURCE_KINDS = ['imap', 'apple', 'caldav', 'carddav', 'webdav'] as const;
+export const PASSWORD_TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav',
+  'soverin', 'nextcloud', 'cirrux', 'infomaniak'] as const;
+export type PasswordKind = (typeof PASSWORD_SOURCE_KINDS)[number] | (typeof PASSWORD_TARGET_KINDS)[number];
+
+export interface PasswordGrant {
+  readonly role: GrantRole;
+  readonly kind: PasswordKind;
+  /** The fields the person fills, from `credentialFieldsFor(role, kind)`: secret ones, and the ones §5.2 lets them fill. */
+  readonly personFields: (stored: Readonly<Record<string, string>>) => ReadonlyArray<PersonField>;
+  /** The test: the create door's probe, then the qualification, on the merged config and credentials. */
+  readonly test: (a: PasswordTestInput) => Promise<PasswordTest>;
+}
+
+export type PasswordTest =
+  | { readonly ok: true; readonly secret: StoredSourceSecret; readonly faces: ReadonlyArray<DiscoveryDomain> }
+  | { readonly ok: false; readonly category: 'refused_login' | 'unreachable' | 'face_missing'; readonly faces?: ReadonlyArray<DiscoveryDomain> };
+```
+
+0171's reserved `tryPassword` is replaced by `PasswordGrant`, and Apple is not special: it is the
+`apple` kind with a published endpoint. The two lists are held to `credentialFieldsFor` by a
+unit guard: **a kind whose fields carry a `secret: true` password and that is not an OAuth kind
+is in one of the lists, or is named in this plan's §13 with its reason.** So a kind added later
+cannot be forgotten by the link.
+
+### 5.2 Per kind, what the person fills (T4; D2)
+
+The owner fixes the server and the account; the page shows both and they are not boxes. The
+person types the secret, and the fields marked *person* below, which the provider says only the
+account holder knows.
+
+| Kind | Role | Owner fixes (shown) | The person fills | The provider's own help on the page |
+|---|---|---|---|---|
+| `apple` | source | Apple Account address | App-specific password | The steps of `docs/guides/en/apple.md` (account.apple.com → Sign-In and Security → App-Specific Passwords), folded under *How?*; *Not your Apple Account password.* |
+| `imap` | source, target | Mail server and port; the mailbox address | Password, or app password | *Use an app password if your provider offers one.* |
+| `caldav`, `carddav`, `webdav` | source, target | Server, port or DAV address; user name | Password, or app password | The same. |
+| `jmap` | target | Server and port; user name | Password, or app password | The same. |
+| `nextcloud` | target | DAV address; user name | App password | Settings → Security → Devices & sessions → *Create new app password* (`docs/guides/en/nextcloud.md:13-20`). |
+| `soverin` | target | DAV and mail server; address | Password, or app password | *If Soverin offers you an app password, use it* (`soverin.md:24`). |
+| `cirrux` | target | DAV and mail server; address | App password; then **Connect Cirrux Drive** when files arrive there (§4.4) | *Your Cirrux sign-in password does not work here: make an app password on the Passwords tab* (`PASSWORD_HINT.cirrux`). |
+| `infomaniak` | target | Sync server, mail server; mailbox address | Sync password; *person:* sync username when the owner left it empty; mail password | Where the sync username is (config.infomaniak.com) and the mail password (the address's Devices tab); *an app password is refused for mail* (`MAIL_LOGIN_HINT.infomaniak`). |
+
+Every box the person fills is `type="password"` with *Show* for secrets, `autocomplete="off"`
+for the app passwords a manager would wrongly fill (`new-password` where the descriptor says so),
+and the descriptor's own label and hint keys, so the page and the owner's form cannot word the
+same field two ways.
+
+### 5.3 The route (T3)
+
+`PUT /api/grant/:link/password`, person links only:
+
+```
+{ "ref": "<account ref from GET>", "values": { "password": "…" }, "locale": "nl" }
+```
+
+1. `linkAuth`; the link is a person's (a migration's own link answers 404: those were made before
+   and expire within 30 days, §13); the organisation is not closed.
+2. Body: `Content-Type: application/json` only (anything else 415), at most 4 KiB, `values` keys
+   exactly the account's person fields; unknown keys refused, nothing echoed.
+3. The per-caller limiter (§7.4) and the account's tries (§5.5): locked → 423 `locked`, no test.
+4. Already connected through this link → 409 `already_connected`, no test (a replay tries no
+   login, §7.2).
+5. The test (§5.4), with the deadline of `DOOR_BUDGET_MS`.
+6. On failure: the try counted when the category is `refused_login` (D4), `mapping.grant_refused`
+   written, 422 with the category and tries left. Nothing else is written.
+7. On success, **one transaction**: the link row locked (`FOR UPDATE`) and checked live again
+   (not revoked, not expired, not spent), the secret written (source: each listed migration's
+   `source_secret_ref`, merged over what is there, `grant_withdrawn_at` cleared; target: the
+   connection's `secret_ref`, merged, and `person_granted_connection`), the qualification
+   remembered on the connection, one `mapping.granted` row per migration, the link spent if every
+   account is now connected. Revoked between test and write: nothing is written, 401 the one
+   sentence.
+8. After commit: `startWhenGranted` for the person, as today, and the progress link minted as
+   today's ending does.
+9. Answer: `{ "connected": true, "faces": [...] }`. Never a value.
+
+### 5.4 Tested before stored, as the create door tests (T3)
+
+The test is the create door's, called with the merged config and credentials (owner's config +
+stored keys + the person's values), never a second implementation:
+- `probeSourceConnection(kind, …)` or `probeTargetConnection(kind, …)`, then
+- `qualifyAccount` (`account-qualification.ts:470`) for each face the person's migrations on that
+  account need (an IMAP target for mail only measures mail).
+
+`ok` only when the probe is ok **and** no needed face answers `no`. A face that answers
+`unknown` (the qualification could not take it) is not a refusal: the probe's own verdict
+stands, as at the door. Categories:
+- `refused_login`: the server answered and refused the credentials (401, IMAP `NO
+  [AUTHENTICATIONFAILED]`, the probe's `auth` category);
+- `unreachable`: no answer, TLS failure, timeout;
+- `face_missing`: login worked, a needed face was refused (Infomaniak's mail with an app password).
+
+The difference from the create door is deliberate: **the door stores a failing row (`status:
+'error'`) so the owner can fix it; a link stores nothing that failed**, because nobody but the
+person can fix it and they are on the page.
+
+### 5.5 Five tries, then locked (T3; D4, D5)
+
+Per link, per account: five `refused_login` answers lock that account's card on that link. Its
+other cards go on. Kept in a managed table (D5 (a)):
+
+```sql
+-- packages/managed/migrations/00NN_a_password_tried_on_a_link.sql
+CREATE TABLE public.person_link_try (
+  link_id uuid NOT NULL REFERENCES public.person_link(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL,
+  account_ref text NOT NULL,       -- the card's ref: a hash, never the address
+  refused integer NOT NULL DEFAULT 0,
+  last_at timestamptz NOT NULL DEFAULT now(),
+  locked_at timestamptz,
+  PRIMARY KEY (link_id, account_ref)
+);
+-- RLS: the tenant policies NULL-safe, and `link_sees_itself`'s twin on link_id.
+```
+
+The count is incremented with `UPDATE … SET refused = refused + 1 … RETURNING`, so two tabs
+racing cannot get a sixth try. A new link starts at zero: that is the owner's remedy, and the
+owner's page says *Locked on this link* (§4.6). Five also keeps the person's own provider from
+locking their account: Apple and most mail providers lock after more wrong passwords than that.
+
+### 5.6 The password in no log, audit row, response or URL (T3)
+
+- **URL:** the route is `PUT` with a JSON body; the page never builds a query string with a value;
+  the link token is in the path, as today (`docs/grant-links.md`: *a key in a URL*), and never
+  the password.
+- **Logs:** the route logs its category and the account's `ref`, never `req.body`. The probe's
+  error is passed through `loggableError` and `probeAnswers` (which already say a remote's answer
+  from its parts, 0136 T3). The express error handler and the body parser's error must not print
+  the body: a malformed JSON body answers 400 with no excerpt.
+- **Audit rows:** the category, the ref, the link id, the via; no value.
+- **Responses:** no field of the body is echoed, success or failure.
+- **Job payloads:** the start-when-granted job carries ids, as today; the secret is read from the
+  row by the pass.
+- **Memory:** the values object is not kept past the test and the write; nothing caches it.
+
+**A guard test, not a promise** (`a-password-the-link-never-says.unit.test.ts`, T3): the route is
+run over PGlite with both chains and a recorded probe, with a sentinel password, for each
+outcome (ok, refused, unreachable, face missing, locked, revoked mid-test, malformed body); it
+captures every log line, every `audit_log` row, every response body and header, the
+`person_link_try` row, and every column of every row written except the two encrypted
+`secret_ref`s, and fails if the sentinel or its base64 appears in any of them. The encrypted
+columns are decrypted and must hold it exactly once.
+
+### 5.7 When the test fails (T3, T4)
+
+The page says, in the person's language, by category:
+
+| Category | They read | Then |
+|---|---|---|
+| `refused_login` | *{server} did not accept this password. Check it and try again. {left} tries left.* For Apple, Cirrux, Nextcloud: *…Make sure it is an app password, not the password you sign in with.* | The form stays, empty. |
+| `unreachable` | *{server} could not be reached. This is not your password. Try again in a few minutes; if it keeps happening, tell {askedBy}.* | No try counted. |
+| `face_missing` | *Your password works, but {server} refused {faces}. {provider hint}* (Infomaniak mail: *use the mail password, not an app password*). | No try counted; the form stays. |
+| locked | *Too many tries on this link. Ask {askedBy} for a new link.* | No form. |
+
+The owner sees the category and the count (§4.6), never the server's words.
+
+### 5.8 Anti-phishing (T4; D3)
+
+A password link is shaped exactly like phishing (ADR-0035 *Consequences*, *"the sharpest edge
+here"*). The page answers with what it already has, and two things new:
+
+- **Who sent it:** the organisation's name, the asking member's sign-in address, the
+  VIES-checked company name where there is one, and the **organisation's phone number** (set
+  under Team & organization → Organization → Phone number), each before any box. When no phone is
+  set, the page says *{organisation} has not given a phone number. If you are not sure this link
+  came from {askedBy}, ask them some other way before you type anything.*
+- **Where the password goes**, new: the server it will be tried against, its registrable domain
+  in bold (`imap.**example.com**`), and *Type your password only if this is your own provider's
+  server.* For Apple the server is Apple's published one and the line says *Apple's own server*.
+- **Who will see it**, new: *Your password is checked once with {server} and stored encrypted.
+  Nobody can see it again: not {askedBy}, not {organisation}, not Ownpace's staff.*
+- **What Ownpace never does:** *Ownpace never emails you a link and never asks for your
+  password by email or phone.*
+- **Report this link**, as today, beside it.
+- The question from today's page stays: *do you know who asked, and is the destination yours or
+  your organisation's? Only then continue.*
+
+**The host the owner typed is the new risk.** A Google or Microsoft link sends the person to
+Google's or Microsoft's own page; a password link sends their password to the server the owner
+named. A dishonest owner who names a server they run would receive the password at the probe's
+login. D3 decides the answer; the advice is (a): the server is shown as above; a kind whose
+provider publishes its server (Apple today; Soverin, Cirrux and Infomaniak added to
+`PROVIDER_ENDPOINTS` with their published hosts, read from their help pages and cited) is tried
+**only** against that server, whatever the row says; a generic kind is tried against the owner's
+host, which must be a DNS name (never an IP literal, as `rawIpCallbackRefusal` refuses one for
+callbacks) and is refused when it resolves to a private or loopback address. The page asks the
+question and the person decides.
+
+### 5.9 The words (T4)
+
+Keys in `apps/web/src/i18n/strings/grant.ts`, both languages in the same pull request; the
+`words-that-fit-on-one-line` guard holds.
+
+| Key | English | Dutch |
+|---|---|---|
+| `grant.group.from` | The accounts your data is copied from | De accounts waaruit uw gegevens worden gekopieerd |
+| `grant.group.to` | The accounts your data is copied to | De accounts waarnaar uw gegevens worden gekopieerd |
+| `grant.password.title` | Connect {account} with your password | Koppel {account} met uw wachtwoord |
+| `grant.password.server` | Your password is checked with {server}. Type it only if this is your own provider's server. | Uw wachtwoord wordt gecontroleerd bij {server}. Typ het alleen als dit de server van uw eigen provider is. |
+| `grant.password.apple.server` | Your password is checked with Apple's own server. | Uw wachtwoord wordt gecontroleerd bij Apples eigen server. |
+| `grant.password.nobody` | It is stored encrypted. Nobody can see it again: not {askedBy}, not {organisation}, not Ownpace's staff. | Het wordt versleuteld bewaard. Niemand kan het nog zien: niet {askedBy}, niet {organisation}, niet de medewerkers van Ownpace. |
+| `grant.password.never` | Ownpace never emails you a link and never asks for your password by email or phone. | Ownpace mailt u nooit een link en vraagt nooit per e-mail of telefoon om uw wachtwoord. |
+| `grant.password.noPhone` | {organisation} has not given a phone number. If you are not sure this link came from {askedBy}, ask them some other way before you type anything. | {organisation} heeft geen telefoonnummer opgegeven. Weet u niet zeker of deze link van {askedBy} komt, vraag het dan op een andere manier voordat u iets typt. |
+| `grant.password.appPassword` | Use an app password if your provider offers one. | Gebruik een app-wachtwoord als uw provider dat aanbiedt. |
+| `grant.password.submit` | Check and connect | Controleren en koppelen |
+| `grant.password.checking` | Checking with {server}… | Bezig met controleren bij {server}… |
+| `grant.password.connected` | Connected. You can close this page. | Gekoppeld. U kunt deze pagina sluiten. |
+| `grant.password.refused` | {server} did not accept this password. Check it and try again. Tries left: {left}. | {server} accepteerde dit wachtwoord niet. Controleer het en probeer het opnieuw. Pogingen over: {left}. |
+| `grant.password.refused.app` | Make sure it is an app password, not the password you sign in with. | Controleer of het een app-wachtwoord is, niet het wachtwoord waarmee u inlogt. |
+| `grant.password.unreachable` | {server} could not be reached. This is not your password. Try again in a few minutes; if it keeps happening, tell {askedBy}. | {server} was niet bereikbaar. Dat ligt niet aan uw wachtwoord. Probeer het over een paar minuten opnieuw; blijft het gebeuren, laat het dan {askedBy} weten. |
+| `grant.password.faceMissing` | Your password works, but {server} refused {faces}. | Uw wachtwoord werkt, maar {server} weigerde {faces}. |
+| `grant.password.locked` | Too many tries on this link. Ask {askedBy} for a new link. | Te vaak geprobeerd met deze link. Vraag {askedBy} om een nieuwe link. |
+| `grant.password.withdrawn` | Removed here. Change this password at {provider} too, if you want to be sure. | Hier verwijderd. Wijzig dit wachtwoord ook bij {provider} als u het zeker wilt weten. |
+| `grant.apple.how` | How do I make an app-specific password? | Hoe maak ik een appspecifiek wachtwoord? |
+| `grant.apple.password` | App-specific password | Appspecifiek wachtwoord |
+| `grant.apple.password.hint` | Not your Apple Account password: one you make at account.apple.com. | Niet uw Apple-wachtwoord: een dat u maakt op account.apple.com. |
+| `grant.continue.dropbox` | Continue with Dropbox as {account} | Doorgaan met Dropbox als {account} |
+| `grant.continue.cirrux` | Connect Cirrux Drive | Cirrux Drive koppelen |
+
+The provider-specific help lines reuse the existing `account.*.hint` keys (`credential-fields.ts`)
+so the page and the owner's form say the same.
+
+## 6. Dropbox on the seam (T2; supersedes 0171 T4)
+
+As 0171 §3.5 designed it, on the seam that merged:
+- an entry `dropbox` with `sourceKinds: ['dropbox']`, `served: facts.dropboxClient`
+  (`dropboxDeploymentClient`, `packages/shared/src/dropbox-deployment-client.ts:35`, a new fact
+  in `deploymentFacts`), `consentUrl` from `dropbox-consent.ts` (`token_access_type=offline`, the
+  read scopes and `account_info.read`; Dropbox takes no login hint);
+- `finish`: the code exchanged, then `POST /2/users/get_current_account`; `email` must equal the
+  named account without case and `email_verified` must be true, else `another_account` or
+  `unconfirmed`, nothing stored, the link live;
+- `grantableByLink('dropbox')`, `consentToFollow('dropbox', …)` for `www.dropbox.com`,
+  `PROVIDER_WORDS.dropbox` (*Continue with Dropbox as …*, *Dropbox: read your files*), and the
+  readiness check's Dropbox tail (the connection's whole pair, else the deployment's, half a pair
+  refused, as Google's and Microsoft's).
+
+## 7. Security review points
+
+### 7.1 Brute force
+
+- **The link:** 32 random bytes (§2.3); guessing one is not the attack.
+- **The password, with a link in hand:** five `refused_login` per account per link (§5.5),
+  durable across restarts and replicas (D5 (a)); the owner's page shows each try.
+- **Through us at the provider:** the cap also keeps Ownpace from being the tool that locks the
+  person's account at their provider.
+
+### 7.2 Replay
+
+A captured request body is useless without TLS being broken; with the link spent the route
+answers the one sentence; while the link is live and the account is connected it answers
+`already_connected` **without testing**, so a replay makes no login at the provider and counts
+no try. The test and the write are one decision: the link is checked again inside the write's
+transaction (§5.3 step 7).
+
+### 7.3 CSRF
+
+There is no ambient credential to ride: no cookie, no session; the link is in the path and must
+be known. The route still takes `application/json` only, which a cross-site form cannot send
+without a preflight, and the API answers no CORS for `/api/grant`. The page's CSP has
+`form-action 'none'` (§2.4), so the password form is never submitted by the browser: the page
+calls `fetch`.
+
+### 7.4 Rate limits
+
+- Per caller: `createKnockLimiter` on `PUT /:link/password`, keyed by `req.ip` (with its stated
+  caveats: one process, the ingress's address unless `TRUST_PROXY`), sized at 30 tests an hour.
+- Per account per link: the five tries.
+- Per organisation: the live-link limit already caps how many links can be out.
+- Outbound: every test is a connection to a host; §5.8's DNS-name and private-address refusals
+  keep the route from being a scanner of our own network (0136's concern).
+
+### 7.5 Link lifetime and revocation
+
+Unchanged presets: 1, 7 or 30 days, spent when every account on it is connected. **Revoke**
+stops a password test in flight from being stored (checked in the write's transaction).
+Deleting the person deletes their links, their tries and their `person_granted_connection` rows.
+Revoking a link does not remove a password already stored: that is the person's *Withdraw*, or
+the owner deleting the migration or the account, as for a token today.
+
+### 7.6 Encryption at rest
+
+The product's existing credential encryption, nothing new: `SecretStore.encryptCredentials`
+(AES-256-GCM under `SECRET_ENCRYPTION_KEY`, SECURITY.md), the same blob shape the create door
+writes, merged key by key. No other copy: not in the try table, the audit log, a job.
+
+### 7.7 What the owner, and whoever runs Ownpace, can and cannot see
+
+| | Owner (and admins) | Whoever runs Ownpace |
+|---|---|---|
+| The password | Never: no door hands a secret back, the rotation door refuses a person-granted one (D6). | Never through the product. The ciphertext and the key sit on the same machine (§4.1 of the privacy policy says so); the promise stays *"your admin cannot read this"*, never *"nobody can"* (ADR-0035 *Honest about Managed*). |
+| That a card is connected, waiting, or locked; the number of tries | Yes | Yes, in the audit log |
+| Why a test failed | The category | The category, and the server log's probe category |
+| The server's own refusal text | Never (ADR-0035 decision 5: the person's account) | Not stored |
+| The account and the server | Yes: the owner set them | Yes |
+
+## 8. Around it
+
+### 8.1 *Start a migration* (T6)
+
+- `grantableByLink(card, served)` answers yes for every password source kind (no deployment
+  fact needed) and for Dropbox when served. `ServedFacts.grantProviders` gains `dropbox` and
+  `cirrux`; the password kinds need nothing served.
+- **The destination step gains the same question** when *They do, with a link* is chosen and the
+  destination is a password kind or Cirrux: *Whose account is the destination?* — *Mine, or the
+  organisation's: I connect it* / *{person}'s own: they connect it with the link*. The second
+  saves the destination with its server and account and no password (§8.2), and the review
+  screen says *{person} connects it themselves, with the link you make on the last screen*.
+- The last screen's link section counts both roles: *The link asks {person} for 2 accounts: their
+  iCloud mail, and their Soverin account.*
+
+### 8.2 An account saved for somebody else (T6)
+
+The create door takes a `forPerson: <personId>` flag (managed only) that:
+- accepts the row **without** its secret fields (`credentialFieldRequired` answers false for the
+  secret fields when `forPerson` is set, never otherwise);
+- does not probe (there is nothing to log in with) and adds **no status**: the CHECK allows
+  `connected | error | revoked` (`packages/ledger/migrations/0001_baseline.sql:139`), and waiting
+  is an observation of the rows, as `awaitingGrantRefusal` is. The row is stored as a Google or
+  Microsoft account saved by its address alone for a link is today (`ready: false`,
+  `StartMigration.tsx:221-224`); the build reads which status that path writes and writes the same;
+- requires every non-secret field the kind needs (server, account), because the person cannot
+  type them (D2);
+- writes the `person_granted_connection` row only when the person grants, not now.
+
+The Accounts page shows such a row as *Waiting for {person}*, with no *Test* until it is granted.
+
+### 8.3 Both editions (T7; D7)
+
+**The appliance offers nothing in alpha.21, and says so** (D7 (a)). Reasons: the grant and
+progress pages are managed-only and their rows (`person`, `person_link`) are managed (ADR-0036);
+an appliance is usually reached on a home or office network, not by the person on their phone;
+it serves no CSP yet (0158 T3); and on an appliance the person whose password it is and the
+machine that holds it are in one household or office anyway, which is ADR-0035's *"On self-host
+the customer's machine holds them"*. The appliance's account forms stay as they are; its guide
+says *To let somebody type their own password, use the managed service's grant link; the
+appliance has none.* The shared changes (field descriptors, `awaitingGrantRefusal`, the test
+function) reach the appliance's code and must not change its behaviour: the appliance's own
+tests run in every task.
+
+### 8.4 ADR-0035's amendment, as draft text (T7)
+
+Not applied by this plan; applied by T7 once the owner says yes, with `adr-operative --write`.
+
+> **Operative rules**, fourth bullet, replaced:
+>
+> - **One link per person** (owner, 2026-09-29, 2026-10-03, 2026-11-25; ADR-0050): a grant link
+>   and a progress link for all their migrations, granting per account, source or destination,
+>   what the page showed: a sign-in, or the person's own password, tested before it is stored.
+>   Replaces the per-migration link; one already sent is honoured until it expires.
+>
+> **Amendment log**, new entry:
+>
+> - **2026-11-25** — **Amended**, by the owner (*"I want all sources/targets that supports
+>   granting to be able to use the others-grant-page"*; *"1: b"*, *"2: a"*): from alpha.21 a
+>   person's grant link also connects **destinations** the person owns, and every account whose
+>   credential is a password, through a page where the person types it themselves (workplan
+>   0174). The password is tried with the create door's own test before it is stored, five
+>   refused tries lock that account on that link, and it is never shown, logged or audited.
+>   Category B (decision 3) keeps its meaning: it is a reusable password we hold, now typed by the
+>   person and never seen by the owner. *Consequences*' *"the sharpest edge here"* is answered by
+>   the page's server line and its Apple, Soverin, Cirrux and Infomaniak pinned hosts (0174
+>   §5.8), not removed. The appliance still has no links. Record: *Operative rules*, fourth
+>   bullet.
+
+The bullet is 54 words, inside ADR-0051's 60 a bullet, and about nine more than the one it
+replaces. The section is near its 300-word budget, so `adr-operative --write` may refuse it;
+then T7 shortens another bullet of the section without changing what it says (the reporting
+bullet's parenthesis is the likeliest), and says so in the amendment log.
+
+### 8.5 The privacy policy and the terms, as a draft for the owner (T7; D8)
+
+`site/legal/privacy.md` (and `privacy.nl.md`), **§4.1**, the first sentence becomes:
+
+> Whatever is needed to read the source and write the target: an OAuth refresh token, or a
+> username with a password or an app password, or a service-account key. A password can be typed
+> by you, or by the person whose account it is on a page we show them through a grant link; then
+> nobody else ever sees it, you included.
+
+**§4.6**, the family-member bullet, after its first sentence:
+
+> Or, for an account that signs in with a password (Apple, a mail server, a Nextcloud and the
+> like), they type that password themselves on the page. We try it once with the server the page
+> names, and keep it only if it works, encrypted (§4.1). We count wrong tries on the link, without
+> the password, and stop the link for that account after five. We never write the password in a
+> log or a record, and we never show it to anybody, you included. They can withdraw it on their
+> progress page, which deletes it here; changing the password at their provider makes ours
+> useless.
+
+**§9** (retention) gains one row: *the count of wrong tries on a grant link: until the link is
+deleted with its person, or your data is erased.*
+
+`site/legal/terms.md` (and `terms.nl.md`), **§5 Acceptable use**, one sentence added:
+
+> A grant link that asks somebody for a password must name their own provider's server: sending
+> one that names a server you run, to receive somebody's password, is an attack on them and we
+> will close the account.
+
+§1's sentence (a person who grants through a link is not a party) stands. Versions bump as
+`site/legal/README.md` says; the acceptance flow asks again only if the owner says the change is
+material (D8).
+
+### 8.6 The guides, the doc and the site (T7)
+
+- `docs/grant-links.md`: the refusal table's *source is not an account a link can connect* row,
+  rewritten (every password kind and Dropbox connect; Box, a company's own Microsoft app and
+  Google's domain-wide delegation do not); a new section *A password, typed by the person*;
+  *What the other person sees* gains the two groups and the server line; *Managing them
+  afterwards* gains *Locked on this link*.
+- Guides EN and NL: `start.md` (*They do, with a link* now covers every account and the
+  destination), and in `apple.md`, `imap.md`, `dav.md`, `jmap.md`, `nextcloud.md`, `soverin.md`,
+  `cirrux.md`, `infomaniak.md`, `dropbox.md`: a short *If the account is somebody else's* section,
+  as `google.md:10` and :90 have.
+- The site: the *Sources* and *Where to* pages' line on grant links (`site/copy.mjs`, both
+  languages), checked with `node site/build.mjs --check`.
+- `llms-docs` regenerated if the guides it indexes change (`node scripts/llms-docs.mjs --write`).
+
+## 9. The database change
+
+One managed migration, none in the shared chain:
+- `person_link_try` (§5.5), D5 (a);
+- `person_granted_connection` (§4.3), D1 (a).
+
+Both are managed rows hanging off managed tables and the shared `connection`, as hard rule 5
+asks (*"a managed thing hanging off a core table becomes a ROW of its own, never a column"*);
+erasure purges both before `person` (`PURGED_TABLES`). T1 writes the migration; whichever task
+merges second regenerates nothing (the chain is numbered at merge, the build checks the next
+free number).
+
+## 10. The tasks, as pull requests
+
+Sizes: S a day or less, M two to three, L more. Each pull request brings `main` in by merging,
+never a rebase, and names this plan's section it builds. The interfaces in §4.1, §4.4 and §5.1
+and the route's shape in §5.3 are fixed here; a build that must change one says so in this plan
+first.
+
+| Task | Pull request touches | Size | Depends on | Proves it with |
+|---|---|---|---|---|
+| T1 | `grant-providers.ts` (`targetKinds`, `PasswordGrant`, `PASSWORD_*_KINDS`, facts `dropboxClient`, `cirruxClient`), `grant-link-readiness.ts` (`targetGrantAsk`, `awaitingGrantRefusal` per role), `person-grant-subject.ts` (`role`, `way`, `ref`), `grant.ts`'s GET shape, `start-when-granted.ts` (both sides), the managed migration, `no-managed-leakage` | M | none | Unit: each readiness answer per role and kind; the field guard (every password kind listed); `awaitingGrantRefusal` for a password source, a password target and Cirrux files; the GET shape for a person with a source and a destination. PGlite: the migration on both chains, RLS of both new tables. |
+| T2 | `grant-providers.ts`'s Dropbox entry, `dropbox-consent.ts`'s `get_current_account`, `start-plan.ts`, `Grant.tsx` words and host | S | 0171 T3 (merged) | Unit: the binding, unverified email refused, another account refused with nothing stored and the link live, a refused exchange; `grantableByLink('dropbox')`. |
+| T3 | `grant.ts`'s `PUT /:link/password`, the test function over the probe and `qualifyAccount`, `person-grant-ending.ts`'s password store for both roles, the try table, the limiter | L | T1's interfaces (may start on them before T1 merges) | Unit on PGlite: each step of §5.3; five refusals lock, the sixth is not tested; `unreachable` and `face_missing` count nothing; revoked mid-test stores nothing; replay tests nothing; the merged secret; the guard `a-password-the-link-never-says`. Integration: Stalwart IMAP and JMAP, a real and a wrong password. |
+| T4 | `Grant.tsx` (the two groups, the password card per kind from the descriptors, the anti-phishing block, the states), `i18n/strings/grant.ts` | M | T1's GET shape | Unit: the card per kind (fields from `credentialFieldsFor`, the owner's values shown not editable); `words-that-fit-on-one-line`; UI smoke under the CSP: the form posts by `fetch`, nothing in the URL after a submit. |
+| T5 | the `cirrux` entry, `cirrux-consent.ts`'s link ending, `consentToFollow`, `GRANTED_TARGET_FACES` read per role, `person_granted_connection` writes, the create and edit doors' guard, the rotation door's refusal | M | T1 | Unit: the Drive card only after the app password; the ending refused when the workspace differs; another person's migration into a granted account refused; the rotation refused. |
+| T6 | `start-plan.ts`, `StartMigration.tsx` (the destination question), the create door's `forPerson`, `credentialFieldRequired`, the person page's lines, `connections.ts` *Waiting for* | M | T1 | Unit: `grantableByLink` per kind; a row saved for a person without secrets, refused without its server; the person page's four lines. UI smoke: *They do, with a link* with an iCloud source and a Soverin destination. |
+| T7 | `docs/grant-links.md`, the guides EN/NL, `site/copy.mjs`, ADR-0035 (after D-decisions), `site/legal/*` (after D8) | M | T3–T6 in review; the owner's decisions | `adr-operative --check`, `llms-docs --check`, `site/build.mjs --check`, `leaving-pages-say-what-the-app-says`. |
+| T8 | integration cases spanning tasks; `deploy/compose/smoke-managed.sh` | M | T1–T6 | §11. Run by the owner (T9), never dispatched by a build session. |
+
+**What runs at once.** T1, T2 start at once; T3, T4, T5 and T6 start against T1's fixed
+interfaces as soon as T1's branch has them (a day), and merge after T1. T7 writes as T3 to T6
+review. T8 last. **If time runs short** (D9): T1, T3, T4 with Apple and IMAP sources first; then
+password destinations (T5's half and T6); then Cirrux Drive; then Dropbox.
+
+## 11. Proofs
+
+- **Unit**, in each task (§10), including the password guard (§5.6).
+- **Integration**, through Testcontainers in CI and `./scripts/local-pg.sh` where no container
+  runtime is: the Stalwart fixture (`docs/stalwart-integration-fix.md` followed as written, no
+  accounts in `config.json`) for an IMAP source and a JMAP and an IMAP destination; the Nextcloud
+  fixture of `deploy/compose/dev.yml` for a CalDAV source and a `nextcloud` destination; each with
+  a real password (stored, the migration ready) and a wrong one (nothing stored, a try counted).
+- **E2E (managed)**, a new section of `deploy/compose/smoke-managed.sh`, on its demo Stalwart and
+  demo Nextcloud: the owner's API makes a person, an `imap` source on the demo Stalwart saved for
+  them without a password, and a `nextcloud` destination on the demo Nextcloud saved for them
+  without a password; issues the person's grant link; `GET /api/grant/:link` shows two cards, one
+  per group, each `way: password`, each naming its server; `PUT` a wrong password for the source
+  five times, the sixth answers `locked` without a login (Stalwart's own log shows five, not six);
+  a new link; the right passwords for both; both cards `Connected`, the link spent, the migration
+  no longer waiting; the API's and worker's container logs, the `audit_log` rows and the try table
+  grepped for both sentinel passwords, found nowhere. Run by the owner (T9).
+- **What no test here proves**, said in each pull request: a real Apple app-specific password
+  against Apple's servers (no test account), a real Dropbox grant, a real Cirrux Drive grant, and
+  a real Soverin or Infomaniak login.
+
+## 12. The owner's decisions
+
+- **D1. Where a destination's password is kept.** (a) On the destination account's own row, as
+  Cirrux Drive's grant is, with a managed row saying which person granted it, and that account
+  refused for anybody else's migration; (b) a new column on the migration
+  (`mailbox_mapping.target_secret_ref`), in the shared chain. **Advice: (a).** The account is the
+  person's own, one row serves all their migrations into it, it follows the Cirrux precedent, and
+  the shared chain stays untouched; the managed row is what stops an owner writing someone else's
+  data into it.
+- **D2. What the person types.** (a) The owner fixes the server and the account; the person types
+  the password, and only the fields the provider says only they know (Infomaniak's sync username
+  when the owner left it empty); (b) the person types everything, server included. **Advice:
+  (a).** A page that asks a stranger for a server is harder to answer and easier to fake; the
+  page can name what it binds to; and the owner set the migration up knowing where it goes.
+- **D3. The server a password is tried against.** (a) Shown with its domain in bold; pinned to
+  the provider's published server for Apple, Soverin, Cirrux and Infomaniak; for generic kinds the
+  owner's host, a DNS name only, never private or loopback, and the person decides; (b) links only
+  for kinds with a published server; (c) generic hosts only when the host's domain is the
+  account's domain. **Advice: (a).** (b) leaves out IMAP, DAV, JMAP and Nextcloud, half the
+  owner's ask; (c) refuses every hosted provider whose server is not on the address's domain,
+  which is most of them. The page, the terms' sentence and *Report this link* carry the rest.
+- **D4. What counts as a try.** (a) Only the server refusing the login; (b) every failed test.
+  **Advice: (a).** A down server or a refused mail face is not a guess at the password, and
+  counting it would lock people out for our or their provider's fault.
+- **D5. Where tries are kept.** (a) A managed table (one migration, with D1's row); (b) in process
+  memory, like the knock limiter. **Advice: (a).** A restart, or a second replica, must not hand
+  out five more tries at somebody's password.
+- **D6. The owner changing a password the person typed.** (a) Refused, with *make them a new grant
+  link*; (b) allowed, and recorded. **Advice: (a).** Otherwise an owner can replace the person's
+  password with one they know, and the promise that it never passes through the owner holds only
+  until the first rotation.
+- **D7. The appliance.** (a) Nothing in alpha.21, said in its guide (§8.3); (b) build links there
+  too. **Advice: (a).** It has no person rows, no public address for a phone to reach, and no CSP
+  yet; ADR-0035 left it open on purpose.
+- **D8. The privacy policy and terms.** (a) As drafted in §8.5, a new version of each, and **not**
+  asked again of existing customers (the change adds a way for the account holder to type their
+  own password and a rule against misuse; it takes nothing from anyone); (b) as drafted, and asked
+  again; (c) changes. **Advice: (a)**, for the owner to judge: it is the owner's legal text.
+- **D9. The order if time runs short.** (a) Password sources (Apple, IMAP, DAV), then password
+  destinations, then Cirrux Drive, then Dropbox; (b) destinations first; (c) Dropbox first
+  (smallest). **Advice: (a).** It is the case the owner met (a family member's account), and
+  Apple has no other way at all; Dropbox is the least used and already has the owner's own
+  connect.
+
+## 13. What is not in it
+
+- **A migration's own link** (made before 2026-10-03): no password page. Those links expire within
+  30 days of being made; the page they open keeps its sign-in cards.
+- **Box, a company's own Microsoft app (`graph`, `oauth2`), Google's domain-wide delegation**:
+  category C (ADR-0035 decision 3), organisation-held by design; no person grants them.
+- **Gmail's app password** (`gmail`'s `appPassword`): Gmail is granted by Google's sign-in; the
+  app password is the owner's fallback for IMAP and stays the owner's.
+- **An export archive**: it has no credential (`secretFieldKeys('source', 'archive')` is empty).
+- **Withdrawing at the provider** for a password: there is no API for it; the page says to change
+  the password there (§5.9).
+- **Sending the link**: still the owner's (ADR-0035 decision 2). Ownpace sends nothing.
+- **The appliance** (D7).
+- **Telling the person which try failed in the server's own words**: categories only (§5.7).
+
+## 14. Open questions
+
+1. Whether Cirrux's API names the signed-in user or workspace on a token, so the Drive grant
+   binds to it directly rather than through the stored app password (§4.4). Read
+   `https://cirrux.co/help/api` when T5 starts, and cite it.
+2. The published servers of Soverin, Cirrux and Infomaniak, for `PROVIDER_ENDPOINTS` (D3 (a)):
+   read and cited per provider; a provider whose page cannot be read stays generic, its host
+   shown for the person to judge, as 0171 T10 did for MX hosts.
+3. Which status the path that saves a Google or Microsoft account by its address alone writes
+   today (§8.2). The CHECK has no *waiting* value and this plan adds none; if the build finds the
+   observation cannot be made from the rows, it says so here before writing a shared migration.
+4. Whether `probeAnswers` can be handed an error whose text carries the password (an IMAP
+   library that echoes the `LOGIN` command): the guard (§5.6) answers it for the recorded probes;
+   T3 also reads `imapflow`'s and the DAV client's error paths and says what it found.

@@ -4,6 +4,12 @@
 
 ## Status — 2026-11-24 (update this block at the end of every session)
 
+**2026-11-25: T4 and T5 move to workplan 0174.** Dropbox's grant link and Apple's page did not
+make alpha.20. The owner then asked for grant links for every account a person can grant,
+sources and destinations, in alpha.21 (*"1: b"*, *"2: a"*). [Workplan 0174](./0174-grant-links-for-every-account.md) supersedes T4 (its T2) and T5 (its
+own-password page, T3 and T4, for Apple and every password kind); §3.5 and §3.6 here stay as
+the record of what was planned.
+
 **2026-11-24, the owner's answer on T1.** Where a photo in no album lands: under the export's
 own top wrapper folder (for example `iCloud Photos`), never the iCloud Drive root. The owner:
 *"B ok yes"*. §2.2 says so, and a unit case pins it with a zip whose file name differs from the
@@ -56,8 +62,8 @@ open earlier. No database change is expected (§8). Every claim about the code b
 | T1 Apple's export: the reader | builder | 🔨 **Built 2026-11-24**, in review | §2.2–2.4. `apple-privacy-archive-reader.ts`, in `READERS` and `ARCHIVE_PROVIDERS_WITH_READERS`; Drive and photos found by their manifests; refuses neither-manifest, fewer parts than `parts`, two exports. Dates from the zip (UTC field, else DOS stamp read as UTC). 18 unit cases; the integration case not run here (no container runtime where it was built). Adds `ArchiveLocation.parts`/`ArchiveSource.parts` and an optional `ArchiveTree.modifiedAt`. |
 | T2 Apple's export: the screens, guides and site | builder | 📋 Planned | §2.5–2.6. *To be tested* becomes *Experimental*; the part count; the Advanced Data Protection warning; the time-zone sentence corrected. M. After T1's interface. |
 | T3 Grant links: the provider seam, and Microsoft | builder | 🔄 In review | §3.2–3.4. Built: `grant-providers.ts` (Google and Microsoft entries; Dropbox and Apple in the id type, no entry); readiness, routes, endings and page per provider; Microsoft bound over UPN, mail and proxy addresses, personal accounts over the sign-in name; `User.Read` on every new Microsoft consent (D7). Proven by unit tests on PGlite (20 route cases) and the pure ones; not proven: a real work tenant's grant link. Two additions to §3.2's interface, said below. Merges before T4 and T5. |
-| T4 Grant links: Dropbox | builder | 📋 Planned | §3.5. S. On T3's seam. |
-| T5 Grant links: Apple's app-specific password | builder | 📋 Planned | §3.6. M. On T3's seam. |
+| T4 Grant links: Dropbox | builder | ⛔ **Superseded 2026-11-25 by 0174 T2** | §3.5. Not in alpha.20. |
+| T5 Grant links: Apple's app-specific password | builder | ⛔ **Superseded 2026-11-25 by 0174 T3–T4** | §3.6. Not in alpha.20; 0174's own-password page covers Apple and every password kind. |
 | T6 Shared calendars: whose calendar it is | builder | 📋 Planned | §4.2–4.4. Ownership read from CalDAV, Google and Graph; a calendar the account does not own is left out by default, listed on *Review and start*. L. |
 | T7 Shared calendars: their sharing carried over | builder | 📋 Planned | §4.5–4.6. Google's ACL and CalDAV's invite list become share rows; Nextcloud calendar shares applied over CalDAV; the files-share defect fixed. L. After T6's interface. |
 | T8 Flags and read state kept in step | builder | 📋 Planned | §5. A keyword pass on every later pass; CONDSTORE where the server has it; the IMAP target's `\Seen` default fixed; the architecture's line corrected to what is built. L. |
