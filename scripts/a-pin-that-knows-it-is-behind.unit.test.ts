@@ -2582,10 +2582,14 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
     }
   });
 
-  it('reads both action images from images.yml, each by a release tag and its digest, and every other workflow without fault', () => {
+  it('reads each action image from images.yml, each by a release tag and its digest, and every other workflow without fault', () => {
     for (const file of WORKFLOWS) expect(() => actionImages(REAL.read(file)!), file).not.toThrow();
     const named = actionImages(REAL.read(ACTION_IMAGES_WORKFLOW)!);
-    expect(named.map((i) => [i.action, registryOf(i.repo).name])).toEqual(ACTION_IMAGES.map((s) => [s.action, s.repo]));
+    // The SBOM generator is named on both build-push-action steps, the first attempt and the retry: one pin.
+    const distinct = [...new Map(named.map((i) => [`${i.action} ${registryOf(i.repo).name}`, [i.action, registryOf(i.repo).name]])).values()];
+    expect(distinct).toEqual(ACTION_IMAGES.map((s) => [s.action, s.repo]));
+    expect(named.filter((i) => i.action === 'docker/build-push-action')).toHaveLength(2);
+    expect(new Set(named.filter((i) => i.action === 'docker/build-push-action').map((i) => i.ref)).size).toBe(1);
     for (const image of named) {
       expect(image.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
       expect(image.tag).toMatch(/\d+\.\d+\.\d+/);
@@ -2608,7 +2612,32 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
     expect(() => actionImages(mutate(qemu!.ref, `docker.io/tonistiigi/binfmt@${qemu!.digest}`))).toThrow(/not a release tag and its digest/);
     expect(() => actionImages(mutate(buildkit!.ref, `moby/buildkit:v0.34.0-rc1@${buildkit!.digest}`))).toThrow(/not a release tag and its digest/);
     // The docker driver starts no BuildKit container, so it needs no image.
-    expect(actionImages(mutate(/driver-opts: image=moby\/buildkit:\S+/, 'driver: docker')).map((i) => i.action)).toEqual(['docker/setup-qemu-action']);
+    expect(
+      actionImages(mutate(/driver-opts: image=moby\/buildkit:\S+/, 'driver: docker'))
+        .map((i) => i.action)
+        .filter((a) => a !== 'docker/build-push-action'),
+    ).toEqual(['docker/setup-qemu-action']);
+  });
+
+  it('refuses an SBOM left to BuildKit\'s default generator, or one named by a channel tag, by a mutation of images.yml (SBOM-1, 2026-11-24)', () => {
+    const images = REAL.read(ACTION_IMAGES_WORKFLOW)!;
+    const syft = actionImages(images).find((i) => i.action === 'docker/build-push-action')!;
+    expect(syft.repo).toBe('docker/buildkit-syft-scanner');
+    const every = (from: string, to: string): string => {
+      const next = images.split(from).join(to);
+      expect(next, from).not.toBe(images);
+      return next;
+    };
+    expect(() => actionImages(every(`'generator=${syft.ref}'`, "'true'"))).toThrow(/names no image in `sbom`, so it runs its default, `docker\/buildkit-syft-scanner:stable-1`/);
+    expect(() => actionImages(every(syft.ref, `docker/buildkit-syft-scanner:stable-1@${syft.digest}`))).toThrow(/not a release tag and its digest/);
+    expect(() => actionImages(every(syft.ref, `docker/buildkit-syft-scanner:${syft.tag}`))).toThrow(/not a release tag and its digest/);
+    // An SBOM asked for through `attests` with no generator is the same default.
+    expect(() => actionImages(every('          sbom: ', '          attests: type=sbom\n          sbom: '))).toThrow(/no generator/);
+    // A step that asks for no SBOM runs no generator; an expression with no generator in it may still ask for one.
+    const without = images.replace(/^ +sbom: .*\n/gm, '');
+    expect(without).not.toBe(images);
+    expect(actionImages(without).map((i) => i.action)).not.toContain('docker/build-push-action');
+    expect(() => actionImages(every(`'generator=${syft.ref}'`, "''"))).toThrow(/names no image in `sbom`/);
   });
 
   it("is a routine pin each, current while the channel the action ran names the pinned build, behind when it names another", async () => {
