@@ -270,6 +270,17 @@ export const grantApi = {
   },
 
   /**
+   * Where a destination's sign-in button goes (workplan 0174 §4.4, T5):
+   * Cirrux Drive, today the one. The card is named by its `ref`, since Cirrux
+   * vouches for no address. Answers a URL to follow, never a redirect; the
+   * page follows it only to `CONSENT_HOSTS.cirrux`.
+   */
+  authorizeDrive: async (link: string, ref: string, locale: Locale): Promise<{ url: string }> => {
+    const res = await client.post(`/grant/${encodeURIComponent(link)}/cirrux/authorize`, { ref, locale });
+    return z.object({ url: z.string() }).parse(res.data);
+  },
+
+  /**
    * The person's own password for one card (workplan 0174 §5.3): `PUT` with a
    * JSON body, by `fetch`, never a form and never a query string, so the
    * password is in no URL, history entry or referrer. The values go only into

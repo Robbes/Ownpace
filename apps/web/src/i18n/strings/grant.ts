@@ -138,6 +138,15 @@ export const en = {
   // A Dropbox link (workplan 0174 §6): the same page, in Dropbox's words.
   // Dropbox takes no login hint, so the sign-in line says what to do when it
   // offers another account.
+  // A destination's Cirrux Drive on a person's link (workplan 0174 §4.4, T5),
+  // shown once the account's app password is stored. The button's words are
+  // the owner's own (`account.cirrux.connect`).
+  'grant.continue.cirrux': 'Connect Cirrux Drive',
+  'grant.connectAgain.cirrux': 'Connect Cirrux Drive again',
+  'grant.connecting.cirrux': 'Opening Cirrux…',
+  'grant.cirrux.drive':
+    'Your files go to Cirrux Drive, which takes your own Cirrux sign-in rather than the app password. You sign in to Cirrux yourself, on Cirrux’s own page.',
+  'grant.cirrux.signInAs': 'Sign in to Cirrux with the account {account} belongs to.',
   'grant.continue.dropbox': 'Continue with Dropbox as {account}',
   'grant.connectAgain.dropbox': 'Connect again with Dropbox as {account}',
   'grant.connecting.dropbox': 'Opening Dropbox…',
@@ -319,6 +328,12 @@ export const nl: Record<keyof typeof en, string> = {
     'Log in als {account}. Microsoft bevestigt met welk account u zich aanmeldt; andere accounts worden geweigerd.',
   'grant.withdraw.microsoft':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of in uw Microsoft-account, bij de apps die toegang hebben.',
+  'grant.continue.cirrux': 'Cirrux Drive verbinden',
+  'grant.connectAgain.cirrux': 'Cirrux Drive opnieuw verbinden',
+  'grant.connecting.cirrux': 'Cirrux wordt geopend…',
+  'grant.cirrux.drive':
+    'Uw bestanden gaan naar Cirrux Drive, en daarvoor is uw eigen aanmelding bij Cirrux nodig, niet het app-wachtwoord. U meldt zich zelf aan bij Cirrux, op de pagina van Cirrux zelf.',
+  'grant.cirrux.signInAs': 'Meld u bij Cirrux aan met het account waar {account} bij hoort.',
   'grant.continue.dropbox': 'Doorgaan met Dropbox als {account}',
   'grant.connectAgain.dropbox': 'Opnieuw verbinden met Dropbox als {account}',
   'grant.connecting.dropbox': 'Dropbox wordt geopend…',

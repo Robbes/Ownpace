@@ -364,6 +364,26 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
     }
   };
 
+  // A destination's Cirrux Drive (0174 §4.4, T5): named by its `ref`, since
+  // Cirrux vouches for no address; followed only to Cirrux's own host.
+  const connectDrive = async (a: PersonGrantCard) => {
+    setStarting(a.ref);
+    setFailure(null);
+    try {
+      const { url } = await grantApi.authorizeDrive(link, a.ref, locale);
+      const consent = consentToFollow('cirrux', url);
+      if (consent === null) {
+        setFailure({ account: a.ref, error: new NotTheProvider('Cirrux') });
+        setStarting(null);
+        return;
+      }
+      globalThis.location.assign(consent);
+    } catch (error) {
+      setFailure({ account: a.ref, error });
+      setStarting(null);
+    }
+  };
+
   const onPasswordAnswer = (ref: string, answer: PasswordAnswer) => {
     if (answer.kind === 'connected') setConnectedHere((prev) => new Set(prev).add(ref));
     else if (answer.kind === 'locked') setTriesHere((prev) => ({ ...prev, [ref]: { left: 0, locked: true } }));
@@ -438,6 +458,37 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
             </p>
           ) : a.notReady ? (
             <p className="mt-3 text-sm text-amber-800">{locale === 'nl' ? a.notReady.reasonNl : a.notReady.reason}</p>
+          ) : signIn && roleOf(a) === 'target' && a.provider === 'cirrux' ? (
+            // Cirrux Drive, the destination's sign-in, offered once the
+            // account's app password is stored (0174 §4.4). The refusals of
+            // its ending are the server's own page, in the person's language.
+            <div data-drive-card="cirrux">
+              {a.again && <p className="mt-3 text-sm text-gray-900">{t('grant.person.again')}</p>}
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="flex items-start gap-2 text-sm text-green-900">
+                  <ShieldCheck className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+                  <span>{t('grant.cirrux.drive')}</span>
+                </p>
+              </div>
+              <p className="mt-3 text-sm font-medium text-gray-900 break-words">
+                {t('grant.cirrux.signInAs', { account: a.account })}
+              </p>
+              <button
+                type="button"
+                onClick={() => void connectDrive(a)}
+                disabled={starting !== null}
+                className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-words"
+              >
+                {starting === a.ref
+                  ? t('grant.connecting.cirrux')
+                  : t(a.again ? 'grant.connectAgain.cirrux' : 'grant.continue.cirrux')}
+              </button>
+              {failure?.account === a.ref && (
+                <p role="alert" className="mt-3 text-sm text-amber-800">
+                  {failureSentence(failure.error, locale, t)}
+                </p>
+              )}
+            </div>
           ) : !signIn ? (
             <GrantPasswordCard
               link={link}
@@ -571,7 +622,8 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
         </a>
       </p>
       {/* Where each provider's access is withdrawn, once per sign-in provider on the page. */}
-      {[...new Set(data.accounts.filter((a) => wayOf(a) === 'sign-in').map((a) => a.provider ?? 'google'))].map((p) => (
+      {/* A destination's sign-in (Cirrux Drive) is withdrawn on the progress page (0174 §4.3). */}
+      {[...new Set(data.accounts.filter((a) => wayOf(a) === 'sign-in' && roleOf(a) === 'source').map((a) => a.provider ?? 'google'))].map((p) => (
         <p key={p} className="mt-3 text-sm text-gray-500">
           {t(wordsOf(p).withdraw)}
         </p>
