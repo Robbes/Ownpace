@@ -13,28 +13,18 @@
  * person (0174 §8.2): each account by its server and its login, no password,
  * `status: 'error'`.
  *
- * The `vi.mock`s stay in each file (Vitest hoists them per file); this holds
- * everything else.
+ * The `vi.mock`s and the database pools stay in each file (Vitest hoists
+ * mocks per file, and only a test file may open the owner's pool:
+ * `a-route-that-opened-the-owners-pool`); this holds everything else.
  */
 
 import { expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
 import { expiryFromDays, withTenant } from '@openmig/ledger';
 import { issuePersonLink } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
-
-/** The superuser pool for the rows, and `app_user` for the route, as the managed API reads. */
-export function databaseFor(): { readonly owner: Pool } {
-  const url = process.env.TEST_DATABASE_URL;
-  if (!url) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
-  const app = new URL(url);
-  app.username = 'app_user';
-  app.password = 'app_password';
-  process.env.APP_DATABASE_URL = app.toString();
-  return { owner: new Pool({ connectionString: url, max: 4 }) };
-}
 
 /** The grant routes as `index.ts` mounts them. */
 export async function grantApp(): Promise<express.Express> {

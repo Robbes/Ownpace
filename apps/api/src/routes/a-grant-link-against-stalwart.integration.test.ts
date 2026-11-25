@@ -53,12 +53,12 @@ process.env.WEB_URL ??= 'https://app.example';
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { isIP } from 'node:net';
+import { Pool } from 'pg';
 import { withTenant } from '@openmig/ledger';
 import {
   card,
   captureOutput,
   clean,
-  databaseFor,
   grantApp,
   mint,
   noPasswordAnywhere,
@@ -70,6 +70,17 @@ import {
   triesOf,
   type Organisation,
 } from '../__tests__/grant-link-real-servers-fixture.ts';
+
+/** The superuser pool for the rows, and `app_user` for the route, as the managed API reads. */
+function databaseFor(): { readonly owner: Pool } {
+  const url = process.env.TEST_DATABASE_URL;
+  if (!url) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
+  const app = new URL(url);
+  app.username = 'app_user';
+  app.password = 'app_password';
+  process.env.APP_DATABASE_URL = app.toString();
+  return { owner: new Pool({ connectionString: url, max: 4 }) };
+}
 
 /** Logins the real probe was asked for: the sixth try must not be one. */
 const logins = { source: 0, target: 0 };
