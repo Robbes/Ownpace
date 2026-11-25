@@ -155,6 +155,12 @@ export const QUALIFICATION_REASONS = [
   'incomplete',
   /** We asked and could not tell: a refusal, a timeout, a path that 404s. */
   'refused',
+  /**
+   * We asked and the provider had a temporary error: a 5xx, or 429 (too many
+   * requests). Not a refusal: the account may be fine, and the sentence says
+   * to test again in a minute (2026-11-25, a Google 502 read as a refusal).
+   */
+  'temporary',
 ] as const;
 
 export type QualificationReason = (typeof QUALIFICATION_REASONS)[number];
@@ -166,7 +172,8 @@ export type QualificationReason = (typeof QUALIFICATION_REASONS)[number];
  * report cannot drift into four different opinions about the same record.
  *
  * `refused` earns one: nothing answered, the cause is outside the product,
- * and the sentence is the only route to fixing it.
+ * and the sentence is the only route to fixing it. `temporary` earns one too:
+ * it is the sentence that says to test again in a minute.
  *
  * `structural` does not: the front door already said what a Dropbox carries,
  * and repeating it under every connection is noise proportional to how many
@@ -195,5 +202,5 @@ export type QualificationReason = (typeof QUALIFICATION_REASONS)[number];
  * case that matters. The next Test writes a reason and the noise goes.
  */
 export function reasonEarnsASentence(reason: QualificationReason | undefined): boolean {
-  return reason === undefined || reason === 'refused' || reason === 'incomplete';
+  return reason === undefined || reason === 'refused' || reason === 'incomplete' || reason === 'temporary';
 }

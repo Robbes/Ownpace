@@ -126,6 +126,36 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   moet noemen. De handleidingen hebben per account een stuk *Als het account van iemand anders
   is*, en de website zegt het op de pagina's *Waar naartoe* en *Weg bij…*.
 
+### Fixed
+
+- **A Google, Microsoft or Dropbox account saved for a person is no longer called broken**
+  (workplan 0174 §8.2; found on the managed test environment on alpha.20). Such an account is
+  saved by its address alone: the person's sign-in through their grant link is stored on each of
+  their migrations, never on the account. The Accounts page showed it with a red error icon,
+  *"Unmeasured — the stored credentials carry no clientId/refreshToken pair"* under every data
+  type, and its Test gave the advice for your own Google app. It now says *Waiting for {person}:
+  they sign in themselves, with their grant link* until one of their migrations holds the
+  sign-in, and *{person} connected this account themselves* once one does, with no error icon. A
+  Test while it waits tries nothing and says whom it waits for; once they have signed in, the
+  Test measures the account with the sign-in their migration holds, on the server, and nothing of
+  it is answered.
+- **A provider's error page is no longer printed on the screen.** A Test of a Google account
+  printed Google's whole HTML error page after *"the face did not answer: PROPFIND failed with
+  status 502"*, as if Google had refused. Where Google, Microsoft, Dropbox, Box or Apple answer
+  with an error, the Test, the Accounts page and the finish checks now say the status and a short
+  plain reason, or the provider's own error words when they come as an error document we know;
+  never the body, and capped. A 5xx or 429 reads *Google had a temporary error (502). Test again
+  in a minute.*, and is recorded as temporary, not as a refusal. The data type is named by its
+  name, and *clientId/refreshToken* no longer appears in a sentence anyone reads.
+  **Nederlands:** een Google-, Microsoft- of Dropbox-account dat voor iemand anders is opgeslagen,
+  heet niet meer kapot. Zo'n account wordt alleen met het adres opgeslagen: de aanmelding via de
+  toegangslink komt op de migraties van die persoon te staan, niet op het account. De pagina
+  Accounts zegt nu *Wacht op {persoon}: die meldt zich zelf aan, met de toegangslink*, en zodra
+  dat gebeurd is *{persoon} heeft dit account zelf verbonden*, zonder foutteken; Test meet het
+  account dan met die aanmelding. En een foutpagina van een aanbieder staat niet meer op het
+  scherm: u leest de status en een korte reden, en bij een 5xx of 429 *Google had een tijdelijke
+  fout (502). Test over een minuut opnieuw.*
+
 ## [0.2.0-alpha.20] - 2026-11-25
 
 Every first copy of mail, files and calendars now brings the last 90 days first, then everything

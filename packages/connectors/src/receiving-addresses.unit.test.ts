@@ -57,8 +57,17 @@ describe('Graph', () => {
   });
 
   it('says any other failure in Graph\'s words', async () => {
+    const got = await readGraphReceivingAddresses(token, answering(409, { error: { code: 'Conflict', message: 'Try later' } }));
+    expect(got).toEqual({ state: 'failed', provider: 'Microsoft', reason: 'Microsoft answered 409: Conflict — Try later.' });
+  });
+
+  it('says a 5xx is a temporary error at Microsoft, and nothing of its body (2026-11-25)', async () => {
     const got = await readGraphReceivingAddresses(token, answering(503, { error: { code: 'ServiceUnavailable', message: 'Try later' } }));
-    expect(got).toEqual({ state: 'failed', provider: 'Microsoft', reason: 'Graph answered 503: ServiceUnavailable — Try later' });
+    expect(got).toEqual({
+      state: 'failed',
+      provider: 'Microsoft',
+      reason: 'Microsoft had a temporary error (503). Test again in a minute.',
+    });
   });
 });
 
