@@ -316,6 +316,17 @@ describe('what somebody else can connect themselves, by a grant link (0108)', ()
     }
   });
 
+  it('is Dropbox beside the password kinds once T2 and T6 meet: each by its own rule (0174 §6, §8.1)', () => {
+    // A deployment that serves Dropbox: Dropbox and every password source.
+    const dropbox = { ...NARROW, grantProviders: ['dropbox'] } as const;
+    for (const card of ['dropbox', 'imap', 'apple', 'caldav', 'carddav', 'webdav']) {
+      expect(grantableByLink(card, dropbox), card).toBe(true);
+    }
+    // One that does not: the password sources still, Dropbox not.
+    expect(grantableByLink('dropbox', { ...NARROW, grantProviders: [] })).toBe(false);
+    expect(grantableByLink('imap', { ...NARROW, grantProviders: [] })).toBe(true);
+  });
+
   it('is every password source, served or not: the person types it themselves (0174 §8.1)', () => {
     for (const card of ['imap', 'apple', 'caldav', 'carddav', 'webdav']) {
       expect(grantableByLink(card, OWN_CLIENT), card).toBe(true);
