@@ -17,11 +17,13 @@ the progress page is not built (`withdraw-grant.ts` deletes `source_secret_ref` 
 privacy policy says *bestemming* where *doel* meant the target, as the Dutch terms do (#2158);
 *Doel* as a purpose stays. `ACCEPTED_WORDS` re-pins privacy and terms under 1.0; #2158 re-pins
 terms too, so the terms pins are computed again at whichever merge comes second.
-`docs/grant-links.md`, the guides EN/NL (`start.md` and an *If the account is somebody else's*
-section in `apple`, `imap`, `dav`, `jmap`, `nextcloud`, `soverin`, `cirrux`, `infomaniak` and
-`dropbox`), the appliance's sentence (§8.3, in each of those and `docs/selfhost-quickstart.md`),
-and the site's *Where to* and *Leaving…* pages, both languages. No code under `apps/` or
-`packages/`.
+`docs/grant-links.md`, the guides EN/NL (an *If the account is somebody else's* section in
+`apple`, `imap`, `dav`, `jmap`, `nextcloud`, `soverin`, `cirrux`, `infomaniak` and `dropbox`), the
+appliance's sentence (§8.3) in `docs/selfhost-quickstart.md`, and the site's *Where to* and
+*Leaving…* pages, both languages. Not in the served guides: `end-user-docs.unit.test.tsx` refuses
+a guide that addresses one edition (*the appliance*), and `start.md` is *How a migration copies*,
+whose four sections `Docs.unit.test.tsx` pins; *They do, with a link* is said in each provider's
+section and in `docs/grant-links.md` instead. No code under `apps/` or `packages/`.
 
 **2026-11-25, later: the owner's decisions.** *"All adviced."*: D1 to D9 as advised, (a) each,
 and D3 with the one addition put to the owner with it (§12, D3): a warning beside the server when

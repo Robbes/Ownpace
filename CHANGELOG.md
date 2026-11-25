@@ -191,8 +191,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   password, tested before it is stored. `docs/grant-links.md` gains *A password, typed by the
   person*, the two groups on the page, Dropbox and Cirrux Drive, the destination question, and
   *Locked on this link*. Every guide for an account a link connects gains *If the account is
-  somebody else's*, *How a migration copies* says *They do, with a link* covers every account and
-  the destination, and the appliance's guide and quickstart say it has no grant links (D7). The
+  somebody else's*, and the self-host quickstart says the appliance has no grant links (D7). The
   site's *Where to* and *Leaving…* pages (all but Box's) say a link can connect somebody else's
   account without their password passing through you.
   **Nederlands:** de privacyverklaring en de servicevoorwaarden zijn aangepast en blijven versie

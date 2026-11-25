@@ -27,8 +27,6 @@ Test asks Dropbox for the top level of the root folder only, so it answers in se
 
 If the Dropbox account belongs to a colleague, a family member or a client, do not ask for their password. In **Start a migration**, under **Who signs in to the accounts?**, choose **They do, with a link**, and send them the grant link from the last screen. They press **Continue with Dropbox as** *their account* and sign in on Dropbox's own page; the token goes straight to their migration, encrypted, and nobody sees it, you included. Dropbox is asked which account signed in, and only the named one, with a verified address, is accepted. This needs the deployment's Dropbox app, or [your own](#own-app) on the connection.
 
-On a self-hosted appliance there are no grant links.
-
 ## What moves {#what-moves}
 
 File bytes and the folder tree. Sharing state, file requests and version history stay behind.

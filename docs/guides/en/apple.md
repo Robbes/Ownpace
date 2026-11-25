@@ -49,8 +49,6 @@ Google, Microsoft and Dropbox connections offer a one-click consent button. The 
 
 If the account belongs to a colleague, a family member or a client, you do not need their password. In **Start a migration**, under **Who signs in to the accounts?**, choose **They do, with a link**. Fill in the server and the account, leave the password out, and press **Save for** *them*. They type the password themselves, on the page your grant link opens: it names the server the password is checked with, tests it before anything is stored, and nobody sees it again, you included. Five wrong passwords lock that account on that link; a new link starts again. They need an app-specific password, made at account.apple.com as [step 1](#app-password) says, not their Apple Account password; the page shows them the same steps. It is checked with Apple's own server.
 
-On a self-hosted appliance there are no grant links: to let somebody type their own password, use the managed service's grant link; the appliance has none.
-
 ## What moves {#what-moves}
 
 Mail, calendars, contacts and reminders, whichever you tick. Not iCloud Drive.

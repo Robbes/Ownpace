@@ -43,12 +43,6 @@ When you have chosen a destination, open that migration's page and press **Copy 
 - Then it goes on as any migration of everything: kept in step, checked, and switched over under **Finish** when you are ready.
 - There is no way back. A migration of everything does not become one of only the last 90 days; for that, start a new migration.
 
-## Somebody else's accounts {#somebody-else}
-
-When the accounts are a colleague's, a family member's or a client's, choose **They do, with a link** under **Who signs in to the accounts?**. Since alpha.21 this covers every account a link can connect, the destination included. For Google, Microsoft and Dropbox they sign in on their provider's own page. An account that signs in with a password (an IMAP mailbox, iCloud, CalDAV, CardDAV, WebDAV, Soverin, Nextcloud, Cirrux, Infomaniak, JMAP) you save with its server and account, under **Save for** *them*, and they type the password themselves on their grant page; it is tested before it is stored, and nobody sees it again, you included. For the destination the step asks **Whose account is …?**: yours or the organisation's, which you connect, or *their own*, which they connect with the link. The last screen says what the link asks for, *The link asks … for 2 accounts: …*, and makes it. What a link cannot connect, such as Box or a company's own Microsoft app, you connect yourself. A migration starts once both its source and its destination are connected; one you started waits, and starts by itself when they connect.
-
-On a self-hosted appliance there are no grant links: to let somebody type their own password, use the managed service's grant link; the appliance has none.
-
 ## On a self-hosted appliance {#self-hosted}
 
 On a self-hosted appliance, a migration of only the last 90 days is set in its mapping file:

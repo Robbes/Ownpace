@@ -51,8 +51,6 @@ Voor bestanden. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in
 
 Is het account van een collega, een familielid of een klant, dan hebt u diens wachtwoord niet nodig. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Anderen, met een link**. Vul de server en het account in, laat het wachtwoord leeg, en druk op **Bewaren voor** *die persoon*. Is het de bestemming, dan vraagt de stap **Van wie is het account bij …?**: kies *van die persoon zelf*, en die verbindt het met de link. Die persoon typt het wachtwoord zelf, op de pagina die uw toegangslink opent: die noemt de server waarbij het wachtwoord wordt gecontroleerd, test het voordat er iets wordt bewaard, en niemand ziet het daarna nog, u ook niet. Na vijf verkeerde wachtwoorden is dat account op die link geblokkeerd; een nieuwe link begint opnieuw. Vraag die persoon een app-wachtwoord te gebruiken als de eigen aanbieder dat biedt.
 
-Op een zelf gehoste appliance zijn er geen toegangslinks: wilt u iemand het eigen wachtwoord laten typen, gebruik dan de toegangslink van de beheerde dienst; de appliance heeft er geen.
-
 ## Wat er meegaat {#what-moves}
 
 - **CalDAV**: agenda's met hun afspraken, en takenlijsten wanneer u bij **Wat wilt u migreren?** **Taken** aanvinkt. De test telt de takenlijsten die het account al heeft, achter **Gevonden:**.

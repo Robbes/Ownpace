@@ -42,8 +42,6 @@ U kunt een IMAP-account ook vooraf toevoegen, onder **Accounts** → **Account t
 
 Is het account van een collega, een familielid of een klant, dan hebt u diens wachtwoord niet nodig. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Anderen, met een link**. Vul de server en het account in, laat het wachtwoord leeg, en druk op **Bewaren voor** *die persoon*. Is het de bestemming, dan vraagt de stap **Van wie is het account bij …?**: kies *van die persoon zelf*, en die verbindt het met de link. Die persoon typt het wachtwoord zelf, op de pagina die uw toegangslink opent: die noemt de server waarbij het wachtwoord wordt gecontroleerd, test het voordat er iets wordt bewaard, en niemand ziet het daarna nog, u ook niet. Na vijf verkeerde wachtwoorden is dat account op die link geblokkeerd; een nieuwe link begint opnieuw. Vraag die persoon een app-wachtwoord te gebruiken als de eigen aanbieder dat biedt.
 
-Op een zelf gehoste appliance zijn er geen toegangslinks: wilt u iemand het eigen wachtwoord laten typen, gebruik dan de toegangslink van de beheerde dienst; de appliance heeft er geen.
-
 ## Wat er meegaat {#what-moves}
 
 - **Als bron** leest deze kaart mail: de mappen van het postvak en de berichten daarin. Bij **Wat wilt u migreren?** biedt een mailaanbieder alleen **E-mail** aan, en zegt waarom: via IMAP wordt alleen mail gelezen. Agenda's en contacten meet deze dienst op een IMAP-account ook niet.

@@ -43,12 +43,6 @@ Hebt u een bestemming gekozen, open dan de pagina van die migratie en druk op **
 - Daarna gaat ze verder zoals elke migratie van alles: ze wordt bijgehouden, geverifieerd, en stapt over bij **Afronden** zodra u zover bent.
 - Terug kan niet. Een migratie van alles wordt geen migratie van alleen de afgelopen 90 dagen; begin daarvoor een nieuwe migratie.
 
-## Accounts van iemand anders {#somebody-else}
-
-Zijn de accounts van een collega, een familielid of een klant, kies dan bij **Wie meldt zich aan bij de accounts?** voor **Anderen, met een link**. Sinds alpha.21 geldt dat voor elk account dat een link kan verbinden, ook de bestemming. Bij Google, Microsoft en Dropbox meldt die persoon zich aan op de eigen pagina van de aanbieder. Een account dat met een wachtwoord inlogt (een IMAP-postvak, iCloud, CalDAV, CardDAV, WebDAV, Soverin, Nextcloud, Cirrux, Infomaniak, JMAP) bewaart u met de server en het account, met **Bewaren voor** *die persoon*, en die typt het wachtwoord zelf op de eigen toegangspagina; het wordt getest voordat het wordt bewaard, en niemand ziet het daarna nog, u ook niet. Bij de bestemming vraagt de stap **Van wie is het account bij …?**: van u of van de organisatie, en dan verbindt u het zelf, of *van die persoon zelf*, die het met de link verbindt. Het laatste scherm zegt waar de link om vraagt, *De link vraagt … om 2 accounts: …*, en maakt hem. Wat een link niet kan verbinden, zoals Box of de eigen app van een bedrijf bij Microsoft, verbindt u zelf. Een migratie start pas als zowel de bron als de bestemming verbonden is; een migratie die u al startte, wacht en start vanzelf zodra die persoon verbindt.
-
-Op een zelf gehoste appliance zijn er geen toegangslinks: wilt u iemand het eigen wachtwoord laten typen, gebruik dan de toegangslink van de beheerde dienst; de appliance heeft er geen.
-
 ## Op een zelf gehoste appliance {#self-hosted}
 
 Op een zelf gehoste appliance stelt u een migratie van alleen de afgelopen 90 dagen in in haar mappingbestand:
