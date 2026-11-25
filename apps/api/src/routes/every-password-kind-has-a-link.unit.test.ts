@@ -145,9 +145,11 @@ describe('the person’s card per kind (0174 §5.2, D2)', () => {
     });
   });
 
-  it('has no test yet: T3 builds it, and until then it fails loudly rather than answering', async () => {
+  it('has the create door’s test since T3, which answers a category and never throws', async () => {
+    // An IMAP source with no server: the probe refuses it before any socket,
+    // and that is no refused login, so it counts no try (0174 §5.4, D4).
     await expect(
       passwordGrantOf('source', 'imap')!.test({ role: 'source', kind: 'imap', config: {}, credentials: {}, faces: [] }),
-    ).rejects.toThrow(/workplan 0174 T3/);
+    ).resolves.toEqual({ ok: false, category: 'unreachable' });
   });
 });

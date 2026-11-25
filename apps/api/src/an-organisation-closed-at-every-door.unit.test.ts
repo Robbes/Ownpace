@@ -631,6 +631,9 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   // to the ending, which asks it.
   'routes/migrations/microsoft-oauth-routes.ts': 1,
   'routes/migrations/microsoft-link-ending.ts': 1,
+  // A password typed on a person's link (workplan 0174 T3): before the card is
+  // read, the try claimed or the server asked.
+  'routes/grant-password.ts': 1,
 };
 
 /** How a door asks: answering the refusal itself, or reading it to answer in its own form. */
@@ -699,6 +702,12 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // connections.ts word for word; every caller asks the close (excused below).
   'routes/qualify-and-remember.ts': 3,
   'routes/withdraw-grant.ts': 1,
+  // A password typed on a person's link (workplan 0174 T3): the stored records
+  // read to build what the test is handed, after the route's own close.
+  'routes/grant-password.ts': 2,
+  // Its store merges the person's password over the stored records, in the
+  // transaction that reads the close first (`readOrganisationClosure`).
+  'routes/migrations/person-grant-ending.ts': 2,
 };
 
 /** The files that use the stored access and never ask the close, and why that is right. */

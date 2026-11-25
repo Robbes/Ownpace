@@ -36,7 +36,7 @@ import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 import type { ProbeResult } from '@openmig/orchestration/probe-connection';
 import type { AccountQualification } from '@openmig/orchestration/account-qualification';
-import { annasRows, mintFor, query, resetAnna, setUpAnna } from './password-link.fixture.ts';
+import { annasRows, mintFor, query, resetAnna, setUpAnna } from '../__tests__/password-link-fixture.ts';
 
 const R = annasRows('01740004');
 
