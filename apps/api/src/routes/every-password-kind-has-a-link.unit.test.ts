@@ -145,6 +145,30 @@ describe('the person’s card per kind (0174 §5.2, D2)', () => {
     });
   });
 
+  it('names where a JMAP destination’s password goes: its baseUrl, beside the host the create door stores', () => {
+    // The create door's shape (`targetConnectionConfig`): host and port, and
+    // the baseUrl built from them. One host, named once.
+    expect(
+      passwordServerOf('jmap', {
+        type: 'jmap',
+        host: 'mail.example.org',
+        port: 443,
+        baseUrl: 'https://mail.example.org:443',
+        user: 'anna@example.org',
+      }),
+    ).toEqual({ hosts: ['mail.example.org'], published: false });
+    // A row with only a baseUrl still names its server, so the page shows it
+    // and the checks before a try see it.
+    expect(passwordServerOf('jmap', { type: 'jmap', baseUrl: 'https://jmap.example.net', user: 'anna@example.org' })).toEqual({
+      hosts: ['jmap.example.net'],
+      published: false,
+    });
+    // A baseUrl that differs from the host is named too: the password goes there.
+    expect(
+      passwordServerOf('jmap', { type: 'jmap', host: 'mail.example.org', baseUrl: 'https://192.0.2.10:443' }).hosts,
+    ).toEqual(['192.0.2.10', 'mail.example.org']);
+  });
+
   it('has the create door’s test since T3, which answers a category and never throws', async () => {
     // An IMAP source with no server: the probe refuses it before any socket,
     // and that is no refused login, so it counts no try (0174 §5.4, D4).

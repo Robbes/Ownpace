@@ -162,7 +162,10 @@ const MAIL_HOST = byName(STALWART_HOST);
 
 /**
  * The configs in the shapes `sourceConnectionConfig` and
- * `targetConnectionConfig` build. Both Stalwart mail rows opt out of
+ * `targetConnectionConfig` build, except that the JMAP rows carry only the
+ * `baseUrl` and user they connect with: the card names a JMAP row's server
+ * from its `baseUrl` too, which `every-password-kind-has-a-link` pins beside
+ * the create door's full shape. Both Stalwart mail rows opt out of
  * verifying its self-signed certificate in writing, as the demo seed's rows
  * do (`seed-managed.ts`).
  */
