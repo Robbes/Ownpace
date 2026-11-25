@@ -1,8 +1,8 @@
 # ADR-0035: Who signs in, and who just gets a link
 
 - **Status:** Accepted 2026-09-20 (owner: "yes on all 3"), substance owner-decided 2026-08-17
-  and restated 2026-08-19; amended ten times (latest 2026-11-23: a person's links show the new
-  address set up for them, ADR-0055, built); consolidated 2026-10-03 (ADR-0051)
+  and restated 2026-08-19; amended eleven times (latest 2026-11-24: from alpha.20 a grant link
+  also connects Microsoft accounts, workplan 0171 T3); consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-08-17; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0034](./0034-appliance-configuration-surface.md) (its decision 6 is
@@ -30,8 +30,8 @@
   **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days, progress links
   longer, showing no content but a person's own new address (`migration-view.ts`, ADR-0055).
 - **One link per person** (owner, 2026-09-29 and 2026-10-03; ADR-0050): a grant link and a
-  progress link for all their migrations, granting per Google account only what the page showed.
-  It replaces the per-migration link; one already sent is honoured until it expires.
+  progress link for all their migrations, granting per account (Google, Microsoft) only what the
+  page showed. It replaces the per-migration link; one already sent is honoured until it expires.
 - **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's
   move, each migration of theirs waiting for a grant starts when it lands (`via: 'grant'`).
   Before that first *Start* a grant starts nothing; a migration the owner paused stays paused.
@@ -386,6 +386,12 @@ leave the queues as they are (*"b"*).
   *Decision* 5, and *Alternatives considered*.
 - **2026-10-03, after that** — The preflight's count withholds a stopped count's text too, the last
   place decision 5's build had left open. Nothing was decided. Record: *Decision* 5.
+- **2026-11-24** — **Amended**, by the owner (*"C yes agreed, amend and in PR"*, 2026-11-24): from
+  alpha.20 a grant link also covers **Microsoft accounts, personal and work**, through the
+  provider seam of workplan 0171 T3 (`grant-providers.ts`; the refusal `source_not_google` is now
+  `source_not_grantable`). Dropbox and Apple follow in T4 and T5. *Consequences*' sentence *"a grant
+  link asks Google only"* is the record as it stood before alpha.20 and is left as written. Record:
+  *Operative rules*, fourth bullet.
 
 The full record, word for word as it read before this consolidation:
 [history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md).
