@@ -84,6 +84,7 @@ vi.mock('@openmig/orchestration/probe-connection', async (importOriginal) => {
 });
 
 const { default: grantRoutes } = await import('../grant.ts');
+const { storePersonPassword } = await import('./person-grant-ending.ts');
 const { default: migrationRoutes } = await import('./index.ts');
 const { default: connectionRoutes } = await import('../connections.ts');
 const { default: peopleRoutes } = await import('../people.ts');
@@ -120,12 +121,11 @@ interface Card {
   granted: boolean;
 }
 
-const mint = async () =>
-  (
-    await withTenant(driver, TENANT, (db) =>
-      issuePersonLink(db, { tenantId: TENANT, personId: ANNA, purpose: 'grant', createdBy: 'pat', expiresAt: expiryFromDays(7) }),
-    )
-  ).token;
+const mintLink = async () =>
+  withTenant(driver, TENANT, (db) =>
+    issuePersonLink(db, { tenantId: TENANT, personId: ANNA, purpose: 'grant', createdBy: 'pat', expiresAt: expiryFromDays(7) }),
+  );
+const mint = async () => (await mintLink()).token;
 
 const cardsOf = async (token: string): Promise<Card[]> => {
   const res = await request(app).get(`/api/grant/${encodeURIComponent(token)}`);
@@ -231,6 +231,32 @@ describe('the Drive card', () => {
     await storeAppPassword();
     const after = await cardsOf(token);
     expect(driveCard(after)).toMatchObject({ account: 'anna@cirrux.example', granted: false });
+  });
+});
+
+describe('the link’s spend after her app password (0174 §4.4, §5.3 step 7)', () => {
+  // T3's store spends the link once every card is connected, read AFTER its
+  // write: the Drive card exists only once the app password is stored, so a
+  // spend read before the write would close the link with the Drive unasked.
+  it('keeps the link live after the password, with the Drive card beside it; the Drive’s ending spends it', async () => {
+    const { id, token } = await mintLink();
+    const password = (await cardsOf(token)).find((c) => c.role === 'target' && c.way === 'password')!;
+    expect(password).toMatchObject({ provider: 'cirrux', granted: false });
+
+    const stored = await storePersonPassword(driver, { linkId: id, tenantId: TENANT, personId: ANNA, ref: password.ref }, { password: ANNAS_APP_PASSWORD });
+    expect(stored).toMatchObject({ ok: true, linkSpent: false });
+    const [live] = await rows<{ used_at: unknown }>('SELECT used_at FROM person_link WHERE id = $1', [id]);
+    expect(live!.used_at).toBeNull();
+
+    const cards = await cardsOf(token);
+    expect(cards.find((c) => c.ref === password.ref)).toMatchObject({ granted: true });
+    const drive = driveCard(cards)!;
+    expect(drive).toMatchObject({ account: 'anna@cirrux.example', granted: false });
+
+    const { ended } = await connectDrive(cirrux, token, drive.ref);
+    expect(ended.status, ended.text).toBe(200);
+    const [spent] = await rows<{ used_at: unknown }>('SELECT used_at FROM person_link WHERE id = $1', [id]);
+    expect(spent!.used_at).not.toBeNull();
   });
 });
 

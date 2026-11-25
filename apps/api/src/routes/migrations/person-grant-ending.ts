@@ -378,7 +378,10 @@ class PasswordNotStored extends Error {
  * 6. one `mapping.granted` row per migration, with the via, the role, the
  *    ref and the link: never a value, never the address that tried;
  * 7. the link is spent once every account on it is connected, read after the
- *    writes, as a sign-in's ending does.
+ *    writes, as a sign-in's ending does. After, not before: a Cirrux
+ *    destination's Drive card (T5) exists only once its app password is
+ *    stored, so a spend read before this write would close the link with the
+ *    Drive never asked (`a-drive-a-person-connects-on-their-link`).
  *
  * `values` is the person's keys only; nothing here logs it, returns it or
  * writes it anywhere but the two encrypted columns.
