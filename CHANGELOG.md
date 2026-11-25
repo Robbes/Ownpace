@@ -49,6 +49,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   starten. De servicevoorwaarden (§2) en de voorwaarden voor de Alpha (§8) zeggen hetzelfde, nog
   steeds versie 1.0. De servicevoorwaarden zeggen nu overal *bestemming* waar ze *doel* zeiden.
 
+### Fixed
+
+- **Testing an IMAP destination that opts out of verifying its certificate** (workplan 0174 T8).
+  An `imap` destination saved with `tlsVerify: false` (a server with a self-signed certificate,
+  opted out in writing) was copied to without verifying the certificate, but its test verified it
+  anyway and answered that the server could not be reached. The test now reads the same setting
+  the copy does. A person typing the password of such a destination on their grant link is tested
+  the same way.
+
 ## [0.2.0-alpha.20] - 2026-11-25
 
 Every first copy of mail, files and calendars now brings the last 90 days first, then everything
