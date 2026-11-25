@@ -6951,7 +6951,10 @@ if [ -n "$PW_PERSON" ]; then
 fi
 if [ -n "$PW_SOURCE" ]; then
   # The demo Stalwart's self-signed certificate, opted out in writing (above).
-  q "UPDATE connection SET config = config || '{\"tlsVerify\":false}'::jsonb WHERE id = '${PW_SOURCE}' AND tenant_id = '${APPLY_TENANT}'" >/dev/null
+  # Built, not a JSON literal: `q` hands its SQL to a shell inside double
+  # quotes, and that shell took a literal's quotes off (`{tlsVerify:false}`,
+  # the first E2E (managed) run of this section, 2026-11-25).
+  q "UPDATE connection SET config = config || jsonb_build_object('tlsVerify', false) WHERE id = '${PW_SOURCE}' AND tenant_id = '${APPLY_TENANT}'" >/dev/null
   [ "$(q "SELECT config->>'tlsVerify' FROM connection WHERE id = '${PW_SOURCE}'")" = "false" ] ||
     fail_at "the person's imap row could not be opted out of verifying the demo's certificate"
   # Saved without a password: nothing of theirs is held yet.
@@ -6976,11 +6979,14 @@ if [ -n "$PW_SOURCE" ] && [ -n "$PW_TARGET" ]; then
       sourceConfig:{host:"stalwart", port:993, username:$u},
       targetType:"jmap", targetConfig:{host:"stalwart", port:8080, useSsl:false, username:$tu, password:$tp},
       syncConfig:{domains:["email"]}, forPerson:$p}')")"
+  # The destination is reused, and still `targetConfig.password` is a string
+  # the create door demands: empty, as the web sends it for a reused account
+  # (StartMigration), and as the archive's migration above does.
   PW_CAL_MAPPING="$(pw_migration "$(jq -nc --arg t "$PW_TARGET" --arg url "$PW_NC_URL" --arg p "$PW_PERSON" \
     --arg tu "$TARGET_DAV_USER" \
     '{name:"gate: own password (calendar)", sourceType:"caldav",
       sourceConfig:{url:$url, username:"tenant-b-source", password:"tenant_b_source_pw"},
-      targetType:"nextcloud", targetConnectionId:$t, targetConfig:{url:$url, username:$tu},
+      targetType:"nextcloud", targetConnectionId:$t, targetConfig:{url:$url, username:$tu, password:""},
       syncConfig:{domains:["calendar"]}, forPerson:$p}')")"
   [ -n "$PW_MAIL_MAPPING" ] || fail_at "the person's mail migration could not be made"
   [ -n "$PW_CAL_MAPPING" ] || fail_at "the person's calendar migration could not be made"
@@ -7132,17 +7138,26 @@ pw_count() { # pw_count <haystack> — how many of the typed passwords it holds,
   done
   echo "$n"
 }
+# A READ THAT FAILED IS NOT ONE THAT FOUND NOTHING (the first run, 2026-11-25:
+# an empty worker log and no audit row, in a section that stopped early, were
+# called unreadable). A container or a query that does not answer fails; a log
+# or a table that holds nothing since the section began holds no password.
 if [ -n "$PW_PERSON" ]; then
   for where in api worker audit tries; do
+    unread=""
     case "$where" in
-      api) hay="$(docker logs --since "$PW_SINCE" "$API_CONTAINER" 2>&1)" || hay="" ;;
-      worker) hay="$(docker logs --since "$PW_SINCE" "$WORKER_CONTAINER" 2>&1)" || hay="" ;;
-      audit) hay="$(q "SELECT to_jsonb(a)::text FROM audit_log a WHERE tenant_id = '${APPLY_TENANT}' AND at >= '${PW_SINCE}'")" ;;
-      tries) hay="$(q "SELECT to_jsonb(t)::text FROM person_link_try t WHERE tenant_id = '${APPLY_TENANT}' AND link_id IN (SELECT id FROM person_link WHERE person_id = '${PW_PERSON}')")" ;;
+      api) hay="$(docker logs --since "$PW_SINCE" "$API_CONTAINER" 2>&1)" || unread=1 ;;
+      worker) hay="$(docker logs --since "$PW_SINCE" "$WORKER_CONTAINER" 2>&1)" || unread=1 ;;
+      audit) hay="$(q "SELECT to_jsonb(a)::text FROM audit_log a WHERE tenant_id = '${APPLY_TENANT}' AND at >= '${PW_SINCE}'")" || unread=1 ;;
+      tries) hay="$(q "SELECT to_jsonb(t)::text FROM person_link_try t WHERE tenant_id = '${APPLY_TENANT}' AND link_id IN (SELECT id FROM person_link WHERE person_id = '${PW_PERSON}')")" || unread=1 ;;
     esac
-    if [ -z "$hay" ] && [ "$where" != "tries" ]; then
-      echo "the ${where} read for the passwords came back empty"
+    if [ -n "$unread" ]; then
+      echo "the ${where} could not be read for the passwords"
       fail_at "the ${where} could not be read for the passwords"
+      continue
+    fi
+    if [ -z "$hay" ]; then
+      echo "the ${where} holds nothing since this section began, so no password either"
       continue
     fi
     found="$(pw_count "$hay")"
