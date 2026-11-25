@@ -40,6 +40,35 @@ Proved on the builder's checkout: the new unit guards; the Stalwart file's two D
 PostgreSQL from `./scripts/local-pg.sh` (its three Stalwart cases and the Nextcloud file said NOT RUN
 there: no container runtime); `bash -n` on the smoke. CI's integration job runs the server cases; the smoke runs at T9.
 
+**2026-11-25, T1 to T6 merged as #2167** (`574d35fb`), which replaced #2164: #2164's tree at
+`e0acb093` rebuilt on `main` as one commit, because gitleaks read a placeholder that one of its
+commits added to a UI test as a key, and a later commit cannot take a line out of a pull request's
+history; and three integration fixtures that now store an IMAP password, as Start asks since T1. On
+`90b79837`: CI run 45646380900 green. E2E carried over from `e0acb093`, whose code under `apps/` and
+`packages/` is the merged one's: E2E (self-hosted) on PGlite 45639419033 and on Postgres
+45641882571, and E2E (managed) 45640399829, all green. T7 (#2163), T8 and T9 follow.
+
+**2026-11-25, T7 (the words) in review: #2163.** §8.3 to §8.6 written against what T1 to T6 built
+(#2157, #2156, #2159, #2160, #2161, #2162; merged as one, #2167), on its own branch from `main`.
+ADR-0035's fourth operative bullet and amendment log as §8.4 drafts, with two changes for what was
+built: the log names Dropbox and Cirrux Drive, and *"the sharpest edge"* is answered by the server
+line, the published servers pinned for Apple, Cirrux and Infomaniak (not yet Soverin's), D3's MX
+warning, and the refusal of a server named by a number or inside a private network. The bullet took
+the section to 311 words, so five other bullets were reworded without changing their meaning, and
+the log says so. Privacy §4.1, §4.6 and §9 and terms §5 as §8.5 drafts, in place under 1.0 (D8), EN
+and NL, and §4.6 says a password the person typed is withdrawn on their progress page for an account
+we read from and one we write to alike (§4.3, built in #2167). The Dutch privacy policy says
+*bestemming* where *doel* meant the target, as the Dutch terms do (#2158); *Doel* as a purpose
+stays. `ACCEPTED_WORDS` re-pins privacy and terms under 1.0; #2158 merged first and re-pinned the
+terms for its §2, so the terms' pins are of both changes together. `docs/grant-links.md`, the guides
+EN/NL (an *If the account is somebody else's* section in `apple`, `imap`, `dav`, `jmap`,
+`nextcloud`, `soverin`, `cirrux`, `infomaniak` and `dropbox`), the appliance's sentence (§8.3) in
+`docs/selfhost-quickstart.md`, and the site's *Where to* and *Leaving…* pages, both languages. Not
+in the served guides: `end-user-docs.unit.test.tsx` refuses a guide that addresses one edition (*the
+appliance*), and `start.md` is *How a migration copies*, whose four sections `Docs.unit.test.tsx`
+pins; *They do, with a link* is said in each provider's section and in `docs/grant-links.md`
+instead. No code under `apps/` or `packages/`.
+
 **2026-11-25, the owner's read of the Dutch and one decision.** The owner read the combined
 Dutch of the grant pages, the owner's side and the server's sentences: *"all ok, advice yes"*.
 - The advice taken:
@@ -335,13 +364,13 @@ so. One managed database change is proposed (§9, D5), and none in the shared ch
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T1 The seam grows: password kinds, destinations, one shape for the page | builder | 🔎 In review, on one branch: #2164 | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
-| T2 Dropbox on the seam | builder | 🔎 In review, on one branch: #2164 | §6. Supersedes 0171 T4. S. Built 2026-11-25 on 0171 T3's seam (#2136): the binding, an unverified email and another account refused with nothing stored and the link live, a refused exchange, `grantableByLink('dropbox')`; every new test shown failing on `main` first. By mock only: no real Dropbox account. |
-| T3 The own-password route: test, try count, store, spend | builder | 🔎 In review, on one branch: #2164 | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. With §5.8's D3 (a) on the branch: Cirrux and Infomaniak pinned to their published servers (Soverin generic, §14 question 2), `server_not_public`. |
-| T4 The own-password page, per kind, in English and Dutch | builder | 🔎 In review, on one branch: #2164 | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
-| T5 Destinations on the link: Cirrux Drive and password destinations | builder | 🔎 In review, on one branch: #2164 | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. With §4.3's withdrawal on the branch: *Remove my password* on the person's progress page, the Drive grant with it, the hold lifted only when both sides have a way in. |
-| T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | 🔎 In review, on one branch: #2164 | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
-| T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 📋 Planned | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
+| T1 The seam grows: password kinds, destinations, one shape for the page | builder | ✅ Merged 2026-11-25: #2167 | §3, §4.1, §5.1, §9. The interfaces every other task builds against, the person's subject per account and role, readiness per role, the managed migration. M. First, but its interfaces are fixed here so T3 to T6 start beside it. |
+| T2 Dropbox on the seam | builder | ✅ Merged 2026-11-25: #2167 | §6. Supersedes 0171 T4. S. Built 2026-11-25 on 0171 T3's seam (#2136): the binding, an unverified email and another account refused with nothing stored and the link live, a refused exchange, `grantableByLink('dropbox')`; every new test shown failing on `main` first. By mock only: no real Dropbox account. |
+| T3 The own-password route: test, try count, store, spend | builder | ✅ Merged 2026-11-25: #2167 | §5.3–5.7, §7. `PUT /api/grant/:link/password`. L. On T1's interfaces. With §5.8's D3 (a) on the branch: Cirrux and Infomaniak pinned to their published servers (Soverin generic, §14 question 2), `server_not_public`. |
+| T4 The own-password page, per kind, in English and Dutch | builder | ✅ Merged 2026-11-25: #2167 | §5.2, §5.8, §5.9. `Grant.tsx`'s password card and its words. M. On T1's GET shape. |
+| T5 Destinations on the link: Cirrux Drive and password destinations | builder | ✅ Merged 2026-11-25: #2167 | §4. Cirrux Drive's sign-in as a target entry; a migration starts when granted only when both sides have a way in. M. On T1. With §4.3's withdrawal on the branch: *Remove my password* on the person's progress page, the Drive grant with it, the hold lifted only when both sides have a way in. |
+| T6 The owner's side: *They do, with a link* for every kind and for destinations | builder | ✅ Merged 2026-11-25: #2167 | §8.1, §8.2. *Start a migration*, the person's page, the account saved for somebody else, the refusal table. M. On T1. |
+| T7 The words around it: grant-links doc, guides EN/NL, site, ADR-0035 | builder | 🔎 In review: #2163 | §8.3–8.6. M. After the owner's D-decisions; text lands with T3 to T6. Privacy and terms after D8. |
 | T8 Proofs: integration and the managed smoke | builder | 🔎 In review, draft pull request | §11. Stalwart and Nextcloud fixtures, a real and a wrong password, the lock, the password in no log, D3 both ways; the managed smoke's section with two migrations (an IMAP source and a `nextcloud` destination share no data type). The IMAP destination probe now reads `tlsVerify`. M. |
 | T9 The managed E2E run | owner | ⏳ **Owner** | Started by the owner on the self-hosted runner, after T8 merges. |
 | T10 The owner's decisions | owner | ✅ Answered 2026-11-25 | §12: D1 to D9 as advised; D3 with the MX warning; D8 in place under 1.0. |

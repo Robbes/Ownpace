@@ -35,6 +35,10 @@ De test schrijft niets. Hij meldt zich aan en toont wat het account omvat (**Omv
 
 U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart **Nextcloud**, vul zelf de **DAV-basis-URL** in, zoals `https://cloud.example.com/remote.php/dav`, en druk op **Toevoegen en testen**.
 
+## Als het account van iemand anders is {#somebody-else}
+
+Is het account van een collega, een familielid of een klant, dan hebt u diens wachtwoord niet nodig. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Anderen, met een link**. Vul de server en het account in, laat het wachtwoord leeg, en druk op **Bewaren voor** *die persoon*. De stap voor de bestemming vraagt **Van wie is het account bij …?**: kies *van die persoon zelf*, en die verbindt het met de link. Die persoon typt het wachtwoord zelf, op de pagina die uw toegangslink opent: die noemt de server waarbij het wachtwoord wordt gecontroleerd, test het voordat er iets wordt bewaard, en niemand ziet het daarna nog, u ook niet. Na vijf verkeerde wachtwoorden is dat account voor die link geblokkeerd; een nieuwe link begint opnieuw. Die persoon heeft een app-wachtwoord nodig, gemaakt zoals [hierboven](#app-password) staat; de pagina toont dezelfde stappen.
+
 ## Wat er meegaat {#what-moves}
 
 - **Agenda**, **Contacten**, **Bestanden** en **Taken**, voor zover u ze bij **Wat wilt u migreren?** aanvinkt.
