@@ -6,7 +6,7 @@
 
 **2026-11-25: what alpha.20 moves, which live takes with its deploy, planned for 2026-11-26.** The
 fold for `v0.2.0-alpha.20` (0146's entry of the same day) carries what `main` merged after
-alpha.19's C, `909e6d74`: 30 pull requests (0146's entry lists them). What alpha.20 moves:
+alpha.19's C, `909e6d74`: 32 pull requests (0146's entry lists them). What alpha.20 moves:
 
 - the managed job runner's pg-boss, `12.38.2` to `12.39.0`, the one npm package `pnpm-lock.yaml`
   moves; its job schema goes from 46 to 47 when alpha.20's worker first starts, one way (#2138,
