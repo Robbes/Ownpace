@@ -310,6 +310,34 @@ const FIXTURES: Record<string, unknown> = {
    */
   [`GET /api/people/${PERSON}/awaiting-grant`]: { migrations: [] },
   /**
+   * YOUR OWN ROW OF THE TEAM (workplan 0176 T3), read where a person's link
+   * is made, on their page and on *Start a migration*'s last screen: the form
+   * asks your name beside the link once while you have given none. The route
+   * answers any member, not an owner only, in the shape
+   * `routes/tenants/members.ts` answers. No name and no number, as every
+   * member has before alpha.21's step B; without this answer the browser
+   * logs a 404 on every page that makes a link.
+   */
+  [`GET /api/tenants/${TENANT}/members`]: {
+    members: [
+      {
+        id: 'a0000000-0000-4000-8000-0000000000c1',
+        tenantId: TENANT,
+        userId: 'ui-smoke',
+        email: 'owner-a@demo.openmigrate.test',
+        role: 'owner',
+        status: 'active',
+        origin: 'invited',
+        invitedAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+        joinedAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+        createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+        updatedAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+        displayName: null,
+        phone: null,
+      },
+    ],
+  },
+  /**
    * WHAT NEEDS EACH PERSON, counted on their card (0153 T3 (a)). `?all=true`
    * keeps the quiet migrations, so this one is here with nothing waiting.
    */
