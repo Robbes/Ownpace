@@ -98,8 +98,8 @@ owner chose the new name and both mails' proposals (D1, D11, D12). Every sentenc
 **Every claim about the code below was read at `ae57042`,** which is `main` on 2026-11-26.
 Two changes came after 0172 was merged, and are in the lines cited: the privacy text's two
 additions about a gift (#2171), and the request form's package names in the page's language
-(#2175). §20 and §21 were read at the same tree. `main` has moved since by two changes, and
-neither opens a file this plan names (#2182, #2184).
+(#2175). §20 and §21 were read at the same tree. `main` has moved since, and no change in it
+opens a file that this plan cites for what the code does.
 
 **The order.** Three steps, each one mergeable by itself.
 - **Step A, words, screens, letting a person in, and two ceilings:** T1 to T8, T10 and T16.
