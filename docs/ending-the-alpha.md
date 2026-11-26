@@ -373,6 +373,12 @@ Support should know before the day:
   gets the new conditions like everybody else (*Before*, step 1). One that nobody has used still
   lets its person in until its date, and then gives nothing that is not free for everybody. Turning
   one into a paid code comes with payments (0177 step C).
+- **Every member may recommend someone** (the owner's D18, workplan 0177 §20.7): *"no, not in the
+  alpha. Yes after the alpha."* During the Alpha only the people the owner let in could; after the
+  switch every member has the number each person may give on the **Gifts** screen, those let in by
+  a recommendation too. The api reads the stage for it where it reads it for the access-granted
+  mail (`alphaFrom`, the row above), so emptying the stage is all it takes. Nothing refuses the
+  owner's own yes, before the switch or after it (D17).
 - **The two ceilings are the Alpha's** (D16, workplan 0177 §20): at most 50 people the owner lets
   in, and at most 50 let in by a recommendation. They are two numbers on the operator's **Gifts**
   screen, and the stage does not reach them: they keep counting and holding after the switch, with
