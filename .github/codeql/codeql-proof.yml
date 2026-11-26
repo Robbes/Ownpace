@@ -1,0 +1,6 @@
+# CodeQL's configuration for codeql.yml's proof run (workplan 0178 §8 step 2):
+# codeql.yml in this folder with the known-bad fixture read too, so the run
+# must report js/sql-injection and js/reflected-xss in it. A proof run uploads
+# nothing to code scanning. scripts/a-flow-across-files-nothing-followed.unit.test.ts
+# holds the two alike.
+name: Ownpace
