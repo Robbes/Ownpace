@@ -1557,6 +1557,13 @@ describe('signed in as a platform operator', () => {
     // what it is.
     FIXTURES['GET /api/access-requests'] = { requests: [] };
     FIXTURES['GET /api/support/tenants'] = { tenants: [] };
+    // The Alpha's counts, on the queue's line and Support's first screen (0177 §20, D17), as built.
+    FIXTURES['GET /api/gifts/operator'] = {
+      gifts: [],
+      giftsPerPerson: 1,
+      allowances: [],
+      alpha: { granted: 0, open: 0, openFromGifts: 0, unusedGifts: 0, byOwner: 0, byRecommendation: 0, ownerCeiling: 50, recommendationCeiling: 50 },
+    };
     return () => {
       FIXTURES['GET /api/me'] = ME;
     };
