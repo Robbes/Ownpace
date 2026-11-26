@@ -122,6 +122,15 @@ async function section(title: string) {
   return within(heading.closest('section')!);
 }
 
+/**
+ * A person's grant link is made once the member says they told them (0176
+ * T8): the tick before the button, then the button.
+ */
+async function makeGrantLink(grant: Awaited<ReturnType<typeof section>>) {
+  await userEvent.click(grant.getByRole('checkbox', { name: /I have told Anna that a link is coming/ }));
+  await userEvent.click(grant.getByRole('button', { name: /Create grant link/ }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   selfHostMock.mockReturnValue(false);
@@ -139,7 +148,8 @@ describe("issuing a person's grant link", () => {
     const grant = await section('One grant link for everything');
     const select = grant.getByLabelText(/The link works for/);
     expect((select as HTMLSelectElement).value).toBe('30');
-    expect(grant.getAllByRole('option').map((o) => o.textContent)).toEqual(['1 day', '7 days', '30 days']);
+    // The lifetime's own options: the form asks who you are to them too (0176 T8).
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['1 day', '7 days', '30 days']);
     expect(grant.getByRole('option', { name: '1 day' })).toBeInTheDocument();
     expect(grant.getByRole('option', { name: '30 days' })).toBeInTheDocument();
     // The progress link's lifetimes are NOT on offer here: seven days is the
@@ -169,7 +179,7 @@ describe("issuing a person's grant link", () => {
     });
     renderPersonLinks();
     const grant = await section('One grant link for everything');
-    await userEvent.click(grant.getByRole('button', { name: /Create grant link/ }));
+    await makeGrantLink(grant);
 
     // The URL is in a real input, not only behind a copy button: a browser that
     // refuses clipboard access must still leave it selectable.
@@ -192,8 +202,9 @@ describe("issuing a person's grant link", () => {
     renderPersonLinks();
     const grant = await section('One grant link for everything');
     await userEvent.selectOptions(grant.getByLabelText(/The link works for/), '1');
-    await userEvent.click(grant.getByRole('button', { name: /Create grant link/ }));
-    await waitFor(() => expect(personIssueMock).toHaveBeenCalledWith('p-anna', 'grant', 1));
+    await makeGrantLink(grant);
+    // With how the person knows the member, none chosen here (0176 T8).
+    await waitFor(() => expect(personIssueMock).toHaveBeenCalledWith('p-anna', 'grant', 1, { relation: null }));
   });
 
   it("shows a refusal in the SERVER's words, not a generic failure", async () => {
@@ -203,7 +214,7 @@ describe("issuing a person's grant link", () => {
     personIssueMock.mockRejectedValue(new Error('409'));
     renderPersonLinks();
     const grant = await section('One grant link for everything');
-    await userEvent.click(grant.getByRole('button', { name: /Create grant link/ }));
+    await makeGrantLink(grant);
     expect(await grant.findByText(/can be granted through a link/)).toBeInTheDocument();
     // And nothing that looks like a link was produced.
     expect(grant.queryByLabelText('The grant link')).not.toBeInTheDocument();

@@ -62,14 +62,14 @@ import {
   type MappingLinkPurpose,
 } from '@openmig/ledger';
 import { listPersonLinks, readPerson, revokePersonLink } from '@openmig/managed';
-import { PERSON_NOT_FOUND, SENDER_RELATIONS, log } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, PERSON_NOT_FOUND, SENDER_RELATIONS, log, type DiscoveryDomain } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import { refusedUntilAccepted } from '../conditions-not-accepted.ts';
 import { grantLinkAsk, viewLinkRefusal } from './migrations/grant-link-readiness.ts';
 import { grantReadiness, readGrantRows } from './migrations/grant-subject.ts';
-import { readPersonGrantSubject } from './migrations/person-grant-subject.ts';
+import { readPersonGrantSubject, type PersonGrantAccount } from './migrations/person-grant-subject.ts';
 import { atTheLimit, issuePersonLinkWithinTheLimit } from './migrations/live-link-limit.ts';
 import { awaitingTheirGrant } from './migrations/start-when-granted.ts';
 
@@ -111,6 +111,24 @@ const IssueSchema = z
       ctx.addIssue({ code: 'custom', path: ['expiryDays'], message: 'not an offered expiry' });
     }
   });
+
+/**
+ * WHAT A PERSON'S LINK COPIES, AND WHERE TO (workplan 0176 T8, §12), for the
+ * message the member sends with it: the data types its accounts are asked
+ * for, in the scope table's order, and the destinations' kinds, in the order
+ * met, a source's destinations first. Kinds and codes, never an address: the
+ * member's screen words them in the person's language.
+ */
+function whatTheLinkCopies(accounts: ReadonlyArray<PersonGrantAccount>): { domains: DiscoveryDomain[]; to: string[] } {
+  const domains = DISCOVERY_DOMAINS.filter((d) => accounts.some((a) => a.ask.ok && a.ask.domains.includes(d)));
+  const to: string[] = [];
+  const add = (kind: string) => {
+    if (kind && !to.includes(kind)) to.push(kind);
+  };
+  for (const a of accounts.filter((x) => x.role === 'source')) for (const m of a.migrations) add(m.to.provider);
+  for (const a of accounts.filter((x) => x.role === 'target')) add(a.provider);
+  return { domains, to };
+}
 
 /** The browser-facing address, or null when this deployment cannot say. */
 function webUrl(): string | null {
@@ -211,6 +229,7 @@ router.post(
       // A grant link asks for each account of theirs that is not connected,
       // or, when every one is, for each again (the header says why).
       let asksAgain: string[] | null = null;
+      let copies: { domains: DiscoveryDomain[]; to: string[] } | null = null;
       if (purpose === 'grant') {
         const subject = await withTenantDb(s.tenantId, pool(), (db) =>
           readPersonGrantSubject(db, s.tenantId, s.personId),
@@ -221,6 +240,7 @@ router.post(
           return void res.status(409).json({ error: 'nothing_to_grant', reason });
         }
         if (askable.every((a) => a.granted)) asksAgain = askable.flatMap((a) => a.migrations.map((m) => m.mappingId));
+        copies = whatTheLinkCopies(askable);
       }
 
       const days = parsed.data.expiryDays ?? MAPPING_LINK_LIFETIMES[purpose].fallback;
@@ -256,6 +276,9 @@ router.post(
         // Said, so the owner's screen can tell them why a link was made for
         // somebody whose accounts all read as connected.
         asksAgain: asksAgain !== null,
+        // What the link asks for, as kinds and codes, for the message the
+        // member sends with it (workplan 0176 T8): the screen words them.
+        ...(copies === null ? {} : { copies }),
         // In the payload, not only on the screen, so ADR-0035's division of
         // labour survives a redesign.
         distribution:
@@ -285,6 +308,8 @@ router.get('/:personId/links', authenticate, async (req: AuthenticatedRequest, r
         expiresAt: l.expiresAt.toISOString(),
         usedAt: l.usedAt ? l.usedAt.toISOString() : null,
         revokedAt: l.revokedAt ? l.revokedAt.toISOString() : null,
+        // How the person knows the member who made it (0176 T8), or null.
+        relation: l.relation,
       })),
     });
   } catch (error) {

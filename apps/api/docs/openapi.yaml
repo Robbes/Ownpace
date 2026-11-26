@@ -6744,6 +6744,21 @@ paths:
                   asksAgain:
                     type: boolean
                     description: A grant link made while every account of the person's was connected, which asks each again.
+                  copies:
+                    type: object
+                    description: |
+                      A grant link only (workplan 0176 T8, §12): what it asks for, as data
+                      types in the scope table's order and the destinations' kinds in the
+                      order met, for the message the member sends with it, which the screen
+                      words in the person's language. Never an address.
+                    required: [domains, to]
+                    properties:
+                      domains:
+                        type: array
+                        items: { type: string, enum: [email, calendar, contact, file, task] }
+                      to:
+                        type: array
+                        items: { type: string }
         '400': { description: '`purpose`, `expiryDays` or `relation` was not one of the offered values.' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -6795,6 +6810,9 @@ paths:
                         expiresAt: { type: string, format: date-time }
                         usedAt: { type: string, format: date-time, nullable: true }
                         revokedAt: { type: string, format: date-time, nullable: true }
+                        relation:
+                          type: [string, 'null']
+                          description: How the person knows the member who made it (workplan 0176 T3, T8), from the fixed list; null when none was chosen.
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: '`person_not_found`: this organisation has no such person.'

@@ -26,6 +26,7 @@
  */
 
 import { z } from 'zod';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain, type SenderRelation } from '@openmig/shared';
 import apiClient from './api.ts';
 
 /**
@@ -66,6 +67,9 @@ export const GrantLinkSchema = z.object({
   expiresAt: z.string(),
   usedAt: z.string().nullable(),
   revokedAt: z.string().nullable(),
+  // How the person knows the member who made it (0176 T8); a migration's
+  // links, and a server before step B, say none.
+  relation: z.string().nullable().optional(),
 });
 export type GrantLink = z.infer<typeof GrantLinkSchema>;
 
@@ -79,6 +83,14 @@ const IssuedSchema = z.object({
   // A person's grant link made while every account of theirs was connected
   // asks each of them again (managed migration 0036). A migration's never does.
   asksAgain: z.boolean().optional(),
+  // What a person's grant link asks for, for the message sent with it (0176
+  // T8): data types this screen has words for, and destination kinds.
+  copies: z
+    .object({
+      domains: z.array(z.string()).transform((ds) => ds.filter((d): d is DiscoveryDomain => (DISCOVERY_DOMAINS as readonly string[]).includes(d))),
+      to: z.array(z.string()),
+    })
+    .optional(),
 });
 export type IssuedGrantLink = z.infer<typeof IssuedSchema>;
 
@@ -130,10 +142,20 @@ export const personLinkApi = {
     return z.array(GrantLinkSchema).parse(res.data.links);
   },
 
-  issue: async (personId: string, purpose: MappingLinkPurpose, expiryDays: number): Promise<IssuedGrantLink> => {
+  /**
+   * `relation` is how the person knows you, from the fixed list, or null
+   * (workplan 0176 T3, T8); a progress link sends none.
+   */
+  issue: async (
+    personId: string,
+    purpose: MappingLinkPurpose,
+    expiryDays: number,
+    extra?: { readonly relation: SenderRelation | null },
+  ): Promise<IssuedGrantLink> => {
     const res = await apiClient.post(`/people/${encodeURIComponent(personId)}/links`, {
       purpose,
       expiryDays,
+      ...(extra === undefined ? {} : { relation: extra.relation }),
     });
     return IssuedSchema.parse(res.data);
   },

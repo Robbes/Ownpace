@@ -131,7 +131,7 @@ import { PathsAtStartNote } from '../components/PathsAtStartNote.tsx';
 import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
 import AlphaGoogleLine from '../components/AlphaGoogleLine.tsx';
-import { PersonGrantLinkSection } from '../components/MappingLinksPanel.tsx';
+import { PersonGrantLinkSection, isGoogleKind } from '../components/MappingLinksPanel.tsx';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import { AccountForm } from '../components/AccountForm.tsx';
 import ProviderTile, { providerName } from '../components/ProviderTile.tsx';
@@ -610,6 +610,11 @@ const StartMigration: React.FC = () => {
    * migration here waits for, once, sources first, by its provider and the
    * account as saved. The last screen counts them.
    */
+  // Whether the link asks a Google account, for the Alpha's lines where it
+  // is made (0176 T8): a source that waits for the person's sign-in.
+  const linkAsksGoogle = planned.some(
+    (m) => awaitsGrant(m) && byLink(m.sourceCard) && isGoogleKind(m.sourceCard) && accounts.signed(m.sourceConnectionId)?.ready !== true,
+  );
   const linkAsks: ReadonlyArray<string> = [
     ...new Set([
       ...planned.flatMap((m) =>
@@ -1164,6 +1169,7 @@ const StartMigration: React.FC = () => {
               personName={personName}
               awaitsGrant={awaitsGrant}
               linkAsks={linkAsks}
+              linkAsksGoogle={linkAsksGoogle}
               onStarted={() => {
                 void queryClient.invalidateQueries({ queryKey: ['people'] });
                 void navigate(made.personId === undefined ? '/mappings' : `/people/${made.personId}`);
@@ -3129,6 +3135,8 @@ export const CheckStep: React.FC<{
   awaitsGrant?: (m: PlannedMigration) => boolean;
   /** Each account the person's link asks for, both roles, as the last screen names them (0174 §8.1). */
   linkAsks?: ReadonlyArray<string>;
+  /** Whether one of them is a Google account, for the Alpha's lines where the link is made (0176 T8). */
+  linkAsksGoogle?: boolean;
   /** One line per changed address (0168 §6.2): the rule, never a count discovery could not have. */
   addressLines?: ReadonlyArray<AddressCheckLine>;
   /**
@@ -3153,6 +3161,7 @@ export const CheckStep: React.FC<{
   personName = '',
   awaitsGrant = () => false,
   linkAsks = [],
+  linkAsksGoogle = false,
   addressLines = [],
   beforeStart,
   addressFailures = [],
@@ -3299,6 +3308,7 @@ export const CheckStep: React.FC<{
           personId={made.personId}
           personName={personName}
           asks={linkAsks}
+          asksGoogle={linkAsksGoogle}
           onGranted={setGranted}
         />
       )}
@@ -3515,8 +3525,10 @@ const PersonAwaitingGrant: React.FC<{
   personName: string;
   /** Each account the link asks for, both roles (0174 §8.1); none named where the flow does not know. */
   asks?: ReadonlyArray<string>;
+  /** Whether it asks a Google account, for the Alpha's lines where the link is made (0176 T8). */
+  asksGoogle?: boolean;
   onGranted: (granted: boolean) => void;
-}> = ({ personId, personName, asks = [], onGranted }) => {
+}> = ({ personId, personName, asks = [], asksGoogle = false, onGranted }) => {
   const { t } = useLocale();
   const { list } = useFormatters();
   const links = useQuery({
@@ -3543,7 +3555,13 @@ const PersonAwaitingGrant: React.FC<{
             : t('start.check.linkAsks.many', { person: personName, n: asks.length, accounts: list(asks) })}
         </p>
       )}
-      <PersonGrantLinkSection personId={personId} personName={personName} links={links.data} loadFailed={links.isError} />
+      <PersonGrantLinkSection
+        personId={personId}
+        personName={personName}
+        links={links.data}
+        loadFailed={links.isError}
+        asksGoogle={asksGoogle}
+      />
     </div>
   );
 };

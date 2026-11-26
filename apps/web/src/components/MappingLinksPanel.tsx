@@ -72,10 +72,20 @@ import {
   type IssuedGrantLink,
   type MappingLinkPurpose,
 } from '../services/grant-link-service.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
+import { SENDER_RELATIONS, isSenderRelation, type SenderRelation } from '@openmig/shared';
+import { STRINGS } from '../i18n/strings.ts';
+import { fill } from '../i18n/fill.ts';
+import { formatDateTime, formatList } from '../i18n/datetime.ts';
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
+import { memberApi } from '../services/mapping-service.ts';
+import { useAuthStore } from '../stores/auth-store.ts';
+import { testerGuideSectionUrl } from '../services/tester-guide-link.ts';
+import { isAlpha } from './AlphaNote.tsx';
+import { providerName } from './ProviderTile.tsx';
 
 /**
  * What `created_by` says when the grant ending minted the link itself
@@ -192,7 +202,29 @@ const LinkSection: React.FC<{
   firstDays?: number;
   /** One line before the form: said where the link is made, before it is (0176 D13). */
   beforeForm?: React.ReactNode;
-}> = ({ doors, purpose, links, loadFailed, words: ownWords, firstDays, beforeForm }) => {
+  /** Fields before the lifetime, and between it and the button (0176 T8). */
+  fieldsBefore?: React.ReactNode;
+  fieldsAfter?: React.ReactNode;
+  /** Whether the button may be pressed: false until the form's own condition holds (0176 T8's tick). */
+  ready?: boolean;
+  /** Run before the link is made: a sentence it answers refuses it, and no link is made. */
+  beforeIssue?: () => Promise<string | null>;
+  /** What else goes with the link once it is made (0176 T8's message). */
+  withIssued?: (issued: IssuedGrantLink) => React.ReactNode;
+}> = ({
+  doors,
+  purpose,
+  links,
+  loadFailed,
+  words: ownWords,
+  firstDays,
+  beforeForm,
+  fieldsBefore,
+  fieldsAfter,
+  ready = true,
+  beforeIssue,
+  withIssued,
+}) => {
   // Links that are only listed and revoked here, never made: a migration's
   // sent before the person's replaced them.
   const issuable = doors.issue !== undefined;
@@ -217,6 +249,11 @@ const LinkSection: React.FC<{
     setIssueError('');
     setCopied(false);
     try {
+      const refused = beforeIssue ? await beforeIssue() : null;
+      if (refused !== null) {
+        setIssueError(refused);
+        return;
+      }
       const link = await doors.issue(purpose, expiryDays);
       setIssued(link);
       await queryClient.invalidateQueries({ queryKey: doors.queryKey });
@@ -273,6 +310,7 @@ const LinkSection: React.FC<{
       {issuable && beforeForm}
       {issuable && (
       <form onSubmit={issue} className="mt-3 flex flex-wrap items-end gap-3">
+        {fieldsBefore}
         <label className="flex flex-col text-sm text-gray-700">
           {t('grantLink.expiryLabel')}
           <select
@@ -287,9 +325,10 @@ const LinkSection: React.FC<{
             ))}
           </select>
         </label>
+        {fieldsAfter}
         <button
           type="submit"
-          disabled={issuing}
+          disabled={issuing || !ready}
           className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {purpose === 'grant' ? <KeyRound className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -325,6 +364,7 @@ const LinkSection: React.FC<{
           </p>
           <p className="mt-1 text-sm text-gray-700">{t('grantLink.issued.youSend')}</p>
           {issued.asksAgain && <p className="mt-1 text-sm text-gray-700">{t('personLink.asksAgain')}</p>}
+          {withIssued?.(issued)}
         </div>
       )}
 
@@ -406,14 +446,123 @@ const LinkSection: React.FC<{
 const PERSON_GRANT_LINK_DAYS = 30;
 
 /**
+ * Whether a source's kind or card is a Google account: the Alpha's lines
+ * where a person's link is made are for Google only (0176 T8), as the
+ * progress page groups Google's kinds (`View.tsx`).
+ */
+export const isGoogleKind = (kindOrCard: string): boolean => kindOrCard === 'gmail' || kindOrCard.startsWith('google');
+
+/**
+ * The order of the member's choices for who they are to the person (D7): the
+ * glossary's, which is `SENDER_RELATIONS`'s, with *I would rather not say*
+ * first, which is none.
+ */
+const RELATION_CHOICES: ReadonlyArray<SenderRelation | ''> = ['', ...SENDER_RELATIONS];
+
+/** How the person knows the member, as this member chose it last for them: offered again. */
+function lastRelationOf(links: readonly GrantLink[] | undefined, userId: string | undefined): SenderRelation | '' {
+  if (!links || !userId) return '';
+  const mine = links
+    .filter((l) => l.createdBy === userId && isSenderRelation(l.relation))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const relation = mine[0]?.relation;
+  return isSenderRelation(relation) ? relation : '';
+}
+
+/**
+ * THE MESSAGE TO SEND WITH THE LINK (workplan 0176 §12, §15): it names what
+ * was said aloud (*This is the link I told you about*), what is copied and
+ * where to, as the link asks it (`copies`), and until when, in the person's
+ * language; the link goes under it. No greeting is written for the member,
+ * and nothing hurries (R2). The member may change it before sending; *Copy
+ * message* copies what is in the box. Nothing is sent: the member sends it,
+ * through a channel the person already trusts (ADR-0035).
+ */
+const MessageToSend: React.FC<{ issued: IssuedGrantLink }> = ({ issued }) => {
+  const t = useT();
+  const { locale } = useLocale();
+  const id = React.useId();
+  const copies = issued.copies;
+  const words = STRINGS[locale];
+  const composed = copies
+    ? `${fill(words['message.toPerson'], {
+        what: formatList(
+          copies.domains.map((d) => words[DOMAIN_STRING_KEY[d]].toLocaleLowerCase(locale)),
+          locale,
+        ),
+        destination: formatList(
+          copies.to.map((kind) => providerName(kind, 'target', locale)),
+          locale,
+        ),
+        date: formatDateTime(issued.expiresAt, locale),
+      })}\n\n${issued.url}`
+    : null;
+  const [text, setText] = React.useState(composed ?? '');
+  const [copied, setCopied] = React.useState(false);
+  if (composed === null) return null;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      // Refused by the browser: the message is on screen and selectable.
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="mt-3">
+      <label htmlFor={id} className="block text-sm font-medium text-gray-900">
+        {t('personLink.message.label')}
+      </label>
+      <p id={`${id}-hint`} className="text-xs text-gray-600">
+        {t('personLink.message.hint')}
+      </p>
+      <textarea
+        id={id}
+        aria-describedby={`${id}-hint`}
+        value={text}
+        rows={7}
+        onChange={(e) => {
+          setText(e.target.value);
+          setCopied(false);
+        }}
+        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
+      />
+      <button
+        type="button"
+        onClick={copy}
+        className="mt-2 flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-white"
+      >
+        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+        {copied ? t('personLink.message.copied') : t('personLink.message.copy')}
+      </button>
+    </div>
+  );
+};
+
+/**
  * A PERSON'S grant link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)):
  * one link for all of their migrations, on their page and on *Start a
  * migration*'s last screen.
  *
- * TELL THEM FIRST (workplan 0176 D13 (a)). The person's first screen asks
- * whether the sender told them about the link themselves, so the member is
- * told so here, before the link is made. One line; a tick, a message to send
- * and the voice are step B's (T8).
+ * MADE AFTER TELLING THEM (workplan 0176 §12, T8). The person's first screen
+ * asks whether the sender told them about the link themselves, so the form
+ * holds that moment, when it can still be acted on:
+ *
+ * - step A's line (D13 (a)), and a tick before the button: *I have told
+ *   {name} that a link is coming: by phone, or in person.* It cannot be
+ *   checked; it is a prompt, and the button waits for it;
+ * - who the member is to them, from the fixed list (D7, T3), offered again as
+ *   this member chose it last for this person;
+ * - the member's name, as the person knows them, asked here once: only while
+ *   they have given none, and saved for them before the link is made
+ *   (`PUT …/members/me`); Team holds it afterwards;
+ * - during the Alpha, where the link asks a Google account: that the address
+ *   must be on Google's list of test users first, with the tester guide's
+ *   part for a family member's link, and that the Google step is best done
+ *   together (*"Yes, preferably"*);
+ * - thirty days first (D13 (a)), the choices 1, 7 and 30;
+ * - with the link, a message to send (`MessageToSend`).
  */
 export const PersonGrantLinkSection: React.FC<{
   personId: string;
@@ -421,16 +570,129 @@ export const PersonGrantLinkSection: React.FC<{
   personName: string;
   links: GrantLink[] | undefined;
   loadFailed: boolean;
-}> = ({ personId, personName, ...props }) => {
-  const t = useT();
+  /** Whether the link asks a Google account, for the Alpha's two lines. */
+  asksGoogle?: boolean;
+}> = ({ personId, personName, asksGoogle = false, ...props }) => {
+  const { t, locale } = useLocale();
+  const queryClient = useQueryClient();
+  const { user, tenantId } = useAuthStore();
+  const fieldId = React.useId();
+  const name = personName;
+
+  // Your own row, for whether your name is still to be asked (0176 T3).
+  const members = useQuery({
+    queryKey: ['members', tenantId],
+    queryFn: () => memberApi.list(tenantId as string),
+    enabled: Boolean(tenantId) && !isSelfHost(),
+    retry: false,
+  });
+  const me = members.data?.find((m) => m.userId === user?.id);
+  const asksName = me !== undefined && !me.displayName;
+
+  const [relation, setRelation] = React.useState<SenderRelation | '' | null>(null);
+  const chosen = relation ?? lastRelationOf(props.links, user?.id);
+  const [yourName, setYourName] = React.useState('');
+  const [told, setTold] = React.useState(false);
+
+  const doors: LinkDoors = {
+    ...personDoors(personId),
+    issue: (purpose, expiryDays) => personLinkApi.issue(personId, purpose, expiryDays, { relation: chosen === '' ? null : chosen }),
+  };
+
+  // Your name, before the link that shows it is made: a refusal makes no link.
+  const beforeIssue = async (): Promise<string | null> => {
+    const typed = yourName.trim();
+    if (!asksName || typed === '' || !tenantId) return null;
+    try {
+      await memberApi.setMine(tenantId, { displayName: typed });
+      await queryClient.invalidateQueries({ queryKey: ['members', tenantId] });
+      return null;
+    } catch (err) {
+      const code = (err as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+      return code === 'sender_name_refused' ? t('tenants.sender.name.refused') : serverMessage(err);
+    }
+  };
+
+  const fieldsBefore = (
+    <>
+      {asksName && (
+        <div className="flex w-full flex-col text-sm text-gray-700">
+          <label htmlFor={`${fieldId}-name`}>{t('personLink.name.label', { name })}</label>
+          <p id={`${fieldId}-name-hint`} className="text-xs text-gray-600">
+            {t('personLink.name.hint', { name })}
+          </p>
+          <input
+            id={`${fieldId}-name`}
+            aria-describedby={`${fieldId}-name-hint`}
+            autoComplete="name"
+            maxLength={60}
+            value={yourName}
+            onChange={(e) => setYourName(e.target.value)}
+            className="mt-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 w-72 max-w-full"
+          />
+        </div>
+      )}
+      <div className="flex w-full flex-col text-sm text-gray-700">
+        <label htmlFor={`${fieldId}-relation`}>{t('personLink.relation.label', { name })}</label>
+        <p id={`${fieldId}-relation-hint`} className="text-xs text-gray-600">
+          {t('personLink.relation.hint')}
+        </p>
+        <select
+          id={`${fieldId}-relation`}
+          aria-describedby={`${fieldId}-relation-hint`}
+          value={chosen}
+          onChange={(e) => setRelation(e.target.value === '' ? '' : (e.target.value as SenderRelation))}
+          className="mt-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white w-72 max-w-full"
+        >
+          {RELATION_CHOICES.map((r) => (
+            <option key={r || 'none'} value={r}>
+              {t((r === '' ? 'personLink.relation.none' : `personLink.relation.${r}`) as StringKey, { name })}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
+  );
+
+  const fieldsAfter = (
+    <>
+      {isAlpha() && asksGoogle && (
+        <div className="w-full space-y-1">
+          <p role="note" className="text-sm text-gray-900">
+            {t('personLink.alpha.testUsers', { name })}{' '}
+            <a
+              href={testerGuideSectionUrl(locale, 'familyLink')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-700 underline underline-offset-2 hover:text-blue-900"
+            >
+              {t('personLink.alpha.guide')}
+              <span className="sr-only"> {t('common.newTab')}</span>
+            </a>
+          </p>
+          <p className="text-sm text-gray-900">{t('personLink.together')}</p>
+        </div>
+      )}
+      <label className="flex w-full items-start gap-2 text-sm text-gray-900">
+        <input type="checkbox" checked={told} onChange={(e) => setTold(e.target.checked)} className="mt-0.5" />
+        <span>{t('personLink.told', { name })}</span>
+      </label>
+    </>
+  );
+
   return (
     <LinkSection
       {...props}
-      doors={personDoors(personId)}
+      doors={doors}
       purpose="grant"
       words={PERSON_WORDS.grant}
       firstDays={PERSON_GRANT_LINK_DAYS}
-      beforeForm={<p className="mt-3 text-sm text-gray-900">{t('personLink.tellFirst', { name: personName })}</p>}
+      beforeForm={<p className="mt-3 text-sm text-gray-900">{t('personLink.tellFirst', { name })}</p>}
+      fieldsBefore={fieldsBefore}
+      fieldsAfter={fieldsAfter}
+      ready={told}
+      beforeIssue={beforeIssue}
+      withIssued={(issued) => <MessageToSend key={issued.id} issued={issued} />}
     />
   );
 };

@@ -259,11 +259,15 @@ export async function revokePersonLink(
   return updated.length > 0;
 }
 
-/** Every link of one person, newest first, with its state and no secret. */
+/**
+ * Every link of one person, newest first, with its state and no secret, and
+ * how the person knows the member who made it (workplan 0176 T8), so the form
+ * can offer that member's choice again.
+ */
 export async function listPersonLinks(
   db: PgDatabase,
   input: { tenantId: string; personId: string; now?: Date },
-): Promise<PersonLinkSummary[]> {
+): Promise<Array<PersonLinkSummary & { readonly relation: string | null }>> {
   const now = input.now ?? new Date();
   const rows = await db
     .select({
@@ -274,6 +278,7 @@ export async function listPersonLinks(
       expiresAt: personLink.expiresAt,
       usedAt: personLink.usedAt,
       revokedAt: personLink.revokedAt,
+      relation: personLink.relation,
     })
     .from(personLink)
     .where(and(eq(personLink.tenantId, input.tenantId), eq(personLink.personId, input.personId)))

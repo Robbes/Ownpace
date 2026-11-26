@@ -81,7 +81,7 @@ import { fetchProgress } from '../services/progress-service.ts';
 import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { linesProgressOf } from '../services/stage-line.ts';
 import { providerName } from '../components/ProviderTile.tsx';
-import { PersonGrantLinkSection, PersonViewLinkSection } from '../components/MappingLinksPanel.tsx';
+import { PersonGrantLinkSection, PersonViewLinkSection, isGoogleKind } from '../components/MappingLinksPanel.tsx';
 import { personLinkApi, type AwaitingGrant, type WaitingAccount } from '../services/grant-link-service.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { AddressChanges } from '../components/AddressChanges.tsx';
@@ -542,6 +542,8 @@ const Person: React.FC = () => {
               personName={person.displayName ?? ''}
               links={linksQuery.data}
               loadFailed={linksQuery.error != null}
+              // For the Alpha's lines where the link is made (0176 T8).
+              asksGoogle={migrations.some((m) => isGoogleKind(wizardTypeForConnectionKind(m.sourceType)))}
             />
           ) : (
             // Nothing of theirs reads Google and no grant link of theirs still
