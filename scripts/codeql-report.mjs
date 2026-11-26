@@ -7,8 +7,12 @@
  *
  * `codeql.yml` runs CodeQL's default suite for JavaScript and TypeScript and
  * writes its SARIF to `$SARIF_DIR`. This reads it and writes the job's
- * summary: every alert, counted by query, then listed with its file and
- * line. It fails the job on no alert, the ReDoS queries' included: CodeQL
+ * summary: the alerts COUNTED BY QUERY, AND NOTHING MORE. This repository is
+ * public, and so is a run's summary and its log, while code scanning's list
+ * is readable only with write access: so no alert's file, line or message is
+ * written anywhere but code scanning (until 2026-11-26 the summary listed
+ * them, 0178 T6). The known-bad fixture is named, since the proof's check is
+ * that its two queries fired there. It fails the job on no alert, the ReDoS queries' included: CodeQL
  * reports only, and a query blocks later only through a report that fails on
  * that query alone, one at a time (T9).
  *
@@ -146,11 +150,14 @@ export function report({ sarifs, tracked, proof }) {
   ];
   if (rules.length > 0) {
     md.push('| Query | Alerts |', '|---|---|', ...rules.map(([rule, n]) => `| \`${rule}\` | ${n} |`), '');
-    md.push('<details><summary>Every alert</summary>', '');
-    for (const r of [...results].sort((a, b) => a.rule.localeCompare(b.rule) || a.uri.localeCompare(b.uri) || a.line - b.line)) {
-      md.push(`- \`${r.rule}\` ${r.uri}:${r.line}${inFixture(r.uri) ? ' (the known-bad fixture)' : ''}`);
+    md.push(
+      'Counts only: this repository is public, and so is a run\'s summary. Each alert, with its file and line, is in code scanning, which only people with write access can read.',
+      '',
+    );
+    if (proof) {
+      const fired = new Set(results.filter((r) => inFixture(r.uri)).map((r) => r.rule));
+      md.push(`In the known-bad fixture, \`${FIXTURE}\`: ${PROOF_QUERIES.map((q) => `\`${q}\` ${fired.has(q) ? 'reported' : 'NOT reported'}`).join(', ')}.`, '');
     }
-    md.push('', '</details>', '');
   } else {
     md.push('No alert.', '');
   }

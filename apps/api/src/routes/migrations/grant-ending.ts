@@ -61,7 +61,7 @@ import {
   type LedgerDriver,
 } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
-import { LINK_SPENT, log, organisationClosedRefusal, reasonPair, type TenantId } from '@openmig/shared';
+import { LINK_SPENT, log, organisationClosedRefusal, reasonPair, type TenantId, withoutTrailing } from '@openmig/shared';
 import { readOrganisationClosure } from '@openmig/managed';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
@@ -324,7 +324,7 @@ export async function mintProgressLink(
   source: Pool | LedgerDriver,
   target: GrantTarget,
 ): Promise<ProgressPageUrl | null> {
-  const base = process.env.WEB_URL?.replace(/\/+$/, '');
+  const base = process.env.WEB_URL === undefined ? undefined : withoutTrailing(process.env.WEB_URL, '/');
   if (!base) return null;
   try {
     const issued = await withTenantDb(target.tenantId, source, (db) =>

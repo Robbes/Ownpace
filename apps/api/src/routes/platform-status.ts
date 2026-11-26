@@ -33,7 +33,7 @@
  * reason; the log does, which is 0094's own rule for `/api/ready`.
  */
 
-import { log } from '@openmig/shared';
+import { log, withoutTrailing } from '@openmig/shared';
 import type { Readiness } from './ready.ts';
 
 export type EndpointState = 'up' | 'down' | 'unchecked';
@@ -120,7 +120,7 @@ export async function readStatusPage(
   deadlineMs: number = STATUS_PAGE_DEADLINE_MS,
 ): Promise<StatusPage> {
   if (!url) return { state: 'off' };
-  const target = `${url.replace(/\/+$/, '')}${STATUS_PAGE_ENDPOINTS_PATH}`;
+  const target = `${withoutTrailing(url, '/')}${STATUS_PAGE_ENDPOINTS_PATH}`;
   try {
     const response = await fetchImpl(target, {
       signal: AbortSignal.timeout(deadlineMs),

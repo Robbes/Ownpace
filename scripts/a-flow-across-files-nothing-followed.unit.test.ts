@@ -20,7 +20,7 @@
  *     the version beside it; `github/codeql-action` at the same commit as the
  *     other workflows' copies, so one Dependabot move takes them together;
  *     the default suite and the CodeQL bundle that release ships, so no
- *     `queries:` and no `tools:` to drift from it. The pin watch has a row
+ *     `queries:`, and `tools: linked`, never the runner's cached CodeQL. The pin watch has a row
  *     for it (a-pin-that-knows-it-is-behind).
  *  3. LEAST PERMISSIONS, A HOSTED RUNNER, NO SECRET: nothing at the top, and
  *     the job reads the tree and writes code scanning's list and nothing else;
@@ -37,7 +37,9 @@
  *     could not be extracted, or when a source file the checkout tracks is not
  *     among those CodeQL says it extracted (0178 §4.1: CodeQL parses
  *     TypeScript with its own compiler, not this repository's 7). It never
- *     fails on an alert.
+ *     fails on an alert, and it says COUNTS BY QUERY ONLY: a run's summary
+ *     and log are public here, so no alert's file, line or message is
+ *     written to either.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -112,7 +114,7 @@ describe('1. it reports only, and never on a pull request', () => {
 
   it('names no query and no pack, so it runs the default suite and nothing fails on an alert', () => {
     const init = stepUsing('github/codeql-action/init');
-    expect(Object.keys(init.with ?? {}).sort()).toEqual(['build-mode', 'config-file', 'languages']);
+    expect(Object.keys(init.with ?? {}).sort()).toEqual(['build-mode', 'config-file', 'languages', 'tools']);
     expect(init.with).toMatchObject({ languages: 'javascript-typescript', 'build-mode': 'none' });
     expect(workflowText).not.toMatch(/security-extended|security-and-quality|^\s*queries:|^\s*packs:/m);
   });
@@ -138,8 +140,12 @@ describe('2. it is pinned as the repository pins', () => {
     expect(new Set(copies.values()), [...copies.keys()].join('\n')).toHaveProperty('size', 1);
   });
 
-  it('runs the CodeQL bundle that release ships, by naming none', () => {
-    expect(workflowText).not.toMatch(/^\s*tools:/m);
+  it('runs the CodeQL bundle that release ships, named as `linked`, never the runner\'s cached one', () => {
+    // Left unnamed, the action took the runner's tool cache: run 45886149663, the
+    // first on main, ran CodeQL 2.27.6 from /opt/hostedtoolcache while v4.39.4
+    // ships 2.27.5 (0178 T6). `linked` is the bundle the pinned release names.
+    expect(stepUsing('github/codeql-action/init').with!.tools).toBe('linked');
+    expect(workflowText.match(/^\s*tools:/gm)).toHaveLength(1);
   });
 });
 
@@ -158,6 +164,13 @@ describe('3. least permissions, a hosted runner, no secret', () => {
   it('checks out without keeping a credential, and never cancels a run on main', () => {
     expect(stepUsing('actions/checkout').with).toEqual({ 'persist-credentials': false });
     expect(workflow.concurrency?.['cancel-in-progress']).toBe(false);
+  });
+
+  it('gives each event its own queue, so a push to main never replaces a dispatch waiting behind another push', () => {
+    // GitHub keeps one waiting run per group: with the group on the ref alone,
+    // the proof dispatch of 2026-11-26 waited behind the first push run on main,
+    // and a second push would have replaced it (0178 T6).
+    expect(workflow.concurrency?.group).toBe('codeql-${{ github.event_name }}-${{ github.ref }}');
   });
 });
 
@@ -212,7 +225,7 @@ const sarif = (results: Array<[string, string]>, extracted: string[], problems: 
         tool: { driver: { name: 'CodeQL', semanticVersion: '2.27.5' } },
         results: results.map(([ruleId, uri]) => ({
           ruleId,
-          message: { text: 'a flow' },
+          message: { text: 'a flow from a request to a sink' },
           locations: [{ physicalLocation: { artifactLocation: { uri }, region: { startLine: 7 } } }],
         })),
         invocations: [
@@ -260,6 +273,32 @@ describe('5. a scan that did not finish is never green, and an alert never fails
     expect(out.markdown).toMatch(/\| `js\/redos` \| 2 \|/);
     expect(out.markdown).toMatch(/\| `js\/xss` \| 1 \|/);
     expect(out.markdown).toMatch(/report only/i);
+  });
+
+  it('says counts by query only: no alert\'s file, line or message reaches the summary or the log, which a public repository publishes', () => {
+    // A run's job summary is readable by anyone here; code scanning's list is
+    // not. Until 2026-11-26 the summary listed every alert by file:line, and
+    // four runs on main published them (0178 T6, the maintainer's catch).
+    const alerts: Array<[string, string]> = [['js/redos', TREE[0]!], ['js/xss', TREE[1]!], ['js/sql-injection', TREE[2]!]];
+    const ordinary = report({ sarifs: [sarif(alerts, TREE)], tracked: TRACKED, proof: false });
+    const extracted = [...TREE, FIXTURE_FILE];
+    const proven = report({
+      sarifs: [sarif([...alerts, ...PROOF_QUERIES.map((q) => [q, FIXTURE_FILE] as [string, string])], extracted)],
+      tracked: TRACKED,
+      proof: true,
+    });
+    expect([ordinary.code, proven.code]).toEqual([0, 0]);
+    for (const out of [ordinary, proven]) {
+      const published = `${out.markdown}\n${out.lines.join('\n')}`;
+      for (const [, uri] of alerts) expect(published, uri).not.toContain(uri);
+      expect(published, 'a file:line').not.toMatch(/\.[cm]?[jt]sx?:\d+/);
+      expect(published, "an alert's message").not.toContain('a flow from a request');
+      expect(published).not.toMatch(/<details>/);
+    }
+    expect(ordinary.markdown).toMatch(/\| `js\/sql-injection` \| 1 \|/);
+    // The fixture may be named, the proof's own check: both queries fired there.
+    expect(proven.markdown).toContain(FIXTURE);
+    expect(proven.markdown).not.toContain(FIXTURE_FILE + ':');
   });
 
   it('fails when there is no SARIF, or one with no run', () => {
