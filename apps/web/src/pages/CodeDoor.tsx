@@ -56,22 +56,24 @@
  *
  * Drawn inside `PersonsPageProvider`, as a person's own pages are (0176 T9):
  * the language switch then says *English* and *Nederlands* at 44 by 44, and
- * the build stamp is 16 pixels at 7 to 1. The door's own sizes are 0176
- * §13's (0177 §10): sentences at 18 pixels, a main button 60 pixels high and
- * as wide as the column, every other target 44 by 44, edges at 3 to 1.
+ * the build stamp is 16 pixels at 7 to 1; and the frame carries
+ * `data-persons-page`, so the keyboard's focus is index.css's 2-pixel
+ * outline. The door's own sizes are 0176 §13's (0177 §10): sentences at 18
+ * pixels, a main button 60 pixels high and as wide as the column, every other
+ * target 44 by 44, edges at 3 to 1.
  *
  * Managed only, and public, as `/request-access` is (`AppRoutes.tsx`).
  */
 
 import React from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Check } from 'lucide-react';
 import { registrationLink } from '@openmig/shared';
 import { useT, useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/strings.ts';
 import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import AccessibilityLink from '../components/AccessibilityLink.tsx';
-import { LegalLinks } from '../components/LegalLinks.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import { supportAddress } from '../components/SupportLine.tsx';
 import { PersonsPageProvider } from '../components/persons-page.tsx';
@@ -87,6 +89,7 @@ import {
   type LetIn,
 } from '../services/gifts.ts';
 import { recommendationPageUrl } from '../services/recommendation-page-link.ts';
+import { legalUrl } from '../services/legal-links.ts';
 
 /** A person's sizes (0176 §13, 0177 §10), as `PersonGrant.tsx` draws them. */
 const MAIN_FILLED =
@@ -96,14 +99,17 @@ const MAIN_OUTLINED =
   'block w-full min-h-[60px] px-4 py-3 rounded-lg border-2 border-gray-700 bg-white text-gray-900 text-lg ' +
   'font-semibold text-center hover:bg-gray-50 disabled:opacity-60 break-words';
 const QUIET = 'inline-flex min-h-[44px] min-w-[44px] items-center text-lg text-blue-700 underline underline-offset-4';
-const FIELD =
-  'mt-2 block w-full min-h-[52px] rounded-lg border-2 border-gray-700 bg-white px-3 py-2 text-lg text-gray-900 ' +
-  'focus:outline-none focus:ring-4 focus:ring-blue-300';
-/** Two answers to one question, one size: a radio in a box as wide as half the column. */
+const FIELD = 'mt-2 block w-full min-h-[52px] rounded-lg border-2 border-gray-700 bg-white px-3 py-2 text-lg text-gray-900';
+/**
+ * Two answers to one question, one size: each a box as wide as half the
+ * column, 60 pixels high, with its radio inside it. The box is the target;
+ * the radio is there for the keyboard and a screen reader, and the box draws
+ * its focus. A tick says which is chosen, so it is not said by colour alone.
+ */
 const ANSWER =
-  'flex min-h-[60px] cursor-pointer items-center justify-center gap-3 rounded-lg border-2 border-gray-700 bg-white ' +
-  'px-4 py-3 text-lg font-semibold text-gray-900 has-checked:border-blue-700 has-checked:bg-blue-50 ' +
-  'focus-within:ring-4 focus-within:ring-blue-300';
+  'group flex min-h-[60px] cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-gray-700 ' +
+  'bg-white px-4 py-3 text-lg font-semibold text-gray-900 has-checked:border-blue-700 has-checked:bg-blue-50 ' +
+  'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-blue-700';
 const SENTENCE = 'mt-4 text-lg text-gray-900';
 
 /**
@@ -512,8 +518,9 @@ const CodeDoor: React.FC = () => {
                       required
                       checked={google === answer}
                       onChange={() => setGoogle(answer)}
-                      className="h-6 w-6 accent-blue-700"
+                      className="sr-only"
                     />
+                    <Check className="hidden h-6 w-6 shrink-0 group-has-checked:block" aria-hidden="true" />
                     {t(answer ? 'code.yes' : 'code.no')}
                   </label>
                 ))}
@@ -532,6 +539,7 @@ const CodeDoor: React.FC = () => {
                 type="text"
                 tabIndex={-1}
                 autoComplete="off"
+                className="h-px w-px"
                 defaultValue=""
                 data-1p-ignore=""
                 data-lpignore="true"
@@ -564,7 +572,15 @@ const CodeDoor: React.FC = () => {
             </button>
             <p className={SENTENCE}>{t('code.kept')}</p>
             <p className="mt-2 text-lg text-gray-900">
-              <LegalLinks pages={isAlpha() ? ['privacy', 'alpha'] : ['privacy']} />
+              {(isAlpha() ? (['privacy', 'alpha'] as const) : (['privacy'] as const)).map((page, i) => (
+                <React.Fragment key={page}>
+                  {i > 0 && ' · '}
+                  <a href={legalUrl(page, locale)} target="_blank" rel="noopener noreferrer" className={QUIET}>
+                    {t(page === 'privacy' ? 'acceptance.doc.privacy' : 'acceptance.doc.alpha')}
+                    <span className="sr-only"> {t('common.newTab')}</span>
+                  </a>
+                </React.Fragment>
+              ))}
             </p>
             {backButton}
           </form>
@@ -605,7 +621,7 @@ const CodeDoor: React.FC = () => {
   return (
     // Nothing on the door names who sent the code until T9 (step B); no part of it reads `who`.
     <PersonsPageProvider value={{ who: '' }}>
-      <main data-code-door className="max-w-xl mx-auto px-4 py-8 sm:py-12">
+      <main data-code-door data-persons-page className="max-w-xl mx-auto px-4 py-8 sm:py-12">
         <LanguageSwitch className="justify-end mb-4" />
         <div data-step={step}>
           {n > 0 && <p className="text-base text-gray-800">{t('grant.step', { n: String(n), total: String(PATH.length) })}</p>}
