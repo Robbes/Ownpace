@@ -152,13 +152,31 @@ describe('what stopped, as the progress pages are told (the owner’s decisions 
     const page = (await personPage())!;
     const [mine] = page.migrations;
     expect(mine!.stopped).toEqual({ at: expect.any(String), what: 'destination', destination: 'soverin' });
-    // The account section is withdrawn only in the sense that nothing of it is held for migrating.
-    expect(page.accounts[0]!.grant).toEqual({
-      state: 'withdrawn',
-      withdrawnAt: mine!.stopped!.at,
-      what: 'destination',
-      destination: 'soverin',
-    });
+    // The Google access is still given, so the account still offers to take it back.
+    expect(page.accounts[0]!.grant).toEqual({ state: 'granted' });
+  });
+
+  // The owner's answer of 2026-11-26: the person can still withdraw the Google
+  // access from the page after removing the destination's password.
+  it('the Google access can still be withdrawn afterwards: revoked once, deleted here, and then the source is what stopped', async () => {
+    await removeSoverin();
+    const revoked: string[] = [];
+    const revoker = {
+      revoke: async (r: { credentials: { refreshToken: string } }) => {
+        revoked.push(r.credentials.refreshToken);
+        return { status: 'revoked' };
+      },
+    } as unknown as TokenRevoker;
+    const before = (await personPage())!;
+    const withdrawn = await withdrawPersonGrant(driver, LINK, before.accounts[0]!.ref, revoker);
+    expect(withdrawn).toMatchObject({ ok: true, withdrawal: { atGoogle: 'revoked' } });
+    expect(revoked).toEqual(['1//placeholder-refresh']);
+    const [row] = await q('SELECT source_secret_ref, grant_withdrawn_at FROM mailbox_mapping WHERE id = $1', [MAIL]);
+    expect(row!.source_secret_ref).toBeNull();
+    expect(row!.grant_withdrawn_at).not.toBeNull();
+    const page = (await personPage())!;
+    expect(page.migrations[0]!.stopped).toEqual({ at: expect.any(String), what: 'source' });
+    expect(page.accounts[0]!.grant).toMatchObject({ state: 'withdrawn', what: 'source' });
   });
 
   it('the migration’s own page says the same', async () => {

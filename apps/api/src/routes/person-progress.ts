@@ -330,7 +330,11 @@ function groupByAccount(theirs: readonly Theirs[], stopped: ReadonlyMap<string, 
   return [...byKey.values()].map((migrations): AccountGroup => {
     const held: Array<{ secretRef: string; sourceKind: string }> = [];
     for (const m of migrations) {
-      if (m.withdrawnAt || !m.secretRef) continue;
+      // A source's withdrawal empties `source_secret_ref`, so a held migration
+      // that still has one was held by a destination's password being removed
+      // (0174 §4.3): its Google access is still given, and stays the person's
+      // to withdraw from this page (the owner's answer of 2026-11-26).
+      if (!m.secretRef) continue;
       if (!held.some((h) => h.secretRef === m.secretRef)) held.push({ secretRef: m.secretRef, sourceKind: m.sourceKind });
     }
     // The latest withdrawal, and what it took back: the account's section says it.

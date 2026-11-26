@@ -143,7 +143,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   withdrawal's own audit row, and the page says *"The password for {destination} was removed on
   {date}, so copying into it waits. Your {source} account was not touched, and nothing was
   deleted. Whoever set this up can send you a new link."*; neither kind of stop shows the
-  not-started words. The wording fixes: the start wizard's Dutch for someone new and for people
+  not-started words. The Google access the person gave stays theirs to withdraw on that page. The wording fixes: the start wizard's Dutch for someone new and for people
   who sign in themselves; a migration in cutover is *Bezig met overstappen*; *your email,
   calendar and files* in place of *account and/or content*; a connected account says nothing
   more is needed in Dutch too; a refused withdrawal on a migration's progress page is in the
@@ -157,7 +157,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   van de toegang tot de bron. De pagina zegt nu *"Het wachtwoord voor {bestemming} is op {datum}
   verwijderd, dus het kopiëren wacht. Aan uw {bron}-account is niets veranderd, en er is niets
   gewist. Wie dit voor u heeft ingesteld, kan u een nieuwe link sturen."*, zonder *"Er is nog
-  niets gekopieerd"* eronder. Verder: *Iemand nieuw* en *Zij zelf, met een link* bij het starten
+  niets gekopieerd"* eronder, en de toegang tot Google kan daar nog steeds worden ingetrokken. Verder: *Iemand nieuw* en *Zij zelf, met een link* bij het starten
   van een migratie, *Bezig met overstappen*, *uw e-mail, agenda en bestanden*, *Verbonden. Voor
   dit account hoeft u niets meer te doen.*, een geweigerde intrekking in het Nederlands, de
   pakketten *Gratis, Klein, Middel, Groot* op het aanvraagformulier, en na de aanmelding bij nog

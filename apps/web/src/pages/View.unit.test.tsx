@@ -804,7 +804,8 @@ describe('a destination’s password removed is not the source’s access withdr
           stopped: { at: AT, what: 'destination', destination: 'soverin' },
         },
       ],
-      accounts: [{ ref: ACCOUNT, grant: removed }],
+      // The Google access is still given (the owner's answer of 2026-11-26).
+      accounts: [{ ref: ACCOUNT, grant: { state: 'granted' } }],
     });
     renderPage();
     const account = await screen.findByRole('region', { name: 'Your Google account' });
@@ -812,6 +813,8 @@ describe('a destination’s password removed is not the source’s access withdr
     expect(within(account).queryByText(/you withdrew the access you gave/)).not.toBeInTheDocument();
     expect(within(account).queryByText('Nothing has been copied yet.')).not.toBeInTheDocument();
     expect(within(account).queryByText(/Nothing more is read from your account/)).not.toBeInTheDocument();
+    // And the person can still take the Google access back from here.
+    expect(within(account).getByRole('button', { name: 'Withdraw access' })).toBeInTheDocument();
   });
 
   it('the source’s access withdrawn keeps its own sentence, and no not-started fold either', async () => {

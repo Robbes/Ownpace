@@ -13,7 +13,10 @@ is the maintainer's to dispatch.
    `stopped` on a person's page) from the `mapping.grant_withdrawn` audit row, whose `role:
    'target'` names a destination; the columns alone cannot tell the two apart when the person
    removed the destination before giving the source's access. The page says the owner's
-   sentence and shows no not-started words under either stop.
+   sentence and shows no not-started words under either stop. The owner's answers of the same
+   day: the Google access still held on those migrations stays withdrawable from the person's page
+   (`groupByAccount` counts a held migration that still holds a token); the site's prices keep
+   their English names; the other open points are as built.
    `a-destination-removed-is-not-a-source-withdrawn` and the View tests failed on main first.
 2. **Wording fixes**, each checked against the code: the start wizard's Dutch, *Bezig met
    overstappen*, *email, calendar and files*, `grant.person.connected`'s Dutch, a migration's
