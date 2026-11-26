@@ -55,30 +55,7 @@
  * reaches the file and not whatever now sits at the old path.
  */
 
-import {
-  CIRRUX_LARGEST_FILE_BYTES,
-  CIRRUX_SIMPLE_UPLOAD_MAX_BYTES,
-  applyTargetFolderPrefix,
-  bodyOfBytes,
-  fileContentHash,
-  log,
-  markNeedsDecision,
-  streamingFileContentHash,
-  withFailureCategory,
-  type FileBody,
-  type FileFolder,
-  type FileItem,
-  type FileTargetWriter,
-  type RawFileItem,
-  type RemovalResult,
-  type TargetEntry,
-  type TargetHashScheme,
-  type TargetPresenceCheck,
-  type TargetReindexer,
-  type TargetRemover,
-  type UpsertOptions,
-  type UpsertResult,
-} from '@openmig/shared';
+import { CIRRUX_LARGEST_FILE_BYTES, CIRRUX_SIMPLE_UPLOAD_MAX_BYTES, applyTargetFolderPrefix, bodyOfBytes, fileContentHash, log, markNeedsDecision, streamingFileContentHash, withFailureCategory, type FileBody, type FileFolder, type FileItem, type FileTargetWriter, type RawFileItem, type RemovalResult, type TargetEntry, type TargetHashScheme, type TargetPresenceCheck, type TargetReindexer, type TargetRemover, type UpsertOptions, type UpsertResult, withoutEither } from '@openmig/shared';
 import {
   CirruxApiError,
   CirruxPartRefused,
@@ -151,7 +128,7 @@ export function cirruxNameProblem(name: string): string | undefined {
 
 /** `Documents/report.pdf`, with no leading or trailing slash: the shape every file writer keys on. */
 function normalizeRelativePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  return withoutEither(path.replace(/\\/g, '/'), '/');
 }
 
 function splitPath(path: string): string[] {

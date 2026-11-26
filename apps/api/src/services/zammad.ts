@@ -17,6 +17,8 @@
  * and otherwise the form is not offered at all (`report-channel.ts`).
  */
 
+import { withoutTrailing } from '@openmig/shared';
+
 export interface ZammadConfig {
   readonly url: string;
   readonly token: string;
@@ -55,7 +57,7 @@ export function zammadConfigFrom(env: NodeJS.ProcessEnv = process.env): ZammadCo
         'token is sent with every ticket, and over plain http it can be read on the way.',
     );
   }
-  return { url: url.replace(/\/+$/, ''), token, group: env.ZAMMAD_GROUP?.trim() || 'Users' };
+  return { url: withoutTrailing(url, '/'), token, group: env.ZAMMAD_GROUP?.trim() || 'Users' };
 }
 
 /**

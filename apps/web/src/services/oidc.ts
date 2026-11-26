@@ -20,6 +20,8 @@
  * `setup-zitadel.sh` provisions the client as public for the same reason.
  */
 
+import { withoutTrailing } from '@openmig/shared';
+
 type ViteEnv = {
   readonly VITE_OIDC_ISSUER?: string;
   readonly VITE_OIDC_CLIENT_ID?: string;
@@ -46,7 +48,7 @@ export function configFrom(source: ViteEnv): OidcConfig | null {
   if (!issuer || !clientId) return null;
   // `iss` is compared byte for byte, here and in the API — a trailing slash is
   // the difference between a match and a refusal.
-  return { issuer: issuer.replace(/\/+$/, ''), clientId };
+  return { issuer: withoutTrailing(issuer, '/'), clientId };
 }
 
 /** Configured at BUILD time, like every other VITE_ value — see managed.env.example. */
@@ -120,7 +122,7 @@ const STATE_KEY = 'oidc_state';
 function base64url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return withoutTrailing(btoa(binary).replace(/\+/g, '-').replace(/\//g, '_'), '=');
 }
 
 function randomString(byteLength = 32): string {

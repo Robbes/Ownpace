@@ -10,15 +10,7 @@
 
 import React from 'react';
 import { AlertCircle, AlertTriangle, Check, Info, Loader2, Trash2 } from 'lucide-react';
-import {
-  decisionEffectText,
-  queueGuidance,
-  type ApplyReceipt,
-  type DecisionEffectFields,
-  type DeletionEvidence,
-  type GuidedQueue,
-  type MappingLifecycle,
-} from '@openmig/shared';
+import { decisionEffectText, queueGuidance, type ApplyReceipt, type DecisionEffectFields, type DeletionEvidence, type GuidedQueue, type MappingLifecycle, withoutEither } from '@openmig/shared';
 import { useLocale, useT } from '../../i18n/index.tsx';
 import type { StringKey } from '../../i18n/index.tsx';
 import { confirmGuard } from './confirm-guard.ts';
@@ -175,7 +167,7 @@ export const GuidancePanel: React.FC<{ queue: GuidedQueue }> = ({ queue }) => {
  * `displayName`.
  */
 export const fileAt = (folder: string, name: string): string => {
-  const inside = folder.replace(/^\/+|\/+$/g, '');
+  const inside = withoutEither(folder, '/');
   return inside === '' ? `/${name}` : `/${inside}/${name}`;
 };
 

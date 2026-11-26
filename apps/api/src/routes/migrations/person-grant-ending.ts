@@ -52,17 +52,7 @@ import type { Pool } from 'pg';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS, PgLedger, expiryFromDays, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
-import {
-  LINK_SPENT,
-  log,
-  organisationClosedRefusal,
-  pinnedToPublished,
-  pinsItsServer,
-  reasonPair,
-  withoutUnpublishedHosts,
-  type Bilingual,
-  type TenantId,
-} from '@openmig/shared';
+import { LINK_SPENT, log, organisationClosedRefusal, pinnedToPublished, pinsItsServer, reasonPair, withoutUnpublishedHosts, type Bilingual, type TenantId, withoutTrailing } from '@openmig/shared';
 import { personGrantedConnection, personLink, personMigration } from '@openmig/managed/schema-managed';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
@@ -288,7 +278,7 @@ export async function mintPersonProgressLink(
   source: Pool | LedgerDriver,
   target: Pick<PersonGrantTarget, 'tenantId' | 'personId'>,
 ): Promise<ProgressPageUrl | null> {
-  const base = process.env.WEB_URL?.replace(/\/+$/, '');
+  const base = process.env.WEB_URL === undefined ? undefined : withoutTrailing(process.env.WEB_URL, '/');
   if (!base) return null;
   try {
     const issued = await withTenantDb(target.tenantId, source, (db) =>

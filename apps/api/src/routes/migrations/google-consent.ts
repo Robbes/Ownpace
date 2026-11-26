@@ -38,16 +38,9 @@ import {
   grantSatisfiesAskedScope,
   type GoogleGrantDomain,
 } from '@openmig/orchestration/account-qualification';
-import {
-  CONSENT_STATE_TTL_MS,
-  EXCHANGE_FOR_THE_LINK_HOLDER,
-  // In the shared package since 0163 T4: the web app follows the consent
+import { CONSENT_STATE_TTL_MS, EXCHANGE_FOR_THE_LINK_HOLDER, // In the shared package since 0163 T4: the web app follows the consent
   // address only on this endpoint's host, so both read the one constant.
-  GOOGLE_AUTH_ENDPOINT,
-  localeOf,
-  type Bilingual,
-  type RefusalLocale,
-} from '@openmig/shared';
+  GOOGLE_AUTH_ENDPOINT, localeOf, type Bilingual, type RefusalLocale, withoutTrailing } from '@openmig/shared';
 import type { ProgressPageUrl } from './progress-page-url.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES, accountInIdToken } from './signed-in-account.ts';
 
@@ -328,7 +321,7 @@ export function unreachableCallbackRefusal(
   // dev run has nothing to disagree with, and inventing a complaint from one
   // value is how a guard starts refusing correct configurations.
   if (webHost === null || !webUrl || !loopback(callbackHost) || loopback(webHost)) return null;
-  const app = webUrl.replace(/\/+$/, '');
+  const app = withoutTrailing(webUrl, '/');
 
   return (
     `This deployment is served at ${app}, but the address it asked Google to redirect ` +
