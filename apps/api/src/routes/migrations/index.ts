@@ -4463,6 +4463,13 @@ router.get(
         return;
       }
 
+      // A migration that is not this organisation's is not found, as at its
+      // own door (`GET /:mappingId`), rather than an empty list of runs.
+      if (!(await loadMapping(tenantId, mappingId))) {
+        res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+        return;
+      }
+
       const pool = getSharedPool();
       const { runs, truncated } = await withTenantDb(tenantId, pool, async (db) => {
         const [listed, said] = await Promise.all([
