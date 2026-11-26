@@ -415,6 +415,40 @@ describe('the public site renders', () => {
     await wide.page.close();
   }, 60_000);
 
+  it('fits the narrowest phone, 320 pixels, in both languages: nothing sideways, and the header’s three parts in one row (0176 T15)', async () => {
+    // WCAG's reflow width: a phone of 320 pixels, or a screen of 1280 at 400%.
+    // Every page draws the same header, so the home page in each language
+    // stands for all of them. "Nederlands" is the longer word: the English
+    // pages ran 3 pixels off the screen, and in both languages the menu's
+    // arrow dropped to a second line, which cut the button at the header's top.
+    for (const path of ['/', '/nl/']) {
+      const { page } = await open(path, 320);
+      const seen = await page.evaluate(() => {
+        const header = document.querySelector('header.site')!.getBoundingClientRect();
+        const row = document.querySelector<HTMLElement>('header.site .wrap')!;
+        const edge = row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight);
+        const parts = ['header.site a.brand', 'header.site a.lang', 'details.menu > summary'].map((selector) => {
+          const r = document.querySelector(selector)!.getBoundingClientRect();
+          return { selector, top: r.top, bottom: r.bottom, right: r.right };
+        });
+        return {
+          overflows: document.documentElement.scrollWidth > window.innerWidth + 1,
+          top: header.top,
+          bottom: header.bottom,
+          edge,
+          parts,
+        };
+      });
+      expect(seen.overflows, `${path} scrolls sideways at 320 pixels`).toBe(false);
+      for (const p of seen.parts) {
+        expect(p.right, `${path}: ${p.selector} runs into the page's margin at 320 pixels`).toBeLessThanOrEqual(seen.edge + 1);
+        expect(p.top, `${path}: ${p.selector} is cut at the header's top at 320 pixels`).toBeGreaterThanOrEqual(seen.top);
+        expect(p.bottom, `${path}: ${p.selector} hangs below the header at 320 pixels`).toBeLessThanOrEqual(seen.bottom);
+      }
+      await page.close();
+    }
+  }, 60_000);
+
   it('keeps the header one row just above the phone menu, in both languages, and opens Leaving… on screen (0152 T5 (b))', async () => {
     // 48rem is where the menu folds: just above it the header carries all its
     // pages, and the longest language must still fit in one row.

@@ -2,10 +2,13 @@
 <!-- English translation of the tester guide (workplan 0144 T1); the Dutch,
      alpha-handleiding.md, is written first and is the one the owner reads
      (0144 T0). Keep the six section headings and their ids ({#...}) in step
-     with it, and the two ### headings' ids too, and translate the Dutch,
+     with it, and the three ### headings' ids too, and translate the Dutch,
      never the other way round. Its notes for the owner, what was left out
-     and why, and why the target folder is promised for files only on WebDAV
-     or Nextcloud, are in the Dutch file's comment and apply here too. -->
+     and why, why the target folder is promised for files only on WebDAV
+     or Nextcloud, and the two sentences the link page says word for word
+     ("Go on to Ownpace there." and "Make sure everything Ownpace asks for is
+     ticked.", 0176 D12 (a)), are in the Dutch file's comment and apply here
+     too. -->
 
 # Guide to the Alpha
 
@@ -79,10 +82,28 @@ personally. The Alpha lasts a few weeks.
 
 ### When you connect Google {#google-connect}
 
-Google first shows a warning that Google has not checked the app. That is expected during the
-Alpha. Go on to Ownpace there. Make sure everything Ownpace asks for is ticked. For mail,
-calendars and contacts, Google describes a broader permission than Ownpace uses. Ownpace only
-reads; it changes and deletes nothing in your account.
+Google first shows a warning. Google has not checked Ownpace yet. That is why Google warns, and
+Google is right to. Go on to Ownpace there. Make sure everything Ownpace asks for is ticked. For
+mail, calendars and contacts, Google describes a broader permission than Ownpace uses. Ownpace
+only reads; it changes and deletes nothing in your account.
+
+### When a family member gets a link {#family-link}
+
+Is the account a family member's? Then do not ask for the password. You make a grant link, and
+your family member gives permission themselves.
+
+1. **Tell them first yourself.** Call, or say it when you see each other: a link is coming from
+   you, and what it is for. The page asks your family member whether you did. If the answer is
+   no, the page waits.
+2. **Make the link.** Open the person under *Migrations* and choose *Create grant link*. Send the
+   link yourself, the way you always reach that person. We never send it.
+3. **Do the Google step together if you can:** on the phone, or at the table. Your family member
+   types their own password. You do not need to know it, and you do not ask for it.
+4. **Does Google not allow the connection?** Then the address is not on Google's list yet. Mail
+   it to us, and wait for our answer. Then your family member opens the link again.
+
+After that, your family member has a page of their own. It shows how far the copying is. They
+can also stop it there.
 
 ### When Google asks again {#google-again}
 
@@ -90,6 +111,9 @@ While Ownpace's app at Google is in Google's test phase, a Google connection sto
 seven days. Then go to *Accounts*. On that account, choose *Reconnect*, then *Connect with
 Google*, and then *Check and replace*. The migration carries on where it stopped. Nothing is
 lost.
+
+Is it a family member's account? Then make a new grant link for that person, and tell them first
+again.
 
 ## What is experimental {#what-is-experimental}
 

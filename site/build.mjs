@@ -506,6 +506,17 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
   header.site a.lang { margin-left: auto; }
   details.menu { display: block; }
 }
+/* The narrowest phone, 320 pixels, or a screen of 1280 at 400% (WCAG 1.4.10):
+   the name, the other language and the menu did not fit one row, so the menu's
+   arrow dropped to a second line and, on the English pages, the row ran 3
+   pixels off the screen ("Nederlands" is the longer word). Here the mark steps
+   aside, which says nothing a screen reader hears (its alt is empty), and the
+   gaps close up (0176 T15). Up to 24rem, because the English row needs about
+   360 pixels with the mark. */
+@media (max-width: 24rem) {
+  header.site .wrap { gap: 0.5rem; }
+  header.site .brand img { display: none; }
+}
 
 .draft {
   background: #ffe9a8; color: #5b4600; border-radius: 8px; padding: 0.75rem 1rem;

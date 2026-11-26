@@ -259,7 +259,7 @@ export const COPY = {
       },
       // Below the steps, on every page a grant link can serve (workplan 0174, alpha.21).
       byLink:
-        'Moving somebody else’s account? Send them a grant link instead of asking for their password: they sign in, or type their own password, on a page only they see, and it never passes through you.',
+        'Moving somebody else’s account? Send them a grant link instead of asking for their password: they sign in, or type their own password, on their own page, and it never passes through you.',
       costTitle: 'A typical cost',
       costPaid: (what, tier, price) => `One person moving their ${what} at once: ${tier}, ${price} a month.`,
       costFree: (what, tier) => `One person moving their ${what}: ${tier}, nothing a month and no invoice.`,
@@ -645,7 +645,7 @@ export const COPY = {
       },
       // Onder de stappen, op elke pagina die een toegangslink kan dienen (workplan 0174, alpha.21).
       byLink:
-        'Migreert u het account van iemand anders? Stuur die persoon een toegangslink in plaats van om het wachtwoord te vragen: die meldt zich aan, of typt het eigen wachtwoord, op een pagina die alleen die persoon ziet, en het komt nooit bij u terecht.',
+        'Migreert u het account van iemand anders? Stuur die persoon een toegangslink in plaats van om het wachtwoord te vragen: die meldt zich aan, of typt het eigen wachtwoord, op de eigen pagina, en het komt nooit bij u terecht.',
       costTitle: 'Wat het meestal kost',
       costPaid: (what, tier, price) => `Eén persoon die ${what} tegelijk migreert: ${tier}, ${price} per maand.`,
       costFree: (what, tier) => `Eén persoon die ${what} migreert: ${tier}, niets per maand en geen factuur.`,
