@@ -5,8 +5,8 @@
 ## Status — 2026-11-26 (update this block at the end of every session)
 
 **2026-11-26, later still: the owner's answers on the privacy text (Q1) and the menu's icon
-(Q3).** Step A is merged (#2198), with E2E managed, Postgres and PGlite green on its tree. In
-the owner's words:
+(Q3), and the read of step A's Dutch.** Step A is merged (#2198), with E2E managed, Postgres
+and PGlite green on its tree. In the owner's words:
 
 - **Q1, the privacy text:** *"Q1: yes"*. It is changed in place under 1.0, once the lawyer
   has read it, as for 0176. Nothing in `site/legal` changes now: #2198's drafts for §4.4, §5
@@ -16,10 +16,15 @@ the owner's words:
   aanbevelen* is drawn with the handshake the card carries, so the menu and the card match
   (`Layout.tsx`); the operator's *Gifts* keeps its gift box. A case in `Layout.unit.test.tsx`
   holds it, and failed on the gift box before.
+- **The Dutch of #2198:** *"Dutch read 2 (#2198's sentences): ok, as advised"*. The owner
+  had the seven groups the pull request flagged first, with the advice *all ok*, and the
+  rest of its table. No word changes. Every row of that table marked *drafted (here)*, a
+  sentence step A wrote that this plan does not give, is *owner (read) 2026-11-26* (§7).
+  The door's two field hints stay one sentence each, as the copy budget holds (0118):
+  §7's first sentences for them are not wanted, and nothing goes in the budget's `RAISED`.
 
-**Open:** the owner's read of #2198's Dutch marked *drafted (here)*, and of the operator's
-English; the changed words and the *owner (read)* marks come in the same text-only
-follow-up. T0 and T14.
+**Open:** T0 and T14. The rows marked *drafted (plan)* and the operator's English keep the
+marks they had in #2198, as the read was passed on.
 
 **2026-11-26, later still: step A is built, its two halves met on the pull request's branch
 (`claude/ownpace-public-readiness-y7orc6-a21-gift-step-a`), in review.** The back's half, the
@@ -685,7 +690,14 @@ and `{from}` the address the service mails from.
 
 **What the owner has read.** On 2026-11-26 the owner read the Dutch that D6 changed, and
 said: *"The G6 Dutch: all ok"*. G6 is D6 here. Those sentences are the rows marked *read*
-below, and the yes mail's opening for a code (§8). Every other row is a draft.
+below, and the yes mail's opening for a code (§8). Every other row is a draft. Later that
+day the owner read step A's table of every new or changed Dutch sentence, in #2198: *"Dutch
+read 2 (#2198's sentences): ok, as advised"*. Its rows marked *drafted (here)*, the
+sentences step A wrote that this table does not give, are the owner's now. Among them are
+the door's two field hints, one sentence each as the copy budget holds (0118): *Capitals
+and dashes do not matter.* / *Hoofdletters en streepjes maken niet uit.* and *It may be the
+email address you use today.* / *Het mag het e-mailadres zijn dat u nu gebruikt.* The first
+sentences drafted below for those two are not wanted.
 
 | Where | EN | NL |
 |---|---|---|
