@@ -14,7 +14,7 @@ import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth.ts';
+import { authenticate, requireRole, requireTenantMatch, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { eq, and, or, sql } from 'drizzle-orm';
 import * as schema from '@openmig/managed/schema-managed';
@@ -33,7 +33,11 @@ import {
 import { serverFault } from '../../server-fault.ts';
 import { mailInvitation, SEND_AGAIN_AFTER, sendAgainAfterSeconds } from './invitation-mail.ts';
 
-const router = idsThatAreNoUuid(Router());
+// `mergeParams`: the organisation is named in the path this router is mounted
+// at (`/api/tenants/:tenantId/members`), and every door here refuses one that
+// is not the caller's (`requireTenantMatch`). Its ids pass the UUID check as
+// every router's do (`an-id-that-is-no-uuid.ts`).
+const router = idsThatAreNoUuid(Router({ mergeParams: true }));
 
 /**
  * What a member's removal is recorded under in `audit_log`, as `operator.sh
@@ -182,6 +186,7 @@ const UpdateMemberRoleSchema = z.object({
 router.get(
   '/',
   authenticate,
+  requireTenantMatch(),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { tenantId: _tenantId } = req.params;
@@ -229,6 +234,7 @@ router.get(
 router.post(
   '/',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -354,6 +360,7 @@ function inviterOf(req: AuthenticatedRequest): string | undefined {
 router.post(
   '/:memberId/resend',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -428,6 +435,7 @@ router.post(
 router.get(
   '/:memberId',
   authenticate,
+  requireTenantMatch(),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { memberId } = req.params;
@@ -486,6 +494,7 @@ router.get(
 router.patch(
   '/:memberId',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -577,6 +586,7 @@ router.patch(
 router.delete(
   '/:memberId',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
