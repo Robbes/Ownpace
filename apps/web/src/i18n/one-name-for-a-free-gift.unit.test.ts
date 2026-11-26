@@ -60,6 +60,10 @@ const SECTION_7: ReadonlyArray<readonly [string, string]> = [
   ['Or send a link. Say in your own words what it is.', 'Of stuur een link. Zeg in uw eigen woorden wat het is.'],
   ['No new recommendation can be made for now.', 'U kunt nu even geen aanbeveling maken.'],
   ['The Alpha is full for now. No new recommendation can be made.', 'De Alpha is nu vol. U kunt nu geen aanbeveling maken.'],
+  [
+    'During the Alpha, only the people Ownpace let in itself can recommend someone. After the Alpha, you can too.',
+    'Tijdens de Alpha kunnen alleen de mensen die Ownpace zelf toeliet iemand aanbevelen. Na de Alpha kunt u dat ook.',
+  ],
   // The card.
   ['A recommendation from {giver}', 'Een aanbeveling van {giver}'],
   [

@@ -160,6 +160,17 @@ describe('the people the owner lets in (workplan 0177 T16, §20.4)', () => {
     expect(line.closest('[data-at-ceiling]')).toHaveTextContent('The number is reached.');
   });
 
+  it('past the number, a grant is not refused: the owner keeps count (D17)', async () => {
+    giftsMock.mockResolvedValue(GIFTS({ byOwner: 52, ownerCeiling: 50 }));
+    renderQueue();
+    await screen.findByText('People you let in: 52 of 50');
+    const grant = await screen.findByRole('button', { name: 'Grant access' });
+    expect(grant).toBeEnabled();
+    await userEvent.click(grant);
+    await waitFor(() => expect(grantMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(/People you let in: 52 of 50/).closest('[data-at-ceiling]')).not.toBeNull();
+  });
+
   it('a request a recommendation let in at the door says so, and names nobody as having decided it; one the owner granted still names who did', async () => {
     listMock.mockResolvedValue([
       {

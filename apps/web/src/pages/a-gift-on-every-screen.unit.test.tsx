@@ -91,6 +91,7 @@ describe('the giver’s page', () => {
     for (const line of order) expect(line.className).toMatch(/\btext-lg\b/);
     expect(screen.getByText('They get an account of their own. You do not see what is in it.')).toBeInTheDocument();
     expect(screen.getByText('Tell them first: by phone, or when you hand it over.')).toBeInTheDocument();
+    expect(screen.getByText(/^We never receive the name or the message on the card\. We keep that you recommended someone/)).toBeInTheDocument();
   });
 
   it('sends only the card’s language, and shows the code on the card with what was typed on the page', async () => {
@@ -216,6 +217,19 @@ describe('the giver’s page', () => {
     expect(document.body.textContent).not.toMatch(/already/i);
   });
 
+  it('15. during the Alpha, a member let in by a recommendation reads §20.7’s sentences where none for now would stand, and no button (D18)', async () => {
+    getMock.mockResolvedValue({ data: { ...MINE, limit: 0, held: 0, room: true, onlyAfterAlpha: true } });
+    wrap(<Give />);
+    expect(
+      await screen.findByText(
+        'During the Alpha, only the people Ownpace let in itself can recommend someone. After the Alpha, you can too.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No new recommendation can be made for now.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Make a recommendation' })).toBeNull();
+    expect(document.body.textContent).not.toMatch(/already/i);
+  });
+
   it('at the limit, says so, with Withdraw on the unused card', async () => {
     getMock.mockResolvedValue({
       data: {
@@ -273,6 +287,25 @@ describe('the operator’s Gifts', () => {
     expect(screen.queryByText(/nothing refuses a grant past a number/i)).toBeNull();
     expect(screen.getByText(/From anna@example\.test/)).toBeInTheDocument();
     expect(screen.getByText('Became the request from cato@example.test: granted')).toBeInTheDocument();
+  });
+
+  it('17. during the Alpha, says beside the number per person that only the people the owner let in have these (D18)', async () => {
+    vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
+    getMock.mockResolvedValue({ data: ANSWER });
+    wrap(<Gifts />);
+    expect(
+      await screen.findByText(
+        'During the Alpha only the people you let in have these. A person let in by a recommendation has none until the Alpha ends.',
+      ),
+    ).toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
+  it('after the Alpha, says nothing of the kind', async () => {
+    getMock.mockResolvedValue({ data: ANSWER });
+    wrap(<Gifts />);
+    await screen.findByText('People you let in: 12 of 50');
+    expect(screen.queryByText(/During the Alpha only the people you let in have these/)).toBeNull();
   });
 
   it('sets either ceiling, a whole number, through the rule’s route', async () => {
