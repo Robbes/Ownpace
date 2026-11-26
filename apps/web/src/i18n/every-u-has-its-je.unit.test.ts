@@ -81,6 +81,9 @@ const A_PERSONS_OWN_AREAS = [
   'linkReport.',
   'link.',
   'answer.',
+  // Step B: how the reader knows the sender (T3), and the link's one page (D15 (a)).
+  'sender.',
+  'grant.onePage.',
 ] as const;
 
 /** The files a person's pages draw whole: every key they name is said there. */
@@ -93,6 +96,9 @@ const DRAWN_WHOLE = [
   '../components/TimeBeforeStartLine.tsx',
   '../components/AccessibilityLink.tsx',
   '../components/LanguageSwitch.tsx',
+  // Step B: the sender's box (T3, T6), and everything on one page (D15 (a)).
+  '../components/TheSender.tsx',
+  '../pages/PersonGrantOnePage.tsx',
 ] as const;
 
 /**
@@ -138,6 +144,14 @@ function keysNamedIn(file: string): string[] {
   return [...named].filter((key) => key in en);
 }
 
+/**
+ * WHAT THE MEMBER'S SCREEN SAYS IN THE PERSON'S VOICE (§11: *the message of
+ * §12*). The message the member sends with a link is drawn on the member's
+ * own screen, and worded as the person's pages are: with *je* where they say
+ * *je* (`MappingLinksPanel.tsx`).
+ */
+const IN_THEIR_VOICE_ON_THE_MEMBERS_SCREEN = ['message.toPerson'] as const;
+
 /** The keys a person's two pages say, in the dictionary's order. */
 const A_PERSONS_PAGES: readonly string[] = (() => {
   const said = new Set<string>([
@@ -145,6 +159,7 @@ const A_PERSONS_PAGES: readonly string[] = (() => {
     ...DRAWN_WHOLE.flatMap(keysNamedIn),
     ...keysNamedIn(THE_PROGRESS_PAGE).filter((key) => !(ONLY_AN_OLD_LINKS_PAGE as readonly string[]).includes(key)),
     ...SHARED_ON_A_PERSONS_PAGE,
+    ...IN_THEIR_VOICE_ON_THE_MEMBERS_SCREEN,
   ]);
   return KEYS.filter((key) => said.has(key));
 })();
@@ -167,6 +182,11 @@ const MORE_THAN_THE_PRONOUN: Readonly<Record<string, { readonly formal: string; 
     formal: 'als u elkaar ziet',
     twin: 'als jullie elkaar zien',
     why: 'This u is two people, the reader and {who}: informal Dutch says jullie, and its verb is plural.',
+  },
+  'message.toPerson': {
+    formal: 'Bel mij als u wilt beginnen',
+    twin: 'Bel me als je wilt beginnen',
+    why: 'The sender speaks here, not the page: with je, they say me, as §15 gives the message.',
   },
 };
 
