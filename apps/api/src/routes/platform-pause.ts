@@ -27,6 +27,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import type { Pool } from 'pg';
 import { withSubject } from '@openmig/ledger';
@@ -41,7 +42,7 @@ import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /** The same lazily-resolved handle `support.ts` holds, for the same reason. */
 let _dbPool: Pool | LedgerDriver | null = null;

@@ -43,6 +43,7 @@
  */
 
 import express, { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { NextFunction, Request, Response } from 'express';
 import type { Pool } from 'pg';
 import type { LedgerDriver } from '@openmig/ledger';
@@ -129,7 +130,7 @@ function recipientOf(channel: ReportChannel): ReportRecipient {
 }
 
 export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
-  const router = Router();
+  const router = idsThatAreNoUuid(Router());
   const limiter = deps.limiter ?? createKnockLimiter(PROBLEM_REPORT_LIMIT);
   const previewLimiter = deps.previewLimiter ?? createKnockLimiter(PROBLEM_REPORT_PREVIEW_LIMIT);
   let pool: Pool | LedgerDriver | null = null;

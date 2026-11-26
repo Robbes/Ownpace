@@ -31,6 +31,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
@@ -61,7 +62,7 @@ import {
   exchangeMicrosoftCode,
 } from './microsoft-consent.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 const AuthorizeSchema = z.object({
   // Optional, as Google's and Dropbox's are (ADR-0041): a deployment that

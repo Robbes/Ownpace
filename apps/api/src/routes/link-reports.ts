@@ -42,6 +42,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { RequestHandler, Response } from 'express';
 import type { Pool } from 'pg';
 import { and, eq } from 'drizzle-orm';
@@ -194,7 +195,7 @@ async function readPersonFacts(
 }
 
 export function linkReportRoutes(link: ReportedLink, deps: LinkReportDeps = {}): Router {
-  const router = Router();
+  const router = idsThatAreNoUuid(Router());
   const perLink = deps.perLink ?? PER_LINK;
   const overall = deps.overall ?? OVERALL;
 

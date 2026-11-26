@@ -78,6 +78,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { RequestHandler, Response } from 'express';
 import { CIRRUX_DRIVE_SCOPES, cirruxDeploymentClient, NOT_READY_BECAUSE, NOT_READY_BECAUSE_DROPBOX, NOT_READY_BECAUSE_MICROSOFT, accountNotReady, cannotSignInYet, cannotSignInYetOnAPersonsLink, dropboxDeploymentClient, googleDeploymentClient, localeOf, microsoftDeploymentClient, microsoftTenant, notReady as notReadyBecause, reasonPair, type Bilingual, type DiscoveryDomain, withoutTrailing } from '@openmig/shared';
 import { readLinkAddressChanges } from '@openmig/managed';
@@ -120,7 +121,7 @@ import {
   type GrantProviderId,
 } from './grant-providers.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function pool() {

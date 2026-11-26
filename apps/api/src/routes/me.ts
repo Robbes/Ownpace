@@ -34,6 +34,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import {
@@ -63,7 +64,7 @@ import {
   acceptanceOf,
 } from '../conditions-not-accepted.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /** One pool for the acceptance record, built on first use rather than per request. */
 let _pool: ReturnType<typeof getDbPool> | null = null;

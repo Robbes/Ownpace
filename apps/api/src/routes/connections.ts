@@ -32,6 +32,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { eq, and, inArray, or, sql, isNotNull, ne } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -116,7 +117,10 @@ import {
 } from './account-for-a-person.ts';
 import { DOOR_BUDGET_MS, connectionsPool, qualifyAndRemember } from './qualify-and-remember.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router(), {
+  // A malformed id is a connection that is not there, in this router's words.
+  answers: { id: (res) => void res.status(404).json({ error: 'not_found', reason: 'No such connection.' }) },
+});
 
 const pool = connectionsPool;
 

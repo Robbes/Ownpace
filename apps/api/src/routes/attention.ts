@@ -57,6 +57,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
@@ -92,7 +93,7 @@ export function unreadList(what: string, err: unknown): string {
   return `${what[0]!.toUpperCase()}${what.slice(1)} could not be read just now, so these numbers may be low. Reference ${ref}.`;
 }
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function getSharedPool() {
