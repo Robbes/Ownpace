@@ -4,6 +4,29 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's answers (T13).** On D1 to D11 the owner answered: *"D1 to D11: ok on
+the advised."* So the advice stands for every decision (§18):
+
+- **D1 (a):** *kopiëren* on a person's two pages. The member's app keeps *migreren*, and the
+  glossary row at `:106` gains the exception.
+- **D2 (a):** the stop says *Stop copying* / *Kopiëren stoppen*.
+- **D3:** the page says *the service that makes the copy* now. Where it is run waits for the
+  site's next pass.
+- **D4 (a):** the one link asks again by itself when a connection stopped by itself, and at a
+  member's press after the person's own stop.
+- **D5 (a):** one choice when a link is made, how long it asks, 30 days first. The page lives
+  90 days, and a member can extend it.
+- **D6 (a):** the ten-minute window on a stop goes ahead. The lawyer reads it before anybody
+  outside the Alpha gets it; putting it to the lawyer is the owner's.
+- **D7 (a), D8 (a), D11 (a):** a fixed list for the relation; *je* or *u* per person; the
+  member's own number where given, else the organisation's.
+- **D9: yes.** A person's link page tells Google's screens in steps of its own. Until T0 it
+  quotes nothing of Google's.
+- **D10:** the order below, and step A in the next alpha.
+
+No task waits on a decision any more. T0 (Google's own words, read off a real phone) and T12
+(the first test with three people) are still the owner's.
+
 **2026-11-26: planned, written for the owner's review; nothing is built.** Every claim about the
 code below was read at `2a16fab`, the head of the open draft pull request #2175
 (`claude/ownpace-public-readiness-y7orc6-a21-family-words`), with file and line. That branch was
@@ -29,24 +52,25 @@ step's shape, and T0 fills in Google's words from a real phone.
 - **Step B, a small schema:** T3, T7, T8, and the total of T6.
 - **Step C, the mechanism:** T4, and the second half of T5.
 
-T10 and T11 travel with each step. T0 and T13 are the owner's and block only what they name.
+T10 and T11 travel with each step. T0 is the owner's and blocks only what it names. T13 is
+answered.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The owner's hand test: Google's own screens, word for word, in Dutch and English | owner | ⏳ **Owner** | §5.4, §15. The warning, its two buttons, the tick boxes, and *Access blocked*. Blocks only the quoted words of T1's fourth screen. |
 | T1 The link page in steps: who asks, the accounts, what to have ready, what Google shows | builder | 📋 Planned | §5. No schema. L. Every rule today's page keeps stays (§5.7). |
-| T2 The words, EN and NL, and the glossary rows they change | builder | 📋 Planned | §6, §15. After D1 and D2. M. |
-| T3 Who asks: a name, a relation, and a number to check | builder | 📋 Planned | §7. A managed migration. M. After D7 and D11. |
-| T4 One link: it asks, and afterwards it is the person's page | builder | 📋 Planned | §8. ADR-0035 amended first. A managed migration. L. After D4 and D5. |
-| T5 Stopping: its own screen, two equal answers, and ten minutes to take it back | builder | 📋 Planned | §9. First half (the screen) in step A; second half (the window) needs a ledger migration. L. After D2 and D6. |
+| T2 The words, EN and NL, and the glossary rows they change | builder | 📋 Planned | §6, §15. D1 and D2 are answered: *kopiëren*, and *Stop copying*. M. |
+| T3 Who asks: a name, a relation, and a number to check | builder | 📋 Planned | §7. A managed migration. M. D7 and D11 are answered. |
+| T4 One link: it asks, and afterwards it is the person's page | builder | 📋 Planned | §8. ADR-0035 amended first. A managed migration. L. D4 and D5 are answered. |
+| T5 Stopping: its own screen, two equal answers, and ten minutes to take it back | builder | 📋 Planned | §9. First half (the screen) in step A; second half (the window) needs a ledger migration. L. D2 and D6 are answered; the lawyer reads the window before anybody outside the Alpha gets it. |
 | T6 The progress page: nothing to do, how far, how long | builder | 📋 Planned | §10. The line and the refresh in step A; the total, an addition to the server's answer, in step B. M. |
-| T7 *Je* or *u*, and the page's language, chosen per person | builder | 📋 Planned | §11. After T2, so each sentence is written once. A managed migration. L. After D8. |
+| T7 *Je* or *u*, and the page's language, chosen per person | builder | 📋 Planned | §11. After T2, so each sentence is written once. A managed migration. L. D8 is answered: per person. |
 | T8 Making the link: tell first, a message to send, 30 days | builder | 📋 Planned | §12. M. |
 | T9 Size, contrast and targets on the two pages | builder | 📋 Planned | §13. No schema. M. |
 | T10 What follows: the guides, the privacy text, ADR-0035, the glossary | builder | 📋 Planned | §14. With each step. M. |
 | T11 Proofs: unit, the managed UI smoke, integration | builder | 📋 Planned | §16. With each step. |
 | T12 A first test with three people | owner | ⏳ **Owner** | §17. After step A is on a stack the owner can reach. |
-| T13 The owner's decisions | owner | ⏳ **Owner** | §18. D1 to D11, each with advice and with what the builder does until it is answered. |
+| T13 The owner's decisions | owner | ✅ Answered 2026-11-26 | §18. D1 to D11, all as advised. |
 
 ## 1. The owner's words
 
@@ -69,6 +93,8 @@ All of 2026-11-26. The question is restated; the answer is the owner's own.
 
 The owner's order for the work: the quick changes first, and of those only the ones the desk
 review also advised. That is step A.
+
+On this plan's own decisions, later the same day: *"D1 to D11: ok on the advised."* (§18).
 
 ## 2. Who reads these pages
 
@@ -200,7 +226,8 @@ other ends on Google's *Access blocked* page (`AlphaGoogleLine.tsx`, the header)
   *gemigreerd* where it was *gekopieerd*; *kopie* stays the noun). **The page does not follow
   that row today.** Since 0174 and #2175 a person's pages say *worden gekopieerd*
   (`grant.group.from`), *de kopie* (`grant.person.theyOpenIt`) and *het kopiëren wacht*
-  (`view.state.destinationRemoved`), beside *gemigreerd* in the counts. D1 settles it.
+  (`view.state.destinationRemoved`), beside *gemigreerd* in the counts. D1 settled it:
+  *kopiëren* on a person's two pages.
 - ***Leest alleen* is the software's promise; *alleen-lezen* is a permission the provider
   enforces.** Two facts, never one word (`:112`).
 - **NL is formal: *u*, never *je*** (`:132`). No guard reads the dictionary for it; one reads
@@ -335,7 +362,7 @@ because this service is new*) and quotes nothing. No word of Google's is written
 
 **This replaces the owner's choice of 2026-10-18** on a person's link page only: there the
 steps stand where the one line and its link to the guide stood. The member's own screens keep
-`AlphaGoogleLine`. D9 asks the owner to confirm.
+`AlphaGoogleLine`. The owner confirmed it (D9).
 
 ### 5.5 Coming back from Google
 
@@ -380,7 +407,7 @@ Serves R2, R3, R5, R8. §15 holds every new sentence, for the owner to read.
 - An icon stands only beside its word, and is hidden from a screen reader (R8).
 
 **The glossary changes first** (`GLOSSARY.md`: *change a word, change it here first*). T2 edits
-the row at `:106` as D1 decides, adds a row for a person's stop as D2 decides, and adds the
+the row at `:106` as D1 decided, adds a row for a person's stop as D2 decided, and adds the
 sender's label. T7 edits *Register*.
 
 **Keys that leave are removed**, with their Dutch, so `a-word-nobody-says` stays green.
@@ -462,8 +489,8 @@ seven days (§3.3).
   undone by a page that asks by itself.
 
 This widens ADR-0035: an account connected through the link can be connected again through it
-for as long as the page lives, by the same account, into the same destinations. D4 has the
-narrower option.
+for as long as the page lives, by the same account, into the same destinations. D4 had a
+narrower option; the owner chose this one.
 
 ## 9. Stopping, and taking a stop back (T5)
 
@@ -510,7 +537,8 @@ when its owner says so.
 
 ADR-0035's line becomes: nothing reads the account from the moment of the press; for ten
 minutes the press can be taken back; then the grant is revoked at the provider and deleted
-here. Whether that is *withdrawn as easily as it was given* is for the lawyer (D6).
+here. Whether that is *withdrawn as easily as it was given* is for the lawyer (D6): the owner
+puts it to the lawyer before anybody outside the Alpha gets the window.
 
 ## 10. The progress page (T6)
 
@@ -608,7 +636,7 @@ lines that set `text-sm` or `text-xs`, and the language switch is `text-xs`
 
 `{who}` is the sender as the page names them; `{name}`, on the member's side, is the person
 the link is for. Dutch is given with *u*; T7 adds the *je* form of each. The verb follows D1 (a)
-and the stop's word D2 (a); the other option is in §18. `«…»` stands for Google's own words,
+and the stop's word D2 (a), as the owner answered (§18). `«…»` stands for Google's own words,
 which T0 supplies.
 
 **The link page.**
@@ -738,46 +766,49 @@ The owner's. After step A is on a stack the owner can reach.
 
 ## 18. The owner's decisions (T13)
 
-Each with the advice first, and what the builder does until it is answered.
+**Answered on 2026-11-26:** *"D1 to D11: ok on the advised."* Every decision below went as
+advised. The options stay, as the record of what was put.
 
 - **D1. The verb on a person's two pages.** (a) *Kopiëren*, *gekopieerd*, *de kopie*, with the
   glossary's row at `:106` gaining the exception: a person's own pages say *kopiëren*, the
   member's app says *migreren*. A reader with no account hears in *migreren* that their mail
   goes away; *kopiëren* says the original stays, which is the fact they most need. The page
   half says it already (§3.5). (b) *Migreren* everywhere, as the row of 2026-10-10 says, and
-  the three sentences that say *kopiëren* change back. **Advice: (a).** Until answered: (a) in
-  drafts, nothing merged that changes a count's word.
+  the three sentences that say *kopiëren* change back. **Advice: (a). Answered: (a).**
 - **D2. The word on the stop.** (a) *Stop copying* / *Kopiëren stoppen*, with a glossary row
   beside *stoppen* / *hervatten* (`:93`) saying a person's stop ends the reading of their
   account. (b) *Withdraw access* / *Toegang intrekken*, as today, on the larger button.
-  **Advice: (a):** it names what the person sees stop. Until answered: (b), today's word.
+  **Advice: (a):** it names what the person sees stop. **Answered: (a).**
 - **D3. What the page says Ownpace is.** (a) *The service that makes the copy.* (b) The same,
   and where it is run, read from the deployment's configuration as the legal links are, never
-  written into a sentence. **Advice: (a) now, (b) with the site's next pass.**
+  written into a sentence. **Advice: (a) now, (b) with the site's next pass. Answered: as
+  advised.**
 - **D4. Asking again on the same link.** (a) As §8.4: by itself when a connection stopped by
   itself; by a member's press after the person's own stop. (b) Only by a member's press, always.
   **Advice: (a).** Under (b) every person whose copy runs longer than a week waits on the
-  member each time, during the Alpha. Until answered: (b), the narrower one.
+  member each time, during the Alpha. **Answered: (a).**
 - **D5. Lifetimes of the one link.** (a) The member makes one choice: how long the link asks,
   30 days first, 1 or 7 as today. The page lives 90 days, and a member can extend it. (b) Two
   choices, as today's two links have: 1, 7 or 30 days to ask, and 30, 90 or 180 for the page.
-  **Advice: (a):** one question fewer at the moment a link is made. Until answered: (a).
+  **Advice: (a):** one question fewer at the moment a link is made. **Answered: (a).**
 - **D6. The window on a stop.** (a) Ten minutes, with the sentence of §9.2 that says what is
   kept, and the link that ends it at once. The lawyer reads it in the next pass. (b) No window
   until the lawyer has read it; the screen of §9.1 only. **Advice: (a) built, and (b)'s
-  question put to the lawyer before it ships to anybody outside the Alpha.**
-- **D7. The relation.** (a) A fixed list (§7). (b) Free text. **Advice: (a).**
+  question put to the lawyer before it ships to anybody outside the Alpha. Answered: as
+  advised.** Putting it to the lawyer is the owner's.
+- **D7. The relation.** (a) A fixed list (§7). (b) Free text. **Advice: (a). Answered: (a).**
 - **D8. *Je* or *u*: per person or per organisation.** (a) Per person. (b) One choice for the
   organisation. **Advice: (a):** a family says *je* to one parent and *u* to another.
+  **Answered: (a).**
 - **D9. Google's screens told on the link page.** This replaces, on a person's link page only,
   the choice of 2026-10-18 for one line and a link to the guide. **Advice: yes;** it is what
-  all seven simulated readers asked for. Until answered: the steps are built, and the warning
-  step says only what #2175 says.
+  all seven simulated readers asked for. **Answered: yes.** Until T0 the warning step still
+  says only what #2175 says, because Google's own words are not known yet.
 - **D10. The order,** and which alpha takes step A. **Advice: the order of the Status block;
-  step A in the next alpha.**
+  step A in the next alpha. Answered: as advised.**
 - **D11. Whose number.** (a) The member's own where given, else the organisation's. (b) The
   organisation's only, as today. **Advice: (a):** with two members, the organisation's number
-  may not be the sender's. Until answered: (b).
+  may not be the sender's. **Answered: (a).**
 
 ## 19. Not in this plan
 
@@ -790,6 +821,7 @@ Each with the advice first, and what the builder does until it is answered.
   screens only.
 - **A single migration's own link** (`Grant.tsx:682` on), which a person's link replaced on
   2026-10-03.
+- **Where the service is run, said on the link page** (D3 (b)): with the site's next pass.
 - **The gift's screens,** the member's own screens beyond §12, and the site.
 - **Leaving the Alpha at Google.** Once Google has verified the app, the warning step and
   *Access blocked* are expected to go, and the weekly stop with them. Until somebody has seen
