@@ -22,18 +22,7 @@ import type {
   TargetHashScheme,
   RemovalResult,
 } from '@openmig/shared';
-import {
-  fileNaturalKeyHash,
-  containerContentHash,
-  fileContentHash,
-  streamingFileContentHash,
-  isOnTarget,
-  applyTargetFolderPrefix,
-  TargetFolderMissingError,
-  bodyOfBytes,
-  markNeedsDecision,
-  type FileBody,
-} from '@openmig/shared';
+import { fileNaturalKeyHash, containerContentHash, fileContentHash, streamingFileContentHash, isOnTarget, applyTargetFolderPrefix, TargetFolderMissingError, bodyOfBytes, markNeedsDecision, type FileBody, withoutEither } from '@openmig/shared';
 import { davRefusalBody, STREAMED_REQUEST_INIT, withFailureCategory } from '@openmig/shared';
 import { capacityFromDavQuota, DAV_QUOTA_PROPFIND, type DestinationCapacity } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
@@ -733,7 +722,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         // answer, not a failure to read, so it is said as one, naming the
         // folder as the server knows it rather than as `/`. Still thrown: a
         // reader that does not know this error fails as loudly as before.
-        const prefix = this.config.targetFolderPrefix?.replace(/^\/+|\/+$/g, '') ?? '';
+        const prefix = withoutEither(this.config.targetFolderPrefix ?? '', '/');
         throw new TargetFolderMissingError(`/${prefix}`, refused);
       }
       throw new Error(refused);
@@ -845,7 +834,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
 
   /** Normalize a root-relative path: no leading/trailing slashes, forward slashes only. */
   private normalizeRelativePath(path: string): string {
-    return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    return withoutEither(path.replace(/\\/g, '/'), '/');
   }
 
   /**

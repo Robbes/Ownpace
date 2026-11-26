@@ -16,16 +16,15 @@
  * use for their auto-created `personal`/`contacts` collections, so a source "Personal"
  * cleanly adopts the target's existing `personal` calendar.
  */
+
+import { withoutEither } from '@openmig/shared';
 export function collectionSlug(
   name: string | undefined,
   path: string | undefined,
   fallback: string,
 ): string {
   const raw = (name && name.trim()) || lastSegment(path) || fallback;
-  const slug = raw
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  const slug = withoutEither(raw.toLowerCase().replace(/[^a-z0-9]+/g, '-'), '-');
   return slug.length > 0 ? slug : fallback;
 }
 
