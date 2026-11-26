@@ -4,6 +4,43 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's read of #2189's Dutch:** *"#2189: ok"*. Every drafted sentence
+stands, and *Everything on one page* stays without the password card, as advised.
+
+**2026-11-26: step B, the two parts beside the main line that are not the informal Dutch,
+built as one draft pull request** (`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-b-beside`),
+on §23.2's rows for D15 (a) and D16 (a), branched from step A's head. No migration, and no file
+of the main line's: `Grant.tsx` and `PersonGrant.tsx` are not opened.
+
+- **Everything on one page (D15 (a)):** `pages/PersonGrantOnePage.tsx`, at `/grant/<link>/all`
+  (`ONE_PAGE_ROUTE`, `onePagePath`). It says what the steps say, in their order and with their
+  own keys, and prints; it reads and does nothing, and leads back to the steps. Its words are
+  `strings/one-page.ts`: a title, *Print this page*, *Back to the steps*, the link's own
+  *Read everything on one page*, and `grant.person.whatMany` without its *next screen*.
+  `everything-a-link-says-on-one-page.unit.test.tsx` walks every step of four links in both
+  languages and finds each of their sentences on the one page, but for what it leaves out by
+  name: buttons, the password card, *Step n of m*, and the line about the provider's button. The
+  managed UI smoke opens it at 390 and 320 pixels in both languages, measures it as §13 asks,
+  prints it, and holds it to the link's own two requests.
+- **Where the service runs (D16 (a)):** one setting, `OWNPACE_COUNTRY`, a two-letter code, empty
+  in `managed.env.example`. The web build takes it as `VITE_OWNPACE_COUNTRY` (`managed.yml`, the
+  web Dockerfile) and refuses one that is no country (`vite.config.ts`, by
+  `services/where-it-runs.ts`); every site build takes the stack's own (`deploy-live.sh` for
+  live's, and the OTA site's three documented builds). `components/WhereItRuns.tsx` says
+  *Ownpace runs in {country}.* with the name from `Intl.DisplayNames` in the reader's language,
+  and nothing when unset or on the appliance. The home page's sentence takes the same value
+  (`site/country.mjs`, `site/copy.mjs`); unset, it says only that the software is open source.
+  The site's build refuses a country the privacy policy's §7 does not name, where
+  `site/site.unit.test.ts` held the hand-written country to it before.
+  `scripts/a-country-both-builds-know-about.unit.test.ts` holds both halves, and the two copies
+  of the rule to one answer for every code.
+- **What the main line places, from this part:** `<WhereItRuns />` under `grant.person.ownpace`
+  on the first screen, and `<LinkToOnePage link={link} />` on the steps (D15 (a): *on each a
+  link to the same sentences on one page*). The keys exist; the main line writes no words for
+  either. A sentence it adds to a step fails the one page's test until the one page says it too.
+- **Still the owner's:** set `OWNPACE_COUNTRY` in each stack's `.env` before its next deploy,
+  and rebuild the web image: unset, live's home page names no country from then on.
+
 **2026-11-26, the owner's read of the block for families, and one word.** The owner: *"Families
 blot: ok. Use familielid (gezinslid is to limited to one household)"*. The block stands as built.
 Step A's new Dutch says *familielid*: the tester guide's part, now *Als een familielid een link

@@ -84,6 +84,12 @@ ENV VITE_OWNPACE_STAGE=$VITE_OWNPACE_STAGE
 # managed.yml passes it from .env. Empty, the default, shows nothing new.
 ARG VITE_SUPPORT_EMAIL=
 ENV VITE_SUPPORT_EMAIL=$VITE_SUPPORT_EMAIL
+# Where the service runs (workplan 0176 D16 (a)): a two-letter country code,
+# which a person's link page names under its first line. managed.yml passes it
+# from OWNPACE_COUNTRY; the build refuses a value that is no country. Empty,
+# the default, says nothing.
+ARG VITE_OWNPACE_COUNTRY=
+ENV VITE_OWNPACE_COUNTRY=$VITE_OWNPACE_COUNTRY
 RUN pnpm --filter @openmig/web build
 
 # nginx's -alpine-slim (workplan 0146 T12a): the same nginx package on the same
