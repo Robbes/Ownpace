@@ -2,7 +2,93 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-24 (update this block at the end of every session)
+## Status — 2026-11-26 (update this block at the end of every session)
+
+**2026-11-26: live runs `v0.2.0-alpha.20`, one-way over alpha.18 by pg-boss's schema and the
+identity provider's pin, on a copy of alpha.18's databases (T6, T9); what was left of Trigger.dev
+is removed.** The owner deployed it on 2026-11-26 from 09:02, the day after its tag, pasting the
+sheet's checked blocks one at a time. alpha.19 was tagged without a deploy (0146's Status,
+2026-11-24), so this deploy carries alpha.19's changes too. Times are UTC, on 2026-11-26 unless
+said. No values.
+
+- **Before it, alpha.18's last blocks, on 2026-11-25 in the evening.**
+  - 7c and 7d read that day's daily duties: all eight passed, from 13:17:00 to 13:17:05, with the
+    copy before alpha.18 kept on its day 2.
+  - Block 8 removed the plane's 9 volumes and 3 networks by name (`remove-trigger-plane.sh
+    --yes`). A second run found nothing left.
+- **The deploy log (T6 step 9).** 2026-11-26, `v0.2.0-alpha.20`: took at 09:16:22 UTC; one-way.
+  - The tag is tag object `1ceab167…` on `70582df2` (#2152, the fold), made on 2026-11-25 at
+    14:21:43 by Release run 45632310711. Its message names *Proved by: CI run #6467, Security
+    Scan run #6627 on main, windows-payload run #67* and the gate scan, run 45632912539.
+  - The owner waived its counted nights, for this version alone (`WAIVER_VERSIONS`, #2121).
+    Block 6e cited the tag message's waiver line in `deploys.log` at 09:32:19.
+  - It is one-way three times over, as the dry run said: pg-boss moves from 12.38.2 to 12.39.0,
+    its schema from version 46 to 47, and the identity provider's pin from Zitadel `v4.20.4` to
+    `v4.20.5`. Neither migration chain gains a file between alpha.18 and alpha.20.
+- **The self-hosted runner, stopped for the deploy (R1).** It was stopped after a check that it ran
+  no job, so no E2E run could start on the Docker daemon live shares. It started again at R2, at
+  about 09:35.
+- **Read-only checks first (0a to 0d)**, each as the sheet expects, with two notes on 0a:
+  - The line in which the daily duties keep the copy before alpha.18 was missing from what 0a
+    reads of their log, as on 2026-11-25. The duties passed; how 0a reads that log is a known gap
+    and changes nothing the duties do.
+  - 0a read no acceptance of the legal texts. The one alpha.17's sheet read belonged to a test
+    organisation closed on 2026-11-18. Its purge, after the seven days, deletes acceptances with
+    the organisation (`PURGED_TABLES`).
+- **The hold (T6 step 2)** went on at 09:02:39, with 0 passes in flight.
+- **The dry run (block 3)** exited 0, and said one-way, as above.
+  - 3a, on the owner's word (*"3a: yes"*), deleted the copy taken before alpha.18 (5 entries).
+    The take would otherwise have kept that copy and taken none of alpha.18's.
+  - 3b as the sheet expects.
+- **The take (block 4)** at 09:16:22: one-way, with the exposure check clean (notes only).
+  - The app answered with alpha.20's commit at `/api/version` and `/version.json`.
+  - The page carried its security headers as the tag states them.
+  - `/api/ready` answered 200 and `/api/auth/mode` answered `managed`. The API ran in production.
+  - The site was built again from the tag and served.
+- **The copy before alpha.20 (block 5)** was taken at 09:13:36, of alpha.18's databases. The daily
+  duties keep it for at most 7 days: its last day starts on 2026-12-01 at 08:13.
+- **After the take (blocks 6a to 6h):**
+  - live at `70582df2`, its jobs on pg-boss, and the worker running and healthy;
+  - nothing of Trigger.dev's plane left: no container, volume or network;
+  - 17 job queues, none failed;
+  - pg-boss's schema at version 47; no ledger migration after 0075 and no managed migration after
+    0063;
+  - the privacy texts served from the tag, at version 1.0;
+  - one organisation on the instance, and sign-in working.
+- **The hold went off (block 7)** at 09:35:18, after 32 minutes and 39 seconds. 7b's checks were
+  as the sheet expects.
+- **Block 9: what was left of Trigger.dev, on the owner's yes of 2026-11-25.** 9a listed it,
+  read-only, and 9b removed it at 09:51:38:
+  - the 555 images of the plane's repositories, none of them used by a container;
+  - the deploy CLI's folder, with its login (one file);
+  - Trigger.dev's 28 key lines in live's `.env`, after a copy of that file (mode 600). The copy
+    goes once the daily duties after it have passed. Compose reads live's `.env` as before, and
+    every address of this machine that live's logs hide stays hidden.
+  - 9c and 9d did the same for the OTA stack, whose E2E runs share this machine, on the owner's
+    yes of the same day. 9c read what of the plane it still held, read-only. 9d removed it at
+    11:10:28, with no job on the runner and the daily duties not running:
+    - Trigger.dev's 27 key lines in the OTA stack's `.env`, after a copy of that file (mode 600);
+    - the copy of the deploy CLI's login that the OTA gate kept (one file);
+    - the Docker builder the plane's deploys had made, the leftover that 2026-11-24's entry
+      noted. It was not the one Docker builds with by default.
+
+    Compose reads that `.env` as before, and every address of this machine that the gate's
+    public logs hide stays hidden. The next two managed E2E runs brought the OTA stack up from it
+    and were green: 45808221622 at 11:10 (#2178), and the scheduled 45824514388 at 12:57 on
+    main.
+  - Both copies were deleted at about 16:38, with `rm -i`: live's once 7c had read the daily
+    duties after 9b pass, and the OTA stack's once the managed E2E runs had brought that stack up
+    from its trimmed `.env`. Nothing else was asked about.
+- **The first daily duties after the deploy (7c and 7d), the same day.**
+  - 7c read the duties' run on alpha.20's checkout: all eight passed, from 13:17:04 to 13:17:09,
+    with the copy before alpha.20 kept on its day 1. The line that says so was there this time:
+    the reads of 2026-11-24 and of this morning's 0a missed it, so how that line reaches the log
+    is still to be read. The copy was as 7b showed it: 5 entries, its note unchanged.
+  - 7d read the jobs on pg-boss after that first day of schedules on schema 47, on alpha.20's
+    checkout: 17 queues, none failed, nothing queued or active, and the operator's exit 0.
+- **Next.** Live goes from alpha.20 to alpha.21. The copy before alpha.20 has its last day from
+  2026-12-01 at 08:13. alpha.21 renames both Postgres builds (libxml2 2.13.9-r5, #2184), so its
+  deploy builds the new image and recreates live's database containers inside the hold.
 
 **2026-11-24: the front refused the TLS handshake for one name at a time, twice, and recovered by
 itself.** Times are UTC.

@@ -2,7 +2,20 @@
 
 > **In one line:** The 253 open code scanning alerts rebuilt from the uploads that make them (Trivy's image scans, one category per image, Trivy's repository scan and Semgrep), counted per category and severity, with what alpha.14 can fix, what waits on upstream, what is accepted and what only the owner can dismiss.
 
-## Status — 2026-11-24 (update this block at the end of every session)
+## Status — 2026-11-26 (update this block at the end of every session)
+
+**2026-11-26: T3's pin moves to libxml2 2.13.9-r5, because Alpine's mirror no longer serves
+2.13.9-r3.** `build (postgres)` on #2181 stopped at the RUN: *unable to select packages … breaks:
+world[libxml2=2.13.9-r3]* (job 139975889931). Alpine keeps only a package's newest build, as the
+RUN's comment says. A throwaway build (#2183, closed, job 140009737786) read what the mirror serves
+for Alpine 3.24: `2.13.9-r5`, while the base still carries `2.13.9-r2`. So the comment's own second
+way applies, *a newer exact version*, within D3's exact `apk add`:
+- both Postgres Dockerfiles take `libxml2=2.13.9-r5` and stop unless the version is then -r5; the
+  check before, *the base carries -r2*, is unchanged, and so is THE WAY OUT;
+- the builds' name is `localhost/postgres:18.7-alpine-188a4909a850` now, in `managed.yml`, `dev.yml`
+  and the appliance's `compose.yml`, moved by the guard's own `sed`; each machine builds it at its
+  next `up`, restarting its databases once (live at alpha.21's deploy, inside its hold);
+- the guard holds the Dockerfiles to -r5, and the four documents name it.
 
 **2026-11-24: the twelve open image alerts on `main`, read again for alpha.19 (T8). None can be
 fixed by a change here; four are not reachable at all and go to §3 D.** The alerts: #2094, #2095,

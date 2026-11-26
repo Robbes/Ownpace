@@ -57,7 +57,8 @@
  *    repository, for findings no digest of the base had fixed: brotli-libs
  *    and libcurl, and from 2026-11-12 krb5-libs and libxslt too. PostgreSQL
  *    18.7's base carries all four fixes, so that RUN went. Since 2026-11-21
- *    one RUN takes libxml2 2.13.9-r3 (workplan 0166 T3, the owner's D3), and
+ *    one RUN takes libxml2 2.13.9-r5 (workplan 0166 T3, the owner's D3; -r3,
+ *    Alpine's fix, until its mirror served -r5 on 2026-11-26), and
  *    refuses a base that already carries it, so it goes when the base moves;
  *    the documents say the build needs Alpine's mirror while it is there and
  *    Docker Hub alone once it has gone. Any `apk add` takes each package at the exact
@@ -409,7 +410,7 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
       expect(dockerfileProblems(real.replace(/^(USER 70:70)$/m, `${line}\n$1`)), line).toEqual([expect.stringContaining(`\`${line}\` reads files or an image`)]);
     }
     // Alpine's packages (0119): the RUN that took four of them went with 18.7's base, which carries every
-    // fix (2026-11-13). Since 2026-11-21 one RUN takes libxml2 2.13.9-r3 again (workplan 0166 T3, D3), and
+    // fix (2026-11-13). Since 2026-11-21 one RUN takes libxml2 again (workplan 0166 T3, D3), 2.13.9-r5 since 2026-11-26, and
     // nothing else; whatever comes back takes each package at the exact version its line names, and nothing
     // that moves with the day.
     const added = (run: string) => dockerfileProblems(real.replace(/^(USER 70:70)$/m, `${run}\n$1`));
@@ -417,10 +418,10 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
     expect(
       apkRuns.map((l) => [...l.matchAll(/\bapk add --no-cache ([^\s;]+)/g)].map((m) => m[1])),
       "the Dockerfile takes Alpine's packages: the self-host quickstart, docs/testing.md, deploy/selfhost/README.md and docs/managed-bring-up.md say which, and this guard's header says what it reads. When the base carries libxml2 2.13.9-r3 or later the RUN goes (its THE WAY OUT), and so does this line",
-    ).toEqual([['libxml2=2.13.9-r3']]);
+    ).toEqual([['libxml2=2.13.9-r5']]);
     // The RUN refuses a base that already carries the fix, and checks what the add left (its own checks).
-    expect(apkRuns[0], 'the RUN reads the version before the add and refuses any but 2.13.9-r2').toMatch(/was="\$\(installed libxml2\)"; +if \[ "\$was" != 2\.13\.9-r2 \]; then [^;]*; exit 1; fi; +apk add --no-cache libxml2=2\.13\.9-r3;/);
-    expect(apkRuns[0], 'and the version after it, which must be 2.13.9-r3').toMatch(/now="\$\(installed libxml2\)"; +if \[ "\$now" != 2\.13\.9-r3 \]; then [^;]*; exit 1; fi;/);
+    expect(apkRuns[0], 'the RUN reads the version before the add and refuses any but 2.13.9-r2').toMatch(/was="\$\(installed libxml2\)"; +if \[ "\$was" != 2\.13\.9-r2 \]; then [^;]*; exit 1; fi; +apk add --no-cache libxml2=2\.13\.9-r5;/);
+    expect(apkRuns[0], 'and the version after it, which must be 2.13.9-r5').toMatch(/now="\$\(installed libxml2\)"; +if \[ "\$now" != 2\.13\.9-r5 \]; then [^;]*; exit 1; fi;/);
     expect(apkRuns[0], "and reads both from apk's own database").toMatch(/\/lib\/apk\/db\/installed/);
     const pinned = 'apk add --no-cache krb5-libs=1.22.3-r0 libxslt=1.1.43-r4';
     const apk = (to: string) => added(`RUN ${to}`);

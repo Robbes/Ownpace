@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-25: A to U done (U on its branch, not merged); P, Q and R merged for alpha.20 (rows corrected 2026-08-01, the work having landed long before)
+## Status — 2026-11-26: A to V done; P, Q and R merged for alpha.20, U and V for alpha.21 (rows corrected 2026-08-01, the work having landed long before)
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -25,7 +25,8 @@
 | Q — The release's SBOM lists what the product runs: the gap a read-only check (SBOM-1) named in alpha.18's `bom.json`, 2026-11-24 | ✅ Fixed 2026-11-24 on branch `claude/ownpace-public-readiness-y7orc6-a20-sbom-lockfile`, merged as #2133 on 2026-11-25 (`3a4ca1ae`), in alpha.20: `pnpm sbom` from the lockfile, and `scripts/sbom-complete.mjs` after it. Of the check's two findings one is explained and one was real (§Q). Its first proof in CI, Security Scan's push run on `main` at the merge (run 45537860598), passed | asked for, 2026-11-24 |
 | S — A path from the command line (JS-06) and an address checked before it is followed (JS-10): two findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Read 2026-11-25: both false positives (§S); the worker CLI's own `--config`, already known to Semgrep's summary, and a consent address followed only on its provider's own host; nothing changed | the owner was given a reason to paste for each |
 | T — An error dropped where free space is read (ERR-1), two lists of packages (SBOM-1, twice), two doors open on purpose (GEN-33, twice) and a page built from constants (JS-02): six findings of an outside, read-only check on `49672bab`, 2026-11-25 | ✅ Done 2026-11-25 (§T): ERR-1 true and fixed in `destination-space.ts`, every dropped failure now a log line, with tests; SBOM-1 already fixed by §Q and #2137, and read again against alpha.20's published lists on 2026-11-25: the same as the lockfile's at C; GEN-33 both and JS-02 false positives, nothing changed | asked for, 2026-11-25 |
-| U — The api, worker and appliance images' runtime: `libzstd1` 1.5.7+dfsg-1, CVE-2026-124851 (IMG-5), code scanning alert #2098 on `ownpace-worker` at alpha.20 and `:edge`, 2026-11-25 | ✅ Fixed 2026-11-25 on branch `claude/ownpace-public-readiness-y7orc6-zstd-cve`, not merged (§U): the distroless `nodejs26-debian13:nonroot` digest `ffa8a754…` → `a84242e7…` in the api, worker and appliance Dockerfiles, which carries `libzstd1` 1.5.7+dfsg-1+deb13u1 and moves nothing else; not reachable in the images it was found in. Closes when a scan reads a rebuilt image | asked for, 2026-11-25 |
+| U — The api, worker and appliance images' runtime: `libzstd1` 1.5.7+dfsg-1, CVE-2026-124851 (IMG-5), code scanning alert #2098 on `ownpace-worker` at alpha.20 and `:edge`, 2026-11-25 | ✅ Fixed 2026-11-25 on branch `claude/ownpace-public-readiness-y7orc6-zstd-cve`, merged as #2172 the same day (`76244379`), in alpha.21 (§U): the distroless `nodejs26-debian13:nonroot` digest `ffa8a754…` → `a84242e7…` in the api, worker and appliance Dockerfiles, which carries `libzstd1` 1.5.7+dfsg-1+deb13u1 and moves nothing else; not reachable in the images it was found in. The first image scan after the merge (run 45720739726, on `7b3b43a0`) reads the three `:edge` images without it; the alert's legs on alpha.20's images close with alpha.21's tag | asked for, 2026-11-25 |
+| V — Errors dropped in three tests' resets between cases (ERR-1, four spots) and two jobs written twice (CODE-3): an outside, read-only check on `7b3b43a0`, 2026-11-26 | ✅ Done 2026-11-26 (§V): one ERR-1 spot already fixed by #2174 (`e0c271ab`); the three in tests by #2177 (`98f3b720`), whose resets now fail the case instead of passing silently; CODE-3 by #2178 (`515417ef`), where the deletion and relocation jobs share one run, each handing in its core call and its words, with E2E (managed) green; the other copies the check listed read and left | asked for, 2026-11-26 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -795,6 +796,48 @@ commit), in `trivy-image-ownpace-worker-release` (`ownpace-worker:0.2.0-alpha.20
 
 **Done.** The three Dockerfiles move to `a84242e7…`. No open Dependabot pull request moved it.
 Closes when Security Scan's image scan reads images rebuilt from it; the alert is not dismissed.
+
+**Merged, 2026-11-25,** as #2172 (`76244379`), in alpha.21. The first image scan on `main` after it,
+Security Scan run 45720739726 on `7b3b43a0`, read the api, worker and appliance images at `:edge`
+without `CVE-2026-124851`; what they still carry is the two OpenSSL alerts of 0166 §B, which have no
+fixed package yet. Both database builds read 0 high; Alpine's `zstd-libs` 1.5.7-r2 was not
+flagged. The scan's legs on alpha.20's own images keep the alert until alpha.21's tag, the next
+release whose images a scan reads.
+
+## V — Errors dropped in three tests' resets, and two jobs written twice (an outside, read-only check, 2026-11-26)
+
+**Evidence.** The check read `main` at `7b3b43a0` on 2026-11-26. It named four spots under ERR-1
+(an error caught and dropped) and, under CODE-3 (copied code, measured with jscpd, tests left
+out), the largest copies with every place they occur; the owner asked for
+`apps/worker/src/jobs/run-apply-deletion.ts:125` to be fixed.
+
+**Read and done, 2026-11-26.**
+
+- **ERR-1, `apps/api/src/routes/grant-server-domain.ts:83`.** Already fixed on `main` by #2174
+  (`e0c271ab`), merged after the commit the check read: the MX read's `.catch` now logs through
+  `log.warn`, with a test that a fault is logged once and names no domain.
+- **ERR-1, three test files**: `a-destination-the-person-takes-back.unit.test.ts:147` and
+  `a-password-the-link-never-says.unit.test.ts:118` (a `DELETE FROM audit_log` reset with
+  `.catch(() => undefined)`) and `a-password-the-person-removes.unit.test.tsx:78` (an empty
+  `try`/`catch` around `localStorage.clear()`). Real: a reset that broke would let a case pass on
+  the rows of the case before. Merged as #2177 (`98f3b720`). With a fault put in on purpose, the
+  old resets let 4, 8 and 5 cases pass; the bare ones fail every case, each naming the cause.
+- **CODE-3, `run-apply-deletion.ts:125`.** Its partner is `run-apply-relocation.ts`: the two jobs
+  were the same body, line for line, but for the core function each calls and the words each
+  logs. Merged as #2178 (`515417ef`): `apps/worker/src/jobs/apply-one-item.ts` holds the run both
+  share, and each job hands in `applyDeletion` or `applyRelocation` and its words. Every gate
+  stays in core; every log line and receipt write is as before. jscpd: 7 clones of 164 lines
+  between the two became 1 of 22 (each job's imports, its schema and its pools, which the
+  worker's and the pool's guards require per job). E2E (managed), run 45808221622, applied a
+  deletion through it.
+- **The other places the check listed, read and left.** `packages/core/src/apply-deletion.ts:315`
+  is a deliberate copy of the ledger-side gates, held to the original by
+  `apply-deletion-evaluate.unit.test.ts`. Worth bringing together later: the token refresh that
+  `box-token-provider.ts:74` and `dropbox-token-provider.ts` share (about 46 lines), the Graph
+  paging and delta loop of `graph-calendar-source.ts:365` and `graph-todo-source.ts` (about 80),
+  and `escapeXml`, written in six files. Not worth it: the CalDAV and CardDAV protocol helpers,
+  `jmap-contact-target.ts`'s constructor, the item-shape literals in `caldav-target-writer.ts`,
+  `box-file-source.ts:163`, and `scripts/drive-export-stability.ts:214`, a measurement script.
 
 ---
 
