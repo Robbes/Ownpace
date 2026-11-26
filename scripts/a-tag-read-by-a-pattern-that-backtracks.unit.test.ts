@@ -28,12 +28,12 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
 /**
  * Files that hold the shape for a reason of their own, each with it. One today:
- * `remote-refusal.ts`, whose root-tag pattern another change of alpha.21
- * rewrites (it reads only the start of a reply, anchored with `^`); that change
- * owns the file, and this entry goes when it lands.
+ * `remote-refusal.ts`, whose `ROOT_TAG` is sticky (`y`) and is tried once, at
+ * the one place the prolog ends, so `[^>]*` there reads one tag from one start
+ * and no more (#2203 read the prolog in one pass that way).
  */
 export const HELD_ELSEWHERE: Readonly<Record<string, string>> = {
-  'packages/shared/src/remote-refusal.ts': 'its root-tag pattern is rewritten by its own change in alpha.21',
+  'packages/shared/src/remote-refusal.ts': 'its ROOT_TAG is sticky and tried once, where the prolog ends: one tag read from one start',
 };
 
 const SHAPE = /\[\^>\][*+]/;
@@ -89,10 +89,13 @@ describe('a tag read by a pattern that backtracks', () => {
     expect(found, `read a tag at a time with davElement and the readers beside it (@openmig/shared xml-elements):\n${found.join('\n')}`).toEqual([]);
   });
 
-  it('holds no file elsewhere that no longer needs it', () => {
+  it('holds no file elsewhere that no longer needs it, and lets it hold only a sticky pattern', () => {
     for (const [file, reason] of Object.entries(HELD_ELSEWHERE)) {
       expect(reason.length).toBeGreaterThan(20);
-      expect(tagsReadByBacktracking(readFileSync(`${ROOT}${file}`, 'utf8'), file).length, `${file} no longer holds the shape: take it out of HELD_ELSEWHERE`).toBeGreaterThan(0);
+      const held = tagsReadByBacktracking(readFileSync(`${ROOT}${file}`, 'utf8'), file);
+      expect(held.length, `${file} no longer holds the shape: take it out of HELD_ELSEWHERE`).toBeGreaterThan(0);
+      // Each is a regular expression literal with the `y` flag: tried at one place, not at every one.
+      for (const { line, text } of held) expect(/^\/.*\/[a-z]*y[a-z]*$/s.test(text), `${file}:${line} is not a sticky pattern: ${text}`).toBe(true);
     }
   });
 });
