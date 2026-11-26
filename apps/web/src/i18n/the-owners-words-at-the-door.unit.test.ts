@@ -90,10 +90,12 @@ describe('a provider is an aanbieder in Dutch (GLOSSARY.md)', () => {
     expect(nl['grant.asking']).toBe(
       '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat u nu bewaart.',
     );
-    expect(nl['grant.person.asking']).toMatch(/^\{organisation\} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft/);
     expect(nl['view.who']).toBe('{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder.');
+    // A person's own two pages say *kopiëren* (2026-11-26, workplan 0176 D1, T2): the link
+    // page's first screen says who wants to copy what, and the progress page who copies it.
+    expect(nl['grant.person.whatMany']).toMatch(/^\{who\} wil uw \{what\} kopiëren\./);
     expect(nl['view.person.who']).toBe(
-      '{organisation} migreert uw accounts naar nieuwe aanbieders. Hier ziet u hoe elke migratie ervoor staat.',
+      '{who} kopieert uw e-mail, agenda en bestanden naar een nieuwe aanbieder. Op deze pagina ziet u hoe ver dat is.',
     );
     expect(nl['view.failure.rateLimited']).toBe(
       'Uw aanbieder vroeg ons (automatisch) rustiger aan te doen. Dit gaat vanzelf verder.',
@@ -125,7 +127,9 @@ describe('the owner’s wording fixes of 2026-11-26', () => {
   });
 
   it('says what is moving as email, calendar and files, not "and/or content"', () => {
-    for (const key of ['grant.asking', 'grant.person.asking', 'view.who']) {
+    // `grant.person.asking` left with the cards; a person's progress page says it (2026-11-26,
+    // workplan 0176 T1, T2).
+    for (const key of ['grant.asking', 'view.person.who', 'view.who']) {
       expect(en[key]).toContain('your email, calendar and files');
       expect(en[key]).not.toMatch(/and\/or|account \/ content/);
       expect(nl[key]).toContain('uw e-mail, agenda en bestanden');

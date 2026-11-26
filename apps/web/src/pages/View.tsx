@@ -45,11 +45,26 @@
  * was none, and a Dutch parent whose phone is set to English could not change
  * it. A refusal of the link shows the half the server sent in the page's
  * language, and is announced (`role="alert"`); the waiting line is a status.
+ *
+ * ## A person's page, since step A (workplan 0176 T5, T6, T9)
+ *
+ * A person's progress page says three things, in this order: whether they
+ * have to do anything (the first line, by rule: a connection to renew, a
+ * stop, else nothing to do), how far it is, and how long it takes. It says
+ * them in a person's words (D1, D14: *kopiëren*, through `persons-page.tsx`),
+ * at a person's sizes (T9), and with each account under its own provider's
+ * name. It reads itself again once a minute while something can still change,
+ * with the focus left where it was and nothing read out; a refresh that cannot
+ * reach the server keeps the numbers and says when they are from.
+ *
+ * The stop is a screen of its own (§9.1): *Stop copying*, then a question
+ * with two answers of one size, then what the provider answered. Each is an
+ * entry in the browser's history, so Back goes back to the page. A migration's
+ * own page takes the same screen.
  */
 
 import React from 'react';
-import { YourNewAddress } from '../components/YourNewAddress.tsx';
-import { useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isPauseReason, type FailureCategory, type MappingLifecycle, type ViewTime } from '@openmig/shared';
 import {
@@ -57,8 +72,9 @@ import {
   type MigrationViewPayload,
   type PersonViewPayload,
   type ViewRow,
+  type WithdrawalPayload,
 } from '../services/view-service.ts';
-import { linkRefusal } from '../services/link-refusal.ts';
+import { isUnreachable, linkRefusal } from '../services/link-refusal.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import type { Locale, StringKey } from '../i18n/index.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
@@ -77,6 +93,10 @@ import StateChip from '../components/StateChip.tsx';
 import { useLineSentence } from '../components/MigrationLines.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
 import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
+import { YourNewAddress } from '../components/YourNewAddress.tsx';
+import { PersonsPageProvider, usePersonsPage } from '../components/persons-page.tsx';
+
+type T = ReturnType<typeof useT>;
 
 /** The grant a page may take back: a migration's, or one account's on a person's page. */
 type PageGrant = MigrationViewPayload['grant'];
@@ -117,6 +137,12 @@ const isPersonView = (v: MigrationViewPayload | PersonViewPayload): v is PersonV
   'kind' in v && v.kind === 'person';
 
 /**
+ * Whether a link is a person's by its shape (`p.<id>.<secret>`): so the page
+ * draws a person's sizes while it loads, and for a refusal (0176 T9).
+ */
+const isPersonsLink = (link: string | undefined): boolean => (link ?? '').startsWith('p.');
+
+/**
  * One sentence per lifecycle state, for a reader with no context.
  *
  * A total `Record<MappingLifecycle, StringKey>`, so a sixth state is a compile
@@ -137,6 +163,48 @@ const plural = (base: string, n: number): StringKey =>
   `${base}.${n === 1 ? 'one' : 'many'}` as StringKey;
 
 /**
+ * A PERSON'S SIZES (workplan 0176 T9, §13), or a migration's page's own: on a
+ * person's page a sentence is 18 pixels at 7 to 1 against the paper, and
+ * nothing is under 16.
+ */
+interface Look {
+  readonly sentence: string;
+  readonly quiet: string;
+  readonly warn: string;
+  readonly small: string;
+  readonly title2: string;
+  readonly title3: string;
+}
+const PERSONS_LOOK: Look = {
+  sentence: 'text-lg text-gray-900',
+  quiet: 'text-lg text-gray-800',
+  warn: 'text-lg text-amber-900',
+  small: 'text-base text-gray-800',
+  title2: 'text-xl font-semibold text-gray-900',
+  title3: 'text-lg font-semibold text-gray-900',
+};
+const PAGE_LOOK: Look = {
+  sentence: 'text-gray-900',
+  quiet: 'text-sm text-gray-600',
+  warn: 'text-sm text-amber-800',
+  small: 'text-sm text-gray-500',
+  title2: 'text-base font-semibold text-gray-900',
+  title3: 'font-medium text-gray-900',
+};
+function useLook(): Look {
+  return usePersonsPage() !== null ? PERSONS_LOOK : PAGE_LOOK;
+}
+
+/**
+ * A MAIN BUTTON THAT IS NO TRAP (§9.1, §13): as wide as the column, 60
+ * pixels high, outlined at 3 to 1 against the paper, and never red or filled.
+ * Two answers to one question share it, so neither is the larger target.
+ */
+const MAIN_OUTLINED =
+  'block w-full min-h-[60px] px-4 py-3 rounded-lg border-2 border-gray-700 bg-white text-gray-900 text-lg ' +
+  'font-semibold text-center hover:bg-gray-50 disabled:opacity-60 break-words';
+
+/**
  * One data type: its stage and the owner's line under it (0154 T8), then what
  * waits and why.
  *
@@ -145,12 +213,14 @@ const plural = (base: string, n: number): StringKey =>
  * *18,234 of ~19,000 · last pass 2 minutes ago*, *The check passed yesterday*.
  * Where the sentence does not say when, the page's own *Up to date as of* does,
  * with the date, as it did before. A row with no stage, from a server that
- * worked out none, reads as it always has.
+ * worked out none, reads as it always has. On a person's page each part says
+ * a person's words (D14).
  */
 const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, checkPassedAt }) => {
   const t = useT();
   const { dateTime } = useFormatters();
   const sentenceOf = useLineSentence();
+  const look = useLook();
 
   // A COMPLETION is the only honest source for "up to date as of"; when there
   // has never been one, the page says when a pass last did something instead,
@@ -179,32 +249,32 @@ const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, ch
         : row.stage === 'copying';
 
   return (
-    <li className="py-3 border-b border-gray-100 last:border-b-0" data-domain={row.domain}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-        <span className="font-medium text-gray-900">{t(DOMAIN_STRING_KEY[row.domain])}</span>
+    <li className="py-3 border-b border-gray-200 last:border-b-0" data-domain={row.domain}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className={`font-medium ${look.sentence}`}>{t(DOMAIN_STRING_KEY[row.domain])}</span>
         {row.stage ? (
           <StateChip entity="stage" state={row.stage} />
         ) : (
-          <span className="text-gray-900">
+          <span className={look.sentence}>
             {t(plural('view.copied', row.itemsSynced), { count: String(row.itemsSynced) })}
           </span>
         )}
       </div>
-      {line && line.text !== '' && <p className="mt-0.5 text-gray-900">{line.text}</p>}
-      {saysWhen && <p className="mt-0.5 text-sm text-gray-600">{when}</p>}
+      {line && line.text !== '' && <p className={`mt-0.5 ${look.sentence}`}>{line.text}</p>}
+      {saysWhen && <p className={`mt-0.5 ${look.quiet}`}>{when}</p>}
 
       {row.itemsNeedingDecision > 0 && (
         // Counted, never described. What is waiting is a decision by the person
         // running the migration, so the sentence points at them rather than
         // asking this reader to do something they cannot.
-        <p className="mt-1 text-sm text-amber-800">
+        <p className={`mt-1 ${look.warn}`}>
           {t(plural('view.attention', row.itemsNeedingDecision), {
             count: String(row.itemsNeedingDecision),
           })}
         </p>
       )}
       {row.itemsRetrying > 0 && (
-        <p className="mt-1 text-sm text-gray-600">
+        <p className={`mt-1 ${look.quiet}`}>
           {t(plural('view.retrying', row.itemsRetrying), { count: String(row.itemsRetrying) })}
         </p>
       )}
@@ -214,7 +284,7 @@ const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, ch
           the owner's remedies tell somebody to open a Connections page that
           this reader has no account to reach. */}
       {row.lastErrorCategory && row.lastErrorCategory in VIEW_FAILURE_KEY && (
-        <p className="mt-1 text-sm text-gray-600">
+        <p className={`mt-1 ${look.quiet}`}>
           {t(VIEW_FAILURE_KEY[row.lastErrorCategory as FailureCategory])}
           {row.failedSide ? ` ${t(VIEW_SIDE_KEY[row.failedSide])}` : ''}
         </p>
@@ -229,87 +299,136 @@ const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, ch
 };
 
 /**
- * Where the person finishes a withdrawal Google did not confirm, and checks one
- * it did: the list of apps with access to their Google account. A place, not a
- * sentence, so it is not translated.
+ * WHERE EACH PROVIDER LISTS THE APPS WITH ACCESS (0176 T5.2): where the person
+ * finishes a stop the provider did not confirm, and checks one it did. A
+ * place, not a sentence, so it is not translated. Microsoft's is where
+ * `standing-grants.ts` sends a Microsoft account's own consent; Dropbox's, its
+ * connected apps.
  */
-const GOOGLE_APPS_WITH_ACCESS = 'https://myaccount.google.com/connections';
-const GOOGLE_APPS_WITH_ACCESS_TEXT = 'myaccount.google.com/connections'; // i18n-exempt: a web address
+type AppsFamily = 'google' | 'microsoft' | 'dropbox';
+const APPS_WITH_ACCESS: Readonly<Record<AppsFamily, { readonly href: string; readonly text: string }>> = {
+  google: {
+    href: 'https://myaccount.google.com/connections',
+    text: 'myaccount.google.com/connections', // i18n-exempt: a web address
+  },
+  microsoft: {
+    href: 'https://myaccount.microsoft.com/',
+    text: 'myaccount.microsoft.com', // i18n-exempt: a web address
+  },
+  dropbox: {
+    href: 'https://www.dropbox.com/account/connected_apps',
+    text: 'dropbox.com/account/connected_apps', // i18n-exempt: a web address
+  },
+};
 
-const AppsWithAccess: React.FC = () => (
-  <a
-    href={GOOGLE_APPS_WITH_ACCESS}
-    target="_blank"
-    rel="noreferrer noopener"
-    className="text-blue-700 underline"
-  >
-    {GOOGLE_APPS_WITH_ACCESS_TEXT}
-  </a>
+/** A sign-in source's provider, by its kind; null for a kind that lists no apps a person gave access. */
+function familyOf(kind: string): AppsFamily | null {
+  if (kind === 'dropbox') return 'dropbox';
+  if (kind === 'microsoft') return 'microsoft';
+  if (kind === 'gmail' || kind.startsWith('google')) return 'google';
+  return null;
+}
+
+/** The list, on a line of its own: a target a finger finds, not a word inside a sentence (§9.1). */
+const AppsWithAccess: React.FC<{ family: AppsFamily }> = ({ family }) => (
+  <p className="mt-1">
+    <a
+      href={APPS_WITH_ACCESS[family].href}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="inline-flex min-h-[44px] items-center text-lg text-blue-700 underline underline-offset-4 break-all"
+    >
+      {APPS_WITH_ACCESS[family].text}
+    </a>
+  </p>
 );
 
 /**
- * THE ACCESS THEY GAVE, AND TAKING IT BACK (workplan 0108 T8 (c)).
+ * AN ACCOUNT, BY ITS PROVIDER'S OWN NAME (0176 T2.4, §9.1). The page carries
+ * no address (§3.2), so an account is *your Google account*, or *Microsoft 365
+ * account 2* where one provider has more than one, read from its migrations'
+ * `from`. Before 0171 every account was Google's, so one with no migration on
+ * the page is too.
+ */
+interface AccountNames {
+  /** Its heading: *Your Google account*, *Google account 2*. */
+  readonly heading: string;
+  /** In a sentence: *your Google account*, *Google account 2*. */
+  readonly inSentence: string;
+  /** The provider's own name: *Google*, *Microsoft 365*. */
+  readonly provider: string;
+  readonly family: AppsFamily | null;
+  /** Where its migrations copy to, by name, each once. */
+  readonly destinations: readonly string[];
+}
+
+function accountNamesOf(view: PersonViewPayload, t: T, locale: Locale): ReadonlyMap<string, AccountNames> {
+  const kindOf = (ref: string) => view.migrations.find((m) => m.account === ref)?.from ?? 'google';
+  const providers = view.accounts.map((a) => providerName(kindOf(a.ref), 'source', locale));
+  const out = new Map<string, AccountNames>();
+  view.accounts.forEach((a, i) => {
+    const provider = providers[i]!;
+    const one = providers.filter((p) => p === provider).length === 1;
+    const n = String(providers.slice(0, i + 1).filter((p) => p === provider).length);
+    out.set(a.ref, {
+      heading: one ? t('view.person.account.only', { provider }) : t('view.person.account', { provider, n }),
+      inSentence: one ? t('view.person.account.only.inSentence', { provider }) : t('view.person.account', { provider, n }),
+      provider,
+      family: familyOf(kindOf(a.ref)),
+      destinations: [
+        ...new Set(
+          view.migrations
+            .filter((m) => m.account === a.ref && m.to !== null)
+            .map((m) => providerName(m.to!, 'target', locale)),
+        ),
+      ],
+    });
+  });
+  return out;
+}
+
+/** A migration's own page: its one account, named alike (§9.1: *the part is shared*). */
+function migrationNamesOf(one: MigrationViewPayload, t: T, locale: Locale): AccountNames {
+  const kind = one.from ?? 'google';
+  const provider = providerName(kind, 'source', locale);
+  return {
+    heading: t('view.person.account.only', { provider }),
+    inSentence: t('view.person.account.only.inSentence', { provider }),
+    provider,
+    family: familyOf(kind),
+    destinations: [],
+  };
+}
+
+/**
+ * THE ACCESS THEY GAVE (workplan 0108 T8 (c); 0176 T5, §9.1).
  *
- * Before this, the only way to stop a migration somebody had granted was
+ * Before 0108 the only way to stop a migration somebody had granted was
  * Google's own security settings, which most people never find. The owner's
- * decision: withdraw here, revoke at Google where Google will, delete it on our
- * side whatever Google answers, and say which of the two happened.
+ * decision: stop here, revoke at the provider where it will, delete it on our
+ * side whatever the provider answers, and say which of the two happened.
  *
- * Two presses, because the second one is what cannot be undone from this page:
- * continuing afterwards needs a new link from whoever sent this one. And what
- * Google takes back is everything this person allowed the app, at once, which
- * is said before the first press rather than discovered after it.
+ * Here the page says what the permission is for, and offers *Stop copying*:
+ * a button as wide as the column, which opens the question as a screen of its
+ * own (`StopQuestion`). Once stopped, it says that nothing is read any more,
+ * and where the provider lists the apps that still have access.
  */
 const TheAccessTheyGave: React.FC<{
-  link: string;
   grant: PageGrant;
   organisation: string;
-  /**
-   * On a person's page (0153 T5 (b), slice 3), the account this takes back,
-   * by the page's `ref`: its permission, from every migration that reads it.
-   */
-  account?: string;
-}> = ({ link, grant, organisation, account }) => {
+  names: AccountNames;
+  /** On a person's page (0153 T5 (b), slice 3), the section sits under its account's heading. */
+  forAccount: boolean;
+  onStop: () => void;
+}> = ({ grant, organisation, names, forAccount, onStop }) => {
   const t = useT();
-  const { locale } = useLocale();
-  const queryClient = useQueryClient();
-  const [confirming, setConfirming] = React.useState(false);
-  const forAccount = account !== undefined;
+  const look = useLook();
   // One section of a person's page sits under its account's heading.
   const Title: 'h2' | 'h3' = forAccount ? 'h3' : 'h2';
   // A white card with an edge: gray-50 is the page's own paper since the
   // site's palette (0152 T9 (b)), so a gray-50 panel drew no box at all.
-  const frame = forAccount ? 'mt-4 rounded-lg border border-gray-200 bg-white p-4' : 'mt-8 border-t border-gray-200 pt-6';
-
-  const withdraw = useMutation({
-    mutationFn: () => (forAccount ? viewApi.withdrawAccount(link, account) : viewApi.withdraw(link)),
-    // Read the page again: its state line and this section now say withdrawn.
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['view', link] }),
-  });
-
-  // What Google answered is only known at the moment it answered, so it is
-  // shown from the press itself; a later visit shows the withdrawal and where
-  // to check.
-  if (withdraw.data) {
-    return (
-      <section className={frame}>
-        <Title className="text-base font-semibold text-gray-900">{t('view.grant.title')}</Title>
-        {withdraw.data.atGoogle === 'revoked' ? (
-          <p className="mt-2 text-sm text-gray-900">{t('view.withdrawn.revoked')}</p>
-        ) : (
-          <>
-            <p className="mt-2 text-sm text-amber-800">
-              {t(forAccount ? 'view.person.withdrawn.notConfirmed' : 'view.withdrawn.notConfirmed')}
-            </p>
-            <p className="mt-1 text-sm text-amber-800">
-              {t('view.withdrawn.removeYourself')} <AppsWithAccess />
-            </p>
-          </>
-        )}
-        <p className="mt-2 text-sm text-gray-600">{t('view.withdrawn.since')}</p>
-      </section>
-    );
-  }
+  const frame = forAccount ? 'mt-4 rounded-lg border border-gray-300 bg-white p-4' : 'mt-8 border-t border-gray-300 pt-6';
+  const title = forAccount ? look.title3 : look.title2;
 
   // A destination's password removed (change 1 of the owner's decisions of
   // 2026-11-26): the source's access was not taken back, so this section
@@ -319,11 +438,14 @@ const TheAccessTheyGave: React.FC<{
   if (grant.state === 'withdrawn') {
     return (
       <section className={frame}>
-        <Title className="text-base font-semibold text-gray-900">{t('view.grant.title')}</Title>
-        <p className="mt-2 text-sm text-gray-600">{t('view.withdrawn.since')}</p>
-        <p className="mt-2 text-sm text-gray-600">
-          {t('view.withdrawn.check')} <AppsWithAccess />
-        </p>
+        <Title className={title}>{t('view.grant.title')}</Title>
+        <p className={`mt-2 ${look.sentence}`}>{t('view.stopped.readsNothing', { account: names.inSentence })}</p>
+        {names.family && (
+          <>
+            <p className={`mt-2 ${look.sentence}`}>{t('view.withdrawn.check', { provider: names.provider })}</p>
+            <AppsWithAccess family={names.family} />
+          </>
+        )}
       </section>
     );
   }
@@ -332,55 +454,116 @@ const TheAccessTheyGave: React.FC<{
 
   return (
     <section className={frame}>
-      <Title className="text-base font-semibold text-gray-900">{t('view.grant.title')}</Title>
-      <p className="mt-2 text-sm text-gray-900">
-        {t(forAccount ? 'view.person.grant.body' : 'view.grant.body', { organisation })}
+      <Title className={title}>{t('view.grant.title')}</Title>
+      <p className={`mt-2 ${look.sentence}`}>
+        {forAccount
+          ? t('view.person.grant.body', { organisation, provider: names.provider })
+          : t('view.grant.body', { organisation })}
       </p>
-      <p className="mt-2 text-sm text-gray-600">{t('view.grant.whatHappens')}</p>
-      <p className="mt-2 text-sm text-gray-600">{t('view.grant.wholeApp')}</p>
+      <p className={`mt-2 ${look.sentence}`}>{t('view.grant.whatHappens')}</p>
+      <button type="button" data-main onClick={onStop} className={`mt-4 ${MAIN_OUTLINED}`}>
+        {t('view.grant.withdraw')}
+      </button>
+    </section>
+  );
+};
 
-      {!confirming ? (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="mt-4 px-3 py-1.5 text-sm font-medium rounded border border-red-300 text-red-800 hover:bg-red-50"
-        >
-          {t('view.grant.withdraw')}
+/**
+ * THE QUESTION, A SCREEN OF ITS OWN (0176 T5, §9.1). What stops, for that
+ * account, with what stays where; for Google, that Google ends the whole
+ * app's permission; and that in step A a stop is final at once, so continuing
+ * later needs a new link. Then two answers of one size: *No, do not stop*
+ * first, neither filled and neither red.
+ */
+const StopQuestion: React.FC<{
+  names: AccountNames;
+  who: string;
+  pending: boolean;
+  error: unknown;
+  headingRef: React.Ref<HTMLHeadingElement>;
+  onNo: () => void;
+  onYes: () => void;
+}> = ({ names, who, pending, error, headingRef, onNo, onYes }) => {
+  const t = useT();
+  const { locale } = useLocale();
+  const { list } = useFormatters();
+  return (
+    <>
+      <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold text-gray-900 break-words">
+        {t('view.stop.title', { account: names.inSentence })}
+      </h1>
+      <p className="mt-4 text-lg text-gray-900">
+        {names.destinations.length > 0
+          ? t('view.stop.body', { destination: list(names.destinations), provider: names.provider })
+          : t('view.stop.body.anywhere', { provider: names.provider })}
+      </p>
+      {names.family === 'google' && <p className="mt-3 text-lg text-gray-900">{t('view.grant.wholeApp')}</p>}
+      <p className="mt-3 text-lg text-gray-900">{t('view.stop.final', { who })}</p>
+      <div data-answers className="mt-6 space-y-3">
+        <button type="button" data-main className={MAIN_OUTLINED} disabled={pending} onClick={onNo}>
+          {t('view.stop.no')}
         </button>
-      ) : (
-        <div className="mt-4">
-          <p className="text-sm text-gray-900">{t('view.grant.confirm')}</p>
-          <div className="mt-2 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => withdraw.mutate()}
-              disabled={withdraw.isPending}
-              className="px-3 py-1.5 text-sm font-medium rounded bg-red-700 text-white hover:bg-red-800 disabled:opacity-50"
-            >
-              {withdraw.isPending ? t('view.grant.withdrawing') : t('view.grant.confirmYes')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              disabled={withdraw.isPending}
-              className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-50"
-            >
-              {t('view.grant.keep')}
-            </button>
-          </div>
-        </div>
-      )}
-      {withdraw.error != null && (
+        <button type="button" data-main className={MAIN_OUTLINED} disabled={pending} onClick={onYes}>
+          {pending ? t('view.grant.withdrawing') : t('view.stop.yes')}
+        </button>
+      </div>
+      {error != null && (
         // The server's own sentence: nothing to take back, or it changed while
         // it was being taken back. Both are written for this reader, in both
         // languages, and the page shows its own (the owner's decisions of
-        // 2026-11-26: a migration's page showed the English half on a Dutch
-        // page). Announced, as every refusal on these pages is.
-        <p role="alert" className="mt-2 text-sm text-amber-800">
-          {linkRefusal(withdraw.error, locale, t)}
+        // 2026-11-26). Announced, as every refusal on these pages is.
+        <p role="alert" className="mt-3 text-lg text-amber-900">
+          {linkRefusal(error, locale, t)}
         </p>
       )}
-    </section>
+    </>
+  );
+};
+
+/**
+ * AFTERWARDS, WITHOUT THE BLAME (0176 §9.1): *Copying has stopped*, then what
+ * the provider answered. *You do not have to do anything* only where it
+ * confirmed; where it did not, where to finish it by hand, on a line of its
+ * own. Nothing was deleted, and the copy so far stays, said again here where
+ * the reader looks for it. What the provider answered is only known at the
+ * moment it answered, so a later visit shows the page, which says the stop
+ * and where to check it.
+ */
+const StopAnswer: React.FC<{
+  names: AccountNames;
+  who: string;
+  answer: WithdrawalPayload;
+  headingRef: React.Ref<HTMLHeadingElement>;
+  onBack: () => void;
+}> = ({ names, who, answer, headingRef, onBack }) => {
+  const t = useT();
+  const { list } = useFormatters();
+  const confirmed = answer.atGoogle === 'revoked';
+  return (
+    <>
+      <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold text-gray-900 break-words">
+        {t('view.stopped.title')}
+      </h1>
+      {confirmed ? (
+        <p className="mt-4 text-lg text-gray-900">{t('view.stopped.confirmed', { provider: names.provider })}</p>
+      ) : (
+        <>
+          <p className="mt-4 text-lg text-amber-900">{t('view.stopped.notConfirmed', { provider: names.provider })}</p>
+          {names.family && <AppsWithAccess family={names.family} />}
+        </>
+      )}
+      <p className="mt-3 text-lg text-gray-900">
+        {names.destinations.length > 0
+          ? t('view.stopped.nothingDeleted', { provider: names.provider, destination: list(names.destinations) })
+          : t('view.stopped.nothingDeleted.anywhere', { provider: names.provider })}
+      </p>
+      {confirmed && <p className="mt-3 text-lg text-gray-900">{t('view.stopped.nothingToDo')}</p>}
+      <p className="mt-3 text-lg text-gray-900">{t('view.stopped.allowed')}</p>
+      <p className="mt-3 text-lg text-gray-900">{t('view.stopped.later', { who })}</p>
+      <button type="button" data-main className={`mt-6 ${MAIN_OUTLINED}`} onClick={onBack}>
+        {t('grant.step.back')}
+      </button>
+    </>
   );
 };
 
@@ -398,11 +581,14 @@ type PersonViewDestination = PersonViewPayload['destinations'][number];
  * the page says where Cirrux lists it.
  *
  * Two presses, as for the access they gave: the second one is what cannot be
- * undone from this page.
+ * undone from this page. A stored password is deleted when its owner says so,
+ * so there is no screen of its own (0176 §9.1), but the two answers are one
+ * size, *Keep it* first, and neither is red.
  */
 const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewDestination }> = ({ link, destination }) => {
   const t = useT();
   const { locale } = useLocale();
+  const look = useLook();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = React.useState(false);
   const provider = providerName(destination.provider, 'target', locale);
@@ -415,55 +601,53 @@ const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewD
   });
 
   return (
-    <section aria-labelledby={headingId} className="mt-8 border-t border-gray-200 pt-6" data-destination={destination.provider}>
-      <h2 id={headingId} className="text-base font-semibold text-gray-900">
+    <section aria-labelledby={headingId} className="mt-8 border-t border-gray-300 pt-6" data-destination={destination.provider}>
+      <h2 id={headingId} className={look.title2}>
         {t('view.destination.title', { provider })}
       </h2>
       {remove.data ? (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4" role="status">
-          <p className="text-sm text-gray-900">{t('grant.password.withdrawn', { provider })}</p>
-          {remove.data.drive && <p className="mt-2 text-sm text-gray-900">{t('view.destination.driveRemoved')}</p>}
-          <p className="mt-2 text-sm text-gray-600">{t('view.destination.since')}</p>
+        <div className="mt-4 rounded-lg border border-gray-300 bg-white p-4" role="status">
+          <p className={look.sentence}>{t('grant.password.withdrawn', { provider })}</p>
+          {remove.data.drive && <p className={`mt-2 ${look.sentence}`}>{t('view.destination.driveRemoved')}</p>}
+          <p className={`mt-2 ${look.sentence}`}>{t('view.destination.since')}</p>
         </div>
       ) : (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-900">{t('view.destination.body')}</p>
-          <p className="mt-2 text-sm text-gray-600">{t('view.destination.whatHappens')}</p>
-          {destination.drive && <p className="mt-2 text-sm text-gray-600">{t('view.destination.drive')}</p>}
+        <div className="mt-4 rounded-lg border border-gray-300 bg-white p-4">
+          <p className={look.sentence}>{t('view.destination.body')}</p>
+          <p className={`mt-2 ${look.sentence}`}>{t('view.destination.whatHappens')}</p>
+          {destination.drive && <p className={`mt-2 ${look.sentence}`}>{t('view.destination.drive')}</p>}
           {!confirming ? (
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              className="mt-4 px-3 py-1.5 text-sm font-medium rounded border border-red-300 text-red-800 hover:bg-red-50"
-            >
+            <button type="button" data-main onClick={() => setConfirming(true)} className={`mt-4 ${MAIN_OUTLINED}`}>
               {t('view.destination.remove')}
             </button>
           ) : (
             <div className="mt-4">
-              <p className="text-sm text-gray-900">{t('view.destination.confirm')}</p>
-              <div className="mt-2 flex flex-wrap gap-3">
+              <p className={look.sentence}>{t('view.destination.confirm')}</p>
+              <div data-answers className="mt-3 space-y-3">
                 <button
                   type="button"
-                  onClick={() => remove.mutate()}
+                  data-main
+                  onClick={() => setConfirming(false)}
                   disabled={remove.isPending}
-                  className="px-3 py-1.5 text-sm font-medium rounded bg-red-700 text-white hover:bg-red-800 disabled:opacity-50"
+                  className={MAIN_OUTLINED}
                 >
-                  {remove.isPending ? t('view.destination.removing') : t('view.destination.confirmYes')}
+                  {t('view.destination.keep')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setConfirming(false)}
+                  data-main
+                  onClick={() => remove.mutate()}
                   disabled={remove.isPending}
-                  className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                  className={MAIN_OUTLINED}
                 >
-                  {t('view.destination.keep')}
+                  {remove.isPending ? t('view.destination.removing') : t('view.destination.confirmYes')}
                 </button>
               </div>
             </div>
           )}
           {remove.error != null && (
             // The server's own sentence, in the page's language: it changed since the page was opened.
-            <p role="alert" className="mt-2 text-sm text-amber-800">{linkRefusal(remove.error, locale, t)}</p>
+            <p role="alert" className={`mt-2 ${look.warn}`}>{linkRefusal(remove.error, locale, t)}</p>
           )}
         </div>
       )}
@@ -478,12 +662,13 @@ const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewD
  */
 const HowLong: React.FC<{ time: ViewTime | undefined; from: string | undefined }> = ({ time, from }) => {
   const { locale } = useLocale();
+  const look = useLook();
   if (!time) return null;
   return time.kind === 'beforeStart' ? (
-    <TimeBeforeStartLine className="mt-3 text-sm text-gray-700" time={time.estimate} />
+    <TimeBeforeStartLine className={`mt-3 ${look.quiet}`} time={time.estimate} />
   ) : (
     <TimeWhileCopyingLine
-      className="mt-3 text-sm text-gray-700"
+      className={`mt-3 ${look.quiet}`}
       time={time.estimate}
       provider={providerName(from ?? '', 'source', locale)}
     />
@@ -517,13 +702,14 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
   const t = useT();
   const { locale } = useLocale();
   const { list } = useFormatters();
+  const look = useLook();
   const from = providerName(migration.from, 'source', locale);
   // Its own hold where the server says it (alpha.21), else its account's, as before.
   const stopped = useStoppedSentence(migration.stopped ?? stoppedOf(grant), migration.from);
   const route = migration.to ? t('view.person.route', { from, to: providerName(migration.to, 'target', locale) }) : from;
   return (
     <div className="mt-4">
-      <h3 className="font-medium text-gray-900">
+      <h3 className={look.title3}>
         {withWhat && migration.started && migration.domains.length > 0
           ? t('view.person.routeWhat', {
               route,
@@ -532,10 +718,10 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
           : route}
       </h3>
       {/* A withdrawal is the whole story, as on a migration's page. */}
-      <p className="mt-1 text-gray-900">{stopped ?? t(STATE_SENTENCE[migration.state])}</p>
+      <p className={`mt-1 ${look.sentence}`}>{stopped ?? t(STATE_SENTENCE[migration.state])}</p>
       {/* Stopped is not "not started yet, nothing has gone wrong" (change 1). */}
       {!migration.started ? (
-        stopped ? null : <p className="mt-1 text-sm text-gray-600">{t('view.notStarted')}</p>
+        stopped ? null : <p className={`mt-1 ${look.quiet}`}>{t('view.notStarted')}</p>
       ) : (
         <ul className="mt-2">
           {migration.domains.map((row) => (
@@ -553,37 +739,85 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
   );
 };
 
+/** Whether a stop holds a migration: its own, or its account's (0176 §10). */
+function isHeld(m: PersonViewMigration, view: PersonViewPayload): boolean {
+  if (m.stopped) return true;
+  const grant = view.accounts.find((a) => a.ref === m.account)?.grant;
+  return grant?.state === 'withdrawn';
+}
+
+/**
+ * Whether something on a person's page can still change, so the page reads
+ * itself again (0176 T6.4): a migration neither done nor held. A page with
+ * none yet can get one.
+ */
+function canChange(view: PersonViewPayload): boolean {
+  return view.migrations.length === 0 || view.migrations.some((m) => m.state !== 'done' && !isHeld(m, view));
+}
+
+/**
+ * THE FIRST LINE, BY RULE (0176 §10): the first of these that holds.
+ *
+ * 1. A connection needs renewing, a row's last failure being `auth_expired`:
+ *    the person's own account, or a destination they connected themselves.
+ *    It does not say there is nothing to do.
+ * 2. Every migration on the page is held by a stop.
+ * 3. Otherwise nothing is needed, which is true while a migration waits for
+ *    the member's Start too.
+ */
+function firstLineOf(view: PersonViewPayload, t: T, locale: Locale): string {
+  const theirs = new Set((view.destinations ?? []).map((d) => d.provider));
+  for (const m of view.migrations) {
+    if (isHeld(m, view)) continue;
+    for (const row of m.domains) {
+      if (row.lastErrorCategory !== 'auth_expired') continue;
+      if (row.failedSide === 'target') {
+        if (m.to && theirs.has(m.to)) {
+          return t('view.person.first.renew', { provider: providerName(m.to, 'target', locale), who: view.organisation });
+        }
+        continue;
+      }
+      return t('view.person.first.renew', { provider: providerName(m.from, 'source', locale), who: view.organisation });
+    }
+  }
+  if (view.migrations.length > 0 && view.migrations.every((m) => isHeld(m, view))) return t('view.person.first.stopped');
+  return t('view.person.first.nothingToDo');
+}
+
 /**
  * A PERSON'S PROGRESS PAGE (ADR-0035, amended 2026-09-29; 0153 T5 (b), slice
- * 3): their migrations under the Google account each reads, each as a
- * migration's own page shows it, and *The access you gave* once per account,
- * because one withdrawal takes that account's permission back from every
- * migration that reads it. A migration that reads no Google account follows
- * them. No account is named by its address: the page carries none.
+ * 3): their migrations under the account each reads, each as a migration's
+ * own page shows it, and *The access you gave* once per account, because one
+ * stop takes that account's permission back from every migration that reads
+ * it. A migration that reads no account of theirs follows them. No account is
+ * named by its address: the page carries none.
  *
  * *Report this link* is offered as on a migration's page; the report names the
  * person and every migration of theirs.
  */
-const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ link, view }) => {
+const PersonProgress: React.FC<{
+  link: string;
+  view: PersonViewPayload;
+  names: ReadonlyMap<string, AccountNames>;
+  onStop: (account: string) => void;
+}> = ({ link, view, names, onStop }) => {
   const t = useT();
   const { locale } = useLocale();
+  const look = useLook();
   const others = view.migrations.filter((m) => m.account === null);
   // Read as none from a payload that carries no list (a server before alpha.21).
   const destinations: readonly PersonViewDestination[] = view.destinations ?? [];
   return (
     <>
-      <p className="mt-4 text-gray-900">{t('view.person.who', { organisation: view.organisation })}</p>
-      {view.migrations.length === 0 && <p className="mt-4 text-sm text-gray-600">{t('view.person.none')}</p>}
-      {view.accounts.map((account, i) => (
+      {view.migrations.length === 0 && <p className={`mt-4 ${look.sentence}`}>{t('view.person.none')}</p>}
+      {view.accounts.map((account) => (
         <section
           key={account.ref}
           aria-labelledby={`account-${account.ref}`}
-          className="mt-8 border-t border-gray-200 pt-6"
+          className="mt-8 border-t border-gray-300 pt-6"
         >
-          <h2 id={`account-${account.ref}`} className="text-base font-semibold text-gray-900">
-            {view.accounts.length === 1
-              ? t('view.person.account.only')
-              : t('view.person.account', { n: String(i + 1) })}
+          <h2 id={`account-${account.ref}`} className={look.title2}>
+            {names.get(account.ref)?.heading}
           </h2>
           {view.migrations
             .filter((m) => m.account === account.ref)
@@ -596,10 +830,11 @@ const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ l
               />
             ))}
           <TheAccessTheyGave
-            link={link}
             grant={account.grant}
             organisation={view.organisation}
-            account={account.ref}
+            names={names.get(account.ref)!}
+            forAccount
+            onStop={() => onStop(account.ref)}
           />
         </section>
       ))}
@@ -607,8 +842,8 @@ const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ l
         <TheAccountTheyConnected key={d.ref} link={link} destination={d} />
       ))}
       {others.length > 0 && (
-        <section aria-labelledby="other-migrations" className="mt-8 border-t border-gray-200 pt-6">
-          <h2 id="other-migrations" className="text-base font-semibold text-gray-900">
+        <section aria-labelledby="other-migrations" className="mt-8 border-t border-gray-300 pt-6">
+          <h2 id="other-migrations" className={look.title2}>
             {t('view.person.others')}
           </h2>
           {others.map((m, j) => (
@@ -616,38 +851,147 @@ const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ l
           ))}
         </section>
       )}
-      {/* Report this link (0108 T8 (d)), as on a migration's page. Withdrawing
+      {/* Report this link (0108 T8 (d)), as on a migration's page. Stopping
           is what stops the copying, so the answer points at it while any
-          account's access can be withdrawn, or a destination's password removed. */}
-      <ReportThisLink
-        kind="view"
-        link={link}
-        organisation={view.organisation}
-        {...(view.accounts.some((a) => a.grant.state === 'granted') || destinations.length > 0
-          ? { next: 'linkReport.next.withdraw' as const }
-          : {})}
-      />
+          account's access can be taken back, or a destination's password removed. */}
+      <div className="mt-6">
+        <ReportThisLink
+          kind="view"
+          link={link}
+          organisation={view.organisation}
+          {...(view.accounts.some((a) => a.grant.state === 'granted') || destinations.length > 0
+            ? { next: 'linkReport.next.withdraw' as const }
+            : {})}
+        />
+      </div>
     </>
   );
 };
+
+/** The steps of a stop (0176 T5, §9.1), as each is kept in the browser's history. */
+type ViewStep = 'stop' | 'stopped';
+interface ViewStepState {
+  readonly viewStep: ViewStep;
+  /** The account a stop is about, by the page's `ref`; none on a migration's own page. */
+  readonly account?: string;
+  /** Whether the page put the entry there, so Back can go back to it. */
+  readonly back?: boolean;
+}
+
+function viewStepIn(state: unknown): ViewStepState | null {
+  if (state === null || typeof state !== 'object') return null;
+  const s = state as Partial<ViewStepState>;
+  if (s.viewStep !== 'stop' && s.viewStep !== 'stopped') return null;
+  return {
+    viewStep: s.viewStep,
+    ...(typeof s.account === 'string' ? { account: s.account } : {}),
+    ...(s.back === true ? { back: true } : {}),
+  };
+}
+
+/**
+ * Whether the reader's browser says motion is fine: a new screen scrolls to
+ * its top smoothly only then, as *Start a migration*'s does (0145 T3 (a)).
+ */
+const motionWelcome = (): boolean =>
+  typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+
+/** A refresh once a minute (0176 T6.4). */
+const REFRESH_MS = 60_000;
 
 const View: React.FC = () => {
   const { link } = useParams<{ link: string }>();
   const t = useT();
   const { locale } = useLocale();
-  const { dateTime } = useFormatters();
+  const { dateTime, time } = useFormatters();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const view = useQuery({
     queryKey: ['view', link],
     queryFn: () => viewApi.read(link!),
     enabled: Boolean(link),
     retry: false,
+    // THE NUMBERS REFRESH BY THEMSELVES (0176 T6.4) on a person's page, once
+    // a minute while the page is visible and something on it can still
+    // change, and not after a refusal: a refused link stays refused.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || !isPersonView(data) || !canChange(data)) return false;
+      return query.state.error != null && !isUnreachable(query.state.error) ? false : REFRESH_MS;
+    },
   });
 
-  const person = view.data && isPersonView(view.data) ? view.data : null;
-  const one = view.data && !isPersonView(view.data) ? view.data : null;
+  // A refresh that cannot reach the server keeps what the page showed (T6.4);
+  // any other failure, or one before anything was shown, is the page's refusal.
+  const keptThrough = view.data !== undefined && view.error != null && isUnreachable(view.error);
+  const refused = view.error != null && !keptThrough;
+  const data = refused ? undefined : view.data;
+  const person = data && isPersonView(data) ? data : null;
+  const one = data && !isPersonView(data) ? data : null;
+  const personsPage = data !== undefined ? person !== null : isPersonsLink(link);
   const stopped = useStoppedSentence(one ? stoppedOf(one.grant) : null, one?.from);
   const moved = one?.domains.reduce((sum, d) => sum + d.bytesTransferred, 0) ?? 0;
+
+  const names = React.useMemo(() => (person ? accountNamesOf(person, t, locale) : null), [person, t, locale]);
+  const oneNames = React.useMemo(() => (one ? migrationNamesOf(one, t, locale) : null), [one, t, locale]);
+
+  // THE STOP, STEP BY STEP (§9.1): a step is a place in the page, kept in the
+  // browser's history; what the provider answered is kept here, by account,
+  // since it is only known at the moment it answered.
+  const [answers, setAnswers] = React.useState<Readonly<Record<string, WithdrawalPayload>>>({});
+  const here = `${location.pathname}${location.search}`;
+  const asked = viewStepIn(location.state);
+  const target = ((): { account?: string; grant: PageGrant; names: AccountNames } | null => {
+    if (!asked) return null;
+    if (person && names && asked.account !== undefined) {
+      const account = person.accounts.find((a) => a.ref === asked.account);
+      const its = account ? names.get(account.ref) : undefined;
+      return account && its ? { account: account.ref, grant: account.grant, names: its } : null;
+    }
+    if (one && oneNames && asked.account === undefined) return { grant: one.grant, names: oneNames };
+    return null;
+  })();
+  const answer = target ? answers[target.account ?? ''] : undefined;
+  const shown: 'page' | 'stop' | 'stopped' =
+    !asked || !target
+      ? 'page'
+      : asked.viewStep === 'stopped'
+        ? answer
+          ? 'stopped'
+          : 'page'
+        : target.grant.state === 'granted'
+          ? 'stop'
+          : 'page';
+
+  const stop = useMutation({
+    mutationFn: (account: string | undefined) =>
+      account === undefined ? viewApi.withdraw(link!) : viewApi.withdrawAccount(link!, account),
+    onSuccess: (payload, account) => {
+      setAnswers((prev) => ({ ...prev, [account ?? '']: payload }));
+      void navigate(here, {
+        replace: true,
+        state: {
+          viewStep: 'stopped',
+          ...(account !== undefined ? { account } : {}),
+          ...(asked?.back ? { back: true } : {}),
+        } satisfies ViewStepState,
+      });
+      // Read the page again: its sections now say the stop.
+      void queryClient.invalidateQueries({ queryKey: ['view', link] });
+    },
+  });
+  const openStop = (account?: string) => {
+    stop.reset();
+    void navigate(here, {
+      state: { viewStep: 'stop', ...(account !== undefined ? { account } : {}), back: true } satisfies ViewStepState,
+    });
+  };
+  const backToPage = () => {
+    if (asked?.back) void navigate(-1);
+    else void navigate(here, { replace: true, state: null });
+  };
 
   // The tab's name goes back to what it was when this page leaves, so the
   // next screen is not called after this one. Its own effect, run once: a
@@ -658,126 +1002,192 @@ const View: React.FC = () => {
       document.title = before;
     };
   }, []);
-  // The tab's name, as the page's own title says it (the UX sweep, 2026-10-17).
-  const title = t(person ? 'view.person.title' : 'view.title');
+  // The tab's name, as the screen's own title says it (the UX sweep,
+  // 2026-10-17; 0176 §5.6 for the stop's screens).
+  // A person's link is named so while it loads too: no *migratie* in its `h1` (D1).
+  const pageTitle = t(personsPage && !one ? 'view.person.title' : 'view.title');
+  const title =
+    shown === 'stop' && target
+      ? t('view.stop.title', { account: target.names.inSentence })
+      : shown === 'stopped'
+        ? t('view.stopped.title')
+        : pageTitle;
   React.useEffect(() => {
     document.title = `${title} — Ownpace`;
   }, [title]);
 
-  return (
-    <main className="max-w-xl mx-auto px-6 py-12">
+  // A NEW SCREEN STARTS AT THE TOP, with focus on its heading (§5.6, §9.1).
+  // Not on the first render, and not on a refresh: the focus stays put.
+  const headingRef = React.useRef<HTMLHeadingElement>(null);
+  const shownId = `${shown}:${asked?.account ?? ''}`;
+  const lastShown = React.useRef(shownId);
+  React.useLayoutEffect(() => {
+    if (lastShown.current === shownId) return;
+    lastShown.current = shownId;
+    headingRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, left: 0, behavior: motionWelcome() ? 'smooth' : 'instant' });
+  }, [shownId]);
+
+  const look = personsPage ? PERSONS_LOOK : PAGE_LOOK;
+  const who = person?.organisation ?? one?.organisation ?? '';
+
+  const body = (): React.ReactNode => {
+    if (shown === 'stop' && target) {
+      return (
+        <StopQuestion
+          names={target.names}
+          who={who}
+          pending={stop.isPending}
+          error={stop.error}
+          headingRef={headingRef}
+          onNo={backToPage}
+          onYes={() => stop.mutate(target.account)}
+        />
+      );
+    }
+    if (shown === 'stopped' && target && answer) {
+      return <StopAnswer names={target.names} who={who} answer={answer} headingRef={headingRef} onBack={backToPage} />;
+    }
+    return (
+      <>
+        <h1 ref={headingRef} tabIndex={-1} className={personsPage ? 'text-2xl font-semibold text-gray-900' : 'text-xl font-semibold text-gray-900'}>
+          {pageTitle}
+        </h1>
+
+        {/* First, whether anything is needed (§10): the line right under the title. */}
+        {person && <p className="mt-4 text-lg font-medium text-gray-900">{firstLineOf(person, t, locale)}</p>}
+
+        {view.isPending && (
+          <p role="status" className={`mt-4 ${look.quiet}`}>
+            {t('view.loading')}
+          </p>
+        )}
+
+        {refused && (
+          // The server's own sentence, verbatim, in the half the page is in: a
+          // refused link and a migration that no longer exists are both written
+          // to be forwarded to the person who sent the link, and rewording
+          // either would lose that half.
+          <p role="alert" className={`mt-4 ${look.warn}`}>
+            {linkRefusal(view.error, locale, t)}
+          </p>
+        )}
+
+        {person && link && names && (
+          <>
+            <p className="mt-3 text-lg text-gray-900">{t('view.person.who', { who: person.organisation })}</p>
+            {/* When the numbers are from, and that they refresh (T6.4): in no
+                live region, so nothing is read out again. */}
+            {canChange(person) && (
+              <p className="mt-2 text-base text-gray-800">
+                {t(keptThrough ? 'view.refresh.failed' : 'view.refresh.at', { time: time(new Date(view.dataUpdatedAt)) })}
+              </p>
+            )}
+            <PersonProgress link={link} view={person} names={names} onStop={(account) => openStop(account)} />
+            <YourNewAddress door="view" link={link} changes={person.addressChanges} queryKey={['view', link]} />
+            <p className={`mt-8 ${look.small}`}>{t('view.until', { date: dateTime(person.expiresAt) })}</p>
+            {/* Not "only numbers" when the page shows the person's new address
+                (0168 §4.4): the one thing on it that is not a count or a state. */}
+            <p className={`mt-1 ${look.small}`}>
+              {t((person.addressChanges?.length ?? 0) > 0 ? 'addresses.view.readOnly' : 'view.readOnly')}
+            </p>
+          </>
+        )}
+
+        {one && oneNames && (
+          <>
+            <p className="mt-4 text-gray-900">{t('view.who', { organisation: one.organisation })}</p>
+            {/* A withdrawn grant is the whole story until somebody grants again:
+                the lifecycle may still say active, and "your things are being
+                copied across now" would be untrue. */}
+            <p className="mt-3 text-lg text-gray-900">{stopped ?? t(STATE_SENTENCE[one.state])}</p>
+
+            {/* Stopped is not "not started yet, nothing has gone wrong" (change 1). */}
+            {!one.started ? (
+              stopped ? null : <Hint className="mt-4" tone="body" text={t('view.notStarted')} why={t('view.notStarted.why')} />
+            ) : (
+              <>
+                <ul className="mt-6">
+                  {one.domains.map((row) => (
+                    <DomainRow
+                      key={row.domain}
+                      row={row}
+                      {...(one.checkPassedAt ? { checkPassedAt: one.checkPassedAt } : {})}
+                    />
+                  ))}
+                </ul>
+                {moved > 0 && (
+                  <p className="mt-4 text-sm text-gray-600">{t('view.moved', { bytes: formatBytes(moved, locale) })}</p>
+                )}
+              </>
+            )}
+            {!stopped && <HowLong time={one.time} from={one.from} />}
+
+            {link && (
+              <TheAccessTheyGave
+                grant={one.grant}
+                organisation={one.organisation}
+                names={oneNames}
+                forAccount={false}
+                onStop={() => openStop()}
+              />
+            )}
+            {/* Report this link (0108 T8 (d)), for somebody who granted and then
+                had doubts. Stopping is what stops the copying, so the answer
+                points at it while there is access to take back. */}
+            {link && (
+              <ReportThisLink
+                kind="view"
+                link={link}
+                organisation={one.organisation}
+                {...(one.grant.state === 'granted' ? { next: 'linkReport.next.withdraw' as const } : {})}
+              />
+            )}
+
+            <p className="mt-8 text-sm text-gray-500">{t('view.until', { date: dateTime(one.expiresAt) })}</p>
+            <p className="mt-1 text-sm text-gray-500">{t('view.readOnly')}</p>
+          </>
+        )}
+      </>
+    );
+  };
+
+  const page = (
+    <main
+      {...(personsPage ? { 'data-persons-page': '' } : {})}
+      className={personsPage ? 'max-w-xl mx-auto px-4 py-8 sm:py-12' : 'max-w-xl mx-auto px-6 py-12'}
+    >
       <LanguageSwitch className="justify-end mb-4" />
-      <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-
-      {view.isPending && (
-        <p role="status" className="mt-4 text-sm text-gray-600">
-          {t('view.loading')}
-        </p>
-      )}
-
-      {view.error != null && (
-        // The server's own sentence, verbatim, in the half the page is in: a
-        // refused link and a migration that no longer exists are both written
-        // to be forwarded to the person who sent the link, and rewording
-        // either would lose that half.
-        <p role="alert" className="mt-4 text-sm text-amber-800">
-          {linkRefusal(view.error, locale, t)}
-        </p>
-      )}
-
-      {person && link && <PersonProgress link={link} view={person} />}
-      {person && link && (
-        <YourNewAddress door="view" link={link} changes={person.addressChanges} queryKey={['view', link]} />
-      )}
-      {person && (
-        <>
-          <p className="mt-8 text-sm text-gray-500">{t('view.until', { date: dateTime(person.expiresAt) })}</p>
-          {/* Not "only numbers" when the page shows the person's new address
-              (0168 §4.4): the one thing on it that is not a count or a state. */}
-          <p className="mt-1 text-sm text-gray-500">
-            {t((person.addressChanges?.length ?? 0) > 0 ? 'addresses.view.readOnly' : 'view.readOnly')}
-          </p>
-        </>
-      )}
-
-      {one && (
-        <>
-          <p className="mt-4 text-gray-900">
-            {t('view.who', { organisation: one.organisation })}
-          </p>
-          {/* A withdrawn grant is the whole story until somebody grants again:
-              the lifecycle may still say active, and "your things are being
-              copied across now" would be untrue. */}
-          <p className="mt-3 text-lg text-gray-900">{stopped ?? t(STATE_SENTENCE[one.state])}</p>
-
-          {/* Stopped is not "not started yet, nothing has gone wrong" (change 1). */}
-          {!one.started ? (
-            stopped ? null : <Hint
-              className="mt-4"
-              tone="body"
-              text={t('view.notStarted')}
-              why={t('view.notStarted.why')}
-            />
-          ) : (
-            <>
-              <ul className="mt-6">
-                {one.domains.map((row) => (
-                  <DomainRow
-                    key={row.domain}
-                    row={row}
-                    {...(one.checkPassedAt ? { checkPassedAt: one.checkPassedAt } : {})}
-                  />
-                ))}
-              </ul>
-              {moved > 0 && (
-                <p className="mt-4 text-sm text-gray-600">
-                  {t('view.moved', { bytes: formatBytes(moved, locale) })}
-                </p>
-              )}
-            </>
-          )}
-          {!stopped && <HowLong time={one.time} from={one.from} />}
-
-          {link && <TheAccessTheyGave link={link} grant={one.grant} organisation={one.organisation} />}
-          {/* Report this link (0108 T8 (d)), for somebody who granted and then
-              had doubts. Withdrawing is what stops the copying, so the answer
-              points at it while there is access to withdraw. */}
-          {link && (
-            <ReportThisLink
-              kind="view"
-              link={link}
-              organisation={one.organisation}
-              {...(one.grant.state === 'granted' ? { next: 'linkReport.next.withdraw' as const } : {})}
-            />
-          )}
-
-          <p className="mt-8 text-sm text-gray-500">
-            {t('view.until', { date: dateTime(one.expiresAt) })}
-          </p>
-          <p className="mt-1 text-sm text-gray-500">{t('view.readOnly')}</p>
-        </>
-      )}
+      {body()}
 
       {/* A person with only this link reaches the statement from here too (0145 T9 (b)), and, on
           the managed service, its privacy policy (the owner, 2026-11-23). An appliance is its
           owner's service under their own policy, not ours, so it links none (the share mail's
           rule, `privacy-policy-link.ts`). In the same tab, as the accessibility link: no form here. */}
-      <p className="mt-10 text-center text-sm text-gray-500">
+      <p className={`mt-10 text-center ${personsPage ? 'text-base text-gray-800' : 'text-sm text-gray-500'}`}>
         {!isSelfHost() && (
           <>
-            <a className="underline" href={legalUrl('privacy', locale)}>
+            <a
+              className={personsPage ? 'inline-flex min-h-[44px] items-center underline underline-offset-4' : 'underline'}
+              href={legalUrl('privacy', locale)}
+            >
               {t('acceptance.doc.privacy')}
             </a>
             {' · '}
           </>
         )}
-        <AccessibilityLink className="underline" />
+        <AccessibilityLink
+          className={personsPage ? 'inline-flex min-h-[44px] items-center underline underline-offset-4' : 'underline'}
+        />
       </p>
       <div className="mt-4 text-center">
         <BuildStamp />
       </div>
     </main>
   );
+  // Whoever the page names as having sent the link (0176 D14): the
+  // organisation until T3 gives the page a sender (§10).
+  return personsPage ? <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider> : page;
 };
 
 export default View;

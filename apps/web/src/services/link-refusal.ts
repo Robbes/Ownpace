@@ -49,3 +49,12 @@ export function linkRefusal(err: unknown, locale: Locale, t: (key: StringKey) =>
   // only a code.
   return t('link.unreadable');
 }
+
+/**
+ * A request that got no answer at all: the connection dropped, or it timed
+ * out. A page that refreshes keeps what it showed then (workplan 0176 T6.4),
+ * where an answer that refuses the link replaces it.
+ */
+export function isUnreachable(err: unknown): boolean {
+  return axios.isAxiosError(err) && !err.response;
+}

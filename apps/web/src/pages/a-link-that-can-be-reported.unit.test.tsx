@@ -117,11 +117,12 @@ describe('on the grant page', () => {
     expect(screen.getByText('Your report goes to the Ownpace team, not to Acme Legal.')).toBeInTheDocument();
     // What the note carries, from the rows (workplan 0130 T6): the organisation,
     // the migration, who made the link, the two accounts and the access.
+    // In a person's words: *the copying*, where it said *the migration* (2026-11-26, workplan 0176 D1, T2).
     expect(
       screen.getByText(
-        'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, ' +
-          'the state of the migration; the address of whoever made the link; the account the migration ' +
-          'copies from and the account it copies to; and whether you have given access.',
+        'Sent with it, from our records: which link this is; the organisation and the copying it belongs to, ' +
+          'and how far it is; the address of whoever made the link; the account it copies from and the ' +
+          'account it copies to; and whether you have given access.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Only for us to answer your report.')).toBeInTheDocument();
@@ -222,7 +223,8 @@ describe('on the progress page', () => {
 
     expect(sendMock).toHaveBeenCalledWith('view', 'abc.def', expect.anything());
     expect(await screen.findByText(/Your report is number 41001/)).toBeInTheDocument();
-    expect(screen.getByText('To stop the copying now, withdraw the access above.')).toBeInTheDocument();
+    // The button's own name (2026-11-26, workplan 0176 D2).
+    expect(screen.getByText('To stop the copying now, press Stop copying above.')).toBeInTheDocument();
   });
 
   it('does not point at withdrawing when there is nothing to withdraw', async () => {

@@ -401,7 +401,9 @@ describe('10. Google’s screens, told before they come', () => {
     vi.stubEnv('VITE_OWNPACE_STAGE', 'beta');
     renderPage();
     await toReady();
-    expect(screen.queryByText(/together with/)).not.toBeInTheDocument();
+    // The together line only: *Do you not know the password? … together with {who}* stays at
+    // every stage (§5.4), so the match names the line itself (corrected 2026-11-26).
+    expect(screen.queryByText(/together with .* if you can/)).not.toBeInTheDocument();
     await press('Next');
     await screen.findByRole('heading', { level: 1, name: 'What you will see at Google' });
     const steps = within(screen.getByRole('list', { name: 'What you will see at Google' })).getAllByRole('listitem');

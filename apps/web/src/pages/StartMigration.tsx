@@ -3543,7 +3543,7 @@ const PersonAwaitingGrant: React.FC<{
             : t('start.check.linkAsks.many', { person: personName, n: asks.length, accounts: list(asks) })}
         </p>
       )}
-      <PersonGrantLinkSection personId={personId} links={links.data} loadFailed={links.isError} />
+      <PersonGrantLinkSection personId={personId} personName={personName} links={links.data} loadFailed={links.isError} />
     </div>
   );
 };

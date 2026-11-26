@@ -45,6 +45,7 @@ import ProviderTile from './ProviderTile.tsx';
 import { DataTypeIcon, DataTypeLabel } from './icons/data-type-icons.tsx';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
+import { usePersonsPage } from './persons-page.tsx';
 
 /** A migration's stage, from what the list carries (see the header). */
 export function listStage(m: Pick<MappingListItem, 'status' | 'lastSyncAt'>): Stage | undefined {
@@ -110,6 +111,9 @@ export function useLineSentence(): (stage: Stage | undefined, facts: SentenceFac
   const t = useT();
   const { locale } = useLocale();
   const { relativeToNow } = useFormatters();
+  // On a person's own page the line says *kopiëren*, never *migreren* or
+  // *ronde* (workplan 0176 D14 (a)). The numbers are the same on both.
+  const personsPage = usePersonsPage() !== null;
   const say = (part: LinePart): string => {
     switch (part.kind) {
       case 'ofAbout':
@@ -120,9 +124,11 @@ export function useLineSentence(): (stage: Stage | undefined, facts: SentenceFac
       case 'bytesOfAbout':
         return t('confirm.progress.ofAbout', { done: part.done, total: part.total });
       case 'totalNotKnown':
-        return t('confirm.progress.totalNotKnown', { done: formatNumber(part.done, locale) });
+        return t(personsPage ? 'view.person.line.totalNotKnown' : 'confirm.progress.totalNotKnown', {
+          done: formatNumber(part.done, locale),
+        });
       case 'noneFound':
-        return t('confirm.progress.noneFound');
+        return t(personsPage ? 'view.person.line.noneFound' : 'confirm.progress.noneFound');
       case 'listedButEmpty':
         return part.count === 1
           ? t('confirm.progress.listedButEmpty.one')
@@ -130,7 +136,7 @@ export function useLineSentence(): (stage: Stage | undefined, facts: SentenceFac
       case 'leftAsIs':
         return t('people.line.leftAsIs', { count: formatNumber(part.count, locale) });
       case 'lastPass':
-        return t('people.line.lastPass', { when: relativeToNow(part.at) });
+        return t(personsPage ? 'view.person.line.lastPass' : 'people.line.lastPass', { when: relativeToNow(part.at) });
       case 'checkPassed':
         return t('people.line.checkPassed', { when: relativeToNow(part.at) });
     }

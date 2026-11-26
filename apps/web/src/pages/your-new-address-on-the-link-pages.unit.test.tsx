@@ -102,6 +102,8 @@ const DOOR = (door: 'grant' | 'view') => `/${door}/${encodeURIComponent(TOKEN)}/
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A person's link keeps its first screen's answer for the tab (0176 §5.1); each case starts unanswered.
+  window.sessionStorage.clear();
   window.localStorage.setItem('ownpace.locale', 'en');
   reportAvailableMock.mockResolvedValue(false);
   // The server's answer to a press: the row in the state it was sent.
@@ -120,6 +122,11 @@ describe('the grant page', () => {
     const user = userEvent.setup();
     renderAt(`/grant/${TOKEN}`);
 
+    // On the accounts, after the first screen's question, and never on the first screen, whose
+    // own answer says *Yes, that is right* too (2026-11-26, workplan 0176 T1, §5.1, §5.3).
+    await screen.findByRole('heading', { level: 1, name: 'owner@example.org asks for your permission' });
+    expect(screen.queryByText(/Your new address/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Yes, that is right' }));
     expect(await screen.findByText('Your new address: kid@example.org. Is that right?')).toBeInTheDocument();
     expect(getMock).toHaveBeenCalledWith(`/grant/${encodeURIComponent(TOKEN)}`);
     expect(screen.queryByRole('button', { name: 'Not right?' })).toBeNull();
@@ -142,6 +149,7 @@ describe('the grant page', () => {
     const user = userEvent.setup();
     renderAt(`/grant/${TOKEN}`);
 
+    await user.click(await screen.findByRole('button', { name: 'Ja, dat klopt' }));
     expect(await screen.findByText('Uw nieuwe adres: kid@example.org. Klopt dat?')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Ja, dat klopt' }));
     expect(putMock).toHaveBeenCalledWith(DOOR('grant'), { state: 'confirmed', newAddress: 'kid@example.org' });
@@ -151,9 +159,12 @@ describe('the grant page', () => {
 
   it('says nothing about an address when the person has no row, or the server sends no field', async () => {
     for (const changes of [[], undefined]) {
+      window.sessionStorage.clear();
       getMock.mockResolvedValue({ data: grantPage(changes) });
       const { unmount } = renderAt(`/grant/${TOKEN}`);
-      expect(await screen.findByText('kid.name@gmail.com')).toBeInTheDocument();
+      // Through the first screen to the one account's own step: no accounts screen, so no line.
+      await userEvent.click(await screen.findByRole('button', { name: 'Yes, that is right' }));
+      expect(await screen.findByRole('heading', { level: 1, name: 'Have this ready' })).toBeInTheDocument();
       expect(screen.queryByText(/Your new address/)).toBeNull();
       unmount();
     }

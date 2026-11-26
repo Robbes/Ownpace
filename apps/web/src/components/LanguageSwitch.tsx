@@ -17,10 +17,23 @@
 
 import React from 'react';
 import { useLocale } from '../i18n/index.tsx';
-import { LOCALES } from '../i18n/strings.ts';
+import { LOCALES, type Locale } from '../i18n/strings.ts';
+import { usePersonsPage } from './persons-page.tsx';
+
+/**
+ * Each language in its own words, as a person's own page says it (workplan
+ * 0176 T9.7): *English* and *Nederlands*, the same in either language, since
+ * each is said in its own (`lang`). The sidebar keeps *EN* and *NL*.
+ */
+const IN_ITS_OWN_WORDS: Readonly<Record<Locale, string>> = {
+  en: 'English', // i18n-exempt: a language's own name, the same on every page
+  nl: 'Nederlands', // i18n-exempt: a language's own name, the same on every page
+};
 
 const LanguageSwitch: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { locale, setLocale, t } = useLocale();
+  // A target like any other on a person's own page: 44 by 44, in full words.
+  const personsPage = usePersonsPage() !== null;
   return (
     <div role="group" aria-label={t('language.label')} className={`flex items-center gap-2 ${className}`}>
       {LOCALES.map((l) => (
@@ -30,11 +43,17 @@ const LanguageSwitch: React.FC<{ className?: string }> = ({ className = '' }) =>
           lang={l}
           onClick={() => setLocale(l)}
           aria-pressed={locale === l}
-          className={`px-3 py-2 text-xs font-medium rounded ${
-            locale === l ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+          className={`${personsPage ? 'min-h-[44px] min-w-[44px] px-3 py-2 text-base' : 'px-3 py-2 text-xs'} font-medium rounded ${
+            locale === l
+              ? personsPage
+                ? 'bg-blue-50 text-blue-800 underline underline-offset-4'
+                : 'bg-blue-50 text-blue-700'
+              : personsPage
+                ? 'text-gray-800 hover:bg-gray-100'
+                : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          {l.toUpperCase()}
+          {personsPage ? IN_ITS_OWN_WORDS[l] : l.toUpperCase()}
         </button>
       ))}
     </div>

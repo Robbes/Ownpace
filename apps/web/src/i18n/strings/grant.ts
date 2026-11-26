@@ -101,10 +101,7 @@ export const en = {
   'grant.inAppBrowser':
     'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Firefox, Safari or Chrome. The link still works.',
   'grant.connect': 'Continue with Google',
-  // A person's link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
-  // card per Google account, each asked once.
-  'grant.person.asking':
-    '{organisation} is moving your email, calendar and files to a new provider, and needs your permission to read what you currently hold. Each account below asks once.',
+  // A person's link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)).
   'grant.person.migration': 'To {where}: {reads}.',
   // Said plainly under a source's migration into a destination the organisation
   // connected (the owner's decisions of 2026-11-26, change 3). {who} is whoever
@@ -117,17 +114,15 @@ export const en = {
   'grant.together':
     'Google shows a warning screen next, because this service is new. You can do this step together with {who}: on the phone, or at the table.',
   'grant.person.where': '{account}, {place}',
-  'grant.person.connect': 'Continue with Google as {account}',
   'grant.person.connected': 'Connected. Nothing more is needed for this account.',
-  'grant.person.again':
-    'This account was connected before. Whoever sent this link asks you to connect again, for instance because the connection stopped working.',
-  'grant.person.connectAgain': 'Connect again with Google as {account}',
+  // A link made while an account was connected asks it again (workplan 0176 §15).
+  'grant.person.again': 'This account was connected before. {who} asks you to connect it again.',
+  'grant.person.again.alpha': 'During the Alpha, Google asks again about once a week.',
   'grant.connecting': 'Opening Google…',
   // A Microsoft account's link (workplan 0171 §3.3–3.4): the same page, in
   // Microsoft's words where Google's above name Google. The scope words say
   // what each Graph permission allows, as Microsoft's screen does a click later.
   'grant.continue.microsoft': 'Continue with Microsoft as {account}',
-  'grant.connectAgain.microsoft': 'Connect again with Microsoft as {account}',
   'grant.connecting.microsoft': 'Opening Microsoft…',
   'grant.reads.file.microsoft': 'your files in OneDrive',
   'grant.readOnly.microsoft':
@@ -153,18 +148,16 @@ export const en = {
   // the owner's own (`account.cirrux.connect`).
   // The person's progress page after a password (0174 §5.3 step 8), in the
   // words the sign-in ending's own page says it (`google-consent.ts`).
+  // In the ending's own words (workplan 0176 D1, §15): kopiëren, never migreren.
   'grant.person.yourPage':
-    'Here is your own page for this migration. Keep this one: it shows how far along your move is, and nothing from inside your account.',
+    'Here is your own page. Keep this one. It shows how far the copying is, and nothing from inside your account:',
   'grant.person.keepIt':
-    'Keep this link: bookmark it or copy it somewhere safe. It works for the next 90 days, and the person running the migration can turn it off at any time.',
-  'grant.continue.cirrux': 'Connect Cirrux Drive',
-  'grant.connectAgain.cirrux': 'Connect Cirrux Drive again',
+    'Keep this link: bookmark it or copy it somewhere safe. It works for the next 90 days, and whoever sent you the link can turn it off at any time.',
   'grant.connecting.cirrux': 'Opening Cirrux…',
   'grant.cirrux.drive':
     'Your files go to Cirrux Drive, which takes your own Cirrux sign-in rather than the app password. You sign in to Cirrux yourself, on Cirrux’s own page.',
   'grant.cirrux.signInAs': 'Sign in to Cirrux with the account {account} belongs to.',
   'grant.continue.dropbox': 'Continue with Dropbox as {account}',
-  'grant.connectAgain.dropbox': 'Connect again with Dropbox as {account}',
   'grant.connecting.dropbox': 'Opening Dropbox…',
   'grant.reads.file.dropbox': 'your files in Dropbox',
   'grant.readOnly.dropbox':
@@ -189,6 +182,62 @@ export const en = {
   'grant.state.waiting': 'Waiting',
   'grant.state.locked': 'Locked on this link',
   'grant.person.allConnected': 'Every account is connected. You can close this page.',
+  // A PERSON'S LINK, ONE THING AT A TIME (workplan 0176 T1, §5, §15): the
+  // first screen and its question, the accounts, what to have ready, and what
+  // the provider shows. A reader with no account, often older, who was taught
+  // never to tap a link: every sentence one idea, plain, and true one screen
+  // later (R3). Drafts for the owner's read.
+  'grant.person.ownpace': 'This page is from Ownpace, the service that makes the copy.',
+  'grant.person.title': '{who} asks for your permission',
+  'grant.person.sender': 'Sender',
+  'grant.person.place': '{place} ({account})',
+  'grant.person.whatOne': '{who} wants to copy your {what} from {source} to {destination}.',
+  'grant.person.whatMany': '{who} wants to copy your {what}. The next screen shows from where and to where.',
+  'grant.person.fact.stays': 'Everything also stays in {source}.',
+  'grant.person.fact.reads': 'Ownpace only reads there. It deletes nothing and changes nothing.',
+  'grant.person.fact.noHurry': 'There is no hurry. You can do this until {date}.',
+  'grant.person.told': 'Did {who} tell you about this link themselves?',
+  'grant.person.yes': 'Yes, that is right',
+  'grant.person.notYet': 'No, not yet',
+  'grant.person.wait.title': 'Then wait a moment',
+  'grant.person.wait.ask':
+    'Ask {who} first, in a way you trust. Call the number you already have. Or ask when you see each other.',
+  'grant.person.wait.until': 'This page can wait. The link works until {date}.',
+  'grant.person.wait.unknown': 'Do you not know {who}? Then close this page. You can also report this link.',
+  'grant.person.accounts.title': 'Your accounts',
+  'grant.person.connectAccount': 'Connect {account}',
+  'grant.person.ready.title': 'Have this ready',
+  'grant.person.ready.address': 'The address {account}.',
+  'grant.person.ready.password': 'The password of your {provider} account.',
+  'grant.person.ready.passwordOf': 'The password of {account}.',
+  'grant.person.ready.typeIt': 'You type it only on {provider}’s own page. Ownpace never sees it. {who} does not either.',
+  'grant.person.ready.phone': 'Your phone. {provider} may send a code to it.',
+  'grant.person.ready.code': 'Give that code to nobody. Not to {who} either.',
+  'grant.person.ready.unknownPassword': 'Do you not know the password? Then stop here, and do this together with {who}.',
+  'grant.person.ready.together': 'Do this together with {who} if you can: on the phone, or at the table.',
+  'grant.person.see.title': 'What you will see at {provider}',
+  'grant.person.see.signIn': '{provider} asks you to sign in.',
+  // Google's warning, until the owner's hand test has Google's own words
+  // (T0): what is known and ours, quoting nothing (D12 (a), 2026-11-26).
+  'grant.person.see.warning': 'Google has not checked Ownpace yet. That is why Google warns, and Google is right to.',
+  'grant.person.see.goOn': 'Go on to Ownpace there.',
+  'grant.person.see.onlyHere':
+    'Do this only here, because {who} told you about it themselves. At any other warning, stop.',
+  'grant.person.see.broader':
+    'Google’s words are broader than what Ownpace does. Ownpace only reads. It sends nothing and deletes nothing.',
+  'grant.person.see.ticks': 'Make sure everything Ownpace asks for is ticked.',
+  'grant.person.see.blocked':
+    'Does Google not allow the connection? Then this address is not on Google’s list yet. Close the page and tell {who}. You did nothing wrong.',
+  // Until one link is built (T4), the stop is on the page the ending hands over.
+  'grant.person.see.stop': 'You can stop this at any time, on the page you get afterwards.',
+  'grant.person.see.next': 'The next step is on {provider}’s own page.',
+  'grant.person.signIn': 'Sign in with {provider}',
+  'grant.person.ratherNot': 'No, rather not',
+  'grant.person.ratherNot.title': 'That is fine',
+  'grant.person.ratherNot.body': 'Nothing has happened. You can close this page, or come back later: the link works until {date}.',
+  'grant.step': 'Step {n} of {total}',
+  'grant.step.next': 'Next',
+  'grant.step.back': 'Back',
   // The own-password card (0174 §5.2, §5.7, §5.8). Short sentences, in the
   // words the Google and Microsoft cards above already use.
   'grant.password.title': 'Connect {account} with your password',
@@ -232,7 +281,7 @@ export const en = {
   'linkReport.replyTo': 'Your email address (optional)',
   'linkReport.replyTo.hint': 'Only for us to answer your report.',
   'linkReport.sentWith':
-    'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, the state of the migration; the address of whoever made the link; the account the migration copies from and the account it copies to; and whether you have given access.',
+    'Sent with it, from our records: which link this is; the organisation and the copying it belongs to, and how far it is; the address of whoever made the link; the account it copies from and the account it copies to; and whether you have given access.',
   'linkReport.send': 'Send the report',
   'linkReport.sending': 'Sending…',
   'linkReport.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
@@ -241,7 +290,7 @@ export const en = {
   'linkReport.sent.mail.anonymous':
     'Sent to our support team, with report reference {reference}. Without an email address, we cannot answer you.',
   'linkReport.next.grant': 'Nothing is read unless you allow it at Google.',
-  'linkReport.next.withdraw': 'To stop the copying now, withdraw the access above.',
+  'linkReport.next.withdraw': 'To stop the copying now, press Stop copying above.',
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
@@ -317,21 +366,16 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.inAppBrowser':
     'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Firefox, Safari of Chrome. De link blijft werken.',
   'grant.connect': 'Doorgaan met Google',
-  'grant.person.asking':
-    '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat erin zit. Voor elk account hieronder wordt het één keer gevraagd.',
   'grant.person.migration': 'Naar {where}: {reads}.',
   'grant.person.theyOpenIt': '{who} kan de kopie bij {destination} ook openen.',
   'grant.together':
     'Google toont straks een waarschuwing, omdat deze dienst nieuw is. U kunt deze stap samen met {who} doen: aan de telefoon, of aan tafel.',
   'grant.person.where': '{account}, {place}',
-  'grant.person.connect': 'Doorgaan met Google als {account}',
   'grant.person.connected': 'Verbonden. Voor dit account hoeft u niets meer te doen.',
-  'grant.person.again':
-    'Dit account was al verbonden. Wie u deze link stuurde, vraagt u opnieuw te verbinden, bijvoorbeeld omdat de verbinding niet meer werkt.',
-  'grant.person.connectAgain': 'Opnieuw verbinden met Google als {account}',
+  'grant.person.again': 'Dit account was al verbonden. {who} vraagt u het opnieuw te verbinden.',
+  'grant.person.again.alpha': 'Tijdens de Alpha vraagt Google dit ongeveer één keer per week opnieuw.',
   'grant.connecting': 'Google wordt geopend…',
   'grant.continue.microsoft': 'Doorgaan met Microsoft als {account}',
-  'grant.connectAgain.microsoft': 'Opnieuw verbinden met Microsoft als {account}',
   'grant.connecting.microsoft': 'Microsoft wordt geopend…',
   'grant.reads.file.microsoft': 'uw bestanden in OneDrive',
   'grant.readOnly.microsoft':
@@ -350,17 +394,14 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.withdraw.microsoft':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of in uw Microsoft-account, bij de apps die toegang hebben.',
   'grant.person.yourPage':
-    'Hier is uw eigen pagina voor deze migratie. Bewaar deze: die laat zien hoe ver de migratie is, en niets uit uw account.',
+    'Hier is uw eigen pagina. Bewaar deze. Die laat zien hoe ver het kopiëren is, en niets uit uw account:',
   'grant.person.keepIt':
-    'Bewaar deze link: zet hem bij uw favorieten of kopieer hem naar een veilige plek. Hij werkt de komende 90 dagen, en wie de migratie uitvoert kan hem op elk moment uitzetten.',
-  'grant.continue.cirrux': 'Cirrux Drive verbinden',
-  'grant.connectAgain.cirrux': 'Cirrux Drive opnieuw verbinden',
+    'Bewaar deze link: zet hem bij uw favorieten of kopieer hem naar een veilige plek. Hij werkt de komende 90 dagen, en wie u de link stuurde, kan hem op elk moment uitzetten.',
   'grant.connecting.cirrux': 'Cirrux wordt geopend…',
   'grant.cirrux.drive':
     'Uw bestanden gaan naar Cirrux Drive, en daarvoor is uw eigen aanmelding bij Cirrux nodig, niet het app-wachtwoord. U meldt zich zelf aan bij Cirrux, op de pagina van Cirrux zelf.',
   'grant.cirrux.signInAs': 'Meld u bij Cirrux aan met het account waar {account} bij hoort.',
   'grant.continue.dropbox': 'Doorgaan met Dropbox als {account}',
-  'grant.connectAgain.dropbox': 'Opnieuw verbinden met Dropbox als {account}',
   'grant.connecting.dropbox': 'Dropbox wordt geopend…',
   'grant.reads.file.dropbox': 'uw bestanden in Dropbox',
   'grant.readOnly.dropbox':
@@ -383,6 +424,54 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.state.waiting': 'Nog niet verbonden',
   'grant.state.locked': 'Geblokkeerd voor deze link',
   'grant.person.allConnected': 'Alle accounts zijn verbonden. U kunt deze pagina sluiten.',
+  'grant.person.ownpace': 'Deze pagina is van Ownpace, de dienst die de kopie maakt.',
+  'grant.person.title': '{who} vraagt uw toestemming',
+  'grant.person.sender': 'Afzender',
+  'grant.person.place': '{place} ({account})',
+  'grant.person.whatOne': '{who} wil uw {what} kopiëren van {source} naar {destination}.',
+  'grant.person.whatMany': '{who} wil uw {what} kopiëren. Op het volgende scherm staat waarvandaan en waarnaartoe.',
+  'grant.person.fact.stays': 'Alles blijft ook in {source} staan.',
+  'grant.person.fact.reads': 'Ownpace leest daar alleen. Het verwijdert niets en wijzigt niets.',
+  'grant.person.fact.noHurry': 'Er is geen haast. Dit kan tot {date}.',
+  'grant.person.told': 'Heeft {who} u zelf over deze link verteld?',
+  'grant.person.yes': 'Ja, dat klopt',
+  'grant.person.notYet': 'Nee, nog niet',
+  'grant.person.wait.title': 'Wacht dan even',
+  'grant.person.wait.ask':
+    'Vraag het eerst aan {who}, op een manier die u vertrouwt. Bel het nummer dat u al hebt. Of vraag het als u elkaar ziet.',
+  'grant.person.wait.until': 'Deze pagina kan wachten. De link werkt tot {date}.',
+  'grant.person.wait.unknown': 'Kent u {who} niet? Sluit dan deze pagina. U kunt deze link ook melden.',
+  'grant.person.accounts.title': 'Uw accounts',
+  'grant.person.connectAccount': '{account} verbinden',
+  'grant.person.ready.title': 'Leg dit klaar',
+  'grant.person.ready.address': 'Het adres {account}.',
+  'grant.person.ready.password': 'Het wachtwoord van uw {provider}-account.',
+  'grant.person.ready.passwordOf': 'Het wachtwoord van {account}.',
+  'grant.person.ready.typeIt': 'U typt het alleen op de pagina van {provider} zelf. Ownpace ziet het nooit. {who} ook niet.',
+  'grant.person.ready.phone': 'Uw telefoon. {provider} kan daar een code naartoe sturen.',
+  'grant.person.ready.code': 'Geef die code aan niemand. Ook niet aan {who}.',
+  'grant.person.ready.unknownPassword': 'Weet u het wachtwoord niet? Stop dan hier, en doe dit samen met {who}.',
+  'grant.person.ready.together': 'Doe dit het liefst samen met {who}: aan de telefoon, of aan tafel.',
+  'grant.person.see.title': 'Dit ziet u straks bij {provider}',
+  'grant.person.see.signIn': '{provider} vraagt u in te loggen.',
+  'grant.person.see.warning': 'Google heeft Ownpace nog niet gecontroleerd. Daarom waarschuwt Google, en dat is terecht.',
+  'grant.person.see.goOn': 'Ga daar verder naar Ownpace.',
+  'grant.person.see.onlyHere':
+    'Doe dit alleen hier, omdat {who} het u zelf heeft verteld. Bij elke andere waarschuwing stopt u.',
+  'grant.person.see.broader':
+    'Google beschrijft het ruimer dan wat Ownpace doet. Ownpace leest alleen. Het verzendt niets en verwijdert niets.',
+  'grant.person.see.ticks': 'Zorg dat alles wat Ownpace vraagt een vinkje heeft.',
+  'grant.person.see.blocked':
+    'Laat Google de verbinding niet toe? Dan staat dit adres nog niet op de lijst van Google. Sluit de pagina en vertel het {who}. U hebt niets fout gedaan.',
+  'grant.person.see.stop': 'U kunt dit altijd weer stoppen, op de pagina die u hierna krijgt.',
+  'grant.person.see.next': 'De volgende stap doet u op de pagina van {provider} zelf.',
+  'grant.person.signIn': 'Inloggen met {provider}',
+  'grant.person.ratherNot': 'Nee, liever niet',
+  'grant.person.ratherNot.title': 'Dat mag',
+  'grant.person.ratherNot.body': 'Er is niets gebeurd. U kunt deze pagina sluiten, of later terugkomen: de link werkt tot {date}.',
+  'grant.step': 'Stap {n} van {total}',
+  'grant.step.next': 'Verder',
+  'grant.step.back': 'Terug',
   'grant.password.title': 'Verbind {account} met uw wachtwoord',
   'grant.password.server':
     'Uw wachtwoord wordt gecontroleerd bij {server}. Typ het alleen als dit de server van uw eigen aanbieder is.',
@@ -421,7 +510,7 @@ export const nl: Record<keyof typeof en, string> = {
   'linkReport.replyTo': 'Uw e-mailadres (niet verplicht)',
   'linkReport.replyTo.hint': 'Alleen zodat wij op uw melding kunnen antwoorden.',
   'linkReport.sentWith':
-    'Meegestuurd, uit onze gegevens: welke link dit is; de organisatie en de migratie waar hij bij hoort, met de stand van de migratie; het adres van wie de link heeft gemaakt; het account waaruit de migratie kopieert en het account waarnaar; en of u toegang hebt gegeven.',
+    'Meegestuurd, uit onze gegevens: welke link dit is; de organisatie en het kopiëren waar hij bij hoort, en hoe ver dat is; het adres van wie de link heeft gemaakt; het account waaruit wordt gekopieerd en het account waarnaar; en of u toegang hebt gegeven.',
   'linkReport.send': 'Melding versturen',
   'linkReport.sending': 'Versturen…',
   'linkReport.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
@@ -430,5 +519,5 @@ export const nl: Record<keyof typeof en, string> = {
   'linkReport.sent.mail.anonymous':
     'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. Zonder mailadres kunnen we u niet antwoorden.',
   'linkReport.next.grant': 'Er wordt niets gelezen zonder uw toestemming bij Google.',
-  'linkReport.next.withdraw': 'Wilt u de migratie stoppen? Trek dan hierboven de toegang in.',
+  'linkReport.next.withdraw': 'Wilt u het kopiëren nu stoppen? Druk dan hierboven op Kopiëren stoppen.',
 };
