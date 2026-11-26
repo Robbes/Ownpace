@@ -28,6 +28,29 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   The privacy policy says what is kept of a gift (§4.4, *Gifts*), why and on what basis (§5), and
   for how long (§9), and that a declined request gives the gift back, so the giver can tell; in
   place under 1.0, as the owner read it.
+- **A person's link on one page, and where the service runs** (alpha.21; workplan 0176 step B,
+  D15 (a) and D16 (a)). *Everything on one page* (`/grant/<link>/all`) says everything the steps
+  of a person's grant link say, at once, in their order and in their own words, and prints: one
+  button asks the browser to, and the paper carries no control. It reads and does nothing: no
+  provider's button, no password box and no answer to the question, and a link leads back to the
+  steps. It asks the server for nothing the link page does not ask. The link to it from the steps
+  comes with the rest of step B. One new setting, `OWNPACE_COUNTRY`, holds the two-letter code of
+  the country a stack runs in. The web build and the site's build both read it, as both read the
+  stage, and both refuse a value that is no country. *Everything on one page* says *Ownpace runs
+  in {country}.* under its first line, with the country's name in the reader's language from the
+  browser's own list, and a person's link page will say it there too; the home page takes its
+  country from the same setting. Unset, nothing names a country, and the home page says only that
+  the software is open source. The site's build refuses a country its privacy policy (§7) does not
+  say the service runs in, and `deploy-live.sh` hands live's own value to every site build. A
+  stack whose `.env` sets no `OWNPACE_COUNTRY` names no country on its home page from its next
+  deploy on.
+  **Nederlands:** *Alles op één pagina* zegt alles wat de stappen van de toegangslink van een
+  persoon zeggen, in één keer, in dezelfde volgorde en dezelfde woorden, en kan worden
+  afgedrukt; de knoppen komen niet op papier. De pagina doet zelf niets: toestemming geven gaat
+  via de stappen. Een nieuwe instelling, `OWNPACE_COUNTRY`, bevat de code van het land waar de
+  dienst draait; de app en de website lezen die allebei. De pagina zegt dan *Ownpace draait in
+  {country}.*, met de naam van het land in de taal van de lezer, en de homepage neemt het land
+  uit dezelfde instelling. Zonder instelling noemt niets een land.
 - **Grant links for every account a person can grant** (alpha.21; workplan 0174 T1 and T3 to T6,
   with D3 (a) and §4.3). A person's grant link now asks for each account of theirs that a migration
   reads from or writes to, in two groups on one page. Where the provider offers a sign-in, they
