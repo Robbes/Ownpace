@@ -2360,6 +2360,133 @@ describe("nothing small on a person's pages (0176 T9)", () => {
 });
 
 /**
+ * EVERYTHING ON ONE PAGE (workplan 0176 D15 (a)): a person's link, everything
+ * its steps say, on one page, which prints. Opened as its reader opens it,
+ * signed out, in both languages, on a phone of 390 pixels and on one of 320:
+ * one `h1`, the tab named after it, the steps' own sentences, its controls and
+ * no others, no field, nothing that scrolls sideways and nothing small (§13),
+ * and the API asked for its link, that link's report and the build stamp, and
+ * nothing more. Then as the browser prints it: what the steps say is on the
+ * paper, and no control is.
+ */
+describe("a person's link, everything on one page (0176 D15 (a))", () => {
+  const ONE_PAGE = `/grant/${PERSON_GRANT_LINK}/all`;
+  const TITLE = { en: 'Everything on one page', nl: 'Alles op één pagina' } as const; // grant.onePage.title
+  const SAYS = {
+    en: [
+      'This page is from Ownpace, the service that makes the copy.', // grant.person.ownpace
+      `${ASKED_BY} asks for your permission`, // grant.person.title
+      `${ASKED_BY} wants to copy your email, calendar, and files. Further down this page it says from where and to where.`, // grant.onePage.whatMany
+      'Everything also stays in Google.', // grant.person.fact.stays
+      `Did ${ASKED_BY} tell you about this link themselves?`, // grant.person.told
+      'Then wait a moment', // grant.person.wait.title
+      'Your accounts', // grant.person.accounts.title
+      'Connect anna@example.com', // grant.person.connectAccount
+      `Give that code to nobody. Not to ${ASKED_BY} either.`, // grant.person.ready.code
+      'What you will see at Google', // grant.person.see.title
+      'Gmail: read, send and permanently delete all your email.', // grant.scope.mail
+      'By continuing you accept how your data is handled:', // grant.disclosure
+      'That is fine', // grant.person.ratherNot.title
+    ],
+    nl: [
+      'Deze pagina is van Ownpace, de dienst die de kopie maakt.',
+      `${ASKED_BY} vraagt uw toestemming`,
+      `${ASKED_BY} wil uw e-mail, agenda en bestanden kopiëren. Verderop op deze pagina staat waarvandaan en waarnaartoe.`,
+      'Alles blijft ook in Google staan.',
+      `Heeft ${ASKED_BY} u zelf over deze link verteld?`,
+      'Wacht dan even',
+      'Uw accounts',
+      'anna@example.com verbinden',
+      `Geef die code aan niemand. Ook niet aan ${ASKED_BY}.`,
+      'Dit ziet u straks bij Google',
+      'Gmail: al uw e-mail lezen, verzenden en definitief verwijderen.',
+      'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
+      'Dat mag',
+    ],
+  } as const;
+  const BUTTONS = {
+    en: ['English', 'Nederlands', 'Print this page', 'Report this link'],
+    nl: ['English', 'Nederlands', 'Deze pagina afdrukken', 'Deze link melden'],
+  } as const;
+  const BACK = { en: 'Back to the steps', nl: 'Terug naar de stappen' } as const; // grant.onePage.back
+
+  for (const locale of ['en', 'nl'] as const) {
+    for (const narrow of [false, true]) {
+      const width = narrow ? 320 : 390;
+      it(`opens in ${locale === 'en' ? 'English' : 'Dutch'} at ${width} pixels, with its steps' sentences, nothing small, and nothing more asked of the API`, async () => {
+        const before = apiHits.length;
+        const missesBefore = apiMisses.length;
+        const what = `the one page (${locale}, ${width})`;
+        const l = await open(ONE_PAGE, { signedIn: false, locale, phone: !narrow, narrow });
+        await l.page.getByText(SAYS[locale][0]!).first().waitFor({ timeout: 15_000 });
+        await l.page.getByRole('button', { name: BUTTONS[locale][3]!, exact: true }).waitFor({ timeout: 10_000 });
+        expect(await l.page.locator('h1').count(), `the h1s on ${what}`).toBe(1);
+        expect(await l.page.locator('h1').innerText()).toBe(TITLE[locale]);
+        expect(await l.page.title(), `the tab on ${what}`).toBe(`${TITLE[locale]} — Ownpace`);
+        const text = await l.page.innerText('body');
+        for (const words of SAYS[locale]) expect(text, `${what} does not say it`).toContain(words);
+        // No step, so no count of steps, and no screen after this one.
+        expect(text).not.toMatch(locale === 'en' ? /Step \d+ of \d+|The next screen/ : /Stap \d+ van \d+|volgende scherm/);
+        const buttons = await l.page.$$eval('button', (bs) => bs.map((b) => (b.textContent ?? '').trim()));
+        expect(buttons, `the controls on ${what}`).toEqual(BUTTONS[locale]);
+        expect(await l.page.locator('input, textarea, select, form').count(), `a field on ${what}`).toBe(0);
+        const back = await l.page.$$eval('a[data-back]', (as) => as.map((a) => [(a.textContent ?? '').trim(), new URL((a as HTMLAnchorElement).href).pathname]));
+        expect(back, `the way back on ${what}`).toEqual([
+          [BACK[locale], `/grant/${PERSON_GRANT_LINK}`],
+          [BACK[locale], `/grant/${PERSON_GRANT_LINK}`],
+        ]);
+        await expectItFitsAPhone(l.page, what, width);
+        expect(await smallThings(l.page), `small or pale on ${what}`).toEqual([]);
+        const asked = [...new Set(apiHits.slice(before))].filter((path) => path !== '/api/version').sort();
+        expect(asked, `what ${what} asked the API for`).toEqual(
+          [`/api/grant/${PERSON_GRANT_LINK}`, `/api/grant/${PERSON_GRANT_LINK}/report`].sort(),
+        );
+        expect(apiMisses.slice(missesBefore), `${what} called endpoints with no fixture`).toEqual([]);
+        expectClean(l, what);
+        await l.page.close();
+      });
+    }
+  }
+
+  it('prints what the steps say, and none of its controls', async () => {
+    const l = await open(ONE_PAGE, { signedIn: false, locale: 'en', phone: true });
+    await l.page.getByText(SAYS.en[0]!).first().waitFor({ timeout: 15_000 });
+    await l.page.getByRole('button', { name: 'Report this link', exact: true }).waitFor({ timeout: 10_000 });
+    await l.page.emulateMedia({ media: 'print' });
+    const drawn = await l.page.$$eval('button, a[data-back]', (cs) =>
+      cs.filter((c) => c.getBoundingClientRect().width > 0).map((c) => (c.textContent ?? '').trim()),
+    );
+    expect(drawn, 'controls on the paper').toEqual([]);
+    const paper = await l.page.innerText('body');
+    for (const words of SAYS.en) expect(paper, 'the paper does not say it').toContain(words);
+    expectClean(l, 'the one page, printed');
+    await l.page.close();
+  });
+
+  it('is opened from the steps without asking the API again', async () => {
+    const l = await open(`/grant/${PERSON_GRANT_LINK}`, { signedIn: false, locale: 'en', phone: true });
+    await l.page.getByRole('heading', { level: 1, name: PERSON_LINK_WALK[0]!.h1.en }).waitFor({ timeout: 15_000 });
+    await l.page.waitForLoadState('networkidle');
+    const before = apiHits.length;
+    // The link from the steps is the main line's to place; the one page's own
+    // way back and the router are what this holds: an address of the app's,
+    // reached in the page, with the link's answer already read.
+    await l.page.evaluate((path) => {
+      history.pushState(null, '', path);
+      dispatchEvent(new PopStateEvent('popstate'));
+    }, `/grant/${PERSON_GRANT_LINK}/all`);
+    await l.page.getByRole('heading', { level: 1, name: TITLE.en }).waitFor({ timeout: 10_000 });
+    await l.page.getByText(SAYS.en[1]!).first().waitFor({ timeout: 10_000 });
+    expect(apiHits.slice(before).filter((path) => path !== '/api/version'), 'what the one page asked for again').toEqual([]);
+    await l.page.getByRole('link', { name: 'Back to the steps' }).first().click();
+    await l.page.getByRole('heading', { level: 1, name: PERSON_LINK_WALK[0]!.h1.en }).waitFor({ timeout: 10_000 });
+    expect(new URL(l.page.url()).pathname).toBe(`/grant/${PERSON_GRANT_LINK}`);
+    expectClean(l, 'the one page, from the steps and back');
+    await l.page.close();
+  });
+});
+
+/**
  * THE OWN-PASSWORD CARD, UNDER THE POLICY (workplan 0174 §5.3, §7.3, T4).
  *
  * The page's policy has `form-action 'none'`. The card's form must never be
