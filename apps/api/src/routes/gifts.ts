@@ -7,9 +7,11 @@
  *
  *  - **The giver's** (`authenticate`): list their cards, their limit and
  *    whether the Alpha has room for a new one; make one; revoke an unused
- *    one. A giver is a member of an organisation. Making a card takes the
- *    card's language and nothing else: no recipient's address, name or message
- *    reaches this server (`a-gift-that-keeps-no-recipient`).
+ *    one. A giver is a member of an organisation, and during the Alpha one
+ *    the owner let in: a member who came in by a recommendation may give one
+ *    only after it (0177 D18). Making a card takes the card's language and
+ *    nothing else: no recipient's address, name or message reaches this
+ *    server (`a-gift-that-keeps-no-recipient`).
  *  - **The door's** (anonymous): `POST /check` reads a code and writes
  *    nothing; `POST /redeem` lets the code's person in, in one transaction
  *    (managed migration 0066), and mails them and the operator after the
@@ -32,6 +34,7 @@ import { withSubject, withSubjectAndTenant } from '@openmig/ledger';
 import {
   GIFT_ALREADY_IN,
   GIFT_FULL,
+  GIFT_ONLY_AFTER_ALPHA,
   GIFT_REFUSAL,
   GIFT_TOO_MANY_TRIES,
   GIFTS_PER_PERSON_MAX,
@@ -53,6 +56,7 @@ import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import {
   accessGrantedEvent,
+  alphaFrom,
   answersFrom,
   appUrl,
   channelIsOn,
@@ -98,6 +102,14 @@ const redeemAt = (): string | null => {
 /** Whether a yes mail can go out at all: a channel, and an address to sign in at. */
 const aMailCanGo = (): boolean => channelIsOn() && appUrl() !== null;
 
+/**
+ * Whether this deployment runs the Alpha, for D18's rule (0177 §20.7): read
+ * where the server reads the stage for every other purpose, `alphaFrom`, at
+ * the moment a giver asks, so the rule falls away by itself when the Alpha
+ * ends. The rule itself is `giftLimitFor`'s.
+ */
+const theStage = (): { duringTheAlpha: boolean } => ({ duringTheAlpha: alphaFrom(process.env) });
+
 const subjectOf = (req: AuthenticatedRequest, res: Response): string | null => {
   if (!req.userId) {
     res.status(401).json({ error: 'Unauthorized', message: 'No subject on this request' });
@@ -114,17 +126,25 @@ const pathId = (req: Request): string | null => {
 // ================================ The giver ================================
 
 /**
- * GET /api/gifts/mine: their cards, newest first, how many they may hold, and
- * whether the Alpha has room for a new card (`room`, 0177 §20.3): a yes or a
- * no, never the count behind it.
+ * GET /api/gifts/mine: their cards, newest first, how many they may hold,
+ * whether the Alpha has room for a new card (`room`, 0177 §20.3), a yes or a
+ * no, never the count behind it; and `onlyAfterAlpha` (D18): during the Alpha,
+ * a member whose own organisation a card's request made has a limit of
+ * nought until it ends. Read in their organisation's scope, which is what
+ * 0066's function answers about.
  */
 router.get('/mine', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = subjectOf(req, res);
     if (!userId) return;
-    const { gifts, limit, held, room } = await withSubject(pool(), userId, async (db) => ({
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      res.status(400).json({ error: 'Bad request', message: 'A recommendation is made from an organisation.' });
+      return;
+    }
+    const { gifts, limit, held, room } = await withSubjectAndTenant(pool(), userId, tenantId, async (db) => ({
       gifts: await listOwnGifts(db, userId),
-      limit: await giftLimitFor(db, userId),
+      limit: await giftLimitFor(db, userId, theStage()),
       held: await giftsHeldBy(db, userId),
       room: await roomForACard(db),
     }));
@@ -133,6 +153,7 @@ router.get('/mine', authenticate, async (req: AuthenticatedRequest, res: Respons
       limit: limit.limit,
       held,
       room,
+      onlyAfterAlpha: limit.from === 'onlyAfterAlpha',
       redeemAt: redeemAt(),
     });
   } catch (error) {
@@ -159,8 +180,13 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       return;
     }
     const outcome = await withSubjectAndTenant(pool(), userId, tenantId, (db) =>
-      makeGift(db, { tenantId, giverUserId: userId, locale: parsed.data.locale }),
+      makeGift(db, { tenantId, giverUserId: userId, locale: parsed.data.locale, ...theStage() }),
     );
+    if (outcome.kind === 'onlyAfterAlpha') {
+      // D18 (0177 §20.7): the page says it too, with when they can.
+      res.status(409).json({ error: 'only_after_alpha', message: GIFT_ONLY_AFTER_ALPHA.en, ...reasonPair(GIFT_ONLY_AFTER_ALPHA) });
+      return;
+    }
     if (outcome.kind === 'atLimit') {
       res.status(409).json({
         error: 'gift_limit',

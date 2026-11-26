@@ -19,8 +19,12 @@
  *  - the operator's answer carries both counts and both ceilings, and the
  *    rule's route sets either ceiling: a whole number, nought or more;
  *  - the queue marks a request let in by a recommendation, decided by nobody;
- *  - D17 until answered (b): nothing refuses the owner's own yes; D18 until
- *    answered (a): a person let in by a recommendation may recommend too.
+ *  - D17 (the owner, 2026-11-26: *"no, ik will count"*): nothing refuses the
+ *    owner's own yes, at the number or past it;
+ *  - D18 (*"no, not in the alpha. Yes after the alpha."*): during the Alpha a
+ *    member whose own organisation a card's request made has none
+ *    (`onlyAfterAlpha`, 409 `only_after_alpha`); after it, every member has
+ *    the number each person may give. The stage is read both ways.
  *
  * UUID family 01770000-…-4466554420xx.
  */
@@ -28,14 +32,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { pgliteDriver, runMigrations, withSubject } from '@openmig/ledger';
+import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import {
-  A_RECOMMENDED_PERSON_MAY_RECOMMEND,
-  THE_OWNERS_NUMBER_REFUSES,
-  ownersRoomFor,
-  runManagedMigrations,
-} from '@openmig/managed';
+import { runManagedMigrations } from '@openmig/managed';
 
 const P = '01770000-e29b-41d4-a716-4466554420';
 const ANNAS = `${P}01`;
@@ -43,6 +42,8 @@ const BRAMS = `${P}02`;
 const ANNA = 'subject-anna-0177-ceilings';
 const BRAM = 'subject-bram-0177-ceilings';
 const CATO = 'subject-cato-0177-ceilings';
+const DIRK = 'subject-dirk-0177-ceilings';
+const EVERT = 'subject-evert-0177-ceilings';
 const OPERATOR = 'subject-operator-0177-ceilings';
 
 let driver: LedgerDriver;
@@ -309,33 +310,19 @@ describe('the operator’s two numbers (§20.2, §20.6)', () => {
   });
 });
 
-describe('the first ceiling, until D17 is answered (§20.4)', () => {
-  it('nothing refuses the owner’s own yes past the owner’s number', async () => {
-    expect(THE_OWNERS_NUMBER_REFUSES).toBe(false);
-    expect((await setRule({ ownerCeiling: 0 })).status).toBe(200);
-    caller = undefined;
-    expect((await request(app).post('/api/access-requests').send({ email: 'gerrit@example.com' })).status).toBe(201);
-    const [asked] = await rows(`SELECT id FROM access_request WHERE email = 'gerrit@example.com'`);
-    caller = operator;
-    const granted = await request(app).post(`/api/access-requests/${String(asked!.id)}/grant`).send({});
-    expect(granted.status, JSON.stringify(granted.body)).toBe(201);
-    expect(await alpha()).toMatchObject({ byOwner: 1, ownerCeiling: 0 });
-  });
-
-  it('and the one place an answer (a) would ask says no at the number, never for a request a card points to', async () => {
-    await rows('UPDATE gift_rule SET owner_ceiling = 1');
-    const [plain] = await rows(`INSERT INTO access_request (email, locale) VALUES ('hans@example.com', 'en') RETURNING id`);
-    expect(await withSubject(driver, OPERATOR, (db) => ownersRoomFor(db, String(plain!.id)))).toBe(true);
-    await rows(
-      `INSERT INTO access_request (email, locale, state, tenant_id, decided_by, decided_at)
-       VALUES ('in@example.com', 'en', 'granted', $1, $2, now())`,
-      [ANNAS, OPERATOR],
-    );
-    expect(await withSubject(driver, OPERATOR, (db) => ownersRoomFor(db, String(plain!.id)))).toBe(false);
-    const made = await card(anna);
-    const [withACard] = await rows(`INSERT INTO access_request (email, locale) VALUES ('ida@example.com', 'en') RETURNING id`);
-    await rows('UPDATE gift SET redeemed_at = now(), redeemed_request_id = $1 WHERE id = $2', [withACard!.id, made.id]);
-    expect(await withSubject(driver, OPERATOR, (db) => ownersRoomFor(db, String(withACard!.id)))).toBe(true);
+describe('the first ceiling, as the owner answered D17 (§20.4)', () => {
+  it('nothing refuses the owner’s own yes, at the number or past it: the owner keeps count', async () => {
+    expect((await setRule({ ownerCeiling: 1 })).status).toBe(200);
+    for (const email of ['gerrit@example.com', 'hanna@example.com', 'ivo@example.com']) {
+      caller = undefined;
+      expect((await request(app).post('/api/access-requests').send({ email })).status).toBe(201);
+      const [asked] = await rows(`SELECT id FROM access_request WHERE email = $1`, [email]);
+      caller = operator;
+      const granted = await request(app).post(`/api/access-requests/${String(asked!.id)}/grant`).send({});
+      expect(granted.status, JSON.stringify(granted.body)).toBe(201);
+    }
+    // Three of one: shown, never refused.
+    expect(await alpha()).toMatchObject({ byOwner: 3, ownerCeiling: 1 });
   });
 });
 
@@ -363,20 +350,89 @@ describe('the queue (§20.4, §21.3 item 13)', () => {
   });
 });
 
-describe('who may recommend, until D18 is answered (§15.3)', () => {
-  it('a person let in by a recommendation may recommend somebody too, as every member may', async () => {
-    expect(A_RECOMMENDED_PERSON_MAY_RECOMMEND).toBe(true);
+describe('who may recommend, as the owner answered D18 (§20.7)', () => {
+  /**
+   * Cato, let in by Anna's card: her own organisation was made by a request a
+   * card points to. Bound as `claimRequestedMembership` binds it at her first
+   * sign-in. Dirk, let in by the owner: a granted request no card points to.
+   */
+  async function catoAndDirk() {
     const used = await card(anna);
     expect((await redeem(used.code, 'cato@example.com')).status).toBe(201);
-    // Cato signs in: her invitation becomes her membership, as `claimRequestedMembership` binds it.
-    const [theirs] = await rows(
+    const [catos] = await rows(
       `UPDATE tenant_member SET user_id = $1, status = 'active', joined_at = now()
         WHERE email = 'cato@example.com' RETURNING tenant_id`,
       [CATO],
     );
-    const cato = { userId: CATO, tenantId: String(theirs!.tenant_id) };
+    caller = undefined;
+    expect((await request(app).post('/api/access-requests').send({ email: 'dirk@example.com' })).status).toBe(201);
+    const [asked] = await rows(`SELECT id FROM access_request WHERE email = 'dirk@example.com'`);
+    caller = operator;
+    const granted = await request(app).post(`/api/access-requests/${String(asked!.id)}/grant`).send({});
+    expect(granted.status, JSON.stringify(granted.body)).toBe(201);
+    await rows(
+      `UPDATE tenant_member SET user_id = $1, status = 'active', joined_at = now()
+        WHERE email = 'dirk@example.com' RETURNING tenant_id`,
+      [DIRK],
+    );
+    return {
+      cato: { userId: CATO, tenantId: String(catos!.tenant_id) },
+      dirk: { userId: DIRK, tenantId: String(granted.body.tenantId) },
+    };
+  }
+
+  const SAID = {
+    reason: 'During the Alpha, only the people Ownpace let in itself can recommend someone.',
+    reasonNl: 'Tijdens de Alpha kunnen alleen de mensen die Ownpace zelf toeliet iemand aanbevelen.',
+  };
+
+  it('during the Alpha, a member let in by a recommendation has none: nought, onlyAfterAlpha, and 409 only_after_alpha', async () => {
+    vi.stubEnv('OWNPACE_STAGE', 'alpha');
+    const { cato } = await catoAndDirk();
     caller = cato;
-    expect((await request(app).get('/api/gifts/mine')).body).toMatchObject({ limit: 1, held: 0, room: true });
+    expect((await request(app).get('/api/gifts/mine')).body).toMatchObject({ limit: 0, held: 0, onlyAfterAlpha: true });
+    const refused = await request(app).post('/api/gifts').send({ locale: 'nl' });
+    expect(refused.status).toBe(409);
+    expect(refused.body).toMatchObject({ error: 'only_after_alpha', ...SAID });
+    expect(await rows('SELECT 1 FROM gift WHERE giver_user_id = $1', [CATO])).toHaveLength(0);
+  });
+
+  it('during the Alpha, so is a member invited into such an organisation, and the owner’s people are not', async () => {
+    vi.stubEnv('OWNPACE_STAGE', 'alpha');
+    const { cato, dirk } = await catoAndDirk();
+    await rows(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status, joined_at)
+       VALUES ($1, $2, 'evert@example.com', 'member', 'active', now())`,
+      [cato.tenantId, EVERT],
+    );
+    caller = { userId: EVERT, tenantId: cato.tenantId };
+    expect((await request(app).get('/api/gifts/mine')).body).toMatchObject({ limit: 0, onlyAfterAlpha: true });
+    // Let in by the owner, and a member the owner's seed made: each has their one.
+    for (const who of [dirk, bram]) {
+      caller = who;
+      expect((await request(app).get('/api/gifts/mine')).body, who.userId).toMatchObject({ limit: 1, onlyAfterAlpha: false });
+      expect((await request(app).post('/api/gifts').send({ locale: 'nl' })).status, who.userId).toBe(201);
+    }
+  });
+
+  it('after the Alpha, every member has the number each person may give', async () => {
+    vi.stubEnv('OWNPACE_STAGE', '');
+    const { cato } = await catoAndDirk();
+    caller = cato;
+    expect((await request(app).get('/api/gifts/mine')).body).toMatchObject({ limit: 1, held: 0, onlyAfterAlpha: false, room: true });
     expect((await request(app).post('/api/gifts').send({ locale: 'nl' })).status).toBe(201);
+  });
+
+  it('a card such a member made before stays as it is, and still lets its person in', async () => {
+    vi.stubEnv('OWNPACE_STAGE', 'alpha');
+    const { cato } = await catoAndDirk();
+    vi.stubEnv('OWNPACE_STAGE', '');
+    caller = cato;
+    const before = await request(app).post('/api/gifts').send({ locale: 'nl' });
+    expect(before.status).toBe(201);
+    vi.stubEnv('OWNPACE_STAGE', 'alpha');
+    caller = cato;
+    expect((await request(app).get('/api/gifts/mine')).body.gifts).toHaveLength(1);
+    expect((await redeem(before.body.code as string, 'fenna@example.com')).status).toBe(201);
   });
 });

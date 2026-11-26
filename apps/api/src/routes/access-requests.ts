@@ -48,13 +48,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { withSubject, withSubjectAndTenant, tenant as tenantTable } from '@openmig/ledger';
 import { accessRequest, tenantMember } from '@openmig/managed/schema-managed';
-import {
-  THE_OWNERS_NUMBER_REFUSES,
-  alphaCounts,
-  giveBackDeclinedGift,
-  ownersRoomFor,
-  theGiftRule,
-} from '@openmig/managed';
+import { giveBackDeclinedGift } from '@openmig/managed';
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -587,19 +581,10 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
         return { kind: 'alreadyOwns', organisations: already } as const;
       }
 
-      /**
-       * THE OWNER'S OWN NUMBER (workplan 0177 §20.4), D17's one place on this
-       * route. Until the owner answers, (b): shown on the Gifts screen and
-       * above the queue, and nothing refuses a yes past it. Answered (a),
-       * `THE_OWNERS_NUMBER_REFUSES` becomes true and this counts first, behind
-       * the Alpha's lock, and writes nothing at the number. A request a card
-       * points to is never refused here: it is counted under the second.
-       */
-      if (THE_OWNERS_NUMBER_REFUSES && !(await ownersRoomFor(db, id))) {
-        const { byOwner } = await alphaCounts(db);
-        const { ownerCeiling } = await theGiftRule(db);
-        return { kind: 'alphaFull', byOwner, ownerCeiling } as const;
-      }
+      // THE OWNER'S OWN NUMBER (workplan 0177 §20.4; the owner, 2026-11-26,
+      // D17: "no, ik will count"): nothing here refuses a yes, at the number
+      // or past it. The owner keeps count on the screens that show it, from
+      // `GET /api/gifts/operator`.
 
       const name =
         parsed.data.organisationName ?? request.organisation ?? request.name ?? request.email;
@@ -668,16 +653,6 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
         message:
           `That request was already ${outcome.state}. Deciding it twice would ` +
           'either create a second organisation or lose the first.',
-      });
-      return;
-    }
-    if (outcome.kind === 'alphaFull') {
-      // Only once D17 is answered (a): see `THE_OWNERS_NUMBER_REFUSES`.
-      res.status(409).json({
-        error: 'alpha_full',
-        message:
-          `The Alpha holds ${outcome.ownerCeiling} people you let in, and ${outcome.byOwner} are in. ` +
-          'Raise the number on the Gifts screen to let in more.',
       });
       return;
     }

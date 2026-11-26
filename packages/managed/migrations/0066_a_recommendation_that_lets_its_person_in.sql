@@ -1,7 +1,8 @@
 -- A RECOMMENDATION THAT LETS ITS PERSON IN (workplan 0177 §5 and §20; the
 -- owner, 2026-11-26, D6: "one needs to be allow in straight away"; D14 (a),
--- D15 (a), and D16: "alpha limited to 50 people I let in, en 50 max someone
--- invites (each let in user 1 invite)").
+-- D15 (a); D16: "alpha limited to 50 people I let in, en 50 max someone
+-- invites (each let in user 1 invite)"; and D18: "no, not in the alpha. Yes
+-- after the alpha").
 --
 -- Until now a code became an open access request that the owner answered
 -- (0065). Now a free code lets its person in at once, in one transaction: the
@@ -17,7 +18,9 @@
 -- Gifts screen. A number may be set under what is already counted: nobody is
 -- taken out, and nobody new comes in until the count is under it again.
 -- Nothing keeps a running total; every count is read from the requests and
--- the cards at the moment it is needed (§20.1).
+-- the cards at the moment it is needed (§20.1). Nothing here refuses the
+-- owner's own yes past the first number: the owner keeps count (D17), and
+-- the operator's screens show it.
 --
 -- ## The plain door asks, and only asks
 --
@@ -43,10 +46,16 @@
 --     membership that is active, invited or suspended; or `refused`. Only
 --     `let_in` writes, and it writes once: behind the Alpha's one lock, with
 --     the gift's row locked and spent in the same transaction.
---   * A member's own session (`app.current_user` names an active membership)
---     and no code learns whether a new card has room: the people let in by a
---     recommendation and the cards not used yet are counted together (§20.3,
---     rule 1). The caller takes the same lock first when it then makes one.
+--   * A member's own session and no code (`app.current_user` an active member
+--     of `app.current_tenant`, as `withSubjectAndTenant` sets them) learns two
+--     yes-or-nos about its own organisation and nobody else's: whether a new
+--     card has room, the people let in by a recommendation and the cards not
+--     used yet counted together (§20.3, rule 1), as `room` or `full`; and
+--     whether its organisation was made by a request a card points to
+--     (`by_recommendation`, D18 and §20.7), for during the Alpha only the
+--     people the owner let in may recommend. Which stage it is the caller
+--     knows, not the database. The caller takes the Alpha's lock first when
+--     it then makes a card.
 --   * Anybody else, and a used, withdrawn, expired or unknown code, is
 --     `refused`, and learns nothing else.
 --
@@ -103,7 +112,7 @@ CREATE OR REPLACE FUNCTION public.let_in_by_a_recommendation(
     p_name text,
     p_locale text,
     p_google boolean
-) RETURNS TABLE (answer text, request_id uuid, tenant_id uuid, organisation text, email text)
+) RETURNS TABLE (answer text, request_id uuid, tenant_id uuid, organisation text, email text, by_recommendation boolean)
     LANGUAGE plpgsql
     SECURITY DEFINER
     SET search_path = pg_catalog, pg_temp
@@ -112,6 +121,7 @@ AS $$
 DECLARE
   v_code       text := NULLIF(current_setting('app.current_gift', true), '');
   v_user       text := NULLIF(current_setting('app.current_user', true), '');
+  v_own        text := NULLIF(current_setting('app.current_tenant', true), '');
   v_email      text := NULLIF(btrim(p_email), '');
   v_typed      text := NULLIF(btrim(p_name), '');
   v_gift       uuid;
@@ -136,10 +146,12 @@ BEGIN
    WHERE r.state IN ('open', 'granted')
      AND EXISTS (SELECT 1 FROM public.gift g WHERE g.redeemed_request_id = r.id);
 
-  -- No code: a member's own session may ask whether a new card has room.
+  -- No code: a member's own session may ask about its own organisation.
+  -- Compared as text: a setting that is not an id names no organisation.
   IF v_code IS NULL THEN
-    IF v_email IS NOT NULL OR v_user IS NULL OR NOT EXISTS (
-      SELECT 1 FROM public.tenant_member m WHERE m.user_id = v_user AND m.status = 'active'
+    IF v_email IS NOT NULL OR v_user IS NULL OR v_own IS NULL OR NOT EXISTS (
+      SELECT 1 FROM public.tenant_member m
+       WHERE m.user_id = v_user AND m.tenant_id::text = v_own AND m.status = 'active'
     ) THEN
       answer := 'refused';
       RETURN NEXT;
@@ -149,6 +161,11 @@ BEGIN
       FROM public.gift g
      WHERE g.redeemed_at IS NULL AND g.revoked_at IS NULL AND g.expires_at > now();
     answer := CASE WHEN v_in + v_cards < v_ceiling THEN 'room' ELSE 'full' END;
+    by_recommendation := EXISTS (
+      SELECT 1 FROM public.access_request r
+       WHERE r.tenant_id::text = v_own AND r.state = 'granted'
+         AND EXISTS (SELECT 1 FROM public.gift g WHERE g.redeemed_request_id = r.id)
+    );
     RETURN NEXT;
     RETURN;
   END IF;
@@ -263,4 +280,4 @@ REVOKE ALL ON FUNCTION public.let_in_by_a_recommendation(text, text, text, boole
 GRANT EXECUTE ON FUNCTION public.let_in_by_a_recommendation(text, text, text, boolean) TO app_user;
 
 COMMENT ON FUNCTION public.let_in_by_a_recommendation(text, text, text, boolean) IS
-  'Workplan 0177 §5 and §20: with an unused code in app.current_gift, room or full (no address), or let_in, full, already_in (an address); with no code and an active membership, whether a new card has room; refused for anybody else. A word, never a row and never a number. Writes only on let_in, once, behind the Alpha''s one lock.';
+  'Workplan 0177 §5 and §20: with an unused code in app.current_gift, room or full (no address), or let_in, full, already_in (an address); with no code, for an active member of app.current_tenant, whether a new card has room and whether a card''s request made that organisation (D18); refused for anybody else. A word or a yes, never a row and never a number. Writes only on let_in, once, behind the Alpha''s one lock.';

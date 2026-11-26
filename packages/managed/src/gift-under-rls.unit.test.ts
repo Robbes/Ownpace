@@ -22,6 +22,9 @@
  *  - an address with a request waiting has that one granted (D15 (a)); an
  *    address that already has access writes nothing (§5); a yes about Google
  *    is one fixed line in the note (D14 (a));
+ *  - a member's own session learns two yes-or-nos and nobody else's: whether
+ *    a new card has room, and whether a card's request made its own
+ *    organisation (0177 D18); during the Alpha such a member's limit is nought;
  *  - a request made with a code before 0177, which the owner still answers,
  *    gives its gift back when declined (0172).
  *
@@ -39,6 +42,7 @@ import {
   GIFT_REFUSAL,
   GOOGLE_SAID_AT_THE_DOOR,
   checkGift,
+  forACard,
   formatGiftCode,
   giftExpiry,
   giftFingerprint,
@@ -64,6 +68,7 @@ const OURS = `${P}01`;
 const THEIRS = `${P}02`;
 const ANNA = 'subject-anna-0172';
 const BRAM = 'subject-bram-0172';
+const CATO = 'subject-cato-0177';
 const OPERATOR = 'subject-operator-0172';
 
 let driver: LedgerDriver;
@@ -91,9 +96,9 @@ async function refusedFor(work: Promise<unknown>, why: RegExp, label = ''): Prom
   expect(cause?.message ?? (error as Error).message, label).toMatch(why);
 }
 
-const give = (userId: string, tenantId: string, now?: Date) =>
+const give = (userId: string, tenantId: string, now?: Date, duringTheAlpha = false) =>
   withSubjectAndTenant(driver, userId, tenantId, (db) =>
-    makeGift(db, { tenantId, giverUserId: userId, locale: 'nl', ...(now ? { now } : {}) }),
+    makeGift(db, { tenantId, giverUserId: userId, locale: 'nl', duringTheAlpha, ...(now ? { now } : {}) }),
   );
 
 const made = async (userId: string, tenantId: string, now?: Date) => {
@@ -261,7 +266,7 @@ describe('who sees a gift', () => {
   it('a member cannot give in another organisation’s name', async () => {
     await expect(
       withSubjectAndTenant(driver, ANNA, OURS, (db) =>
-        makeGift(db, { tenantId: THEIRS, giverUserId: ANNA, locale: 'en' }),
+        makeGift(db, { tenantId: THEIRS, giverUserId: ANNA, locale: 'en', duringTheAlpha: false }),
       ),
     ).rejects.toThrow();
   });
@@ -271,8 +276,9 @@ describe('the limit', () => {
   it('is one each by the rule, and a second is refused with the number', async () => {
     await made(ANNA, OURS);
     expect(await give(ANNA, OURS)).toEqual({ kind: 'atLimit', limit: 1 });
-    // Bram's is his own.
-    expect((await give(BRAM, OURS)).kind).toBe('made');
+    // Bram's is his own, given from his own organisation, as the middleware
+    // finds it (a session naming one it is no member of learns nothing: below).
+    expect((await give(BRAM, THEIRS)).kind).toBe('made');
   });
 
   it('follows the operator: for everyone, and for one person over everyone', async () => {
@@ -283,7 +289,10 @@ describe('the limit', () => {
     await withSubject(driver, OPERATOR, (db) =>
       db.execute(sql`INSERT INTO gift_allowance (user_id, gifts, set_by) VALUES (${ANNA}, 3, ${OPERATOR})`),
     );
-    expect(await withSubject(driver, ANNA, (db) => giftLimitFor(db, ANNA))).toEqual({ limit: 3, from: 'person' });
+    expect(await withSubjectAndTenant(driver, ANNA, OURS, (db) => giftLimitFor(db, ANNA, { duringTheAlpha: true }))).toEqual({
+      limit: 3,
+      from: 'person',
+    });
     expect((await give(ANNA, OURS)).kind).toBe('made');
   });
 
@@ -517,7 +526,14 @@ describe('a code lets its person in, under row security (0177 §5, D6)', () => {
     const { code } = await made(ANNA, OURS);
 
     const look = await withGiftCode(driver, fp(code), (db) => ask(db));
-    expect(look).toEqual({ answer: 'room', request_id: null, tenant_id: null, organisation: null, email: null });
+    expect(look).toEqual({
+      answer: 'room',
+      request_id: null,
+      tenant_id: null,
+      organisation: null,
+      email: null,
+      by_recommendation: null,
+    });
     for (const [table, n] of [
       ['access_request', 0],
       ['tenant_member', 0],
@@ -634,11 +650,77 @@ describe('a code lets its person in, under row security (0177 §5, D6)', () => {
   });
 
   it('a giver learns whether there is room for a card, as a yes or a no; somebody who is no member learns nothing', async () => {
-    expect(await withSubject(driver, ANNA, (db) => roomForACard(db))).toBe(true);
-    const nobody = await withSubject(driver, 'subject-nobody', (db) => ask(db));
-    expect(nobody.answer).toBe('refused');
+    expect(await withSubjectAndTenant(driver, ANNA, OURS, (db) => roomForACard(db))).toBe(true);
+    for (const [who, tenant] of [
+      ['subject-nobody', OURS],
+      [ANNA, THEIRS],
+    ] as const) {
+      const nobody = await withSubjectAndTenant(driver, who, tenant, (db) => ask(db));
+      expect(nobody, `${who} in ${tenant}`).toMatchObject({ answer: 'refused', by_recommendation: null });
+    }
+    // Without an organisation named, a member's session is no member's either.
+    expect((await withSubject(driver, ANNA, (db) => ask(db))).answer).toBe('refused');
     await owner('UPDATE gift_rule SET recommendation_ceiling = 0');
-    expect(await withSubject(driver, ANNA, (db) => roomForACard(db))).toBe(false);
+    expect(await withSubjectAndTenant(driver, ANNA, OURS, (db) => roomForACard(db))).toBe(false);
+  });
+
+  it('a member’s own session learns whether a card’s request made its organisation, and nobody else’s (D18)', async () => {
+    await owner('UPDATE gift_rule SET gifts_per_person = 2');
+    const first = await made(ANNA, OURS);
+    const letIn = await redeemGift(driver, first.code, cato);
+    if (letIn.kind !== 'letIn') throw new Error(letIn.kind);
+    // Cato signs in: her invitation becomes her membership.
+    await owner(`UPDATE tenant_member SET user_id = $1, status = 'active', joined_at = now() WHERE tenant_id = $2`, [
+      CATO,
+      letIn.tenantId,
+    ]);
+    expect(await withSubjectAndTenant(driver, CATO, letIn.tenantId, (db) => forACard(db))).toEqual({
+      room: true,
+      cameByARecommendation: true,
+    });
+    expect(await withSubjectAndTenant(driver, ANNA, OURS, (db) => forACard(db))).toEqual({
+      room: true,
+      cameByARecommendation: false,
+    });
+    // Naming an organisation one is no member of answers nothing, either way round.
+    for (const [who, tenant] of [
+      [CATO, OURS],
+      [ANNA, letIn.tenantId],
+    ] as const) {
+      expect(await withSubjectAndTenant(driver, who, tenant, (db) => ask(db)), `${who} in ${tenant}`).toMatchObject({
+        answer: 'refused',
+        by_recommendation: null,
+      });
+    }
+    // A code's session learns no such thing, and no session reads it from the rows.
+    const { code } = await made(ANNA, OURS);
+    expect((await withGiftCode(driver, fp(code), (db) => ask(db))).by_recommendation).toBeNull();
+    const seen = await withSubjectAndTenant(driver, CATO, letIn.tenantId, (db) =>
+      db.execute(sql`SELECT (SELECT count(*)::int FROM access_request) AS requests, (SELECT count(*)::int FROM gift) AS gifts`),
+    );
+    expect(rowsOf(seen)).toEqual([{ requests: 0, gifts: 0 }]);
+  });
+
+  it('during the Alpha such a member’s limit is nought, and after it the rule’s (D18)', async () => {
+    const first = await made(ANNA, OURS);
+    const letIn = await redeemGift(driver, first.code, cato);
+    if (letIn.kind !== 'letIn') throw new Error(letIn.kind);
+    await owner(`UPDATE tenant_member SET user_id = $1, status = 'active', joined_at = now() WHERE tenant_id = $2`, [
+      CATO,
+      letIn.tenantId,
+    ]);
+    expect(
+      await withSubjectAndTenant(driver, CATO, letIn.tenantId, (db) => giftLimitFor(db, CATO, { duringTheAlpha: true })),
+    ).toEqual({ limit: 0, from: 'onlyAfterAlpha' });
+    expect(await give(CATO, letIn.tenantId, undefined, true)).toEqual({ kind: 'onlyAfterAlpha' });
+    expect(
+      await withSubjectAndTenant(driver, CATO, letIn.tenantId, (db) => giftLimitFor(db, CATO, { duringTheAlpha: false })),
+    ).toEqual({ limit: 1, from: 'everyone' });
+    expect((await give(CATO, letIn.tenantId, undefined, false)).kind).toBe('made');
+    // Anna, whom the owner's seed let in, has hers during the Alpha too.
+    expect(
+      await withSubjectAndTenant(driver, ANNA, OURS, (db) => giftLimitFor(db, ANNA, { duringTheAlpha: true })),
+    ).toEqual({ limit: 1, from: 'everyone' });
   });
 
   it('a session with no code may still ask, as the plain form does, and only ask', async () => {

@@ -247,36 +247,52 @@ export const GOOGLE_SAID_AT_THE_DOOR = 'Said at the door: this address is a Goog
 
 // -------------------------------------------------------------- the limit --
 
-/** How many gifts one person may hold, and where the number came from. */
+/**
+ * How many gifts one person may hold, and where the number came from:
+ * the operator's number for them, the rule for everyone, or, during the
+ * Alpha, nought for a member who came in by a recommendation (0177 D18).
+ */
 export interface GiftLimit {
   readonly limit: number;
-  readonly from: 'person' | 'everyone';
+  readonly from: 'person' | 'everyone' | 'onlyAfterAlpha';
 }
 
 /**
- * D18 (workplan 0177 §15.3), in one place: may a person who came in by a
- * recommendation recommend somebody too? The owner's words fit both: *"each
- * let in user 1 invite"*. Until the owner answers, (a): yes, as every member
- * may, and the second ceiling stops it at its number. That is what
- * `giftLimitFor` below does, and `an-alpha-with-two-ceilings.unit.test.ts`
- * holds it.
- *
- * Answered (b), such a member's limit is nought (§20.7): `giftLimitFor` then
- * answers nought for a member whose own organisation was made by a request a
- * card points to. A member's session cannot read that today, so (b) also
- * needs the database to tell that session, as a yes or a no, whether it is
- * so: the server's half, under the database's rules, in a migration of its
- * own. A card such a member made before stays as it is.
+ * What the giver's page says to a member let in by a recommendation, during
+ * the Alpha (0177 §20.7): the first of its two sentences, which `POST
+ * /api/gifts` answers as 409 `only_after_alpha`. The page's second sentence,
+ * that they can after the Alpha, is the page's own.
  */
-export const A_RECOMMENDED_PERSON_MAY_RECOMMEND: boolean = true;
+export const GIFT_ONLY_AFTER_ALPHA: Bilingual = {
+  en: 'During the Alpha, only the people Ownpace let in itself can recommend someone.',
+  nl: 'Tijdens de Alpha kunnen alleen de mensen die Ownpace zelf toeliet iemand aanbevelen.',
+};
 
 /**
- * The person's number while the operator set one, the rule for everyone
- * otherwise. Read in the giver's own transaction: `own_allowance` shows them
- * their row, and the rule is readable by anybody. Whether a person let in by
- * a recommendation has one too is D18, above.
+ * A member's number, and D18's rule in its one place (workplan 0177 §20.7; the
+ * owner, 2026-11-26: *"no, not in the alpha. Yes after the alpha."*).
+ *
+ * During the Alpha only the people the owner let in may recommend: a member
+ * whose own organisation was made by a request a card points to has none, and
+ * the answer is nought, `onlyAfterAlpha`. Their organisation is the session's
+ * (`withSubjectAndTenant`), and migration 0066's function tells that session
+ * the one yes or no, of its own organisation and nobody else's. After the
+ * Alpha the rule falls away by itself, and every member has the person's
+ * number while the operator set one, the rule for everyone otherwise.
+ *
+ * Which stage it is the caller says, read in one place (`alphaFrom` in
+ * `apps/api/src/access-notify.ts`): this package knows no environment. Read
+ * in the giver's own transaction: `own_allowance` shows them their row, and
+ * the rule is readable by anybody.
  */
-export async function giftLimitFor(db: PgDatabase, userId: string): Promise<GiftLimit> {
+export async function giftLimitFor(
+  db: PgDatabase,
+  userId: string,
+  stage: { readonly duringTheAlpha: boolean },
+): Promise<GiftLimit> {
+  if (stage.duringTheAlpha && (await forACard(db)).cameByARecommendation) {
+    return { limit: 0, from: 'onlyAfterAlpha' };
+  }
   const [own] = await db
     .select({ gifts: giftAllowance.gifts })
     .from(giftAllowance)
@@ -326,7 +342,8 @@ export async function listOwnGifts(db: PgDatabase, userId: string, now: Date = n
 export type MakeGiftOutcome =
   | { readonly kind: 'made'; readonly id: string; readonly code: string; readonly expiresAt: Date }
   | { readonly kind: 'atLimit'; readonly limit: number }
-  | { readonly kind: 'noRoom' };
+  | { readonly kind: 'noRoom' }
+  | { readonly kind: 'onlyAfterAlpha' };
 
 /**
  * Make one gift, in the giver's subject-and-tenant transaction. Returns the
@@ -334,17 +351,19 @@ export type MakeGiftOutcome =
  * presses at once make one gift, not two past the limit; and behind the
  * Alpha's one lock, so two givers at the last place make one card, not two
  * past the second ceiling (0177 §20.3, rule 1). The giver's own limit is
- * asked first: a giver who has given theirs is told so, full Alpha or not.
+ * asked first: a giver who has given theirs is told so, full Alpha or not;
+ * and before it, during the Alpha, whether they may give at all (D18).
  *
  * Takes the card's language and nothing else from the giver: no recipient.
  */
 export async function makeGift(
   db: PgDatabase,
-  input: { tenantId: string; giverUserId: string; locale: 'en' | 'nl'; now?: Date },
+  input: { tenantId: string; giverUserId: string; locale: 'en' | 'nl'; duringTheAlpha: boolean; now?: Date },
 ): Promise<MakeGiftOutcome> {
   const now = input.now ?? new Date();
   await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`gift:${input.giverUserId}`}, 0))`);
-  const { limit } = await giftLimitFor(db, input.giverUserId);
+  const { limit, from } = await giftLimitFor(db, input.giverUserId, { duringTheAlpha: input.duringTheAlpha });
+  if (from === 'onlyAfterAlpha') return { kind: 'onlyAfterAlpha' };
   const held = await giftsHeldBy(db, input.giverUserId, now);
   if (held >= limit) return { kind: 'atLimit', limit };
   await holdTheAlphasLock(db);
@@ -454,13 +473,18 @@ export type RedeemOutcome =
   | { readonly kind: 'alreadyIn' }
   | { readonly kind: 'refused' };
 
-/** What migration 0066's function answers: a word, and for `let_in` what it wrote. */
+/**
+ * What migration 0066's function answers: a word, for `let_in` what it wrote,
+ * and for a member's own session whether a card's request made its
+ * organisation (D18).
+ */
 interface DoorAnswer {
   readonly answer: 'room' | 'full' | 'refused' | 'already_in' | 'let_in';
   readonly request_id: string | null;
   readonly tenant_id: string | null;
   readonly organisation: string | null;
   readonly email: string | null;
+  readonly by_recommendation: boolean | null;
 }
 
 /**
@@ -472,7 +496,7 @@ async function askTheDoor(
   ask: { email: string | null; name: string | null; locale: 'en' | 'nl'; google: boolean },
 ): Promise<DoorAnswer> {
   const result = await db.execute(sql`
-    SELECT answer, request_id, tenant_id, organisation, email
+    SELECT answer, request_id, tenant_id, organisation, email, by_recommendation
       FROM public.let_in_by_a_recommendation(${ask.email}::text, ${ask.name}::text, ${ask.locale}::text, ${ask.google}::boolean)`);
   const [row] = (result as unknown as { rows: DoorAnswer[] }).rows;
   if (!row) throw new Error('let_in_by_a_recommendation answered nothing (managed migration 0066)');
@@ -574,16 +598,32 @@ export async function holdTheAlphasLock(db: PgDatabase): Promise<void> {
   await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${THE_ALPHAS_LOCK}, 0))`);
 }
 
+/** What a member's own session learns of the Alpha, for a new card: two yes-or-nos and no number. */
+export interface ForACard {
+  /** The people let in by a recommendation and the cards not used yet are under the second number (§20.3, rule 1). */
+  readonly room: boolean;
+  /** A card's request made this session's own organisation (D18, §20.7). */
+  readonly cameByARecommendation: boolean;
+}
+
 /**
- * Whether the Alpha has room for a new card, asked in a member's own session
- * (0177 §20.3, rule 1): the people let in by a recommendation and the cards
- * not used yet, counted together, under the second number. A yes or a no: the
- * giver may read neither count. `GET /api/gifts/mine` answers it as `room`,
- * and `makeGift` asks it behind the Alpha's lock.
+ * Asked in a member's own session, scoped to their organisation
+ * (`withSubjectAndTenant`), through migration 0066's function: the giver may
+ * read neither count, nor any other organisation's answer. A session that is
+ * no member of the organisation it names learns nothing, and reads as no room.
+ */
+export async function forACard(db: PgDatabase): Promise<ForACard> {
+  const said = await askTheDoor(db, { email: null, name: null, locale: 'en', google: false });
+  return { room: said.answer === 'room', cameByARecommendation: said.by_recommendation === true };
+}
+
+/**
+ * Whether the Alpha has room for a new card (0177 §20.3, rule 1). `GET
+ * /api/gifts/mine` answers it as `room`, and `makeGift` asks it behind the
+ * Alpha's lock.
  */
 export async function roomForACard(db: PgDatabase): Promise<boolean> {
-  const { answer } = await askTheDoor(db, { email: null, name: null, locale: 'en', google: false });
-  return answer === 'room';
+  return (await forACard(db)).room;
 }
 
 /** The rule's one row: how many each person may give, and the Alpha's two ceilings (0177 §20.2). */
@@ -623,8 +663,13 @@ export interface AlphaCounts {
  * The counts, in the operator's own transaction: the operator reads every
  * request and every gift (0005, 0065), so they are read here rather than
  * through 0066's function, which tells nobody a number. The second count is
- * the one that function counts at the door, by the same definition; the
- * ceilings' test holds that the two agree.
+ * the one that function counts at the door, by the same definition, and
+ * `an-alpha-with-two-ceilings.unit.test.ts` reads the one against the other.
+ *
+ * D17 (the owner, 2026-11-26: *"no, ik will count"*): nothing refuses the
+ * owner's own yes, at the first number or past it. The owner keeps count, on
+ * the Gifts screen, above the queue and in the overview on Support, which all
+ * read this, through `GET /api/gifts/operator` (0177 §19, §20.4).
  */
 export async function alphaCounts(db: PgDatabase): Promise<AlphaCounts> {
   const result = await db.execute(sql`
@@ -645,34 +690,4 @@ export async function alphaCounts(db: PgDatabase): Promise<AlphaCounts> {
     byOwner: n('by_owner'),
     byRecommendation: n('by_recommendation'),
   };
-}
-
-/**
- * D17 (workplan 0177 §15.3), in one place: does the owner's own number refuse
- * a grant past it? Until the owner answers, (b): it is shown, on the Gifts
- * screen and above the queue, and refuses nothing. The grant route reads this
- * and, while it is false, does not ask `ownersRoomFor`.
- *
- * Answered (a), this becomes `true`: the grant counts first, behind the
- * Alpha's lock, and at the number writes nothing and answers 409 `alpha_full`
- * with one sentence (§20.4, §20.6). The web's half is one sentence on the
- * Gifts screen.
- */
-export const THE_OWNERS_NUMBER_REFUSES: boolean = false;
-
-/**
- * Whether the owner may let in one more, for the request `requestId`, in the
- * operator's transaction and behind the Alpha's lock: the people the owner let
- * in under the first number. A request a card points to is never refused by
- * this ceiling: it is counted under the second (§20.4). Asked only when
- * `THE_OWNERS_NUMBER_REFUSES` is true.
- */
-export async function ownersRoomFor(db: PgDatabase, requestId: string): Promise<boolean> {
-  await holdTheAlphasLock(db);
-  const carded = await db.select({ id: gift.id }).from(gift).where(eq(gift.redeemedRequestId, requestId));
-  if (carded.length > 0) return true;
-  // One after the other: a transaction is one connection.
-  const { byOwner } = await alphaCounts(db);
-  const { ownerCeiling } = await theGiftRule(db);
-  return byOwner < ownerCeiling;
 }

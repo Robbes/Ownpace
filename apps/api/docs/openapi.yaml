@@ -633,8 +633,8 @@ paths:
           description: |
             Already decided: deciding twice would create a second organisation
             or lose the first. Or the address already owns one (`confirmWith`).
-            Once the owner answers workplan 0177's D17 (a), also `alpha_full`:
-            the owner's own number is reached, and nothing is written.
+            Never for the owner's own number (workplan 0177 D17): the owner
+            keeps count, and a grant past it is written like any other.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -700,7 +700,10 @@ paths:
         `room` is whether the Alpha has a place for a new card (workplan 0177
         §20.3): the people let in by a recommendation and the cards not used
         yet, counted together, are under the second ceiling. A yes or a no,
-        never the count. `redeemAt` is the door, at `/code`.
+        never the count. `onlyAfterAlpha` is true during the Alpha for a
+        member whose own organisation was made by a request a card points to
+        (D18, §20.7): their `limit` is then nought until the Alpha ends.
+        `redeemAt` is the door, at `/code`.
       responses:
         '200':
           description: Their cards, their limit, how many hold a place, whether there is room for one, and the door's address.
@@ -713,8 +716,14 @@ paths:
                   limit: { type: integer, minimum: 0 }
                   held: { type: integer, minimum: 0 }
                   room: { type: boolean }
+                  onlyAfterAlpha: { type: boolean }
                   redeemAt: { type: string, nullable: true }
-                required: [gifts, limit, held, room, redeemAt]
+                required: [gifts, limit, held, room, onlyAfterAlpha, redeemAt]
+        '400':
+          description: No organisation to give from.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/gifts:
     post:
@@ -746,8 +755,10 @@ paths:
         '409':
           description: |
             `gift_limit`: the giver holds as many cards as they may, with the
-            number. `no_room`: the Alpha has no place for a new card. Nothing
-            is made.
+            number. `no_room`: the Alpha has no place for a new card.
+            `only_after_alpha`: during the Alpha only the people the owner let
+            in may recommend (workplan 0177 D18), said in English and Dutch.
+            Nothing is made.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
