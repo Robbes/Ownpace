@@ -88,13 +88,14 @@ FROM postgres:18.7-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c7
 # A plain rm: a base without gosu fails here, and this file has nothing left to do.
 RUN rm /usr/local/bin/gosu
 
-# LIBXML2 2.13.9-r3, ALPINE'S FIX FOR CVE-2026-86144 (workplan 0166 T3, the
+# LIBXML2 2.13.9-r5, WITH ALPINE'S FIX FOR CVE-2026-86144 (workplan 0166 T3, the
 # owner's D3 of 2026-11-21: "pin"). The base's Alpine 3.24.4 carries libxml2
 # 2.13.9-r2, which the image scan reads at one high (Security Scan run
-# 44878860013), and PostgreSQL links it for its xml type. This RUN takes -r3
-# from Alpine's signed repository at that exact version, as a RUN here took
-# four of Alpine's updates from 2026-10-31 to 2026-11-13. So the build needs
-# Alpine's mirror again, as well as Docker Hub.
+# 44878860013), and PostgreSQL links it for its xml type. -r3 is Alpine's fix.
+# This RUN takes -r5 from Alpine's signed repository at that exact version, as
+# a RUN here took four of Alpine's updates from 2026-10-31 to 2026-11-13. It
+# took -r3 until 2026-11-26, when the mirror served -r5 instead. So the build
+# needs Alpine's mirror again, as well as Docker Hub.
 # It reads the installed version from apk's own database, before and after:
 #   - before, the base must carry -r2. A base that carries -r3 or later (a
 #     rebuild of the tag, or the next PostgreSQL release, which Dependabot
@@ -102,18 +103,18 @@ RUN rm /usr/local/bin/gosu
 #     its comment in both Postgres Dockerfiles, move the names the guard
 #     prints, and say again in the four documents the guard names that the
 #     build needs Docker Hub alone;
-#   - after, it must be -r3.
+#   - after, it must be -r5.
 # Alpine's mirror keeps only a package's newest build. Once it serves a newer
-# libxml2 than -r3, this exact version can no longer be fetched, and a machine
+# libxml2 than -r5, this exact version can no longer be fetched, and a machine
 # without the image cannot build it: the same way out, or a newer exact
 # version.
 RUN set -eu; \
     installed() { awk -v want="$1" '$0 == "P:" want { found = 1; next } found && /^V:/ { print substr($0, 3); exit }' /lib/apk/db/installed; }; \
     was="$(installed libxml2)"; \
     if [ "$was" != 2.13.9-r2 ]; then echo "libxml2 is '$was' in the base, not 2.13.9-r2: the base carries its own, so this RUN goes (THE WAY OUT, above)"; exit 1; fi; \
-    apk add --no-cache libxml2=2.13.9-r3; \
+    apk add --no-cache libxml2=2.13.9-r5; \
     now="$(installed libxml2)"; \
-    if [ "$now" != 2.13.9-r3 ]; then echo "libxml2 is '$now' after the add, not 2.13.9-r3"; exit 1; fi; \
+    if [ "$now" != 2.13.9-r5 ]; then echo "libxml2 is '$now' after the add, not 2.13.9-r5"; exit 1; fi; \
     echo "libxml2 $was -> $now"
 
 # uid 70's home is /var/lib/postgresql, the data volume. An interactive psql or

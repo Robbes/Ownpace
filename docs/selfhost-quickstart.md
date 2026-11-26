@@ -275,8 +275,8 @@ The first start builds the database's image, which takes a few seconds:
 compose pulls the official `postgres:18.7-alpine` image by the digest
 `deploy/selfhost/postgres/Dockerfile` pins, removes gosu from it (a critical
 finding a scanner reports in that image, which needs gosu only to drop from
-root), takes libxml2 2.13.9-r3 from Alpine's mirror (`dl-cdn.alpinelinux.org`;
-Alpine's fix for CVE-2026-86144, which the image does not carry yet), and starts
+root), takes libxml2 2.13.9-r5 from Alpine's mirror (`dl-cdn.alpinelinux.org`;
+with Alpine's fix for CVE-2026-86144, which the image does not carry yet), and starts
 it as PostgreSQL's own user, uid 70. So the first start needs Docker Hub and
 Alpine's mirror, and nothing else. No registry serves the built image's name,
 so nothing ever pulls it, and no login is needed. Then Postgres comes up and
@@ -879,7 +879,7 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
   builds with the engine's classic builder where the engine still has one:
   the Dockerfile needs nothing BuildKit adds.
 - **`up` stops while it builds the database's image, at the step that takes
-  libxml2 2.13.9-r3** (apk says it is `unable to select packages`, or the
+  libxml2 2.13.9-r5** (apk says it is `unable to select packages`, or the
   step says `libxml2 is … in the base, not 2.13.9-r2`): this release's
   database build takes that one package from Alpine's mirror at exactly that
   version. If this machine cannot reach `dl-cdn.alpinelinux.org`, let it, and
