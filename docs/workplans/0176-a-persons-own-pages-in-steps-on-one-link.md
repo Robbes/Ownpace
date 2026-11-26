@@ -4,6 +4,23 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's answers to the sweep's decisions (T14).** On D12 to D15 the owner
+answered: *"D12: a / D13: a / D14: yes / D15: a"*. All four went as advised (§18):
+
+- **D12 (a):** until T0 the warning step says what is known and ours, and quotes nothing of
+  Google's. The fourth step is shown, without a quote.
+- **D13 (a):** step A adds the one line where a person's link is made, and offers thirty days
+  first there.
+- **D14 (a):** the rows of a person's progress page get their own words.
+- **D15 (a):** *Print a sheet for {name}* and *Read everything on one page*, in step B.
+
+Step A's scope in §21.4 reads with these answers. Still the owner's: D16 to D18 (T16), T0 and
+T12.
+
+**And on how to build it:** *"When the plan is done, build it efficient, fan out in seperate
+sessions if needed."* §23 says which parts can be built side by side, which files each part
+owns, and what waits for what.
+
 **2026-11-26, the final sweep before step A: the public website.** The owner, the same day:
 *"Does the sweep session include the public website? Please include if not yet."* It did not:
 §19 left the site out. It is in now. Read at `b5431b8`: `site/` in both languages, the legal
@@ -53,10 +70,11 @@ holds what the sweep found and what step A needs.
   *Back* at the provider; a reader who does not know the password; the words for the five
   states; no price on a person's page.
 - **Four new decisions for the owner, D12 to D15** (T14, §18). Each has advice, and says what
-  the builder does until it is answered. None stops step A from starting.
+  the builder does until it is answered. None stops step A from starting. (Answered the same
+  day, all as advised: the entry at the top.)
 
 **Is step A ready to build? Yes.** On `main` at `b5431b8` or later, from §21.4, with D12 to D15
-read as §18 says until they are answered. Two things stay the owner's before step A merges:
+as the owner answered them. Two things stay the owner's before step A merges:
 the read of its Dutch, as for #2175, and T0 if Google's own words are wanted in it.
 
 **2026-11-26, the owner's answers (T13).** On D1 to D11 the owner answered: *"D1 to D11: ok on
@@ -105,14 +123,13 @@ step's shape, and T0 fills in Google's words from a real phone.
 
 **The order (D10).** Three steps, each one mergeable by itself.
 - **Step A, words and layout, no schema:** T1, T2, T9, and the first halves of T5 and T6. And
-  one line of T8, if the owner says so (D13).
+  one line of T8 (D13 (a)).
 - **Step B, a small schema:** T3, T7, T8, and what T6 adds to the server's answer: who can open
   the copy, and the sender.
 - **Step C, the mechanism:** T4, and the second half of T5.
 
 T10 and T11 travel with each step, and so does T15, the website. T0 is the owner's and blocks
-only what it names. T13 is answered. T14 holds the sweep's four decisions, and T16 the
-website's three.
+only what it names. T13 and T14 are answered. T16 holds the website's three decisions.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
@@ -130,7 +147,7 @@ website's three.
 | T11 Proofs: unit, the managed UI smoke, integration | builder | 📋 Planned | §16. With each step. |
 | T12 A first test with three people | owner | ⏳ **Owner** | §17. After step A is on a stack the owner can reach. |
 | T13 The owner's decisions | owner | ✅ Answered 2026-11-26 | §18. D1 to D11, all as advised. |
-| T14 The sweep's decisions, D12 to D15 | owner | ⏳ **Owner** | §18. Each says what the builder does until it is answered, so step A waits on none. |
+| T14 The sweep's decisions, D12 to D15 | owner | ✅ Answered 2026-11-26 | §18. *"D12: a / D13: a / D14: yes / D15: a"*: all four as advised. |
 | T15 The public website: what travels with each step | builder | 📋 Planned | §22, §21.4. With step A: the tester guide, the Google help guide, the accessibility statement, one sentence of the Leaving pages, and the English pages at 320 pixels. M. |
 | T16 The website's decisions, D16 to D18 | owner | ⏳ **Owner** | §18. Each says what the builder does until it is answered, so step A waits on none. |
 
@@ -530,13 +547,14 @@ then the password card as it is. Its lines stay: where the password is checked, 
 that nobody can see it again, and that Ownpace never asks for a password by mail or phone. The
 texts a person accepts stand on this screen too, before the box.
 
-**Until T0 is done** the warning step says what #2175 says (*Google shows a warning screen next,
-because this service is new*) and quotes nothing. No word of Google's is written from memory.
-**The sweep found this plan saying two things here.** T0's row says it blocks *only the quoted
-words*. D9 says the step *says only what #2175 says*. They differ by three sentences that
-quote nothing: that Google has not checked Ownpace, that the warning is right, and that it is
-right only here. D12 puts it to the owner. Until it is answered the builder follows D9 as it
-was answered, and the fourth step is not shown.
+**Until T0 is done** the warning step quotes nothing. No word of Google's is written from
+memory. **The sweep found this plan saying two things here.** T0's row says it blocks *only the
+quoted words*. D9 said the step *says only what #2175 says*. They differ by three sentences
+that quote nothing: that Google has not checked Ownpace, that the warning is right, and that it
+is right only here. D12 put it to the owner, who answered **(a)** on 2026-11-26. So until T0 the
+step says those three sentences, with the tester guide's *Go on to Ownpace there* between them,
+and the fourth step says without a quote what to do when Google does not allow the connection
+(§15).
 
 **This replaces the owner's choice of 2026-10-18** on a person's link page only: there the
 steps stand where the one line and its link to the guide stood. The member's own screens keep
@@ -645,7 +663,7 @@ Serves R2, R3, R5, R8. §15 holds every new sentence, for the owner to read.
 **The glossary changes first** (`GLOSSARY.md`: *change a word, change it here first*). T2 edits
 the row at `:106` as D1 decided, adds a row for a person's stop as D2 decided, and adds the
 sender's label. T7 edits *Register*. The rows at `:107`, `:109-110` and `:120` gain a person's
-page's words too, if D14 goes as advised.
+page's words too (D14 (a)).
 
 **Keys that leave are removed**, with their Dutch, so `a-word-nobody-says` stays green.
 
@@ -856,7 +874,7 @@ Serves R10.
   with *total not known* where discovery has no count. **Corrected by the sweep:** the page
   says this today (§3.2). Nothing joins the server's answer for it. What T6 changes is the
   words around the numbers (D1, D14).
-- **How long.** `HowLong`, as it is, in the person's words where D14 goes as advised.
+- **How long.** `HowLong`, as it is, in the person's words (D14 (a)).
 - **The numbers refresh by themselves**, once a minute while something is copying. Focus does
   not move and nothing is read out again. One line says when: *Last updated at {time}.*
 - **Who can open the copy** is said here too, where it is true. The page's answer does not
@@ -945,14 +963,17 @@ Serves R6. On a person's page in the app, the two sections of §3.6 become one, 
 
 What the sweep adds:
 
-- **Tell first, already in step A, if the owner says so (D13).** Step A's first screen asks
-  the person whether the sender told them. Until T8 is built nothing tells the member that it
-  will.
+- **Tell first, already in step A (D13 (a), answered 2026-11-26).** Step A's first screen
+  asks the person whether the sender told them. Until T8 is built nothing else tells the
+  member that it will. So step A adds §15's one line where a person's link is made, and offers
+  thirty days first there. §21.4 says what done means.
 - **A child under 16.** The privacy text says a link for a child under 16 is completed by the
   parent together with the child (`site/legal/privacy.md`, §12). Where the member chooses
   *Dutch, with je*, the form says so in one line. The page asks nobody's age.
-- **A printed sheet, if the owner says so (D15).** The steps are gone once the person is at
-  the provider; paper is still on the table.
+- **A printed sheet, and everything on one page, in step B (D15 (a), answered 2026-11-26).**
+  The steps are gone once the person is at the provider; paper is still on the table. T8 gains
+  *Print a sheet for {name}*, and the person's page gains *Read everything on one page*, which
+  prints. The same sentences, written once.
 
 ## 13. Size, contrast and targets (T9)
 
@@ -1082,10 +1103,10 @@ which T0 supplies.
 **Which step a sentence ships in.** Step A, unless it is named here:
 
 - **T0:** the row that quotes, *Google's screen says: «…»*, and the quoted half of *Google 4*.
-  D12 says what the two steps say until then.
+  D12 (a) says what the two steps say until then: the two rows *until T0*, below.
 - **Step B (T3):** *The number*. The label *Sender* is step A's.
 - **Step B (T8, T7):** *The member's side* and *The message the member sends*, but for one
-  line if D13 goes as advised.
+  line, which is step A's (D13 (a)).
 - **Step C (T4):** *You can stop this at any time, on this page*; and *A Google connection
   that stopped, Alpha*.
 - **Step C (the window):** *Pressed by accident? You can take it back for 10 minutes*, and the
@@ -1193,8 +1214,8 @@ rows above are.
 | Ready | *You type it only on {provider}'s own page. Ownpace never sees it. {who} does not either.* | *U typt het alleen op de pagina van {provider} zelf. Ownpace ziet het nooit. {who} ook niet.* |
 | Ready | *Do you not know the password? Then stop here, and do this together with {who}.* | *Weet u het wachtwoord niet? Stop dan hier, en doe dit samen met {who}.* |
 | Before the buttons, until T4 | *You can stop this at any time, on the page you get afterwards.* | *U kunt dit altijd weer stoppen, op de pagina die u hierna krijgt.* |
-| Google 2, until T0, if D12 (a) | *Go on to Ownpace there.* (after *Google is right to*, before *Do this only here*) | *Ga daar verder naar Ownpace.* |
-| Google 4, until T0, if D12 (a) | *Does Google not allow the connection? Then this address is not on Google's list yet. Close the page and tell {who}. You did nothing wrong.* | *Laat Google de verbinding niet toe? Dan staat dit adres nog niet op de lijst van Google. Sluit de pagina en vertel het {who}. U hebt niets fout gedaan.* |
+| Google 2, until T0 (D12 (a)) | *Go on to Ownpace there.* (after *Google is right to*, before *Do this only here*) | *Ga daar verder naar Ownpace.* |
+| Google 4, until T0 (D12 (a)) | *Does Google not allow the connection? Then this address is not on Google's list yet. Close the page and tell {who}. You did nothing wrong.* | *Laat Google de verbinding niet toe? Dan staat dit adres nog niet op de lijst van Google. Sluit de pagina en vertel het {who}. U hebt niets fout gedaan.* |
 | The language switch | *English* · *Nederlands* | *English* · *Nederlands* |
 
 The button says *Sign in with Google* / *Inloggen met Google*. The desk review's readers leaned
@@ -1231,7 +1252,7 @@ the tester guide and the site say *beschrijft* of this one fact
 *You do not have to do anything. Stopping is allowed.* follows only where the provider
 confirmed (§9.1).
 
-*A row of the progress page, if D14 goes as advised.* The member's screens keep theirs.
+*A row of the progress page (D14 (a)).* The member's screens keep theirs.
 
 | Stage | EN, a person's page | NL, a person's page | NL, the member's screens |
 |---|---|---|---|
@@ -1265,7 +1286,7 @@ The numbers do not change: *4,211 of ~5,000* is said the same on both. *The chec
 | How long | *It works for the next 90 days, and whoever sent you the link can turn it off at any time.* | *Hij werkt de komende 90 dagen, en wie u de link stuurde, kan hem op elk moment uitzetten.* |
 | Stopping, by provider | *You can stop this at any time on your own page, above. Or at {provider}, in the list of apps that have access to your account.* | *U kunt dit altijd weer stoppen op uw eigen pagina, hierboven. Of bij {provider}, in de lijst van apps die toegang hebben tot uw account.* |
 
-*The member's side, in step A, if D13 goes as advised.*
+*The member's side, in step A (D13 (a)).*
 
 | Where | EN | NL |
 |---|---|---|
@@ -1377,8 +1398,9 @@ advised. The options stay, as the record of what was put.
   organisation's only, as today. **Advice: (a):** with two members, the organisation's number
   may not be the sender's. **Answered: (a).**
 
-**Four more, from the final sweep of 2026-11-26 (T14). Not answered yet.** Each says what the
-builder does until it is, so step A can start.
+**Four more, from the final sweep of 2026-11-26 (T14). Answered the same day:** *"D12: a /
+D13: a / D14: yes / D15: a"*. All four went as advised. The options stay, as the record of what
+was put.
 
 - **D12. What the warning step says until T0.** This plan said two things (§5.4). (a) The step
   says what is known and is ours, and quotes nothing: *Google has not checked Ownpace yet. That
@@ -1390,8 +1412,7 @@ builder does until it is, so step A can start.
   T0. **Advice: (a).** The guide says in public that Google has not checked the app
   (`site/pages/nl/alpha-handleiding.md:115`), so the page states nothing new. Under (b) the
   page leaves out the two things the desk review's readers asked for most: that the warning is
-  right, and that it is right only here. **Until answered: (b),** which is D9 as the owner
-  answered it.
+  right, and that it is right only here. **Answered: (a).**
 - **D13. Tell first, where the link is made, already in step A.** Step A's first screen asks
   the person whether the sender told them. Nothing tells the member that it will: T8 is in
   step B. (a) Step A adds one line where a person's link is made (§15), and offers thirty days
@@ -1399,7 +1420,7 @@ builder does until it is, so step A can start.
   30. The tick, the message, the voice and the relation stay in step B. (b) Nothing of T8
   before step B. **Advice: (a).** Without it a member sends the link cold, and the honest
   answer on the page is *No, not yet*. It is also the owner's own rule for step A: quick, and
-  advised by the desk review. **Until answered: (b).**
+  advised by the desk review. **Answered: (a).**
 - **D14. The rows of a person's progress page.** Each data type's row is worded by parts the
   member's screens share, on purpose, so that the two read the same sentence on the phone
   (§3.2). Its stage says *Wordt gemigreerd*, its line *laatste ronde*. D1 names the count on
@@ -1407,8 +1428,8 @@ builder does until it is, so step A can start.
   person's page gets its own words for both (§15). The two then read the same numbers, in
   different words. (b) The rows stay the member's. The page then says *kopiëren* in its
   sentences and *Wordt gemigreerd* in its rows. **Advice: (a).** The stage is the largest word
-  on a row, and one word for one thing is R8. **Until answered: (a),** because it is what D1 as
-  answered says of the count; the owner's read of step A's Dutch can still turn it.
+  on a row, and one word for one thing is R8. **Answered: yes, (a).** The owner's read of
+  step A's Dutch can still turn a word.
 - **D15. Everything on one page, and on paper.** The desk review settled a disagreement about
   length with a second way to read: the short screens, and on each a link to the same
   sentences on one page. It also counted a printed sheet as part of the design: the steps are
@@ -1417,7 +1438,7 @@ builder does until it is, so step A can start.
   page*, which prints. The same sentences, written once. (b) Step A already. (c) Not in this
   plan: with the route without a link (§19), whose sheet carries an address and a code.
   **Advice: (a).** Step A stays what the owner set it to be, and T12 shows first whether
-  anybody misses it. **Until answered: not built.**
+  anybody misses it. **Answered: (a).**
 
 **Three more, from the website (T16). Not answered yet.** Each says what the builder does
 until it is.
@@ -1598,7 +1619,7 @@ does so on an answer the owner gave the same day.
 | `grant.person.connected` | Left, word for word, on the accounts screen | — |
 | The ending's *one more*, *{n} more* and *Back to the link* | Left. T9 gives the link its size | — |
 | `grant.person.theyOpenIt`: who can open the copy | Left, word for word. It stands on the first screen, or beside its migration (§5.1) | *"Yes, but what was agreed upon between the persons is outside Ownpace."* |
-| `grant.together`, read | Whole on a migration's own link. On a person's link its two halves part. *Together* goes to *Have this ready*, in §15's words, for *"Yes, preferably"*. The warning's half goes to the warning step, as D12 is answered | D9, and D12 when answered |
+| `grant.together`, read | Whole on a migration's own link. On a person's link its two halves part. *Together* goes to *Have this ready*, in §15's words, for *"Yes, preferably"*. The warning's half goes to the warning step, in D12 (a)'s words | D9, and D12 (a) |
 | A stop still offered after a destination's password is removed | Kept. The new stop screen offers it by the same rule (`groupByAccount`, `person-progress.ts`) | The answer of 2026-11-26 |
 | The wizard's two choices, the cutover's word, the package names, the nine guides | Not touched: the member's screens | — |
 
@@ -1626,7 +1647,7 @@ else in the builder's draft for the owner's read.
   names the old button.
 
 **Shared with the member's screens, 10.** The member's screens keep them; a person's page
-gets its own form of each, if D14 goes as advised. How is the builder's: a second key, or a
+gets its own form of each (D14 (a)). How is the builder's: a second key, or a
 table of words per page, as the link page has one per provider.
 
 - `state.stage.copying`; `confirm.progress.totalNotKnown`, `confirm.progress.noneFound`.
@@ -1683,7 +1704,8 @@ first fails on `main` at `b5431b8` for the reason it names.
 
 **What step A must not touch.** No table, no migration, no field in an answer of the API: the
 server's ending and its sentences change, the shape of its answers does not. No screen of the
-member's, but for one line if D13 says so. A migration's own asking page
+member's, but for the one line of D13 (a), where a person's link is made. A migration's own
+asking page
 (`Grant.tsx:775-913`). Nothing in `packages/` but sentences in `packages/shared`. The appliance
 draws a migration's progress page from the same component: it takes the words and the sizes,
 and imports nothing managed-only (hard rule 5).
@@ -1708,7 +1730,8 @@ and imports nothing managed-only (hard rule 5).
 9. Before any button that leaves the page or sends a password: where from and where to, which
    account to sign in with, the date, and the texts a person accepts with their two links.
 10. During the Alpha, for Google: the *together* line on *Have this ready*; the warning step
-    as D12 stands, quoting nothing; no `AlphaGoogleLine`. Outside the Alpha: no warning step,
+    in D12 (a)'s words, quoting nothing, and the fourth step without a quote; no
+    `AlphaGoogleLine`. Outside the Alpha: no warning step,
     no fourth step and no *together* line.
 11. *Read-only* is said only where the provider holds it. *Google's words are broader* is
     said only where it does not.
@@ -1726,7 +1749,7 @@ languages, at 390 and at 320 pixels, and once in the Alpha's build.
    page's own area (`strings/grant.ts`, `strings/migrations.ts`).
 2. No Dutch sentence that a person's link page, progress page or ending can say holds a form
    of *migr-*, but for the ones §21.3 leaves, each named in the test. The ten shared ones are
-   held to it as a person's page says them, if D14 goes as advised.
+   held to it as a person's page says them (D14 (a)).
 3. The stop says *Stop copying* / *Kopiëren stoppen*, and nothing on these pages says
    *Toegang intrekken*.
 4. Each provider is named by its own name: on the progress page's headings, in its stop, and
@@ -1803,6 +1826,22 @@ Written first: a case in the smoke, *nothing small on a person's pages*, which f
 on 12- and 14-pixel text, on 32-pixel targets and on `gray-500` sentences. The ending's sizes
 are held by a case on its HTML, since the smoke has no API behind it.
 
+**T8, one line (D13 (a)).** Done means:
+
+1. Where a person's link is made (`PersonGrantLinkSection`,
+   `apps/web/src/components/MappingLinksPanel.tsx:400-406`), §15's line stands before the
+   button: *Tell {name} first, by phone or in person. The page asks whether you did.*
+2. Thirty days is the lifetime offered first for a person's link. Today the panel offers the
+   service's fallback, seven (`MappingLinksPanel.tsx:201`;
+   `apps/web/src/services/grant-link-service.ts:53-58`). The choices stay 1, 7 and 30. A
+   progress link keeps its own three, and its ninety.
+3. Nothing else on the member's screens changes: no tick, no message, no voice, no relation.
+   They are step B's.
+
+Written first: a case in `apps/web/src/components/MappingLinksPanel.unit.test.tsx`. The line
+stands before the button, and thirty days is the choice selected when the section opens. It
+fails today on both.
+
 **T15, the website with step A.** Sentences, and one rule of the site's layout. No page is
 added to the site and none is renamed. Done means:
 
@@ -1816,8 +1855,7 @@ added to the site and none is renamed. Done means:
 3. *Als Google opnieuw vraagt* / *When Google asks again* says what to do when the account is
    a family member's: a new link, made on that person's page.
 4. A sentence the link page takes from the guide is the same sentence in both places: *Make
-   sure everything Ownpace asks for is ticked*, and *Go on to Ownpace there* if D12 goes as
-   advised.
+   sure everything Ownpace asks for is ticked*, and *Go on to Ownpace there* (D12 (a)).
 5. The Google help guide, in both languages, no longer says *not to sit beside them while
    they sign in* (`docs/guides/en/google.md:90`, `docs/guides/nl/google.md:90`). It names what
    is wrong: asking for the password, or signing in for them.
@@ -1944,9 +1982,8 @@ guide's own *Google-adressen eerst*. Point 4's last sentence holds while the lin
 not passed. The part says *kopiëren* where it describes what the family member sees. The rest
 of the guide keeps *migreren*: it speaks to the member.
 
-It stands in the guide whatever D13's answer is. D13 is about one line on the member's screen.
-The guide is the page a tester is asked to read before they start, and without this part a
-member sends the link cold.
+D13 is answered (a), so the member's screen says *tell first* too, in one line. The guide
+says it with its reasons. It is the page a tester is asked to read before they start.
 
 ***Als Google opnieuw vraagt* gains one paragraph:** *Is het het account van een gezinslid?
 Maak dan een nieuwe toegangslink voor die persoon, en vertel het weer eerst.* Step C changes
@@ -2075,3 +2112,81 @@ applies (`site/copy.mjs:742-743`).
 step A. The rest is the site's own. It holds AA, and making three pages of the site as large
 and as dark as a person's pages is a choice about the whole site. It belongs in the site's
 plan (D17), with the story for families, so that the site is changed once.
+
+## 23. Building it in parts (2026-11-26)
+
+The owner: *"When the plan is done, build it efficient, fan out in seperate sessions if
+needed."* This says which parts can be built side by side, which files each part owns, and
+what waits for what. A part changes only its own files. Step A's files were read at `b5431b8`
+for this. Those of steps B and C are as this plan names them, and whoever builds them checks
+the list first.
+
+**One rule decides the shape.** A key no screen says is refused
+(`apps/web/src/i18n/a-word-nobody-says.unit.test.ts`), so the words cannot be merged ahead of
+the screens that say them. T2 is therefore not a part of its own: each part brings the words
+of its own page, in its own dictionary file. T9 goes the same way, by file.
+
+### 23.1 Step A: one first, four side by side, one last
+
+Each step is one pull request (the Status block). The parts are branches that meet in it.
+
+| Part | Tasks | Files it owns |
+|---|---|---|
+| **First: the glossary** | T2, point 5 | `apps/web/src/i18n/GLOSSARY.md`. *Change a word, change it here first* |
+| **The link page** | T1; T8's one line (D13 (a)); T2 and T9 for this page | `apps/web/src/pages/Grant.tsx` and the new files of its steps; `apps/web/src/components/GrantPasswordCard.tsx`; `apps/web/src/components/MappingLinksPanel.tsx` and `apps/web/src/services/grant-link-service.ts`; `apps/web/src/i18n/strings/grant.ts` (`grant.*`, `grantLink.*`, `linkReport.*`); `Grant.unit.test.tsx`, `AlphaGoogleLine.unit.test.tsx`, `MappingLinksPanel.unit.test.tsx`, and the link page's rule tests under `apps/web/src/pages/` (§5.7) |
+| **The progress page and the stop** | T5 and T6, first halves; D14 (a); T2 and T9 for this page | `apps/web/src/pages/View.tsx` and its new files; `apps/web/src/components/PausedBecause.tsx`, `StateChip.tsx`, `MigrationLines.tsx`, `TimeBeforeStartLine.tsx`, `TimeWhileCopyingLine.tsx`; `apps/web/src/i18n/strings/migrations.ts` (`view.*`, `state.stage.*`, `timeLeft.*`, `pause.*`), `people.ts` (`people.line.*`) and `confirm.ts` (`confirm.progress.*`); `View.unit.test.tsx`, `a-password-the-person-removes.unit.test.tsx`, and the new tests of §21.4 for T5 and T6 |
+| **The server's sentences** | The ending and a refused link: T2 and T9 for them | `apps/api/src/routes/migrations/google-consent.ts`, `person-grant-ending.ts`; `packages/shared/src/link-holder-refusals.ts`; `a-consent-ending-in-the-readers-language.unit.test.ts`, `google-consent.unit.test.ts` |
+| **The website and the documents** | T15 with step A; T10's documents | `site/pages/nl/alpha-handleiding.md`, `site/pages/en/alpha-guide.md`, `site/pages/nl/toegankelijkheid.md`, `site/pages/en/accessibility.md`, `site/copy.mjs`, `site/build.mjs`, `test/ui/site.ui.test.ts`; `docs/guides/nl/google.md`, `docs/guides/en/google.md`, `docs/grant-links.md`; `scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts` |
+| **Last: what both pages share, and the proofs** | T9 for the shared parts; T11; T10's records | `apps/web/src/components/LanguageSwitch.tsx`, `AccessibilityLink.tsx`, `BuildStamp.tsx`, `ReportThisLink.tsx`, `YourNewAddress.tsx`; `test/ui/managed-ui.ui.test.ts`; `apps/web/src/i18n/the-owners-words-at-the-door.unit.test.ts`; the new `apps/web/src/i18n/a-persons-pages-say-kopieren.unit.test.ts`; `CHANGELOG.md`; this plan's Status |
+
+**What waits for what.**
+
+- The four middle parts wait for the glossary, and for nothing else. None of them opens a
+  file another owns.
+- The last part waits for all four. Three of its files hold both pages by nature: the smoke,
+  the owner's pinned sentences, and the test that reads every sentence for *migr-*. They are
+  red until the parts meet, which is why the parts meet in one pull request and are not
+  merged one by one.
+- The website's test holds two sentences equal in the guide and in the dictionary (T15, point
+  4). That one case joins in the last part, when the link page's keys have their names.
+- The accessibility statement says what the two pages are after step A. It is written from
+  §13 and §21.4, and read once more in the last part against what was built.
+- The owner's read of the Dutch comes after the last part, on one table (§6).
+- T0 and T12 are the owner's. T0 fills in Google's words whenever it is done. T12 needs step
+  A on a stack.
+
+### 23.2 Step B: one line of work, and three beside it
+
+Step B's tasks lean on each other more. T8's form holds T3's name and relation and T7's
+voice (§12), and T7 doubles every Dutch sentence, T3's and T8's among them (§11).
+
+| Part | Tasks | Files, as this plan names them | Waits for |
+|---|---|---|---|
+| **The main line, in this order** | T3, then what T6 adds, then T8 with D15 (a)'s sheet, then T7 | T3: a managed migration, `packages/managed/src/schema-managed.ts`, `apps/api/src/routes/migrations/person-grant-subject.ts`, `packages/shared/src/tenant-contact.ts`, the Team page, `Grant.tsx`. T6: `packages/shared/src/migration-view.ts`, `apps/api/src/routes/person-progress.ts`, `View.tsx`. T8: `MappingLinksPanel.tsx`, `apps/web/src/pages/Person.tsx`, `StartMigration.tsx`. T7: a managed migration, the dictionary's informal layer, `apps/web/src/i18n/index.tsx`, the server's sentences | Step A merged. T3 and T7 each add a managed migration: they take their numbers one after the other, never side by side |
+| **Beside it: everything on one page** | D15 (a)'s *Read everything on one page* | A new page of its own, built from step A's sentences. The one link to it from `Grant.tsx` is the main line's | Step A merged |
+| **Beside it: where the service is run** | D16, if the owner answers (a) | A new module under `apps/web/src/services/`, `apps/web/vite.config.ts`, the stack's compose files, `site/build.mjs`, `site/copy.mjs`, a guard. The one sentence on the first screen is the main line's | D16's answer |
+| **Beside it: the informal Dutch, as a draft** | T7's sentences | A new file for the informal layer: the *je* twin of every step A sentence | The owner's read of step A's Dutch. T3's and T8's sentences get their twins at the end of the main line |
+| **After the main line** | T10 and T15 for step B | The tester guide in both languages; the privacy text, for the lawyer | T3 and T8 |
+
+### 23.3 Step C: the record first, two halves, then the page
+
+| Part | Tasks | Files, as this plan names them | Waits for |
+|---|---|---|---|
+| **First: the record** | ADR-0035 amended (§8, §9.2) | `docs/adr/0035-who-signs-in-and-who-gets-a-link.md`; `docs/adr/OPERATIVE.md`, by its script | Step B merged |
+| **One link, on the server** | T4 | A managed migration (`asks_until`); `packages/managed/src/person-link-store.ts`; `packages/ledger/src/mapping-link-store.ts`; `apps/api/src/routes/person-link-routes.ts`, `grant.ts`, `view.ts`; `person-grant-ending.ts` | The record |
+| **The window, on the server** | T5, second half | A ledger migration; `withdrawPersonGrant` in `apps/api/src/routes/person-progress.ts`; the job that makes a stop final | The record |
+| **Then: the page, by one builder** | T4's one address, and the window's words and buttons | `Grant.tsx`, `View.tsx`, the app's routes, `MappingLinksPanel.tsx` (one section where there were two), the member's line about a stop | Both halves |
+| **Last** | T10 and T15 for step C; T11 | The texts of §22.4; `docs/grant-links.md`; the integration tests of §16 | The page |
+
+The two halves on the server can be built side by side: their migrations are in different
+packages, and neither opens the other's store. They meet in two files, `person-progress.ts`
+and `View.tsx`. So the window's half keeps to its one function there, and the page waits for
+both. The lawyer's read of the window (D6) gates who gets it, not when it is built.
+
+### 23.4 What holds for every part
+
+- A part's builder runs that part's own tests, and the guards that read its files.
+- The parts of a step meet on that step's branch. Lint, typecheck, the unit tests and the UI
+  smoke run there, on everything together, before the owner reads the Dutch.
+- No part changes a file of another step's.
+- E2E against a real account is the maintainer's to dispatch, once per step.
