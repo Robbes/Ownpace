@@ -110,6 +110,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **A run of characters at the end of a text is read in one pass** (workplan 0178 T6). Paths,
+  hrefs, addresses, keys and messages were trimmed with patterns such as `/\/+$/`, whose time
+  grows with the square of a long run inside the text. They are read now by `withoutTrailing`,
+  `withoutLeading` and `withoutEither` in `@openmig/shared`, which answer the same on random texts,
+  in time that grows with the text. The same holds for the Graph mailbox address check and for
+  reading a calendar's supported components. `scripts/a-run-at-the-end-read-by-backtracking.unit.test.ts`
+  keeps the shipped code to them.
+
 - **A gift is now a recommendation, and its code has a door of its own** (alpha.21; workplan
   0177 step A, with the owner's D1 to D18). This changes the gift invitations above (0172). The
   free thing is a *recommendation* on every screen a person reads, and no sentence says what it

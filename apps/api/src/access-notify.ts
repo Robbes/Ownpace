@@ -34,16 +34,7 @@
  */
 
 import { notifierFromEnv } from '@openmig/connectors';
-import {
-  alphaConditionsUrl,
-  createNotifier,
-  renderEvent,
-  testerGuideUrl,
-  type LegalSiteForMailEnv,
-  type NotificationEvent,
-  type NotificationLocale,
-  type NotificationMessage,
-} from '@openmig/shared';
+import { alphaConditionsUrl, createNotifier, renderEvent, testerGuideUrl, type LegalSiteForMailEnv, type NotificationEvent, type NotificationLocale, type NotificationMessage, withoutTrailing } from '@openmig/shared';
 import { smtpTransport } from '@openmig/connectors';
 import { log } from '@openmig/shared';
 
@@ -82,7 +73,7 @@ function envChannel(): ReturnType<typeof notifierFromEnv> {
  */
 export function appUrl(env: { readonly WEB_URL?: string } = process.env): string | null {
   const url = env.WEB_URL;
-  return url ? url.replace(/\/+$/, '') : null;
+  return url ? withoutTrailing(url, '/') : null;
 }
 
 /** Whether the mail channel is configured at all — for routes that refuse a press up front. */

@@ -5777,6 +5777,10 @@ Reads:
 - `deploy/selfhost/compose.yml`
 - `deploy/selfhost/selfhost.env.example`
 
+### [a-run-at-the-end-read-by-backtracking](../scripts/a-run-at-the-end-read-by-backtracking.unit.test.ts)
+
+A RUN AT THE END OF A TEXT, READ BY A PATTERN THAT BACKTRACKS.
+
 ### [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts)
 
 A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
