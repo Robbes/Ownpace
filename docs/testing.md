@@ -624,8 +624,20 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   run's seed (dispatch the workflow with `seed`, or locally: `./scripts/local-pg.sh up`, a new
   empty database on it, `seed-managed.ts` against it, the API started with `JWT_SECRET` of your
   own, and Schemathesis with `--seed <the run's seed>`), and hand a real one to the maintainer
-  privately. Held by `scripts/a-scan-that-tried-the-running-api.unit.test.ts`, which runs the
-  report against a stubbed docker; its pin is the pin watch's row `schemathesis/schemathesis`.
+  privately. **The second identity** (workplan 0178 T10, D7 (a)) runs in the same job, on the
+  same stack, before Schemathesis scans the API (whose deletes, signed as the first organisation's
+  owner, take its seeded rows away): `scripts/another-organisations-ids.mjs` asks every secured
+  operation that takes an id for the first organisation's ids with the second organisation's
+  owner's token, by the path and by the `x-ownpace-tenant` header, and each must refuse (401, 403
+  or 404). An answer whose body carries one of the first organisation's ids or its owner's address
+  is a leak; an answer without any is counted as answered without refusing; anything else (a 400
+  on a body checked first, a 409, a 429) is neither. An operation with a path parameter the seed
+  makes no id for is not asked, and is listed as such. Its proof runs first, against the fixture's
+  `another-organisation.yaml`: a door that serves whichever organisation the path names must be
+  read as a leak, and one that refuses as a refusal. Report only, as the scan is; a leak and an
+  answer without refusing are counted and never named in the summary. Held by
+  `scripts/a-scan-that-tried-the-running-api.unit.test.ts`, which runs the report against a stubbed
+  docker; its pin is the pin watch's row `schemathesis/schemathesis`.
 - `migration-locks.yml` — on a pull request and a push to `main` that touch either migration chain,
   the workflow or its script, and on dispatch, on a GitHub-hosted runner, never a required check
   (workplan 0165): squawk 2.74.0, the static musl build from its GitHub release, checked by its

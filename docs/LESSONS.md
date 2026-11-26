@@ -360,6 +360,7 @@ reading a file drops off its entry by itself.
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-refusal-that-links-its-guide](../scripts/a-refusal-that-links-its-guide.unit.test.ts) — A REFUSAL THAT LINKS ITS GUIDE (workplan 0148 T7, the second half).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [a-sentence-two-files-must-agree-on](../scripts/a-sentence-two-files-must-agree-on.unit.test.ts) — A SENTENCE TWO FILES MUST AGREE ON, AND NOTHING MADE THEM.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -3125,6 +3126,10 @@ reading a file drops off its entry by itself.
 
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 
+### `scripts/another-organisations-ids.mjs`
+
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
+
 ### `scripts/app-headers.mjs`
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
@@ -5740,9 +5745,11 @@ Reads:
 - `.github/workflows/ci.yml`
 - `.github/workflows/schemathesis.yml`
 - `apps/api/Dockerfile`
+- `apps/api/src/middleware/auth.ts`
 - `apps/api/src/scripts/seed-managed.ts`
 - `deploy/compose/postgres/Dockerfile`
 - `docs/testing.md`
+- `scripts/another-organisations-ids.mjs`
 - `scripts/fixtures/schemathesis-known-bad/server.mjs`
 - `scripts/schemathesis-report.mjs`
 

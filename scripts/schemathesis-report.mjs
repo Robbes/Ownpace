@@ -40,6 +40,20 @@
  * `not_a_server_error` on the second. If it does not, it is not reading what
  * it should, and the API's scan is not believed: the run is red.
  *
+ * THE SECOND IDENTITY (0178 T10, §6.3; D7 (a)), in the same run and on the
+ * same stack, BEFORE Schemathesis (whose deletes, signed as the first
+ * organisation's owner, take that organisation's seeded rows away).
+ * `scripts/another-organisations-ids.mjs` asks every operation that takes an
+ * id for the FIRST organisation's ids with the SECOND organisation's owner's
+ * token, by the path and by the organisation header, and each must refuse.
+ * Report only, as the scan is. Its own proof comes first: the fixture's
+ * `another-organisation.yaml` has one door that serves whichever
+ * organisation the path names and one that refuses, and the first must be
+ * read as a leak and the second as a refusal, or the check is not believed
+ * (`OTHERS`). A leak on the API, and a door that answered without refusing,
+ * are counted and never named in the summary, for `ignored_auth`'s reason
+ * below.
+ *
  * WHERE IT RUNS (D3 (a), 0178 §6.1). On the GitHub-hosted runner the job
  * takes, never the self-hosted one, and never against the managed E2E's
  * stack, the live service or the acceptance stack. Everything runs in ONE
@@ -90,6 +104,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { verdictOf } from './another-organisations-ids.mjs';
 
 const REPO_ROOT = resolvePath(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -160,6 +175,75 @@ export const MEMBERS = [
   { sub: 'seed:demo-owner-a', email: 'owner-a@demo.openmigrate.test' },
   { sub: 'seed:demo-owner-b', email: 'owner-b@demo.openmigrate.test' },
 ];
+
+/**
+ * The second identity's proof (THE SECOND IDENTITY, above): the fixture's
+ * description, the id it is asked with, the door it must read as a leak and
+ * the one it must read as a refusal.
+ */
+export const OTHERS = {
+  description: 'scripts/fixtures/schemathesis-known-bad/another-organisation.yaml',
+  ids: { tenantId: 'a0000000-0000-4000-8000-000000000001' },
+  leaks: ['GET /orgs/{tenantId}/things'],
+  refuses: ['GET /orgs/{tenantId}/kept'],
+};
+
+/** The fewest asks a finished second-identity check of the API makes. */
+export const MIN_ASKS = 100;
+
+/** The verdicts of the second identity, in the order the summary lists them. */
+export const VERDICTS = ['leak', 'answered', 'other', 'refused'];
+
+/** The verdicts whose API operations the public summary counts and never names. */
+export const OTHERS_WITHHELD = ['leak', 'answered'];
+
+/**
+ * The first organisation's ids, as the stack's database holds them: the
+ * seed's fixed tenant and owner's address, and the rows it made for them.
+ * `{name: sql}`; each query answers one value or none.
+ */
+export const FIRST_ID_QUERIES = {
+  mappingId: "select id from mailbox_mapping where tenant_id = 'a0000000-0000-4000-8000-000000000001' order by id limit 1",
+  connectionId: "select id from connection where tenant_id = 'a0000000-0000-4000-8000-000000000001' order by role, id limit 1",
+  memberId: "select id from tenant_member where tenant_id = 'a0000000-0000-4000-8000-000000000001' order by id limit 1",
+  personId: "select id from person where tenant_id = 'a0000000-0000-4000-8000-000000000001' order by id limit 1",
+};
+
+/**
+ * What the second-identity check wrote: `{ asked, notAsked }`, or why it
+ * cannot be read (`stopped`).
+ */
+export function readOthers(ran) {
+  if (ran.error || ran.status !== 0) {
+    return { stopped: `the check did not run to its end (${ran.error ? `docker could not be run (${ran.error.code ?? ran.error.message})` : `exit ${ran.status}${firstLine(ran.stderr) ? `: ${firstLine(ran.stderr)}` : ''}`})` };
+  }
+  let d;
+  try {
+    d = JSON.parse(String(ran.stdout ?? '').trim());
+  } catch {
+    return { stopped: 'the check wrote no JSON' };
+  }
+  if (!d || !Array.isArray(d.asked) || !Array.isArray(d.notAsked)) return { stopped: 'the check wrote no asked and not-asked lists' };
+  const unanswered = d.asked.filter((a) => !Number.isInteger(a?.status) || a.status === 0);
+  if (unanswered.length) return { stopped: `${plural(unanswered.length, 'ask')} had no answer (the first: \`${unanswered[0]?.operation}\`)` };
+  return { asked: d.asked.map((a) => ({ operation: String(a.operation), via: String(a.via), status: a.status, verdict: verdictOf(a) })), notAsked: d.notAsked };
+}
+
+/** The operations a second-identity reading gives a verdict, sorted and once each. */
+export function withVerdict(reading, verdict) {
+  return [...new Set(reading.asked.filter((a) => a.verdict === verdict).map((a) => a.operation))].sort();
+}
+
+/** The proof's doors that were not read as they must be, empty when it holds. */
+export function othersUnproved(reading, proof = OTHERS) {
+  return [
+    ...proof.leaks.filter((op) => !withVerdict(reading, 'leak').includes(op)).map((op) => ({ operation: op, must: 'leak' })),
+    ...proof.refuses.filter((op) => {
+      const asked = reading.asked.filter((a) => a.operation === op);
+      return !asked.length || asked.some((a) => a.verdict !== 'refused');
+    }).map((op) => ({ operation: op, must: 'refused' })),
+  ];
+}
 
 /** The seconds between pulls of an image, and the polls for a stack to answer. */
 export const PULL_DELAYS = [5, 15];
@@ -292,7 +376,7 @@ export function unflagged(reading, faults = FIXTURE.faults) {
  * did not finish (`stopped`, the proof's or the API's), else 0, whatever was
  * found (WHAT FAILS THE JOB, above).
  */
-export function report({ image = '', event = '', stopped = null, proof = null, scan = null }) {
+export function report({ image = '', event = '', stopped = null, proof = null, othersProof = null, others = null, scan = null }) {
   const lines = [];
   const md = ['## Schemathesis against the API (report only)', ''];
   md.push(`Image \`${image || 'not set'}\`${event ? `, on \`${event}\`` : ''}. Nothing here blocks yet: the job fails only when the scan did not finish (workplan 0178 T7; T8 blocks \`${BLOCKS_LATER.join('` and `')}\` after 14 quiet nights).`, '');
@@ -314,6 +398,41 @@ export function report({ image = '', event = '', stopped = null, proof = null, s
   if (missed.length) {
     return fail(`Schemathesis did not flag ${missed.map((f) => `\`${f.check}\` on the fixture's \`${f.operation}\``).join(' or ')}, so it is not reading what it should, and its scan of the API is not believed`);
   }
+  if (!othersProof) return fail("the second identity's proof did not run");
+  if (othersProof.stopped) return fail(`the second identity's proof: ${othersProof.stopped}`);
+  const unproved = othersUnproved(othersProof);
+  md.push("### The second identity's proof: the known-bad fixture", '');
+  for (const op of OTHERS.leaks) md.push(`- \`${op}\` must be read as a leak: ${withVerdict(othersProof, 'leak').includes(op) ? 'it is' : '**it is not**'}`);
+  for (const op of OTHERS.refuses) md.push(`- \`${op}\` must be read as a refusal: ${unproved.some((u) => u.operation === op) ? '**it is not**' : 'it is'}`);
+  md.push('');
+  if (unproved.length) {
+    return fail(`the second identity did not read ${unproved.map((u) => `the fixture's \`${u.operation}\` as ${u.must === 'leak' ? 'a leak' : 'a refusal'}`).join(' or ')}, so its reading of the API is not believed`);
+  }
+  if (!others) return fail('the second identity was not asked of the API');
+  if (others.stopped) return fail(`the second identity on the API: ${others.stopped}`);
+  if (others.asked.length < MIN_ASKS) return fail(`the second identity made ${plural(others.asked.length, 'ask')} of the API, fewer than the ${MIN_ASKS} a finished check of ${API_DESCRIPTION} makes`);
+  md.push(`### The second identity on the API: ${plural(others.asked.length, 'ask')}, the first organisation's ids with the second's token`, '');
+  md.push('| Verdict | Asks | Operations |', '|---|---|---|');
+  for (const v of VERDICTS) md.push(`| ${v} | ${others.asked.filter((a) => a.verdict === v).length} | ${withVerdict(others, v).length} |`);
+  md.push(`| not asked | — | ${others.notAsked.length} |`, '');
+  for (const v of OTHERS_WITHHELD) {
+    const ops = withVerdict(others, v);
+    if (!ops.length) continue;
+    md.push(`**${v === 'leak' ? 'Leaks' : 'Answered without refusing'}: ${plural(ops.length, 'operation')}, not named here.** ${v === 'leak' ? "Such an operation served the second member the first organisation's data" : "Such an operation answered the second member with nothing of the first organisation's, and did not refuse"}, and this summary is public. Repeat it on a stack of your own (docs/testing.md, *Schemathesis*) and hand a real one to the maintainer privately.`, '');
+    lines.push(`::warning::second identity: ${plural(ops.length, 'operation')} read as ${v}; see the summary`);
+  }
+  const otherAsks = others.asked.filter((a) => a.verdict === 'other');
+  if (otherAsks.length) {
+    md.push(`<details><summary>Neither refused nor answered: ${plural(otherAsks.length, 'ask')}</summary>`, '');
+    for (const a of otherAsks) md.push(`- \`${a.operation}\` by the ${a.via}: ${a.status}`);
+    md.push('', '</details>', '');
+  }
+  if (others.notAsked.length) {
+    md.push(`<details><summary>Not asked: ${plural(others.notAsked.length, 'operation')}</summary>`, '');
+    for (const n of others.notAsked) md.push(`- \`${n.operation}\`: ${n.why}`);
+    md.push('', '</details>', '');
+  }
+  lines.push(`second identity: ${VERDICTS.map((v) => `${v} ${others.asked.filter((a) => a.verdict === v).length}`).join(', ')}, not asked ${others.notAsked.length}`);
   if (!scan) return fail('the scan of the API did not run');
   if (scan.stopped) return fail(`the scan of the API: ${scan.stopped}`);
   if (scan.tested < MIN_OPERATIONS) return fail(`the scan of the API tested ${plural(scan.tested, 'operation')}, fewer than the ${MIN_OPERATIONS} a finished scan of ${API_DESCRIPTION} tests`);
@@ -479,9 +598,31 @@ export async function run({
     docker(scanArgs(image, { root, out, uid, description: join(FIXTURE.dir, 'openapi.yaml'), port: FIXTURE_PORT, report: 'fixture.json' }), scanEnv);
     const proof = readRun(join(out, 'fixture.json'));
     if (proof.stopped || unflagged(proof).length) return report({ ...base, proof });
+
+    // The second identity, its proof first, then the API, before Schemathesis
+    // takes the first organisation's seeded rows away.
+    const other = signToken(root, secrets.jwtSecret, MEMBERS[1]);
+    mask(other);
+    const ask = (description, port, ids) =>
+      readOthers(docker(
+        ['exec', '--env', 'OTHER_TOKEN', '--env', 'FIRST_IDS', CONTAINERS.fixture, 'node', join(root, 'scripts/another-organisations-ids.mjs'), join(root, description), String(port)],
+        { env: { ...process.env, OTHER_TOKEN: other, FIRST_IDS: JSON.stringify(ids) } },
+      ));
+    const othersProof = ask(OTHERS.description, FIXTURE_PORT, OTHERS.ids);
+    if (othersProof.stopped || othersUnproved(othersProof).length) return report({ ...base, proof, othersProof });
+    const ids = { tenantId: OTHERS.ids.tenantId, ownerEmail: MEMBERS[0].email };
+    for (const [name, sql] of Object.entries(FIRST_ID_QUERIES)) {
+      const got = docker(['exec', CONTAINERS.db, 'psql', '-At', '-v', 'ON_ERROR_STOP=1', '-U', 'ownpace', '-d', 'ownpace', '-c', sql]);
+      if (got.error || got.status !== 0) return report({ ...base, proof, othersProof, stopped: `the first organisation's ${name} could not be read (${why(got)})` });
+      const value = String(got.stdout ?? '').trim();
+      if (value) ids[name] = value;
+    }
+    const others = ask(API_DESCRIPTION, API_PORT, ids);
+    if (others.stopped) return report({ ...base, proof, othersProof, others });
+
     const seedValue = env.SCHEMATHESIS_SEED && /^\d+$/.test(env.SCHEMATHESIS_SEED) ? env.SCHEMATHESIS_SEED : null;
     docker(scanArgs(image, { root, out, uid, description: API_DESCRIPTION, port: API_PORT, report: 'api.json', seed: seedValue }), scanEnv);
-    return report({ ...base, proof, scan: readRun(join(out, 'api.json')) });
+    return report({ ...base, proof, othersProof, others, scan: readRun(join(out, 'api.json')) });
   } finally {
     remove();
   }

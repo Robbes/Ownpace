@@ -4,6 +4,20 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, T10 built (report only, in T7's job).** `scripts/another-organisations-ids.mjs`
+asks every secured operation that takes an id for the first seeded organisation's ids with the
+second organisation's owner's token, by the path and by the organisation header, and each must
+refuse. It runs before Schemathesis, whose deletes (signed as the first owner) were measured to
+take the first organisation's seeded mapping and connection away. Its proof is the fixture's
+`another-organisation.yaml`: one door that serves whichever organisation it is asked for, read as
+a leak, and one that refuses. The guard is red when the leak is taken out of what it flagged.
+**Measured locally on this tree:** 213 asks, 0 leaks, 175 refused, 16 answered without
+refusing, with nothing of the first organisation's in the answer (read one by one: each answered
+with the caller's own organisation, or an empty list; the operations are the maintainer's, held
+privately), 22 neither (mostly a 400 on a body checked before the identity, so those doors are
+not yet asked by identity), and 27 operations not asked, for want of an id the seed makes.
+Open: fill request bodies from the description's examples, so the 400s are asked too.
+
 **2026-11-26, T7 built (report only, not yet run on a hosted runner).** `.github/workflows/schemathesis.yml`
 runs `scripts/schemathesis-report.mjs` nightly on `main` and on dispatch, held by
 `scripts/a-scan-that-tried-the-running-api.unit.test.ts`. What was found and decided while building it:
@@ -104,7 +118,7 @@ one before it to be quiet on `main`.
 | T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 🔨 Built, its first hosted run waits for dispatch; merges after alpha.21's builds (D9) | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
 | T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |
 | T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6's reading and the owner's word per query (D8), so it may fall after alpha.21's release. S each. |
-| T10 A second identity: another organisation's ids refused at every door | builder | 📋 Planned, alpha.21 | §6.3, §8 step 6. D7. M. By the T7 session, after T7. |
+| T10 A second identity: another organisation's ids refused at every door | builder | 🔨 Built in T7's job, report only; merges after T7 | §6.3, §8 step 6. D7. M. By the T7 session, after T7. |
 | T11 ZAP, baseline or API scan | — | 🅿️ Parked | §6.4. D5. Trigger: the app gains cookies, or pages the server renders beyond today's. |
 
 ## 1. Why, and the doctrine
