@@ -604,12 +604,14 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   request**, on a GitHub-hosted runner, **report only and never a required check: it blocks
   nothing** (workplan 0178 T5, the owner's D1 (a) and D8 (a) of 2026-11-26). CodeQL's default suite
   for JavaScript and TypeScript, by `github/codeql-action` at the commit `semgrep.yml` and
-  `security-scan.yml` upload with, and the CodeQL bundle that release ships. It follows a value
+  `security-scan.yml` upload with, and the CodeQL bundle that release ships (`tools: linked`, never
+  the runner's cached CodeQL). It follows a value
   from a request across files and functions, which Semgrep's free engine cannot, and uploads every
   alert to code scanning beside Trivy's and Semgrep's. No alert fails it, the two ReDoS queries'
   included, until workplan 0178 T6 has read the first list; a query blocks later only through a
-  report that fails on that query alone (T9). `scripts/codeql-report.mjs` writes every alert to
-  the summary, by query, and fails a scan that did not finish: no SARIF, a file CodeQL could not
+  report that fails on that query alone (T9). `scripts/codeql-report.mjs` writes the alerts to
+  the summary as counts by query only (a run's summary is public here, and each alert, with its
+  file and line, belongs in code scanning, which only people with write access can read), and fails a scan that did not finish: no SARIF, a file CodeQL could not
   extract, or a source file the checkout tracks that is not among the files CodeQL says it
   extracted, since CodeQL parses TypeScript with its own compiler and not this repository's
   TypeScript 7. **Its proof:** dispatched with `proof`, it also reads the known-bad fixture in

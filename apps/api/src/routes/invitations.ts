@@ -63,6 +63,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import {
   authenticateSubject,
@@ -73,7 +74,7 @@ import {
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /**
  * The `:tenantId` from the path, or null if it is not one id.

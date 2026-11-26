@@ -10,6 +10,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
@@ -32,7 +33,7 @@ import {
 import { serverFault } from '../../server-fault.ts';
 import { mailInvitation, SEND_AGAIN_AFTER, sendAgainAfterSeconds } from './invitation-mail.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /**
  * What a member's removal is recorded under in `audit_log`, as `operator.sh

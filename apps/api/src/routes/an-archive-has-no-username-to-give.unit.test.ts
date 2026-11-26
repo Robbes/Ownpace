@@ -67,7 +67,7 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
     // is refused before its shape is checked (0136 T5).
     withTenantDb: async () => [
       {
-        id: 'conn-1',
+        id: '6f0c0178-0000-4000-8000-00000000c001',
         tenantId: 'a-tenant',
         role: 'source',
         kind: 'archive',
@@ -147,7 +147,7 @@ describe('POST /api/connections — the add door', () => {
 describe('PUT /api/connections/:id/credentials — the rotation door', () => {
   it('takes an archive row through its shape check without a username too', async () => {
     const res = await request(app)
-      .put('/api/connections/conn-1/credentials')
+      .put('/api/connections/6f0c0178-0000-4000-8000-00000000c001/credentials')
       .send({ values: { provider: 'google-takeout', path: '/nowhere' } });
     expect(res.body.fields ?? []).not.toContain('username');
     expect(res.body.error).not.toBe('invalid_values');
