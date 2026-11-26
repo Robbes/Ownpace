@@ -20,7 +20,7 @@
  *     the version beside it; `github/codeql-action` at the same commit as the
  *     other workflows' copies, so one Dependabot move takes them together;
  *     the default suite and the CodeQL bundle that release ships, so no
- *     `queries:` and no `tools:` to drift from it. The pin watch has a row
+ *     `queries:`, and `tools: linked`, never the runner's cached CodeQL. The pin watch has a row
  *     for it (a-pin-that-knows-it-is-behind).
  *  3. LEAST PERMISSIONS, A HOSTED RUNNER, NO SECRET: nothing at the top, and
  *     the job reads the tree and writes code scanning's list and nothing else;
@@ -112,7 +112,7 @@ describe('1. it reports only, and never on a pull request', () => {
 
   it('names no query and no pack, so it runs the default suite and nothing fails on an alert', () => {
     const init = stepUsing('github/codeql-action/init');
-    expect(Object.keys(init.with ?? {}).sort()).toEqual(['build-mode', 'config-file', 'languages']);
+    expect(Object.keys(init.with ?? {}).sort()).toEqual(['build-mode', 'config-file', 'languages', 'tools']);
     expect(init.with).toMatchObject({ languages: 'javascript-typescript', 'build-mode': 'none' });
     expect(workflowText).not.toMatch(/security-extended|security-and-quality|^\s*queries:|^\s*packs:/m);
   });
@@ -138,8 +138,12 @@ describe('2. it is pinned as the repository pins', () => {
     expect(new Set(copies.values()), [...copies.keys()].join('\n')).toHaveProperty('size', 1);
   });
 
-  it('runs the CodeQL bundle that release ships, by naming none', () => {
-    expect(workflowText).not.toMatch(/^\s*tools:/m);
+  it('runs the CodeQL bundle that release ships, named as `linked`, never the runner\'s cached one', () => {
+    // Left unnamed, the action took the runner's tool cache: run 45886149663, the
+    // first on main, ran CodeQL 2.27.6 from /opt/hostedtoolcache while v4.39.4
+    // ships 2.27.5 (0178 T6). `linked` is the bundle the pinned release names.
+    expect(stepUsing('github/codeql-action/init').with!.tools).toBe('linked');
+    expect(workflowText.match(/^\s*tools:/gm)).toHaveLength(1);
   });
 });
 
@@ -158,6 +162,13 @@ describe('3. least permissions, a hosted runner, no secret', () => {
   it('checks out without keeping a credential, and never cancels a run on main', () => {
     expect(stepUsing('actions/checkout').with).toEqual({ 'persist-credentials': false });
     expect(workflow.concurrency?.['cancel-in-progress']).toBe(false);
+  });
+
+  it('gives each event its own queue, so a push to main never replaces a dispatch waiting behind another push', () => {
+    // GitHub keeps one waiting run per group: with the group on the ref alone,
+    // the proof dispatch of 2026-11-26 waited behind the first push run on main,
+    // and a second push would have replaced it (0178 T6).
+    expect(workflow.concurrency?.group).toBe('codeql-${{ github.event_name }}-${{ github.ref }}');
   });
 });
 

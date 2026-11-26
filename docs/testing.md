@@ -604,7 +604,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   request**, on a GitHub-hosted runner, **report only and never a required check: it blocks
   nothing** (workplan 0178 T5, the owner's D1 (a) and D8 (a) of 2026-11-26). CodeQL's default suite
   for JavaScript and TypeScript, by `github/codeql-action` at the commit `semgrep.yml` and
-  `security-scan.yml` upload with, and the CodeQL bundle that release ships. It follows a value
+  `security-scan.yml` upload with, and the CodeQL bundle that release ships (`tools: linked`, never
+  the runner's cached CodeQL). It follows a value
   from a request across files and functions, which Semgrep's free engine cannot, and uploads every
   alert to code scanning beside Trivy's and Semgrep's. No alert fails it, the two ReDoS queries'
   included, until workplan 0178 T6 has read the first list; a query blocks later only through a

@@ -4,6 +4,15 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, evening: T5's two runs on `main`, and T6 begun.** #2194 merged as `b31ccaaf`.
+
+- **The first push run, 45886149663**, ran from 19:46:40 to 19:53:45 UTC and passed. CodeQL says it scanned all 2,500 TypeScript files, 66 of 66 JavaScript files, 19 of 19 GitHub Actions files and 1 of 1 HTML file. The report counted 2,689 files extracted. The strict file match held, and so did the floor of 1,000. So the two extraction IDs the report reads are the ones CodeQL writes, and §12's risk, files CodeQL's TypeScript cannot read, did not happen. It found **312 alerts under 17 queries**, uploaded to code scanning.
+- **The proof, 45886205833**, was dispatched with `proof=true` on `main`. It ran from 19:53:48 to 20:00:31 UTC and passed. It read the fixture, both `js/sql-injection` and `js/reflected-xss` reported there, and it uploaded nothing. §10's proof is met.
+- **Two things the runs showed, both fixed in this pull request, each with the guard's test first:**
+  - **The CodeQL that ran was not the one pinned.** The log shows `/opt/hostedtoolcache/CodeQL/2.27.6`, while v4.39.4 ships 2.27.5. Left without `tools:`, the action takes the runner's tool cache when it holds a newer CodeQL. `tools: linked` makes it the bundle the pinned release names, which is what the workflow, the pin watch's row and `docs/testing.md` already said.
+  - **One waiting run per concurrency group.** The group was `codeql-${{ github.ref }}`. So a dispatch waiting behind a push run on `main` would have been replaced by the next push, and the proof could only wait. The group is now `codeql-${{ github.event_name }}-${{ github.ref }}`: one queue per event, and still never cancelled.
+- **Alert by alert: not read yet.** This session has no way to read the code scanning list or the run's summary: no tool for code scanning, and the job log carries the totals only. T6's reading of the 312, query by query, follows in this plan once the maintainer hands over the list.
+
 **2026-11-26, later still: H, the two hardening fixes, in #2190.** It is recorded here at the maintainer's request, though H is outside this plan's tasks. The consent endings' escape now also escapes `"` and `'`, so it is safe in a quoted attribute. The WebDAV archive store refuses a path with a `.` or `..` segment before any request. The tests were written first and failed on the old code. Neither change was reachable from outside. The maintainer merges it once its E2E is green.
 
 **2026-11-26, later still: T5 built, report only; its proof and its first run are still to come.**
@@ -106,7 +115,7 @@ one before it to be quiet on `main`.
 | T3 Guard: every door either signs in, or is public in the code and in the API description alike | builder | 📋 Planned, alpha.21 | §5.1 G3. The static half of class 9. Blocks. M. By the analyst session, after alpha.21's builds (D9). |
 | T4 Guard: a secret-named key handed to the logger | builder | 📋 Planned, alpha.21 | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
 | T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 🔄 Built 2026-11-26; proof dispatch and first run on `main` to come | §4.1, §8 step 2. D1. Not on pull requests. `codeql.yml`, its report, its fixture and its guard; the Status entry of that day. |
-| T6 CodeQL's first list, read alert by alert | builder | 📋 Planned, alpha.21 | §8 step 2. As 0166 read Trivy's and Semgrep's. M. By the same session as T5. |
+| T6 CodeQL's first list, read alert by alert | builder | 🔄 Begun 2026-11-26: the runs read, the list still to read | §8 step 2. As 0166 read Trivy's and Semgrep's. 312 alerts under 17 queries on `b31ccaaf`; the Status entry of that evening. |
 | T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 📋 Planned, alpha.21 | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
 | T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |
 | T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6's reading and the owner's word per query (D8), so it may fall after alpha.21's release. S each. |
