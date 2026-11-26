@@ -109,7 +109,7 @@ app.use('/api/migrations', migrationRoutes);
 
 const PATH = '/srv/exports/takeout-20260904';
 const ARCHIVE_ROW = {
-  id: 'conn-1',
+  id: '6f0c0178-0000-4000-8000-00000000c001',
   tenantId: 'a-tenant',
   role: 'source',
   kind: 'archive',
@@ -284,7 +284,7 @@ async function statusWritesAfterLookup(): Promise<Array<Record<string, unknown>>
 
 describe('a STORED archive connection — the Connections page', () => {
   it('refuses to test one whose path is on the server, and says so on its card', async () => {
-    const res = await request(app).post('/api/connections/conn-1/test');
+    const res = await request(app).post('/api/connections/6f0c0178-0000-4000-8000-00000000c001/test');
     refused(res, 409);
     nothingOpened();
     // The page re-reads the row after every Test so that the card cannot
@@ -297,7 +297,7 @@ describe('a STORED archive connection — the Connections page', () => {
 
   it('refuses to rotate one, since rotating probes the stored path first, and writes nothing', async () => {
     const res = await request(app)
-      .put('/api/connections/conn-1/credentials')
+      .put('/api/connections/6f0c0178-0000-4000-8000-00000000c001/credentials')
       .send({ values: { provider: 'google-takeout', path: PATH } });
     refused(res, 409);
     nothingOpened();
@@ -306,7 +306,7 @@ describe('a STORED archive connection — the Connections page', () => {
 
   it('refuses a stored `where: "disk"` the same way', async () => {
     storedRow = { ...ARCHIVE_ROW, config: { ...ARCHIVE_ROW.config, where: 'disk' } };
-    const res = await request(app).post('/api/connections/conn-1/test');
+    const res = await request(app).post('/api/connections/6f0c0178-0000-4000-8000-00000000c001/test');
     refused(res, 409);
     nothingOpened();
   });
@@ -315,7 +315,7 @@ describe('a STORED archive connection — the Connections page', () => {
     // What 0148 T9 stores. Its Test answers that the contents are counted at
     // the preflight; the point here is only that it is not THIS refusal.
     storedRow = { ...ARCHIVE_ROW, config: { ...ARCHIVE_ROW.config, where: 'target' } };
-    const res = await request(app).post('/api/connections/conn-1/test');
+    const res = await request(app).post('/api/connections/6f0c0178-0000-4000-8000-00000000c001/test');
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body.error).toBeUndefined();
     expect(vi.mocked(probe.probeSourceConnection)).toHaveBeenCalledTimes(1);

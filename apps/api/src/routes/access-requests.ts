@@ -41,6 +41,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { Pool } from 'pg';
 import { z } from 'zod';
@@ -63,7 +64,7 @@ import {
 import { serverFault } from '../server-fault.ts';
 import { createKnockLimiter, knockLimitFromEnv, type KnockLimiter } from '../knock-limit.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 let _dbPool: Pool | null = null;
 function getSharedPool(): Pool {

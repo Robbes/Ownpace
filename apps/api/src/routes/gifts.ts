@@ -22,6 +22,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { sql } from 'drizzle-orm';
@@ -46,7 +47,7 @@ import { serverFault } from '../server-fault.ts';
 import { appUrl, tellOperator } from '../access-notify.ts';
 import { createKnockLimiter, type KnockLimiter } from '../knock-limit.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 type Pool = ReturnType<typeof getDbPool>;
 let _pool: Pool | null = null;
