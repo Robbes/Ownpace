@@ -53,6 +53,11 @@ describe('the words of an error document we know, and of nothing else', () => {
       'DAV:need-privileges, DAV:resource',
     ],
     ['a WebDAV error that names none', "<error xmlns='DAV:'/>", 'DAV:error'],
+    [
+      'a WebDAV error after a declaration and two comments',
+      '<?xml version="1.0"?>\n<!-- one -->\n<!-- two -->\n<d:error xmlns:d="DAV:"><d:need-privileges/></d:error>',
+      'DAV:need-privileges',
+    ],
     ["Google's JSON error document", GOOGLE_JSON_400, 'INVALID_ARGUMENT — Request contains an invalid argument.'],
     [
       'a JMAP problem document',
@@ -93,8 +98,27 @@ describe('the words of an error document we know, and of nothing else', () => {
     ['an OAuth code whose description is not a string', JSON.stringify({ error: 'invalid_grant', error_description: { secret: 'x' } })],
     ['an OAuth refusal followed by anything at all', `${JSON.stringify({ error: 'invalid_grant' })} <html>stack trace</html>`],
     ['a list, not a document', JSON.stringify([{ error: 'invalid_grant' }])],
+    ['a comment that is never closed before an error document', `<!-- never closed <error xmlns='DAV:'/>`],
+    ['text between two comments before an error document', `<!-- a -->x<!-- b --><error xmlns='DAV:'/>`],
   ])('%s: nothing', (_what, body) => {
     expect(providerErrorWords(body)).toBeUndefined();
+  });
+
+  // WHAT COMES BEFORE THE ROOT IS READ IN ONE PASS. A declaration and comments are
+  // skipped, then the root's start tag is matched where they end, so the time taken
+  // grows with the body's length and no more. 28 comments are a short body; 20,000
+  // are a long one; neither may take a quarter of a second.
+  it('reads what comes before the root in one pass, however many comments there are', () => {
+    for (const comments of [28, 20_000]) {
+      const body = `${'<!---->'.repeat(comments)} `;
+      const started = performance.now();
+      expect(providerErrorWords(body)).toBeUndefined();
+      expect(performance.now() - started, `${comments} comments`).toBeLessThan(250);
+    }
+    const unclosed = `<!--${'x'.repeat(200_000)}`;
+    const started = performance.now();
+    expect(providerErrorWords(unclosed)).toBeUndefined();
+    expect(performance.now() - started, 'one long comment never closed').toBeLessThan(250);
   });
 
   it(`caps the words at ${PROVIDER_WORDS_CAP} characters and flattens their white space`, () => {
