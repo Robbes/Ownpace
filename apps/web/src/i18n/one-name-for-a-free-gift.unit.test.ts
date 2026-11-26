@@ -91,7 +91,8 @@ const SECTION_7: ReadonlyArray<readonly [string, string]> = [
   // The door.
   ['Type your code', 'Typ uw code'],
   ['The code', 'De code'],
-  ['As on the card. Capitals and dashes do not matter.', 'Zoals op de kaart. Hoofdletters en streepjes maken niet uit.'],
+  // §7 drafted two sentences for each field's hint; a hint is one (0118), and the one that helps most stays.
+  ['Capitals and dashes do not matter.', 'Hoofdletters en streepjes maken niet uit.'],
   ['No code? Ask for access without one.', 'Geen code? Vraag toegang aan zonder code.'],
   ['This code does not work', 'Deze code werkt niet'],
   ['You can correct the code below. Nothing about you has been sent.', 'U kunt de code hieronder verbeteren. Er is niets over u verstuurd.'],
@@ -114,7 +115,7 @@ const SECTION_7: ReadonlyArray<readonly [string, string]> = [
     'Vertel het aan degene van wie u de code kreeg: die kan dan iemand anders aanbevelen.',
   ],
   ['Your email address', 'Uw e-mailadres'],
-  ['You sign in with it. It may be the email address you use today.', 'Daarmee meldt u zich aan. Het mag het e-mailadres zijn dat u nu gebruikt.'],
+  ['It may be the email address you use today.', 'Het mag het e-mailadres zijn dat u nu gebruikt.'],
   ['Your name (you may leave this empty)', 'Uw naam (mag, hoeft niet)'],
   ['Is this the email address of a Google account that you want to move?', 'Is dit het e-mailadres van een Google-account waar u weg wilt?'],
   ['No', 'Nee'],

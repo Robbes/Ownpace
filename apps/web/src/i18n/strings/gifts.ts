@@ -89,7 +89,9 @@ export const en = {
   // ---- The door, `/code` (0177 T1, §5). Step 1: the code, alone.
   'code.step1.title': 'Type your code',
   'code.field': 'The code',
-  'code.field.hint': 'As on the card. Capitals and dashes do not matter.',
+  // A hint is one sentence of at most twelve words (0118, `words-that-fit-on-one-line`):
+  // §7 drafted two for each of these, and the one that helps most at the field stays.
+  'code.field.hint': 'Capitals and dashes do not matter.',
   'code.noCode': 'No code? Ask for access without one.',
   'code.refused.title': 'This code does not work',
   'code.refused.line': 'You can correct the code below. Nothing about you has been sent.',
@@ -111,7 +113,7 @@ export const en = {
   // Step 3: the address.
   'code.step3.title': 'Fill in your email address',
   'code.email': 'Your email address',
-  'code.email.hint': 'You sign in with it. It may be the email address you use today.',
+  'code.email.hint': 'It may be the email address you use today.',
   'code.name': 'Your name (you may leave this empty)',
   'code.google': 'Is this the email address of a Google account that you want to move?',
   'code.no': 'No',
@@ -203,7 +205,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Na de Alpha zijn er betaalde pakketten en een gratis pakket. U betaalt niets voordat u de nieuwe voorwaarden hebt geaccepteerd.',
   'code.step1.title': 'Typ uw code',
   'code.field': 'De code',
-  'code.field.hint': 'Zoals op de kaart. Hoofdletters en streepjes maken niet uit.',
+  'code.field.hint': 'Hoofdletters en streepjes maken niet uit.',
   'code.noCode': 'Geen code? Vraag toegang aan zonder code.',
   'code.refused.title': 'Deze code werkt niet',
   'code.refused.line': 'U kunt de code hieronder verbeteren. Er is niets over u verstuurd.',
@@ -223,7 +225,7 @@ export const nl: Record<keyof typeof en, string> = {
   'code.noThanks.tell': 'Vertel het aan degene van wie u de code kreeg: die kan dan iemand anders aanbevelen.',
   'code.step3.title': 'Vul uw e-mailadres in',
   'code.email': 'Uw e-mailadres',
-  'code.email.hint': 'Daarmee meldt u zich aan. Het mag het e-mailadres zijn dat u nu gebruikt.',
+  'code.email.hint': 'Het mag het e-mailadres zijn dat u nu gebruikt.',
   'code.name': 'Uw naam (mag, hoeft niet)',
   'code.google': 'Is dit het e-mailadres van een Google-account waar u weg wilt?',
   'code.no': 'Nee',

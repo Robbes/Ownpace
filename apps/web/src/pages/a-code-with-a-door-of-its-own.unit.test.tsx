@@ -224,7 +224,7 @@ describe('2. the first step: the code, alone', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toEqual([title]);
     expect(screen.getAllByRole('textbox')).toEqual([screen.getByLabelText('The code')]);
     expect(pageButtons().map((b) => b.textContent)).toEqual(['Next']);
-    expect(screen.getByText('As on the card. Capitals and dashes do not matter.')).toBeInTheDocument();
+    expect(screen.getByText('Capitals and dashes do not matter.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'No code? Ask for access without one.' })).toHaveAttribute('href', '/request-access');
     // No address is asked yet: a mistyped code sends nothing about the person.
     expect(document.querySelector('input[type="email"]')).toBeNull();
@@ -307,7 +307,7 @@ describe('5. the third step: the address, a name, and one question about Google'
     await toTheAddress();
     const email = screen.getByLabelText('Your email address');
     expect(email).toHaveAttribute('type', 'email');
-    expect(screen.getByText('You sign in with it. It may be the email address you use today.')).toBeInTheDocument();
+    expect(screen.getByText('It may be the email address you use today.')).toBeInTheDocument();
     expect(screen.getByLabelText('Your name (you may leave this empty)')).toBeInTheDocument();
     expect(screen.getAllByRole('textbox')).toHaveLength(2);
     expect(document.querySelector('select, textarea')).toBeNull();
