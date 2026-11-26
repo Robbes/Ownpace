@@ -2,7 +2,21 @@
 
 > **In one line:** pg-boss (MIT) on our own Postgres in place of self-hosted Trigger.dev for the managed edition's jobs: a spike that proved nine points against a real Postgres, directly and through PgBouncer, then the replacement in steps, from the runner, imported by nothing, to Trigger.dev's removal.
 
-## Status — 2026-11-23 (update this block at the end of every session)
+## Status — 2026-11-26 (update this block at the end of every session)
+
+**2026-11-26, latest: the smoke's job check waits only for its own organisations' jobs, for
+alpha.21.** E2E (managed) run 45833930566 failed on one line only: a `run-delta-sync` job still
+active after the 120s wait. The same commit was green when run again (45836652360). The job was a
+sync-tick pass of another organisation on the long-lived OTA stack, a migration the smoke never
+touched. `smoke-managed.sh` now reads the organisations on the stack once, in the preflights,
+before any section makes one. A job whose payload names one of them, other than the demo's two, is
+said by queue and state as the sync tick's. It is never waited for, and never a failure for being
+created or active; a failed, cancelled or retrying one still fails the run, and says whose it is.
+Each of this run's jobs still in flight at the end is named by queue, tenant and mapping ids and
+age. Unreadable, every job is this run's, as before, and the log says so. Proved against a local
+Postgres (scratch `pgboss.job` and `pgboss.schedule`, the real `tenant` table) through a `q` with
+the smoke's quoting, and by `smoke-managed-verdict.unit.test.ts` (eight tests added, one updated);
+on a real stack, only by E2E (managed). Test only: no product behaviour changes.
 
 **2026-11-23, latest: the text T9 left in the present tense, for alpha.19.** Code comments in
 `apps/`, `packages/` and `deploy/compose/` that still said Trigger.dev runs the jobs, or pointed

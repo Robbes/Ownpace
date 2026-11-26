@@ -1324,19 +1324,26 @@ describe('on pg-boss, every job this run saw completed, and at least one it aske
    * pgboss_jobs against `rows` (name|state|count|retried|is-a-schedule) and `waiting` (the count of
    * jobs asked for still in flight), with the jobs `jobs` (id → "name state") behind the runIds.
    */
-  function jobs(rows: string[], opts: { waiting?: string; refs?: string; jobs?: Record<string, string>; broken?: boolean; catalog?: string | null } = {}) {
+  function jobs(
+    rows: string[],
+    opts: { waiting?: string; refs?: string; jobs?: Record<string, string>; broken?: boolean; catalog?: string | null; others?: string; left?: string[] } = {},
+  ) {
     const dir = mkdtempSync(join(tmpdir(), 'pgboss-jobs-'));
     try {
       const catalog = join(dir, 'catalog.ts');
       if (opts.catalog !== null) writeFileSync(catalog, opts.catalog ?? CATALOG);
       writeFileSync(join(dir, 'rows'), rows.map((r) => `${r}\n`).join(''));
+      writeFileSync(join(dir, 'left'), (opts.left ?? []).map((r) => `${r}\n`).join(''));
+      writeFileSync(join(dir, 'asked'), '');
       writeFileSync(join(dir, 'jobs'), Object.entries(opts.jobs ?? {}).map(([id, v]) => `${id} ${v}\n`).join(''));
       const stub = `
 catalog_path='${catalog}'
 eval "$(declare -f catalog_queues | sed "s|\\\${REPO_ROOT}/packages/scheduler/src/pg-boss/catalog.ts|$catalog_path|")"
 q() {
   [ -n "\${BROKEN:-}" ] && { echo 'ERROR:  relation "pgboss.job" does not exist' ; return 1; }
+  printf '%s\\n' "$1" >>'${join(dir, 'asked')}'
   case "$1" in
+    *"coalesce(j.started_on, j.created_on)"*) cat '${join(dir, 'left')}' ;;
     *"WHERE j.id = '"*) id="\${1#*WHERE j.id = \\'}"; id="\${id%%\\'*}"; awk -v id="$id" '$1 == id { $1 = ""; sub(/^ /, ""); print }' '${join(dir, 'jobs')}' ;;
     *"GROUP BY"*) cat '${join(dir, 'rows')}' ;;
     *"count(*) FROM pgboss.job j"*) echo "\${WAITING:-0}" ;;
@@ -1345,7 +1352,7 @@ q() {
 }
 sleep() { :; }
 `;
-      return smokeRun(['catalog_queues', 'pgboss_jobs'], `${stub}\npgboss_jobs\n${SHOW_REASONS}`, {
+      const r = smokeRun(['catalog_queues', 'pgboss_jobs'], `${stub}\npgboss_jobs\n${SHOW_REASONS}`, {
         REPO_ROOT: dir,
         SMOKE_STARTED_AT: '2026-11-22T17:00:00Z',
         JOB_SETTLE_POLLS: '2',
@@ -1353,7 +1360,9 @@ sleep() { :; }
         FOLLOWED_REFS: opts.refs ?? '',
         WAITING: opts.waiting ?? '0',
         ...(opts.broken ? { BROKEN: '1' } : {}),
+        ...(opts.others !== undefined ? { OTHER_TENANTS_READ: '1', OTHER_TENANTS_SQL: opts.others } : {}),
       });
+      return { ...r, asked: readFileSync(join(dir, 'asked'), 'utf8') };
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1410,7 +1419,76 @@ sleep() { :; }
 
   it('the wait waits for a retry on any queue, a schedule\'s included, and for the jobs asked for', () => {
     const body = smokeFunction('pgboss_jobs');
-    expect(body).toContain("(j.state = 'retry' OR (j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__'))");
+    expect(body).toContain("(j.state = 'retry' OR (j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__' AND ${mine_sql}))");
+  });
+
+  // WHOSE JOB IT IS. Run 45833930566 failed on a pass the sync tick put on `run-delta-sync` for
+  // another organisation on the long-lived stack, begun 9s before the check and still active
+  // after the wait. Rows carry a sixth field, `false` for another organisation's.
+  const OTHER = "'c0000000-0000-4000-8000-00000000000c'";
+
+  it("another organisation's pass, created or running, is said as the sync tick's, never waited for, and no failure", () => {
+    const r = jobs(['run-delta-sync|active|1|0|false|false', 'run-delta-sync|completed|8|0|false|true', 'run-delta-sync|created|1|0|false|false'], { others: OTHER });
+    expect(r.fail, r.out).toBe('0');
+    expect(r.out).toContain("run-delta-sync: 1 active, another organisation's: the sync tick's, not this run's");
+    expect(r.out).not.toContain('waited');
+    // The wait asks only about this run's created and active jobs; a retry is waited for whoever's.
+    const wait = r.asked.split('\n').find((l) => l.startsWith('SELECT count(*)'));
+    expect(wait).toContain(`AND coalesce(j.data->>'tenantId', '') NOT IN (${OTHER})))`);
+    expect(wait).toContain("(j.state = 'retry' OR (j.state IN ('created', 'active')");
+  });
+
+  it.each([
+    ['failed', 'ended failed'],
+    ['cancelled', 'ended cancelled'],
+    ['retry', 'are waiting to retry'],
+  ])("another organisation's job that is %s still fails the run, and says whose", (state, says) => {
+    const r = jobs(['run-delta-sync|completed|2|0|false|true', `run-delta-sync|${state}|1|0|false|false`], { others: OTHER });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain(`1 job(s) on run-delta-sync of another organisation on this stack (the sync tick's, not this run's) ${says}`);
+  });
+
+  it("another organisation's completed passes are not this run's: alone, no job ran", () => {
+    const r = jobs(['run-delta-sync|completed|3|0|false|false'], { others: OTHER });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('no job ran');
+  });
+
+  it("each of this run's jobs still in flight is named, its ids and how long, and never another organisation's", () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false|true', 'run-delta-sync|active|1|0|false|true', 'run-verification|created|1|0|false|true'], {
+      others: OTHER,
+      waiting: '2',
+      left: ['run-delta-sync|a0000000-0000-4000-8000-000000000001|a0000000-0000-4000-8000-0000000000d1|active|125', 'run-verification|||created|3'],
+    });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('1 job(s) on run-delta-sync are still active after 4s');
+    expect(r.out).toContain('still active: run-delta-sync, tenant a0000000-0000-4000-8000-000000000001, mapping a0000000-0000-4000-8000-0000000000d1, running for 125s');
+    expect(r.out).toContain('still created: run-verification, tenant (none), mapping (none), waiting for 3s');
+    const named = r.asked.split('\n').find((l) => l.includes('coalesce(j.started_on, j.created_on)'));
+    expect(named).toContain(`AND coalesce(j.data->>'tenantId', '') NOT IN (${OTHER}) ORDER BY`);
+  });
+
+  it("without the organisations read, every job is this run's, as before, and no job's ids are printed", () => {
+    const r = jobs(['run-delta-sync|completed|1|0|false|true', 'run-delta-sync|active|1|0|false|true'], {
+      waiting: '1',
+      left: ['run-delta-sync|c0000000-0000-4000-8000-00000000000c|c0000000-0000-4000-8000-0000000000e1|active|125'],
+    });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('1 job(s) on run-delta-sync are still active after 4s');
+    expect(r.out).toContain("the organisations on this stack were not read in the preflights, so every job above is judged as this run's");
+    expect(r.out).not.toContain('c0000000');
+    // Not the constant `true`, which Postgres refuses in ORDER BY.
+    expect(r.asked).toContain('GROUP BY j.name, j.state, (j.name IS NOT NULL)');
+  });
+
+  it('the organisations are read once, after `q`, before any section makes one, and say only how many', () => {
+    const at = smoke.indexOf('if tenants_now="$(q "SELECT id FROM tenant ORDER BY id"');
+    expect(at).toBeGreaterThan(smoke.indexOf('\nq() {'));
+    expect(at).toBeLessThan(smoke.indexOf('note "signing in"'));
+    expect(at).toBeLessThan(smoke.indexOf('INSERT INTO tenant '));
+    expect(smoke.split('SELECT id FROM tenant ORDER BY id').length).toBe(2);
+    expect(smoke).toContain("organisations on this stack before this run, besides the demo's two: ${other_n}.");
+    expect(smoke).toContain("so every pg-boss job will be judged as this run's, as before");
   });
 
   it("a job waiting to retry is a failed attempt, a schedule's included", () => {

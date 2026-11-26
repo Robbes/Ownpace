@@ -1064,6 +1064,35 @@ if ! curl -sf "$API/health" >/dev/null; then
   echo "FATAL: API not reachable at $API/health"
   exit 1
 fi
+# THE ORGANISATIONS ON THIS STACK BEFORE THIS RUN, read once, before any section
+# makes one, for `pgboss_jobs` far below. The OTA stack is long-lived: besides
+# the demo's two it holds other organisations, whose migrations the sync tick
+# passes on `run-delta-sync`, the queue the smoke's own passes use. A pass of
+# theirs is not work this run asked for. The ids stay in this shell: the log
+# says how many, never which. Not read: every job is judged as this run's, as
+# before, and the log says so.
+OTHER_TENANTS_SQL=""
+OTHER_TENANTS_READ=0
+if tenants_now="$(q "SELECT id FROM tenant ORDER BY id" 2>/dev/null)" && grep -qxF "$VERIFY_TENANT" <<<"$tenants_now"; then
+  OTHER_TENANTS_READ=1
+  other_n=0
+  while read -r t; do
+    [ -n "$t" ] || continue
+    [ "$t" = "$VERIFY_TENANT" ] || [ "$t" = "$APPLY_TENANT" ] && continue
+    if [[ ! "$t" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+      OTHER_TENANTS_READ=0
+      break
+    fi
+    OTHER_TENANTS_SQL="${OTHER_TENANTS_SQL}${OTHER_TENANTS_SQL:+,}'${t}'"
+    other_n=$((other_n + 1))
+  done <<<"$tenants_now"
+fi
+if [ "$OTHER_TENANTS_READ" = 1 ]; then
+  echo "organisations on this stack before this run, besides the demo's two: ${other_n}. Their sync passes are said at the end, never waited for"
+else
+  OTHER_TENANTS_SQL=""
+  echo "the organisations on this stack could not be read (or the demo's ${VERIFY_TENANT} is not among them), so every pg-boss job will be judged as this run's, as before"
+fi
 # WEB half (2026-08-10): the stack used to pass this smoke with a web
 # container whose nginx had no /api proxy — every browser API call got
 # index.html back. Assert both that the SPA serves AND that /api through the
@@ -3351,15 +3380,41 @@ catalog_queues() { # catalog_queues [catalog.ts] — the names; 1 and nothing wh
 #    runner at all": the smoke's own passes run as such jobs;
 #  - every runId this smoke followed (the API's 202s) is a pg-boss job id, a
 #    UUID, of a job that completed, not a Trigger.dev `run_…`.
+# WHOSE JOB IT IS. The OTA stack is long-lived and holds other organisations,
+# whose migrations the sync tick passes on `run-delta-sync`, the queue the
+# smoke's own passes use, with `{ tenantId, mappingId, domains }`. Run
+# 45833930566 failed on one: a pass of a migration this run never touched,
+# begun 9s before this check, still active after the wait. So:
+#  - this run's job is one whose payload names no organisation (`tenantId`
+#    absent or empty), or names the demo's two, or an organisation that was
+#    not on the stack when the smoke began; every rule above is about these;
+#  - a job of an organisation that was (OTHER_TENANTS_SQL, read in the
+#    preflights) is another organisation's, the sync tick's: said by queue and
+#    state, counts only, never its ids; never waited for, and never a failure
+#    for being created or active;
+#  - but a failed, cancelled or retrying job is a failure whoever's it is, and
+#    its line says whose: a pass that fails on this stack is a fault. A
+#    retrying one is waited for, as before;
+#  - each of this run's jobs still created or active at the end is named, its
+#    queue, tenant and mapping ids (the demo's or the smoke's own) and how long
+#    it has run, so the next such failure names its mapping in the public log;
+#  - when the organisations could not be read, every job is this run's, as
+#    before this rule, the preflights say so, and no job's ids are printed.
 pgboss_jobs() {
-  local queues rows i=0 waiting name state n retried sched completed=0 refs ref got settled=0
+  local queues rows i=0 waiting name state n retried sched mine completed=0 refs ref got settled=0 mine_sql left q_tenant q_mapping q_state q_secs
+  # THIS RUN'S, as SQL on `j`. No `$`, double quote or backquote in it: `q`
+  # hands its SQL to a shell inside double quotes. Without the organisations,
+  # every job: a column test, not the constant `true`, which Postgres refuses
+  # in the ORDER BY below ("non-integer constant in ORDER BY").
+  mine_sql="j.name IS NOT NULL"
+  [ -n "${OTHER_TENANTS_SQL:-}" ] && mine_sql="coalesce(j.data->>'tenantId', '') NOT IN (${OTHER_TENANTS_SQL})"
   if ! queues="$(catalog_queues)"; then
     echo "no queue could be read from packages/scheduler/src/pg-boss/catalog.ts's JOB_CATALOG, so which jobs are this stack's cannot be told"
     fail_at "the catalog's queues could not be read"
     return 0
   fi
   while :; do
-    if ! waiting="$(q "SELECT count(*) FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' AND (j.state = 'retry' OR (j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__'))" 2>&1)"; then
+    if ! waiting="$(q "SELECT count(*) FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' AND (j.state = 'retry' OR (j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__' AND ${mine_sql}))" 2>&1)"; then
       echo "pg-boss's jobs could not be read: ${waiting}"
       fail_at "pgboss.job could not be read"
       return 0
@@ -3370,19 +3425,26 @@ pgboss_jobs() {
     sleep "$POLL_SLEEP"
   done
   [ "$i" -gt 0 ] && echo "waited $((i * POLL_SLEEP))s for the jobs this run asked for to settle"
-  if ! rows="$(q "SELECT j.name || '|' || j.state || '|' || count(*) || '|' || count(*) FILTER (WHERE j.retry_count > 0) || '|' || (EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) OR left(j.name, 10) = '__pgboss__') FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' GROUP BY j.name, j.state ORDER BY j.name, j.state" 2>&1)"; then
+  if ! rows="$(q "SELECT j.name || '|' || j.state || '|' || count(*) || '|' || count(*) FILTER (WHERE j.retry_count > 0) || '|' || (EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) OR left(j.name, 10) = '__pgboss__') || '|' || (${mine_sql}) FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' GROUP BY j.name, j.state, (${mine_sql}) ORDER BY j.name, j.state, (${mine_sql}) DESC" 2>&1)"; then
     echo "pg-boss's jobs could not be read: ${rows}"
     fail_at "pgboss.job could not be read"
     return 0
   fi
   echo "pg-boss's jobs since ${SMOKE_STARTED_AT}, by queue and state:"
   [ -n "$rows" ] || echo "  (none)"
-  while IFS='|' read -r name state n retried sched; do
+  while IFS='|' read -r name state n retried sched mine; do
     [ -n "$name" ] || continue
     [[ "$name" == __pgboss__* ]] && sched=true
-    echo "  ${name}: ${n} ${state}$([ "${retried:-0}" != 0 ] && echo ", ${retried} after a retry")"
+    echo "  ${name}: ${n} ${state}$([ "${retried:-0}" != 0 ] && echo ", ${retried} after a retry")$([ "$mine" = false ] && echo ", another organisation's: the sync tick's, not this run's")"
     if [[ "$name" != __pgboss__* ]] && ! grep -qxF "$name" <<<"$queues"; then
       fail_at "${n} job(s) on '${name}', a queue the catalog does not name, so no worker works it"
+      continue
+    fi
+    if [ "$mine" = false ]; then
+      case "$state" in
+        failed|cancelled) fail_at "${n} job(s) on ${name} of another organisation on this stack (the sync tick's, not this run's) ended ${state}: their error is in the worker's log, in the evidence" ;;
+        retry) fail_at "${n} job(s) on ${name} of another organisation on this stack (the sync tick's, not this run's) are waiting to retry, so an attempt failed: its error is in the worker's log, in the evidence" ;;
+      esac
       continue
     fi
     case "$state:$sched" in
@@ -3399,6 +3461,23 @@ pgboss_jobs() {
         fi ;;
     esac
   done <<<"$rows"
+  # THIS RUN'S JOBS STILL IN FLIGHT, each by name: the demo's or the smoke's
+  # own ids, never another organisation's. Without the organisations read,
+  # whose a job is cannot be told, so the count above is all that is said.
+  if [ "${OTHER_TENANTS_READ:-0}" = 1 ]; then
+    if ! left="$(q "SELECT j.name || '|' || coalesce(j.data->>'tenantId', '') || '|' || coalesce(j.data->>'mappingId', '') || '|' || j.state || '|' || extract(epoch FROM now() - coalesce(j.started_on, j.created_on))::int FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' AND j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__' AND ${mine_sql} ORDER BY j.created_on" 2>&1)"; then
+      echo "this run's jobs still in flight could not be named: ${left}"
+    else
+      while IFS='|' read -r name q_tenant q_mapping q_state q_secs; do
+        [ -n "$name" ] || continue
+        [[ "$q_tenant" =~ ^[0-9a-f-]{36}$ ]] || q_tenant="(none)"
+        [[ "$q_mapping" =~ ^[0-9a-f-]{36}$ ]] || q_mapping="(none)"
+        echo "  still ${q_state}: ${name}, tenant ${q_tenant}, mapping ${q_mapping}, $([ "$q_state" = active ] && echo "running for" || echo "waiting for") ${q_secs}s"
+      done <<<"$left"
+    fi
+  else
+    echo "the organisations on this stack were not read in the preflights, so every job above is judged as this run's, and none is named by its ids"
+  fi
   if [ "$completed" = 0 ]; then
     echo "NO job somebody asked for completed on pg-boss during this smoke."
     fail_at "no job ran: no job this run asked for completed on pg-boss"
