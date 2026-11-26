@@ -73,11 +73,7 @@ function renderPage(locale: 'en' | 'nl' = 'en') {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  try {
-    window.localStorage.clear();
-  } catch {
-    // nothing stored
-  }
+  window.localStorage.clear();
 });
 
 describe('a destination the person connected, on their progress page (0174 §4.3)', () => {

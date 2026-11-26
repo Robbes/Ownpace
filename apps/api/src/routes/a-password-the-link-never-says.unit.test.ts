@@ -115,7 +115,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await resetAnna(driver, R);
-  await q('DELETE FROM audit_log WHERE tenant_id = $1', [R.tenant]).catch(() => undefined);
+  await q('DELETE FROM audit_log WHERE tenant_id = $1', [R.tenant]);
   server.answer = () => CONNECTED;
   server.qualification = undefined;
   written = [];

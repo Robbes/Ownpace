@@ -144,7 +144,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await resetAnna(driver, R);
   await q('UPDATE connection SET kind = $2 WHERE id = $1', [R.soverin, 'soverin']);
-  await q('DELETE FROM audit_log WHERE tenant_id = $1', [R.tenant]).catch(() => undefined);
+  await q('DELETE FROM audit_log WHERE tenant_id = $1', [R.tenant]);
   await q('INSERT INTO person_granted_connection (connection_id, tenant_id, person_id) VALUES ($1,$2,$3)', [BERTS_JMAP, R.tenant, R.bert]);
   await q('UPDATE mailbox_mapping SET grant_withdrawn_at = NULL WHERE id = $1', [BERTS_MIGRATION]);
 });
