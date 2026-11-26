@@ -66,6 +66,8 @@ import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import { GrantPasswordCard } from '../components/GrantPasswordCard.tsx';
 import { YourNewAddress } from '../components/YourNewAddress.tsx';
 import { NumberToCheck, SenderName, numberToCheck, whoSent } from '../components/TheSender.tsx';
+import { WhereItRuns } from '../components/WhereItRuns.tsx';
+import { LinkToOnePage } from './PersonGrantOnePage.tsx';
 import {
   GrantScope,
   NotTheProvider,
@@ -830,7 +832,13 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
   return (
     <div data-step={step.kind}>
       {n > 0 && <p className="text-base text-gray-800">{t('grant.step', { n: String(n), total: String(total) })}</p>}
-      {step.kind === 'ask' && <p className="mt-2 text-lg text-gray-900">{t('grant.person.ownpace')}</p>}
+      {step.kind === 'ask' && (
+        <>
+          <p className="mt-2 text-lg text-gray-900">{t('grant.person.ownpace')}</p>
+          {/* Where the service runs (D16 (a)), when the stack names a country. */}
+          <WhereItRuns className="mt-1 text-lg text-gray-900" />
+        </>
+      )}
       <h1 ref={headingRef} tabIndex={-1} id={h1Id} className="mt-2 text-2xl font-semibold text-gray-900 break-words">
         {title}
       </h1>
@@ -839,6 +847,10 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
           quiet link, in one place, but on *not yet*, which holds it as a
           button; and the accessibility statement. */}
       <div data-foot className="mt-10 border-t border-gray-300 pt-4 space-y-1">
+        {/* The same sentences on one page, which prints (D15 (a)): on every screen. */}
+        <p>
+          <LinkToOnePage link={link} />
+        </p>
         {step.kind !== 'notYet' && (
           <ReportThisLink kind="grant" link={link} organisation={data.organisation} next="linkReport.next.grant" look="link" />
         )}

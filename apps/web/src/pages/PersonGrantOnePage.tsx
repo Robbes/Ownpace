@@ -64,6 +64,7 @@ import ReportThisLink from '../components/ReportThisLink.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import { PersonsPageProvider } from '../components/persons-page.tsx';
+import { NumberToCheck, SenderName, numberToCheck, whoSent } from '../components/TheSender.tsx';
 import { WhereItRuns } from '../components/WhereItRuns.tsx';
 import { YourNewAddress } from '../components/YourNewAddress.tsx';
 import { GrantScope, cardReadsKey, providerName, roleOf, sourceName, wayOf, wordsOf } from './grant-parts.tsx';
@@ -123,7 +124,9 @@ const Everything: React.FC<{ data: PersonGrantSubject; link: string }> = ({ data
   const legal = legalLinks(locale);
   const id = React.useId();
 
-  const who = data.askedBy ?? data.organisation;
+  // Who sent it, as the steps name them (0176 T3, §7), and a number to check.
+  const who = whoSent(data);
+  const number = numberToCheck(data);
   const date = dateTime(data.expiresAt);
   const stateOf = (a: PersonGrantCard): CardState =>
     a.granted && !a.again ? 'connected' : a.tries?.locked === true ? 'locked' : 'waiting';
@@ -274,7 +277,7 @@ const Everything: React.FC<{ data: PersonGrantSubject; link: string }> = ({ data
         ) : null}
         <p className="mt-3 text-lg text-gray-900">{t('grant.until', { date })}</p>
         {textsAccepted}
-        {!signIn && !data.organisationPhone && (
+        {!signIn && number === null && (
           <p className="mt-3 text-lg text-amber-900">
             {t('grant.password.noPhone', { organisation: data.organisation, askedBy: who })}
           </p>
@@ -309,29 +312,32 @@ const Everything: React.FC<{ data: PersonGrantSubject; link: string }> = ({ data
             {isAlpha() && askedAgain.some((a) => (a.provider ?? 'google') === 'google') && ` ${t('grant.person.again.alpha')}`}
           </p>
         )}
-        <dl className="mt-4 p-4 border border-gray-300 rounded-lg bg-white grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-lg">
-          {data.checkedCompany && (
-            <>
-              <dt className="text-gray-800">{t('grant.company')}</dt>
-              <dd className="text-gray-900">
-                <span className="block">{data.checkedCompany}</span>
-                <span className="block text-base text-gray-800">{t('grant.companyChecked')}</span>
-              </dd>
-            </>
-          )}
-          <dt className="text-gray-800">{t('grant.person.sender')}</dt>
-          <dd className="text-gray-900 break-all">{who}</dd>
-          {data.organisationPhone && (
-            <>
-              <dt className="text-gray-800">{t('grant.phone')}</dt>
-              <dd className="text-gray-900">
-                <a className={QUIET} href={`tel:${data.organisationPhone.replace(/[^0-9+]/g, '')}`}>
-                  {data.organisationPhone}
-                </a>
-              </dd>
-            </>
-          )}
-        </dl>
+        {/* The sender's facts, as the first screen draws them (T3, §7): the
+            name and how the reader knows them, the address under it, and a
+            number to check (D11). */}
+        <div data-sender className="mt-4 p-4 border border-gray-300 rounded-lg bg-white">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-lg">
+            {data.checkedCompany && (
+              <>
+                <dt className="text-gray-800">{t('grant.company')}</dt>
+                <dd className="text-gray-900">
+                  <span className="block">{data.checkedCompany}</span>
+                  <span className="block text-base text-gray-800">{t('grant.companyChecked')}</span>
+                </dd>
+              </>
+            )}
+            <dt className="text-gray-800">{t('grant.person.sender')}</dt>
+            <dd className="text-gray-900 break-words">
+              <span className="block">
+                <SenderName facts={data} />
+              </span>
+              {data.sender?.name && data.askedBy && (
+                <span className="block text-base text-gray-800 break-all">{data.askedBy}</span>
+              )}
+            </dd>
+          </dl>
+          <NumberToCheck facts={data} className="mt-3 text-lg text-gray-900" />
+        </div>
         <p className="mt-4 text-lg text-gray-900">
           {oneRoute
             ? t('grant.person.whatOne', {
@@ -470,7 +476,7 @@ const PersonGrantOnePage: React.FC = () => {
 
   if (link && subject.data && !isPersonSubject(subject.data)) return <Navigate to={`/grant/${link}`} replace />;
   const data = subject.data && isPersonSubject(subject.data) ? subject.data : null;
-  const who = data ? (data.askedBy ?? data.organisation) : '';
+  const who = data ? whoSent(data) : '';
   return (
     // In the voice chosen for them (0176 T7), as the steps are.
     <InTheirVoice language={data?.language} register={data?.register}>
