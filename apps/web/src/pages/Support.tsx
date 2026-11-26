@@ -103,6 +103,8 @@ import { useOperatorT, useFormatters, useLocale, type OperatorScreenKey } from '
 import { formatDateTime } from '../i18n/datetime.ts';
 import { Hint } from '../components/Hint.tsx';
 import { AuditExportDownload } from '../components/AuditExportDownload.tsx';
+import { CeilingLine } from '../components/CeilingLine.tsx';
+import { listAllGifts } from '../services/gifts.ts';
 import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
 
 /**
@@ -578,6 +580,50 @@ function notInUse(tenant: SupportTenant): OperatorScreenKey[] {
   return why;
 }
 
+/**
+ * THE ALPHA'S OVERVIEW (workplan 0177 D17, §20.4). The owner, 2026-11-26:
+ * *"(refuse a 51st): no, ik will count. But you add oversight on the operator
+ * support page."* Nothing refuses the owner's own yes, so the owner keeps
+ * count, and Support's first screen shows the three counts Gifts shows: the
+ * people the owner let in and the people let in by a recommendation, each
+ * against its number, and the cards not used yet. Read from the same answer
+ * as Gifts and the queue (`GET /api/gifts/operator`), so no two screens can
+ * disagree, and not a support read, so it writes nothing into the log. It
+ * holds numbers and no names: the queue lists each request, and this screen
+ * each organisation. At a number and past it a line stands out, in words too
+ * (`CeilingLine`). Nothing is drawn until the answer is there, and an answer
+ * that cannot be read leaves it out: Gifts says why.
+ */
+const AlphaOverview: React.FC = () => {
+  const t = useOperatorT();
+  const alpha = useQuery({ queryKey: ['gifts', 'operator'], queryFn: listAllGifts }).data?.alpha;
+  if (!alpha) return null;
+  const [before = '', after = ''] = t('support.alpha.line').split('{gifts}');
+  return (
+    <section aria-labelledby="support-alpha" className="mb-4 rounded-md border border-gray-200 bg-white p-3 text-sm">
+      <h2 id="support-alpha" className="mb-2 font-semibold text-gray-900">
+        {t('support.alpha.title')}
+      </h2>
+      <div className="space-y-1">
+        <CeilingLine words={t('gifts.count.byOwner', { n: alpha.byOwner, max: alpha.ownerCeiling })} n={alpha.byOwner} max={alpha.ownerCeiling} />
+        <CeilingLine
+          words={t('gifts.count.byRecommendation', { n: alpha.byRecommendation, max: alpha.recommendationCeiling })}
+          n={alpha.byRecommendation}
+          max={alpha.recommendationCeiling}
+        />
+        <p className="text-gray-900">{t('gifts.count.unused', { n: alpha.unusedGifts })}</p>
+      </div>
+      <p className="mt-2 text-gray-700">
+        {before}
+        <Link to="/gifts" className="text-blue-700 underline hover:no-underline">
+          {t('nav.gifts')}
+        </Link>
+        {after}
+      </p>
+    </section>
+  );
+};
+
 export const SupportTenants: React.FC = () => {
   const t = useOperatorT();
   const { dateTime } = useFormatters();
@@ -609,6 +655,8 @@ export const SupportTenants: React.FC = () => {
       <Heading title={t('support.heading')} />
       <Disclosure />
       <Hint className="mb-4" text={t('support.metadataOnly')} why={t('support.metadataOnly.why')} />
+
+      <AlphaOverview />
 
       {/* The log (0129 T2), across every organisation. Each organisation's and
           each migration's own page opens it filtered to them. */}

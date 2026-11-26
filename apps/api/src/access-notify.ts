@@ -90,6 +90,20 @@ export function channelIsOn(): boolean {
   return envChannel().config.enabled;
 }
 
+/**
+ * The bare address the mail comes from (`NOTIFY_FROM`), or null when no mail
+ * is set up (workplan 0177 §5). The code's door names it on its last screen,
+ * from the server's own answer and never from the web build's, so the page
+ * names no address the mail does not come from. A setting written as
+ * `Ownpace <noreply@…>` is answered as the address between the brackets.
+ */
+export function answersFrom(): string | null {
+  const { config } = envChannel();
+  if (!config.enabled) return null;
+  const from = config.settings.from.trim();
+  return /<([^<>\s]+@[^<>\s]+)>/.exec(from)?.[1] ?? from;
+}
+
 /** TEST SEAM ONLY. Pass `null` to re-read the environment. */
 export function __setChannelForTests(replacement: ReturnType<typeof notifierFromEnv> | null): void {
   channel = replacement;
@@ -112,7 +126,9 @@ export function alphaFrom(env: { readonly OWNPACE_STAGE?: string }): boolean {
 /**
  * The mail a granted person receives, marked when the deployment runs the
  * alpha so that it opens with the note's welcome and then gives the facts
- * (`renderEvent`).
+ * (`renderEvent`). The same mail for a request the owner granted and for a
+ * code that let its person in at once (workplan 0177 §8): `withCode` says
+ * which, and `google` adds the last screen's sentence about Google.
  *
  * Built here rather than in the route so the setting is read in one place,
  * at the moment the mail is written, and so a test can hand it an
@@ -128,7 +144,15 @@ export function alphaFrom(env: { readonly OWNPACE_STAGE?: string }): boolean {
  * (`legalSiteForMailFrom`), so it refuses to start on one instead.
  */
 export function accessGrantedEvent(
-  granted: { readonly organisation: string; readonly appUrl: string; readonly email: string },
+  granted: {
+    readonly organisation: string;
+    readonly appUrl: string;
+    readonly email: string;
+    /** The person used a code from somebody they know, and is in (workplan 0177 §8). */
+    readonly withCode?: boolean;
+    /** They said at the door that the address is a Google account to move (0177 D14 (a)). */
+    readonly google?: boolean;
+  },
   env: { readonly OWNPACE_STAGE?: string } & LegalSiteForMailEnv = process.env,
 ): NotificationEvent {
   return {
@@ -136,6 +160,8 @@ export function accessGrantedEvent(
     organisation: granted.organisation,
     appUrl: granted.appUrl,
     email: granted.email,
+    ...(granted.withCode ? { withCode: true } : {}),
+    ...(granted.google ? { google: true } : {}),
     ...(alphaFrom(env)
       ? {
           alpha: true,

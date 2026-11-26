@@ -415,7 +415,20 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
       const giftOf = new Map(
         marks.map((m) => [String(m.request_id), { from: m.giver_email === null ? null : String(m.giver_email) }]),
       );
-      return rows.map((r) => ({ ...r, gift: giftOf.get(r.id) ?? null }));
+      /**
+       * LET IN BY A RECOMMENDATION (workplan 0177 §5, D6): a code let this
+       * person in at the door, granted with nobody named as having decided it.
+       * A request a card made before 0177 and the owner granted carries the
+       * mark of its gift and a decider, and is not this.
+       */
+      return rows.map((r) => {
+        const gift = giftOf.get(r.id) ?? null;
+        return {
+          ...r,
+          gift,
+          letInByRecommendation: gift !== null && r.state === 'granted' && r.decidedBy === null,
+        };
+      });
     });
 
     res.json({ requests });
@@ -567,6 +580,11 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
         // membership, and the request stays open for whatever is decided next.
         return { kind: 'alreadyOwns', organisations: already } as const;
       }
+
+      // THE OWNER'S OWN NUMBER (workplan 0177 §20.4; the owner, 2026-11-26,
+      // D17: "no, ik will count"): nothing here refuses a yes, at the number
+      // or past it. The owner keeps count on the screens that show it, from
+      // `GET /api/gifts/operator`.
 
       const name =
         parsed.data.organisationName ?? request.organisation ?? request.name ?? request.email;

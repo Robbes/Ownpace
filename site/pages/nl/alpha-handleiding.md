@@ -76,7 +76,9 @@ uitgenodigd. De Alpha duurt enkele weken.
 - **Google-adressen eerst.** Wilt u een Google-account koppelen? Mail dan eerst elk Google-adres
   naar [support@ownpace.eu](mailto:support@ownpace.eu), ook dat van een familielid. Wacht op ons
   antwoord. Wij zetten het adres bij Google op de lijst van testgebruikers. Zonder die stap laat
-  Google de koppeling niet toe.
+  Google de koppeling niet toe. Kwam u binnen met een code, en zei u daar dat uw e-mailadres een
+  Google-account is waar u weg wilt? Dan hoeft u dat adres niet te mailen. Wij zetten het op de
+  lijst, en schrijven u als dat is gebeurd.
 - **Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.** Ownpace leest alleen
   uit uw oude account. Het wijzigt en verwijdert daar niets.
 - **Begin met een lege bestemming.** Dat is het makkelijkst: een nieuwe, lege mailbox, agenda,
