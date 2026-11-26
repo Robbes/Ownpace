@@ -967,48 +967,83 @@ describe('the tester guide is rendered for the alpha only (workplan 0144 T1)', (
 });
 
 /**
- * THE GIFT PAGE (workplan 0172): what a gift is in the Alpha, in both
- * languages, for alpha builds only and outside the nav, as the guide is. The
- * site carries no form (`form-action 'none'`), so the page sends the recipient
- * to the app's `/redeem`, the request-access door with the code field open, in
- * the page's language.
+ * THE PAGE ABOUT A RECOMMENDATION (workplans 0172 and 0177): what a
+ * recommendation is in the Alpha, and what the door of a code says, under the
+ * same name, in both languages; for alpha builds only and outside the nav, as
+ * the guide is. Its two addresses are 0172's and stay. The site carries no
+ * form (`form-action 'none'`), so the page sends the reader to the app's door,
+ * `/code`, in the page's language (0177 D9). The app links the page from the door and the
+ * giver's page, as *Read more about a recommendation*
+ * (`apps/web/src/services/recommendation-page-link.ts`), and that link is a
+ * file this build writes.
  */
-describe('the gift page is rendered for the alpha only (workplan 0172)', () => {
-  const GIFT = { en: 'gift.html', nl: 'nl/cadeau.html' } as const;
+describe('the page about a recommendation is rendered for the alpha only (workplans 0172, 0177)', () => {
+  const PAGE = { en: 'gift.html', nl: 'nl/cadeau.html' } as const;
   const SECTIONS = {
-    nl: ['wat-een-cadeau-is', 'uw-code-gebruiken', 'wat-we-bewaren'],
-    en: ['what-a-gift-is', 'using-your-code', 'what-we-keep'],
+    nl: ['wat-een-aanbeveling-is', 'wat-het-kost', 'uw-code-gebruiken', 'wat-we-bewaren'],
+    en: ['what-a-recommendation-is', 'what-it-costs', 'using-your-code', 'what-we-keep'],
   } as const;
 
   it('an alpha build writes it in both languages; any other build writes neither', async () => {
     const alpha = await alphaBuild();
-    for (const [locale, file] of Object.entries(GIFT)) {
+    for (const [locale, file] of Object.entries(PAGE)) {
       const p = alpha.find((x) => x.file === file);
       expect(p, `${file} is not written by an alpha build`).toBeDefined();
       expect(p!.locale).toBe(locale);
       expect(p!.key).toBe('gift');
     }
     const plain = (await buildFor(false)).map((p) => p.file);
-    for (const file of Object.values(GIFT)) expect(plain, `${file} is written without the alpha`).not.toContain(file);
+    for (const file of Object.values(PAGE)) expect(plain, `${file} is written without the alpha`).not.toContain(file);
   });
 
-  it('carries its sections, sends the reader to the door with the code field open, and says the owner still decides', async () => {
+  it('carries its sections, sends the reader to the door, and says what the door says: let in at once, and nothing about a key', async () => {
     const pages = await alphaBuild();
     for (const locale of ['en', 'nl'] as const) {
-      const html = pages.find((p) => p.file === GIFT[locale])!.html;
+      const html = pages.find((p) => p.file === PAGE[locale])!.html;
       const main = html.split('<main')[1]?.split('</main>')[0] ?? '';
       const ids = [...main.matchAll(/<h2 id="([^"]+)"/g)].map((m) => m[1]);
-      expect(ids, `the ${locale} gift page's sections`).toEqual([...SECTIONS[locale]]);
-      expect(main).toMatch(new RegExp(`href="https?://[^"/]+/redeem\\?locale=${locale}"`));
+      expect(ids, `the ${locale} page's sections`).toEqual([...SECTIONS[locale]]);
+      // The door of a code, `/code`, in the page's language (0177 D9).
+      expect(main).toMatch(new RegExp(`href="https?://[^"/]+/code\\?locale=${locale}"`));
       expect(main).not.toContain('[[REDEEM]]');
       expect(main).not.toMatch(/<form/);
       const text = main.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-      expect(text).toMatch(locale === 'en' ? /we read every request and say yes ourselves/ : /we lezen elke aanvraag zelf en zeggen zelf ja/);
-      // The owner's words of 2026-11-25 (workplan 0172 T8).
       expect(text).toContain(
-        locale === 'en' ? 'A gift is a personal recommendation, not a key' : 'Een cadeau is een persoonlijke aanbeveling, geen sleutel',
+        locale === 'en' ? 'With that code you are let in to the Alpha at once.' : 'Met die code wordt u meteen toegelaten tot de Alpha.',
       );
+      // The door's three steps, as the card numbers them (0177 R9).
+      expect(text).toMatch(locale === 'en' ? /Answer one question/ : /Beantwoord één vraag/);
+      // What it costs, and to whom, now and after the Alpha (R7, D5).
+      expect(text).toContain(locale === 'en' ? 'You pay that provider for it, not Ownpace.' : 'Daarvoor betaalt u die aanbieder, niet Ownpace.');
+      // No sentence says what a recommendation is not (D1), and the owner decides nothing per request any more (D6).
+      expect(text).not.toMatch(/not a key|geen sleutel|we read every request|we lezen elke aanvraag/);
       expect(text).not.toMatch(/warm introduction|warme introductie/);
+    }
+  });
+
+  it('is named for what it is, in its title and description too (0177 D1)', async () => {
+    const pages = await alphaBuild();
+    for (const locale of ['en', 'nl'] as const) {
+      const html = pages.find((p) => p.file === PAGE[locale])!.html;
+      const title = /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? '';
+      const description = /<meta name="description" content="([^"]*)"/.exec(html)?.[1] ?? '';
+      expect(title).toBe(locale === 'en' ? 'A recommendation for the Alpha — Ownpace' : 'Een aanbeveling voor de Alpha — Ownpace');
+      for (const words of [title, description]) {
+        expect(words, `the ${locale} page's head`).not.toMatch(/\b(gifts?|cadeau\w*|places?|plaats|plek)\b/i);
+      }
+    }
+  });
+
+  it('is the file the app links as Read more, in each language', async () => {
+    const pages = await alphaBuild();
+    const source = read('apps/web/src/services/recommendation-page-link.ts');
+    for (const locale of ['en', 'nl'] as const) {
+      const file = new RegExp(`\\b${locale}: '([^']+)'`).exec(source)?.[1];
+      expect(file, `recommendation-page-link.ts names no file for ${locale}`).toBeDefined();
+      const p = pages.find((x) => x.file === file);
+      expect(p, `the app links ${file}, which an alpha build does not write`).toBeDefined();
+      expect(p!.locale).toBe(locale);
+      expect(p!.key).toBe('gift');
     }
   });
 
@@ -1017,7 +1052,7 @@ describe('the gift page is rendered for the alpha only (workplan 0172)', () => {
     for (const p of pages) {
       const nav = [...p.html.matchAll(/<nav class="(?:site|menu)"[^>]*>([\s\S]*?)<\/nav>/g)].map((m) => m[1]!).join('');
       const links = [...nav.matchAll(/<a (?![^>]*class="lang")[^>]*href="([^"]+)"/g)].map((m) => m[1]!);
-      for (const file of Object.values(GIFT)) expect(links, `${p.file} has the gift page in its nav`).not.toContain(`/${file}`);
+      for (const file of Object.values(PAGE)) expect(links, `${p.file} has the page in its nav`).not.toContain(`/${file}`);
     }
   });
 });

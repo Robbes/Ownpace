@@ -91,14 +91,14 @@ function probedWith(): Record<string, string> {
 }
 
 async function rotate(values: Record<string, string>) {
-  return request(app).put('/api/connections/conn-1/credentials').send({ values });
+  return request(app).put('/api/connections/6f0c0178-0000-4000-8000-00000000c001/credentials').send({ values });
 }
 
 beforeEach(() => {
   resetProbeTestLimit();
   vi.mocked(probe.probeTargetConnection).mockClear();
   h.row = {
-    id: 'conn-1',
+    id: '6f0c0178-0000-4000-8000-00000000c001',
     tenantId: 'a-tenant',
     role: 'target',
     kind: 'infomaniak',

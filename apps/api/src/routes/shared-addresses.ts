@@ -17,6 +17,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
@@ -25,7 +26,7 @@ import { asTenantId } from '@openmig/shared';
 import { renderGroupRunbook } from '@openmig/core';
 import { serverFault } from '../server-fault.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function getSharedPool() {

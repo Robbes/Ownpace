@@ -128,10 +128,10 @@ const DOORS: Record<string, (member: string) => request.Test> = {
       .post('/api/connections')
       .set('x-member', member)
       .send({ role: 'target', type: 'nextcloud', displayName: 'ours', values: { url: URL_TYPED, ...CREDS } }),
-  'testing a connection': (member) => request(app).post('/api/connections/conn-1/test').set('x-member', member).send({}),
+  'testing a connection': (member) => request(app).post('/api/connections/6f0c0178-0000-4000-8000-00000000c001/test').set('x-member', member).send({}),
   'replacing credentials': (member) =>
     request(app)
-      .put('/api/connections/conn-1/credentials')
+      .put('/api/connections/6f0c0178-0000-4000-8000-00000000c001/credentials')
       .set('x-member', member)
       .send({ values: { url: URL_TYPED, ...CREDS } }),
   'the permission report': (member) =>
@@ -145,7 +145,7 @@ beforeEach(() => {
   vi.mocked(probe.probeTargetConnection).mockClear();
   h.targetAskedIn = [];
   h.row = {
-    id: 'conn-1',
+    id: '6f0c0178-0000-4000-8000-00000000c001',
     tenantId: 'a-tenant',
     role: 'target',
     kind: 'nextcloud',

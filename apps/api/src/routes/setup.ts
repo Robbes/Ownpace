@@ -19,6 +19,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import {
@@ -34,7 +35,7 @@ import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 let _pool: ReturnType<typeof getDbPool> | null = null;
 function pool() {

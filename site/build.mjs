@@ -1843,7 +1843,7 @@ const META = {
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
     alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
     guide: ['Guide to the Alpha — Ownpace', 'For the people invited to the Alpha: what it is, what to do before you start, how to start, where to get help and how to stop.'],
-    gift: ['A place in the Alpha, as a gift — Ownpace', 'Someone gave you a place in the Alpha of Ownpace: what that means, how to use your code, and what we keep.'],
+    gift: ['A recommendation for the Alpha — Ownpace', 'Someone recommended you for the Alpha of Ownpace: what that means, what it costs, how to use your code, and what we keep.'],
     accessibility: ['Accessibility statement — Ownpace', 'The standard Ownpace aims for, the gaps we know of, and how to tell us about a barrier.'],
   },
   nl: {
@@ -1855,7 +1855,7 @@ const META = {
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
     alpha: ['Voorwaarden voor de Alpha — Ownpace', 'De voorwaarden voor deelname aan de Alpha van de beheerde Ownpace-dienst.'],
     guide: ['Handleiding voor de Alpha — Ownpace', 'Voor wie is uitgenodigd voor de Alpha: wat het is, wat u vooraf doet, hoe u begint, waar u hulp krijgt en hoe u stopt.'],
-    gift: ['Een plaats in de Alpha, als cadeau — Ownpace', 'Iemand gaf u een plaats in de Alpha van Ownpace: wat dat betekent, hoe u uw code gebruikt, en wat we bewaren.'],
+    gift: ['Een aanbeveling voor de Alpha — Ownpace', 'Iemand heeft u aanbevolen voor de Alpha van Ownpace: wat dat betekent, wat het kost, hoe u uw code gebruikt, en wat we bewaren.'],
     accessibility: ['Toegankelijkheidsverklaring — Ownpace', 'De norm waar Ownpace naar streeft, de tekortkomingen die we kennen, en hoe u ons een drempel meldt.'],
   },
 };
@@ -1897,10 +1897,11 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED, cou
         // hands its visitors to the test app): the guide names it as
         // [[REQUEST_ACCESS]] and never writes an app's address itself.
         if (key === 'guide') md = md.replace(/\[\[REQUEST_ACCESS\]\]/g, orderHref(locale, null));
-        // The gift page (workplan 0172) sends the recipient to the app's
-        // `/redeem`, the request-access door with the code field open: the
-        // site has no form of its own.
-        if (key === 'gift') md = md.replace(/\[\[REDEEM\]\]/g, `${APP_URL}/redeem?locale=${encodeURIComponent(locale)}`);
+        // The page about a recommendation (workplans 0172, 0177) sends the
+        // reader to the app's door of a code, `/code`, which reads the same
+        // in both languages (0177 D9), in the page's language: the site has
+        // no form of its own.
+        if (key === 'gift') md = md.replace(/\[\[REDEEM\]\]/g, `${APP_URL}/code?locale=${encodeURIComponent(locale)}`);
         body = markdown(md);
         if (key === 'pricing') {
           const beyond = c

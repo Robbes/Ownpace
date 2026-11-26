@@ -11,6 +11,7 @@
  * that pool. The appliance answers the same shape (`apps/selfhost`).
  */
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
@@ -26,7 +27,7 @@ import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts'
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { serverFault } from '../../server-fault.ts';
 
-const router = Router({ mergeParams: true });
+const router = idsThatAreNoUuid(Router({ mergeParams: true }));
 
 let shared: ReturnType<typeof getDbPool> | null = null;
 const pool = () => (shared ??= getDbPool());
