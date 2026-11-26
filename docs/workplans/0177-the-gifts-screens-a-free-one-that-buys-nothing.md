@@ -4,6 +4,24 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, later still: the owner's answers to D17 and D18 (T17). Step A is being
+built.** In the owner's words:
+
+- **D17:** *"(refuse a 51st): no, ik will count. But you add oversight on the operator
+  support page."*
+- **D18:** *"no, not in the alpha. Yes after the alpha."*
+
+**What these change.** §15.3 says it for each one.
+
+- **D17: nothing refuses the owner's own yes.** The owner keeps count. The operator's
+  *Support* screen gains an overview of the Alpha: the three counts that *Gifts* shows, from
+  the same answer (§20.4, §20.6). What the overview holds is this plan's reading.
+- **D18: during the Alpha, only the people the owner let in may recommend.** A person who
+  came in by a recommendation may not until the Alpha ends; after it, every member has the
+  number each person may give (§20.7). The second ceiling stays as D16 set it.
+- **Step A carries both.** T16 holds the work, and §19 fixes the two names the web and the
+  server share for D18. What is left for the owner: the read of the Dutch, T0 and T14.
+
 **2026-11-26, later: the owner's answers to D14 to D16, and a yes to building step A (T15).
 Nothing is built yet.** In the owner's words:
 
@@ -26,10 +44,9 @@ Nothing is built yet.** In the owner's words:
   0176's step A (§19). Its last part waits until that step is merged, which is #2180. §21
   says for each part what done means.
 
-**Two questions are left for the owner,** D17 and D18 (T17, §15.3): whether the owner's own
-50 refuses a 51st yes or is only shown, and whether a person who came in by a recommendation
-may recommend somebody too. Each has advice, and says what the builder does until it is
-answered.
+**These answers left two questions,** D17 and D18 (T17, §15.3): whether the owner's own 50
+refuses a 51st yes or is only shown, and whether a person who came in by a recommendation
+may recommend somebody too. The owner answered them later the same day: the entry above.
 
 **2026-11-26, the owner's read of the Dutch that D6 changed.** The owner: *"The G6 Dutch: all
 ok"*. G6 is this plan's D6, as it was put to the owner. Five things were read: the card's
@@ -139,8 +156,8 @@ for that one to be merged (§19, §21).
 | T13 The owner's decisions, D1 to D13 | owner | ✅ Answered 2026-11-26 | §15.1. In the owner's words, with what each changes. Later that day the owner also said yes to building step A now. |
 | T14 A first test with four people | owner | ⏳ **Owner** | §16. After step A is on a stack the owner can reach. |
 | T15 The owner's decisions after the answers, D14 to D16 | owner | ✅ Answered 2026-11-26 | §15.2. In the owner's words. What D16's numbers mean in the code is this plan's reading (§20). |
-| T16 The Alpha's two ceilings: 50 people the owner lets in, 50 by a recommendation | builder | 📋 Planned | §20. D16. Step A. Two numbers on the operator's *Gifts* screen; both counts shown; a new card and the door keep to the second. M. |
-| T17 The owner's decisions on the ceilings, D17 and D18 | owner | ⏳ **Owner** | §15.3. Each has advice, and says what the builder does until it is answered. |
+| T16 The Alpha's two ceilings: 50 people the owner lets in, 50 by a recommendation | builder | 📋 Planned | §20. D16 to D18. Step A. Two numbers on the operator's *Gifts* screen; both counts shown there, on the queue, and in an overview on *Support* (D17); nothing refuses the owner's yes; a new card and the door keep to the second; during the Alpha only the people the owner let in recommend (D18). M. |
+| T17 The owner's decisions on the ceilings, D17 and D18 | owner | ✅ Answered 2026-11-26 | §15.3. In the owner's words. D17: nothing is refused, and *Support* gets an overview. D18: during the Alpha only the people the owner let in recommend; after it, every member. |
 
 ## 1. What the owner decided
 
@@ -160,6 +177,9 @@ The first three are restated here, not quoted. The answers to this plan's own de
 - **2026-11-26, later, on D14 to D16:** §15.2. The Alpha has two ceilings: 50 people the owner
   lets in, and 50 let in by a recommendation, one for each person let in. The same day the
   owner said yes to building step A now, beside 0176's.
+- **2026-11-26, later still, on D17 and D18:** §15.3. Nothing refuses the owner's own yes:
+  the owner keeps count, and the operator's *Support* screen shows the Alpha's counts. During
+  the Alpha only the people the owner let in may recommend; after it, every member may.
 - **From 0172** (2026-11-24 and 2026-11-25), still so: a gift is valid for two years; Ownpace
   never sends it, the giver does; nothing about the recipient is kept on the gift; each
   person gives one. **Changed by D6, for a free one:** 0172 said a gift lets nobody in by
@@ -169,9 +189,10 @@ The first three are restated here, not quoted. The answers to this plan's own de
 
 ## 2. Who reads these screens, and ten rules
 
-Two people. The giver is a member, which during the Alpha means somebody the owner let in, or
-somebody a member recommended. The recipient has no account, did not ask for this, and may be
-older. They have been taught that a gift nobody asked for is not a gift, that a code is never
+Two people. The giver is a member, which during the Alpha means somebody the owner let in: a
+member who came in by a recommendation may give one only after the Alpha (D18). The recipient
+has no account, did not ask for this, and may be older.
+They have been taught that a gift nobody asked for is not a gift, that a code is never
 given away, and that a link in a message is not tapped. Today's journey hands them a gift,
 with a code, to type into a website.
 
@@ -628,6 +649,7 @@ below, and the yes mail's opening for a code (§8). Every other row is a draft.
 | Giver, the link (D2) | *Or send a link. Say in your own words what it is.* | *Of stuur een link. Zeg in uw eigen woorden wat het is.* |
 | Giver, none for now | *No new recommendation can be made for now.* | *U kunt nu even geen aanbeveling maken.* |
 | Giver, none for now, the Alpha is full (D16) | *The Alpha is full for now. No new recommendation can be made.* | *De Alpha is nu vol. U kunt nu geen aanbeveling maken.* |
+| Giver, none during the Alpha, let in by a recommendation (D18) | *During the Alpha, only the people Ownpace let in itself can recommend someone. After the Alpha, you can too.* | *Tijdens de Alpha kunnen alleen de mensen die Ownpace zelf toeliet iemand aanbevelen. Na de Alpha kunt u dat ook.* |
 | Card, title | *A recommendation from {giver}* | *Een aanbeveling van {giver}* |
 | Card, what Ownpace does | *Ownpace copies your mail, calendars, contacts and files to a European provider. You switch from Google or Microsoft at your own pace. Until then Ownpace keeps the copy up to date.* | *Ownpace kopieert uw e-mail, agenda's, contacten en bestanden naar een Europese aanbieder. U stapt over van Google of Microsoft in uw eigen tempo. Tot dan houdt Ownpace de kopie bij.* |
 | Card, what this card does · *read* | *Ownpace is in a free Alpha. With this card you are let in at once.* | *Ownpace zit in een gratis Alpha. Met deze kaart wordt u meteen toegelaten.* |
@@ -823,7 +845,8 @@ Serves R1, R2, R3 and R10. No schema.
   true today (0172 §7, question 1). Under D6 it is also how a lost card is stopped.
 - **When no card can be made** the page says *none for now*, and offers no button: when the
   number each person may give is nought (D7), and when the Alpha has no place left for a new
-  card (D16, §20).
+  card (D16, §20). During the Alpha a member let in by a recommendation reads §20.7's
+  sentences there instead (D18).
 - **A link to the site's page,** the follow-up 0172's fifth answer left.
 - **Nothing about what the giver gets** (D4): they get nothing, and the page does not say so.
 
@@ -948,12 +971,15 @@ Each written first, to fail on `main` for the reason it names.
   At that number the check and the redeem answer that the Alpha is full, and nothing is
   written or spent. Two codes at the last place let one person in. A number set under the
   count takes nobody out. The operator's answer carries both counts and both ceilings.
-  Fails today on the absent numbers.
+  Nothing refuses the owner's grant past the first number (D17). During the Alpha a member
+  let in by a recommendation has a limit of nought and is refused a card, and after it is
+  not (D18). Fails today on the absent numbers.
 - **`packages/managed/src/gift-under-rls.unit.test.ts`,** new cases, on a real database where
   the suite runs one. A session that holds an unused code can write its own organisation and
   invitation, once. A session with no code, a used one, a withdrawn one or somebody else's
   can write none of it, and can read nobody's. No session of a code can read how many people
-  are in: it learns a yes or a no.
+  are in: it learns a yes or a no. A member's session learns whether it came in by a
+  recommendation, its own yes or no, and nobody else's (D18).
 - **`apps/web/src/i18n/one-name-for-a-free-gift.unit.test.ts`.** No sentence of the card, the
   door, the giver's page, the two mails or the site's page calls the free thing a *gift* or a
   *cadeau*, a *place* or a *plaats*; each says *recommendation* or *aanbeveling*; and none
@@ -962,10 +988,12 @@ Each written first, to fail on `main` for the reason it names.
   case for the owner's words gets a new date and the sentences the owner read. New cases: the
   giver's page says that the person is let in at once, and that whoever has the code is; it
   has no tick box; a used card says the day and *let in*; with a limit of nought, and with
-  a full Alpha, it says *none for now* and not *already given*, which fails today. The
-  operator's *Gifts* screen shows both counts with their ceilings and the two fields, and no
-  longer says that nothing refuses a grant. **`AccessRequests.unit.test.tsx`:** the queue
-  shows the owner's line.
+  a full Alpha, it says *none for now* and not *already given*, which fails today; with
+  `onlyAfterAlpha` it says §20.7's sentences instead (D18). The operator's *Gifts* screen
+  shows both counts with their ceilings and the two fields, and §20.6's sentence in place of
+  `gifts.count.noCap`. **`AccessRequests.unit.test.tsx`:** the queue shows the owner's line,
+  and a grant past it is not refused. **`Support.unit.test.tsx`:** the Alpha's overview,
+  with its three counts and no names (D17).
 - **`packages/shared/src/notifications.unit.test.ts`** and **`what-the-mails-say.unit.test.ts`,**
   new cases. The yes mail has no sentence saying it holds no link, and its steps are
   numbered. For a code it says so in its first line, and after a yes about Google it
@@ -1075,32 +1103,45 @@ As §15.1: what was asked, the owner's words, what they change, and *reading* wh
   - a card is made only while a place is free for it, so that a card on paper stays true;
   - the people already in count; a test address counts like anybody's; and both numbers are
     settings on the operator's *Gifts* screen, 50 unless the owner changes them;
-  - what it leaves open: D17 and D18.
+  - what it leaves open: D17 and D18, answered later the same day (§15.3).
 - **Whether step A is built now, beside 0176's step A.** The owner: *"yes"*. **So:** builders
   start once this plan is merged (§19, §21).
 
-### 15.3 Open: D17 and D18
+### 15.3 Answered on 2026-11-26, later still: D17 and D18
 
-Each has options, advice, and what the builder does until it is answered.
+As §15.2: what was asked, the owner's words, what they change, and *reading* where it is one.
 
 - **D17. The owner's own 50: a 51st yes refused, or the number only shown.** Until now the
   owner counted by hand, and the operator's screen says that nothing refuses a grant past a
   number (§3.6). (a) Refused: at the number, the owner's next yes is answered with one
   sentence that names the number and where to raise it, and nothing is written. (b) Only
   shown: *People you let in: n of 50*, on the queue and on the *Gifts* screen, and nothing
-  is refused. **Advice: (a).** *Limited* is the owner's word. The limit that nobody at
-  Ownpace can lift is Google's, so one yes too many can let in a person whom Google then
-  refuses. And the number is a setting: a refusal never traps the owner, it makes the 51st a
-  choice. **Until answered: (b),** which both answers need anyway.
+  is refused. The advice was (a). The owner: *"(refuse a 51st): no, ik will count. But you
+  add oversight on the operator support page."* **So:** (b), and shown in one more place.
+  Nothing refuses the owner's own yes, at the number or past it: the owner keeps count. The
+  operator's *Support* screen (`/support`) gains an overview of the Alpha (§20.4, §20.6).
+  *Reading:*
+  - the overview holds the three counts that *Gifts* shows: the people the owner let in and
+    the people let in by a recommendation, each against its number, and the cards not used
+    yet;
+  - it reads them from the same answer as *Gifts* and the queue
+    (`GET /api/gifts/operator`, §19), so no two screens can disagree;
+  - it holds numbers and no names: the queue lists each request, and *Support* each
+    organisation;
+  - at a number and past it, its line stands out as the queue's does, and not by colour
+    alone.
 - **D18. May a person who came in by a recommendation recommend somebody too.** The owner's
   words fit both: *each let in user 1 invite*. (a) Yes, as today: every member has one, and
-  the second ceiling stops it at 50. (b) No: only the people the owner let in have one.
-  **Advice: (b).** It is the owner's own sum: 50 people, one each, makes 50. Each of the
-  owner's 50 is then sure of their one, where under (a) a member who came in by a
-  recommendation can use a place before a member the owner chose. And nobody reads a
-  recommendation first (D6): under (b) every person who comes in was named by somebody the
-  owner chose, and under (a) possibly by somebody nobody chose. §20.7 says what (b) takes.
-  **Until answered: (a),** which is what is built today.
+  the second ceiling stops it at 50. (b) No: only the people the owner let in have one. The
+  advice was (b). The owner: *"no, not in the alpha. Yes after the alpha."* **So:** (b)
+  during the Alpha, and (a) after it. §20.7 says what it takes. *Reading:*
+  - *during the Alpha* is read in one place, as the server reads the stage today
+    (`alphaFrom`, `apps/api/src/access-notify.ts:108`), from the one setting the web build
+    reads too (`isAlpha`, `apps/web/src/components/AlphaNote.tsx:73`);
+  - after the Alpha the rule falls away by itself, and every member has the number each
+    person may give;
+  - the second ceiling stays as D16 set it, and a card such a member made before step A
+    stays as it is.
 
 ## 16. A first test with four people (T14)
 
@@ -1139,8 +1180,9 @@ The owner's. After step A is on a stack the owner can reach.
   Now the giver's care is the check: the page tells them to give the card by hand, an unused
   code can be withdrawn, the door asks its question, and the owner is mailed for each person
   let in. The code is 80 bits behind a limit.
-- **Nobody reads a recommendation first, and each person let in may recommend one more.**
-  The second ceiling stops it at 50 (D16, §20). Who may recommend is D18.
+- **Nobody reads a recommendation first, and each person the owner let in may recommend one
+  more.** During the Alpha a person let in by a recommendation may not (D18, §20.7), so
+  nobody comes in by a chain. The second ceiling stops it at 50 (D16, §20).
 - **The two ceilings count people, and Google's list counts addresses.** A member who moves
   three family members' Google accounts takes four places there, and each address the owner
   tests with takes one. So 50 and 50 can be more than Google's 100. The numbers are settings
@@ -1229,12 +1271,16 @@ two languages, the managed UI smoke and `CHANGELOG.md`.
   has access; 409 `full`, as the check's; and 429. It has no answer for a request that
   waits any more: that request is granted (D15).
 - **The giver's own.** `GET /api/gifts/mine` gains `room`, true or false: whether the Alpha
-  has a place for a new card. `POST /api/gifts` answers 409 `no_room` when it has none.
+  has a place for a new card. `POST /api/gifts` answers 409 `no_room` when it has none. It
+  also gains `onlyAfterAlpha`, true or false: true during the Alpha for a member who came in
+  by a recommendation, whose `limit` is then nought (D18). `POST /api/gifts` answers such a
+  member 409 `only_after_alpha`, with §20.7's first sentence in both languages.
 - **The operator's.** The `alpha` of `GET /api/gifts/operator` gains `byOwner`,
   `byRecommendation`, `ownerCeiling` and `recommendationCeiling`, beside the `unusedGifts`
   it has. `PUT /api/gifts/operator/rule` takes either ceiling beside the number each person
-  may give. The queue reads the owner's line from that same answer. If D17 is answered (a),
-  `POST /api/access-requests/:id/grant` answers 409 `alpha_full` at the owner's number.
+  may give. The queue reads the owner's line from that same answer, and so does the
+  overview on *Support* (D17): no new route. Nothing refuses
+  `POST /api/access-requests/:id/grant` at the owner's number (D17).
 - **The mails.** The event of the yes mail, and the operator's notice, each take two more
   true-or-false: that it came with a code, and that the person said their address is a
   Google account. The server passes them; the mails' part says the words.
@@ -1255,9 +1301,8 @@ gift's own migration went from 0064 to 0065 on 2026-11-25 (plan 0172's Status).
 
 **What waits for what.** The four middle parts wait for the glossary, and for nothing else.
 The last part waits for the others, and for #2180 to be merged. The owner's read of the
-Dutch comes after it, on §7's and §8's tables. D17 and D18 each say what is built until they
-are answered; an answer that comes later is a small change in the server's part and one
-sentence in the web's. §21 says for each part what done means.
+Dutch comes after it, on §7's and §8's tables. D17 and D18 are answered (§15.3), and step A
+builds both. §21 says for each part what done means.
 
 **Step B is one task:** T9, after 0176's T3.
 
@@ -1265,8 +1310,9 @@ sentence in the web's. §21 says for each part what done means.
 
 The owner, on D16: *"alpha limited to 50 people I let in, en 50 max someone invites (each let
 in user 1 invite)."* The numbers are the owner's: 50, 50 and 1. Everything else in this
-section is this plan's reading of them, for the owner to correct. Serves R1 and R3. Step A.
-Where only the operator reads, English only.
+section is this plan's reading of them, for the owner to correct, but for the answers to D17
+and D18 (§15.3), which are in §20.4 and §20.7. Serves R1 and R3. Step A. Where only the
+operator reads, English only.
 
 ### 20.1 What is counted
 
@@ -1329,13 +1375,16 @@ server's sentence, until when the code works, and that nothing about the reader 
 ### 20.4 What the first ceiling does
 
 **Shown, in step A:** *People you let in: n of 50*, on the access queue above the requests,
-and on the *Gifts* screen. At the number and past it the line stands out, and not by colour
-alone.
+on the *Gifts* screen, and in the Alpha's overview on *Support* (D17). At the number and
+past it the line stands out, and not by colour alone.
 
-**Whether the owner's next yes is then refused is D17.** Until it is answered, nothing
-refuses it. With (a), the grant counts first, behind the same lock; at the number it writes
-nothing and answers with one sentence (§20.6). A request that a card points to is never
-refused by this ceiling: it is counted under the second.
+**Nothing refuses the owner's next yes** (D17). The owner keeps count. A grant past the
+number is written like any other, and the line then reads, say, *52 of 50*. A request that a
+card points to is counted under the second ceiling, not this one.
+
+**The overview on *Support*** (D17) stands on the first screen of *Support*. It shows
+§20.6's three counts, read from the same answer as *Gifts* (§19), and links to *Gifts*,
+where the numbers are set. It holds no names.
 
 ### 20.5 What the two numbers do not count: Google's list
 
@@ -1360,23 +1409,31 @@ English only (`apps/web/src/i18n/operator-strings.ts`). Drafts, for the owner's 
 |---|---|
 | *Gifts*, the counts | *People you let in: {n} of {max}* · *People let in by a recommendation: {n} of {max}* · *Cards not used yet: {n}* |
 | *Gifts*, under the counts | *At its number a recommendation lets nobody in, and no new card is made. Nothing refuses your own yes past yours.* |
-| *Gifts*, under the counts, if D17 is answered (a) | *At its number a recommendation lets nobody in, and no new card is made. At yours, a grant is refused until you raise it.* |
 | *Gifts*, the two fields | *The most people you let in* · *The most people let in by a recommendation* |
+| *Gifts*, beside *Gifts per person*, during the Alpha (D18) | *During the Alpha only the people you let in have these. A person let in by a recommendation has none until the Alpha ends.* |
 | *Gifts*, about Google | *These count people. Google's list of test users counts addresses, and ends at 100: each family member's address and your own test addresses are on it too.* |
 | The queue, above the requests | *People you let in: {n} of {max}* |
-| The queue, a refused grant, if D17 is answered (a) | *The Alpha holds {max} people you let in, and {n} are in. Raise the number on the Gifts screen to let in more.* |
+| *Support*, the Alpha's overview (D17) | *The Alpha* · *People you let in: {n} of {max}* · *People let in by a recommendation: {n} of {max}* · *Cards not used yet: {n}* · *Nothing refuses your own yes: you keep count. The numbers are set on Gifts.* |
 
 The sentence that goes: *Nothing refuses a grant past a number: the limit on how many people
 the Alpha lets in is yours to keep* (`gifts.count.noCap`, `operator-strings.ts:452-453`).
 
-### 20.7 If D18 is answered (b)
+### 20.7 During the Alpha, only the people the owner let in recommend (D18)
 
-Only the people the owner let in have a recommendation. A member whose own organisation was
-made by a request that a card points to has none. The server answers their limit as nought.
-Their page says, where it says *none for now*: *During the Alpha, the people Ownpace let in
-itself can recommend someone.* / *Tijdens de Alpha kunnen de mensen die Ownpace zelf toeliet
-iemand aanbevelen.* How a member's own session learns it is the server's to build under the
+The owner, on D18: *"no, not in the alpha. Yes after the alpha."* During the Alpha only the
+people the owner let in have a recommendation. A member whose own organisation was made by a
+request that a card points to has none until the Alpha ends. The server answers their limit
+as nought, with `onlyAfterAlpha` (§19). Their page says, where it says *none for now*:
+*During the Alpha, only the people Ownpace let in itself can recommend someone. After the
+Alpha, you can too.* / *Tijdens de Alpha kunnen alleen de mensen die Ownpace zelf toeliet
+iemand aanbevelen. Na de Alpha kunt u dat ook.* Drafts, for the owner's read (§7).
+`POST /api/gifts` refuses such a member with the first of the two sentences, as 409
+`only_after_alpha`. How a member's own session learns it is the server's to build under the
 database's rules, as a yes or a no. A card such a member made before stays as it is.
+
+*During the Alpha* is read in one place, as the server reads the stage today (`alphaFrom`,
+`apps/api/src/access-notify.ts:108`). After the Alpha the rule falls away by itself, and
+every member has the number each person may give.
 
 ## 21. Step A, part by part: what done means
 
@@ -1456,7 +1513,8 @@ T1's screens, T2 on the screen, T5, T10, T16's screens, T6's sizes. Done means:
     after a `#`.
 14. One fold, *What they will see*. No tick box. Nothing about what the giver gets.
 15. *None for now*, and no button, when the limit is nought and when the Alpha has no place
-    for a new card. Never *already given* for either.
+    for a new card. Never *already given* for either. With `onlyAfterAlpha`, §20.7's
+    sentences stand there instead (D18).
 16. On the screen the card is shown as it prints, in §6's order, with the door's three
     steps and no square to scan. Its code is on one line at every width. The print rule is
     the last part's.
@@ -1464,28 +1522,33 @@ T1's screens, T2 on the screen, T5, T10, T16's screens, T6's sizes. Done means:
 **The operator's screens (T16).**
 
 17. *Gifts* shows both counts with their ceilings and the cards not used yet, two fields
-    that set the ceilings, and the sentence about Google. The sentence that nothing refuses
-    a grant is gone.
+    that set the ceilings, the sentence about Google, and, during the Alpha, the line about
+    *Gifts per person* (D18). `gifts.count.noCap` makes way for §20.6's sentence under the
+    counts.
 18. The queue shows *People you let in: n of max* above the requests. At the number and
     past it the line stands out, and not by colour alone. A request that was let in by a
-    recommendation says so, and names nobody as having decided it.
+    recommendation says so, and names nobody as having decided it. Nothing refuses a grant
+    (D17).
+19. *Support* shows the Alpha's overview on its first screen (D17): §20.6's three counts,
+    from the same answer as *Gifts*, a link to *Gifts*, and no names. At a number and past
+    it the line stands out, and not by colour alone.
 
 **Words and sizes.**
 
-19. Every sentence of §7 is in the dictionary in both languages
+20. Every sentence of §7 is in the dictionary in both languages
     (`apps/web/src/i18n/strings/gifts.ts`). The operator's are English only
     (`operator-strings.ts`). No sentence calls the free thing a *gift*, a *cadeau*, a
     *place* or a *plaats*, and none says *key* or *sleutel*. A key that leaves is gone from
     both languages.
-20. §10's sizes hold on the door, its endings and the giver's page.
-21. The pull request holds one table of every new or changed Dutch sentence, for the
+21. §10's sizes hold on the door, its endings and the giver's page.
+22. The pull request holds one table of every new or changed Dutch sentence, for the
     owner's read.
 
 Written first: `apps/web/src/pages/a-code-with-a-door-of-its-own.unit.test.tsx`, one case
-for each of 1 to 10. `apps/web/src/i18n/one-name-for-a-free-gift.unit.test.ts`, for 19. New
-cases in `a-gift-on-every-screen.unit.test.tsx` for 11 to 15 and 17, and in
-`AccessRequests.unit.test.tsx` for 18. The sizes of 20 and the card in print are held by the
-smoke, in the last part.
+for each of 1 to 10. `apps/web/src/i18n/one-name-for-a-free-gift.unit.test.ts`, for 20. New
+cases in `a-gift-on-every-screen.unit.test.tsx` for 11 to 15 and 17, in
+`AccessRequests.unit.test.tsx` for 18, and in `Support.unit.test.tsx` for 19. The sizes of 21
+and the card in print are held by the smoke, in the last part.
 
 ### 21.3 The server
 
@@ -1509,7 +1572,9 @@ T1's route, letting a person in, D14, D15, and T16's counts. Done means:
    nothing is sent.
 9. The migration is one file, managed 0066 (§19). It adds the two numbers to the rule's
    row, each 50. It gives a session that holds an unused code what 4 and 5 need, and the
-   room's yes or no, and nothing else. It adds no table.
+   room's yes or no, and nothing else. It gives a member's own session one more yes or no:
+   whether their organisation was made by a request that a card points to (D18). It adds
+   no table.
 10. The counts are §20.1's. No card is made while the people let in by a recommendation and
     the cards not used yet fill the second number. `GET /api/gifts/mine` says so as `room`,
     and `POST /api/gifts` answers 409 `no_room`.
@@ -1519,18 +1584,24 @@ T1's route, letting a person in, D14, D15, and T16's counts. Done means:
     either ceiling: a whole number, nought or more.
 13. The queue's answer marks a request that was let in by a recommendation, with nobody
     named as having decided it.
-14. Nothing refuses the owner's own yes, until D17 is answered.
-15. `apps/api/docs/openapi.yaml` holds the new route, the redeem's new answers and the new
+14. Nothing refuses the owner's own yes, at the number or past it (D17).
+15. During the Alpha, a member whose own organisation was made by a request that a card
+    points to has a limit of nought: `GET /api/gifts/mine` says so with `onlyAfterAlpha`,
+    and `POST /api/gifts` answers 409 `only_after_alpha`. The stage is read in one place.
+    After the Alpha, every member has the number each person may give (D18).
+16. `apps/api/docs/openapi.yaml` holds the new route, the redeem's new answers and the new
     fields.
-16. The log names a gift and a request by their ids, never by a code or an address, as
+17. The log names a gift and a request by their ids, never by a code or an address, as
     today.
 
 Written first: new cases in `apps/api/src/routes/gifts.unit.test.ts` for 1, 2, 6, 7, 8 and
 11. `apps/api/src/knock-limit.unit.test.ts` for 3.
 `a-gift-turned-into-a-request.unit.test.ts`, turned round, for 4 and 5.
 `packages/managed/src/gift-under-rls.unit.test.ts` for 9: what a session with an unused
-code may write, once, and that a session without one may write none of it and read no count.
-The new `apps/api/src/routes/an-alpha-with-two-ceilings.unit.test.ts` for 10 to 14.
+code may write, once, and that a session without one may write none of it and read no count;
+and that a member's session learns its own yes or no and nobody else's.
+The new `apps/api/src/routes/an-alpha-with-two-ceilings.unit.test.ts` for 10 to 15, with the
+stage read both ways.
 
 ### 21.4 The mails
 
@@ -1602,6 +1673,7 @@ on all parts together. Then the owner reads the Dutch. E2E is the maintainer's t
 | Can somebody with a code do more than before? | Yes, and that is D6: the code lets its holder in. The giver hands it over by hand and can withdraw it unused; the door asks its question; the owner is mailed for each person; and the second ceiling ends it at 50 |
 | Can somebody without a code learn anything? | No. The check and the redeem answer every bad code alike, behind one limit. A full Alpha is told only to the holder of a good code |
 | Can a session of a code read the Alpha's numbers? | No. It learns a yes or a no (§20.3) |
+| Who may recommend during the Alpha? | Only the people the owner let in (D18). A person let in by a recommendation may after the Alpha |
 | Is a card on paper still true? | Yes: a card is made only while a place is free for it. Only an owner who lowers the number can make it untrue, and the door then says so calmly |
 | Do the two ceilings keep Google's list from filling? | No. They count people, and Google counts addresses (§20.5). The owner watches that list at Google |
 | What does a real person make of it? | Not known. T14 is the first test, and what it finds outranks all of this |
