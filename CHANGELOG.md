@@ -110,6 +110,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **A DAV reply is read a tag at a time** (workplan 0178 T6). The CalDAV, CardDAV and WebDAV
+  readers, the archive store, the trash bin, the removals a sync report lists, the quota reply and a
+  calendar's supported components pulled elements out of a server's reply with patterns of the
+  shape `<p:name[^>]*>…</p:name>`, whose time grows with the square of a reply that opens an
+  element and never closes it. They read it now with `davElement` and the readers beside it in
+  `@openmig/shared` (`textsOf`, `firstTextOf`, `firstPlainTextOf`, `firstTextBeforeTag`), which find
+  what the patterns found on random replies made of whole tags, in time that grows with the reply.
+  A Graph task's HTML body has its tags taken out the same way.
+  `scripts/a-tag-read-by-a-pattern-that-backtracks.unit.test.ts` keeps the shipped code to them.
+
 - **A run of characters at the end of a text is read in one pass** (workplan 0178 T6). Paths,
   hrefs, addresses, keys and messages were trimmed with patterns such as `/\/+$/`, whose time
   grows with the square of a long run inside the text. They are read now by `withoutTrailing`,

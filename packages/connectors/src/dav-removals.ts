@@ -23,6 +23,14 @@
  * difference in when data is reported as deleted.
  */
 
+import { davElement, firstPlainTextOf, textsOf, withoutElements } from '@openmig/shared';
+
+/** The elements a removal report is read by, as the patterns before them named them: `<p:name…>`. */
+const PREFIX = /^[A-Za-z][\w-]*:/;
+const RESPONSE = davElement('response', PREFIX);
+const PROPSTAT = davElement('propstat', PREFIX);
+const STATUS = davElement('status', PREFIX);
+
 /**
  * The hrefs a multistatus body reports as removed.
  *
@@ -46,29 +54,23 @@
  */
 export function parseRemovedHrefs(body: string): string[] {
   const removed: string[] = [];
-  const responseRegex = /<[A-Za-z][\w-]*:response[^>]*>([\s\S]*?)<\/[A-Za-z][\w-]*:response>/gi;
 
-  let match: RegExpExecArray | null;
-  while ((match = responseRegex.exec(body)) !== null) {
-    const responseXml = match[1];
+  // Read a tag at a time (`davElement`): a pattern `<p:response[^>]*>…` read a
+  // body that opens an element and never closes it in time quadratic in it.
+  for (const responseXml of textsOf(body, RESPONSE)) {
     if (!responseXml) continue;
 
     // Strip every propstat first. What is left is the response's own level, so a
     // status found below is about the RESOURCE and not about one property of it.
-    const responseLevel = responseXml.replace(
-      /<[A-Za-z][\w-]*:propstat[^>]*>[\s\S]*?<\/[A-Za-z][\w-]*:propstat>/gi,
-      '',
-    );
+    const responseLevel = withoutElements(responseXml, PROPSTAT.opens, PROPSTAT.closes);
 
-    const statusMatch = responseLevel.match(
-      /<[A-Za-z][\w-]*:status[^>]*>([^<]*)<\/[A-Za-z][\w-]*:status>/i,
-    );
-    if (!statusMatch?.[1]) continue;
+    const status = firstPlainTextOf(responseLevel, STATUS);
+    if (!status) continue;
     // 404 specifically, not "any 4xx". A 403 means we may not look at it, which
     // says nothing about whether it exists; a 410 Gone would be a removal too but
     // no DAV server in scope sends it for this, and guessing at statuses nobody
     // sends is how a parser acquires behaviour nothing tests.
-    if (!/\b404\b/.test(statusMatch[1])) continue;
+    if (!/\b404\b/.test(status)) continue;
 
     const hrefMatch = responseXml.match(
       /<[A-Za-z][\w-]*:href>([^<]+)<\/[A-Za-z][\w-]*:href>/i,

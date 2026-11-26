@@ -112,3 +112,106 @@ export function namesPrefixedElement(tag: string, name: string, whole = false): 
   const rest = tag.slice(lead);
   return whole ? asciiLower(rest) === asciiLower(name) : asciiLower(rest.slice(0, name.length)) === asciiLower(name);
 }
+
+/** An element a DAV reader looks for: which tags open it and which close it. */
+export interface DavElement {
+  readonly opens: (tag: string) => boolean;
+  readonly closes: (tag: string) => boolean;
+}
+
+/**
+ * The element `name` as a reader's pattern named it, the name compared as the
+ * `i` flag did: `<P:name…>` opens it and `</P:name>` closes it, `P` being what
+ * `prefix` (anchored with `^`, ending in `:`) matches. `optionalPrefix` also
+ * takes the bare name, as `(?:P:)?name` did. `after` accepts the rest of an
+ * opening tag after the name; by default anything, as `name[^>]*>` did.
+ */
+export function davElement(
+  name: string,
+  prefix: RegExp,
+  options: { readonly optionalPrefix?: boolean; readonly after?: (rest: string) => boolean } = {},
+): DavElement {
+  const lowered = asciiLower(name);
+  const after = options.after ?? (() => true);
+  const opensAt = (tag: string, at: number): boolean =>
+    asciiLower(tag.slice(at, at + name.length)) === lowered && after(tag.slice(at + name.length));
+  const closesAt = (tag: string, at: number): boolean => asciiLower(tag.slice(at)) === lowered;
+  const lead = (tag: string): number | undefined => prefix.exec(tag)?.[0].length;
+  return {
+    opens: (tag) => {
+      const at = lead(tag);
+      return (at !== undefined && opensAt(tag, at)) || (options.optionalPrefix === true && opensAt(tag, 0));
+    },
+    closes: (tag) => {
+      if (!tag.startsWith('/')) return false;
+      const rest = tag.slice(1);
+      const at = lead(rest);
+      return (at !== undefined && closesAt(rest, at)) || (options.optionalPrefix === true && closesAt(rest, 0));
+    },
+  };
+}
+
+/** The text of every `element` in `xml`: `[...xml.matchAll(/<open>([\s\S]*?)<close>/g)]`. */
+export function textsOf(xml: string, element: DavElement): string[] {
+  return elementsIn(xml, element.opens, element.closes).map((found) => found.text);
+}
+
+/** The text of the first `element` in `xml`: `xml.match(/<open>([\s\S]*?)<close>/)?.[1]`. */
+export function firstTextOf(xml: string, element: DavElement): string | undefined {
+  return elementsIn(xml, element.opens, element.closes, true)[0]?.text;
+}
+
+/**
+ * The text between the first opening tag `opens` accepts and the next `<`,
+ * where `accept` takes that text and the tag at that `<` (its text between
+ * `<` and `>`, undefined when it is not a tag). As a pattern
+ * `<open>(text with no <)<…` did: tried at each opening tag in turn. Linear:
+ * each opening tag reads only as far as the next `<` and its `>`.
+ */
+export function firstTextBeforeTag(
+  xml: string,
+  opens: (tag: string) => boolean,
+  accept: (text: string, next: string | undefined) => boolean,
+): string | undefined {
+  const tags = /<([^<>]*)>/g;
+  for (let open = tags.exec(xml); open !== null; open = tags.exec(xml)) {
+    if (!opens(open[1] ?? '')) continue;
+    const from = tags.lastIndex;
+    const lt = xml.indexOf('<', from);
+    // No `<` after this opening tag, so none after a later one.
+    if (lt === -1) return undefined;
+    const gt = xml.indexOf('>', lt + 1);
+    const next = gt === -1 ? undefined : xml.slice(lt + 1, gt);
+    const text = xml.slice(from, lt);
+    if (accept(text, next !== undefined && !next.includes('<') ? next : undefined)) return text;
+  }
+  return undefined;
+}
+
+/**
+ * The first `element` in `xml` that holds only text:
+ * `xml.match(/<open>([^<]*)<close>/)?.[1]`, or with `nonEmpty`, `([^<]+)`.
+ */
+export function firstPlainTextOf(xml: string, element: DavElement, nonEmpty = false): string | undefined {
+  return firstTextBeforeTag(
+    xml,
+    element.opens,
+    (text, next) => (!nonEmpty || text.length > 0) && next !== undefined && element.closes(next),
+  );
+}
+
+/**
+ * The first `element` in `xml`, shaped as `xml.match(pattern)` answered, so a
+ * reader that read `match[1]` reads it unchanged: the whole `element`
+ * (`([\s\S]*?)`), or one that holds only text (`([^<]*)`, or `([^<]+)` for
+ * `non-empty text`). `null` when there is none.
+ */
+export function firstMatchOf(
+  xml: string,
+  element: DavElement,
+  holding: 'element' | 'text' | 'non-empty text',
+): readonly [string, string] | null {
+  const text =
+    holding === 'element' ? firstTextOf(xml, element) : firstPlainTextOf(xml, element, holding === 'non-empty text');
+  return text === undefined ? null : [text, text];
+}

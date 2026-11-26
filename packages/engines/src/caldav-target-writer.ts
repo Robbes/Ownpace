@@ -22,18 +22,7 @@ import type {
   DiscoveryDomain,
   CalendarEvent,
 } from '@openmig/shared';
-import {
-  naturalKeyForCalendar,
-  naturalKeyForTask,
-  naturalKeyTextForCalendar,
-  naturalKeyTextForTask,
-  calendarContentHash,
-  displayNameForCalendar,
-  isOnTarget,
-  neutraliseScheduling,
-  namesGuests,
-  withoutGuests,
-} from '@openmig/shared';
+import { naturalKeyForCalendar, naturalKeyForTask, naturalKeyTextForCalendar, naturalKeyTextForTask, calendarContentHash, displayNameForCalendar, isOnTarget, neutraliseScheduling, namesGuests, withoutGuests, asciiLower, namesElement } from '@openmig/shared';
 import { createHash } from 'node:crypto';
 import { CALENDAR_COMPONENTS, collectionCarries, componentOfIcalendar } from '@openmig/shared';
 import { davRefusalBody, withFailureCategory } from '@openmig/shared';
@@ -100,16 +89,45 @@ interface CalendarAt extends CollectionAt {
 }
 
 /**
+ * The `name` of each `<p:comp …>` tag in `set`, read a tag at a time: what
+ * `/<(?:[A-Za-z0-9._-]+:)?comp\s[^>]*name=["']([^"']+)["']/gi` matched in a tag
+ * that ends. That pattern read a reply holding many `comp` tags that never
+ * end in time quadratic in it. As it did, a tag's last `name=` with a quoted
+ * value is the one read.
+ */
+function compNamesIn(set: string): string[] {
+  const names: string[] = [];
+  const tags = /<([^<>]*)>/g;
+  for (let tag = tags.exec(set); tag !== null; tag = tags.exec(set)) {
+    const text = tag[1] ?? '';
+    if (!namesElement(text, 'comp', COMP_PREFIX, (rest) => /^\s/.test(rest), true)) continue;
+    const lower = asciiLower(text);
+    for (let at = lower.lastIndexOf('name='); at !== -1; at = at === 0 ? -1 : lower.lastIndexOf('name=', at - 1)) {
+      const quote = text[at + 5];
+      if (quote !== '"' && quote !== "'") continue;
+      let end = at + 6;
+      while (end < text.length && text[end] !== '"' && text[end] !== "'") end++;
+      if (end > at + 6 && end < text.length) {
+        names.push(text.slice(at + 6, end));
+        break;
+      }
+    }
+  }
+  return names;
+}
+const COMP_PREFIX = /^[A-Za-z0-9._-]+:/;
+
+/**
  * What a `supported-calendar-component-set` in this XML declares, or
  * undefined when it declares nothing this product knows. Undeclared means
  * the collection holds every kind (RFC 4791 §5.2.3; see `collectionCarries`).
  */
-function componentsDeclaredIn(xml: string): ReadonlyArray<CalendarComponent> | undefined {
+export function componentsDeclaredIn(xml: string): ReadonlyArray<CalendarComponent> | undefined {
   const set = firstElementText(xml, 'supported-calendar-component-set');
   if (!set) return undefined;
   const known = new Set<string>(CALENDAR_COMPONENTS);
-  const components = [...set.matchAll(/<(?:[A-Za-z0-9._-]+:)?comp\s[^>]*name=["']([^"']+)["']/gi)]
-    .map((m) => m[1]!.toUpperCase())
+  const components = compNamesIn(set)
+    .map((name) => name.toUpperCase())
     .filter((name) => known.has(name)) as CalendarComponent[];
   return components.length > 0 ? [...new Set(components)] : undefined;
 }
