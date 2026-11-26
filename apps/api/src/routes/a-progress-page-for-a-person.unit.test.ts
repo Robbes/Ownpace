@@ -319,6 +319,21 @@ describe('a person’s progress page', () => {
     expect(page.body.accounts.map((a: { grant: { state: string } }) => a.grant.state)).toEqual(['granted', 'none']);
   });
 
+  // The owner's decisions of 2026-11-26: with the work account still to
+  // connect, the ending said *this link will not work again*.
+  it('says one account is left, and goes back to the link, while the work account is still to connect', async () => {
+    const { link, ended } = await grantAs('anna@gmail.com');
+    expect(ended.text).toContain('<h1>Thank you, this account is connected.</h1>');
+    expect(ended.text).toContain('<p>There is one more.</p>');
+    expect(ended.text).toContain(`<a href="https://app.example/grant/${link}"`);
+    expect(ended.text).not.toContain('will not work again');
+
+    // The last one ends as it always did.
+    const last = await grantAs('anna@work.example', link);
+    expect(last.ended.text).toContain('this link will not work again');
+    expect(last.ended.text).not.toContain('Back to the link');
+  });
+
   it('is what a migration’s link sent before hands over, once the migration is theirs (the owner, 2026-10-03)', async () => {
     // A migration's link sent before the person's replaced it is honoured
     // until it expires; the progress page it ends on is the person's, since

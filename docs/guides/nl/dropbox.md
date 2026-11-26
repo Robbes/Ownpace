@@ -25,7 +25,7 @@ De test vraagt Dropbox alleen naar het bovenste niveau van de hoofdmap, en antwo
 
 ## Als het account van iemand anders is {#somebody-else}
 
-Is het Dropbox-account van een collega, een familielid of een klant, vraag dan niet om het wachtwoord. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Anderen, met een link**, en stuur de toegangslink van het laatste scherm. Die persoon drukt op **Doorgaan met Dropbox als** *het eigen account* en meldt zich aan op de pagina van Dropbox zelf; het token gaat versleuteld rechtstreeks naar de migratie, en niemand ziet het, u ook niet. Dropbox wordt gevraagd welk account zich aanmeldde, en alleen het genoemde account, met een bevestigd adres, wordt aanvaard. Daarvoor is de Dropbox-app van de dienst nodig, of [uw eigen app](#own-app) op de verbinding.
+Is het Dropbox-account van een collega, een familielid of een klant, vraag dan niet om het wachtwoord. Kies in **Migratie starten**, bij **Wie meldt zich aan bij de accounts?**, voor **Zij zelf, met een link**, en stuur de toegangslink van het laatste scherm. Die persoon drukt op **Doorgaan met Dropbox als** *het eigen account* en meldt zich aan op de pagina van Dropbox zelf; het token gaat versleuteld rechtstreeks naar de migratie, en niemand ziet het, u ook niet. Dropbox wordt gevraagd welk account zich aanmeldde, en alleen het genoemde account, met een bevestigd adres, wordt aanvaard. Daarvoor is de Dropbox-app van de dienst nodig, of [uw eigen app](#own-app) op de verbinding.
 
 ## Wat er meegaat {#what-moves}
 

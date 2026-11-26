@@ -4706,6 +4706,16 @@ paths:
                             properties:
                               state: { type: string, enum: [withdrawn] }
                               withdrawnAt: { type: string, format: date-time }
+                              what:
+                                type: string
+                                enum: [source, destination]
+                                description: |
+                                  What was taken back (the owner's decisions of 2026-11-26): the
+                                  source's access, or a destination's password. Read from the
+                                  withdrawal's audit row. Absent from a server before alpha.21.
+                              destination:
+                                type: string
+                                description: With `what` destination, the destination's kind, to name it.
                           - type: object
                             required: [state]
                             properties:
@@ -4840,8 +4850,9 @@ paths:
             link, or already withdrawn, with the day), the migration no longer
             exists (`not_found`), or a new grant landed while this one was being
             withdrawn (`changed`; nothing was deleted, press again). `reason` is
-            written for the person holding the link; for a person's link
-            `reasonNl` says it in Dutch.
+            written for the person holding the link, and `reasonNl` says it in
+            Dutch, for a migration's link too since the owner's decisions of
+            2026-11-26.
         '500':
           description: Ours; nothing the person did.
 
@@ -10398,6 +10409,14 @@ components:
                         provider: { type: string }
                         account: { type: string, nullable: true }
                     granted: { type: boolean, description: 'This card''s side of the migration has a way in.' }
+                    theOrganisationOpensIt:
+                      type: boolean
+                      description: |
+                        The destination is the organisation's (its own password on the
+                        account, not one the person gives on the link nor one they
+                        connected themselves), so whoever set this up can open the copy
+                        there too, and the page says so (the owner's decisions of
+                        2026-11-26). Always false on a destination's own card.
         expiresAt: { type: string, format: date-time }
         addressChanges:
           type: array
@@ -10486,6 +10505,17 @@ components:
                 description: When the check passed (workplan 0154 T8); absent unless it passed.
               time: { $ref: '#/components/schemas/ProgressTime' }
               account: { type: string, nullable: true, description: "The ref of the Google account it reads; null when it reads none through a link." }
+              stopped:
+                type: object
+                description: |
+                  Present while a withdrawal holds the migration (the owner's decisions of
+                  2026-11-26): when, and whether the source's access or a destination's
+                  password was taken back.
+                required: [at]
+                properties:
+                  at: { type: string, format: date-time }
+                  what: { type: string, enum: [source, destination] }
+                  destination: { type: string, description: "With `what` destination, the destination's kind." }
         accounts:
           type: array
           items:
@@ -10504,6 +10534,8 @@ components:
                     properties:
                       state: { type: string, enum: [withdrawn] }
                       withdrawnAt: { type: string, format: date-time }
+                      what: { type: string, enum: [source, destination], description: "What the latest withdrawal took back." }
+                      destination: { type: string, description: "With `what` destination, the destination's kind." }
                   - type: object
                     required: [state]
                     properties:

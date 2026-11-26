@@ -94,9 +94,18 @@ const extras = {
 
 // The grant this page may take back (0108 T8 (c)). A state the page does not
 // know fails the parse rather than rendering a button it cannot explain.
+//
+// What a withdrawal took back (the owner's decisions of 2026-11-26, change
+// 1): the source's access, or a destination's password and which. Absent
+// from a server before alpha.21, and one this page does not know reads as
+// absent: the source's, as every hold read until then.
+const WhatStoppedFields = {
+  what: z.enum(['source', 'destination']).optional().catch(undefined),
+  destination: z.string().optional(),
+};
 const GrantSchema = z.discriminatedUnion('state', [
   z.object({ state: z.literal('granted') }),
-  z.object({ state: z.literal('withdrawn'), withdrawnAt: z.string() }),
+  z.object({ state: z.literal('withdrawn'), withdrawnAt: z.string(), ...WhatStoppedFields }),
   z.object({ state: z.literal('none') }),
 ]);
 
@@ -132,6 +141,8 @@ const PersonViewSchema = z.object({
       domains: z.array(RowSchema),
       ...extras,
       account: z.string().nullable(),
+      // While a withdrawal holds it: when, and what was taken back.
+      stopped: z.object({ at: z.string(), ...WhatStoppedFields }).optional().catch(undefined),
     }),
   ),
   accounts: z.array(z.object({ ref: z.string(), grant: GrantSchema })),
