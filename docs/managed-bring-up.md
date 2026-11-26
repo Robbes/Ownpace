@@ -2642,9 +2642,10 @@ with it. To publish or re-publish:
 . deploy/compose/env-read.sh
 OWNPACE_APP_URL=https://app.ota.ownpace.eu \
 GOOGLE_ACCOUNT_SCOPE_CLASS="$(env_value deploy/compose/.env GOOGLE_ACCOUNT_SCOPE_CLASS)" \
+OWNPACE_COUNTRY="$(env_value deploy/compose/.env OWNPACE_COUNTRY)" \
 OWNPACE_STAGE="$(env_value deploy/compose/.env OWNPACE_STAGE)" node site/build.mjs   # test (OTA)
-# production (live): deploy-live.sh builds it, with --public and live's own OWNPACE_STAGE
-# and GOOGLE_ACCOUNT_SCOPE_CLASS (below)
+# production (live): deploy-live.sh builds it, with --public and live's own OWNPACE_STAGE,
+# GOOGLE_ACCOUNT_SCOPE_CLASS and OWNPACE_COUNTRY (below)
 docker compose -f deploy/compose/www.yml up -d
 ```
 
@@ -2785,10 +2786,11 @@ final.
    the checkout, whose exit code decides. A dry run runs that test build too;
    it builds nothing in the checkout. After the bring-up the deploy
    builds the site in the checkout
-   (`OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GOOGLE_ACCOUNT_SCOPE_CLASS=<live's> GIT_SHA=<commit> node site/build.mjs --public`,
-   where both settings are the values in live's `.env`, never the shell's; with
-   `alpha` the site carries the tester guide, and with
-   `restricted` Leaving Google says one Google sign-in),
+   (`OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GOOGLE_ACCOUNT_SCOPE_CLASS=<live's> OWNPACE_COUNTRY=<live's> GIT_SHA=<commit> node site/build.mjs --public`,
+   where the three settings are the values in live's `.env`, never the shell's; with
+   `alpha` the site carries the tester guide, with
+   `restricted` Leaving Google says one Google sign-in, and the home page names the
+   country `OWNPACE_COUNTRY` sets, or none),
    brings it up with
    `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate`
    (a `WWW_PORT` another container publishes makes this `up` fail, and the

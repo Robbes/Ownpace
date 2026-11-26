@@ -319,3 +319,36 @@ describe('the read-ahead', () => {
     await source.close();
   });
 });
+
+describe('a store path stays inside the account root (hardening, alpha.21)', () => {
+  // `encodeURIComponent` leaves `.` and `..` as they are, and a server
+  // resolves them, so a path with one could name a place above the folder the
+  // store was given. No caller builds such a path today; the URL refuses it
+  // anyway, by naming the rule rather than echoing the path.
+  const store = webdavStore(ENDPOINT, new FakeDav());
+
+  it.each(['..', '../other', 'Takeout/../../other', 'Takeout/./part.zip', '.'])('refuses %j', (path) => {
+    let refusal: unknown;
+    try {
+      store.describe(path);
+    } catch (err) {
+      refusal = err;
+    }
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).message).toMatch(/may not hold a "\." or "\.\." segment/);
+    // A bare `.` or `..` is the rule's own wording; any longer path is not echoed.
+    if (path.length > 2) expect((refusal as Error).message).not.toContain(path);
+  });
+
+  it('refuses it before any request is made', async () => {
+    const dav = new FakeDav();
+    await expect(webdavStore(ENDPOINT, dav).stat('Takeout/../other')).rejects.toThrow(/segment/);
+    expect(dav.requests).toEqual([]);
+  });
+
+  it('leaves an ordinary path exactly as it was', () => {
+    expect(store.describe('Takeout/takeout-001.zip')).toBe(`${BASE}Takeout/takeout-001.zip`);
+    expect(store.describe('my files/a..b/.hidden')).toBe(`${BASE}my%20files/a..b/.hidden`);
+    expect(store.describe('')).toBe(BASE);
+  });
+});
