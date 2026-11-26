@@ -4,6 +4,19 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's answer to D19 (T17):** *"D19: familie of kennissen. I also want to
+support people helping out each other."*, and then: *"Or perhaps 'familie en kennissen', with a
+focus on family"*. Wider than the advice. A member may move accounts for family and for
+acquaintances, as private people who help each other, and family comes first (§18).
+
+- **The terms and the privacy text** say so in their next version, with the lawyer. The lawyer
+  also reads whether helping an acquaintance stays a personal activity. Until then the legal
+  texts stand as they are.
+- **The site and the tester guide** keep *familielid* as their word, and name acquaintances
+  once, where they say whom a member may help. This comes in a small pull request of its own,
+  drafted for the owner's read.
+- **Nothing on a person's two pages changes:** they name the member, and never say *familielid*.
+
 **2026-11-26, the owner's read of #2189's Dutch:** *"#2189: ok"*. Every drafted sentence
 stands, and *Everything on one page* stays without the password card, as advised.
 
@@ -245,6 +258,7 @@ only what it names. T13 and T14 are answered. T16 holds the website's three deci
 | T14 The sweep's decisions, D12 to D15 | owner | ✅ Answered 2026-11-26 | §18. *"D12: a / D13: a / D14: yes / D15: a"*: all four as advised. |
 | T15 The public website: what travels with each step | builder | 📋 Planned | §22, §21.4. With step A: the tester guide, the Google help guide, the accessibility statement, one sentence of the Leaving pages, the English pages at 320 pixels, and a block for families on the home page (D17 (b)). M. |
 | T16 The website's decisions, D16 to D18 | owner | ✅ Answered 2026-11-26 | §18. *"P16: a"*, *"P17: b, …"*, *"P18: keep now"*: D16 (a) in step B; D17 (b), a block on the home page with step A; D18 (a), for the lawyer. |
+| T17 Who a member may help during the Alpha, D19 | owner | ✅ Answered 2026-11-26 | §18. *"familie en kennissen, with a focus on family"*: family first, and acquaintances too. The site's and the guide's words in a pull request of their own; the legal texts in their next version, with the lawyer. |
 
 ## 1. The owner's words
 
@@ -1590,6 +1604,41 @@ not. The options stay, as the record of what was put.
   the lawyer: it is plainer Dutch too, where today's begins *Door door te gaan*. **Answered:
   (a).** This plan's own phrase for the block, *the texts a person accepts*, means
   this sentence and its two links, and claims nothing about the law.
+- **D19. Who a member may move accounts for during the Alpha.**
+  - **Raised** by step A's builder on 2026-11-26.
+  - **What the texts say:** *Alleen huishoudens … uw eigen accounts of die van uw gezin*
+    (`site/legal/alpha.nl.md:37`), which is one household. The English says *your family's*
+    (`site/legal/alpha.md:241`).
+  - **Why it matters:** a person's two pages are built mostly for somebody who lives elsewhere,
+    and the owner chose *familielid* for that reason (the Status).
+  - **The options:** (a) a family member who lives elsewhere counts too, and the terms' next
+    version says so, with the lawyer; (b) one household only.
+  - **Advice: (a).**
+  - **Answered, wider than (a):** *"D19: familie of kennissen. I also want to support people
+    helping out each other."*, and then: *"Or perhaps 'familie en kennissen', with a focus on
+    family"*.
+
+  *Reading:*
+  - **Who may take part:** the Alpha stays for private people, not for a business. That is
+    what *Households only* meant (0139, open question 6).
+  - **Who a member may help:** family first, and acquaintances too: people who help each
+    other.
+  - **The legal texts' next version:** the lawyer reads it, with this sentence drafted (plan)
+    for the Alpha's terms, §1:
+    - *Private individuals only. You take part as a private individual, with your own accounts,
+      or those of family and acquaintances you help.*
+    - *Alleen particulieren. U doet mee als particulier, met uw eigen accounts, of die van
+      familie en kennissen die u helpt.*
+
+    The privacy text's *a family member* follows. The lawyer also reads whether helping an
+    acquaintance stays a personal activity under the GDPR (Art. 2(2)(c)). Until then the legal
+    texts stand.
+  - **The site and the tester guide:** family is the focus. *Familielid* / *a family member*
+    stays their word, and the home page's block for families keeps its family. Where a text
+    says whom a member may help, it names acquaintances once: *familie en kennissen* /
+    *family and acquaintances*. Drafted, for the owner's read.
+  - **Google's list:** each person helped with a Google account takes a place on Google's list
+    of test users, as plan 0177 §20.5 counts them.
 
 ## 19. Not in this plan
 

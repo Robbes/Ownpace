@@ -992,12 +992,19 @@ export const gift = pgTable(
   ],
 );
 
-/** How many gifts each person may hold: one row (managed migration 0065). */
+/**
+ * How many gifts each person may hold, and the Alpha's two ceilings: one row
+ * (managed migrations 0065 and 0066; workplan 0177 §20.2).
+ */
 export const giftRule = pgTable('gift_rule', {
   id: boolean('id').primaryKey().default(true),
   giftsPerPerson: integer('gifts_per_person').notNull().default(1),
   setBy: text('set_by'),
   setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+  /** The most people the owner lets in: granted requests no card points to (0066). */
+  ownerCeiling: integer('owner_ceiling').notNull().default(50),
+  /** The most people let in by a recommendation: requests a card points to, granted or waiting (0066). */
+  recommendationCeiling: integer('recommendation_ceiling').notNull().default(50),
 });
 
 /** The operator's number of gifts for one person (managed migration 0065). */

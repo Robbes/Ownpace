@@ -7,6 +7,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole, requireTenantMatch, getDbPool, withTenantDb } from '../../middleware/auth.ts';
@@ -27,7 +28,7 @@ import {
   withTenantContactPhone,
 } from '@openmig/shared';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 // Global pool - created once and reused
 // In production, this should be a singleton or dependency-injected

@@ -33,6 +33,12 @@ export interface AccessRequest {
    * code, with the giver's address, or null when the giver has since left.
    */
   readonly gift: { readonly from: string | null } | null;
+  /**
+   * Let in at the door by a recommendation's code (workplan 0177 D6): granted,
+   * a card points to it, and nobody decided it. The server's own mark (§19);
+   * absent from a server older than 0177's step A.
+   */
+  readonly letInByRecommendation?: boolean;
 }
 
 /** Everything, or one state. Oldest first — the queue is worked from the top. */

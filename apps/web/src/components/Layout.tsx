@@ -80,6 +80,9 @@ const OWN_H1_PREFIXES = [
   '/support',
   '/access-requests',
   '/redirect-uris',
+  // Recommend someone and the operator's Gifts (workplans 0172, 0177): each draws its own.
+  '/give',
+  '/gifts',
 ] as const;
 
 /**

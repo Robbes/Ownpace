@@ -10,6 +10,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
@@ -34,8 +35,9 @@ import { mailInvitation, SEND_AGAIN_AFTER, sendAgainAfterSeconds } from './invit
 
 // `mergeParams`: the organisation is named in the path this router is mounted
 // at (`/api/tenants/:tenantId/members`), and every door here refuses one that
-// is not the caller's (`requireTenantMatch`).
-const router = Router({ mergeParams: true });
+// is not the caller's (`requireTenantMatch`). Its ids pass the UUID check as
+// every router's do (`an-id-that-is-no-uuid.ts`).
+const router = idsThatAreNoUuid(Router({ mergeParams: true }));
 
 /**
  * What a member's removal is recorded under in `audit_log`, as `operator.sh

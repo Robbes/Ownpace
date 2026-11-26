@@ -52,6 +52,7 @@ import {
 import { STRINGS } from '../i18n/strings.ts';
 import { OPERATOR_STRINGS } from '../i18n/operator-strings.ts';
 import { formatDateTime } from '../i18n/datetime.ts';
+import { listAllGifts, type OperatorGifts } from '../services/gifts.ts';
 
 vi.mock('../services/support.ts', () => ({
   listSupportTenants: vi.fn(),
@@ -63,6 +64,13 @@ vi.mock('../services/support.ts', () => ({
   listRetainedInvoices: vi.fn(),
   readSupportLog: vi.fn(),
 }));
+
+// The Alpha's overview reads the operator's gifts answer, as Gifts and the queue do (0177 D17).
+vi.mock('../services/gifts.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/gifts.ts')>()),
+  listAllGifts: vi.fn(),
+}));
+const giftsMock = vi.mocked(listAllGifts);
 
 /**
  * The console link is steered at the module, not through the environment.
@@ -142,6 +150,66 @@ beforeEach(() => {
   tenantMock.mockReset();
   migrationMock.mockReset();
   platformMock.mockReset().mockResolvedValue(PLATFORM_OK);
+  // Not answered unless a case asks: the screen works without the overview.
+  giftsMock.mockReset().mockReturnValue(new Promise<never>(() => {}));
+});
+
+/**
+ * THE ALPHA'S OVERVIEW (workplan 0177 D17, §20.4, §21.2 item 19). The owner:
+ * *"(refuse a 51st): no, ik will count. But you add oversight on the operator
+ * support page."* So the first screen of Support shows the three counts Gifts
+ * shows, from the same answer, against their numbers, with a link to Gifts,
+ * where the numbers are set; and no names.
+ */
+describe('the Alpha’s overview (workplan 0177 D17)', () => {
+  const GIFTS = (alpha: Partial<OperatorGifts['alpha']>): OperatorGifts => ({
+    gifts: [
+      {
+        id: 'g-1',
+        locale: 'nl',
+        createdAt: '2026-12-01T10:00:00Z',
+        expiresAt: '2028-12-01T10:00:00Z',
+        redeemedAt: null,
+        revokedAt: null,
+        state: 'unused',
+        giverEmail: 'anna@example.test',
+        organisation: 'De Vries',
+        request: null,
+      },
+    ],
+    giftsPerPerson: 1,
+    allowances: [],
+    alpha: { byOwner: 12, ownerCeiling: 50, byRecommendation: 7, recommendationCeiling: 50, unusedGifts: 4, ...alpha },
+  });
+
+  it('shows the three counts against their numbers, that nothing refuses the owner’s yes, and a link to Gifts; no names', async () => {
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
+    giftsMock.mockResolvedValue(GIFTS({}));
+    mount(<SupportTenants />);
+    const heading = await screen.findByRole('heading', { name: 'The Alpha' });
+    const overview = heading.closest('section')!;
+    expect(overview).toHaveTextContent('People you let in: 12 of 50');
+    expect(overview).toHaveTextContent('People let in by a recommendation: 7 of 50');
+    expect(overview).toHaveTextContent('Cards not used yet: 4');
+    const gifts = screen.getByRole('link', { name: 'Gifts' });
+    expect(gifts).toHaveAttribute('href', '/gifts');
+    expect(gifts.closest('p')).toHaveTextContent('Nothing refuses your own yes: you keep count. The numbers are set on Gifts.');
+    // Numbers, never names: the queue lists each request, and Support each organisation.
+    expect(overview.textContent).not.toMatch(/@|De Vries/);
+    expect(overview.querySelector('[data-at-ceiling]')).toBeNull();
+  });
+
+  it('at a number and past it, the line stands out, in words too', async () => {
+    listMock.mockResolvedValue({ tenants: [TENANT], next: null });
+    giftsMock.mockResolvedValue(GIFTS({ byOwner: 52, byRecommendation: 50 }));
+    mount(<SupportTenants />);
+    const heading = await screen.findByRole('heading', { name: 'The Alpha' });
+    const reached = [...heading.closest('section')!.querySelectorAll('[data-at-ceiling]')];
+    expect(reached.map((line) => line.textContent)).toEqual([
+      'People you let in: 52 of 50The number is reached.',
+      'People let in by a recommendation: 50 of 50The number is reached.',
+    ]);
+  });
 });
 
 describe('the list of organisations', () => {
