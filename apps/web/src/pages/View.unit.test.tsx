@@ -721,3 +721,89 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
     }
   });
 });
+
+/**
+ * A DESTINATION'S PASSWORD REMOVED (the owner's decisions of 2026-11-26,
+ * change 1): the hold it puts on the migrations into it is not the Google
+ * access taken back, and the page must not say *you withdrew the access you
+ * gave*, nor *nothing has been copied yet … nothing has gone wrong* under it.
+ */
+describe('a destination’s password removed is not the source’s access withdrawn', () => {
+  const ACCOUNT = 'c'.repeat(32);
+  const AT = '2026-11-20T09:00:00.000Z';
+  const removed = { state: 'withdrawn' as const, withdrawnAt: AT, what: 'destination' as const, destination: 'soverin' };
+  const DESTINATION_SENTENCE =
+    /^The password for Soverin was removed on .+, so copying into it waits\. Your Google account was not touched, and nothing was deleted\. Whoever set this up can send you a new link\.$/;
+
+  it('the migration’s own page names the destination, and shows no not-started fold', async () => {
+    readMock.mockResolvedValue(payload({ from: 'google', started: false, domains: [], grant: removed }));
+    renderPage();
+    expect(await screen.findByText(DESTINATION_SENTENCE)).toBeInTheDocument();
+    expect(screen.queryByText(/you withdrew the access you gave/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Nothing has been copied yet.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nothing is missing and nothing has gone wrong/)).not.toBeInTheDocument();
+    // The Google access was not withdrawn, so the page does not say it was, nor where to check it.
+    expect(screen.queryByText(/Nothing more is read from your account/)).not.toBeInTheDocument();
+  });
+
+  it('a person’s page says it on the migration that stopped, and only there', async () => {
+    readMock.mockResolvedValue({
+      kind: 'person',
+      organisation: 'Example family',
+      expiresAt: IN_A_MONTH,
+      migrations: [
+        {
+          from: 'google',
+          to: 'soverin',
+          state: 'active',
+          started: false,
+          domains: [],
+          account: ACCOUNT,
+          stopped: { at: AT, what: 'destination', destination: 'soverin' },
+        },
+      ],
+      accounts: [{ ref: ACCOUNT, grant: removed }],
+    });
+    renderPage();
+    const account = await screen.findByRole('region', { name: 'Your Google account' });
+    expect(within(account).getByText(DESTINATION_SENTENCE)).toBeInTheDocument();
+    expect(within(account).queryByText(/you withdrew the access you gave/)).not.toBeInTheDocument();
+    expect(within(account).queryByText('Nothing has been copied yet.')).not.toBeInTheDocument();
+    expect(within(account).queryByText(/Nothing more is read from your account/)).not.toBeInTheDocument();
+  });
+
+  it('the source’s access withdrawn keeps its own sentence, and no not-started fold either', async () => {
+    readMock.mockResolvedValue(
+      payload({ started: false, domains: [], grant: { state: 'withdrawn', withdrawnAt: AT, what: 'source' } }),
+    );
+    renderPage();
+    expect(await screen.findByText(/Migrating stopped: on .* you withdrew the access you gave\./)).toBeInTheDocument();
+    expect(screen.queryByText('Nothing has been copied yet.')).not.toBeInTheDocument();
+  });
+
+  it('says it in Dutch, in the owner’s words', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      readMock.mockResolvedValue(payload({ from: 'google', started: false, domains: [], grant: removed }));
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={qc}>
+          <LocaleProvider>
+            <MemoryRouter initialEntries={['/view/abc.def']}>
+              <Routes>
+                <Route path="/view/:link" element={<View />} />
+              </Routes>
+            </MemoryRouter>
+          </LocaleProvider>
+        </QueryClientProvider>,
+      );
+      expect(
+        await screen.findByText(
+          /^Het wachtwoord voor Soverin is op .+ verwijderd, dus het kopiëren wacht\. Aan uw Google-account is niets veranderd, en er is niets gewist\. Wie dit voor u heeft ingesteld, kan u een nieuwe link sturen\.$/,
+        ),
+      ).toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+});
