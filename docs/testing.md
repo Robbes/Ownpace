@@ -610,7 +610,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   organisations (`apps/api/src/scripts/seed-managed.ts`), the API connected as `app_user`, local
   sign-in with a signing secret the run makes and masks, and tokens it signs for the seeded
   owners. It reads no repository secret. The API needs nothing else to start, so no fake is
-  composed. Schemathesis 4.34.0, by the tag and index digest `SCHEMATHESIS_IMAGE` names, scans
+  composed. Its jobs database is the same Postgres: the jobs role from
+  `deploy/compose/jobs-role.sql`, as the bring-up makes it, with a password of the run's own, and
+  pg-boss's queues installed by the worker's own runner, so a sync or a cutover is enqueued for real
+  (the jobs wait; nothing works them). Schemathesis 4.34.0, by the tag and index digest `SCHEMATHESIS_IMAGE` names, scans
   every operation of `apps/api/docs/openapi.yaml`, with a token and without, for `ignored_auth`,
   `not_a_server_error`, `status_code_conformance` and `response_schema_conformance`, at most 100
   cases per operation. **The proof runs first**: the same scan against

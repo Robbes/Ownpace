@@ -63,7 +63,8 @@
  *     reads a repository secret, and every value made here is masked in the
  *     log before it is used.
  *   - No identity provider, no mail, no outside provider: the API starts with
- *     Postgres alone (measured on 2026-11-26), so no fake was needed.
+ *     Postgres alone (measured on 2026-11-26), so no fake was needed. Its
+ *     jobs database is that Postgres too (THE JOBS DATABASE, below).
  *
  * WHAT THE SUMMARY NAMES, AND WHAT IT DOES NOT (the maintainer's answer of
  * 2026-11-26: counts, no names). The job's summary is public, as everything a
@@ -198,8 +199,27 @@ export function freshSecrets(random = randomBytes) {
     appPassword: random(24).toString('hex'),
     jwtSecret: random(24).toString('hex'),
     encryptionKey: random(32).toString('hex'),
+    jobsPassword: random(24).toString('hex'),
   };
 }
+
+/**
+ * THE JOBS DATABASE (the maintainer's answer of 2026-11-26). The API hands a
+ * sync, a cutover and the like to pg-boss, on `JOBS_DATABASE_URL`, and without
+ * one answered each of them 500 for want of a queue, every night. So the
+ * stack gets the managed bring-up's own: the jobs role and schema from
+ * `JOBS_ROLE_SQL`, run as it is, a password of the run's own, and pg-boss's
+ * tables and the catalog's queues installed by the worker's own runner, which
+ * then stops. Nothing works the jobs: they wait in their queues, as they
+ * would for a worker, and the API's answer is the one it gives with a queue.
+ */
+export const JOBS_ROLE_SQL = 'deploy/compose/jobs-role.sql';
+
+/** The worker's runner, started once to install the schema and declare the catalog's queues, then stopped. */
+export const INSTALL_THE_QUEUES =
+  "import('@openmig/scheduler/pg-boss').then(async ({ JOB_CATALOG, PgBossJobRunner }) => { " +
+  "const worker = new PgBossJobRunner({ connectionString: process.env.JOBS_DATABASE_URL, schema: 'pgboss' }); " +
+  'await worker.start(JOB_CATALOG); await worker.stop({ graceful: false }); })';
 
 /** What Schemathesis's config file says: the token from the environment, never on a command line. */
 export const CONFIG = 'headers = { Authorization = "Bearer ${DAST_TOKEN}" }\n';
@@ -454,9 +474,30 @@ export async function run({
     });
     if (role.error || role.status !== 0) return report({ ...base, stopped: `app_user's password was not set (${why(role)})` });
 
+    // The jobs database (THE JOBS DATABASE, above): the bring-up's file as it
+    // is, its role's password, then the worker's runner installs the queues.
+    const jobsRole = docker(['exec', '-i', CONTAINERS.db, 'psql', '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-U', 'ownpace', '-d', 'ownpace'], {
+      input: read(JOBS_ROLE_SQL),
+      env: { ...process.env },
+    });
+    if (jobsRole.error || jobsRole.status !== 0) return report({ ...base, stopped: `the jobs role was not made from ${JOBS_ROLE_SQL} (${why(jobsRole)})` });
+    const jobsPassword = docker(['exec', '-i', CONTAINERS.db, 'psql', '-v', 'ON_ERROR_STOP=1', '-q', '-U', 'ownpace', '-d', 'ownpace'], {
+      input: `ALTER ROLE ownpace_jobs PASSWORD '${secrets.jobsPassword}';\n`,
+      env: { ...process.env },
+    });
+    if (jobsPassword.error || jobsPassword.status !== 0) return report({ ...base, stopped: `the jobs role's password was not set (${why(jobsPassword)})` });
+    const jobs = `postgresql://ownpace_jobs:${secrets.jobsPassword}@${LOOPBACK}:5432/ownpace`;
+    const queues = docker(
+      ['run', '--rm', '--pull', 'never', '--network', `container:${CONTAINERS.db}`, '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
+        '--user', uid, '--env', 'JOBS_DATABASE_URL', '--volume', `${root}:${root}:ro`, '--workdir', workdir,
+        images.node, 'node', '--input-type=module', '-e', INSTALL_THE_QUEUES],
+      { env: { ...process.env, JOBS_DATABASE_URL: jobs } },
+    );
+    if (queues.error || queues.status !== 0) return report({ ...base, stopped: `the jobs queues were not installed (${queues.error ? why(queues) : `node exited ${queues.status}: ${firstLine(queues.stderr)}`})` });
+
     const started = docker(
-      nodeArgs(images, { root, name: CONTAINERS.api, uid, workdir, env: [...Object.keys(apiEnv), 'APP_DATABASE_URL', `API_PORT=${API_PORT}`], command: ['src/index.ts'] }),
-      { env: { ...process.env, ...apiEnv, APP_DATABASE_URL: app } },
+      nodeArgs(images, { root, name: CONTAINERS.api, uid, workdir, env: [...Object.keys(apiEnv), 'APP_DATABASE_URL', 'JOBS_DATABASE_URL', `API_PORT=${API_PORT}`], command: ['src/index.ts'] }),
+      { env: { ...process.env, ...apiEnv, APP_DATABASE_URL: app, JOBS_DATABASE_URL: jobs } },
     );
     if (started.error || started.status !== 0) return report({ ...base, stopped: `the API did not start (${why(started)})` });
     const fixture = docker(nodeArgs(images, { root, name: CONTAINERS.fixture, uid, workdir: root, env: [], command: [join(FIXTURE.dir, 'server.mjs'), String(FIXTURE_PORT)] }));
