@@ -155,6 +155,12 @@ class Dav {
   /** The URL of a store path; a folder gets its trailing slash, which is how a DAV server names a collection. */
   url(path: string, folder = false): string {
     const segments = path.split('/').filter((s) => s !== '');
+    // `encodeURIComponent` leaves `.` and `..` as they are and a server
+    // resolves them, so such a segment could name a place outside the folder
+    // this store was given. Refused by the rule, not by echoing the path.
+    if (segments.some((s) => s === '.' || s === '..')) {
+      throw new Error('A path in the target may not hold a "." or ".." segment.');
+    }
     const joined = segments.map(encodeURIComponent).join('/');
     if (joined === '') return this.base;
     return `${this.base}${joined}${folder ? '/' : ''}`;
