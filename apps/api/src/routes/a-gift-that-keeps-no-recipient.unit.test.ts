@@ -17,7 +17,9 @@
  *     recipient whose address, name and note are distinctive; afterwards no
  *     column of any gift row holds any of them. (The recipient's own address
  *     is in the access request they made, as every request's is: that is the
- *     request, not the gift.)
+ *     request, not the gift.) Since workplan 0177 the door lets the person in
+ *     at once and takes no note (§5): a note sent anyway is kept nowhere, and
+ *     the request's note holds only the door's fixed line about Google.
  *
  * UUID family 01720000-…-4466554420xx.
  */
@@ -81,6 +83,12 @@ beforeAll(async () => {
   await runMigrations({ driver, logger: () => {} });
   await runManagedMigrations({ driver, logger: () => {} });
   await rows(`INSERT INTO tenant (id, name) VALUES ($1, 'De Vries')`, [OURS]);
+  // A giver is a member, as the real middleware finds them (0177 §20.3: only
+  // a member's session learns whether a new card has room).
+  await rows(
+    `INSERT INTO tenant_member (tenant_id, user_id, email, role, status) VALUES ($1, $2, 'anna@example.com', 'owner', 'active')`,
+    [OURS, ANNA],
+  );
 }, 120_000);
 
 afterAll(async () => {
@@ -116,13 +124,20 @@ describe('a gift keeps nothing about the person it is for', () => {
     expect(made.status).toBe(201);
     caller = undefined;
     const typed = { email: 'cato.unique-0172@example.com', name: 'Catharina-0172', note: 'A note only-0172' };
-    expect((await request(app).post('/api/gifts/redeem').send({ code: made.body.code, locale: 'en', ...typed })).status).toBe(201);
+    const used = await request(app)
+      .post('/api/gifts/redeem')
+      .send({ code: made.body.code, locale: 'en', google: true, ...typed });
+    expect(used.status, JSON.stringify(used.body)).toBe(201);
 
     const stored = JSON.stringify(await rows('SELECT * FROM gift'));
     for (const value of [...Object.values(typed), made.body.code, made.body.code.replace(/-/g, '')]) {
       expect(stored, value).not.toContain(value);
     }
-    // Where the recipient's words do live: their own request.
-    expect(await rows('SELECT email, name, note FROM access_request')).toEqual([typed]);
+    // Where the recipient's words do live: their own request. The note they
+    // could not type is nowhere, and the door's own line is all the note holds.
+    expect(await rows('SELECT email, name, note FROM access_request')).toEqual([
+      { email: typed.email, name: typed.name, note: 'Said at the door: this address is a Google account to move.' },
+    ]);
+    expect(JSON.stringify(await rows('SELECT * FROM access_request'))).not.toContain(typed.note);
   });
 });

@@ -156,7 +156,7 @@ describe('the premise this number is sized against', () => {
   };
 
   it('is still a door only an operator can open', () => {
-    // Eight, and each is deliberate:
+    // Nine, and each is deliberate:
     //
     //   the knock          — this limit's whole subject, and the only one of
     //                        the eight a stranger is *invited* to use
@@ -176,18 +176,24 @@ describe('the premise this number is sized against', () => {
     //                        page's own link middleware, change the state of
     //                        a row linked to that person and nothing else; it
     //                        starts nothing and sends nothing
-    //   the gift code      — 0172: a door only somebody holding a code made
-    //                        by a person already let in can use, with its own
-    //                        refusing limit (`GIFT_REDEEM_LIMIT`); what it
-    //                        writes is a request the operator still decides,
-    //                        so it is not a self-service signup either
+    //   the code           — 0172, and 0177 D6: a door only somebody holding
+    //                        a code made by a person already let in can use,
+    //                        with its own refusing limit (`GIFT_REDEEM_LIMIT`).
+    //                        It lets that one person in at once, which is the
+    //                        owner's answer; one code per member, and at most
+    //                        the Alpha's second number of them in all (0177
+    //                        D16), so it is not a self-service signup either
+    //   the check          — 0177 §5: the same door's first step, behind the
+    //                        same limit. It writes nothing, and only the
+    //                        holder of a code made by somebody already let in
+    //                        gets a yes
     //   a person's own     — 0174 T3: a person's grant link only, by that
     //   password             page's own link middleware; it tests a password
     //                        the account holder types, with limits of its own
     //                        (thirty tests an hour per caller, five refused
     //                        logins per card per link), and is no signup
     //
-    // A NINTH is the question. If it is a self-service signup, this number is
+    // A TENTH is the question. If it is a self-service signup, this number is
     // no longer sized for the door in front of it, and raising it is only half
     // the change: the key is still `req.ip`, which behind an ingress is the
     // ingress. Set `TRUST_PROXY` so the bucket is per CALLER first, then raise
@@ -197,6 +203,7 @@ describe('the premise this number is sized against', () => {
     expect(openWrites()).toEqual([
       'routes/access-requests.ts POST /',
       'routes/billing/webhooks.ts POST /mollie',
+      'routes/gifts.ts POST /check',
       'routes/gifts.ts POST /redeem',
       // The same door since workplan 0171 T3, at the provider the link asks
       // for: Google's old address is one value of `:provider`, not a new door.

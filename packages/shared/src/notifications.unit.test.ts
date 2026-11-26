@@ -593,9 +593,10 @@ describe('access granted — the one event addressed to a non-member (0095)', ()
     ['nl', 'https://app.ownpace.eu/'],
   ] as const)('sends them to the sign-in page in the mail’s language (%s)', (locale, appUrl) => {
     const { body } = renderEvent({ ...event, appUrl }, locale);
-    const said = locale === 'en' ? 'Sign in here:' : 'Meld u hier aan:';
+    // Step 1's words since 0177 (D11 (a)), and the link on a line of its own under them.
+    const said = locale === 'en' ? '1. Open the sign-in page with this link:' : '1. Open de aanmeldpagina met deze link:';
     expect(body).toContain(
-      `${said} https://app.ownpace.eu/login?locale=${locale}#register=stranger%40example.test\n`,
+      `${said}\nhttps://app.ownpace.eu/login?locale=${locale}#register=stranger%40example.test\n`,
     );
   });
 
@@ -639,7 +640,9 @@ describe('access declined — saying no is a courtesy too (0095 T5)', () => {
     // one here would put a second, staler address into circulation.
     for (const locale of ['en', 'nl'] as const) {
       const { body } = renderEvent(event, locale);
-      expect(body).toMatch(/reply|contact op/i);
+      // The Dutch since 0177 (D12 (a)): *Beantwoord deze e-mail. Een mens leest uw antwoord.*
+      expect(body).toMatch(/reply|beantwoord/i);
+      expect(body).toMatch(/A person reads it|Een mens leest/);
     }
   });
 
@@ -662,6 +665,184 @@ describe('access declined — saying no is a courtesy too (0095 T5)', () => {
     // already disappointed.
     const { body } = renderEvent(event, 'en');
     expect(body).not.toMatch(/waiting list|wait list|not yet|come back|reapply/i);
+  });
+});
+
+describe('the yes mail, as the owner chose it (workplan 0177 §8, D11 (a))', () => {
+  const asked = {
+    kind: 'access_granted',
+    organisation: 'Familie de Vries',
+    appUrl: 'https://app.ownpace.eu',
+    email: 'stranger@example.test',
+  } as const;
+  const byCode = { ...asked, withCode: true } as const;
+  const LOCALES = ['en', 'nl'] as const;
+
+  const FIRST = {
+    en: { asked: 'You asked Ownpace for access. The answer is yes.', code: 'You used a code from someone you know. You are in.' },
+    nl: {
+      asked: 'U vroeg Ownpace om toegang. Het antwoord is ja.',
+      code: 'U gebruikte een code van iemand die u kent. U bent toegelaten.',
+    },
+  } as const;
+
+  it.each(LOCALES)('opens with what happened: one line for a request, another for a code, in %s', (locale) => {
+    expect(renderEvent(asked, locale).body.split('\n')[0]).toBe(FIRST[locale].asked);
+    expect(renderEvent(byCode, locale).body.split('\n')[0]).toBe(FIRST[locale].code);
+  });
+
+  it.each(LOCALES)('numbers its three steps, with the link and the address under the first two, in %s', (locale) => {
+    const lines = renderEvent(asked, locale).body.split('\n');
+    const at = (n: number) => lines.findIndex((line) => line.startsWith(`${n}. `));
+    expect([at(1), at(2), at(3)].every((i) => i > 0)).toBe(true);
+    expect(at(1) < at(2) && at(2) < at(3)).toBe(true);
+    expect(lines.filter((line) => /^\d\. /.test(line))).toHaveLength(3);
+    // Under step 1 the link, and why it ends in the person's own address.
+    expect(lines[at(1) + 1]).toBe(`https://app.ownpace.eu/login?locale=${locale}#register=stranger%40example.test`);
+    expect(lines[at(1) + 2]).toBe(
+      locale === 'en'
+        ? 'The link ends in your own email address. That lets the page fill it in for you.'
+        : 'De link eindigt op uw eigen e-mailadres. Zo kan de pagina het voor u invullen.',
+    );
+    // Under step 2 the address to make the account with.
+    expect(lines[at(2) + 1]).toBe('stranger@example.test');
+    expect(lines[at(3)]).toBe(
+      locale === 'en'
+        ? '3. Choose a password. The sign-in service then mails a code to this email address. With it you confirm that it is yours.'
+        : '3. Kies een wachtwoord. De aanmeldservice mailt daarna een code naar dit e-mailadres. Daarmee bevestigt u dat het van u is.',
+    );
+  });
+
+  it.each(LOCALES)('no longer says it holds no link, and calls itself safe nowhere, in %s', (locale) => {
+    for (const event of [asked, byCode, { ...byCode, alpha: true }]) {
+      const { body } = renderEvent(event, locale);
+      expect(body).not.toMatch(/no link or code|safe to forward|grants nobody|geen link of code|gerust doorsturen|geeft niemand toegang/i);
+      expect(body).not.toMatch(/\bsafe\b|\bveilig\b/i);
+    }
+  });
+
+  it.each(LOCALES)('names the guide before the person starts, then explains the word organisation, in %s', (locale) => {
+    const { body } = renderEvent(
+      {
+        ...asked,
+        alpha: true,
+        alphaConditions: { en: 'https://legal.example.test/alpha.html', nl: 'https://legal.example.test/nl/alpha.html' },
+        testerGuide: { en: 'https://site.example.test/alpha-guide.html', nl: 'https://site.example.test/nl/alpha-handleiding.html' },
+      },
+      locale,
+    );
+    const guide =
+      locale === 'en'
+        ? 'Read the guide before you start: https://site.example.test/alpha-guide.html'
+        : 'Lees de handleiding voordat u begint: https://site.example.test/nl/alpha-handleiding.html';
+    const name =
+      locale === 'en'
+        ? 'In the app your own space is called an organisation. Yours is called: Familie de Vries'
+        : 'In de app heet uw eigen ruimte een organisatie. De uwe heet: Familie de Vries';
+    const lines = body.split('\n');
+    expect(lines).toContain(guide);
+    expect(lines).toContain(name);
+    expect(lines.indexOf(guide)).toBeLessThan(lines.indexOf(name));
+    expect(lines.indexOf(lines.find((l) => /^3\. /.test(l))!)).toBeLessThan(lines.indexOf(guide));
+    // The organisation is no longer a bare label at the top.
+    expect(body).not.toMatch(/^Organisation: |^Organisatie: /m);
+    // The conditions' address stays with the Alpha's paragraph, after the name.
+    const conditions = lines.findIndex((l) => l.includes('legal.example.test'));
+    expect(conditions).toBeGreaterThan(lines.indexOf(name));
+  });
+
+  it.each(LOCALES)('after a yes about Google carries the last screen’s sentence, with the address; without it, not, in %s', (locale) => {
+    const said =
+      locale === 'en'
+        ? 'You want to move away from Google. We add stranger@example.test to a list at Google by hand, and write to you when that is done. Until then Google does not allow the connection.'
+        : 'U wilt weg bij Google. Wij zetten stranger@example.test met de hand op een lijst bij Google, en schrijven u als dat is gebeurd. Tot dan laat Google de koppeling niet toe.';
+    expect(renderEvent({ ...byCode, google: true }, locale).body.split('\n')).toContain(said);
+    expect(renderEvent(byCode, locale).body).not.toContain('Google');
+  });
+
+  it.each(LOCALES)('keeps the same subject, in %s', (locale) => {
+    expect(renderEvent(byCode, locale).subject).toBe(renderEvent(asked, locale).subject);
+  });
+
+  it('the mail that invites a member keeps its sentence about a link (0177 §17)', () => {
+    const invited = {
+      kind: 'member_invited',
+      organisation: 'Familie de Vries',
+      appUrl: 'https://app.ownpace.eu',
+      email: 'invited@example.test',
+      privacyPolicy: 'https://www.ownpace.eu/privacy.html',
+    } as const;
+    expect(renderEvent(invited, 'en').body).toContain(
+      'There is no link or code in this email: it is safe to forward, it grants nobody anything.',
+    );
+    expect(renderEvent(invited, 'nl').body).toContain(
+      'Deze e-mail bevat geen link of code: u kunt hem gerust doorsturen, het geeft niemand toegang.',
+    );
+  });
+});
+
+describe('the no mail, one text in both languages (workplan 0177 §8, D12 (a))', () => {
+  const event = { kind: 'access_declined' } as const;
+  const paragraphs = (locale: 'en' | 'nl') => renderEvent(event, locale).body.split('\n\n');
+
+  it('says the same things in both languages: the same paragraphs, in the same order', () => {
+    expect(paragraphs('en')).toEqual([
+      'You asked Ownpace for access. We cannot let you in now.',
+      'We keep your request for 30 days and then delete it.',
+      'Ownpace is open source: you can also run it yourself.',
+      'Do you think we misunderstood you? Reply to this email. A person reads it.',
+    ]);
+    expect(paragraphs('nl')).toEqual([
+      'U vroeg Ownpace om toegang. Wij kunnen u nu niet toelaten.',
+      'Wij bewaren uw aanvraag nog 30 dagen en verwijderen die daarna.',
+      'Ownpace is open source: u kunt het ook zelf draaien.',
+      'Denkt u dat wij u verkeerd begrepen? Beantwoord deze e-mail. Een mens leest uw antwoord.',
+    ]);
+  });
+
+  it('names the 30 days in both, and promises a later message in neither', () => {
+    for (const locale of ['en', 'nl'] as const) {
+      const { body } = renderEvent(event, locale);
+      expect(body).toMatch(/\b30 (days|dagen)\b/);
+      expect(body).not.toMatch(/inform you|let you know|when the Alpha has ended|open for everyone|laten weten|informeren|zodra/i);
+    }
+  });
+
+  it('says nothing about a recommendation or a code: none is ever declined', () => {
+    for (const locale of ['en', 'nl'] as const) {
+      expect(renderEvent(event, locale).body).not.toMatch(/recommend|aanbevel|\bcode\b|gift|cadeau/i);
+    }
+  });
+});
+
+describe('the operator’s notice for a code (workplan 0177 §8)', () => {
+  const letIn = { kind: 'access_requested', email: 'cato@example.test', withCode: true } as const;
+
+  it('says somebody was let in with a recommendation, that nothing waits, and names the address', () => {
+    const { body } = renderEvent(letIn, 'en');
+    expect(body.split('\n\n')[0]).toBe(
+      'Someone was let in with a recommendation. Nothing is waiting for you. The queue shows whose it was.',
+    );
+    expect(body).toContain('From: cato@example.test');
+    expect(body).not.toMatch(/Nothing has been granted|Open the app/);
+  });
+
+  it('after a yes about Google, says to add the address to Google’s list and then to write to them', () => {
+    expect(renderEvent({ ...letIn, google: true }, 'en').body).toContain(
+      "They said this address is a Google account they want to move. Add it to Google's list of test users, then write to them.",
+    );
+    expect(renderEvent(letIn, 'en').body).not.toContain('Google');
+  });
+
+  it('is in English whatever language is asked for, with a subject that says what happened', () => {
+    expect(renderEvent(letIn, 'nl')).toEqual(renderEvent(letIn, 'en'));
+    expect(renderEvent(letIn, 'en').subject).toBe('Ownpace — somebody was let in with a recommendation');
+  });
+
+  it('a plain knock still says that nothing has been granted, and names no code', () => {
+    const { body } = renderEvent({ kind: 'access_requested', email: 'dirk@example.test' }, 'en');
+    expect(body).toMatch(/Nothing has been granted/);
+    expect(body).not.toMatch(/recommendation|code/i);
   });
 });
 

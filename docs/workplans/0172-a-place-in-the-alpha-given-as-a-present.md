@@ -2,7 +2,14 @@
 
 > **In one line:** Gift invitations for alpha.21: a person in the alpha makes one gift code for a loved one, prints it on a card, and the code turns into an access request marked as a gift, which the owner approves like any other.
 
-## Status — 2026-11-25 (update this block at the end of every session)
+## Status — 2026-11-26 (update this block at the end of every session)
+
+**2026-11-26: two of this plan's answers are changed by workplan 0177.** Its G1, *a redeemed gift
+lets nobody in by itself*, is changed for a free one by 0177's D6: a recommendation lets its person
+in at once, and only a request without a code waits for the owner. Its answer that nothing caps how
+many people the Alpha lets in (§7, question 4) is changed by 0177's D16: two ceilings, 50 people the
+owner lets in and 50 let in by a recommendation (0177 §20). The free kind is now a
+*recommendation*; *gift* is kept for a code somebody paid for (0177 D1). 0177's step A builds it.
 
 **2026-11-25, two more privacy lines, in the owner's words: #2171 (`0ed0ddd5`).** The owner answered
 *"Ok"* to both additions put to them at the merge of #2141, in place under 1.0, in English and Dutch:

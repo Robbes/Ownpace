@@ -630,7 +630,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '409':
-          description: Already decided. Deciding twice would create a second organisation or lose the first.
+          description: |
+            Already decided: deciding twice would create a second organisation
+            or lose the first. Or the address already owns one (`confirmWith`).
+            Never for the owner's own number (workplan 0177 D17): the owner
+            keeps count, and a grant past it is written like any other.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -685,26 +689,52 @@ paths:
   /api/gifts/mine:
     get:
       tags: [Access]
-      summary: The signed-in person's gifts, and how many they may give
+      summary: The signed-in person's cards, how many they may give, and whether the Alpha has room for one
       description: |
-        A place in the Alpha given as a present (workplan 0172). Newest first,
-        each with its state (`unused`, `redeemed`, `revoked`, `expired`). Never
-        the code: only a fingerprint of it is kept.
+        A code one member makes for one person they know (workplans 0172 and
+        0177): during the Alpha a *recommendation*, which lets its person in
+        at once. Newest first, each with its state (`unused`, `redeemed`,
+        `revoked`, `expired`). Never the code: only a fingerprint of it is
+        kept.
+
+        `room` is whether the Alpha has a place for a new card (workplan 0177
+        §20.3): the people let in by a recommendation and the cards not used
+        yet, counted together, are under the second ceiling. A yes or a no,
+        never the count. `onlyAfterAlpha` is true during the Alpha for a
+        member whose own organisation was made by a request a card points to
+        (D18, §20.7): their `limit` is then nought until the Alpha ends.
+        `redeemAt` is the door, at `/code`.
       responses:
         '200':
-          description: Their gifts, their limit, how many hold a place, and where a code is redeemed.
+          description: Their cards, their limit, how many hold a place, whether there is room for one, and the door's address.
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                properties:
+                  gifts: { type: array, items: { type: object } }
+                  limit: { type: integer, minimum: 0 }
+                  held: { type: integer, minimum: 0 }
+                  room: { type: boolean }
+                  onlyAfterAlpha: { type: boolean }
+                  redeemAt: { type: string, nullable: true }
+                required: [gifts, limit, held, room, onlyAfterAlpha, redeemAt]
+        '400':
+          description: No organisation to give from.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/gifts:
     post:
       tags: [Access]
-      summary: Make a gift, and see its code once
+      summary: Make a card, and see its code once
       description: |
         Takes the card's language and nothing else: no recipient's address,
         name or message is accepted or stored. Counted against the giver's
-        limit (one each, unless the operator says otherwise).
+        limit (one each, unless the operator says otherwise), and made only
+        while the Alpha has room for it (workplan 0177 §20.3): a card says on
+        paper that its person is let in at once.
       requestBody:
         required: false
         content:
@@ -723,7 +753,12 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409':
-          description: The giver holds as many gifts as they may.
+          description: |
+            `gift_limit`: the giver holds as many cards as they may, with the
+            number. `no_room`: the Alpha has no place for a new card.
+            `only_after_alpha`: during the Alpha only the people the owner let
+            in may recommend (workplan 0177 D18), said in English and Dutch.
+            Nothing is made.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -750,15 +785,86 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /api/gifts/check:
+    post:
+      tags: [Access]
+      summary: Whether a code can be used, writing nothing
+      description: |
+        The door's first step (workplan 0177 §5). Unauthenticated, behind the
+        redeem's own refusing limit: one limit of forty an hour for both.
+        Reads the code's gift in the code's own transaction and **writes
+        nothing and spends nothing**. Every bad code (unknown, malformed,
+        used, revoked, expired) gets the redeem's one 410 body, so trying
+        codes learns nothing about which kind it was.
+
+        The yes carries the code's last day, which the card prints anyway,
+        and `answersFrom`, the bare address the yes mail comes from, left out
+        when no mail can go. A good code the Alpha has no room for is a 409
+        `full`, with its last day: the code is kept.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, maxLength: 64 }
+      responses:
+        '200':
+          description: The code can be used.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  until: { type: string, format: date-time }
+                  answersFrom: { type: string, format: email }
+                required: [ok, until]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409':
+          description: '`full`: the Alpha has no room for a code now (0177 §20.3). The server''s sentence in English and Dutch, and `until`.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GiftFull' }
+        '410':
+          description: The one refusal for every bad code, in English and Dutch.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GiftRefusal' }
+        '429':
+          description: Past the one limit, shared with the redeem; in English and Dutch, and see Retry-After.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GiftRefusal' }
   /api/gifts/redeem:
     post:
       tags: [Access]
-      summary: Turn a gift code into an access request marked as a gift
+      summary: Let a code's person in, at once
       description: |
-        Unauthenticated, like `POST /api/access-requests`, with its own
-        refusing rate limit and the same trap field. Every bad code (unknown,
-        malformed, used, revoked, expired) gets the same 410 body, in English
-        and Dutch. The request is approved by the operator like any other.
+        The door's last step (workplan 0177 §5; the owner, D6). Unauthenticated,
+        like `POST /api/access-requests`, behind the check's limit and with the
+        same trap field. In **one transaction**, all of it or none: the request
+        granted with nobody named as having decided it, an organisation of the
+        person's own, its owner's invitation bound to the address, and the code
+        spent and pointing to the request (managed migration 0066).
+
+        An address with a request waiting has that one granted, and no second
+        one is written (D15 (a)). A yes to `google` is kept as one fixed
+        English line in the request's note (D14 (a)), and reaches the
+        operator's notice. The yes mail, in `locale`, and the operator's notice
+        go out **after the commit**; `mailed` says whether the yes mail went.
+
+        Takes no organisation, note or package: a field the door does not
+        send is not read. A request that fills `website` is answered as let
+        in, and nothing is written, spent or sent.
+      security: []
       requestBody:
         required: true
         content:
@@ -770,32 +876,47 @@ paths:
                 code: { type: string, maxLength: 64 }
                 email: { type: string, format: email, maxLength: 320 }
                 name: { type: string, maxLength: 200 }
-                organisation: { type: string, maxLength: 200 }
-                note: { type: string, maxLength: 2000 }
-                tier: { type: string, maxLength: 40 }
+                google: { type: boolean, default: false, description: 'Their answer to: is this the email address of a Google account that you want to move?' }
                 locale: { type: string, enum: [en, nl] }
+                website: { description: 'The trap: left empty by people.' }
       responses:
         '201':
-          description: Received, and the gift is spent.
+          description: The person is in.
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                properties:
+                  letIn: { type: boolean, enum: [true] }
+                  mailed: { type: boolean }
+                required: [letIn, mailed]
         '400': { $ref: '#/components/responses/BadRequest' }
         '409':
-          description: The address already has an open request; nothing written, the gift unspent.
+          description: |
+            Nothing written, and the code kept. `already_in`: the address
+            already has access, so sign in with it. `full`: the Alpha has no
+            room for a code now, with `until` (0177 §20.3). Each with the
+            server's sentence in English and Dutch.
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/GiftFull'
+                  - $ref: '#/components/schemas/GiftRefusal'
         '410':
-          description: The one refusal for every bad code.
+          description: The one refusal for every bad code, also for a code that stopped working since the check.
           content:
             application/json:
-              schema: { type: object }
+              schema: { $ref: '#/components/schemas/GiftRefusal' }
         '429':
-          description: Past the rate limit; see Retry-After.
+          description: Past the one limit, shared with the check; in English and Dutch, and see Retry-After.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/GiftRefusal' }
   /api/gifts/operator:
     get:
       tags: [Access]
@@ -803,12 +924,36 @@ paths:
       description: |
         For a platform operator; anybody else gets empty lists, because to the
         database that is what the rows are.
+
+        `alpha` carries the Alpha's two ceilings with their counts (workplan
+        0177 §20): `byOwner`, the granted requests no card points to, under
+        `ownerCeiling`; `byRecommendation`, the requests a card points to,
+        granted or still waiting, under `recommendationCeiling`; and
+        `unusedGifts`, the cards not used yet. Each is read at the moment it
+        is asked: nothing keeps a running total.
       responses:
         '200':
           description: Gifts with their givers, the rule, per-person allowances and the counts.
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                properties:
+                  gifts: { type: array, items: { type: object } }
+                  giftsPerPerson: { type: integer, minimum: 0 }
+                  allowances: { type: array, items: { type: object } }
+                  alpha:
+                    type: object
+                    properties:
+                      granted: { type: integer }
+                      open: { type: integer }
+                      openFromGifts: { type: integer, description: 'Requests a card made before workplan 0177, still waiting for the owner.' }
+                      unusedGifts: { type: integer }
+                      byOwner: { type: integer }
+                      byRecommendation: { type: integer }
+                      ownerCeiling: { type: integer, minimum: 0 }
+                      recommendationCeiling: { type: integer, minimum: 0 }
+                    required: [granted, open, openFromGifts, unusedGifts, byOwner, byRecommendation, ownerCeiling, recommendationCeiling]
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/gifts/operator/{id}/revoke:
     parameters:
@@ -836,22 +981,36 @@ paths:
   /api/gifts/operator/rule:
     put:
       tags: [Access]
-      summary: How many gifts each person may give
+      summary: How many each person may give, and the Alpha's two ceilings
+      description: |
+        Any of the three, at least one (workplan 0177 §20.2); what is not
+        named stays as it is. A ceiling is a whole number, nought or more. Set
+        under its count it takes nobody out: nobody new comes in until the
+        count is under it again.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [giftsPerPerson]
+              additionalProperties: false
+              minProperties: 1
               properties:
                 giftsPerPerson: { type: integer, minimum: 0, maximum: 20 }
+                ownerCeiling: { type: integer, minimum: 0 }
+                recommendationCeiling: { type: integer, minimum: 0 }
       responses:
         '200':
-          description: Set.
+          description: Set; the whole rule as it now stands.
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                properties:
+                  giftsPerPerson: { type: integer }
+                  ownerCeiling: { type: integer }
+                  recommendationCeiling: { type: integer }
+                required: [giftsPerPerson, ownerCeiling, recommendationCeiling]
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
@@ -11051,7 +11210,30 @@ components:
           description: Set when the request came with a gift code (workplan 0172), with the giver's address, or null when the giver has since left.
           properties:
             from: { type: string, nullable: true }
-      required: [id, email, locale, state, createdAt]
+        letInByRecommendation:
+          type: boolean
+          description: A code let this person in at the door (workplan 0177 §5, D6), granted with nobody named as having decided it.
+      required: [id, email, locale, state, createdAt, letInByRecommendation]
+
+    GiftRefusal:
+      type: object
+      description: A refusal the reader of a page reads, in both languages (ADR-0024).
+      properties:
+        error: { type: string }
+        reason: { type: string }
+        reasonNl: { type: string }
+        message: { type: string, description: 'The English sentence again, on a 429 only.' }
+      required: [error, reason, reasonNl]
+
+    GiftFull:
+      type: object
+      description: The Alpha has no room for a code now (workplan 0177 §20.3). The code is kept, until its last day.
+      properties:
+        error: { type: string, enum: [full] }
+        reason: { type: string }
+        reasonNl: { type: string }
+        until: { type: string, format: date-time }
+      required: [error, reason, reasonNl, until]
 
     GrantDecision:
       type: object
