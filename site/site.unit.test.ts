@@ -159,22 +159,89 @@ describe('the published prices agree with the decision that set them', () => {
     }
   });
 
-  it('names the country the privacy policy names for the machine it runs on (0152, 2026-11-19)', async () => {
-    // The home page says where Ownpace runs; the privacy policy's §7 is where
-    // that is stated as a fact. Should the machine move, the policy changes
-    // first, and this fails until the home page says the same.
-    const { COPY } = (await import('./copy.mjs')) as unknown as {
-      COPY: Record<'en' | 'nl', { diff: Array<[string, string | ((links: Record<string, string>) => string)]> }>;
-    };
-    const { PROOF_LINKS } = (await import('./proof.mjs')) as unknown as { PROOF_LINKS: Record<string, string> };
-    const flat = (s: string) => s.replace(/\s+/g, ' ');
-    for (const [locale, says, policy, where] of [
-      ['en', 'runs in the Netherlands, in the EU', 'site/legal/privacy.md', 'run on a machine we administer ourselves, in the Netherlands.'],
-      ['nl', 'draait in Nederland, in de EU', 'site/legal/privacy.nl.md', 'machine die we zelf beheren, in Nederland.'],
-    ] as const) {
-      const cards = COPY[locale].diff.map(([, body]) => (typeof body === 'function' ? body(PROOF_LINKS) : body));
-      expect(cards.filter((body) => body.includes(says)), `${locale}: no card says "${says}"`).toHaveLength(1);
-      expect(flat(read(policy)), `${policy} no longer says the machine is there`).toContain(where);
+  /**
+   * WHERE THE SERVICE RUNS, FROM THE STACK'S ONE SETTING (workplan 0176 D16 (a);
+   * the owner, 2026-11-26: *"P16: a"*). Until then the home page named the
+   * country by hand, and a case here held it to the privacy policy's §7, where
+   * it is stated as a fact (0152, 2026-11-19). The home page now takes it from
+   * `OWNPACE_COUNTRY`, as a person's link page does, and the build refuses a
+   * country the policy does not say the service runs in: should the machine
+   * move, the policy changes first. The country is read here from the policy's
+   * own sentence and named by its code from the list, so that no file but the
+   * policy names it.
+   */
+  const POLICY = {
+    en: ['site/legal/privacy.md', 'run on a machine we administer ourselves, in '],
+    nl: ['site/legal/privacy.nl.md', 'machine die we zelf beheren, in '],
+  } as const;
+  const flat = (text: string) => text.replace(/\s+/g, ' ');
+  /** Where the policy says the machine is, per language, as its sentence names it. */
+  const policySays = (locale: 'en' | 'nl'): string => {
+    const [file, words] = POLICY[locale];
+    const at = flat(read(file)).indexOf(words);
+    expect(at, `${file} no longer says where the machine is, in the words this case reads`).toBeGreaterThan(-1);
+    return flat(read(file)).slice(at + words.length).split('.')[0]!;
+  };
+  /** The code of the country the policy names, by the list's own English names. */
+  const policyCountry = (): string => {
+    const english = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' });
+    const named = policySays('en').replace(/^the /, '');
+    const codes: string[] = [];
+    for (let a = 65; a <= 90; a++) {
+      for (let b = 65; b <= 90; b++) {
+        const code = String.fromCharCode(a, b);
+        if (english.of(code) === named && Intl.getCanonicalLocales(`und-${code}`)[0] === `und-${code}`) codes.push(code);
+      }
+    }
+    expect(codes, `no code of the list is named "${named}"`).toHaveLength(1);
+    return codes[0]!;
+  };
+  type Build = (opts: { country?: string }) => { rendered: Page[] };
+  const buildWith = async (country: string | undefined): Promise<Page[]> => {
+    const { build } = (await import('./build.mjs')) as unknown as { build: Build };
+    return build({ country }).rendered;
+  };
+  const home = (pages: Page[], locale: 'en' | 'nl') =>
+    pages.find((p) => p.locale === locale && p.key === 'home' && !p.file.endsWith('404.html'))!.html;
+  const SAYS = { en: 'Ownpace runs in ', nl: 'Ownpace draait in ' } as const;
+  const OPEN_SOURCE = { en: 'the software is <a', nl: 'de software is <a' } as const;
+
+  it('names no country on the home page when the stack sets none, and still says the software is open source (0176 D16 (a))', async () => {
+    for (const unset of [undefined, '', '   ']) {
+      const pages = await buildWith(unset);
+      for (const locale of ['en', 'nl'] as const) {
+        expect(home(pages, locale), `${locale}: OWNPACE_COUNTRY=${JSON.stringify(unset)} names a country`).not.toContain(SAYS[locale]);
+        expect(home(pages, locale), `${locale}: the open source link went with the country`).toMatch(
+          locale === 'en' ? /The software is <a href="[^"]+">open source<\/a>/ : /De software is <a href="[^"]+">open source<\/a>/,
+        );
+      }
+    }
+  });
+
+  it('names the country the stack sets, in each language as the privacy policy names it, and in the EU only of a member', async () => {
+    const code = policyCountry();
+    const { EU_MEMBERS } = (await import('./country.mjs')) as unknown as { EU_MEMBERS: Set<string> };
+    // Set the way an operator writes it: in another case, with spaces.
+    const pages = await buildWith(` ${code.toLowerCase()} `);
+    for (const locale of ['en', 'nl'] as const) {
+      const where = policySays(locale);
+      const eu = EU_MEMBERS.has(code) ? (locale === 'en' ? ', in the EU' : ', in de EU') : '';
+      const and = locale === 'en' ? ', and ' : ', en ';
+      const cards = home(pages, locale).match(new RegExp(SAYS[locale], 'g')) ?? [];
+      expect(cards, `${locale}: the home page says where it runs ${cards.length} times`).toHaveLength(1);
+      expect(home(pages, locale)).toContain(`${SAYS[locale]}${where}${eu}${and}${OPEN_SOURCE[locale]}`);
+    }
+  });
+
+  it('refuses a country the privacy policy does not say the service runs in, naming the policy', async () => {
+    const code = policyCountry();
+    const other = ['DE', 'BE', 'FR'].find((c) => c !== code)!;
+    await expect(buildWith(other)).rejects.toThrow(/site\/legal\/privacy\.md/);
+  });
+
+  it('refuses a value that is no country, naming the setting', async () => {
+    for (const value of ['Germany', 'EU', 'UK', 'XX']) {
+      await expect(buildWith(value), value).rejects.toThrow('OWNPACE_COUNTRY');
     }
   });
 
