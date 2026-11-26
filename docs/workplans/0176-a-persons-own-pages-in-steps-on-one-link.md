@@ -25,9 +25,13 @@ dispatch.
 - **T9:** the UI smoke measures text size, contrast and targets at 390 and 320 pixels.
 - **D13 (a):** the line where the link is made, and thirty days first.
 
+- **At the meet:** part 4 merged in; `scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts`
+  holds the tester guide's three sentences equal to the link page's, and refuses what T15 took
+  out; `docs/grant-links.md` was read against the pages and corrected where it differed.
+
 Each test §21.4 names was written first and seen failing on `main`; the pull request records
-it, with the table of new Dutch sentences for the owner's read (§6). Still the owner's: that
-read, D16 to D18, T0 and T12.
+it, with one table of the new Dutch sentences, both parts', for the owner's read (§6). Still
+the owner's: that read, D16 to D18, T0 and T12.
 
 **2026-11-26, the owner's answers to the sweep's decisions (T14).** On D12 to D15 the owner
 answered: *"D12: a / D13: a / D14: yes / D15: a"*. All four went as advised (§18):
