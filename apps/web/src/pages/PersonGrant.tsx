@@ -462,7 +462,7 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
           {progressUrl}
         </a>
       </p>
-      <p className="mt-2">{t('grant.person.keepIt')}</p>
+      <p className="mt-2">{t('grant.person.keepIt', { who })}</p>
     </div>
   );
 

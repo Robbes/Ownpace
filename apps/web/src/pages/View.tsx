@@ -119,16 +119,21 @@ const stoppedOf = (grant: PageGrant): PageStopped | null =>
  * destination's password removed says so, names the destination, and says
  * the source was not touched. Null when nothing stopped.
  */
-function useStoppedSentence(stopped: PageStopped | null, from: string | undefined): string | null {
+function useStoppedSentence(stopped: PageStopped | null, from: string | undefined, named?: string): string | null {
   const t = useT();
   const { locale } = useLocale();
   const { dateTime } = useFormatters();
+  // Who can send a new link: the sender's name since step B (0176 T3, §6).
+  // The page itself says it above its own provider, so it names them here.
+  const fromPage = usePersonsPage()?.who;
+  const who = named ?? fromPage ?? '';
   if (!stopped) return null;
   if (stopped.what === 'destination' && stopped.destination) {
     return t('view.state.destinationRemoved', {
       destination: providerName(stopped.destination, 'target', locale),
       date: dateTime(stopped.at),
       source: providerName(from ?? '', 'source', locale),
+      who,
     });
   }
   return t('view.state.withdrawn', { date: dateTime(stopped.at) });
@@ -206,6 +211,8 @@ const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, ch
   const t = useT();
   const { dateTime } = useFormatters();
   const sentenceOf = useLineSentence();
+  // Who can mend a failure, named since step B (0176 T3, §6).
+  const who = usePersonsPage()?.who ?? '';
 
   // A COMPLETION is the only honest source for "up to date as of"; when there
   // has never been one, the page says when a pass last did something instead,
@@ -270,7 +277,7 @@ const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, ch
           this reader has no account to reach. */}
       {row.lastErrorCategory && row.lastErrorCategory in VIEW_FAILURE_KEY && (
         <p className={`mt-1 ${LOOK.quiet}`}>
-          {t(VIEW_FAILURE_KEY[row.lastErrorCategory as FailureCategory])}
+          {t(VIEW_FAILURE_KEY[row.lastErrorCategory as FailureCategory], { who })}
           {row.failedSide ? ` ${t(VIEW_SIDE_KEY[row.failedSide])}` : ''}
         </p>
       )}
@@ -572,6 +579,7 @@ type PersonViewDestination = PersonViewPayload['destinations'][number];
 const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewDestination }> = ({ link, destination }) => {
   const t = useT();
   const { locale } = useLocale();
+  const who = usePersonsPage()?.who ?? '';
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = React.useState(false);
   const provider = providerName(destination.provider, 'target', locale);
@@ -605,7 +613,7 @@ const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewD
             </button>
           ) : (
             <div className="mt-4">
-              <p className={LOOK.sentence}>{t('view.destination.confirm')}</p>
+              <p className={LOOK.sentence}>{t('view.destination.confirm', { who })}</p>
               <div data-answers className="mt-3 space-y-3">
                 <button
                   type="button"
@@ -945,7 +953,8 @@ const View: React.FC = () => {
   const data = refused ? undefined : view.data;
   const person = data && isPersonView(data) ? data : null;
   const one = data && !isPersonView(data) ? data : null;
-  const stopped = useStoppedSentence(one ? stoppedOf(one.grant) : null, one?.from);
+  // A migration's own page names its organisation, as its `who` below does.
+  const stopped = useStoppedSentence(one ? stoppedOf(one.grant) : null, one?.from, one?.organisation);
   const moved = one?.domains.reduce((sum, d) => sum + d.bytesTransferred, 0) ?? 0;
 
   const names = React.useMemo(() => (person ? accountNamesOf(person, t, locale) : null), [person, t, locale]);

@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { YourNewAddress } from './YourNewAddress.tsx';
+import { PersonsPageProvider } from './persons-page.tsx';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { answerAddressChangeByLink, type LinkAddressChange } from '../services/link-address-service.ts';
 
@@ -31,7 +32,10 @@ const renderWith = (changes: ReadonlyArray<LinkAddressChange> | undefined, door:
   render(
     <QueryClientProvider client={new QueryClient()}>
       <LocaleProvider>
-        <YourNewAddress door={door} link="p.l1.secret" changes={changes} queryKey={['grant', 'p.l1.secret']} />
+        {/* On a person's page, which names the sender (0176 T3, §6). */}
+        <PersonsPageProvider value={{ who: 'Pat' }}>
+          <YourNewAddress door={door} link="p.l1.secret" changes={changes} queryKey={['grant', 'p.l1.secret']} />
+        </PersonsPageProvider>
       </LocaleProvider>
     </QueryClientProvider>,
   );
@@ -72,7 +76,7 @@ describe('Your new address, by the person’s link', () => {
     expect(answerAddressChangeByLink).toHaveBeenCalledWith('view', 'p.l1.secret', { ...ROW, state: 'confirmed' }, 'proposed');
     // The truth, not a notice nobody sends.
     expect(await screen.findByRole('status')).toHaveTextContent(
-      'Sent back. It changes nothing until it is confirmed again, and whoever set it up sees it waiting on their pages.',
+      'Sent back. It changes nothing until it is confirmed again. Pat sees that it waits.',
     );
     expect(screen.queryByText(/will change it/)).toBeNull();
     // And a press made by mistake can be taken back at once.
@@ -85,7 +89,7 @@ describe('Your new address, by the person’s link', () => {
     expect(screen.queryByRole('button', { name: 'Not right?' })).toBeNull();
     expect(
       screen.getByText(
-        'Not right? Then leave it: it changes nothing until it is confirmed, and whoever set it up sees it waiting on their pages.',
+        'Not right? Then leave it: it changes nothing until it is confirmed. Pat sees that it waits.',
       ),
     ).toBeInTheDocument();
   });
@@ -168,14 +172,14 @@ describe('Your new address, by the person’s link', () => {
     expect(screen.getByText('Uw nieuwe adres: first@example.org. Klopt dat?')).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Klopt het niet? Laat het dan zo: het verandert niets tot het is bevestigd, en wie het heeft ingesteld, ziet op de eigen pagina's dat het wacht.",
+        'Klopt het niet? Laat het dan zo: het verandert niets tot het is bevestigd. Pat ziet dat het wacht.',
       ),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Ja, dat klopt' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Bevestigd: first@example.org.');
     await user.click(screen.getByRole('button', { name: 'Klopt het niet?' }));
     expect(await screen.findByRole('status')).toHaveTextContent(
-      "Teruggestuurd. Het verandert niets tot het opnieuw is bevestigd, en wie het heeft ingesteld, ziet op de eigen pagina's dat het wacht.",
+      'Teruggestuurd. Het verandert niets tot het opnieuw is bevestigd. Pat ziet dat het wacht.',
     );
   });
 
