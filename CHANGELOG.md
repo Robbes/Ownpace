@@ -98,6 +98,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   without a token does not start until somebody has connected it. Not proven against a real
   Dropbox account: no test account exists, and the endpoints are stood in for in the tests.
 
+- **CodeQL reads the JavaScript and TypeScript, report only** (workplan 0178 T5; the owner's
+  decisions D1 and D8 of 2026-11-26). `codeql.yml` runs CodeQL's default suite on a push to `main`,
+  weekly and on dispatch, never on a pull request, and uploads every alert to code scanning beside
+  Trivy's and Semgrep's. It follows a value from a request across files, which Semgrep's free
+  engine cannot. It blocks nothing: no alert fails it, and it is no required check. A scan that did
+  not finish is red: no SARIF, a file CodeQL could not extract, or a tracked source file it does
+  not say it extracted. A dispatch with `proof` reads a known-bad fixture as well, uploads nothing,
+  and is red unless both of the fixture's queries report there. The pin watch holds every copy of
+  `github/codeql-action` to one commit, and names the CodeQL bundle it ships.
+
 ### Changed
 
 - **A person's own pages: one thing at a time, in their own words** (alpha.21; workplan 0176
