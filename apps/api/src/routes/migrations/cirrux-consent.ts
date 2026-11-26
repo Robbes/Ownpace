@@ -36,6 +36,7 @@ import {
   CIRRUX_TOKEN_ENDPOINT,
   localeOf,
   type Bilingual,
+  type Register,
 } from '@openmig/shared';
 import type { ConsentLocale } from './google-consent.ts';
 
@@ -137,6 +138,11 @@ export const ANOTHER_CIRRUX_WORKSPACE = {
   nl:
     'U meldde zich aan bij een andere Cirrux-werkruimte dan die waarin de Drive van dit account eerder ' +
     'was verbonden, dus er is niets opgeslagen. Meld u bij Cirrux aan met het account waar dit ' +
+    'mailadres bij hoort, en druk opnieuw op Cirrux Drive verbinden.',
+  // With je, for a person whose pages say je (workplan 0176 T7, §11).
+  nlJe:
+    'Je meldde je aan bij een andere Cirrux-werkruimte dan die waarin de Drive van dit account eerder ' +
+    'was verbonden, dus er is niets opgeslagen. Meld je bij Cirrux aan met het account waar dit ' +
     'mailadres bij hoort, en druk opnieuw op Cirrux Drive verbinden.',
 } as const satisfies Bilingual;
 
@@ -323,6 +329,18 @@ const ENDING: Readonly<
 };
 
 /**
+ * The Dutch with *je*, for a person on their link whose pages say *je*
+ * (workplan 0176 T7, §11). The same keys, so neither loses a sentence.
+ */
+const ENDING_JE: (typeof ENDING)['nl'] = {
+  failed: 'Cirrux Drive is niet verbonden',
+  retry: 'Je kunt dit venster sluiten en het opnieuw proberen vanaf de pagina Accounts.',
+  done: 'Cirrux Drive is verbonden',
+  as: (who) => `Aangemeld bij Cirrux als ${who}.`,
+  next: 'Bestanden kunnen nu naar de Drive van dit account. Je kunt dit venster sluiten.',
+};
+
+/**
  * The page the callback ends on. On success it tells the opening window, on
  * the web origin only, that this account's Drive is connected: the message
  * carries the account's id and no credential, because none has a parameter
@@ -334,9 +352,11 @@ export function cirruxResultPage(p: {
     | { readonly ok: false; readonly reason: string };
   readonly locale?: ConsentLocale;
   readonly webOrigin?: string;
+  /** How a person's pages speak to them, when a person's link began it (0176 T7). */
+  readonly register?: Register;
 }): string {
   const lang = localeOf(p.locale);
-  const words = ENDING[lang];
+  const words = lang === 'nl' && p.register === 'informal' ? ENDING_JE : ENDING[lang];
   const shell = (body: string) =>
     `<!doctype html><html lang="${lang}"><head><meta charset="utf-8" />` +
     '<meta name="viewport" content="width=device-width, initial-scale=1" />' +

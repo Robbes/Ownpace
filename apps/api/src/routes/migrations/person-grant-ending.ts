@@ -61,6 +61,7 @@ import {
   reasonPair,
   withoutUnpublishedHosts,
   type Bilingual,
+  type Register,
   type TenantId,
 } from '@openmig/shared';
 import { personGrantedConnection, personLink, personMigration } from '@openmig/managed/schema-managed';
@@ -106,16 +107,26 @@ export interface PersonGrantTarget {
   readonly mappingIds: readonly string[];
   /** The person's grant page, for the ending to go back to while accounts are left (`PendingConsent`). */
   readonly backUrl?: string;
+  /** How the person's pages speak to them (0176 T7): a refusal below says its Dutch in it (`PendingConsent`). */
+  readonly register?: Register;
 }
 
-/** When every migration the page listed has gone from this person or this account since. */
+/**
+ * When every migration the page listed has gone from this person or this
+ * account since. A person's page says no form of *migreren* (workplan 0176
+ * D1), and English follows its Dutch; with *je* for a person whose pages say
+ * *je* (T7, §11).
+ */
 export const NOTHING_LEFT_TO_GRANT: Bilingual = {
   en:
-    'The migrations this page listed for this account have changed since it was opened, so nothing was ' +
+    'What this page showed for this account has changed since it was opened, so nothing was ' +
     'stored. Open your link again to see what it asks for now.',
   nl:
-    'De migraties die deze pagina voor dit account toonde zijn gewijzigd sinds hij werd geopend, dus er is ' +
+    'Wat deze pagina voor dit account liet zien, is gewijzigd sinds hij werd geopend, dus er is ' +
     'niets opgeslagen. Open uw link opnieuw om te zien waar hij nu om vraagt.',
+  nlJe:
+    'Wat deze pagina voor dit account liet zien, is gewijzigd sinds hij werd geopend, dus er is ' +
+    'niets opgeslagen. Open je link opnieuw om te zien waar hij nu om vraagt.',
 };
 
 /** Thrown to roll the transaction back when the wrong account signed in. */
@@ -180,6 +191,8 @@ export async function storePersonGrant(
         return { ok: false as const, reason: refusal.en, reasonNl: refusal.nl, linkUnused: true };
       }
 
+      // Every refusal below says its Dutch in the person's register (0176 T7).
+      const { register } = target;
       const now = new Date();
       const live = await db
         .select({ id: personLink.id })
@@ -196,9 +209,9 @@ export async function storePersonGrant(
           ),
         )
         .for('update');
-      if (live.length === 0) return { ok: false as const, ...reasonPair(LINK_SPENT) };
+      if (live.length === 0) return { ok: false as const, ...reasonPair(LINK_SPENT, register) };
 
-      const refusal = signedInAccountRefusal(target.account, granted.signedInAs, provider, true);
+      const refusal = signedInAccountRefusal(target.account, granted.signedInAs, provider, true, register);
       if (refusal) throw new AnotherAccountSignedIn(refusal);
 
       const written: string[] = [];
@@ -241,7 +254,7 @@ export async function storePersonGrant(
         written.push(mappingId);
       }
       if (written.length === 0) {
-        return { ok: false as const, ...reasonPair(NOTHING_LEFT_TO_GRANT), linkStillWorks: true };
+        return { ok: false as const, ...reasonPair(NOTHING_LEFT_TO_GRANT, register), linkStillWorks: true };
       }
       await liftTheHold(db, target.tenantId, written);
 

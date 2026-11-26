@@ -288,16 +288,19 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   const personLink = pending.personLink;
   const anyLink = link ?? personLink;
   const locale = localeOf(pending.locale);
+  // How a person's pages speak to them (workplan 0176 T7), kept with their
+  // link's consent: the ending and its refusals say their Dutch in it.
+  const register = personLink?.register;
   // `linkAfter` is what is true of a grant link after this refusal, when it
   // is not used up (see `grantResultPage`); the owner's ending has no link.
   // `reason` is a pair where we wrote both halves, which since 2026-10-14
   // includes a code exchange's refusal to the owner (`EXCHANGE_FOR_THE_OWNER`).
   const refuse = (status: number, reason: Bilingual | string, linkAfter?: 'works' | 'unused') => {
-    const said = typeof reason === 'string' ? reason : inLocale(reason, locale);
+    const said = typeof reason === 'string' ? reason : inLocale(reason, locale, register);
     page(
       status,
       anyLink
-        ? grantResultPage({ ok: false, reason: said, ...(linkAfter ? { link: linkAfter } : {}) }, locale)
+        ? grantResultPage({ ok: false, reason: said, ...(linkAfter ? { link: linkAfter } : {}) }, locale, register)
         : consentResultPage({ outcome: { ok: false, reason: said }, locale }),
     );
   };
@@ -390,6 +393,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       grantResultPage(
         { ok: true, provider: 'google', permission, ...(personProgressUrl ? { progressUrl: personProgressUrl } : {}), ...(more ? { more } : {}) },
         locale,
+        register,
       ),
     );
   }

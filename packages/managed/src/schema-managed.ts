@@ -738,6 +738,12 @@ export const person = pgTable(
      * one column, which Drizzle cannot say. Drizzle authors no DDL here (ADR-0045).
      */
     userId: text('user_id'),
+    /**
+     * How this person's own pages speak to them, as a member chose it
+     * (workplan 0176 T7, D8 (a); managed migration 0068): `nl-u`, `nl-je` or
+     * `en` (`PERSON_VOICES`). NULL: the browser's language, with *u*.
+     */
+    voice: text('voice'),
   },
   (t) => [
     index('person_tenant_idx').on(t.tenantId, t.createdAt),

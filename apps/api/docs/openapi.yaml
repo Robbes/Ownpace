@@ -6727,6 +6727,16 @@ paths:
                     a fixed list (workplan 0176 §7, T3, D7), or none. The
                     person's pages say it after your name. Anything else is
                     refused with `400`, and no link is made.
+                voice:
+                  type: [string, 'null']
+                  enum: [nl-u, nl-je, en, null]
+                  description: |
+                    How the person's pages speak to them (workplan 0176 §11, T7,
+                    D8): Dutch with *u*, Dutch with *je*, or English. Kept with
+                    the person, so every link of theirs says it, and only once a
+                    link is made. Left out, it stays as it was; null clears it,
+                    which is the browser's language with *u*. Anything else is
+                    refused with `400`, and no link is made.
       responses:
         '201':
           description: The link, said once.
@@ -6744,6 +6754,10 @@ paths:
                   asksAgain:
                     type: boolean
                     description: A grant link made while every account of the person's was connected, which asks each again.
+                  voice:
+                    type: [string, 'null']
+                    enum: [nl-u, nl-je, en, null]
+                    description: How the person's pages speak to them now (workplan 0176 T7), for the message the member sends.
                   copies:
                     type: object
                     description: |
@@ -6759,7 +6773,7 @@ paths:
                       to:
                         type: array
                         items: { type: string }
-        '400': { description: '`purpose`, `expiryDays` or `relation` was not one of the offered values.' }
+        '400': { description: '`purpose`, `expiryDays`, `relation` or `voice` was not one of the offered values.' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404':
@@ -10257,6 +10271,14 @@ components:
             sign-in (ADR-0050, amended 2026-11-19). Worked out by the server;
             no account id is sent. Always false on the appliance, which has no
             sign-in.
+        voice:
+          type: [string, 'null']
+          enum: [nl-u, nl-je, en, null]
+          description: |
+            How the person's own pages speak to them (workplan 0176 T7), as the
+            member chose it where a link is made: the form offers it again.
+            Null until chosen; absent on the appliance and from a server
+            before alpha.21's step B.
         migrations:
           type: array
           description: Oldest first.
@@ -10426,6 +10448,21 @@ components:
             server before alpha.21's step B.
           allOf: [{ $ref: '#/components/schemas/SenderOnAPage' }]
         organisationPhone: { type: string, nullable: true }
+        language:
+          type: [string, 'null']
+          enum: [nl, en, null]
+          description: |
+            The language the member chose for the person (workplan 0176 §11,
+            T7): the page opens in it until the reader picks another with the
+            switch. Null is the browser's language, as before. Absent from a
+            server before alpha.21's step B.
+        register:
+          type: string
+          enum: [formal, informal]
+          description: |
+            How the page's Dutch speaks to the person (T7, D8): *u* or *je*.
+            The server's own Dutch on this answer (`reasonNl`) says it too.
+            Absent from a server before alpha.21's step B, which is *u*.
         accounts:
           type: array
           items:
@@ -10649,6 +10686,21 @@ components:
         organisationPhone:
           type: [string, 'null']
           description: "The organisation's number, which the page shows where the member gave none, saying whose it is (D11)."
+        language:
+          type: [string, 'null']
+          enum: [nl, en, null]
+          description: |
+            The language the member chose for the person (workplan 0176 §11,
+            T7): the page opens in it until the reader picks another with the
+            switch. Null is the browser's language, as before. Absent from a
+            server before alpha.21's step B.
+        register:
+          type: string
+          enum: [formal, informal]
+          description: |
+            How the page's Dutch speaks to the person (T7, D8): *u* or *je*.
+            The server's own Dutch on this answer (`reasonNl`) says it too.
+            Absent from a server before alpha.21's step B, which is *u*.
         accounts:
           type: array
           items:

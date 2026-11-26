@@ -35,6 +35,7 @@ import type { PauseReason } from './pause-reason.ts';
 import type { MigrationStatus } from './ports.ts';
 import type { CheckFacts, PhaseFacts } from './progress.ts';
 import type { SenderOnAPage } from './sender.ts';
+import type { Register } from './voice.ts';
 import { stageOf, type Stage } from './stage.ts';
 import { timeBeforeStart, type TimeBeforeStart } from './time-before-start.ts';
 import { remainingItemsOf, timeWhileCopying, type PassFacts, type TimeWhileCopying } from './time-while-copying.ts';
@@ -430,6 +431,14 @@ export interface PersonView {
   readonly sender?: SenderOnAPage | null;
   /** The organisation's number, for the page to show where the member gave none, said as theirs (D11). */
   readonly organisationPhone?: string | null;
+  /**
+   * The language and register the member chose for the person (workplan 0176
+   * T7, D8 (a)): the page takes the language until the reader picks another,
+   * and reads its informal layer for `informal`. A null language is the
+   * browser's. Absent from a server before step B.
+   */
+  readonly language?: 'en' | 'nl' | null;
+  readonly register?: Register;
 }
 
 /**

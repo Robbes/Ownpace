@@ -31,6 +31,7 @@
  * no noun: a card carries the person's name (0153 D6).
  */
 
+import type { PersonVoice } from './voice.ts';
 import { MAPPING_LIFECYCLES, type MappingLifecycle } from './operating-contract.ts';
 
 /** The appliance's one person's id. It has no row, so it has no uuid. */
@@ -87,6 +88,13 @@ export interface Person {
   readonly migrations: readonly PersonMigration[];
   /** Their migrations' states, counted. A person has no state of its own. */
   readonly counts: LifecycleCounts;
+  /**
+   * How their own pages speak to them, as a member chose it where a link is
+   * made (workplan 0176 T7, D8 (a)), or null when unset: the browser's
+   * language, with *u*. Absent on the appliance, which makes no links, and
+   * from a server before alpha.21's step B.
+   */
+  readonly voice?: PersonVoice | null;
 }
 
 /** `GET /people` on both editions. */
@@ -128,6 +136,8 @@ export interface PersonRow {
   readonly createdAt: string;
   /** Whether the row is the asking member's own: worked out by the store, which keeps the id. */
   readonly you: boolean;
+  /** How their pages speak to them (0176 T7); managed only. */
+  readonly voice?: PersonVoice | null;
 }
 
 /** A migration's state, and the person it belongs to if any. */
@@ -183,6 +193,7 @@ export function peopleFrom(people: readonly PersonRow[], migrations: readonly Mi
         you: p.you,
         migrations: list,
         counts: lifecycleCounts(list),
+        ...(p.voice === undefined ? {} : { voice: p.voice }),
       };
     }),
     unassigned,

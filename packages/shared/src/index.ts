@@ -63,6 +63,7 @@ export * from './notifications.ts';
 export * from './registration-link.ts';
 export * from './tenant-contact.ts';
 export * from './sender.ts';
+export * from './voice.ts';
 export * from './share-announcement.ts';
 // The privacy policy's address for that mail, from LEGAL_SITE_URL (0139 T4).
 export * from './privacy-policy-link.ts';

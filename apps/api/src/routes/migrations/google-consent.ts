@@ -47,6 +47,7 @@ import {
   localeOf,
   type Bilingual,
   type RefusalLocale,
+  type Register,
 } from '@openmig/shared';
 import type { ProgressPageUrl } from './progress-page-url.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES, accountInIdToken } from './signed-in-account.ts';
@@ -154,6 +155,13 @@ interface PendingConsent {
      * the deployment names no web address.
      */
     readonly backUrl?: string;
+    /**
+     * How the person's pages speak to them (workplan 0176 T7, §11), read when
+     * the button was pressed: the ending, and every refusal after the
+     * sign-in, say their Dutch with *je* for `informal`. Kept here for
+     * `link`'s reason. Absent is *u*, as every state begun before it.
+     */
+    readonly register?: Register;
   };
   /**
    * The language the page that began this consent was in (workplan 0145 T6),
@@ -897,6 +905,10 @@ export function consentResultPage(p: {
  * `reason` of a refusal arrives already in it. *"Bookmark it"* became a
  * sentence that also works for somebody reading inside another app's browser,
  * which often cannot keep a bookmark: keep the link, by a bookmark or a copy.
+ *
+ * `register` is how a person's pages speak to them (workplan 0176 T7, §11),
+ * kept on the pending consent with their link: `informal` says the Dutch with
+ * *je* (`GRANT_ENDING_JE`). Absent, and on a migration's own link, it is *u*.
  */
 export function grantResultPage(
   outcome:
@@ -941,9 +953,10 @@ export function grantResultPage(
         readonly link?: 'works' | 'unused';
       },
   locale?: ConsentLocale,
+  register?: Register,
 ): string {
   const lang = localeOf(locale);
-  const words = GRANT_ENDING[lang];
+  const words = lang === 'nl' && register === 'informal' ? GRANT_ENDING_JE : GRANT_ENDING[lang];
   if (!outcome.ok) {
     const after =
       outcome.link === 'works'
@@ -1170,6 +1183,57 @@ const GRANT_ENDING: Readonly<
     manyMore: 'Er zijn nog {n} accounts.',
     back: 'Terug naar de link',
   },
+};
+
+/**
+ * The ending's Dutch with *je* (workplan 0176 T7, §11; §15's pattern: *uw*
+ * becomes *je*, and *jouw* only where it carries stress), for a person whose
+ * pages say *je*. The same keys as the Dutch with *u*, so neither can lose a
+ * sentence the other has; English has one *you* and no second set. A
+ * proposal the owner reads before it ships (0144 D1).
+ */
+const GRANT_ENDING_JE: (typeof GRANT_ENDING)['nl'] = {
+  failed: 'Dat is niet gelukt',
+  linkWorks: 'Er is niets opgeslagen, en je link werkt nog.',
+  linkUnused: 'Er is niets opgeslagen, en je link is niet verbruikt, dus je kunt hem opnieuw openen.',
+  linkSpent:
+    'Er is niets opgeslagen. Heb je een link gekregen, vraag de persoon die hem stuurde dan om ' +
+    'een nieuwe; die is zo gemaakt.',
+  done: 'Dank je, het is gelukt',
+  connected:
+    'Je account is nu verbonden, en Ownpace kan eruit lezen. Je hoeft verder niets te doen, ' +
+    'en deze link werkt niet meer.',
+  yourPage:
+    'Hier is je eigen pagina. <strong>Bewaar deze.</strong> Die laat zien hoe ver het kopiëren ' +
+    'is, en niets uit je account:',
+  keepIt:
+    'Bewaar deze link: zet hem bij je favorieten of kopieer hem naar een veilige plek. Is deze ' +
+    'pagina in een andere app geopend, dan bewaart die app hem misschien niet.',
+  copy: 'Link kopiëren',
+  copied: 'Gekopieerd.',
+  copyRefused: 'Deze browser stond kopiëren niet toe. De link is geselecteerd: kopieer hem vanaf daar.',
+  howLong: 'Hij werkt de komende 90 dagen, en wie je de link stuurde, kan hem op elk moment uitzetten.',
+  access: {
+    'read-only': () =>
+      'De toegang is <strong>alleen-lezen</strong>: aan jouw kant wordt nooit iets verwijderd of gewijzigd.',
+    'allows-changes': (provider) =>
+      '<strong>Ownpace leest alleen</strong>: aan jouw kant wordt nooit iets verwijderd of ' +
+      `gewijzigd. De toestemming die ${provider} heeft vastgelegd staat ook wijzigingen toe; Ownpace ` +
+      'brengt er geen aan.',
+    widened: (provider) =>
+      '<strong>Ownpace leest alleen</strong>: aan jouw kant wordt nooit iets verwijderd of ' +
+      `gewijzigd. ${provider} heeft ook toestemmingen toegevoegd die dit account al aan dezelfde app ` +
+      'had gegeven, en een daarvan staat wijzigingen toe; Ownpace brengt er geen aan.',
+  },
+  stopHere: (provider) =>
+    `Je kunt dit altijd weer stoppen op je eigen pagina, hierboven. Of bij ${provider}, in de ` +
+    'lijst van apps die toegang hebben tot je account.',
+  stopAt: (provider) =>
+    `Je kunt dit altijd weer stoppen bij ${provider}, in de lijst van apps die toegang hebben tot je account.`,
+  oneConnected: 'Dank je, dit account is verbonden.',
+  oneMore: 'Er is nog één account.',
+  manyMore: 'Er zijn nog {n} accounts.',
+  back: 'Terug naar de link',
 };
 
 /**

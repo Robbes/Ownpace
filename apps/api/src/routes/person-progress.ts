@@ -58,6 +58,7 @@ import {
   type PgDatabase,
 } from '@openmig/ledger';
 import { personGrantedConnection, personMigration } from '@openmig/managed/schema-managed';
+import { readPersonVoice } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
   CIRRUX_DRIVE_GRANT_KEY,
@@ -69,7 +70,9 @@ import {
   foundByDomain,
   hasCirruxDriveGrant,
   isPasswordKind,
+  languageOf,
   readTenantContactPhone,
+  registerOf,
   reasonPair,
   viewGrantFor,
   viewRowFor,
@@ -86,6 +89,7 @@ import {
   type PersonViewAccount,
   type PersonViewDestination,
   type PersonViewMigration,
+  type Register,
   type TenantId,
   type TokenRevoker,
   type ViewDomainRow,
@@ -403,6 +407,8 @@ export async function readPersonView(
   // number, never their address; the organisation's number beside it (D11).
   const { sender } = await readPersonLinkSender(db, input.tenantId, input.linkId);
   const organisationPhone = readTenantContactPhone(org[0]?.settings);
+  // How the person's pages speak to them (0176 T7), as the link page says it.
+  const voice = await readPersonVoice(db, input.tenantId, input.personId);
 
   const theirs = await readTheirs(db, input.tenantId, input.personId);
   const stopped = await readWhatStopped(
@@ -443,6 +449,8 @@ export async function readPersonView(
     destinations,
     sender,
     organisationPhone,
+    language: languageOf(voice),
+    register: registerOf(voice),
   };
 }
 
@@ -626,6 +634,8 @@ export type PersonWithdrawalResult =
 export const NOTHING_TO_WITHDRAW: Bilingual = {
   en: 'This account holds no permission of yours that was given through a link, so there is nothing here to withdraw.',
   nl: 'Dit account heeft geen toestemming van u die via een link is gegeven, dus er is hier niets in te trekken.',
+  // With je, for a person whose pages say je (workplan 0176 T7, §11).
+  nlJe: 'Dit account heeft geen toestemming van jou die via een link is gegeven, dus er is hier niets in te trekken.',
 };
 
 /** When what the page showed is not what is held now. */
@@ -635,6 +645,9 @@ export const CHANGED_SINCE_OPENED: Bilingual = {
     'so nothing was deleted. Open this page again to see where it stands.',
   nl:
     'Uw toestemming is gewijzigd sinds deze pagina werd geopend (opnieuw gegeven, of elders ingetrokken), ' +
+    'dus er is niets verwijderd. Open deze pagina opnieuw om te zien hoe het ervoor staat.',
+  nlJe:
+    'Je toestemming is gewijzigd sinds deze pagina werd geopend (opnieuw gegeven, of elders ingetrokken), ' +
     'dus er is niets verwijderd. Open deze pagina opnieuw om te zien hoe het ervoor staat.',
 };
 
@@ -700,9 +713,13 @@ export async function withdrawPersonGrant(
   return { ok: true, withdrawal: { withdrawnAt: withdrawnAt.toISOString(), atGoogle } };
 }
 
-/** The refusal as the page reads it: the code, and both halves of the sentence. */
+/**
+ * The refusal as the page reads it: the code, and both halves of the
+ * sentence, its Dutch in the person's register (workplan 0176 T7).
+ */
 export function withdrawalRefusalBody(
   result: Extract<PersonWithdrawalResult, { ok: false }> | Extract<DestinationWithdrawalResult, { ok: false }>,
+  register?: Register,
 ) {
-  return { error: result.code, ...reasonPair(result.refusal) };
+  return { error: result.code, ...reasonPair(result.refusal, register) };
 }

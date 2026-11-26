@@ -61,8 +61,8 @@ import {
   expiryFromDays,
   type MappingLinkPurpose,
 } from '@openmig/ledger';
-import { listPersonLinks, readPerson, revokePersonLink } from '@openmig/managed';
-import { DISCOVERY_DOMAINS, PERSON_NOT_FOUND, SENDER_RELATIONS, log, type DiscoveryDomain } from '@openmig/shared';
+import { listPersonLinks, readPerson, readPersonVoice, revokePersonLink, setPersonVoice } from '@openmig/managed';
+import { DISCOVERY_DOMAINS, PERSON_NOT_FOUND, PERSON_VOICES, SENDER_RELATIONS, log, type DiscoveryDomain } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -103,6 +103,9 @@ const IssueSchema = z
     purpose: z.enum(MAPPING_LINK_PURPOSES).optional(),
     expiryDays: z.number().int().optional(),
     relation: z.enum(SENDER_RELATIONS).nullable().optional(),
+    // How the person's own pages speak to them, kept with the person (0176
+    // T7, D8 (a)): left out, it stays as it was; null unsets it.
+    voice: z.enum(PERSON_VOICES).nullable().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.expiryDays === undefined) return;
@@ -211,8 +214,9 @@ router.post(
         return void res.status(400).json({
           error: 'invalid_body',
           reason:
-            `Send { purpose, expiryDays, relation }. The expiries offered, in days, are — ${offered}. ` +
-            `A relation is one of ${SENDER_RELATIONS.join(', ')}, or null.`,
+            `Send { purpose, expiryDays, relation, voice }. The expiries offered, in days, are — ${offered}. ` +
+            `A relation is one of ${SENDER_RELATIONS.join(', ')}, or null. ` +
+            `A voice is one of ${PERSON_VOICES.join(', ')}, or null.`,
         });
       }
       const purpose: MappingLinkPurpose = parsed.data.purpose ?? 'grant';
@@ -244,8 +248,9 @@ router.post(
       }
 
       const days = parsed.data.expiryDays ?? MAPPING_LINK_LIFETIMES[purpose].fallback;
-      const outcome = await withTenantDb(s.tenantId, pool(), (db) =>
-        issuePersonLinkWithinTheLimit(db, {
+      const voiceGiven = parsed.data.voice;
+      const { outcome, voice } = await withTenantDb(s.tenantId, pool(), async (db) => {
+        const issued = await issuePersonLinkWithinTheLimit(db, {
           tenantId: s.tenantId,
           personId: s.personId,
           purpose,
@@ -253,8 +258,14 @@ router.post(
           expiresAt: expiryFromDays(days),
           asksAgain,
           relation: parsed.data.relation ?? null,
-        }),
-      );
+        });
+        // The voice goes with the link it was chosen for, in its transaction
+        // (0176 T7): a link refused at the limit changes nothing.
+        if (issued.kind === 'issued' && voiceGiven !== undefined) {
+          await setPersonVoice(db, s.tenantId, s.personId, voiceGiven);
+        }
+        return { outcome: issued, voice: await readPersonVoice(db, s.tenantId, s.personId) };
+      });
       if (outcome.kind === 'at_the_limit') {
         return void res.status(409).json({
           error: 'grant_links_at_limit',
@@ -279,6 +290,9 @@ router.post(
         // What the link asks for, as kinds and codes, for the message the
         // member sends with it (workplan 0176 T8): the screen words them.
         ...(copies === null ? {} : { copies }),
+        // How the person's pages speak to them now (T7), which the message
+        // sent with the link speaks in too.
+        voice,
         // In the payload, not only on the screen, so ADR-0035's division of
         // labour survives a redesign.
         distribution:
