@@ -230,7 +230,7 @@ beforeEach(() => {
   h.targetAskedIn = [];
   vi.spyOn(log, 'warn').mockImplementation((...args: unknown[]) => void logged.push(args.join(' ')));
   h.row = {
-    id: 'conn-1',
+    id: '6f0c0178-0000-4000-8000-00000000c001',
     tenantId: 'a-tenant',
     role: 'target',
     kind: 'nextcloud',
@@ -258,9 +258,9 @@ async function everyDoor(): Promise<Array<{ door: string; status: number; body: 
   const add = await request(app)
     .post('/api/connections')
     .send({ role: 'target', type: 'nextcloud', displayName: 'ours', values: { url: davBase, ...CREDS } });
-  const retest = await request(app).post('/api/connections/conn-1/test').send({});
+  const retest = await request(app).post('/api/connections/6f0c0178-0000-4000-8000-00000000c001/test').send({});
   const rotate = await request(app)
-    .put('/api/connections/conn-1/credentials')
+    .put('/api/connections/6f0c0178-0000-4000-8000-00000000c001/credentials')
     .send({ values: { url: davBase, ...CREDS } });
   const report = await request(app).get('/api/permissions/report?mailbox=someone@example.test');
   return [

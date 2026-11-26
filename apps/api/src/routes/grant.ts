@@ -78,6 +78,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { RequestHandler, Response } from 'express';
 import {
   CIRRUX_DRIVE_SCOPES,
@@ -138,7 +139,7 @@ import {
   type GrantProviderId,
 } from './grant-providers.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function pool() {
