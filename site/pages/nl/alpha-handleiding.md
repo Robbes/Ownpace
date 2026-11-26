@@ -13,7 +13,11 @@
      wat Ownpace vraagt een vinkje heeft." Change them in both places. The
      part for a family member says "kopiëren" for what that person sees
      (0176 D1); the rest of this page speaks to the member and says
-     "migreren".
+     "migreren". That part names acquaintances once, in its last sentence,
+     with the glossary's phrase "familie en kennissen" (0176 D19): family
+     comes first, and "familielid" stays its word. The Alpha conditions say
+     "uw gezin" until their next version, with the lawyer; where the two
+     differ, the conditions apply, as this page's first lines say.
 
      Rendered only when the site is built for the alpha (OWNPACE_STAGE=alpha;
      site/build.mjs, ALPHA_ONLY), outside the nav. [[REQUEST_ACCESS]] is
@@ -143,6 +147,8 @@ uw familielid geeft zelf toestemming.
 
 Daarna heeft uw familielid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
 familielid het ook stoppen.
+
+Zo werkt het voor familie en kennissen die u helpt.
 
 ### Als Google opnieuw vraagt {#google-opnieuw}
 
