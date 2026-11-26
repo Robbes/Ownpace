@@ -66,6 +66,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import type { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
@@ -124,7 +125,16 @@ import {
 import { readiness } from './ready.ts';
 import { readStatusPage, type PlatformStatus } from './platform-status.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router(), {
+  // Each operator's route reads its id with `oneUuid` after its 401 and its
+  // operator check, and answers 400 "must be one uuid" (support-routes and
+  // an-organisation-the-operator-can-close hold it).
+  checkedByItsRoutes: {
+    tenantId: 'oneUuid after sign-in and the operator check, 400 (support-routes.unit.test.ts)',
+    mappingId: 'oneUuid after sign-in and the operator check, 400 (support-routes.unit.test.ts)',
+    creditNoteId: 'oneUuid after sign-in and the operator check, 400 (support-routes.unit.test.ts)',
+  },
+});
 
 /**
  * `Pool | LedgerDriver` and not `Pool`, because that is what `withSubject`
