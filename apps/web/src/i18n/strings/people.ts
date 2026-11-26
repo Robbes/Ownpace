@@ -36,6 +36,11 @@ export const en = {
   'personLink.relation.family': 'A family member',
   'personLink.relation.acquaintance': 'Someone {name} knows',
   'personLink.relation.colleague': 'Colleague',
+  'personLink.voice.label': 'How does the page speak to {name}?',
+  'personLink.voice.dutchU': 'Dutch, with u',
+  'personLink.voice.dutchJe': 'Dutch, with je',
+  'personLink.voice.english': 'English',
+  'personLink.voice.child': 'Is {name} under 16? Then a parent completes the link together with {name}.',
   'personLink.name.label': 'Your name, as {name} knows you',
   'personLink.name.hint': 'Shown on the page {name} opens.',
   'personLink.alpha.testUsers':
@@ -46,6 +51,7 @@ export const en = {
   'personLink.message.hint': 'You may change it before you send it.',
   'personLink.message.copy': 'Copy message',
   'personLink.message.copied': 'Message copied',
+  'personLink.print': 'Print a sheet for {name}',
   // The message itself is in the person's language and voice, not the
   // member's (§12): its words are `message.*` below, chosen by that.
   'message.toPerson':
@@ -233,6 +239,11 @@ export const nl: Record<keyof typeof en, string> = {
   'personLink.relation.family': 'Een familielid',
   'personLink.relation.acquaintance': 'Iemand die {name} kent',
   'personLink.relation.colleague': 'Collega',
+  'personLink.voice.label': 'Hoe spreekt de pagina {name} aan?',
+  'personLink.voice.dutchU': 'Nederlands, met u',
+  'personLink.voice.dutchJe': 'Nederlands, met je',
+  'personLink.voice.english': 'Engels',
+  'personLink.voice.child': 'Is {name} jonger dan 16? Dan rondt een ouder de link samen met {name} af.',
   'personLink.name.label': 'Uw naam, zoals {name} u kent',
   'personLink.name.hint': 'Staat op de pagina die {name} opent.',
   'personLink.alpha.testUsers':
@@ -243,6 +254,7 @@ export const nl: Record<keyof typeof en, string> = {
   'personLink.message.hint': 'U mag het aanpassen voordat u het verstuurt.',
   'personLink.message.copy': 'Bericht kopiëren',
   'personLink.message.copied': 'Bericht gekopieerd',
+  'personLink.print': 'Een vel voor {name} afdrukken',
   'message.toPerson':
     'Dit is de link waarover ik u vertelde. U komt op een pagina van Ownpace. Daar geeft u toestemming om uw {what} te kopiëren naar {destination}. Er is geen haast: de link werkt tot {date}. Zullen we het samen doen? Bel mij als u wilt beginnen.',
   'personLink.asksAgain':

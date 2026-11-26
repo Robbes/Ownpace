@@ -76,8 +76,17 @@ import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
-import { SENDER_RELATIONS, isSenderRelation, type SenderRelation } from '@openmig/shared';
+import {
+  PERSON_VOICES,
+  SENDER_RELATIONS,
+  isSenderRelation,
+  languageOf,
+  registerOf,
+  type PersonVoice,
+  type SenderRelation,
+} from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
+import { NL_JE } from '../i18n/informal.ts';
 import { fill } from '../i18n/fill.ts';
 import { formatDateTime, formatList } from '../i18n/datetime.ts';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
@@ -469,32 +478,49 @@ function lastRelationOf(links: readonly GrantLink[] | undefined, userId: string 
   return isSenderRelation(relation) ? relation : '';
 }
 
+/** How the page speaks to the person, in the member's words for each (§15). */
+const VOICE_WORDS: Readonly<Record<PersonVoice, StringKey>> = {
+  'nl-u': 'personLink.voice.dutchU',
+  'nl-je': 'personLink.voice.dutchJe',
+  en: 'personLink.voice.english',
+};
+
+/** A person's grant link's one page, which prints (D15 (a)): under the link page's own address. */
+const sheetOf = (url: string): string => `${url.replace(/\/+$/, '')}/all`;
+
 /**
  * THE MESSAGE TO SEND WITH THE LINK (workplan 0176 §12, §15): it names what
  * was said aloud (*This is the link I told you about*), what is copied and
  * where to, as the link asks it (`copies`), and until when, in the person's
- * language; the link goes under it. No greeting is written for the member,
- * and nothing hurries (R2). The member may change it before sending; *Copy
- * message* copies what is in the box. Nothing is sent: the member sends it,
- * through a channel the person already trusts (ADR-0035).
+ * language and register (§11): the voice the link was made with, so Dutch
+ * with *je* for a person whose pages say *je* (the informal layer's twin),
+ * whatever language the member's screen is in. The link goes under it. No
+ * greeting is written for the member, and nothing hurries (R2). The member
+ * may change it before sending; *Copy message* copies what is in the box.
+ * Nothing is sent: the member sends it, through a channel the person already
+ * trusts (ADR-0035). Beside it, a sheet to print for them: the link's one
+ * page (D15 (a)).
  */
-const MessageToSend: React.FC<{ issued: IssuedGrantLink }> = ({ issued }) => {
+const MessageToSend: React.FC<{ issued: IssuedGrantLink; voice: PersonVoice; name: string }> = ({ issued, voice, name }) => {
   const t = useT();
-  const { locale } = useLocale();
   const id = React.useId();
   const copies = issued.copies;
-  const words = STRINGS[locale];
+  const spoken = issued.voice ?? voice;
+  const language = languageOf(spoken) ?? 'en';
+  const words = STRINGS[language];
+  const informal = language === 'nl' && registerOf(spoken) === 'informal';
+  const message = (informal ? NL_JE['message.toPerson'] : undefined) ?? words['message.toPerson'];
   const composed = copies
-    ? `${fill(words['message.toPerson'], {
+    ? `${fill(message, {
         what: formatList(
-          copies.domains.map((d) => words[DOMAIN_STRING_KEY[d]].toLocaleLowerCase(locale)),
-          locale,
+          copies.domains.map((d) => words[DOMAIN_STRING_KEY[d]].toLocaleLowerCase(language)),
+          language,
         ),
         destination: formatList(
-          copies.to.map((kind) => providerName(kind, 'target', locale)),
-          locale,
+          copies.to.map((kind) => providerName(kind, 'target', language)),
+          language,
         ),
-        date: formatDateTime(issued.expiresAt, locale),
+        date: formatDateTime(issued.expiresAt, language),
       })}\n\n${issued.url}`
     : null;
   const [text, setText] = React.useState(composed ?? '');
@@ -536,6 +562,17 @@ const MessageToSend: React.FC<{ issued: IssuedGrantLink }> = ({ issued }) => {
         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
         {copied ? t('personLink.message.copied') : t('personLink.message.copy')}
       </button>
+      <p className="mt-2 text-sm">
+        <a
+          href={sheetOf(issued.url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-700 underline underline-offset-2 hover:text-blue-900"
+        >
+          {t('personLink.print', { name })}
+          <span className="sr-only"> {t('common.newTab')}</span>
+        </a>
+      </p>
     </div>
   );
 };
@@ -561,8 +598,14 @@ const MessageToSend: React.FC<{ issued: IssuedGrantLink }> = ({ issued }) => {
  *   must be on Google's list of test users first, with the tester guide's
  *   part for a family member's link, and that the Google step is best done
  *   together (*"Yes, preferably"*);
+ * - how the page speaks to them (§11, T7, D8): Dutch with *u*, Dutch with
+ *   *je*, or English, offered as it was chosen for this person, else in the
+ *   member's own language with *u*; kept with the person once the link is
+ *   made. With *je*, one line gives the privacy text's rule for a child under
+ *   16 (§12); nobody's age is asked;
  * - thirty days first (D13 (a)), the choices 1, 7 and 30;
- * - with the link, a message to send (`MessageToSend`).
+ * - with the link, a message to send in the person's voice, and a sheet to
+ *   print for them (`MessageToSend`).
  */
 export const PersonGrantLinkSection: React.FC<{
   personId: string;
@@ -572,7 +615,9 @@ export const PersonGrantLinkSection: React.FC<{
   loadFailed: boolean;
   /** Whether the link asks a Google account, for the Alpha's two lines. */
   asksGoogle?: boolean;
-}> = ({ personId, personName, asksGoogle = false, ...props }) => {
+  /** How the person's pages speak to them, as chosen before (T7); null when never. */
+  personVoice?: PersonVoice | null;
+}> = ({ personId, personName, asksGoogle = false, personVoice = null, ...props }) => {
   const { t, locale } = useLocale();
   const queryClient = useQueryClient();
   const { user, tenantId } = useAuthStore();
@@ -593,10 +638,14 @@ export const PersonGrantLinkSection: React.FC<{
   const chosen = relation ?? lastRelationOf(props.links, user?.id);
   const [yourName, setYourName] = React.useState('');
   const [told, setTold] = React.useState(false);
+  // As chosen for this person before, else your own language with u (§11).
+  const [voice, setVoice] = React.useState<PersonVoice | null>(null);
+  const spoken: PersonVoice = voice ?? personVoice ?? (locale === 'nl' ? 'nl-u' : 'en');
 
   const doors: LinkDoors = {
     ...personDoors(personId),
-    issue: (purpose, expiryDays) => personLinkApi.issue(personId, purpose, expiryDays, { relation: chosen === '' ? null : chosen }),
+    issue: (purpose, expiryDays) =>
+      personLinkApi.issue(personId, purpose, expiryDays, { relation: chosen === '' ? null : chosen, voice: spoken }),
   };
 
   // Your name, before the link that shows it is made: a refusal makes no link.
@@ -651,6 +700,26 @@ export const PersonGrantLinkSection: React.FC<{
           ))}
         </select>
       </div>
+      <div className="flex w-full flex-col text-sm text-gray-700">
+        <label htmlFor={`${fieldId}-voice`}>{t('personLink.voice.label', { name })}</label>
+        <select
+          id={`${fieldId}-voice`}
+          value={spoken}
+          onChange={(e) => setVoice(e.target.value as PersonVoice)}
+          className="mt-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white w-72 max-w-full"
+        >
+          {PERSON_VOICES.map((v) => (
+            <option key={v} value={v}>
+              {t(VOICE_WORDS[v])}
+            </option>
+          ))}
+        </select>
+        {spoken === 'nl-je' && (
+          <p role="note" className="mt-1 text-sm text-gray-900">
+            {t('personLink.voice.child', { name })}
+          </p>
+        )}
+      </div>
     </>
   );
 
@@ -692,7 +761,7 @@ export const PersonGrantLinkSection: React.FC<{
       fieldsAfter={fieldsAfter}
       ready={told}
       beforeIssue={beforeIssue}
-      withIssued={(issued) => <MessageToSend key={issued.id} issued={issued} />}
+      withIssued={(issued) => <MessageToSend key={issued.id} issued={issued} voice={spoken} name={name} />}
     />
   );
 };

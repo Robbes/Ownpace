@@ -441,8 +441,9 @@ describe("a person's grant link, on their page", () => {
     // The tick before the button (0176 T8): the link is made once the member says they told them.
     await userEvent.click(within(section).getByRole('checkbox', { name: /I have told Anna Jansen that a link is coming/ }));
     await userEvent.click(within(section).getByRole('button', { name: 'Create grant link' }));
-    // Thirty days first for a person's link (2026-11-26, workplan 0176 D13 (a)), with no relation chosen (T8).
-    expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: null });
+    // Thirty days first for a person's link (2026-11-26, workplan 0176 D13 (a)), with no relation chosen (T8),
+    // and the page in this screen's language, with u, none having been chosen for Anna (T7).
+    expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: null, voice: 'en' });
     expect(await within(section).findByDisplayValue('https://app.example/grant/p.l-1.secret')).toBeInTheDocument();
     expect(within(section).queryByText(/asks them to connect each one again/)).not.toBeInTheDocument();
   });

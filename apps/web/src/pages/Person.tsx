@@ -544,6 +544,8 @@ const Person: React.FC = () => {
               loadFailed={linksQuery.error != null}
               // For the Alpha's lines where the link is made (0176 T8).
               asksGoogle={migrations.some((m) => isGoogleKind(wizardTypeForConnectionKind(m.sourceType)))}
+              // How their pages speak to them, as chosen before (0176 T7).
+              personVoice={person.voice ?? null}
             />
           ) : (
             // Nothing of theirs reads Google and no grant link of theirs still

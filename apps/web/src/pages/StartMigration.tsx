@@ -3531,6 +3531,10 @@ const PersonAwaitingGrant: React.FC<{
 }> = ({ personId, personName, asks = [], asksGoogle = false, onGranted }) => {
   const { t } = useLocale();
   const { list } = useFormatters();
+  // How their pages speak to them, as chosen before (0176 T7): from the list
+  // this flow already read, so nothing more is asked of the server.
+  const people = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
+  const personVoice = people.data?.people.find((p) => p.id === personId)?.voice ?? null;
   const links = useQuery({
     queryKey: ['person-links', personId],
     queryFn: () => personLinkApi.list(personId),
@@ -3561,6 +3565,7 @@ const PersonAwaitingGrant: React.FC<{
         links={links.data}
         loadFailed={links.isError}
         asksGoogle={asksGoogle}
+        personVoice={personVoice}
       />
     </div>
   );

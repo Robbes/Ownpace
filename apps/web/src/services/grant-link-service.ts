@@ -26,7 +26,7 @@
  */
 
 import { z } from 'zod';
-import { DISCOVERY_DOMAINS, type DiscoveryDomain, type SenderRelation } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain, type PersonVoice, type SenderRelation } from '@openmig/shared';
 import apiClient from './api.ts';
 
 /**
@@ -91,6 +91,8 @@ const IssuedSchema = z.object({
       to: z.array(z.string()),
     })
     .optional(),
+  // How the person's pages speak to them now (0176 T7), as the link was made.
+  voice: z.enum(['nl-u', 'nl-je', 'en']).nullable().optional().catch(null),
 });
 export type IssuedGrantLink = z.infer<typeof IssuedSchema>;
 
@@ -144,18 +146,20 @@ export const personLinkApi = {
 
   /**
    * `relation` is how the person knows you, from the fixed list, or null
-   * (workplan 0176 T3, T8); a progress link sends none.
+   * (workplan 0176 T3, T8); `voice` how their pages speak to them (T7). A
+   * progress link sends neither.
    */
   issue: async (
     personId: string,
     purpose: MappingLinkPurpose,
     expiryDays: number,
-    extra?: { readonly relation: SenderRelation | null },
+    extra?: { readonly relation: SenderRelation | null; readonly voice?: PersonVoice },
   ): Promise<IssuedGrantLink> => {
     const res = await apiClient.post(`/people/${encodeURIComponent(personId)}/links`, {
       purpose,
       expiryDays,
       ...(extra === undefined ? {} : { relation: extra.relation }),
+      ...(extra?.voice === undefined ? {} : { voice: extra.voice }),
     });
     return IssuedSchema.parse(res.data);
   },
