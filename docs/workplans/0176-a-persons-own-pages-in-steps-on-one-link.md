@@ -38,11 +38,10 @@ places (merged on `main`).
   `a-persons-link-says-je-where-their-pages-do`).
 - **T10 and T15, step B:** the tester guide's part for a family member's link, in both languages,
   names the form and what the page shows of the sender; `docs/grant-links.md` follows; the
-  changelog. **The privacy text is not changed:** §14 asks the owner first whether a change in
-  place under 1.0 still holds. The sentences proposed for it are in the pull request, for the
-  owner and the lawyer.
-- **Still the owner's:** reading the new Dutch (the pull request's table), the privacy question,
-  and E2E, which the maintainer dispatches.
+  changelog. **The privacy text is not changed here:** the owner answered *"P: yes"*, in place
+  under 1.0 once the lawyer has read it; the sentences proposed for it are in the pull request.
+- **Still to come:** the lawyer's read of the privacy text, and E2E, which the maintainer
+  dispatches.
 
 **2026-11-26, the owner's answer to D19 (T17):** *"D19: familie of kennissen. I also want to
 support people helping out each other."*, and then: *"Or perhaps 'familie en kennissen', with a
