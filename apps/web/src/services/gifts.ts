@@ -15,6 +15,8 @@
 
 import axios from 'axios';
 import apiClient from './api.ts';
+import { linkRefusal } from './link-refusal.ts';
+import type { Locale, StringKey } from '../i18n/strings.ts';
 
 export type GiftState = 'unused' | 'redeemed' | 'revoked' | 'expired';
 
@@ -124,6 +126,25 @@ export function keptCode(err: unknown): KeptCode | null {
     ...(typeof body.reasonNl === 'string' && body.reasonNl !== '' ? { reasonNl: body.reasonNl } : {}),
     ...(typeof body.until === 'string' ? { until: body.until } : {}),
   };
+}
+
+/**
+ * A refusal from these routes, in the page's language. Their sentences come
+ * in pairs, `reason` and `reasonNl` (`reasonPair` in `@openmig/shared`); a
+ * 429 and the giver's `only_after_alpha` also carry the English as `message`,
+ * which `linkRefusal` would read first and show in English on a Dutch page.
+ * So the pair is read first, and the Dutch half shown under `nl` is always
+ * the Dutch of the same sentence. Anything else is `linkRefusal`'s, which
+ * says no answer and an unreadable one in the page's own words.
+ */
+export function refusalSaid(err: unknown, locale: Locale, t: (key: StringKey) => string): string {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { reason?: unknown; reasonNl?: unknown } | undefined;
+    if (data && typeof data.reason === 'string' && data.reason !== '') {
+      return locale === 'nl' && typeof data.reasonNl === 'string' && data.reasonNl !== '' ? data.reasonNl : data.reason;
+    }
+  }
+  return linkRefusal(err, locale, t);
 }
 
 /** Whether a failure is a refusal of the code itself (410), which the reader mends in its field. */

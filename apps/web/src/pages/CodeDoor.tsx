@@ -28,7 +28,8 @@
  * address filled in, as the yes mail's link opens it
  * (`registrationLink` in `@openmig/shared`).
  *
- * Three answers keep the code, each in the server's words: a code that
+ * Every refusal is the server's sentence, in the page's language
+ * (`refusalSaid`). Three answers keep the code: a code that
  * stopped working since step 1 (refused as there, back at step 1, in its
  * field); an address that already has access (said, with the way to sign
  * in); and a full Alpha (§20.3), a calm screen with the code's last day and
@@ -77,11 +78,11 @@ import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import { supportAddress } from '../components/SupportLine.tsx';
 import { PersonsPageProvider } from '../components/persons-page.tsx';
-import { linkRefusal } from '../services/link-refusal.ts';
 import {
   checkCode,
   keptCode,
   redeemCode,
+  refusalSaid,
   refusedCode,
   type CheckedCode,
   type CodeToUse,
@@ -308,9 +309,9 @@ const CodeDoor: React.FC = () => {
         setFull({ ...kept, from: 'code' });
         go('full');
       } else if (refusedCode(err)) {
-        setRefusal(linkRefusal(err, locale, t));
+        setRefusal(refusalSaid(err, locale, t));
       } else {
-        setTrouble(linkRefusal(err, locale, t));
+        setTrouble(refusalSaid(err, locale, t));
       }
     } finally {
       setChecking(false);
@@ -350,11 +351,11 @@ const CodeDoor: React.FC = () => {
         setAlreadyIn(kept);
       } else if (refusedCode(err)) {
         // Stopped working since step 1: refused as there, in its field.
-        setRefusal(linkRefusal(err, locale, t));
+        setRefusal(refusalSaid(err, locale, t));
         setChecked(null);
         go('code');
       } else {
-        setFailure(linkRefusal(err, locale, t));
+        setFailure(refusalSaid(err, locale, t));
       }
     } finally {
       setUsing(false);

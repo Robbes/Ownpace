@@ -40,9 +40,9 @@
  * a grant past it: that is the owner's D17, still open.
  *
  * **A request a recommendation let in** (0177 D6): a code lets its person in
- * at the door, with nobody named as having decided it. Such a request is one
- * a card points to, granted, with no one in `decidedBy`, and it says so
- * instead of *Decided by*.
+ * at the door, with nobody named as having decided it. The server marks such
+ * a request (`letInByRecommendation`), and it says so instead of *Decided
+ * by*.
  */
 
 import React, { useState } from 'react';
@@ -87,9 +87,8 @@ const MAIL_LINE = {
   skipped: 'accessQueue.mailSkipped',
 } as const satisfies Record<NotifiedOutcome, OperatorKey>;
 
-/** A request a code let in at the door (0177 D6): a card points to it, it is granted, and nobody decided it. */
-const letInAtTheDoor = (request: AccessRequest): boolean =>
-  request.state === 'granted' && request.gift !== null && request.decidedBy === null;
+/** A request a code let in at the door (0177 D6), as the server marks it: nobody decided it. */
+const letInAtTheDoor = (request: AccessRequest): boolean => request.letInByRecommendation === true;
 
 /** One request, with the decision controls when it is still open. */
 const RequestCard: React.FC<{

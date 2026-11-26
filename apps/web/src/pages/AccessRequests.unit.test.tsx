@@ -181,8 +181,9 @@ describe('the people the owner lets in (workplan 0177 T16, §20.4)', () => {
         tenantId: 't-3',
         decidedAt: '2026-12-02T10:00:00.000Z',
         gift: { from: 'anna@example.test' },
+        letInByRecommendation: true,
       },
-      { ...REQUEST, id: 'req-4', state: 'granted', tenantId: 't-4', decidedBy: 'owner-subject', decidedAt: '2026-12-02T10:00:00.000Z' },
+      { ...REQUEST, id: 'req-4', state: 'granted', tenantId: 't-4', decidedBy: 'owner-subject', decidedAt: '2026-12-02T10:00:00.000Z', letInByRecommendation: false },
     ]);
     renderQueue();
     expect(await screen.findByText(/^Let in with a recommendation, at the door\. Nobody decided it\./)).toBeInTheDocument();

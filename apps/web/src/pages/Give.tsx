@@ -65,6 +65,7 @@ import { recommendationPageUrl, siteAsTyped } from '../services/recommendation-p
 import {
   listMyGifts,
   makeGift,
+  refusalSaid,
   revokeMyGift,
   type GiftState,
   type GiftSummary,
@@ -320,7 +321,7 @@ const Give: React.FC = () => {
           )}
           {make.isError && (
             <p role="alert" className="text-lg text-red-700">
-              {t('give.failed')} {serverMessage(make.error)}
+              {t('give.failed')} {refusalSaid(make.error, locale, t)}
             </p>
           )}
         </section>

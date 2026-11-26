@@ -19,9 +19,9 @@
  *   said as *the person you got the code from* until T9 gives the door a
  *   name (§7). Where a row holds a heading and a sentence, they are two keys;
  *   the server's sentences are the server's, and are not here;
- * - no word of the card, the door, the giver's page or the site's page
- *   calls the free thing by a retired name, and none says *key* or
- *   *sleutel*;
+ * - no word of the card, the door, the giver's page, the two mails or the
+ *   site's page calls the free thing by a retired name, and none says *key*
+ *   or *sleutel*;
  * - the giver's page, the card and the site's page say *recommendation* /
  *   *aanbeveling*.
  *
@@ -31,6 +31,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { renderEvent, type NotificationLocale } from '@openmig/shared';
 import { en, nl } from './strings/gifts.ts';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..');
@@ -165,6 +166,17 @@ function sitePage(file: string): string {
 }
 const SITE = { en: sitePage('en/gift.md'), nl: sitePage('nl/cadeau.md') } as const;
 
+/** The two mails every request gets (§8), as the person reads them: the yes mail for a request and for a code, and the no mail. */
+function mails(locale: NotificationLocale): string[] {
+  const yes = { kind: 'access_granted', organisation: 'Familie de Vries', appUrl: 'https://app.example.test', email: 'cato@example.test', alpha: true } as const;
+  const said = [
+    renderEvent(yes, locale),
+    renderEvent({ ...yes, withCode: true, google: true }, locale),
+    renderEvent({ kind: 'access_declined' }, locale),
+  ];
+  return said.flatMap((m) => [m.subject, m.body]);
+}
+
 describe('every sentence of §7 the web says is in the dictionary, in both languages', () => {
   it.each(SECTION_7)('%s', (english, dutch) => {
     const keys = (Object.keys(en) as Array<keyof typeof en>).filter((key) => en[key] === english);
@@ -202,9 +214,14 @@ describe('no retired name for the free thing, and no key', () => {
     expect(SITE[locale].match(RETIRED)).toBeNull();
   });
 
+  it.each(['en', 'nl'] as const)('in the two mails, in %s', (locale) => {
+    expect(mails(locale).filter((text) => RETIRED.test(text))).toEqual([]);
+  });
+
   it('reads what it guards: the words are there to read', () => {
     expect(Object.keys(en).length).toBeGreaterThan(40);
     expect(SITE.en.length).toBeGreaterThan(500);
+    expect(mails('nl').join(' ')).toMatch(/U gebruikte een code van iemand die u kent\./);
   });
 });
 

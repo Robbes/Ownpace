@@ -86,7 +86,8 @@ const ALREADY_IN = {
 const TOO_MANY = {
   error: 'Too many requests',
   message: 'That is more tries than we expected from one place. Try again later. Nothing is lost.',
-  messageNl: 'Dat waren meer pogingen dan wij van één plek verwachten. Probeer het later opnieuw. Er gaat niets verloren.',
+  reason: 'That is more tries than we expected from one place. Try again later. Nothing is lost.',
+  reasonNl: 'Dat waren meer pogingen dan wij van één plek verwachten. Probeer het later opnieuw. Er gaat niets verloren.',
 };
 
 /** A refusal as axios hands it to the page. */
@@ -257,7 +258,7 @@ describe('3. a refused code is mended where it was typed', () => {
     renderAt('/code', 'nl');
     await userEvent.type(await screen.findByLabelText('De code'), CODE);
     await press('Verder');
-    expect(await screen.findByRole('alert')).toHaveTextContent(TOO_MANY.messageNl);
+    expect(await screen.findByRole('alert')).toHaveTextContent(TOO_MANY.reasonNl);
     expect(screen.getByLabelText('De code')).toHaveValue(CODE);
   });
 });
