@@ -31,6 +31,15 @@ Nothing is built yet.** In the owner's words:
 may recommend somebody too. Each has advice, and says what the builder does until it is
 answered.
 
+**2026-11-26, the owner's read of the Dutch that D6 changed.** The owner: *"The G6 Dutch: all
+ok"*. G6 is this plan's D6, as it was put to the owner. Five things were read: the card's
+sentence, the giver's page, the giver's new line, the last screen, and the yes mail's opening
+for a code. §7 and §8 mark the rows. Every other Dutch sentence is still a draft.
+
+**The migration's number.** Step A's migration is managed 0066. The maintainer assigns the
+numbers of this plan's and 0176's migrations, so that nothing is built side by side on the
+same one (§19).
+
 **2026-11-26, the owner's answers to D1 to D13 (T13).** In the owner's words, in the plan's
 order:
 
@@ -93,7 +102,8 @@ once: that is the owner's answer, after the review.
 **Whose words these are.** The giver's page and the card carry the owner's words of
 2026-11-25 (0172 T8). The two mails carry the owner's text review of 2026-10-10 (#1556). The
 owner chose the new name and both mails' proposals (D1, D11, D12). Every sentence in §7 and
-§8 is still a draft until the owner has read the Dutch.
+§8 is still a draft until the owner has read the Dutch. Five have been read: the entry on
+the Dutch that D6 changed, above.
 
 **Every claim about the code below was read at `ae57042`,** which is `main` on 2026-11-26.
 Two changes came after 0172 was merged, and are in the lines cited: the privacy text's two
@@ -598,14 +608,18 @@ carries it. The door knows it only after T9; until then it says *the person you 
 from* / *degene van wie u de code kreeg*. `{support}` is the deployment's support address,
 and `{from}` the address the service mails from.
 
+**What the owner has read.** On 2026-11-26 the owner read the Dutch that D6 changed, and
+said: *"The G6 Dutch: all ok"*. G6 is D6 here. Those sentences are the rows marked *read*
+below, and the yes mail's opening for a code (§8). Every other row is a draft.
+
 | Where | EN | NL |
 |---|---|---|
 | Giver, menu and title | *Recommend someone* | *Iemand aanbevelen* |
 | Giver, first line | *Recommend someone dear to you for the Alpha, on a card.* | *Beveel iemand die u dierbaar is aan voor de Alpha, op een kaart.* |
-| Giver, what it does | *You tell us that you know this person. That is enough: they are let in at once.* | *U zegt ons dat u deze persoon kent. Dat is genoeg: die persoon wordt meteen toegelaten.* |
+| Giver, what it does · *read* | *You tell us that you know this person. That is enough: they are let in at once.* | *U zegt ons dat u deze persoon kent. Dat is genoeg: die persoon wordt meteen toegelaten.* |
 | Giver, fact | *They get an account of their own. You do not see what is in it.* | *Die persoon krijgt een eigen account. U ziet niet wat erin staat.* |
 | Giver, how many | *People you may recommend: {limit}. Recommended: {held}.* | *Mensen die u mag aanbevelen: {limit}. Aanbevolen: {held}.* |
-| Giver, hand it over | *Give the card yourself. Whoever has the code is let in.* | *Geef de kaart zelf. Wie de code heeft, wordt toegelaten.* |
+| Giver, hand it over · *read* | *Give the card yourself. Whoever has the code is let in.* | *Geef de kaart zelf. Wie de code heeft, wordt toegelaten.* |
 | Giver, tell first | *Tell them first: by phone, or when you hand it over.* | *Vertel het eerst zelf: aan de telefoon, of als u het geeft.* |
 | Giver, shown once | *The code is shown only now. Lost it? Withdraw it below and make a new one.* | *U ziet de code alleen nu. Kwijt? Trek hem hieronder in en maak een nieuwe.* |
 | Giver, what you will see | *You will see here when it is used. The person is then in.* | *U ziet hier wanneer hij is gebruikt. Die persoon is dan toegelaten.* |
@@ -616,7 +630,7 @@ and `{from}` the address the service mails from.
 | Giver, none for now, the Alpha is full (D16) | *The Alpha is full for now. No new recommendation can be made.* | *De Alpha is nu vol. U kunt nu geen aanbeveling maken.* |
 | Card, title | *A recommendation from {giver}* | *Een aanbeveling van {giver}* |
 | Card, what Ownpace does | *Ownpace copies your mail, calendars, contacts and files to a European provider. You switch from Google or Microsoft at your own pace. Until then Ownpace keeps the copy up to date.* | *Ownpace kopieert uw e-mail, agenda's, contacten en bestanden naar een Europese aanbieder. U stapt over van Google of Microsoft in uw eigen tempo. Tot dan houdt Ownpace de kopie bij.* |
-| Card, what this card does | *Ownpace is in a free Alpha. With this card you are let in at once.* | *Ownpace zit in een gratis Alpha. Met deze kaart wordt u meteen toegelaten.* |
+| Card, what this card does · *read* | *Ownpace is in a free Alpha. With this card you are let in at once.* | *Ownpace zit in een gratis Alpha. Met deze kaart wordt u meteen toegelaten.* |
 | Card and door, cost | *Ownpace charges nothing during the Alpha. Your new mailbox is at a European provider. You pay that provider for it, not Ownpace.* | *Tijdens de Alpha kost Ownpace niets. Uw nieuwe mailbox staat bij een Europese aanbieder. Daarvoor betaalt u die aanbieder, niet Ownpace.* |
 | Card and door, after the Alpha (D5) | *After the Alpha there are paid packages and a free one. You pay nothing before you have accepted the new conditions.* | *Na de Alpha zijn er betaalde pakketten en een gratis pakket. U betaalt niets voordat u de nieuwe voorwaarden hebt geaccepteerd.* |
 | Card, where | *Go to {address}. Type it in the bar at the top, not in a search box.* | *Ga naar {address}. Typ dit bovenaan in de adresbalk, niet in een zoekvak.* |
@@ -648,8 +662,8 @@ and `{from}` the address the service mails from.
 | Door, the Alpha is full, the heading (D16) | *The Alpha is full for now* | *De Alpha is nu vol* |
 | Door, the Alpha is full, the server's | *Nobody can be let in with a code right now. Your code is not used.* | *Met een code kan nu niemand worden toegelaten. Uw code is niet gebruikt.* |
 | Door, the Alpha is full, the page's line | *Keep your code. You can try again later, until {date}. Nothing about you has been kept.* | *Bewaar uw code. U kunt het later opnieuw proberen, tot {date}. Er is niets over u bewaard.* |
-| Let in | *You are in* | *U bent toegelaten* |
-| Let in, what is left | *One thing is left: make your account. The sign-in service mails a code to {email}. With it you confirm that the address is yours.* | *Er is nog één ding te doen: maak uw account aan. De aanmeldservice mailt een code naar {email}. Daarmee bevestigt u dat het e-mailadres van u is.* |
+| Let in · *read* | *You are in* | *U bent toegelaten* |
+| Let in, what is left · *read: its first sentence* | *One thing is left: make your account. The sign-in service mails a code to {email}. With it you confirm that the address is yours.* | *Er is nog één ding te doen: maak uw account aan. De aanmeldservice mailt een code naar {email}. Daarmee bevestigt u dat het e-mailadres van u is.* |
 | Let in, the button | *Create your account* | *Maak uw account aan* |
 | Let in, the mail | *We also sent you an email, from {from}. It says the same.* | *Wij hebben u ook een e-mail gestuurd, vanaf {from}. Daarin staat hetzelfde.* |
 | Let in, and the yes mail, after a yes about Google (D14) | *You want to move away from Google. We add {email} to a list at Google by hand, and write to you when that is done. Until then Google does not allow the connection.* | *U wilt weg bij Google. Wij zetten {email} met de hand op een lijst bij Google, en schrijven u als dat is gebeurd. Tot dan laat Google de koppeling niet toe.* |
@@ -667,12 +681,12 @@ built on 2026-11-25. Under D15 (a) that request is granted, so nothing is left t
 
 **What D6 took out of the owner's words.** *En we laten mensen zelf toe. Met deze kaart
 vraagt u ons om u toe te laten* (2026-11-25) said that Ownpace decides. Under D6 the card
-lets the person in, so the draft says that. For the owner's read.
+lets the person in, so the card says that. The owner read the new sentence on 2026-11-26.
 
 **One line is new under D6, and is this plan's reading:** *Give the card yourself. Whoever
 has the code is let in.* It is not the sentence D1 took out. That one said what a
 recommendation is not. This one tells the giver what the code does, now that nobody reads a
-request first.
+request first. The owner read its Dutch on 2026-11-26, and it stays.
 
 **Where three of them come from.**
 
@@ -744,13 +758,16 @@ invites a member into an organisation keeps the sentence: that mail is not this 
 | | EN | NL |
 |---|---|---|
 | Opens, for a request | *You asked Ownpace for access. The answer is yes.* | *U vroeg Ownpace om toegang. Het antwoord is ja.* |
-| Opens, for a code | *You used a code from someone you know. You are in.* | *U gebruikte een code van iemand die u kent. U bent toegelaten.* |
+| Opens, for a code · *read* | *You used a code from someone you know. You are in.* | *U gebruikte een code van iemand die u kent. U bent toegelaten.* |
 | Step 1 | *Open the sign-in page with this link:* | *Open de aanmeldpagina met deze link:* |
 | Under it | *The link ends in your own email address. That lets the page fill it in for you.* | *De link eindigt op uw eigen e-mailadres. Zo kan de pagina het voor u invullen.* |
 | Step 2 | *Choose "Create your account". Use this email address:* | *Kies 'Maak uw account aan'. Gebruik dit e-mailadres:* |
 | Step 3 | *Choose a password. The sign-in service then mails a code to this email address. With it you confirm that it is yours.* | *Kies een wachtwoord. De aanmeldservice mailt daarna een code naar dit e-mailadres. Daarmee bevestigt u dat het van u is.* |
 | The guide | *Read the guide before you start:* | *Lees de handleiding voordat u begint:* |
 | The name | *In the app your own space is called an organisation. Yours is called:* | *In de app heet uw eigen ruimte een organisatie. De uwe heet:* |
+
+The owner read the Dutch of the opening for a code on 2026-11-26 (§7). The other rows are
+drafts.
 
 **No, as the owner chose it (D12 (a)).** One text, the same in both languages:
 
@@ -1146,8 +1163,8 @@ The owner's. After step A is on a stack the owner can reach.
 - **This plan changes a decision of 0172.** Its G1 said that a redeemed gift lets nobody in
   by itself. T7 writes the change into 0172's Status when step A is built.
 - **A new word for what the owner called a gift a day ago, and a card that says more than
-  the owner's sentence did.** The owner chose the word (D1) and the way in (D6). The Dutch is
-  read before a step merges.
+  the owner's sentence did.** The owner chose the word (D1) and the way in (D6), and has
+  read the card's new sentence (§7). The rest of the Dutch is read before a step merges.
 - **The mails change for every request,** not only for a code. The Alpha's paragraph and the
   sentence about backups do not move.
 - **A check is one more thing to guess at.** It shares the redeem's limit and its one
@@ -1164,8 +1181,9 @@ The owner's. After step A is on a stack the owner can reach.
 - **The address the mail comes from is a setting.** The door names it only from the server's
   own answer, never from the web build's.
 - **Two plans touch the member's name.** T9 reads what 0176's T3 writes, and waits for it.
-- **Two plans add three managed migrations.** This step A's one, and the two of 0176's step
-  B. This plan's comes after those two, never side by side with them (§19).
+- **Two plans add migrations, and each has its number.** This step A's is managed 0066;
+  0176's steps B and C take the ones after it (§19). One that merges out of that order is
+  renumbered, with every mention of it.
 
 ## 19. Building it in parts
 
@@ -1194,7 +1212,7 @@ two languages, the managed UI smoke and `CHANGELOG.md`.
 |---|---|---|
 | **First: the glossary** | T3's two rows | `apps/web/src/i18n/GLOSSARY.md` |
 | **The web** | T1's screens, T2 on the screen, T5, T10, T16's screens, T6's sizes, and their words | `apps/web/src/pages/Give.tsx`; the door's new files under `apps/web/src/pages/`; `RequestAccess.tsx`; `Gifts.tsx`; `AccessRequests.tsx`; `apps/web/src/AppRoutes.tsx`; `apps/web/src/services/gifts.ts` and `access-requests.ts`; `apps/web/src/i18n/strings/gifts.ts`; `apps/web/src/i18n/operator-strings.ts`; `a-gift-on-every-screen.unit.test.tsx`, `AccessRequests.unit.test.tsx` and the two new web tests |
-| **The server** | T1's route, the limit, letting a person in (D6, D14, D15), T16's counts and ceilings, the server's sentences | `apps/api/src/routes/gifts.ts`; `apps/api/src/routes/access-requests.ts`; `packages/managed/src/gift-store.ts`; `packages/managed/src/schema-managed.ts`; one new file under `packages/managed/migrations/`; `apps/api/docs/openapi.yaml`; `apps/api/src/routes/gifts.unit.test.ts`, `a-gift-turned-into-a-request.unit.test.ts`, the new `an-alpha-with-two-ceilings.unit.test.ts`, `access-request-grant-alpha.unit.test.ts`; `apps/api/src/knock-limit.unit.test.ts`; `packages/managed/src/gift-under-rls.unit.test.ts` |
+| **The server** | T1's route, the limit, letting a person in (D6, D14, D15), T16's counts and ceilings, the server's sentences | `apps/api/src/routes/gifts.ts`; `apps/api/src/routes/access-requests.ts`; `packages/managed/src/gift-store.ts`; `packages/managed/src/schema-managed.ts`; one new file under `packages/managed/migrations/`, numbered 0066; `apps/api/docs/openapi.yaml`; `apps/api/src/routes/gifts.unit.test.ts`, `a-gift-turned-into-a-request.unit.test.ts`, the new `an-alpha-with-two-ceilings.unit.test.ts`, `access-request-grant-alpha.unit.test.ts`; `apps/api/src/knock-limit.unit.test.ts`; `packages/managed/src/gift-under-rls.unit.test.ts` |
 | **The mails** | T4, and the operator's notice | `packages/shared/src/notifications.ts`, `apps/api/src/access-notify.ts`, `notifications.unit.test.ts`, `what-the-mails-say.unit.test.ts` |
 | **The site and the documents** | T7, but for the tester guide | `site/pages/nl/cadeau.md`, `site/pages/en/gift.md`, `site/site.unit.test.ts` (this page's cases), `docs/ending-the-alpha.md`, the privacy text if the owner says so, plan 0172's Status |
 | **Last** | T8's smoke; T2 in print; T6's language switch; D9's path on the site; D14 in the tester guide; the records | `test/ui/managed-ui.ui.test.ts`, `apps/web/src/index.css`, `apps/web/src/components/LanguageSwitch.tsx`, `site/build.mjs`, `site/pages/en/alpha-guide.md`, `site/pages/nl/alpha-handleiding.md`, `CHANGELOG.md`, this plan's Status |
@@ -1223,13 +1241,17 @@ two languages, the managed UI smoke and `CHANGELOG.md`.
 
 The path the card prints is `/code`, in both `Give.tsx` and `apps/api/src/routes/gifts.ts`.
 
-**The managed migration's place.** One file, and its place is after the two managed
-migrations of 0176's step B (T3 and T7 there), never side by side with them: no two open
-branches hold the same number. 0176's step A adds none. As both plans stand, this one reads
-nothing that those two add, so the order is one of numbers and not of content. The server's
-part writes the file against the tree as it is, and gives it its number last. If this step A
-is ready before 0176's step B is merged, the maintainer says which of the two takes the next
-number, and the other is renumbered before it merges.
+**The managed migration's number: 0066.** This step A is built now, beside 0176's step A,
+which adds no migration. 0176's step B starts only once its step A is merged. The maintainer
+assigns the numbers, so that nothing is built side by side on the same one. The managed
+chain on `main` ends at 0065, and the ledger chain at 0075:
+
+- this plan's step A: managed 0066;
+- 0176's step B: managed 0067 for its T3, and managed 0068 for its T7;
+- 0176's step C: managed 0069 for its T4, and ledger 0076 for the window of its T5.
+
+Whichever merges out of that order renumbers its file and every mention of it, as the
+gift's own migration went from 0064 to 0065 on 2026-11-25 (plan 0172's Status).
 
 **What waits for what.** The four middle parts wait for the glossary, and for nothing else.
 The last part waits for the others, and for #2180 to be merged. The owner's read of the
@@ -1485,9 +1507,9 @@ T1's route, letting a person in, D14, D15, and T16's counts. Done means:
 8. The yes mail and the operator's notice go out after the commit, never before, each with
    its two true-or-false. A filled trap is answered as let in: nothing is written, and
    nothing is sent.
-9. The migration is one file. It adds the two numbers to the rule's row, each 50. It gives
-   a session that holds an unused code what 4 and 5 need, and the room's yes or no, and
-   nothing else. It adds no table.
+9. The migration is one file, managed 0066 (§19). It adds the two numbers to the rule's
+   row, each 50. It gives a session that holds an unused code what 4 and 5 need, and the
+   room's yes or no, and nothing else. It adds no table.
 10. The counts are §20.1's. No card is made while the people let in by a recommendation and
     the cards not used yet fill the second number. `GET /api/gifts/mine` says so as `room`,
     and `POST /api/gifts` answers 409 `no_room`.
