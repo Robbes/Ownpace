@@ -618,9 +618,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   without a token and one that answers 500, must flag both, or the API's scan is not believed. The
   job fails only when the scan did not finish (an image unpulled, the stack not up, a report
   missing or stopped early, an operation untested, or the proof not holding). Its summary counts
-  each check and lists the operations each flagged, except `ignored_auth`'s on the API, which are
-  counted and never named, since the summary is public and such an operation may be a door that
-  answers without sign-in. **To see them**, run the same scan on a stack of your own with the
+  each check and names no operation of the API under any of them, since the summary is public:
+  an operation `ignored_auth` flags may be a door that answers without sign-in, and the rest are
+  put to the owner first. **To see them**, run the same scan on a stack of your own with the
   run's seed (dispatch the workflow with `seed`, or locally: `./scripts/local-pg.sh up`, a new
   empty database on it, `seed-managed.ts` against it, the API started with `JWT_SECRET` of your
   own, and Schemathesis with `--seed <the run's seed>`), and hand a real one to the maintainer
