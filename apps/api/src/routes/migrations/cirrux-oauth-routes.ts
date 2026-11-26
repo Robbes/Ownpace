@@ -33,6 +33,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
@@ -90,7 +91,7 @@ import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
 import { serverFault } from '../../server-fault.ts';
 import { requalifyStoredConnection } from '../qualify-and-remember.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /** The sentence for a deployment with no Cirrux client: the Drive face's own. */
 export const NO_CIRRUX_CLIENT =

@@ -8,10 +8,11 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { providerClientFacts } from '@openmig/shared';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 router.get('/', (_req: Request, res: Response) => {
   res.json(providerClientFacts());
