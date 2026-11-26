@@ -2028,6 +2028,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `docs/guides/en/google.md`
+
+- [a-site-that-says-what-a-persons-page-says](../scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts) — THE SITE SAYS WHAT A PERSON'S PAGE SAYS (workplan 0176 T15, with step A).
+
 ### `docs/guides/en/imap.md`
 
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
@@ -2042,6 +2046,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/guides/nl/google.md`
 
+- [a-site-that-says-what-a-persons-page-says](../scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts) — THE SITE SAYS WHAT A PERSON'S PAGE SAYS (workplan 0176 T15, with step A).
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
 
 ### `docs/guides/nl/soverin.md`
@@ -3445,6 +3450,10 @@ reading a file drops off its entry by itself.
 
 - [a-sentence-two-files-must-agree-on](../scripts/a-sentence-two-files-must-agree-on.unit.test.ts) — A SENTENCE TWO FILES MUST AGREE ON, AND NOTHING MADE THEM.
 
+### `scripts/the-alpha-said-to-a-visitor.unit.test.ts`
+
+- [a-site-that-says-what-a-persons-page-says](../scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts) — THE SITE SAYS WHAT A PERSON'S PAGE SAYS (workplan 0176 T15, with step A).
+
 ### `scripts/toolchain-split.unit.test.ts`
 
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -3510,6 +3519,7 @@ reading a file drops off its entry by itself.
 ### `site/copy.mjs`
 
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
+- [a-site-that-says-what-a-persons-page-says](../scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts) — THE SITE SAYS WHAT A PERSON'S PAGE SAYS (workplan 0176 T15, with step A).
 - [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
@@ -3590,6 +3600,7 @@ reading a file drops off its entry by itself.
 ### `site/pages/en/alpha-guide.md`
 
 - [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+- [a-site-that-says-what-a-persons-page-says](../scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts) — THE SITE SAYS WHAT A PERSON'S PAGE SAYS (workplan 0176 T15, with step A).
 
 ### `site/pages/en/how-it-works.md`
 
@@ -3602,6 +3613,7 @@ reading a file drops off its entry by itself.
 ### `site/pages/nl/alpha-handleiding.md`
 
 - [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+- [a-site-that-says-what-a-persons-page-says](../scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts) — THE SITE SAYS WHAT A PERSON'S PAGE SAYS (workplan 0176 T15, with step A).
 - [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
 
@@ -5911,6 +5923,19 @@ Reads:
 - `deploy/compose/dev.yml`
 - `deploy/compose/managed.yml`
 - `deploy/compose/www.yml`
+
+### [a-site-that-says-what-a-persons-page-says](../scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts)
+
+THE SITE SAYS WHAT A PERSON'S PAGE SAYS (workplan 0176 T15, with step A).
+
+Reads:
+
+- `docs/guides/en/google.md`
+- `docs/guides/nl/google.md`
+- `scripts/the-alpha-said-to-a-visitor.unit.test.ts`
+- `site/copy.mjs`
+- `site/pages/en/alpha-guide.md`
+- `site/pages/nl/alpha-handleiding.md`
 
 ### [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts)
 
