@@ -40,8 +40,10 @@
 # WHICH CODEQL. github/codeql-action by its commit, the same commit
 # semgrep.yml and security-scan.yml upload with, so Dependabot's
 # `github-actions` entry moves every copy in one pull request; and the CodeQL
-# bundle that release ships, by naming none (`tools:`). v4.39.4 ships bundle
-# 2.27.5 (its src/defaults.json). The pin watch's row `CodeQL`
+# bundle that release ships, `tools: linked`. v4.39.4 ships bundle 2.27.5 (its
+# src/defaults.json). Named because left unnamed the action takes the
+# runner's tool cache when it holds a newer CodeQL: the first run on main,
+# 45886149663, ran 2.27.6 from it, a version this file did not pin (0178 T6). The pin watch's row `CodeQL`
 # (scripts/idp-pin-watch.mjs) reads the copies together and names the newer
 # release and its bundle. A newer bundle can report more or fewer alerts with
 # the same queries, so read the next run on main after the move.
@@ -69,7 +71,11 @@ on:
 permissions: {}
 
 concurrency:
-  group: codeql-${{ github.ref }}
+  # One queue per event. GitHub keeps one waiting run per group, and a newer
+  # one replaces it: keyed on the ref alone, a dispatch waiting behind a push
+  # run on main was replaced by the next push (the proof dispatch of
+  # 2026-11-26 could only wait until that push run had finished, 0178 T6).
+  group: codeql-${{ github.event_name }}-${{ github.ref }}
   # A run on main is main's record: the next one waits, it does not cancel it.
   cancel-in-progress: false
 
@@ -94,6 +100,7 @@ jobs:
         with:
           languages: javascript-typescript
           build-mode: none
+          tools: linked # the bundle this release ships, never the runner's cached CodeQL (WHICH CODEQL, above)
           config-file: ${{ inputs.proof && './.github/codeql/codeql-proof.yml' || './.github/codeql/codeql.yml' }}
       - name: Analyse, and upload to code scanning unless this is the proof run
         uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
