@@ -111,7 +111,7 @@ RUN set -eu; \
     installed() { awk -v want="$1" '$0 == "P:" want { found = 1; next } found && /^V:/ { print substr($0, 3); exit }' /lib/apk/db/installed; }; \
     was="$(installed libxml2)"; \
     if [ "$was" != 2.13.9-r2 ]; then echo "libxml2 is '$was' in the base, not 2.13.9-r2: the base carries its own, so this RUN goes (THE WAY OUT, above)"; exit 1; fi; \
-    apk add --no-cache libxml2=2.13.9-r3; \
+    apk update >/dev/null; echo "PROBE: what Alpine serves now:"; apk policy libxml2; apk search -x -v libxml2 libxml2-utils libxslt; exit 1; \
     now="$(installed libxml2)"; \
     if [ "$now" != 2.13.9-r3 ]; then echo "libxml2 is '$now' after the add, not 2.13.9-r3"; exit 1; fi; \
     echo "libxml2 $was -> $now"
