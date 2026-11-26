@@ -32,6 +32,8 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
+import { PgBossProducer } from '../packages/scheduler/src/pg-boss/job-runner.ts';
+import { JOB_CATALOG } from '../packages/scheduler/src/pg-boss/catalog.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SMOKE = join(REPO_ROOT, 'deploy/compose/smoke-managed.sh');
@@ -1434,7 +1436,7 @@ sleep() { :; }
     expect(r.out).not.toContain('waited');
     // The wait asks only about this run's created and active jobs; a retry is waited for whoever's.
     const wait = r.asked.split('\n').find((l) => l.startsWith('SELECT count(*)'));
-    expect(wait).toContain(`AND coalesce(j.data->>'tenantId', '') NOT IN (${OTHER})))`);
+    expect(wait).toContain(`AND coalesce(j.data->'payload'->>'tenantId', '') NOT IN (${OTHER})))`);
     expect(wait).toContain("(j.state = 'retry' OR (j.state IN ('created', 'active')");
   });
 
@@ -1465,7 +1467,39 @@ sleep() { :; }
     expect(r.out).toContain('still active: run-delta-sync, tenant a0000000-0000-4000-8000-000000000001, mapping a0000000-0000-4000-8000-0000000000d1, running for 125s');
     expect(r.out).toContain('still created: run-verification, tenant (none), mapping (none), waiting for 3s');
     const named = r.asked.split('\n').find((l) => l.includes('coalesce(j.started_on, j.created_on)'));
-    expect(named).toContain(`AND coalesce(j.data->>'tenantId', '') NOT IN (${OTHER}) ORDER BY`);
+    expect(named).toContain(`AND coalesce(j.data->'payload'->>'tenantId', '') NOT IN (${OTHER}) ORDER BY`);
+  });
+
+  // WHERE A JOB NAMES ITS ORGANISATION. The job runner keeps a run's payload under `data.payload`
+  // (`{ payload, idem?, tags? }`, job-runner.ts), and run 45887128804 failed because the rule above
+  // read `j.data->>'tenantId'`, which no job has: every job was this run's, another organisation's
+  // pass too. So a pass is enqueued through the producer itself, its sending stubbed, and each path
+  // the gate reads is followed through the data the producer handed pg-boss.
+  it('the organisation and the migration are read where the job runner writes them', async () => {
+    const pass = JOB_CATALOG.find((job) => job.name === 'run-delta-sync')!;
+    // Made, never started: nothing connects.
+    const producer = new PgBossProducer({ connectionString: 'postgres://jobs.example.invalid/jobs', schema: 'jobs' }, [pass]);
+    let sent: unknown;
+    (producer as unknown as { boss: { send: (queue: string, data: unknown) => Promise<string> } }).boss.send = async (_queue, data) => {
+      sent = data;
+      return 'b0000000-0000-4000-8000-0000000000b1';
+    };
+    const tenantId = 'c0000000-0000-4000-8000-00000000000c';
+    const mappingId = 'c0000000-0000-4000-8000-0000000000e1';
+    await producer.enqueue('run-delta-sync', { tenantId, mappingId }, { serializeBy: mappingId, tags: [`tenant:${tenantId}`] });
+
+    const body = smokeFunction('pgboss_jobs');
+    const read = (key: string) => {
+      const paths = [...body.matchAll(new RegExp(`coalesce\\(j\\.data((?:->>?'[a-zA-Z]+')+), ''\\)`, 'g'))]
+        .map((m) => m[1]!)
+        .filter((path) => path.endsWith(`->>'${key}'`));
+      expect(paths.length, `the gate reads ${key}`).toBeGreaterThan(0);
+      return paths.map((path) =>
+        [...path.matchAll(/->>?'([a-zA-Z]+)'/g)].reduce<unknown>((at, [, step]) => (at as Record<string, unknown> | undefined)?.[step!], sent),
+      );
+    };
+    for (const got of read('tenantId')) expect(got).toBe(tenantId);
+    for (const got of read('mappingId')) expect(got).toBe(mappingId);
   });
 
   it("without the organisations read, every job is this run's, as before, and no job's ids are printed", () => {

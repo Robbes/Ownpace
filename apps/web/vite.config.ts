@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { readFileSync } from 'fs';
 import { legalSiteFrom } from './src/services/legal-links';
+import { countryChecked } from './src/services/where-it-runs.ts';
 
 // WHAT BUILD IS THIS — stamped in, because a bundle cannot ask at runtime what
 // it was built from.
@@ -69,6 +70,20 @@ const legalSiteChecked = (): Plugin => ({
   },
 });
 
+// A COUNTRY THAT IS NO COUNTRY STOPS THE BUILD (workplan 0176 D16 (a)). A
+// person's link page says where the service runs from `VITE_OWNPACE_COUNTRY`,
+// the stack's `OWNPACE_COUNTRY` as `managed.yml` hands it over, and the module
+// throws on a value that is not two letters while the page renders. So the
+// value the bundle will carry is checked here first, by the same module, and
+// against this build's whole list of countries: the owner meets the refusal,
+// never a person with a link. Empty is no country, and says nothing.
+const countryIsOne = (): Plugin => ({
+  name: 'ownpace:country',
+  configResolved(config) {
+    countryChecked(config.env);
+  },
+});
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   // Which edition this bundle is for (ADR-0026). Set from the build mode rather
@@ -90,7 +105,7 @@ export default defineConfig(({ mode }) => ({
   // the browser ignores `@import "tailwindcss"`, and every screen renders with
   // no utilities at all — which is exactly what shipped until 2026-08-06, in
   // both editions, because nothing asserted the CSS had been built.
-  plugins: [react(), tailwindcss(), legalSiteChecked(), versionJson()],
+  plugins: [react(), tailwindcss(), legalSiteChecked(), countryIsOne(), versionJson()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

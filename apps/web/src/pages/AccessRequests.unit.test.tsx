@@ -21,6 +21,11 @@
  *  5. **That "do not email them" is obeyed and asked about.** A public form
  *     means junk in the queue, and a refusal mailed to a forged address is a
  *     mail to a stranger.
+ *  6. **How many people the owner has let in, out of their number** (workplan
+ *     0177 T16, §20.4): *People you let in: n of max* above the requests, read
+ *     from the operator's gifts answer, and at the number and past it a line
+ *     that stands out in words too. And a request a recommendation let in at
+ *     the door says so, and names nobody as having decided it (§21.2, 18).
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -34,6 +39,7 @@ import {
   listAccessRequests,
   type AccessRequest,
 } from '../services/access-requests.ts';
+import { listAllGifts, type OperatorGifts } from '../services/gifts.ts';
 
 // The three network calls are stubbed; `alreadyOwnsRefusal` is NOT. It is a
 // pure reading of a response body and it is half of what these tests are about
@@ -46,7 +52,22 @@ vi.mock('../services/access-requests.ts', async (importOriginal) => ({
   declineAccessRequest: vi.fn(),
 }));
 
+// The owner's line above the requests reads the operator's gifts answer (§19).
+vi.mock('../services/gifts.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/gifts.ts')>()),
+  listAllGifts: vi.fn(),
+}));
+
+/** The operator's gifts answer, with the Alpha's two counts and ceilings (§19's contract). */
+const GIFTS = (alpha: Partial<OperatorGifts['alpha']>): OperatorGifts => ({
+  gifts: [],
+  giftsPerPerson: 1,
+  allowances: [],
+  alpha: { byOwner: 12, ownerCeiling: 50, byRecommendation: 3, recommendationCeiling: 50, unusedGifts: 2, ...alpha },
+});
+
 const listMock = vi.mocked(listAccessRequests);
+const giftsMock = vi.mocked(listAllGifts);
 const grantMock = vi.mocked(grantAccessRequest);
 const declineMock = vi.mocked(declineAccessRequest);
 
@@ -80,6 +101,9 @@ beforeEach(() => {
   listMock.mockReset();
   grantMock.mockReset();
   declineMock.mockReset();
+  giftsMock.mockReset();
+  // Not answered unless a case asks: the queue works without the line.
+  giftsMock.mockReturnValue(new Promise<never>(() => {}));
   listMock.mockResolvedValue([REQUEST]);
   grantMock.mockResolvedValue({
     tenantId: 't-1',
@@ -101,18 +125,70 @@ describe('the queue', () => {
     expect(screen.getByText('two mailboxes off Google')).toBeInTheDocument();
   });
 
-  // Workplan 0172: a request that came with a gift code says whose.
-  it('marks a request that came with a gift, with the giver', async () => {
+  // Workplan 0172: a request that came with a code says whose; 0177 names it a recommendation.
+  it('marks a request that came with a recommendation, with the giver', async () => {
     listMock.mockResolvedValue([REQUEST, { ...REQUEST, id: 'req-2', email: 'cato@example.test', gift: { from: 'anna@example.test' } }]);
     renderQueue();
-    expect(await screen.findByText('Gift from anna@example.test')).toBeInTheDocument();
-    expect(screen.getAllByText(/^Gift from/)).toHaveLength(1);
+    expect(await screen.findByText('Recommended by anna@example.test')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Recommended by/)).toHaveLength(1);
   });
 
   it('says plainly when nobody is waiting', async () => {
     listMock.mockResolvedValue([]);
     renderQueue();
     expect(await screen.findByText(/nobody is waiting/i)).toBeInTheDocument();
+  });
+});
+
+describe('the people the owner lets in (workplan 0177 T16, §20.4)', () => {
+  it('shows People you let in: n of max above the requests', async () => {
+    giftsMock.mockResolvedValue(GIFTS({ byOwner: 12, ownerCeiling: 50 }));
+    renderQueue();
+    const line = await screen.findByText('People you let in: 12 of 50');
+    const first = await screen.findByText('stranger@example.test');
+    expect(line.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText('The number is reached.')).toBeNull();
+  });
+
+  it.each([
+    [50, 50],
+    [52, 50],
+  ])('at the number and past it the line stands out, and not by colour alone (%i of %i)', async (n, max) => {
+    giftsMock.mockResolvedValue(GIFTS({ byOwner: n, ownerCeiling: max }));
+    renderQueue();
+    const line = await screen.findByText(`People you let in: ${n} of ${max}`);
+    expect(line.closest('[data-at-ceiling]')).toHaveTextContent('The number is reached.');
+  });
+
+  it('past the number, a grant is not refused: the owner keeps count (D17)', async () => {
+    giftsMock.mockResolvedValue(GIFTS({ byOwner: 52, ownerCeiling: 50 }));
+    renderQueue();
+    await screen.findByText('People you let in: 52 of 50');
+    const grant = await screen.findByRole('button', { name: 'Grant access' });
+    expect(grant).toBeEnabled();
+    await userEvent.click(grant);
+    await waitFor(() => expect(grantMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(/People you let in: 52 of 50/).closest('[data-at-ceiling]')).not.toBeNull();
+  });
+
+  it('a request a recommendation let in at the door says so, and names nobody as having decided it; one the owner granted still names who did', async () => {
+    listMock.mockResolvedValue([
+      {
+        ...REQUEST,
+        id: 'req-3',
+        email: 'cato@example.test',
+        state: 'granted',
+        tenantId: 't-3',
+        decidedAt: '2026-12-02T10:00:00.000Z',
+        gift: { from: 'anna@example.test' },
+        letInByRecommendation: true,
+      },
+      { ...REQUEST, id: 'req-4', state: 'granted', tenantId: 't-4', decidedBy: 'owner-subject', decidedAt: '2026-12-02T10:00:00.000Z', letInByRecommendation: false },
+    ]);
+    renderQueue();
+    expect(await screen.findByText(/^Let in with a recommendation, at the door\. Nobody decided it\./)).toBeInTheDocument();
+    expect(screen.getAllByText(/Decided by/)).toHaveLength(1);
+    expect(screen.getByText(/Decided by owner-subject/)).toBeInTheDocument();
   });
 });
 

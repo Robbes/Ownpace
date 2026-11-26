@@ -205,6 +205,20 @@ describe('the link in the grant mail (0095 T6)', () => {
   );
 });
 
+describe('the grant’s mail says what happened (workplan 0177 §8, D11 (a))', () => {
+  it.each(['en', 'nl'] as const)('opens with the request and its yes, and says nothing of a code, in %s', async (locale) => {
+    const { res, mail } = await knockAndGrant(`asked-${locale}@example.test`, locale);
+    expect(res.status).toBe(201);
+    expect(mail).toHaveLength(1);
+    expect(mail[0]!.body.split('\n')[0]).toBe(
+      locale === 'en' ? 'You asked Ownpace for access. The answer is yes.' : 'U vroeg Ownpace om toegang. Het antwoord is ja.',
+    );
+    // Step 3's code is the sign-in service's, which every yes mail names; the
+    // opening for a code, and the sentence about Google, are not this mail's.
+    expect(mail[0]!.body).not.toMatch(/You used a code|U gebruikte een code|Google/);
+  });
+});
+
 describe('granting access anywhere else', () => {
   it.each(['en', 'nl'] as const)('sends a mail that says nothing about an alpha, in %s', async (locale) => {
     const { res, mail } = await knockAndGrant(`person-${locale}@example.test`, locale);

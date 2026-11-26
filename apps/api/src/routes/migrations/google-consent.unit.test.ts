@@ -580,6 +580,26 @@ describe("the link holder's ending, when nothing was stored", () => {
   });
 });
 
+describe('the escape is safe inside a quoted attribute too (hardening, alpha.21)', () => {
+  // Every value that reaches an attribute here is built by the server today.
+  // The escape still has to hold if one ever is not.
+  it('turns a double quote in the way back into &quot;, inside its href', () => {
+    const page = grantResultPage({
+      ok: true,
+      provider: 'google',
+      permission: 'read-only',
+      more: { left: 1, backUrl: 'https://app.example.nl/grant/x" onclick="alert(1)' },
+    });
+    expect(page).toContain('href="https://app.example.nl/grant/x&quot; onclick=&quot;alert(1)"');
+    expect(page).not.toContain('" onclick="');
+  });
+
+  it("turns a single quote into &#39;", () => {
+    const page = grantResultPage({ ok: false, reason: "it's gone", link: 'unused' });
+    expect(page).toContain('it&#39;s gone');
+  });
+});
+
 describe('every ending is a whole document a phone lays out at its own width', () => {
   // These were bare `<main>` fragments: no viewport, so a phone rendered them
   // ~980px wide and shrank them to fit, the progress link the person is told

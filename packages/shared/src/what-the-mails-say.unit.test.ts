@@ -96,6 +96,25 @@ describe('the access-granted and invitation mails during the alpha, about backup
   });
 });
 
+describe('the no mail, about how long a declined request is kept (workplan 0177 §8, D12 (a))', () => {
+  /** The privacy text's own row for a request, in each language: the number of days after a decline. */
+  const ROW = {
+    en: { file: 'privacy.md', said: /\| Your request for access \(§4\.4\) \| While it is open\. Declined: deleted (\d+) days after our decision\./ },
+    nl: { file: 'privacy.nl.md', said: /\| Uw aanvraag voor toegang \(§4\.4\) \| Zolang die openstaat\. Afgewezen: verwijderd (\d+) dagen na ons besluit\./ },
+  } as const;
+
+  it.each(LOCALES)('says the number of days the privacy text says, in %s', (locale) => {
+    const text = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'site', 'legal', ROW[locale].file),
+      'utf8',
+    );
+    const days = ROW[locale].said.exec(text)?.[1];
+    expect(days, `site/legal/${ROW[locale].file} lost its row for a request`).toBeDefined();
+    const { body } = renderEvent({ kind: 'access_declined' }, locale);
+    expect(body).toContain(locale === 'en' ? `for ${days} days and then delete it` : `nog ${days} dagen en verwijderen die daarna`);
+  });
+});
+
 describe('the mail to people items were shared with (Template 6)', () => {
   const digest = { grantee: 'anna@example.test', items: [{ on: 'Projects/budget.xlsx', role: 'writer' }] };
   const NOTE = 'Everything now lives at Team Cloud.';

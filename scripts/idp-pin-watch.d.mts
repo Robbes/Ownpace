@@ -85,6 +85,13 @@ export declare const SQUAWK_HOST: string;
 export declare const SQUAWK_UPSTREAM: string;
 export declare const SQUAWK_ARCHES: string[];
 export declare const SQUAWK_NOTE: string;
+/** The workflows that run github/codeql-action, every copy held to one commit (0178 T5). */
+export declare const CODEQL_FILES: string[];
+export declare const CODEQL_UPSTREAM: string;
+export declare const CODEQL_ACTIONS: string[];
+export declare const CODEQL_NOTE: string;
+/** Every step of a workflow that runs a part of github/codeql-action. */
+export declare function codeqlPins(workflow: string): Array<{ readonly action: string; readonly sha: string; readonly version: string }>;
 /** The squawk the Migration locks workflow installs (workplan 0165): its release and each architecture's sha256. */
 export declare function squawkPin(workflow: string): { version: string; sha256: Record<'x64' | 'arm64', string>; line: number };
 export interface ActionImageSpec {
