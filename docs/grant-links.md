@@ -122,8 +122,9 @@ account that signs in with a password is described in [A password, typed by the
 person](#a-password-typed-by-the-person); the sign-in accounts go as below.
 
 1. **Who asks, and for what.** One line says what Ownpace is: the service that makes the copy.
-   Then who is asking, under **Sender**: your organisation, by name, and the address **you** sign
-   in to Ownpace with, so they know which person is asking and not only which organisation. If
+   Then who is asking: the heading and, under **Sender**, the address **you** sign in to Ownpace
+   with, so they know which person is asking (your organisation's name where the link names no
+   one; workplan 0176 T3 gives the sender a name of their own). If
    your organisation has a phone number set, they see that too, so they can call and check it is
    really you. And if your invoice details carry a business VAT number that the EU VAT register
    (VIES) confirmed, they see your company's name as the register gives it: the one name on the
@@ -209,8 +210,8 @@ stored.
 ### A Microsoft account (workplan 0171, alpha.20)
 
 A Microsoft 365 account, personal (Outlook.com, Hotmail) or work, is asked the same way. Its
-steps say Microsoft where a Google account's say Google: **Continue with Microsoft as** *that account*,
-the permission Microsoft will ask for in words (*Outlook: read your email*, *OneDrive: read your
+steps say Microsoft where a Google account's say Google: *What you will see at Microsoft*, then
+**Sign in with Microsoft** on its last step, the permission Microsoft will ask for in words (*Outlook: read your email*, *OneDrive: read your
 files*, and so on), and the exact string under *Technical details*. Every Microsoft permission a
 link asks for is one of the read permissions *Connect with Microsoft* asks for, so the box says
 *Read-only*. The button goes to Microsoft's
@@ -239,8 +240,8 @@ says that too.
 language and has two buttons in its top corner, **English** and **Nederlands**; the progress page
 has the same two.
 What will be read, the refusals of the link and of the migration, and the page after Google are
-in that language. Taking the access back and reporting the link still answer in English for now
-(workplan 0145 T6). The page after Google follows the language the grant page was in when they
+in that language, and so is taking the access back, its refusals included. A refusal when they
+report the link is still in English for now (workplan 0145 T6). The page after Google follows the language the grant page was in when they
 pressed the button. It asks them to keep their progress link, by a bookmark or a copy, because a
 page opened inside another app may not keep a bookmark. A **Copy link** button beside the link
 copies it and says *Copied.*; where the browser does not allow copying, as a private window on a
@@ -414,17 +415,19 @@ Two answers of one size, **No, do not stop** first, then **Yes, stop**. Pressing
 
 1. asks Google to revoke the grant, for a Google account. Google takes back everything that
    person allowed the application, at once, so any other migration of the same account through
-   the same application stops too; the question says so first. Microsoft and Dropbox offer no
-   call that does this, so their accounts skip this step;
+   the same application stops too; the question says so first. For a Microsoft or a Dropbox
+   account Ownpace asks nothing of the provider, so it skips this step;
 2. deletes the grant here from every migration of theirs that holds it, **whatever the provider
    answered**, and records it for each;
-3. tells them that copying stopped, and since when; that nothing was deleted at the provider, and
-   that what was copied is still at the destination; and which of the two happened. When the
+3. tells them that copying stopped, and the page then says since when; that nothing was deleted
+   at the provider, and that what was copied is still at the destination; and which of the two
+   happened. When the
    provider did not confirm, they are sent to remove Ownpace from the provider's list of apps
    themselves, with a link to it. Only when it did confirm does the page say they have nothing
    left to do.
 
-A destination's **Remove my password** asks the same way, with the same two answers.
+A destination's **Remove my password** asks too, in place, with two answers of one size: **Keep
+it** first, then **Yes, remove it**.
 
 From then on **nothing reads that account**: no pass starts, a pass already running stops starting
 new items within about fifteen seconds and finishes the ones it has begun, and your **Start** and
