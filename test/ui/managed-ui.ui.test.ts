@@ -1585,6 +1585,13 @@ describe('signed in as a platform operator', () => {
     // what it is.
     FIXTURES['GET /api/access-requests'] = { requests: [] };
     FIXTURES['GET /api/support/tenants'] = { tenants: [] };
+    // The Alpha's counts, on the queue's line and Support's first screen (0177 §20, D17), as built.
+    FIXTURES['GET /api/gifts/operator'] = {
+      gifts: [],
+      giftsPerPerson: 1,
+      allowances: [],
+      alpha: { granted: 0, open: 0, openFromGifts: 0, unusedGifts: 0, byOwner: 0, byRecommendation: 0, ownerCeiling: 50, recommendationCeiling: 50 },
+    };
     return () => {
       FIXTURES['GET /api/me'] = ME;
     };
@@ -2512,6 +2519,182 @@ describe("a person's link, everything on one page (0176 D15 (a))", () => {
     expectClean(l, 'the one page, from the steps and back');
     await l.page.close();
   });
+});
+
+/**
+ * THE DOOR OF A CODE, WALKED (workplan 0177 T1, T6, §10, §21.6). A
+ * recommendation's code is typed at `/code`, by somebody with no account who
+ * may be older, so the door draws a person's sizes as their link page does:
+ * at each step, in both languages, at 390 pixels and at 320, which is what
+ * 200% zoom lays out, nothing small or pale, each target and edge as 0176 §13
+ * has it, nothing sideways, and the language switch in full words. The code
+ * comes from the link's `#`, as a link a giver sends carries it (D2).
+ */
+const DOOR_CODE = 'K7QM-3XR2-PA9D-W4HN';
+const DOOR_WORDS = {
+  en: { step1: 'Type your code', next: 'Next', step2: 'Answer one question', yes: 'Yes', step3: 'Fill in your email address', email: 'Your email address', no: 'No', use: 'Use my code', in: 'You are in', language: 'Language' },
+  nl: { step1: 'Typ uw code', next: 'Verder', step2: 'Beantwoord één vraag', yes: 'Ja', step3: 'Vul uw e-mailadres in', email: 'Uw e-mailadres', no: 'Nee', use: 'Gebruik mijn code', in: 'U bent toegelaten', language: 'Taal' },
+} as const;
+
+describe('the door of a code, walked one step at a time (0177 T1, T6)', () => {
+  const answers: Record<string, unknown> = {
+    'POST /api/gifts/check': new FromBody(() => ({ ok: true, until: '2028-12-24T18:00:00.000Z', answersFrom: 'answers@example.test' })),
+    'POST /api/gifts/redeem': new FromBody(() => ({ letIn: true, mailed: true })),
+  };
+  beforeAll(() => {
+    Object.assign(FIXTURES, answers);
+  });
+  afterAll(() => {
+    for (const key of Object.keys(answers)) delete FIXTURES[key];
+  });
+
+  for (const locale of ['en', 'nl'] as const) {
+    for (const narrow of [false, true]) {
+      const width = narrow ? 320 : 390;
+
+      it(`in ${locale === 'en' ? 'English' : 'Dutch'} at ${width} pixels: nothing small or pale, nothing sideways, and the switch in full words`, async () => {
+        const said = DOOR_WORDS[locale];
+        const bodies = apiBodies.length;
+        const l = await open(`/code#${DOOR_CODE}`, { signedIn: false, locale, phone: !narrow, narrow });
+        const page = l.page;
+        const step = async (name: string) =>
+          page.getByRole('heading', { level: 1, name, exact: true }).waitFor({ timeout: 15_000 });
+        const measure = async (what: string) => {
+          expect(await smallThings(page), `small or pale on ${what} at ${width}`).toEqual([]);
+          await expectItFitsAPhone(page, `the door's ${what} at ${width}`, width);
+        };
+
+        await step(said.step1);
+        // Each language in its own words, at a person's sizes (0176 T9, 0177 §10).
+        const languages = page.getByRole('group', { name: said.language, exact: true }).getByRole('button');
+        expect(await languages.allTextContents()).toEqual(['English', 'Nederlands']);
+        // The link's code is in the field, and nothing was sent before the press.
+        expect(await page.locator('#door-code').inputValue()).toBe(DOOR_CODE);
+        await measure('first step');
+
+        await page.getByRole('button', { name: said.next, exact: true }).click();
+        await step(said.step2);
+        await measure('second step');
+
+        await page.getByRole('button', { name: said.yes, exact: true }).click();
+        await step(said.step3);
+        await page.getByLabel(said.email, { exact: true }).fill('cato@example.test');
+        await page.locator('label').filter({ hasText: new RegExp(`^${said.no}$`) }).click();
+        await measure('third step');
+
+        await page.getByRole('button', { name: said.use, exact: true }).click();
+        await step(said.in);
+        await measure('screen after it');
+
+        const sent = apiBodies.slice(bodies);
+        expect(sent.map((b) => b.key)).toEqual(['POST /api/gifts/check', 'POST /api/gifts/redeem']);
+        expect(sent[1]!.body).toEqual({ code: DOOR_CODE, email: 'cato@example.test', google: false, locale });
+        expectClean(l, `the door walked at ${width}`);
+        await page.close();
+      });
+    }
+  }
+});
+
+/**
+ * THE CARD, ON A PHONE AND IN PRINT (workplan 0177 T2, §6, §14, §21.6). The
+ * giver's page shows the card as it prints, and the code on it never breaks
+ * over two lines, at 390 pixels or at 320. In print it fills the sheet: at
+ * least nine tenths of an A4 or a Letter sheet's width, upright, on one
+ * sheet, no text under 14 point, and the code on one line. The browser is
+ * asked what it drew: the print rule's sizes as it computes them at the
+ * sheet's width, and the PDF it makes, by its pages and their shape.
+ */
+describe('the card a giver prints (0177 T2)', () => {
+  const MADE = { id: 'g-1', code: DOOR_CODE, expiresAt: '2028-12-24T18:00:00.000Z', redeemAt: null };
+  const answers: Record<string, unknown> = {
+    'GET /api/gifts/mine': { gifts: [], limit: 1, held: 0, room: true, redeemAt: null },
+    'POST /api/gifts': new FromBody(() => MADE),
+  };
+  beforeAll(() => {
+    Object.assign(FIXTURES, answers);
+  });
+  afterAll(() => {
+    for (const key of Object.keys(answers)) delete FIXTURES[key];
+  });
+
+  /** The giver's page with a card made, in a language, on a phone or a narrow one. */
+  const withACard = async (locale: 'en' | 'nl', narrow: boolean): Promise<Loaded> => {
+    const l = await open('/give', { locale, phone: !narrow, narrow });
+    await l.page.getByRole('heading', { level: 1, name: locale === 'en' ? 'Recommend someone' : 'Iemand aanbevelen' }).waitFor({ timeout: 15_000 });
+    await l.page.getByRole('button', { name: locale === 'en' ? 'Make a recommendation' : 'Maak een aanbeveling' }).click();
+    await l.page.getByTestId('gift-code').waitFor({ timeout: 10_000 });
+    return l;
+  };
+
+  /** Whether an element's text stands on one line inside its own box. */
+  const oneLine = (l: Loaded) =>
+    l.page.getByTestId('gift-code').evaluate((el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const tops = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+      return { lines: tops.size, fits: el.scrollWidth <= el.clientWidth + 1 };
+    });
+
+  for (const locale of ['en', 'nl'] as const) {
+    for (const narrow of [false, true]) {
+      const width = narrow ? 320 : 390;
+      it(`on a phone of ${width} pixels, in ${locale === 'en' ? 'English' : 'Dutch'}: the code on one line, and the page fits`, async () => {
+        const l = await withACard(locale, narrow);
+        expect(await oneLine(l), `the code at ${width}`).toEqual({ lines: 1, fits: true });
+        await expectItFitsAPhone(l.page, `the giver's page with its card at ${width}`, width);
+        expectClean(l, `the giver's page at ${width}`);
+        await l.page.close();
+      });
+    }
+  }
+
+  /** A sheet, in millimetres, and the print rule's margin. */
+  const SHEETS = { A4: { width: 210, height: 297 }, Letter: { width: 215.9, height: 279.4 } } as const;
+  const MARGIN_MM = 10;
+  const px = (mm: number) => (mm / 25.4) * 96;
+
+  for (const format of ['A4', 'Letter'] as const) {
+    it(`printed on ${format}: nine tenths of the sheet, upright, one sheet, nothing under 14 point, the code on one line`, async () => {
+      const l = await withACard('nl', false);
+      const sheet = SHEETS[format];
+      // The page laid out at the sheet's printable width, under the print rule.
+      await l.page.setViewportSize({ width: Math.round(px(sheet.width - 2 * MARGIN_MM)), height: Math.round(px(sheet.height - 2 * MARGIN_MM)) });
+      await l.page.emulateMedia({ media: 'print' });
+      const drawn = await l.page.evaluate(() => {
+        const card = document.querySelector('.gift-card')!;
+        const small: string[] = [];
+        for (const el of card.querySelectorAll('*')) {
+          const own = [...el.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? '').join('').trim();
+          if (own === '' || el.closest('svg')) continue;
+          const pt = parseFloat(getComputedStyle(el).fontSize) * 0.75;
+          if (pt < 14 - 0.01) small.push(`${pt.toFixed(1)}pt: ${own.slice(0, 40)}`);
+        }
+        const code = card.querySelector<HTMLElement>('[data-testid="gift-code"]')!;
+        return {
+          width: card.getBoundingClientRect().width,
+          small,
+          codePt: parseFloat(getComputedStyle(code).fontSize) * 0.75,
+          codeFits: code.scrollWidth <= code.clientWidth + 1,
+        };
+      });
+      expect(drawn.width / px(sheet.width), `the card's share of a ${format} sheet`).toBeGreaterThanOrEqual(0.9);
+      expect(drawn.small, `text under 14 point on ${format}`).toEqual([]);
+      expect(drawn.codePt).toBeGreaterThanOrEqual(24);
+      expect(drawn.codeFits, `the code on one line on ${format}`).toBe(true);
+
+      // What the browser prints: one sheet, upright, of the asked format.
+      await l.page.emulateMedia({ media: null });
+      const pdf = (await l.page.pdf({ format })).toString('latin1');
+      const pages = pdf.match(/\/Type\s*\/Page(?![a-z])/g) ?? [];
+      expect(pages.length, `sheets printed on ${format}`).toBe(1);
+      const box = /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/.exec(pdf);
+      expect(box, 'the PDF names its sheet').not.toBeNull();
+      expect(Number(box![1]), 'upright').toBeLessThan(Number(box![2]));
+      expectClean(l, `the card printed on ${format}`);
+      await l.page.close();
+    });
+  }
 });
 
 /**

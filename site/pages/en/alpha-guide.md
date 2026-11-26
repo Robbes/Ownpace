@@ -40,7 +40,9 @@ personally. The Alpha lasts a few weeks.
 - **Google addresses first.** Do you want to connect a Google account? Then first mail every
   Google address to [support@ownpace.eu](mailto:support@ownpace.eu), a family member's too. Wait
   for our answer. We add the address to the list of test users at Google. Without that step,
-  Google does not allow the connection.
+  Google does not allow the connection. Did you come in with a code, and say there that your
+  address is a Google account you want to move? Then you need not mail that address. We add it,
+  and write to you when that is done.
 - **Keep your old account until you have checked what arrived.** Ownpace only reads from your old
   account. It changes and deletes nothing there.
 - **Start with an empty destination.** That is the easiest: a new, empty mailbox, calendar,

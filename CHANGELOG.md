@@ -134,6 +134,54 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **A gift is now a recommendation, and its code has a door of its own** (alpha.21; workplan
+  0177 step A, with the owner's D1 to D18). This changes the gift invitations above (0172). The
+  free thing is a *recommendation* on every screen a person reads, and no sentence says what it
+  is not. Its code lets its person in at once (D6), at a door of its own, `/code`; the card's
+  old address `/redeem` and the request form's *I have a code* lead there too. The door asks one
+  thing at a time: the code alone, checked on its own and mended in its field; then what Ownpace
+  does, what it costs now and after the Alpha, and one question, *Did the person you got the code
+  from tell you about this themselves?*, with *No, not yet* and *No, I do not want this* as calm
+  ways out that send nothing; then the email address, a name that may be left empty, and whether
+  it is a Google account to move (D14); and then *You are in*, with *Create your account* holding
+  the address. A full Alpha, and an address that already has access, keep the code. Each step is
+  a step in the browser's history, with its own heading, at a person's sizes, and the language
+  switch says *English* and *Nederlands*. The plain request form keeps its questions, and its
+  request still waits for the owner. *Recommend someone*, which was *Give Ownpace*, says what a
+  recommendation does, that whoever has the code is let in, what the giver will see, and *none
+  for now* when no card can be made; the card is drawn in the door's order with its three steps
+  and fills an A4 or Letter sheet in print, on one sheet, and a link stands beside it, to send in
+  the giver's own words. During the Alpha only the people the owner let in may recommend someone;
+  after it, every member may (D18). The operator's **Gifts** screen, the access queue and the
+  first screen of **Support** show the Alpha's two ceilings, 50 people the owner lets in and 50
+  let in by a recommendation, against their counts; nothing refuses the owner's own yes (D17).
+  The site's page about a recommendation says what the door says, and the tester guide says the
+  door's way with a Google address. On the server, a code lets its person in in one transaction:
+  the request granted by nobody, the organisation, its owner's invitation and the code spent, or
+  none of it; an address with a request waiting gets that request granted (D15); a yes about
+  Google is kept with the request as one fixed line. Tries at the door, checking and using alike,
+  are limited to forty an hour. Managed migration 0066 adds no table: it puts the two ceilings on
+  the rule's row, 50 each, and lets a code's session do only what letting its person in needs.
+  The mails change for every request: the yes mail says first what happened, then three numbered
+  steps, the guide and what the organisation is called, and no longer calls itself safe to
+  forward; the no mail is one text in both languages, keeps the request 30 days, and promises no
+  later message. The operator is mailed for each person let in, and told to add a Google address
+  after a yes.
+  **Nederlands:** een cadeau heet nu een *aanbeveling*, en wie de code heeft, wordt meteen
+  toegelaten, op een eigen pagina, `/code`. Die vraagt één ding tegelijk: eerst de code, die
+  daar meteen wordt gecontroleerd en verbeterd; dan wat Ownpace doet, wat het kost, en één vraag:
+  *Heeft degene van wie u de code kreeg u hier zelf over verteld?*, met *Nee, nog niet* en *Nee,
+  ik wil dit niet* als rustige uitwegen; dan het e-mailadres, een naam die leeg mag blijven, en of
+  het een Google-account is waar de persoon weg wil; en dan *U bent toegelaten*, met *Maak uw
+  account aan*. Een volle Alpha, en een adres dat al toegang heeft, laten de code staan. *Iemand
+  aanbevelen*, dat *Geef Ownpace cadeau* was, zegt wat een aanbeveling doet en wat de gever te
+  zien krijgt; de kaart vult bij het printen een A4 of Letter, en er staat een link naast. Tijdens
+  de Alpha kunnen alleen de mensen die Ownpace zelf toeliet iemand aanbevelen; daarna iedereen.
+  De pagina's van de beheerder tonen de twee plafonds van de Alpha, 50 en 50, met hun tellingen.
+  De mails veranderen voor elke aanvraag: de ja-mail zegt eerst wat er gebeurde, dan drie
+  genummerde stappen; de nee-mail is in beide talen één tekst, bewaart de aanvraag 30 dagen en
+  belooft geen later bericht.
+
 - **A person's own pages: one thing at a time, in their own words** (alpha.21; workplan 0176
   step A, with D1, D2, D12 (a), D13 (a) and D14 (a)). The page a person's grant link opens now
   asks one thing per screen. First who asks and for what, with one question: *Did {who} tell you

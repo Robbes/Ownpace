@@ -4,6 +4,43 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, later still: step A is built, its two halves met on the pull request's branch
+(`claude/ownpace-public-readiness-y7orc6-a21-gift-step-a`), in review.** The back's half, the
+server and the mails, was built on its own branch and merged in; the front's was built against
+§19's contracts and then read against the answers as built.
+
+- **The glossary** (§21.1): *recommendation* / *aanbeveling* for the free thing, with the
+  names it does not take, and *gift* / *cadeau* kept for a code somebody paid for.
+- **The web** (§21.2, 1 to 22): the door at `/code` (`/redeem` and `?gift=1` open it; the
+  plain form's *I have a code* links it), its three steps and its endings; the giver's page
+  and the card on the screen; the operator's *Gifts* and the queue, with both counts and
+  ceilings; the overview on *Support* (D17); `onlyAfterAlpha` on the giver's page and the line
+  on *Gifts* (D18). A person's sizes come from 0176's `PersonsPageProvider` and
+  `data-persons-page`. `/give` and `/gifts` no longer draw a second `h1` (0172's, found by the
+  smoke). A refusal's Dutch half is read from `reason` / `reasonNl`, where a 429 also carries
+  the English as `message`.
+- **The server and the mails** (§21.3, §21.4): the back's, as its branch's commits say:
+  managed migration 0066, the check and the redeem, the two ceilings, D15, D17 and D18, and
+  the two mails for every request.
+- **The site and the documents** (§21.5): the site's page in both languages, its cases in
+  `site/site.unit.test.ts`, `docs/ending-the-alpha.md` (D5, the ceilings, D18), and 0172's
+  Status. **The privacy text is not changed:** T7 asks the owner whether it is still changed in
+  place under 1.0, and the drafts are in the pull request.
+- **The last part** (§21.6): the smoke walks the door in both languages at 390 and 320 pixels
+  under 0176's measure, shows the code on one line on the giver's page at both widths, and
+  prints the card to A4 and Letter (nine tenths of the sheet or more, one sheet, upright, no
+  text under 14 point, the code on one line); the print rule; the site's link to `/code` and
+  the page's title; the tester guide's *Google addresses first* (D14); `CHANGELOG.md`.
+
+**Proved,** each test written first and failing on the code before it: the door's
+`a-code-with-a-door-of-its-own.unit.test.tsx` (24 cases, §21.2's 1 to 10),
+`one-name-for-a-free-gift.unit.test.ts` (item 20, the two mails included), new cases in
+`a-gift-on-every-screen.unit.test.tsx`, `AccessRequests.unit.test.tsx`, `Support.unit.test.tsx`
+and `Layout.unit.test.tsx`, this page's cases in `site/site.unit.test.ts`, ten cases in the
+managed UI smoke, and the back's own (its branch's commits list them). **Open:** the owner's
+read of the Dutch and of the operator's English, on the pull request's tables; the privacy
+text's question; E2E, which the maintainer dispatches; T0 and T14.
+
 **2026-11-26, later still: the owner's answers to D17 and D18 (T17). Step A is being
 built.** In the owner's words:
 
@@ -142,15 +179,15 @@ for that one to be merged (§19, §21).
 |---|---|---|---|
 | T0 The owner's hand test: from the mail that lets a person in to the first screen after signing in, word for word | owner | ⏳ **Owner** | §8. On a real phone, in Dutch and English. Blocks nothing; the yes mail's third step takes its words. |
 | T1 The door: the code first and alone, then let in at once | builder | 📋 Planned | §5. One new route, and a managed migration with no table (D6). The question about Google (D14) and a request already waiting (D15) are part of it. L. |
-| T2 The card: a full sheet, in type that can be read, with steps that match the screens | builder | 📋 Planned | §6. S. |
+| T2 The card: a full sheet, in type that can be read, with steps that match the screens | builder | 🚧 Built, in review | §6. S. |
 | T3 The words, EN and NL, and one name for the thing | builder | 📋 Planned | §7. D1 (a). The glossary first. Merged after the owner's read of the Dutch. M. |
 | T4 The two mails: what happened, in both languages alike | builder | 📋 Planned | §8. D11 (a), D12 (a). For every request. M. |
-| T5 The giver's page: what it is, and what the other person will read | builder | 📋 Planned | §9. With a link beside the card (D2). M. |
-| T6 Size, contrast and targets on the door and the giver's page | builder | 📋 Planned | §10. S. |
+| T5 The giver's page: what it is, and what the other person will read | builder | 🚧 Built, in review | §9. With a link beside the card (D2). M. |
+| T6 Size, contrast and targets on the door and the giver's page | builder | 🚧 Built, in review | §10. S. |
 | T7 What follows: the site's page, the glossary, the privacy text, the records | builder | 📋 Planned | §11. With each step. S. |
 | T8 Proofs | builder | 📋 Planned | §14. With each step. |
 | T9 Who sent it: the giver's name at the door and in the yes mail | builder | 📋 Planned | §12. Step B. D3 (a). After 0176's T3, which holds the name. M. |
-| T10 What the giver hears: used, and so let in | builder | 📋 Planned | §9. Step A now, in words: under D6 *used* means *let in*, so no column is needed (D8). S. |
+| T10 What the giver hears: used, and so let in | builder | 🚧 Built, in review | §9. Step A now, in words: under D6 *used* means *let in*, so no column is needed (D8). S. |
 | T11 A receipt by mail | builder | 📋 Planned | §12. Met by T1 and T4: under D6 the yes mail goes out at once, and it is the receipt (D10). No task of its own is left. |
 | T12 After the Alpha: a paid code at the same door | builder | 📋 Planned | §13. Step C. With payments; 0172's G2. Not designed here beyond the door. |
 | T13 The owner's decisions, D1 to D13 | owner | ✅ Answered 2026-11-26 | §15.1. In the owner's words, with what each changes. Later that day the owner also said yes to building step A now. |
