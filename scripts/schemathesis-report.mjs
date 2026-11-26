@@ -79,14 +79,15 @@
  *   - No identity provider, no mail, no outside provider: the API starts with
  *     Postgres alone (measured on 2026-11-26), so no fake was needed.
  *
- * WHAT THE SUMMARY NAMES, AND WHAT IT DOES NOT. The job's summary is public,
- * as everything a public repository's runs show is. Each check gets a count
- * per run and, for every check but `ignored_auth`, the operations it flagged.
- * An operation `ignored_auth` flags on the API is a door that may answer
- * without sign-in, so it is COUNTED and never named there (`WITHHELD`): the
- * maintainer reproduces the run from its seed, which the summary gives, on a
- * stack of their own (docs/testing.md says how). The fixture's operations are
- * named: they are faults on purpose.
+ * WHAT THE SUMMARY NAMES, AND WHAT IT DOES NOT (the maintainer's answer of
+ * 2026-11-26: counts, no names). The job's summary is public, as everything a
+ * public repository's runs show is. Each check gets a COUNT per run, and no
+ * operation of the API is named under any check (`WITHHELD` is every check):
+ * one `ignored_auth` flags may be a door that answers without sign-in, and the
+ * rest are faults the owner is asked about first. The maintainer reproduces a
+ * run from its seed, which the summary gives, on a stack of their own
+ * (docs/testing.md says how). The fixture's operations are named: they are
+ * faults on purpose.
  *
  * WHICH SCHEMATHESIS. `SCHEMATHESIS_IMAGE` in the workflow, by tag and index
  * digest, which the pin watch's row `schemathesis/schemathesis`
@@ -124,8 +125,8 @@ export const CHECKS = ['ignored_auth', 'not_a_server_error', 'status_code_confor
 /** The two checks 0178 step 4 (T8) will block on, after 14 quiet nights on `main` (D4). */
 export const BLOCKS_LATER = ['ignored_auth', 'not_a_server_error'];
 
-/** The checks whose API operations the public summary counts and never names. */
-export const WITHHELD = ['ignored_auth'];
+/** The checks whose API operations the public summary counts and never names: all of them. */
+export const WITHHELD = CHECKS;
 
 /**
  * Schemathesis's failure codes, by the check that reports each (`st explain
@@ -444,18 +445,11 @@ export function report({ image = '', event = '', stopped = null, proof = null, o
   const other = scan.failures.filter((f) => f.check === null);
   for (const f of other) md.push(`| ${f.code} ${f.title} | ${f.operations.length} | Never |`);
   md.push('');
-  for (const check of CHECKS) {
-    const ops = flagged(scan, check);
-    if (!ops.length) continue;
-    if (WITHHELD.includes(check)) {
-      md.push(`**\`${check}\`: ${plural(ops.length, 'operation')}, not named here.** An operation this check flags may be a door that answers without sign-in, and this summary is public. Reproduce the run with its seed on a stack of your own (docs/testing.md, *Schemathesis*) and hand any real one to the maintainer privately.`, '');
-      lines.push(`::warning::${check}: ${plural(ops.length, 'operation')} flagged; see the summary`);
-      continue;
-    }
-    md.push(`<details><summary><code>${check}</code>: ${plural(ops.length, 'operation')}</summary>`, '');
-    for (const op of ops) md.push(`- \`${op}\``);
-    md.push('', '</details>', '');
+  const counted = CHECKS.filter((c) => WITHHELD.includes(c) && flagged(scan, c).length);
+  if (counted.length || other.length) {
+    md.push('**No operation of the API is named here, under any check.** This summary is public: an operation `ignored_auth` flags may be a door that answers without sign-in, and the rest are put to the owner first. Reproduce the run with its seed on a stack of your own (docs/testing.md, *Schemathesis*) and hand what it finds to the maintainer privately.', '');
   }
+  for (const check of counted) lines.push(`::warning::${check}: ${plural(flagged(scan, check).length, 'operation')} flagged; see the summary`);
   lines.push(`Schemathesis tested ${plural(scan.tested, 'operation')}; ${CHECKS.map((c) => `${c} ${flagged(scan, c).length}`).join(', ')}`);
   return { code: 0, lines, markdown: `${md.join('\n')}\n` };
 }

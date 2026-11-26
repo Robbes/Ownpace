@@ -35,14 +35,11 @@ runs `scripts/schemathesis-report.mjs` nightly on `main` and on dispatch, held b
 - **The proof:** `scripts/fixtures/schemathesis-known-bad/`, run first in every run. Measured
   locally with 4.34.0: both faults flagged. The guard is red when either is taken out of what
   Schemathesis flagged, and a run whose proof does not hold never scans the API.
-- **What the public summary names.** Every check is counted. `ignored_auth`'s operations on the
-  API are counted and never named, because the summary is public; the seed is given so that a
-  run can be repeated on a stack of one's own (docs/testing.md).
-- **The first list, measured locally** at 100 cases per operation (1 min 53 s, 200 operations):
-  `ignored_auth` 1, `not_a_server_error` 65, `status_code_conformance` 64,
-  `response_schema_conformance` 27. The server errors read so far are ids that are not UUIDs
-  reaching Postgres, which answers *invalid input syntax for type uuid*, and the API then
-  answers 500. The one `ignored_auth` is the maintainer's to read, privately.
+- **What the public summary names.** Every check is counted, and no operation of the API is
+  named under any of them (the maintainer's answer, the same day: counts, no names); the seed is
+  given so that a run can be repeated on a stack of one's own (docs/testing.md).
+- **The first list, measured locally** at 100 cases per operation (1 min 53 s, 200 operations),
+  is the maintainer's, held privately, and goes to the owner as a question.
 - **Open:** the first run on a hosted runner (its minutes, and whether the container setup works
   there as composed). Per D9, `origin/main` is merged in once alpha.21's builder pull requests
   land, and the scan is run against the routes they add.

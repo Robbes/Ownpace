@@ -36,10 +36,10 @@
  *     proof. Anything found, of any of the four checks, fails nothing. It is
  *     in no required check and not in ci.yml, and docs/testing.md says it
  *     blocks nothing yet.
- *  5. WHAT THE SUMMARY NAMES. Each check is counted. An operation
- *     `ignored_auth` flags on the API is never named in the public summary
- *     (it may be a door that answers without sign-in); every other check's
- *     operations are, and the fixture's are, since they are faults on purpose.
+ *  5. WHAT THE SUMMARY NAMES. Each check is counted, and no operation of the
+ *     API is named in the public summary under any check (the maintainer's
+ *     answer of 2026-11-26: counts, no names); the fixture's are, since they
+ *     are faults on purpose.
  *  6. THE FIXTURE IS A FIXTURE. It lives under `scripts/fixtures/`, its
  *     folder's name says what it is, and nothing in `apps/`, `packages/` or
  *     `site/` names it.
@@ -303,18 +303,20 @@ describe('the report: what fails, and what it names (4, 5)', () => {
     expect(out.markdown).toContain('| `not_a_server_error` | 2 | Not yet (T8) |');
     expect(out.markdown).toContain('| `status_code_conformance` | 1 | Never |');
     expect(out.markdown).toContain('| ST999 title of ST999 | 1 | Never |');
-    expect(out.markdown).toContain('- `POST /api/c`');
+    // Counted, and no operation of the API named under any check.
+    for (const op of ['/api/a-door', '/api/b', '/api/c', '/api/d', '/api/e']) expect(out.markdown).not.toContain(op);
     expect(out.markdown).toContain('seed `1`');
   });
 
-  it('counts the operations ignored_auth flags on the API and never names one', () => {
-    expect(WITHHELD).toEqual(['ignored_auth']);
+  it('counts the operations every check flags on the API and never names one', () => {
+    expect(WITHHELD).toEqual(CHECKS);
     const scan = reading(reportJson({}, [{ code: 'ST401', operations: ['GET /api/a-door', 'GET /api/another-door'] }]));
     const out = report({ image: SCHEMATHESIS, proof: proof(), othersProof: othersOk(), others: apiOk(), scan });
     expect(out.code).toBe(0);
     expect(out.markdown).not.toContain('a-door');
     expect(out.lines.join('\n')).not.toContain('a-door');
-    expect(out.markdown).toContain('`ignored_auth`: 2 operations, not named here.');
+    expect(out.markdown).toContain('| `ignored_auth` | 2 | Not yet (T8) |');
+    expect(out.markdown).toContain('**No operation of the API is named here, under any check.**');
     // The fixture's are named: they are faults on purpose.
     expect(out.markdown).toContain('`ignored_auth` on `GET /answers-without-a-token`: flagged');
   });
