@@ -76,7 +76,7 @@ import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
-import { PERSON_VOICES, languageOf, registerOf, type PersonVoice } from '@openmig/shared';
+import { PERSON_VOICES, languageOf, registerOf, withoutTrailing, type PersonVoice } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 import { NL_JE } from '../i18n/informal.ts';
 import { fill } from '../i18n/fill.ts';
@@ -461,7 +461,7 @@ const VOICE_WORDS: Readonly<Record<PersonVoice, StringKey>> = {
 };
 
 /** A person's grant link's one page, which prints (D15 (a)): under the link page's own address. */
-const sheetOf = (url: string): string => `${url.replace(/\/+$/, '')}/all`;
+const sheetOf = (url: string): string => `${withoutTrailing(url, '/')}/all`;
 
 /**
  * THE MESSAGE TO SEND WITH THE LINK (workplan 0176 §12, §15): it names what
