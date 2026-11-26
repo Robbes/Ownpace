@@ -155,6 +155,7 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
       ? grantResultPage(
           {
             ok: true,
+            provider: 'dropbox',
             permission: decided.permission,
             ...(decided.progressUrl ? { progressUrl: decided.progressUrl } : {}),
             ...(decided.more ? { more: decided.more } : {}),

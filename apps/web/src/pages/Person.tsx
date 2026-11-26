@@ -537,7 +537,12 @@ const Person: React.FC = () => {
           {migrations.some((m) => linkCanAsk(m.sourceType)) ||
           (awaitingQuery.data?.length ?? 0) > 0 ||
           linksQuery.data?.some((l) => l.purpose === 'grant' && l.state === 'live') ? (
-            <PersonGrantLinkSection personId={person.id} links={linksQuery.data} loadFailed={linksQuery.error != null} />
+            <PersonGrantLinkSection
+              personId={person.id}
+              personName={person.displayName ?? ''}
+              links={linksQuery.data}
+              loadFailed={linksQuery.error != null}
+            />
           ) : (
             // Nothing of theirs reads Google and no grant link of theirs still
             // works, so a new one could only be refused (`nothing_to_grant`);

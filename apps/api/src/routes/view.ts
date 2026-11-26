@@ -67,6 +67,7 @@ import * as schema from '@openmig/ledger';
 import { HttpTokenRevoker } from '@openmig/connectors';
 import {
   MIGRATION_GONE,
+  PERSON_PAGE_GONE,
   reasonPair,
   viewGrantFor,
   type MigrationView,
@@ -135,7 +136,8 @@ router.get(
           // counts and states (see the header): to confirm or send back.
           return page && { ...page, addressChanges: await readLinkAddressChanges(db, tenantId, personId) };
         });
-        if (!view) return void res.status(409).json({ error: 'not_found', ...reasonPair(MIGRATION_GONE) });
+        // Their page, not a migration, is what is gone (workplan 0176 D1, §21.3).
+        if (!view) return void res.status(409).json({ error: 'not_found', ...reasonPair(PERSON_PAGE_GONE) });
         return void res.json(view);
       }
       const { tenantId, mappingId, expiresAt } = req.mappingLink!;

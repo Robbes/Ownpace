@@ -4,9 +4,16 @@
      screens (0144 T0). Dutch first; alpha-guide.md is the English
      translation. Keep the six section headings and their ids ({#...}) the
      same in both: a link to a section (0144 T6 (c)'s issue chooser links
-     #hulp) leans on the id, not on the heading's words. The two ### headings
-     under "Zo begint u" carry ids too, so an invitation can link the Google
-     steps.
+     #hulp) leans on the id, not on the heading's words. The three ### headings
+     under "Zo begint u" carry ids too: an invitation can link the Google
+     steps, and a family member's link has its own part (0176 T15).
+
+     Two sentences of "Als u Google koppelt" are the link page's too, word for
+     word (0176 D12 (a)): "Ga daar verder naar Ownpace." and "Zorg dat alles
+     wat Ownpace vraagt een vinkje heeft." Change them in both places. The
+     part for a family member says "kopiëren" for what that person sees
+     (0176 D1); the rest of this page speaks to the member and says
+     "migreren".
 
      Rendered only when the site is built for the alpha (OWNPACE_STAGE=alpha;
      site/build.mjs, ALPHA_ONLY), outside the nav. [[REQUEST_ACCESS]] is
@@ -28,10 +35,11 @@
        write it, in this page, the app and the mails alike (the owner,
        2026-10-04, on #1439). The page names the conditions by their title.
      - Left out until proven: Google's own Dutch words on its "app not
-       verified" screen (0140 T2 (a)). The page only says that a warning comes
-       and to go on to Ownpace; add the screen's own words and buttons when
-       they are seen. Also the sign-in service's screens (registration, the
-       confirmation mail); the number of testers (D1 says 10 to 20, the
+       verified" screen (0140 T2 (a)). The page only says that a warning comes,
+       why Google warns, and to go on to Ownpace; add the screen's own words
+       and buttons when they are seen (0176 T0). Also the sign-in service's
+       screens (registration, the confirmation mail); the number of testers
+       (D1 says 10 to 20, the
        conditions "een kleine groep"); the paragraph on phones and screen
        readers (0145 T9 (a), written after 0145 T10's walk on two phones); a
        list of what is experimental (0144 T2's page). -->
@@ -66,7 +74,7 @@ uitgenodigd. De Alpha duurt enkele weken.
 ## Voordat u begint {#voordat-u-begint}
 
 - **Google-adressen eerst.** Wilt u een Google-account koppelen? Mail dan eerst elk Google-adres
-  naar [support@ownpace.eu](mailto:support@ownpace.eu), ook dat van een gezinslid. Wacht op ons
+  naar [support@ownpace.eu](mailto:support@ownpace.eu), ook dat van een familielid. Wacht op ons
   antwoord. Wij zetten het adres bij Google op de lijst van testgebruikers. Zonder die stap laat
   Google de koppeling niet toe.
 - **Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.** Ownpace leest alleen
@@ -112,10 +120,29 @@ uitgenodigd. De Alpha duurt enkele weken.
 
 ### Als u Google koppelt {#google-koppelen}
 
-Google toont eerst een waarschuwing dat Google de app niet heeft gecontroleerd. Dat hoort zo
-tijdens de Alpha. Ga daar verder naar Ownpace. Zorg dat alles wat Ownpace vraagt een vinkje
-heeft. Voor e-mail, agenda's en contacten beschrijft Google een ruimere toestemming dan Ownpace
-gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in uw account.
+Google toont eerst een waarschuwing. Google heeft Ownpace nog niet gecontroleerd. Daarom
+waarschuwt Google, en dat is terecht. Ga daar verder naar Ownpace. Zorg dat alles wat Ownpace
+vraagt een vinkje heeft. Voor e-mail, agenda's en contacten beschrijft Google een ruimere
+toestemming dan Ownpace gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in uw
+account.
+
+### Als een familielid een link krijgt {#familielid-link}
+
+Is het account van een familielid? Vraag dan niet om het wachtwoord. U maakt een toegangslink, en
+uw familielid geeft zelf toestemming.
+
+1. **Vertel het eerst zelf.** Bel, of zeg het als u elkaar ziet: er komt een link van u, en
+   waarvoor die is. De pagina vraagt uw familielid of u dat hebt gedaan. Is het antwoord nee, dan
+   wacht de pagina.
+2. **Maak de link.** Open de persoon bij *Migraties* en kies *Toegangslink maken*. Stuur de link
+   zelf, zoals u die persoon altijd bereikt. Wij sturen hem nooit.
+3. **Doe de stap bij Google het liefst samen:** aan de telefoon, of aan tafel. Uw familielid typt
+   het eigen wachtwoord zelf. U hoeft het niet te weten, en u vraagt er niet om.
+4. **Laat Google de verbinding niet toe?** Dan staat het adres nog niet op de lijst van Google.
+   Mail het ons, en wacht op ons antwoord. Daarna opent uw familielid de link opnieuw.
+
+Daarna heeft uw familielid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
+familielid het ook stoppen.
 
 ### Als Google opnieuw vraagt {#google-opnieuw}
 
@@ -123,6 +150,9 @@ Zolang de app van Ownpace bij Google in de testfase staat, stopt een koppeling m
 ongeveer zeven dagen. Ga dan naar *Accounts*. Kies bij dat account *Opnieuw verbinden*, dan
 *Verbinden met Google*, en dan *Controleren en vervangen*. De migratie gaat verder waar ze
 stopte. Er gaat niets verloren.
+
+Is het het account van een familielid? Maak dan een nieuwe toegangslink voor die persoon, en
+vertel het weer eerst.
 
 ## Wat experimenteel is {#wat-experimenteel-is}
 
@@ -158,4 +188,4 @@ U mag op elk moment stoppen.
 - **Wat u zelf intrekt.** Toegang die u zelf bij een aanbieder maakte, zoals een app-wachtwoord
   of de toestemming bij Microsoft of Dropbox. Wij zeggen u welke.
 - **Wat wij wissen.** Uw Ownpace-inlogaccount en uw aanvraag voor toegang. Uw Google-adres, en
-  dat van een gezinslid, halen wij van de lijst van testgebruikers.
+  dat van een familielid, halen wij van de lijst van testgebruikers.

@@ -152,8 +152,8 @@ const PersonBox: React.FC<{
   const id = `${idBase}-${field.key}`;
   const hintId = field.hintKey ? `${id}-hint` : undefined;
   return (
-    <div className="text-sm" data-person-field={field.key}>
-      <label htmlFor={id} className="block text-gray-700 mb-1">
+    <div className="text-lg" data-person-field={field.key}>
+      <label htmlFor={id} className="block text-gray-900 mb-1">
         {t(field.labelKey as StringKey)}
       </label>
       <div className="flex gap-2">
@@ -168,7 +168,7 @@ const PersonBox: React.FC<{
           required
           placeholder={field.placeholder}
           aria-describedby={hintId}
-          className="input w-full"
+          className="input w-full h-auto min-h-[44px] text-lg border-2 border-gray-600"
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
@@ -176,7 +176,7 @@ const PersonBox: React.FC<{
         {field.secret && field.revealable === true && (
           <button
             type="button"
-            className="min-h-[44px] px-3 text-sm rounded-lg border border-gray-300 text-gray-700"
+            className="min-h-[44px] min-w-[44px] px-3 text-base rounded-lg border-2 border-gray-600 text-gray-900"
             aria-controls={id}
             aria-pressed={shown}
             onClick={() => setShown((s) => !s)}
@@ -186,7 +186,7 @@ const PersonBox: React.FC<{
         )}
       </div>
       {field.hintKey && (
-        <p id={hintId} className="mt-1 text-sm text-gray-500">
+        <p id={hintId} className="mt-1 text-base text-gray-800">
           {t(field.hintKey as StringKey)}
         </p>
       )}
@@ -234,7 +234,7 @@ export const GrantPasswordCard: React.FC<GrantPasswordCardProps> = ({
 
   if (connectedHere) {
     return (
-      <p role="status" className="mt-3 flex items-center gap-2 text-sm font-medium text-green-800">
+      <p role="status" className="mt-3 flex items-center gap-2 text-lg font-medium text-green-900">
         <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
         {t('grant.password.connected')}
       </p>
@@ -242,7 +242,7 @@ export const GrantPasswordCard: React.FC<GrantPasswordCardProps> = ({
   }
   if (tries?.locked === true || answer?.kind === 'locked') {
     return (
-      <p role={answer?.kind === 'locked' ? 'alert' : undefined} className="mt-3 flex items-start gap-2 text-sm text-amber-800">
+      <p role={answer?.kind === 'locked' ? 'alert' : undefined} className="mt-3 flex items-start gap-2 text-lg text-amber-900">
         <Lock className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
         <span>{t('grant.password.locked', { askedBy })}</span>
       </p>
@@ -301,10 +301,10 @@ export const GrantPasswordCard: React.FC<GrantPasswordCardProps> = ({
 
   return (
     <div className="mt-3" data-password-card={kind}>
-      <p className="text-sm font-medium text-gray-900 break-words">{t('grant.password.title', { account: card.account })}</p>
+      <p className="text-lg font-semibold text-gray-900 break-words">{t('grant.password.title', { account: card.account })}</p>
 
       {/* WHERE THE PASSWORD GOES, AND WHO SEES IT (§5.8, D3), before any box. */}
-      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2 text-sm text-blue-950" data-anti-phishing>
+      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2 text-lg text-blue-950" data-anti-phishing>
         <p className="flex items-start gap-2">
           <ShieldCheck className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
           <span data-server-line>
@@ -325,10 +325,10 @@ export const GrantPasswordCard: React.FC<GrantPasswordCardProps> = ({
 
       {/* What the owner fixed (D2): shown, never a box. */}
       {owners.length > 0 && (
-        <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm" data-owner-fields>
+        <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-lg" data-owner-fields>
           {owners.map((f) => (
             <React.Fragment key={f.key}>
-              <dt className="text-gray-600">{t(f.labelKey as StringKey)}</dt>
+              <dt className="text-gray-800">{t(f.labelKey as StringKey)}</dt>
               <dd className="text-gray-900 break-all" data-owner-field={f.key}>
                 {f.value}
               </dd>
@@ -338,12 +338,12 @@ export const GrantPasswordCard: React.FC<GrantPasswordCardProps> = ({
       )}
 
       {how && (
-        <details className="mt-3 text-sm">
-          <summary className="cursor-pointer select-none text-gray-700">{t(how.question)}</summary>
-          <p className="mt-1 text-gray-600">{t(how.steps)}</p>
+        <details className="mt-3 text-lg">
+          <summary className="inline-flex min-h-[44px] items-center cursor-pointer select-none underline text-gray-900">{t(how.question)}</summary>
+          <p className="mt-1 text-gray-800">{t(how.steps)}</p>
         </details>
       )}
-      {!how && !HINT_UNDER_THE_BOX.has(kind) && <p className="mt-3 text-sm text-gray-600">{t('grant.password.appPassword')}</p>}
+      {!how && !HINT_UNDER_THE_BOX.has(kind) && <p className="mt-3 text-lg text-gray-800">{t('grant.password.appPassword')}</p>}
 
       <form className="mt-3 space-y-3" onSubmit={(e) => void submit(e)} autoComplete="off">
         {persons.map((f) => (
@@ -357,22 +357,23 @@ export const GrantPasswordCard: React.FC<GrantPasswordCardProps> = ({
           />
         ))}
         {left < TRIES_PER_LINK && answer === null && (
-          <p className="text-sm text-gray-700">{t('grant.password.triesLeft', { left })}</p>
+          <p className="text-lg text-gray-900">{t('grant.password.triesLeft', { left })}</p>
         )}
         <button
           type="submit"
           disabled={checking || persons.length === 0}
-          className="min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-words"
+          data-main
+          className="block w-full min-h-[60px] px-4 py-3 text-lg font-semibold rounded-lg bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50 break-words"
         >
           {t('grant.password.submit')}
         </button>
         {checking && (
-          <p role="status" className="text-sm text-gray-600">
+          <p role="status" className="text-lg text-gray-800">
             {t('grant.password.checking', { server: hostsText })}
           </p>
         )}
         {said && (
-          <p role="alert" className="text-sm text-amber-800">
+          <p role="alert" className="text-lg text-amber-900">
             {said}
           </p>
         )}

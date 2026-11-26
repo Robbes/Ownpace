@@ -198,7 +198,7 @@ export async function storePersonGrant(
         .for('update');
       if (live.length === 0) return { ok: false as const, ...reasonPair(LINK_SPENT) };
 
-      const refusal = signedInAccountRefusal(target.account, granted.signedInAs, provider);
+      const refusal = signedInAccountRefusal(target.account, granted.signedInAs, provider, true);
       if (refusal) throw new AnotherAccountSignedIn(refusal);
 
       const written: string[] = [];

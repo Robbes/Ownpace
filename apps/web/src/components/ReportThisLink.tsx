@@ -29,6 +29,7 @@ import { useT, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { linkReportApi, type ReportedLink } from '../services/link-report-service.ts';
 import type { SentReport } from '../services/problem-report-service.ts';
+import { usePersonsPage } from './persons-page.tsx';
 
 interface Props {
   readonly kind: ReportedLink;
@@ -37,10 +38,18 @@ interface Props {
   readonly organisation: string;
   /** What the person can do next, said once the report is sent. */
   readonly next?: StringKey;
+  /**
+   * How it is drawn on a person's own page (workplan 0176 §5.1): a button
+   * where it answers something (*Not yet*), and a quiet link at the foot of
+   * every other screen. Either way a disclosure: the form follows it.
+   */
+  readonly look?: 'link' | 'button';
 }
 
-const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => {
+const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next, look = 'link' }) => {
   const t = useT();
+  // 18-pixel sentences and targets a finger finds on a person's own page (0176 T9).
+  const personsPage = usePersonsPage() !== null;
   const formId = useId();
   const sentRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -51,6 +60,9 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
     queryKey: ['link-report', kind, link],
     queryFn: () => linkReportApi.available(kind, link),
     retry: false,
+    // Asked once a visit: a step of a person's page that draws it again asks
+    // nothing more of the server (workplan 0176 T1.2, §5.6).
+    staleTime: Infinity,
   });
   const send = useMutation({
     mutationFn: () =>
@@ -84,7 +96,7 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
         ref={sentRef}
         tabIndex={-1}
         role="status"
-        className="mt-4 p-4 border border-gray-200 rounded-lg text-sm text-gray-900"
+        className={`mt-4 p-4 border border-gray-200 rounded-lg text-gray-900 ${personsPage ? 'text-lg bg-white' : 'text-sm'}`}
       >
         <p>{sentSentence(send.data, replyTo.trim())}</p>
         {next && <p className="mt-2">{t(next)}</p>}
@@ -92,9 +104,17 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
     );
   }
 
-  const field =
-    'block w-full px-3 py-2 border border-gray-300 text-gray-900 rounded-md ' +
-    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm';
+  const field = personsPage
+    ? 'block w-full min-h-[44px] px-3 py-2 border-2 border-gray-600 text-gray-900 rounded-md text-lg ' +
+      'focus:border-blue-700'
+    : 'block w-full px-3 py-2 border border-gray-300 text-gray-900 rounded-md ' +
+      'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm';
+  const opener = !personsPage
+    ? 'text-sm underline text-gray-700'
+    : look === 'button'
+      ? 'block w-full min-h-[60px] px-4 py-3 rounded-lg border-2 border-gray-700 bg-white text-lg font-semibold text-gray-900 hover:bg-gray-50'
+      : 'inline-flex min-h-[44px] items-center text-lg underline text-gray-900';
+  const small = personsPage ? 'text-lg text-gray-900' : 'text-sm text-gray-700';
   return (
     <div className="mt-2">
       <button
@@ -102,22 +122,24 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
         aria-expanded={open}
         aria-controls={formId}
         onClick={() => setOpen((was) => !was)}
-        className="text-sm underline text-gray-700"
+        className={opener}
+        data-look={look}
+        {...(personsPage && look === 'button' ? { 'data-main': true } : {})}
       >
         {t('linkReport.open')}
       </button>
       {open && (
         <form
           id={formId}
-          className="mt-3 p-4 border border-gray-200 rounded-lg space-y-4"
+          className={`mt-3 p-4 border border-gray-200 rounded-lg space-y-4 ${personsPage ? 'bg-white' : ''}`}
           onSubmit={(e) => {
             e.preventDefault();
             send.mutate();
           }}
         >
-          <p className="text-sm text-gray-700">{t('linkReport.intro', { organisation })}</p>
+          <p className={small}>{t('linkReport.intro', { organisation })}</p>
           <div>
-            <label htmlFor={`${formId}-description`} className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor={`${formId}-description`} className={`block font-medium mb-1 ${small}`}>
               {t('linkReport.description')}
             </label>
             <textarea
@@ -131,7 +153,7 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
             />
           </div>
           <div>
-            <label htmlFor={`${formId}-reply-to`} className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor={`${formId}-reply-to`} className={`block font-medium mb-1 ${small}`}>
               {t('linkReport.replyTo')}
             </label>
             <input
@@ -142,18 +164,23 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
               onChange={(e) => setReplyTo(e.target.value)}
               className={field}
             />
-            <p className="mt-1 text-xs text-gray-500">{t('linkReport.replyTo.hint')}</p>
+            <p className={`mt-1 ${personsPage ? 'text-base text-gray-800' : 'text-xs text-gray-500'}`}>{t('linkReport.replyTo.hint')}</p>
           </div>
-          <p className="text-sm text-gray-600">{t('linkReport.sentWith')}</p>
+          <p className={personsPage ? 'text-lg text-gray-800' : 'text-sm text-gray-600'}>{t('linkReport.sentWith')}</p>
           {send.isError && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className={personsPage ? 'text-lg text-red-800' : 'text-sm text-red-700'}>
               {serverMessage(send.error)}
             </p>
           )}
           <button
             type="submit"
             disabled={send.isPending || description.trim() === ''}
-            className="px-4 py-2 rounded-md bg-gray-800 text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-50"
+            className={
+              personsPage
+                ? 'block w-full min-h-[60px] px-4 py-3 rounded-lg bg-gray-800 text-white text-lg font-semibold hover:bg-gray-900 disabled:opacity-50'
+                : 'px-4 py-2 rounded-md bg-gray-800 text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-50'
+            }
+            {...(personsPage ? { 'data-main': true } : {})}
           >
             {send.isPending ? t('linkReport.sending') : t('linkReport.send')}
           </button>
