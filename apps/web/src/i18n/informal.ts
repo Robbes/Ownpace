@@ -54,21 +54,20 @@ export const NL_JE: Readonly<Partial<Record<StringKey, string>>> = {
   'answer.unreachable': 'De dienst was niet bereikbaar. Controleer je verbinding en probeer het opnieuw.',
   'view.state.cutover': 'Je gebruikt nu je nieuwe account.',
   'view.state.continuous': 'Wat nieuw binnenkomt op je oude account, wordt ook nog gekopieerd.',
-  'view.failure.authExpired': 'De koppeling met je account moet worden vernieuwd. Wie dit heeft ingesteld kan dat.',
+  'view.failure.authExpired': 'De koppeling met je account moet worden vernieuwd. {who} kan dat.',
   'view.failure.rateLimited': 'Je aanbieder vroeg ons (automatisch) rustiger aan te doen. Dit gaat vanzelf verder.',
   'view.failure.policyRefused':
     'Sommige items zijn niet gekopieerd door de instellingen van deze kopie, niet door je accounts.',
   'view.failure.internalAddress':
-    'Deze dienst maakt geen verbinding met het adres dat voor een van je accounts is opgegeven. Wie dit heeft ingesteld kan het aanpassen.',
+    'Deze dienst maakt geen verbinding met het adres dat voor een van je accounts is opgegeven. {who} kan het aanpassen.',
   'view.failure.sourceRefused': 'Je oude account gaf sommige items niet vrij. Deze gingen niet naar je nieuwe account.',
   'view.failure.targetRefused': 'Je nieuwe account kon sommige items niet in ontvangst nemen.',
-  'view.failure.formatRefused':
-    'Je nieuwe account accepteert bepaalde bestandstypen niet. Wie dit uitvoert kan de indeling mogelijk aanpassen.',
+  'view.failure.formatRefused': 'Je nieuwe account accepteert bepaalde bestandstypen niet. {who} kan dat aanpassen.',
   'view.failure.side.source': 'Het ging om je oude account.',
   'view.failure.side.target': 'Het ging om je nieuwe account.',
   'view.readOnly': 'Deze pagina toont alleen aantallen; er staat niets uit je account op.',
   'view.state.destinationRemoved':
-    'Het wachtwoord voor {destination} is op {date} verwijderd, dus het kopiëren wacht. Aan je {source}-account is niets veranderd, en er is niets gewist. Wie dit voor je heeft ingesteld, kan je een nieuwe link sturen.',
+    'Het wachtwoord voor {destination} is op {date} verwijderd, dus het kopiëren wacht. Aan je {source}-account is niets veranderd, en er is niets gewist. {who} kan je een nieuwe link sturen.',
   'view.grant.title': 'De toegang die je gaf',
   'view.grant.wholeApp': 'Google beëindigt alles wat je Ownpace toestond. Al het kopiëren uit dit account stopt dan.',
   'view.stopped.nothingToDo': 'Je hoeft niets te doen.',
@@ -90,6 +89,10 @@ export const NL_JE: Readonly<Partial<Record<StringKey, string>>> = {
   'view.destination.drive': 'De verbinding met Cirrux Drive die je gaf, wordt mee verwijderd.',
   'view.destination.driveRemoved':
     'Je verbinding met Cirrux Drive is hier ook verwijderd. Cirrux Mail toont de apps die je toestond onder Settings → Security; daar kun je die ook beëindigen.',
+
+  // Step B: the message the member sends with a link, in the person's voice (people.ts; §11, §12, §15).
+  'message.toPerson':
+    'Dit is de link waarover ik je vertelde. Je komt op een pagina van Ownpace. Daar geef je toestemming om je {what} te kopiëren naar {destination}. Er is geen haast: de link werkt tot {date}. Zullen we het samen doen? Bel me als je wilt beginnen.',
 
   // The link page, its provider's words, the password card and Report this link (grant.ts).
   'grant.title': 'Verbind je account',
@@ -132,7 +135,7 @@ export const NL_JE: Readonly<Partial<Record<StringKey, string>>> = {
   'grant.person.yourPage':
     'Hier is je eigen pagina. Bewaar deze. Die laat zien hoe ver het kopiëren is, en niets uit je account:',
   'grant.person.keepIt':
-    'Bewaar deze link: zet hem bij je favorieten of kopieer hem naar een veilige plek. Hij werkt de komende 90 dagen, en wie je de link stuurde, kan hem op elk moment uitzetten.',
+    'Bewaar deze link: zet hem bij je favorieten of kopieer hem naar een veilige plek. Hij werkt de komende 90 dagen, en {who} kan hem op elk moment uitzetten.',
   'grant.cirrux.drive':
     'Je bestanden gaan naar Cirrux Drive, en daarvoor is je eigen aanmelding bij Cirrux nodig, niet het app-wachtwoord. Je meldt je zelf aan bij Cirrux, op de pagina van Cirrux zelf.',
   'grant.cirrux.signInAs': 'Meld je bij Cirrux aan met het account waar {account} bij hoort.',
@@ -149,6 +152,22 @@ export const NL_JE: Readonly<Partial<Record<StringKey, string>>> = {
   'grant.group.to': 'De accounts waarnaar je gegevens worden gekopieerd',
   'grant.person.allConnected': 'Alle accounts zijn verbonden. Je kunt deze pagina sluiten.',
   'grant.person.title': '{who} vraagt je toestemming',
+  // Step B: how the reader knows the sender, and a number to check (T3, §7).
+  'sender.relation.daughter': 'je dochter',
+  'sender.relation.son': 'je zoon',
+  'sender.relation.child': 'je kind',
+  'sender.relation.granddaughter': 'je kleindochter',
+  'sender.relation.grandson': 'je kleinzoon',
+  'sender.relation.grandchild': 'je kleinkind',
+  'sender.relation.partner': 'je partner',
+  'sender.relation.brother': 'je broer',
+  'sender.relation.sister': 'je zus',
+  'sender.relation.father': 'je vader',
+  'sender.relation.mother': 'je moeder',
+  'sender.relation.acquaintance': 'iemand die je kent',
+  'sender.relation.colleague': 'je collega',
+  'grant.person.number': 'Nummer van {who}: {phone}. Of gebruik het nummer dat je al van {who} hebt.',
+  'grant.person.number.organisation': 'Nummer van {organisation}: {phone}. Of gebruik het nummer dat je al van {who} hebt.',
   'grant.person.whatOne': '{who} wil je {what} kopiëren van {source} naar {destination}.',
   'grant.person.whatMany': '{who} wil je {what} kopiëren. Op het volgende scherm staat waarvandaan en waarnaartoe.',
   'grant.person.told': 'Heeft {who} je zelf over deze link verteld?',
@@ -208,4 +227,7 @@ export const NL_JE: Readonly<Partial<Record<StringKey, string>>> = {
   'addresses.grant.yours': 'Je nieuwe adres: {new}. Klopt dat?',
   'addresses.view.readOnly':
     'Deze pagina toont aantallen, en het nieuwe adres dat voor je is ingesteld; er staat niets uit je account op.',
+
+  // Step B: everything on one page (one-page.ts, D15 (a)).
+  'grant.onePage.whatMany': '{who} wil je {what} kopiëren. Verderop op deze pagina staat waarvandaan en waarnaartoe.',
 };

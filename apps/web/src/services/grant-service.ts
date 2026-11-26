@@ -15,6 +15,7 @@ import type { Locale } from '../i18n/strings.ts';
 import { LINK_API_BASE, linkClient as client } from './link-client.ts';
 import { LinkAddressChangesField } from './link-address-service.ts';
 import { SenderSchema } from './sender-schema.ts';
+import { PageVoiceFields } from './page-voice.ts';
 
 /**
  * Whose sign-in a link's button opens (workplan 0171 §3.2). An API a release
@@ -137,6 +138,8 @@ const PersonSubjectSchema = z.object({
   // Absent from a server before alpha.21's step B: the page then reads as step A did.
   sender: SenderSchema.nullable().optional(),
   organisationPhone: z.string().nullable(),
+  // How the page speaks to the person (0176 T7): its language and its register.
+  ...PageVoiceFields,
   accounts: z
     .array(
       z.object({

@@ -150,6 +150,10 @@ verb before *je* drops its *-t* (*kunt u* → *kun je*). A reflexive *zich*
 after *u* is *je* (*u zich aanmeldt* → *je je aanmeldt*). A *u* that means
 two people is *jullie* (*als u elkaar ziet* → *als jullie elkaar zien*).
 Nothing else in the sentence changes: a word changed here is changed in
-both. `every-u-has-its-je.unit.test.ts` holds the layer to that. Until
-T7's main line stores the register and the pages read it, no screen says
-the layer: it is the draft the owner reads.
+both. `every-u-has-its-je.unit.test.ts` holds the layer to that. The
+member chooses where a link is made, the person keeps it (`person.voice`),
+and both pages read the layer first for a person whose pages say *je*
+(`InTheirVoice` in `index.tsx`). So do the message the member sends with a
+link (*Bel me als je wilt beginnen*: the sender speaks there, not the page)
+and the server's own sentences on a person's link, each written with its
+twin beside it (`nlJe`, `every-server-u-has-its-je.unit.test.ts`).

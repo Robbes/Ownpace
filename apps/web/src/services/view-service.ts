@@ -27,6 +27,7 @@ import type { DiscoveryDomain, MappingLifecycle, Stage, ViewTime } from '@openmi
 import { linkClient as client } from './link-client.ts';
 import { LinkAddressChangesField } from './link-address-service.ts';
 import { SenderSchema } from './sender-schema.ts';
+import { PageVoiceFields } from './page-voice.ts';
 
 const RowSchema = z.object({
   domain: z.enum(DISCOVERY_DOMAINS as unknown as [DiscoveryDomain, ...DiscoveryDomain[]]),
@@ -156,6 +157,8 @@ const PersonViewSchema = z.object({
   // B: the page names the organisation, as it did.
   sender: SenderSchema.nullable().optional(),
   organisationPhone: z.string().nullable().optional(),
+  // How the page speaks to the person (0176 T7): its language and its register.
+  ...PageVoiceFields,
   // The destinations the person connected with their own password (0174
   // §4.3). Absent from a server before alpha.21, read as none.
   destinations: z

@@ -55,7 +55,7 @@ import { DISCOVERY_DOMAINS } from '@openmig/shared';
 import { grantApi, type GrantProvider, type GrantSubject, type PersonGrantCard, type PersonGrantSubject } from '../services/grant-service.ts';
 import { linkRefusal } from '../services/link-refusal.ts';
 import { legalLinks } from '../services/legal-links.ts';
-import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import { InTheirVoice, useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/strings.ts';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import BuildStamp from '../components/BuildStamp.tsx';
@@ -472,26 +472,29 @@ const PersonGrantOnePage: React.FC = () => {
   const data = subject.data && isPersonSubject(subject.data) ? subject.data : null;
   const who = data ? (data.askedBy ?? data.organisation) : '';
   return (
-    <PersonsPageProvider value={{ who }}>
-      <main data-persons-page data-one-page className="max-w-xl mx-auto px-4 py-8 sm:py-12">
-        <LanguageSwitch className="justify-end mb-4 print:hidden" />
-        <h1 className="text-2xl font-semibold text-gray-900 break-words">{title}</h1>
-        {subject.isPending && (
-          <p role="status" className="mt-4 text-lg text-gray-900">
-            {t('grant.loading')}
-          </p>
-        )}
-        {subject.error != null && (
-          <p role="alert" className="mt-4 text-lg text-amber-900">
-            {linkRefusal(subject.error, locale, t)}
-          </p>
-        )}
-        {data && link && <Everything data={data} link={link} />}
-        <div className="mt-10 text-center">
-          <BuildStamp />
-        </div>
-      </main>
-    </PersonsPageProvider>
+    // In the voice chosen for them (0176 T7), as the steps are.
+    <InTheirVoice language={data?.language} register={data?.register}>
+      <PersonsPageProvider value={{ who }}>
+        <main data-persons-page data-one-page className="max-w-xl mx-auto px-4 py-8 sm:py-12">
+          <LanguageSwitch className="justify-end mb-4 print:hidden" />
+          <h1 className="text-2xl font-semibold text-gray-900 break-words">{title}</h1>
+          {subject.isPending && (
+            <p role="status" className="mt-4 text-lg text-gray-900">
+              {t('grant.loading')}
+            </p>
+          )}
+          {subject.error != null && (
+            <p role="alert" className="mt-4 text-lg text-amber-900">
+              {linkRefusal(subject.error, locale, t)}
+            </p>
+          )}
+          {data && link && <Everything data={data} link={link} />}
+          <div className="mt-10 text-center">
+            <BuildStamp />
+          </div>
+        </main>
+      </PersonsPageProvider>
+    </InTheirVoice>
   );
 };
 

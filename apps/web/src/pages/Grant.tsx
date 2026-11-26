@@ -109,7 +109,7 @@ import { grantApi, type GrantSubject, type PersonGrantSubject } from '../service
 import { linkRefusal } from '../services/link-refusal.ts';
 import { consentToFollow } from '../services/address-to-follow.ts';
 import { legalLinks } from '../services/legal-links.ts';
-import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import { InTheirVoice, useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
@@ -405,7 +405,15 @@ const Grant: React.FC = () => {
   // the member gave, else their address, else the organisation; nothing yet
   // while the page loads.
   const who = subject.data && isPersonSubject(subject.data) ? whoSent(subject.data) : '';
-  return personsPage ? <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider> : page;
+  // In the voice chosen for them (0176 T7): the steps read their words in it.
+  const voice = subject.data && isPersonSubject(subject.data) ? subject.data : null;
+  return personsPage ? (
+    <InTheirVoice language={voice?.language} register={voice?.register}>
+      <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider>
+    </InTheirVoice>
+  ) : (
+    page
+  );
 };
 
 export default Grant;

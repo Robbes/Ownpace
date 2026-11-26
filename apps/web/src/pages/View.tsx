@@ -69,7 +69,7 @@
 
 import React from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { isPauseReason, type FailureCategory, type MappingLifecycle, type ViewTime } from '@openmig/shared';
 import {
   viewApi,
@@ -79,7 +79,7 @@ import {
   type WithdrawalPayload,
 } from '../services/view-service.ts';
 import { isUnreachable, linkRefusal } from '../services/link-refusal.ts';
-import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import { InTheirVoice, useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import type { Locale, StringKey } from '../i18n/index.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { VIEW_FAILURE_KEY, VIEW_SIDE_KEY } from '../i18n/view-failure-key.ts';
@@ -922,15 +922,13 @@ const motionWelcome = (): boolean =>
 /** A refresh once a minute (0176 T6.4). */
 const REFRESH_MS = 60_000;
 
+/**
+ * The page's answer, asked for once, and a person's page in the voice chosen
+ * for them (0176 T7, `InTheirVoice`): everything `ViewPage` draws reads its
+ * words in it. A migration's own page has no voice, and reads as it did.
+ */
 const View: React.FC = () => {
   const { link } = useParams<{ link: string }>();
-  const t = useT();
-  const { locale } = useLocale();
-  const { dateTime, time } = useFormatters();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-
   const view = useQuery({
     queryKey: ['view', link],
     queryFn: () => viewApi.read(link!),
@@ -945,6 +943,24 @@ const View: React.FC = () => {
       return query.state.error != null && !isUnreachable(query.state.error) ? false : REFRESH_MS;
     },
   });
+  const person = view.data && isPersonView(view.data) ? view.data : null;
+  return (
+    <InTheirVoice language={person?.language} register={person?.register}>
+      <ViewPage link={link} view={view} />
+    </InTheirVoice>
+  );
+};
+
+const ViewPage: React.FC<{
+  readonly link: string | undefined;
+  readonly view: UseQueryResult<Awaited<ReturnType<typeof viewApi.read>>>;
+}> = ({ link, view }) => {
+  const t = useT();
+  const { locale } = useLocale();
+  const { dateTime, time } = useFormatters();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // A refresh that cannot reach the server keeps what the page showed (T6.4);
   // any other failure, or one before anything was shown, is the page's refusal.
