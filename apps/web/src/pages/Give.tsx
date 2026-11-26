@@ -18,10 +18,13 @@
  * giver's name stands on the card as the person to ask. Nothing about what
  * the giver gets (D4): they get nothing, and the page does not say so.
  *
- * **When no card can be made it says so, and offers no button** (D7, §20.3):
- * *none for now* when the number each person may give is nought, and *the
- * Alpha is full* when the Alpha has no place for a new card (`room`). A
- * member at their own number is told to withdraw an unused card first.
+ * **When no card can be made it says so, and offers no button** (D7, D18,
+ * §20.3): during the Alpha, to a member let in by a recommendation, that only
+ * the people Ownpace let in itself recommend, and that they can after it
+ * (`onlyAfterAlpha`, §20.7); *none for now* when the number each person may
+ * give is nought; and *the Alpha is full* when the Alpha has no place for a
+ * new card (`room`). A member at their own number is told to withdraw an
+ * unused card first.
  *
  * **What leaves the browser, and what does not.** Making one sends the card's
  * language and nothing else (`makeGift`). The giver's name on the card
@@ -214,14 +217,18 @@ const Give: React.FC = () => {
   });
 
   /**
-   * Why no card can be made now, or null when one can (D7, §20.3): a number
-   * of nought is *none for now*; the member's own number reached says to
-   * withdraw an unused one, which also frees its place; a full Alpha says so.
-   * Never *already given* for the first or the last.
+   * Why no card can be made now, or null when one can (D7, D18, §20.3): during
+   * the Alpha a member let in by a recommendation reads that only the people
+   * Ownpace let in itself recommend, and that they can after it (§20.7); a
+   * number of nought is *none for now*; the member's own number reached says
+   * to withdraw an unused one, which also frees its place; a full Alpha says
+   * so. Never *already given* for the first, the second or the last.
    */
   const noCard = ((): StringKey | null => {
     const data = mine.data;
     if (!data) return null;
+    // D18: let in by a recommendation, during the Alpha; the limit is then nought too.
+    if (data.onlyAfterAlpha === true) return 'give.onlyAfterAlpha';
     if (data.limit === 0) return 'give.noneForNow';
     if (data.held >= data.limit) return 'give.atLimit';
     if (data.room === false) return 'give.full';
@@ -259,6 +266,8 @@ const Give: React.FC = () => {
             giver who tells the other person at the hand-over. */}
         <p className={SENTENCE}>{t('give.tellFirst')}</p>
         <p className={SENTENCE}>{t('give.willSee')}</p>
+        {/* What is kept, and that the card's name and message are never received (§9). */}
+        <p className={SENTENCE}>{t('give.privacy')}</p>
         <details className="rounded-lg border-2 border-gray-300 bg-white p-4">
           <summary className="cursor-pointer text-lg font-semibold text-gray-900 min-h-[44px] flex items-center">
             {t('give.theySee')}

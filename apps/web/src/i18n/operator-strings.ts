@@ -111,6 +111,11 @@ export const OPERATOR_STRINGS = {
   // customer-facing half of this disclosure is 0110 T6.
   // ---------------------------------------------------------------------
   'support.heading': 'Support',
+  // The Alpha's overview on the first screen (workplan 0177 D17, §20.4): the
+  // three counts Gifts shows, from the same answer, and no names. `{gifts}` is
+  // a link to Gifts, by its menu name.
+  'support.alpha.title': 'The Alpha',
+  'support.alpha.line': 'Nothing refuses your own yes: you keep count. The numbers are set on {gifts}.',
   'support.recorded':
     'Every screen you open here is logged against your name, and customers can view that.',
   'support.recorded.why':
@@ -455,18 +460,19 @@ export const OPERATOR_STRINGS = {
   'gifts.count.unused': 'Cards not used yet: {n}',
   // Said beside a count at its ceiling or past it, so that it stands out in words and not by colour alone.
   'gifts.count.atCeiling': 'The number is reached.',
-  // Under the counts: what each ceiling does. Which of the two is said is the
-  // owner's D17 (`OWNERS_CEILING_REFUSES` in `Gifts.tsx`).
+  // Under the counts: what each ceiling does. Nothing refuses the owner's own
+  // yes: the owner keeps count (D17, the owner, 2026-11-26).
   'gifts.count.rule':
     'At its number a recommendation lets nobody in, and no new card is made. Nothing refuses your own yes past yours.',
-  'gifts.count.ruleRefused':
-    'At its number a recommendation lets nobody in, and no new card is made. At yours, a grant is refused until you raise it.',
   'gifts.count.google':
     'These count people. Google’s list of test users counts addresses, and ends at 100: each family member’s address and your own test addresses are on it too.',
   'gifts.ceiling.owner': 'The most people you let in',
   'gifts.ceiling.recommendation': 'The most people let in by a recommendation',
   'gifts.rule.title': 'Recommendations per person',
   'gifts.rule.help': 'How many people each person may recommend. 0 stops new cards; unused ones keep working.',
+  // Beside the number per person, during the Alpha (D18, §20.7).
+  'gifts.rule.alphaOnly':
+    'During the Alpha only the people you let in have these. A person let in by a recommendation has none until the Alpha ends.',
   'gifts.rule.save': 'Save',
   'gifts.allowance.title': 'For one person',
   'gifts.allowance.help':

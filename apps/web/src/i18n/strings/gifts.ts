@@ -38,6 +38,9 @@ export const en = {
   'give.atLimit': 'You have made your recommendation already. Withdraw an unused one to make another.',
   'give.noneForNow': 'No new recommendation can be made for now.',
   'give.full': 'The Alpha is full for now. No new recommendation can be made.',
+  // D18 (the owner, 2026-11-26): during the Alpha, only the people the owner let in recommend (§20.7).
+  'give.onlyAfterAlpha':
+    'During the Alpha, only the people Ownpace let in itself can recommend someone. After the Alpha, you can too.',
   'give.failed': 'The recommendation could not be made.',
   'give.once': 'The code is shown only now. Lost it? Withdraw it below and make a new one.',
   'give.giverName': 'Your name on the card',
@@ -153,6 +156,8 @@ export const nl: Record<keyof typeof en, string> = {
   'give.atLimit': 'U hebt uw aanbeveling al gemaakt. Trek een ongebruikte in om een nieuwe te maken.',
   'give.noneForNow': 'U kunt nu even geen aanbeveling maken.',
   'give.full': 'De Alpha is nu vol. U kunt nu geen aanbeveling maken.',
+  'give.onlyAfterAlpha':
+    'Tijdens de Alpha kunnen alleen de mensen die Ownpace zelf toeliet iemand aanbevelen. Na de Alpha kunt u dat ook.',
   'give.failed': 'De aanbeveling kon niet worden gemaakt.',
   'give.once': 'U ziet de code alleen nu. Kwijt? Trek hem hieronder in en maak een nieuwe.',
   'give.giverName': 'Uw naam op de kaart',

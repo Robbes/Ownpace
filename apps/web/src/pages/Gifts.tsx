@@ -21,12 +21,14 @@
  *  - **Every card**, whose it is, what became of it, and *Revoke* on an
  *    unused one.
  *
- * Whether the owner's own number refuses a grant is the owner's D17, still
- * open; until it is answered it is only shown, and the sentence under the
- * counts says so. That choice is `OWNERS_CEILING_REFUSES`, below, and the
- * server's own is the back's (0177 §19). Nothing here authorises anything:
- * managed migration 0065's policies are the rule, so a typed URL by somebody
- * else shows nothing and changes nothing.
+ * Nothing refuses the owner's own yes, at their number or past it: the
+ * owner's D17 (2026-11-26), *"no, ik will count. But you add oversight on the
+ * operator support page."* So the sentence under the counts says so, and the
+ * same counts stand on Support's first screen (`AlphaOverview` in
+ * `Support.tsx`). During the Alpha only the people the owner let in have a
+ * recommendation (D18, §20.7), and the line beside the number per person says
+ * so. Nothing here authorises anything: managed migration 0065's policies are
+ * the rule, so a typed URL by somebody else shows nothing and changes nothing.
  */
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -35,6 +37,7 @@ import { useOperatorT, useFormatters } from '../i18n/index.tsx';
 import type { OperatorKey } from '../i18n/operator-strings.ts';
 import { serverMessage } from '../services/api.ts';
 import { CeilingLine } from '../components/CeilingLine.tsx';
+import { isAlpha } from '../components/AlphaNote.tsx';
 import {
   listAllGifts,
   revokeAnyGift,
@@ -43,15 +46,6 @@ import {
   type GiftState,
   type RuleNumber,
 } from '../services/gifts.ts';
-
-/**
- * THE OWNER'S D17, UNTIL IT IS ANSWERED (0177 §15.3): does the owner's own
- * number refuse a 51st yes, or is it only shown? Until the owner answers, it
- * is only shown, which both answers need anyway. An answer of (a) turns this
- * to `true`, with the server's refusal of a grant (§19): then the sentence
- * under the counts says that a grant is refused until the number is raised.
- */
-const OWNERS_CEILING_REFUSES = false;
 
 
 const STATE_KEY = {
@@ -178,7 +172,7 @@ const Gifts: React.FC = () => {
             />
             <p className="text-gray-900">{t('gifts.count.unused', { n: data.alpha.unusedGifts })}</p>
           </div>
-          <p className="text-sm text-gray-700">{t(OWNERS_CEILING_REFUSES ? 'gifts.count.ruleRefused' : 'gifts.count.rule')}</p>
+          <p className="text-sm text-gray-700">{t('gifts.count.rule')}</p>
           <p className="text-sm text-gray-700">{t('gifts.count.google')}</p>
           <div className="flex flex-wrap gap-6 pt-1">
             <RuleField which="ownerCeiling" label={t('gifts.ceiling.owner')} current={data.alpha.ownerCeiling} onSaved={refresh} />
@@ -196,6 +190,8 @@ const Gifts: React.FC = () => {
         <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
           <h2 className="text-lg font-semibold text-gray-900">{t('gifts.rule.title')}</h2>
           <p className="text-sm text-gray-600">{t('gifts.rule.help')}</p>
+          {/* During the Alpha, only the people the owner let in have these (D18, §20.7). */}
+          {isAlpha() && <p className="text-sm text-gray-700">{t('gifts.rule.alphaOnly')}</p>}
           <RuleField which="giftsPerPerson" label={t('gifts.rule.title')} hiddenLabel current={data.giftsPerPerson} onSaved={refresh} />
 
           <h3 className="pt-2 font-semibold text-gray-900">{t('gifts.allowance.title')}</h3>

@@ -37,6 +37,12 @@ export interface MyGifts {
    * from a server older than step A, which had no ceiling: then it has.
    */
   readonly room?: boolean;
+  /**
+   * During the Alpha, a member let in by a recommendation has none until the
+   * Alpha ends, and their `limit` is nought (0177 D18, §20.7). Absent from a
+   * server older than step A: then they have.
+   */
+  readonly onlyAfterAlpha?: boolean;
   /** Where the code is typed, when the deployment knows its own address. */
   readonly redeemAt: string | null;
 }
