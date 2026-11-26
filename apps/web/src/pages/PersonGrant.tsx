@@ -198,6 +198,9 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
   const [progressUrl, setProgressUrl] = React.useState<string | null>(null);
   // The answer, on this visit, whether or not the tab could keep it.
   const [answeredHere, setAnsweredHere] = React.useState(false);
+  // Whether the tab held it when the page opened: only then does the page open
+  // past the first screen. Answered on this visit, Back still reaches it.
+  const [answeredAtOpen] = React.useState(() => readTold(link));
 
   // SHOWN AGAIN FROM THE BACK CACHE (T1.8): a press left for the provider,
   // and the browser's Back brought the page back as it was, with its button
@@ -231,7 +234,11 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
   const accountsShown = ordered.length > 1 || !askApplies || hasAddress || !pressable(first);
 
   const initial = (): Step =>
-    askApplies && !answered ? { kind: 'ask' } : accountsShown ? { kind: 'accounts' } : { kind: 'ready', account: keyOf(first) };
+    askApplies && !answeredAtOpen
+      ? { kind: 'ask' }
+      : accountsShown
+        ? { kind: 'accounts' }
+        : { kind: 'ready', account: keyOf(first) };
   const valid = (s: Step | null): Step | null => {
     if (s === null) return null;
     // A step opened first, with no answer in the tab, shows the first screen.
@@ -574,7 +581,7 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
                     <section
                       key={keyOf(a)}
                       aria-labelledby={cardId}
-                      className="mt-4 p-4 rounded-lg border border-gray-300 bg-white"
+                      className="mt-4 border-t border-gray-200 pt-4"
                       data-card-role={roleOf(a)}
                       data-card-way={wayOf(a)}
                       data-card-state={state}
@@ -672,7 +679,7 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
                     number to call back on, to ask some other way first (§5.8). */}
                 <section
                   aria-labelledby={`${h1Id}-card`}
-                  className="mt-6 p-4 rounded-lg border border-gray-300 bg-white"
+                  className="mt-6 border-t border-gray-200 pt-4"
                   data-group={roleOf(a)}
                   data-card-role={roleOf(a)}
                   data-card-way={wayOf(a)}

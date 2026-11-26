@@ -2026,7 +2026,8 @@ const PERSON_LINK_WALK: readonly WalkScreen[] = [
       en: [
         'This page is from Ownpace, the service that makes the copy.', // grant.person.ownpace
         'Sender', // grant.person.sender
-        `${ASKED_BY} wants to copy your email, calendar and files. The next screen shows from where and to where.`, // grant.person.whatMany
+        // An English list takes the serial comma, as every list the app joins (`formatList`, 0145 T6).
+        `${ASKED_BY} wants to copy your email, calendar, and files. The next screen shows from where and to where.`, // grant.person.whatMany
         'Everything also stays in Google.', // grant.person.fact.stays
         'Ownpace only reads there. It deletes nothing and changes nothing.', // grant.person.fact.reads
         'There is no hurry. You can do this until', // grant.person.fact.noHurry

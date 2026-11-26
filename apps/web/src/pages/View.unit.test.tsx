@@ -626,14 +626,16 @@ describe('a person’s progress page', () => {
  * type's stage, the owner's line under it (*4,211 of ~5,000 · last pass …*),
  * and how long. The stage and the time are the server's; the page says them.
  */
+// A migration's own progress page is a person's page too since 2026-11-26, workplan 0176 (§6, D14 (a)):
+// the same facts, in a person's words, where it said the owner's.
 describe('stage, totals and time, as the owner’s pages say them (0154 T8)', () => {
   const kept = row({ stage: 'kept_in_step', itemsFound: 5000, lastSyncedAt: YESTERDAY });
 
   it('says each data type’s stage, and its count against what was found', async () => {
     readMock.mockResolvedValue(payload({ domains: [kept] }));
     renderPage();
-    const mail = (await screen.findByText('Kept in step')).closest('li')!;
-    expect(within(mail).getByText(/^4,211 of ~5,000 · last pass /)).toBeInTheDocument();
+    const mail = (await screen.findByText('Copied, and kept up to date')).closest('li')!;
+    expect(within(mail).getByText(/^4,211 of ~5,000 · last copied /)).toBeInTheDocument();
     // The line says when, so the page does not say it twice.
     expect(within(mail).queryByText(/Up to date as of/)).not.toBeInTheDocument();
     // The stage stands where the bare count stood.
@@ -645,7 +647,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       payload({ domains: [row({ stage: 'copying', itemsFound: 5000, lastActiveAt: YESTERDAY })] }),
     );
     renderPage();
-    const mail = (await screen.findByText('Copying')).closest('li')!;
+    const mail = (await screen.findByText('Being copied')).closest('li')!;
     expect(within(mail).getByText('4,211 of ~5,000')).toBeInTheDocument();
     expect(within(mail).getByText(/Still copying; last worked on/)).toBeInTheDocument();
   });
@@ -660,8 +662,8 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       }),
     );
     renderPage();
-    await screen.findByText('Paused');
-    expect(screen.getByText('Not started')).toBeInTheDocument();
+    await screen.findByText('On hold');
+    expect(screen.getByText('Not started yet')).toBeInTheDocument();
     expect(screen.queryByText(/Still copying/)).not.toBeInTheDocument();
     expect(screen.queryByText('Not started yet.')).not.toBeInTheDocument();
   });
@@ -674,7 +676,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       }),
     );
     renderPage();
-    const mail = (await screen.findByText('Ready to switch')).closest('li')!;
+    const mail = (await screen.findByText('Copied, ready for the switch')).closest('li')!;
     expect(within(mail).getByText(/^The check passed /)).toBeInTheDocument();
   });
 
@@ -690,7 +692,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       }),
     );
     renderPage();
-    expect(await screen.findByText(/About 10 to 11 hours more, from the last 3 passes\./)).toBeInTheDocument();
+    expect(await screen.findByText(/About 10 to 11 hours more\./)).toBeInTheDocument();
     expect(screen.getByText(/^Slowed by Microsoft/)).toBeInTheDocument();
   });
 
@@ -716,7 +718,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       }),
     );
     renderPage();
-    await screen.findByText('Kept in step');
+    await screen.findByText('Copied, and kept up to date');
     expect(screen.queryByText('How long:')).not.toBeInTheDocument();
   });
 
@@ -769,9 +771,9 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
           </LocaleProvider>
         </QueryClientProvider>,
       );
-      const mail = (await screen.findByText('Wordt bijgehouden')).closest('li')!;
-      expect(within(mail).getByText(/^4\.211 van ~5\.000 · laatste ronde /)).toBeInTheDocument();
-      expect(screen.getByText(/Ongeveer nog 10 tot 11 uur, volgens de laatste 3 rondes\./)).toBeInTheDocument();
+      const mail = (await screen.findByText('Gekopieerd, en wordt bijgehouden')).closest('li')!;
+      expect(within(mail).getByText(/^4\.211 van ~5\.000 · laatst gekopieerd /)).toBeInTheDocument();
+      expect(screen.getByText(/Ongeveer nog 10 tot 11 uur\./)).toBeInTheDocument();
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }

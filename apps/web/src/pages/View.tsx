@@ -59,8 +59,12 @@
  *
  * The stop is a screen of its own (§9.1): *Stop copying*, then a question
  * with two answers of one size, then what the provider answered. Each is an
- * entry in the browser's history, so Back goes back to the page. A migration's
- * own page takes the same screen.
+ * entry in the browser's history, so Back goes back to the page.
+ *
+ * A migration's own progress link, sent before 2026-10-03, is read by a
+ * person too, and is drawn as one (§6): the same first line, refresh, words,
+ * sizes and stop. It keeps only its own title and its sentence on who
+ * migrates (`view.title`, `view.who`).
  */
 
 import React from 'react';
@@ -94,7 +98,7 @@ import { useLineSentence } from '../components/MigrationLines.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
 import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
 import { YourNewAddress } from '../components/YourNewAddress.tsx';
-import { PersonsPageProvider, usePersonsPage } from '../components/persons-page.tsx';
+import { PersonsPageProvider } from '../components/persons-page.tsx';
 
 type T = ReturnType<typeof useT>;
 
@@ -163,37 +167,18 @@ const plural = (base: string, n: number): StringKey =>
   `${base}.${n === 1 ? 'one' : 'many'}` as StringKey;
 
 /**
- * A PERSON'S SIZES (workplan 0176 T9, §13), or a migration's page's own: on a
- * person's page a sentence is 18 pixels at 7 to 1 against the paper, and
- * nothing is under 16.
+ * A PERSON'S SIZES (workplan 0176 T9, §13): both progress pages are read by a
+ * person with no account, so a sentence is 18 pixels at 7 to 1 against the
+ * paper, and nothing is under 16.
  */
-interface Look {
-  readonly sentence: string;
-  readonly quiet: string;
-  readonly warn: string;
-  readonly small: string;
-  readonly title2: string;
-  readonly title3: string;
-}
-const PERSONS_LOOK: Look = {
+const LOOK = {
   sentence: 'text-lg text-gray-900',
   quiet: 'text-lg text-gray-800',
   warn: 'text-lg text-amber-900',
-  small: 'text-base text-gray-800',
+  small: 'text-lg text-gray-800',
   title2: 'text-xl font-semibold text-gray-900',
   title3: 'text-lg font-semibold text-gray-900',
-};
-const PAGE_LOOK: Look = {
-  sentence: 'text-gray-900',
-  quiet: 'text-sm text-gray-600',
-  warn: 'text-sm text-amber-800',
-  small: 'text-sm text-gray-500',
-  title2: 'text-base font-semibold text-gray-900',
-  title3: 'font-medium text-gray-900',
-};
-function useLook(): Look {
-  return usePersonsPage() !== null ? PERSONS_LOOK : PAGE_LOOK;
-}
+} as const;
 
 /**
  * A MAIN BUTTON THAT IS NO TRAP (§9.1, §13): as wide as the column, 60
@@ -220,7 +205,6 @@ const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, ch
   const t = useT();
   const { dateTime } = useFormatters();
   const sentenceOf = useLineSentence();
-  const look = useLook();
 
   // A COMPLETION is the only honest source for "up to date as of"; when there
   // has never been one, the page says when a pass last did something instead,
@@ -251,30 +235,30 @@ const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, ch
   return (
     <li className="py-3 border-b border-gray-200 last:border-b-0" data-domain={row.domain}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <span className={`font-medium ${look.sentence}`}>{t(DOMAIN_STRING_KEY[row.domain])}</span>
+        <span className={`font-medium ${LOOK.sentence}`}>{t(DOMAIN_STRING_KEY[row.domain])}</span>
         {row.stage ? (
           <StateChip entity="stage" state={row.stage} />
         ) : (
-          <span className={look.sentence}>
+          <span className={LOOK.sentence}>
             {t(plural('view.copied', row.itemsSynced), { count: String(row.itemsSynced) })}
           </span>
         )}
       </div>
-      {line && line.text !== '' && <p className={`mt-0.5 ${look.sentence}`}>{line.text}</p>}
-      {saysWhen && <p className={`mt-0.5 ${look.quiet}`}>{when}</p>}
+      {line && line.text !== '' && <p className={`mt-0.5 ${LOOK.sentence}`}>{line.text}</p>}
+      {saysWhen && <p className={`mt-0.5 ${LOOK.quiet}`}>{when}</p>}
 
       {row.itemsNeedingDecision > 0 && (
         // Counted, never described. What is waiting is a decision by the person
         // running the migration, so the sentence points at them rather than
         // asking this reader to do something they cannot.
-        <p className={`mt-1 ${look.warn}`}>
+        <p className={`mt-1 ${LOOK.warn}`}>
           {t(plural('view.attention', row.itemsNeedingDecision), {
             count: String(row.itemsNeedingDecision),
           })}
         </p>
       )}
       {row.itemsRetrying > 0 && (
-        <p className={`mt-1 ${look.quiet}`}>
+        <p className={`mt-1 ${LOOK.quiet}`}>
           {t(plural('view.retrying', row.itemsRetrying), { count: String(row.itemsRetrying) })}
         </p>
       )}
@@ -284,7 +268,7 @@ const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, ch
           the owner's remedies tell somebody to open a Connections page that
           this reader has no account to reach. */}
       {row.lastErrorCategory && row.lastErrorCategory in VIEW_FAILURE_KEY && (
-        <p className={`mt-1 ${look.quiet}`}>
+        <p className={`mt-1 ${LOOK.quiet}`}>
           {t(VIEW_FAILURE_KEY[row.lastErrorCategory as FailureCategory])}
           {row.failedSide ? ` ${t(VIEW_SIDE_KEY[row.failedSide])}` : ''}
         </p>
@@ -422,13 +406,12 @@ const TheAccessTheyGave: React.FC<{
   onStop: () => void;
 }> = ({ grant, organisation, names, forAccount, onStop }) => {
   const t = useT();
-  const look = useLook();
   // One section of a person's page sits under its account's heading.
   const Title: 'h2' | 'h3' = forAccount ? 'h3' : 'h2';
-  // A white card with an edge: gray-50 is the page's own paper since the
-  // site's palette (0152 T9 (b)), so a gray-50 panel drew no box at all.
-  const frame = forAccount ? 'mt-4 rounded-lg border border-gray-300 bg-white p-4' : 'mt-8 border-t border-gray-300 pt-6';
-  const title = forAccount ? look.title3 : look.title2;
+  // Under a rule, not in a box: a main button is as wide as the page's
+  // column (0176 T9, §13), and a box's padding narrowed it.
+  const frame = forAccount ? 'mt-6 border-t border-gray-200 pt-4' : 'mt-8 border-t border-gray-300 pt-6';
+  const title = forAccount ? LOOK.title3 : LOOK.title2;
 
   // A destination's password removed (change 1 of the owner's decisions of
   // 2026-11-26): the source's access was not taken back, so this section
@@ -439,10 +422,10 @@ const TheAccessTheyGave: React.FC<{
     return (
       <section className={frame}>
         <Title className={title}>{t('view.grant.title')}</Title>
-        <p className={`mt-2 ${look.sentence}`}>{t('view.stopped.readsNothing', { account: names.inSentence })}</p>
+        <p className={`mt-2 ${LOOK.sentence}`}>{t('view.stopped.readsNothing', { account: names.inSentence })}</p>
         {names.family && (
           <>
-            <p className={`mt-2 ${look.sentence}`}>{t('view.withdrawn.check', { provider: names.provider })}</p>
+            <p className={`mt-2 ${LOOK.sentence}`}>{t('view.withdrawn.check', { provider: names.provider })}</p>
             <AppsWithAccess family={names.family} />
           </>
         )}
@@ -455,12 +438,12 @@ const TheAccessTheyGave: React.FC<{
   return (
     <section className={frame}>
       <Title className={title}>{t('view.grant.title')}</Title>
-      <p className={`mt-2 ${look.sentence}`}>
+      <p className={`mt-2 ${LOOK.sentence}`}>
         {forAccount
           ? t('view.person.grant.body', { organisation, provider: names.provider })
           : t('view.grant.body', { organisation })}
       </p>
-      <p className={`mt-2 ${look.sentence}`}>{t('view.grant.whatHappens')}</p>
+      <p className={`mt-2 ${LOOK.sentence}`}>{t('view.grant.whatHappens')}</p>
       <button type="button" data-main onClick={onStop} className={`mt-4 ${MAIN_OUTLINED}`}>
         {t('view.grant.withdraw')}
       </button>
@@ -588,7 +571,6 @@ type PersonViewDestination = PersonViewPayload['destinations'][number];
 const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewDestination }> = ({ link, destination }) => {
   const t = useT();
   const { locale } = useLocale();
-  const look = useLook();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = React.useState(false);
   const provider = providerName(destination.provider, 'target', locale);
@@ -602,27 +584,27 @@ const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewD
 
   return (
     <section aria-labelledby={headingId} className="mt-8 border-t border-gray-300 pt-6" data-destination={destination.provider}>
-      <h2 id={headingId} className={look.title2}>
+      <h2 id={headingId} className={LOOK.title2}>
         {t('view.destination.title', { provider })}
       </h2>
       {remove.data ? (
-        <div className="mt-4 rounded-lg border border-gray-300 bg-white p-4" role="status">
-          <p className={look.sentence}>{t('grant.password.withdrawn', { provider })}</p>
-          {remove.data.drive && <p className={`mt-2 ${look.sentence}`}>{t('view.destination.driveRemoved')}</p>}
-          <p className={`mt-2 ${look.sentence}`}>{t('view.destination.since')}</p>
+        <div className="mt-4" role="status">
+          <p className={LOOK.sentence}>{t('grant.password.withdrawn', { provider })}</p>
+          {remove.data.drive && <p className={`mt-2 ${LOOK.sentence}`}>{t('view.destination.driveRemoved')}</p>}
+          <p className={`mt-2 ${LOOK.sentence}`}>{t('view.destination.since')}</p>
         </div>
       ) : (
-        <div className="mt-4 rounded-lg border border-gray-300 bg-white p-4">
-          <p className={look.sentence}>{t('view.destination.body')}</p>
-          <p className={`mt-2 ${look.sentence}`}>{t('view.destination.whatHappens')}</p>
-          {destination.drive && <p className={`mt-2 ${look.sentence}`}>{t('view.destination.drive')}</p>}
+        <div className="mt-4">
+          <p className={LOOK.sentence}>{t('view.destination.body')}</p>
+          <p className={`mt-2 ${LOOK.sentence}`}>{t('view.destination.whatHappens')}</p>
+          {destination.drive && <p className={`mt-2 ${LOOK.sentence}`}>{t('view.destination.drive')}</p>}
           {!confirming ? (
             <button type="button" data-main onClick={() => setConfirming(true)} className={`mt-4 ${MAIN_OUTLINED}`}>
               {t('view.destination.remove')}
             </button>
           ) : (
             <div className="mt-4">
-              <p className={look.sentence}>{t('view.destination.confirm')}</p>
+              <p className={LOOK.sentence}>{t('view.destination.confirm')}</p>
               <div data-answers className="mt-3 space-y-3">
                 <button
                   type="button"
@@ -647,7 +629,7 @@ const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewD
           )}
           {remove.error != null && (
             // The server's own sentence, in the page's language: it changed since the page was opened.
-            <p role="alert" className={`mt-2 ${look.warn}`}>{linkRefusal(remove.error, locale, t)}</p>
+            <p role="alert" className={`mt-2 ${LOOK.warn}`}>{linkRefusal(remove.error, locale, t)}</p>
           )}
         </div>
       )}
@@ -662,13 +644,12 @@ const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewD
  */
 const HowLong: React.FC<{ time: ViewTime | undefined; from: string | undefined }> = ({ time, from }) => {
   const { locale } = useLocale();
-  const look = useLook();
   if (!time) return null;
   return time.kind === 'beforeStart' ? (
-    <TimeBeforeStartLine className={`mt-3 ${look.quiet}`} time={time.estimate} />
+    <TimeBeforeStartLine className={`mt-3 ${LOOK.quiet}`} time={time.estimate} />
   ) : (
     <TimeWhileCopyingLine
-      className={`mt-3 ${look.quiet}`}
+      className={`mt-3 ${LOOK.quiet}`}
       time={time.estimate}
       provider={providerName(from ?? '', 'source', locale)}
     />
@@ -702,14 +683,13 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
   const t = useT();
   const { locale } = useLocale();
   const { list } = useFormatters();
-  const look = useLook();
   const from = providerName(migration.from, 'source', locale);
   // Its own hold where the server says it (alpha.21), else its account's, as before.
   const stopped = useStoppedSentence(migration.stopped ?? stoppedOf(grant), migration.from);
   const route = migration.to ? t('view.person.route', { from, to: providerName(migration.to, 'target', locale) }) : from;
   return (
     <div className="mt-4">
-      <h3 className={look.title3}>
+      <h3 className={LOOK.title3}>
         {withWhat && migration.started && migration.domains.length > 0
           ? t('view.person.routeWhat', {
               route,
@@ -718,10 +698,10 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
           : route}
       </h3>
       {/* A withdrawal is the whole story, as on a migration's page. */}
-      <p className={`mt-1 ${look.sentence}`}>{stopped ?? t(STATE_SENTENCE[migration.state])}</p>
+      <p className={`mt-1 ${LOOK.sentence}`}>{stopped ?? t(STATE_SENTENCE[migration.state])}</p>
       {/* Stopped is not "not started yet, nothing has gone wrong" (change 1). */}
       {!migration.started ? (
-        stopped ? null : <p className={`mt-1 ${look.quiet}`}>{t('view.notStarted')}</p>
+        stopped ? null : <p className={`mt-1 ${LOOK.quiet}`}>{t('view.notStarted')}</p>
       ) : (
         <ul className="mt-2">
           {migration.domains.map((row) => (
@@ -747,12 +727,35 @@ function isHeld(m: PersonViewMigration, view: PersonViewPayload): boolean {
 }
 
 /**
- * Whether something on a person's page can still change, so the page reads
- * itself again (0176 T6.4): a migration neither done nor held. A page with
+ * What the first line and the refresh read of each migration, on a person's
+ * page and on a migration's own: a migration's own page is read by a person
+ * too, and takes a person's page with it (0176 §6, T6).
+ */
+interface Reading {
+  readonly state: MappingLifecycle;
+  readonly from: string;
+  readonly to: string | null;
+  readonly domains: readonly ViewRow[];
+  readonly held: boolean;
+}
+
+function readingsOf(view: MigrationViewPayload | PersonViewPayload): Reading[] {
+  if (!isPersonView(view)) {
+    return [
+      { state: view.state, from: view.from ?? 'google', to: null, domains: view.domains, held: view.grant.state === 'withdrawn' },
+    ];
+  }
+  return view.migrations.map((m) => ({ state: m.state, from: m.from, to: m.to, domains: m.domains, held: isHeld(m, view) }));
+}
+
+/**
+ * Whether something on the page can still change, so the page reads itself
+ * again (0176 T6.4): a migration neither done nor held. A person's page with
  * none yet can get one.
  */
-function canChange(view: PersonViewPayload): boolean {
-  return view.migrations.length === 0 || view.migrations.some((m) => m.state !== 'done' && !isHeld(m, view));
+function canChange(view: MigrationViewPayload | PersonViewPayload): boolean {
+  const readings = readingsOf(view);
+  return readings.length === 0 || readings.some((r) => r.state !== 'done' && !r.held);
 }
 
 /**
@@ -765,22 +768,23 @@ function canChange(view: PersonViewPayload): boolean {
  * 3. Otherwise nothing is needed, which is true while a migration waits for
  *    the member's Start too.
  */
-function firstLineOf(view: PersonViewPayload, t: T, locale: Locale): string {
-  const theirs = new Set((view.destinations ?? []).map((d) => d.provider));
-  for (const m of view.migrations) {
-    if (isHeld(m, view)) continue;
-    for (const row of m.domains) {
+function firstLineOf(view: MigrationViewPayload | PersonViewPayload, t: T, locale: Locale): string {
+  const theirs = new Set((isPersonView(view) ? (view.destinations ?? []) : []).map((d) => d.provider));
+  const readings = readingsOf(view);
+  for (const r of readings) {
+    if (r.held) continue;
+    for (const row of r.domains) {
       if (row.lastErrorCategory !== 'auth_expired') continue;
       if (row.failedSide === 'target') {
-        if (m.to && theirs.has(m.to)) {
-          return t('view.person.first.renew', { provider: providerName(m.to, 'target', locale), who: view.organisation });
+        if (r.to && theirs.has(r.to)) {
+          return t('view.person.first.renew', { provider: providerName(r.to, 'target', locale), who: view.organisation });
         }
         continue;
       }
-      return t('view.person.first.renew', { provider: providerName(m.from, 'source', locale), who: view.organisation });
+      return t('view.person.first.renew', { provider: providerName(r.from, 'source', locale), who: view.organisation });
     }
   }
-  if (view.migrations.length > 0 && view.migrations.every((m) => isHeld(m, view))) return t('view.person.first.stopped');
+  if (readings.length > 0 && readings.every((r) => r.held)) return t('view.person.first.stopped');
   return t('view.person.first.nothingToDo');
 }
 
@@ -803,20 +807,19 @@ const PersonProgress: React.FC<{
 }> = ({ link, view, names, onStop }) => {
   const t = useT();
   const { locale } = useLocale();
-  const look = useLook();
   const others = view.migrations.filter((m) => m.account === null);
   // Read as none from a payload that carries no list (a server before alpha.21).
   const destinations: readonly PersonViewDestination[] = view.destinations ?? [];
   return (
     <>
-      {view.migrations.length === 0 && <p className={`mt-4 ${look.sentence}`}>{t('view.person.none')}</p>}
+      {view.migrations.length === 0 && <p className={`mt-4 ${LOOK.sentence}`}>{t('view.person.none')}</p>}
       {view.accounts.map((account) => (
         <section
           key={account.ref}
           aria-labelledby={`account-${account.ref}`}
           className="mt-8 border-t border-gray-300 pt-6"
         >
-          <h2 id={`account-${account.ref}`} className={look.title2}>
+          <h2 id={`account-${account.ref}`} className={LOOK.title2}>
             {names.get(account.ref)?.heading}
           </h2>
           {view.migrations
@@ -843,7 +846,7 @@ const PersonProgress: React.FC<{
       ))}
       {others.length > 0 && (
         <section aria-labelledby="other-migrations" className="mt-8 border-t border-gray-300 pt-6">
-          <h2 id="other-migrations" className={look.title2}>
+          <h2 id="other-migrations" className={LOOK.title2}>
             {t('view.person.others')}
           </h2>
           {others.map((m, j) => (
@@ -918,7 +921,7 @@ const View: React.FC = () => {
     // change, and not after a refusal: a refused link stays refused.
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (!data || !isPersonView(data) || !canChange(data)) return false;
+      if (!data || !canChange(data)) return false;
       return query.state.error != null && !isUnreachable(query.state.error) ? false : REFRESH_MS;
     },
   });
@@ -930,7 +933,6 @@ const View: React.FC = () => {
   const data = refused ? undefined : view.data;
   const person = data && isPersonView(data) ? data : null;
   const one = data && !isPersonView(data) ? data : null;
-  const personsPage = data !== undefined ? person !== null : isPersonsLink(link);
   const stopped = useStoppedSentence(one ? stoppedOf(one.grant) : null, one?.from);
   const moved = one?.domains.reduce((sum, d) => sum + d.bytesTransferred, 0) ?? 0;
 
@@ -1004,8 +1006,9 @@ const View: React.FC = () => {
   }, []);
   // The tab's name, as the screen's own title says it (the UX sweep,
   // 2026-10-17; 0176 §5.6 for the stop's screens).
-  // A person's link is named so while it loads too: no *migratie* in its `h1` (D1).
-  const pageTitle = t(personsPage && !one ? 'view.person.title' : 'view.title');
+  // A migration's own link keeps its title; a person's is named so while it
+  // loads too, with no *migratie* in its `h1` (D1).
+  const pageTitle = t(one || (!data && !isPersonsLink(link)) ? 'view.title' : 'view.person.title');
   const title =
     shown === 'stop' && target
       ? t('view.stop.title', { account: target.names.inSentence })
@@ -1028,8 +1031,14 @@ const View: React.FC = () => {
     window.scrollTo({ top: 0, left: 0, behavior: motionWelcome() ? 'smooth' : 'instant' });
   }, [shownId]);
 
-  const look = personsPage ? PERSONS_LOOK : PAGE_LOOK;
   const who = person?.organisation ?? one?.organisation ?? '';
+  // When the numbers are from, and that they refresh (T6.4): in no live
+  // region, so nothing is read out again; none once nothing can change.
+  const refreshLine = data && canChange(data) && (
+    <p className="mt-2 text-lg text-gray-800">
+      {t(keptThrough ? 'view.refresh.failed' : 'view.refresh.at', { time: time(new Date(view.dataUpdatedAt)) })}
+    </p>
+  );
 
   const body = (): React.ReactNode => {
     if (shown === 'stop' && target) {
@@ -1050,15 +1059,15 @@ const View: React.FC = () => {
     }
     return (
       <>
-        <h1 ref={headingRef} tabIndex={-1} className={personsPage ? 'text-2xl font-semibold text-gray-900' : 'text-xl font-semibold text-gray-900'}>
+        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold text-gray-900">
           {pageTitle}
         </h1>
 
         {/* First, whether anything is needed (§10): the line right under the title. */}
-        {person && <p className="mt-4 text-lg font-medium text-gray-900">{firstLineOf(person, t, locale)}</p>}
+        {data && <p className="mt-4 text-lg font-medium text-gray-900">{firstLineOf(data, t, locale)}</p>}
 
         {view.isPending && (
-          <p role="status" className={`mt-4 ${look.quiet}`}>
+          <p role="status" className={`mt-4 ${LOOK.quiet}`}>
             {t('view.loading')}
           </p>
         )}
@@ -1068,7 +1077,7 @@ const View: React.FC = () => {
           // refused link and a migration that no longer exists are both written
           // to be forwarded to the person who sent the link, and rewording
           // either would lose that half.
-          <p role="alert" className={`mt-4 ${look.warn}`}>
+          <p role="alert" className={`mt-4 ${LOOK.warn}`}>
             {linkRefusal(view.error, locale, t)}
           </p>
         )}
@@ -1076,19 +1085,13 @@ const View: React.FC = () => {
         {person && link && names && (
           <>
             <p className="mt-3 text-lg text-gray-900">{t('view.person.who', { who: person.organisation })}</p>
-            {/* When the numbers are from, and that they refresh (T6.4): in no
-                live region, so nothing is read out again. */}
-            {canChange(person) && (
-              <p className="mt-2 text-base text-gray-800">
-                {t(keptThrough ? 'view.refresh.failed' : 'view.refresh.at', { time: time(new Date(view.dataUpdatedAt)) })}
-              </p>
-            )}
+            {refreshLine}
             <PersonProgress link={link} view={person} names={names} onStop={(account) => openStop(account)} />
             <YourNewAddress door="view" link={link} changes={person.addressChanges} queryKey={['view', link]} />
-            <p className={`mt-8 ${look.small}`}>{t('view.until', { date: dateTime(person.expiresAt) })}</p>
+            <p className={`mt-8 ${LOOK.small}`}>{t('view.until', { date: dateTime(person.expiresAt) })}</p>
             {/* Not "only numbers" when the page shows the person's new address
                 (0168 §4.4): the one thing on it that is not a count or a state. */}
-            <p className={`mt-1 ${look.small}`}>
+            <p className={`mt-1 ${LOOK.small}`}>
               {t((person.addressChanges?.length ?? 0) > 0 ? 'addresses.view.readOnly' : 'view.readOnly')}
             </p>
           </>
@@ -1096,7 +1099,8 @@ const View: React.FC = () => {
 
         {one && oneNames && (
           <>
-            <p className="mt-4 text-gray-900">{t('view.who', { organisation: one.organisation })}</p>
+            <p className="mt-3 text-lg text-gray-900">{t('view.who', { organisation: one.organisation })}</p>
+            {refreshLine}
             {/* A withdrawn grant is the whole story until somebody grants again:
                 the lifecycle may still say active, and "your things are being
                 copied across now" would be untrue. */}
@@ -1117,7 +1121,7 @@ const View: React.FC = () => {
                   ))}
                 </ul>
                 {moved > 0 && (
-                  <p className="mt-4 text-sm text-gray-600">{t('view.moved', { bytes: formatBytes(moved, locale) })}</p>
+                  <p className={`mt-4 ${LOOK.quiet}`}>{t('view.moved', { bytes: formatBytes(moved, locale) })}</p>
                 )}
               </>
             )}
@@ -1136,16 +1140,18 @@ const View: React.FC = () => {
                 had doubts. Stopping is what stops the copying, so the answer
                 points at it while there is access to take back. */}
             {link && (
-              <ReportThisLink
-                kind="view"
-                link={link}
-                organisation={one.organisation}
-                {...(one.grant.state === 'granted' ? { next: 'linkReport.next.withdraw' as const } : {})}
-              />
+              <div className="mt-6">
+                <ReportThisLink
+                  kind="view"
+                  link={link}
+                  organisation={one.organisation}
+                  {...(one.grant.state === 'granted' ? { next: 'linkReport.next.withdraw' as const } : {})}
+                />
+              </div>
             )}
 
-            <p className="mt-8 text-sm text-gray-500">{t('view.until', { date: dateTime(one.expiresAt) })}</p>
-            <p className="mt-1 text-sm text-gray-500">{t('view.readOnly')}</p>
+            <p className={`mt-8 ${LOOK.small}`}>{t('view.until', { date: dateTime(one.expiresAt) })}</p>
+            <p className={`mt-1 ${LOOK.small}`}>{t('view.readOnly')}</p>
           </>
         )}
       </>
@@ -1153,10 +1159,7 @@ const View: React.FC = () => {
   };
 
   const page = (
-    <main
-      {...(personsPage ? { 'data-persons-page': '' } : {})}
-      className={personsPage ? 'max-w-xl mx-auto px-4 py-8 sm:py-12' : 'max-w-xl mx-auto px-6 py-12'}
-    >
+    <main data-persons-page className="max-w-xl mx-auto px-4 py-8 sm:py-12">
       <LanguageSwitch className="justify-end mb-4" />
       {body()}
 
@@ -1164,30 +1167,25 @@ const View: React.FC = () => {
           the managed service, its privacy policy (the owner, 2026-11-23). An appliance is its
           owner's service under their own policy, not ours, so it links none (the share mail's
           rule, `privacy-policy-link.ts`). In the same tab, as the accessibility link: no form here. */}
-      <p className={`mt-10 text-center ${personsPage ? 'text-base text-gray-800' : 'text-sm text-gray-500'}`}>
+      <p className="mt-10 text-center text-base text-gray-800">
         {!isSelfHost() && (
           <>
-            <a
-              className={personsPage ? 'inline-flex min-h-[44px] items-center underline underline-offset-4' : 'underline'}
-              href={legalUrl('privacy', locale)}
-            >
+            <a className="inline-flex min-h-[44px] items-center underline underline-offset-4" href={legalUrl('privacy', locale)}>
               {t('acceptance.doc.privacy')}
             </a>
             {' · '}
           </>
         )}
-        <AccessibilityLink
-          className={personsPage ? 'inline-flex min-h-[44px] items-center underline underline-offset-4' : 'underline'}
-        />
+        <AccessibilityLink className="inline-flex min-h-[44px] items-center underline underline-offset-4" />
       </p>
       <div className="mt-4 text-center">
         <BuildStamp />
       </div>
     </main>
   );
-  // Whoever the page names as having sent the link (0176 D14): the
-  // organisation until T3 gives the page a sender (§10).
-  return personsPage ? <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider> : page;
+  // Both progress pages are a person's own (0176 §6): whoever the page names
+  // as having sent the link is the organisation until T3 gives it a sender (§10).
+  return <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider>;
 };
 
 export default View;
