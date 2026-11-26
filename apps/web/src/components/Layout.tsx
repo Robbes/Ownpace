@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText, Mail, Accessibility, Gift } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText, Mail, Accessibility, Gift, Handshake } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { IMPLICIT_PERSON_ID } from '@openmig/shared';
@@ -363,9 +363,11 @@ const Layout: React.FC = () => {
     ...(selfHost || !operator
       ? []
       : [{ name: ot('nav.redirectUris'), href: '/redirect-uris', icon: Link2, lang: 'en' as const }]),
-    // Give Ownpace (workplan 0172): any member of an organisation may give
-    // their gift; an operator with no organisation has nothing to give from.
-    ...(selfHost || !member ? [] : [{ name: t('nav.give'), href: '/give', icon: Gift }]),
+    // Recommend someone (workplans 0172, 0177): any member of an organisation
+    // may recommend; an operator with no organisation has nothing to give from.
+    // The handshake the card carries, so the menu and the card match (the
+    // owner's Q3, 2026-11-26); the operator's Gifts keeps its box.
+    ...(selfHost || !member ? [] : [{ name: t('nav.give'), href: '/give', icon: Handshake }]),
     // Billing reads are owner/admin (owner decision 2026-08-10), so for a
     // lesser role the entry would only lead to a "not for your role"
     // sentence — hidden like the appliance hides what it cannot serve. The
