@@ -4,6 +4,34 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, later still: step 1's four guards built, on
+`claude/ownpace-public-readiness-y7orc6-a21-sast-guards`, from `main` at `3c61e83`. Not merged:
+under D9 the pull request waits for alpha.21's builder pull requests.**
+
+- **The guards.** Each is a `scripts/*.unit.test.ts`; all four parse with the TypeScript
+  compiler through one shared reader, `scripts/sast-guard-source.ts`, so a comment or a string
+  that only names a thing is never a spot. Each has a named list of places with a reason per
+  place, and fails on one more, one fewer, or a file not listed.
+  - **G1 (T1)**, `a-page-given-html-as-html`: none in shipped code; two test files, listed.
+  - **G2 (T2)**, `sql-a-value-is-put-into`: 28 spots in ten files, each listed with the check
+    or the constant that makes it safe.
+  - **G3 (T3)**, `a-door-public-in-one-place-only`: 29 public routes, each with the
+    description's operations it serves and its reason; the link routes are held to `linkAuth`.
+  - **G4 (T4)**, `a-secret-handed-to-the-logger`: measured first. Four spots, all in two
+    commands an operator runs by hand, each printing what that operator asked for. Listed, so
+    it blocks (D2).
+- **Each was seen failing on its fixture.** With the four detectors made to find nothing, 11 of
+  the 17 cases failed, every fixture case among them; with the detectors, all 17 pass.
+- **G3 found two faults in the API description on `main`,** both the description's, neither a
+  hole: `POST /api/gifts/redeem` and `GET /api/scope-manifest` are public on purpose in the
+  code, and the description said they need sign-in. Both now carry `security: []`, so the
+  description has 33 opt-outs, not the 31 §5.1 counted.
+- **Against the builders' branches,** read on 2026-11-26: #2188 and #2189 change nothing any
+  guard reads. 0177 step A's back half adds `POST /api/gifts/check`, public, and gives the
+  redeem `security: []` too. When it merges, G3's list gains the new door, and the two edits to
+  the redeem's description become one. No branch read adds raw SQL or a secret-named log.
+- **T1 to T4 stay 📋 until the pull request merges.**
+
 **2026-11-26, later: the owner's answers, D1 to D9 (T0).** In the owner's words:
 *"D1–D9: as advised. H: yes. All in this alpha"*. D9 is the maintainer's addition, put to the
 owner beside D1 to D8 (§9). *"H"* is about two fixes outside this plan, and this plan does not
