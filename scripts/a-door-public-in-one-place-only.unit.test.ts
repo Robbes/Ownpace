@@ -84,6 +84,11 @@ const PUBLIC: Public[] = [
     operations: ['POST /api/gifts/redeem'],
     reason: 'A gift code’s door, for a person with no account yet, like an access request: its own refusing rate limit, the trap field, one refusal for every bad code.',
   },
+  {
+    door: 'routes/gifts.ts POST /check',
+    operations: ['POST /api/gifts/check'],
+    reason: 'The gift code door’s first step, before the person has an account: it writes and spends nothing, behind the redeem’s refusing limit, with the redeem’s one refusal for every bad code.',
+  },
   { door: 'routes/scope-manifest.ts GET /', operations: ['GET /api/scope-manifest'], reason: 'What the product carries: the same static rows for everyone, no tenant’s data.' },
   { door: 'routes/provider-accounts.ts GET /', operations: ['GET /api/provider-accounts'], reason: 'Which provider accounts the deployment offers, never their values (the file’s header).' },
   { door: 'routes/provider-clients.ts GET /', operations: ['GET /api/provider-clients'], reason: 'Which provider clients the deployment has, never their secrets.' },

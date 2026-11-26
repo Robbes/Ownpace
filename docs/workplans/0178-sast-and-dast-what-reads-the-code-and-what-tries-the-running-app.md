@@ -30,6 +30,11 @@ under D9 the pull request waits for alpha.21's builder pull requests.**
   guard reads. 0177 step A's back half adds `POST /api/gifts/check`, public, and gives the
   redeem `security: []` too. When it merges, G3's list gains the new door, and the two edits to
   the redeem's description become one. No branch read adds raw SQL or a secret-named log.
+- **After 0177 step A (#2198) reached `main` at `f9f24bef`,** merged in: G3 named one new door,
+  `POST /api/gifts/check`, public on purpose and described so, and it is in G3's list with its
+  reason, so 30 public routes. The redeem's two `security: []` became one. G1, G2 and G4 named
+  nothing new: the step's migration is SQL in a `.sql` file, which G2 does not read, and its log
+  calls hand over no secret-named value. 0176 step B (#2196) is still to come.
 - **T1 to T4 stay 📋 until the pull request merges.**
 
 **2026-11-26, later still: H, the two hardening fixes, in #2190.** It is recorded here at the maintainer's request, though H is outside this plan's tasks. The consent endings' escape now also escapes `"` and `'`, so it is safe in a quoted attribute. The WebDAV archive store refuses a path with a `.` or `..` segment before any request. The tests were written first and failed on the old code. Neither change was reachable from outside. The maintainer merges it once its E2E is green.
