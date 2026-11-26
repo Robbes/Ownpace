@@ -2,7 +2,17 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-25 (update this block at the end of every session)
+## Status — 2026-11-27 (update this block at the end of every session)
+
+**2026-11-27: alpha.21's counted nights waived, in the owner's words (T4).** On the branch
+`claude/ownpace-public-readiness-y7orc6-a21-waiver`; not merged. The owner wrote, on 2026-11-27:
+*"OWNER_WORDS_HERE"* `v0.2.0-alpha.21` joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs`
+with those words; both list guards name it, and `v0.2.0-alpha.22` is now the version a waiver is
+refused for; `docs/release.md` lists it. It waives the nights and nothing else: the commit, the
+gates and the E2E runs in their place are read as for alpha.20. Unlike alpha.20's, it merges
+after the fold, whose squash is C, and before the dispatch: the Release reads `WAIVER_VERSIONS`
+from `main` as it is then, and is given C as `commit`, which must be on `main`'s first-parent
+line. The guards: 119 of 119, and both fail with the new line taken out.
 
 **2026-11-25, afternoon: `v0.2.0-alpha.20` is released, its nights waived (T2, T4).** Read from
 GitHub on 2026-11-25. Times are UTC.

@@ -249,6 +249,8 @@ export const WAIVER_VERSIONS = [
   'v0.2.0-alpha.19',
   // The owner, 2026-11-24: "for 20 i also waive al waiting/days."
   'v0.2.0-alpha.20',
+  // The owner, 2026-11-27: "OWNER_WORDS_HERE"
+  'v0.2.0-alpha.21',
 ];
 /** A GitHub login, as GITHUB_ACTOR gives it; an app's bot ends in `[bot]`. */
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}(?:\[bot\])?$/;
