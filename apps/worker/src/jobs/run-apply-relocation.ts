@@ -26,15 +26,9 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { leavesAReference } from './what-a-run-leaves.ts';
 import type { RunContext } from './run-context.ts';
-import { eq } from 'drizzle-orm';
-import { applyRelocation, type ApplyDeletionOutcome } from '@openmig/core';
-import { withTenant } from '@openmig/ledger';
-import * as schemaPg from '@openmig/ledger/schema-pg';
-import { DISCOVERY_DOMAINS, log } from '@openmig/shared';
+import { applyRelocation } from '@openmig/core';
 import { openTaskPools } from './task-pools.ts';
-import type { MappingId, RemovalKind, TenantId } from '@openmig/shared';
-import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
-import { enabledDomains } from '@openmig/orchestration/enabled-domains';
+import { applyOneItem, type ApplyJob } from './apply-one-item.ts';
 
 export const ApplyJobSchema = z.object({
   tenantId: z.string().uuid(),
@@ -51,59 +45,13 @@ export const ApplyJobSchema = z.object({
 // (0129 T4) at the key's pool, the one read app_user may not make.
 const { tenant: pool } = openTaskPools();
 
-type ReceiptOutcome =
-  | { state: 'applied'; kind: RemovalKind }
-  | { state: 'refused'; code: string; reason: string }
-  | { state: 'failed'; error: string };
-
-/** Land the receipt. One place, so the three terminal shapes cannot diverge. */
-async function landReceipt(
-  tenantId: string,
-  receiptId: string,
-  outcome: ReceiptOutcome,
-): Promise<void> {
-  await withTenant(pool, tenantId, async (db) => {
-    await db
-      .update(schemaPg.applyReceipt)
-      .set({
-        state: outcome.state,
-        finishedAt: new Date(),
-        ...(outcome.state === 'applied' ? { kind: outcome.kind } : {}),
-        ...(outcome.state === 'refused' ? { code: outcome.code, reason: outcome.reason } : {}),
-        ...(outcome.state === 'failed' ? { reason: outcome.error } : {}),
-      })
-      .where(eq(schemaPg.applyReceipt.id, receiptId));
-  });
-}
-
-/** The order domains are searched — identical to the appliance's, on purpose. */
-const DOMAINS = DISCOVERY_DOMAINS;
-
-/** Branched per literal, for the same overload-resolution reason as the deletion job. */
-async function openDeps(tenantId: string, mappingId: string, domain: (typeof DOMAINS)[number]) {
-  switch (domain) {
-    case 'email': {
-      const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'mail');
-      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
-    }
-    case 'calendar': {
-      const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar');
-      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
-    }
-    case 'contact': {
-      const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact');
-      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
-    }
-    case 'file': {
-      const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
-      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
-    }
-    case 'task': {
-      const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
-      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
-    }
-  }
-}
+/** Its core call and its words; the run itself is `applyOneItem`'s, shared with the other apply job. */
+const JOB: ApplyJob = {
+  name: 'run-apply-relocation',
+  apply: applyRelocation,
+  removed: (item, kind) =>
+    `removed the OLD copy of ${item} (${kind}) — the same bytes remain under the key the source moved it to.`,
+};
 
 /**
  * This task's run, as the pg-boss worker serves it (ADR-0054; workplan 0167
@@ -111,99 +59,5 @@ async function openDeps(tenantId: string, mappingId: string, domain: (typeof DOM
  */
 export const runApplyRelocationRun = leavesAReference(
   'run-apply-relocation',
-  async (payload: z.infer<typeof ApplyJobSchema>, _context: RunContext) => {
-    const { tenantId, mappingId, naturalKeyHash, receiptId } = payload;
-    log.info(
-      `[run-apply-relocation] ${mappingId}: item ${naturalKeyHash.slice(0, 12)} (receipt ${receiptId})`,
-    );
-
-    try {
-      // Under a prefix the copy lives at prefix/collection while the ledger
-      // records the SOURCE collection — the removal must open the mailbox the
-      // copy is actually in. Read FRESH, from the mapping row, at execution
-      // time: a queue hop is a window. (A move applied by hand has no
-      // per-mapping switch since alpha.21, ADR-0024 2026-11-25.)
-      const mappingRows = await withTenant(pool, tenantId, (db) =>
-        db
-          .select({ prefix: schemaPg.mailboxMapping.targetFolderPrefix })
-          .from(schemaPg.mailboxMapping)
-          .where(eq(schemaPg.mailboxMapping.id, mappingId)),
-      );
-      const targetFolderPrefix = mappingRows[0]?.prefix ?? undefined;
-
-      // Only the domains the owner SELECTED are probed — a domain's deps
-      // builder needs that domain's connector config, and on a mapping
-      // without it, it throws (0018 T5).
-      const enabled = await enabledDomains(pool, tenantId, mappingId);
-
-      let outcome: ApplyDeletionOutcome | undefined;
-      for (const domain of DOMAINS) {
-        if (!enabled.has(domain)) continue;
-        const deps = await openDeps(tenantId, mappingId, domain);
-        try {
-          const row = await deps.ledger.find(
-            tenantId as TenantId,
-            mappingId as MappingId,
-            domain,
-            naturalKeyHash,
-          );
-          if (!row) continue;
-
-          outcome = await applyRelocation(
-            {
-              tenantId: tenantId as TenantId,
-              mappingId: mappingId as MappingId,
-              domain,
-              ledger: deps.ledger,
-              target: deps.target,
-              // The data type's phase, asked at the removal through the
-              // question the deps builder made from `readPathPhases`, read
-              // fresh: a cutover executed since the press wins, and after it
-              // nothing is removed (`after_cutover`, 2026-10-05).
-              stillTheAuthority: deps.stillTheAuthority,
-              ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
-            },
-            naturalKeyHash,
-          );
-          break;
-        } finally {
-          await deps.close();
-        }
-      }
-
-      if (!outcome) {
-        outcome = {
-          ok: false,
-          code: 'not_found',
-          reason:
-            "No migrated item under that natural key in any of this mapping's enabled domains.",
-        };
-      }
-
-      if (outcome.ok) {
-        await landReceipt(tenantId, receiptId, { state: 'applied', kind: outcome.kind });
-        log.info(
-          `[run-apply-relocation] ${mappingId}: removed the OLD copy of ` +
-            `${naturalKeyHash.slice(0, 12)} (${outcome.kind}) — the same bytes remain under ` +
-            'the key the source moved it to.',
-        );
-        return { receiptId, applied: true, kind: outcome.kind };
-      }
-
-      await landReceipt(tenantId, receiptId, {
-        state: 'refused',
-        code: outcome.code,
-        reason: outcome.reason,
-      });
-      log.info(
-        `[run-apply-relocation] ${mappingId}: refused ${naturalKeyHash.slice(0, 12)} (${outcome.code})`,
-      );
-      return { receiptId, applied: false, code: outcome.code };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      log.error(`[run-apply-relocation] ${mappingId}: job failed: ${message}`);
-      await landReceipt(tenantId, receiptId, { state: 'failed', error: message });
-      throw err;
-    }
-  },
+  async (payload: z.infer<typeof ApplyJobSchema>, _context: RunContext) => applyOneItem(JOB, pool, payload),
 );
