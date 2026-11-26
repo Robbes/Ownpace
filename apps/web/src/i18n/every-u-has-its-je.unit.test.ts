@@ -49,11 +49,12 @@ const KEYS = Object.keys(en);
 /**
  * A PERSON'S OWN AREAS. Every key under these is said on a person's link page
  * or progress page, and on no page of the member's alone: the steps of the
- * link page, the password card, the provider's words before its button, the
- * progress page's own lines, its stop and what came after, a destination's
- * password, the new address, *Report this link*, and the two sentences for
- * a link the page could not read or reach (`link.*`, `answer.*`, which a
- * report's answer can meet).
+ * link page, and everything on one page (`grant.onePage.*`), the password
+ * card, the provider's words before its button, the progress page's own
+ * lines, its stop and what came after, a destination's password, the new
+ * address, *Report this link*, and the two sentences for a link the page
+ * could not read or reach (`link.*`, `answer.*`, which a report's answer can
+ * meet).
  */
 const A_PERSONS_OWN_AREAS = [
   'grant.person.',
@@ -69,6 +70,7 @@ const A_PERSONS_OWN_AREAS = [
   'grant.password.',
   'grant.apple.',
   'grant.nextcloud.',
+  'grant.onePage.',
   'view.person.',
   'view.state.',
   'view.failure.',
@@ -86,6 +88,7 @@ const A_PERSONS_OWN_AREAS = [
 /** The files a person's pages draw whole: every key they name is said there. */
 const DRAWN_WHOLE = [
   '../pages/PersonGrant.tsx',
+  '../pages/PersonGrantOnePage.tsx',
   '../components/GrantPasswordCard.tsx',
   '../components/YourNewAddress.tsx',
   '../components/ReportThisLink.tsx',
@@ -93,6 +96,7 @@ const DRAWN_WHOLE = [
   '../components/TimeBeforeStartLine.tsx',
   '../components/AccessibilityLink.tsx',
   '../components/LanguageSwitch.tsx',
+  '../components/WhereItRuns.tsx',
 ] as const;
 
 /**

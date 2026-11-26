@@ -103,7 +103,7 @@ describe('every key in the dictionary is one the code says', () => {
   });
 
   it('reads the informal layer as the dictionary, so a twin keeps no key said (workplan 0176 T7)', () => {
-    // `informal.ts` names 124 keys, each one's *je* twin. Read as a speaker,
+    // `informal.ts` names the key of each *je* twin. Read as a speaker,
     // a twin would count its key as said after every screen stopped saying it.
     const read = sources().map((f) => relative(ROOT, f));
     expect(read).toContain('apps/web/src/i18n/index.tsx');

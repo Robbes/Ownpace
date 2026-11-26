@@ -208,4 +208,7 @@ export const NL_JE: Readonly<Partial<Record<StringKey, string>>> = {
   'addresses.grant.yours': 'Je nieuwe adres: {new}. Klopt dat?',
   'addresses.view.readOnly':
     'Deze pagina toont aantallen, en het nieuwe adres dat voor je is ingesteld; er staat niets uit je account op.',
+
+  // Everything on one page (one-page.ts).
+  'grant.onePage.whatMany': '{who} wil je {what} kopiëren. Verderop op deze pagina staat waarvandaan en waarnaartoe.',
 };

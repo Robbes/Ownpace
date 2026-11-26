@@ -4,6 +4,12 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, #2189 taken into step B's informal Dutch** (a plain merge of `main`, as the
+maintainer asked). The guard reads *Everything on one page* too: `PersonGrantOnePage.tsx`,
+`WhereItRuns.tsx`, and the area `grant.onePage.*`. A person's pages now say 295 keys. The one
+new sentence with *uw*, `grant.onePage.whatMany`, has its twin, so 125 have one and the other
+170 need none.
+
 **2026-11-26, the owner's read of the twins:** *"#2188: ok, account: yes"*. The twins stand, and the two failure lines say *account* for *omgeving*, the owner's word, in both voices (`view.failure.sourceRefused`, `view.failure.formatRefused`).
 
 **2026-11-26: step B's informal Dutch, as a draft** (§23.2, *Beside it: the informal Dutch*;
