@@ -313,8 +313,8 @@ const Everything: React.FC<{ data: PersonGrantSubject; link: string }> = ({ data
           </p>
         )}
         {/* The sender's facts, as the first screen draws them (T3, §7): the
-            name and how the reader knows them, the address under it, and a
-            number to check (D11). */}
+            name, else the address, with the address under a name, and a
+            number to check (D11). The address breaks anywhere, as there. */}
         <div data-sender className="mt-4 p-4 border border-gray-300 rounded-lg bg-white">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-lg">
             {data.checkedCompany && (
@@ -327,7 +327,7 @@ const Everything: React.FC<{ data: PersonGrantSubject; link: string }> = ({ data
               </>
             )}
             <dt className="text-gray-800">{t('grant.person.sender')}</dt>
-            <dd className="text-gray-900 break-words">
+            <dd className="text-gray-900 wrap-anywhere">
               <span className="block">
                 <SenderName facts={data} />
               </span>

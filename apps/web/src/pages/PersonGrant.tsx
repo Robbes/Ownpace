@@ -487,8 +487,11 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
               </p>
             )}
             {/* The sender's facts, under the label Sender (T3, §7): the name
-                the member gave and how the reader knows them, their address
-                under it, and a number to check, never as proof (D11). */}
+                the member gave, else their address, with the address under a
+                name, and a number to check, never as proof (D11). An address
+                breaks anywhere: in a grid, a line that breaks only between
+                words holds its column as wide as the address, and a phone of
+                320 pixels zooms out to fit it. */}
             <div data-sender className="mt-4 p-4 border border-gray-300 rounded-lg bg-white">
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-lg">
                 {data.checkedCompany && (
@@ -501,7 +504,7 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
                   </>
                 )}
                 <dt className="text-gray-800">{t('grant.person.sender')}</dt>
-                <dd className="text-gray-900 break-words">
+                <dd className="text-gray-900 wrap-anywhere">
                   <span className="block">
                     <SenderName facts={data} />
                   </span>
