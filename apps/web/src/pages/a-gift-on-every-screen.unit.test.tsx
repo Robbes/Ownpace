@@ -241,7 +241,8 @@ describe('the giver’s page', () => {
       },
     });
     wrap(<Give />);
-    expect(await screen.findByText('You have made your recommendation already. Withdraw an unused one to make another.')).toBeInTheDocument();
+    // The server's own sentence for the same refusal, word for word (0177 §19, the back's 409 `gift_limit`).
+    expect(await screen.findByText('You have recommended someone already. Withdraw an unused card to make another.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Make a recommendation' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Withdraw' })).toBeInTheDocument();
   });

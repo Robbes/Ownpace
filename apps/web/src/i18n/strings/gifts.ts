@@ -35,7 +35,7 @@ export const en = {
   'give.language': 'Language of the card',
   'give.make': 'Make a recommendation',
   'give.making': 'Making your recommendation…',
-  'give.atLimit': 'You have made your recommendation already. Withdraw an unused one to make another.',
+  'give.atLimit': 'You have recommended someone already. Withdraw an unused card to make another.',
   'give.noneForNow': 'No new recommendation can be made for now.',
   'give.full': 'The Alpha is full for now. No new recommendation can be made.',
   // D18 (the owner, 2026-11-26): during the Alpha, only the people the owner let in recommend (§20.7).
@@ -153,7 +153,7 @@ export const nl: Record<keyof typeof en, string> = {
   'give.language': 'Taal van de kaart',
   'give.make': 'Maak een aanbeveling',
   'give.making': 'Uw aanbeveling wordt gemaakt…',
-  'give.atLimit': 'U hebt uw aanbeveling al gemaakt. Trek een ongebruikte in om een nieuwe te maken.',
+  'give.atLimit': 'U hebt al iemand aanbevolen. Trek een ongebruikte kaart in om een nieuwe te maken.',
   'give.noneForNow': 'U kunt nu even geen aanbeveling maken.',
   'give.full': 'De Alpha is nu vol. U kunt nu geen aanbeveling maken.',
   'give.onlyAfterAlpha':

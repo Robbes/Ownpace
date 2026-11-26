@@ -4,10 +4,10 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
-**2026-11-26, later still: step A's front half is built, on the pull request's branch
-(`claude/ownpace-public-readiness-y7orc6-a21-gift-step-a`).** The back's half, the server and
-the mails, is built on its own branch and is merged into this one when it is handed over.
-What the front built, against §19's contracts:
+**2026-11-26, later still: step A is built, its two halves met on the pull request's branch
+(`claude/ownpace-public-readiness-y7orc6-a21-gift-step-a`), in review.** The back's half, the
+server and the mails, was built on its own branch and merged in; the front's was built against
+§19's contracts and then read against the answers as built.
 
 - **The glossary** (§21.1): *recommendation* / *aanbeveling* for the free thing, with the
   names it does not take, and *gift* / *cadeau* kept for a code somebody paid for.
@@ -17,7 +17,11 @@ What the front built, against §19's contracts:
   ceilings; the overview on *Support* (D17); `onlyAfterAlpha` on the giver's page and the line
   on *Gifts* (D18). A person's sizes come from 0176's `PersonsPageProvider` and
   `data-persons-page`. `/give` and `/gifts` no longer draw a second `h1` (0172's, found by the
-  smoke).
+  smoke). A refusal's Dutch half is read from `reason` / `reasonNl`, where a 429 also carries
+  the English as `message`.
+- **The server and the mails** (§21.3, §21.4): the back's, as its branch's commits say:
+  managed migration 0066, the check and the redeem, the two ceilings, D15, D17 and D18, and
+  the two mails for every request.
 - **The site and the documents** (§21.5): the site's page in both languages, its cases in
   `site/site.unit.test.ts`, `docs/ending-the-alpha.md` (D5, the ceilings, D18), and 0172's
   Status. **The privacy text is not changed:** T7 asks the owner whether it is still changed in
@@ -30,12 +34,12 @@ What the front built, against §19's contracts:
 
 **Proved,** each test written first and failing on the code before it: the door's
 `a-code-with-a-door-of-its-own.unit.test.tsx` (24 cases, §21.2's 1 to 10),
-`one-name-for-a-free-gift.unit.test.ts` (item 20), new cases in
+`one-name-for-a-free-gift.unit.test.ts` (item 20, the two mails included), new cases in
 `a-gift-on-every-screen.unit.test.tsx`, `AccessRequests.unit.test.tsx`, `Support.unit.test.tsx`
-and `Layout.unit.test.tsx`, this page's cases in `site/site.unit.test.ts`, and ten cases in the
-managed UI smoke. **Open:** the back's half and its merge (the one-name test's case for the two
-mails joins then: today's Dutch no mail says *plek*, which T4 takes out); the owner's read of
-the Dutch, on the pull request's table; the privacy text's question; T0 and T14.
+and `Layout.unit.test.tsx`, this page's cases in `site/site.unit.test.ts`, ten cases in the
+managed UI smoke, and the back's own (its branch's commits list them). **Open:** the owner's
+read of the Dutch and of the operator's English, on the pull request's tables; the privacy
+text's question; E2E, which the maintainer dispatches; T0 and T14.
 
 **2026-11-26, later still: the owner's answers to D17 and D18 (T17). Step A is being
 built.** In the owner's words:

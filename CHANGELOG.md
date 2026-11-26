@@ -99,7 +99,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   first screen of **Support** show the Alpha's two ceilings, 50 people the owner lets in and 50
   let in by a recommendation, against their counts; nothing refuses the owner's own yes (D17).
   The site's page about a recommendation says what the door says, and the tester guide says the
-  door's way with a Google address.
+  door's way with a Google address. On the server, a code lets its person in in one transaction:
+  the request granted by nobody, the organisation, its owner's invitation and the code spent, or
+  none of it; an address with a request waiting gets that request granted (D15); a yes about
+  Google is kept with the request as one fixed line. Tries at the door, checking and using alike,
+  are limited to forty an hour. Managed migration 0066 adds no table: it puts the two ceilings on
+  the rule's row, 50 each, and lets a code's session do only what letting its person in needs.
+  The mails change for every request: the yes mail says first what happened, then three numbered
+  steps, the guide and what the organisation is called, and no longer calls itself safe to
+  forward; the no mail is one text in both languages, keeps the request 30 days, and promises no
+  later message. The operator is mailed for each person let in, and told to add a Google address
+  after a yes.
   **Nederlands:** een cadeau heet nu een *aanbeveling*, en wie de code heeft, wordt meteen
   toegelaten, op een eigen pagina, `/code`. Die vraagt één ding tegelijk: eerst de code, die
   daar meteen wordt gecontroleerd en verbeterd; dan wat Ownpace doet, wat het kost, en één vraag:
@@ -111,6 +121,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   zien krijgt; de kaart vult bij het printen een A4 of Letter, en er staat een link naast. Tijdens
   de Alpha kunnen alleen de mensen die Ownpace zelf toeliet iemand aanbevelen; daarna iedereen.
   De pagina's van de beheerder tonen de twee plafonds van de Alpha, 50 en 50, met hun tellingen.
+  De mails veranderen voor elke aanvraag: de ja-mail zegt eerst wat er gebeurde, dan drie
+  genummerde stappen; de nee-mail is in beide talen één tekst, bewaart de aanvraag 30 dagen en
+  belooft geen later bericht.
 
 - **A person's own pages: one thing at a time, in their own words** (alpha.21; workplan 0176
   step A, with D1, D2, D12 (a), D13 (a) and D14 (a)). The page a person's grant link opens now
