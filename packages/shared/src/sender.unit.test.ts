@@ -52,20 +52,17 @@ describe("the member's own number (D11)", () => {
 });
 
 describe('what a page may show of what is stored', () => {
-  it('shows a stored name, relation and number as they are', () => {
-    expect(senderOnAPage({ name: 'Anna', relation: 'daughter', phone: '+31 6 1234 5678' })).toEqual({
+  it('shows a stored name and number as they are, and nothing of how the reader knows them (D7, reversed)', () => {
+    // The owner, 2026-11-26: "Does the relationship matter and need to be
+    // registered? I would like not to..." A page names the sender, and no more.
+    expect(senderOnAPage({ name: 'Anna', phone: '+31 6 1234 5678' })).toEqual({
       name: 'Anna',
-      relation: 'daughter',
       phone: '+31 6 1234 5678',
     });
   });
 
   it('shows as none what the writer would refuse now, never as it is', () => {
-    expect(senderOnAPage({ name: 'www.bank.example', relation: 'bank', phone: 'call us' })).toEqual({
-      name: null,
-      relation: null,
-      phone: null,
-    });
-    expect(senderOnAPage({ name: null, relation: null, phone: null })).toEqual({ name: null, relation: null, phone: null });
+    expect(senderOnAPage({ name: 'www.bank.example', phone: 'call us' })).toEqual({ name: null, phone: null });
+    expect(senderOnAPage({ name: null, phone: null })).toEqual({ name: null, phone: null });
   });
 });

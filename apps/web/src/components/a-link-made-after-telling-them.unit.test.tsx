@@ -10,8 +10,9 @@
  *  - **a tick before the button**: *I have told Anna that a link is coming: by
  *    phone, or in person.* It cannot be checked; it is a prompt, and the link
  *    is not made until it is ticked;
- *  - **who you are to them**, from the fixed list (D7), or *I would rather
- *    not say*; offered again as the member chose it last for this person;
+ *  - **nothing asks who you are to them**: the owner, 2026-11-26, reversing
+ *    D7 (*"Does the relationship matter and need to be registered? I would
+ *    like not to..."*). No question, no list, and nothing goes with the link;
  *  - **your name, as they know you**, asked here once: only while you have
  *    given none, and saved for you before the link is made;
  *  - during the Alpha, for a Google account: that the address must be on
@@ -82,7 +83,6 @@ const link = (over: Record<string, unknown> = {}) => ({
   expiresAt: LAST_WEEK,
   usedAt: LAST_WEEK,
   revokedAt: null,
-  relation: null,
   ...over,
 });
 
@@ -161,54 +161,24 @@ describe('a tick before the button (§12)', () => {
   });
 });
 
-describe('who you are to them (D7)', () => {
-  it('is chosen from the list, in this order, or not said', async () => {
-    renderSection();
-    const select = await screen.findByLabelText('Who are you to Anna?');
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      'I would rather not say',
-      'Daughter',
-      'Son',
-      'Child',
-      'Granddaughter',
-      'Grandson',
-      'Grandchild',
-      'Partner',
-      'Brother',
-      'Sister',
-      'Father',
-      'Mother',
-      'A family member',
-      'Someone Anna knows',
-      'Colleague',
-    ]);
+describe('nothing asks who you are to them (D7, reversed 2026-11-26)', () => {
+  it('no question and no list, in either language', async () => {
+    const english = renderSection();
+    await screen.findByLabelText('How does the page speak to Anna?');
+    expect(screen.queryByLabelText(/Who are you to Anna/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/I would rather not say/)).not.toBeInTheDocument();
+    english.unmount();
+    renderSection({ locale: 'nl' });
+    await screen.findByLabelText('Hoe spreekt de pagina Anna aan?');
+    expect(screen.queryByLabelText(/Wie bent u voor Anna/)).not.toBeInTheDocument();
   });
 
-  it('goes with the link', async () => {
+  it('and the link is made without it', async () => {
     renderSection();
-    await userEvent.selectOptions(await screen.findByLabelText('Who are you to Anna?'), 'daughter');
+    await screen.findByLabelText('How does the page speak to Anna?');
     await userEvent.click(tick());
     await userEvent.click(make());
-    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: 'daughter', voice: 'en' }));
-  });
-
-  it('not said is none', async () => {
-    renderSection();
-    await screen.findByLabelText('Who are you to Anna?');
-    await userEvent.click(tick());
-    await userEvent.click(make());
-    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: null, voice: 'en' }));
-  });
-
-  it('is offered again as you chose it last for this person', async () => {
-    renderSection({
-      links: [
-        link({ id: 'old', createdAt: '2026-10-01T10:00:00.000Z', relation: 'son' }),
-        link({ id: 'new', createdAt: '2026-11-01T10:00:00.000Z', relation: 'grandson' }),
-        link({ id: 'theirs', createdAt: '2026-11-20T10:00:00.000Z', relation: 'colleague', createdBy: 'sam' }),
-      ],
-    });
-    expect((await screen.findByLabelText('Who are you to Anna?')) as HTMLSelectElement).toHaveValue('grandson');
+    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { voice: 'en' }));
   });
 });
 
@@ -228,7 +198,7 @@ describe('your name, as they know you (§7)', () => {
 
   it('is not asked once you have given one: that is on Team', async () => {
     renderSection();
-    await screen.findByLabelText('Who are you to Anna?');
+    await screen.findByLabelText('How does the page speak to Anna?');
     expect(screen.queryByLabelText('Your name, as Anna knows you')).not.toBeInTheDocument();
   });
 
@@ -261,12 +231,12 @@ describe('during the Alpha, for a Google account (§12)', () => {
 
   it('says neither outside the Alpha, nor for a link that asks no Google account', async () => {
     const outside = renderSection({ asksGoogle: true });
-    await screen.findByLabelText('Who are you to Anna?');
+    await screen.findByLabelText('How does the page speak to Anna?');
     expect(screen.queryByText(/list of test users/)).not.toBeInTheDocument();
     outside.unmount();
     vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
     renderSection({ asksGoogle: false });
-    await screen.findByLabelText('Who are you to Anna?');
+    await screen.findByLabelText('How does the page speak to Anna?');
     expect(screen.queryByText(/list of test users/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Do the Google step together/)).not.toBeInTheDocument();
   });
@@ -334,7 +304,7 @@ describe('how the page speaks to them (§11, T7, D8)', () => {
     await userEvent.selectOptions(await voiceSelect(), 'nl-je');
     await userEvent.click(tick());
     await userEvent.click(make());
-    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: null, voice: 'nl-je' }));
+    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { voice: 'nl-je' }));
   });
 
   it('and the message is in it: Dutch with je, as §15 has it, from a screen in English', async () => {

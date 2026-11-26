@@ -9,15 +9,15 @@
  * its answer carried no sender, and it said nothing of who else can open the
  * copy, which the link page says. Two additions to the server's answer:
  *
- *  - **the sender**: the name the member gave, how the person knows them and
- *    their own number, as the link page has them, and never their address
- *    (the page carries none, `person-progress.ts`); with the organisation's
- *    number beside it, for the page to show where the member gave none
- *    (D11). A progress link a member made names that member. The one the
- *    ending hands over after a sign-in names the member who sent the grant
- *    link signed in through, with the relation chosen there, however many
- *    links are made after it (`made_from`, managed migration 0067). No
- *    member behind it any more: no sender, and the page names the
+ *  - **the sender**: the name the member gave and their own number, as the
+ *    link page has them, and never their address (the page carries none,
+ *    `person-progress.ts`), nor how the person knows them (D7, reversed by
+ *    the owner on 2026-11-26); with the organisation's number beside it, for
+ *    the page to show where the member gave none (D11). A progress link a
+ *    member made names that member. The one the ending hands over after a
+ *    sign-in names the member who sent the grant link signed in through,
+ *    however many links are made after it (`made_from`, managed migration
+ *    0067). No member behind it any more: no sender, and the page names the
  *    organisation, as before;
  *  - **who can open the copy**, one yes or no per migration, by the rule the
  *    link page's answer uses (`isTheOrganisationsDestination`): a state, not
@@ -240,35 +240,35 @@ beforeEach(async () => {
 });
 
 describe('the sender, on a person’s progress page (T6)', () => {
-  it('a progress link a member makes names that member, with the relation they chose for this person, and no address', async () => {
-    await issue({ relation: 'daughter' });
+  it('a progress link a member makes names that member, by name and number only, and no address', async () => {
+    await issue({});
     const made = await issue({ purpose: 'view' });
     expect(made.status, JSON.stringify(made.body)).toBe(201);
     const page = await pageOf(tokenAfter(made.body.url, 'view'));
-    expect(page.sender).toEqual({ name: 'Pat de Vries', relation: 'daughter', phone: '+31 6 1234 5678' });
+    expect(page.sender).toEqual({ name: 'Pat de Vries', phone: '+31 6 1234 5678' });
     expect(page.organisationPhone).toBe('+31 20 123 4567');
     // The page carries no address: not the member's, not anybody's.
     expect(JSON.stringify(page)).not.toMatch(/@/);
     expect(documented('/api/view/{link}', 'get', '200', page), JSON.stringify(page)).toBe(true);
   });
 
-  it('a relation given with the progress link is its own', async () => {
-    await issue({ relation: 'daughter' });
+  it('a relation sent with the progress link is not kept, and the page says none', async () => {
     const made = await issue({ purpose: 'view', relation: 'partner' });
-    expect((await pageOf(tokenAfter(made.body.url, 'view'))).sender).toMatchObject({ relation: 'partner' });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    expect((await pageOf(tokenAfter(made.body.url, 'view'))).sender).toEqual({ name: 'Pat de Vries', phone: '+31 6 1234 5678' });
   });
 
-  it('the page the ending hands over names the member who sent the grant link, with the relation chosen there', async () => {
-    const grant = await issue({ relation: 'son' });
+  it('the page the ending hands over names the member who sent the grant link', async () => {
+    const grant = await issue({});
     const handed = await signInThrough(tokenAfter(grant.body.url, 'grant'));
     const [row] = await q(`SELECT created_by, made_from FROM person_link WHERE purpose = 'view'`);
     expect(row).toEqual({ created_by: 'granted-by-link', made_from: grant.body.id });
-    expect((await pageOf(handed)).sender).toEqual({ name: 'Pat de Vries', relation: 'son', phone: '+31 6 1234 5678' });
+    expect((await pageOf(handed)).sender).toEqual({ name: 'Pat de Vries', phone: '+31 6 1234 5678' });
 
     // Another member makes a link afterwards: the page still names the one it came from.
     as('sam');
-    expect((await issue({ relation: 'colleague' })).status).toBe(201);
-    expect((await pageOf(handed)).sender).toEqual({ name: 'Pat de Vries', relation: 'son', phone: '+31 6 1234 5678' });
+    expect((await issue({})).status).toBe(201);
+    expect((await pageOf(handed)).sender).toEqual({ name: 'Pat de Vries', phone: '+31 6 1234 5678' });
   });
 
   it('a member who is no member any more: no sender, and the page names the organisation, as before', async () => {

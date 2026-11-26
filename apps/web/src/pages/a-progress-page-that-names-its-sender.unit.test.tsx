@@ -9,9 +9,10 @@
  *
  *  - every `{who}` is the name the member gave: *Pat copies your email…*,
  *    *Continuing later needs a new link from Pat.*;
- *  - the page says who Pat is, at its foot: *Sender: Pat, your daughter*,
- *    and a number to check, the member's own, else the organisation's,
- *    saying whose (D11). No address: the page carries none;
+ *  - the page says who sent it, at its foot: *Sender: Pat*, by name only
+ *    (D7, reversed by the owner on 2026-11-26), and a number to check, the
+ *    member's own, else the organisation's, saying whose (D11). No address:
+ *    the page carries none;
  *  - under a migration whose destination is the organisation's: *Pat can open
  *    the copy at Soverin too.* Nothing where the person connected it;
  *  - a page from a server before step B reads as step A did: the
@@ -69,7 +70,7 @@ const person = (over: Record<string, unknown> = {}) => ({
   accounts: [{ ref: 'acct-1', grant: { state: 'granted' as const } }],
   migrations: [migration()],
   destinations: [],
-  sender: { name: 'Pat', relation: 'daughter', phone: '+31 6 1234 5678' },
+  sender: { name: 'Pat', phone: '+31 6 1234 5678' },
   organisationPhone: '+31 20 123 4567',
   ...over,
 });
@@ -127,21 +128,22 @@ describe('every {who} is the name the member gave', () => {
 });
 
 describe('who the sender is, at the foot of the page', () => {
-  it('the name and how the reader knows them, and a number to check, in Dutch', async () => {
+  it('the name, and nothing of how the reader knows them, and a number to check, in Dutch', async () => {
     readMock.mockResolvedValue(person());
     renderPage('nl');
     await loaded();
     const box = document.querySelector('[data-sender]') as HTMLElement;
     expect(box).not.toBeNull();
     expect(within(box).getByText('Afzender')).toBeInTheDocument();
-    expect(within(box).getByText('Pat, uw dochter')).toBeInTheDocument();
+    expect(within(box).getByText('Pat')).toBeInTheDocument();
+    expect(textOf(box)).not.toMatch(/Pat,|dochter/);
     expect(textOf(box.querySelector('[data-number]'))).toBe(
       'Nummer van Pat: +31 6 1234 5678. Of gebruik het nummer dat u al van Pat hebt.',
     );
   });
 
   it("the organisation's number where the member gave none, saying whose", async () => {
-    readMock.mockResolvedValue(person({ sender: { name: 'Pat', relation: null, phone: null } }));
+    readMock.mockResolvedValue(person({ sender: { name: 'Pat', phone: null } }));
     renderPage('en');
     await loaded();
     const box = document.querySelector('[data-sender]') as HTMLElement;

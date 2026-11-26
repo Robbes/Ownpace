@@ -4,17 +4,17 @@
  * WHO SENDS THE LINK (workplan 0176 §7, T3 and T6; D7, D11; managed
  * migration 0067).
  *
- * A person's page names the member who sent their link: a name, how the
- * reader knows them, and a number to check. The page shows each under
- * Ownpace's name, so each is held to a shape by the database too, not only by
- * the route that writes it:
+ * A person's page names the member who sent their link: a name, and a number
+ * to check. The page shows each under Ownpace's name, so each is held to a
+ * shape by the database too, not only by the route that writes it:
  *
  *  - a member's name is at most 60 characters, with no space at either end
  *    and no control character;
  *  - a member's number has the organisation's number's characters and 6 to
  *    15 digits;
- *  - how the reader knows them is one of a fixed list (D7), the same list the
- *    code offers (`SENDER_RELATIONS`), held equal here;
+ *  - how the reader knows the member is kept nowhere: the owner, 2026-11-26,
+ *    reversing D7 (*"Does the relationship matter and need to be registered?
+ *    I would like not to..."*);
  *  - a progress link handed over after a sign-in names the grant link it
  *    speaks for, of its own organisation only; no other link names one, and
  *    deleting that grant link forgets only where the page came from.
@@ -28,7 +28,6 @@ import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import { SENDER_RELATIONS } from '@openmig/shared';
 import { runManagedMigrations, managedMigrationsDir } from './migrate-managed.ts';
 
 // UUID family 01760067-…, unused elsewhere in the repo.
@@ -138,28 +137,16 @@ describe("a member's own number", () => {
   });
 });
 
-describe('how the reader knows the sender (D7)', () => {
-  it('is the list the code offers, word for word, in the same order', () => {
+describe('how the reader knows the sender is kept nowhere (D7, reversed 2026-11-26)', () => {
+  it('a link has no column for it', async () => {
+    expect(
+      await owner(`SELECT column_name FROM information_schema.columns WHERE table_name = 'person_link' AND column_name = 'relation'`),
+    ).toEqual([]);
+  });
+
+  it('and the migration writes none', () => {
     const file = readFileSync(join(managedMigrationsDir(), '0067_who_sends_the_link.sql'), 'utf8');
-    const check = /person_link_relation_check CHECK \(([\s\S]*?)\)\s*\);/.exec(file)?.[1] ?? '';
-    const listed = [...check.matchAll(/'([a-z]+)'::text/g)].map((m) => m[1]);
-    expect(listed).toEqual([...SENDER_RELATIONS]);
-  });
-
-  it('takes each word of the list, and none', async () => {
-    for (const relation of SENDER_RELATIONS) {
-      expect(await refused(`UPDATE person_link SET relation = $1 WHERE id = $2`, [relation, GRANT])).toBeNull();
-    }
-    expect(await refused(`UPDATE person_link SET relation = NULL WHERE id = $1`, [GRANT])).toBeNull();
-  });
-
-  it('refuses anything else, which is where an impersonator would write *your bank*', async () => {
-    expect(await refused(`UPDATE person_link SET relation = 'bank' WHERE id = $1`, [GRANT])).toMatch(
-      /person_link_relation_check/,
-    );
-    expect(await refused(`UPDATE person_link SET relation = 'Daughter' WHERE id = $1`, [GRANT])).toMatch(
-      /person_link_relation_check/,
-    );
+    expect(file).not.toMatch(/ADD COLUMN IF NOT EXISTS relation|person_link_relation_check/);
   });
 });
 

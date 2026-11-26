@@ -203,9 +203,9 @@ describe("issuing a person's grant link", () => {
     const grant = await section('One grant link for everything');
     await userEvent.selectOptions(grant.getByLabelText(/The link works for/), '1');
     await makeGrantLink(grant);
-    // With how the person knows the member, none chosen here (0176 T8), and how
-    // their pages speak to them: this screen's language with u, none chosen (T7).
-    await waitFor(() => expect(personIssueMock).toHaveBeenCalledWith('p-anna', 'grant', 1, { relation: null, voice: 'en' }));
+    // With how their pages speak to them: this screen's language with u, none
+    // chosen (0176 T7). Nothing asks who the member is to them (D7, reversed).
+    await waitFor(() => expect(personIssueMock).toHaveBeenCalledWith('p-anna', 'grant', 1, { voice: 'en' }));
   });
 
   it("shows a refusal in the SERVER's words, not a generic failure", async () => {

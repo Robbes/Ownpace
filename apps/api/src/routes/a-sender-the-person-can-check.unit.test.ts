@@ -13,12 +13,14 @@
  *    else's; each is held to a shape, and refused with a code the screen
  *    words;
  *  - the member's list says both, so Team can show them;
- *  - a person's link says how the person knows the member, from a fixed list
- *    (D7), or none, and refuses anything else;
- *  - the link page's answer carries the sender: the name, the relation and
- *    the member's own number, beside the address it carried before
- *    (`askedBy`) and the organisation's number, so the page can show the
- *    member's own number where given, else the organisation's (D11);
+ *  - nothing asks how the person knows the member, keeps it, or says it: the
+ *    owner, 2026-11-26, reversing D7 (*"Does the relationship matter and need
+ *    to be registered? I would like not to..."*). A relation sent with a
+ *    link is not kept;
+ *  - the link page's answer carries the sender: the name and the member's
+ *    own number, beside the address it carried before (`askedBy`) and the
+ *    organisation's number, so the page can show the member's own number
+ *    where given, else the organisation's (D11);
  *  - a member who gave no name is named by their address, as before.
  *
  * PGlite as `app_user`, both chains. The names are invented.
@@ -211,52 +213,48 @@ describe("a member's own name and number, on Team", () => {
   });
 });
 
-describe("a person's link says how the person knows the sender (D7)", () => {
-  it('from the list, and the page answers it', async () => {
+describe('nothing says how the person knows the sender (D7, reversed 2026-11-26)', () => {
+  it('the page answers the name and the number, and no relation', async () => {
     await me({ displayName: 'Pat', phone: '+31 6 1234 5678' });
-    const page = await linkPage({ relation: 'daughter' });
-    expect(page.sender).toEqual({ name: 'Pat', relation: 'daughter', phone: '+31 6 1234 5678' });
+    const page = await linkPage();
+    expect(page.sender).toEqual({ name: 'Pat', phone: '+31 6 1234 5678' });
     expect(documented('/api/grant/{link}', 'get', '200', page), JSON.stringify(page)).toBe(true);
   });
 
-  it('or none, which is what every link made before says', async () => {
+  it('a relation sent with a link is not kept: the link is made, and no page or list says one', async () => {
     await me({ displayName: 'Pat' });
-    const page = await linkPage();
-    expect(page.sender).toEqual({ name: 'Pat', relation: null, phone: null });
-  });
-
-  it('and refuses anything else, making no link', async () => {
-    for (const relation of ['bank', 'Daughter', 'your daughter', 7]) {
-      const res = await issue({ relation });
-      expect(res.status, String(relation)).toBe(400);
-    }
-    expect(await q('SELECT id FROM person_link')).toEqual([]);
+    const issued = await issue({ relation: 'daughter' });
+    expect(issued.status, JSON.stringify(issued.body)).toBe(201);
+    const page = await request(app).get(`/api/grant/${tokenIn(issued.body.url)}`);
+    expect(page.body.sender).toEqual({ name: 'Pat', phone: null });
+    const list = await request(app).get(`/api/people/${ANNA}/links`);
+    expect((list.body.links as Array<Record<string, unknown>>).every((l) => !('relation' in l))).toBe(true);
   });
 });
 
 describe('the link page names the sender (§7)', () => {
   it("beside the address it named before and the organisation's number (D11: the page chooses)", async () => {
     await me({ displayName: 'Pat de Vries', phone: '+31 6 1234 5678' });
-    const page = await linkPage({ relation: 'son' });
+    const page = await linkPage();
     expect(page.askedBy).toBe('owner@example.org');
     expect(page.organisationPhone).toBe('+31 20 123 4567');
-    expect(page.sender).toEqual({ name: 'Pat de Vries', relation: 'son', phone: '+31 6 1234 5678' });
+    expect(page.sender).toEqual({ name: 'Pat de Vries', phone: '+31 6 1234 5678' });
   });
 
   it('a member who gave no name and no number is named by their address, with the organisation’s number', async () => {
-    const page = await linkPage({ relation: 'colleague' });
+    const page = await linkPage();
     expect(page.askedBy).toBe('owner@example.org');
-    expect(page.sender).toEqual({ name: null, relation: 'colleague', phone: null });
+    expect(page.sender).toEqual({ name: null, phone: null });
     expect(page.organisationPhone).toBe('+31 20 123 4567');
   });
 
   it("names the member who made the link, not the one who looks at it later", async () => {
     await me({ displayName: 'Pat' });
-    const issued = await issue({ relation: 'grandson' });
+    const issued = await issue({});
     Object.assign(caller, { userId: 'sam' });
     await me({ displayName: 'Sam' });
     const page = await request(app).get(`/api/grant/${tokenIn(issued.body.url)}`);
-    expect(page.body.sender).toEqual({ name: 'Pat', relation: 'grandson', phone: null });
+    expect(page.body.sender).toEqual({ name: 'Pat', phone: null });
     expect(page.body.askedBy).toBe('owner@example.org');
   });
 
@@ -264,13 +262,13 @@ describe('the link page names the sender (§7)', () => {
     // A row written some other way than the route, within the migration's CHECK.
     await q(`UPDATE tenant_member SET display_name = 'www.bank.example' WHERE user_id = 'pat'`);
     const page = await linkPage();
-    expect(page.sender).toEqual({ name: null, relation: null, phone: null });
+    expect(page.sender).toEqual({ name: null, phone: null });
   });
 });
 
 describe('what the member sends with the link (T8, §12)', () => {
   it('a grant link says what it copies and where to, for the message the member sends with it', async () => {
-    const issued = await issue({ relation: 'daughter' });
+    const issued = await issue({});
     expect(issued.status, JSON.stringify(issued.body)).toBe(201);
     expect(issued.body.copies).toEqual({ domains: ['calendar'], to: ['nextcloud'] });
     expect(documented('/api/people/{personId}/links', 'post', '201', issued.body)).toBe(true);
@@ -282,13 +280,4 @@ describe('what the member sends with the link (T8, §12)', () => {
     expect('copies' in issued.body).toBe(false);
   });
 
-  it("the list of a person's links says the relation each was made with, for the form to offer it again", async () => {
-    await issue({ relation: 'grandson' });
-    await issue({});
-    const list = await request(app).get(`/api/people/${ANNA}/links`);
-    expect(list.status).toBe(200);
-    const relations = (list.body.links as Array<{ relation: unknown }>).map((l) => l.relation);
-    expect(relations).toHaveLength(2);
-    expect(relations).toEqual(expect.arrayContaining(['grandson', null]));
-  });
 });

@@ -73,7 +73,7 @@ const linkPage = (over: Record<string, unknown> = {}) => ({
   organisation: 'Acme Families',
   checkedCompany: null,
   askedBy: 'owner@example.org',
-  sender: { name: 'Pat', relation: 'daughter', phone: '+31 6 1234 5678' },
+  sender: { name: 'Pat', phone: '+31 6 1234 5678' },
   organisationPhone: '+31 20 123 4567',
   accounts: [GMAIL],
   expiresAt: IN_A_WEEK,
@@ -110,7 +110,7 @@ const progressPage = (over: Record<string, unknown> = {}) => ({
     },
   ],
   destinations: [],
-  sender: { name: 'Pat', relation: 'daughter', phone: '+31 6 1234 5678' },
+  sender: { name: 'Pat', phone: '+31 6 1234 5678' },
   organisationPhone: '+31 20 123 4567',
   addressChanges: [],
   ...over,
@@ -173,7 +173,7 @@ describe('the register: je where the member chose it, and u where not (T7)', () 
     grantReadMock.mockResolvedValue(linkPage({ language: 'nl', register: 'informal' }));
     renderLinkPage();
     expect(await screen.findByRole('heading', { level: 1, name: 'Pat vraagt je toestemming' })).toBeInTheDocument();
-    expect(screen.getByText('Pat, je dochter')).toBeInTheDocument();
+    expect(document.querySelector('[data-sender]')?.textContent).toMatch(/Pat/);
     expect(words()).not.toMatch(FORMAL);
   });
 
@@ -194,7 +194,7 @@ describe('the register: je where the member chose it, and u where not (T7)', () 
     expect(
       await screen.findByText('Pat kopieert je e-mail, agenda en bestanden naar een nieuwe aanbieder. Op deze pagina zie je hoe ver dat is.'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Pat, je dochter')).toBeInTheDocument();
+    expect(document.querySelector('[data-sender]')?.textContent).toMatch(/Pat/);
     expect(words()).not.toMatch(FORMAL);
   });
 

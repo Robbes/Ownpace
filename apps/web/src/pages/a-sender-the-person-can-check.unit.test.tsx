@@ -9,8 +9,10 @@
  * check. Now it says:
  *
  *  - the member by the name they gave, as the people they send a link to know
- *    them, then how the reader knows them (*Pat, your daughter*), and the
- *    address under the name. Every `{who}` on the page is that name;
+ *    them, and the address under the name. Every `{who}` on the page is that
+ *    name. Nothing says how the reader knows them: the owner, 2026-11-26,
+ *    reversing D7 (*"Does the relationship matter and need to be registered?
+ *    I would like not to..."*);
  *  - a number, as something to check and never as proof: *Pat's number: …
  *    Or use the number you already have for Pat.* The member's own where they
  *    gave one, else the organisation's, and then the sentence says it is the
@@ -24,9 +26,9 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryRouter } from 'react-router';
-import { SENDER_RELATIONS } from '@openmig/shared';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
+import { NL_JE } from '../i18n/informal.ts';
 
 const { readMock } = vi.hoisted(() => ({ readMock: vi.fn() }));
 
@@ -78,7 +80,7 @@ const subject = (over: Record<string, unknown> = {}, accounts: readonly unknown[
   organisation: 'Acme Families',
   checkedCompany: null,
   askedBy: 'owner@example.org',
-  sender: { name: 'Pat de Vries', relation: 'daughter', phone: '+31 6 1234 5678' },
+  sender: { name: 'Pat de Vries', phone: '+31 6 1234 5678' },
   organisationPhone: '+31 20 123 4567',
   accounts,
   expiresAt: IN_A_WEEK,
@@ -120,12 +122,12 @@ afterEach(() => {
 });
 
 describe('the sender, by the name they gave (§7)', () => {
-  it('in English: the name, how the reader knows them, and the address under the name', async () => {
+  it('in English: the name, and the address under the name', async () => {
     readMock.mockResolvedValue(subject());
     renderPage('en');
     expect(await screen.findByRole('heading', { level: 1, name: 'Pat de Vries asks for your permission' })).toBeInTheDocument();
     const box = await senderBox();
-    expect(within(box).getByText('Pat de Vries, your daughter')).toBeInTheDocument();
+    expect(within(box).getByText('Pat de Vries')).toBeInTheDocument();
     expect(within(box).getByText('owner@example.org')).toBeInTheDocument();
     // Every {who} on the page is the name.
     expect(screen.getByText('Did Pat de Vries tell you about this link themselves?')).toBeInTheDocument();
@@ -133,34 +135,26 @@ describe('the sender, by the name they gave (§7)', () => {
     expect(within(box).queryByText('Phone')).not.toBeInTheDocument();
   });
 
-  it('in Dutch: *uw dochter*, and *Afzender*', async () => {
+  it('in Dutch, under *Afzender*', async () => {
     readMock.mockResolvedValue(subject());
     renderPage('nl');
     expect(await screen.findByRole('heading', { level: 1, name: 'Pat de Vries vraagt uw toestemming' })).toBeInTheDocument();
     const box = await senderBox('Afzender');
-    expect(within(box).getByText('Pat de Vries, uw dochter')).toBeInTheDocument();
+    expect(within(box).getByText('Pat de Vries')).toBeInTheDocument();
     expect(within(box).queryByText('Telefoon')).not.toBeInTheDocument();
   });
 
-  it('says *a family member* as the glossary does, with no *u* in it', async () => {
-    readMock.mockResolvedValue(subject({ sender: { name: 'Pat', relation: 'family', phone: null } }));
+  it('says nothing of how the reader knows them, even from an answer that carries it (D7, reversed)', async () => {
+    readMock.mockResolvedValue(subject({ sender: { name: 'Pat', relation: 'daughter', phone: null } }));
     renderPage('nl');
-    expect(within(await senderBox('Afzender')).getByText('Pat, een familielid')).toBeInTheDocument();
-  });
-
-  it('has words for every relation of the list, in both languages', () => {
-    const en = STRINGS.en as Record<string, string>;
-    const nl = STRINGS.nl as Record<string, string>;
-    const missing = SENDER_RELATIONS.filter((r) => !en[`sender.relation.${r}`] || !nl[`sender.relation.${r}`]);
-    expect(missing).toEqual([]);
-  });
-
-  it('says no relation where none was chosen', async () => {
-    readMock.mockResolvedValue(subject({ sender: { name: 'Pat', relation: null, phone: null } }));
-    renderPage('en');
-    const box = await senderBox();
+    const box = await senderBox('Afzender');
     expect(within(box).getByText('Pat')).toBeInTheDocument();
-    expect(textOf(box)).not.toMatch(/Pat,/);
+    expect(textOf(box)).not.toMatch(/Pat,|dochter|daughter/);
+  });
+
+  it('and the dictionary has no words for a relation, in either language or voice', () => {
+    const keys = [...Object.keys(STRINGS.en), ...Object.keys(STRINGS.nl), ...Object.keys(NL_JE)];
+    expect(keys.filter((k) => /^(sender\.relation\.|personLink\.relation\.)|^grant\.person\.senderIs$/.test(k))).toEqual([]);
   });
 });
 
@@ -182,7 +176,7 @@ describe('a number to check, never proof (D11)', () => {
   });
 
   it("the organisation's where the member gave none, said as the organisation's", async () => {
-    readMock.mockResolvedValue(subject({ sender: { name: 'Pat de Vries', relation: 'son', phone: null } }));
+    readMock.mockResolvedValue(subject({ sender: { name: 'Pat de Vries', phone: null } }));
     renderPage('en');
     const box = await senderBox();
     expect(textOf(box.querySelector('[data-number]'))).toBe(
@@ -192,7 +186,7 @@ describe('a number to check, never proof (D11)', () => {
   });
 
   it('no number at all: no sentence about one', async () => {
-    readMock.mockResolvedValue(subject({ sender: { name: 'Pat', relation: null, phone: null }, organisationPhone: null }));
+    readMock.mockResolvedValue(subject({ sender: { name: 'Pat', phone: null }, organisationPhone: null }));
     renderPage('en');
     const box = await senderBox();
     expect(box.querySelector('[data-number]')).toBeNull();
@@ -201,12 +195,12 @@ describe('a number to check, never proof (D11)', () => {
 });
 
 describe('as before, where there is no name', () => {
-  it('a member who gave no name is named by their address, with how the reader knows them', async () => {
-    readMock.mockResolvedValue(subject({ sender: { name: null, relation: 'colleague', phone: null } }));
+  it('a member who gave no name is named by their address', async () => {
+    readMock.mockResolvedValue(subject({ sender: { name: null, phone: null } }));
     renderPage('en');
     expect(await screen.findByRole('heading', { level: 1, name: 'owner@example.org asks for your permission' })).toBeInTheDocument();
     const box = await senderBox();
-    expect(within(box).getByText('owner@example.org, your colleague')).toBeInTheDocument();
+    expect(within(box).getByText('owner@example.org')).toBeInTheDocument();
   });
 
   it('an answer from a server before step B reads as step A did', async () => {
@@ -232,7 +226,7 @@ describe("a password card's warning, when there is no number to call back on", (
   });
 
   it('is said, naming the sender by their name, when neither gave one', async () => {
-    readMock.mockResolvedValue(subject({ sender: { name: 'Pat', relation: null, phone: null }, organisationPhone: null }, [PASSWORD]));
+    readMock.mockResolvedValue(subject({ sender: { name: 'Pat', phone: null }, organisationPhone: null }, [PASSWORD]));
     renderPage('en');
     await userEvent.click(await screen.findByRole('button', { name: 'Yes, that is right' }));
     await screen.findByRole('heading', { level: 1, name: 'Have this ready' });
