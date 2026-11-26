@@ -300,6 +300,20 @@ describe('RequestAccess, as a page', () => {
     expect(screen.queryByText('Fill in your email address first.')).toBeNull();
   });
 
+  // The owner's decisions of 2026-11-26: the packages were named in English on the Dutch form.
+  it('names the packages in Dutch on the Dutch form, and still sends the name the server stores', async () => {
+    const user = userEvent.setup();
+    renderInLocale('/request-access?locale=nl&tier=Medium');
+    const select = await screen.findByRole('combobox');
+    const names = within(select).getAllByRole('option').map((o) => o.textContent);
+    expect(names).toEqual(['Nog niet zeker', 'Gratis', 'Klein', 'Middel', 'Groot', 'Extra groot']);
+    expect(within(select).getByRole('option', { name: 'Middel' })).toHaveProperty('selected', true);
+    await user.type(screen.getByLabelText(/e-mailadres/i), 'someone@example.test');
+    await user.click(screen.getByRole('button', { name: /aanvraag versturen/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    expect(postMock.mock.calls[0]![1]).toMatchObject({ tier: 'Medium' });
+  });
+
   it('says it in Dutch for a Dutch reader', async () => {
     renderInLocale('/request-access?locale=nl');
     const button = await screen.findByRole('button', { name: /aanvraag versturen/i });

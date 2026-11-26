@@ -2,7 +2,36 @@
 
 > **In one line:** alpha.21's grant links for every account a person can grant, sources and destinations: Dropbox and Cirrux Drive on the sign-in seam, and a page where the person types their own password for Apple and every password kind, tested before it is stored.
 
-## Status — 2026-11-25 (update this block at the end of every session)
+## Status — 2026-11-26 (update this block at the end of every session)
+
+**2026-11-26: the owner's decisions of 2026-11-26, four changes to the pages a family member sees,
+built as a draft pull request** (`claude/ownpace-public-readiness-y7orc6-a21-family-words`). E2E
+is the maintainer's to dispatch.
+1. **A destination's password removed is not the source withdrawn.** §4.3's *Remove my password*
+   holds the migrations into the destination, and both progress pages read the hold as the
+   source's access taken back. The server says what stopped (`what`, `destination`; per migration
+   `stopped` on a person's page) from the `mapping.grant_withdrawn` audit row, whose `role:
+   'target'` names a destination; the columns alone cannot tell the two apart when the person
+   removed the destination before giving the source's access. The page says the owner's
+   sentence and shows no not-started words under either stop. The owner's answers of the same
+   day: the Google access still held on those migrations stays withdrawable from the person's page
+   (`groupByAccount` counts a held migration that still holds a token); the site's prices keep
+   their English names; the other open points are as built.
+   `a-destination-removed-is-not-a-source-withdrawn` and the View tests failed on main first.
+2. **Wording fixes**, each checked against the code: the start wizard's Dutch, *Bezig met
+   overstappen*, *email, calendar and files*, `grant.person.connected`'s Dutch, a migration's
+   withdrawal refusal bilingual and `role="alert"`, the request form's Dutch package names, and a
+   person's sign-in ending with accounts left (`left`, `backUrl` on the pending consent) saying
+   how many and *Back to the link*. The Dutch guides say the wizard's new words.
+3. **Who can open the copy**: `theOrganisationOpensIt` per migration on the grant GET, and the
+   line under a source's migration into a destination the organisation connected.
+4. **Do it together, during the alpha**: one line before each Google button (`isAlpha`).
+5. **The owner's read of the Dutch drafted here**, the same day: *"the Dutch in #2175: ok on all
+   10, including your edits."* Five lines changed in that read: `grant.asking` (*…om te lezen wat
+   u nu bewaart.*), `grant.person.asking` (*Voor elk account hieronder wordt het één keer
+   gevraagd.*), and three of a migration's withdrawal refusals (*U hebt uw toestemming op {day} al
+   ingetrokken.*; *…dus er staat geen toestemming van u in.*; *Uw toestemming is opnieuw gegeven
+   terwijl die werd ingetrokken…*). The English is unchanged.
 
 **2026-11-25, evening: T7, T8 and T9 done.** Every task of this plan is merged or answered.
 - **T7** merged as #2163 (`d048432f`).

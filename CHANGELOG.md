@@ -134,6 +134,36 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Removing a destination's password no longer reads as withdrawing the source's access**, and
+  the pages a family member sees say four things better (the owner's decisions of 2026-11-26).
+  *Remove my password* for a destination on the person's progress page holds the migrations into
+  it, which is right, but both progress pages said *"Migrating stopped: on {date} you withdrew the
+  access you gave"*, about a Google account the person never touched, with *"Nothing has been
+  copied yet … nothing has gone wrong"* under it. The server now says what stopped, from the
+  withdrawal's own audit row, and the page says *"The password for {destination} was removed on
+  {date}, so copying into it waits. Your {source} account was not touched, and nothing was
+  deleted. Whoever set this up can send you a new link."*; neither kind of stop shows the
+  not-started words. The Google access the person gave stays theirs to withdraw on that page. The wording fixes: the start wizard's Dutch for someone new and for people
+  who sign in themselves; a migration in cutover is *Bezig met overstappen*; *your email,
+  calendar and files* in place of *account and/or content*; a connected account says nothing
+  more is needed in Dutch too; a refused withdrawal on a migration's progress page is in the
+  page's language and announced; the request form names its packages in Dutch; and a person's
+  sign-in ending with accounts left says how many and offers *Back to the link*, instead of *this
+  link will not work again*. A source's card now says plainly when whoever set it up can open the
+  copy at a destination the organisation connected, and during the alpha one line before a
+  Google button invites the person to take that step together with them, on the phone or at the
+  table.
+  **Nederlands:** het wachtwoord van een bestemming verwijderen leest niet meer als het intrekken
+  van de toegang tot de bron. De pagina zegt nu *"Het wachtwoord voor {bestemming} is op {datum}
+  verwijderd, dus het kopiëren wacht. Aan uw {bron}-account is niets veranderd, en er is niets
+  gewist. Wie dit voor u heeft ingesteld, kan u een nieuwe link sturen."*, zonder *"Er is nog
+  niets gekopieerd"* eronder, en de toegang tot Google kan daar nog steeds worden ingetrokken. Verder: *Iemand nieuw* en *Zij zelf, met een link* bij het starten
+  van een migratie, *Bezig met overstappen*, *uw e-mail, agenda en bestanden*, *Verbonden. Voor
+  dit account hoeft u niets meer te doen.*, een geweigerde intrekking in het Nederlands, de
+  pakketten *Gratis, Klein, Middel, Groot* op het aanvraagformulier, en na de aanmelding bij nog
+  een account *Dank u, dit account is verbonden. Er is nog één account.* met *Terug naar de link*.
+  Een kaart zegt nu wie de kopie bij een bestemming van de organisatie ook kan openen, en tijdens
+  de alpha nodigt één regel voor de Google-knop uit om die stap samen te doen.
 - **A Google, Microsoft or Dropbox account saved for a person is no longer called broken**
   (workplan 0174 §8.2; found on the managed test environment on alpha.20). Such an account is
   saved by its address alone: the person's sign-in through their grant link is stored on each of

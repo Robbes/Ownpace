@@ -126,6 +126,14 @@ export interface PersonGrantMigration {
   readonly from: { readonly provider: string; readonly account: string | null };
   /** Whether this card's side of it has a way in already. */
   readonly granted: boolean;
+  /**
+   * The destination is one the organisation connected (its own password on
+   * the account, not one the person gives on the link, nor one they
+   * connected themselves): whoever set this up can open the copy there too,
+   * and a source's card says so plainly (the owner's decisions of
+   * 2026-11-26, change 3). False on a destination's own card.
+   */
+  readonly destinationIsTheOrganisations: boolean;
 }
 
 /** How one account's way in would be given, or why it cannot. */
@@ -291,6 +299,30 @@ interface Group {
 }
 
 /**
+ * Whether a migration's destination is the organisation's (the owner's
+ * decisions of 2026-11-26, change 3): it has a destination, the person did
+ * not connect it themselves (`person_granted_connection`), and its password
+ * is not asked of them, so the organisation holds what opens it. The same
+ * reading the destination's card is made from, so a destination is either a
+ * card for the person or this, never both. A destination `targetGrantAsk`
+ * cannot read says nothing: no line is better than a wrong one.
+ */
+function isTheOrganisationsDestination(
+  rows: GrantRows,
+  includedDomains: Parameters<typeof targetGrantAsk>[0]['includedDomains'],
+  grantedByThem: ReadonlySet<string>,
+): boolean {
+  const target = rows.target;
+  if (!target || grantedByThem.has(target.id)) return false;
+  const dst = targetGrantAsk({
+    targetKind: target.kind,
+    includedDomains,
+    targetCredentialKeys: credentialKeys(storedCredentials(target.secretRef)),
+  });
+  return dst.ok && !dst.asks.some((a) => a.way === 'password');
+}
+
+/**
  * A person's migrations, grouped by the account each side reads, inside the
  * caller's tenant transaction. Null when the person has no migration a link
  * can serve, or is not this organisation's. With `linkId`, each password
@@ -343,6 +375,12 @@ export async function readPersonGrantSubject(
     const from = { provider: rows.source.kind, account: where.from };
     const domains = domainsOf(readiness.includedDomains);
 
+    // Whose the destination is, for the source's card to say who can open
+    // the copy (change 3 of the owner's decisions of 2026-11-26): the
+    // organisation's when nothing is asked of the person for it and they did
+    // not connect it themselves, read as the destination's card below is.
+    const destinationIsTheOrganisations = isTheOrganisationsDestination(rows, readiness.includedDomains, grantedByThem);
+
     // ---- The source.
     const src = sourceGrantAsk({ ...readiness, namesItsAccount: where.from !== null });
     if (src.ok && src.way === 'sign-in' && where.from !== null) {
@@ -367,6 +405,7 @@ export async function readPersonGrantSubject(
               to: where.to,
               from,
               granted: hasAWayIn(rows.source.kind, rows.source.secretRef, sourceSecretRef),
+              destinationIsTheOrganisations,
             },
             signIn: { ask: src.ask, connectionSecretRef: rows.source.secretRef },
           },
@@ -391,7 +430,7 @@ export async function readPersonGrantSubject(
             accountKey,
             stored: shownValues('source', src.kind, rows.source, rows.sourceOverride),
           },
-          { migration: { mappingId, domains, to: where.to, from, granted: has } },
+          { migration: { mappingId, domains, to: where.to, from, granted: has, destinationIsTheOrganisations } },
           rows,
         );
       }
@@ -426,7 +465,7 @@ export async function readPersonGrantSubject(
             accountKey,
             stored: shownValues('target', kind, target, rows.targetOverride),
           },
-          { migration: { mappingId, domains, to: where.to, from, granted: has } },
+          { migration: { mappingId, domains, to: where.to, from, granted: has, destinationIsTheOrganisations: false } },
           rows,
         );
       }
@@ -460,7 +499,7 @@ export async function readPersonGrantSubject(
           connectionId: target.id,
           accountKey,
         },
-        { migration: { mappingId, domains, to: where.to, from, granted: grantStored } },
+        { migration: { mappingId, domains, to: where.to, from, granted: grantStored, destinationIsTheOrganisations: false } },
         rows,
       );
     }

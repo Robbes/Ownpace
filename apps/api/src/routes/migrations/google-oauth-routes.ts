@@ -59,6 +59,7 @@ import { mintPersonProgressLink, mintProgressLinkForMigration, storePersonGrant 
 // A migration that never ran starts by itself once its grant lands, when its
 // person's move is running (ADR-0035's amendment; the owner, 2026-10-03).
 import { startWhenGranted } from './start-when-granted.ts';
+import { moreToConnect } from './link-ending.ts';
 // The account-kind ask (workplan 0106 T3b): several faces from ONE Google
 // account, and the scope string built from the ticks and nothing else.
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
@@ -378,10 +379,12 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     await startWhenGranted(getDbPool(), { tenantId: personLink.tenantId, mappingIds: stored.granted });
     const personProgressUrl = await mintPersonProgressLink(getDbPool(), personLink);
     const permission = recordedPermission(pending.scope, outcome.grantedScopes);
+    // More accounts left on the link: it still works (the owner's decisions of 2026-11-26).
+    const more = moreToConnect(personLink, stored);
     return page(
       200,
       grantResultPage(
-        personProgressUrl ? { ok: true, progressUrl: personProgressUrl, permission } : { ok: true, permission },
+        { ok: true, permission, ...(personProgressUrl ? { progressUrl: personProgressUrl } : {}), ...(more ? { more } : {}) },
         locale,
       ),
     );
