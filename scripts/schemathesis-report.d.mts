@@ -35,6 +35,8 @@ export declare const MEMBERS: ReadonlyArray<{ readonly sub: string; readonly ema
 export declare const PULL_DELAYS: ReadonlyArray<number>;
 export declare const READY_POLLS: number;
 export declare const CONFIG: string;
+export declare const JOBS_ROLE_SQL: string;
+export declare const INSTALL_THE_QUEUES: string;
 
 export declare function fromOf(text: string, file: string, stage?: string | null): string;
 export declare function stackImages(read: (file: string) => string): { readonly node: string; readonly postgres: string };
@@ -44,6 +46,7 @@ export interface Secrets {
   readonly appPassword: string;
   readonly jwtSecret: string;
   readonly encryptionKey: string;
+  readonly jobsPassword: string;
 }
 export declare function freshSecrets(random?: (n: number) => Buffer): Secrets;
 

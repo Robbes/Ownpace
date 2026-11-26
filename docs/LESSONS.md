@@ -1351,6 +1351,7 @@ reading a file drops off its entry by itself.
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 
 ### `deploy/compose/live-pass-check.sh`
@@ -5747,6 +5748,7 @@ Reads:
 - `apps/api/Dockerfile`
 - `apps/api/src/middleware/auth.ts`
 - `apps/api/src/scripts/seed-managed.ts`
+- `deploy/compose/jobs-role.sql`
 - `deploy/compose/postgres/Dockerfile`
 - `docs/testing.md`
 - `scripts/another-organisations-ids.mjs`

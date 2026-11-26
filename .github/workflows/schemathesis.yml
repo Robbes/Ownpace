@@ -5,7 +5,9 @@
 # scripts/schemathesis-report.mjs does the work and its header says it in
 # full. In short: the API from this checkout, with Postgres, both migration
 # chains and the demo seed's two organisations, in local sign-in mode with a
-# signing secret the run makes for itself; then Schemathesis, from
+# signing secret the run makes for itself, and a jobs database on the same
+# Postgres (the bring-up's jobs role and the worker's queues), so a sync or a
+# cutover is enqueued for real; then Schemathesis, from
 # apps/api/docs/openapi.yaml, once with a seeded member's token and once
 # without, with the checks ignored_auth, not_a_server_error,
 # status_code_conformance and response_schema_conformance. What each found

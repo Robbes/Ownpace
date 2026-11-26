@@ -56,6 +56,13 @@
  *     its kept door as a refusal, and the reading is RED when the leak is
  *     taken out of what it flagged. On the API every verdict is counted and no
  *     operation is named.
+ *  9. THE JOBS DATABASE (the maintainer's answer of 2026-11-26). The API gets
+ *     a `JOBS_DATABASE_URL` on the stack's own Postgres, as the jobs role
+ *     `deploy/compose/jobs-role.sql` makes, with a password of the run's own,
+ *     and the worker's own runner installs pg-boss's schema and the catalog's
+ *     queues before the API starts, so a sync or a cutover is enqueued for
+ *     real rather than answered 500 for want of a queue. Either not made is a
+ *     scan that did not finish.
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -73,6 +80,7 @@ import {
   CONTAINERS,
   FIXTURE,
   IMAGE,
+  JOBS_ROLE_SQL,
   LOOPBACK,
   MIN_ASKS,
   MIN_OPERATIONS,
@@ -406,9 +414,9 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
     const scans = runs.filter((c) => c.args.includes(SCHEMATHESIS)).map((c) => c.args[c.args.indexOf('run', c.args.indexOf(SCHEMATHESIS)) + 1]);
     expect(scans).toEqual([`/src/${FIXTURE.dir}/openapi.yaml`, `/src/${API_DESCRIPTION}`]);
     // Every value made here is masked, and the token reaches Schemathesis by its environment only.
-    expect(masked).toHaveLength(6);
-    const token = masked[4]!;
-    const other = masked[5]!;
+    expect(masked).toHaveLength(7);
+    const token = masked[5]!;
+    const other = masked[6]!;
     for (const c of calls) expect(c.args.join(' ')).not.toContain(other);
     const asks = calls.filter((c) => c.args.some((a) => a.endsWith('/another-organisations-ids.mjs')));
     expect(asks).toHaveLength(2);
@@ -422,7 +430,7 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
     const at = (pred: (c: { args: string[] }) => boolean) => calls.findIndex(pred);
     expect(at((c) => c.args.some((a) => a.endsWith(API_DESCRIPTION)) && c.args[0] === 'exec')).toBeLessThan(at((c) => c.args.includes(`/src/${API_DESCRIPTION}`)));
     for (const c of calls) expect(c.args.join(' ')).not.toContain(token);
-    for (const c of calls) for (const v of masked.slice(0, 4)) expect(c.args.join(' ')).not.toContain(v);
+    for (const c of calls) for (const v of masked.slice(0, 5)) expect(c.args.join(' ')).not.toContain(v);
     for (const c of runs.filter((r) => r.args.includes(SCHEMATHESIS))) expect(c.env?.DAST_TOKEN).toBe(token);
     expect(readFileSync(join(out, 'schemathesis.toml'), 'utf8')).toBe(CONFIG);
     // app_user's password goes through stdin.
@@ -431,6 +439,41 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
     const removed = calls.filter((c) => c.args[0] === 'rm');
     expect(removed).toHaveLength(2);
     expect(calls.at(-1)!.args).toEqual(['rm', '-f', ...Object.values(CONTAINERS)]);
+  });
+
+  it('gives the API its jobs database: the bring-up\'s jobs role, a password of the run\'s own, the worker\'s queues, before the API starts (9)', async () => {
+    const { calls, docker } = stub(FIXTURE_FLAGGED(), reportJson());
+    const { v, masked } = await go(docker);
+    expect(v.code).toBe(0);
+    const at = (pred: (c: (typeof calls)[number]) => boolean) => calls.findIndex(pred);
+    // The bring-up's own file, as it is, through stdin.
+    const role = at((c) => c.input === read(JOBS_ROLE_SQL));
+    expect(role).toBeGreaterThan(-1);
+    // Its password, the run's own and masked, through stdin too.
+    const jobsPassword = masked[4]!;
+    const password = at((c) => c.input === `ALTER ROLE ownpace_jobs PASSWORD '${jobsPassword}';\n`);
+    expect(password).toBeGreaterThan(role);
+    // The worker's runner installs the schema and the catalog's queues, as the jobs role, on loopback.
+    const install = at((c) => c.args.some((a) => a.includes('PgBossJobRunner')));
+    expect(install).toBeGreaterThan(password);
+    expect(calls[install]!.env?.JOBS_DATABASE_URL).toBe(`postgresql://ownpace_jobs:${jobsPassword}@127.0.0.1:5432/ownpace`);
+    expect(calls[install]!.args.join(' ')).not.toContain(jobsPassword);
+    // And the API starts after, with the same URL by its environment only.
+    const api = at((c) => c.args[0] === 'run' && c.args.includes(CONTAINERS.api));
+    expect(api).toBeGreaterThan(install);
+    expect(calls[api]!.args).toEqual(expect.arrayContaining(['--env', 'JOBS_DATABASE_URL']));
+    expect(calls[api]!.env?.JOBS_DATABASE_URL).toBe(calls[install]!.env?.JOBS_DATABASE_URL);
+  });
+
+  it('stops, as a scan that did not finish, when the jobs role or its queues are not made', async () => {
+    for (const failing of [(c: { input?: string }) => c.input === read(JOBS_ROLE_SQL), (c: { args: string[] }) => c.args.some((a) => a.includes('PgBossJobRunner'))]) {
+      const base = stub(FIXTURE_FLAGGED(), reportJson());
+      const docker: Docker = (args, opts) => (failing({ args, input: opts?.input }) ? { status: 1, stdout: '', stderr: 'no', error: undefined, signal: null } : base.docker(args, opts));
+      const { v } = await go(docker);
+      expect(v.code).toBe(1);
+      expect(v.markdown).toMatch(/The scan did not finish:.*jobs/);
+      expect(base.calls.some((c) => c.args[0] === 'run' && c.args.includes(CONTAINERS.api))).toBe(false);
+    }
   });
 
   it('never scans the API when the proof does not hold', async () => {
