@@ -41,15 +41,7 @@ import { mintPersonProgressLink, mintProgressLinkForMigration, storePersonGrant 
 import { startWhenGranted } from './start-when-granted.ts';
 import { decideMicrosoftLinkEnding } from './microsoft-link-ending.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import {
-  inLocale,
-  localeOf,
-  log,
-  microsoftDeploymentClient,
-  resolveMicrosoftClient,
-  microsoftTenant,
-  type Bilingual,
-} from '@openmig/shared';
+import { inLocale, localeOf, log, microsoftDeploymentClient, resolveMicrosoftClient, microsoftTenant, type Bilingual, withoutTrailing } from '@openmig/shared';
 import {
   CONSENT_NOT_AWAITED,
   browserLocale,
@@ -88,7 +80,7 @@ const AuthorizeSchema = z.object({
 });
 
 function callbackUri(req: Request): string {
-  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const base = withoutTrailing(process.env.API_URL ?? `${req.protocol}://${req.get('host')}`, '/');
   return `${base}/api/migrations/microsoft/callback`;
 }
 

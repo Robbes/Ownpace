@@ -32,6 +32,7 @@
 
 import { PROVIDER_WORDS_CAP, RemoteRefusal, providerErrorWords, whatHappened } from './remote-refusal.ts';
 import type { Bilingual } from './link-holder-refusals.ts';
+import { withoutTrailing } from './runs-at-the-ends.ts';
 
 /** The longest the provider's own words may be in a sentence a person reads. */
 export const PROVIDER_ANSWER_WORDS_CAP = PROVIDER_WORDS_CAP;
@@ -277,6 +278,6 @@ export function plainFailureText(failure: PlainFailure): Bilingual {
  */
 export function withoutABody(message: string): string {
   const at = message.search(/<\s*[!?a-z]|\{\s*"/i);
-  const head = (at === -1 ? message : message.slice(0, at)).replace(/[\s:—-]+$/, '');
+  const head = withoutTrailing(at === -1 ? message : message.slice(0, at), (c) => /[\s:—-]/.test(c));
   return capped(head) ?? 'no reason was given';
 }

@@ -37,18 +37,7 @@
  * Nothing here reads the environment: what a deployment serves arrives from
  * `GET /api/provider-accounts`, as the wizard reads it.
  */
-import {
-  ARCHIVE_READABLE_TARGETS,
-  DISCOVERY_DOMAINS,
-  PROVIDER_ACCOUNT_DOMAINS,
-  SOURCE_TYPE_DOMAINS,
-  TARGET_TYPE_DOMAINS,
-  hasArchiveReader,
-  isPasswordKind,
-  type ArchiveProvider,
-  type DiscoveryDomain,
-  type WizardTargetType,
-} from '@openmig/shared';
+import { ARCHIVE_READABLE_TARGETS, DISCOVERY_DOMAINS, PROVIDER_ACCOUNT_DOMAINS, SOURCE_TYPE_DOMAINS, TARGET_TYPE_DOMAINS, hasArchiveReader, isPasswordKind, type ArchiveProvider, type DiscoveryDomain, type WizardTargetType, withoutTrailing } from '@openmig/shared';
 
 /**
  * The accounts a person may be leaving, in the drawing's order (step 2).
@@ -477,7 +466,7 @@ export function folderValue(card: string, typed: string): string {
     let path = fromLink ? safeDecode(fromLink[1] ?? '/') : text;
     if (!path.startsWith('/')) path = `/${path}`;
     // `/` alone is the whole Dropbox, which is not one folder.
-    return path.replace(/\/+$/, '');
+    return withoutTrailing(path, '/');
   }
   if (!/^https?:\/\//i.test(text)) return text;
   const id =
@@ -509,12 +498,12 @@ export function nextcloudDavUrl(address: string): string {
   let url = address.trim();
   if (url === '') return '';
   if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-  url = url
-    .replace(/[?#].*$/, '')
-    .replace(/\/+$/, '')
-    .replace(/\/remote\.php\/dav(\/.*)?$/i, '')
-    .replace(/\/(index\.php|apps)(\/.*)?$/i, '')
-    .replace(/\/+$/, '');
+  url = withoutTrailing(
+    withoutTrailing(url.replace(/[?#].*$/, ''), '/')
+      .replace(/\/remote\.php\/dav(\/.*)?$/i, '')
+      .replace(/\/(index\.php|apps)(\/.*)?$/i, ''),
+    '/',
+  );
   return `${url}/remote.php/dav`;
 }
 

@@ -62,7 +62,7 @@ import {
   type MappingLinkPurpose,
 } from '@openmig/ledger';
 import { listPersonLinks, readPerson, revokePersonLink } from '@openmig/managed';
-import { PERSON_NOT_FOUND, log } from '@openmig/shared';
+import { PERSON_NOT_FOUND, log, withoutTrailing } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -109,7 +109,7 @@ const IssueSchema = z
 /** The browser-facing address, or null when this deployment cannot say. */
 function webUrl(): string | null {
   const raw = process.env.WEB_URL;
-  return raw ? raw.replace(/\/+$/, '') : null;
+  return raw ? withoutTrailing(raw, '/') : null;
 }
 
 /** The tenant and the person the route names, or the answer already sent. */

@@ -24,6 +24,7 @@ import {
   isDropboxPaperPolicy,
   type DropboxNativeFilePolicies,
 } from './dropbox-native-policy.ts';
+import { withoutEither } from './runs-at-the-ends.ts';
 
 export type SourceAuth =
   | { readonly kind: 'xoauth2'; readonly tokenFromEnv: string }
@@ -883,7 +884,7 @@ export function parseTargetFolderPrefix(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     throw new ConfigError('targetFolderPrefix: must be a string when present');
   }
-  const trimmed = value.replace(/^\/+|\/+$/g, '');
+  const trimmed = withoutEither(value, '/');
   if (trimmed === '') return undefined; // '' and '/' both mean "merge"
   if (trimmed.includes('\\')) {
     throw new ConfigError(

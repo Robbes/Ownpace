@@ -21,18 +21,7 @@ import { z } from 'zod';
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
 import { closedOrganisation } from '../../closed-organisation.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import {
-  EXCHANGE_FOR_A_PERSONS_LINK,
-  EXCHANGE_FOR_THE_LINK_HOLDER,
-  NOTHING_CAME_BACK,
-  NOT_KEPT,
-  inLocale,
-  localeOf,
-  log,
-  resolveGoogleClient,
-  stoppedAtGoogle,
-  type Bilingual,
-} from '@openmig/shared';
+import { EXCHANGE_FOR_A_PERSONS_LINK, EXCHANGE_FOR_THE_LINK_HOLDER, NOTHING_CAME_BACK, NOT_KEPT, inLocale, localeOf, log, resolveGoogleClient, stoppedAtGoogle, type Bilingual, withoutTrailing } from '@openmig/shared';
 import {
   CONSENT_NOT_AWAITED,
   EXCHANGE_FOR_THE_OWNER,
@@ -116,7 +105,7 @@ const AuthorizeSchema = z.intersection(
  *  with the exact string in hand, which is why the response also returns
  *  it: the wizard shows the value the customer has to register. */
 function callbackUri(req: Request): string {
-  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const base = withoutTrailing(process.env.API_URL ?? `${req.protocol}://${req.get('host')}`, '/');
   return `${base}/api/migrations/google/callback`;
 }
 
