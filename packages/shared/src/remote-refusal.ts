@@ -77,9 +77,41 @@ function capped(words: string): string | undefined {
  * document somewhere is not one. The prefix's character class leaves out `.`,
  * which is legal in an XML name and was a metacharacter in the pattern once
  * built from it below.
+ *
+ * Read in one pass: the white space, the declaration and each comment are
+ * skipped by searching for where they end, and the root's start tag is then
+ * matched where they stop. A comment ends at its first `-->`, and anything else
+ * before the root means there is none. So the time taken grows with the
+ * body's length and no more.
  */
-const XML_ROOT =
-  /^\s*(?:<\?xml[^>]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<(?:([A-Za-z_][A-Za-z0-9_-]*):)?([A-Za-z_][A-Za-z0-9_-]*)\b([^>]*)>/;
+const SPACE = /\s*/y;
+const ROOT_TAG = /<(?:([A-Za-z_][A-Za-z0-9_-]*):)?([A-Za-z_][A-Za-z0-9_-]*)\b([^>]*)>/y;
+
+function afterSpace(body: string, at: number): number {
+  SPACE.lastIndex = at;
+  SPACE.exec(body);
+  return SPACE.lastIndex;
+}
+
+function xmlRoot(
+  body: string,
+): { readonly prefix: string | undefined; readonly name: string; readonly attributes: string; readonly end: number } | undefined {
+  let at = afterSpace(body, 0);
+  if (body.startsWith('<?xml', at)) {
+    const close = body.indexOf('>', at + 5);
+    if (close === -1 || close - 1 < at + 5 || body[close - 1] !== '?') return undefined;
+    at = afterSpace(body, close + 1);
+  }
+  while (body.startsWith('<!--', at)) {
+    const close = body.indexOf('-->', at + 4);
+    if (close === -1) return undefined;
+    at = afterSpace(body, close + 3);
+  }
+  ROOT_TAG.lastIndex = at;
+  const tag = ROOT_TAG.exec(body);
+  if (!tag) return undefined;
+  return { prefix: tag[1], name: tag[2]!, attributes: tag[3] ?? '', end: ROOT_TAG.lastIndex };
+}
 
 function declares(attributes: string, prefix: string | undefined, uri: string): boolean {
   const name = prefix === undefined ? 'xmlns' : `xmlns:${prefix}`;
@@ -95,9 +127,9 @@ function declares(attributes: string, prefix: string | undefined, uri: string): 
  *   `DAV:need-privileges`, or `DAV:error` when it names none.
  */
 function xmlErrorWords(body: string): string | undefined {
-  const root = XML_ROOT.exec(body);
+  const root = xmlRoot(body);
   if (!root) return undefined;
-  const [tag, prefix, name, attributes = ''] = root;
+  const { prefix, name, attributes, end } = root;
   if (name === 'errors' && prefix === undefined && declares(attributes, undefined, 'http://schemas.google.com/g/2005')) {
     return gdataRefusalWords(body) || undefined;
   }
@@ -106,7 +138,7 @@ function xmlErrorWords(body: string): string | undefined {
   if (sabre) return sabre;
   // Each `<p:name\b` after the root's tag, as `matchAll` of that pattern found them, with the
   // prefix compared as written rather than built into a pattern (workplan 0163).
-  const rest = body.slice(tag.length);
+  const rest = body.slice(end);
   const lead = `<${prefix === undefined ? '' : `${prefix}:`}`;
   const word = /[A-Za-z][A-Za-z0-9-]*\b/y;
   const names: string[] = [];
