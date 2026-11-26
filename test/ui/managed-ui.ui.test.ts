@@ -412,6 +412,7 @@ const FIXTURES: Record<string, unknown> = {
     organisationPhone: null,
     accounts: [
       {
+        ref: 'a0000000000000000000000000000f21',
         account: 'anna@example.com',
         granted: false,
         again: false,
@@ -428,10 +429,12 @@ const FIXTURES: Record<string, unknown> = {
           },
         ],
       },
-      // Connected already: its card says so, and has no button.
+      // A second account, still to connect too, so the link opens on its first
+      // screen and has a screen of accounts (workplan 0176 §5.1, §5.3).
       {
+        ref: 'a0000000000000000000000000000f22',
         account: 'anna.files@example.com',
-        granted: true,
+        granted: false,
         again: false,
         domains: ['file'],
         scope: `https://www.googleapis.com/auth/drive.readonly ${WHO_SIGNED_IN}`,
@@ -441,7 +444,7 @@ const FIXTURES: Record<string, unknown> = {
           {
             domains: ['file'],
             to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna@example.org' },
-            granted: true,
+            granted: false,
           },
         ],
       },
@@ -700,7 +703,7 @@ const PHONE: BrowserContextOptions = { viewport: { width: 390, height: 844 }, is
  * unbroken addresses, and a closed fold is not laid out, so it would never
  * count.
  */
-async function expectItFitsAPhone(page: Page, what: string): Promise<void> {
+async function expectItFitsAPhone(page: Page, what: string, phoneWidth = PHONE.viewport!.width): Promise<void> {
   await page.evaluate(() =>
     document.querySelectorAll('details').forEach((d) => {
       d.open = true;
@@ -710,9 +713,15 @@ async function expectItFitsAPhone(page: Page, what: string): Promise<void> {
     window: window.innerWidth,
     page: document.documentElement.scrollWidth,
   }));
-  expect(width.window, `${what} is wider than a phone, which zoomed out to fit it`).toBe(PHONE.viewport!.width);
-  expect(width.page, `${what} scrolls sideways at ${PHONE.viewport!.width}px`).toBeLessThanOrEqual(PHONE.viewport!.width + 1);
+  expect(width.window, `${what} is wider than a phone, which zoomed out to fit it`).toBe(phoneWidth);
+  expect(width.page, `${what} scrolls sideways at ${phoneWidth}px`).toBeLessThanOrEqual(phoneWidth + 1);
 }
+
+/**
+ * THE NARROW PHONE (workplan 0176 §16): 320 pixels is what 200% zoom lays out
+ * on a window of 640, and the width criterion 1.4.10 names.
+ */
+const NARROW: BrowserContextOptions = { viewport: { width: 320, height: 720 }, isMobile: true, hasTouch: true };
 
 /**
  * A new page that reports every policy violation it meets: as a console error
@@ -744,7 +753,7 @@ async function newPage(
  */
 async function open(
   path: string,
-  opts: { locale?: 'en' | 'nl'; signedIn?: boolean; clock?: Date; phone?: boolean; base?: string } = {},
+  opts: { locale?: 'en' | 'nl'; signedIn?: boolean; clock?: Date; phone?: boolean; narrow?: boolean; base?: string } = {},
 ): Promise<Loaded> {
   const base = opts.base ?? BASE;
   const page = await newPage(opts.locale === 'nl' ? 'nl-NL' : 'en-GB', {
@@ -752,6 +761,7 @@ async function open(
     // taken at that moment did (`scripts/shoot-the-app-screen.mjs`).
     ...(opts.clock ? { timezoneId: 'UTC' } : {}),
     ...(opts.phone ? PHONE : {}),
+    ...(opts.narrow ? NARROW : {}),
   });
   if (opts.clock) await page.clock.setFixedTime(opts.clock);
   const errors: string[] = [];
@@ -1794,6 +1804,12 @@ describe('the grant and progress links, opened by the person they were sent to (
   };
   /** The language switch both pages carry, as `Layout` does (0145 T6). */
   const SWITCH = ['EN', 'NL'] as const;
+  /**
+   * On a person's own pages, in full words: a target like any other, and a
+   * Dutch voice reads a bare *EN* as the word *en* (workplan 0176 T9.7). A
+   * migration's own progress page takes the person's sizes with it (§6).
+   */
+  const LONG_SWITCH = ['English', 'Nederlands'] as const;
 
   const PAGES: readonly LinkPage[] = [
     {
@@ -1842,73 +1858,42 @@ describe('the grant and progress links, opened by the person they were sent to (
       rows: { en: [], nl: [] },
     },
     {
-      what: "a person's grant link",
-      path: `/grant/${PERSON_GRANT_LINK}`,
-      asks: [`/api/grant/${PERSON_GRANT_LINK}`, `/api/grant/${PERSON_GRANT_LINK}/report`],
-      says: {
-        en: [
-          'Acme Families is moving your email, calendar and files to a new provider', // grant.person.asking
-          'owner-a@demo.openmigrate.test',
-          'To anna@soverin.example, Soverin: your email — messages, folders and labels.', // grant.person.migration
-          'To anna@example.org, Nextcloud at cloud.example.org: your calendars and their events.',
-          'Sign in as anna@example.com.',
-          'Connected. Nothing more is needed for this account.', // grant.person.connected
-          "If this page opened inside another app, such as a chat or mail app, use that app's 'Open in browser' option",
-          'By continuing you accept how your data is handled:',
-        ],
-        nl: [
-          'Acme Families migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder',
-          'owner-a@demo.openmigrate.test',
-          'Naar anna@soverin.example, Soverin: uw e-mail: berichten, mappen en labels.',
-          'Naar anna@example.org, Nextcloud op cloud.example.org: uw agenda’s en de afspraken daarin.',
-          'Log in als anna@example.com.',
-          'Verbonden. Voor dit account hoeft u niets meer te doen.',
-          "Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar 'Openen in browser'",
-          'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
-        ],
-      },
-      // One Google button: the account still to connect has it, the one
-      // connected already has none.
-      buttons: {
-        en: [...SWITCH, 'Report this link', 'Continue with Google as anna@example.com'], // grant.person.connect
-        nl: [...SWITCH, 'Deze link melden', 'Doorgaan met Google als anna@example.com'],
-      },
-      links: GRANT_LINKS,
-      rows: { en: [], nl: [] },
-    },
-    {
       what: "a migration's progress link",
       path: `/view/${VIEW_LINK}`,
       asks: [`/api/view/${VIEW_LINK}`, `/api/view/${VIEW_LINK}/report`],
       says: {
         en: [
-          'Acme Families is migrating your email, calendar and files to a new provider.', // view.who
-          'Your migration', // view.title
-          'Your things are being migrated across now.', // view.state.active
+          'Acme Families is migrating your email, calendar and files to a new provider.', // view.who, an old link's own
+          'Your migration', // view.title, an old link's own
+          'You do not have to do anything now. You may close this page.', // view.person.first.nothingToDo
+          'Copying is in progress.', // view.state.active
           'The access you gave', // view.grant.title
+          'This page refreshes by itself.', // view.refresh.at
           'This page only shows numbers; it holds nothing from your account.', // view.readOnly
         ],
         nl: [
           'Acme Families migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder.',
           'Uw migratie',
-          'De migratie is actief.',
+          'U hoeft nu niets te doen. U mag deze pagina sluiten.',
+          'Het kopiëren is bezig.',
           'De toegang die u gaf',
+          'Deze pagina ververst vanzelf.',
           'Deze pagina toont alleen aantallen; er staat niets uit uw account op.',
         ],
       },
       buttons: {
-        en: [...SWITCH, 'Withdraw access', 'Report this link'], // view.grant.withdraw
-        nl: [...SWITCH, 'Toegang intrekken', 'Deze link melden'],
+        en: [...LONG_SWITCH, 'Stop copying', 'Report this link'], // view.grant.withdraw
+        nl: [...LONG_SWITCH, 'Kopiëren stoppen', 'Deze link melden'],
       },
       links: PROGRESS_LINKS,
       rows: {
         en: [
-          ['email', 'Email', 'Copying', '4,211 of ~5,000'], // domain.email, state.stage.copying
-          ['calendar', 'Calendar', 'Kept in step'], // state.stage.kept_in_step
+          ['email', 'Email', 'Being copied', '4,211 of ~5,000'], // domain.email, view.person.stage.copying
+          ['calendar', 'Calendar', 'Copied, and kept up to date'], // view.person.stage.kept_in_step
         ],
         nl: [
-          ['email', 'E-mail', 'Wordt gemigreerd', '4.211 van ~5.000'],
-          ['calendar', 'Agenda', 'Wordt bijgehouden'],
+          ['email', 'E-mail', 'Wordt gekopieerd', '4.211 van ~5.000'],
+          ['calendar', 'Agenda', 'Gekopieerd, en wordt bijgehouden'],
         ],
       },
     },
@@ -1918,36 +1903,40 @@ describe('the grant and progress links, opened by the person they were sent to (
       asks: [`/api/view/${PERSON_VIEW_LINK}`, `/api/view/${PERSON_VIEW_LINK}/report`],
       says: {
         en: [
-          'Acme Families is moving your accounts to new providers. Here is where each migration stands.', // view.person.who
-          'Your migrations', // view.person.title
+          'Acme Families copies your email, calendar and files to a new provider. This page shows how far that is.', // view.person.who
+          'How far is the copying?', // view.person.title
+          'You do not have to do anything now. You may close this page.', // view.person.first.nothingToDo
           'Your Google account', // view.person.account.only
           'Google to Soverin', // view.person.route
           'Google to Nextcloud',
           'Nothing has been copied yet.', // view.notStarted
           'The access you gave',
-          'Your things are being migrated across now.', // view.state.active
+          'Copying is in progress.', // view.state.active
+          'This page refreshes by itself.', // view.refresh.at
           'This page only shows numbers; it holds nothing from your account.', // view.readOnly
         ],
         nl: [
-          'Acme Families migreert uw accounts naar nieuwe aanbieders. Hier ziet u hoe elke migratie ervoor staat.',
-          'Uw migraties',
+          'Acme Families kopieert uw e-mail, agenda en bestanden naar een nieuwe aanbieder. Op deze pagina ziet u hoe ver dat is.',
+          'Hoe ver is het kopiëren?',
+          'U hoeft nu niets te doen. U mag deze pagina sluiten.',
           'Uw Google-account',
           'Google naar Soverin',
           'Google naar Nextcloud',
-          'Er is nog niets gemigreerd.',
+          'Er is nog niets gekopieerd.',
           'De toegang die u gaf',
-          'De migratie is actief.',
+          'Het kopiëren is bezig.',
+          'Deze pagina ververst vanzelf.',
           'Deze pagina toont alleen aantallen; er staat niets uit uw account op.',
         ],
       },
       buttons: {
-        en: [...SWITCH, 'Withdraw access', 'Report this link'],
-        nl: [...SWITCH, 'Toegang intrekken', 'Deze link melden'],
+        en: [...LONG_SWITCH, 'Stop copying', 'Report this link'],
+        nl: [...LONG_SWITCH, 'Kopiëren stoppen', 'Deze link melden'],
       },
       links: PROGRESS_LINKS,
       rows: {
-        en: [['email', 'Email', 'Copying', '4,211 of ~5,000']],
-        nl: [['email', 'E-mail', 'Wordt gemigreerd', '4.211 van ~5.000']],
+        en: [['email', 'Email', 'Being copied', '4,211 of ~5,000']],
+        nl: [['email', 'E-mail', 'Wordt gekopieerd', '4.211 van ~5.000']],
       },
     },
   ];
@@ -2008,6 +1997,368 @@ describe('the grant and progress links, opened by the person they were sent to (
 });
 
 /**
+ * A PERSON'S LINK, ONE THING AT A TIME (workplan 0176 T1, §5, §16): walked as
+ * its reader walks it, from the first screen to the provider's button, in both
+ * languages, on a phone of 390 pixels and on one of 320, which is what 200%
+ * zoom lays out on a window of 640. Each screen has one `h1`, says which step
+ * it is in words, carries the controls it should and no others, and fits; and
+ * the whole walk asks the API for the link, its report and the build stamp,
+ * and nothing else: a step is a place in the page, not a request.
+ */
+type WalkLocale = 'en' | 'nl';
+interface WalkScreen {
+  readonly h1: Readonly<Record<WalkLocale, string>>;
+  readonly step: Readonly<Record<WalkLocale, string>>;
+  /** What its reader must find on it, in the words a reader sees. */
+  readonly says: Readonly<Record<WalkLocale, readonly string[]>>;
+  /** Every button on it, in order, by its words. */
+  readonly buttons: Readonly<Record<WalkLocale, readonly string[]>>;
+  /** The button that leads on, pressed once the screen is read; none on the last. */
+  readonly next?: Readonly<Record<WalkLocale, string>>;
+}
+
+const ASKED_BY = 'owner-a@demo.openmigrate.test';
+const PERSON_LINK_WALK: readonly WalkScreen[] = [
+  {
+    h1: { en: `${ASKED_BY} asks for your permission`, nl: `${ASKED_BY} vraagt uw toestemming` }, // grant.person.title
+    step: { en: 'Step 1 of 5', nl: 'Stap 1 van 5' }, // grant.step
+    says: {
+      en: [
+        'This page is from Ownpace, the service that makes the copy.', // grant.person.ownpace
+        'Sender', // grant.person.sender
+        `${ASKED_BY} wants to copy your email, calendar and files. The next screen shows from where and to where.`, // grant.person.whatMany
+        'Everything also stays in Google.', // grant.person.fact.stays
+        'Ownpace only reads there. It deletes nothing and changes nothing.', // grant.person.fact.reads
+        'There is no hurry. You can do this until', // grant.person.fact.noHurry
+        `Did ${ASKED_BY} tell you about this link themselves?`, // grant.person.told
+      ],
+      nl: [
+        'Deze pagina is van Ownpace, de dienst die de kopie maakt.',
+        'Afzender',
+        `${ASKED_BY} wil uw e-mail, agenda en bestanden kopiëren. Op het volgende scherm staat waarvandaan en waarnaartoe.`,
+        'Alles blijft ook in Google staan.',
+        'Ownpace leest daar alleen. Het verwijdert niets en wijzigt niets.',
+        'Er is geen haast. Dit kan tot',
+        `Heeft ${ASKED_BY} u zelf over deze link verteld?`,
+      ],
+    },
+    buttons: {
+      en: ['English', 'Nederlands', 'Yes, that is right', 'No, not yet', 'Report this link'],
+      nl: ['English', 'Nederlands', 'Ja, dat klopt', 'Nee, nog niet', 'Deze link melden'],
+    },
+    next: { en: 'Yes, that is right', nl: 'Ja, dat klopt' },
+  },
+  {
+    h1: { en: 'Your accounts', nl: 'Uw accounts' }, // grant.person.accounts.title
+    step: { en: 'Step 2 of 5', nl: 'Stap 2 van 5' },
+    says: {
+      en: [
+        'The accounts your data is copied from', // grant.group.from
+        'To anna@soverin.example, Soverin: your email — messages, folders and labels.', // grant.person.migration
+        'To anna@example.org, Nextcloud at cloud.example.org: your calendars and their events.',
+        'Waiting', // grant.state.waiting
+      ],
+      nl: [
+        'De accounts waaruit uw gegevens worden gekopieerd',
+        'Naar anna@soverin.example, Soverin: uw e-mail: berichten, mappen en labels.',
+        'Naar anna@example.org, Nextcloud op cloud.example.org: uw agenda’s en de afspraken daarin.',
+        'Nog niet verbonden',
+      ],
+    },
+    buttons: {
+      en: ['English', 'Nederlands', 'Connect anna@example.com', 'Connect anna.files@example.com', 'Back', 'Report this link'],
+      nl: ['English', 'Nederlands', 'anna@example.com verbinden', 'anna.files@example.com verbinden', 'Terug', 'Deze link melden'],
+    },
+    next: { en: 'Connect anna@example.com', nl: 'anna@example.com verbinden' },
+  },
+  {
+    h1: { en: 'Have this ready', nl: 'Leg dit klaar' }, // grant.person.ready.title
+    step: { en: 'Step 3 of 5', nl: 'Stap 3 van 5' },
+    says: {
+      en: [
+        'The address anna@example.com.', // grant.person.ready.address
+        'The password of your Google account.', // grant.person.ready.password
+        `You type it only on Google’s own page. Ownpace never sees it. ${ASKED_BY} does not either.`, // grant.person.ready.typeIt
+        'Your phone. Google may send a code to it.', // grant.person.ready.phone
+        `Give that code to nobody. Not to ${ASKED_BY} either.`, // grant.person.ready.code
+        `Do you not know the password? Then stop here, and do this together with ${ASKED_BY}.`, // grant.person.ready.unknownPassword
+        "If this page opened inside another app, such as a chat or mail app, use that app's 'Open in browser' option", // grant.inAppBrowser
+      ],
+      nl: [
+        'Het adres anna@example.com.',
+        'Het wachtwoord van uw Google-account.',
+        `U typt het alleen op de pagina van Google zelf. Ownpace ziet het nooit. ${ASKED_BY} ook niet.`,
+        'Uw telefoon. Google kan daar een code naartoe sturen.',
+        `Geef die code aan niemand. Ook niet aan ${ASKED_BY}.`,
+        `Weet u het wachtwoord niet? Stop dan hier, en doe dit samen met ${ASKED_BY}.`,
+        "Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar 'Openen in browser'",
+      ],
+    },
+    buttons: {
+      en: ['English', 'Nederlands', 'Next', 'Back', 'Report this link'],
+      nl: ['English', 'Nederlands', 'Verder', 'Terug', 'Deze link melden'],
+    },
+    next: { en: 'Next', nl: 'Verder' },
+  },
+  {
+    h1: { en: 'What you will see at Google', nl: 'Dit ziet u straks bij Google' }, // grant.person.see.title
+    step: { en: 'Step 4 of 5', nl: 'Stap 4 van 5' },
+    says: {
+      en: [
+        'To anna@soverin.example, Soverin: your email — messages, folders and labels.',
+        'Google asks you to sign in.', // grant.person.see.signIn
+        'Sign in as anna@example.com.', // grant.signInAs
+        'Gmail: read, send and permanently delete all your email.', // grant.scope.mail
+        'Google’s words are broader than what Ownpace does. Ownpace only reads. It sends nothing and deletes nothing.', // grant.person.see.broader
+        'Make sure everything Ownpace asks for is ticked.', // grant.person.see.ticks
+        'You can stop this at any time, on the page you get afterwards.', // grant.person.see.stop
+        'This link works until', // grant.until
+        'By continuing you accept how your data is handled:', // grant.disclosure
+        'The next step is on Google’s own page.', // grant.person.see.next
+      ],
+      nl: [
+        'Naar anna@soverin.example, Soverin: uw e-mail: berichten, mappen en labels.',
+        'Google vraagt u in te loggen.',
+        'Log in als anna@example.com.',
+        'Gmail: al uw e-mail lezen, verzenden en definitief verwijderen.',
+        'Google beschrijft het ruimer dan wat Ownpace doet. Ownpace leest alleen. Het verzendt niets en verwijdert niets.',
+        'Zorg dat alles wat Ownpace vraagt een vinkje heeft.',
+        'U kunt dit altijd weer stoppen, op de pagina die u hierna krijgt.',
+        'Deze link werkt tot',
+        'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
+        'De volgende stap doet u op de pagina van Google zelf.',
+      ],
+    },
+    buttons: {
+      en: ['English', 'Nederlands', 'Sign in with Google', 'No, rather not', 'Back', 'Report this link'],
+      nl: ['English', 'Nederlands', 'Inloggen met Google', 'Nee, liever niet', 'Terug', 'Deze link melden'],
+    },
+  },
+];
+
+describe("a person's link, walked one thing at a time (0176 T1)", () => {
+  for (const locale of ['en', 'nl'] as const) {
+    for (const narrow of [false, true]) {
+      const width = narrow ? 320 : 390;
+      it(`walks it in ${locale === 'en' ? 'English' : 'Dutch'} at ${width} pixels, from the first screen to Google's button`, async () => {
+        const before = apiHits.length;
+        const missesBefore = apiMisses.length;
+        const l = await open(`/grant/${PERSON_GRANT_LINK}`, { signedIn: false, locale, phone: !narrow, narrow });
+        for (const screen of PERSON_LINK_WALK) {
+          const what = `${screen.h1.en} (${locale}, ${width})`;
+          await l.page.getByRole('heading', { level: 1, name: screen.h1[locale] }).waitFor({ timeout: 15_000 });
+          expect(await l.page.locator('h1').count(), `the h1s on ${what}`).toBe(1);
+          expect(await l.page.title(), `the tab on ${what}`).toBe(`${screen.h1[locale]} — Ownpace`);
+          const text = await l.page.innerText('body');
+          expect(text, `${what} does not say its step`).toContain(screen.step[locale]);
+          for (const words of screen.says[locale]) expect(text, `${what} does not say it`).toContain(words);
+          const buttons = await l.page.$$eval('button', (bs) => bs.map((b) => (b.textContent ?? '').trim()));
+          expect(buttons, `the controls on ${what}`).toEqual(screen.buttons[locale]);
+          await expectItFitsAPhone(l.page, what, width);
+          if (screen.next) await l.page.getByRole('button', { name: screen.next[locale], exact: true }).click();
+        }
+        expect(new URL(l.page.url()).pathname, 'the walk left the page').toBe(`/grant/${PERSON_GRANT_LINK}`);
+        const asked = [...new Set(apiHits.slice(before))].filter((path) => path !== '/api/version').sort();
+        expect(asked, 'what the walk asked the API for').toEqual(
+          [`/api/grant/${PERSON_GRANT_LINK}`, `/api/grant/${PERSON_GRANT_LINK}/report`].sort(),
+        );
+        expect(apiMisses.slice(missesBefore), 'the walk called endpoints with no fixture').toEqual([]);
+        expectClean(l, `a person's link walked in ${locale} at ${width}`);
+        await l.page.close();
+      });
+    }
+  }
+
+  it("goes one step back with the browser's Back, and No, not yet asks nothing of the API", async () => {
+    const l = await open(`/grant/${PERSON_GRANT_LINK}`, { signedIn: false, locale: 'en', phone: true });
+    await l.page.getByRole('heading', { level: 1, name: PERSON_LINK_WALK[0]!.h1.en }).waitFor({ timeout: 15_000 });
+    const before = apiHits.length;
+    await l.page.getByRole('button', { name: 'No, not yet', exact: true }).click();
+    await l.page.getByRole('heading', { level: 1, name: 'Then wait a moment' }).waitFor({ timeout: 10_000 });
+    expect(apiHits.slice(before), 'what No, not yet asked for').toEqual([]);
+    await l.page.goBack();
+    await l.page.getByRole('heading', { level: 1, name: PERSON_LINK_WALK[0]!.h1.en }).waitFor({ timeout: 10_000 });
+    await l.page.getByRole('button', { name: 'Yes, that is right', exact: true }).click();
+    await l.page.getByRole('heading', { level: 1, name: 'Your accounts' }).waitFor({ timeout: 10_000 });
+    await l.page.goBack();
+    await l.page.getByRole('heading', { level: 1, name: PERSON_LINK_WALK[0]!.h1.en }).waitFor({ timeout: 10_000 });
+    expect(new URL(l.page.url()).pathname).toBe(`/grant/${PERSON_GRANT_LINK}`);
+    expectClean(l, "a person's link, back and not yet");
+    await l.page.close();
+  });
+});
+
+/**
+ * NOTHING SMALL ON A PERSON'S PAGES (workplan 0176 T9, §13), asked of the
+ * browser rather than read off a class name: a class can say `text-sm` and
+ * draw 18 pixels, or the other way round.
+ *
+ * - no visible text under 16 pixels, and a sentence at 18;
+ * - a sentence at 7 to 1 or better against what it sits on, other text at 4.5;
+ * - every target that stands alone at least 44 by 44, a link inside a sentence
+ *   apart (criterion 2.5.8 exempts it); a main button at least 60 pixels high
+ *   and as wide as the column; two answers to one question of one size;
+ * - an outlined control's edge, and a filled one's fill, at 3 to 1 or better
+ *   (criterion 1.4.11);
+ * - the focus drawn as an outline of 2 pixels at least.
+ *
+ * Every fold is opened first, so what it holds is measured too.
+ */
+async function smallThings(page: Page): Promise<string[]> {
+  await page.evaluate(() =>
+    document.querySelectorAll('details').forEach((d) => {
+      d.open = true;
+    }),
+  );
+  // A keyboard's focus, so the focus is drawn as a reader with a keyboard sees it.
+  await page.keyboard.press('Tab');
+  return page.evaluate(() => {
+    const problems: string[] = [];
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    /** Any colour the browser computed, as sRGB and alpha: a canvas reads oklch() too. */
+    const rgba = (css: string): [number, number, number, number] => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+      ctx.fillStyle = css;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r = 0, g = 0, b = 0, a = 0] = ctx.getImageData(0, 0, 1, 1).data;
+      return [r, g, b, a / 255];
+    };
+    const luminance = ([r, g, b]: readonly number[]): number => {
+      const [lr = 0, lg = 0, lb = 0] = [r ?? 0, g ?? 0, b ?? 0].map((v) => {
+        const c = v / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+    };
+    const ratio = (a: readonly number[], b: readonly number[]): number => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    /** What an element sits on: the first background behind it that is drawn. */
+    const behind = (el: Element | null): readonly number[] => {
+      for (let e = el; e; e = e.parentElement) {
+        const c = rgba(getComputedStyle(e).backgroundColor);
+        if (c[3] > 0.5) return c;
+      }
+      return [255, 255, 255, 1];
+    };
+    const shown = (el: Element): boolean => {
+      const box = el.getBoundingClientRect();
+      if (box.width < 2 || box.height < 2) return false;
+      const s = getComputedStyle(el);
+      return s.visibility !== 'hidden' && s.display !== 'none' && Number(s.opacity) > 0;
+    };
+    const named = (el: Element): string =>
+      ((el.textContent ?? '').trim() || el.getAttribute('aria-label') || el.tagName).replace(/\s+/g, ' ').slice(0, 50);
+
+    for (const el of document.querySelectorAll('body *')) {
+      if (el.closest('svg, script, style, [aria-hidden="true"]')) continue;
+      const own = [...el.childNodes]
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent ?? '')
+        .join('')
+        .trim();
+      if (own === '' || !shown(el)) continue;
+      const s = getComputedStyle(el);
+      const size = parseFloat(s.fontSize);
+      const sentence = /[.?!:]$/.test(own);
+      const label = own.replace(/\s+/g, ' ').slice(0, 50);
+      if (size < 16) problems.push(`${size}px text: ${label}`);
+      else if (sentence && size < 18) problems.push(`a ${size}px sentence: ${label}`);
+      const contrast = ratio(rgba(s.color), behind(el));
+      if (contrast < (sentence ? 7 : 4.5)) problems.push(`${contrast.toFixed(2)} to 1: ${label}`);
+    }
+
+    for (const el of document.querySelectorAll('button, a[href], summary, input:not([type="hidden"]), select, textarea')) {
+      if (!shown(el)) continue;
+      if (el.tagName === 'A') {
+        // A link inside a sentence is exempt; one beside only other links and dots stands alone.
+        const block = el.closest('p, li, dd');
+        const around = block
+          ? [...block.childNodes]
+              .filter((n) => n !== el && !(n instanceof Element && (n.tagName === 'A' || n.querySelector('a'))))
+              .map((n) => n.textContent ?? '')
+              .join('')
+              .replace(/[\s·]/g, '')
+          : '';
+        if (around !== '') continue;
+      }
+      const box = el.getBoundingClientRect();
+      if (box.width < 44 || box.height < 44) problems.push(`a ${Math.round(box.width)} by ${Math.round(box.height)} target: ${named(el)}`);
+      if (el.matches('[data-main]')) {
+        const main = el.closest('main');
+        const m = main ? getComputedStyle(main) : null;
+        const column = main && m ? main.clientWidth - parseFloat(m.paddingLeft) - parseFloat(m.paddingRight) : 0;
+        if (box.height < 60) problems.push(`a main button ${Math.round(box.height)} pixels high: ${named(el)}`);
+        if (box.width < column - 1) problems.push(`a main button ${Math.round(box.width)} of ${Math.round(column)} pixels wide: ${named(el)}`);
+      }
+      const s = getComputedStyle(el);
+      const fill = rgba(s.backgroundColor);
+      const under = behind(el.parentElement);
+      if (fill[3] > 0.5 && ratio(fill, under) >= 1.1) {
+        if (ratio(fill, under) < 3) problems.push(`a fill at ${ratio(fill, under).toFixed(2)} to 1: ${named(el)}`);
+      } else if (parseFloat(s.borderTopWidth) >= 1) {
+        const edge = rgba(s.borderTopColor);
+        if (edge[3] > 0.5 && ratio(edge, under) < 3) problems.push(`an edge at ${ratio(edge, under).toFixed(2)} to 1: ${named(el)}`);
+      }
+    }
+
+    for (const group of document.querySelectorAll('[data-answers]')) {
+      const boxes = [...group.querySelectorAll('button')].filter(shown).map((b) => b.getBoundingClientRect());
+      const first = boxes[0];
+      if (first && boxes.some((b) => Math.abs(b.width - first.width) > 0.5 || Math.abs(b.height - first.height) > 0.5)) {
+        problems.push(`two answers of different sizes: ${named(group)}`);
+      }
+    }
+
+    const focused = document.activeElement;
+    if (focused && focused !== document.body) {
+      const s = getComputedStyle(focused);
+      if (s.outlineStyle === 'none' || parseFloat(s.outlineWidth) < 2) problems.push(`no focus outline on ${named(focused)}`);
+    }
+    return problems;
+  });
+}
+
+describe("nothing small on a person's pages (0176 T9)", () => {
+  for (const narrow of [false, true]) {
+    const width = narrow ? 320 : 390;
+
+    it(`a person's link page, at each step, in Dutch at ${width} pixels`, async () => {
+      const l = await open(`/grant/${PERSON_GRANT_LINK}`, { signedIn: false, locale: 'nl', phone: !narrow, narrow });
+      await l.page.locator('h1').first().waitFor({ timeout: 15_000 });
+      await l.page.waitForLoadState('networkidle');
+      for (const [i, screen] of PERSON_LINK_WALK.entries()) {
+        if (i > 0) {
+          await l.page.getByRole('button', { name: PERSON_LINK_WALK[i - 1]!.next!.nl, exact: true }).click();
+          await l.page.getByRole('heading', { level: 1, name: screen.h1.nl }).waitFor({ timeout: 10_000 });
+        }
+        expect(await smallThings(l.page), `small or pale on ${screen.h1.en} at ${width}`).toEqual([]);
+      }
+      expectClean(l, `a person's link page measured at ${width}`);
+      await l.page.close();
+    });
+
+    it(`a person's progress page, and its stop's own screen, in Dutch at ${width} pixels`, async () => {
+      const l = await open(`/view/${PERSON_VIEW_LINK}`, { signedIn: false, locale: 'nl', phone: !narrow, narrow });
+      await l.page.locator('h1').first().waitFor({ timeout: 15_000 });
+      await l.page.waitForLoadState('networkidle');
+      expect(await smallThings(l.page), `small or pale on the progress page at ${width}`).toEqual([]);
+      await l.page.getByRole('button', { name: 'Kopiëren stoppen', exact: true }).click();
+      await l.page.getByRole('heading', { level: 1, name: 'Kopiëren uit uw Google-account stoppen?' }).waitFor({ timeout: 10_000 });
+      expect(await smallThings(l.page), `small or pale on the stop's screen at ${width}`).toEqual([]);
+      await expectItFitsAPhone(l.page, `the stop's screen at ${width}`, width);
+      expectClean(l, `a person's progress page measured at ${width}`);
+      await l.page.close();
+    });
+  }
+});
+
+/**
  * THE OWN-PASSWORD CARD, UNDER THE POLICY (workplan 0174 §5.3, §7.3, T4).
  *
  * The page's policy has `form-action 'none'`. The card's form must never be
@@ -2023,6 +2374,9 @@ describe('a person types their own password on their grant link (0174 T4)', () =
     it(`sends it by fetch, in a body, with nothing in the URL after a submit, by ${how}`, async () => {
       const path = `/grant/${PASSWORD_GRANT_LINK}`;
       const l = await open(path, { signedIn: false, locale: 'en' });
+      // The first screen asks whether the sender told them; one account, so
+      // *Have this ready* follows, with the card (workplan 0176 §5.4).
+      await l.page.getByRole('button', { name: 'Yes, that is right', exact: true }).click();
       await l.page.getByText('Your password is checked with').waitFor({ timeout: 15_000 });
       const before = l.page.url();
       const sent: Array<{ url: string; method: string; type: string; contentType: string; body: string }> = [];
@@ -2075,6 +2429,7 @@ describe('a person types their own password on their grant link (0174 T4)', () =
 
   it('fits a phone, in Dutch, with the server line before the box', async () => {
     const l = await open(`/grant/${PASSWORD_GRANT_LINK}`, { signedIn: false, locale: 'nl', phone: true });
+    await l.page.getByRole('button', { name: 'Ja, dat klopt', exact: true }).click();
     await l.page.getByText('Uw wachtwoord wordt gecontroleerd bij').waitFor({ timeout: 15_000 });
     expect(await l.page.locator('[data-server-line] strong').innerText()).toBe('example.com');
     expect(await l.page.locator('[data-no-phone]').count()).toBe(1);
@@ -2373,6 +2728,31 @@ describe("the Alpha's build on a phone, in Dutch (0145 T8 (a))", () => {
     } finally {
       for (const key of Object.keys(added)) delete FIXTURES[key];
     }
+  });
+
+  // On a person's link the steps say it on the page, and the line to the
+  // guide goes (workplan 0176 D9, D12 (a)); a migration's own link keeps it.
+  it("a person's link tells Google's warning in a step of its own, in our own words, with no line to the guide", async () => {
+    const l = await open(`/grant/${PERSON_GRANT_LINK}`, { signedIn: false, locale: 'nl', phone: true, base: ALPHA });
+    for (const name of ['Ja, dat klopt', 'anna@example.com verbinden']) {
+      await l.page.getByRole('button', { name, exact: true }).click();
+    }
+    await l.page.getByRole('heading', { level: 1, name: 'Leg dit klaar' }).waitFor({ timeout: 15_000 });
+    expect(await l.page.innerText('body')).toContain(
+      'Doe dit het liefst samen met owner-a@demo.openmigrate.test: aan de telefoon, of aan tafel.',
+    );
+    await l.page.getByRole('button', { name: 'Verder', exact: true }).click();
+    await l.page.getByRole('heading', { level: 1, name: 'Dit ziet u straks bij Google' }).waitFor({ timeout: 10_000 });
+    const text = await l.page.innerText('body');
+    expect(text).toContain('Google heeft Ownpace nog niet gecontroleerd. Daarom waarschuwt Google, en dat is terecht.');
+    expect(text).toContain('Ga daar verder naar Ownpace.');
+    expect(text).toContain('Laat Google de verbinding niet toe?');
+    expect(text).not.toMatch(/[«»“”]/);
+    expect(await l.page.getByRole('link', { name: /Als u Google koppelt/ }).count(), 'a line to the guide').toBe(0);
+    expect(await smallThings(l.page), "small or pale on the Alpha's Google step").toEqual([]);
+    await expectItFitsAPhone(l.page, "a person's link's Google step in the Alpha's build");
+    expectClean(l, "a person's link in the Alpha's build on a phone");
+    await l.page.close();
   });
 
   it("a migration's grant link fits a phone with the Alpha's Google line above its button", async () => {
