@@ -33,10 +33,9 @@ Anna**, say), under **One grant link for everything**:
    The section says so above its button (*Tell Anna first, by phone or in person. The page asks
    whether you did.*), because the page they open asks exactly that, and waits if the answer is
    no (workplan 0176, D13).
-2. Say who you are to them, from a fixed list (*Daughter*, *Colleague*, *Someone Anna knows* …),
-   or **I would rather not say**; the page they open says it after your name (workplan 0176 T3).
-   The list offers again what you chose last for this person. While you have given no name of
-   your own, the form asks for it once, as they know you, and saves it for you first.
+2. While you have given no name of your own, the form asks for it once, as they know you, and
+   saves it for you first (workplan 0176 T3). It does not ask who you are to them (the owner,
+   2026-11-26).
 3. Choose how the page speaks to them: **Dutch, with u**, **Dutch, with je**, or **English**
    (workplan 0176 T7). It is kept with the person, so each of their links and their progress page
    say it, and offered again next time. With *je*, one line says that a parent completes a link
@@ -83,7 +82,7 @@ Firefox, Safari or Chrome is safe.
 
 **Worth doing once:** give your name and your own number, under **Team & organization → When you
 send someone a link**. Both are optional. The page the other person opens names you by that name,
-with how they know you, and shows your number as something to check, beside *Or use the number
+and shows your number as something to check, beside *Or use the number
 you already have for* you: a number they already have is the safer one. Without a number of
 yours, it shows your organisation's, under **Team & organization → Organization → Phone number**,
 and says that it is the organisation's.
@@ -140,8 +139,8 @@ person](#a-password-typed-by-the-person); the sign-in accounts go as below.
 
 1. **Who asks, and for what.** One line says what Ownpace is: the service that makes the copy,
    and where it runs, when the service names its country. Then who is asking: the heading and,
-   under **Sender**, the name **you** gave and how they know you (*Pat, your daughter*), with the
-   address you sign in to Ownpace with under it; without a name, that address, and your
+   under **Sender**, the name **you** gave, with the address you sign in to Ownpace with under
+   it; without a name, that address, and your
    organisation's name where the link names no one (workplan 0176 T3). Then a number to check:
    yours, else your organisation's, saying whose it is, and *Or use the number you already have*.
    And if your invoice details carry a business VAT number that the EU VAT register

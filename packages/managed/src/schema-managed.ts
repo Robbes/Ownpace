@@ -805,16 +805,10 @@ export const personLink = pgTable(
      */
     asksAgain: uuid('asks_again').array(),
     /**
-     * How the person knows the member who made the link, as the member chose
-     * it from a fixed list (`SENDER_RELATIONS`; workplan 0176 T3, D7; managed
-     * migration 0067). NULL: none chosen.
-     */
-    relation: text('relation'),
-    /**
      * A progress link the ending handed over after a sign-in: the grant link
-     * it was signed in through, whose member and relation its page names
-     * (workplan 0176 T6; managed migration 0067). Its key to `(id,
-     * tenant_id)` is the SQL's. NULL for every other link.
+     * it was signed in through, whose member its page names (workplan 0176
+     * T6; managed migration 0067). Its key to `(id, tenant_id)` is the SQL's.
+     * NULL for every other link.
      */
     madeFrom: uuid('made_from'),
   },

@@ -219,7 +219,7 @@ router.get(
 
       res.json({
         members: members.map((m) => {
-          const shown = senderOnAPage({ name: m.displayName, relation: null, phone: m.phone });
+          const shown = senderOnAPage({ name: m.displayName, phone: m.phone });
           return { ...m, displayName: shown.name, phone: shown.phone };
         }),
       });
@@ -496,7 +496,7 @@ router.put(
       });
       const row = rows[0];
       if (!row) return res.status(404).json(MEMBER_NOT_FOUND.body);
-      const shown = senderOnAPage({ name: row.displayName, relation: null, phone: row.phone });
+      const shown = senderOnAPage({ name: row.displayName, phone: row.phone });
       res.json({ displayName: shown.name, phone: shown.phone });
     } catch (error) {
       serverFault(res, 'sender_update_failed', 'saving your name and number', error);

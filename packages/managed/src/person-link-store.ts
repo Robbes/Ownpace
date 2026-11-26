@@ -57,7 +57,6 @@ import {
 } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger/db';
 import type { Pool } from 'pg';
-import type { SenderRelation } from '@openmig/shared';
 import { personLink } from './schema-managed.ts';
 
 /** `p.<id>.<secret>`: the only shape a person's link URL carries. */
@@ -93,12 +92,10 @@ export type PersonLinkSummary = MappingLinkSummary;
  * is for a grant link made while every account of theirs is connected: the
  * migrations it asks to connect again.
  *
- * `relation` is how the person knows the member who makes it, as the member
- * chose it (workplan 0176 T3, D7; managed migration 0067). `madeFrom` is for
- * a progress link the ending hands over after a sign-in: the grant link it
- * was signed in through, whose member and relation its page names (T6). The
- * migration holds both: the list, and a progress link of the same
- * organisation.
+ * `madeFrom` is for a progress link the ending hands over after a sign-in:
+ * the grant link it was signed in through, whose member its page names
+ * (workplan 0176 T6; managed migration 0067), which the migration holds to a
+ * progress link of the same organisation.
  */
 export async function issuePersonLink(
   db: PgDatabase,
@@ -109,7 +106,6 @@ export async function issuePersonLink(
     createdBy: string;
     expiresAt: Date;
     asksAgain?: readonly string[] | null;
-    relation?: SenderRelation | null;
     madeFrom?: string | null;
   },
 ): Promise<{ id: string; token: string; expiresAt: Date }> {
@@ -124,7 +120,6 @@ export async function issuePersonLink(
     createdBy: input.createdBy,
     expiresAt: input.expiresAt,
     asksAgain: input.purpose === 'grant' && input.asksAgain ? [...input.asksAgain] : null,
-    relation: input.relation ?? null,
     madeFrom: input.purpose === 'view' ? (input.madeFrom ?? null) : null,
   });
   return { id, token: `p.${id}.${secret}`, expiresAt: input.expiresAt };
@@ -259,15 +254,11 @@ export async function revokePersonLink(
   return updated.length > 0;
 }
 
-/**
- * Every link of one person, newest first, with its state and no secret, and
- * how the person knows the member who made it (workplan 0176 T8), so the form
- * can offer that member's choice again.
- */
+/** Every link of one person, newest first, with its state and no secret. */
 export async function listPersonLinks(
   db: PgDatabase,
   input: { tenantId: string; personId: string; now?: Date },
-): Promise<Array<PersonLinkSummary & { readonly relation: string | null }>> {
+): Promise<PersonLinkSummary[]> {
   const now = input.now ?? new Date();
   const rows = await db
     .select({
@@ -278,7 +269,6 @@ export async function listPersonLinks(
       expiresAt: personLink.expiresAt,
       usedAt: personLink.usedAt,
       revokedAt: personLink.revokedAt,
-      relation: personLink.relation,
     })
     .from(personLink)
     .where(and(eq(personLink.tenantId, input.tenantId), eq(personLink.personId, input.personId)))

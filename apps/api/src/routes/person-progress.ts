@@ -403,8 +403,8 @@ export async function readPersonView(
     .where(eq(schema.tenant.id, input.tenantId));
   const organisation = org[0]?.name;
   if (organisation === undefined) return null;
-  // Who sent the link (0176 T6, §7): the member's name, relation and own
-  // number, never their address; the organisation's number beside it (D11).
+  // Who sent the link (0176 T6, §7): the member's name and own number,
+  // never their address; the organisation's number beside it (D11).
   const { sender } = await readPersonLinkSender(db, input.tenantId, input.linkId);
   const organisationPhone = readTenantContactPhone(org[0]?.settings);
   // How the person's pages speak to them (0176 T7), as the link page says it.

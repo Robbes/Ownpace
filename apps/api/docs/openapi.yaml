@@ -6719,14 +6719,6 @@ paths:
               properties:
                 purpose: { type: string, enum: [grant, view], default: grant }
                 expiryDays: { type: integer, enum: [1, 7, 30, 90, 180] }
-                relation:
-                  type: [string, 'null']
-                  enum: [daughter, son, child, granddaughter, grandson, grandchild, partner, brother, sister, father, mother, family, acquaintance, colleague, null]
-                  description: |
-                    How the person knows you, chosen by you about yourself from
-                    a fixed list (workplan 0176 §7, T3, D7), or none. The
-                    person's pages say it after your name. Anything else is
-                    refused with `400`, and no link is made.
                 voice:
                   type: [string, 'null']
                   enum: [nl-u, nl-je, en, null]
@@ -6773,7 +6765,7 @@ paths:
                       to:
                         type: array
                         items: { type: string }
-        '400': { description: '`purpose`, `expiryDays`, `relation` or `voice` was not one of the offered values.' }
+        '400': { description: '`purpose`, `expiryDays` or `voice` was not one of the offered values.' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404':
@@ -6824,9 +6816,6 @@ paths:
                         expiresAt: { type: string, format: date-time }
                         usedAt: { type: string, format: date-time, nullable: true }
                         revokedAt: { type: string, format: date-time, nullable: true }
-                        relation:
-                          type: [string, 'null']
-                          description: How the person knows the member who made it (workplan 0176 T3, T8), from the fixed list; null when none was chosen.
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: '`person_not_found`: this organisation has no such person.'
@@ -10404,18 +10393,15 @@ components:
       type: object
       description: |
         The member who sent a person their link, as the person's pages show
-        them (workplan 0176 §7; D7, D11). Each value is what the member said
-        of themselves, read through the rule it was written under, and null
-        when not given.
-      required: [name, relation, phone]
+        them (workplan 0176 §7; D11). Each value is what the member said of
+        themselves, read through the rule it was written under, and null when
+        not given. Nothing says how the person knows them (D7, reversed by the
+        owner on 2026-11-26).
+      required: [name, phone]
       properties:
         name:
           type: [string, 'null']
           description: The name the member gave, as the people they send a link to know them.
-        relation:
-          type: [string, 'null']
-          enum: [daughter, son, child, granddaughter, grandson, grandchild, partner, brother, sister, father, mother, family, acquaintance, colleague, null]
-          description: How the person knows them, from the fixed list (D7).
         phone:
           type: [string, 'null']
           description: The member's own number, shown as a number to check (D11).
@@ -10441,8 +10427,8 @@ components:
           nullable: true
           description: |
             Who that member is, as the page shows them (workplan 0176 §7, T3):
-            the name they gave, how the person knows them, and their own
-            number, each null when not given. Null when no member stands
+            the name they gave and their own number, each null when not
+            given. Null when no member stands
             behind the link. The page shows `organisationPhone` where the
             member gave no number, and says whose it is (D11). Absent from a
             server before alpha.21's step B.
@@ -10676,8 +10662,8 @@ components:
           nullable: true
           description: |
             Who sent the link (workplan 0176 T6; §7, T3), as the grant page names
-            them: the name the member gave, how the person knows them, and their
-            own number. Never an address. A progress link the ending handed over
+            them: the name the member gave and their own number. Never an
+            address. A progress link the ending handed over
             after a sign-in names the member who sent the grant link it was
             signed in through. Null when no member stands behind the link any
             more; the page then names the organisation. Absent from a server

@@ -76,15 +76,7 @@ import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
-import {
-  PERSON_VOICES,
-  SENDER_RELATIONS,
-  isSenderRelation,
-  languageOf,
-  registerOf,
-  type PersonVoice,
-  type SenderRelation,
-} from '@openmig/shared';
+import { PERSON_VOICES, languageOf, registerOf, type PersonVoice } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 import { NL_JE } from '../i18n/informal.ts';
 import { fill } from '../i18n/fill.ts';
@@ -461,23 +453,6 @@ const PERSON_GRANT_LINK_DAYS = 30;
  */
 export const isGoogleKind = (kindOrCard: string): boolean => kindOrCard === 'gmail' || kindOrCard.startsWith('google');
 
-/**
- * The order of the member's choices for who they are to the person (D7): the
- * glossary's, which is `SENDER_RELATIONS`'s, with *I would rather not say*
- * first, which is none.
- */
-const RELATION_CHOICES: ReadonlyArray<SenderRelation | ''> = ['', ...SENDER_RELATIONS];
-
-/** How the person knows the member, as this member chose it last for them: offered again. */
-function lastRelationOf(links: readonly GrantLink[] | undefined, userId: string | undefined): SenderRelation | '' {
-  if (!links || !userId) return '';
-  const mine = links
-    .filter((l) => l.createdBy === userId && isSenderRelation(l.relation))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const relation = mine[0]?.relation;
-  return isSenderRelation(relation) ? relation : '';
-}
-
 /** How the page speaks to the person, in the member's words for each (§15). */
 const VOICE_WORDS: Readonly<Record<PersonVoice, StringKey>> = {
   'nl-u': 'personLink.voice.dutchU',
@@ -589,8 +564,9 @@ const MessageToSend: React.FC<{ issued: IssuedGrantLink; voice: PersonVoice; nam
  * - step A's line (D13 (a)), and a tick before the button: *I have told
  *   {name} that a link is coming: by phone, or in person.* It cannot be
  *   checked; it is a prompt, and the button waits for it;
- * - who the member is to them, from the fixed list (D7, T3), offered again as
- *   this member chose it last for this person;
+ * - not who the member is to them: the owner, 2026-11-26, reversing D7
+ *   (*"Does the relationship matter and need to be registered? I would like
+ *   not to..."*);
  * - the member's name, as the person knows them, asked here once: only while
  *   they have given none, and saved for them before the link is made
  *   (`PUT …/members/me`); Team holds it afterwards;
@@ -634,8 +610,6 @@ export const PersonGrantLinkSection: React.FC<{
   const me = members.data?.find((m) => m.userId === user?.id);
   const asksName = me !== undefined && !me.displayName;
 
-  const [relation, setRelation] = React.useState<SenderRelation | '' | null>(null);
-  const chosen = relation ?? lastRelationOf(props.links, user?.id);
   const [yourName, setYourName] = React.useState('');
   const [told, setTold] = React.useState(false);
   // As chosen for this person before, else your own language with u (§11).
@@ -644,8 +618,7 @@ export const PersonGrantLinkSection: React.FC<{
 
   const doors: LinkDoors = {
     ...personDoors(personId),
-    issue: (purpose, expiryDays) =>
-      personLinkApi.issue(personId, purpose, expiryDays, { relation: chosen === '' ? null : chosen, voice: spoken }),
+    issue: (purpose, expiryDays) => personLinkApi.issue(personId, purpose, expiryDays, { voice: spoken }),
   };
 
   // Your name, before the link that shows it is made: a refusal makes no link.
@@ -681,25 +654,6 @@ export const PersonGrantLinkSection: React.FC<{
           />
         </div>
       )}
-      <div className="flex w-full flex-col text-sm text-gray-700">
-        <label htmlFor={`${fieldId}-relation`}>{t('personLink.relation.label', { name })}</label>
-        <p id={`${fieldId}-relation-hint`} className="text-xs text-gray-600">
-          {t('personLink.relation.hint')}
-        </p>
-        <select
-          id={`${fieldId}-relation`}
-          aria-describedby={`${fieldId}-relation-hint`}
-          value={chosen}
-          onChange={(e) => setRelation(e.target.value === '' ? '' : (e.target.value as SenderRelation))}
-          className="mt-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white w-72 max-w-full"
-        >
-          {RELATION_CHOICES.map((r) => (
-            <option key={r || 'none'} value={r}>
-              {t((r === '' ? 'personLink.relation.none' : `personLink.relation.${r}`) as StringKey, { name })}
-            </option>
-          ))}
-        </select>
-      </div>
       <div className="flex w-full flex-col text-sm text-gray-700">
         <label htmlFor={`${fieldId}-voice`}>{t('personLink.voice.label', { name })}</label>
         <select

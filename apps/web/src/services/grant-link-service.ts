@@ -26,7 +26,7 @@
  */
 
 import { z } from 'zod';
-import { DISCOVERY_DOMAINS, type DiscoveryDomain, type PersonVoice, type SenderRelation } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain, type PersonVoice } from '@openmig/shared';
 import apiClient from './api.ts';
 
 /**
@@ -67,9 +67,6 @@ export const GrantLinkSchema = z.object({
   expiresAt: z.string(),
   usedAt: z.string().nullable(),
   revokedAt: z.string().nullable(),
-  // How the person knows the member who made it (0176 T8); a migration's
-  // links, and a server before step B, say none.
-  relation: z.string().nullable().optional(),
 });
 export type GrantLink = z.infer<typeof GrantLinkSchema>;
 
@@ -145,20 +142,19 @@ export const personLinkApi = {
   },
 
   /**
-   * `relation` is how the person knows you, from the fixed list, or null
-   * (workplan 0176 T3, T8); `voice` how their pages speak to them (T7). A
-   * progress link sends neither.
+   * `voice` is how the person's pages speak to them (workplan 0176 T7); a
+   * progress link sends none. Nothing asks who you are to them (D7, reversed
+   * by the owner on 2026-11-26).
    */
   issue: async (
     personId: string,
     purpose: MappingLinkPurpose,
     expiryDays: number,
-    extra?: { readonly relation: SenderRelation | null; readonly voice?: PersonVoice },
+    extra?: { readonly voice?: PersonVoice },
   ): Promise<IssuedGrantLink> => {
     const res = await apiClient.post(`/people/${encodeURIComponent(personId)}/links`, {
       purpose,
       expiryDays,
-      ...(extra === undefined ? {} : { relation: extra.relation }),
       ...(extra?.voice === undefined ? {} : { voice: extra.voice }),
     });
     return IssuedSchema.parse(res.data);

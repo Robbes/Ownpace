@@ -62,7 +62,7 @@ import {
   type MappingLinkPurpose,
 } from '@openmig/ledger';
 import { listPersonLinks, readPerson, readPersonVoice, revokePersonLink, setPersonVoice } from '@openmig/managed';
-import { DISCOVERY_DOMAINS, PERSON_NOT_FOUND, PERSON_VOICES, SENDER_RELATIONS, log, type DiscoveryDomain } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, PERSON_NOT_FOUND, PERSON_VOICES, log, type DiscoveryDomain } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -93,16 +93,15 @@ const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * link would re-impose the credential's window on the page meant to outlive
  * it. `purpose` defaults to `'grant'`.
  *
- * `relation` is how the person knows the member who makes the link, chosen by
- * that member about themselves from a fixed list (workplan 0176 §7, T3, D7),
- * or none: free text under Ownpace's name is where an impersonator would
- * write *your bank*. Anything else is refused, and no link is made.
+ * Nothing asks how the person knows the member who makes the link: the
+ * owner, 2026-11-26, reversing workplan 0176's D7 (*"Does the relationship
+ * matter and need to be registered? I would like not to..."*). A `relation`
+ * sent anyway is not read, as any other field this schema does not name.
  */
 const IssueSchema = z
   .object({
     purpose: z.enum(MAPPING_LINK_PURPOSES).optional(),
     expiryDays: z.number().int().optional(),
-    relation: z.enum(SENDER_RELATIONS).nullable().optional(),
     // How the person's own pages speak to them, kept with the person (0176
     // T7, D8 (a)): left out, it stays as it was; null unsets it.
     voice: z.enum(PERSON_VOICES).nullable().optional(),
@@ -214,8 +213,7 @@ router.post(
         return void res.status(400).json({
           error: 'invalid_body',
           reason:
-            `Send { purpose, expiryDays, relation, voice }. The expiries offered, in days, are — ${offered}. ` +
-            `A relation is one of ${SENDER_RELATIONS.join(', ')}, or null. ` +
+            `Send { purpose, expiryDays, voice }. The expiries offered, in days, are — ${offered}. ` +
             `A voice is one of ${PERSON_VOICES.join(', ')}, or null.`,
         });
       }
@@ -257,7 +255,6 @@ router.post(
           createdBy: req.userId ?? 'unknown',
           expiresAt: expiryFromDays(days),
           asksAgain,
-          relation: parsed.data.relation ?? null,
         });
         // The voice goes with the link it was chosen for, in its transaction
         // (0176 T7): a link refused at the limit changes nothing.
@@ -322,8 +319,6 @@ router.get('/:personId/links', authenticate, async (req: AuthenticatedRequest, r
         expiresAt: l.expiresAt.toISOString(),
         usedAt: l.usedAt ? l.usedAt.toISOString() : null,
         revokedAt: l.revokedAt ? l.revokedAt.toISOString() : null,
-        // How the person knows the member who made it (0176 T8), or null.
-        relation: l.relation,
       })),
     });
   } catch (error) {

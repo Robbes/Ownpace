@@ -60,7 +60,6 @@ vi.mock('../services/operating-service.ts', () => ({ fetchPeople: vi.fn(), creat
 import { PersonGrantLinkSection } from './MappingLinksPanel.tsx';
 
 const IN_A_MONTH = '2026-12-26T10:00:00.000Z';
-const LAST_WEEK = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
 const member = (over: Record<string, unknown> = {}) => ({
   id: 'm-1',
@@ -71,18 +70,6 @@ const member = (over: Record<string, unknown> = {}) => ({
   status: 'active',
   displayName: 'Pat',
   phone: null,
-  ...over,
-});
-
-const link = (over: Record<string, unknown> = {}) => ({
-  id: 'link-1',
-  purpose: 'grant' as const,
-  state: 'used' as const,
-  createdAt: LAST_WEEK,
-  createdBy: 'pat',
-  expiresAt: LAST_WEEK,
-  usedAt: LAST_WEEK,
-  revokedAt: null,
   ...over,
 });
 

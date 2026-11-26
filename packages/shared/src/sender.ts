@@ -1,15 +1,15 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * WHO SENT A PERSON THEIR LINK (workplan 0176 §7, T3; D7, D11; the owner,
+ * WHO SENT A PERSON THEIR LINK (workplan 0176 §7, T3; D11; the owner,
  * 2026-11-26: *"Yes"* to the page naming the member who asks, and *"Yes, good
  * idea. And we can store/show the phone number."*).
  *
  * A person who opens a link was taught never to trust one. The page cannot
  * ask for that trust; it gives them something to check (R6): who sent it, by
- * the name they know them by, how they know them, and a number. Each is the
- * member's own to give, and each is held to a shape here, because the page
- * shows it under Ownpace's name.
+ * the name they know them by, and a number. Each is the member's own to give,
+ * and each is held to a shape here, because the page shows it under Ownpace's
+ * name.
  *
  * ## A name, as the people they send a link to know them
  *
@@ -23,12 +23,13 @@
  * name would be used for. Initials keep their dots: *J.P. de Wit*. The number has its own field, held to
  * its own shape.
  *
- * ## How the reader knows them (D7)
+ * ## Not how the reader knows them (D7, reversed)
  *
- * A fixed list (`SENDER_RELATIONS`), chosen by the member about themselves,
- * per link (`person_link.relation`), or none. Free text under Ownpace's name
- * is where an impersonator would write *your bank*. A code here; the page says
- * it in the reader's language and voice (`sender.relation.*`).
+ * D7 had the member choose that from a fixed list, per link. The owner,
+ * reading the pages' Dutch on 2026-11-26: *"can we do without it? Does the
+ * relationship matter and need to be registered? I would like not to..."* So
+ * nothing asks it, keeps it, or says it: the page names the sender, and gives
+ * a number to check.
  *
  * ## A number to check (D11)
  *
@@ -46,34 +47,6 @@
  */
 
 import { contactPhoneFrom } from './tenant-contact.ts';
-
-/**
- * How a person knows the member who sent their link (D7), as the member says
- * it of themselves: *your daughter*, …, *a family member*, *someone you know*,
- * *your colleague*. The migration's CHECK holds the column to this list, and
- * `who-sends-the-link.unit.test.ts` (`packages/managed`) holds the two equal.
- */
-export const SENDER_RELATIONS = [
-  'daughter',
-  'son',
-  'child',
-  'granddaughter',
-  'grandson',
-  'grandchild',
-  'partner',
-  'brother',
-  'sister',
-  'father',
-  'mother',
-  'family',
-  'acquaintance',
-  'colleague',
-] as const;
-export type SenderRelation = (typeof SENDER_RELATIONS)[number];
-
-export function isSenderRelation(value: unknown): value is SenderRelation {
-  return typeof value === 'string' && (SENDER_RELATIONS as readonly string[]).includes(value);
-}
 
 /** The longest name accepted, in characters, as Postgres counts them (`char_length`). */
 export const SENDER_NAME_MAX_LENGTH = 60;
@@ -130,28 +103,21 @@ export function senderPhoneFrom(input: string | null | undefined): SenderPhoneVe
 }
 
 /**
- * The sender, as a person's page may show them (§7): the name they gave, how
- * the reader knows them, and their own number. Each null when not given. The
- * address is the link page's `askedBy`, beside this, and never on the
- * progress page.
+ * The sender, as a person's page may show them (§7): the name they gave, and
+ * their own number. Each null when not given. The address is the link page's
+ * `askedBy`, beside this, and never on the progress page.
  */
 export interface SenderOnAPage {
   readonly name: string | null;
-  readonly relation: SenderRelation | null;
   readonly phone: string | null;
 }
 
 /** What is stored, as the page may show it: each value read through the writer's own verdict. */
-export function senderOnAPage(stored: {
-  readonly name: unknown;
-  readonly relation: unknown;
-  readonly phone: unknown;
-}): SenderOnAPage {
+export function senderOnAPage(stored: { readonly name: unknown; readonly phone: unknown }): SenderOnAPage {
   const name = typeof stored.name === 'string' ? senderNameFrom(stored.name) : null;
   const phone = typeof stored.phone === 'string' ? senderPhoneFrom(stored.phone) : null;
   return {
     name: name?.ok ? name.name : null,
-    relation: isSenderRelation(stored.relation) ? stored.relation : null,
     phone: phone?.ok ? phone.phone : null,
   };
 }

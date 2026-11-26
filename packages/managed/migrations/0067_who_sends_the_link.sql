@@ -1,12 +1,17 @@
--- WHO SENDS THE LINK (workplan 0176 §7, T3 and T6, step B; D7, D11; the
--- owner, 2026-11-26).
+-- WHO SENDS THE LINK (workplan 0176 §7, T3 and T6, step B; D11; the owner,
+-- 2026-11-26).
 --
 -- A person who opens a link sees who sent it. Until now that was the sign-in
 -- address of the member who made the link, and the organisation's number. The
 -- owner, asked whether the page may name the member who asks: *"Yes"*; and on
 -- a number shown as something to check: *"Yes, good idea. And we can
--- store/show the phone number."* So the page gives three things a reader can
--- check: a name, how they know the sender, and a number.
+-- store/show the phone number."* So the page gives two things a reader can
+-- check: a name, and a number.
+--
+-- How the reader knows the sender is kept nowhere. D7 had a fixed list for
+-- it, per link; the owner, reading the pages' Dutch on 2026-11-26: *"can we do
+-- without it? Does the relationship matter and need to be registered? I would
+-- like not to..."* This file had run on no stack, so it was changed in place.
 --
 -- ## On the member: a name and a number (`tenant_member`)
 --
@@ -25,21 +30,13 @@
 -- organisation's number's characters, with 6 to 15 digits, at most 32
 -- characters.
 --
--- ## On the link: how the reader knows the sender (`person_link.relation`)
---
--- Chosen by the member about themselves, per link, from a fixed list (D7):
--- free text under Ownpace's name is where an impersonator would write *your
--- bank*. The list is `SENDER_RELATIONS` in `@openmig/shared`, and
--- `who-sends-the-link.unit.test.ts` holds this CHECK to it. NULL is none
--- chosen, which every link made before this is: its page says none.
---
 -- ## Whose page a progress link is (`person_link.made_from`)
 --
 -- The progress page names the sender too (T6). A progress link a member makes
 -- is theirs (`created_by`). The one the ending hands over after a sign-in is
 -- made by nobody (`created_by` is `granted-by-link`), and it speaks for the
 -- grant link the person signed in through: `made_from` names that link, so
--- the page names the member who sent it, with the relation they chose there.
+-- the page names the member who sent it.
 -- Only a progress link is made from another. The key names `(id, tenant_id)`,
 -- so a page can only be made from a link of its own organisation, and
 -- deleting that link forgets where the page came from and nothing else
@@ -54,8 +51,8 @@
 -- them. The appliance applies no managed migration and has neither table.
 --
 -- Personal data: a member's name and number, which they choose to show to the
--- people they send a link to; how they know that person. The privacy text says
--- so with step B (workplan 0176 §14, for the lawyer).
+-- people they send a link to. The privacy text says so with step B (workplan
+-- 0176 §14, for the lawyer).
 
 -- ---- The member's name and number.
 
@@ -87,25 +84,6 @@ COMMENT ON COLUMN public.tenant_member.display_name IS
 COMMENT ON COLUMN public.tenant_member.phone IS
   'The member''s own number, shown on a person''s pages as a number to check (workplan 0176 T3, D11), written only by that member. NULL: the organisation''s number is shown, said as the organisation''s.';
 
--- ---- How the reader knows the sender, per link.
-
-ALTER TABLE public.person_link ADD COLUMN IF NOT EXISTS relation text;
-
-ALTER TABLE public.person_link DROP CONSTRAINT IF EXISTS person_link_relation_check;
-ALTER TABLE public.person_link
-    ADD CONSTRAINT person_link_relation_check CHECK (
-      relation IS NULL OR relation = ANY (ARRAY[
-        'daughter'::text, 'son'::text, 'child'::text,
-        'granddaughter'::text, 'grandson'::text, 'grandchild'::text,
-        'partner'::text, 'brother'::text, 'sister'::text,
-        'father'::text, 'mother'::text, 'family'::text,
-        'acquaintance'::text, 'colleague'::text
-      ])
-    );
-
-COMMENT ON COLUMN public.person_link.relation IS
-  'How the person knows the member who made this link, as the member chose it from a fixed list (workplan 0176 T3, D7). NULL: none chosen, and the page says none.';
-
 -- ---- The grant link a progress link speaks for.
 
 ALTER TABLE public.person_link DROP CONSTRAINT IF EXISTS person_link_id_tenant_key;
@@ -125,4 +103,4 @@ ALTER TABLE public.person_link
     ADD CONSTRAINT person_link_made_from_check CHECK (made_from IS NULL OR purpose = 'view');
 
 COMMENT ON COLUMN public.person_link.made_from IS
-  'For a progress link the ending handed over after a sign-in: the grant link it was signed in through, whose member and relation the page names (workplan 0176 T6). NULL for every other link.';
+  'For a progress link the ending handed over after a sign-in: the grant link it was signed in through, whose member the page names (workplan 0176 T6). NULL for every other link.';

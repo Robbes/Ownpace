@@ -81,8 +81,7 @@ const A_PERSONS_OWN_AREAS = [
   'linkReport.',
   'link.',
   'answer.',
-  // Step B: how the reader knows the sender (T3), and the link's one page (D15 (a)).
-  'sender.',
+  // Step B: the link's one page (D15 (a)).
   'grant.onePage.',
 ] as const;
 

@@ -4,6 +4,14 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's read of #2196's Dutch:** of the relation, *"2: can we do without it?
+Does the relationship matter and need to be registered? I would like not to..."*; and *"11: ok"*,
+*"12: ok"*, *"13: ok"*, *"P: yes"*. So D7 is reversed (§18): nothing asks how the person knows the
+member, nothing keeps it, and no page says it; 0067 adds no column for it, changed in place, as it
+had run on no stack. *Aan jouw kant* (11) and the two reworded *migraties* lines (12) stand; 13 is
+moot. P: the privacy text changes in place under 1.0 once the lawyer has read it, in a later pull
+request. The rest of #2196's table is the owner's, as read.
+
 **2026-11-26: step B's main line, built as one draft pull request**
 (`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-b`), on §23.2's first row, in its
 order, and carrying #2188 (the informal Dutch, merged into it at T7, as decided) and #2189's two
@@ -11,15 +19,15 @@ places (merged on `main`).
 
 - **T3 (managed migration 0067):** a member's name and number (`tenant_member.display_name`,
   `.phone`, `PUT /api/tenants/{id}/members/me`, *Team & organisation → When you send someone a
-  link*), the link's relation from the glossary's fixed list, and `person_link.made_from`, the
-  grant link a progress link was handed over from. Both pages say *Pat, your daughter* under
-  *Sender*, the address under the name, and a number to check, saying whose (D11). The nine
+  link*), and `person_link.made_from`, the grant link a progress link was handed over from. Both
+  pages say the name under *Sender*, the address under it, and a number to check, saying whose
+  (D11). No relation: D7 is reversed (above). The nine
   sentences that described the sender name them (`a-sender-named-not-described`).
 - **T6, step B:** the progress page's answer carries `sender`, `organisationPhone` and, per
   migration, `theOrganisationOpensIt`; the page names the sender at its foot and says *Pat can
   open the copy at Soverin too.* where it is so. `askedBy` stays a string beside `sender`, for an
   API a release behind.
-- **T8:** the tick before the button, who the member is to them, the member's name asked once,
+- **T8:** the tick before the button, the member's name asked once,
   the Alpha's two lines for a Google account, thirty days first, how the page speaks to them,
   and with the link a message in the person's voice and *Print a sheet for …* (the one page).
 - **T7 (managed migration 0068):** `person.voice` (`nl-u`, `nl-je`, `en`), chosen where the link
@@ -1532,6 +1540,9 @@ advised. The options stay, as the record of what was put.
   question put to the lawyer before it ships to anybody outside the Alpha. Answered: as
   advised.** Putting it to the lawyer is the owner's.
 - **D7. The relation.** (a) A fixed list (§7). (b) Free text. **Advice: (a). Answered: (a).**
+  **Reversed 2026-11-26**, when the owner read step B's Dutch (#2196): *"can we do without it?
+  Does the relationship matter and need to be registered? I would like not to..."* Nothing asks
+  it, keeps it, or says it; the page names the sender, and gives a number to check (D11).
 - **D8. *Je* or *u*: per person or per organisation.** (a) Per person. (b) One choice for the
   organisation. **Advice: (a):** a family says *je* to one parent and *u* to another.
   **Answered: (a).**

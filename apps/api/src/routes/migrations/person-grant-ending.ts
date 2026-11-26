@@ -314,8 +314,8 @@ export async function mintPersonProgressLink(
         // Not a user id: nobody was signed in, as for a migration's.
         createdBy: 'granted-by-link',
         expiresAt: expiryFromDays(DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS),
-        // The grant link signed in through, whose member and relation the
-        // page names (workplan 0176 T6; managed migration 0067).
+        // The grant link signed in through, whose member the page names
+        // (workplan 0176 T6; managed migration 0067).
         madeFrom: target.linkId ?? null,
       }),
     );

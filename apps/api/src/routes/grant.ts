@@ -395,7 +395,7 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
   if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT, register) });
   const { sent, checkedCompany, addressChanges } = await withTenantDb(link.tenantId, pool(), async (db) => ({
     // Who sent it (workplan 0176 §7, T3): the member's address, as before,
-    // and the name, relation and own number the page shows of them.
+    // and the name and own number the page shows of them.
     sent: await readPersonLinkSender(db, link.tenantId, link.linkId),
     checkedCompany: await readCheckedCompany(db, link.tenantId),
     // Their own rows of the address changes, to confirm or send back here
