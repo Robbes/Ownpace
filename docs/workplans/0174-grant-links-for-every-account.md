@@ -26,6 +26,12 @@ is the maintainer's to dispatch.
 3. **Who can open the copy**: `theOrganisationOpensIt` per migration on the grant GET, and the
    line under a source's migration into a destination the organisation connected.
 4. **Do it together, during the alpha**: one line before each Google button (`isAlpha`).
+5. **The owner's read of the Dutch drafted here**, the same day: *"the Dutch in #2175: ok on all
+   10, including your edits."* Five lines changed in that read: `grant.asking` (*…om te lezen wat
+   u nu bewaart.*), `grant.person.asking` (*Voor elk account hieronder wordt het één keer
+   gevraagd.*), and three of a migration's withdrawal refusals (*U hebt uw toestemming op {day} al
+   ingetrokken.*; *…dus er staat geen toestemming van u in.*; *Uw toestemming is opnieuw gegeven
+   terwijl die werd ingetrokken…*). The English is unchanged.
 
 **2026-11-25, evening: T7, T8 and T9 done.** Every task of this plan is merged or answered.
 - **T7** merged as #2163 (`d048432f`).

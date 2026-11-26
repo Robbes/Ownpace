@@ -88,7 +88,7 @@ describe('a provider is an aanbieder in Dutch (GLOSSARY.md)', () => {
 
   it('the grant page and the progress page say it in the owner’s chosen words', () => {
     expect(nl['grant.asking']).toBe(
-      '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat voor u moet worden gemigreerd.',
+      '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat u nu bewaart.',
     );
     expect(nl['grant.person.asking']).toMatch(/^\{organisation\} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft/);
     expect(nl['view.who']).toBe('{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder.');

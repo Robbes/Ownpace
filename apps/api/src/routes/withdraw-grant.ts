@@ -125,7 +125,7 @@ function alreadyWithdrawn(at: Date): WithdrawalResult {
     code: 'nothing_granted',
     reason: {
       en: `You already withdrew your permission, on ${at.toISOString().slice(0, 10)}. Nothing reads your account.`,
-      nl: `U trok uw toestemming al in, op ${at.toISOString().slice(0, 10)}. Uw account wordt niet meer gelezen.`,
+      nl: `U hebt uw toestemming op ${at.toISOString().slice(0, 10)} al ingetrokken. Uw account wordt niet meer gelezen.`,
     },
   };
 }
@@ -164,7 +164,7 @@ export async function withdrawGrant(
           'This migration no longer exists, so it holds no permission of yours. Nothing you can do ' +
           'from here will change that; please tell the person who sent you the link.',
         nl:
-          'Deze migratie bestaat niet meer, dus er is geen toestemming van u in bewaard. U kunt dat ' +
+          'Deze migratie bestaat niet meer, dus er staat geen toestemming van u in. U kunt dat ' +
           'vanaf hier niet veranderen; laat het de persoon weten die u de link stuurde.',
       },
     };
@@ -228,8 +228,8 @@ export async function withdrawGrant(
           'Your permission changed while it was being withdrawn (it was given again), so nothing ' +
           'was deleted. Press withdraw once more to take the new one back.',
         nl:
-          'Uw toestemming veranderde terwijl die werd ingetrokken (ze werd opnieuw gegeven), dus er is ' +
-          'niets verwijderd. Druk nog een keer op intrekken om de nieuwe ook in te trekken.',
+          'Uw toestemming is opnieuw gegeven terwijl die werd ingetrokken, dus er is niets verwijderd. ' +
+          'Druk nog een keer op intrekken om ook de nieuwe in te trekken.',
       },
     };
   }

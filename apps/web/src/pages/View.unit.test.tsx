@@ -353,7 +353,7 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
       data: {
         error: 'nothing_granted',
         reason: 'You already withdrew your permission, on 2026-09-24.',
-        reasonNl: 'U trok uw toestemming al in, op 2026-09-24.',
+        reasonNl: 'U hebt uw toestemming op 2026-09-24 al ingetrokken.',
       },
     };
     return refused;
@@ -390,7 +390,7 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
       );
       fireEvent.click(await screen.findByRole('button', { name: 'Toegang intrekken' }));
       fireEvent.click(screen.getByRole('button', { name: /^Ja,/ }));
-      expect(await screen.findByRole('alert')).toHaveTextContent('U trok uw toestemming al in, op 2026-09-24.');
+      expect(await screen.findByRole('alert')).toHaveTextContent('U hebt uw toestemming op 2026-09-24 al ingetrokken.');
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }
