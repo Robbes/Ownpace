@@ -140,7 +140,9 @@ describe("a failed code exchange, in the owner's words", () => {
   it('an answer that is not JSON, and one without lasting access: said plainly, logged in full', async () => {
     const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
     const garbled = await failedExchange('en', new Response('<html>gateway</html>', { status: 200 }));
-    expect(garbled.text).toContain("Microsoft's answer could not be read, so nothing was stored.");
+    // The page's escape is safe in an attribute, so the apostrophe arrives as
+    // `&#39;`, which a browser shows as the same sentence.
+    expect(garbled.text).toContain('Microsoft&#39;s answer could not be read, so nothing was stored.');
     expect(garbled.text).not.toContain('gateway');
     const noLasting = await failedExchange('en', new Response(JSON.stringify({ scope: 'Mail.Read' }), { status: 200 }));
     expect(noLasting.text).toContain('Microsoft would not give lasting access to this account, so nothing was stored.');

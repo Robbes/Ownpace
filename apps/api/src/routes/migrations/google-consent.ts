@@ -654,9 +654,17 @@ export async function exchangeCode(
   };
 }
 
-/** HTML-escape for text nodes. */
+/**
+ * HTML-escape, safe in a text node and inside a quoted attribute (`"…"` or
+ * `'…'`): both quotes are escaped as well as `&`, `<` and `>`.
+ */
 function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /** A JS string literal that cannot break out of its <script> block. */

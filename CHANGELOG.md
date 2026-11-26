@@ -314,6 +314,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   zstd and OpenSSL, and the one file that links `libzstd.so.1`, Debian's `libcrypto.so.3`, is
   loaded by nothing that runs. `libssl3t64` stays 3.5.9-1~deb13u1, so the two OpenSSL alerts per
   image stay open (workplan 0166).
+- **Two hardening changes, neither reachable from outside as the code stands** (workplan 0178).
+  The escape the consent endings use, in `google-consent.ts` and `cirrux-consent.ts` alike, now
+  turns `"` and `'` into entities as well as `&`, `<` and `>`, so it is safe inside a quoted
+  attribute as well as in text: it was already used in an `href` and in `data-*` attributes, with
+  values only the server builds. And the WebDAV archive store refuses a path with a `.` or `..`
+  segment before it makes a request, with an error that names the rule and not the path:
+  `encodeURIComponent` leaves both as they are, and a server resolves them.
 
 ## [0.2.0-alpha.20] - 2026-11-25
 
