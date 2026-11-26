@@ -267,3 +267,28 @@ describe('the link page names the sender (§7)', () => {
     expect(page.sender).toEqual({ name: null, relation: null, phone: null });
   });
 });
+
+describe('what the member sends with the link (T8, §12)', () => {
+  it('a grant link says what it copies and where to, for the message the member sends with it', async () => {
+    const issued = await issue({ relation: 'daughter' });
+    expect(issued.status, JSON.stringify(issued.body)).toBe(201);
+    expect(issued.body.copies).toEqual({ domains: ['calendar'], to: ['nextcloud'] });
+    expect(documented('/api/people/{personId}/links', 'post', '201', issued.body)).toBe(true);
+  });
+
+  it('a progress link says nothing of the kind: it asks nothing', async () => {
+    const issued = await issue({ purpose: 'view' });
+    expect(issued.status).toBe(201);
+    expect('copies' in issued.body).toBe(false);
+  });
+
+  it("the list of a person's links says the relation each was made with, for the form to offer it again", async () => {
+    await issue({ relation: 'grandson' });
+    await issue({});
+    const list = await request(app).get(`/api/people/${ANNA}/links`);
+    expect(list.status).toBe(200);
+    const relations = (list.body.links as Array<{ relation: unknown }>).map((l) => l.relation);
+    expect(relations).toHaveLength(2);
+    expect(relations).toEqual(expect.arrayContaining(['grandson', null]));
+  });
+});
