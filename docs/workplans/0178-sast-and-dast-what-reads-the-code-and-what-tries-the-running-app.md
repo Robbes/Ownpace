@@ -4,9 +4,31 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, later: the owner's answers, D1 to D9 (T0).** In the owner's words:
+*"D1–D9: as advised. H: yes. All in this alpha"*. D9 is the maintainer's addition, put to the
+owner beside D1 to D8 (§9). *"H"* is about two fixes outside this plan, and this plan does not
+record them.
+
+**What the answers change.**
+
+- **Every decision takes its advice:** CodeQL as a workflow of its own, report only (D1); the
+  four guards, G1 to G3 blocking at once and G4 after it is measured (D2); DAST only on a stack
+  the job composes on a GitHub-hosted runner (D3); Schemathesis nightly first, then per pull
+  request blocking two checks (D4); ZAP parked (D5); no nuclei, header or TLS checks in CI
+  (D6); the second identity (D7); CodeQL's ReDoS queries report only until T6's reading (D8);
+  CodeQL now, and the guards and Schemathesis after alpha.21's builds are merged (D9).
+- **All in this alpha:** step 1 (T1 to T4), step 2 (T5, T6), step 3 (T7) and T10 are built for
+  alpha.21. **T8 and T9 keep their own rules,** so either may fall after the alpha's release:
+  T8 waits for 14 quiet nights on `main` (D4), and T9 for T6's reading and the owner's word on
+  each query (D8).
+- **Who builds what:** T1 to T4 by this plan's analyst session, on a branch of their own, merged
+  only after alpha.21's builder pull requests (D9), with each guard's list of named places
+  brought up to date with what those add; T5 and T6 by a new session; T7 and then T10 by
+  another new session.
+
 **2026-11-26: planned. Nothing is built, nothing is changed, and no workflow was dispatched.**
 The owner asked: *"reason if and where and how we need to add SAST and DAST."* This plan is
-the reasoning, the options and the advice. The owner decides D1 to D8 (§9).
+the reasoning, the options and the advice. The owner decided D1 to D9 later the same day (the entry above).
 
 **The answer in short.**
 
@@ -43,17 +65,17 @@ one before it to be quiet on `main`.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The owner's decisions, D1 to D8 | owner | ⏳ **Owner** | §9. Each has options and advice. |
-| T1 Guard: no HTML put into a page as HTML, outside a named list | builder | 📋 Planned | §5.1 G1. Zero spots today, so it blocks at once. S. |
-| T2 Guard: raw SQL only at named places, each with its check | builder | 📋 Planned | §5.1 G2. Today's places listed with their checks. Blocks. S. |
-| T3 Guard: every door either signs in, or is public in the code and in the API description alike | builder | 📋 Planned | §5.1 G3. The static half of class 9. Blocks. M. |
-| T4 Guard: a secret-named key handed to the logger | builder | 📋 Planned | §5.1 G4. Measured first; blocks only if quiet. S. |
-| T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 📋 Planned | §4.1, §8 step 2. D1. Not on pull requests. S. |
-| T6 CodeQL's first list, read alert by alert | builder | 📋 Planned | §8 step 2. As 0166 read Trivy's and Semgrep's. M. |
-| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 📋 Planned | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. |
-| T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights. S. |
-| T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6. D8. S each. |
-| T10 A second identity: another organisation's ids refused at every door | builder | 📋 Planned | §6.3, §8 step 6. D7. M. |
+| T0 The owner's decisions, D1 to D9 | owner | ✅ Answered 2026-11-26 | §9. *"D1–D9: as advised."* All built in alpha.21 but T8 and T9, which keep their own rules. |
+| T1 Guard: no HTML put into a page as HTML, outside a named list | builder | 📋 Planned, alpha.21 | §5.1 G1. Zero spots today, so it blocks at once. S. By the analyst session, after alpha.21's builds (D9). |
+| T2 Guard: raw SQL only at named places, each with its check | builder | 📋 Planned, alpha.21 | §5.1 G2. Today's places listed with their checks. Blocks. S. By the analyst session, after alpha.21's builds (D9). |
+| T3 Guard: every door either signs in, or is public in the code and in the API description alike | builder | 📋 Planned, alpha.21 | §5.1 G3. The static half of class 9. Blocks. M. By the analyst session, after alpha.21's builds (D9). |
+| T4 Guard: a secret-named key handed to the logger | builder | 📋 Planned, alpha.21 | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
+| T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 📋 Planned, alpha.21 | §4.1, §8 step 2. D1. Not on pull requests. S. By a new session, now (D9). |
+| T6 CodeQL's first list, read alert by alert | builder | 📋 Planned, alpha.21 | §8 step 2. As 0166 read Trivy's and Semgrep's. M. By the same session as T5. |
+| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 📋 Planned, alpha.21 | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
+| T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |
+| T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6's reading and the owner's word per query (D8), so it may fall after alpha.21's release. S each. |
+| T10 A second identity: another organisation's ids refused at every door | builder | 📋 Planned, alpha.21 | §6.3, §8 step 6. D7. M. By the T7 session, after T7. |
 | T11 ZAP, baseline or API scan | — | 🅿️ Parked | §6.4. D5. Trigger: the app gains cookies, or pages the server renders beyond today's. |
 
 ## 1. Why, and the doctrine
@@ -415,6 +437,14 @@ counts.
   block, because they read how a pattern is built and not what reaches it. CodeQL's read the
   pattern and follow input to it. (a) Report only until T6 has read its list, then the owner
   decides. (b) Never, like Semgrep's. **Advice: (a).**
+
+- **D9. When to build** (the maintainer's addition, put to the owner with D1 to D8, as
+  written to the owner). (a) CodeQL now; the guards and Schemathesis after alpha.21's builds
+  are merged, so no new blocking guard lands under a builder's feet. (b) All after alpha.21.
+  Advice: (a).
+
+**Answered 2026-11-26:** *"D1–D9: as advised."* Each decision above takes its advice. The
+Status entry of that day says what that changes.
 
 ## 10. Done means
 
