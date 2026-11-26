@@ -458,11 +458,14 @@ const SenderOfMyselfSchema = z
  * anybody else. Each value is held to its shape (`senderNameFrom`,
  * `senderPhoneFrom`), and a refusal is a code the page words in its own
  * language, with the English beside it, as `owner_or_admin_only` is.
- * Answers what is stored now.
+ * Answers what is stored now. Like every door here it refuses an
+ * organisation in its path that is not the caller's (`requireTenantMatch`),
+ * so a member of two names the one they are signed in to.
  */
 router.put(
   '/me',
   authenticate,
+  requireTenantMatch(),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const tenantId = req.tenantId;
