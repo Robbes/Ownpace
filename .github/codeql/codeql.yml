@@ -1,0 +1,9 @@
+# CodeQL's configuration for codeql.yml's ordinary run (workplan 0178 §4.1, T5):
+# the default suite over the whole tree, but for the known-bad fixture of its
+# proof run, which is there to be found and would otherwise sit in the
+# repository's code scanning list as two alerts in no shipped code.
+# codeql-proof.yml is this file without that line.
+# scripts/a-flow-across-files-nothing-followed.unit.test.ts holds the two alike.
+name: Ownpace
+paths-ignore:
+  - scripts/fixtures/codeql-known-bad
