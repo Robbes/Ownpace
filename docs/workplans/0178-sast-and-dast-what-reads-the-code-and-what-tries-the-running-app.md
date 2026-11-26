@@ -4,6 +4,8 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, later still: H, the two hardening fixes, in #2190.** It is recorded here at the maintainer's request, though H is outside this plan's tasks. The consent endings' escape now also escapes `"` and `'`, so it is safe in a quoted attribute. The WebDAV archive store refuses a path with a `.` or `..` segment before any request. The tests were written first and failed on the old code. Neither change was reachable from outside. The maintainer merges it once its E2E is green.
+
 **2026-11-26, later still: T5 built, report only; its proof and its first run are still to come.**
 `.github/workflows/codeql.yml` runs CodeQL's default suite for JavaScript and TypeScript on a
 push to `main`, on Wednesdays and on dispatch, never on a pull request, on `ubuntu-24.04`, with
