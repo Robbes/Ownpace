@@ -8,8 +8,9 @@
 blot: ok. Use familielid (gezinslid is to limited to one household)"*. The block stands as built.
 Step A's new Dutch says *familielid*: the tester guide's part, now *Als een familielid een link
 krijgt* with the id `familielid-link`, its sentence under *Als Google opnieuw vraagt*, step A's
-changelog line, and §22.3's draft. The legal texts (`site/legal/privacy.nl.md`, `alpha.nl.md`,
-`terms.nl.md`) keep *gezinslid* until their next version, with the lawyer (`GLOSSARY.md`).
+changelog line, and §22.3's draft. So do the guide's two older sentences, under *Voordat u begint*
+and *Wat wij wissen*. The legal texts (`site/legal/privacy.nl.md`, `alpha.nl.md`, `terms.nl.md`)
+keep *gezinslid* until their next version, with the lawyer (`GLOSSARY.md`).
 
 **2026-11-26: step A, built as one draft pull request**
 (`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-a`), on §21.4's scope with the

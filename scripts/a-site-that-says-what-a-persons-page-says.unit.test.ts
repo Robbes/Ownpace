@@ -24,12 +24,12 @@
  *    `grant.person.see.goOn` and `grant.person.see.ticks`. As
  *    `the-alpha-said-to-a-visitor.unit.test.ts` holds the visitor's line, the
  *    site imports nothing, so its words are a copy held here.
- * 4. **The Dutch part says *familielid*, never *gezinslid*** (the owner,
+ * 4. **The Dutch guide says *familielid*, never *gezinslid*** (the owner,
  *    2026-11-26: *"Use familielid (gezinslid is to limited to one
- *    household)"*), as the home page's block for families does, and its id
- *    follows: `familielid-link`. The two older sentences of the guide on the
- *    list of test users, and the legal texts, are not step A's, and keep
- *    their word until their own next version (`GLOSSARY.md`).
+ *    household)"*), as the home page's block for families does: step A's
+ *    part, whose id follows (`familielid-link`), and the guide's two older
+ *    sentences on the list of test users too. The legal texts are not step
+ *    A's, and keep their word until their own next version (`GLOSSARY.md`).
  *
  * The guides wrap their lines, so whitespace is made single before
  * comparing; each guide's header comment quotes the sentences too, so
@@ -102,21 +102,25 @@ describe('the tester guide has a part for a family member’s link (T15 point 2)
   });
 });
 
-describe('the Dutch part says familielid, never gezinslid (the owner, 2026-11-26; point 4)', () => {
+describe('the Dutch guide says familielid, never gezinslid (the owner, 2026-11-26; point 4)', () => {
   const text = prose(read(GUIDE.nl));
   const start = text.indexOf('### Als een familielid een link krijgt {#familielid-link}');
   const part = start === -1 ? '' : text.slice(start, text.indexOf(' ### ', start + 1));
 
-  it('its heading, and every sentence under it', () => {
+  it('step A’s part: its heading, and its sentences', () => {
     expect(start, 'the part, under its heading').toBeGreaterThanOrEqual(0);
     expect(part).toContain('Is het account van een familielid?');
     expect(part).toContain('Daar kan uw familielid het ook stoppen.');
-    expect(part.toLowerCase()).not.toContain('gezinslid');
   });
 
-  it('and the sentence step A gave Als Google opnieuw vraagt', () => {
+  it('the sentence step A gave Als Google opnieuw vraagt, and the two older ones', () => {
     expect(text).toContain('Is het het account van een familielid?');
-    expect(text).not.toContain('Is het het account van een gezinslid?');
+    expect(text, 'under Voordat u begint').toContain('ook dat van een familielid.');
+    expect(text, 'under Wat wij wissen').toContain('Uw Google-adres, en dat van een familielid, halen wij');
+  });
+
+  it('and nowhere in the guide gezinslid', () => {
+    expect(text.toLowerCase()).not.toContain('gezinslid');
   });
 });
 

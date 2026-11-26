@@ -74,7 +74,7 @@ uitgenodigd. De Alpha duurt enkele weken.
 ## Voordat u begint {#voordat-u-begint}
 
 - **Google-adressen eerst.** Wilt u een Google-account koppelen? Mail dan eerst elk Google-adres
-  naar [support@ownpace.eu](mailto:support@ownpace.eu), ook dat van een gezinslid. Wacht op ons
+  naar [support@ownpace.eu](mailto:support@ownpace.eu), ook dat van een familielid. Wacht op ons
   antwoord. Wij zetten het adres bij Google op de lijst van testgebruikers. Zonder die stap laat
   Google de koppeling niet toe.
 - **Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.** Ownpace leest alleen
@@ -188,4 +188,4 @@ U mag op elk moment stoppen.
 - **Wat u zelf intrekt.** Toegang die u zelf bij een aanbieder maakte, zoals een app-wachtwoord
   of de toestemming bij Microsoft of Dropbox. Wij zeggen u welke.
 - **Wat wij wissen.** Uw Ownpace-inlogaccount en uw aanvraag voor toegang. Uw Google-adres, en
-  dat van een gezinslid, halen wij van de lijst van testgebruikers.
+  dat van een familielid, halen wij van de lijst van testgebruikers.
