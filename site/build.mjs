@@ -516,6 +516,12 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 @media (max-width: 24rem) {
   header.site .wrap { gap: 0.5rem; }
   header.site .brand img { display: none; }
+  /* Whatever font the system draws, the menu's word and its arrow stay on
+     one line, and the row keeps room for a wide font: with DejaVu Sans, as a
+     Linux browser may draw the system font, the English row needed 284 of its
+     280 pixels, so the button folded and stood above the header's top. */
+  header.site a.lang { padding: 0.15rem 0.5rem; }
+  details.menu > summary { padding: 0.3rem 0.55rem; white-space: nowrap; }
 }
 
 .draft {

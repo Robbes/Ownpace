@@ -421,8 +421,19 @@ describe('the public site renders', () => {
     // stands for all of them. "Nederlands" is the longer word: the English
     // pages ran 3 pixels off the screen, and in both languages the menu's
     // arrow dropped to a second line, which cut the button at the header's top.
-    for (const path of ['/', '/nl/']) {
+    // Under the system font this machine draws, and under a wide one, as a Linux
+    // browser may draw it: with DejaVu Sans the English row needed 284 of its 280
+    // pixels, and the menu's button folded and stood above the header on CI's
+    // runner, where this machine's font left room (2026-11-26).
+    for (const [path, font] of [
+      ['/', ''],
+      ['/nl/', ''],
+      ['/', 'DejaVu Sans'],
+      ['/nl/', 'DejaVu Sans'],
+    ] as const) {
       const { page } = await open(path, 320);
+      if (font) await page.addStyleTag({ content: `body { font-family: "${font}", sans-serif !important; }` });
+      const label = font ? `${path} in ${font}` : path;
       const seen = await page.evaluate(() => {
         const header = document.querySelector('header.site')!.getBoundingClientRect();
         const row = document.querySelector<HTMLElement>('header.site .wrap')!;
@@ -439,11 +450,11 @@ describe('the public site renders', () => {
           parts,
         };
       });
-      expect(seen.overflows, `${path} scrolls sideways at 320 pixels`).toBe(false);
+      expect(seen.overflows, `${label} scrolls sideways at 320 pixels`).toBe(false);
       for (const p of seen.parts) {
-        expect(p.right, `${path}: ${p.selector} runs into the page's margin at 320 pixels`).toBeLessThanOrEqual(seen.edge + 1);
-        expect(p.top, `${path}: ${p.selector} is cut at the header's top at 320 pixels`).toBeGreaterThanOrEqual(seen.top);
-        expect(p.bottom, `${path}: ${p.selector} hangs below the header at 320 pixels`).toBeLessThanOrEqual(seen.bottom);
+        expect(p.right, `${label}: ${p.selector} runs into the page's margin at 320 pixels`).toBeLessThanOrEqual(seen.edge + 1);
+        expect(p.top, `${label}: ${p.selector} is cut at the header's top at 320 pixels`).toBeGreaterThanOrEqual(seen.top);
+        expect(p.bottom, `${label}: ${p.selector} hangs below the header at 320 pixels`).toBeLessThanOrEqual(seen.bottom);
       }
       await page.close();
     }
