@@ -24,7 +24,14 @@ import { join } from 'node:path';
 import { STRINGS } from './strings.ts';
 
 const DIR = join(import.meta.dirname, 'strings');
-const AREAS = readdirSync(DIR).filter((f) => f.endsWith('.ts'));
+/**
+ * Not an area: the informal layer (`strings/informal.ts`, workplan 0176 T7,
+ * §11) holds the *je* twin of keys the areas define, and no key of its own.
+ * A page reads it over the Dutch; it is never composed into it, so the
+ * composer does not read it. `every-u-has-its-je.unit.test.ts` holds it.
+ */
+const NOT_AN_AREA = new Set(['informal.ts']);
+const AREAS = readdirSync(DIR).filter((f) => f.endsWith('.ts') && !NOT_AN_AREA.has(f));
 const areas = await Promise.all(
   AREAS.map(async (file) => ({
     file,
