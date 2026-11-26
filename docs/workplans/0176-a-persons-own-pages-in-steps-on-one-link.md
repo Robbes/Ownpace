@@ -7,8 +7,8 @@
 **2026-11-26: step A, built as one draft pull request**
 (`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-a`), on §21.4's scope with the
 answers to D12 to D14. Part 4 of §23.1, the website and documents with the accessibility
-statement (T15, T9.9), was built beside it and merged in at the meet. E2E is the maintainer's to
-dispatch.
+statement (T15, T9.9), was built beside it and merged in at the meet. E2E ran on `26c0573`
+and is green: managed, and self-host on Postgres and on PGlite.
 
 - **T1:** a person's link asks one thing per screen (`PersonGrant.tsx`): who asks, with the
   question and *No, not yet*; the accounts, where there is more than one; *Have this ready*;
@@ -30,8 +30,29 @@ dispatch.
   out; `docs/grant-links.md` was read against the pages and corrected where it differed.
 
 Each test §21.4 names was written first and seen failing on `main`; the pull request records
-it, with one table of the new Dutch sentences, both parts', for the owner's read (§6). Still
-the owner's: that read, D16 to D18, T0 and T12.
+it, with one table of the new Dutch sentences, both parts', for the owner's read (§6). The
+owner read it and answered *"Step A (#2180): ok"*: every sentence stands, and the five open
+questions went as advised. By the fifth, the line after a report names no provider any more
+(`linkReport.next.grant`). D17 (b)'s block for families on the home page joins the same pull
+request, and the owner reads its Dutch before it is marked ready. Still the owner's: T0 and T12.
+
+**2026-11-26, the owner's answers to the website's decisions (T16).** Put to the owner as P16 to
+P18, and answered the same day: *"P16: a"*, *"P17: b, …"* and *"P18: keep now"*. Two went as
+advised; D17 did not (§18).
+
+- **D16 (a), as advised.** One setting holds the country, and the web build and the site build
+  both read it. A person's link page says *Ownpace runs in {country}.* under its first line,
+  and the home page takes its sentence from the same setting. Unset, nothing is said. It is
+  built in step B, beside its main line (§23.2).
+- **D17 (b).** A short block for families on the home page travels with step A (§22.3). It says
+  only what is true with step A: not *one link* (step C), not a sender by name (step B), and no
+  picture of a screen that is not built. The rest of §22.7 waits for the site's own plan, once
+  step A is on a stack.
+- **D18 (a), as advised (*"keep now"*).** Step A leaves *By continuing you accept how your data
+  is handled:* as it is. The owner puts the question to the lawyer with D6's, with (b)'s
+  sentence as the draft.
+
+Still the owner's: T0 and T12.
 
 **2026-11-26, the owner's answers to the sweep's decisions (T14).** On D12 to D15 the owner
 answered: *"D12: a / D13: a / D14: yes / D15: a"*. All four went as advised (§18):
@@ -43,8 +64,8 @@ answered: *"D12: a / D13: a / D14: yes / D15: a"*. All four went as advised (§1
 - **D14 (a):** the rows of a person's progress page get their own words.
 - **D15 (a):** *Print a sheet for {name}* and *Read everything on one page*, in step B.
 
-Step A's scope in §21.4 reads with these answers. Still the owner's: D16 to D18 (T16), T0 and
-T12.
+Step A's scope in §21.4 reads with these answers. D16 to D18 are answered too (the entry
+above).
 
 **And on how to build it:** *"When the plan is done, build it efficient, fan out in seperate
 sessions if needed."* §23 says which parts can be built side by side, which files each part
@@ -177,8 +198,8 @@ only what it names. T13 and T14 are answered. T16 holds the website's three deci
 | T12 A first test with three people | owner | ⏳ **Owner** | §17. After step A is on a stack the owner can reach. |
 | T13 The owner's decisions | owner | ✅ Answered 2026-11-26 | §18. D1 to D11, all as advised. |
 | T14 The sweep's decisions, D12 to D15 | owner | ✅ Answered 2026-11-26 | §18. *"D12: a / D13: a / D14: yes / D15: a"*: all four as advised. |
-| T15 The public website: what travels with each step | builder | 📋 Planned | §22, §21.4. With step A: the tester guide, the Google help guide, the accessibility statement, one sentence of the Leaving pages, and the English pages at 320 pixels. M. |
-| T16 The website's decisions, D16 to D18 | owner | ⏳ **Owner** | §18. Each says what the builder does until it is answered, so step A waits on none. |
+| T15 The public website: what travels with each step | builder | 📋 Planned | §22, §21.4. With step A: the tester guide, the Google help guide, the accessibility statement, one sentence of the Leaving pages, the English pages at 320 pixels, and a block for families on the home page (D17 (b)). M. |
+| T16 The website's decisions, D16 to D18 | owner | ✅ Answered 2026-11-26 | §18. *"P16: a"*, *"P17: b, …"*, *"P18: keep now"*: D16 (a) in step B; D17 (b), a block on the home page with step A; D18 (a), for the lawyer. |
 
 ## 1. The owner's words
 
@@ -1469,8 +1490,9 @@ was put.
   **Advice: (a).** Step A stays what the owner set it to be, and T12 shows first whether
   anybody misses it. **Answered: (a).**
 
-**Three more, from the website (T16). Not answered yet.** Each says what the builder does
-until it is.
+**Three more, from the website (T16). Answered on 2026-11-26,** put to the owner as P16 to
+P18: *"P16: a"*, *"P17: b, …"* and *"P18: keep now"*. D16 and D18 went as advised; D17 did
+not. The options stay, as the record of what was put.
 
 - **D16. Where the service is run, said on a person's page (D3's open part).** D3 was answered
   as advised: *the service that makes the copy* now, and where it is run with the site's next
@@ -1489,7 +1511,7 @@ until it is.
   It is a setting on every stack and a guard, which is more than step A's words and layout.
   (b) sends a reader who wanted one fact to a long legal page. The sentence says where the
   service runs and no more: the copy goes to the provider the page names, wherever that is,
-  so the page never says the data *stays* anywhere (R3). **Until answered: nothing is added.**
+  so the page never says the data *stays* anywhere (R3). **Answered: (a),** in step B.
 - **D17. A story for families on the website.** The site has none. A family appears as a
   choice in the estimate (*My household (4 people)*, `site/copy.mjs:384` / `:750`), as the
   fourth tier's *A household, or a small business* (`:350` / `:724`), and in two sentences
@@ -1504,8 +1526,8 @@ until it is.
   true until later: *one link* is step C, a sender *by name* is step B, and a picture of the
   first screen needs step A built. A price example has to be worked out by the build from
   `site/prices.mjs`, as *A typical cost* on the Leaving pages is, and not typed. §22.7 lists
-  what that plan should hold, and what the glossary already settles for it. **Until answered:
-  not built, and not planned further here.**
+  what that plan should hold, and what the glossary already settles for it. **Answered: (b).**
+  The block says only what is true with step A; the rest waits for the site's own plan.
 - **D18. What a person is said to accept before the provider's button.** The link page says
   *By continuing you accept how your data is handled:* and links the privacy policy and the
   terms (`grant.disclosure`, `apps/web/src/i18n/strings/grant.ts:180` / `:376`;
@@ -1520,8 +1542,8 @@ until it is.
   claims no acceptance: *How Ownpace handles your data:* / *Zo gaat Ownpace met uw gegevens
   om:*, with the same two links in the same place. **Advice: (a).** It is a sentence about
   the law, and this plan changes none of those without the lawyer. (b) is the draft to put to
-  the lawyer: it is plainer Dutch too, where today's begins *Door door te gaan*. **Until
-  answered: (a).** This plan's own phrase for the block, *the texts a person accepts*, means
+  the lawyer: it is plainer Dutch too, where today's begins *Door door te gaan*. **Answered:
+  (a).** This plan's own phrase for the block, *the texts a person accepts*, means
   this sentence and its two links, and claims nothing about the law.
 
 ## 19. Not in this plan
@@ -1541,8 +1563,9 @@ until it is.
 - **Where the service is run, said on the link page** (D3 (b)): with the site's next pass.
   D16 gives it a shape (§22.5).
 - **The gift's screens,** and the member's own screens beyond §12. **Corrected by the sweep:**
-  this line left the site out too. The owner asked for it on 2026-11-26, and §22 holds it. A
-  story for families on the site stays out, for a plan of its own if D17 goes as advised.
+  this line left the site out too. The owner asked for it on 2026-11-26, and §22 holds it. Of
+  a story for families on the site, only a short block on the home page is in (D17 (b), §22.3);
+  the rest is for the site's own plan.
 - **Leaving the Alpha at Google.** Once Google has verified the app, the warning step and
   *Access blocked* are expected to go, and the weekly stop with them. Until somebody has seen
   that, `isAlpha()` is the rule.
@@ -2039,6 +2062,13 @@ every English page: the mark, *Nederlands* and *Menu*. The Dutch pages fit, beca
 is the shorter word. One rule of the header's layout mends it, and the site's test opens a
 page in each language at that width (§21.4).
 
+**A short block for families on the home page (D17 (b)).** For the member who arranges this
+for a family member: they arrange it, the family member gives permission themselves, nobody
+sees their password, and the family member can follow it and stop it. In both languages, in
+§22.7's words, and only what is true with step A: not *one link* (step C), not a sender *by
+name* (step B), and no picture of a screen that is not built. The owner reads its Dutch with
+step A's.
+
 **What step A must not break on the site.** The file names the app links
 (`scripts/a-policy-link-that-answers.unit.test.ts`); the guide's six sections and its two
 Google ids; the visitor's line (`scripts/the-alpha-said-to-a-visitor.unit.test.ts`); and the
@@ -2089,7 +2119,8 @@ should the sentence above the two links say?
 ### 22.7 A story for families on the site
 
 What the desk review found on the site, each held against the owner's answers and the
-glossary. None is in this plan (D17).
+glossary. Under D17 (b) the first row's block on the home page travels with step A (§22.3), in
+the words this table settles; the rest is for the site's own plan, once step A is on a stack.
 
 | What | Worth doing? | What settles its words |
 |---|---|---|
